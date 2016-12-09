@@ -20,13 +20,14 @@ module wavefunctions
  !=======================================================================
  
  use compilation
+ use derivatives
  
  implicit none
  
  !-----------------------------------------------------------------------
  ! Array containing the values of the spwfs in the Hartree-Fock basis
  ! Dimensions (nx,ny,nz,4,nwt)
- real(KIND=dp), allocatable :: HFBasis(:,:,:,:) 
+ real(KIND=dp), allocatable :: HFBasis(:,:,:,:,:) 
  
  !-----------------------------------------------------------------------
  ! Number of the blocks with the same quantum numbers that divide up the 
@@ -40,8 +41,19 @@ module wavefunctions
  !    * EV8-like calculation:     8 blocks (P,Rz,T3)
  !    * EV8-like calculation:     4 blocks (  Rz,T3)
  !    * Rx broken, Sx conserved : 4 blocks (  Sx,T3)
- 
  integer, parameter   :: Blocks          =$BLOCKS
  integer              :: HFBlocks(Blocks)=0
+
+contains 
+
+ subroutine iniwavefunctions   
+    !--------------------------------------------------------------------
+    ! Placeholder subroutine: just allocates the HFBasis and fills it with
+    ! random numbers.
+    !---------------------------------------------------------------------
+    
+    allocate(HFBasis(nx,ny,nz,4,nwt))
+    call RANDOM_NUMBER(HFBasis)
+ end subroutine iniwavefunctions
  
 end module wavefunctions

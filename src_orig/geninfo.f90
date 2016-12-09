@@ -1,33 +1,36 @@
 module GenInfo
 
-    use CompilationInfo
-
+    use compilation
     implicit none
 
     save
     !---------------------------------------------------------------------------
     !Number of points in every direction and total number of points
-    ! Default = 16
-    integer, public :: nx=16,ny=16,nz=16, nv=16**3
+    integer :: nx=10,ny=10,nz=10
+    !---------------------------------------------------------------------------
+    ! Total number of single-particle wave-functions
+    integer :: nwt=10
     !---------------------------------------------------------------------------
     !Number of protons and neutrons in the nucleus
-    real(KIND=dp), public :: Neutrons, Protons
+    real(KIND=dp)  :: Neutrons, Protons
     !---------------------------------------------------------------------------
     ! Line element and volume element of the box. dx is in fm, dv in fm^3.
-    real(KIND=dp), public  :: dx=0.8_dp
-    real(KIND=dp), public  :: dv=(0.8_dp**3)
+    real(KIND=dp)  :: dx=0.8_dp
+    real(KIND=dp)  :: dv=(0.8_dp**3)
     !---------------------------------------------------------------------------
     !Time step in 10^-22 s
-    real(KIND=dp), public  :: dt=0.012_dp, ReadjustTime=0.95_dp
-    real(KIND=dp), parameter, public  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
+    real(KIND=dp)  :: dt=0.012_dp, ReadjustTime=0.95_dp
+    !---------------------------------------------------------------------------
+    ! Pi is always practical to have.
+    real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
     !---------------------------------------------------------------------------
     !Maximum number of iterations and number of iterations to skip printing of
-    ! the code in the evolve Subroutine
-    integer, public :: MaxIter=0, PrintIter=0
+    ! the code in the evolve subroutine
+    integer :: MaxIter=0, PrintIter=0
     !---------------------------------------------------------------------------
     !Convergence parameters.
-    real(KIND=dp),public  :: MomentPrec=1d-4, EnergyPrec=0.01E-08
-    real(KIND=dp),public  :: PairingPrec=1d-4, CrankPrec=1d-4
+    real(KIND=dp)  :: MomentPrec=1d-4, EnergyPrec=0.01E-08
+    real(KIND=dp)  :: PairingPrec=1d-4, CrankPrec=1d-4
     
 contains
 
