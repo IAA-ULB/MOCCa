@@ -13,14 +13,14 @@ SRCPATH = 'src_orig/'
 # Path to put the generated source for compilation
 GENPATH = 'src/'
 #List of FORTRAN files to process
-FORTRANFILES=['compilation.f90', 'geninfo.f90', 'derivatives.f90',
-              'wavefunctions.f90', 'tantalus.f90' 
-              ]
+FORTRANFILES=['compilation.f90', 'geninfo.f90' , 'diag.f90' , 'nil8.f90', 
+              'functional.f90',
+              'derivatives.f90', 'wavefunctions.f90', 'tantalus.f90' ]
 #-------------------------------------------------------------------------------
 
 print "--------------------------------------------------------"
 print 'Welcome to Hephaestos.'
-print "Let me generate some code, so that you don't have to."
+print "Let me write some code, so that you don't have to."
 print "--------------------------------------------------------"
 
 #-------------------------------------------------------------------------------

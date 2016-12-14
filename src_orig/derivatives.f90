@@ -86,24 +86,23 @@ contains
     
     do i=1,nx
         do j=1,nx
-           
             A           = (pi * (i - j))/linX
             sinA        = sin(A)
-            B           = (pi * (i - linX + j))/linX 
+            B           = (pi * (i - linX + j-1))/linX 
             sinB        = sin(B)
             
-            C = (-1)**(i-j)     *pi/(linX*dx*sinA)
-            D = (-1)**(i-linX+j)*pi/(linX*dx*sinB)
+            C = (-1)**(i-j)       *pi/(linX*dx*sinA)
+            D = (-1)**(i-linX+j-1)*pi/(linX*dx*sinB)
             
             D=$DX
-            
+                     
             if(i.eq.j) C = 0
             
             derX(i,j,1) = C - D 
             derX(i,j,2) = C + D
         enddo
     enddo
-    
+   
     do i=1,ny
         do j=1,ny
             if(i .eq. j) cycle

@@ -23,6 +23,15 @@ def preprocess(fname, src, target):
     if(fname=='tantalus.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='functional.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
+    if(fname=='nil8.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
+    if(fname=='diag.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
           
 
 def processwavefunctions(fname, src, target):
@@ -42,10 +51,10 @@ def processderivatives(fname, src, target):
     #
     
     dic={}
-    dic['LINESIZEX'] = 20
-    dic['LINESIZEY'] = 20
-    dic['LINESIZEZ'] = 20
-    dic['DX'] = '0'
+    dic['LINESIZEX'] = 32
+    dic['LINESIZEY'] = 32
+    dic['LINESIZEZ'] = 32
+    dic['DX'] = 'D'
     dic['DY'] = 'D'
     dic['DZ'] = 'D'
         

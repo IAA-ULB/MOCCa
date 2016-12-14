@@ -18,9 +18,12 @@ module wavefunctions
  !
  !
  !=======================================================================
- 
+ ! Hephaestos:
+ ! BLOCKS $BLOCKS
+ !=======================================================================
  use compilation
  use derivatives
+ use nil8
  
  implicit none
  
@@ -29,6 +32,14 @@ module wavefunctions
  ! Dimensions (nx,ny,nz,4,nwt)
  real(KIND=dp), allocatable :: HFBasis(:,:,:,:,:) 
  
+ !-----------------------------------------------------------------------
+ ! Density matrix rho and anomalous density matrix kappa
+ ! Dimensions (nwt, nwt) (although many are zero when symmetries are conserved)
+ real(KIND=dp), allocatable :: rho(:,:), kappa(:,:)
+ !-----------------------------------------------------------------------
+ ! Occupations of the single-particle wave-functions, i.e. the eigenvalues
+ ! of rho. 
+ real(KIND=dp), allocatable :: occupations(:)
  !-----------------------------------------------------------------------
  ! Number of the blocks with the same quantum numbers that divide up the 
  ! HFBasis. Any possibility has a maximum of two spatial operators that 
@@ -39,21 +50,37 @@ module wavefunctions
  !-----------------------------------------------------------------------
  ! Examples:
  !    * EV8-like calculation:     8 blocks (P,Rz,T3)
- !    * EV8-like calculation:     4 blocks (  Rz,T3)
+ !    * EV4-like calculation:     4 blocks (  Rz,T3)
  !    * Rx broken, Sx conserved : 4 blocks (  Sx,T3)
  integer, parameter   :: Blocks          =$BLOCKS
  integer              :: HFBlocks(Blocks)=0
 
 contains 
 
- subroutine iniwavefunctions   
+  subroutine iniwavefunctions()   
     !--------------------------------------------------------------------
-    ! Placeholder subroutine: just allocates the HFBasis and fills it with
-    ! random numbers.
-    !---------------------------------------------------------------------
+    !
+    !
+    !--------------------------------------------------------------------   
     
-    allocate(HFBasis(nx,ny,nz,4,nwt))
-    call RANDOM_NUMBER(HFBasis)
- end subroutine iniwavefunctions
+    real(KIND=dp)        :: homegax, homegay,homegaz, alpha,qqq
+    integer              :: meven = 5, modd = 4
+    integer, allocatable :: kparz(:)
+    !--------------------------------------------------------------------
+    ! Build harmonic oscillator eigenfunctions by constructing them in  
+    ! an EV8-like box and then expanding them to the entire box. 
+    !--------------------------------------------------------------------
+        
+    alpha = 0.2    
+    qqq   = 1.0    
+    homegaz  = alpha*qqq**(-2.0/3.0)
+    homegax  = alpha*qqq**(-2*cos(-2*pi/3)/3)
+    homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
+    
+    !    nilsson (wfs,kparz,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,hox,hoy,hoz)
+    call nilsson (HFBasis,kparz,meven,modd,170,100,70, 90, 132,nx,ny,nz,0.8d0,homegax,homegay,homegaz)
+    
+    
+  end subroutine iniwavefunctions
  
 end module wavefunctions
