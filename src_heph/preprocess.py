@@ -29,6 +29,9 @@ def preprocess(fname, src, target):
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='constants.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='diag.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return

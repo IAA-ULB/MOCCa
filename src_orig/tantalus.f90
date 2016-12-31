@@ -40,15 +40,18 @@ end program Tantalus
 
 subroutine Test
      
-     use compilation
-     use derivatives
-     use wavefunctions
-     
-     implicit none
-     
-     real(KIND=dp) :: fx(nx,ny,nz), fy(nx,ny,nz), fz(nx,ny,nz), df(nx,ny,nz)
-     print *
-     print *, 'Temporarily taking random wavefunctions'
-     call iniwavefunctions()
+    use compilation
+    use derivatives
+    use wavefunctions
+    use constants
+
+    implicit none
+
+    real(KIND=dp) :: fx(nx,ny,nz), fy(nx,ny,nz), fz(nx,ny,nz), df(nx,ny,nz)
+
+    call iniwavefunctions()
+    call inilag()
+
+    call calcedfcoefs()     
 
 end subroutine Test

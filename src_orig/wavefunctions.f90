@@ -77,7 +77,6 @@ contains
     homegax  = alpha*qqq**(-2*cos(-2*pi/3)/3)
     homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
     
-    !    nilsson (wfs,kparz,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,hox,hoy,hoz)
     call nilsson (HFBasis,kparz,meven,modd,170,100,70, 90, 132,nx,ny,nz,0.8d0,homegax,homegay,homegaz)
     
     
