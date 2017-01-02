@@ -15,7 +15,8 @@ GENPATH = 'src/'
 #List of FORTRAN files to process
 FORTRANFILES=['compilation.f90', 'geninfo.f90' , 'constants.f90', 'diag.f90' ,
               'nil8.f90', 'functional.f90',
-              'derivatives.f90', 'wavefunctions.f90', 'tantalus.f90' ]
+              'derivatives.f90', 'wavefunctions.f90', 'densities.f90', 
+              'tantalus.f90' ]
 #-------------------------------------------------------------------------------
 
 print "--------------------------------------------------------"
@@ -34,7 +35,11 @@ for fname in FORTRANFILES:
 if(not FOUND):
     print 'Go find the source files, then come back.'
     quit()
-    
+
+#-------------------------------------------------------------------------------
+# Initialize all of Hephaestos' own modules
+heph_densities.initdensities()
+
 #-------------------------------------------------------------------------------
 # Treat all of the source files to a nice dose of preprocessing.
 for fname in FORTRANFILES:

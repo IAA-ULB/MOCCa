@@ -100,7 +100,7 @@ contains
     dimension xk(4),xmu(4),cf(2), hbm(2), psi(mx,my,mz,4)
     
     data ca,cb /0.986d0,0.14d0/
-    data xk,xmu/0.08d0,0.08d0,0.0637d0,0.0637d0    &
+    data xk,xmu/0.08d0,0.08d0, 0.0637d0,0.0637d0    &
     &           ,0.0d0 ,0.0d0 ,  0.42d0,  0.60d0   /
     parameter (hhbar=6.58218d0,xxmn =1.044673d0)
     
@@ -108,7 +108,7 @@ contains
     ms   = (mblc*(mblc**2-1))/6
     ndim = (mblc*(mblc-1))/2
     mqa  = (ms*(3*mblc**2-2))/10
-    mq   = my * mx * mz
+    mq   = my * mx * mz * 4
 
     hbm(1)  = hhbar*hhbar/xxmn
     hbm(2)  = hhbar*hhbar/xxmn
@@ -497,10 +497,9 @@ contains
             if (j.le.ns(nn+1)) go to 45
         enddo
         45 nn  = ns(nvv)
-
+        
         ny2 = 0
         kk  = 0
-
         do 46 k=1,4
             if (nsi(nvv,k).eq.0) go to 46
             nx2 = ny2 + 1
@@ -512,19 +511,31 @@ contains
                 ny1 = ny(nn+i) + 1
                 nz1 = nz(nn+i) + 1
                 xph = s(i,j-nn)
+                
                 if (mod(ny1,4).eq.nz2) xph =-xph
                 do ix=1,mx
                     hex = he(nx1,ix,1)
                     do iy=1,my
                         hey = he(ny1,iy,2)
                         do iz=1,mz
-                            hez = he(nz1,iz,3)
-                            psi(ix,iy,iz,k) = psi(ix,iy,iz,k) + xph*hex*hey*hez
+                          hez = he(nz1,iz,3)
+                          psi(ix,iy,kk+iz,1) = psi(ix,iy,kk+iz,1) + xph*hex*hey*hez
                         enddo
                     enddo
-                enddo               
-            enddo            
-        46 continue
+                enddo
+            enddo
+        46 kk = kk + mz
+        
+        ny2 = 0
+        kk  = 0
+        
+!        if(nwave.eq.1 .or. nwave.eq.11) then
+!            print *, psi(:,1,1,1)
+!            print *, psi(:,1,1,2)
+!            print *, psi(:,1,1,3)
+!            print *, psi(:,1,1,4)
+!        endif
+        
         wfs(:,:,:,:,nwave) = psi
     enddo
 15 continue

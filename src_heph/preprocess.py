@@ -3,7 +3,8 @@
 # make-over. 
 #
 import os
-from string  import Template
+from string         import Template
+from heph_densities import processdensities
 
 def preprocess(fname, src, target):
       # Decides which routine to call on which file.
@@ -35,6 +36,9 @@ def preprocess(fname, src, target):
     if(fname=='diag.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='densities.f90'):
+        processdensities(fname, src, target)
+        return
           
 
 def processwavefunctions(fname, src, target):
@@ -64,5 +68,5 @@ def processderivatives(fname, src, target):
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:
-                generated.write(Template(line).substitute(dic)) 
-                
+                generated.write(Template(line).substitute(dic))
+        

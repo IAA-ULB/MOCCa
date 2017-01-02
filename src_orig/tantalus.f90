@@ -44,6 +44,7 @@ subroutine Test
     use derivatives
     use wavefunctions
     use constants
+    use densities
 
     implicit none
 
@@ -53,5 +54,9 @@ subroutine Test
     call inilag()
 
     call calcedfcoefs()     
+    call densit
+    
+!    print *, hfbasis(:,1,1,1, 1)
+!    print *, hfbasis(:,1,1,1, 11)
 
 end subroutine Test
