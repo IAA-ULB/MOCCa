@@ -33,32 +33,35 @@
 #===============================================================================
 from string import *
 
-def GenDensityExpression( LeftWF, leftn, RightWF, rightn, LeftOperator, RightOperator):
-    Expression = ''
 
-    #Start from standard wave-functions
-    leftind  = [1,2,3,4]
-    rightind = [1,2,3,4]
 
-    rightind = RightOperator(rightind)
-    leftind  = LeftOperator(leftind)
+#def GenDensityExpression( LeftWF, leftn, RightWF, rightn, LeftOperator, RightOperator):
+#    Expression = ''
 
-    # Determine the signs to put in the code
-    signs=['','','','']
-    for i in range(4):
-        if(leftind[i] * rightind[i] < 0) :
-            signs[i] = '-'
-        else :
-            signs[i] = '+'
+#    #Start from standard wave-functions
+#    leftind  = [1,2,3,4]
+#    rightind = [1,2,3,4]
 
-    # Fill in the expression
-    for i in range(4):
-        Expression = Expression   +  \
-                    '& \n               &' +  \
-                    '%s %s(i,1,1,%d,%s)*%s(i,1,1,%d,%s)'%(signs[i], \
-                                  LeftWF, abs( leftind[i]),  leftn, \
-                                 RightWF, abs(rightind[i]), rightn  )
-    return Expression
+#    # Find the correct action of right-operator
+#    rightind = RightOperator(rightind)
+#    leftind  = LeftOperator (leftind)
+
+#    # Determine the signs to put in the code
+#    signs=['','','','']
+#    for i in range(4):
+#        if(leftind[i] * rightind[i] < 0) :
+#            signs[i] = '-'
+#        else :
+#            signs[i] = '+'
+
+#    # Fill in the expression
+#    for i in range(4):
+#        Expression = Expression   +  \
+#                    '& \n               &' +  \
+#                    '%s %s(i,1,1,%d,%s)*%s(i,1,1,%d,%s)'%(signs[i], \
+#                                  LeftWF, abs( leftind[i]),  leftn, \
+#                                 RightWF, abs(rightind[i]), rightn  )
+#    return Expression
        
 def Identity(indices):
     # Operates on the indices of the wave-function
@@ -69,9 +72,9 @@ def Sigma(Dir,indices):
     # Operates on the indices of the wave-function
     # \sigma_{Dir} operator
     if(Dir == 1 or Dir == 'x'):
-        return [ indices[2], indices[3],  indices[0],  indices[1] ]
+        return [ indices[2], indices[3],  indices[0],  indices[1]]
     elif(Dir == 2 or Dir == 'y'):
-        return [-indices[3], indices[2],  indices[1], -indices[0] ]
+        return [-indices[3], indices[2],  indices[1], -indices[0]]
     elif(Dir == 3 or Dir == 'z'):
-        return [ indices[0], indices[1], -indices[2], -indices[3] ]
+        return [ indices[0], indices[1], -indices[2], -indices[3]]
     

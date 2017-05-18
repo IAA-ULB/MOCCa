@@ -38,26 +38,30 @@ if(not FOUND):
 
 #-------------------------------------------------------------------------------
 # Initialize all of Hephaestos' own modules
+print ' a)  Hephaestos is initializing its own modules.'
 heph_densities.initdensities()
 
 #-------------------------------------------------------------------------------
 # Treat all of the source files to a nice dose of preprocessing.
+print ' b)  Hephaestos is processing the template source code.'
 for fname in FORTRANFILES:
+     print ' * Processing ' + fname
      pp.preprocess(fname,SRCPATH,GENPATH)
     
 #-------------------------------------------------------------------------------
 # Check if all files got generated correctly. 
+print ' c)  Checking that all source code is properly generated.'
+
 FOUND=True    
 for fname in FORTRANFILES:
     if(not isfile(GENPATH + fname)):
         print 'You are missing %s%s'%(GENPATH, fname)
         FOUND=False
-        
 print "--------------------------------------------------------"        
 if(not FOUND):
     print 'Hephaestos did not treat all the source code files.'
 else :
-    print 'Hephaestos did treat all the source code files.'
+    print 'Correct exit. Ready for compilation.'
 print "--------------------------------------------------------"
 
 

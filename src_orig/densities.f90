@@ -27,11 +27,11 @@ subroutine densit
     !---------------------------------------------------------------
     ! Calculate all of the densities
     !---------------------------------------------------------------
-    integer :: i, j, k, it
+    integer :: i, j, k, it, wave
     
 $INITIALIZATION
     
-    do j=1,nwt
+    do wave=1,nwt
         ! Isospin is neutron in the first half of blocks, proton in the rest
         it = 2
         if(j.le.sum(HFBlocks(1:Blocks/2))) it = 1
