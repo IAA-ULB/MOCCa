@@ -14,6 +14,7 @@ program Tantalus
  use compilation
  use geninfo
  use wavefunctions
+ use IO
  
  implicit none
 
@@ -33,6 +34,7 @@ program Tantalus
 
  print 100
  
+ call PrintInput
  call Test()
  
 end program Tantalus
@@ -45,14 +47,37 @@ subroutine Test
     use wavefunctions
     use constants
     use densities
-
+    use hartreefock
+    
     implicit none
-
-    real(KIND=dp) :: fx(nx,ny,nz), fy(nx,ny,nz), fz(nx,ny,nz), df(nx,ny,nz)
-
-    call iniwavefunctions()
+   
+    integer :: i,lol,k
+ 
+    open (12,form='unformatted',file='MOCCa.test')
+    read(12)
+    read(12)
+    read(12)
+    read(12)
+    read(12)
+    allocate(Occupations(nwt))
+    allocate(spenergies(nwt))
+    allocate(HFPsi(nx,ny,nz,4,nwt))
+    do i=1,nwt
+        
+        read(12) HFPsi(:,:,:,:,i)
+        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, k,k,k,k,k
+    enddo
+    
+    nwn=10
+    nwp=10
+    
+    !call iniwavefunctions()
     call inilag()
-
+    !call NaiveFill(occupations)
+    
+    call printSpwfs
+    call deriveall()
+    
     call calcedfcoefs()     
     call densit
     

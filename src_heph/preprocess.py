@@ -36,6 +36,12 @@ def preprocess(fname, src, target):
     if(fname=='diag.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='hartree-fock.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
+    if(fname=='IO.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='densities.f90'):
         processdensities(fname, src, target)
         return
@@ -58,9 +64,9 @@ def processderivatives(fname, src, target):
     #
     
     dic={}
-    dic['LINESIZEX'] = 32
-    dic['LINESIZEY'] = 32
-    dic['LINESIZEZ'] = 32
+    dic['LINESIZEX'] = 20
+    dic['LINESIZEY'] = 20
+    dic['LINESIZEZ'] = 20
     dic['DX'] = 'D'
     dic['DY'] = 'D'
     dic['DZ'] = 'D'

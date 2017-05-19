@@ -33,7 +33,6 @@ contains
       parameter (eps=9.0d-12,epsd=1.0d-16,tol=1.0d-36,jstop=30)
       dimension a(ndim,ndim),v(ndim,ndim),d(ndim),wd(ndim)
 
-
 !c........................................................................
       v(1,1) = one
       d(1)   = a(1,1)

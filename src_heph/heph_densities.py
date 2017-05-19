@@ -47,7 +47,36 @@ def initdensities():
     #---------------------------------------------------------------------------    
     for l in range(MAXDERIV+1):
         matsizes.append(factorial(l + 3 -1)/(factorial(l)*2))
+
+def processdensities(fname, src, target):
+    #===========================================================================
+    # Writing the code to compute the densities
+    #
+    #===========================================================================
+
     
+  
+#   for den in densities:
+
+    #-----------------------------------------------------------------------
+    # Fixing correct calculation
+    (Expression, Declaration, Initialisation) = GenDensityExpression(Identity, Identity, ['rho', 'vecs'], 0)
+    
+    (E,D,I) = GenDensityExpression(Nabla, Nabla, ['tau', 'TN2LO'], 0)
+    
+    Expression     = Expression     + '\n '  + E
+    Declaration    = Declaration    + '\n '  + D
+    Initialisation = Initialisation + '\n '  + I
+        
+    dic={}
+    dic['DECLARATION']    = Declaration
+    dic['INITIALIZATION'] = Initialisation
+    dic['EXPRESSION']     = Expression    
+    with open(src+fname, 'r') as template:
+        with open(target+fname, 'w') as generated:
+            for line in template:
+                generated.write(Template(line).substitute(dic))  
+
 def GenDensityExpression(LeftOperator, RightOperator, Names, Current):
     #---------------------------------------------------------------------------
     # This function generates three strings, needed for the calculation of 
@@ -93,15 +122,19 @@ def GenDensityExpression(LeftOperator, RightOperator, Names, Current):
     #---------------------------------------------------------------------------
     # Density calculation template to fill in
     # Could be defined globally, but is nice to have here for quick reference
-    Den_template_1 = Template('$NAME(:,:,:$IND,it) = $NAME(:,:,:$IND,it)')
-    Den_template_2 = Template('$SIGN $LEFTWF(:,:,:,$LIND,wave) * $RIGHTWF(:,:,:,$RIND,wave)')
+    Den_template_1 = Template('$NAME(i,j,k$IND,it) = $NAME(i,j,k$IND,it) + $WEIGHT * (')
+    Den_template_2 = Template('$SIGN $LEFTWF(i,j,k,$LIND,wave) * $RIGHTWF(i,j,k,$RIND,wave)')
     
-    Ini_template   = Template('$NAME = 0.0d0')
-    Dec_template   = Template('real(KIND=dp) :: $NAME(nx,ny,nz$TOTALIND,2)')
+    Ini_template   = Template( '    if(.not.allocated($NAME)) then     \n' + \
+                               '       allocate($NAME(nx,ny,nz$DIM,2)) \n' + \
+                               '    endif \n'                              + \
+                               '    $NAME = 0.0d0')
+    Dec_template   = Template('real(KIND=dp),allocatable :: $NAME(:,:,:$TOTALIND,:)')
 
     dic={}
     dic['LEFTWF']  = ArrayNames[leftorder]
     dic['RIGHTWF'] = ArrayNames[rightorder]
+    dic['WEIGHT']    = 'occupations(wave)' # For now only simply the occupations
 
     #---------------------------------------------------------------------------
     #First the spin-scalar
@@ -111,10 +144,13 @@ def GenDensityExpression(LeftOperator, RightOperator, Names, Current):
     size_right= matsizes[rightorder]     
     
     dic['TOTALIND']= ''
-    for ls in range(leftorder-1):
-              dic['TOTALIND']= dic['TOTALIND'] + ',3' 
-    for rs in range(rightorder-1):
-              dic['TOTALIND']= dic['TOTALIND'] + ',3' 
+    dic['DIM']     = ''
+    for ls in range(leftorder):
+              dic['TOTALIND']= dic['TOTALIND'] + ',:' 
+              dic['DIM']     = dic['DIM'] + ',3' 
+    for rs in range(rightorder):
+              dic['TOTALIND']= dic['TOTALIND'] + ',:'
+              dic['DIM']     = dic['DIM'] + ',3' 
     Declaration    = Dec_template.substitute(dic)
     Initialisation = Ini_template.substitute(dic)
     #---------------------------------------------------------------------------
@@ -132,7 +168,7 @@ def GenDensityExpression(LeftOperator, RightOperator, Names, Current):
             
             dic['IND']     = IND
                         
-            Expression = Expression + Den_template_1.substitute(dic)
+            Expression = Expression +  Den_template_1.substitute(dic)
 
             leftcolumn = sum(matsizes[0:leftorder])  + ls
             rightcolumn= sum(matsizes[0:rightorder]) + rs - ls
@@ -158,7 +194,9 @@ def GenDensityExpression(LeftOperator, RightOperator, Names, Current):
                 Expression = Expression +  \
                             '& \n               &' +  \
                             Den_template_2.substitute(dic)
-            Expression = Expression + '\n'
+                            
+            # Don't forget the closing bracket
+            Expression = Expression + ') \n'
             
     #---------------------------------------------------------------------------      
     # Now the spin-vector
@@ -170,11 +208,14 @@ def GenDensityExpression(LeftOperator, RightOperator, Names, Current):
     
     old_right_ind = rightind
     
-    dic['TOTALIND']= ',3'
-    for ls in range(leftorder-1):
-              dic['TOTALIND']= dic['TOTALIND'] + ',3' 
-    for rs in range(rightorder-1):
-              dic['TOTALIND']= dic['TOTALIND'] + ',3' 
+    dic['TOTALIND']= ',:'
+    dic['DIM']     = ',3'
+    for ls in range(leftorder):
+              dic['TOTALIND']= dic['TOTALIND'] + ',:' 
+              dic['DIM']     = dic['DIM'] + ',3' 
+    for rs in range(rightorder):
+              dic['TOTALIND']= dic['TOTALIND'] + ',:'
+              dic['DIM']     = dic['DIM'] + ',3' 
               
     Declaration    = Declaration    + '\n' + Dec_template.substitute(dic)
     Initialisation = Initialisation + '\n' + Ini_template.substitute(dic)
@@ -224,7 +265,8 @@ def GenDensityExpression(LeftOperator, RightOperator, Names, Current):
                     Expression = Expression +  \
                                 '& \n               &' +  \
                                 Den_template_2.substitute(dic)
-                Expression = Expression + '\n'        
+                # Don't forget the closing bracket
+                Expression = Expression + ') \n'        
             
     return (Expression, Declaration, Initialisation)
 
@@ -301,93 +343,4 @@ def MakeCurrent(indices):
     
     return out
     
-def processdensities(fname, src, target):
-    #===========================================================================
-    # Writing the code to compute the densities
-    #
-    #===========================================================================
 
-    (Expression, Declaration, Initialisation) = GenDensityExpression(Nabla, Nabla, ['rho', 'vecs'], 0)
-    print Declaration
-    print Initialisation
-
-#    # Some templates
-#    decformat  = '    real(KIND=dp), allocatable :: DENSITY(:,:,:,EXTRADIM)'
-#    
-#    iniformat  =             '    if(.not.allocated(DENSITY)) then \n'
-#    iniformat  = iniformat + '       allocate(DENSITY(nx,ny,nz,EXTRADIM)) \n'
-#    iniformat  = iniformat + '    endif \n'
-#    iniformat  = iniformat + '    DENSITY = 0.0d0 '
-#    
-#    compformat = '          DENSITY(i,1,1,EXTRADIM) = DENSITY(i,1,1,EXTRADIM)  '
-#    #===========================================================================
-
-#    
-#    declaration   =''
-#    compute       =''
-#    initialization= ''
-#    
-#    for den in densities:
-#    
-#        dim = dimensions[densities.index(den)]
-#    
-#        #-----------------------------------------------------------------------
-#        #Fixing correct allocation
-#        extradim=''
-#        for j in range(dim):
-#            extradim = extradim + ':,'
-#        extradim = extradim + ':'
-#        
-#        adddec = decformat.replace('DENSITY', den).replace('EXTRADIM', extradim)
-#        declaration    = declaration    + adddec + '\n'
-#        
-#        #-----------------------------------------------------------------------
-#        #Fixing correct initialisation
-#        extradim=''
-#        for j in range(dim):
-#            extradim = extradim + '3,'
-#        extradim = extradim + '2'
-#        
-#        addini  = iniformat.replace('DENSITY', den).replace('EXTRADIM', extradim)
-#        initialization = initialization + addini + '\n'
-        
-        #-----------------------------------------------------------------------
-        # Fixing correct calculation
-        
-#        if(dim == 0) :
-#            #Scalar density
-#            extradim = 'it'
-#            compute        = compute  + compformat.replace('DENSITY', den).replace('EXTRADIM', extradim)
-#            compute        = compute  + GenDensityExpression( left, 'wave', right, 'wave', Identity, Identity)
-#            compute        = compute  + '\n'
-#        elif(dim == 1):
-#            # vector density
-#            extradim = 'mu,it'
-#            
-#            for mu in [1,2,3] :                
-#                compute        = compute  + compformat.replace('DENSITY', den).replace('EXTRADIM', extradim)
-#                compute        = compute  + GenDensityExpression( left, 'mu,wave', right, 'mu,wave', Identity, Identity)
-#                compute        = compute  + '\n'
-#                
-#        elif(dim == 2):
-#            # rank 2 tensor density
-#            for mu in [1,2,3] :
-#                for nu in [1,2,3] :
-#                    extradim = '%d,%d,it'%(mu,nu)
-#                    compute        = compute  + compformat.replace('DENSITY', den).replace('EXTRADIM', extradim)
-#                    compute        = compute  + GenDensityExpression( left, '%d,wave'%mu, right, '%d,wave'%nu, Identity, Identity)
-#                    compute        = compute  + '\n'
-#        else :
-#            print 'Defined density with too high dimension'
-#            exit()                      
-        
-#    dic={}
-#    dic['DECLARATION']    = declaration
-#    dic['INITIALIZATION'] = initialization
-#    dic['EXPRESSION']     = compute    
-#    with open(src+fname, 'r') as template:
-#        with open(target+fname, 'w') as generated:
-#            for line in template:
-#                generated.write(Template(line).substitute(dic))  
-                
-  

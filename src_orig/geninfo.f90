@@ -12,11 +12,11 @@ module GenInfo
     integer :: nwt=20
     !---------------------------------------------------------------------------
     !Number of protons and neutrons in the nucleus
-    real(KIND=dp)  :: Neutrons, Protons
+    real(KIND=dp)  :: Neutrons=10, Protons=10
     !---------------------------------------------------------------------------
     ! Line element and volume element of the box. dx is in fm, dv in fm^3.
     real(KIND=dp)  :: dx=0.8_dp
-    real(KIND=dp)  :: dv=(0.8_dp**3)
+    real(KIND=dp)  :: dv=(0.8_dp**3)*8
     !---------------------------------------------------------------------------
     !Time step in 10^-22 s
     real(KIND=dp)  :: dt=0.012_dp, ReadjustTime=0.95_dp

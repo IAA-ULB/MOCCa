@@ -21,10 +21,12 @@ module nil8
  
  use compilation
  use diag
+ 
+ implicit none
   
 contains
- 
- subroutine nilsson (wfs,kparz,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,        &
+
+subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
  &                   dx,hox,hoy,hoz)
     !---------------------------------------------------------------------------
     ! Subroutine taken from nil8.1.0.0.f, written by 
@@ -62,6 +64,8 @@ contains
     !       allocatable array containing the constructed wave-functions on exit
     !   kparz:
     !       allocatable array containing the parities on exit
+    !   esp1  :
+    !       single-particle energies on exit
     !   meven, modd:
     !       the number of oscillator shells with even/odd parity
     !   nwt, nwn, nwp:
@@ -77,30 +81,35 @@ contains
     !       harmonic oscillator parameters
     !---------------------------------------------------------------------------
     implicit real*8 (a-h,o-z)
-    
-  101 format (/,' neutron levels kappa=',e10.3,' mu=',e9.2,   &
-     &          ' al0n=al0*(1+',f5.2,'*(n-z)/a)',/,           &
-     &          ' (n0,nor,energy/(hbar*omega0),parity)',/,' ')
-  102 format (/,' proton  levels kappa=',e10.3,' mu=',e9.2,   & 
-     &          ' al0p=al0*(',f6.3,'-',f5.2,'*(n-z)/a)',/,    &
-     &          ' (n0,nor,energy/(hbar*omega0),parity)',/,' ')
-  103 format (' (',2i4,f8.3,i3,') (',2i4,f8.3,i3,') (',2i4,f8.3,i3,')')
+!    
+!  101 format (/,' neutron levels kappa=',e10.3,' mu=',e9.2,   &
+!     &          ' al0n=al0*(1+',f5.2,'*(n-z)/a)',/,           &
+!     &          ' (n0,nor,energy/(hbar*omega0),parity)',/,' ')
+!  102 format (/,' proton  levels kappa=',e10.3,' mu=',e9.2,   & 
+!     &          ' al0p=al0*(',f6.3,'-',f5.2,'*(n-z)/a)',/,    &
+!     &          ' (n0,nor,energy/(hbar*omega0),parity)',/,' ')
+!  103 format (' (',2i4,f8.3,i3,') (',2i4,f8.3,i3,') (',2i4,f8.3,i3,')')
     
     integer              , intent(in)        :: meven, modd,mx,my,mz,nwt,nwp,nwn
+    integer              , intent(in)        :: npp, npn
     integer, allocatable, intent(inout)      :: kparz(:)
     real(KIND=dp), intent(in)                :: hox, hoy, hoz
-    real(KIND=dp), allocatable, intent(inout):: wfs(:,:,:,:,:)
+    real(KIND=dp), allocatable, intent(inout):: wfs(:,:,:,:,:), esp1(:)
     
     real(KIND=dp), allocatable :: h(:,:), s(:,:), d(:), wd(:), e(:)
-    real(KIND=dp), allocatable :: he(:,:,:), esp1(:), a(:)
-    integer                    :: npar(2,2)
+    real(KIND=dp), allocatable :: he(:,:,:) , a(:)
+    integer                    :: npar(2,2), nvv, nz2, nz1, nx1, nx2, ny1, ny2
+    integer                    :: nwave, nodd, nnn2, nnn1, nn2, nn1, nn, nmax
+    integer                    :: nij,i,i1,ia,ii,it, iwave,ix, nb, n, kk, iy, iz
+    integer                    :: j,ja, k, nw, neven, ni, ni1, np, nvec
+    integer                    :: mblc, mq, mqa, ms, nblc, ndd, ndim
     integer, allocatable       :: nsi(:,:),ns(:), nx(:), ny(:), nz(:), irep(:)
     integer, allocatable       :: nor(:), npa(:), ntrs(:)
     
     dimension xk(4),xmu(4),cf(2), hbm(2), psi(mx,my,mz,4)
     
     data ca,cb /0.986d0,0.14d0/
-    data xk,xmu/0.08d0,0.08d0, 0.0637d0,0.0637d0    &
+    data xk,xmu/0.08d0,0.08d0,   0.0637d0,0.0637d0    &
     &           ,0.0d0 ,0.0d0 ,  0.42d0,  0.60d0   /
     parameter (hhbar=6.58218d0,xxmn =1.044673d0)
     
@@ -126,7 +135,6 @@ contains
     he = 0.0d0 ; kparz=0; a= 0.0d0
     
     allocate(wfs(mx,my,mz,4,nwt)) ; wfs = 0.0d0
-    
 !c......................... mz must be larger or equal than both mx and my
 
 !c     neven   nodd   nvec+   nvec-   nblc    ms   mblc   ndim     mqa
@@ -163,7 +171,6 @@ contains
       nodd  = modd
       nmax  = max(neven,nodd)
       
-
 !c..................................................... ordering the basis
       nvec  = 0
       nblc  = 0
@@ -379,7 +386,7 @@ contains
                 nz2 = nz(nn+j)
     !c..................................... computation of the matrix elements
                 if (j.ne.i) go to 19
-                h(i,j) = ax*(nx1+0.5d0) + ay*(ny1+0.5d0) + az*(nz1+0.5d0) & 
+                h(i,j) = ax*(nx1+0.5d0) + ay*(ny1+0.5d0) + az*(nz1+0.5d0) &
                 &        -x*y*((nb*(nb+1))/2.0d0 -nx1**2 -ny1**2 -nz1**2)
                 go to 18
                 19 if (nx1.ne.nx2) go to 20
@@ -412,7 +419,13 @@ contains
                 if (nz2.eq.nz1-2) h(i,j) = x*y*sqrt(nz1*(nz1-1)*an*(nx2-1))
             18 h(j,i) = h(i,j)
         17 continue
-        call diagon (h,ndim,n,s,d,wd)
+
+
+     do i=1,ndim
+            print ('(99f7.3)'), h(i,1:ndim)
+     enddo
+     print *
+     call diagon (h,ndim,n,s,d,wd)
     !c.......................storage and shift of the single particle energies
         irep(ni) = ia
         do i=1,n
@@ -528,14 +541,7 @@ contains
         
         ny2 = 0
         kk  = 0
-        
-!        if(nwave.eq.1 .or. nwave.eq.11) then
-!            print *, psi(:,1,1,1)
-!            print *, psi(:,1,1,2)
-!            print *, psi(:,1,1,3)
-!            print *, psi(:,1,1,4)
-!        endif
-        
+
         wfs(:,:,:,:,nwave) = psi
     enddo
 15 continue
