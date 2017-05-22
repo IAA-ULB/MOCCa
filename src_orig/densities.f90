@@ -23,16 +23,16 @@ $DECLARATION
 contains
 
 subroutine densit
-    !---------------------------------------------------------------
+    !---------------------------------------------------------------------------
     ! Calculate all of the densities
-    !---------------------------------------------------------------
+    !---------------------------------------------------------------------------
     integer :: i, j, k, it, wave
     
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
 $INITIALIZATION
     
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculation by summing the densities
     do wave=1,nwt
         ! Isospin is neutron in the first half of blocks, proton in the rest
@@ -47,10 +47,13 @@ $EXPRESSION
         enddo
     enddo
     
-    print *, ' DENSITY DEBUGGING'
-    print *, sum(rho)*dv
-    
-    print *, -1763.394861*sum(sum(rho,4)**2)*dv,1660.104971*(sum(rho(:,:,:,1)**2)*dv + sum(rho(:,:,:,2)**2)*dv)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of the 'derived' densities, densities obtainable by 
+    ! deriving other ones. 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    do it=1,2
+$DERIVATION  
+    enddo  
 end subroutine densit
     
 end module densities

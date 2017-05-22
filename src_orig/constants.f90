@@ -36,8 +36,8 @@ module constants
     real(KIND=dp) :: wsoq=123.0
 
     !Functional parameters in the BFH representation
-    real(KIND=dp) :: B1,B2,B3,B4,B5,B6,B7a,B7b,B8a,B8b,Byt3a,Byt3b,B9,B9q
-    real(KIND=dp) :: B10,B11,B12a,B12b,B13a,B13b,B14
+    real(KIND=dp) :: B1,B2,B3,B4,B5,B6,B7,B8,Byt3,B9,B9q
+    real(KIND=dp) :: B10,B11,B12,B13,B14
     real(KIND=dp) :: B15,B16, B17, B18,B19,B20,B21
     !------------------------------------------------------------------------------
     ! Physical constants.
@@ -63,10 +63,8 @@ contains
         B5   =-(3.0_dp*t1*(1  + x1/2.0_dp)-t2*(1  + x2/2.0_dp))/16.0_dp
         B6   = (3.0_dp*t1*(x1 +  1/2.0_dp)+t2*(x2 +  1/2.0_dp))/16.0_dp
 
-        B7a  = t3a*( 1   + x3a/2.0_dp)/12.0_dp
-        B8a  =-t3a*( x3a +   1/2.0_dp)/12.0_dp
-        B7b  = t3b*( 1   + x3b/2.0_dp)/12.0_dp
-        B8b  =-t3b*( x3b +   1/2.0_dp)/12.0_dp
+        B7  = t3a*( 1   + x3a/2.0_dp)/12.0_dp
+        B8  =-t3a*( x3a +   1/2.0_dp)/12.0_dp
         !---------------------------------------------------------------------------
         ! B9 and B9q are the constants related to the spin-orbit interaction.
         ! Starting from a Skyrme Force, they should in principle be equal for a
@@ -76,9 +74,8 @@ contains
         B9   = -wso /2.0_dp
         B9q  = -wsoq/2.0_dp
 
-        Byt3a= yt3a
-        Byt3b= yt3b
-
+        Byt3= yt3a
+        
         return
     end subroutine calcedfcoefs
     

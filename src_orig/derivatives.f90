@@ -98,41 +98,40 @@ contains
                      
             if(i.eq.j) C = 0
             
-            derX(i,j,1) = C - D 
-            derX(i,j,2) = C + D
+            derX(i,j,1) = C + D 
+            derX(i,j,2) = C - D
         enddo
     enddo
    
     do i=1,ny
         do j=1,ny
-            if(i .eq. j) cycle
+            
             A           = (pi * (i - j))/linY
             sinA        = sin(A)
-            B           = (pi * (i - linZ + j))/linZ 
+            B           = (pi * (i - linY + j-1))/linY 
             sinB        = sin(B)
             
-            C = (-1)**(i-j)     *pi/(linY*dx*sinA)
-            D = (-1)**(i-linY+j)*pi/(linY*dx*sinB)
+            C = (-1)**(i-j)       *pi/(linY*dx*sinA)
+            D = (-1)**(i-linY+j-1)*pi/(linY*dx*sinB)
             
             D=$DY
             
             if(i.eq.j) C = 0
             
-            derY(i,j,1) = C - D
-            derY(i,j,2) = C + D
+            derY(i,j,1) = C + D
+            derY(i,j,2) = C - D
         enddo
     enddo
     
     do i=1,nz
         do j=1,nz
-            if(i .eq. j) cycle
             A           = (pi * (i - j))/linZ
             sinA        = sin(A)
-            B           = (pi * (i - linZ + j))/linZ 
+            B           = (pi * (i - linZ + j-1))/linZ 
             sinB        = sin(B)
             
-            C = (-1)**(i-j)     *pi/(linZ*dx*sinA)
-            D = (-1)**(i-linZ+j)*pi/(linZ*dx*sinB)
+            C = (-1)**(i-j)       *pi/(linZ*dx*sinA)
+            D = (-1)**(i-linZ+j-1)*pi/(linZ*dx*sinB)
             
             ! D needs to be set to zero when there is no symmetry in the Z
             ! direction
@@ -140,17 +139,33 @@ contains
             
             if(i.eq.j) C = 0
           
-            derZ(i,j,1) = C - D
-            derZ(i,j,2) = C + D 
+            derZ(i,j,1) = C + D
+            derZ(i,j,2) = C - D 
         enddo
     enddo
+    
+!    do j=1,ny
+!        do i=1,nx
+!            print *, derX(i,j,1), derY(i,j,1), derZ(i,j,1)
+!        enddo
+!        print *
+!    enddo
+!    print *, '-----------------------------------------------------'
+!    do j=1,ny
+!    do i=1,nx
+!        print *, derX(i,j,2), derY(i,j,2), derZ(i,j,2)
+!    enddo
+!    enddo
+!    print *
 
  end subroutine inilag   
- 
  
  subroutine Derive(f, px, py, pz, fx, fy, fz, df)
     !---------------------------------------------------------------------------
     ! Subroutine that computes the derivative of a function on the mesh.
+    ! This routine exists, and combines Derive_grad and Derive_lap for because
+    ! many compilers optimize the combination better than both routines 
+    ! separately (likely due to cache reusing).
     !
     ! fx = First order derivative in the x direction
     ! fy = First order derivative in the y direction
@@ -176,7 +191,7 @@ contains
         fx(:,i,1) =                 matmul(derX  (:,:,sx),f(:,i,1))
         df(:,i,1) =                 matmul(laplaX(:,:,sx),f(:,i,1))
     enddo   
-    do k=1,ny
+    do k=1,nz
         do i=1,nx
             fy(i,:,k) =             matmul(derY  (:,:,sy),f(i,:,k))
             df(i,:,k) = df(i,:,k) + matmul(laplaX(:,:,sy),f(i,:,k))
@@ -189,6 +204,79 @@ contains
     
  end subroutine Derive
  
+ subroutine Derive_grad(f, px, py, pz, fx, fy, fz)
+    !---------------------------------------------------------------------------
+    ! Subroutine that computes the gradient of a function on the mesh.
+    !
+    !
+    ! fx = First order derivative in the x direction
+    ! fy = First order derivative in the y direction
+    ! fz = First order derivative in the z direction
+
+    ! px = sign of the symmetry transformation in the x-direction
+    ! py = sign of the symmetry transformation in the y-direction
+    ! pz = sign of the symmetry transformation in the z-direction
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in)  :: f(:,:,:)
+    real(KIND=dp), intent(out) :: fx(:,:,:), fy(:,:,:), fz(:,:,:)
+    integer, intent(in)        :: px,py,pz
+    
+    integer                    :: i,k, sx, sy,sz
+    
+    sx = (px + 3)/2 ! These are equal to 
+    sy = (py + 3)/2 !    1    if pi =   -1  or 0
+    sz = (pz + 3)/2 !    2    if pi =   +1 
+    
+    do i=1,ny*nz
+        fx(:,i,1) =                 matmul(derX  (:,:,sx),f(:,i,1))
+    enddo   
+    do k=1,nz
+        do i=1,nx
+            fy(i,:,k) =             matmul(derY  (:,:,sy),f(i,:,k))
+        enddo
+    enddo
+    do i=1,nx*ny
+        fz(i,1,:) =                 matmul(derZ  (:,:,sz),f(i,1,:))
+    enddo
+    
+ end subroutine Derive_grad
  
- 
+ subroutine Derive_lap(f, px, py, pz, df)
+    !---------------------------------------------------------------------------
+    ! Subroutine that computes the laplacian of a function on the mesh.
+    !
+    ! fx = First order derivative in the x direction
+    ! fy = First order derivative in the y direction
+    ! fz = First order derivative in the z direction
+    ! df = Laplacien of the function.
+    !
+    ! px = sign of the symmetry transformation in the x-direction
+    ! py = sign of the symmetry transformation in the y-direction
+    ! pz = sign of the symmetry transformation in the z-direction
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in)  :: f(:,:,:)
+    real(KIND=dp), intent(out) ::  df(:,:,:)
+    integer, intent(in)        :: px,py,pz
+    
+    integer                    :: i,k, sx, sy,sz
+    
+    sx = (px + 3)/2 ! These are equal to 
+    sy = (py + 3)/2 !    1    if pi =   -1  or 0
+    sz = (pz + 3)/2 !    2    if pi =   +1 
+    
+    do i=1,ny*nz
+        df(:,i,1) =                 matmul(laplaX(:,:,sx),f(:,i,1))
+    enddo   
+    do k=1,nz
+        do i=1,nx
+            df(i,:,k) = df(i,:,k) + matmul(laplaX(:,:,sy),f(i,:,k))
+        enddo
+    enddo
+    do i=1,nx*ny
+        df(i,1,:) = df(i,1,:) +     matmul(laplaX(:,:,sz),f(i,1,:))
+    enddo
+    
+ end subroutine Derive_lap
 end module derivatives

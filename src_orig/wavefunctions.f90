@@ -119,7 +119,6 @@ contains
         allocate(HFddPsi(nx,ny,nz,4,3,3,nwt))
         allocate(HFlapPsi(nx,ny,nz,4,nwt))
     endif
-    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Currently EV8 symmetries are hardcoded.
     do wave=1,HFBlocks(1)
@@ -144,6 +143,17 @@ contains
         &                                              HFdPsi(:,:,:,4,3,wave), &
         &                                              HFlapPsi(:,:,:,4,wave))
     enddo
+    
+!    do wave=1,4
+!        print *, HFPsi(1:nx,1,1,wave,1)
+!        print *
+!        print *, HFdPsi(1:nx,1,1,wave,1,1)
+!        print *, HFdPsi(1,1:ny,1,wave,2,1)
+!        print *, HFdPsi(1,1,1:nz,wave,3,1)
+!        print *
+!        print * ,'  - - - - - - - - - - - - - - - - - '
+!    enddo
+!    stop
     
     do wave=HFBlocks(1) + 1,HFBlocks(1) + HFBlocks(3)
         call Derive(HFPsi(:,:,:,1,wave), +1, +1, -1,                           &
@@ -190,8 +200,9 @@ contains
         &                                              HFdPsi(:,:,:,4,3,wave), &
         &                                              HFlapPsi(:,:,:,4,wave))
     enddo
-    
-    do wave=HFBlocks(1) + HFBlocks(3)+HFBlocks(5) + 1,HFBlocks(1) + HFBlocks(3)+HFBlocks(5) + HFBlocks(7)
+   
+    do wave=HFBlocks(1)+HFBlocks(3)+HFBlocks(5) + 1,                           &
+    &       HFBlocks(1)+HFBlocks(3)+HFBlocks(5) + HFBLocks(7)
         call Derive(HFPsi(:,:,:,1,wave), +1, +1, -1,                           &
         &                                              HFdPsi(:,:,:,1,1,wave), &
         &                                              HFdPsi(:,:,:,1,2,wave), &

@@ -48,10 +48,11 @@ subroutine Test
     use constants
     use densities
     use hartreefock
+    use functional
     
     implicit none
    
-    integer :: i,lol,k
+    integer :: i,lol,k, par,iso
  
     open (12,form='unformatted',file='MOCCa.test')
     read(12)
@@ -62,14 +63,19 @@ subroutine Test
     allocate(Occupations(nwt))
     allocate(spenergies(nwt))
     allocate(HFPsi(nx,ny,nz,4,nwt))
+    
     do i=1,nwt
-        
         read(12) HFPsi(:,:,:,:,i)
-        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, k,k,k,k,k
+        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, iso, k,par,k,k
     enddo
     
     nwn=10
     nwp=10
+    
+    HFBlocks(1) = 7
+    HFBlocks(3) = 3
+    HFBlocks(5) = 7
+    HFBlocks(7) = 3
     
     !call iniwavefunctions()
     call inilag()
@@ -80,7 +86,9 @@ subroutine Test
     
     call calcedfcoefs()     
     call densit
-    
+    print ('(10f10.3)'),  Skyrme_LO()
+    print *
+    print ('(10f7.3)'),  Skyrme_NLO()
 !    print *, hfbasis(:,1,1,1, 1)
 !    print *, hfbasis(:,1,1,1, 11)
 
