@@ -6,7 +6,7 @@ module GenInfo
     save
     !---------------------------------------------------------------------------
     !Number of points in every direction and total number of points
-    integer :: nx=10,ny=10,nz=10
+    integer :: nx=10,ny=10,nz=10, mv = 1000
     !---------------------------------------------------------------------------
     ! Total number of single-particle wave-functions
     integer :: nwt=20

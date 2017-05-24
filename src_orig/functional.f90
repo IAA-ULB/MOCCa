@@ -143,29 +143,29 @@ module functional
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! rho^2 term                                                Time-even
-    LOTerms(1)   =              B1 * sum(sum(Rho,4)**2)
+    LOTerms(1)   =              B1 * sum(sum(Rho,2)**2)
     do it=1,2
-      LOTerms(2) = LOTerms(2) + B2 * sum(Rho(:,:,:,it)**2)
+      LOTerms(2) = LOTerms(2) + B2 * sum(Rho(:,it)**2)
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! rho^(2+alpha) term                                        Time-even
-    LOTerms(5)   =              B7*sum(sum(Rho,4)**(2 + byt3))
+    LOTerms(5)   =              B7*sum(sum(Rho,2)**(2 + byt3))
     do it=1,2
-      LOTerms(6) = LOTerms(6) + B8*sum(Rho(:,:,:,it)**2*sum(Rho,4)**(byt3))
+      LOTerms(6) = LOTerms(6) + B8*sum(Rho(:,it)**2*sum(Rho,2)**(byt3))
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! s^(2) term                                                Time-odd
-    LOTerms(3)   =              B10*sum(sum(vecs,5)**2)
-    do it=1,2
-      LOTerms(4) = LOTerms(4) + B11*sum(vecs(:,:,:,:,it)**2)
-    enddo
+!    LOTerms(3)   =              B10*sum(sum(vecs,3)**2)
+!    do it=1,2
+!      LOTerms(4) = LOTerms(4) + B11*sum(vecs(:,:,it)**2)
+!    enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! s^(2 + alpha) term                                        Time-odd
-    LOTerms(7)   =              B12*sum(sum(vecs,5)**(2 + byt3))
-    do it=1,2
-      LOTerms(8) = LOTerms(8) + B13*sum(vecs(:,:,:,:,it)**2*sum(vecs,4)**(byt3))
-    enddo
-    
+!    LOTerms(7)   =              B12*sum(sum(vecs,3)**(2 + byt3))
+!    do it=1,2
+!      LOTerms(8) = LOTerms(8) + B13*sum(vecs(:,:,it)**2*sum(vecs,3)**(byt3))
+!    enddo
+!    
     ! Don't forget the volume element
     LOTerms = LOTerms * dv
   end function Skyrme_LO
@@ -181,18 +181,48 @@ module functional
     integer       :: it
     
     NLOTerms = 0.0_dp
-    
-    NLOTerms(5) =                   B3 * sum(sum(Rho,4) * sum(tau(:,:,:,1,1,:) &
-    &                                                   + tau(:,:,:,2,2,:)     &
-    &                                                   + tau(:,:,:,3,3,:),4))    
+        
+    NLOTerms(5) =                   B3 * sum(sum(Rho,2) * sum(tau(:,1,1,:) &
+    &                                                   + tau(:,2,2,:)     &
+    &                                                   + tau(:,3,3,:),2))    
     do it=1,2
-        NLOTerms(6) = NLOTerms(6) + B4 * sum(Rho(:,:,:,it)*(tau(:,:,:,1,1,it)  &
-    &                                                      +tau(:,:,:,2,2,it)  &
-    &                                                      +tau(:,:,:,3,3,it)))    
+        NLOTerms(6) = NLOTerms(6) + B4 * sum(Rho(:,it)*(tau(:,1,1,it)  &
+    &                                                  +tau(:,2,2,it)  &
+    &                                                  +tau(:,3,3,it)))    
     enddo
     
+    NLOterms(7)   = B5*sum(sum(Rho,2)*sum(lap_Rho,2))
+
+    !B6 Terms
+    do it=1,2
+      NLOterms(8) = NLOterms(8) + B6*sum(Rho(:,it)*lap_Rho(:,it))
+    enddo
+
     ! Don't forget the volume element
     NLOTerms = NLOTerms * dv
   end function Skyrme_NLO
+  
+  function Skyrme_N2LO() result(N2LOTerms)
+    !---------------------------------------------------------------------------
+    ! Next-to-newt-to-leading order terms in the Skyrme functional. 
+    ! Everything is calculated in the BFH representation (neutron-proton) 
+    !---------------------------------------------------------------------------
+    use Constants
+    
+    real(KIND=dp) :: N2LOTerms(32)
+    integer       :: it
+    
+    N2LOTerms = 0.0_dp
+    
+    N2LOterms(3) = sum(sum(rho,2) * sum(QN2LO,2))                    * N2rhoQ(1)
+    do it=1,2
+        N2LOterms(4) = N2LOterms(4) + sum(rho(:,it) * QN2LO(:,it)) 
+    enddo
+    N2LOterms(4) = N2LOterms(4)                                      * N2rhoQ(2)
+    
+    ! Don't forget the volume element
+    N2LOTerms = N2LOTerms * dv
+  
+  end function Skyrme_N2LO
  
 end module functional

@@ -86,9 +86,15 @@ subroutine Test
     
     call calcedfcoefs()     
     call densit
-    print ('(10f10.3)'),  Skyrme_LO()
+    print ('(10f12.3)'),  Skyrme_LO()
     print *
-    print ('(10f7.3)'),  Skyrme_NLO()
+    print *, 'NLO'
+    print *
+    print ('(10f12.3)'),  Skyrme_NLO()
+    print *
+    print *, 'N2LO'
+    print *
+    print ('(10f12.3)'),  Skyrme_N2LO()
 !    print *, hfbasis(:,1,1,1, 1)
 !    print *, hfbasis(:,1,1,1, 11)
 

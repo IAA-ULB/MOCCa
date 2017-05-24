@@ -135,6 +135,9 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     he = 0.0d0 ; kparz=0; a= 0.0d0
     
     allocate(wfs(mx,my,mz,4,nwt)) ; wfs = 0.0d0
+    
+    ! In order for the compiler not to complain about non-initialised stuff.
+    nvv = 0
 !c......................... mz must be larger or equal than both mx and my
 
 !c     neven   nodd   nvec+   nvec-   nblc    ms   mblc   ndim     mqa

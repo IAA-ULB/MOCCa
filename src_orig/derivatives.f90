@@ -61,6 +61,21 @@ module derivatives
  !------------------------------------------------------------------------------
  real*8, allocatable :: laplaX(:,:,:),laplaY(:,:,:),laplaZ(:,:,:)
  
+ interface derive_grad
+    module procedure derive_grad_1D
+    module procedure derive_grad_3D
+ end interface
+ 
+ interface derive_lap
+    module procedure derive_lap_1D
+    module procedure derive_lap_3D
+ end interface
+ 
+ interface derive
+    module procedure derive_1D
+    module procedure derive_3D
+ end interface
+ 
 contains 
     
  subroutine inilag
@@ -102,6 +117,9 @@ contains
             derX(i,j,2) = C - D
         enddo
     enddo
+    
+    LaplaX(:,:,1) = matmul(derX(:,:,2),derX(:,:,1))
+    LaplaX(:,:,2) = matmul(derX(:,:,1),derX(:,:,2))    
    
     do i=1,ny
         do j=1,ny
@@ -122,6 +140,9 @@ contains
             derY(i,j,2) = C - D
         enddo
     enddo
+        
+    LaplaY(:,:,1) = matmul(derY(:,:,2),derY(:,:,1))
+    LaplaY(:,:,2) = matmul(derY(:,:,1),derY(:,:,2))    
     
     do i=1,nz
         do j=1,nz
@@ -143,6 +164,10 @@ contains
             derZ(i,j,2) = C - D 
         enddo
     enddo
+        
+    LaplaZ(:,:,1) = matmul(derZ(:,:,2),derZ(:,:,1))
+    LaplaZ(:,:,2) = matmul(derZ(:,:,1),derZ(:,:,2))    
+   
     
 !    do j=1,ny
 !        do i=1,nx
@@ -160,7 +185,7 @@ contains
 
  end subroutine inilag   
  
- subroutine Derive(f, px, py, pz, fx, fy, fz, df)
+ subroutine Derive_3d(f, px, py, pz, fx, fy, fz, df)
     !---------------------------------------------------------------------------
     ! Subroutine that computes the derivative of a function on the mesh.
     ! This routine exists, and combines Derive_grad and Derive_lap for because
@@ -202,9 +227,9 @@ contains
         df(i,1,:) = df(i,1,:) +     matmul(laplaX(:,:,sz),f(i,1,:))
     enddo
     
- end subroutine Derive
+ end subroutine Derive_3d
  
- subroutine Derive_grad(f, px, py, pz, fx, fy, fz)
+ subroutine Derive_grad_3d(f, px, py, pz, fx, fy, fz)
     !---------------------------------------------------------------------------
     ! Subroutine that computes the gradient of a function on the mesh.
     !
@@ -240,9 +265,9 @@ contains
         fz(i,1,:) =                 matmul(derZ  (:,:,sz),f(i,1,:))
     enddo
     
- end subroutine Derive_grad
+ end subroutine Derive_grad_3d
  
- subroutine Derive_lap(f, px, py, pz, df)
+ subroutine Derive_lap_3D(f, px, py, pz, df)
     !---------------------------------------------------------------------------
     ! Subroutine that computes the laplacian of a function on the mesh.
     !
@@ -278,5 +303,96 @@ contains
         df(i,1,:) = df(i,1,:) +     matmul(laplaX(:,:,sz),f(i,1,:))
     enddo
     
- end subroutine Derive_lap
+ end subroutine Derive_lap_3D
+ 
+ subroutine Derive_lap_1d(f, px, py, pz, df)
+    !---------------------------------------------------------------------------
+    ! Subroutine that computes the gradient of a function on the mesh, but on
+    ! one that is stored as a vector of nx*ny*nz points.
+    !
+    ! We use a dirty trick here, by simply reshaping with pointers, which should
+    ! avoid copying matrices and not impact the speed. (Let's see in practice.)
+    !
+    ! fx = First order derivative in the x direction
+    ! fy = First order derivative in the y direction
+    ! fz = First order derivative in the z direction
+
+    ! px = sign of the symmetry transformation in the x-direction
+    ! py = sign of the symmetry transformation in the y-direction
+    ! pz = sign of the symmetry transformation in the z-direction
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in), target  :: f(:)
+    real(KIND=dp), intent(out), target :: df(:)
+    integer, intent(in)        :: px,py,pz
+    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:)
+    
+    f3(1:nx,1:ny,1:nz)   => f
+    df3(1:nx,1:ny,1:nz)  => df
+    
+    call Derive_lap_3d(f3, px,py,pz,df3)
+    
+ end subroutine Derive_lap_1d
+ 
+ subroutine Derive_grad_1d(f, px, py, pz, fx, fy, fz)
+    !---------------------------------------------------------------------------
+    ! Subroutine that computes the gradient of a function on the mesh, but on
+    ! one that is stored as a vector of nx*ny*nz points.
+    !
+    ! We use a dirty trick here, by simply reshaping with pointers, which should
+    ! avoid copying matrices and not impact the speed. (Let's see in practice.)
+    !
+    ! fx = First order derivative in the x direction
+    ! fy = First order derivative in the y direction
+    ! fz = First order derivative in the z direction
+
+    ! px = sign of the symmetry transformation in the x-direction
+    ! py = sign of the symmetry transformation in the y-direction
+    ! pz = sign of the symmetry transformation in the z-direction
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in), target  :: f(:)
+    real(KIND=dp), intent(out), target :: fx(:), fy(:), fz(:)
+    integer, intent(in)        :: px,py,pz
+    real(KIND=dp), pointer     :: f3(:,:,:), fx3(:,:,:), fy3(:,:,:), fz3(:,:,:)
+    
+    f3 (1:nx,1:ny,1:nz)  => f
+    fx3(1:nx,1:ny,1:nz)  => fx
+    fy3(1:nx,1:ny,1:nz)  => fy
+    fz3(1:nx,1:ny,1:nz)  => fz
+    
+    call Derive_grad_3d(f3, px,py,pz,fx3, fy3, fz3)
+    
+ end subroutine Derive_grad_1d
+ 
+ subroutine Derive_1d(f, px, py, pz, fx, fy, fz, df)
+    !---------------------------------------------------------------------------
+    ! Subroutine that computes the first and second order derivative on the mesh
+    !
+    ! We use a dirty trick here, by simply reshaping with pointers, which should
+    ! avoid copying matrices and not impact the speed. (Let's see in practice.)
+    !
+    ! fx = First order derivative in the x direction
+    ! fy = First order derivative in the y direction
+    ! fz = First order derivative in the z direction
+
+    ! px = sign of the symmetry transformation in the x-direction
+    ! py = sign of the symmetry transformation in the y-direction
+    ! pz = sign of the symmetry transformation in the z-direction
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in), target  :: f(:)
+    real(KIND=dp), intent(out), target :: df(:), fx(:), fy(:), fz(:)
+    integer, intent(in)        :: px,py,pz
+    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:)
+    real(KIND=dp), pointer     :: fx3(:,:,:), fy3(:,:,:), fz3(:,:,:)
+    
+    f3(1:nx,1:ny,1:nz)   => f
+    df3(1:nx,1:ny,1:nz)  => df
+    fx3(1:nx,1:ny,1:nz)  => fx
+    fy3(1:nx,1:ny,1:nz)  => fy
+    fz3(1:nx,1:ny,1:nz)  => fz
+    call Derive_3d(f3, px,py,pz,fx3,fy3,fz3,df3)
+    
+ end subroutine Derive_1d
 end module derivatives
