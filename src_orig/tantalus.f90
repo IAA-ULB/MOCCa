@@ -86,6 +86,14 @@ subroutine Test
     
     call calcedfcoefs()     
     call densit
+    Kinetic = CompKinetic()
+    print *
+    print *, 'Kinetic'
+    print *
+    print ('(10f12.3)'), Kinetic
+    print *
+    print *, 'NLO'
+    print *
     print ('(10f12.3)'),  Skyrme_LO()
     print *
     print *, 'NLO'

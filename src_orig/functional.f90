@@ -1,12 +1,14 @@
 module functional
  !==============================================================================
- !  #######   ##   #    # #####   ##   #      #    #  ####
- !     #     #  #  ##   #   #    #  #  #      #    # #
- !     #    #    # # #  #   #   #    # #      #    #  ####
- !     #    ###### #  # #   #   ###### #      #    #      #
- !     #    #    # #   ##   #   #    # #      #    # #    #
- !     #    #    # #    #   #   #    # ######  ####   ####
- !
+ !_________ _______  _       _________ _______  _                 _______ 
+ !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
+ !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
+ !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
+ !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
+ !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
+ !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
+ !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
+ !                                                                       
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
@@ -122,6 +124,43 @@ module functional
 !    SpEnergy = SpwfEnergy()
     return
   end subroutine CompEnergy
+
+  function CompKinetic() result(kinetic)
+    !---------------------------------------------------------------------------
+    ! This subroutine computes the total kinetic energy,
+    ! according to the following formula:
+    !    E_k = -\hbar/2m \int d^3x \sum_{k} v_{k} \Psi_k^* \Delta \Psi_k
+    !---------------------------------------------------------------------------
+    ! Note that the 1-body c.o.m. correction is not taken into account here!
+    !---------------------------------------------------------------------------
+    use Constants
+
+    integer          :: wave, it,k,i
+    real(KIND=dp)    ::  Inproduct
+    real(KIND=dp)    :: Kinetic(2)
+
+    ! Kinetic Energy
+    Kinetic = 0.0_dp
+    do wave=1,nwt
+        ! Isospin is neutron in the first half of blocks, proton in the rest
+        it = 2
+        if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
+
+        Inproduct = 0.0_dp
+        do k=1,4          
+                do i=1,mv
+                       Inproduct = Inproduct + HFPsi(i,1,1,k,wave) *  & 
+                       &  ( HFddPsi(i,1,1,k,1,1,wave) + &
+                       &    HFddPsi(i,1,1,k,2,2,wave) + &
+                       &    HFddPsi(i,1,1,k,3,3,wave))
+                enddo
+        enddo
+        Kinetic(it)= Kinetic(it) + Occupations(wave)*Inproduct
+    enddo
+
+    Kinetic=-Kinetic * hbm * dv
+    return
+  end function CompKinetic
   
   function Skyrme_LO() result(LOTerms)
     !---------------------------------------------------------------------------
@@ -213,12 +252,30 @@ module functional
     integer       :: it
     
     N2LOTerms = 0.0_dp
-    
+
+    print *, 'N2RHOQ',N2RHOQ
+
+    !---------------------------------------------------------------------------
+    ! Delta rho Delta rho                              T-even
+    N2LOterms(1) = sum(sum(lap_rho,2)**2)                            * N2D2rho(1)
+    do it=1,2
+        N2LOterms(2) =  N2LOterms(2) + sum(Lap_Rho(:,it)**2)         * N2D2rho(2) 
+    enddo
+    !----------------------------------------------------------------------------
+    !  rho Q                                           T-even 
     N2LOterms(3) = sum(sum(rho,2) * sum(QN2LO,2))                    * N2rhoQ(1)
     do it=1,2
         N2LOterms(4) = N2LOterms(4) + sum(rho(:,it) * QN2LO(:,it)) 
     enddo
     N2LOterms(4) = N2LOterms(4)                                      * N2rhoQ(2)
+    !----------------------------------------------------------------------------
+    !  tau^2                                           T-even
+    N2LOterms(5) = sum(sum(tau(:,1,1,:) + tau(:,2,2,:)                  &
+                 &                      + tau(:,3,3,:),2)**2)         * N2tau(1)
+    do it=1,2
+        N2LOterms(6) = N2LOterms(6) + sum((tau(:,1,1,it) + tau(:,2,2,it) &
+                    &               + tau(:,3,3,it))**2)              * N2tau(2)
+    enddo
     
     ! Don't forget the volume element
     N2LOTerms = N2LOTerms * dv

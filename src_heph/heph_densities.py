@@ -1,9 +1,13 @@
 #-------------------------------------------------------------------------------
-#    _  _          _                _          
-#   | || |___ _ __| |_  __ _ ___ __| |_ ___ ___
-#   | __ / -_| '_ | ' \/ _` / -_(_-|  _/ _ (_-<
-#   |_||_\___| .__|_||_\__,_\___/__/\__\___/__/
-#            |_|                               
+#          _______  _______           _______  _______  _______ _________ _______  _______ 
+#|\     /|(  ____ \(  ____ )|\     /|(  ___  )(  ____ \(  ____ \\__   __/(  ___  )(  ____ \
+#| )   ( || (    \/| (    )|| )   ( || (   ) || (    \/| (    \/   ) (   | (   ) || (    \/
+#| (___) || (__    | (____)|| (___) || (___) || (__    | (_____    | |   | |   | || (_____ 
+#|  ___  ||  __)   |  _____)|  ___  ||  ___  ||  __)   (_____  )   | |   | |   | |(_____  )
+#| (   ) || (      | (      | (   ) || (   ) || (            ) |   | |   | |   | |      ) |
+#| )   ( || (____/\| )      | )   ( || )   ( || (____/\/\____) |   | |   | (___) |/\____) |
+#|/     \|(_______/|/       |/     \||/     \|(_______/\_______)   )_(   (_______)\_______)
+#                                                                                          
 #
 # Copyright W. Ryssens & M. Bender
 #
@@ -229,11 +233,11 @@ def initdensities():
     NN  = Combine(Nabla, Nabla)
     
     densities     = ['rho','tau', 'Jmunu', 'QN2LO', 'ImT',     'V']
-    leftoperators = [ I,    N,     I,            I,     N,       N]
+    leftoperators = [ I,    N,     I,           NN,     N,       N]
     rightoperators= [ I,    N,    NS,           NN,    CN,     NNS] 
     deriv_needed  = [ 1,    0,     0,            0,     0,       0]
     lapla_needed  = [ 2,    0,     0,            0,     0,       0]
-    contractions  = [[],    [],   [],      [(0,1)],    [], [(0,1)]]
+    contractions  = [[],    [],   [],[(0,1), (2,3)],   [], [(0,1)]]
 
 def processdensities(fname, src, target):
     #===========================================================================
@@ -381,18 +385,22 @@ def GenDensityExpression(LeftOperator, RightOperator, Name, Der, Lap, Contract=[
         if(len(Contract) == 0):
             uncontracted = [arg]
         else:
-            for contraction in Contract:
-                for cont in range(3):
-                    ii = 0
-                    p  = () 
-                    for i in range(LeftOperator.dimension + RightOperator.dimension):
-                        if(i not in contraction):
-                            p = p + (arg[ii],)
-                            ii = ii +1
-                        else:
-                            p = p + (cont,)
-                    uncontracted.append(p)
-        
+            cont = itertools.product(range(3), repeat=len(Contract))
+            for c in cont:
+                p = ()   
+                
+                ii = 0
+                for i in range(LeftOperator.dimension + RightOperator.dimension):
+                        found = False                    
+                        for combination in Contract:
+                                if(i in combination): 
+                                        p = p + (c[Contract.index(combination)],)
+                                        found = True
+                        if(not found): 
+                                p = p + (arg[ii],)
+                                ii = ii +1
+                uncontracted.append(p)
+
         IND = ''
         for mu in arg: 
             IND = IND + ',' + str(mu+1) # Python indexes 0:N-1

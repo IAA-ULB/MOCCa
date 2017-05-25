@@ -228,6 +228,55 @@ contains
     enddo
     
  end subroutine Derive_3d
+
+ subroutine Derive_tot(f, px, py, pz, df, ddf, diag)
+    !---------------------------------------------------------------------------
+    ! Subroutine that computes all of the derivatives of a function on the mesh.
+    !
+    ! df(:,1)    = First order derivative in the x direction
+    ! df(:,1)    = First order derivative in the y direction
+    ! df(:,1)    = First order derivative in the z direction
+    ! ddf(:,i,j) = Second order derivative in the (i,j) direction. 
+    !
+    ! px = sign of the symmetry transformation in the x-direction
+    ! py = sign of the symmetry transformation in the y-direction
+    ! pz = sign of the symmetry transformation in the z-direction
+    !
+    ! diag = 0   All of the second order derivatives are calculated.
+    ! diag = 1   Only the xx,yy and zz derivatives are calculated.
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in)  :: f(:,:,:)
+    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:,:)
+    integer, intent(in)        :: px,py,pz, diag
+    
+    integer                    :: i,k, sx, sy,sz
+    
+    sx = (px + 3)/2 ! These are equal to 
+    sy = (py + 3)/2 !    1    if pi =   -1  or 0
+    sz = (pz + 3)/2 !    2    if pi =   +1 
+
+    !---------------------------------------------------------------------------
+    !  First order derivatives and diagonal second-order ones
+    do i=1,ny*nz
+         df(:,i,1,1)   =        matmul(derX  (:,:,sx),f(:,i,1))
+        ddf(:,i,1,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
+    enddo   
+    do k=1,nz
+        do i=1,nx
+            df(i,:,k,2)    =    matmul(derY  (:,:,sy),f(i,:,k))
+            ddf(i,:,k,2,2) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
+        enddo
+    enddo
+    do i=1,nx*ny
+        df(i,1,:,3)    =        matmul(derZ  (:,:,sz),f(i,1,:))
+        ddf(i,1,:,3,3) =        matmul(laplaZ(:,:,sz),f(i,1,:))
+    enddo
+    !---------------------------------------------------------------------------
+    if(diag.eq.0) then
+                ! Other second-order derivatives
+    endif   
+ end subroutine Derive_tot
  
  subroutine Derive_grad_3d(f, px, py, pz, fx, fy, fz)
     !---------------------------------------------------------------------------
