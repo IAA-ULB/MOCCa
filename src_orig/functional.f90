@@ -253,8 +253,6 @@ module functional
     
     N2LOTerms = 0.0_dp
 
-    print *, 'N2RHOQ',N2RHOQ
-
     !---------------------------------------------------------------------------
     ! Delta rho Delta rho                              T-even
     N2LOterms(1) = sum(sum(lap_rho,2)**2)                            * N2D2rho(1)

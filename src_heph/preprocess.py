@@ -12,13 +12,16 @@
 # 
 # Currently linked: 
 #
-#       densities.f90 <=> heph_densities.py
+#       densities.f90   <=> heph_densities.py
+#       derivatives.f90 <=> heph_derivatives.py
 #
 #============================================================================================
 
 import os
-from string         import Template
-from heph_densities import processdensities
+from string           import Template
+from heph_densities   import ProcessDensities
+from heph_derivatives import ProcessDerivatives
+from heph_symmetries  import ReduceAxes
 
 def preprocess(fname, src, target):
       # Decides which routine to call on which file.
@@ -27,13 +30,13 @@ def preprocess(fname, src, target):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='geninfo.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessGeninfo(fname, src, target)
         return
     if(fname=='derivatives.f90'):
-        processderivatives(fname, src, target)
+        ProcessDerivatives(fname, src, target)
         return
     if(fname=='wavefunctions.f90'):
-        processwavefunctions(fname, src, target)
+        ProcessWavefunctions(fname, src, target)
         return
     if(fname=='tantalus.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -57,11 +60,24 @@ def preprocess(fname, src, target):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='densities.f90'):
-        processdensities(fname, src, target)
+        ProcessDensities(fname, src, target)
         return
-          
 
-def processwavefunctions(fname, src, target):
+def ProcessGeninfo(fname, src, target):
+    #=======================================
+    # This one is already more complicated. 
+    #
+    #
+    
+    dic={}
+    dic['NUMSYM'] = sum(ReduceAxes)
+        
+    with open(src+fname, 'r') as template:
+        with open(target+fname, 'w') as generated:
+            for line in template:
+                generated.write(Template(line).substitute(dic))          
+
+def ProcessWavefunctions(fname, src, target):
     
     dic={}
     dic['BLOCKS'] = 8
@@ -71,22 +87,4 @@ def processwavefunctions(fname, src, target):
             for line in template:
                 generated.write(Template(line).substitute(dic)) 
 
-def processderivatives(fname, src, target):
-    #=======================================
-    # This one is already more complicated. 
-    #
-    #
-    
-    dic={}
-    dic['LINESIZEX'] = 20
-    dic['LINESIZEY'] = 20
-    dic['LINESIZEZ'] = 20
-    dic['DX'] = 'D'
-    dic['DY'] = 'D'
-    dic['DZ'] = 'D'
-        
-    with open(src+fname, 'r') as template:
-        with open(target+fname, 'w') as generated:
-            for line in template:
-                generated.write(Template(line).substitute(dic))
         

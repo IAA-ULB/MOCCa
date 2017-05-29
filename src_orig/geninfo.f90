@@ -16,7 +16,7 @@ module GenInfo
     !---------------------------------------------------------------------------
     ! Line element and volume element of the box. dx is in fm, dv in fm^3.
     real(KIND=dp)  :: dx=0.8_dp
-    real(KIND=dp)  :: dv=(0.8_dp**3)*8
+    real(KIND=dp)  :: dv=(0.8_dp**3)*(2**$NUMSYM)
     !---------------------------------------------------------------------------
     !Time step in 10^-22 s
     real(KIND=dp)  :: dt=0.012_dp, ReadjustTime=0.95_dp

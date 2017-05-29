@@ -239,7 +239,7 @@ def initdensities():
     lapla_needed  = [ 2,    0,     0,            0,     0,       0]
     contractions  = [[],    [],   [],[(0,1), (2,3)],   [], [(0,1)]]
 
-def processdensities(fname, src, target):
+def ProcessDensities(fname, src, target):
     #===========================================================================
     # Writing the code to compute the densities into densities.f90 file.
     #

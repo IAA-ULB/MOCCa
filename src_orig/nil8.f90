@@ -423,11 +423,6 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
             18 h(j,i) = h(i,j)
         17 continue
 
-
-     do i=1,ndim
-            print ('(99f7.3)'), h(i,1:ndim)
-     enddo
-     print *
      call diagon (h,ndim,n,s,d,wd)
     !c.......................storage and shift of the single particle energies
         irep(ni) = ia

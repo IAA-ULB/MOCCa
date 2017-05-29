@@ -11,11 +11,11 @@
 # Master script 'forging the chains' of Tantalus. 
 #
 #
-#===============================================================================
+#============================================================================================
 from os.path import isfile as isfile
 import os
-from src_heph import *
-
+from src_heph import heph_densities, heph_symmetries
+from src_heph import preprocess as pp
 #-------------------------------------------------------------------------------
 # Path to the original FORTRAN source
 SRCPATH = 'src_orig/'
@@ -55,6 +55,7 @@ if(not FOUND):
 #-------------------------------------------------------------------------------
 # Initialize all of Hephaestos' own modules
 print ' a)  Hephaestos is initializing its own modules.'
+heph_symmetries.initsymmetries()
 heph_densities.initdensities()
 
 #-------------------------------------------------------------------------------

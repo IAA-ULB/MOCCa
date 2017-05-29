@@ -72,17 +72,16 @@ contains
 
   subroutine iniwavefunctions()   
     !--------------------------------------------------------------------
-    !
-    !
-    !--------------------------------------------------------------------   
+    ! Build harmonic oscillator eigenfunctions
+    ! a) in an EV8-like box
+    ! b) expanding to the full box
+    ! c) restricting again to the box desired 
+    !--------------------------------------------------------------------
     
-    real(KIND=dp)        :: homegax, homegay,homegaz, alpha,qqq
-    integer              :: i
-    integer, allocatable :: kparz(:)
-    !--------------------------------------------------------------------
-    ! Build harmonic oscillator eigenfunctions by constructing them in  
-    ! an EV8-like box and then expanding them to the entire box. 
-    !--------------------------------------------------------------------
+    real(KIND=dp)             :: homegax, homegay,homegaz, alpha,qqq
+    real(KIND=dp),allocatable :: fullbox(:,:,:,:,:)
+    integer                   :: i,j,k, wave, p
+    integer, allocatable      :: kparz(:)
         
     alpha = 0.2    
     qqq   = 1.0    
@@ -92,10 +91,53 @@ contains
     
     nwn = 10
     nwp = 10
-    
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! a) Generating the nilsson wave-functions in an EV8-box   
     call nilsson (HFPsi,kparz,spenergies,2,1,nwt,nwn,nwp,                      &
     &           floor(neutrons),floor(protons),nx,ny,nz,0.8d0,0.2d0,0.2d0,0.2d0)
-  
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! b) blow-up into the full box
+    allocate(fullbox(2*nx, 2*ny, 2*nz, 4, nwt))
+    do wave=1,nwt
+        ! Copy the original
+        fullbox(nx+1: 2*nx,ny+1: 2*ny, nz+1: 2*nz,:,wave) = HFPsi   (:,:,:,:,wave)     
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Use y-time-simplex to fill in the y-axis.
+        do j=1,ny
+                ! S^t_y Psi (x,y,z,sigma) = Psi^*(x,-y,z,sigma)
+                fullbox(nx+1: 2*nx,j, nz+1:2*nz,1,wave) =   fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,1,wave)
+                fullbox(nx+1: 2*nx,j, nz+1:2*nz,2,wave) = - fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,2,wave)
+                fullbox(nx+1: 2*nx,j, nz+1:2*nz,3,wave) =   fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,3,wave)
+                fullbox(nx+1: 2*nx,j, nz+1:2*nz,4,wave) = - fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,4,wave)
+        enddo
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Use z-signature to fill in the x-axis
+        do j=1,2*ny
+            do i=1,nx
+                ! R_z Psi (x,y,z,sigma) = -i sigma Psi(-x,-y,z, sigma)
+                fullbox(i,j,nz+1:2*nz,1,wave) =   fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,2,wave)
+                fullbox(i,j,nz+1:2*nz,2,wave) = - fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,1,wave)
+                fullbox(i,j,nz+1:2*nz,3,wave) = - fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,4,wave)
+                fullbox(i,j,nz+1:2*nz,4,wave) =   fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,3,wave)
+            enddo
+        enddo
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Use parity to fill in the z-axis
+        p = kparz(wave)
+        do k=1,nz
+                do j=1,2*ny
+                        do i=1,2*nx
+                                fullbox(i,j,k,1,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,1,wave)
+                                fullbox(i,j,k,2,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,2,wave)
+                                fullbox(i,j,k,3,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,3,wave)
+                                fullbox(i,j,k,4,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,4,wave)
+                        enddo
+                enddo
+        enddo
+    enddo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
     do i=1,10
         if(kparz(i) .gt. 0) HFBlocks(1) = HFBlocks(1) +1
         if(kparz(i) .lt. 0) HFBlocks(3) = HFBlocks(3) +1
