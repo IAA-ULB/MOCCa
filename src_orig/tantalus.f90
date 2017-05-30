@@ -54,55 +54,60 @@ subroutine Test
    
     integer :: i,lol,k, par,iso
  
-!    open (12,form='unformatted',file='MOCCa.test')
-!    read(12)
-!    read(12)
-!    read(12)
-!    read(12)
-!    read(12)
-!    allocate(Occupations(nwt))
-!    allocate(spenergies(nwt))
-!    allocate(HFPsi(nx,ny,nz,4,nwt))
-!    
-!    do i=1,nwt
-!        read(12) HFPsi(:,:,:,:,i)
-!        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, iso, k,par,k,k
-!    enddo
-!    
-!    nwn=10
-!    nwp=10
-!    
-!    HFBlocks(1) = 7
-!    HFBlocks(3) = 3
-!    HFBlocks(5) = 7
-!    HFBlocks(7) = 3
+    open (12,form='unformatted',file='MOCCa.test')
+    read(12)
+    read(12)
+    read(12)
+    read(12)
+    read(12)
+    allocate(Occupations(nwt))
+    allocate(spenergies(nwt))
+    allocate(HFPsi(nx,ny,nz,4,nwt))
     
-    call iniwavefunctions()
+    do i=1,nwt
+        read(12) HFPsi(:,:,:,:,i)
+        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, iso, k,par,k,k
+    enddo
+    
+    nwn=10
+    nwp=10
+    
+    HFBlocks(1) = 7
+    HFBlocks(3) = 3
+    HFBlocks(5) = 7
+    HFBlocks(7) = 3
+    
+    !call iniwavefunctions()
     call inilag()
     call NaiveFill(occupations)
     
     call printSpwfs
     call deriveall()
     
-    call calcedfcoefs()     
+    call calcedfcoefs()
+    call printedfcoefs()     
     call densit
     Kinetic = CompKinetic()
-    print *
-    print *, 'Kinetic'
-    print *
-    print ('(10f12.3)'), Kinetic
-    print *
-    print *, 'NLO'
-    print *
-    print ('(10f12.3)'),  Skyrme_LO()
-    print *
-    print *, 'NLO'
-    print *
-    print ('(10f12.3)'),  Skyrme_NLO()
-    print *
-    print *, 'N2LO'
-    print *
-    print ('(10f12.3)'),  Skyrme_N2LO()
+    
+    call CompSkyrme()
+    call PrintSkyrme
+    print *, Kinetic
+!    print *
+!    print *, 'Kinetic'
+!    print *
+!    print ('(10f12.3)'), Kinetic
+!    print *
+!    print *, 'NLO'
+!    print *
+!    print ('(10f12.3)'),  Skyrme_LO()
+!    print *
+!    print *, 'NLO'
+!    print *
+!    print ('(10f12.3)'),  Skyrme_NLO()
+!    print *
+!    print *, 'N2LO'
+!    print *
+!    print ('(10f12.3)'),  Skyrme_N2LO()
 !    print *, hfbasis(:,1,1,1, 1)
 !    print *, hfbasis(:,1,1,1, 11)
 

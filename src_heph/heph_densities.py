@@ -17,15 +17,16 @@
 # =========== 
 #
 # The workhorse of this module is the function
-#   GenDensityExpression(LeftOperator, RightOperator, Name, Der, Lap)
+#   GenDensityExpression(LeftOperator, RightOperator, Der, Lap)
 # 
-# That, when given a left-operator, right-operator, a name for the density
+# That, when given a left-operator, right-operator for the density
 # and which derivatives are needed of this density returns
-#  a) a Declaration expression, correctly declaring the density for a FORTRAN code
-#  b) an Initialization expression, allocating and initialising the density
-#  c) an Expression expression, calculating all of the components needed of the
+#  a) and automatically generated name for the density
+#  b) a Declaration expression, correctly declaring the density for a FORTRAN code
+#  c) an Initialization expression, allocating and initialising the density
+#  d) an Expression expression, calculating all of the components needed of the
 #     density. 
-#  d) A derivation expression, calculating all of the asked for derivatives of
+#  e) A derivation expression, calculating all of the asked for derivatives of
 #     this density. 
 #
 #
@@ -89,7 +90,6 @@
 # The action of sigma_y for example is coded as
 #
 #   Sigma(2, [1,2,3,4]) = [ -4, 3, 2, 1]
-# 
 # representing  
 #
 #  sigma_y  ( Psi_1 + i Psi_2 ) = ( -Psi_4 + i Psi_3)
@@ -190,38 +190,41 @@ def initdensities():
     global currents, deriv_needed, lapla_needed, ArrayNames, contractions
    
         
-    Identity.dimension   =0
-    Identity.derorder    =0  
-    Identity.parity      =np.array([1])
-    Identity.time        =np.array([1])
-    Identity.signature_x =np.array([1])   
-    Identity.signature_y =np.array([1])
-    Identity.signature_z =np.array([1])
+    Identity.dimension   = 0
+    Identity.derorder    = 0  
+    Identity.parity      = np.array([1])
+    Identity.time        = np.array([1])
+    Identity.signature_x = np.array([1])   
+    Identity.signature_y = np.array([1])
+    Identity.signature_z = np.array([1])
+    Identity.name        ='I'
     
-    Current.derorder     =0
-    Current.dimension    =0
-    Current.parity      =np.array([ 1])
-    Current.time        =np.array([-1])
-    Current.signature_x =np.array([ 1])   
-    Current.signature_y =np.array([ 1])
-    Current.signature_z =np.array([ 1])
+    Current.derorder     = 0
+    Current.dimension    = 0
+    Current.parity       = np.array([ 1])
+    Current.time         = np.array([-1])
+    Current.signature_x  = np.array([ 1])   
+    Current.signature_y  = np.array([ 1])
+    Current.signature_z  = np.array([ 1])
+    Current.name         = 'C'
     
-    Nabla.dimension      =1
-    Nabla.derorder       =1
-    Nabla.parity      =np.array([-1,-1,-1])
-    Nabla.time        =np.array([ 1, 1, 1])
-    Nabla.signature_x =np.array([ 1,-1,-1])   
-    Nabla.signature_y =np.array([-1, 1,-1])
-    Nabla.signature_z =np.array([-1,-1, 1])   
+    Nabla.dimension      = 1
+    Nabla.derorder       = 1
+    Nabla.parity         = np.array([-1,-1,-1])
+    Nabla.time           = np.array([ 1, 1, 1])
+    Nabla.signature_x    = np.array([ 1,-1,-1])   
+    Nabla.signature_y    = np.array([-1, 1,-1])
+    Nabla.signature_z    = np.array([-1,-1, 1])   
+    Nabla.name           = 'N'
     
-    Sigma.dimension      =1 
-    Sigma.derorder       =0
-    Sigma.parity      =np.array([ 1, 1, 1])
-    Sigma.time        =np.array([-1,-1,-1])
-    Sigma.signature_x =np.array([ 1,-1,-1])   
-    Sigma.signature_y =np.array([-1, 1,-1])
-    Sigma.signature_z =np.array([-1,-1, 1])
-   
+    Sigma.dimension      = 1 
+    Sigma.derorder       = 0
+    Sigma.parity         = np.array([ 1, 1, 1])
+    Sigma.time           = np.array([-1,-1,-1])
+    Sigma.signature_x    = np.array([ 1,-1,-1])   
+    Sigma.signature_y    = np.array([-1, 1,-1])
+    Sigma.signature_z    = np.array([-1,-1, 1])
+    Sigma.name           = 'S'
     
     ArrayNames=['HFPsi', 'HFdPsi', 'HFddPsi']
 
@@ -229,13 +232,14 @@ def initdensities():
     I  = Identity
     NS  = Combine(Nabla, Sigma)
     CN  = Combine(Current,Nabla)
-    NNS = Combine(     NS,Nabla)
+    CNS = Combine(Current,  NS)
+    NNS = Combine(Nabla,    NS)
     NN  = Combine(Nabla, Nabla)
     
     densities     = ['rho','tau', 'Jmunu', 'QN2LO', 'ImT',     'V']
     leftoperators = [ I,    N,     I,           NN,     N,       N]
-    rightoperators= [ I,    N,    NS,           NN,    CN,     NNS] 
-    deriv_needed  = [ 1,    0,     0,            0,     0,       0]
+    rightoperators= [ I,    N,   CNS,           NN,    CN,     NNS] 
+    deriv_needed  = [ 1,    0,     2,            0,     0,       0]
     lapla_needed  = [ 2,    0,     0,            0,     0,       0]
     contractions  = [[],    [],   [],[(0,1), (2,3)],   [], [(0,1)]]
 
@@ -256,17 +260,17 @@ def ProcessDensities(fname, src, target):
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     print ' Generated densities '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
-    print '   Name    RDim   CDim    Der    Contracted  '
+    print '         Name    RDim   CDim    Der    Contracted  '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     for i in range(len(densities)): 
         realorder= leftoperators[i].dimension + rightoperators[i].dimension
         order    = realorder - 2 * len(contractions[i])
         derorder = leftoperators[i].derorder + rightoperators[i].derorder
         
-        print ' %6s %6d %6d %6d   '%(densities[i], realorder, order, derorder), contractions[i]
-
         # Getting all of the expression for all of the densities.
-        (E,D,I,Der) = GenDensityExpression( leftoperators[i],rightoperators[i],densities[i],deriv_needed[i],lapla_needed[i], contractions[i])
+        (N, E,D,I,Der) = GenDensityExpression( leftoperators[i],rightoperators[i],deriv_needed[i],lapla_needed[i], contractions[i])
+
+        print ' %12s %6d %6d %6d   '%(N, realorder, order, derorder), contractions[i]
 
         Expression     = Expression     + '\n'  + E
         Declaration    = Declaration    + '\n'  + D
@@ -286,13 +290,8 @@ def ProcessDensities(fname, src, target):
             for line in template:
                 generated.write(Template(line).substitute(dic))  
     
-def GenDensityExpression(LeftOperator, RightOperator, Name, Der, Lap, Contract=[]):
-    #---------------------------------------------------------------------------
-    #
-    #
-    #
-    #
-    #
+def GenDensityExpression(LeftOperator, RightOperator, Der, Lap, Contract=[]):
+    
     Expression    = ''
     Declaration   = ''
     Initialisation= ''
@@ -308,14 +307,53 @@ def GenDensityExpression(LeftOperator, RightOperator, Name, Der, Lap, Contract=[
                                  tab+'endif \n'                              + \
                                  tab+'$NAME = 0.0d0')
     Dec_template   = Template(   tab + 'real*8,allocatable :: $NAME(:$TOTALIND,:)')
-    Der_template   = Template( 2*tab +'call Derive_grad($NAME(:$IND,it), $PX,$PY,$PZ, der_$NAME(:$IND,1,it),der_$NAME(:$IND,2,it),der_$NAME(:$IND,3,it)) \n')
+    Der_template   = Template( 2*tab +'call Derive_grad($NAME(:$IND,it),$PX,$PY,$PZ,der_$NAME(:,1$IND,it), &\n') 
+    Der_template_b = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,2$IND,it), &\n')
+    Der_template_c = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,3$IND,it))  \n')
     Lap_template   = Template( 2*tab +'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ, lap_$NAME(:$IND,it)) \n')
     
     #---------------------------------------------------------------------------
     # Some templates for comments to put into the densities file
     Den_comment          = Template(2*tab+'! Calculation of density $NAME \n')
+    
     Den_comment_deriv    = Template(2*tab+'! Derivation of density $NAME  \n')
+    Den_comment_deriv_b  = Template(2*tab+'! first order derivatives: $DER\n')
+    Den_comment_deriv_c  = Template(2*tab+'! laplacians             : $LAP\n')
+    
     Den_line             = Template(2*tab+'! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  \n')
+   
+    #---------------------------------------------------------------------------
+    # Contraction indices to cycle through for the contractions
+    cont_ind = ['m', 'n', 'k', 'r', 'q']
+   
+    #---------------------------------------------------------------------------
+    # Find the correct name in our grand naming scheme
+    autoname = 'D' 
+    if( 'C' in LeftOperator.name  or 'C' in RightOperator.name):
+        autoname = 'C'
+    if( 'C' in LeftOperator.name  and 'C' in RightOperator.name):
+        print 'HEPHAESTOS cannot manage currents of currents.'
+        exit()
+    
+#    autoname = autoname + '_' + LeftOperator.name.replace('C', '') + '_' + RightOperator.name.replace('C', '')
+#    
+    left =LeftOperator.name.replace('C', '')
+    right=RightOperator.name.replace('C', '')
+    lname=''
+    rname=''
+    for l in range(len(left)):
+        lname = lname + left[l]
+        for c in Contract:
+            if(l in c):
+                lname = lname + cont_ind[Contract.index(c)]
+    for r in range(len(right)):
+        rname = rname + right[r]
+        for c in Contract:
+            if((r+len(left)) in c):
+               rname = rname + cont_ind[Contract.index(c)]
+    
+    Name = autoname + '_' + lname + '_' + rname
+   
     #---------------------------------------------------------------------------
     # Declaration and initialisation, also for the derivatives.
     
@@ -329,6 +367,7 @@ def GenDensityExpression(LeftOperator, RightOperator, Name, Der, Lap, Contract=[
     totalind= ''
     dim     = ''
     
+  
     #---------------------------------------------------------------------------
     # Find the correct dimensions
     ndim = LeftOperator.dimension + RightOperator.dimension - 2*len(Contract)
@@ -374,9 +413,15 @@ def GenDensityExpression(LeftOperator, RightOperator, Name, Der, Lap, Contract=[
     Expression = Expression +  Den_line.substitute(dic)
     Expression = Expression +  Den_comment.substitute(dic)
     
+    dic['DER'] = Der
+    dic['LAP'] = Lap
+    
     if(Der >=1 or Lap >= 1):
         Derivation = Derivation +  Den_line.substitute(dic)
         Derivation = Derivation +  Den_comment_deriv.substitute(dic)
+        Derivation = Derivation +  Den_comment_deriv_b.substitute(dic)
+        Derivation = Derivation +  Den_comment_deriv_c.substitute(dic)
+   
         
     for arg in args:
         # We have the uncontracted indices. Now construct the combinations of
@@ -470,20 +515,25 @@ def GenDensityExpression(LeftOperator, RightOperator, Name, Der, Lap, Contract=[
             # All components
             deriv_args = itertools.product(range(3), repeat=l)
             for darg in deriv_args: 
-                dic['IND']  = IND    
+                dic['IND']  = ''    
                 for i in darg:
                     dic['IND']  = dic['IND'] + ',%d'%(i+1)
-                
+                dic['IND']  = dic['IND'] +  IND    
                 #Preparing symmetries for derivatives
                 (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg)
                 dic['PX']    = str(px)
                 dic['PY']    = str(py)
                 dic['PZ']    = str(pz)
             
+                
                 Derivation   = Derivation  + Der_template.substitute(dic)
-    
+                dic['DERSPACE'] = (18+len(Name)+ len(dic['IND']) +10) * ' '
+                Derivation   = Derivation  + Der_template_b.substitute(dic)
+                Derivation   = Derivation  + Der_template_c.substitute(dic)
+            Derivation = Derivation + '\n'
+        dic['NAME'] = Name
     Expression = Expression + Den_line.substitute(dic) 
-    return (Expression, Declaration, Initialisation, Derivation)
+    return (Name,Expression, Declaration, Initialisation, Derivation)
 
 def Identity(mu,indices):
     
@@ -568,6 +618,8 @@ def Combine( L , R ):
     LR.signature_x = BroadCastSymmetries(L.signature_x, R.signature_x)
     LR.signature_y = BroadCastSymmetries(L.signature_y, R.signature_y)
     LR.signature_z = BroadCastSymmetries(L.signature_z, R.signature_z)
+    
+    LR.name = L.name + R.name
     
     return LR
 

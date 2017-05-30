@@ -22,6 +22,7 @@ from string           import Template
 from heph_densities   import ProcessDensities
 from heph_derivatives import ProcessDerivatives
 from heph_symmetries  import ReduceAxes
+from heph_functional  import ProcessFunctional
 
 def preprocess(fname, src, target):
       # Decides which routine to call on which file.
@@ -42,7 +43,7 @@ def preprocess(fname, src, target):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='functional.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessFunctional(fname, src, target)
         return
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
