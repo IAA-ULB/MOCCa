@@ -44,6 +44,9 @@ implicit none
     ! Type declaration of the various densities
 $DECLARATION   
 
+    !-------------------------------------------------------------------
+    ! Type declaration of possible rotational combinations of densities.
+$DECL_VECPROD
 contains
 
 subroutine densit
@@ -74,6 +77,13 @@ $EXPRESSION
     do it=1,2
 $DERIVATION  
     enddo  
+    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of all outer vector products that are needed further on, 
+    ! either of primary densities or derived densities.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+$INIVECPROD
+$VECPROD
 end subroutine densit
     
 end module densities

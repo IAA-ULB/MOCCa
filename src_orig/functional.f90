@@ -93,7 +93,8 @@ $PRINTCOEF
     !
     !
     !
-    integer :: it
+    integer :: it,m,n,k
+    real(KIND=dp) :: Edensity(mv,3)
     
 $CALCULATION
     
@@ -107,8 +108,6 @@ $CALCULATION
     1 format ('-----------------------------------------------------------------')
     2 format (' Skyrme Energy ')
     3 format (20x, 'isoscalar   isovector   total')
-    
-    $FORM
     
     print 1
     print 2

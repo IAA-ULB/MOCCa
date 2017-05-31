@@ -182,6 +182,77 @@ contractions  =[]
 # 4 spaces for W.R., but I can imagine other people have different standards.
 tab       ='    '
 
+def Rot_ind(k):
+    # C_k = A_i B_j + A_j B_i
+    # Input is k, output is the corresponding pair
+    #     [ (i,j) ] if s == 0
+    #     [ (j,i) ] if s == 1
+    # where (i,j) carries the plus sign 
+    
+    if(k == 1):
+        i = 2
+        j = 3
+    elif(k == 2):
+        i = 3
+        j = 1
+    elif(k == 3):
+        i = 1
+        j = 2
+        
+    return [(i,j)]
+    
+def GenVecProd(density, coupling):
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    # Generate the appropriate expressions for the calculation of a vector
+    # product. 
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    decl_template = Template('real(KIND=dp), allocatable :: $NAME(:,:,:)')
+    ini_template  = Template(   tab + 'if(.not.allocated($NAME)) then'           \
+                            + 2*tab + 'allocate($NAME(mv,$IND,2))'               \
+                            +   tab + 'endif'                                    \
+                            +   tab + '$NAME = 0.0_dp')
+    calc_temp     = Template(   tab + '$NAME = &')
+    calc_a_temp   = Template(   tab + '$NAME = &')
+    
+   
+    index_encountered = 0
+    name              = ''
+    for i in range(len(density)):
+        l = density[i]
+        if( density[i-1:i+1] == 'der'):
+            for c in coupling: 
+                if index_encountered in c:
+                    name = name + l + 'x%d'%(coupling.index(c)+1)
+            index_encountered=index_encountered+1
+        elif( (l.isupper() and l != 'I' and l != 'D' and l!= 'C')):
+            for c in coupling: 
+                if index_encountered in c:
+                    name = name + l + 'x%d'%(coupling.index(c)+1)
+            index_encountered=index_encountered+1
+        else:   
+            name = name + l
+    
+    return (decl, ini, calc)
+def OrderOfDen(density):
+    #---------------------------------------------------------------------------
+    # Simply checks the number of capital letters N and S in the name
+    # that are not contracted.
+    
+    # add a dimension for every derivative and don't count the capital D or C
+    test  = density.replace('_', '')
+    order = test.count("der") - 1 
+    test  = test.replace('der', '')
+    test  = test.replace('lap', '')
+    
+    for letter in test:
+        if(letter.isupper() and letter != 'I'):
+            # Every capital letter that is not I adds an index
+            order = order + 1
+        if(not letter.isupper()):
+            # But if the a non-capital letter follows, the index is contracted.
+            order = order - 1
+    return order   
+
 def initdensities():
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Initialize the predefined operators with correct atributes, before they
@@ -236,6 +307,8 @@ def initdensities():
     NNS = Combine(Nabla,    NS)
     NN  = Combine(Nabla, Nabla)
     
+    print GenVecProd('D_N_N', [(0,1)])
+    
     densities     = ['rho','tau', 'Jmunu', 'QN2LO', 'ImT',     'V']
     leftoperators = [ I,    N,     I,           NN,     N,       N]
     rightoperators= [ I,    N,   CNS,           NN,    CN,     NNS] 
@@ -256,7 +329,8 @@ def ProcessDensities(fname, src, target):
     Declaration    = ''
     Initialisation = ''
     Derivation     = ''
-
+    VecProd        = ''
+    DeclVecProd    = ''
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     print ' Generated densities '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
@@ -281,10 +355,12 @@ def ProcessDensities(fname, src, target):
     
     # Substitute into the densities.f90 file.        
     dic={}
-    dic['DECLARATION']    = Declaration
+    dic['DECLARATION'   ] = Declaration
     dic['INITIALIZATION'] = Initialisation
-    dic['EXPRESSION']     = Expression
-    dic['DERIVATION']     = Derivation    
+    dic['EXPRESSION'    ] = Expression
+    dic['DERIVATION'    ] = Derivation 
+    dic['VECPROD'       ] = VecProd 
+    dic['DECL_VECPROD'  ] = DeclVecProd    
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:
@@ -329,14 +405,12 @@ def GenDensityExpression(LeftOperator, RightOperator, Der, Lap, Contract=[]):
     #---------------------------------------------------------------------------
     # Find the correct name in our grand naming scheme
     autoname = 'D' 
-    if( 'C' in LeftOperator.name  or 'C' in RightOperator.name):
+    if( 'C' in LeftOperator.name  or  'C' in RightOperator.name):
         autoname = 'C'
     if( 'C' in LeftOperator.name  and 'C' in RightOperator.name):
         print 'HEPHAESTOS cannot manage currents of currents.'
         exit()
     
-#    autoname = autoname + '_' + LeftOperator.name.replace('C', '') + '_' + RightOperator.name.replace('C', '')
-#    
     left =LeftOperator.name.replace('C', '')
     right=RightOperator.name.replace('C', '')
     lname=''
@@ -351,12 +425,11 @@ def GenDensityExpression(LeftOperator, RightOperator, Der, Lap, Contract=[]):
         for c in Contract:
             if((r+len(left)) in c):
                rname = rname + cont_ind[Contract.index(c)]
-    
+            
     Name = autoname + '_' + lname + '_' + rname
    
     #---------------------------------------------------------------------------
     # Declaration and initialisation, also for the derivatives.
-    
     dic= {}
     dic['NAME']    = Name
     
@@ -367,7 +440,6 @@ def GenDensityExpression(LeftOperator, RightOperator, Der, Lap, Contract=[]):
     totalind= ''
     dim     = ''
     
-  
     #---------------------------------------------------------------------------
     # Find the correct dimensions
     ndim = LeftOperator.dimension + RightOperator.dimension - 2*len(Contract)
@@ -421,8 +493,6 @@ def GenDensityExpression(LeftOperator, RightOperator, Der, Lap, Contract=[]):
         Derivation = Derivation +  Den_comment_deriv.substitute(dic)
         Derivation = Derivation +  Den_comment_deriv_b.substitute(dic)
         Derivation = Derivation +  Den_comment_deriv_c.substitute(dic)
-   
-        
     for arg in args:
         # We have the uncontracted indices. Now construct the combinations of
         # indices, including contracted ones, that correspond to this. 
@@ -432,8 +502,7 @@ def GenDensityExpression(LeftOperator, RightOperator, Der, Lap, Contract=[]):
         else:
             cont = itertools.product(range(3), repeat=len(Contract))
             for c in cont:
-                p = ()   
-                
+                p  = ()   
                 ii = 0
                 for i in range(LeftOperator.dimension + RightOperator.dimension):
                         found = False                    
@@ -445,6 +514,7 @@ def GenDensityExpression(LeftOperator, RightOperator, Der, Lap, Contract=[]):
                                 p = p + (arg[ii],)
                                 ii = ii +1
                 uncontracted.append(p)
+
 
         IND = ''
         for mu in arg: 
