@@ -176,6 +176,7 @@ currents      =[]
 deriv_needed  =[]
 lapla_needed  =[]
 contractions  =[]
+rotcoupl      =[]
 
 #-------------------------------------------------------------------------------
 # Tab-character for the fortran code.
@@ -189,50 +190,140 @@ def Rot_ind(k):
     #     [ (j,i) ] if s == 1
     # where (i,j) carries the plus sign 
     
-    if(k == 1):
-        i = 2
-        j = 3
-    elif(k == 2):
-        i = 3
-        j = 1
-    elif(k == 3):
+    if(k == 0):
         i = 1
         j = 2
+    elif(k == 1):
+        i = 2
+        j = 0
+    elif(k == 2):
+        i = 0
+        j = 1
         
-    return [(i,j)]
+    return (i,j)
     
 def GenVecProd(density, coupling):
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Generate the appropriate expressions for the calculation of a vector
     # product. 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    decl_template = Template('real(KIND=dp), allocatable :: $NAME(:,:,:)')
-    ini_template  = Template(   tab + 'if(.not.allocated($NAME)) then'           \
-                            + 2*tab + 'allocate($NAME(mv,$IND,2))'               \
-                            +   tab + 'endif'                                    \
-                            +   tab + '$NAME = 0.0_dp')
-    calc_temp     = Template(   tab + '$NAME = &')
-    calc_a_temp   = Template(   tab + '$NAME = &')
+    decl_template = Template(   tab + 'real(KIND=dp), allocatable :: $NAME(:$DECLIND,:)')
+    ini_template  = Template(   tab + 'if(.not.allocated($NAME)) then \n'      \
+                            + 2*tab + 'allocate($NAME(mv$ALLOCIND,2)) \n'      \
+                            +   tab + 'endif  \n'                              \
+                            +   tab + '$NAME = 0.0_dp  \n')
+    calc_temp     = Template(   tab + '$NAME(:$ARG,:) = & \n')
+    calc_a_temp   = Template( '$SIGN $DEN(:$IND,:) ')
     
-   
     index_encountered = 0
     name              = ''
+    ini               = ''
+    
+    dic = {}
+    
+    #---------------------------------------------------------------------------
+    # Constructing the correct name: inserting xi, xj etc at the correct spot.
     for i in range(len(density)):
         l = density[i]
-        if( density[i-1:i+1] == 'der'):
+        if( density[i:i+3] == 'der'):
             for c in coupling: 
                 if index_encountered in c:
                     name = name + l + 'x%d'%(coupling.index(c)+1)
+                else :
+                    name = name + l
             index_encountered=index_encountered+1
         elif( (l.isupper() and l != 'I' and l != 'D' and l!= 'C')):
-            for c in coupling: 
+            for c in coupling:
                 if index_encountered in c:
                     name = name + l + 'x%d'%(coupling.index(c)+1)
             index_encountered=index_encountered+1
         else:   
             name = name + l
+        
+    dic['NAME'] = name
     
+    
+    #---------------------------------------------------------------------------
+    # Constructing the correct set of indices for allocation and declaration.
+    order      =  OrderOfDen(density)
+
+    allocind   = ''
+    for i in range(order - len(coupling)):
+        allocind = allocind + ',3'
+    
+    dic['ALLOCIND'] = allocind
+    dic['DECLIND']  = allocind.replace('3', ':')
+    
+    decl = decl_template.substitute(dic)
+    ini  =  ini_template.substitute(dic)
+    
+    #---------------------------------------------------------------------------
+    # Constructing the calculation segments.
+    # Generate all of the possible values for the remaining indices.
+    # Note that in this generation, we take
+    #  [ m n, ..., z, x1, x2 ]
+    #    -----------  -------
+    #    uncoupled    coupled  indices
+    redorder = order - 2*len(coupling) 
+    args     = itertools.product(range(3), repeat=order - len(coupling))
+    
+    calc = ''
+    for arg in args:
+        uncontracted = []
+    
+        if(len(coupling) == 0):
+            uncontracted = [arg]
+        else:
+           comb = []
+           for k in range(len(coupling)):
+                (i,j) = Rot_ind(arg[redorder + k])
+                # Add a minus sign to indicate which one of the combinations
+                # is reversed.
+                comb = comb + [[(i+1,j+1), (-j-1,i+1)]] 
+  
+           combinations = itertools.product(*comb)
+           for c in combinations:
+                p = ()
+                ii = 0
+                for i in range(order):
+                    found = False                    
+                    for k in range(len(coupling)):
+                            if(i in coupling[k]): 
+                                    # Look at this beast of an expression :)
+                                    p = p + (c[k][coupling[k].index(i)],)  
+                                    found = True
+                    if(not found): 
+                            p = p + (arg[ii],)
+                            ii = ii +1
+                uncontracted.append(p)
+                
+                
+        dic['ARG'] = ''
+        dic['DEN'] = density
+        for i in range(len(arg)):
+            dic['ARG'] = dic['ARG'] + ',%s'%(arg[i]+1)
+        calc = calc + calc_temp.substitute(dic)
+        calc = calc + 2 * tab +'&'
+        
+        count = 0
+        for true_arg in uncontracted:
+            dic['IND']  = ''
+            s = 1
+            for i in range(len(true_arg)):
+                dic['IND']  = dic['IND']+ ',%s'%(abs(true_arg[i]))
+                s           = s * true_arg[i]
+            if(s > 0 ): 
+                dic['SIGN'] = '+'
+            else:
+                dic['SIGN'] = '-'
+            calc = calc + calc_a_temp.substitute(dic)
+            count = count + 1
+            if(count%3 == 0):
+                calc = calc + '& \n' + 2 * tab +'&'
+        calc = calc  + '\n'       
+            
     return (decl, ini, calc)
+    
 def OrderOfDen(density):
     #---------------------------------------------------------------------------
     # Simply checks the number of capital letters N and S in the name
@@ -244,14 +335,19 @@ def OrderOfDen(density):
     test  = test.replace('der', '')
     test  = test.replace('lap', '')
     
-    for letter in test:
+    for i in range(9):
+        order = order + test.count("x%d"%i) 
+        test  = test.replace('x%d'%i, '')
+    
+    for i in range(len(test)):
+        letter = test[i]
         if(letter.isupper() and letter != 'I'):
             # Every capital letter that is not I adds an index
             order = order + 1
         if(not letter.isupper()):
             # But if the a non-capital letter follows, the index is contracted.
             order = order - 1
-    return order   
+    return order 
 
 def initdensities():
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -259,6 +355,7 @@ def initdensities():
     # ever get called.
     global densities, dimensions, leftoperators, rightoperators
     global currents, deriv_needed, lapla_needed, ArrayNames, contractions
+    global rotcoupl
    
         
     Identity.dimension   = 0
@@ -307,14 +404,13 @@ def initdensities():
     NNS = Combine(Nabla,    NS)
     NN  = Combine(Nabla, Nabla)
     
-    print GenVecProd('D_N_N', [(0,1)])
-    
     densities     = ['rho','tau', 'Jmunu', 'QN2LO', 'ImT',     'V']
     leftoperators = [ I,    N,     I,           NN,     N,       N]
-    rightoperators= [ I,    N,   CNS,           NN,    CN,     NNS] 
-    deriv_needed  = [ 1,    0,     2,            0,     0,       0]
+    rightoperators= [ I,    N,   CNS,           NN,   CNS,     NNS] 
+    deriv_needed  = [ 2,    0,     2,            0,     0,       0]
     lapla_needed  = [ 2,    0,     0,            0,     0,       0]
-    contractions  = [[],    [],   [],[(0,1), (2,3)],   [], [(0,1)]]
+    contractions  = [[],    [],      [],[(0,1), (2,3)],   [], [(0,1)]]
+    rotcoupl      = [[],    [], [(1,2)],       [],   [],      []]
 
 def ProcessDensities(fname, src, target):
     #===========================================================================
@@ -323,7 +419,7 @@ def ProcessDensities(fname, src, target):
     #===========================================================================
 
     global densities, dimensions, MATSIZE, leftoperators, rightoperators
-    global currents, deriv_needed, lapla_needed, contractions
+    global currents, deriv_needed, lapla_needed, contractions, rotcoupl
 
     Expression     = ''
     Declaration    = ''
@@ -331,6 +427,7 @@ def ProcessDensities(fname, src, target):
     Derivation     = ''
     VecProd        = ''
     DeclVecProd    = ''
+    IniVecProd     = ''
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     print ' Generated densities '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
@@ -351,7 +448,14 @@ def ProcessDensities(fname, src, target):
         Initialisation = Initialisation + '\n'  + I
         if(len(Der)>0) :
              Derivation     = Derivation     + '\n'  + Der   
+        if(len(rotcoupl[i])>0):
+            print 'NAME', N
+            (decl, ini, calc) = GenVecProd('der_' + N,rotcoupl[i])
+            DeclVecProd = DeclVecProd + decl + '\n'
+            IniVecProd  = IniVecProd  + ini  + '\n'
+            VecProd     = VecProd     + calc + '\n'
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
+
     
     # Substitute into the densities.f90 file.        
     dic={}
@@ -360,7 +464,8 @@ def ProcessDensities(fname, src, target):
     dic['EXPRESSION'    ] = Expression
     dic['DERIVATION'    ] = Derivation 
     dic['VECPROD'       ] = VecProd 
-    dic['DECL_VECPROD'  ] = DeclVecProd    
+    dic['DECL_VECPROD'  ] = DeclVecProd
+    dic['INIVECPROD'    ] = IniVecProd    
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:

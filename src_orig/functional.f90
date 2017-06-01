@@ -32,12 +32,9 @@ real(KIND=dp) :: t1=486.818
 real(KIND=dp) :: x1=-0.344
 real(KIND=dp) :: t2=-546.395
 real(KIND=dp) :: x2=-1.0
-real(KIND=dp) :: t3a=13777.0
-real(KIND=dp) :: x3a=1.354
+real(KIND=dp) :: t3=13777.0
+real(KIND=dp) :: x3=1.354
 real(KIND=dp) :: yt3a=0.166666666666666666667 
-real(KIND=dp) :: t3b=0.0 
-real(KIND=dp) :: x3b=0.0
-real(KIND=dp) :: yt3b=0
 real(KIND=dp) :: te=0.0
 real(KIND=dp) :: to=0.0
 real(KIND=dp) :: wso=123.0
@@ -55,7 +52,7 @@ real(KIND=dp) :: x2n2=-1.0
  ! representation can be asked for for debugging purposes. 
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  
- real(KIND=dp) :: Kinetic(2)
+ real(KIND=dp) :: Kinetic(2), Skyrme(2)
  
  $DECLARATION
  
@@ -93,10 +90,12 @@ $PRINTCOEF
     !
     !
     !
-    integer :: it,m,n,k
+    integer       :: it,m,n,k
     real(KIND=dp) :: Edensity(mv,3)
     
 $CALCULATION
+    
+    Skyrme = $TOTAL
     
  end subroutine CompSkyrme
  
@@ -107,7 +106,9 @@ $CALCULATION
     
     1 format ('-----------------------------------------------------------------')
     2 format (' Skyrme Energy ')
-    3 format (20x, 'isoscalar   isovector   total')
+    3 format (30x, 'isoscalar   isovector   total')
+    4 format ('Total :' 3f15.6)
+    
     
     print 1
     print 2
@@ -116,80 +117,12 @@ $CALCULATION
     
     $PRINT 
 
+    print 1
+    print 4, Skyrme, sum(Skyrme)
     print 1    
  end subroutine PrintSkyrme
- 
-! subroutine CompEnergy()
-!    !---------------------------------------------------------------------------
-!    ! Subroutine that computes all the different energies of the main program
-!    ! state.
-!    !---------------------------------------------------------------------------
 
-!    integer :: i
-!    
-!    ! Making sure the PrintEnergy routine is associated
-!    if(.not.associated(PrintEnergy)) then
-!        !PrintEnergy => PrintEnergy_termbyterm
-!    endif
-
-!    !Initialise the contributions to the energy
-!    CoulombEnergy=0.0_dp; CoMCorrection=0.0_dp ; Kinetic      =0.0_dp
-!    SkyrmeTerms_C=0.0_dp; SkyrmeTerms_B=0.0_dp
-
-!    !Shift the entries in OldEnergy by one place and put in
-!    !the previous value of the Energy.
-!    do i=0,5
-!        OldEnergy(7-i) = OldEnergy(6-i)
-!    enddo
-!    OldEnergy(1)=TotalEnergy
-
-!    !call CompKinetic
-!    
-!!    SkyrmeTerms = compSkyrme(Density)
-!!    TotalEnergy = sum(SkyrmeTerms)
-
-!!    ! Calculate the N2LO terms
-!!    N2LOterms = N2LO(Density)
-
-!!    ! Calculate the N3LO term
-!!    N3LOterms = N3LO(Density)
-
-!    !Pairing Energy
-!    !PairingEnergy = CompPairingEnergy(Delta)
-!    !Lipkin-Nogami Energy
-!    !if(Lipkin) then
-!    !  LNEnergy      = - LNLambda * PairingDisp
-!    !endif
-
-!    !Calculating the CoulombEnergy
-!    !CoulombEnergy   = CompCoulombEnergy(Density)
-!    !CoulombExchange = CompCoulombExchange(Density)
-
-!    !COM Correction
-!    !call CompCOMCorrection
-
-!!    !Sum of all energies (Note that the Skyrme sum already was included)
-!!    TotalEnergy = TotalEnergy        + sum(Kinetic)  + CoulombEnergy  +        &
-!!    &             sum(CoMCorrection) + CoulombExchange + sum(PairingEnergy) +  &
-!!    &             sum(LNEnergy) + sum(N2LOterms)
-
-!!    !Calculate the Routhian too
-!!    do i=0,5
-!!        OldRouthian(7-i) = OldRouthian(6-i)
-!!    enddo
-!!    OldRouthian(1) = Routhian
-!!    Routhian = TotalEnergy                                                     &
-!!    !                         Contribution of multipole moment constraints
-!!    &                      +    sum(ConstraintEnergy*Density%Rho)*dv           &
-!!    !                         Contribution of the cranking constraints (Omega*J)
-!!    &                      +    sum(CrankEnergy)
-
-!!    !Energy due to the single particle states.
-!!    SpEnergy = SpwfEnergy()
-!    return
-!  end subroutine CompEnergy
-
-  function CompKinetic() result(kinetic)
+ function CompKinetic() result(kinetic)
     !---------------------------------------------------------------------------
     ! This subroutine computes the total kinetic energy,
     ! according to the following formula:
