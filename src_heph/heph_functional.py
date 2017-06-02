@@ -11,6 +11,7 @@
 from string import Template
 import itertools
 import numpy as np
+import heph_fields
 ################################################################################
 #
 #
@@ -18,9 +19,6 @@ import numpy as np
 #
 #
 # TODO
-#    C Add options for density dependent terms
-#    C add option  for derivative of density
-#    C add option  for rotational 
 ################################################################################
 
 def CPL_string(cplct, coefs_0, coefs_1):
@@ -122,6 +120,7 @@ def ProcessFunctional(fname, src, target):
     calccoef    = ''
     printcoef   = ''
     sumtotal    = ''
+    fieldcalc   = ''
     for i in range(len(LO_terms)): 
         (d,c,p,cc, pc,st) = GenTermExpression( LO_terms[i] , LO_coupling[i], LO_coefs[i], LO_DD[i])
 
@@ -161,6 +160,11 @@ def ProcessFunctional(fname, src, target):
         calccoef    = calccoef    + cc+ '\n'
         printcoef   = printcoef   + pc+ '\n'
         sumtotal    = sumtotal    + st+ '&\n&'
+
+    (fielddec, fc) = heph_fields.GenerateFields(['E_D_I_I_D_I_I', 'E_lap_D_I_I_D_I_I', 'E_D_Nm_Nm_D_Nn_Nn'])
+    declaration = declaration + fielddec + '\n'
+    fieldcalc   = fieldcalc + fc + '\n'
+    
     # - - - - - - - - - - - - - - - - - - - - -
     # Substitute into the functional.f90 file.        
     dic={}
@@ -170,6 +174,7 @@ def ProcessFunctional(fname, src, target):
     dic['CALCCOEF']       = calccoef   
     dic['PRINTCOEF']      = printcoef 
     dic['TOTAL']          = sumtotal[:-3]
+    dic['CALCFIELDS']     = fieldcalc
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:

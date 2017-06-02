@@ -26,25 +26,25 @@ module functional
  implicit none
  
   
-real(KIND=dp) :: t0=-2488.913 
-real(KIND=dp) :: x0=0.834
-real(KIND=dp) :: t1=486.818
-real(KIND=dp) :: x1=-0.344
-real(KIND=dp) :: t2=-546.395
-real(KIND=dp) :: x2=-1.0
-real(KIND=dp) :: t3=13777.0
-real(KIND=dp) :: x3=1.354
-real(KIND=dp) :: yt3a=0.166666666666666666667 
-real(KIND=dp) :: te=0.0
-real(KIND=dp) :: to=0.0
-real(KIND=dp) :: wso=123.0
-real(KIND=dp) :: wsoq=123.0
+        real(KIND=dp) :: t0=-2488.913 
+        real(KIND=dp) :: x0=0.834
+        real(KIND=dp) :: t1=486.818
+        real(KIND=dp) :: x1=-0.344
+        real(KIND=dp) :: t2=-546.395
+        real(KIND=dp) :: x2=-1.0
+        real(KIND=dp) :: t3=13777.0
+        real(KIND=dp) :: x3=1.354
+        real(KIND=dp) :: yt3a=0.166666666666666666667 
+        real(KIND=dp) :: te=0.0
+        real(KIND=dp) :: to=0.0
+        real(KIND=dp) :: wso=123.0
+        real(KIND=dp) :: wsoq=123.0
 
-real(KIND=dp) :: t1n2=24.3409
-real(KIND=dp) :: t2n2=-27.31975
-real(KIND=dp) :: x1n2=-0.344
-real(KIND=dp) :: x2n2=-1.0   
- 
+        real(KIND=dp) :: t1n2=24.3409
+        real(KIND=dp) :: t2n2=-27.31975
+        real(KIND=dp) :: x1n2=-0.344
+        real(KIND=dp) :: x2n2=-1.0   
+         
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! Energies are calculated in the BFH representation using the B coupling 
  ! coefficients, and then recombined into the isospin representation using 
@@ -54,14 +54,15 @@ real(KIND=dp) :: x2n2=-1.0
  
  real(KIND=dp) :: Kinetic(2), Skyrme(2)
  
- $DECLARATION
+ ! Declaration of the energy terms and the coupling coefficients 
+$DECLARATION
  
+
  contains
  
  subroutine calcedfcoefs()
      
 $CALCCOEF
-    
     
  end subroutine calcedfcoefs
  
@@ -158,6 +159,16 @@ $CALCULATION
     Kinetic=-Kinetic * hbm * dv
     return
   end function CompKinetic
+
+  subroutine calcFields()
+        
+        integer :: m, n, k, it
+
+        do it=1,2
+$CALCFIELDS
+        enddo
+  end subroutine calcFields 
+
 !  
 !  function Skyrme_LO() result(LOTerms)
 !    !---------------------------------------------------------------------------

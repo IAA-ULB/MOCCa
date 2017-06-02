@@ -91,24 +91,8 @@ subroutine Test
     
     call CompSkyrme()
     call PrintSkyrme
-    print *, Kinetic
-!    print *
-!    print *, 'Kinetic'
-!    print *
-!    print ('(10f12.3)'), Kinetic
-!    print *
-!    print *, 'NLO'
-!    print *
-!    print ('(10f12.3)'),  Skyrme_LO()
-!    print *
-!    print *, 'NLO'
-!    print *
-!    print ('(10f12.3)'),  Skyrme_NLO()
-!    print *
-!    print *, 'N2LO'
-!    print *
-!    print ('(10f12.3)'),  Skyrme_N2LO()
-!    print *, hfbasis(:,1,1,1, 1)
-!    print *, hfbasis(:,1,1,1, 11)
+
+    call calcFields()
+
 
 end subroutine Test
