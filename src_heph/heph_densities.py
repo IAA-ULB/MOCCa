@@ -159,6 +159,7 @@ from string         import Template
 from math           import log
 import numpy        as np
 import itertools
+from heph_functional import Densities_needed, Deriv_den_needed, Lapla_den_needed
 
 #-------------------------------------------------------------------------------
 # Definition of lists needed by the preprocessing. Need to be global so that 
@@ -326,15 +327,17 @@ def GenVecProd(density, coupling):
     
 def OrderOfDen(density):
     #---------------------------------------------------------------------------
-    # Simply checks the number of capital letters N and S in the name
+    # Returns the order (= number of indices) of the density represented 
+    # by a string.Simply checks the number of capital letters N and S in the name
     # that are not contracted.
     
-    # add a dimension for every derivative and don't count the capital D or C
+    # Add a dimension for every derivative and don't count the capital D or C
     test  = density.replace('_', '')
     order = test.count("der") - 1 
     test  = test.replace('der', '')
-    test  = test.replace('lap', '')
+    test  = test.replace('Lap', '')
     
+    # Add a dimension for every cross-product x1,x2, ...., x9
     for i in range(9):
         order = order + test.count("x%d"%i) 
         test  = test.replace('x%d'%i, '')
@@ -347,7 +350,7 @@ def OrderOfDen(density):
         if(not letter.isupper()):
             # But if the a non-capital letter follows, the index is contracted.
             order = order - 1
-    return order 
+    return order
 
 def initdensities():
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -396,21 +399,47 @@ def initdensities():
     
     ArrayNames=['HFPsi', 'HFdPsi', 'HFddPsi']
 
-    N  = Nabla
-    I  = Identity
+    N   = Nabla
+    I   = Identity
     NS  = Combine(Nabla, Sigma)
     CN  = Combine(Current,Nabla)
     CNS = Combine(Current,  NS)
     NNS = Combine(Nabla,    NS)
     NN  = Combine(Nabla, Nabla)
-    
-    densities     = ['rho','tau', 'Jmunu', 'QN2LO', 'ImT',     'V']
-    leftoperators = [ I,    N,     I,           NN,     N,       N]
-    rightoperators= [ I,    N,   CNS,           NN,   CNS,     NNS] 
-    deriv_needed  = [ 2,    0,     2,            0,     0,       0]
-    lapla_needed  = [ 2,    0,     0,            0,     0,       0]
-    contractions  = [[],    [],      [],[(0,1), (2,3)],   [], [(0,1)]]
-    rotcoupl      = [[],    [], [(1,2)],       [],   [],      []]
+
+    deriv_needed = Deriv_den_needed
+    lapla_needed = Lapla_den_needed
+        
+
+    for den in Densities_needed: 
+
+        (x,y, left, right) =  ParseOperators(den)
+
+        O = Identity
+        for l in left:
+                if(l == 'N'):
+                        O = Combine(N, O)
+                elif(l=='C'):
+                        O = Combine(C, O)
+                elif(l=='S'):
+                        O = Combine(S, O)
+
+        leftoperators.append(O)
+
+        O = Identity
+        for l in right:
+                if(l == 'N'):
+                        O = Combine(N, O)
+                elif(l=='C'):
+                        O = Combine(C, O)
+                elif(l=='S'):
+                        O = Combine(S, O)
+
+        rightoperators.append(O)
+
+        con  = []; rot = []
+        contractions.append(con)
+        rotcoupl.append([])
 
 def ProcessDensities(fname, src, target):
     #===========================================================================
@@ -433,15 +462,15 @@ def ProcessDensities(fname, src, target):
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     print '         Name    RDim   CDim    Der    Contracted  '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
-    for i in range(len(densities)): 
+    for i in range(len(leftoperators)): 
         realorder= leftoperators[i].dimension + rightoperators[i].dimension
         order    = realorder - 2 * len(contractions[i])
         derorder = leftoperators[i].derorder + rightoperators[i].derorder
         
         # Getting all of the expression for all of the densities.
-        (N, E,D,I,Der) = GenDensityExpression( leftoperators[i],rightoperators[i],deriv_needed[i],lapla_needed[i], contractions[i])
+        (N,E,D,I,Der) = GenDensityExpression( leftoperators[i],rightoperators[i],deriv_needed[i],lapla_needed[i], contractions[i])
 
-        print ' %12s %6d %6d %6d   '%(N, realorder, order, derorder), contractions[i]
+        print ' %12s %6d %6d %6d %6d %6d '%(N, realorder, order, derorder, deriv_needed[i], lapla_needed[i]), contractions[i]
 
         Expression     = Expression     + '\n'  + E
         Declaration    = Declaration    + '\n'  + D
@@ -679,7 +708,7 @@ def GenDensityExpression(LeftOperator, RightOperator, Der, Lap, Contract=[]):
             dic['PY']    = str(py)
             dic['PZ']    = str(pz)
         
-            dic['NAME'] = l*'lap_' + Name
+            dic['NAME'] = l*'Lap_' + Name
             Derivation  = Derivation + Lap_template.substitute(dic)
             # Note that this is simple, since Laplacians don't change the 
             # symmetry properties of functions.
@@ -794,7 +823,7 @@ def Combine( L , R ):
     LR.signature_y = BroadCastSymmetries(L.signature_y, R.signature_y)
     LR.signature_z = BroadCastSymmetries(L.signature_z, R.signature_z)
     
-    LR.name = L.name + R.name
+    LR.name =(L.name + R.name).replace('I', '')
     
     return LR
 
@@ -872,4 +901,25 @@ def AxisReflection(LeftOperator, RightOperator, larg, rarg, nabla_arg = []):
         pz = '-1'
     
     return(px,py,pz)
+
+def ParseOperators(density):    
+        #
+        # Parse the operators that are used to construct a density from its name.
+        #
+        #
+        left  = ''
+        right = '' 
+
+        der   = density.count('der_')
+        lap   = density.count('Lap_')
+
+        split = density.replace('der_', '').replace('Lap_', '').split('_')
+        
+        left = split[1]
+        right= split[2]
+
+        if(density[0] == 'C'):      
+                right = 'C' + right
+
+        return(der, lap, left, right)
     

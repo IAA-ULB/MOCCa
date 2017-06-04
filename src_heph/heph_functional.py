@@ -1,190 +1,186 @@
-#============================================================================================
-#          _______  _______           _______  _______  _______ _________ _______  _______ 
-#|\     /|(  ____ \(  ____ )|\     /|(  ___  )(  ____ \(  ____ \\__   __/(  ___  )(  ____ \
-#| )   ( || (    \/| (    )|| )   ( || (   ) || (    \/| (    \/   ) (   | (   ) || (    \/
-#| (___) || (__    | (____)|| (___) || (___) || (__    | (_____    | |   | |   | || (_____ 
-#|  ___  ||  __)   |  _____)|  ___  ||  ___  ||  __)   (_____  )   | |   | |   | |(_____  )
-#| (   ) || (      | (      | (   ) || (   ) || (            ) |   | |   | |   | |      ) |
-#| )   ( || (____/\| )      | )   ( || )   ( || (____/\/\____) |   | |   | (___) |/\____) |
-#|/     \|(_______/|/       |/     \||/     \|(_______/\_______)   )_(   (_______)\_______)
-#============================================================================================
+#--------------------------------------------------------------------
+# | | | |  ___  _ __  | |__    __ _   ___  ___ | |_  ___   ___ 
+# | |_| | / _ \| '_ \ | '_ \  / _` | / _ \/ __|| __|/ _ \ / __|
+# |  _  ||  __/| |_) || | | || (_| ||  __/\__ \| |_| (_) |\__ \
+# |_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/
+#              |_|                                             
+#--------------------------------------------------------------------
+
 from string import Template
 import itertools
 import numpy as np
-import heph_fields
-################################################################################
-#
-#
-#
-#
-#
+import heph_fields              # The file for the fields
+import heph_densities           # The file for the densities
+
+#------------------------------------------------------------------------------
 # TODO
-################################################################################
-
-def CPL_string(cplct, coefs_0, coefs_1):
-  coefstrings = []
-  for i in range(len(coefs_0[:,0])):
-    coef0 = ''
-    coef1 = ''
-    for j in range(len(coefs_0[0,:])):
-        coef0 = coef0 + str(coefs_0[i,j]) + '*' + cplct[j] 
-        coef1 = coef1 + str(coefs_1[i,j]) + '*' + cplct[j] 
-    coefstrings.append((coef0,coef1))
-  return(coefstrings)
-
-
-#-------------------------------------------------------------------------------
-# Tab-character for the fortran code.
-# 4 spaces for W.R., but I can imagine other people have different standards.
-tab           = '    '
-#-------------------------------------------------------------------------------
-# Check how many format statements for printing the energy contributions have 
-# been made. Currently there are already two format statements in the
-# functional.f90 subroutine printEnergy
-formatcounter = 3
-
+#
+#
 #-------------------------------------------------------------------------------
 # Indices over which sums are supposed to go in both the FORTRAN code and the 
 # naming scheme.
 sumindices    = ['m', 'n', 'k', 'l']
+#-------------------------------------------------------------------------------
+# Tab-character for the fortran code.
+# 4 spaces for W.R., but I can imagine other people have different standards.
+tab           = '    '
+
+#
+#
+#
+Functional_terms     = []
+Functional_coupling  = []
+coupling_constants_0 = [] 
+coupling_constants_1 = [] 
 
 #-------------------------------------------------------------------------------
-#
-LO_skyrme  =              ['t0', 't0*x0', 't3', 't3*x3']
-LO_coefs_0 = np.array(   [['+3.0/8.0', '+0','+0','+0']                         # rho^2
-                        , [       '+0' , '+0', '+3/48.0','+0']]  )                  
-LO_coefs_1 = np.array(   [['-1.0/8.0', '-0.25','+0','+0']                    # rho^2
-                        , [      '+0'  , '+0','-1/48.0', '-1/24.0']])              
-#
-#                                     
-NLO_skyrme  =            ['t1',           't1*x1',           't2',    't2*x2']
-NLO_coefs_0 = np.array(  [['+3.0/16.0',         '+0',    '+5.0/16.0', '+1/4.0'], # rho   tau
-                          ['-9.0/64.0',         '+0',    '+5.0/64.0', '+1/16.0']])# rho D rho
-                          
-NLO_coefs_1 = np.array(  [['-1.0/16.0', '-1.0/8.0',     '+1.0/16.0', '+1.0/8.0'], # rho   tau
-                          ['+3.0/64.0', '+3.0/32 ',     '+1.0/64.0', '+1.0/32 ']])# rho D rho                     
+# Densities_needed contains all of the densities that Hephaestos deems are 
+# necessary to calculate, based on the terms in the functional. 
+Densities_needed = []
+Deriv_den_needed = []
+Lapla_den_needed = []
 
-#
-#
-SO_skyrme  =              ['wso',  'wsoq'] 
-SO_coefs_0 = np.array(   [['-0.5', '+0.25']                                      
-                        , [   '+0' , '+0']] )
-SO_coefs_1 = np.array(   [[   '+0' , '-0.5']                                      
-                        , [   '+0' , '+0']] )  
+def initfunctional(fname):
+        global Functional_terms, Densities_needed
+
+        # Read the functional from a given file
+        description = ReadFunctional(fname)
+        
+        # Parse all of the densities needed
+        temp      = []
+        for term in Functional_terms:
+                (dens, coup) = ParseDensities(term)
+                for d in dens: 
+                        temp.append(d)
+                        Functional_coupling.append(coup)
+
+        # Now scan the list for duplicates:     
+        for i in range(len(temp)): 
+                Found = False
+                (deri, lapi, lefti, righti) = heph_densities.ParseOperators(temp[i])
+                                        
+                for j in range(len(Densities_needed)):
+                        (x, y, leftj, rightj) = heph_densities.ParseOperators(Densities_needed[j])  
+                        derj = Deriv_den_needed[j]
+                        lapj = Lapla_den_needed[j]
+                        if(lefti == leftj and righti == rightj): 
+                                # Already added this density   
+                                deri =   max(deri, derj)
+                                Deriv_den_needed[j] = deri
+                                lapi = max(lapi, lapj)
+                                Lapla_den_needed[j] = lapi
+                                Found = True
+                                continue
+                if(not Found):
+                        Densities_needed.append(temp[i])
+                        Deriv_den_needed.append(deri)
+                        Lapla_den_needed.append(lapi)  
+                                       
                         
-#
-#
-N2LO_skyrme  = [    't1n2', 't1n2 * x1n2',     't2n2', 't2n2 * x2n2']
-N2LO_coefs_0 = np.array([['+9/128.0','+0', '-5/128.0', '-4/128.0'   ],  #DrhoDrho
-                         ['+3/32.0' ,'+0',  '+5/32.0', '+1/8.0'     ],  # RhoQ
-                         ['+3/32.0' ,'+0',  '+5/32.0', '+1/8.0'     ],  #tau^2
-                         ['+6/32.0' ,'+0',  '+10/32.0', '+2/8.0'     ],  #tau_mn^2 
-                         ['-6/32.0' ,'+0',  '-10/32.0', '-2/8.0'     ],
-                         ['-1/32.0' , '+1/16.0', '+1/32.0' ,  '+1/16.0']]) 
-N2LO_coefs_1 = np.array([['-3/128.0', '-3/64.0', '-1/128.0',  '-1/64.0'],  #DrhoDrho
-                         [ '-1/32.0', '-1/16.0', '+1/32.0' ,  '+1/16.0'],  #tau^2
-                         [ '-1/32.0', '-1/16.0', '+1/32.0' ,  '+1/16.0'],  #rhoQ
-                         [ '-2/32.0', '-2/16.0', '+2/32.0' ,  '+2/16.0'],  #tau_mn^2
-                         [ '+2/32.0', '+2/16.0', '-2/32.0' ,  '-2/16.0'],
-                         [ '-1/32.0',        '+0', '+1/32.0' ,         '+0']]) 
-
-LO_terms    = [('D_I_I', 'D_I_I'), ('D_I_I', 'D_I_I')]
-LO_coupling = [[]                , []                ]
-LO_coefs    = CPL_string(LO_skyrme, LO_coefs_0, LO_coefs_1)
-LO_DD       = [ ''               , 'sum(D_I_I,2)**yt3a']
-
-NLO_terms    = [('D_I_I', 'D_N_N'), ('lap_D_I_I', 'D_I_I')]
-NLO_coupling = [[(0,1)]           , []                    ]
-NLO_coefs    = CPL_string(NLO_skyrme, NLO_coefs_0, NLO_coefs_1)
-
-SO_terms     = [('D_I_I', 'der_C_I_Nx1Sx1')]
-SO_coupling  = [[(0,1)]                    ]
-SO_coefs     = CPL_string(SO_skyrme, SO_coefs_0, SO_coefs_1)
-
-N2LO_terms     = [('lap_D_I_I', 'lap_D_I_I'), ('D_I_I', 'D_NmNm_NnNn' )]
-N2LO_coupling  = [[]                        , []]
-
-N2LO_terms     = N2LO_terms    + [('D_N_N', 'D_N_N'),('D_N_N', 'D_N_N'), ('D_N_N', 'der_der_D_I_I') ]
-N2LO_coupling  = N2LO_coupling + [    [(0,1), (2,3)],[(0,2), (1,3)]    , [(0,2), (1,3)]]
-
-N2LO_terms     = N2LO_terms    + [('C_N_NS', 'C_N_NS') ]
-N2LO_coupling  = N2LO_coupling + [[(0,3), (1,4), (2,5)]]
-
-N2LO_coefs     = CPL_string(N2LO_skyrme, N2LO_coefs_0, N2LO_coefs_1)
+        print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
+        print ' Functional taken from file %s'%fname
+        print ' Description from file:'
+        print  description.replace('#', tab)
+        print ' Number of terms:     %d'%len(Functional_terms)
+        print ' Number of densities: %d'%len(Densities_needed)
+        print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
 def ProcessFunctional(fname, src, target):
-    declaration = ''
-    calculation = ''
-    form        = ''
-    printing    = ''
-    calccoef    = ''
-    printcoef   = ''
-    sumtotal    = ''
-    fieldcalc   = ''
-    for i in range(len(LO_terms)): 
-        (d,c,p,cc, pc,st) = GenTermExpression( LO_terms[i] , LO_coupling[i], LO_coefs[i], LO_DD[i])
+        declaration = ''
+        calculation = ''
+        form        = ''
+        printing    = ''
+        calccoef    = ''
+        printcoef   = ''
+        sumtotal    = ''
+        fieldcalc   = ''
 
-        declaration = declaration + d + '\n'
-        calculation = calculation + c + '\n'
-        printing    = printing    + p + '\n'
-        calccoef    = calccoef    + cc+ '\n'
-        printcoef   = printcoef   + pc+ '\n'
-        sumtotal    = sumtotal    + st+ '&\n&'
+        for i in range(len(Functional_terms)): 
+                (d,c,p,cc, pc,st) = GenTermExpression(Functional_terms[i], [coupling_constants_0[i], coupling_constants_1[i]])
+
+                declaration = declaration + d + '\n'
+                calculation = calculation + c + '\n'
+                printing    = printing    + p + '\n'
+                calccoef    = calccoef    + cc+ '\n'
+                printcoef   = printcoef   + pc+ '\n'
+                sumtotal    = sumtotal    + st+ '&\n&'
+
+
+        # - - - - - - - - - - - - - - - - - - - - -
+        # Substitute into the functional.f90 file.        
+        dic={}
+        dic['DECLARATION']    = declaration
+        dic['CALCULATION']    = calculation
+        dic['PRINT']          = printing
+        dic['CALCCOEF']       = calccoef   
+        dic['PRINTCOEF']      = printcoef 
+        dic['TOTAL']          = sumtotal[:-3]
+        dic['CALCFIELDS']     = fieldcalc
+        with open(src+fname, 'r') as template:
+                with open(target+fname, 'w') as generated:
+                    for line in template:
+                        generated.write(Template(line).substitute(dic))  
+
+def ReadFunctional(fname):
+        #
+        # Read the functional terms and the coupling coefficients from file fname.
+        #
+        global Functional_terms
+
+        description=''
+        with open(fname, 'r') as f:
+                for line in f: 
+                        if(line[0] != '#'):
+                                split = line.split(',')
+                                Functional_terms.append(split[0].replace(' ', ''))        
+                                coupling_constants_0.append(split[1].replace(' ', ''))
+                                coupling_constants_1.append(split[2].replace(' ', ''))   
+                        else:
+                                description = description + line     
         
-    for i in range(len(NLO_terms)): 
-        (d,c,p,cc, pc,st) = GenTermExpression(NLO_terms[i] , NLO_coupling[i], NLO_coefs[i])
 
-        declaration = declaration + d + '\n'
-        calculation = calculation + c + '\n'
-        printing    = printing    + p + '\n'
-        calccoef    = calccoef    + cc+ '\n'
-        printcoef   = printcoef   + pc+ '\n'
-        sumtotal    = sumtotal    + st+ '&\n&'
-    for i in range(len(SO_terms)): 
-        (d,c,p,cc, pc,st) = GenTermExpression(SO_terms[i] , SO_coupling[i], SO_coefs[i])
+        return(description)
 
-        declaration = declaration + d + '\n'
-        calculation = calculation + c + '\n'
-        printing    = printing    + p + '\n'
-        calccoef    = calccoef    + cc+ '\n'
-        printcoef   = printcoef   + pc+ '\n'
-        sumtotal    = sumtotal    + st+ '&\n&'
-        
-    printing = printing + "print * \n print *, 'N2LO Terms' \n print * \n"
-    for i in range(len(N2LO_terms)): 
-        (d,c,p,cc, pc,st) = GenTermExpression(N2LO_terms[i] , N2LO_coupling[i], N2LO_coefs[i])
+def ParseDensities(term): 
+        #------------------------------------------------------------------------
+        # From a term in the functional represented by a string, parse all of the
+        # densities that make it up.
+        #-----------------------------------------------------------------------
+        densities = ()
+        # Split along C and D-s
+        nocoupling= term
+        for l in sumindices:
+                nocoupling = nocoupling.replace(l, '')        
+        split     = nocoupling.split('_')
+        temp      = ''
+        for i in range(len(split)):
+                if split[i] == 'der' or split[i] == 'Lap':
+                        temp  = temp + split[i] + '_'               
+                        
+                if split[i] == 'D' or split[i] == 'C':
+                        temp = temp + split[i] + '_' + split[i+1] + '_' + split[i+2]
+                        densities = densities + (temp,)
+                        temp = ''
 
-        declaration = declaration + d + '\n'
-        calculation = calculation + c + '\n'
-        printing    = printing    + p + '\n'
-        calccoef    = calccoef    + cc+ '\n'
-        printcoef   = printcoef   + pc+ '\n'
-        sumtotal    = sumtotal    + st+ '&\n&'
+        # Find the coupling
+        coupling  = []
+        for l in sumindices:
+                c   = ()
+                ind = 0
+                for i in range(len(term)):      
+                        if(term[i] == l):
+                                c = c+ (ind,)
+                                     
+                        if(term[i] in sumindices):
+                                ind = ind + 1 
+                if(len(c) > 0) :
+                        coupling.append(c)
+        return (densities, coupling)
 
-    (fielddec, fc) = heph_fields.GenerateFields(['E_D_I_I_D_I_I', 'E_lap_D_I_I_D_I_I', 'E_D_Nm_Nm_D_Nn_Nn'])
-    declaration = declaration + fielddec + '\n'
-    fieldcalc   = fieldcalc + fc + '\n'
-    
-    # - - - - - - - - - - - - - - - - - - - - -
-    # Substitute into the functional.f90 file.        
-    dic={}
-    dic['DECLARATION']    = declaration
-    dic['CALCULATION']    = calculation
-    dic['PRINT']          = printing
-    dic['CALCCOEF']       = calccoef   
-    dic['PRINTCOEF']      = printcoef 
-    dic['TOTAL']          = sumtotal[:-3]
-    dic['CALCFIELDS']     = fieldcalc
-    with open(src+fname, 'r') as template:
-        with open(target+fname, 'w') as generated:
-            for line in template:
-                generated.write(Template(line).substitute(dic))  
 
-def GenTermExpression( densities, coupling, ccoef, DD=''):
-    #
-    #
-    # 
-    global formatcounter, sumindices
+def GenTermExpression( term, ccoef, DD=''):
+
+    global  sumindices
 
     declaration = ''
     calculation = ''
@@ -228,15 +224,20 @@ def GenTermExpression( densities, coupling, ccoef, DD=''):
     print_cpl_template  = Template(" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE")
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  - - - - - - - 
     # See how many indices are present everywhere.
-    orders      = []
+    
+    
+    (densities, coupling) = ParseDensities(term)
+
+    orders                = []
+    
     for i in range(len(densities)): 
-        orders.append(OrderOfDen(densities[i])) 
+        orders.append(heph_densities.OrderOfDen(densities[i])) 
     
     dic = {}
     index_encountered=0
     name = ''
     for i in range(len(densities)):
-        name = name + '_' + densities[i]
+            name = name + '_' + densities[i]
     
     dic ['TERM' ] = 'E'
     
@@ -271,6 +272,7 @@ def GenTermExpression( densities, coupling, ccoef, DD=''):
     for i in range(len(densities)):
         isodic = {}
         isodic['DEN'] = densities[i]
+        
         isodic['IND'] = ''
         for l in range(prevorder, prevorder + orders[i]):
             for c in coupling:
@@ -309,7 +311,6 @@ def GenTermExpression( densities, coupling, ccoef, DD=''):
     
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # 
-    dic['N'] = formatcounter
     printing = print_template.substitute(dic) 
     
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -324,28 +325,3 @@ def GenTermExpression( densities, coupling, ccoef, DD=''):
     sumtotal  = sumtotal_template.substitute(dic)
     
     return (declaration, calculation, printing, calccoef, printcoef, sumtotal)
-    
-def OrderOfDen(density):
-    #---------------------------------------------------------------------------
-    # Simply checks the number of capital letters N and S in the name
-    # that are not contracted.
-    
-    # add a dimension for every derivative and don't count the capital D or C
-    test  = density.replace('_', '')
-    order = test.count("der") - 1 
-    test  = test.replace('der', '')
-    test  = test.replace('lap', '')
-    
-    for i in range(9):
-        order = order + test.count("x%d"%i) 
-        test  = test.replace('x%d'%i, '')
-    
-    for i in range(len(test)):
-        letter = test[i]
-        if(letter.isupper() and letter != 'I'):
-            # Every capital letter that is not I adds an index
-            order = order + 1
-        if(not letter.isupper()):
-            # But if the a non-capital letter follows, the index is contracted.
-            order = order - 1
-    return order
