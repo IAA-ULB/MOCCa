@@ -152,7 +152,7 @@ from string         import Template
 from math           import log
 import numpy        as np
 import itertools
-from heph_functional import Densities_needed, Deriv_den_needed, Lapla_den_needed, Densities_coupling
+from heph_functional import Densities_needed, Deriv_den_needed, Lapla_den_needed, Densities_coupling, sumindices
 
 #-------------------------------------------------------------------------------
 # Definition of lists needed by the preprocessing. Need to be global so that 
@@ -402,12 +402,9 @@ def initdensities():
 
     deriv_needed = Deriv_den_needed
     lapla_needed = Lapla_den_needed
-        
-
+    
     for den in Densities_needed: 
-
-        (x,y, left, right) =  ParseOperators(den)
-
+        (x,y, left, right, coupling) =  ParseOperators(den)
         O = Identity
         for l in left:
                 if(l == 'N'):
@@ -429,6 +426,7 @@ def initdensities():
                         O = Combine(S, O)
 
         rightoperators.append(O)
+        contractions.append(coupling)
         rotcoupl.append([])
 
 def ProcessDensities(fname, src, target):
@@ -458,8 +456,8 @@ def ProcessDensities(fname, src, target):
         derorder = leftoperators[i].derorder + rightoperators[i].derorder
         
         # Getting all of the expression for all of the densities.
-        (N,E,D,I,Der) = GenDensityExpression( leftoperators[i],rightoperators[i],deriv_needed[i],lapla_needed[i], Densities_coupling[i])
-
+        (N,E,D,I,Der) = GenDensityExpression( leftoperators[i],rightoperators[i],deriv_needed[i],lapla_needed[i], contractions[i])
+        
         print ' %12s %6d %6d %6d %6d %6d '%(N, realorder, order, derorder, deriv_needed[i], lapla_needed[i]), Densities_coupling[i]
 
         Expression     = Expression     + '\n'  + E
@@ -911,5 +909,18 @@ def ParseOperators(density):
         if(density[0] == 'C'):      
                 right = 'C' + right
 
-        return(der, lap, left, right)
+        # Find the coupling
+        coupling  = []
+        for l in sumindices:
+                c   = ()
+                ind = 0
+                for i in range(len(density)):      
+                        if(density[i] == l):
+                                c = c+ (ind,)
+                                     
+                        if(density[i] in sumindices):
+                                ind = ind + 1 
+                if(len(c) > 0) :
+                        coupling.append(c)
+        return(der, lap, left, right, coupling)
     

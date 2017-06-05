@@ -80,6 +80,7 @@ def GenerateFields():
                 # Name the field correctly
                 dic = {}
                 dic['FIELD'] = den.replace('D', 'F').replace('C', 'G')
+
                 #  Get the operator structure of the density correctly                                
                 (der, lap, left, right) = ParseOperators(den) 
                 

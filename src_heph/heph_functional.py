@@ -66,18 +66,16 @@ def initfunctional(fname):
                                 if(c[0]  < boundary[1] and c[0] >= boundary[0] and c[1]  < boundary[1] and c[1] >= boundary[0]):
                                         dencoup.append(c)
                         tempcoup.append(dencoup)                                        
-
         # Now scan the list for duplicates:     
         for i in range(len(temp)): 
                 Found = False
-                (deri, lapi, lefti, righti) = heph_densities.ParseOperators(temp[i])
-                newcoup = tempcoup[i]                        
+                (deri, lapi, lefti, righti, coupli) = heph_densities.ParseOperators(temp[i])
+                newcoup = coupli                      
                 for j in range(len(Densities_needed)):
-                        (x, y, leftj, rightj) = heph_densities.ParseOperators(Densities_needed[j])  
+                        (x, y, leftj, rightj, coupj) = heph_densities.ParseOperators(Densities_needed[j])  
                         derj    = Deriv_den_needed[j]
                         lapj    = Lapla_den_needed[j]
-                        oldcoup = Densities_coupling[j]
-                        
+                        oldcoup = coupj
                         if(lefti == leftj and righti == rightj): 
                                 # Already added this density   
                                 deri =   max(deri, derj)
@@ -105,7 +103,6 @@ def initfunctional(fname):
                         Deriv_den_needed.append(deri)
                         Lapla_den_needed.append(lapi)
                         Densities_coupling.append(tempcoup[i])
-                                                   
         print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
         print ' Functional taken from file %s'%fname
         print ' Description from file:'
@@ -180,8 +177,8 @@ def ParseDensities(term):
         densities = ()
         # Split along C and D-s
         nocoupling= term
-        for l in sumindices:
-                nocoupling = nocoupling.replace(l, '')        
+#        for l in sumindices:
+#                nocoupling = nocoupling.replace(l, '')        
         split     = nocoupling.split('_')
         temp      = ''
         for i in range(len(split)):
@@ -206,6 +203,7 @@ def ParseDensities(term):
                                 ind = ind + 1 
                 if(len(c) > 0) :
                         coupling.append(c)
+
         return (densities, coupling)
 
 
@@ -269,6 +267,9 @@ def GenTermExpression( term, ccoef, DD=''):
     
     dic ['TERM' ] = 'E'
     
+    for l in sumindices:
+        name = name.replace(l,'')
+
     for i in range(len(name)):
         l = name[i]
         
