@@ -12,7 +12,7 @@ import numpy as np
 import heph_fields              # The file for the fields
 import heph_densities           # The file for the densities
 
-#------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # TODO
 #
 #
@@ -25,8 +25,7 @@ sumindices    = ['m', 'n', 'k', 'l']
 # 4 spaces for W.R., but I can imagine other people have different standards.
 tab           = '    '
 
-#
-#
+#-------------------------------------------------------------------------------
 #
 Functional_terms     = []
 Functional_coupling  = []
@@ -36,9 +35,10 @@ coupling_constants_1 = []
 #-------------------------------------------------------------------------------
 # Densities_needed contains all of the densities that Hephaestos deems are 
 # necessary to calculate, based on the terms in the functional. 
-Densities_needed = []
-Deriv_den_needed = []
-Lapla_den_needed = []
+Densities_needed   = []
+Densities_coupling = []
+Deriv_den_needed   = []
+Lapla_den_needed   = []
 
 def initfunctional(fname):
         global Functional_terms, Densities_needed
@@ -48,21 +48,36 @@ def initfunctional(fname):
         
         # Parse all of the densities needed
         temp      = []
+        tempcoup  = []
         for term in Functional_terms:
                 (dens, coup) = ParseDensities(term)
+                Functional_coupling.append(coup)
                 for d in dens: 
                         temp.append(d)
-                        Functional_coupling.append(coup)
+                #  Detection if the coupling is within a density or over
+                #  more densities.
+                boundary = [0,0]
+                for d in dens:
+                        dencoup = []
+                        boundary[0] = boundary[1]
+                        boundary[1] = boundary[1] + heph_densities.OrderOfDen(d)
+
+                        for c in coup:
+                                if(c[0]  < boundary[1] and c[0] >= boundary[0] and c[1]  < boundary[1] and c[1] >= boundary[0]):
+                                        dencoup.append(c)
+                        tempcoup.append(dencoup)                                        
 
         # Now scan the list for duplicates:     
         for i in range(len(temp)): 
                 Found = False
                 (deri, lapi, lefti, righti) = heph_densities.ParseOperators(temp[i])
-                                        
+                newcoup = tempcoup[i]                        
                 for j in range(len(Densities_needed)):
                         (x, y, leftj, rightj) = heph_densities.ParseOperators(Densities_needed[j])  
-                        derj = Deriv_den_needed[j]
-                        lapj = Lapla_den_needed[j]
+                        derj    = Deriv_den_needed[j]
+                        lapj    = Lapla_den_needed[j]
+                        oldcoup = Densities_coupling[j]
+                        
                         if(lefti == leftj and righti == rightj): 
                                 # Already added this density   
                                 deri =   max(deri, derj)
@@ -70,13 +85,27 @@ def initfunctional(fname):
                                 lapi = max(lapi, lapj)
                                 Lapla_den_needed[j] = lapi
                                 Found = True
-                                continue
+
+                                # Check if a different contraction is necessary
+                                if(len(oldcoup) != len(newcoup)):  
+                                        Densities_coupling[j] = []                              
+                                
+                                for oc in oldcoup:                                
+                                  for nc in newcoup:
+                                     Found_coup = False
+                                     if( oc == nc ):
+                                                Found_coup = True
+                                     if not Found_coup:
+                                        # This particular coupling is different from before
+                                        # So calculate the full density
+                                        Densities_coupling[j] = []
+                                        continue
                 if(not Found):
                         Densities_needed.append(temp[i])
                         Deriv_den_needed.append(deri)
-                        Lapla_den_needed.append(lapi)  
-                                       
-                        
+                        Lapla_den_needed.append(lapi)
+                        Densities_coupling.append(tempcoup[i])
+                                                   
         print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
         print ' Functional taken from file %s'%fname
         print ' Description from file:'
@@ -106,6 +135,8 @@ def ProcessFunctional(fname, src, target):
                 sumtotal    = sumtotal    + st+ '&\n&'
 
 
+        (fielddec, fieldcalc) = heph_fields.GenerateFields(     )
+        declaration = declaration + fielddec + '\n'
         # - - - - - - - - - - - - - - - - - - - - -
         # Substitute into the functional.f90 file.        
         dic={}
@@ -224,10 +255,7 @@ def GenTermExpression( term, ccoef, DD=''):
     print_cpl_template  = Template(" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE")
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  - - - - - - - 
     # See how many indices are present everywhere.
-    
-    
     (densities, coupling) = ParseDensities(term)
-
     orders                = []
     
     for i in range(len(densities)): 

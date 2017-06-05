@@ -1,24 +1,17 @@
-#-------------------------------------------------------------------------------
-#          _______  _______           _______  _______  _______ _________ _______  _______ 
-#|\     /|(  ____ \(  ____ )|\     /|(  ___  )(  ____ \(  ____ \\__   __/(  ___  )(  ____ \
-#| )   ( || (    \/| (    )|| )   ( || (   ) || (    \/| (    \/   ) (   | (   ) || (    \/
-#| (___) || (__    | (____)|| (___) || (___) || (__    | (_____    | |   | |   | || (_____ 
-#|  ___  ||  __)   |  _____)|  ___  ||  ___  ||  __)   (_____  )   | |   | |   | |(_____  )
-#| (   ) || (      | (      | (   ) || (   ) || (            ) |   | |   | |   | |      ) |
-#| )   ( || (____/\| )      | )   ( || )   ( || (____/\/\____) |   | |   | (___) |/\____) |
-#|/     \|(_______/|/       |/     \||/     \|(_______/\_______)   )_(   (_______)\_______)
-#                                                                                          
-#
-# Copyright W. Ryssens & M. Bender
-#
-#-------------------------------------------------------------------------------
+#--------------------------------------------------------------------
+# | | | |  ___  _ __  | |__    __ _   ___  ___ | |_  ___   ___ 
+# | |_| | / _ \| '_ \ | '_ \  / _` | / _ \/ __|| __|/ _ \ / __|
+# |  _  ||  __/| |_) || | | || (_| ||  __/\__ \| |_| (_) |\__ \
+# |_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/
+#              |_|                                             
+#--------------------------------------------------------------------   
 # 
 # HOW TO USE
 # =========== 
 #
 # The workhorse of this module is the function
 #   GenDensityExpression(LeftOperator, RightOperator, Der, Lap)
-# 
+#       
 # That, when given a left-operator, right-operator for the density
 # and which derivatives are needed of this density returns
 #  a) and automatically generated name for the density
@@ -159,7 +152,7 @@ from string         import Template
 from math           import log
 import numpy        as np
 import itertools
-from heph_functional import Densities_needed, Deriv_den_needed, Lapla_den_needed
+from heph_functional import Densities_needed, Deriv_den_needed, Lapla_den_needed, Densities_coupling
 
 #-------------------------------------------------------------------------------
 # Definition of lists needed by the preprocessing. Need to be global so that 
@@ -436,9 +429,6 @@ def initdensities():
                         O = Combine(S, O)
 
         rightoperators.append(O)
-
-        con  = []; rot = []
-        contractions.append(con)
         rotcoupl.append([])
 
 def ProcessDensities(fname, src, target):
@@ -464,13 +454,13 @@ def ProcessDensities(fname, src, target):
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     for i in range(len(leftoperators)): 
         realorder= leftoperators[i].dimension + rightoperators[i].dimension
-        order    = realorder - 2 * len(contractions[i])
+        order    = realorder - 2 * len(Densities_coupling[i])
         derorder = leftoperators[i].derorder + rightoperators[i].derorder
         
         # Getting all of the expression for all of the densities.
-        (N,E,D,I,Der) = GenDensityExpression( leftoperators[i],rightoperators[i],deriv_needed[i],lapla_needed[i], contractions[i])
+        (N,E,D,I,Der) = GenDensityExpression( leftoperators[i],rightoperators[i],deriv_needed[i],lapla_needed[i], Densities_coupling[i])
 
-        print ' %12s %6d %6d %6d %6d %6d '%(N, realorder, order, derorder, deriv_needed[i], lapla_needed[i]), contractions[i]
+        print ' %12s %6d %6d %6d %6d %6d '%(N, realorder, order, derorder, deriv_needed[i], lapla_needed[i]), Densities_coupling[i]
 
         Expression     = Expression     + '\n'  + E
         Declaration    = Declaration    + '\n'  + D
