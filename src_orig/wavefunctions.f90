@@ -157,70 +157,70 @@ contains
     integer :: wave
     
     if(.not.allocated(HFdPsi)) then
-        allocate(HFdPsi(nx,ny,nz,4,3,nwt))
-        allocate(HFddPsi(nx,ny,nz,4,3,3,nwt))
+        allocate(HFdPsi(nx,ny,nz,3,4,nwt))
+        allocate(HFddPsi(nx,ny,nz,3,3,4,nwt))
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Currently EV8 symmetries are hardcoded, as well as the
     do wave=1,HFBlocks(1)
         call Derive_tot(HFPsi(:,:,:,1,wave), +1, +1, +1,                           &
-        &                                              HFdPsi(:,:,:,1,:,wave),     &
-        &                                           HFddPsi(:,:,:,1,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,1,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,1,wave), 1)
         call Derive_tot(HFPsi(:,:,:,2,wave), -1, -1, +1,                           &
-        &                                              HFdPsi(:,:,:,2,:,wave),     &
-        &                                           HFddPsi(:,:,:,2,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,2,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,2,wave), 1)
         call Derive_tot(HFPsi(:,:,:,3,wave), -1, +1, -1,                           &
-        &                                              HFdPsi(:,:,:,3,:,wave),     &
-        &                                           HFddPsi(:,:,:,3,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,3,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,3,wave), 1)
         call Derive_tot(HFPsi(:,:,:,4,wave), +1, -1, -1,                           &
-        &                                              HFdPsi(:,:,:,4,:,wave),     &
-        &                                           HFddPsi(:,:,:,4,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,4,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,4,wave), 1)
     enddo
     
     do wave=HFBlocks(1) + 1,HFBlocks(1) + HFBlocks(3)
         call Derive_tot(HFPsi(:,:,:,1,wave), +1, +1, -1,                           &
-        &                                              HFdPsi(:,:,:,1,:,wave),     &
-        &                                           HFddPsi(:,:,:,1,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,1,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,1,wave), 1)
         call Derive_tot(HFPsi(:,:,:,2,wave), -1, -1, -1,                           &
-        &                                              HFdPsi(:,:,:,2,:,wave),     &
-        &                                           HFddPsi(:,:,:,2,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,2,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,2,wave), 1)
         call Derive_tot(HFPsi(:,:,:,3,wave), -1, +1, +1,                           &
-        &                                              HFdPsi(:,:,:,3,:,wave),     &
-        &                                           HFddPsi(:,:,:,3,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,3,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,3,wave), 1)
         call Derive_tot(HFPsi(:,:,:,4,wave), +1, -1, +1,                           &
-        &                                              HFdPsi(:,:,:,4,:,wave),     &
-        &                                           HFddPsi(:,:,:,4,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,4,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,4,wave), 1)
     enddo
 
     do wave=HFBlocks(1) + HFBlocks(3)+1,HFBlocks(1) + HFBlocks(3)+HFBlocks(5)
         call Derive_tot(HFPsi(:,:,:,1,wave), +1, +1, +1,                           &
-        &                                              HFdPsi(:,:,:,1,:,wave),     &
-        &                                           HFddPsi(:,:,:,1,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,1,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,1,wave), 1)
         call Derive_tot(HFPsi(:,:,:,2,wave), -1, -1, +1,                           &
-        &                                              HFdPsi(:,:,:,2,:,wave),     &
-        &                                           HFddPsi(:,:,:,2,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,2,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,2,wave), 1)
         call Derive_tot(HFPsi(:,:,:,3,wave), -1, +1, -1,                           &
-        &                                              HFdPsi(:,:,:,3,:,wave),     &
-        &                                           HFddPsi(:,:,:,3,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,3,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,3,wave), 1)
         call Derive_tot(HFPsi(:,:,:,4,wave), +1, -1, -1,                           &
-        &                                              HFdPsi(:,:,:,4,:,wave),     &
-        &                                           HFddPsi(:,:,:,4,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,4,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,4,wave), 1)
     enddo
 !   
     do wave=HFBlocks(1)+HFBlocks(3)+HFBlocks(5) + 1,                           &
     &       HFBlocks(1)+HFBlocks(3)+HFBlocks(5) + HFBLocks(7)
         call Derive_tot(HFPsi(:,:,:,1,wave), +1, +1, -1,                           &
-        &                                              HFdPsi(:,:,:,1,:,wave),     &
-        &                                           HFddPsi(:,:,:,1,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,1,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,1,wave), 1)
         call Derive_tot(HFPsi(:,:,:,2,wave), -1, -1, -1,                           &
-        &                                              HFdPsi(:,:,:,2,:,wave),     &
-        &                                           HFddPsi(:,:,:,2,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,2,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,2,wave), 1)
         call Derive_tot(HFPsi(:,:,:,3,wave), -1, +1, +1,                           &
-        &                                              HFdPsi(:,:,:,3,:,wave),     &
-        &                                           HFddPsi(:,:,:,3,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,3,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,3,wave), 1)
         call Derive_tot(HFPsi(:,:,:,4,wave), +1, -1, +1,                           &
-        &                                              HFdPsi(:,:,:,4,:,wave),     &
-        &                                           HFddPsi(:,:,:,4,:,:,wave), 1)
+        &                                              HFdPsi(:,:,:,:,4,wave),     &
+        &                                           HFddPsi(:,:,:,:,:,4,wave), 1)
     enddo
   end subroutine DeriveAll
   

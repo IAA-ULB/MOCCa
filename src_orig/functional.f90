@@ -52,7 +52,7 @@ module functional
  ! representation can be asked for for debugging purposes. 
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  
- real(KIND=dp) :: Kinetic(2), Skyrme(2)
+ real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE
  
  ! Declaration of the energy terms and the coupling coefficients 
 $DECLARATION
@@ -70,7 +70,7 @@ $CALCCOEF
     !---------------------------------------------------------------------------
     ! Print the values of the EFD coefs used.
    
-    1 format ('-----------------------------------------------------------------')
+    1 format (90('-'))
     2 format (' Skyrme coupling constants ')
     3 format (26x, 'Isospin representation BFH representation')
     4 format (26x, 'scalar      vector      total       (n-p)')
@@ -98,6 +98,8 @@ $CALCULATION
     
     Skyrme = $TOTAL
     
+    TotalE = sum(Skyrme + Kinetic)
+    
  end subroutine CompSkyrme
  
  subroutine PrintSkyrme()
@@ -105,11 +107,13 @@ $CALCULATION
     ! Print all contributions to the energy.
     !
     
-    1 format ('-----------------------------------------------------------------')
+    1 format (90('-'))
     2 format (' Skyrme Energy ')
-    3 format (30x, 'isoscalar   isovector   total')
-    4 format ('Total :' 3f15.6)
-    
+    3 format (35x, 'isoscalar      isovector      total')
+    4 format (17x, 'Total Skyrme:', 3f15.6)
+    5 format (30x, '      neutron        proton         total')
+    6 format (15x, 'Kinetic Energy:', 3f15.6)
+    7 format (15x, '  Total energy:', 30x, f15.6)
     
     print 1
     print 2
@@ -120,6 +124,10 @@ $CALCULATION
 
     print 1
     print 4, Skyrme, sum(Skyrme)
+    print 1
+    print 5
+    print 6, Kinetic, sum(Kinetic)
+    print 7, TotalE
     print 1    
  end subroutine PrintSkyrme
 
@@ -148,9 +156,9 @@ $CALCULATION
         do k=1,4          
                 do i=1,mv
                        Inproduct = Inproduct + HFPsi(i,1,1,k,wave) *  & 
-                       &  ( HFddPsi(i,1,1,k,1,1,wave) + &
-                       &    HFddPsi(i,1,1,k,2,2,wave) + &
-                       &    HFddPsi(i,1,1,k,3,3,wave))
+                       &  ( HFddPsi(i,1,1,1,1,k,wave) + &
+                       &    HFddPsi(i,1,1,2,2,k,wave) + &
+                       &    HFddPsi(i,1,1,3,3,k,wave))
                 enddo
         enddo
         Kinetic(it)= Kinetic(it) + Occupations(wave)*Inproduct

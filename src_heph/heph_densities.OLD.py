@@ -1,19 +1,13 @@
-#-------------------------------------------------------------------------------
+#--------------------------------------------------------------------
 # | | | |  ___  _ __  | |__    __ _   ___  ___ | |_  ___   ___ 
 # | |_| | / _ \| '_ \ | '_ \  / _` | / _ \/ __|| __|/ _ \ / __|
 # |  _  ||  __/| |_) || | | || (_| ||  __/\__ \| |_| (_) |\__ \
 # |_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/
 #              |_|                                             
-#-------------------------------------------------------------------------------
+#--------------------------------------------------------------------   
 # 
 # HOW TO USE
 # =========== 
-#-------------------------------------------------------------------------------
-# RULE NR 1: Preferably not by itself, as the generation of appropriate 
-#            densities is better handled by the HEPH_functional module. 
-#
-# Anyway, if one insists on doing more: 
-#-------------------------------------------------------------------------------
 #
 # The workhorse of this module is the function
 #   GenDensityExpression(LeftOperator, RightOperator, Der, Lap)
@@ -88,7 +82,7 @@
 # according to their operator action and the index, with possible signs. 
 # The action of sigma_y for example is coded as
 #
-#  Sigma(2, [1,2,3,4]) = [ -4, 3, 2, 1]
+#   Sigma(2, [1,2,3,4]) = [ -4, 3, 2, 1]
 # representing  
 #
 #  sigma_y  ( Psi_1 + i Psi_2 ) = ( -Psi_4 + i Psi_3)
@@ -134,11 +128,16 @@
 #      all of the symmetric combinations
 #      a) for the spwfs storage
 #      b) for the density storage
+#    C Support for laplacians inside the density 
 #    C Currently for EV8-like symmetries, due to no decision yet about 
 #      bookkeeping in Hephaestos itself. 
 #    C Automatic continuation when time-reversal is conserved
 #    C Add pairing densities (simply add another flag)
+#    
 #
+#   NC Figure out how the densities should be named in the code. Historical
+#      names have the advantage of lisibility, but cannot be extended to N2/3LO.
+#      Then again things as D(dd) for tau are easily mistyped...
 #   NC To be debated: do I want to create the concept of a densityvector again?
 #
 # In the distant future
@@ -146,46 +145,214 @@
 # 
 #   C support for finite-range interactions: add another different position 
 #     index. This is more FORTRAN work however.
+#   
 #-------------------------------------------------------------------------------
 
 from string         import Template
 from math           import log
 import numpy        as np
 import itertools
+from heph_functional import Densities_needed, Deriv_den_needed, Lapla_den_needed, Densities_coupling, sumindices
+
+#-------------------------------------------------------------------------------
+# Definition of lists needed by the preprocessing. Need to be global so that 
+# Hephaestos can decide based on symmetries and parameterization asked which 
+# ones to initialise.
+#
+#-------------------------------------------------------------------------------
+densities     =[]
+dimensions    =[]
+ArrayNames    =[]
+matsizes      =[]
+leftoperators =[]
+rightoperators=[]
+currents      =[]
+deriv_needed  =[]
+lapla_needed  =[]
+contractions  =[]
+rotcoupl      =[]
 
 #-------------------------------------------------------------------------------
 # Tab-character for the fortran code.
 # 4 spaces for W.R., but I can imagine other people have different standards.
-tab           = '    '
+tab       ='    '
 
-# Names of the arrays storing the single-particle wavefunctions in Tantalus.
-# Not automatically adapted yet, but easily changeable. 
-ArrayNames=['HFPsi', 'HFdPsi', 'HFddPsi']
+def Rot_ind(k):
+    # C_k = A_i B_j + A_j B_i
+    # Input is k, output is the corresponding pair
+    #     [ (i,j) ] if s == 0
+    #     [ (j,i) ] if s == 1
+    # where (i,j) carries the plus sign 
+    
+    if(k == 0):
+        i = 1
+        j = 2
+    elif(k == 1):
+        i = 2
+        j = 0
+    elif(k == 2):
+        i = 0
+        j = 1
+        
+    return (i,j)
+    
+def GenVecProd(density, coupling):
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    # Generate the appropriate expressions for the calculation of a vector
+    # product. 
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    decl_template = Template(   tab + 'real(KIND=dp), allocatable :: $NAME(:$DECLIND,:)')
+    ini_template  = Template(   tab + 'if(.not.allocated($NAME)) then \n'      \
+                            + 2*tab + 'allocate($NAME(mv$ALLOCIND,2)) \n'      \
+                            +   tab + 'endif  \n'                              \
+                            +   tab + '$NAME = 0.0_dp  \n')
+    calc_temp     = Template(   tab + '$NAME(:$ARG,:) = & \n')
+    calc_a_temp   = Template( '$SIGN $DEN(:$IND,:) ')
+    
+    index_encountered = 0
+    name              = ''
+    ini               = ''
+    
+    dic = {}
+    
+    #---------------------------------------------------------------------------
+    # Constructing the correct name: inserting xi, xj etc at the correct spot.
+    for i in range(len(density)):
+        l = density[i]
+        if( density[i:i+3] == 'der'):
+            for c in coupling: 
+                if index_encountered in c:
+                    name = name + l + 'x%d'%(coupling.index(c)+1)
+                else :
+                    name = name + l
+            index_encountered=index_encountered+1
+        elif( (l.isupper() and l != 'I' and l != 'D' and l!= 'C')):
+            for c in coupling:
+                if index_encountered in c:
+                    name = name + l + 'x%d'%(coupling.index(c)+1)
+            index_encountered=index_encountered+1
+        else:   
+            name = name + l
+        
+    dic['NAME'] = name
+    
+    
+    #---------------------------------------------------------------------------
+    # Constructing the correct set of indices for allocation and declaration.
+    order      =  OrderOfDen(density)
 
-#-------------------------------------------------------------------------------
-# Array containing all the different densities needed. Note that this contains 
-# all of the densities that will get summed by Tantalus, AS-IS, INCLUDING 
-# contractions. So if D_Nm_Nm is in here, Tantalus will calculate Tr(tau_mn) 
-# and NOT tau_mn fully. 
-Densities_needed   = []
-Der_den_needed     = []
-Lap_den_needed     = []
-Rotationals_needed = []
-#-------------------------------------------------------------------------------
-# Indices over which sums are supposed to go in both the FORTRAN code and the 
-# naming scheme.
-sumindices    = ['m', 'n', 'k', 'l']
-#-------------------------------------------------------------------------------
-# Strings indicating the (external) laplacian and derivative of a density.  
-lapstring = 'Lap'
-derstring = 'der'
-
+    allocind   = ''
+    for i in range(order - len(coupling)):
+        allocind = allocind + ',3'
+    
+    dic['ALLOCIND'] = allocind
+    dic['DECLIND']  = allocind.replace('3', ':')
+    
+    decl = decl_template.substitute(dic)
+    ini  =  ini_template.substitute(dic)
+    
+    #---------------------------------------------------------------------------
+    # Constructing the calculation segments.
+    # Generate all of the possible values for the remaining indices.
+    # Note that in this generation, we take
+    #  [ m n, ..., z, x1, x2 ]
+    #    -----------  -------
+    #    uncoupled    coupled  indices
+    redorder = order - 2*len(coupling) 
+    args     = itertools.product(range(3), repeat=order - len(coupling))
+    
+    calc = ''
+    for arg in args:
+        uncontracted = []
+    
+        if(len(coupling) == 0):
+            uncontracted = [arg]
+        else:
+           comb = []
+           for k in range(len(coupling)):
+                (i,j) = Rot_ind(arg[redorder + k])
+                # Add a minus sign to indicate which one of the combinations
+                # is reversed.
+                comb = comb + [[(i+1,j+1), (-j-1,i+1)]] 
+  
+           combinations = itertools.product(*comb)
+           for c in combinations:
+                p = ()
+                ii = 0
+                for i in range(order):
+                    found = False                    
+                    for k in range(len(coupling)):
+                            if(i in coupling[k]): 
+                                    # Look at this beast of an expression :)
+                                    p = p + (c[k][coupling[k].index(i)],)  
+                                    found = True
+                    if(not found): 
+                            p = p + (arg[ii],)
+                            ii = ii +1
+                uncontracted.append(p)
+                
+                
+        dic['ARG'] = ''
+        dic['DEN'] = density
+        for i in range(len(arg)):
+            dic['ARG'] = dic['ARG'] + ',%s'%(arg[i]+1)
+        calc = calc + calc_temp.substitute(dic)
+        calc = calc + 2 * tab +'&'
+        
+        count = 0
+        for true_arg in uncontracted:
+            dic['IND']  = ''
+            s = 1
+            for i in range(len(true_arg)):
+                dic['IND']  = dic['IND']+ ',%s'%(abs(true_arg[i]))
+                s           = s * true_arg[i]
+            if(s > 0 ): 
+                dic['SIGN'] = '+'
+            else:
+                dic['SIGN'] = '-'
+            calc = calc + calc_a_temp.substitute(dic)
+            count = count + 1
+            if(count%3 == 0):
+                calc = calc + '& \n' + 2 * tab +'&'
+        calc = calc  + '\n'       
+            
+    return (decl, ini, calc)
+    
+def OrderOfDen(density):
+    #---------------------------------------------------------------------------
+    # Returns the order (= number of indices) of the density represented 
+    # by a string.Simply checks the number of capital letters N and S in the name
+    # that are not contracted.
+    
+    # Add a dimension for every derivative and don't count the capital D or C
+    test  = density.replace('_', '')
+    order = test.count("der") - 1 
+    test  = test.replace('der', '')
+    test  = test.replace('Lap', '')
+    
+    # Add a dimension for every cross-product x1,x2, ...., x9
+    for i in range(9):
+        order = order + test.count("x%d"%i) 
+        test  = test.replace('x%d'%i, '')
+    
+    for i in range(len(test)):
+        letter = test[i]
+        if(letter.isupper() and letter != 'I'):
+            # Every capital letter that is not I adds an index
+            order = order + 1
+        if(not letter.isupper()):
+            # But if the a non-capital letter follows, the index is contracted.
+            order = order - 1
+    return order
 
 def initdensities():
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Initialize the predefined operators with correct atributes, before they
     # ever get called.
-    global ArrayNames
+    global densities, dimensions, leftoperators, rightoperators
+    global currents, deriv_needed, lapla_needed, ArrayNames, contractions
+    global rotcoupl
+   
         
     Identity.dimension   = 0
     Identity.derorder    = 0  
@@ -223,7 +390,53 @@ def initdensities():
     Sigma.signature_z    = np.array([-1,-1, 1])
     Sigma.name           = 'S'
     
+    ArrayNames=['HFPsi', 'HFdPsi', 'HFddPsi']
+
+    N   = Nabla
+    I   = Identity
+    NS  = Combine(Nabla, Sigma)
+    CN  = Combine(Current,Nabla)
+    CNS = Combine(Current,  NS)
+    NNS = Combine(Nabla,    NS)
+    NN  = Combine(Nabla, Nabla)
+
+    deriv_needed = Deriv_den_needed
+    lapla_needed = Lapla_den_needed
+    
+    for den in Densities_needed: 
+        (x,y, left, right, coupling) =  ParseOperators(den)
+        O = Identity
+        for l in left:
+                if(l == 'N'):
+                        O = Combine(N, O)
+                elif(l=='C'):
+                        O = Combine(Current, O)
+                elif(l=='S'):
+                        O = Combine(Sigma, O)
+
+        leftoperators.append(O)
+
+        O = Identity
+        for l in right:
+                if(l == 'N'):
+                        O = Combine(N, O)
+                elif(l=='C'):
+                        O = Combine(Current, O)
+                elif(l=='S'):
+                        O = Combine(Sigma, O)
+
+        rightoperators.append(O)
+        contractions.append(coupling)
+        rotcoupl.append([])
+
 def ProcessDensities(fname, src, target):
+    #===========================================================================
+    # Writing the code to compute the densities into densities.f90 file.
+    #
+    #===========================================================================
+
+    global densities, dimensions, MATSIZE, leftoperators, rightoperators
+    global currents, deriv_needed, lapla_needed, contractions, rotcoupl
 
     Expression     = ''
     Declaration    = ''
@@ -232,34 +445,35 @@ def ProcessDensities(fname, src, target):
     VecProd        = ''
     DeclVecProd    = ''
     IniVecProd     = ''
-    
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     print ' Generated densities '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
-    print '      Name     DIM with / out   Deriv   Lapla      '
+    print '         Name    RDim   CDim    Der    Contracted  '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
-    for i in range(len(Densities_needed)):
-        (e,dec,ini,der)  = GenDensityExpression(Densities_needed[i],\
-                                                  Der_den_needed[i],\
-                                                  Lap_den_needed[i],)
-        Declaration    = Declaration    + '\n' + dec
-        Expression     = Expression     + '\n' + e
-        Initialisation = Initialisation + '\n' + ini
-        Derivation     = Derivation     + '\n' + der
+    for i in range(len(leftoperators)): 
+        realorder= leftoperators[i].dimension + rightoperators[i].dimension
+        order    = realorder - 2 * len(Densities_coupling[i])
+        derorder = leftoperators[i].derorder + rightoperators[i].derorder
         
-        den = Densities_needed[i]
-        print '%15s %6d %6d %6d %6d      '%(den,OrderOfDen(den),  \
-                                          OrderOfDen(den,contract=False),\
-                                          Der_den_needed[i],\
+        # Getting all of the expression for all of the densities.
+        (N,E,D,I,Der) = GenDensityExpression( leftoperators[i],rightoperators[i],deriv_needed[i],lapla_needed[i], contractions[i])
         
-                                          Lap_den_needed[i])
-        if( 'x' in den): 
-            (decl, ini, calc) = GenVecProd('der_' + den.replace('x',''), [(1,2)])
+        print ' %12s %6d %6d %6d %6d %6d '%(N, realorder, order, derorder, deriv_needed[i], lapla_needed[i]), Densities_coupling[i]
+
+        Expression     = Expression     + '\n'  + E
+        Declaration    = Declaration    + '\n'  + D
+        Initialisation = Initialisation + '\n'  + I
+        if(len(Der)>0) :
+             Derivation     = Derivation     + '\n'  + Der   
+        if(len(rotcoupl[i])>0):
+            print 'NAME', N
+            (decl, ini, calc) = GenVecProd('der_' + N,rotcoupl[i])
             DeclVecProd = DeclVecProd + decl + '\n'
             IniVecProd  = IniVecProd  + ini  + '\n'
-            VecProd     = VecProd     + calc + '\n'                                 
+            VecProd     = VecProd     + calc + '\n'
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
-        
+
+    
     # Substitute into the densities.f90 file.        
     dic={}
     dic['DECLARATION'   ] = Declaration
@@ -273,62 +487,18 @@ def ProcessDensities(fname, src, target):
         with open(target+fname, 'w') as generated:
             for line in template:
                 generated.write(Template(line).substitute(dic))  
-
-
-def ParseOperators(density):    
-    #---------------------------------------------------------------------------
-    # Parse the operators that are used to construct a density from its name.
-    #---------------------------------------------------------------------------
-    left  = ''
-    right = '' 
-
-    der   = density.count(derstring)
-    lap   = density.count(lapstring)
-
-    split = density.replace(derstring + '_', '').replace(lapstring + '_', '').split('_')
-
-    left = split[1]
-    right= split[2]
-    #---------------------------------------------------------------------------
-    # Don't put the couplings in the definition of left- and right-operators
-    for l in sumindices:
-        left  =  left.replace(l, '')
-        right = right.replace(l, '')
-        
-    if('C' in density):      
-            right = 'C' + right
-    #---------------------------------------------------------------------------
-    # Find the coupling
-    coupling  = []
-    for l in sumindices:
-        c   = ()
-        ind = 0
-        for i in range(len(density)):      
-            if(density[i] == l):
-                c = c+ (ind,)
-            if(density[i] in sumindices):
-                ind = ind + 1 
-        if(len(c) > 0) :
-            coupling.append(c)
-    return(der, lap, left, right, coupling)
-
-def GenDensityExpression(denin, Der, Lap):
-    #---------------------------------------------------------------------------
-    # Generate the following strings 
-    #       (Expression, Declaration, Initialisation, Derivation)
-    #
-    # to plug into FORTRAN source code, that takes care of everything regarding
-    # that density.
-    # 
-    # Notice that we need to pass in the number of derivatives of the density
-    # necessary. 
-    #
-    #---------------------------------------------------------------------------
+    
+def GenDensityExpression(LeftOperator, RightOperator, Der, Lap, Contract=[]):
+    
+    Expression    = ''
+    Declaration   = ''
+    Initialisation= ''
+    Derivation    = ''
     #---------------------------------------------------------------------------
     # Density calculation template to fill in
     # Could be defined globally, but is nice to have here for quick reference
     Den_template_1 = Template(2*tab+'$NAME(i$IND,it) = $NAME(i$IND,it) + $WEIGHT * (')
-    Den_template_2 = Template(tab+'$SIGN $LEFTWF(i,1,1$LIND,$LCOMP,wave) * $RIGHTWF(i,1,1$RIND,$RCOMP,wave)')
+    Den_template_2 = Template(tab+'$SIGN $LEFTWF(i,1,1,$LCOMP$LIND,wave) * $RIGHTWF(i,1,1,$RCOMP$RIND,wave)')
     
     Ini_template   = Template(   tab+'if(.not.allocated($NAME)) then     \n' + \
                                2*tab+'allocate($NAME(mv$DIM,2)) \n' + \
@@ -351,37 +521,39 @@ def GenDensityExpression(denin, Der, Lap):
     Den_line             = Template(2*tab+'! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  \n')
    
     #---------------------------------------------------------------------------
-    # Initialisation 
-    Expression    = ''
-    Declaration   = ''
-    Initialisation= ''
-    Derivation    = ''
-
+    # Contraction indices to cycle through for the contractions
+    cont_ind = ['m', 'n', 'k', 'r', 'q']
+   
     #---------------------------------------------------------------------------
-    # Parse the structure from the name
-    density = denin.replace('x', '')
-    (x, y, left, right, coupling) = ParseOperators(density)
-    # Construct the left/right operators
-    operatordic = {}
-    operatordic['I'] = Identity
-    operatordic['N'] = Nabla
-    operatordic['S'] = Sigma
-    operatordic['C'] = Current
+    # Find the correct name in our grand naming scheme
+    autoname = 'D' 
+    if( 'C' in LeftOperator.name  or  'C' in RightOperator.name):
+        autoname = 'C'
+    if( 'C' in LeftOperator.name  and 'C' in RightOperator.name):
+        print 'HEPHAESTOS cannot manage currents of currents.'
+        exit()
     
-    LeftOperator = Identity
-    for i in range(len(left)):
-        # this needs to be done in reverse order
-        l = left[len(left) - i -1 ] 
-        LeftOperator  = Combine(operatordic[l], LeftOperator)
-        
-    RightOperator = Identity
-    for i in range(len(right)):
-        r = right[(len(right)) -i -1] 
-        RightOperator = Combine(operatordic[r], RightOperator)
+    left =LeftOperator.name.replace('C', '')
+    right=RightOperator.name.replace('C', '')
+    lname=''
+    rname=''
+    for l in range(len(left)):
+        lname = lname + left[l]
+        for c in Contract:
+            if(l in c):
+                lname = lname + cont_ind[Contract.index(c)]
+    for r in range(len(right)):
+        rname = rname + right[r]
+        for c in Contract:
+            if((r+len(left)) in c):
+               rname = rname + cont_ind[Contract.index(c)]
+            
+    Name = autoname + '_' + lname + '_' + rname
+   
     #---------------------------------------------------------------------------
     # Declaration and initialisation, also for the derivatives.
     dic= {}
-    dic['NAME']    = density
+    dic['NAME']    = Name
     
     dic['LEFTWF']  = ArrayNames[ LeftOperator.derorder]
     dic['RIGHTWF'] = ArrayNames[RightOperator.derorder]
@@ -392,7 +564,7 @@ def GenDensityExpression(denin, Der, Lap):
     
     #---------------------------------------------------------------------------
     # Find the correct dimensions
-    ndim = LeftOperator.dimension + RightOperator.dimension - 2*len(coupling)
+    ndim = LeftOperator.dimension + RightOperator.dimension - 2*len(Contract)
     totalind=''
     dim     =''
     for r in range(ndim):
@@ -406,18 +578,19 @@ def GenDensityExpression(denin, Der, Lap):
     Initialisation = Ini_template.substitute(dic)
     
     for l in range(Lap):
-        dic['NAME']    = (l+1)*'Lap_' + density
+        dic['NAME']    = (l+1)*'Lap_' + Name
         Declaration    = Declaration    + '\n' + Dec_template.substitute(dic)
         Initialisation = Initialisation + '\n' + Ini_template.substitute(dic)
-        dic['NAME']    = density
+        dic['NAME']    = Name
+        
         
     for l in range(Der):
-        dic['NAME']    = (l+1)*'Der_' + density
+        dic['NAME']    = (l+1)*'Der_' + Name
         dic['TOTALIND']= dic['TOTALIND'] + ',:' 
         dic['DIM']     = dic['DIM']      + ',3' 
         Declaration    = Declaration    + '\n' + Dec_template.substitute(dic)
         Initialisation = Initialisation + '\n' + Ini_template.substitute(dic)
-        dic['NAME']    = density
+        dic['NAME']    = Name
     
     #---------------------------------------------------------------------------
     # Generate the expression to calculate the density
@@ -446,18 +619,18 @@ def GenDensityExpression(denin, Der, Lap):
         # We have the uncontracted indices. Now construct the combinations of
         # indices, including contracted ones, that correspond to this. 
         uncontracted = []
-        if(len(coupling) == 0):
+        if(len(Contract) == 0):
             uncontracted = [arg]
         else:
-            cont = itertools.product(range(3), repeat=len(coupling))
+            cont = itertools.product(range(3), repeat=len(Contract))
             for c in cont:
                 p  = ()   
                 ii = 0
                 for i in range(LeftOperator.dimension + RightOperator.dimension):
                         found = False                    
-                        for combination in coupling:
+                        for combination in Contract:
                                 if(i in combination): 
-                                        p = p + (c[coupling.index(combination)],)
+                                        p = p + (c[Contract.index(combination)],)
                                         found = True
                         if(not found): 
                                 p = p + (arg[ii],)
@@ -523,13 +696,13 @@ def GenDensityExpression(denin, Der, Lap):
             dic['PY']    = str(py)
             dic['PZ']    = str(pz)
         
-            dic['NAME'] = l*'Lap_' + density
+            dic['NAME'] = l*'Lap_' + Name
             Derivation  = Derivation + Lap_template.substitute(dic)
             # Note that this is simple, since Laplacians don't change the 
             # symmetry properties of functions.
         
         for l in range(Der):
-            dic['NAME'] = l*'der_' + density
+            dic['NAME'] = l*'der_' + Name
             
             # All components
             deriv_args = itertools.product(range(3), repeat=l)
@@ -546,14 +719,13 @@ def GenDensityExpression(denin, Der, Lap):
             
                 
                 Derivation   = Derivation  + Der_template.substitute(dic)
-                dic['DERSPACE'] = (18+len(density)+ len(dic['IND']) +10) * ' '
+                dic['DERSPACE'] = (18+len(Name)+ len(dic['IND']) +10) * ' '
                 Derivation   = Derivation  + Der_template_b.substitute(dic)
                 Derivation   = Derivation  + Der_template_c.substitute(dic)
             Derivation = Derivation + '\n'
-        dic['NAME'] = density
+        dic['NAME'] = Name
     Expression = Expression + Den_line.substitute(dic) 
-    return (Expression, Declaration, Initialisation, Derivation)
-
+    return (Name,Expression, Declaration, Initialisation, Derivation)
 
 def Identity(mu,indices):
     
@@ -653,8 +825,8 @@ def BroadCastSymmetries(L, R):
     t= ()
     for r in range(order):
        t = t + (3,) 
-    if(order != 0):
-        S = S.reshape(t)
+    S = S.reshape(t)
+    
     return S
     
 def AxisReflection(LeftOperator, RightOperator, larg, rarg, nabla_arg = []):
@@ -715,173 +887,40 @@ def AxisReflection(LeftOperator, RightOperator, larg, rarg, nabla_arg = []):
         pz = '+1'
     else:
         pz = '-1'
+    
     return(px,py,pz)
-    
-def OrderOfDen(density, contract=True):
-    #---------------------------------------------------------------------------
-    # Returns the order (= number of indices) of the density represented 
-    # by a string.Simply checks the number of capital letters N and S in 
-    # in the name. 
-    # Either: a) disregard contractions           contract = False
-    #      or b) take into account contractions   contract = True
-    #---------------------------------------------------------------------------
-    # Add a dimension for every derivative and don't count the capital D or C
-    
-    test  = density.replace('_', '')
-    order = test.count(derstring) - 1 
-    test  = test.replace(derstring, '')
-    test  = test.replace(lapstring, '')
-    
-    for i in range(len(test)):
-        letter = test[i]
-        if(letter.isupper() and letter != 'I'):
-            # Every capital letter that is not I adds an index
-            order = order + 1
-        if((not letter.isupper()) and (not letter == 'x')  and contract):
-            # But if the a non-capital letter follows, the index is contracted.
-            # Note that this does not trigger on a number, for vector products
-            order = order - 1
-        
-    return order
-    
-def GenVecProd(density, coupling):
-    #---------------------------------------------------------------------------
-    # Generate the appropriate expressions for the calculation of a vector
-    # product. 
-    #---------------------------------------------------------------------------
-    decl_template = Template(   tab + 'real(KIND=dp), allocatable :: $NAME(:$DECLIND,:)')
-    ini_template  = Template(   tab + 'if(.not.allocated($NAME)) then \n'      \
-                            + 2*tab + 'allocate($NAME(mv$ALLOCIND,2)) \n'      \
-                            +   tab + 'endif  \n'                              \
-                            +   tab + '$NAME = 0.0_dp  \n')
-    calc_temp     = Template(   tab + '$NAME(:$ARG,:) = & \n')
-    calc_a_temp   = Template( '$SIGN $DEN(:$IND,:) ')
-    
-    index_encountered = 0
-    name              = ''
-    ini               = ''
-    
-    dic = {}
-    
-    #---------------------------------------------------------------------------
-    # Constructing the correct name: inserting xi, xj etc at the correct spot.
-    for i in range(len(density)):
-        l = density[i]
-        if( density[i:i+3] == 'der'):
-            for c in coupling: 
-                if index_encountered in c:
-                    name = name + l + 'x' #'%d'%(coupling.index(c)+1)
-                else :
-                    name = name + l
-            index_encountered=index_encountered+1
-        elif( (l.isupper() and l != 'I' and l != 'D' and l!= 'C')):
-            for c in coupling:
-                if index_encountered in c:
-                    name = name + l + 'x' #'%d'%(coupling.index(c)+1)
-            index_encountered=index_encountered+1
-        else:   
-            name = name + l
-        
-    dic['NAME'] = name
-    
-    #---------------------------------------------------------------------------
-    # Constructing the correct set of indices for allocation and declaration.
-    order      =  OrderOfDen(density)
 
-    allocind   = ''
-    for i in range(order - len(coupling)):
-        allocind = allocind + ',3'
-    
-    dic['ALLOCIND'] = allocind
-    dic['DECLIND']  = allocind.replace('3', ':')
-    
-    decl = decl_template.substitute(dic)
-    ini  =  ini_template.substitute(dic)
-    
-    #---------------------------------------------------------------------------
-    # Constructing the calculation segments.
-    # Generate all of the possible values for the remaining indices.
-    # Note that in this generation, we take
-    #  [ m n, ..., z, x1, x2 ]
-    #    -----------  -------
-    #    uncoupled    coupled  indices
-    redorder = order - 2*len(coupling) 
-    args     = itertools.product(range(3), repeat=order - len(coupling))
-    
-    calc = ''
-    for arg in args:
-        uncontracted = []
-    
-        if(len(coupling) == 0):
-            uncontracted = [arg]
-        else:
-           comb = []
-           for k in range(len(coupling)):
-                (i,j) = Rot_ind(arg[redorder + k])
-                # Add a minus sign to indicate which one of the combinations
-                # is reversed.
-                comb = comb + [[(i+1,j+1), (-j-1,i+1)]] 
-  
-           combinations = itertools.product(*comb)
-           for c in combinations:
-                p = ()
-                ii = 0
-                for i in range(order):
-                    found = False                    
-                    for k in range(len(coupling)):
-                            if(i in coupling[k]): 
-                                    # Look at this beast of an expression :)
-                                    p = p + (c[k][coupling[k].index(i)],)  
-                                    found = True
-                    if(not found): 
-                            p = p + (arg[ii]+1,)
-                            ii = ii +1
-                uncontracted.append(p)
-                
-                
-        dic['ARG'] = ''
-        dic['DEN'] = density
-        for i in range(len(arg)):
-            dic['ARG'] = dic['ARG'] + ',%s'%(arg[i]+1)
-        calc = calc + calc_temp.substitute(dic)
-        calc = calc + 2 * tab +'&'
+def ParseOperators(density):    
+        #
+        # Parse the operators that are used to construct a density from its name.
+        #
+        #
+        left  = ''
+        right = '' 
+
+        der   = density.count('der_')
+        lap   = density.count('Lap_')
+
+        split = density.replace('der_', '').replace('Lap_', '').split('_')
         
-        count = 0
-        for true_arg in uncontracted:
-            dic['IND']  = ''
-            s = 1
-            for i in range(len(true_arg)):
-                dic['IND']  = dic['IND']+ ',%s'%(abs(true_arg[i]))
-                s           = s * true_arg[i]
-            if(s > 0 ): 
-                dic['SIGN'] = '+'
-            else:
-                dic['SIGN'] = '-'
-            calc = calc + calc_a_temp.substitute(dic)
-            count = count + 1
-            if(count%3 == 0):
-                calc = calc + '& \n' + 2 * tab +'&'
-        calc = calc  + '\n'       
-            
-    return (decl, ini, calc)
-    
-    
-def Rot_ind(k):
-    # C_k = A_i B_j + A_j B_i
-    # Input is k, output is the corresponding pair
-    #     [ (i,j) ] if s == 0
-    #     [ (j,i) ] if s == 1
-    # where (i,j) carries the plus sign 
-    
-    if(k == 0):
-        i = 1
-        j = 2
-    elif(k == 1):
-        i = 2
-        j = 0
-    elif(k == 2):
-        i = 0
-        j = 1
-        
-    return (i,j)
+        left = split[1]
+        right= split[2]
+
+        if(density[0] == 'C'):      
+                right = 'C' + right
+
+        # Find the coupling
+        coupling  = []
+        for l in sumindices:
+                c   = ()
+                ind = 0
+                for i in range(len(density)):      
+                        if(density[i] == l):
+                                c = c+ (ind,)
+                                     
+                        if(density[i] in sumindices):
+                                ind = ind + 1 
+                if(len(c) > 0) :
+                        coupling.append(c)
+        return(der, lap, left, right, coupling)
     
