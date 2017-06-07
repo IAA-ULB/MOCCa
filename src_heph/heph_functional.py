@@ -41,6 +41,7 @@ import numpy as np
 from heph_densities import Densities_needed, tab, sumindices, derstring
 from heph_densities import lapstring, OrderOfDen, ParseOperators
 from heph_densities import Der_den_needed, Lap_den_needed
+import heph_fields
 #-------------------------------------------------------------------------------
 # Array containing the expressions of all the functional terms. 
 Functional_terms     = []
@@ -157,32 +158,33 @@ def ParseDensities(term):
                 densities.append(temp)
                 temp = ''
 
+    # Find the coupling
+    coupling  = []
+    foundx    = []
+    for l in sumindices:
+        c   = ()
+        ind = 0
+        foundx.append(0)
+        for i in range(len(term)):      
+            if(term[i] == l):
+               if(term[i-1] != 'x'): 
+                    c = c+ (ind,)
+               else:
+                    if(foundx[sumindices.index(l)] == 0):
+                        foundx[sumindices.index(l)] = foundx[sumindices.index(l)] +1
+                        c = c+ (ind,)
+                        
+            if(term[i] in sumindices):
+                    ind = ind + 1 
+        if(len(c) > 0) :
+                coupling.append(c)
+                
     # Don't propagate couplings that are not internal to the density                
     for i in range(len(densities)):
         for l in sumindices: 
             if(densities[i].count(l) != 2):
                 densities[i] = densities[i].replace(l, '')
         
-    # Find the coupling
-    coupling  = []
-    foundx    = []
-    for l in sumindices:
-            c   = ()
-            ind = 0
-            foundx.append(0)
-            for i in range(len(term)):      
-                    if(term[i] == l):
-                       if(term[i-1] != 'x'): 
-                            c = c+ (ind,)
-                       else:
-                            if(foundx[sumindices.index(l)] == 0):
-                                foundx[sumindices.index(l)] = foundx[sumindices.index(l)] +1
-                                c = c+ (ind,)
-                                
-                    if(term[i] in sumindices):
-                            ind = ind + 1 
-            if(len(c) > 0) :
-                    coupling.append(c)
     return (densities, coupling)
 
 def ProcessFunctional(fname, src, target):
@@ -272,6 +274,7 @@ def GenTermExpression( term, ccoef, DD):
     # See how many indices are present everywhere.
     (tempden, coupling) = ParseDensities(term)
     doloops             = len(coupling)
+    
     #Now see how these densities are present in the heph_densities.py module
     densities = []
     for den in tempden:
@@ -283,13 +286,27 @@ def GenTermExpression( term, ccoef, DD):
                 addden = lap*'Lap_' + der*'der_' + Densities_needed[i]
                 densities.append( addden )
                 # Don't do do loops over indices that already had been contracted
+                #print addden, den, OrderOfDen(addden), OrderOfDen(addden, contract=False)
                 doloops = doloops + \
-                        OrderOfDen(addden) - OrderOfDen(addden, contract=False)
-                
-
+                        (OrderOfDen(addden) - OrderOfDen(addden, contract=False))/2
+                # Go back to the outer loop
+                break
     orders                = []
     for i in range(len(densities)): 
         orders.append(OrderOfDen(densities[i])) 
+
+    # Clever trick to recount the couplings of the term
+    # => Find the couplings that are inside a given density
+    # => Remove them from the term
+    # => recount the couplings (not the densities!)
+    altterm = term
+    for c in coupling: 
+        for i in range(len(densities)):
+            if(densities[i].count(sumindices[coupling.index(c)]) == 2):
+                # Replace internal couplings
+                altterm = altterm.replace(sumindices[coupling.index(c)],'')
+                
+    (rubbish, true_coupling) = ParseDensities(altterm)
     
     dic = {}
     index_encountered=0
@@ -309,15 +326,16 @@ def GenTermExpression( term, ccoef, DD):
         
         isodic['IND'] = ''
         for l in range(prevorder, prevorder + orders[i]):
-            for c in coupling:
+            for c in true_coupling:
                 if( l in c ):
-                    isodic['IND'] = isodic['IND'] + ',' + sumindices[coupling.index(c)]
+                    isodic['IND'] = isodic['IND'] + ',' + sumindices[true_coupling.index(c)]
         
         dic['EDENT'] = dic['EDENT'] + edent_template.substitute(isodic) + '*'
         dic['EDENQ'] = dic['EDENQ'] + edenq_template.substitute(isodic) + '*'
             
         # Take out the final '*' which should not be necessary
         prevorder = prevorder + orders[i]
+  
     dic['EDENT'] = dic['EDENT'][:-1]
     dic['EDENQ'] = dic['EDENQ'][:-1]  
     
