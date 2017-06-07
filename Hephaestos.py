@@ -11,7 +11,7 @@
 #-------------------------------------------------------------------------------
 from os.path import isfile as isfile
 import os
-from src_heph import heph_densities, heph_symmetries, heph_functional
+from src_heph import heph_densities, heph_symmetries, heph_functional, heph_fields
 from src_heph import preprocess as pp
 #-------------------------------------------------------------------------------
 # Path to the original FORTRAN source
@@ -57,6 +57,7 @@ print ' a)  Hephaestos is initializing its own modules.'
 heph_symmetries.initsymmetries()
 heph_functional.initfunctional(FUNC_FILE)
 heph_densities.initdensities()
+heph_fields.initfields()
 
 #-------------------------------------------------------------------------------
 # Treat all of the source files to a nice dose of preprocessing.

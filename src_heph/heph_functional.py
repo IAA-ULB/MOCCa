@@ -197,6 +197,7 @@ def ProcessFunctional(fname, src, target):
         sumtotal    = ''
         fieldcalc   = ''
 
+        # Generate the terms in the functional
         for i in range(len(Functional_terms)): 
                 (d,c,p,cc, pc,st) = GenTermExpression(Functional_terms[i], \
                             [coupling_constants_0[i], coupling_constants_1[i]],\
@@ -207,10 +208,17 @@ def ProcessFunctional(fname, src, target):
                 printing    = printing    + p + '\n'
                 calccoef    = calccoef    + cc+ '\n'
                 printcoef   = printcoef   + pc+ '\n'
-                sumtotal    = sumtotal    + st+ '&\n&'
+                sumtotal    = sumtotal    + st+ '&\n'
 
-#        (fielddec, fieldcalc) = heph_fields.GenerateFields(     )
-#        declaration = declaration + fielddec + '\n'
+        # Generate the fields of the single-particle hamiltonian
+        (fielddec, fieldcalc) = heph_fields.GenerateFields(     )
+        declaration = declaration + fielddec + '\n'
+        
+        # Generate the expressions for the actions of the fields
+        SkyrmeAction = ''
+        for field in heph_fields.Fields_needed:
+            SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field)
+        
         # - - - - - - - - - - - - - - - - - - - - -
         # Substitute into the functional.f90 file.        
         dic={}
@@ -219,8 +227,9 @@ def ProcessFunctional(fname, src, target):
         dic['PRINT']          = printing
         dic['CALCCOEF']       = calccoef   
         dic['PRINTCOEF']      = printcoef 
-        dic['TOTAL']          = sumtotal[:-3]
+        dic['TOTAL']          = sumtotal[:-2]
         dic['CALCFIELDS']     = fieldcalc
+        dic['SKYRMEACTION']   = SkyrmeAction
         with open(src+fname, 'r') as template:
                 with open(target+fname, 'w') as generated:
                     for line in template:
@@ -247,7 +256,7 @@ def GenTermExpression( term, ccoef, DD):
     doloop_template    =    tab + 'do %s = 1, 3 \n'
     enddoloop_template =    tab + 'enddo \n'
    
-    sumtotal_template  = Template( 2*tab + ' + $TERM(:,1)')
+    sumtotal_template  = Template( 2*tab + ' & + $TERM(:,1)')
     
     calc_z_template = Template(   tab + 'Edensity = 0.0_dp \n')
     calc_a_template = Template(   tab + 'EDensity(:,3) = Edensity(:,3) + $EDENT\n')
@@ -268,8 +277,8 @@ def GenTermExpression( term, ccoef, DD):
                                   tab + '$CPCTE(1,2) = $CPCTE(1,1) - $CPCTE(2,1) \n' + \
                                   tab + '$CPCTE(2,2) =             2*$CPCTE(2,1) \n')       
                                  
-    print_template      = Template(" print('(a30 , 3f15.6)'), '$TERM', $TERM(:,1), sum($TERM(:,1))")
-    print_cpl_template  = Template(" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE")
+    print_template      = Template(tab +" print('(a30 , 3f15.6)'), '$TERM', $TERM(:,1), sum($TERM(:,1))")
+    print_cpl_template  = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE")
     #---------------------------------------------------------------------------
     # See how many indices are present everywhere.
     (tempden, coupling) = ParseDensities(term)

@@ -96,7 +96,8 @@ $PRINTCOEF
     
 $CALCULATION
     
-    Skyrme = $TOTAL
+    Skyrme = &
+$TOTAL
     
     TotalE = sum(Skyrme + Kinetic)
     
@@ -120,7 +121,7 @@ $CALCULATION
     print 3
     print 1
     
-    $PRINT 
+$PRINT 
 
     print 1
     print 4, Skyrme, sum(Skyrme)
@@ -176,124 +177,35 @@ $CALCULATION
 $CALCFIELDS
         enddo
   end subroutine calcFields 
+  
+  function sphamil(psi, dpsi, ddpsi, iso) result(hpsi)
+    !---------------------------------------------------------------------------
+    ! Apply the action of the single-particle hamiltonian to the 
+    ! single-particle wave-functions.
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in) :: psi(nx,ny,nz,4),     dpsi(nx,ny,nz,3,4)
+    real(KIND=dp), intent(in) :: ddpsi(nx,ny,nz,3,3,4)
+    integer, intent(in)       :: iso
+    real(KIND=dp)             :: hpsi(nx,ny,nz,4)
+    real(KIND=dp)             :: temp(nx,ny,nz,4), dtemp(nx,ny,nz,3,4)
+    real(KIND=dp)             :: ddtemp(nx,ny,nz,3,3,4), laptemp(nx,ny,nz,4)
+    
+    integer :: it, i
+    
+    hpsi = 0.0
+    !---------------------------------------------------------------------------
+    ! Action of kinetic energy
+    
+    
+    !---------------------------------------------------------------------------
+    ! Action of the Skyrme fields
+    it = (iso + 3/2)
+    
+$SKYRMEACTION
 
-!  
-!  function Skyrme_LO() result(LOTerms)
-!    !---------------------------------------------------------------------------
-!    ! Leading order terms in the Skyrme functional. 
-!    ! Everything is calculated in the BFH representation (neutron-proton) 
-!    ! 
-!    ! LOTerms
-!    ! (1,2)   rho^2
-!    ! (3,4)   s^2
-!    ! (5,6)   rho^(2+alpha)
-!    ! (7,8)   s^(2+alpha)
-!    !---------------------------------------------------------------------------
-!    use Constants
-!    
-!    real(KIND=dp) :: LOTerms(8)
-!    integer       :: it
-!    
-!    LOTerms = 0.0_dp
-!    
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!    ! rho^2 term                                                Time-even
-!    LOTerms(1)   =              B1 * sum(sum(Rho,2)**2)
-!    do it=1,2
-!      LOTerms(2) = LOTerms(2) + B2 * sum(Rho(:,it)**2)
-!    enddo
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!    ! rho^(2+alpha) term                                        Time-even
-!    LOTerms(5)   =              B7*sum(sum(Rho,2)**(2 + byt3))
-!    do it=1,2
-!      LOTerms(6) = LOTerms(6) + B8*sum(Rho(:,it)**2*sum(Rho,2)**(byt3))
-!    enddo
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!    ! s^(2) term                                                Time-odd
-!!    LOTerms(3)   =              B10*sum(sum(vecs,3)**2)
-!!    do it=1,2
-!!      LOTerms(4) = LOTerms(4) + B11*sum(vecs(:,:,it)**2)
-!!    enddo
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!    ! s^(2 + alpha) term                                        Time-odd
-!!    LOTerms(7)   =              B12*sum(sum(vecs,3)**(2 + byt3))
-!!    do it=1,2
-!!      LOTerms(8) = LOTerms(8) + B13*sum(vecs(:,:,it)**2*sum(vecs,3)**(byt3))
-!!    enddo
-!!    
-!    ! Don't forget the volume element
-!    LOTerms = LOTerms * dv
-!  end function Skyrme_LO
-!  
-!  function Skyrme_NLO() result(NLOTerms)
-!    !---------------------------------------------------------------------------
-!    ! Next-to-leading order terms in the Skyrme functional. 
-!    ! Everything is calculated in the BFH representation (neutron-proton) 
-!    !---------------------------------------------------------------------------
-!    use Constants
-!    
-!    real(KIND=dp) :: NLOTerms(24)
-!    integer       :: it
-!    
-!    NLOTerms = 0.0_dp
-!        
-!    NLOTerms(5) =                   B3 * sum(sum(Rho,2) * sum(tau(:,1,1,:) &
-!    &                                                   + tau(:,2,2,:)     &
-!    &                                                   + tau(:,3,3,:),2))    
-!    do it=1,2
-!        NLOTerms(6) = NLOTerms(6) + B4 * sum(Rho(:,it)*(tau(:,1,1,it)  &
-!    &                                                  +tau(:,2,2,it)  &
-!    &                                                  +tau(:,3,3,it)))    
-!    enddo
-!    
-!    NLOterms(7)   = B5*sum(sum(Rho,2)*sum(lap_Rho,2))
+        
+    
+  end function sphamil
 
-!    !B6 Terms
-!    do it=1,2
-!      NLOterms(8) = NLOterms(8) + B6*sum(Rho(:,it)*lap_Rho(:,it))
-!    enddo
-
-!    ! Don't forget the volume element
-!    NLOTerms = NLOTerms * dv
-!  end function Skyrme_NLO
-!  
-!  function Skyrme_N2LO() result(N2LOTerms)
-!    !---------------------------------------------------------------------------
-!    ! Next-to-newt-to-leading order terms in the Skyrme functional. 
-!    ! Everything is calculated in the BFH representation (neutron-proton) 
-!    !---------------------------------------------------------------------------
-!    use Constants
-!    
-!    real(KIND=dp) :: N2LOTerms(32)
-!    integer       :: it
-!    
-!    N2LOTerms = 0.0_dp
-
-!    !---------------------------------------------------------------------------
-!    ! Delta rho Delta rho                              T-even
-!    N2LOterms(1) = sum(sum(lap_rho,2)**2)                            * N2D2rho(1)
-!    do it=1,2
-!        N2LOterms(2) =  N2LOterms(2) + sum(Lap_Rho(:,it)**2)         * N2D2rho(2) 
-!    enddo
-!    !----------------------------------------------------------------------------
-!    !  rho Q                                           T-even 
-!    N2LOterms(3) = sum(sum(rho,2) * sum(QN2LO,2))                    * N2rhoQ(1)
-!    do it=1,2
-!        N2LOterms(4) = N2LOterms(4) + sum(rho(:,it) * QN2LO(:,it)) 
-!    enddo
-!    N2LOterms(4) = N2LOterms(4)                                      * N2rhoQ(2)
-!    !----------------------------------------------------------------------------
-!    !  tau^2                                           T-even
-!    N2LOterms(5) = sum(sum(tau(:,1,1,:) + tau(:,2,2,:)                  &
-!                 &                      + tau(:,3,3,:),2)**2)         * N2tau(1)
-!    do it=1,2
-!        N2LOterms(6) = N2LOterms(6) + sum((tau(:,1,1,it) + tau(:,2,2,it) &
-!                    &               + tau(:,3,3,it))**2)              * N2tau(2)
-!    enddo
-!    
-!    ! Don't forget the volume element
-!    N2LOTerms = N2LOTerms * dv
-!  
-!  end function Skyrme_N2LO
- 
 end module functional

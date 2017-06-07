@@ -724,8 +724,11 @@ def OrderOfDen(density, contract=True):
     # in the name. 
     # Either: a) disregard contractions           contract = False
     #      or b) take into account contractions   contract = True
+    #
+    #
+    # Note that it is safe to use this on field too.
     #---------------------------------------------------------------------------
-    # Add a dimension for every derivative and don't count the capital D or C
+    # Add a dimension for every derivative and don't count the capital D,C,F,G
     
     test  = density.replace('_', '')
     order = test.count(derstring) - 1 

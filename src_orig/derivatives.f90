@@ -310,6 +310,81 @@ $DERSYMZ        fz(i,j,:) = fz(i,j,:) + matmul(derZ  (:,:,sz),f($SYMPARTNERZ))
     
  end subroutine Derive_grad_3d
  
+ subroutine Derive_X(f, px, fx)
+    !---------------------------------------------------------------------------
+    ! Subroutine that computes the gradient of a function on the mesh.
+    !
+    !
+    ! fx = First order derivative in the x direction
+    ! px = sign of the symmetry transformation in the x-direction
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in)  :: f(:,:,:)
+    real(KIND=dp), intent(out) :: fx(:,:,:)
+    integer, intent(in)        :: px
+    
+    integer                    :: j,k, sx
+    
+    sx = (px + 3)/2 
+    
+    do k=1,nz
+        do j=1,ny
+        fx(:,j,k) =             matmul(derX  (:,:,sx),f(:,j,k))
+$DERSYMX        fx(:,j,k) = fx(:,j,k) + matmul(derX  (:,:,sx),f($SYMPARTNERX))
+        enddo
+    enddo   
+    
+ end subroutine Derive_X
+ 
+  subroutine Derive_Y(f, py, fy)
+    !---------------------------------------------------------------------------
+    ! Subroutine that computes the gradient of a function on the mesh.
+    !
+    ! fy = First order derivative in the y direction
+    ! py = sign of the symmetry transformation in the y-direction
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in)  :: f(:,:,:)
+    real(KIND=dp), intent(out) :: fy(:,:,:)
+    integer, intent(in)        :: py
+    integer                    :: i,k, sy
+    
+    sy = (py + 3)/2 !    1    if pi =   -1  or 0
+    
+    do k=1,nz
+        do i=1,nx
+            fy(i,:,k) =             matmul(derY  (:,:,sy),f(i,:,k))
+$DERSYMY            fy(i,:,k) = fy(i,:,k) + matmul(derX  (:,:,sy),f($SYMPARTNERY))
+        enddo
+    enddo
+    
+ end subroutine Derive_Y
+ 
+  subroutine Derive_Z(f, pz, fz)
+    !---------------------------------------------------------------------------
+    ! Subroutine that computes the gradient of a function on the mesh.
+    ! fz = First order derivative in the z direction
+    ! pz = sign of the symmetry transformation in the z-direction
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in)  :: f(:,:,:)
+    real(KIND=dp), intent(out) :: fz(:,:,:)
+    integer, intent(in)        :: pz
+    
+    integer                    :: i,j,sz
+    
+    sz = (pz + 3)/2 !    2    if pi =   +1 
+    
+    do j=1,ny
+        do i=1,nx
+        fz(i,j,:) =             matmul(derZ  (:,:,sz),f(i,j,:))
+$DERSYMZ        fz(i,j,:) = fz(i,j,:) + matmul(derZ  (:,:,sz),f($SYMPARTNERZ))
+        enddo
+    enddo
+    
+ end subroutine Derive_Z
+ 
+ 
  subroutine Derive_lap_3D(f, px, py, pz, df)
     !---------------------------------------------------------------------------
     ! Subroutine that computes the laplacian of a function on the mesh.
