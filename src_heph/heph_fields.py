@@ -275,19 +275,29 @@ def GenerateAction(field):
     # End 
 
     ldim = LeftOperator.dimension
+    
+        
     lcoupl = []
+    rcoupl = []
+    ccoupl = []
     for c in coupling: 
        if(c[0] < LeftOperator.dimension and c[1] < LeftOperator.dimension ):
             ldim = ldim - 1
             lcoupl.append(c)
-    
+       elif(c[0] >= LeftOperator.dimension and c[1] >= LeftOperator.dimension ):
+            rcoupl.append(c)
+       else:
+            ccoupl.append(c)
+    rdim  = RightOperator.dimension - len(coupling) + len(lcoupl)
+
     # all possible values for the arguments of the left-operator
     largs = itertools.product(range(3), repeat=ldim)
+    
     for larg in largs:
         # Construct all of the possibilites for the larg, ignoring 
         # contractions
         larg_uncontracted = []
-        if(len(coupling) == 0):
+        if(len(lcoupl) == 0):
             larg_uncontracted = [larg]
         else:
             cont = itertools.product(range(3), repeat=len(lcoupl))
@@ -305,6 +315,38 @@ def GenerateAction(field):
                         ii = ii +1
                 larg_uncontracted.append(p)
         
+        for true_larg in larg_uncontracted:
+            rargs = itertools.product(range(3), repeat=rdim)
+            for rarg in rargs:
+                rarg_uncontracted = []
+                if(len(coupling) - len(rcoupl)== 0):
+                  rarg_unconstracted=[rarg]
+                else:  
+                  rarg_uncontracted = []
+                  cont = itertools.product(range(3), repeat=len(rcoupl))
+                  for c in cont:
+                    p  = ()   
+                    ii = 0
+                    for i in range(LeftOperator.dimension, LeftOperator.dimension+RightOperator.dimension):
+                        found = False                    
+                        for combination in rcoupl:
+                            if(i in combination): 
+                                p = p + (c[rcoupl.index(combination)],)
+                                found = True
+                        for combination in ccoupl:
+                            if(i == combination[0]):
+                                p = p + (true_larg[combination[1]],)
+                                found = True
+                            if(i == combination[1]):
+                                p = p + (true_larg[combination[0]],)
+                                found = True
+                        if(not found): 
+                            p = p + (rarg[ii],) #rarg[ii]
+                            ii = ii +1
+                    rarg_uncontracted.append(p)
+                
+                for true_rarg in rarg_uncontracted:
+                    print field, true_larg, true_rarg
 #    args = itertools.product(range(3), repeat=ndim)   
 #    for arg in args:
 #        expression = expression + temp_ini
