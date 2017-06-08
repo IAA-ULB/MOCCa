@@ -74,6 +74,9 @@ def GenerateFields():
     field_calc_den_a     = Template('* $DENSITY(:$DENIND,it)  ')
     field_calc_den_b     = Template('* $DENSITY(:$DENIND,3-it)')
 
+    isoloop     = 2*tab + 'do it=1,2 \n'
+    isoloop_end = 2*tab + 'enddo\n'
+
     field_calc_b_temp  = Template( 3*tab + '& $SIGN sum($CPLCTE(:,2)) $EXPR1 & \n') 
     field_calc_c_temp  = Template( 3*tab + '& $SIGN      $CPLCTE(2,2) $EXPR2 & \n') 
 
@@ -150,7 +153,7 @@ def GenerateFields():
        
         declaration  = declaration + field_decl_temp.substitute(dic)
         FIELDCALC    = FIELDCALC + field_allo_temp.substitute(dic)
-
+        FIELDCALC    = FIELDCALC + isoloop
     
         for fieldterm in fieldlist:
              order = 0
@@ -199,6 +202,8 @@ def GenerateFields():
              FIELDCALC = FIELDCALC[:-4] + '\n'
              for k in range(order):
                 FIELDCALC = FIELDCALC + enddoloop_template
+        FIELDCALC    = FIELDCALC + isoloop_end
+
 
     return(declaration,FIELDCALC)
 

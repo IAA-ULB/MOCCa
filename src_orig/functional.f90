@@ -175,9 +175,8 @@ $PRINT
         
         integer :: m, n, k, it
 
-        do it=1,2
 $CALCFIELDS
-        enddo
+
   end subroutine calcFields 
   
   function sphamil(psi, dpsi, ddpsi, sx,sy,sz,iso) result(hpsi)
@@ -197,11 +196,11 @@ $CALCFIELDS
     
     !---------------------------------------------------------------------------
     ! Determine the isospin index
-    it = (iso + 3/2)
+    it = (iso + 3)/2
     !---------------------------------------------------------------------------
     ! Action of the kinetic energy
-    do i=1,mv
-        do k=1,4
+    do k=1,4
+        do i=1,mv
             hpsi(i,1,1,k) = - hbm(it)*(ddpsi(i,1,1,1,1,k) + ddpsi(i,1,1,2,2,k) &
             &                                             + ddpsi(i,1,1,3,3,k)) 
         enddo

@@ -129,16 +129,18 @@ subroutine Test
 
     call calcFields()
 
-    do iter=1,1000 
+    do iter=1,10
         print *,  '*************************************'
         print *,  ' Iteration ', iter
         print *,  '*************************************'
         
         call Evolve_graddesc(iter)
         call deriveall()
-        call densit(iter)
+        call NaiveFill(occupations)
+
+	    call densit(iter)
         call calcFields()
-        if(mod(iter,100).eq.0) then
+        if(mod(iter,10).eq.0) then
             call CompSkyrme()
             Kinetic = CompKinetic()
             call PrintSkyrme
