@@ -410,10 +410,11 @@ def GenerateAction(field):
                 # a function, and that the result of the laplacian needs to be
                 # added to hpsi, so as long as derivatives and laplacians can 
                 # not be compounded, these are the symmetries of the spwf.
-                dic['SYMX']    = 'sx'
-                dic['SYMY']    = 'sy'
-                dic['SYMZ']    = 'sz'      
                 for k in range(4):
+                    dic['SYMX']    = 'sx(%d)'%(k+1)
+                    dic['SYMY']    = 'sy(%d)'%(k+1)
+                    dic['SYMZ']    = 'sz(%d)'%(k+1)      
+                
                     dic['RCOMP']  = k  + 1 
                     expression = expression + lap_temp.substitute(dic)
                 lasttemp = 'laptemp'
@@ -432,12 +433,13 @@ def GenerateAction(field):
                 for l in range(lorder, LeftOperator.derorder):
                     if true_larg[- l - offset] +1  == direc:
                         sym = -sym
-                if(sym>0):   
-                    dic['SYM']    = '+s' + Direction[direc-1]
-                else:
-                    dic['SYM']    = '-s' + Direction[direc-1]       
                 for k in range(4):
                     dic['RCOMP']  = k  +1 
+                    if(sym>0):   
+                        dic['SYM']    = '+s' + Direction[direc-1] + '(%d)'%(k+1)
+                    else:
+                        dic['SYM']    = '-s' + Direction[direc-1] + '(%d)'%(k+1)   
+                    
                     expression = expression + derive_temp.substitute(dic)
                 lasttemp = (lorder+1) * 'd' + 'temp'
         

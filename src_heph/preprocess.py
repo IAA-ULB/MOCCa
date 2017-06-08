@@ -55,6 +55,9 @@ def preprocess(fname, src, target):
     if(fname=='hartree-fock.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='evolution.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='IO.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return

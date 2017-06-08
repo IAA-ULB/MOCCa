@@ -19,7 +19,7 @@ module GenInfo
     real(KIND=dp)  :: dv=(0.8_dp**3)*(2**$NUMSYM)
     !---------------------------------------------------------------------------
     !Time step in 10^-22 s
-    real(KIND=dp)  :: dt=0.012_dp, ReadjustTime=0.95_dp
+    real(KIND=dp)  ::  ReadjustTime=0.95_dp
     !---------------------------------------------------------------------------
     ! Pi is always practical to have.
     real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)

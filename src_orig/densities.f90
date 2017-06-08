@@ -50,15 +50,16 @@ $DECL_VECPROD
 
     !---------------------------------------------------------------------------
     ! Density-mixing parameter
-    real(KIND=dp) :: denmix = 0.75_dp
+    real(KIND=dp) :: denmix = 0.85_dp
     
 contains
 
-subroutine densit
+subroutine densit(iteration)
     !---------------------------------------------------------------------------
     ! Calculate all of the densities
     !---------------------------------------------------------------------------
     integer      :: i, it, wave
+    integer, intent(in) :: iteration
     real(KIND=dp):: weight
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -71,7 +72,10 @@ $INITIALIZATION
         ! Isospin is neutron in the first half of blocks, proton in the rest
         it = 2
         if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
-        weight = (1-denmix) * occupations(wave)
+        weight = occupations(wave)
+        if( iteration.ne.0)  then
+             weight = weight * (1-denmix)
+        endif
         do i=1,mv
 $EXPRESSION
         enddo

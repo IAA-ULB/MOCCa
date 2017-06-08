@@ -45,7 +45,7 @@ module functional
         real(KIND=dp) :: x1n2=-0.344
         real(KIND=dp) :: x2n2=-1.0   
         real(KIND=dp):: hbm(2)         = 20.73551910_dp
-    
+        
          
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! Energies are calculated in the BFH representation using the B coupling 
@@ -188,7 +188,7 @@ $CALCFIELDS
     
     real(KIND=dp), intent(in) :: psi(nx,ny,nz,4),     dpsi(nx,ny,nz,3,4)
     real(KIND=dp), intent(in) :: ddpsi(nx,ny,nz,3,3,4)
-    integer, intent(in)       :: sx,sy,sz,iso
+    integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
     real(KIND=dp)             :: hpsi(nx,ny,nz,4)
     real(KIND=dp)             :: temp(nx,ny,nz,4), dtemp(nx,ny,nz,3,4)
     real(KIND=dp)             :: ddtemp(nx,ny,nz,3,3,4), laptemp(nx,ny,nz,4)
