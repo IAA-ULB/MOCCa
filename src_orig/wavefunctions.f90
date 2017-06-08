@@ -137,7 +137,6 @@ contains
         enddo
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
     do i=1,10
         if(kparz(i) .gt. 0) HFBlocks(1) = HFBlocks(1) +1
         if(kparz(i) .lt. 0) HFBlocks(3) = HFBlocks(3) +1
@@ -146,8 +145,6 @@ contains
         if(kparz(i) .gt. 0) HFBlocks(5) = HFBlocks(5) +1
         if(kparz(i) .lt. 0) HFBlocks(7) = HFBlocks(7) +1
     enddo
-    
-
   end subroutine iniwavefunctions
   
   subroutine deriveall()
@@ -263,7 +260,7 @@ contains
   
   function OrderSpwfsISO(Isospin) result(Indices)
     !---------------------------------------------------------------------------
-    ! Orders the wavefunctions, but keeps the neutrons and protons separate.
+    ! Orders the wavefunctions within an isospin block. 
     !---------------------------------------------------------------------------
     integer, intent(in)        :: Isospin
     
@@ -310,5 +307,105 @@ contains
       Indices(HolePos)  = ToInsertIndex
     enddo
   end function OrderSpwfsISO
+  
+  function OrderSpwfsSym(block) result(indices)
+    !---------------------------------------------------------------------------
+    ! Sort the single-particle wave-functions in the given symmetry-block 
+    ! by single-particle energy.
+    !---------------------------------------------------------------------------
+    
+    integer, intent(in)        :: block
+    integer, allocatable       :: Indices(:)
+    real(KIND=dp), allocatable :: Energies(:)
+    integer                    :: nwf, startind, HolePos, ToInsertIndex, i
+    real(Kind=dp)              :: ToInsert
+    
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !Count the number of relevant wavefunctions
+    nwf      = HFBlocks(block) 
+    startind = sum(HFBlocks(1:block-1))
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !Filling Energies & Indices
+    allocate(Indices(nwf), Energies(nwf))
+    do i=1,nwf
+       Indices(i) = startind + i 
+    enddo
+    Energies = spenergies(startind:startind+nwf)
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !Sort the energies
+    do i=2,nwf
+      !Make a hole at index i
+      ToInsert = Energies(i)
+      HolePos  = i
+      ToInsertIndex = Indices(i)
+      do while(ToInsert.lt.Energies(HolePos-1))
+        !Move the hole one place down
+        Energies(HolePos) = Energies(HolePos-1)
+        Indices(HolePos) = Indices(HolePos-1)
+        HolePos = HolePos - 1
+        if(HolePos.eq.1.0_dp) exit
+      enddo
+      !Insert the energy at the correct place
+      Energies(HolePos) = ToInsert
+      Indices(HolePos)  = ToInsertIndex
+    enddo
+    
+  end function OrderSpwfsSym
+  
+  subroutine GramSchmidt
+    !---------------------------------------------------------------------------
+    ! This subroutine uses a Gram-Schmidt scheme to orthonormalise the Spwfs in
+    ! the HF basis. Small point of interest: the orthonormalisation is done in 
+    ! order of ascending energy within each symmetry block, in order to avoid
+    ! wasting CPU cycles reordering levels.
+    !---------------------------------------------------------------------------
+    integer  :: b, i,j,nw, mw,l
+    integer  :: indices(maxval(HFBlocks))
+    real(KIND=dp) ::  norm
+    
+    do b = 1, Blocks 
+        indices = 0
+        indices(1:HFblocks(b)) = OrderSpwfsSym(b)
+        do i = 1, HFBlocks(b)
+            !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! Normalize wave-function nw
+            nw = indices(i)
+            norm = sum(HFpsi(:,:,:,:,nw)**2) * dv
+            HFPsi(:,:,:,:,nw) = (sqrt(1.0/norm)) * HFPsi(:,:,:,:,nw) 
+            
+            !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! Then subtract the projection on \Psi_{nw} from all the following
+            ! Spwf.
+            ! Re(\Psi(\sigma)_{mw}) = Re(\Psi(\sigma)_{mw})
+            !                - Re(< \Psi_{nw}|\Psi_{mw} >) Re(\Psi(\sigma)_{nw})
+            !                + Im(< \Psi_{nw}|\Psi_{mw} >) Im(\Psi(\sigma)_{nw})
+            ! Im(\Psi(\sigma)_{mw}) = Im(\Psi(\sigma)_{mw})
+            !                - Re(< \Psi_{nw}|\Psi_{mw} >) Im(\Psi(\sigma)_{nw})
+            !                - Im(< \Psi_{nw}|\Psi_{mw} >) Re(\Psi(\sigma)_{nw})
+            !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! Note that the imaginary part of the inproduct only needs to be 
+            ! taken into account when there is no antilinear, hermitian 
+            ! symmetry that is conserved.
+            !
+            ! THIS IS NOT IMPLEMENTED YET HOWEVER!
+            !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! What is also missing is an orthonormalisation versus the spwf
+            ! that are assumed to be present but not represented numerically.
+            ! The MOCCa example is of course conserved time-reversal but broken
+            ! signature.
+            !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            do j= i+1, HFBlocks(b)
+                mw = indices(j)    
+                ! Real part of the inproduct
+                norm = sum(HFpsi(:,:,:,:,nw)*HFpsi(:,:,:,:,mw)) * dv
+                do l=1,4*nx*ny*nz
+                    HFPsi(l,1,1,1,mw) = HFPsi(l,1,1,1,mw) -                    &
+                    &                                 norm * HFPsi(l,1,1,1,nw)
+                enddo
+            enddo
+        enddo
+    enddo
+  
+  end subroutine GramSchmidt
   
 end module wavefunctions

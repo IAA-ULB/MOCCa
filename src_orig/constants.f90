@@ -50,7 +50,6 @@ module constants
     real(KIND=dp):: hbar           =  6.58211928_dp
     real(KIND=dp):: clum           = 29.9792458_dp
     real(KIND=dp):: nucleonmass(2) = (/939.565379_dp , 938.272046_dp /)
-    real(KIND=dp):: hbm(2)         = 20.73551910_dp
     
     
     !Functional parameters in the C-representation

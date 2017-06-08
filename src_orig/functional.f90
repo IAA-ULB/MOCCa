@@ -44,6 +44,8 @@ module functional
         real(KIND=dp) :: t2n2=-27.31975
         real(KIND=dp) :: x1n2=-0.344
         real(KIND=dp) :: x2n2=-1.0   
+        real(KIND=dp):: hbm(2)         = 20.73551910_dp
+    
          
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! Energies are calculated in the BFH representation using the B coupling 
@@ -178,7 +180,7 @@ $CALCFIELDS
         enddo
   end subroutine calcFields 
   
-  function sphamil(psi, dpsi, ddpsi, iso) result(hpsi)
+  function sphamil(psi, dpsi, ddpsi, sx,sy,sz,iso) result(hpsi)
     !---------------------------------------------------------------------------
     ! Apply the action of the single-particle hamiltonian to the 
     ! single-particle wave-functions.
@@ -186,25 +188,38 @@ $CALCFIELDS
     
     real(KIND=dp), intent(in) :: psi(nx,ny,nz,4),     dpsi(nx,ny,nz,3,4)
     real(KIND=dp), intent(in) :: ddpsi(nx,ny,nz,3,3,4)
-    integer, intent(in)       :: iso
+    integer, intent(in)       :: sx,sy,sz,iso
     real(KIND=dp)             :: hpsi(nx,ny,nz,4)
     real(KIND=dp)             :: temp(nx,ny,nz,4), dtemp(nx,ny,nz,3,4)
     real(KIND=dp)             :: ddtemp(nx,ny,nz,3,3,4), laptemp(nx,ny,nz,4)
     
-    integer :: it, i
+    integer :: it, i,k
     
-    hpsi = 0.0
     !---------------------------------------------------------------------------
-    ! Action of kinetic energy
-    
-    
+    ! Determine the isospin index
+    it = (iso + 3/2)
+    !---------------------------------------------------------------------------
+    ! Action of the kinetic energy
+    do i=1,mv
+        do k=1,4
+            hpsi(i,1,1,k) = - hbm(it)*(ddpsi(i,1,1,1,1,k) + ddpsi(i,1,1,2,2,k) &
+            &                                             + ddpsi(i,1,1,3,3,k)) 
+        enddo
+    enddo
     !---------------------------------------------------------------------------
     ! Action of the Skyrme fields
-    it = (iso + 3/2)
+    !
+    ! Note that 
+    ! a) Coulomb is included in the F_I_I field
+    ! b) Every density contains the contributions from constraints on that 
+    !    density. 
+    ! c) The kinetic energy is NOT included in the F_N_N field, because 
+    !    a constant is not in the Lagrange basis; so the current way of
+    !    deriving stuff is not correct for a term
+    !          hbar^2_2m
+    !---------------------------------------------------------------------------
     
 $SKYRMEACTION
-
-        
     
   end function sphamil
 
