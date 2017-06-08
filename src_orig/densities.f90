@@ -40,20 +40,26 @@ use derivatives
 
 implicit none
 
-    !-------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     ! Type declaration of the various densities
 $DECLARATION   
 
-    !-------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     ! Type declaration of possible rotational combinations of densities.
 $DECL_VECPROD
+
+    !---------------------------------------------------------------------------
+    ! Density-mixing parameter
+    real(KIND=dp) :: denmix = 0.75_dp
+    
 contains
 
 subroutine densit
     !---------------------------------------------------------------------------
     ! Calculate all of the densities
     !---------------------------------------------------------------------------
-    integer :: i, it, wave
+    integer      :: i, it, wave
+    real(KIND=dp):: weight
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
@@ -65,6 +71,7 @@ $INITIALIZATION
         ! Isospin is neutron in the first half of blocks, proton in the rest
         it = 2
         if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
+        weight = (1-denmix) * occupations(wave)
         do i=1,mv
 $EXPRESSION
         enddo
