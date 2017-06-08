@@ -9,6 +9,16 @@
 #   
 #   Q Is the isospin coupling of the fields ok?
 #   A NO, see Sadoudi.
+#
+#
+#
+#   C Add option for more than one derivative and/or laplacian to the action-
+#     of fields routine
+#   C Add possibility for non-derivative operators in the left-operator, as 
+#     currently all indices are assumed to be derivatives ones.
+#
+#   C add automatic declaration of dtemp, ddtemp, lapdtemp etc to the actions
+#     to save memory in default cases.
 #-------------------------------------------------------------------------------
 
 from string import Template
@@ -61,9 +71,9 @@ def GenerateFields():
                            2*tab + 'endif \n' + \
                            2*tab + '$FIELD = 0.0 \n')
     field_calc_temp    = Template( 2*tab + '$FIELD(:$IND,it) = $FIELD(:$IND,it)  & \n')
-    
     field_calc_den_a     = Template('* $DENSITY(:$DENIND,it)  ')
     field_calc_den_b     = Template('* $DENSITY(:$DENIND,3-it)')
+
     field_calc_b_temp  = Template( 3*tab + '& $SIGN sum($CPLCTE(:,2)) $EXPR1 & \n') 
     field_calc_c_temp  = Template( 3*tab + '& $SIGN      $CPLCTE(2,2) $EXPR2 & \n') 
 
@@ -200,17 +210,15 @@ def GenerateAction(field):
     #---------------------------------------------------------------------------
     
     action_final    = Template(  tab + \
-    'hpsi(:,:,:,$IND) =  hpsi(:,:,:,$IND) $SIGN $TEMP(:,:,:$RIND,$RCOMP)\n')
+    'hpsi(:,:,:,$IND) =  hpsi(:,:,:,$IND) $SIGN $TEMP(:,:,:$LIND,$RCOMP)\n')
     temp_ini        = tab + 'temp = 0.0 \n'
     action_temp    = Template(2*tab + \
-    'temp(i,1,1,$IND) =  temp(i,1,1,$IND) $SIGN $FIELD(i$sFIELDIND,it) * $WF(i,1,1$RIND,$RCOMP)\n')
+    'temp(i,1,1,$IND) =  temp(i,1,1,$IND) $SIGN $FIELD(i$FIELDIND,it) * $WF(i,1,1$RIND,$RCOMP)\n')
     
     derive_temp     = Template(tab + \
                       'call Derive_$DIR(temp(:,:,:,$RCOMP), $SYM, dtemp(:,:,:,$DIRIND,$RCOMP)) \n')
-#    derive_2_temp   = Template(tab + \
-#              'call Derive_grad(dtemp(:,:,:,$DERIND,$RCOMP), +1, +1, +1, dtemp(:,:,:,1,$DERIND,$RCOMP), dtemp(:,:,:,2,$DERIND,$RCOMP), dtemp(:,:,:,3,$DERIND,$RCOMP)) \n')
     lap_temp        = Template(tab + \
-                      'call Derive_lap(temp(:,:,:,$RCOMP), +1, +1, +1, laptemp(:,:,:,$RCOMP)) \n')
+                      'call Derive_lap(temp(:,:,:,$RCOMP), $SYMX, $SYMY, $SYMZ, laptemp(:,:,:,$RCOMP)) \n')
     
     
     
@@ -224,7 +232,6 @@ def GenerateAction(field):
     Direction = ["X", 'Y', 'Z']
     
     (left,right,coupling) =  ParseOperatorsField(field)
-    
     #---------------------------------------------------------------------------
     #Building the left and right operators
     operatordic = {}
@@ -249,7 +256,8 @@ def GenerateAction(field):
     
     dic = {}
     dic['FIELD']  = field
-    
+    dic['WF']     = WFNames[ RightOperator.derorder ]
+
     start  = np.zeros((4,1))
     start[0,0] = 1 
     start[1,0] = 2  
@@ -260,177 +268,197 @@ def GenerateAction(field):
     # indices
     expression = action_comment.substitute(dic)
     
+    #---------------------------------------------------------------------------
     # So this is quite complicated. 
     # Steps:
-    #    1) Construct all of the possible arguments for the left-operator
-    #       consistent with possible contractions within the left-operator
-    #    2) Construct all of the possible argument for the right-operator
-    #       consstent with possible contractions within the right-operator
-    #       AND consistent with contractions with the left-operator.
-    # Repeat-----
-    #    3) Write the code that calculates the action of the field for 
-    #       all right arguments consistent with the left argument given
-    #    4) Write the code that derives all of these right arguments for this
-    #       particular left argument. 
-    # End 
+    #    1) Construct all of the possible arguments for the left-operator,
+    #       for the indices that are not contracted.
+    #  |-----Loop over true_larg
+    #  |
+    #  |  2) Construct all of the possible arguments for the right-operator
+    #  |     for the noncontracted indices.
+    #  | |----- Loop over rarg
+    #  | | 3) Construct all possible arguments for the right-operator, given
+    #  | |    contractions with its own indices and with the left-operator
+    #  | ||---- Loop over true_rarg
+    #  | || 4)  Add the code to add the action of the right operator to temp
+    #  | ||----
+    #  | |----- 
+    #  | 5) Add the code to derive the array temp, for the given indices of the
+    #  |    left-operator. Contractions between derivatives here are exchanged
+    #  |    with calls to laplacian.
+    #  | 6) Add the final result to hpsi    
+    #  |-----------------
+    #---------------------------------------------------------------------------
 
     ldim = LeftOperator.dimension
-    
-        
+
     lcoupl = []
     rcoupl = []
     ccoupl = []
+    fieldind_passed = []
+    
     for c in coupling: 
        if(c[0] < LeftOperator.dimension and c[1] < LeftOperator.dimension ):
-            ldim = ldim - 1
             lcoupl.append(c)
        elif(c[0] >= LeftOperator.dimension and c[1] >= LeftOperator.dimension ):
             rcoupl.append(c)
        else:
             ccoupl.append(c)
-    rdim  = RightOperator.dimension - len(coupling) + len(lcoupl)
-
+    rdim  = RightOperator.dimension - len(coupling) # + len(lcoupl)
+    ldim  = LeftOperator.dimension  - 2*len(lcoupl)
+    
     # all possible values for the arguments of the left-operator
     largs = itertools.product(range(3), repeat=ldim)
     
-    for larg in largs:
-        # Construct all of the possibilites for the larg, ignoring 
-        # contractions
-        larg_uncontracted = []
-        if(len(lcoupl) == 0):
-            larg_uncontracted = [larg]
-        else:
-            cont = itertools.product(range(3), repeat=len(lcoupl))
-            for c in cont:
+    for true_larg in largs:
+        # reset temp to 0
+        expression = expression + temp_ini
+        
+        leftind  = LeftOperator(true_larg, start)
+        rargs = itertools.product(range(3), repeat=rdim)
+        for rarg in rargs:
+            rarg_uncontracted = []
+            if(RightOperator.dimension == 0):  
+                rarg_uncontracted=[rarg]
+            else:  
+              rarg_uncontracted = []
+              cont = itertools.product(range(3), repeat=len(rcoupl))
+              for c in cont:
                 p  = ()   
                 ii = 0
-                for i in range(LeftOperator.dimension):
+                for i in range(LeftOperator.dimension, LeftOperator.dimension+RightOperator.dimension):
                     found = False                    
-                    for combination in lcoupl:
+                    for combination in rcoupl:
                         if(i in combination): 
-                            p = p + (c[lcoupl.index(combination)],)
+                            p = p + (c[rcoupl.index(combination)],)
+                            found = True
+                    for combination in ccoupl:
+                        if(i == combination[0]):
+                            p = p + (true_larg[combination[1]],)
+                            found = True
+                        if(i == combination[1]):
+                            p = p + (true_larg[combination[0]],)
                             found = True
                     if(not found): 
-                        p = p + (larg[ii],)
+                        p = p + (rarg[ii],)
                         ii = ii +1
-                larg_uncontracted.append(p)
-        
-        for true_larg in larg_uncontracted:
-            rargs = itertools.product(range(3), repeat=rdim)
-            for rarg in rargs:
-                rarg_uncontracted = []
-                if(len(coupling) - len(rcoupl)== 0):
-                  rarg_unconstracted=[rarg]
-                else:  
-                  rarg_uncontracted = []
-                  cont = itertools.product(range(3), repeat=len(rcoupl))
-                  for c in cont:
-                    p  = ()   
-                    ii = 0
-                    for i in range(LeftOperator.dimension, LeftOperator.dimension+RightOperator.dimension):
-                        found = False                    
-                        for combination in rcoupl:
-                            if(i in combination): 
-                                p = p + (c[rcoupl.index(combination)],)
-                                found = True
-                        for combination in ccoupl:
-                            if(i == combination[0]):
-                                p = p + (true_larg[combination[1]],)
-                                found = True
-                            if(i == combination[1]):
-                                p = p + (true_larg[combination[0]],)
-                                found = True
-                        if(not found): 
-                            p = p + (rarg[ii],) #rarg[ii]
-                            ii = ii +1
-                    rarg_uncontracted.append(p)
+                rarg_uncontracted.append(p)
+            #---------------------------------------------------------------
+            # Loop over right-arguments
+            expression = expression + position_loop
+            for true_rarg in rarg_uncontracted:
+                rightind = RightOperator(true_rarg, start)
                 
-                for true_rarg in rarg_uncontracted:
-                    print field, true_larg, true_rarg
-#    args = itertools.product(range(3), repeat=ndim)   
-#    for arg in args:
-#        expression = expression + temp_ini
-#        uncontracted = []
-#        if(len(coupling) == 0):
-#            uncontracted = [arg]
-#        else:
-#            cont = itertools.product(range(3), repeat=len(coupling))
-#            for c in cont:
-#                p  = ()   
-#                ii = 0
-#                for i in range(LeftOperator.dimension + RightOperator.dimension):
-#                        found = False                    
-#                        for combination in coupling:
-#                                if(i in combination): 
-#                                        p = p + (c[coupling.index(combination)],)
-#                                        found = True
-#                        if(not found): 
-#                                p = p + (arg[ii],)
-#                                ii = ii +1
-#                uncontracted.append(p)
-
-#        for true_arg in uncontracted:
-#            larg = true_arg[:LeftOperator.dimension]
-#            rarg = true_arg[LeftOperator.dimension:]
-#            
-#            leftind  = LeftOperator(larg, start)
-#            rightind = RightOperator(rarg, start)
-
-#            #-------------------------------------------------------------------
-#            # For now, we derive everything on the fly.
-#            #-------------------------------------------------------------------
-#            dic['WF']     = WFNames[ RightOperator.derorder ]
-
-#            lorder = LeftOperator.derorder
-#            
-#            RIND = ''
-#            for mu in rarg: 
-#                RIND = RIND + ',' + str(mu+1) # Python indexes 0:N-1
-#            dic['RIND'] = RIND
-#            
-#            
-#            FIELDIND = ''
-#            print field, rarg
-#            for i in range(len(rarg)):
-#                r = rarg[i]
-#                Found = False
-#                for c in coupling:
-#                    if r in c:
-#                        Found = True
-#                if(not Found):
-#                    FIELDIND = FIELDIND + ',' + str(r+1)               
-#            dic['FIELDIND'] = FIELDIND
-#            
-#            expression = expression + position_loop
-#            
-#            #-------------------------------------------------------------------
-#            # Action of the right-operator
-#            for k in range(4): 
-#                dic['IND']    = k + 1  
-#                dic['RCOMP']  = int(abs(rightind[k,0])) 
-#                
-#                SIGN          = np.sign(rightind[k,0])
-#                SIGN          = SIGN * (-1)**(LeftOperator.derorder)
-#                if(SIGN > 0) :
-#                    dic['SIGN']   = '+'
-#                else :
-#                    dic['SIGN']   = '-'
-#                expression = expression + action_temp.substitute(dic)
-#            expression = expression + position_end
-#            #-------------------------------------------------------------------
-#            # Calculation of the derivatives
-#            if(lorder >= 1):
-#                dic['DIRIND'] = larg[-1] +1 
-#                dic['DIR']    = Direction[larg[-1]]
-#                dic['SYM']    = '+1'       
-#                for k in range(4):
-#                    dic['RCOMP']  = k  +1 
-#                    expression = expression + derive_temp.substitute(dic)
-#            for k in range(4):
-#                dic['IND']    = k + 1  
-#                dic['RCOMP']  = k + 1 
-#                dic['TEMP']   = lorder*'d'+'temp'  
-#                expression = expression + action_final.substitute(dic)
+                #-----------------------------------------------------------
+                # Indices of the field in the multiplication
+                dic['FIELDIND'] = ''
+                for l in range(LeftOperator.dimension):
+                    Found = False
+                    for c in coupling:
+                        if(l in c):
+                            Found = True
+                    if(not Found):
+                        dic['FIELDIND']= dic['FIELDIND'] + ',' \
+                                           + str(true_larg[l]+1)
+                for r in range(RightOperator.dimension):
+                    Found = False
+                    for c in coupling:
+                        if (r + LeftOperator.dimension in c):
+                            Found = True
+                    if(not Found) :
+                        dic['FIELDIND']= dic['FIELDIND'] + ',' \
+                                           + str(true_rarg[r]+1)
+                #-----------------------------------------------------------
+                # Action of the right-operator
+                for k in range(4): 
+                    dic['IND']     = k + 1
+                    dic['RIND']    = ''
+                    for r in range(RightOperator.derorder):
+                        dic['RIND'] = dic['RIND'] + ',' + str(true_rarg[r]+1) 
+                       
+                    dic['RCOMP']   = int(abs(rightind[k,0])) 
+                    
+                    SIGN           = np.sign(rightind[k,0])
+                    SIGN           = SIGN * (-1)**(LeftOperator.derorder)
+                    if(SIGN > 0) :
+                        dic['SIGN']= '+'
+                    else :
+                        dic['SIGN']= '-'
+                    expression = expression + action_temp.substitute(dic)
+            expression = expression + position_end
+            #---------------------------------------------------------------
+            # End of true_rarg loop
+        #-------------------------------------------------------------------
+        # End of rarg loop
+        #-----------------------------------------------------------------------
+        # Calculation of the derivatives in steps:
+        lasttemp = 'temp'
+        for lorder in range(LeftOperator.derorder):
+            Found = False
+            Add   = True
+            for c in lcoupl:
+                if (lorder == c[0]):
+                    Found = True
+                elif(lorder == c[1]):
+                    # Already found
+                    Add = False
+            if(not Add):
+                continue
+            if(Found):
+                # Note that a laplacian never changes the quantum numbers of 
+                # a function, and that the result of the laplacian needs to be
+                # added to hpsi, so as long as derivatives and laplacians can 
+                # not be compounded, these are the symmetries of the spwf.
+                dic['SYMX']    = 'sx'
+                dic['SYMY']    = 'sy'
+                dic['SYMZ']    = 'sz'      
+                for k in range(4):
+                    dic['RCOMP']  = k  + 1 
+                    expression = expression + lap_temp.substitute(dic)
+                lasttemp = 'laptemp'
+            else:
+                offset = LeftOperator.dimension - LeftOperator.derorder
+                direc  = true_larg[- lorder - offset] +1  # X/Y/Z derivative
+                
+                dic['DIRIND'] = direc
+                dic['DIR']    = Direction[direc-1]
+                
+                sym = +1
+                # Get the symmetries of the derivatives (including the current one)
+                # that still need to be performed after this derivative.
+                # Note that contractions are not considered, since they represent
+                # laplacians.
+                for l in range(lorder, LeftOperator.derorder):
+                    if true_larg[- l - offset] +1  == direc:
+                        sym = -sym
+                if(sym>0):   
+                    dic['SYM']    = '+s' + Direction[direc-1]
+                else:
+                    dic['SYM']    = '-s' + Direction[direc-1]       
+                for k in range(4):
+                    dic['RCOMP']  = k  +1 
+                    expression = expression + derive_temp.substitute(dic)
+                lasttemp = (lorder+1) * 'd' + 'temp'
+        
+        
+        #-----------------------------------------------------------------------
+        # Add final result to hpsi
+        dic['TEMP'] = lasttemp
+        for k in range(4):
+            dic['LIND']    = ''
+            for l in true_larg:
+                dic['LIND'] = dic['LIND'] + ',' + str(l+1)
+            dic['IND']     = k + 1
+            dic['RCOMP']   = int(abs(leftind[k,0])) 
+            SIGN           = np.sign(leftind[k,0])
+            if(SIGN > 0) :
+                dic['SIGN']= '+'
+            else :
+                dic['SIGN']= '-'
+            expression = expression + action_final.substitute(dic)
+        #-----------------------------------------------------------------------
+        # End of true_larg loop
     return (expression)
     
 def ParseOperatorsField(field):    
