@@ -57,7 +57,7 @@ contains
         use wavefunctions
         
         integer, intent(in) :: iteration
-        integer             :: wave, iso
+        integer             :: wave, iso,k
         real(KIND = dp)     :: hpsi(nx,ny,nz,4)
         
         do wave=1,nwt
@@ -78,6 +78,14 @@ contains
         enddo
 
         call GramSchmidt
-
+            
+!        do k=1,4
+!            print *, 'k = ', k
+!        do wave=1,nwt
+!            print ('(a20, 10f10.6)'),'hPSI', hfpsi(1,1,1:nz,k,wave)
+!        enddo
+!            print * 
+!        enddo
+    
     end subroutine 
 end module evolution

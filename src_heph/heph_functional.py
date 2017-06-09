@@ -46,6 +46,7 @@ import heph_fields
 # Array containing the expressions of all the functional terms. 
 Functional_terms     = []
 density_dependence   = []
+field_DD_terms       = {}
 #-------------------------------------------------------------------------------
 # Strings telling Tantalus how to calculate coupling constants from Skyrme
 # force values for the isoscalar (_0) and isovector (_1) coupling. 
@@ -132,11 +133,15 @@ def ReadFunctional(fname):
                 split = line.split(';')
                 Functional_terms.append(split[0].replace(' ', ''))
                 density_dependence.append(split[1].replace(' ', ''))
-                coupling_constants_0.append(split[2].replace(' ', ''))
-                coupling_constants_1.append(split[3].replace(' ', ''))   
+                dd_den   = split[2].replace(' ', '')
+                f_dd     = split[3].replace(' ', '')
+                field_DD_terms[split[0].replace(' ', '')] =  (dd_den, f_dd)
+                coupling_constants_0.append(split[4].replace(' ', ''))
+                coupling_constants_1.append(split[5].replace(' ', ''))   
             elif(line[0] == '#'):
                 description = description + line     
 
+    print density_dependence
     return(description)
     
 def ParseDensities(term): 

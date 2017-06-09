@@ -279,7 +279,11 @@ contains
     do i=1,nwf
        Indices(i) = startind + i 
     enddo
-    Energies = spenergies(startind:startind+nwf)
+    Energies = spenergies(startind+1:startind+nwf)
+    
+!    print *, indices(1:nwf)
+!    print ('(20f10.3)'), Energies
+    
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Sort the energies
     do i=2,nwf
@@ -298,7 +302,8 @@ contains
       Energies(HolePos) = ToInsert
       Indices(HolePos)  = ToInsertIndex
     enddo
-    
+!    print *,indices
+!    print ('(20f10.3)'), Energies
   end function OrderSpwfsSym
   
   subroutine GramSchmidt
@@ -354,7 +359,7 @@ contains
             enddo
         enddo
     enddo
-  
+   
   end subroutine GramSchmidt
   
 end module wavefunctions

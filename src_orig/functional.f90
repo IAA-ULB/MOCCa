@@ -39,13 +39,12 @@ module functional
         real(KIND=dp) :: to=0.0
         real(KIND=dp) :: wso=123.0
         real(KIND=dp) :: wsoq=123.0
-
         real(KIND=dp) :: t1n2=24.3409
         real(KIND=dp) :: t2n2=-27.31975
         real(KIND=dp) :: x1n2=-0.344
         real(KIND=dp) :: x2n2=-1.0   
-        real(KIND=dp):: hbm(2)         = 20.73551910_dp
-        
+        real(KIND=dp):: hbm(2)         = 20.73551910_dp 
+         
          
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! Energies are calculated in the BFH representation using the B coupling 
@@ -176,6 +175,7 @@ $PRINT
         integer :: m, n, k, it
 
 $CALCFIELDS
+
 
   end subroutine calcFields 
   

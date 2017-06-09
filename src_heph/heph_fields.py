@@ -71,14 +71,16 @@ def GenerateFields():
                            2*tab + 'endif \n' + \
                            2*tab + '$FIELD = 0.0 \n')
     field_calc_temp    = Template( 2*tab + '$FIELD(:$IND,it) = $FIELD(:$IND,it)  & \n')
-    field_calc_den_a     = Template('* $DENSITY(:$DENIND,it)  ')
-    field_calc_den_b     = Template('* $DENSITY(:$DENIND,3-it)')
+    field_calc_den_a     = Template('* sum($DENSITY(:$DENIND,:),$SUMIND)  ')
+    field_calc_den_b     = Template('* $DENSITY(:$DENIND,it)')
+    field_calc_den_c     = Template('* $DENSITY(:$DENIND,3-it)')
 
     isoloop     = 2*tab + 'do it=1,2 \n'
     isoloop_end = 2*tab + 'enddo\n'
 
-    field_calc_b_temp  = Template( 3*tab + '& $SIGN sum($CPLCTE(:,2)) $EXPR1 & \n') 
-    field_calc_c_temp  = Template( 3*tab + '& $SIGN      $CPLCTE(2,2) $EXPR2 & \n') 
+    field_calc_b_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(1,2) $EXPR1 & \n') 
+    field_calc_c_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(2,2) $EXPR2 & \n') 
+    field_calc_d_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(2,2) $EXPR3 & \n') 
 
     doloop_template    = 2*tab + 'do %s = 1, 3 \n'
     enddoloop_template = 2*tab + 'enddo \n'
@@ -93,21 +95,23 @@ def GenerateFields():
     declaration = ''
         
     for den in heph_functional.Densities_needed:
+        #-----------------------------------------------------------------------
         # Name the field correctly
         dic = {}
         dic['FIELD'] = den.replace('D', 'F').replace('C', 'G')
 
         Fields_needed.append(dic['FIELD'])
-
+        #-----------------------------------------------------------------------
         #  Get the operator structure of the density correctly                                
         (der, lap, left, right, coupling) = ParseOperators(den) 
-        
+        #-----------------------------------------------------------------------
         # Check all of the terms if they depend on the density
         fieldlist = []
         cpcte     = ''
+        #-----------------------------------------------------------------------
         for term in heph_functional.Functional_terms: 
             (densities, cpl) = heph_functional.ParseDensities(term)
-            
+            #-------------------------------------------------------------------
             # Change the coupling if the density needed is contracted
             if(OrderOfDen(den) != OrderOfDen(den, contract=False)):
                 altterm = term
@@ -117,7 +121,8 @@ def GenerateFields():
                             # Replace internal couplings
                             altterm = altterm.replace(sumindices[cpl.index(c)],'')
                 (rubbish, cpl) = heph_functional.ParseDensities(altterm)
-            
+            #-------------------------------------------------------------------
+            # Check if the term contains this density
             for i in range(len(densities)):
                 altden = densities[i]
                 (altder, altlap, altleft, altright, altcoup)=ParseOperators(altden)
@@ -129,9 +134,18 @@ def GenerateFields():
                     for j in range(len(densities)):
                         if i != j :
                             removed.append(densities[j])
-                    cplct = cplcts[heph_functional.Functional_terms.index(term)]
-                    fieldlist.append([removed, altder, altlap, cplct, cpl])
-        
+                    ind   = heph_functional.Functional_terms.index(term)
+                    cplct = cplcts[ind]
+                    dden  = heph_functional.density_dependence[ind]
+                    fieldlist.append([removed, altder, altlap, cplct, cpl,dden,0])
+                    
+            #-------------------------------------------------------------------
+            # Now check if there are density dependences in this term that 
+            # involve this density
+            dd = heph_functional.field_DD_terms[term]
+            if(dd[0] == den):
+                fieldlist.append([densities, altder, altlap, cplct, cpl, dd[1],1])
+        #-----------------------------------------------------------------------
         # Replace the densities in the list by the ones actually calculated
         for i in range(len(fieldlist)):
             d = fieldlist[i][0]
@@ -174,9 +188,15 @@ def GenerateFields():
              
              dic['DENSITY']  = ''
              dic['EXPR1']    = ''
-             dic['EXPR2']    = '' 
+             dic['EXPR2']    = ''
+             dic['EXPR3'] = ''
+             ind = heph_functional.Functional_terms.index(term)
+             dic['DD']       = fieldterm[5]
+             
+             if(len(dic['DD']) >0 ):
+                dic['DD']       = dic['DD'] + '*'
+             
              for i in range(len(fieldterm[0])):
-                    
                     dic['DENSITY']  =                    fieldterm[1] * 'der_' \
                                                        + fieldterm[2] * 'Lap_' \
                                                        + fieldterm[0][i] 
@@ -188,17 +208,24 @@ def GenerateFields():
                     
                     # Get the indices of the density in the field
                     dic['DENIND']      = ''
+                    dic['SUMIND']      = 2
                     for k in range(OrderOfDen(den), OrderOfDen(den) + OrderOfDen(dic['DENSITY'])):
                         for c in fieldterm[4]:
                             if k in c:   
                                 dic['DENIND']= dic['DENIND']     + ',' \
                                              + sumindices[fieldterm[4].index(c)]
-                    
+                                #dic['SUMIND'] = dic['SUMIND'] + 1                    
                     dic['EXPR1'] = dic['EXPR1'] + field_calc_den_a.substitute(dic)
                     dic['EXPR2'] = dic['EXPR2'] + field_calc_den_b.substitute(dic)
+                   
+                    if(len(dic['DD']) >0):
+                        dic['EXPR3'] = dic['EXPR3'] + field_calc_den_c.substitute(dic)
              
              FIELDCALC = FIELDCALC + field_calc_b_temp.substitute(dic)
              FIELDCALC = FIELDCALC + field_calc_c_temp.substitute(dic)
+             if(fieldterm[6] == 1):
+                FIELDCALC = FIELDCALC + field_calc_d_temp.substitute(dic)
+             
              FIELDCALC = FIELDCALC[:-4] + '\n'
              for k in range(order):
                 FIELDCALC = FIELDCALC + enddoloop_template

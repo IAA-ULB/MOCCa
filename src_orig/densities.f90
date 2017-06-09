@@ -50,7 +50,7 @@ $DECL_VECPROD
 
     !---------------------------------------------------------------------------
     ! Density-mixing parameter
-    real(KIND=dp) :: denmix = 0.85_dp
+    real(KIND=dp) :: denmix = 0.75_dp
     
 contains
 

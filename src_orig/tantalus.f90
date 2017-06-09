@@ -56,6 +56,7 @@ subroutine Test
     implicit none
    
     integer :: i,lol,k, par,iso, iter
+    real*8 :: s
     
  
     open (12,form='unformatted',file='MOCCa.test')
@@ -129,7 +130,7 @@ subroutine Test
 
     call calcFields()
 
-    do iter=1,10
+    do iter=1,1
         print *,  '*************************************'
         print *,  ' Iteration ', iter
         print *,  '*************************************'
@@ -139,11 +140,13 @@ subroutine Test
         call NaiveFill(occupations)
 
 	    call densit(iter)
-        call calcFields()
-        if(mod(iter,10).eq.0) then
+	    call calcFields()
+        
+        if(mod(iter,100).eq.0) then
             call CompSkyrme()
             Kinetic = CompKinetic()
-            call PrintSkyrme
+            call PrintSpwfs
+            call PrintSkyrme            
         endif
     enddo
     
