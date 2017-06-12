@@ -6,13 +6,13 @@ module GenInfo
     save
     !---------------------------------------------------------------------------
     !Number of points in every direction and total number of points
-    integer :: nx=10,ny=10,nz=10, mv = 1000
+    integer :: nx=20,ny=20,nz=30, mv
     !---------------------------------------------------------------------------
     ! Total number of single-particle wave-functions
-    integer :: nwt=20
+    integer :: nwt=40
     !---------------------------------------------------------------------------
     !Number of protons and neutrons in the nucleus
-    real(KIND=dp)  :: Neutrons=6, Protons=6
+    real(KIND=dp)  :: Neutrons=10, Protons=10
     !---------------------------------------------------------------------------
     ! Line element and volume element of the box. dx is in fm, dv in fm^3.
     real(KIND=dp)  :: dx=0.8_dp
@@ -23,10 +23,6 @@ module GenInfo
     !---------------------------------------------------------------------------
     ! Pi is always practical to have.
     real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
-    !---------------------------------------------------------------------------
-    !Maximum number of iterations and number of iterations to skip printing of
-    ! the code in the evolve subroutine
-    integer :: MaxIter=0, PrintIter=0
     !---------------------------------------------------------------------------
     !Convergence parameters.
     real(KIND=dp)  :: MomentPrec=1d-4, EnergyPrec=0.01E-08

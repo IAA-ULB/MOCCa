@@ -48,7 +48,8 @@ module wavefunctions
  ! Single-particle energies, diagonal elements of the single-particle
  ! hamiltonian
  ! \langle psi_i | h | psi_i \rangle
- real(KIND=dp), allocatable :: spenergies(:)
+ real(KIND=dp), allocatable :: spenergies(:) 
+ real(KIND=dp), allocatable :: dispersions(:)
  !------------------------------------------------------------------------------
  ! Number of the blocks with the same quantum numbers that divide up the 
  ! HFBasis. Any possibility has a maximum of two spatial operators that 
@@ -91,13 +92,17 @@ contains
     homegax  = alpha*qqq**(-2*cos(-2*pi/3)/3)
     homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
     
-    nwn = 10
-    nwp = 10
+    nwn = 20
+    nwp = 20
 
+    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! a) Generating the nilsson wave-functions in an EV8-box   
-    call nilsson (HFPsi,kparz,spenergies,2,1,nwt,nwn,nwp,                      &
+    call nilsson (HFPsi,kparz,spenergies,5,4,nwt,nwn,nwp,                      &
     &           floor(neutrons),floor(protons),nx,ny,nz,0.8d0,0.2d0,0.2d0,0.2d0)
+    allocate(dispersions(nwt))
+    allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! b) blow-up into the full box
     allocate(fullbox(2*nx, 2*ny, 2*nz, 4, nwt))
@@ -139,14 +144,43 @@ contains
         enddo
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    do i=1,10
+    do i=1,nwn
         if(kparz(i) .gt. 0) HFBlocks(1) = HFBlocks(1) +1
         if(kparz(i) .lt. 0) HFBlocks(3) = HFBlocks(3) +1
     enddo
-    do i=11,20
+    do i=nwn+1,nwt
         if(kparz(i) .gt. 0) HFBlocks(5) = HFBlocks(5) +1
         if(kparz(i) .lt. 0) HFBlocks(7) = HFBlocks(7) +1
     enddo
+
+    
+    do i=1, HFBlocks(1)
+        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
+        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
+    enddo
+    do i=HFBlocks(1) + 1,HFBlocks(1) + HFBlocks(3)
+        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
+        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
+    enddo
+    do i=HFBlocks(1) + HFBlocks(3)+1,HFBlocks(1) + HFBlocks(3) +HFBlocks(5)
+        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
+        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
+    enddo
+    do i=HFBlocks(1)+HFBlocks(3)+HFBlocks(5) + 1,                      &
+    &       HFBlocks(1)+HFBlocks(3)+HFBlocks(5) + HFBLocks(7)
+        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
+        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
+    enddo
+    
+
   end subroutine iniwavefunctions
   
   subroutine deriveall()
@@ -176,14 +210,16 @@ contains
     !---------------------------------------------------------------------------
     
     10 format (21 ('-'), ' Sp wavefunctions ', 41('-'))
-    20 format (94 ('-'))
-    30 format (94 ('_'),/,3x , 'Neutron wavefunctions')
-    40 format (94 ('_'),/,3x , 'Proton  wavefunctions')
-    50 format (94 ('_'),/,3x , 'HF Basis')
+    20 format (90 ('-'))
+    30 format (90 ('_'),/,3x , 'Neutron wavefunctions')
+    40 format (90 ('_'),/,3x , 'Proton  wavefunctions')
+    50 format (90 ('_'),/,3x , 'HF Basis')
     
-    integer :: wave,k
-    integer :: ProtonOrder(nwp), NeutronOrder(nwn)
-    
+    11 format (i3, 3x, f7.4, 3x, f10.3, 3x, e10.3 )
+
+    integer       :: wave,k
+    integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
+
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Order the spwfs according to growing energy
     ProtonOrder = OrderSpwfsISO(+1)
@@ -192,17 +228,17 @@ contains
     print 10
     print 50
     print 30
-    
+    print 10
     do k=1,nwn 
         wave = NeutronOrder(k)
-        print *, wave, occupations(wave), spenergies(wave)
+        print 11, wave, occupations(wave), spenergies(wave), dispersions(wave)
     enddo
     
     print 40  
-    
+    print 10
     do k=1,nwp
         wave = ProtonOrder(k)
-        print *, wave, occupations(wave), spenergies(wave)
+        print 11, wave, occupations(wave), spenergies(wave),  dispersions(wave)
     enddo
     print 20
   end subroutine PrintSpwfs

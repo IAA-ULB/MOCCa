@@ -168,7 +168,6 @@ contains
         
     LaplaZ(:,:,1) = matmul(derZ(:,:,2),derZ(:,:,1))
     LaplaZ(:,:,2) = matmul(derZ(:,:,1),derZ(:,:,2))    
-
  end subroutine inilag   
  
  subroutine Derive_3d(f, px, py, pz, fx, fy, fz, df)
@@ -384,7 +383,6 @@ $DERSYMZ        fz(i,j,:) = fz(i,j,:) + matmul(derZ  (:,:,sz),f($SYMPARTNERZ))
     
  end subroutine Derive_Z
  
- 
  subroutine Derive_lap_3D(f, px, py, pz, df)
     !---------------------------------------------------------------------------
     ! Subroutine that computes the laplacian of a function on the mesh.
@@ -414,11 +412,11 @@ $DERSYMZ        fz(i,j,:) = fz(i,j,:) + matmul(derZ  (:,:,sz),f($SYMPARTNERZ))
     enddo   
     do k=1,nz
         do i=1,nx
-            df(i,:,k) = df(i,:,k) + matmul(laplaX(:,:,sy),f(i,:,k))
+            df(i,:,k) = df(i,:,k) + matmul(laplaY(:,:,sy),f(i,:,k))
         enddo
     enddo
     do i=1,nx*ny
-        df(i,1,:) = df(i,1,:) +     matmul(laplaX(:,:,sz),f(i,1,:))
+        df(i,1,:) = df(i,1,:) +     matmul(laplaZ(:,:,sz),f(i,1,:))
     enddo
     
  end subroutine Derive_lap_3D
@@ -513,4 +511,5 @@ $DERSYMZ        fz(i,j,:) = fz(i,j,:) + matmul(derZ  (:,:,sz),f($SYMPARTNERZ))
     call Derive_3d(f3, px,py,pz,fx3,fy3,fz3,df3)
     
  end subroutine Derive_1d
+
 end module derivatives

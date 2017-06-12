@@ -84,6 +84,22 @@ $CALCCOEF
 $PRINTCOEF    
     print 1
  end subroutine printedfcoefs
+
+ subroutine PrintEnergy()
+    1 format (90('-'))
+    5 format (30x, '      neutron        proton         total')
+    6 format (15x, 'Kinetic Energy:', 3f15.6)
+    7 format (15x, '  Total energy:', 30x, f15.6)
+    
+
+    call printSkyrme
+
+    print 1
+    print 5
+    print 6, Kinetic, sum(Kinetic)
+    print 7, TotalE
+    print 1
+ end subroutine PrintEnergy
  
  subroutine CompSkyrme()
     !---------------------------------------------------------------------------
@@ -113,9 +129,6 @@ $TOTAL
     2 format (' Skyrme Energy ')
     3 format (35x, 'isoscalar      isovector      total')
     4 format (17x, 'Total Skyrme:', 3f15.6)
-    5 format (30x, '      neutron        proton         total')
-    6 format (15x, 'Kinetic Energy:', 3f15.6)
-    7 format (15x, '  Total energy:', 30x, f15.6)
     
     print 1
     print 2
@@ -127,10 +140,6 @@ $PRINT
     print 1
     print 4, Skyrme, sum(Skyrme)
     print 1
-    print 5
-    print 6, Kinetic, sum(Kinetic)
-    print 7, TotalE
-    print 1    
  end subroutine PrintSkyrme
 
  function CompKinetic() result(kinetic)
@@ -144,7 +153,7 @@ $PRINT
     use Constants
 
     integer          :: wave, it,k,i
-    real(KIND=dp)    ::  Inproduct
+    real(KIND=dp)    :: Inproduct
     real(KIND=dp)    :: Kinetic(2)
 
     ! Kinetic Energy
@@ -165,7 +174,6 @@ $PRINT
         enddo
         Kinetic(it)= Kinetic(it) + Occupations(wave)*Inproduct
     enddo
-
     Kinetic=-Kinetic * hbm * dv
     return
   end function CompKinetic

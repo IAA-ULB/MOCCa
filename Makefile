@@ -11,6 +11,8 @@ CXXFLAGS := -O3 -J$(MODDIR) -Wall
 PRE    :=  run_heph
 OBJ    :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SRC))
 
+LIBS = -llapack  -lblas
+
 
 $(TARGET): $(PRE) $(OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJ) $(LIBS)
