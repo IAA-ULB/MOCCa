@@ -157,6 +157,7 @@ def GenerateFields():
                         fieldlist[i][0][j] =   der*'der_' +               \
                                                lap*'Lap_' +               \
                                                altden
+                    
         # Create the expression for the field
         dic['ALLOCIND']= ''
         dic['DECLIND'] = ''
@@ -170,19 +171,31 @@ def GenerateFields():
         FIELDCALC    = FIELDCALC + isoloop
     
         for fieldterm in fieldlist:
-             order = 0
+        
+             # Find the number of indices over which there have to be sums
+             NumberOfIndices = 0
+             orig = OrderOfDen(den)
              for d in fieldterm[0]:
-                order = order + OrderOfDen(d)
- 
-             for k in range(order):
-                FIELDCALC = FIELDCALC + doloop_template%sumindices[k]
-             
+                # One for every index of the densities involved in the field
+                NumberOfIndices = NumberOfIndices + OrderOfDen(d)
+             NumberOfIndices = NumberOfIndices + orig
+             for c in fieldterm[4]:
+                if(c[0] > orig and c[1]> orig):
+                    pass
+                else:
+                    NumberOfIndices = NumberOfIndices - 1
+                    
+             print den, orig,fieldterm, NumberOfIndices
              # get the indices of the field correct
              dic['IND']     = ''
              for k in range(OrderOfDen(den)):
                 for c in fieldterm[4]:
                     if k in c:
                         dic['IND']      = dic['IND']  + ',%s'%sumindices[fieldterm[4].index(c)]
+       
+             for k in range(NumberOfIndices):
+                FIELDCALC = FIELDCALC + doloop_template%sumindices[k]
+             
        
              FIELDCALC = FIELDCALC + field_calc_temp.substitute(dic)
              
@@ -209,7 +222,7 @@ def GenerateFields():
                     # Get the indices of the density in the field
                     dic['DENIND']      = ''
                     dic['SUMIND']      = 2
-                    for k in range(OrderOfDen(den), OrderOfDen(den) + OrderOfDen(dic['DENSITY'])):
+                    for k in range(OrderOfDen(dic['DENSITY'])):
                         for c in fieldterm[4]:
                             if k in c:   
                                 dic['DENIND']= dic['DENIND']     + ',' \
@@ -227,7 +240,7 @@ def GenerateFields():
                 FIELDCALC = FIELDCALC + field_calc_d_temp.substitute(dic)
              
              FIELDCALC = FIELDCALC[:-4] + '\n'
-             for k in range(order):
+             for k in range(NumberOfIndices):
                 FIELDCALC = FIELDCALC + enddoloop_template
         FIELDCALC    = FIELDCALC + isoloop_end
 

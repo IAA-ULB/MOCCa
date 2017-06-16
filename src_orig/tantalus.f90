@@ -53,10 +53,25 @@ subroutine ReachForWaterAndFood
     
     implicit none
    
-    integer :: iter
+    integer :: iter, lol, i
 
     call iniwavefunctions()
-
+   call NaiveFill(occupations)
+    
+    open (12,form='unformatted',file='MOCCa.test')
+    read(12)
+    read(12)
+    read(12)
+    read(12)
+    read(12)
+    nwt = nwp + nwn
+    
+    
+    do i=1,nwt
+        read(12) HFPsi(:,:,:,:,i)
+        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, lol, lol,lol,lol,lol
+    enddo
+    
     call inilag()
     call NaiveFill(occupations)
     
@@ -67,8 +82,7 @@ subroutine ReachForWaterAndFood
     call printedfcoefs()     
     call densit(0)
         
-    Kinetic = CompKinetic()
-    call CompSkyrme()
+    call CalcEnergy()
     call PrintEnergy 
     
     call calcFields()
@@ -85,8 +99,8 @@ subroutine ReachForWaterAndFood
         call NaiveFill(occupations)
 
         call densit(iter)
-        call CompSkyrme()
-        Kinetic = CompKinetic()
+       
+        call CalcEnergy()
         call calcFields()
         
         if(mod(iter,PrintIter).eq.0) then
@@ -104,11 +118,13 @@ subroutine ReadInput
     !
     !--------------------------------------------
 
-    use GenInfo, only : ReadGenInfo
-    use Evolution, only : ReadEvolution
+    use GenInfo,       only : ReadGenInfo
+    use Evolution,     only : ReadEvolution
+    use wavefunctions, only : ReadWFdata
 
     call ReadGenInfo
     call ReadEvolution
+    call ReadWFdata
 
 end subroutine ReadInput
 

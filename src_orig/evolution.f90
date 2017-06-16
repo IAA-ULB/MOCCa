@@ -27,7 +27,7 @@ module evolution
     
     !---------------------------------------------------------------------------
     ! Parameters of the iteration scheme
-    real(KIND=dp):: dt(2) =  0.37
+    real(KIND=dp):: dt    =  0.01
     real(KIND=dp):: hbar  =  6.58211928_dp
     !---------------------------------------------------------------------------
     ! Norm of the gradient
@@ -61,6 +61,7 @@ contains
         namelist /evolution/ dt, maxiter, printiter
 
         read(unit=*, nml=evolution)
+
 
     end subroutine ReadEvolution
 
@@ -104,14 +105,14 @@ contains
             gradientnorm = gradientnorm + occupations(wave) * &
             & sum((spenergies(wave) * hfpsi(:,:,:,:,wave) - hpsi(:,:,:,:))**2)*dv
 
-            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,:,:,wave)
-            hpsi =   Precondition(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    
-            
-            hfpsi(:,:,:,:,wave) = hfpsi(:,:,:,:,wave) -  dt((iso+3)/2)/hbar * hpsi
+!            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,:,:,wave)
+!            hpsi =   Precondition(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    
+!            
+            hfpsi(:,:,:,:,wave) = hfpsi(:,:,:,:,wave) -  dt/hbar * hpsi
         enddo
     
         gradientnorm = sqrt(gradientnorm)/(neutrons + protons)  
-        if(abs(gradientnorm) .lt.1d-2) stop
+        if(abs(gradientnorm) .lt.1d-4) stop
         call GramSchmidt
     
     end subroutine Evolve_graddesc
@@ -147,11 +148,13 @@ contains
             do i=1,nx*ny
                 Ppsi(i,1,:,l) = Ppsi(i,1,:,l)     + matmul(invlaplaZ(:,:,sz,it),psi(i,1,:,l))
             enddo
-
-
-            do i=1,mv
-                Ppsi(i,1,1,l) = Ppsi(i,1,1,l) / (-hbm(it)+ F_Nm_Nm(i,it))
-            enddo
+!            do i=1,mv
+!                Ppsi(i,1,1,l) = Ppsi(i,1,1,l) / (-hbm(it)+ F_N_N(i,1,1,it) +   &
+!                & F_N_N(i,2,2,it) + F_N_N(i,3,3,it))
+!            enddo
+!            do i=1,mv
+!                Ppsi(i,1,1,l) = Ppsi(i,1,1,l) / (-hbm(it)+ F_Nm_Nm(i,it))
+!            enddo
         enddo
     end function Precondition 
 
@@ -206,14 +209,7 @@ contains
         enddo
         epsilon0 =   epsilon0 - hbm(it) * Inproduct * dv
         epsilon0 = -  epsilon0 /hbm(it)
-!        print *, epsilon0
 
-!        if(epsilon0old(it) .ne. 0.0_dp) then
-!            dt(it) = dt(it) * epsilon0/epsilon0old(it)
-!            print *, dt(it)
-!        endif
-!        epsilon0old(it) = epsilon0
-           
 
         !--------------------------------------------------------------------------
         ! Invert the shifted Laplacians

@@ -74,11 +74,15 @@ module wavefunctions
 contains 
 
   subroutine ReadWFdata
-    
+    !---------------------------------------------------------------------------
+    ! Read the number of single-particle neutron and proton wave-functions.
+    !
+    !
     namelist /wfs/ nwn, nwp
 
-    
+    read(unit=*, nml = wfs)
 
+    nwt = nwn + nwp
   end subroutine ReadWFdata
 
   subroutine iniwavefunctions()   
@@ -99,10 +103,6 @@ contains
     homegaz  = alpha*qqq**(-2.0/3.0)
     homegax  = alpha*qqq**(-2*cos(-2*pi/3)/3)
     homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
-    
-    nwn = 20
-    nwp = 20
-
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! a) Generating the nilsson wave-functions in an EV8-box   
@@ -205,9 +205,9 @@ contains
     ! Currently EV8 symmetries are hardcoded, as well as the
     do wave=1,nwt
         do k=1,4
-            call Derive_tot(HFPsi(:,:,:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),   &
+        call Derive_tot(HFPsi(:,:,:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
         &                                           HFdPsi(:,:,:,:,k,wave),     &
-        &                                           HFddPsi(:,:,:,:,:,k,wave), 1)
+        &                                           HFddPsi(:,:,:,:,:,k,wave))
         enddo
     enddo
   end subroutine DeriveAll
@@ -325,9 +325,6 @@ contains
     enddo
     Energies = spenergies(startind+1:startind+nwf)
     
-!    print *, indices(1:nwf)
-!    print ('(20f10.3)'), Energies
-    
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Sort the energies
     do i=2,nwf
@@ -346,8 +343,6 @@ contains
       Energies(HolePos) = ToInsert
       Indices(HolePos)  = ToInsertIndex
     enddo
-!    print *,indices
-!    print ('(20f10.3)'), Energies
   end function OrderSpwfsSym
   
   subroutine GramSchmidt

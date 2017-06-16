@@ -47,6 +47,7 @@ import heph_fields
 Functional_terms     = []
 density_dependence   = []
 field_DD_terms       = {}
+DD_rearcoefs         = []
 #-------------------------------------------------------------------------------
 # Strings telling Tantalus how to calculate coupling constants from Skyrme
 # force values for the isoscalar (_0) and isovector (_1) coupling. 
@@ -136,8 +137,9 @@ def ReadFunctional(fname):
                 dd_den   = split[2].replace(' ', '')
                 f_dd     = split[3].replace(' ', '')
                 field_DD_terms[split[0].replace(' ', '')] =  (dd_den, f_dd)
-                coupling_constants_0.append(split[4].replace(' ', ''))
-                coupling_constants_1.append(split[5].replace(' ', ''))   
+                DD_rearcoefs.append(split[4].replace(' ', ''))
+                coupling_constants_0.append(split[5].replace(' ', ''))
+                coupling_constants_1.append(split[6].replace(' ', ''))   
             elif(line[0] == '#'):
                 description = description + line     
 
@@ -201,12 +203,13 @@ def ProcessFunctional(fname, src, target):
         printcoef   = ''
         sumtotal    = ''
         fieldcalc   = ''
-
+        erear       = ''
+        
         # Generate the terms in the functional
         for i in range(len(Functional_terms)): 
-                (d,c,p,cc, pc,st) = GenTermExpression(Functional_terms[i], \
+                (d,c,p,cc, pc,st,er)  = GenTermExpression(Functional_terms[i], \
                             [coupling_constants_0[i], coupling_constants_1[i]],\
-                                                   density_dependence[i])
+                                         density_dependence[i], DD_rearcoefs[i])
 
                 declaration = declaration + d + '\n'
                 calculation = calculation + c + '\n'
@@ -214,6 +217,7 @@ def ProcessFunctional(fname, src, target):
                 calccoef    = calccoef    + cc+ '\n'
                 printcoef   = printcoef   + pc+ '\n'
                 sumtotal    = sumtotal    + st+ '&\n'
+                erear       = erear       + er
 
         # Generate the fields of the single-particle hamiltonian
         (fielddec, fieldcalc) = heph_fields.GenerateFields(     )
@@ -235,12 +239,13 @@ def ProcessFunctional(fname, src, target):
         dic['TOTAL']          = sumtotal[:-2]
         dic['CALCFIELDS']     = fieldcalc
         dic['SKYRMEACTION']   = SkyrmeAction
+        dic['EREAR']          = erear
         with open(src+fname, 'r') as template:
                 with open(target+fname, 'w') as generated:
                     for line in template:
                         generated.write(Template(line).substitute(dic))  
 
-def GenTermExpression( term, ccoef, DD):
+def GenTermExpression( term, ccoef, DD, DDrear):
 
     global  sumindices
 
@@ -250,7 +255,7 @@ def GenTermExpression( term, ccoef, DD):
     
     #---------------------------------------------------------------------------
     # Templates for the declaration, calculation and printing of an energy term.
-    # 
+    # And, not forgetting, its contribution to the rearrangement energy
     decl_template   = Template('real(KIND=dp) :: $CPCTE(2,2), $TERM(2,2)')
     edent_template  = Template('sum($DEN(:$IND,:),2)')
     edenq_template  = Template('$DEN(:$IND,it)')
@@ -284,6 +289,9 @@ def GenTermExpression( term, ccoef, DD):
                                  
     print_template      = Template(tab +" print('(a30 , 3f15.6)'), '$TERM', $TERM(:,1), sum($TERM(:,1))")
     print_cpl_template  = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE")
+    
+    rear_template       = Template(tab +" e_rear = e_rear $REARCOEF*sum($TERM(:,2))\n")
+    
     #---------------------------------------------------------------------------
     # See how many indices are present everywhere.
     (tempden, coupling) = ParseDensities(term)
@@ -381,4 +389,17 @@ def GenTermExpression( term, ccoef, DD):
     printcoef = print_cpl_template.substitute(dic)    
     sumtotal  = sumtotal_template.substitute(dic)
     
-    return (declaration, calculation, printing, calccoef, printcoef, sumtotal)
+    # Getting the contribution to the rearrangement energy
+    # Two-body, non-density dependent terms don't have rearrangement terms.
+    if( len(densities) == 2 and DD == ''):
+        erear = ''
+    else:
+        rearcoef = '+' + '(' + str(len(densities) - 2)
+        if(DDrear != '') :
+            rearcoef = rearcoef  + '+' + DDrear + ')'
+        else:
+            rearcoef = rearcoef + ')'
+        dic['REARCOEF'] = rearcoef
+        erear = rear_template.substitute(dic)
+        
+    return (declaration, calculation, printing, calccoef, printcoef, sumtotal, erear)

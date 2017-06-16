@@ -1,14 +1,18 @@
 &nucleus
-neutrons = 10
-protons  = 10
+neutrons = 20
+protons  = 18
 /
 &mesh
 nx=10
 ny=10
-nz=12
+nz=10
 dx=1.0
 /
 &evolution
-dt=0.01
-maxiter=10 
-/   
+dt=0.005
+maxiter=2000
+/
+&wfs
+nwn = 20
+nwp = 20
+/

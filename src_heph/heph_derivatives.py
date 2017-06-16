@@ -18,9 +18,10 @@
 
 from string           import Template
 from heph_symmetries  import ReduceAxes
+import heph_functional
 
 def ProcessDerivatives(fname, src, target):
-    #========================================================================
+    #===========================================================================
     # LINESIZEX/Y/Z
     # these determine the size of the box in that direction
     # as a function of nx,ny and nz.
@@ -62,7 +63,15 @@ def ProcessDerivatives(fname, src, target):
     #  as a function of (i,j,k) which are the (x,y,z) indices on 
     #  the mesh. Only relevant when there is a symmetry present
     #  that does not directly point back to the same line. 
-
+    # 
+    #===========================================================================
+    # Something that is rather determined by the functional is the maximum order
+    # of derivatives that is needed. This is determined by the following strings
+    #
+    # $2NDIAG  => 1st order derivatives and the diagonal 2nd order ones
+    # $2NALL   => 1st order derivatives and all of the 2nd order ones
+    #
+    #===========================================================================
     dic={}
 
     dic['DERSYMX'] = '!'
@@ -105,6 +114,10 @@ def ProcessDerivatives(fname, src, target):
     
     dic['DY'] = 'D'
     dic['DZ'] = 'D'
+        
+    
+    dic['N2DIAG'] = ''
+    dic['N2ALL']  = '!'    
         
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

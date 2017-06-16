@@ -214,55 +214,116 @@ contains
     
  end subroutine Derive_3d
 
- subroutine Derive_tot(f, px, py, pz, df, ddf, diag)
-    !---------------------------------------------------------------------------
-    ! Subroutine that computes all of the derivatives of a function on the mesh.
-    !
-    ! df(:,1)    = First order derivative in the x direction
-    ! df(:,1)    = First order derivative in the y direction
-    ! df(:,1)    = First order derivative in the z direction
-    ! ddf(:,i,j) = Second order derivative in the (i,j) direction. 
-    !
-    ! px = sign of the symmetry transformation in the x-direction
-    ! py = sign of the symmetry transformation in the y-direction
-    ! pz = sign of the symmetry transformation in the z-direction
-    !
-    ! diag = 0   All of the second order derivatives are calculated.
-    ! diag = 1   Only the xx,yy and zz derivatives are calculated.
-    !---------------------------------------------------------------------------
-    
-    real(KIND=dp), intent(in)  :: f(:,:,:)
-    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:,:)
-    integer, intent(in)        :: px,py,pz, diag
-    
-    integer                    :: i,k, sx, sy,sz
-    
-    sx = (px + 3)/2 ! These are equal to 
-    sy = (py + 3)/2 !    1    if pi =   -1  or 0
-    sz = (pz + 3)/2 !    2    if pi =   +1 
+$N2DIAG subroutine Derive_tot(f, px, py, pz, df, ddf)
+$N2DIAG    !---------------------------------------------------------------------------
+$N2DIAG    ! Subroutine that computes the following derivatives on the mesh
+$N2DIAG    !
+$N2DIAG    ! first order derivatives: x,y,z 
+$N2DIAG    ! diagonal second order derivatives :: xx, yy, zz
+$N2DIAG    !
+$N2DIAG    ! df(:,1)    = First order derivative in the x direction
+$N2DIAG    ! df(:,1)    = First order derivative in the y direction
+$N2DIAG    ! df(:,1)    = First order derivative in the z direction
+$N2DIAG    ! ddf(:,i,j) = Second order derivative in the (i,j) direction. 
+$N2DIAG    !
+$N2DIAG    ! px = sign of the symmetry transformation in the x-direction
+$N2DIAG    ! py = sign of the symmetry transformation in the y-direction
+$N2DIAG    ! pz = sign of the symmetry transformation in the z-direction
+$N2DIAG    !
+$N2DIAG    ! diag = 0   All of the second order derivatives are calculated.
+$N2DIAG    ! diag = 1   Only the xx,yy and zz derivatives are calculated.
+$N2DIAG    !---------------------------------------------------------------------------
+$N2DIAG    
+$N2DIAG    real(KIND=dp), intent(in)  :: f(:,:,:)
+$N2DIAG    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:,:)
+$N2DIAG    integer, intent(in)        :: px,py,pz
+$N2DIAG    
+$N2DIAG    integer                    :: i,k, sx, sy,sz
+$N2DIAG    
+$N2DIAG    sx = (px + 3)/2 ! These are equal to 
+$N2DIAG    sy = (py + 3)/2 !    1    if pi =   -1  or 0
+$N2DIAG    sz = (pz + 3)/2 !    2    if pi =   +1 
+$N2DIAG    !---------------------------------------------------------------------------
+$N2DIAG    !  First order derivatives and diagonal second-order ones
+$N2DIAG    do i=1,ny*nz
+$N2DIAG         df(:,i,1,1)   =        matmul(derX  (:,:,sx),f(:,i,1))
+$N2DIAG        ddf(:,i,1,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
+$N2DIAG    enddo   
+$N2DIAG    do k=1,nz
+$N2DIAG        do i=1,nx
+$N2DIAG            df(i,:,k,2)    =    matmul(derY  (:,:,sy),f(i,:,k))
+$N2DIAG            ddf(i,:,k,2,2) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
+$N2DIAG        enddo
+$N2DIAG    enddo
+$N2DIAG    do i=1,nx*ny
+$N2DIAG        df(i,1,:,3)    =        matmul(derZ  (:,:,sz),f(i,1,:))
+$N2DIAG        ddf(i,1,:,3,3) =        matmul(laplaZ(:,:,sz),f(i,1,:))
+$N2DIAG    enddo
+$N2DIAG    !---------------------------------------------------------------------------
+$N2DIAG end subroutine Derive_tot
 
-    !---------------------------------------------------------------------------
-    !  First order derivatives and diagonal second-order ones
-    do i=1,ny*nz
-         df(:,i,1,1)   =        matmul(derX  (:,:,sx),f(:,i,1))
-        ddf(:,i,1,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
-    enddo   
-    do k=1,nz
-        do i=1,nx
-            df(i,:,k,2)    =    matmul(derY  (:,:,sy),f(i,:,k))
-            ddf(i,:,k,2,2) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
-        enddo
-    enddo
-    do i=1,nx*ny
-        df(i,1,:,3)    =        matmul(derZ  (:,:,sz),f(i,1,:))
-        ddf(i,1,:,3,3) =        matmul(laplaZ(:,:,sz),f(i,1,:))
-    enddo
-    !---------------------------------------------------------------------------
-    if(diag.eq.0) then
-                ! Other second-order derivatives
-                ! Not implemented yet
-    endif   
- end subroutine Derive_tot
+$N2ALL subroutine Derive_tot(f, px, py, pz, df, ddf)
+$N2ALL    !---------------------------------------------------------------------------
+$N2ALL    ! Subroutine that computes the following derivatives on the mesh
+$N2ALL    !
+$N2ALL    ! first order derivatives: x,y,z 
+$N2ALL    ! all second order derivatives :: xx, xy, xz, yx, yy, yz, zx, zy, zz
+$N2ALL    !
+$N2ALL    ! df(:,1)    = First order derivative in the x direction
+$N2ALL    ! df(:,1)    = First order derivative in the y direction
+$N2ALL    ! df(:,1)    = First order derivative in the z direction
+$N2ALL    ! ddf(:,i,j) = Second order derivative in the (i,j) direction. 
+$N2ALL    !
+$N2ALL    ! px = sign of the symmetry transformation in the x-direction
+$N2ALL    ! py = sign of the symmetry transformation in the y-direction
+$N2ALL    ! pz = sign of the symmetry transformation in the z-direction
+$N2ALL    !
+$N2ALL    ! diag = 0   All of the second order derivatives are calculated.
+$N2ALL    ! diag = 1   Only the xx,yy and zz derivatives are calculated.
+$N2ALL    !---------------------------------------------------------------------------
+$N2ALL    
+$N2ALL    real(KIND=dp), intent(in)  :: f(:,:,:)
+$N2ALL    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:,:)
+$N2ALL    integer, intent(in)        :: px,py,pz
+$N2ALL    
+$N2ALL    integer                    :: i,k, sx, sy,sz
+$N2ALL    
+$N2ALL    sx = (px + 3)/2 ! These are equal to 
+$N2ALL    sy = (py + 3)/2 !    1    if pi =   -1  or 0
+$N2ALL    sz = (pz + 3)/2 !    2    if pi =   +1 
+$N2ALL    !---------------------------------------------------------------------------
+$N2ALL    !  First order derivatives and diagonal second-order ones
+$N2ALL    do i=1,ny*nz
+$N2ALL         df(:,i,1,1)   =        matmul(derX  (:,:,sx),f(:,i,1))
+$N2ALL        ddf(:,i,1,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
+$N2ALL    enddo   
+$N2ALL    do k=1,nz
+$N2ALL        do i=1,nx
+$N2ALL            df(i,:,k,2)    =    matmul(derY  (:,:,sy),f(i,:,k))
+$N2ALL            ddf(i,:,k,2,2) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
+$N2ALL        enddo
+$N2ALL    enddo
+$N2ALL    do i=1,nx*ny
+$N2ALL        df(i,1,:,3)    =        matmul(derZ  (:,:,sz),f(i,1,:))
+$N2ALL        ddf(i,1,:,3,3) =        matmul(laplaZ(:,:,sz),f(i,1,:))
+$N2ALL    enddo
+$N2ALL    !---------------------------------------------------------------------------
+$N2ALL    ! Off-diagonal second order derivatives
+$N2ALL    do k=1,nz
+$N2ALL      do i=1,nx
+$N2ALL          ddf(i,:,k,2,1) =      matmul(derY  (:,:,sy),df(i,:,k,1))
+$N2ALL          ddf(i,:,k,1,2) =      ddf(i,:,k,2,1) 
+$N2ALL      enddo
+$N2ALL    enddo
+$N2ALL    
+$N2ALL    do i=1,nx*ny
+$N2ALL      ddf(i,1,:,3,1) =      matmul(derZ  (:,:,sz),df(i,1,:,1))
+$N2ALL      ddf(i,1,:,1,3) =      ddf(i,1,:,3,1) 
+$N2ALL      ddf(i,1,:,3,2) =      matmul(derZ  (:,:,sz),df(i,1,:,2))
+$N2ALL      ddf(i,1,:,2,3) =      ddf(i,1,:,3,2) 
+$N2ALL    enddo
+$N2ALL
+$N2ALL end subroutine Derive_tot
  
  subroutine Derive_grad_3d(f, px, py, pz, fx, fy, fz)
     !---------------------------------------------------------------------------

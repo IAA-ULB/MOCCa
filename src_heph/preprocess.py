@@ -21,6 +21,7 @@ from heph_densities   import ProcessDensities
 from heph_derivatives import ProcessDerivatives
 from heph_symmetries  import ReduceAxes
 from heph_functional  import ProcessFunctional
+from heph_wavefunctions import ProcessWavefunctions
 
 def preprocess(fname, src, target):
       # Decides which routine to call on which file.
@@ -78,15 +79,4 @@ def ProcessGeninfo(fname, src, target):
         with open(target+fname, 'w') as generated:
             for line in template:
                 generated.write(Template(line).substitute(dic))          
-
-def ProcessWavefunctions(fname, src, target):
-    
-    dic={}
-    dic['BLOCKS'] = 8
-    
-    with open(src+fname, 'r') as template:
-        with open(target+fname, 'w') as generated:
-            for line in template:
-                generated.write(Template(line).substitute(dic)) 
-
         
