@@ -34,8 +34,7 @@ program Tantalus
 
  print 100
  
- mv = nx*ny*nz
-
+ call ReadInput
  call PrintInput
  call ReachForWaterAndFood
  
@@ -98,6 +97,20 @@ subroutine ReachForWaterAndFood
     enddo
 
 end subroutine ReachForWaterAndFood
+
+subroutine ReadInput
+    !--------------------------------------------
+    ! Subroutine to read all the data from STDIN.
+    !
+    !--------------------------------------------
+
+    use GenInfo, only : ReadGenInfo
+    use Evolution, only : ReadEvolution
+
+    call ReadGenInfo
+    call ReadEvolution
+
+end subroutine ReadInput
 
 
 !    open (12,form='unformatted',file='MOCCa.test')

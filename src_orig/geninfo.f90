@@ -6,7 +6,7 @@ module GenInfo
     save
     !---------------------------------------------------------------------------
     !Number of points in every direction and total number of points
-    integer :: nx=20,ny=20,nz=30, mv
+    integer :: nx=10,ny=10,nz=10, mv
     !---------------------------------------------------------------------------
     ! Total number of single-particle wave-functions
     integer :: nwt=40
@@ -18,17 +18,26 @@ module GenInfo
     real(KIND=dp)  :: dx=0.8_dp
     real(KIND=dp)  :: dv=(0.8_dp**3)*(2**$NUMSYM)
     !---------------------------------------------------------------------------
-    !Time step in 10^-22 s
-    real(KIND=dp)  ::  ReadjustTime=0.95_dp
-    !---------------------------------------------------------------------------
     ! Pi is always practical to have.
     real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
-    !---------------------------------------------------------------------------
-    !Convergence parameters.
-    real(KIND=dp)  :: MomentPrec=1d-4, EnergyPrec=0.01E-08
-    real(KIND=dp)  :: PairingPrec=1d-4, CrankPrec=1d-4
     
 contains
+
+  subroutine ReadGenInfo
+
+    Namelist /nucleus/ neutrons,protons
+    Namelist /mesh/    nx,ny,nz, dx
+
+
+    ! Reading the information on the nucleus
+    read (unit=*, nml=nucleus)
+
+    ! Reading information on the mesh
+    read (unit=*, nml=mesh)
+
+    mv = nx * ny * nz
+    dv = (dx**3)*(2**$NUMSYM)
+  end subroutine ReadGenInfo
 
   pure integer function LeviCivita(i,j,k)
     !---------------------------------------------------------------------------

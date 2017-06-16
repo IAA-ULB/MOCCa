@@ -51,6 +51,19 @@ module evolution
     real*8, allocatable :: invlaplaZ(:,:,:,:) 
 contains
     
+    subroutine ReadEvolution
+    !---------------------------------------------------------------------------
+    ! Read the information on the evolution of the spwfs. 
+    !
+    !
+    !---------------------------------------------------------------------------
+
+        namelist /evolution/ dt, maxiter, printiter
+
+        read(unit=*, nml=evolution)
+
+    end subroutine ReadEvolution
+
     subroutine Evolve_graddesc(iteration)
         !-----------------------------------------------------------------------
         ! 
@@ -92,8 +105,6 @@ contains
             & sum((spenergies(wave) * hfpsi(:,:,:,:,wave) - hpsi(:,:,:,:))**2)*dv
 
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,:,:,wave)
-
-            
             hpsi =   Precondition(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    
             
             hfpsi(:,:,:,:,wave) = hfpsi(:,:,:,:,wave) -  dt((iso+3)/2)/hbar * hpsi

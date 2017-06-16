@@ -73,6 +73,14 @@ module wavefunctions
  integer, allocatable :: sx(:,:), sy(:,:), sz(:,:)
 contains 
 
+  subroutine ReadWFdata
+    
+    namelist /wfs/ nwn, nwp
+
+    
+
+  end subroutine ReadWFdata
+
   subroutine iniwavefunctions()   
     !--------------------------------------------------------------------
     ! Build harmonic oscillator eigenfunctions
