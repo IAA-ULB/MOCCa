@@ -58,20 +58,20 @@ subroutine ReachForWaterAndFood
     call iniwavefunctions()
    call NaiveFill(occupations)
     
-    open (12,form='unformatted',file='MOCCa.test')
-    read(12)
-    read(12)
-    read(12)
-    read(12)
-    read(12)
-    nwt = nwp + nwn
-    
-    
-    do i=1,nwt
-        read(12) HFPsi(:,:,:,:,i)
-        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, lol, lol,lol,lol,lol
-    enddo
-    
+!    open (12,form='unformatted',file='MOCCa.test')
+!    read(12)
+!    read(12)
+!    read(12)
+!    read(12)
+!    read(12)
+!    nwt = nwp + nwn
+!    
+!    
+!    do i=1,nwt
+!        read(12) HFPsi(:,:,:,:,i)
+!        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, lol, lol,lol,lol,lol
+!    enddo
+!    
     call inilag()
     call NaiveFill(occupations)
     
@@ -94,7 +94,7 @@ subroutine ReachForWaterAndFood
         print *,  ' GradNorm =  ', gradientnorm
         print *,  '*************************************'
         
-        call Evolve_graddesc(iter)
+        call Evolve(iter)
         call deriveall()
         call NaiveFill(occupations)
 
@@ -121,9 +121,11 @@ subroutine ReadInput
     use GenInfo,       only : ReadGenInfo
     use Evolution,     only : ReadEvolution
     use wavefunctions, only : ReadWFdata
-
+    use densities,     only : ReadDensit
+    
     call ReadGenInfo
     call ReadEvolution
+    call ReadDensit
     call ReadWFdata
 
 end subroutine ReadInput

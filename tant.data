@@ -1,18 +1,25 @@
 &nucleus
-neutrons = 20
-protons  = 18
+neutrons = 32
+protons  = 32
 /
 &mesh
-nx=10
-ny=10
-nz=10
+nx=12
+ny=12
+nz=12
 dx=1.0
 /
 &evolution
-dt=0.005
-maxiter=2000
+dt=0.37
+maxiter=1000
+printiter=1000
+precondition='PG'
+Strategy='momentum'
+momfactor=0.5
+/
+&densit
+denmix = 0.3
 /
 &wfs
-nwn = 20
-nwp = 20
+nwn = 30
+nwp = 30
 /

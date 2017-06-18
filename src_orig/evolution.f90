@@ -37,6 +37,12 @@ module evolution
     ! the code in the evolve subroutine
     integer :: MaxIter=100, PrintIter=10
     !---------------------------------------------------------------------------
+    ! Precondition, whether to use the PG preconditioner
+    character(len=20) :: Precondition = 'None'
+    !---------------------------------------------------------------------------
+    ! Strategy for evolution of the spwfs
+    character(len=20) :: Strategy = 'IMTIME'
+    !---------------------------------------------------------------------------
     !Procedure that determines the evolution of a Spwf under imaginary time.
     abstract interface
       subroutine Evolve_interface(Iteration)
@@ -44,6 +50,11 @@ module evolution
       end subroutine
     end interface
     procedure(Evolve_Interface),pointer :: Evolve    
+    !----------------------------------------------------------------------------
+    ! Procedure pointer for the preconditioning
+    procedure(Precondition_PG),pointer :: Precon 
+
+    real(KIND=dp) :: momfactor=0.1
     !----------------------------------------------------------------------------
     !----------------------------------------------------------------------------
     ! Inverse of the second order derivative matrices
@@ -57,13 +68,49 @@ contains
     !
     !
     !---------------------------------------------------------------------------
+        use geninfo
 
-        namelist /evolution/ dt, maxiter, printiter
+        namelist /evolution/ dt, maxiter, printiter, precondition, strategy, momfactor
 
         read(unit=*, nml=evolution)
-
+        
+        !  Assign the correct preconditioner
+        call to_upper(Precondition, Precondition)
+        if(adjustl(Precondition) .eq. 'PG' ) then
+            Precon => Precondition_PG
+        else 
+            Precon => Precondition_none
+        endif
+        
+        ! Assign the correct evolution routine
+        call to_upper(Strategy, Strategy)
+        if(adjustl(Strategy) .eq. 'IMTIME' ) then
+            Evolve => Evolve_graddesc
+        elseif(adjustl(Strategy) .eq. 'MOMENTUM') then
+            Evolve => Evolve_momentum
+        else
+            stop ('STRATEGY NOT RECOGNIZED.')
+        endif
 
     end subroutine ReadEvolution
+
+    subroutine PrintEvolution
+        !-----------------------------------------------------------------------
+        ! Print the information on the evolution strategy.
+        !
+        !-----------------------------------------------------------------------
+
+        1 format(90('-'))
+        2 format(' Evolution strategy: ', a20 )
+        3 format('    Parameters:  dt= ', f7.4)        
+        4 format(' Preconditioning   : ', a20 )
+    
+        print 1
+        print 2, adjustl(Strategy)
+        print 3, dt
+        print 4, adjustl(Precondition)
+        print 1
+    end subroutine PrintEvolution
 
     subroutine Evolve_graddesc(iteration)
         !-----------------------------------------------------------------------
@@ -105,19 +152,85 @@ contains
             gradientnorm = gradientnorm + occupations(wave) * &
             & sum((spenergies(wave) * hfpsi(:,:,:,:,wave) - hpsi(:,:,:,:))**2)*dv
 
-!            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,:,:,wave)
-!            hpsi =   Precondition(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    
-!            
+            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,:,:,wave)
+            hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    
+           
             hfpsi(:,:,:,:,wave) = hfpsi(:,:,:,:,wave) -  dt/hbar * hpsi
         enddo
     
         gradientnorm = sqrt(gradientnorm)/(neutrons + protons)  
-        if(abs(gradientnorm) .lt.1d-4) stop
+!        if(abs(gradientnorm) .lt.1d-4) stop
         call GramSchmidt
     
     end subroutine Evolve_graddesc
 
-    function Precondition(psi, px, py, pz, iso) result(Ppsi)
+    subroutine Evolve_momentum(iteration)
+        !-----------------------------------------------------------------------
+        ! 
+        ! a) For every wave-function do a gradient step, but with and added 
+        !    momentum term 
+        !    psi^(i+1) => ( 1 - dt/hbar h ) psi^(i) + gamma * deltapsi
+        !    
+        !    where deltapsi is the difference
+        !       psi^(i) - psi^(i-1)
+        !
+        !    gamma is currently a simple constant = 0.9
+        ! 
+        ! b) Calculate values:
+        !    < psi | h   | psi >
+        !    < psi | h^2 | psi >
+        ! b) Orthonormalize within symmetry blocks
+        !-----------------------------------------------------------------------
+        
+        use wavefunctions
+        
+        integer, intent(in)   :: iteration
+        integer               :: wave, iso,k,i
+        real(KIND = dp)       :: hpsi(nx,ny,nz,4)
+        real(KIND = dp), allocatable, save :: Updates(:,:,:,:,:)      
+
+        if(.not.allocated(Updates)) then
+            allocate(Updates(nx,ny,nz,4,nwt))
+            Updates = 0.0_dp
+        endif
+
+        gradientnorm = 0.0_dp
+
+        call invertderivatives()
+
+
+        do wave=1,nwt
+            if(wave .lt. nwn) then
+                iso = -1
+            else
+                iso = +1
+            endif
+
+            hpsi = sphamil( hfpsi(:,:,:,:,wave)     ,                          &
+            &              hfdpsi(:,:,:,:,:,wave)   ,                          &
+            &              hfddpsi(:,:,:,:,:,:,wave),                          &
+            &              sx(:,wave), sy(:,wave), sz(:,wave),iso)
+
+            spenergies(wave)  = sum(hfpsi(:,:,:,:,wave) * hpsi(:,:,:,:)) * dv
+            dispersions(wave) = sum( hpsi(:,:,:,:)**2)  * dv - spenergies(wave)**2          
+
+            gradientnorm = gradientnorm + occupations(wave) * &
+            & sum((spenergies(wave) * hfpsi(:,:,:,:,wave) - hpsi(:,:,:,:))**2)*dv
+            
+            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,:,:,wave)
+            hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)  
+
+            updates(:,:,:,:,wave) = momfactor* updates(:,:,:,:,wave) -  dt/hbar * hpsi
+            
+            hfpsi(:,:,:,:,wave) = hfpsi(:,:,:,:,wave) + updates(:,:,:,:,wave)
+        enddo
+    
+        gradientnorm = sqrt(gradientnorm)/(neutrons + protons)  
+        call GramSchmidt
+    
+    end subroutine Evolve_momentum
+
+    function Precondition_PG(psi, px, py, pz, iso) result(Ppsi)
         !-----------------------------------------------
         ! Apply a suitable preconditioner to the spwf.
         !----------------------------------------------
@@ -127,8 +240,8 @@ contains
         real(KIND=dp), intent(in) :: psi(nx,ny,nz,4)
         real(KIND=dp) :: Ppsi(nx,ny,nz,4)
     
-        integer, intent(in) :: px(4),py(4),pz(4)
-        integer :: i,j,k, l, sx, sy, sz, iso, it
+        integer, intent(in) :: px(4),py(4),pz(4), iso
+        integer :: i,j,k, l, sx, sy, sz,  it
         
         it = (iso+3)/2
 
@@ -148,16 +261,24 @@ contains
             do i=1,nx*ny
                 Ppsi(i,1,:,l) = Ppsi(i,1,:,l)     + matmul(invlaplaZ(:,:,sz,it),psi(i,1,:,l))
             enddo
-!            do i=1,mv
-!                Ppsi(i,1,1,l) = Ppsi(i,1,1,l) / (-hbm(it)+ F_N_N(i,1,1,it) +   &
-!                & F_N_N(i,2,2,it) + F_N_N(i,3,3,it))
-!            enddo
-!            do i=1,mv
-!                Ppsi(i,1,1,l) = Ppsi(i,1,1,l) / (-hbm(it)+ F_Nm_Nm(i,it))
-!            enddo
+            do i=1,mv
+                Ppsi(i,1,1,l) = Ppsi(i,1,1,l) / (-hbm(it)+ F_Nm_Nm(i,it))
+            enddo
         enddo
-    end function Precondition 
+    end function Precondition_PG
 
+    function Precondition_None(psi, px, py, pz, iso) result(Ppsi)
+        !-----------------------------------------------
+        ! Apply a suitable preconditioner to the spwf.
+        !----------------------------------------------
+
+        real(KIND=dp), intent(in) :: psi(nx,ny,nz,4)
+        real(KIND=dp)             :: Ppsi(nx,ny,nz,4)
+        integer, intent(in)       :: px(4),py(4),pz(4), iso
+        
+        Ppsi = psi
+    end function Precondition_None
+    
     subroutine InvertDerivatives
     !----------------------------------------------------------------------------
     ! Construct the inverse matrices of the second Lagrange derivative 

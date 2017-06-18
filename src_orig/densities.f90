@@ -50,9 +50,18 @@ $DECL_VECPROD
 
     !---------------------------------------------------------------------------
     ! Density-mixing parameter
-    real(KIND=dp) :: denmix = 0.85_dp
+    real(KIND=dp) :: denmix = 0.65_dp
     
 contains
+
+subroutine readdensit
+
+
+    namelist /densit/ denmix
+
+    read(unit=*, nml = densit)
+
+end subroutine readdensit
 
 subroutine densit(iteration)
     !---------------------------------------------------------------------------

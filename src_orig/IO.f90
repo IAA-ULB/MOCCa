@@ -28,6 +28,7 @@ contains
   !-----------------------------------------------------------------------------
    
     use wavefunctions
+    use evolution
    
     1 format ( 20('-'), 'General Information ', 20('-'))
     2 format ( 'Mesh parameters' )
@@ -51,6 +52,9 @@ contains
     print 8
     print 9 , nwt,nwn,nwp
     
+
+    call printevolution
+
   end subroutine PrintInput
 
 
