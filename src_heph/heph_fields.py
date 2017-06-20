@@ -40,7 +40,7 @@ def initfields():
         totalder = 0
         totallap = 0
         for den in densities:
-            (der, lap, left, right, coupling) = ParseOperators(den)
+            (der, lap, left, right, coupling, cross) = ParseOperators(den)
             totalder = totalder + der
             totallap = totallap + lap
         
@@ -48,10 +48,10 @@ def initfields():
         # of derivatives is the total one 
         for i in range(len(densities)):
             den = densities[i]
-            (der, lap, left, right, coupling) = ParseOperators(den)
+            (der, lap, left, right, coupling, cross) = ParseOperators(den)
             for j in range(len(Densities_needed)):
                 altden = Densities_needed[j]
-                (altder, altlap, altleft, altright, altcoupling) = ParseOperators(altden)    
+                (altder, altlap, altleft, altright, altcoupling, cross) = ParseOperators(altden)    
                 if(altleft == left and altright == right):
                     # Set minimum derivatives
                     Der_den_needed[j] = max(totalder, Der_den_needed[j])
@@ -185,7 +185,6 @@ def GenerateFields():
                 else:
                     NumberOfIndices = NumberOfIndices - 1
                     
-             print den, orig,fieldterm, NumberOfIndices
              # get the indices of the field correct
              dic['IND']     = ''
              for k in range(OrderOfDen(den)):
@@ -276,7 +275,7 @@ def GenerateAction(field):
     WFNames = ['psi', 'dpsi', 'ddpsi', 'dddpsi', 'ddddpsi']
     Direction = ["X", 'Y', 'Z']
     
-    (left,right,coupling) =  ParseOperatorsField(field)
+    (left,right,coupling,cross) =  ParseOperatorsField(field)
     #---------------------------------------------------------------------------
     #Building the left and right operators
     operatordic = {}

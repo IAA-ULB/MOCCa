@@ -20,9 +20,9 @@ SRCPATH = 'src_orig/'
 GENPATH = 'src/'
 #List of FORTRAN files to process
 FORTRANFILES=['compilation.f90', 'geninfo.f90' , 'constants.f90', 'diag.f90' ,
-              'nil8.f90', 'functional.f90',
+              'nil8.f90', 
               'derivatives.f90', 'wavefunctions.f90', 'hartree-fock.f90',
-              'densities.f90', 'evolution.f90', 'IO.f90', 'tantalus.f90' ]
+              'densities.f90', 'functional.f90','evolution.f90', 'IO.f90', 'tantalus.f90' ]
 
 # File containing the definition of the functional
 FUNC_FILE = 'NLO.func'

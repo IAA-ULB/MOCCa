@@ -68,18 +68,18 @@ def initfunctional(fname):
         (densities,coup) = ParseDensities(term)
         for den in densities:
             tempden.append(den)
-                    
+
     # Pruning the list
     # A) removing duplicates
-    # B) removing contractions when the full density will be calculates
+    # B) removing contractions when the full density will be calculated
     Densities_needed.append(tempden[0])
     Der_den_needed.append(0)
     Lap_den_needed.append(0)
     for i in range(len(tempden)):
-        (deri, lapi, lefti, righti, coupi) = ParseOperators(tempden[i])
+        (deri, lapi, lefti, righti, coupi, crossi) = ParseOperators(tempden[i])
         Found = False
         for j in range(len(Densities_needed)):
-            (derj, lapj, leftj, rightj, coupj) = ParseOperators(Densities_needed[j])
+            (derj, lapj, leftj, rightj, coupj, crossj) = ParseOperators(Densities_needed[j])
             #-------------------------------------------------------------------
             # Two densities are identical if the left- and right-operatos
             # are the same.
@@ -107,19 +107,25 @@ def initfunctional(fname):
                         Densities_needed[j] = Densities_needed[j].replace(l, '')
             #-------------------------------------------------------------------
         if(not Found):
-            Densities_needed.append(tempden[i].replace(derstring + '_','')\
-                                              .replace(lapstring + '_', ''))
+            
             Der_den_needed.append(deri)
             Lap_den_needed.append(lapi) 
+
+            add = tempden[i] 
+
+            # Remove all of the derivatives from the top
+            add = add.replace(derstring + '_','').replace(lapstring+'_', '')
+            for l in sumindices:
+                add = add.replace(derstring + l + '_','')
     
-        
+            Densities_needed.append(add)
+
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
     print ' Functional taken from file %s'%fname
     print ' Description from file:'
     print  description.replace('#', tab)
     print ' Number of terms:     %d'%len(Functional_terms)
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
-    
     
 def ReadFunctional(fname):
     #
@@ -143,7 +149,6 @@ def ReadFunctional(fname):
             elif(line[0] == '#'):
                 description = description + line     
 
-    print density_dependence
     return(description)
     
 def ParseDensities(term): 
@@ -154,7 +159,7 @@ def ParseDensities(term):
     densities = []
     # Split along C and D-s
     temp      = ''
-    # Don't take into account any Density dependence naming
+    # Don't take into account any density dependence naming
     split     = term.replace('_DD', '').split('_') 
     for i in range(len(split)):
         if split[i][0:3] == derstring or split[i] == lapstring:
@@ -185,12 +190,22 @@ def ParseDensities(term):
                     ind = ind + 1 
         if(len(c) > 0) :
                 coupling.append(c)
-                
-    # Don't propagate couplings that are not internal to the density                
-    for i in range(len(densities)):
-        for l in sumindices: 
-            if(densities[i].count(l) != 2):
+    
+    # Don't propagate couplings that are not between left and right operators
+    for l in sumindices:
+        for i in range(len(densities)): 
+            if( derstring + l in densities[i]) :
+                # Remove the coupling if it involves derivatives
                 densities[i] = densities[i].replace(l, '')
+            for j in range(len(densities)):
+                if i == j:
+                    pass
+                elif( l in densities[i] and l in densities[j]):
+                    # Remove the coupling if it is between more densities
+                    densities[i] = densities[i].replace(l, '')
+                
+                else:
+                    pass
         
     return (densities, coupling)
 
@@ -308,7 +323,6 @@ def GenTermExpression( term, ccoef, DD, DDrear):
                 addden = lap*'Lap_' + der*'der_' + Densities_needed[i]
                 densities.append( addden )
                 # Don't do do loops over indices that already had been contracted
-                #print addden, den, OrderOfDen(addden), OrderOfDen(addden, contract=False)
                 doloops = doloops + \
                         (OrderOfDen(addden) - OrderOfDen(addden, contract=False))/2
                 # Go back to the outer loop

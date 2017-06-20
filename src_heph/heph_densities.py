@@ -174,12 +174,39 @@ Rotationals_needed = []
 #-------------------------------------------------------------------------------
 # Indices over which sums are supposed to go in both the FORTRAN code and the 
 # naming scheme.
-sumindices    = ['m', 'n', 'k', 'l']
+sumindices      = ['m', 'n', 'k', 'l']
+crossindices    = ['x', 'y', 'z']
 #-------------------------------------------------------------------------------
 # Strings indicating the (external) laplacian and derivative of a density.  
 lapstring = 'Lap'
 derstring = 'der'
+#-------------------------------------------------------------------------------
+# Density calculation template to fill in
+# Could be defined globally, but is nice to have here for quick reference
+Den_template_1 = Template( 2*tab+'$NAME(i$IND,it) = $NAME(i$IND,it) + $WEIGHT * (')
+Den_template_2 = Template(   tab+'$SIGN $LEFTWF(i,1,1$LIND,$LCOMP,wave) * $RIGHTWF(i,1,1$RIND,$RCOMP,wave)')
 
+Ini_template   = Template(   tab+'if(.not.allocated($NAME)) then     \n' + \
+                           2*tab+'allocate($NAME(mv$DIM,2)) \n'          + \
+                           2*tab+'$NAME = 0.0d0 \n'                      + \
+                             tab+'endif \n'                              + \
+                             tab+'$NAME = denmix * $NAME')
+Dec_template   = Template(   tab + 'real*8,allocatable :: $NAME(:$TOTALIND,:)')
+Der_template   = Template( 2*tab +'call Derive_grad($NAME(:$IND,it),$PX,$PY,$PZ,der_$NAME(:,1$IND,it), &\n') 
+Der_template_b = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,2$IND,it), &\n')
+Der_template_c = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,3$IND,it))  \n')
+Lap_template   = Template( 2*tab +'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ, lap_$NAME(:$IND,it)) \n')
+
+#---------------------------------------------------------------------------
+# Some templates for comments to put into the densities file
+Den_comment          = Template(2*tab+'! Calculation of density $NAME \n')
+
+Den_comment_deriv    = Template(2*tab+'! Derivation of density $NAME  \n')
+Den_comment_deriv_b  = Template(2*tab+'! first order derivatives: $DER\n')
+Den_comment_deriv_c  = Template(2*tab+'! laplacians             : $LAP\n')
+
+Den_line             = Template(2*tab+'! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  \n')
+#---------------------------------------------------------------------------
 
 def initdensities():
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -239,6 +266,13 @@ def ProcessDensities(fname, src, target):
     print '      Name     DIM with / out   Deriv   Lapla      '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     for i in range(len(Densities_needed)):
+
+        den = Densities_needed[i]
+        print '%15s %6d %6d %6d %6d      '%(den,OrderOfDen(den),         \
+                                          OrderOfDen(den,contract=False),\
+                                          Der_den_needed[i],             \
+                                          Lap_den_needed[i])
+
         (e,dec,ini,der)  = GenDensityExpression(Densities_needed[i],\
                                                   Der_den_needed[i],\
                                                   Lap_den_needed[i],)
@@ -246,18 +280,6 @@ def ProcessDensities(fname, src, target):
         Expression     = Expression     + '\n' + e
         Initialisation = Initialisation + '\n' + ini
         Derivation     = Derivation     + '\n' + der
-        
-        den = Densities_needed[i]
-        print '%15s %6d %6d %6d %6d      '%(den,OrderOfDen(den),  \
-                                          OrderOfDen(den,contract=False),\
-                                          Der_den_needed[i],\
-        
-                                          Lap_den_needed[i])
-        if( 'x' in den): 
-            (decl, ini, calc) = GenVecProd('der_' + den.replace('x',''), [(1,2)])
-            DeclVecProd = DeclVecProd + decl + '\n'
-            IniVecProd  = IniVecProd  + ini  + '\n'
-            VecProd     = VecProd     + calc + '\n'                                 
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
         
     # Substitute into the densities.f90 file.        
@@ -274,7 +296,7 @@ def ProcessDensities(fname, src, target):
             for line in template:
                 generated.write(Template(line).substitute(dic))  
 
-
+    exit()
 def ParseOperators(density):    
     #---------------------------------------------------------------------------
     # Parse the operators that are used to construct a density from its name.
@@ -291,15 +313,16 @@ def ParseOperators(density):
     right= split[2]
     #---------------------------------------------------------------------------
     # Don't put the couplings in the definition of left- and right-operators
-    for l in sumindices:
+    for l in sumindices + crossindices:
         left  =  left.replace(l, '')
         right = right.replace(l, '')
-        
+       
     if('C' in density):      
             right = 'C' + right
     #---------------------------------------------------------------------------
-    # Find the coupling
+    # Find the coupling over the sumindices
     coupling  = []
+    foundsums = []
     for l in sumindices:
         c   = ()
         ind = 0
@@ -310,7 +333,27 @@ def ParseOperators(density):
                 ind = ind + 1 
         if(len(c) > 0) :
             coupling.append(c)
-    return(der, lap, left, right, coupling)
+            foundsums.append(l)
+    #---------------------------------------------------------------------------
+    # Find the coupling over the crossindices, but only if not contracted with
+    # another index
+    cross  = []
+    for l in crossindices:
+        c   = ()
+        ind = 0
+        for i in range(len(density)):      
+            if(density[i] == l):
+                if(i == len(density) - 1):
+                    c = c+ (ind,)
+                elif (density[i+1] not in foundsums):
+                    c = c+ (ind,)
+            if(density[i] in crossindices+sumindices):
+                ind = ind + 1 
+        if(len(c) > 0) :
+            cross.append(c)    
+
+    print density, coupling, cross
+    return(der, lap, left, right, coupling, cross)
 
 def GenDensityExpression(denin, Der, Lap):
     #---------------------------------------------------------------------------
@@ -324,32 +367,6 @@ def GenDensityExpression(denin, Der, Lap):
     # necessary. 
     #
     #---------------------------------------------------------------------------
-    #---------------------------------------------------------------------------
-    # Density calculation template to fill in
-    # Could be defined globally, but is nice to have here for quick reference
-    Den_template_1 = Template(2*tab+'$NAME(i$IND,it) = $NAME(i$IND,it) + $WEIGHT * (')
-    Den_template_2 = Template(tab+'$SIGN $LEFTWF(i,1,1$LIND,$LCOMP,wave) * $RIGHTWF(i,1,1$RIND,$RCOMP,wave)')
-    
-    Ini_template   = Template(   tab+'if(.not.allocated($NAME)) then     \n' + \
-                               2*tab+'allocate($NAME(mv$DIM,2)) \n'          + \
-                               2*tab+'$NAME = 0.0d0 \n'                      + \
-                                 tab+'endif \n'                              + \
-                                 tab+'$NAME = denmix * $NAME')
-    Dec_template   = Template(   tab + 'real*8,allocatable :: $NAME(:$TOTALIND,:)')
-    Der_template   = Template( 2*tab +'call Derive_grad($NAME(:$IND,it),$PX,$PY,$PZ,der_$NAME(:,1$IND,it), &\n') 
-    Der_template_b = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,2$IND,it), &\n')
-    Der_template_c = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,3$IND,it))  \n')
-    Lap_template   = Template( 2*tab +'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ, lap_$NAME(:$IND,it)) \n')
-    
-    #---------------------------------------------------------------------------
-    # Some templates for comments to put into the densities file
-    Den_comment          = Template(2*tab+'! Calculation of density $NAME \n')
-    
-    Den_comment_deriv    = Template(2*tab+'! Derivation of density $NAME  \n')
-    Den_comment_deriv_b  = Template(2*tab+'! first order derivatives: $DER\n')
-    Den_comment_deriv_c  = Template(2*tab+'! laplacians             : $LAP\n')
-    
-    Den_line             = Template(2*tab+'! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  \n')
    
     #---------------------------------------------------------------------------
     # Initialisation 
@@ -360,8 +377,8 @@ def GenDensityExpression(denin, Der, Lap):
 
     #---------------------------------------------------------------------------
     # Parse the structure from the name
-    density = denin.replace('x', '')
-    (x, y, left, right, coupling) = ParseOperators(density)
+    density = denin    
+    (x, y, left, right, coupling, cross) = ParseOperators(density)
     # Construct the left/right operators
     operatordic = {}
     operatordic['I'] = Identity
@@ -393,7 +410,17 @@ def GenDensityExpression(denin, Der, Lap):
     
     #---------------------------------------------------------------------------
     # Find the correct dimensions
-    ndim = LeftOperator.dimension + RightOperator.dimension - 2*len(coupling)
+    ndim = LeftOperator.dimension + RightOperator.dimension 
+    # Subtract two dimensions for every summation, and only one for every 
+    # vector product    
+    ndim = ndim - 2*len(coupling) - len(cross)
+    # But we have double-counted
+    for c in coupling: 
+        for a in c: 
+            for d in cross:
+                if (a in d):
+                    ndim = ndim +1 
+
     totalind=''
     dim     =''
     for r in range(ndim):
@@ -403,6 +430,8 @@ def GenDensityExpression(denin, Der, Lap):
     dic['TOTALIND']= totalind
     dic['DIM']     = dim
     
+    #--------------------------------------------------------------------------
+    # Get the declaration of the density and its derivatives right
     Declaration    = Dec_template.substitute(dic)
     Initialisation = Ini_template.substitute(dic)
     
@@ -430,6 +459,9 @@ def GenDensityExpression(denin, Der, Lap):
     start[3,0] = 4     
     
     # Construct an iterator with all possible combinations of uncontracted indices
+    # Note that the ordering is [  scalar indices, vector_indices]
+    # Note that it is not important in which order they are, since we loop over all
+    # of them, only that they are consistently applied. 
     args = itertools.product(range(3), repeat=ndim)
     
     Expression = Expression +  Den_line.substitute(dic)
@@ -447,28 +479,60 @@ def GenDensityExpression(denin, Der, Lap):
         # We have the uncontracted indices. Now construct the combinations of
         # indices, including contracted ones, that correspond to this. 
         uncontracted = []
-        if(len(coupling) == 0):
+        if(len(coupling) + len(cross) == 0):
+            # Nothing to do if no couplings needed
             uncontracted = [arg]
         else:
-            cont = itertools.product(range(3), repeat=len(coupling))
-            for c in cont:
+            # These are all of the combinations needed for the summation indices
+            cont  = itertools.product(range(3), repeat=len(coupling))
+            
+            crossind = []
+            for i in range(len(cross)):
+                crossind = crossind  + (Rot_ind(arg[len(coupling) + i]))    
+            
+            # Combine both possibilities
+            if(len(crossind) != 0):
+                # all the combinations , including scalar and vector products
+                fullcont = []
+                for s in cont: 
+                    for r in crossind:            
+                        fullcont.append(s + r)
+            else:
+                fullcont = cont
+                                
+            for c in fullcont:
                 p  = ()   
                 ii = 0
                 for i in range(LeftOperator.dimension + RightOperator.dimension):
-                        found = False                    
+                                            
+                        found = False                   
                         for combination in coupling:
                                 if(i in combination): 
+                                    if(len(combination) == 2):
                                         p = p + (c[coupling.index(combination)],)
+                                        found = True
+                                    elif(len(combination) == 3):    
+                                        if( i == combination[0] ):
+                                            p = p + (c[coupling.index(combination)],)
+                                        elif( i == combination[1]):
+                                            rot = Rot_ind(c[coupling.index(combination)])
+                                            
+                                        elif( i == combination[2]):
+                                            rot = Rot_ind(c[coupling.index(combination)])
+                        for combination in cross:
+                                if(i==combination[0]): 
+                                        p = p + (c[cross.index(combination) + len(coupling)],)
+                                        found = True
+                                if(i==combination[1]): 
+                                        p = p + (c[cross.index(combination) + len(coupling) +1 ],)
                                         found = True
                         if(not found): 
                                 p = p + (arg[ii],)
                                 ii = ii +1
-                uncontracted.append(p)
-
-
+                uncontracted.append(p)           
         IND = ''
         for mu in arg: 
-            IND = IND + ',' + str(mu+1) # Python indexes 0:N-1
+            IND = IND + ',' + str(abs(mu)+1) # Python indexes 0:N-1
         
         dic['IND'] = IND
         
@@ -476,13 +540,14 @@ def GenDensityExpression(denin, Der, Lap):
         
         # Now loop over the uncontracted indices
         for true_arg in uncontracted: 
-
+            print density, true_arg
             # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
             # Check if the indices for contraction are not superfluous
-            #       
-            larg = true_arg[:LeftOperator.dimension]
-            rarg = true_arg[LeftOperator.dimension:]
-            
+            # The ugly tuple(np.abs)) is simply because abs doesn't take 
+            # tuples as arguments. 
+            larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
+            rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
+           
             leftind  = LeftOperator(larg, start)
             rightind = RightOperator(rarg, start)
             
@@ -493,14 +558,21 @@ def GenDensityExpression(denin, Der, Lap):
             LIND = ''
             RIND = ''
             for lder in range(LeftOperator.derorder):
-                LIND = LIND +  ',' + str(larg[lder]+1)
+                LIND = LIND +  ',' + str(abs(larg[lder])+1)
             for rder in range(RightOperator.derorder):
-                RIND = RIND +  ',' + str(rarg[rder]+1)      
+                RIND = RIND +  ',' + str(abs(rarg[rder])+1)      
             dic['LIND']   = LIND
             dic['RIND']   = RIND
             
             for i in range(4):
                 SIGN          = np.sign(leftind[i])*np.sign(rightind[i])
+                
+                for l in true_arg:
+                    if( l  == 0):
+                       SIGN = SIGN
+                    else:
+                       SIGN = SIGN * np.sign(l)
+
                 if(SIGN > 0) :
                     dic['SIGN']   = '+'
                 else :
@@ -510,16 +582,20 @@ def GenDensityExpression(denin, Der, Lap):
                 Expression = Expression +  \
                             '& \n               &' +  \
                             Den_template_2.substitute(dic)
-                            
+                #print true_arg, Den_template_2.substitute(dic)           
         # Don't forget the closing bracket
         Expression = Expression +  ')\n'
-        
         #----------------------------------------------------------------------- 
         # Add the derivatives of the original density
+        #
+        # Note that larg and rarg need not be redefined here. They take the 
+        # value of the last combination of uncontracted indices. This is 
+        # sufficient, because necessarily all of the combinations need to 
+        # exhibit the same symmetries. 
+        #-----------------------------------------------------------------------
         for l in range(Lap):
-        
             #Preparing symmetries for derivatives
-            (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg)
+            (px,py,pz)   = AxisReflection(LeftOperator,RightOperator,larg,rarg)
             dic['PX']    = str(px)
             dic['PY']    = str(py)
             dic['PZ']    = str(pz)
@@ -553,8 +629,8 @@ def GenDensityExpression(denin, Der, Lap):
             Derivation = Derivation + '\n'
         dic['NAME'] = density
     Expression = Expression + Den_line.substitute(dic) 
+    
     return (Expression, Declaration, Initialisation, Derivation)
-
 
 def Identity(mu,indices):
     
@@ -887,5 +963,5 @@ def Rot_ind(k):
         i = 0
         j = 1
         
-    return (i,j)
+    return [(i,j), (-j,i)]
     
