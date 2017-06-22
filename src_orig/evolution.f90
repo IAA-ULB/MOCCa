@@ -132,7 +132,7 @@ contains
         
         gradientnorm = 0.0_dp
 
-        call invertderivatives()
+        !call invertderivatives()
 
         do wave=1,nwt
             if(wave .lt. nwn) then
@@ -261,9 +261,9 @@ contains
             do i=1,nx*ny
                 Ppsi(i,1,:,l) = Ppsi(i,1,:,l)     + matmul(invlaplaZ(:,:,sz,it),psi(i,1,:,l))
             enddo
-            do i=1,mv
-                Ppsi(i,1,1,l) = Ppsi(i,1,1,l) / (-hbm(it)+ F_Nm_Nm(i,it))
-            enddo
+!            do i=1,mv
+!                Ppsi(i,1,1,l) = Ppsi(i,1,1,l) / (-hbm(it)+ F_Nm_Nm(i,it))
+!            enddo
         enddo
     end function Precondition_PG
 

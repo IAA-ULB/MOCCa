@@ -91,8 +91,8 @@
 #  Sigma(2, [1,2,3,4]) = [ -4, 3, 2, 1]
 # representing  
 #
-#  sigma_y  ( Psi_1 + i Psi_2 ) = ( -Psi_4 + i Psi_3)
-#           ( Psi_3 + i Psi_4 )   (  Psi_2 - i Psi_1)
+#  sigma_y  ( Psi_1 + i Psi_2 ) = (   Psi_4 - i Psi_3)
+#           ( Psi_3 + i Psi_4 )   ( - Psi_2 + i Psi_1)
 #
 #
 # Operators can also be combined using the Combine function, which returns
@@ -296,7 +296,6 @@ def ProcessDensities(fname, src, target):
             for line in template:
                 generated.write(Template(line).substitute(dic))  
 
-    exit()
 def ParseOperators(density):    
     #---------------------------------------------------------------------------
     # Parse the operators that are used to construct a density from its name.
@@ -333,6 +332,7 @@ def ParseOperators(density):
                 ind = ind + 1 
         if(len(c) > 0) :
             coupling.append(c)
+        if(len(c) == 3):            
             foundsums.append(l)
     #---------------------------------------------------------------------------
     # Find the coupling over the crossindices, but only if not contracted with
@@ -352,7 +352,6 @@ def ParseOperators(density):
         if(len(c) > 0) :
             cross.append(c)    
 
-    print density, coupling, cross
     return(der, lap, left, right, coupling, cross)
 
 def GenDensityExpression(denin, Der, Lap):
@@ -414,13 +413,17 @@ def GenDensityExpression(denin, Der, Lap):
     # Subtract two dimensions for every summation, and only one for every 
     # vector product    
     ndim = ndim - 2*len(coupling) - len(cross)
-    # But we have double-counted
-    for c in coupling: 
-        for a in c: 
-            for d in cross:
-                if (a in d):
-                    ndim = ndim +1 
 
+    # But we have double-counted possible contractions of vector products,
+    # couplings of length 3
+    threedim=0
+    threecoupl = []
+    for c in coupling:
+        if(len(c) == 3):
+            threedim = threedim + 1
+            threecoupl.append(c)
+    ndim = ndim - threedim
+    
     totalind=''
     dim     =''
     for r in range(ndim):
@@ -475,6 +478,7 @@ def GenDensityExpression(denin, Der, Lap):
         Derivation = Derivation +  Den_comment_deriv.substitute(dic)
         Derivation = Derivation +  Den_comment_deriv_b.substitute(dic)
         Derivation = Derivation +  Den_comment_deriv_c.substitute(dic)
+    
     for arg in args:
         # We have the uncontracted indices. Now construct the combinations of
         # indices, including contracted ones, that correspond to this. 
@@ -483,53 +487,92 @@ def GenDensityExpression(denin, Der, Lap):
             # Nothing to do if no couplings needed
             uncontracted = [arg]
         else:
+            #-------------------------------------------------------------------
             # These are all of the combinations needed for the summation indices
             cont  = itertools.product(range(3), repeat=len(coupling))
             
+            # All of the possibilities for the vector products
             crossind = []
             for i in range(len(cross)):
                 crossind = crossind  + (Rot_ind(arg[len(coupling) + i]))    
             
-            # Combine both possibilities
+
+            # Combine all possibilities
             if(len(crossind) != 0):
                 # all the combinations , including scalar and vector products
                 fullcont = []
                 for s in cont: 
                     for r in crossind:            
                         fullcont.append(s + r)
+            elif (threedim != 0 and len(crossind) == 0):
+                fullcont = []
+                for s in cont: 
+                    # Modify the number of possibilities for couplings between vector
+                    # products and scalar products. 
+                    threeopt = itertools.product(range(2), repeat=threedim)
+                    for r in threeopt:            
+                        fullcont.append(s + r)
+            elif (threedim != 0 and len(crossind) != 0):
+                fullcont = []
+                for s in cont: 
+                   for r in crossind: 
+                    threeopt = itertools.product(range(2), repeat=threedim)
+                    for t in threeopt:            
+                        fullcont.append(s + r + t)
             else:
+                # No vector indices, and no scalar-vector
                 fullcont = cont
-                                
+              
+            #---------------------------------------------------------------------
+            # Note that now fullcont contains all of the terms needed for the
+            # particular argument of the left-hand side. 
+            #
+            #  The ordering of the indices is:
+            #    
+            #  ( mu, nu, ...., xsi , mx, nx, ....,zx  ,  ex, ey, ....., ez )  
+            #   < scalar indices >  < vector indices >  < contracted vectors)
+            #  corresponding to things of the form
+            #  coupling, (0,1)      cross (0,1 )        coupling (0,1,2)
+            #  meaning 
+            #
+            #  the value of the   | the values of the  |  whether it is the 
+            #  indices in the     | vector indices     |  first term or the 
+            #  summation          |                    |  second in the vector
+            #                     |                    |  product
+            #--------------------------------------------------------------------
             for c in fullcont:
                 p  = ()   
                 ii = 0
                 for i in range(LeftOperator.dimension + RightOperator.dimension):
-                                            
-                        found = False                   
-                        for combination in coupling:
-                                if(i in combination): 
-                                    if(len(combination) == 2):
-                                        p = p + (c[coupling.index(combination)],)
-                                        found = True
-                                    elif(len(combination) == 3):    
-                                        if( i == combination[0] ):
-                                            p = p + (c[coupling.index(combination)],)
-                                        elif( i == combination[1]):
-                                            rot = Rot_ind(c[coupling.index(combination)])
-                                            
-                                        elif( i == combination[2]):
-                                            rot = Rot_ind(c[coupling.index(combination)])
-                        for combination in cross:
-                                if(i==combination[0]): 
-                                        p = p + (c[cross.index(combination) + len(coupling)],)
-                                        found = True
-                                if(i==combination[1]): 
-                                        p = p + (c[cross.index(combination) + len(coupling) +1 ],)
-                                        found = True
-                        if(not found): 
-                                p = p + (arg[ii],)
-                                ii = ii +1
-                uncontracted.append(p)           
+                    found = False                   
+                    for combination in coupling:
+                        if(i in combination): 
+                            if(len(combination) == 2):
+                                p = p + (c[coupling.index(combination)],)
+                                found = True
+                            elif(len(combination) == 3):    
+                                found = True
+                                if( i == combination[0] ):
+                                    p = p + (c[coupling.index(combination)],)
+                                elif( i == combination[1]):
+                                    rot = Rot_ind(c[coupling.index(combination)])
+                                    o = threecoupl.index(combination)
+                                    p = p + (rot[c[-1 -o]][0],)
+                                elif( i == combination[2]):
+                                    rot = Rot_ind(c[coupling.index(combination)])
+                                    o   = threecoupl.index(combination)
+                                    p = p + (rot[c[-1 -o]][1],)
+                    for combination in cross:
+                        if(i==combination[0]): 
+                                p = p + (c[cross.index(combination) + len(coupling)],)
+                                found = True
+                        if(i==combination[1]): 
+                                p = p + (c[cross.index(combination) + len(coupling) +1 ],)
+                                found = True    
+                    if(not found): 
+                            p = p + (arg[ii],)
+                            ii = ii +1
+                uncontracted.append(p)       
         IND = ''
         for mu in arg: 
             IND = IND + ',' + str(abs(mu)+1) # Python indexes 0:N-1
@@ -540,7 +583,6 @@ def GenDensityExpression(denin, Der, Lap):
         
         # Now loop over the uncontracted indices
         for true_arg in uncontracted: 
-            print density, true_arg
             # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
             # Check if the indices for contraction are not superfluous
             # The ugly tuple(np.abs)) is simply because abs doesn't take 
@@ -582,7 +624,6 @@ def GenDensityExpression(denin, Der, Lap):
                 Expression = Expression +  \
                             '& \n               &' +  \
                             Den_template_2.substitute(dic)
-                #print true_arg, Den_template_2.substitute(dic)           
         # Don't forget the closing bracket
         Expression = Expression +  ')\n'
         #----------------------------------------------------------------------- 
@@ -674,10 +715,10 @@ def Sigma(mu,indices):
         return out
     elif(mu[0] == 1):
         for i in range(columns):
-            out[0,i] = - indices[3,i]
-            out[1,i] =   indices[2,i]
-            out[2,i] =   indices[1,i]
-            out[3,i] = - indices[0,i] 
+            out[0,i] =   indices[3,i]
+            out[1,i] = - indices[2,i]
+            out[2,i] = - indices[1,i]
+            out[3,i] =   indices[0,i] 
         return out
     else:
         for i in range(columns):
@@ -817,10 +858,12 @@ def OrderOfDen(density, contract=True):
         if(letter.isupper() and letter != 'I'):
             # Every capital letter that is not I adds an index
             order = order + 1
-        if((not letter.isupper()) and (not letter == 'x')  and contract):
+        if( (letter in sumindices + crossindices) and contract):
             # But if the a non-capital letter follows, the index is contracted.
-            # Note that this does not trigger on a number, for vector products
             order = order - 1
+    for l in crossindices:  
+        if(density.count(l) == 2):
+            order = order + 1
         
     return order
     
@@ -953,15 +996,18 @@ def Rot_ind(k):
     #     [ (j,i) ] if s == 1
     # where (i,j) carries the plus sign 
     
+    # Note that the minus sign is only relative and always
+    # carried by the non-zero index
     if(k == 0):
         i = 1
         j = 2
+        return [(i,j), (-j,i)]
     elif(k == 1):
         i = 2
         j = 0
+        return [(i,j), (j,-i)]
     elif(k == 2):
         i = 0
         j = 1
-        
-    return [(i,j), (-j,i)]
+        return [(i,j), (-j,i)]
     

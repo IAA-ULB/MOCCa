@@ -51,7 +51,7 @@ def initfields():
             (der, lap, left, right, coupling, cross) = ParseOperators(den)
             for j in range(len(Densities_needed)):
                 altden = Densities_needed[j]
-                (altder, altlap, altleft, altright, altcoupling, cross) = ParseOperators(altden)    
+                (altder, altlap, altleft, altright, altcoupling, altcross) = ParseOperators(altden)    
                 if(altleft == left and altright == right):
                     # Set minimum derivatives
                     Der_den_needed[j] = max(totalder, Der_den_needed[j])
@@ -103,7 +103,7 @@ def GenerateFields():
         Fields_needed.append(dic['FIELD'])
         #-----------------------------------------------------------------------
         #  Get the operator structure of the density correctly                                
-        (der, lap, left, right, coupling) = ParseOperators(den) 
+        (der, lap, left, right, coupling,cross) = ParseOperators(den) 
         #-----------------------------------------------------------------------
         # Check all of the terms if they depend on the density
         fieldlist = []
@@ -125,8 +125,8 @@ def GenerateFields():
             # Check if the term contains this density
             for i in range(len(densities)):
                 altden = densities[i]
-                (altder, altlap, altleft, altright, altcoup)=ParseOperators(altden)
-                if(altleft == left and altright == right):
+                (altder, altlap, altleft, altright, altcoup, altcross)=ParseOperators(altden)
+                if(altleft == left and altright == right and cross == altcross):
                     #  Add the term to the fieldlist for this density, 
                     #  and additionnally mentioning the number of external 
                     #  derivatives and laplacians
@@ -150,10 +150,10 @@ def GenerateFields():
         for i in range(len(fieldlist)):
             d = fieldlist[i][0]
             for j in range(len(fieldlist[i][0])):
-                (der,lap,left,right,coup) = ParseOperators(d[j])
+                (der,lap,left,right,coup, cross) = ParseOperators(d[j])
                 for altden in heph_functional.Densities_needed:
-                    (altder, altlap, altleft, altright, altcoup) = ParseOperators(altden)
-                    if(altleft == left and right == altright):
+                    (altder, altlap, altleft, altright, altcoup, altcross) = ParseOperators(altden)
+                    if(altleft == left and right == altright and cross == altcross):
                         fieldlist[i][0][j] =   der*'der_' +               \
                                                lap*'Lap_' +               \
                                                altden
@@ -161,7 +161,6 @@ def GenerateFields():
         # Create the expression for the field
         dic['ALLOCIND']= ''
         dic['DECLIND'] = ''
-        
         for k in range(OrderOfDen(den)):
             dic['ALLOCIND'] = dic['ALLOCIND'] + ',3' 
             dic['DECLIND']  = dic['DECLIND']  + ',:'
@@ -173,18 +172,12 @@ def GenerateFields():
         for fieldterm in fieldlist:
         
              # Find the number of indices over which there have to be sums
-             NumberOfIndices = 0
-             orig = OrderOfDen(den)
-             for d in fieldterm[0]:
-                # One for every index of the densities involved in the field
-                NumberOfIndices = NumberOfIndices + OrderOfDen(d)
-             NumberOfIndices = NumberOfIndices + orig
-             for c in fieldterm[4]:
-                if(c[0] > orig and c[1]> orig):
-                    pass
-                else:
-                    NumberOfIndices = NumberOfIndices - 1
+             NumberOfIndices= OrderOfDen(den)
                     
+             for d2 in fieldterm[0]:
+                (der, lap, left, right, cpl, cross) = ParseOperators(d2)                
+                NumberOfIndices= NumberOfIndices + max(OrderOfDen(d2) - OrderOfDen(den), 0) - len(cross)
+             
              # get the indices of the field correct
              dic['IND']     = ''
              for k in range(OrderOfDen(den)):
@@ -287,16 +280,20 @@ def GenerateAction(field):
     LeftOperator = Identity
     for i in range(len(left)):
         # this needs to be done in reverse order
-        l = left[len(left) - i -1 ] 
+        l = left[len(left) - i -1 ]
+        if (l in crossindices):
+            continue
         LeftOperator  = Combine(operatordic[l], LeftOperator)
         
     RightOperator = Identity
     for i in range(len(right)):
-        r = right[(len(right)) -i -1] 
+        r = right[(len(right)) -i -1]
+        if (r in crossindices):
+            continue
         RightOperator = Combine(operatordic[r], RightOperator)
     
     #Dimension of the field without contractions
-    ndim = LeftOperator.dimension + RightOperator.dimension - 2*len(coupling)
+    ndim = LeftOperator.dimension + RightOperator.dimension - 2*len(coupling) + len(cross)
     
     dic = {}
     dic['FIELD']  = field
@@ -349,7 +346,7 @@ def GenerateAction(field):
             rcoupl.append(c)
        else:
             ccoupl.append(c)
-    rdim  = RightOperator.dimension - len(coupling) # + len(lcoupl)
+    rdim  = RightOperator.dimension - len(coupling)
     ldim  = LeftOperator.dimension  - 2*len(lcoupl)
     
     # all possible values for the arguments of the left-operator
@@ -360,7 +357,7 @@ def GenerateAction(field):
         expression = expression + temp_ini
         
         leftind  = LeftOperator(true_larg, start)
-        rargs = itertools.product(range(3), repeat=rdim)
+        rargs    = itertools.product(range(3), repeat=rdim-len(cross))
         for rarg in rargs:
             rarg_uncontracted = []
             if(RightOperator.dimension == 0):  
@@ -368,7 +365,20 @@ def GenerateAction(field):
             else:  
               rarg_uncontracted = []
               cont = itertools.product(range(3), repeat=len(rcoupl))
-              for c in cont:
+              
+              crossind = []
+              for i in range(len(cross)):
+                crossind = crossind  + (Rot_ind(rarg[len(coupling) + i]))   
+        
+              if(len(cross) == 0):
+                full_cont = cont
+              else:
+                full_cont = []                
+                for c in cont:
+                    for x in crossind:
+                        full_cont.append(c + x)
+
+              for c in full_cont:
                 p  = ()   
                 ii = 0
                 for i in range(LeftOperator.dimension, LeftOperator.dimension+RightOperator.dimension):
@@ -384,6 +394,13 @@ def GenerateAction(field):
                         if(i == combination[1]):
                             p = p + (true_larg[combination[0]],)
                             found = True
+                    for combination in cross:
+                        if (i==combination[0]):
+                                p = p + (c[cross.index(combination) + len(coupling)],)
+                                found = True
+                        if(i==combination[1]): 
+                                p = p + (c[cross.index(combination) + len(coupling) + 1 ],)
+                                found = True
                     if(not found): 
                         p = p + (rarg[ii],)
                         ii = ii +1
@@ -404,27 +421,43 @@ def GenerateAction(field):
                             Found = True
                     if(not Found):
                         dic['FIELDIND']= dic['FIELDIND'] + ',' \
-                                           + str(true_larg[l]+1)
-                for r in range(RightOperator.dimension):
-                    Found = False
-                    for c in coupling:
-                        if (r + LeftOperator.dimension in c):
-                            Found = True
-                    if(not Found) :
-                        dic['FIELDIND']= dic['FIELDIND'] + ',' \
-                                           + str(true_rarg[r]+1)
+                                           + str(abs(true_larg[l])+1)
+                for r in range(len(rarg)):
+                    dic['FIELDIND']= dic['FIELDIND'] + ',' \
+                                           + str(abs(rarg[r])+1)
+#                for r in range(RightOperator.dimension):
+#                    Found = False
+##                    for c in coupling:
+##                        if (r + LeftOperator.dimension in c):
+##                            Found = True
+##                    for c in cross:
+##                        if  (r + LeftOperator.dimension == c[0]):
+##                            Found = True
+##                        elif(r + LeftOperator.dimension == c[1]):
+##                            Found = True
+##                    if(not Found) :
+#                        dic['FIELDIND']= dic['FIELDIND'] + ',' \
+#                                           + str(abs(true_rarg[r])+1)
                 #-----------------------------------------------------------
                 # Action of the right-operator
                 for k in range(4): 
                     dic['IND']     = k + 1
                     dic['RIND']    = ''
                     for r in range(RightOperator.derorder):
-                        dic['RIND'] = dic['RIND'] + ',' + str(true_rarg[r]+1) 
+                        dic['RIND'] = dic['RIND'] + ',' + str(abs(true_rarg[r])+1) 
                        
                     dic['RCOMP']   = int(abs(rightind[k,0])) 
                     
                     SIGN           = np.sign(rightind[k,0])
                     SIGN           = SIGN * (-1)**(LeftOperator.derorder)
+                    
+                    for l in true_rarg:
+                        if( l  == 0):
+                           SIGN = SIGN
+                        else:
+                           SIGN = SIGN * np.sign(l)
+
+
                     if(SIGN > 0) :
                         dic['SIGN']= '+'
                     else :
@@ -530,6 +563,7 @@ def ParseOperatorsField(field):
     #---------------------------------------------------------------------------
     # Find the coupling
     coupling  = []
+    foundsums = []
     for l in sumindices:
         c   = ()
         ind = 0
@@ -540,4 +574,24 @@ def ParseOperatorsField(field):
                 ind = ind + 1 
         if(len(c) > 0) :
             coupling.append(c)
-    return(left, right, coupling)
+        if(len(c) == 3):            
+            foundsums.append(l)
+    #---------------------------------------------------------------------------
+    # Find the coupling over the crossindices, but only if not contracted with
+    # another index
+    cross  = []
+    for l in crossindices:
+        c   = ()
+        ind = 0
+        for i in range(len(field)):      
+            if(field[i] == l):
+                if(i == len(field) - 1):
+                    c = c+ (ind,)
+                elif (field[i+1] not in foundsums):
+                    c = c+ (ind,)
+            if(field[i] in crossindices+sumindices):
+                ind = ind + 1 
+        if(len(c) > 0) :
+            cross.append(c)
+    
+    return(left, right, coupling, cross)

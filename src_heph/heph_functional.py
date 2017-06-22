@@ -40,7 +40,7 @@ import itertools
 import numpy as np
 from heph_densities import Densities_needed, tab, sumindices, derstring
 from heph_densities import lapstring, OrderOfDen, ParseOperators
-from heph_densities import Der_den_needed, Lap_den_needed
+from heph_densities import Der_den_needed, Lap_den_needed, crossindices
 import heph_fields
 #-------------------------------------------------------------------------------
 # Array containing the expressions of all the functional terms. 
@@ -86,24 +86,34 @@ def initfunctional(fname):
             if(leftj == lefti and rightj == righti):
                 # Signal that the density is already present
                 Found = True
+
+                # However, if there is a vector coupling in one, that is not in 
+                # other, just calculate both. 
+                if(crossj != crossi):
+                    Found = False
+                
                 # However, check that we don't need any new derivatives
                 # If so, add them
                 Der_den_needed[j] = max(Der_den_needed[j], deri)
                 Lap_den_needed[j] = max(Lap_den_needed[j], lapi)
-                
+               
                 # then check if the coupling of the indices is the same
                 # Note that the loop starts over coupj, since that one has by
                 # definition more couplings than coupi in it. Thus, this 
                 # logic will not fail if coupi has no elements.
-                for cj in coupj:
+                for cj in coupj + crossj:
                     Found_coup = False
                     for ci in coupi:
-                        if(cj[0] == ci[0] and cj[1] == ci[1]):
+                        if(cj == ci):
                             Found_coup = True
-                        elif(cj[1] == ci[1] and cj[0] == ci[0]):
-                            Found_coup = True
+                    for ci in crossi:
+                         if(cj == ci):
+                            Found_coup = True   
                     if(not Found_coup):
-                        l = sumindices[coupj.index(cj)]
+                        try:                        
+                            l = sumindices[coupj.index(cj)]
+                        except ValueError:  
+                            l = sumindices[crossj.index(cj)]
                         Densities_needed[j] = Densities_needed[j].replace(l, '')
             #-------------------------------------------------------------------
         if(not Found):
@@ -117,9 +127,8 @@ def initfunctional(fname):
             add = add.replace(derstring + '_','').replace(lapstring+'_', '')
             for l in sumindices:
                 add = add.replace(derstring + l + '_','')
-    
             Densities_needed.append(add)
-
+       
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
     print ' Functional taken from file %s'%fname
     print ' Description from file:'
@@ -197,13 +206,15 @@ def ParseDensities(term):
             if( derstring + l in densities[i]) :
                 # Remove the coupling if it involves derivatives
                 densities[i] = densities[i].replace(l, '')
+                for j in range(len(densities)):
+                    densities[j] = densities[j].replace(l, '')
             for j in range(len(densities)):
                 if i == j:
                     pass
                 elif( l in densities[i] and l in densities[j]):
                     # Remove the coupling if it is between more densities
                     densities[i] = densities[i].replace(l, '')
-                
+                    densities[j] = densities[j].replace(l, '')
                 else:
                     pass
         
@@ -238,11 +249,11 @@ def ProcessFunctional(fname, src, target):
         (fielddec, fieldcalc) = heph_fields.GenerateFields(     )
         declaration = declaration + fielddec + '\n'
         
-        # Generate the expressions for the actions of the fields
+#        # Generate the expressions for the actions of the fields
         SkyrmeAction = ''
         for field in heph_fields.Fields_needed:
             SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field)
-        
+#        
         # - - - - - - - - - - - - - - - - - - - - -
         # Substitute into the functional.f90 file.        
         dic={}
@@ -285,8 +296,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     
     calc_z_template = Template(   tab + 'Edensity = 0.0_dp \n')
     calc_a_template = Template(   tab + 'EDensity(:,3) = Edensity(:,3) + $EDENT\n')
-    calc_b_template = Template(   tab + '$TERM(2,2) = 0.0_dp \n' +                      \
-                                  tab + 'do it=1,2 \n' +                                \
+    calc_b_template = Template(   tab + 'do it=1,2 \n' +                                \
                                 2*tab + 'Edensity(:,it) = Edensity(:,it) + $EDENQ \n' + \
                                   tab + 'enddo \n')
     calc_DD_template= Template(   tab + 'do m=1,3 \n' +                                 \
@@ -302,7 +312,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
                                   tab + '$CPCTE(1,2) = $CPCTE(1,1) - $CPCTE(2,1) \n' + \
                                   tab + '$CPCTE(2,2) =             2*$CPCTE(2,1) \n')       
                                  
-    print_template      = Template(tab +" print('(a30 , 3f15.6)'), '$TERM', $TERM(:,1), sum($TERM(:,1))")
+    print_template      = Template(tab +" print('(a30 , 3f15.6)'), '$TERM', $TERM(:,1), sum($TERM(:,1)) \n")
     print_cpl_template  = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE")
     
     rear_template       = Template(tab +" e_rear = e_rear $REARCOEF*sum($TERM(:,2))\n")
@@ -311,22 +321,23 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     # See how many indices are present everywhere.
     (tempden, coupling) = ParseDensities(term)
     doloops             = len(coupling)
-    
+  
     #Now see how these densities are present in the heph_densities.py module
     densities = []
     for den in tempden:
-        (der,lap,left,right, coupl) = ParseOperators(den)
+        (der,lap,left,right, coupl, cross) = ParseOperators(den)
         for i in range(len(Densities_needed)):
-            (derref, lapref, leftref, rightref, couplref) = \
+            (derref, lapref, leftref, rightref, couplref, crossref) = \
                                              ParseOperators(Densities_needed[i])
-            if(left == leftref and right == rightref):
+            if(left == leftref and right == rightref and cross == crossref):
                 addden = lap*'Lap_' + der*'der_' + Densities_needed[i]
                 densities.append( addden )
                 # Don't do do loops over indices that already had been contracted
-                doloops = doloops + \
-                        (OrderOfDen(addden) - OrderOfDen(addden, contract=False))/2
+                doloops = doloops + OrderOfDen(addden) 
                 # Go back to the outer loop
                 break
+
+    doloops = doloops - 2*len(coupling)
     orders                = []
     for i in range(len(densities)): 
         orders.append(OrderOfDen(densities[i])) 
@@ -379,6 +390,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
 
     calculation = comment_template.substitute(dic)
     calculation = calculation = calculation + calc_z_template.substitute(dic)
+    
     for i in range(doloops):
         calculation  = calculation + doloop_template%sumindices[i]
         
