@@ -173,11 +173,18 @@ def GenerateFields():
         
              # Find the number of indices over which there have to be sums
              NumberOfIndices= OrderOfDen(den)
-                    
+                
+             startorder  = 0    
              for d2 in fieldterm[0]:
-                (der, lap, left, right, cpl, cross) = ParseOperators(d2)                
-                NumberOfIndices= NumberOfIndices + max(OrderOfDen(d2) - OrderOfDen(den), 0) - len(cross)
-             
+                (der, lap, left, right, cpl, cross) = ParseOperators(d2) 
+                NumberOfIndices= NumberOfIndices + max(OrderOfDen(d2) - OrderOfDen(den), 0) 
+                
+                for c in fieldterm[4]:
+                    if ( c[0] >= startorder and c[1] < startorder + OrderOfDen(d2)):
+                        NumberOfIndices = NumberOfIndices - 1
+                startorder = startorder + OrderOfDen(d2)
+
+             print den, fieldterm[0], NumberOfIndices
              # get the indices of the field correct
              dic['IND']     = ''
              for k in range(OrderOfDen(den)):
