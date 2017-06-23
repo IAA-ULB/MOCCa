@@ -1,6 +1,6 @@
 &nucleus
-neutrons = 10
-protons  = 10
+neutrons = 6
+protons  = 6
 /
 &mesh
 nx=10
@@ -10,7 +10,7 @@ dx=1.0
 /
 &evolution
 dt=0.012
-maxiter=1000
+maxiter=100
 printiter=10
 !precondition='PG'
 !Strategy='momentum'

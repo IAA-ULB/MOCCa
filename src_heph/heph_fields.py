@@ -111,16 +111,26 @@ def GenerateFields():
         #-----------------------------------------------------------------------
         for term in heph_functional.Functional_terms: 
             (densities, cpl) = heph_functional.ParseDensities(term)
+            #-----------------------------------------------------------------------
+            # Replace the densities in the list by the ones actually calculated
+            for i in range(len(densities)):
+                (x,y,l2,r2,c2,cr2) = ParseOperators(densities[i])
+                for altden in heph_functional.Densities_needed:
+                    (altder, altlap, altleft, altright, altcoup, altcross) = ParseOperators(altden)
+                    if(altleft == l2 and r2 == altright and cr2 == altcross):
+                        densities[i] = x*'der_' +               \
+                                       y*'Lap_' +               \
+                                       altden
             #-------------------------------------------------------------------
             # Change the coupling if the density needed is contracted
-            if(OrderOfDen(den) != OrderOfDen(den, contract=False)):
-                altterm = term
-                for c in cpl: 
-                    for i in range(len(densities)):
+            altterm = term
+            for c in cpl: 
+                for i in range(len(densities)):
+                    if(OrderOfDen(densities[i]) != OrderOfDen(densities[i], contract=False)):
                         if(densities[i].count(sumindices[cpl.index(c)]) == 2):
                             # Replace internal couplings
                             altterm = altterm.replace(sumindices[cpl.index(c)],'')
-                (rubbish, cpl) = heph_functional.ParseDensities(altterm)
+            (rubbish, cpl) = heph_functional.ParseDensities(altterm)
             #-------------------------------------------------------------------
             # Check if the term contains this density
             for i in range(len(densities)):
@@ -138,26 +148,13 @@ def GenerateFields():
                     cplct = cplcts[ind]
                     dden  = heph_functional.density_dependence[ind]
                     fieldlist.append([removed, altder, altlap, cplct, cpl,dden,0])
-                    
             #-------------------------------------------------------------------
             # Now check if there are density dependences in this term that 
             # involve this density
             dd = heph_functional.field_DD_terms[term]
             if(dd[0] == den):
                 fieldlist.append([densities, altder, altlap, cplct, cpl, dd[1],1])
-        #-----------------------------------------------------------------------
-        # Replace the densities in the list by the ones actually calculated
-        for i in range(len(fieldlist)):
-            d = fieldlist[i][0]
-            for j in range(len(fieldlist[i][0])):
-                (der,lap,left,right,coup, cross) = ParseOperators(d[j])
-                for altden in heph_functional.Densities_needed:
-                    (altder, altlap, altleft, altright, altcoup, altcross) = ParseOperators(altden)
-                    if(altleft == left and right == altright and cross == altcross):
-                        fieldlist[i][0][j] =   der*'der_' +               \
-                                               lap*'Lap_' +               \
-                                               altden
-                    
+
         # Create the expression for the field
         dic['ALLOCIND']= ''
         dic['DECLIND'] = ''
@@ -171,20 +168,16 @@ def GenerateFields():
     
         for fieldterm in fieldlist:
         
-             # Find the number of indices over which there have to be sums
-             NumberOfIndices= OrderOfDen(den)
-                
-             startorder  = 0    
-             for d2 in fieldterm[0]:
-                (der, lap, left, right, cpl, cross) = ParseOperators(d2) 
-                NumberOfIndices= NumberOfIndices + max(OrderOfDen(d2) - OrderOfDen(den), 0) 
-                
-                for c in fieldterm[4]:
-                    if ( c[0] >= startorder and c[1] < startorder + OrderOfDen(d2)):
-                        NumberOfIndices = NumberOfIndices - 1
-                startorder = startorder + OrderOfDen(d2)
-
-             print den, fieldterm[0], NumberOfIndices
+#             # Find the number of indices over which there have to be sums
+             NumberOfIndices = 0
+             for d2 in [den] + fieldterm[0]:
+                (der, lap, left, right, cpl, crs) = ParseOperators(d2)
+                NumberOfIndices= NumberOfIndices + OrderOfDen(d2) #+ len(crs)
+             # The couplings however do not need individual indices 
+             NumberOfIndices = NumberOfIndices - len(fieldterm[4]) 
+             # But the external derivatives do            
+             NumberOfIndices = NumberOfIndices + fieldterm[1]
+             
              # get the indices of the field correct
              dic['IND']     = ''
              for k in range(OrderOfDen(den)):
@@ -195,7 +188,6 @@ def GenerateFields():
              for k in range(NumberOfIndices):
                 FIELDCALC = FIELDCALC + doloop_template%sumindices[k]
              
-       
              FIELDCALC = FIELDCALC + field_calc_temp.substitute(dic)
              
              dic['DENSITY']  = ''
@@ -208,6 +200,7 @@ def GenerateFields():
              if(len(dic['DD']) >0 ):
                 dic['DD']       = dic['DD'] + '*'
              
+             lastorder = OrderOfDen(den)
              for i in range(len(fieldterm[0])):
                     dic['DENSITY']  =                    fieldterm[1] * 'der_' \
                                                        + fieldterm[2] * 'Lap_' \
@@ -221,18 +214,19 @@ def GenerateFields():
                     # Get the indices of the density in the field
                     dic['DENIND']      = ''
                     dic['SUMIND']      = 2
-                    for k in range(OrderOfDen(dic['DENSITY'])):
+                    for k in range(lastorder, lastorder + OrderOfDen(dic['DENSITY'])):
                         for c in fieldterm[4]:
                             if k in c:   
                                 dic['DENIND']= dic['DENIND']     + ',' \
                                              + sumindices[fieldterm[4].index(c)]
-                                #dic['SUMIND'] = dic['SUMIND'] + 1                    
+                    
                     dic['EXPR1'] = dic['EXPR1'] + field_calc_den_a.substitute(dic)
                     dic['EXPR2'] = dic['EXPR2'] + field_calc_den_b.substitute(dic)
                    
                     if(len(dic['DD']) >0):
                         dic['EXPR3'] = dic['EXPR3'] + field_calc_den_c.substitute(dic)
              
+                    lastorder = lastorder + OrderOfDen(dic['DENSITY'])
              FIELDCALC = FIELDCALC + field_calc_b_temp.substitute(dic)
              FIELDCALC = FIELDCALC + field_calc_c_temp.substitute(dic)
              if(fieldterm[6] == 1):
@@ -432,19 +426,6 @@ def GenerateAction(field):
                 for r in range(len(rarg)):
                     dic['FIELDIND']= dic['FIELDIND'] + ',' \
                                            + str(abs(rarg[r])+1)
-#                for r in range(RightOperator.dimension):
-#                    Found = False
-##                    for c in coupling:
-##                        if (r + LeftOperator.dimension in c):
-##                            Found = True
-##                    for c in cross:
-##                        if  (r + LeftOperator.dimension == c[0]):
-##                            Found = True
-##                        elif(r + LeftOperator.dimension == c[1]):
-##                            Found = True
-##                    if(not Found) :
-#                        dic['FIELDIND']= dic['FIELDIND'] + ',' \
-#                                           + str(abs(true_rarg[r])+1)
                 #-----------------------------------------------------------
                 # Action of the right-operator
                 for k in range(4): 
@@ -457,14 +438,11 @@ def GenerateAction(field):
                     
                     SIGN           = np.sign(rightind[k,0])
                     SIGN           = SIGN * (-1)**(LeftOperator.derorder)
-                    
                     for l in true_rarg:
                         if( l  == 0):
                            SIGN = SIGN
                         else:
                            SIGN = SIGN * np.sign(l)
-
-
                     if(SIGN > 0) :
                         dic['SIGN']= '+'
                     else :

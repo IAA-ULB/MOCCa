@@ -116,8 +116,8 @@ def ProcessDerivatives(fname, src, target):
     dic['DZ'] = 'D'
         
     
-    dic['N2DIAG'] = ''
-    dic['N2ALL']  = '!'    
+    dic['N2DIAG'] = '!'
+    dic['N2ALL']  = ''    
         
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

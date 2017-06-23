@@ -91,6 +91,7 @@ subroutine ReachForWaterAndFood
         print *,  '*************************************'
         print *,  ' Iteration ', iter
         print *,  ' Energy =  ', totalE
+        print *,  ' Spwfs  =  ', spwfenergy
         print *,  ' GradNorm =  ', gradientnorm
         print *,  '*************************************'
         

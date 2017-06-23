@@ -190,7 +190,7 @@ def ParseDensities(term):
             if(term[i] == l):
                if(term[i-1] != 'x'): 
                     c = c+ (ind,)
-               else:
+               else:    
                     if(foundx[sumindices.index(l)] == 0):
                         foundx[sumindices.index(l)] = foundx[sumindices.index(l)] +1
                         c = c+ (ind,)
@@ -320,7 +320,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     #---------------------------------------------------------------------------
     # See how many indices are present everywhere.
     (tempden, coupling) = ParseDensities(term)
-    doloops             = len(coupling)
+    doloops             = 0 #len(coupling)
   
     #Now see how these densities are present in the heph_densities.py module
     densities = []
@@ -336,8 +336,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
                 doloops = doloops + OrderOfDen(addden) 
                 # Go back to the outer loop
                 break
-
-    doloops = doloops - 2*len(coupling)
+    
     orders                = []
     for i in range(len(densities)): 
         orders.append(OrderOfDen(densities[i])) 
@@ -354,6 +353,8 @@ def GenTermExpression( term, ccoef, DD, DDrear):
                 altterm = altterm.replace(sumindices[coupling.index(c)],'')
                 
     (rubbish, true_coupling) = ParseDensities(altterm)
+    
+    doloops = doloops - len(true_coupling)
     
     dic = {}
     index_encountered=0
