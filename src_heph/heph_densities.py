@@ -168,17 +168,15 @@ ArrayNames=['HFPsi', 'HFdPsi', 'HFddPsi']
 # contractions. So if D_Nm_Nm is in here, Tantalus will calculate Tr(tau_mn) 
 # and NOT tau_mn fully. 
 Densities_needed   = []
-Der_den_needed     = []
-Lap_den_needed     = []
-Rotationals_needed = []
+deriv_needed       = []
 #-------------------------------------------------------------------------------
 # Indices over which sums are supposed to go in both the FORTRAN code and the 
 # naming scheme.
-sumindices      = ['m', 'n', 'k', 'l']
+sumindices      = ['m', 'n', 'k']
 crossindices    = ['x', 'y', 'z']
 #-------------------------------------------------------------------------------
 # Strings indicating the (external) laplacian and derivative of a density.  
-lapstring = 'Lap'
+lapstring = 'lap'
 derstring = 'der'
 #-------------------------------------------------------------------------------
 # Density calculation template to fill in
@@ -201,10 +199,8 @@ Lap_template   = Template( 2*tab +'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ
 # Some templates for comments to put into the densities file
 Den_comment          = Template(2*tab+'! Calculation of density $NAME \n')
 
-Den_comment_deriv    = Template(2*tab+'! Derivation of density $NAME  \n')
-Den_comment_deriv_b  = Template(2*tab+'! first order derivatives: $DER\n')
-Den_comment_deriv_c  = Template(2*tab+'! laplacians             : $LAP\n')
-
+Den_comment_deriv    = Template(2*tab+'! Derivation of density $NAME(:$IND,it)  \n')
+Den_comment_deriv_b  =         (2*tab+'! LAP = %d, DER = %d \n')
 Den_line             = Template(2*tab+'! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  \n')
 #---------------------------------------------------------------------------
 
@@ -256,26 +252,21 @@ def ProcessDensities(fname, src, target):
     Declaration    = ''
     Initialisation = ''
     Derivation     = ''
-    VecProd        = ''
-    DeclVecProd    = ''
-    IniVecProd     = ''
     
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     print ' Generated densities '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
-    print '      Name     DIM with / out   Deriv   Lapla      '
+    print '      Name     DIM with / out    Derivative combs. '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     for i in range(len(Densities_needed)):
 
         den = Densities_needed[i]
-        print '%15s %6d %6d %6d %6d      '%(den,OrderOfDen(den),         \
-                                          OrderOfDen(den,contract=False),\
-                                          Der_den_needed[i],             \
-                                          Lap_den_needed[i])
+        print '%15s %6d %6d     '%(den,OrderOfDen(den),         \
+                                          OrderOfDen(den,contract=False)),  \
+                                          deriv_needed[i]
 
-        (e,dec,ini,der)  = GenDensityExpression(Densities_needed[i],\
-                                                  Der_den_needed[i],\
-                                                  Lap_den_needed[i],)
+        (e,dec,ini,der)  = GenDensityExpression(Densities_needed[i],     \
+                                                    deriv_needed[i])
         Declaration    = Declaration    + '\n' + dec
         Expression     = Expression     + '\n' + e
         Initialisation = Initialisation + '\n' + ini
@@ -288,9 +279,7 @@ def ProcessDensities(fname, src, target):
     dic['INITIALIZATION'] = Initialisation
     dic['EXPRESSION'    ] = Expression
     dic['DERIVATION'    ] = Derivation 
-    dic['VECPROD'       ] = VecProd 
-    dic['DECL_VECPROD'  ] = DeclVecProd
-    dic['INIVECPROD'    ] = IniVecProd    
+ 
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:
@@ -354,7 +343,7 @@ def ParseOperators(density):
 
     return(der, lap, left, right, coupling, cross)
 
-def GenDensityExpression(denin, Der, Lap):
+def GenDensityExpression(denin, derivative_combinations):
     #---------------------------------------------------------------------------
     # Generate the following strings 
     #       (Expression, Declaration, Initialisation, Derivation)
@@ -438,20 +427,25 @@ def GenDensityExpression(denin, Der, Lap):
     Declaration    = Dec_template.substitute(dic)
     Initialisation = Ini_template.substitute(dic)
     
-    for l in range(Lap):
-        dic['NAME']    = (l+1)*'Lap_' + density
+    for c in derivative_combinations:
+        l = c[0]
+        d = c[1]
+        
+        if( l == 0 and d == 0):
+            continue
+        
+        dic['NAME']    = l*'lap_' + d*'der_' + density
+        dic['TOTALIND']= totalind
+        dic['DIM']     = dim
+        for i in range(d):
+            dic['TOTALIND']= dic['TOTALIND'] + ',:' 
+            dic['DIM']     = dic['DIM']      + ',3' 
+
         Declaration    = Declaration    + '\n' + Dec_template.substitute(dic)
         Initialisation = Initialisation + '\n' + Ini_template.substitute(dic)
         dic['NAME']    = density
         
-    for l in range(Der):
-        dic['NAME']    = (l+1)*'Der_' + density
-        dic['TOTALIND']= dic['TOTALIND'] + ',:' 
-        dic['DIM']     = dic['DIM']      + ',3' 
-        Declaration    = Declaration    + '\n' + Dec_template.substitute(dic)
-        Initialisation = Initialisation + '\n' + Ini_template.substitute(dic)
-        dic['NAME']    = density
-    
+        
     #---------------------------------------------------------------------------
     # Generate the expression to calculate the density
     # Start from standard wave-functions, [ Psi_1, Psi_2, Psi_3, Psi_4 ]^T
@@ -469,15 +463,6 @@ def GenDensityExpression(denin, Der, Lap):
     
     Expression = Expression +  Den_line.substitute(dic)
     Expression = Expression +  Den_comment.substitute(dic)
-    
-    dic['DER'] = Der
-    dic['LAP'] = Lap
-    
-    if(Der >=1 or Lap >= 1):
-        Derivation = Derivation +  Den_line.substitute(dic)
-        Derivation = Derivation +  Den_comment_deriv.substitute(dic)
-        Derivation = Derivation +  Den_comment_deriv_b.substitute(dic)
-        Derivation = Derivation +  Den_comment_deriv_c.substitute(dic)
     
     for arg in args:
         # We have the uncontracted indices. Now construct the combinations of
@@ -619,7 +604,8 @@ def GenDensityExpression(denin, Der, Lap):
                     dic['SIGN']   = '+'
                 else :
                     dic['SIGN']   = '-'
-                dic['RCOMP'] = str(int(abs(rightind[i,0])))
+                dic['RCOMP'] = str(int(abs(rightind[i,0]
+                )))
                 dic['LCOMP'] = str(int(abs( leftind[i,0])))
                 Expression = Expression +  \
                             '& \n               &' +  \
@@ -634,40 +620,64 @@ def GenDensityExpression(denin, Der, Lap):
         # sufficient, because necessarily all of the combinations need to 
         # exhibit the same symmetries. 
         #-----------------------------------------------------------------------
-        for l in range(Lap):
-            #Preparing symmetries for derivatives
-            (px,py,pz)   = AxisReflection(LeftOperator,RightOperator,larg,rarg)
-            dic['PX']    = str(px)
-            dic['PY']    = str(py)
-            dic['PZ']    = str(pz)
-        
-            dic['NAME'] = l*'Lap_' + density
-            Derivation  = Derivation + Lap_template.substitute(dic)
-            # Note that this is simple, since Laplacians don't change the 
-            # symmetry properties of functions.
-        
-        for l in range(Der):
-            dic['NAME'] = l*'der_' + density
+        if(len(derivative_combinations)> 1):
+            Derivation = Derivation + Den_line.substitute(dic)
+            Derivation = Derivation + Den_comment_deriv.substitute(dic)
+        for c in derivative_combinations:
             
-            # All components
-            deriv_args = itertools.product(range(3), repeat=l)
-            for darg in deriv_args: 
-                dic['IND']  = ''    
-                for i in darg:
-                    dic['IND']  = dic['IND'] + ',%d'%(i+1)
-                dic['IND']  = dic['IND'] +  IND    
-                #Preparing symmetries for derivatives
-                (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg)
-                dic['PX']    = str(px)
-                dic['PY']    = str(py)
-                dic['PZ']    = str(pz)
+            if(c == (0,0)):
+                continue
+            Derivation = Derivation + Den_comment_deriv_b%(c[0], c[1])
             
+            # Arguments of the derivative operators
+            # name of the derivative
+            if(c[0] == 0):
+                dic['NAME'] = (c[1]-1)*'der_' + density
+                try:
+                    deriv_args = itertools.product(range(3), repeat=c[1]-1)
+                except:
+                    continue
+            else:
+                dic['NAME'] = (c[0]-1)*'lap_' + (c[1])*'der_' + density
+                try:
+                    deriv_args = itertools.product(range(3), repeat=c[1])
+                except:
+                    continue
+            if(c[1] != 0):
+                for darg in deriv_args: 
+                    #Preparing symmetries for derivatives
+                    (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg)
+                    dic['PX']    = str(px)
+                    dic['PY']    = str(py)
+                    dic['PZ']    = str(pz)
                 
-                Derivation   = Derivation  + Der_template.substitute(dic)
-                dic['DERSPACE'] = (18+len(density)+ len(dic['IND']) +10) * ' '
-                Derivation   = Derivation  + Der_template_b.substitute(dic)
-                Derivation   = Derivation  + Der_template_c.substitute(dic)
-            Derivation = Derivation + '\n'
+                    dic['IND']  =  ''
+                    for i in darg:
+                        dic['IND']  = dic['IND'] + ',%d'%(i+1)
+                    dic['IND']  = dic['IND'] +  IND  
+            
+                    
+                    # Decide if we need to use a gradient or a laplacian routine
+                    if(c[0] > 0):
+                        Derivation  = Derivation + Lap_template.substitute(dic)
+                    else:        
+                        Derivation   = Derivation  + Der_template.substitute(dic)
+                        dic['DERSPACE'] = (18+len(density)+ len(dic['IND']) +10) * ' '
+                        Derivation   = Derivation  + Der_template_b.substitute(dic)
+                        Derivation   = Derivation  + Der_template_c.substitute(dic)
+            else:
+                    (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg)
+                    dic['PX']    = str(px)
+                    dic['PY']    = str(py)
+                    dic['PZ']    = str(pz)
+                    
+                    dic['IND']  =   IND  
+                    
+                    # Decide if we need to use a gradient or a laplacian routine
+                    Derivation  = Derivation + Lap_template.substitute(dic)
+            Derivation  = Derivation + '\n'
+        
+        
         dic['NAME'] = density
     Expression = Expression + Den_line.substitute(dic) 
     

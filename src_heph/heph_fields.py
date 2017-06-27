@@ -54,9 +54,12 @@ def initfields():
                 (altder, altlap, altleft, altright, altcoupling, altcross) = ParseOperators(altden)    
                 if(altleft == left and altright == right):
                     # Set minimum derivatives
-                    Der_den_needed[j] = max(totalder, Der_den_needed[j])
-                    Lap_den_needed[j] = max(totallap,  Lap_den_needed[j])
-        
+                    deriv_needed[j].append((totallap, totalder))
+                    
+    
+    heph_functional.PruneDeriv_needed()
+    
+      
 def GenerateFields():
     #---------------------------------------------------------------------------
     # Generate a list of fields based on list of terms in the functional. 
@@ -118,9 +121,10 @@ def GenerateFields():
                 for altden in heph_functional.Densities_needed:
                     (altder, altlap, altleft, altright, altcoup, altcross) = ParseOperators(altden)
                     if(altleft == l2 and r2 == altright and cr2 == altcross):
-                        densities[i] = x*'der_' +               \
-                                       y*'Lap_' +               \
+                        densities[i] = y*'lap_' +               \
+                                       x*'der_' +               \
                                        altden
+                                       
             #-------------------------------------------------------------------
             # Change the coupling if the density needed is contracted
             altterm = term
@@ -136,7 +140,7 @@ def GenerateFields():
             for i in range(len(densities)):
                 altden = densities[i]
                 (altder, altlap, altleft, altright, altcoup, altcross)=ParseOperators(altden)
-                if(altleft == left and altright == right and cross == altcross):
+                if((altleft == left) and (altright == right) and (cross == altcross)):
                     #  Add the term to the fieldlist for this density, 
                     #  and additionnally mentioning the number of external 
                     #  derivatives and laplacians
@@ -148,13 +152,13 @@ def GenerateFields():
                     cplct = cplcts[ind]
                     dden  = heph_functional.density_dependence[ind]
                     fieldlist.append([removed, altder, altlap, cplct, cpl,dden,0])
+                
             #-------------------------------------------------------------------
             # Now check if there are density dependences in this term that 
             # involve this density
             dd = heph_functional.field_DD_terms[term]
             if(dd[0] == den):
                 fieldlist.append([densities, altder, altlap, cplct, cpl, dd[1],1])
-
         # Create the expression for the field
         dic['ALLOCIND']= ''
         dic['DECLIND'] = ''
@@ -165,10 +169,10 @@ def GenerateFields():
         declaration  = declaration + field_decl_temp.substitute(dic)
         FIELDCALC    = FIELDCALC + field_allo_temp.substitute(dic)
         FIELDCALC    = FIELDCALC + isoloop
-    
-        for fieldterm in fieldlist:
         
-#             # Find the number of indices over which there have to be sums
+        for fieldterm in fieldlist:
+             
+             # Find the number of indices over which there have to be sums
              NumberOfIndices = 0
              for d2 in [den] + fieldterm[0]:
                 (der, lap, left, right, cpl, crs) = ParseOperators(d2)
@@ -202,18 +206,28 @@ def GenerateFields():
              
              lastorder = OrderOfDen(den)
              for i in range(len(fieldterm[0])):
-                    dic['DENSITY']  =                    fieldterm[1] * 'der_' \
-                                                       + fieldterm[2] * 'Lap_' \
+                    dic['DENSITY']  =                    fieldterm[2] * 'lap_' \
+                                                       + fieldterm[1] * 'der_' \
                                                        + fieldterm[0][i] 
+                    # Make sure the combination of laplacians and derivatives
+                    # is in the right ordering 
+                    dercount = dic['DENSITY'].count('der')
+                    lapcount = dic['DENSITY'].count('lap')
+                    
+                    dic['DENSITY'] = dic['DENSITY'].replace('der_', '').replace('lap_', '')
+                    dic['DENSITY'] = lapcount * 'lap_' + dercount * 'der_' + dic['DENSITY']
+                    
+                    
                     if( fieldterm[1]%2 == 0) :
                             dic['SIGN']     =  '+'
                     else:
                             dic['SIGN']     =  '-'
                     dic['CPLCTE']   =  fieldterm[3]
+                   
                     
                     # Get the indices of the density in the field
                     dic['DENIND']      = ''
-                    dic['SUMIND']      = 2
+                    dic['SUMIND']      = 2 
                     for k in range(lastorder, lastorder + OrderOfDen(dic['DENSITY'])):
                         for c in fieldterm[4]:
                             if k in c:   

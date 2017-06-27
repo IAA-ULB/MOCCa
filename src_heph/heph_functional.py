@@ -40,7 +40,9 @@ import itertools
 import numpy as np
 from heph_densities import Densities_needed, tab, sumindices, derstring
 from heph_densities import lapstring, OrderOfDen, ParseOperators
-from heph_densities import Der_den_needed, Lap_den_needed, crossindices
+from heph_densities import  crossindices
+from heph_densities import deriv_needed
+import heph_linechecker
 import heph_fields
 #-------------------------------------------------------------------------------
 # Array containing the expressions of all the functional terms. 
@@ -68,13 +70,12 @@ def initfunctional(fname):
         (densities,coup) = ParseDensities(term)
         for den in densities:
             tempden.append(den)
-
+     
     # Pruning the list
     # A) removing duplicates
     # B) removing contractions when the full density will be calculated
     Densities_needed.append(tempden[0])
-    Der_den_needed.append(0)
-    Lap_den_needed.append(0)
+    deriv_needed.append([])
     for i in range(len(tempden)):
         (deri, lapi, lefti, righti, coupi, crossi) = ParseOperators(tempden[i])
         Found = False
@@ -94,8 +95,7 @@ def initfunctional(fname):
                 
                 # However, check that we don't need any new derivatives
                 # If so, add them
-                Der_den_needed[j] = max(Der_den_needed[j], deri)
-                Lap_den_needed[j] = max(Lap_den_needed[j], lapi)
+                deriv_needed[j].append((lapi, deri))
                
                 # then check if the coupling of the indices is the same
                 # Note that the loop starts over coupj, since that one has by
@@ -118,24 +118,45 @@ def initfunctional(fname):
             #-------------------------------------------------------------------
         if(not Found):
             
-            Der_den_needed.append(deri)
-            Lap_den_needed.append(lapi) 
-
             add = tempden[i] 
-
+            # Getting the duplicates out of the derivatives
+            deriv_needed.append([(lapi,deri)])
+            
             # Remove all of the derivatives from the top
             add = add.replace(derstring + '_','').replace(lapstring+'_', '')
             for l in sumindices:
                 add = add.replace(derstring + l + '_','')
             Densities_needed.append(add)
-       
+
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
     print ' Functional taken from file %s'%fname
     print ' Description from file:'
     print  description.replace('#', tab)
     print ' Number of terms:     %d'%len(Functional_terms)
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
+ 
+def PruneDeriv_needed():
+
+    #---------------------------------------------------------------------------
+    # Add all of the possible combinations with less derivatives and laplacians,
+    # so that we can build the eventually needed combinations.
     
+    for i in range(len(deriv_needed)):
+        newderiv=[]
+        for j in deriv_needed[i]:
+            newderiv.append(j)
+            
+            options = itertools.product(range(j[0]+1), range(j[1]+1))
+            for opt in options:
+                newderiv.append(opt)
+                
+        deriv_needed[i] = newderiv
+    # b) remove duplicates in the list of needed derivative combinations
+    # c) Order the list in increasing level of operations
+    for i in range(len(deriv_needed)):
+        deriv_needed[i] = list(set(deriv_needed[i]))
+        deriv_needed[i] = sorted(deriv_needed[i])
+        
 def ReadFunctional(fname):
     #
     # Read the functional terms and the coupling coefficients from file fname.
@@ -145,18 +166,25 @@ def ReadFunctional(fname):
     description=''
     with open(fname, 'r') as f:
         for line in f: 
-            if(line[0] != '#' and line[0] != '!'):
-                split = line.split(';')
-                Functional_terms.append(split[0].replace(' ', ''))
-                density_dependence.append(split[1].replace(' ', ''))
-                dd_den   = split[2].replace(' ', '')
-                f_dd     = split[3].replace(' ', '')
-                field_DD_terms[split[0].replace(' ', '')] =  (dd_den, f_dd)
-                DD_rearcoefs.append(split[4].replace(' ', ''))
-                coupling_constants_0.append(split[5].replace(' ', ''))
-                coupling_constants_1.append(split[6].replace(' ', ''))   
-            elif(line[0] == '#'):
-                description = description + line     
+            try:
+                if(len(line.split()) == 0):
+                    continue
+                if(line[0] != '#' and line[0] != '!'):
+                    split = line.split(';')
+                    Functional_terms.append(split[0].replace(' ', ''))
+                    density_dependence.append(split[1].replace(' ', ''))
+                    dd_den   = split[2].replace(' ', '')
+                    f_dd     = split[3].replace(' ', '')
+                    field_DD_terms[split[0].replace(' ', '')] =  (dd_den, f_dd)
+                    DD_rearcoefs.append(split[4].replace(' ', ''))
+                    coupling_constants_0.append(split[5].replace(' ', ''))
+                    coupling_constants_1.append(split[6].replace(' ', ''))   
+                elif(line[0] == '#'):
+                    description = description + line
+            except IndexError:
+                print 'Problem reading the following line in the functional file.'
+                print line
+                exit()      
 
     return(description)
     
@@ -178,7 +206,7 @@ def ParseDensities(term):
                 temp = temp + split[i] + '_' + split[i+1] + '_' + split[i+2]
                 densities.append(temp)
                 temp = ''
-
+    
     # Find the coupling
     coupling  = []
     foundx    = []
@@ -245,6 +273,8 @@ def ProcessFunctional(fname, src, target):
                 sumtotal    = sumtotal    + st+ '&\n'
                 erear       = erear       + er
 
+        sumtotal = sumtotal[:-2]
+
         # Generate the fields of the single-particle hamiltonian
         (fielddec, fieldcalc) = heph_fields.GenerateFields(     )
         declaration = declaration + fielddec + '\n'
@@ -254,6 +284,18 @@ def ProcessFunctional(fname, src, target):
         for field in heph_fields.Fields_needed:
             SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field)
 #        
+
+        #-----------------------------------------------------------------------
+        # Now make sure all of the lines are not too long for compilation.
+        declaration = heph_linechecker.LineFormat(declaration)
+        calculation = heph_linechecker.LineFormat(calculation)
+        printing    = heph_linechecker.LineFormat(printing)
+        calccoef    = heph_linechecker.LineFormat(calccoef)
+        printcoef   = heph_linechecker.LineFormat(printcoef)
+        sumtotal    = heph_linechecker.LineFormat(sumtotal)
+        fieldcalc   = heph_linechecker.LineFormat(fieldcalc)
+        SkyrmeAction= heph_linechecker.LineFormat(SkyrmeAction)
+        erear       = heph_linechecker.LineFormat(erear)
         # - - - - - - - - - - - - - - - - - - - - -
         # Substitute into the functional.f90 file.        
         dic={}
@@ -262,7 +304,7 @@ def ProcessFunctional(fname, src, target):
         dic['PRINT']          = printing
         dic['CALCCOEF']       = calccoef   
         dic['PRINTCOEF']      = printcoef 
-        dic['TOTAL']          = sumtotal[:-2]
+        dic['TOTAL']          = sumtotal
         dic['CALCFIELDS']     = fieldcalc
         dic['SKYRMEACTION']   = SkyrmeAction
         dic['EREAR']          = erear
@@ -330,7 +372,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
             (derref, lapref, leftref, rightref, couplref, crossref) = \
                                              ParseOperators(Densities_needed[i])
             if(left == leftref and right == rightref and cross == crossref):
-                addden = lap*'Lap_' + der*'der_' + Densities_needed[i]
+                addden = lap*'lap_' + der*'der_' + Densities_needed[i]
                 densities.append( addden )
                 # Don't do do loops over indices that already had been contracted
                 doloops = doloops + OrderOfDen(addden) 

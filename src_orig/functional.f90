@@ -42,7 +42,11 @@ module functional
     real(KIND=dp) :: t1n2=24.3409
     real(KIND=dp) :: t2n2=-27.31975
     real(KIND=dp) :: x1n2=-0.344
-    real(KIND=dp) :: x2n2=-1.0   
+    real(KIND=dp) :: x2n2=-1.0  
+    real(KIND=dp) :: t1n3= 2.3409
+    real(KIND=dp) :: t2n3=-2.31975
+    real(KIND=dp) :: x1n3=-0.344
+    real(KIND=dp) :: x2n3=-1.0   
     real(KIND=dp) :: hbm(2)         = 20.73551910_dp 
          
     integer       :: COM1body = 2

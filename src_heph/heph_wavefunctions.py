@@ -14,6 +14,9 @@ def ProcessWavefunctions(fname, src, target):
     
     dic={}
     dic['BLOCKS'] = 8
+    dic['N2'] = '!'
+    dic['N3'] = ' '
+    
     
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

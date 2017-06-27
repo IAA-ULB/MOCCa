@@ -34,7 +34,7 @@ module wavefunctions
  real(KIND=dp), allocatable ::   HFPsi(:,:,:,:,:)
  real(KIND=dp), allocatable ::  HFdPsi(:,:,:,:,:,:)   ! First order derivatives
  real(KIND=dp), allocatable :: HFddPsi(:,:,:,:,:,:,:) ! Second order derivatives
- real(KIND=dp), allocatable ::HFlapPsi(:,:,:,:,:)     ! Second order derivatives
+ real(KIND=dp), allocatable :: HFdddPsi(:,:,:,:,:,:,:,:) ! Third order derivatives
  
  !------------------------------------------------------------------------------
  ! Density matrix rho and anomalous density matrix kappa
@@ -205,9 +205,16 @@ contains
     ! Currently EV8 symmetries are hardcoded, as well as the
     do wave=1,nwt
         do k=1,4
-        call Derive_tot(HFPsi(:,:,:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
-        &                                           HFdPsi(:,:,:,:,k,wave),     &
-        &                                           HFddPsi(:,:,:,:,:,k,wave))
+
+$N2        call Derive_tot(HFPsi(:,:,:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
+$N2        &                                           HFdPsi(:,:,:,:,k,wave),     &
+$N2        &                                           HFddPsi(:,:,:,:,:,k,wave))
+
+$N3        call Derive_tot(HFPsi(:,:,:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
+$N3        &                                           HFdPsi(:,:,:,:,k,wave),     &
+$N3        &                                           HFddPsi(:,:,:,:,:,k,wave),  &
+$N3        &                                           HFdddPsi(:,:,:,:,:,k,wave))
+
         enddo
     enddo
   end subroutine DeriveAll

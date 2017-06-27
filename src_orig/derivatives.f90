@@ -324,6 +324,112 @@ $N2ALL      ddf(i,1,:,2,3) =      ddf(i,1,:,3,2)
 $N2ALL    enddo
 $N2ALL
 $N2ALL end subroutine Derive_tot
+
+$N3ALL subroutine Derive_tot(f, px, py, pz, df, ddf, dddf)
+$N3ALL    !---------------------------------------------------------------------------
+$N3ALL    ! Subroutine that computes the following derivatives on the mesh
+$N3ALL    !
+$N3ALL    ! first order derivatives: x,y,z 
+$N3ALL    ! all second order derivatives :: xx, xy, xz, yx, yy, yz, zx, zy, zz
+$N3ALL    ! all third order derivatives  :: .....
+$N3ALL    ! 
+$N3ALL    ! df(:,1)    = First order derivative in the x direction
+$N3ALL    ! df(:,1)    = First order derivative in the y direction
+$N3ALL    ! df(:,1)    = First order derivative in the z direction
+$N3ALL    ! ddf(:,i,j) = Second order derivative in the (i,j) direction. 
+$N3ALL    ! ddf(:,i,j,k) =  third order derivative (i,j,k)
+$N3ALL    !
+$N3ALL    ! px = sign of the symmetry transformation in the x-direction
+$N3ALL    ! py = sign of the symmetry transformation in the y-direction
+$N3ALL    ! pz = sign of the symmetry transformation in the z-direction
+$N3ALL    !
+$N3ALL    !---------------------------------------------------------------------------
+$N3ALL    
+$N3ALL    real(KIND=dp), intent(in)  :: f(:,:,:)
+$N3ALL    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:,:)
+$N3ALL    real(KIND=dp), intent(out) :: dddf(:,:,:,:,:,:)
+$N3ALL    integer, intent(in)        :: px,py,pz
+$N3ALL    
+$N3ALL    integer                    :: i,j,k, sx, sy,sz, ax, ay, az
+$N3ALL    
+$N3ALL    sx = (px + 3)/2 ! These are equal to 
+$N3ALL    sy = (py + 3)/2 !    1    if pi =   -1  or 0
+$N3ALL    sz = (pz + 3)/2 !    2    if pi =   +1 
+$N3ALL    ax = 3 - sx ! These are equal to 
+$N3ALL    ay = 3 - sy !    2    if si =    1
+$N3ALL    az = 3 - sz !    1    if si =    2 
+$N3ALL    !---------------------------------------------------------------------------
+$N3ALL    !  First order derivatives and diagonal second-order ones
+$N3ALL    do i=1,ny*nz
+$N3ALL         df(:,i,1,1)   =        matmul(derX  (:,:,sx),f(:,i,1))
+$N3ALL        ddf(:,i,1,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
+$N3ALL    enddo   
+$N3ALL    do k=1,nz
+$N3ALL        do i=1,nx
+$N3ALL            df(i,:,k,2)    =    matmul(derY  (:,:,sy),f(i,:,k))
+$N3ALL            ddf(i,:,k,2,2) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
+$N3ALL        enddo
+$N3ALL    enddo
+$N3ALL    do i=1,nx*ny
+$N3ALL        df(i,1,:,3)    =        matmul(derZ  (:,:,sz),f(i,1,:))
+$N3ALL        ddf(i,1,:,3,3) =        matmul(laplaZ(:,:,sz),f(i,1,:))
+$N3ALL    enddo
+$N3ALL    !---------------------------------------------------------------------------
+$N3ALL    ! Off-diagonal second order derivatives
+$N3ALL    do k=1,nz
+$N3ALL      do i=1,nx
+$N3ALL          ddf(i,:,k,2,1) =      matmul(derY  (:,:,sy),df(i,:,k,1))
+$N3ALL          ddf(i,:,k,1,2) =      ddf(i,:,k,2,1) 
+$N3ALL      enddo
+$N3ALL    enddo
+$N3ALL    
+$N3ALL    do i=1,nx*ny
+$N3ALL      ddf(i,1,:,3,1) =      matmul(derZ  (:,:,sz),df(i,1,:,1))
+$N3ALL      ddf(i,1,:,1,3) =      ddf(i,1,:,3,1) 
+$N3ALL      ddf(i,1,:,3,2) =      matmul(derZ  (:,:,sz),df(i,1,:,2))
+$N3ALL      ddf(i,1,:,2,3) =      ddf(i,1,:,3,2) 
+$N3ALL    enddo
+$N3ALL
+$N3ALL    !---------------------------------------------------------------------------
+$N3ALL    ! Third order derivatives
+$N3ALL    do k=1,nz
+$N3ALL      do j=1,ny
+$N3ALL          dddf(:,j,k,1,1,1) =      matmul(derX  (:,:,sx),ddf(:,j,k,1,1))
+$N3ALL          dddf(:,j,k,1,1,2) =      matmul(derX  (:,:,ax),ddf(:,j,k,1,2))
+$N3ALL          dddf(:,j,k,1,1,3) =      matmul(derX  (:,:,ax),ddf(:,j,k,1,3))
+$N3ALL          dddf(:,j,k,1,2,2) =      matmul(derX  (:,:,sx),ddf(:,j,k,2,2))
+$N3ALL          dddf(:,j,k,1,2,3) =      matmul(derX  (:,:,sx),ddf(:,j,k,2,3))
+$N3ALL          dddf(:,j,k,1,3,3) =      matmul(derX  (:,:,sx),ddf(:,j,k,3,3))
+$N3ALL      enddo
+$N3ALL    enddo
+$N3ALL    do k=1,nz
+$N3ALL      do i=1,nx
+$N3ALL          dddf(i,:,k,2,2,2) =      matmul(derY  (:,:,sy),ddf(i,:,k,2,2))
+$N3ALL          dddf(i,:,k,2,2,3) =      matmul(derY  (:,:,ay),ddf(i,:,k,2,3))
+$N3ALL          dddf(i,:,k,2,3,3) =      matmul(derY  (:,:,sy),ddf(i,:,k,3,3))
+$N3ALL      enddo
+$N3ALL    enddo
+$N3ALL    do j=1,ny
+$N3ALL      do i=1,nx
+$N3ALL          dddf(i,j,:,3,3,3) =      matmul(derZ  (:,:,sz),ddf(i,j,:,3,3))
+$N3ALL      enddo
+$N3ALL    enddo
+$N3ALL    dddf(:,:,:,1,2,1) = dddf(:,:,:,1,1,2)
+$N3ALL    dddf(:,:,:,2,1,1) = dddf(:,:,:,1,1,2)
+$N3ALL    dddf(:,:,:,1,3,1) = dddf(:,:,:,1,1,3)
+$N3ALL    dddf(:,:,:,3,1,1) = dddf(:,:,:,1,1,3)
+$N3ALL    dddf(:,:,:,3,1,3) = dddf(:,:,:,1,3,3)
+$N3ALL    dddf(:,:,:,3,3,1) = dddf(:,:,:,1,3,3)
+$N3ALL    dddf(:,:,:,2,1,2) = dddf(:,:,:,1,2,2)
+$N3ALL    dddf(:,:,:,2,2,1) = dddf(:,:,:,1,2,2)
+$N3ALL    dddf(:,:,:,1,3,2) = dddf(:,:,:,1,2,3)
+$N3ALL    dddf(:,:,:,3,1,2) = dddf(:,:,:,1,2,3)
+$N3ALL    dddf(:,:,:,3,2,1) = dddf(:,:,:,1,2,3)
+$N3ALL    dddf(:,:,:,2,3,2) = dddf(:,:,:,2,2,3)
+$N3ALL    dddf(:,:,:,3,2,2) = dddf(:,:,:,2,2,3)
+$N3ALL    dddf(:,:,:,3,3,2) = dddf(:,:,:,2,3,3)
+$N3ALL    dddf(:,:,:,3,2,3) = dddf(:,:,:,2,3,3)
+$N3ALL end subroutine Derive_tot
  
  subroutine Derive_grad_3d(f, px, py, pz, fx, fy, fz)
     !---------------------------------------------------------------------------
