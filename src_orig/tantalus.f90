@@ -81,11 +81,11 @@ subroutine ReachForWaterAndFood
     call calcedfcoefs()
     call printedfcoefs()     
     call densit(0)
-        
+    
+    call calcFields()
     call CalcEnergy()
     call PrintEnergy 
     
-    call calcFields()
 
     do iter=1,maxiter
         print *,  '*************************************'
@@ -101,8 +101,8 @@ subroutine ReachForWaterAndFood
 
         call densit(iter)
        
-        call CalcEnergy()
         call calcFields()
+        call CalcEnergy()
         
         if(mod(iter,PrintIter).eq.0) then
             

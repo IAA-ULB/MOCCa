@@ -52,13 +52,9 @@ module functional
     integer       :: COM1body = 2
     real(KIND=dp) :: nucleonmass(2) = (/939.565379_dp , 938.272046_dp /)
     
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Energies are calculated in the BFH representation using the B coupling 
-    ! coefficients, and then recombined into the isospin representation using 
-    ! the C coefficients. By default only the latter is printed, but the BFH
-    ! representation can be asked for for debugging purposes. 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy, COMCorrection(2,2)
+
+    real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy
+    real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
 
     ! Declaration of the energy terms and the coupling coefficients 
 $DECLARATION
@@ -97,8 +93,11 @@ $PRINTCOEF
     5 format (30x, '      neutron        proton         total')
     6 format (15x, 'Kinetic Energy:', 3f15.6)
    61 format (15x, '    COM 1-body:', 3f15.6)
-    7 format (15x, '  Total energy:', 30x, f15.6)
-    8 format (15x, '    from spwfs:', 30x, f15.6)
+    7 format (15x, 'Coulomb Direct:', 3f15.6)
+    8 format (15x, 'Coulomb Direct:', 3f15.6)
+    
+    9 format (15x, '  Total energy:', 30x, f15.6)
+   10 format (15x, '    from spwfs:', 30x, f15.6)
 
     call printSkyrme
 
@@ -106,8 +105,11 @@ $PRINTCOEF
     print 5
     print 6, Kinetic, sum(Kinetic)
     print 61, COMcorrection(1,:), sum(COMcorrection(1,:))
-    print 7, TotalE
-    print 8, spwfenergy
+    print 7, 0.0, CoulombDirect, CoulombDirect
+    print 8, 0.0, CoulombExchange, CoulombExchange
+    print 1
+    print  9, TotalE
+    print 10, spwfenergy
     print 1
  end subroutine PrintEnergy
  
@@ -115,6 +117,8 @@ $PRINTCOEF
     !---------------------------------------------------------------------------
     ! Calculate all of the relevant energies.
     !---------------------------------------------------------------------------
+    
+    use Coulomb, only : calccoulombenergy
     
     ! Kinetic energy
     Kinetic = CompKinetic()
@@ -124,6 +128,8 @@ $PRINTCOEF
     call compSkyrme()
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
+    
+    CoulombDirect = calccoulombenergy()
     
  end subroutine CalcEnergy
  
@@ -220,10 +226,15 @@ $PRINT
 
   subroutine calcFields()
         
+        use Coulomb, only : SolveCoulomb
+        
         integer :: m, n, k, it
 
 $CALCFIELDS
 
+        !-----------------------------------------------------------------------
+        ! Include the Coulomb Potential
+        call SolveCoulomb()
 
   end subroutine calcFields 
   
