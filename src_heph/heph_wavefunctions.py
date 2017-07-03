@@ -17,6 +17,16 @@ def ProcessWavefunctions(fname, src, target):
     dic['N2'] = '!'
     dic['N3'] = ' '
     
+
+    if(heph_functional.derivative_order == 1):
+        dic['N2'] = ' '    
+        dic['N3'] = '!'
+    elif(heph_functional.derivative_order == 2): 
+        dic['N2'] = ' '
+        dic['N3'] = '!'
+    elif(heph_functional.derivative_order == 3):
+        dic['N2'] = '!'
+        dic['N3'] = ' '
     
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

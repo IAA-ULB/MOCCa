@@ -68,9 +68,9 @@ def ProcessDerivatives(fname, src, target):
     # Something that is rather determined by the functional is the maximum order
     # of derivatives that is needed. This is determined by the following strings
     #
-    # $2NDIAG  => 1st order derivatives and the diagonal 2nd order ones
-    # $2NALL   => 1st order derivatives and all of the 2nd order ones
-    #
+    # $N2DIAG  => 1st order derivatives and the diagonal 2nd order ones
+    # $N2ALL   => 1st order derivatives and all of the 2nd order ones
+    # $N3ALL   => up to and including 3rd order derivatives
     #===========================================================================
     dic={}
 
@@ -115,10 +115,18 @@ def ProcessDerivatives(fname, src, target):
     dic['DY'] = 'D'
     dic['DZ'] = 'D'
         
-    
-    dic['N2DIAG'] = '!'
-    dic['N2ALL']  = '!'
-    dic['N3ALL']  = ''    
+    if(heph_functional.derivative_order == 1):    
+        dic['N2DIAG'] = ' '
+        dic['N2ALL']  = '!'  
+        dic['N3ALL']  = '!'   
+    elif(heph_functional.derivative_order == 2):    
+        dic['N2DIAG'] = '!'
+        dic['N2ALL']  = ' '   
+        dic['N3ALL']  = '!'   
+    elif(heph_functional.derivative_order == 3):    
+        dic['N2DIAG'] = '!'
+        dic['N2ALL']  = '!'   
+        dic['N3ALL']  = '!' 
         
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

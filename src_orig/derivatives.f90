@@ -402,6 +402,7 @@ $N3ALL      do j=1,ny
 $N3ALL          dddf(:,j,k,1,1,1) =      matmul(derX  (:,:,sx),ddf(:,j,k,1,1))
 $N3ALL          dddf(:,j,k,1,1,2) =      matmul(derX  (:,:,ax),ddf(:,j,k,1,2))
 $N3ALL          dddf(:,j,k,1,1,3) =      matmul(derX  (:,:,ax),ddf(:,j,k,1,3))
+$N3ALL
 $N3ALL          dddf(:,j,k,1,2,2) =      matmul(derX  (:,:,sx),ddf(:,j,k,2,2))
 $N3ALL          dddf(:,j,k,1,2,3) =      matmul(derX  (:,:,sx),ddf(:,j,k,2,3))
 $N3ALL          dddf(:,j,k,1,3,3) =      matmul(derX  (:,:,sx),ddf(:,j,k,3,3))

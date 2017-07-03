@@ -34,8 +34,8 @@ module wavefunctions
  real(KIND=dp), allocatable ::   HFPsi(:,:,:,:,:)
  real(KIND=dp), allocatable ::  HFdPsi(:,:,:,:,:,:)   ! First order derivatives
  real(KIND=dp), allocatable :: HFddPsi(:,:,:,:,:,:,:) ! Second order derivatives
- real(KIND=dp), allocatable :: HFdddPsi(:,:,:,:,:,:,:,:) ! Third order derivatives
- 
+! real(KIND=dp), allocatable :: HFdddPsi(:,:,:,:,:,:,:,:) ! Third order derivatives
+! 
  !------------------------------------------------------------------------------
  ! Density matrix rho and anomalous density matrix kappa
  ! Dimensions (nwt, nwt) (although many are zero when symmetries are conserved)
