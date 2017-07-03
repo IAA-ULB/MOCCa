@@ -56,6 +56,16 @@ DD_rearcoefs         = []
 coupling_constants_0 = []
 coupling_constants_1 = []
 
+#-------------------------------------------------------------------------------
+# Switch determining what order of derivatives is needed to be computed.
+#
+# Note that this is not directly i => ith order.
+#  derivative_order <=> derivatives of spwfs calculated
+#            1          1st order + trace of 2nd order (laplacian)
+#            2          2nd order
+#            3          3rd order derivatives
+derivative_order = 1
+
 def initfunctional(fname):
 
     global Functional_terms, Densities_needed
@@ -117,7 +127,6 @@ def initfunctional(fname):
                         Densities_needed[j] = Densities_needed[j].replace(l, '')
             #-------------------------------------------------------------------
         if(not Found):
-            
             add = tempden[i] 
             # Getting the duplicates out of the derivatives
             deriv_needed.append([(lapi,deri)])
@@ -128,11 +137,19 @@ def initfunctional(fname):
                 add = add.replace(derstring + l + '_','')
             Densities_needed.append(add)
 
+    # Finding out how many derivatives we need to take of the spwfs
+    derivative_order = 1    
+    for den in Densities_needed:
+        (der, lap, left, right, cpl, cross) = ParseOperators(den)
+        ders = right.count('N')
+        derivative_order = max(derivative_order, ders)
+
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
     print ' Functional taken from file %s'%fname
     print ' Description from file:'
     print  description.replace('#', tab)
-    print ' Number of terms:     %d'%len(Functional_terms)
+    print ' Number of terms:      %d'%len(Functional_terms)
+    print ' Order of derivatives: %d'%derivative_order
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
  
 def PruneDeriv_needed():
