@@ -68,7 +68,7 @@ derivative_order = 1
 
 def initfunctional(fname):
 
-    global Functional_terms, Densities_needed
+    global Functional_terms, Densities_needed, derivative_order
     
     # Read the functional from a given file
     description = ReadFunctional(fname)
@@ -80,7 +80,7 @@ def initfunctional(fname):
         (densities,coup) = ParseDensities(term)
         for den in densities:
             tempden.append(den)
-     
+    #---------------------------------------------------------------------------
     # Pruning the list
     # A) removing duplicates
     # B) removing contractions when the full density will be calculated
@@ -89,24 +89,22 @@ def initfunctional(fname):
     for i in range(len(tempden)):
         (deri, lapi, lefti, righti, coupi, crossi) = ParseOperators(tempden[i])
         Found = False
+        #print tempden[i], coupi
         for j in range(len(Densities_needed)):
             (derj, lapj, leftj, rightj, coupj, crossj) = ParseOperators(Densities_needed[j])
             #-------------------------------------------------------------------
-            # Two densities are identical if the left- and right-operatos
+            # Two densities are identical if the left- and right-operators
             # are the same.
             if(leftj == lefti and rightj == righti):
                 # Signal that the density is already present
                 Found = True
-
                 # However, if there is a vector coupling in one, that is not in 
                 # other, just calculate both. 
                 if(crossj != crossi):
                     Found = False
-                
                 # However, check that we don't need any new derivatives
                 # If so, add them
                 deriv_needed[j].append((lapi, deri))
-               
                 # then check if the coupling of the indices is the same
                 # Note that the loop starts over coupj, since that one has by
                 # definition more couplings than coupi in it. Thus, this 
@@ -117,7 +115,7 @@ def initfunctional(fname):
                         if(cj == ci):
                             Found_coup = True
                     for ci in crossi:
-                         if(cj == ci):
+                        if(cj == ci ):
                             Found_coup = True   
                     if(not Found_coup):
                         try:                        
@@ -136,7 +134,7 @@ def initfunctional(fname):
             for l in sumindices:
                 add = add.replace(derstring + l + '_','')
             Densities_needed.append(add)
-
+        
     # Finding out how many derivatives we need to take of the spwfs
     derivative_order = 1    
     for den in Densities_needed:
@@ -151,7 +149,7 @@ def initfunctional(fname):
     print ' Number of terms:      %d'%len(Functional_terms)
     print ' Order of derivatives: %d'%derivative_order
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
- 
+
 def PruneDeriv_needed():
 
     #---------------------------------------------------------------------------
@@ -389,7 +387,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
             (derref, lapref, leftref, rightref, couplref, crossref) = \
                                              ParseOperators(Densities_needed[i])
             if(left == leftref and right == rightref and cross == crossref):
-                addden = lap*'lap_' + der*'der_' + Densities_needed[i]
+                addden = lap*'Lap_' + der*'Der_' + Densities_needed[i]
                 densities.append( addden )
                 # Don't do do loops over indices that already had been contracted
                 doloops = doloops + OrderOfDen(addden) 

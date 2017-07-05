@@ -94,7 +94,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     integer              , intent(in)        :: npp, npn
     integer, allocatable, intent(inout)      :: kparz(:)
     real(KIND=dp), intent(in)                :: hox, hoy, hoz
-    real(KIND=dp), allocatable, intent(inout):: wfs(:,:,:,:,:), esp1(:)
+    real(KIND=dp), allocatable, intent(inout):: wfs(:,:,:), esp1(:)
     
     real(KIND=dp), allocatable :: h(:,:), s(:,:), d(:), wd(:), e(:)
     real(KIND=dp), allocatable :: he(:,:,:) , a(:)
@@ -134,7 +134,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     nx = 0 ; ny = 0 ; nz = 0 ; e = 0.0d0; nor =0 ; npa =0 
     he = 0.0d0 ; kparz=0; a= 0.0d0
     
-    allocate(wfs(mx,my,mz,4,nwt)) ; wfs = 0.0d0
+    allocate(wfs(mx*my*mz,4,nwt)) ; wfs = 0.0d0
     
     ! In order for the compiler not to complain about non-initialised stuff.
     nvv = 0
@@ -540,7 +540,16 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
         ny2 = 0
         kk  = 0
 
-        wfs(:,:,:,:,nwave) = psi
+        do k = 1,mz
+            do j=1,my
+                do i=1,mx
+                    wfs(i + (j-1) * nx + (k-1) * ny * nx,1,nwave) = psi(i,j,k,1)
+                    wfs(i + (j-1) * nx + (k-1) * ny * nx,2,nwave) = psi(i,j,k,2)
+                    wfs(i + (j-1) * nx + (k-1) * ny * nx,3,nwave) = psi(i,j,k,3)
+                    wfs(i + (j-1) * nx + (k-1) * ny * nx,4,nwave) = psi(i,j,k,4)
+                enddo
+            enddo
+        enddo
     enddo
 15 continue
 

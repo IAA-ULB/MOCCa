@@ -25,7 +25,7 @@ FORTRANFILES=['compilation.f90', 'geninfo.f90' , 'constants.f90', 'diag.f90' ,
               'densities.f90', 'functional.f90','evolution.f90', 'IO.f90', 'tantalus.f90' ]
 
 # File containing the definition of the functional
-FUNC_FILE = 'N2LO.func'
+FUNC_FILE = 'N3LO.func'
 
 #-------------------------------------------------------------------------------
 heph_name= \

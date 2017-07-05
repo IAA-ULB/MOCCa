@@ -74,6 +74,11 @@ module derivatives
     module procedure derive_grad_3D
  end interface
  
+ interface derive_tot
+    module procedure derive_tot_1D
+    module procedure derive_tot_3D
+ end interface
+ 
  interface derive_lap
     module procedure derive_lap_1D
     module procedure derive_lap_3D
@@ -209,17 +214,17 @@ contains
     do k=1,nz
         do i=1,nx
             fy(i,:,k) =             matmul(derY  (:,:,sy),f(i,:,k))
-            df(i,:,k) = df(i,:,k) + matmul(laplaX(:,:,sy),f(i,:,k))
+            df(i,:,k) = df(i,:,k) + matmul(laplaY(:,:,sy),f(i,:,k))
         enddo
     enddo
     do i=1,nx*ny
         fz(i,1,:) =                 matmul(derZ  (:,:,sz),f(i,1,:))
-        df(i,1,:) = df(i,1,:) +     matmul(laplaX(:,:,sz),f(i,1,:))
+        df(i,1,:) = df(i,1,:) +     matmul(laplaZ(:,:,sz),f(i,1,:))
     enddo
     
  end subroutine Derive_3d
 
-$N2DIAG subroutine Derive_tot(f, px, py, pz, df, ddf)
+$N2DIAG subroutine Derive_tot_3D(f, px, py, pz, df, ddf)
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    ! Subroutine that computes the following derivatives on the mesh
 $N2DIAG    !
@@ -265,9 +270,52 @@ $N2DIAG        df(i,1,:,3)    =        matmul(derZ  (:,:,sz),f(i,1,:))
 $N2DIAG        ddf(i,1,:,3,3) =        matmul(laplaZ(:,:,sz),f(i,1,:))
 $N2DIAG    enddo
 $N2DIAG    !---------------------------------------------------------------------------
-$N2DIAG end subroutine Derive_tot
+$N2DIAG end subroutine Derive_tot_3D
+$N2DIAG subroutine Derive_tot_1d(f, px, py, pz, df, ddf)
+$N2DIAG    !---------------------------------------------------------------------------
+$N2DIAG    ! Subroutine that computes the gradient of a function on the mesh, but on
+$N2DIAG    ! one that is stored as a vector of nx*ny*nz points.
+$N2DIAG    !
+$N2DIAG    ! We use a dirty trick here, by simply reshaping with pointers, which should
+$N2DIAG    ! avoid copying matrices and not impact the speed. (Let's see in practice.)
+$N2DIAG    !----------------------------------------------------------------------------
+$N2DIAG    
+$N2DIAG    real(KIND=dp), intent(in),target  :: f(:)
+$N2DIAG    real(KIND=dp), intent(out),target,contiguous :: df(:,:), ddf(:,:,:)
+$N2DIAG    integer, intent(in)        :: px,py,pz
+$N2DIAG    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:,:), ddf3(:,:,:,:,:)
+$N2DIAG    
+$N2DIAG    f3 (1:nx,1:ny,1:nz)          => f
+$N2DIAG    df3(1:nx,1:ny,1:nz,1:3)      => df
+$N2DIAG    ddf3(1:nx,1:ny,1:nz,1:3,1:3) => ddf
+$N2DIAG    
+$N2DIAG    call Derive_tot_3d(f3, px,py,pz,df3, ddf3)
+$N2DIAG    
+$N2DIAG end subroutine Derive_tot_1d
 
-$N2ALL subroutine Derive_tot(f, px, py, pz, df, ddf)
+$N2ALL subroutine Derive_tot_1d(f, px, py, pz, df, ddf)
+$N2ALL    !---------------------------------------------------------------------------
+$N2ALL    ! Subroutine that computes the gradient of a function on the mesh, but on
+$N2ALL    ! one that is stored as a vector of nx*ny*nz points.
+$N2ALL    !
+$N2ALL    ! We use a dirty trick here, by simply reshaping with pointers, which should
+$N2ALL    ! avoid copying matrices and not impact the speed. (Let's see in practice.)
+$N2ALL    !----------------------------------------------------------------------------
+$N2ALL    
+$N2ALL    real(KIND=dp), intent(in),target  :: f(:)
+$N2ALL    real(KIND=dp), intent(out),target,contiguous :: df(:,:), ddf(:,:,:)
+$N2ALL    integer, intent(in)        :: px,py,pz
+$N2ALL    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:,:), ddf3(:,:,:,:,:)
+$N2ALL    
+$N2ALL    f3 (1:nx,1:ny,1:nz)          => f
+$N2ALL    df3(1:nx,1:ny,1:nz,1:3)      => df
+$N2ALL    ddf3(1:nx,1:ny,1:nz,1:3,1:3) => ddf
+$N2ALL    
+$N2ALL    call Derive_tot_3d(f3, px,py,pz,df3, ddf3)
+$N2ALL    
+$N2ALL end subroutine Derive_tot_1d
+
+$N2ALL subroutine Derive_tot_3D(f, px, py, pz, df, ddf)
 $N2ALL    !---------------------------------------------------------------------------
 $N2ALL    ! Subroutine that computes the following derivatives on the mesh
 $N2ALL    !
@@ -328,9 +376,9 @@ $N2ALL      ddf(i,1,:,3,2) =      matmul(derZ  (:,:,sz),df(i,1,:,2))
 $N2ALL      ddf(i,1,:,2,3) =      ddf(i,1,:,3,2) 
 $N2ALL    enddo
 $N2ALL
-$N2ALL end subroutine Derive_tot
+$N2ALL end subroutine Derive_tot_3D
 
-$N3ALL subroutine Derive_tot(f, px, py, pz, df, ddf, dddf)
+$N3ALL subroutine Derive_tot_3D(f, px, py, pz, df, ddf, dddf)
 $N3ALL    !---------------------------------------------------------------------------
 $N3ALL    ! Subroutine that computes the following derivatives on the mesh
 $N3ALL    !
@@ -435,7 +483,28 @@ $N3ALL    dddf(:,:,:,2,3,2) = dddf(:,:,:,2,2,3)
 $N3ALL    dddf(:,:,:,3,2,2) = dddf(:,:,:,2,2,3)
 $N3ALL    dddf(:,:,:,3,3,2) = dddf(:,:,:,2,3,3)
 $N3ALL    dddf(:,:,:,3,2,3) = dddf(:,:,:,2,3,3)
-$N3ALL end subroutine Derive_tot
+$N3ALL end subroutine Derive_tot_3D
+
+$N3ALL subroutine Derive_tot_1D(f, px, py, pz, df, ddf, dddf)
+$N3ALL    real(KIND=dp), intent(in),  target, contiguous :: f(:)
+$N3ALL    real(KIND=dp), intent(out), target, contiguous :: df(:,:), ddf(:,:,:)
+$N3ALL    real(KIND=dp), intent(out), target, contiguous :: dddf(:,:,:,:)
+$N3ALL    integer, intent(in)        :: px,py,pz
+$N3ALL    
+$N3ALL    integer                    :: i,j,k, sx, sy,sz, ax, ay, az
+$N3ALL    
+$N3ALL    real(KIND=dp), pointer :: f3(:,:,:), df3(:,:,:,:)
+$N3ALL    real(KIND=dp), pointer :: ddf3(:,:,:,:,:), dddf3(:,:,:,:,:,:)
+$N3ALL
+$N3ALL       f3(1:nx, 1:ny, 1:nz)             => f
+$N3ALL      df3(1:nx, 1:ny, 1:nz,1:3)         => df
+$N3ALL     ddf3(1:nx, 1:ny, 1:nz,1:3,1:3)     => ddf
+$N3ALL    dddf3(1:nx, 1:ny, 1:nz,1:3,1:3,1:3) => dddf
+$N3ALL   
+$N3ALL    call Derive_tot_3D(f3, px, py, pz, df3, ddf3, dddf3)
+$N3ALL 
+$N3ALL end subroutine Derive_tot_1D
+
  
  subroutine Derive_grad_3d(f, px, py, pz, fx, fy, fz)
     !---------------------------------------------------------------------------
@@ -491,18 +560,22 @@ $DERSYMZ        fz(i,j,:) = fz(i,j,:) + matmul(derZ  (:,:,sz),f($SYMPARTNERZ))
     ! px = sign of the symmetry transformation in the x-direction
     !---------------------------------------------------------------------------
     
-    real(KIND=dp), intent(in)  :: f(:,:,:)
-    real(KIND=dp), intent(out) :: fx(:,:,:)
+    real(KIND=dp), intent(in), target  :: f(:)
+    real(KIND=dp), intent(out),target  :: fx(:)
     integer, intent(in)        :: px
-    
     integer                    :: j,k, sx
     
+    real(KIND=dp), pointer:: f3(:,:,:), fx3(:,:,:)
+    
     sx = (px + 3)/2 
+        
+    f3(1:nx,1:ny,1:nz)  => f
+    fx3(1:nx,1:ny,1:nz) => fx
     
     do k=1,nz
         do j=1,ny
-        fx(:,j,k) =             matmul(derX  (:,:,sx),f(:,j,k))
-$DERSYMX        fx(:,j,k) = fx(:,j,k) + matmul(derX  (:,:,sx),f($SYMPARTNERX))
+        fx3(:,j,k) =             matmul(derX  (:,:,sx),f3(:,j,k))
+$DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(derX  (:,:,sx),f3($SYMPARTNERX))
         enddo
     enddo   
     
@@ -516,17 +589,22 @@ $DERSYMX        fx(:,j,k) = fx(:,j,k) + matmul(derX  (:,:,sx),f($SYMPARTNERX))
     ! py = sign of the symmetry transformation in the y-direction
     !---------------------------------------------------------------------------
     
-    real(KIND=dp), intent(in)  :: f(:,:,:)
-    real(KIND=dp), intent(out) :: fy(:,:,:)
-    integer, intent(in)        :: py
-    integer                    :: i,k, sy
+    real(KIND=dp), intent(in), target  :: f(:)
+    real(KIND=dp), intent(out), target :: fy(:)
+    integer, intent(in)                :: py
+    integer                            :: i,k, sy
+    
+    real(KIND=dp), pointer :: f3(:,:,:), fy3(:,:,:)
     
     sy = (py + 3)/2 !    1    if pi =   -1  or 0
     
+    f3(1:nx,1:ny,1:nz)  => f
+    fy3(1:nx,1:ny,1:nz) => fy
+    
     do k=1,nz
         do i=1,nx
-            fy(i,:,k) =             matmul(derY  (:,:,sy),f(i,:,k))
-$DERSYMY            fy(i,:,k) = fy(i,:,k) + matmul(derX  (:,:,sy),f($SYMPARTNERY))
+            fy3(i,:,k) =             matmul(derY  (:,:,sy),f3(i,:,k))
+$DERSYMY       fy3(i,:,k) = fy3(i,:,k) + matmul(derX  (:,:,sy),f3($SYMPARTNERY))
         enddo
     enddo
     
@@ -539,18 +617,22 @@ $DERSYMY            fy(i,:,k) = fy(i,:,k) + matmul(derX  (:,:,sy),f($SYMPARTNERY
     ! pz = sign of the symmetry transformation in the z-direction
     !---------------------------------------------------------------------------
     
-    real(KIND=dp), intent(in)  :: f(:,:,:)
-    real(KIND=dp), intent(out) :: fz(:,:,:)
+    real(KIND=dp), intent(in) , target :: f(:)
+    real(KIND=dp), intent(out), target :: fz(:)
     integer, intent(in)        :: pz
     
+    real(KIND=dp), pointer     :: f3(:,:,:), fz3(:,:,:)
     integer                    :: i,j,sz
     
     sz = (pz + 3)/2 !    2    if pi =   +1 
     
+    f3(1:nx,1:ny,1:nz)  => f
+    fz3(1:nx,1:ny,1:nz) => fz
+    
     do j=1,ny
         do i=1,nx
-        fz(i,j,:) =             matmul(derZ  (:,:,sz),f(i,j,:))
-$DERSYMZ        fz(i,j,:) = fz(i,j,:) + matmul(derZ  (:,:,sz),f($SYMPARTNERZ))
+        fz3(i,j,:) =             matmul(derZ  (:,:,sz),f3(i,j,:))
+$DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(derZ  (:,:,sz),f3($SYMPARTNERZ))
         enddo
     enddo
     

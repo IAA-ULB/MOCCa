@@ -31,10 +31,10 @@ module wavefunctions
  ! Array containing the values of the spwfs in the Hartree-Fock basis
  ! and their derivatives
  ! Dimensions (nx,ny,nz,4,nwt)
- real(KIND=dp), allocatable ::   HFPsi(:,:,:,:,:)
- real(KIND=dp), allocatable ::  HFdPsi(:,:,:,:,:,:)   ! First order derivatives
- real(KIND=dp), allocatable :: HFddPsi(:,:,:,:,:,:,:) ! Second order derivatives
-! real(KIND=dp), allocatable :: HFdddPsi(:,:,:,:,:,:,:,:) ! Third order derivatives
+ real(KIND=dp), allocatable ::   HFPsi(:,:,:)
+ real(KIND=dp), allocatable ::  HFdPsi(:,:,:,:)   ! First order derivatives
+ real(KIND=dp), allocatable :: HFddPsi(:,:,:,:,:) ! Second order derivatives
+ real(KIND=dp), allocatable :: HFdddPsi(:,:,:,:,:,:) ! Third order derivatives
 ! 
  !------------------------------------------------------------------------------
  ! Density matrix rho and anomalous density matrix kappa
@@ -94,7 +94,7 @@ contains
     !--------------------------------------------------------------------
     
     real(KIND=dp)             :: homegax, homegay,homegaz, alpha,qqq
-    real(KIND=dp),allocatable :: fullbox(:,:,:,:,:)
+    real(KIND=dp),allocatable :: fullbox(:,:,:)
     integer                   :: i,j,k, wave, p
     integer, allocatable      :: kparz(:)
         
@@ -113,44 +113,44 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! b) blow-up into the full box
-    allocate(fullbox(2*nx, 2*ny, 2*nz, 4, nwt))
-    do wave=1,nwt
-        ! Copy the original
-        fullbox(nx+1: 2*nx,ny+1: 2*ny, nz+1: 2*nz,:,wave) = HFPsi   (:,:,:,:,wave)     
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Use y-time-simplex to fill in the y-axis.
-        do j=1,ny
-                ! S^t_y Psi (x,y,z,sigma) = Psi^*(x,-y,z,sigma)
-                fullbox(nx+1: 2*nx,j, nz+1:2*nz,1,wave) =   fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,1,wave)
-                fullbox(nx+1: 2*nx,j, nz+1:2*nz,2,wave) = - fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,2,wave)
-                fullbox(nx+1: 2*nx,j, nz+1:2*nz,3,wave) =   fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,3,wave)
-                fullbox(nx+1: 2*nx,j, nz+1:2*nz,4,wave) = - fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,4,wave)
-        enddo
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Use z-signature to fill in the x-axis
-        do j=1,2*ny
-            do i=1,nx
-                ! R_z Psi (x,y,z,sigma) = -i sigma Psi(-x,-y,z, sigma)
-                fullbox(i,j,nz+1:2*nz,1,wave) =   fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,2,wave)
-                fullbox(i,j,nz+1:2*nz,2,wave) = - fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,1,wave)
-                fullbox(i,j,nz+1:2*nz,3,wave) = - fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,4,wave)
-                fullbox(i,j,nz+1:2*nz,4,wave) =   fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,3,wave)
-            enddo
-        enddo
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Use parity to fill in the z-axis
-        p = kparz(wave)
-        do k=1,nz
-                do j=1,2*ny
-                        do i=1,2*nx
-                                fullbox(i,j,k,1,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,1,wave)
-                                fullbox(i,j,k,2,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,2,wave)
-                                fullbox(i,j,k,3,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,3,wave)
-                                fullbox(i,j,k,4,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,4,wave)
-                        enddo
-                enddo
-        enddo
-    enddo
+!    allocate(fullbox(2*nx, 2*ny, 2*nz, 4, nwt))
+!    do wave=1,nwt
+!        ! Copy the original
+!        fullbox(nx+1: 2*nx,ny+1: 2*ny, nz+1: 2*nz,:,wave) = HFPsi   (:,:,:,:,wave)     
+!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!        ! Use y-time-simplex to fill in the y-axis.
+!        do j=1,ny
+!                ! S^t_y Psi (x,y,z,sigma) = Psi^*(x,-y,z,sigma)
+!                fullbox(nx+1: 2*nx,j, nz+1:2*nz,1,wave) =   fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,1,wave)
+!                fullbox(nx+1: 2*nx,j, nz+1:2*nz,2,wave) = - fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,2,wave)
+!                fullbox(nx+1: 2*nx,j, nz+1:2*nz,3,wave) =   fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,3,wave)
+!                fullbox(nx+1: 2*nx,j, nz+1:2*nz,4,wave) = - fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,4,wave)
+!        enddo
+!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!        ! Use z-signature to fill in the x-axis
+!        do j=1,2*ny
+!            do i=1,nx
+!                ! R_z Psi (x,y,z,sigma) = -i sigma Psi(-x,-y,z, sigma)
+!                fullbox(i,j,nz+1:2*nz,1,wave) =   fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,2,wave)
+!                fullbox(i,j,nz+1:2*nz,2,wave) = - fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,1,wave)
+!                fullbox(i,j,nz+1:2*nz,3,wave) = - fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,4,wave)
+!                fullbox(i,j,nz+1:2*nz,4,wave) =   fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,3,wave)
+!            enddo
+!        enddo
+!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!        ! Use parity to fill in the z-axis
+!        p = kparz(wave)
+!        do k=1,nz
+!                do j=1,2*ny
+!                        do i=1,2*nx
+!                                fullbox(i,j,k,1,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,1,wave)
+!                                fullbox(i,j,k,2,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,2,wave)
+!                                fullbox(i,j,k,3,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,3,wave)
+!                                fullbox(i,j,k,4,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,4,wave)
+!                        enddo
+!                enddo
+!        enddo
+!    enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     do i=1,nwn
         if(kparz(i) .gt. 0) HFBlocks(1) = HFBlocks(1) +1
@@ -198,22 +198,25 @@ contains
     integer :: wave,k
     
     if(.not.allocated(HFdPsi)) then
-        allocate(HFdPsi(nx,ny,nz,3,4,nwt))
-        allocate(HFddPsi(nx,ny,nz,3,3,4,nwt))
+        allocate(HFdPsi(nx*ny*nz,3,4,nwt))
+        allocate(HFddPsi(nx*ny*nz,3,3,4,nwt))
     endif
+$N3    if(.not.allocated(HFdddpsi)) then
+$N3        allocate(HFdddPsi(nx*ny*nz,3,3,3,4,nwt))
+$N3    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Currently EV8 symmetries are hardcoded, as well as the
     do wave=1,nwt
         do k=1,4
 
-$N2        call Derive_tot(HFPsi(:,:,:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
-$N2        &                                           HFdPsi(:,:,:,:,k,wave),     &
-$N2        &                                           HFddPsi(:,:,:,:,:,k,wave))
+$N2        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
+$N2        &                                           HFdPsi(:,:,k,wave),     &
+$N2        &                                           HFddPsi(:,:,:,k,wave))
 
-$N3        call Derive_tot(HFPsi(:,:,:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
-$N3        &                                           HFdPsi(:,:,:,:,k,wave),     &
-$N3        &                                           HFddPsi(:,:,:,:,:,k,wave),  &
-$N3        &                                           HFdddPsi(:,:,:,:,:,k,wave))
+$N3        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
+$N3        &                                           HFdPsi(:,:,k,wave),     &
+$N3        &                                           HFddPsi(:,:,:,k,wave),  &
+$N3        &                                           HFdddPsi(:,:,:,:,k,wave))
 
         enddo
     enddo
@@ -370,8 +373,8 @@ $N3        &                                           HFdddPsi(:,:,:,:,:,k,wave
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Normalize wave-function nw
             nw = indices(i)
-            norm = sum(HFpsi(:,:,:,:,nw)**2) * dv
-            HFPsi(:,:,:,:,nw) = (sqrt(1.0/norm)) * HFPsi(:,:,:,:,nw) 
+            norm = sum(HFpsi(:,:,nw)**2) * dv
+            HFPsi(:,:,nw) = (sqrt(1.0/norm)) * HFPsi(:,:,nw) 
             
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Then subtract the projection on \Psi_{nw} from all the following
@@ -397,10 +400,9 @@ $N3        &                                           HFdddPsi(:,:,:,:,:,k,wave
             do j= i+1, HFBlocks(b)
                 mw = indices(j)    
                 ! Real part of the inproduct
-                norm = sum(HFpsi(:,:,:,:,nw)*HFpsi(:,:,:,:,mw)) * dv
+                norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
                 do l=1,4*nx*ny*nz
-                    HFPsi(l,1,1,1,mw) = HFPsi(l,1,1,1,mw) -                    &
-                    &                                 norm * HFPsi(l,1,1,1,nw)
+                    HFPsi(l,1,mw) = HFPsi(l,1,mw) - norm * HFPsi(l,1,nw)
                 enddo
             enddo
         enddo

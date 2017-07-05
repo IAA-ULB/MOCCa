@@ -68,7 +68,7 @@ subroutine ReachForWaterAndFood
     
     
     do i=1,nwt
-        read(12) HFPsi(:,:,:,:,i)
+        read(12) HFPsi(:,:,i)
         read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, lol, lol,lol,lol,lol
     enddo
     

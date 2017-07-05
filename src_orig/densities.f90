@@ -35,7 +35,8 @@ module densities
 !===============================================================================
 use compilation
 use geninfo
-use wavefunctions, only: HFPsi, HFdPsi, HFddPsi, occupations, HFBlocks, blocks
+use wavefunctions, only: HFPsi, HFdPsi, HFddPsi, HFdddpsi
+use wavefunctions, only: occupations, HFBlocks, blocks
 use derivatives  
 
 implicit none

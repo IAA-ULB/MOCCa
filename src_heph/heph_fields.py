@@ -121,10 +121,9 @@ def GenerateFields():
                 for altden in heph_functional.Densities_needed:
                     (altder, altlap, altleft, altright, altcoup, altcross) = ParseOperators(altden)
                     if(altleft == l2 and r2 == altright and cr2 == altcross):
-                        densities[i] = y*'lap_' +               \
-                                       x*'der_' +               \
+                        densities[i] = y*'Lap_' +               \
+                                       x*'Der_' +               \
                                        altden
-                                       
             #-------------------------------------------------------------------
             # Change the coupling if the density needed is contracted
             altterm = term
@@ -137,6 +136,7 @@ def GenerateFields():
             (rubbish, cpl) = heph_functional.ParseDensities(altterm)
             #-------------------------------------------------------------------
             # Check if the term contains this density
+            startind = 0
             for i in range(len(densities)):
                 altden = densities[i]
                 (altder, altlap, altleft, altright, altcoup, altcross)=ParseOperators(altden)
@@ -144,14 +144,36 @@ def GenerateFields():
                     #  Add the term to the fieldlist for this density, 
                     #  and additionnally mentioning the number of external 
                     #  derivatives and laplacians
-                    removed = []
+                    removed    = []
+                    removedsum = 0
                     for j in range(len(densities)):
                         if i != j :
                             removed.append(densities[j])
+                    for j in range(i):
+                            removedsum = removedsum + OrderOfDen(densities[j])
+                    # Reparse the term with this density at the front, so that
+                    # couplings are correctly referenced
+                    newcpl = []
+                    shift = OrderOfDen(den) + altder
+                    for c in cpl:
+                        nc = ()
+                        for k in c:
+                            if( k < startind): 
+                                nc = nc + (k+shift,)
+                            elif(k > startind + shift + 1 ):
+                                nc = nc + (k,)
+                            else:
+                                nc = nc + (k-removedsum,)
+                        newcpl.append(nc)        
+
+                    cpl = newcpl
+                    
                     ind   = heph_functional.Functional_terms.index(term)
                     cplct = cplcts[ind]
                     dden  = heph_functional.density_dependence[ind]
                     fieldlist.append([removed, altder, altlap, cplct, cpl,dden,0])
+                
+                startind = startind + OrderOfDen(altden)
                 
             #-------------------------------------------------------------------
             # Now check if there are density dependences in this term that 
@@ -176,7 +198,7 @@ def GenerateFields():
              NumberOfIndices = 0
              for d2 in [den] + fieldterm[0]:
                 (der, lap, left, right, cpl, crs) = ParseOperators(d2)
-                NumberOfIndices= NumberOfIndices + OrderOfDen(d2) #+ len(crs)
+                NumberOfIndices= NumberOfIndices + OrderOfDen(d2) 
              # The couplings however do not need individual indices 
              NumberOfIndices = NumberOfIndices - len(fieldterm[4]) 
              # But the external derivatives do            
@@ -184,6 +206,7 @@ def GenerateFields():
              
              # get the indices of the field correct
              dic['IND']     = ''
+             #print den, fieldterm[0], fieldterm[4]
              for k in range(OrderOfDen(den)):
                 for c in fieldterm[4]:
                     if k in c:
@@ -206,39 +229,39 @@ def GenerateFields():
              
              lastorder = OrderOfDen(den)
              for i in range(len(fieldterm[0])):
-                    dic['DENSITY']  =                    fieldterm[2] * 'lap_' \
-                                                       + fieldterm[1] * 'der_' \
-                                                       + fieldterm[0][i] 
-                    # Make sure the combination of laplacians and derivatives
-                    # is in the right ordering 
-                    dercount = dic['DENSITY'].count('der')
-                    lapcount = dic['DENSITY'].count('lap')
-                    
-                    dic['DENSITY'] = dic['DENSITY'].replace('der_', '').replace('lap_', '')
-                    dic['DENSITY'] = lapcount * 'lap_' + dercount * 'der_' + dic['DENSITY']
-                    
-                    
-                    if( fieldterm[1]%2 == 0) :
-                            dic['SIGN']     =  '+'
-                    else:
-                            dic['SIGN']     =  '-'
-                    dic['CPLCTE']   =  fieldterm[3]
-                   
-                    
-                    # Get the indices of the density in the field
-                    dic['DENIND']      = ''
-                    dic['SUMIND']      = 2 
-                    for k in range(lastorder, lastorder + OrderOfDen(dic['DENSITY'])):
-                        for c in fieldterm[4]:
-                            if k in c:   
-                                dic['DENIND']= dic['DENIND']     + ',' \
-                                             + sumindices[fieldterm[4].index(c)]
-                    
-                    dic['EXPR1'] = dic['EXPR1'] + field_calc_den_a.substitute(dic)
-                    dic['EXPR2'] = dic['EXPR2'] + field_calc_den_b.substitute(dic)
-                   
-                    if(len(dic['DD']) >0):
-                        dic['EXPR3'] = dic['EXPR3'] + field_calc_den_c.substitute(dic)
+                dic['DENSITY']  =                    fieldterm[2] * 'Lap_' \
+                                                   + fieldterm[1] * 'Der_' \
+                                                   + fieldterm[0][i] 
+                # Make sure the combination of laplacians and derivatives
+                # is in the right ordering 
+                dercount = dic['DENSITY'].count('Der')
+                lapcount = dic['DENSITY'].count('Lap')
+                
+                dic['DENSITY'] = dic['DENSITY'].replace('Der_', '').replace('Lap_', '')
+                dic['DENSITY'] = lapcount * 'Lap_' + dercount * 'Der_' + dic['DENSITY']
+                
+                
+                if( fieldterm[1]%2 == 0) :
+                        dic['SIGN']     =  '+'
+                else:
+                        dic['SIGN']     =  '-'
+                dic['CPLCTE']   =  fieldterm[3]
+               
+                
+                # Get the indices of the density in the field
+                dic['DENIND']      = ''
+                dic['SUMIND']      = 2 
+                for k in range(lastorder, lastorder + OrderOfDen(dic['DENSITY'])):
+                    for c in fieldterm[4]:
+                        if k in c:   
+                            dic['DENIND']= dic['DENIND']     + ',' \
+                                         + sumindices[fieldterm[4].index(c)]
+                
+                dic['EXPR1'] = dic['EXPR1'] + field_calc_den_a.substitute(dic)
+                dic['EXPR2'] = dic['EXPR2'] + field_calc_den_b.substitute(dic)
+               
+                if(len(dic['DD']) >0):
+                    dic['EXPR3'] = dic['EXPR3'] + field_calc_den_c.substitute(dic)
              
                     lastorder = lastorder + OrderOfDen(dic['DENSITY'])
              FIELDCALC = FIELDCALC + field_calc_b_temp.substitute(dic)
@@ -262,15 +285,15 @@ def GenerateAction(field):
     #---------------------------------------------------------------------------
     
     action_final    = Template(  tab + \
-    'hpsi(:,:,:,$IND) =  hpsi(:,:,:,$IND) $SIGN $TEMP(:,:,:$LIND,$RCOMP)\n')
+    'hpsi(:,$IND) =  hpsi(:,$IND) $SIGN $TEMP(:$LIND,$RCOMP)\n')
     temp_ini        = tab + 'temp = 0.0 \n'
     action_temp    = Template(2*tab + \
-    'temp(i,1,1,$IND) =  temp(i,1,1,$IND) $SIGN $FIELD(i$FIELDIND,it) * $WF(i,1,1$RIND,$RCOMP)\n')
+    'temp(i,$IND) =  temp(i,$IND) $SIGN $FIELD(i$FIELDIND,it) * $WF(i$RIND,$RCOMP)\n')
     
     derive_temp     = Template(tab + \
-                      'call Derive_$DIR(temp(:,:,:,$RCOMP), $SYM, dtemp(:,:,:,$DIRIND,$RCOMP)) \n')
+    'call Derive_$DIR($DNUMBER(:,$RCOMP), $SYM, d$DNUMBER(:,$DIRIND,$RCOMP)) \n')
     lap_temp        = Template(tab + \
-                      'call Derive_lap(temp(:,:,:,$RCOMP), $SYMX, $SYMY, $SYMZ, laptemp(:,:,:,$RCOMP)) \n')
+                      'call Derive_lap(temp(:,$RCOMP), $SYMX, $SYMY, $SYMZ, laptemp(:,$RCOMP)) \n')
     
     
     
@@ -496,10 +519,12 @@ def GenerateAction(field):
                 lasttemp = 'laptemp'
             else:
                 offset = LeftOperator.dimension - LeftOperator.derorder
-                direc  = true_larg[- lorder - offset] +1  # X/Y/Z derivative
+                direc  = true_larg[- lorder - offset - 1] +1  # X/Y/Z derivative
                 
                 dic['DIRIND'] = direc
                 dic['DIR']    = Direction[direc-1]
+                
+                dic['DNUMBER']=  lorder* 'd' + 'temp'
                 
                 sym = +1
                 # Get the symmetries of the derivatives (including the current one)
@@ -507,10 +532,14 @@ def GenerateAction(field):
                 # Note that contractions are not considered, since they represent
                 # laplacians.
                 for l in range(lorder, LeftOperator.derorder):
-                    if true_larg[- l - offset] +1  == direc:
+                    if true_larg[- l - offset - 1] +1  == direc:
                         sym = -sym
+                
                 for k in range(4):
-                    dic['RCOMP']  = k  +1 
+                    dic['RCOMP'] = ''
+                    for l in range(lorder):
+                        dic['RCOMP']  = str(true_larg[-l-offset-1] +1) + ',' + dic['RCOMP'] 
+                    dic['RCOMP']  = dic['RCOMP'] + str(k+1) 
                     if(sym>0):   
                         dic['SYM']    = '+s' + Direction[direc-1] + '(%d)'%(k+1)
                     else:
@@ -535,6 +564,7 @@ def GenerateAction(field):
             else :
                 dic['SIGN']= '-'
             expression = expression + action_final.substitute(dic)
+        expression = expression + '\n'
         #-----------------------------------------------------------------------
         # End of true_larg loop
     return (expression)

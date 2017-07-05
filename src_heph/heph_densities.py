@@ -149,7 +149,7 @@
 #-------------------------------------------------------------------------------
 
 from string         import Template
-from math           import log
+from math           import log, factorial
 import numpy        as np
 import itertools
 
@@ -160,7 +160,7 @@ tab           = '    '
 
 # Names of the arrays storing the single-particle wavefunctions in Tantalus.
 # Not automatically adapted yet, but easily changeable. 
-ArrayNames=['HFPsi', 'HFdPsi', 'HFddPsi']
+ArrayNames=['HFPsi', 'HFdPsi', 'HFddPsi', 'HFdddPsi']
 
 #-------------------------------------------------------------------------------
 # Array containing all the different densities needed. Note that this contains 
@@ -172,17 +172,17 @@ deriv_needed       = []
 #-------------------------------------------------------------------------------
 # Indices over which sums are supposed to go in both the FORTRAN code and the 
 # naming scheme.
-sumindices      = ['m', 'n', 'k']
+sumindices      = ['m', 'k', 'q', 'o']
 crossindices    = ['x', 'y', 'z']
 #-------------------------------------------------------------------------------
 # Strings indicating the (external) laplacian and derivative of a density.  
-lapstring = 'lap'
-derstring = 'der'
+lapstring = 'Lap'
+derstring = 'Der'
 #-------------------------------------------------------------------------------
 # Density calculation template to fill in
 # Could be defined globally, but is nice to have here for quick reference
 Den_template_1 = Template( 2*tab+'$NAME(i$IND,it) = $NAME(i$IND,it) + $WEIGHT * (')
-Den_template_2 = Template(   tab+'$SIGN $LEFTWF(i,1,1$LIND,$LCOMP,wave) * $RIGHTWF(i,1,1$RIND,$RCOMP,wave)')
+Den_template_2 = Template(   tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,wave) * $RIGHTWF(i$RIND,$RCOMP,wave)')
 
 Ini_template   = Template(   tab+'if(.not.allocated($NAME)) then     \n' + \
                            2*tab+'allocate($NAME(mv$DIM,2)) \n'          + \
@@ -314,7 +314,7 @@ def ParseOperators(density):
     for l in sumindices:
         c   = ()
         ind = 0
-        for i in range(len(density)):      
+        for i in range(1,len(density)):      
             if(density[i] == l):
                 c = c+ (ind,)
             if(density[i] in sumindices):
@@ -422,7 +422,7 @@ def GenDensityExpression(denin, derivative_combinations):
     dic['TOTALIND']= totalind
     dic['DIM']     = dim
     
-    #--------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
     # Get the declaration of the density and its derivatives right
     Declaration    = Dec_template.substitute(dic)
     Initialisation = Ini_template.substitute(dic)
@@ -434,7 +434,7 @@ def GenDensityExpression(denin, derivative_combinations):
         if( l == 0 and d == 0):
             continue
         
-        dic['NAME']    = l*'lap_' + d*'der_' + density
+        dic['NAME']    = l*'Lap_' + d*'Der_' + density
         dic['TOTALIND']= totalind
         dic['DIM']     = dim
         for i in range(d):
@@ -456,7 +456,7 @@ def GenDensityExpression(denin, derivative_combinations):
     start[3,0] = 4     
     
     # Construct an iterator with all possible combinations of uncontracted indices
-    # Note that the ordering is [  scalar indices, vector_indices]
+    # Note that the ordering is [scalar indices, vector_indices]
     # Note that it is not important in which order they are, since we loop over all
     # of them, only that they are consistently applied. 
     args = itertools.product(range(3), repeat=ndim)
@@ -575,6 +575,8 @@ def GenDensityExpression(denin, derivative_combinations):
             larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
             rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
            
+            lol = Storage_Mapping(rarg)
+            
             leftind  = LeftOperator(larg, start)
             rightind = RightOperator(rarg, start)
             
@@ -632,7 +634,7 @@ def GenDensityExpression(denin, derivative_combinations):
             # Arguments of the derivative operators
             # name of the derivative
             if(c[0] == 0):
-                dic['NAME'] = (c[1]-1)*'der_' + density
+                dic['NAME'] = (c[1]-1)*'Der_' + density
                 try:
                     deriv_args = itertools.product(range(3), repeat=c[1]-1)
                 except:
@@ -900,7 +902,7 @@ def GenVecProd(density, coupling):
     # Constructing the correct name: inserting xi, xj etc at the correct spot.
     for i in range(len(density)):
         l = density[i]
-        if( density[i:i+3] == 'der'):
+        if( density[i:i+3] == 'Der'):
             for c in coupling: 
                 if index_encountered in c:
                     name = name + l + 'x' #'%d'%(coupling.index(c)+1)
@@ -1020,4 +1022,31 @@ def Rot_ind(k):
         i = 0
         j = 1
         return [(i,j), (-j,i)]
+        
+        
+def Storage_Mapping(indices):
+    #---------------------------------------------------------------------------
+    # Map the indices (i,j,k,...) of a totally symmetric tensor unto indices
+    # that are used for efficient storage
+    #---------------------------------------------------------------------------
+
+    # Sort the indices into lexicographical order
+    s_indices = sorted(indices)
     
+    # Find the number of total elements that are possible
+    k = len(indices)
+    n = Number_symmetric(3,k)
+    
+    # Find the index in a lexicographical sorting scheme
+    # We calculate how many indices are before the current one
+    index = 0
+    for i in range(k):
+        for j in range(s_indices[i]):
+            index = index + Number_symmetric(3-j-1,k-i-1)
+    
+    return(index)
+    
+def Number_symmetric(n,k):
+    
+    
+    return(factorial(n + k - 1)/(factorial(k) * factorial(n-1)))

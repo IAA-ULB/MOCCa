@@ -128,7 +128,7 @@ contains
         
         integer, intent(in) :: iteration
         integer             :: wave, iso,k,i
-        real(KIND = dp)     :: hpsi(nx,ny,nz,4)
+        real(KIND = dp)     :: hpsi(nx*ny*nz,4)
         
         gradientnorm = 0.0_dp
 
@@ -141,21 +141,22 @@ contains
                 iso = +1
             endif
 
-            hpsi = sphamil( hfpsi(:,:,:,:,wave)     ,                          &
-            &              hfdpsi(:,:,:,:,:,wave)   ,                          &
-            &              hfddpsi(:,:,:,:,:,:,wave),                          &
+            hpsi = sphamil( hfpsi(:,:,wave)     ,                          &
+            &              hfdpsi(:,:,:,wave)   ,                          &
+            &              hfddpsi(:,:,:,:,wave),                          &
+            &              hfdddpsi(:,:,:,:,:,wave),                       &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso)
 
-            spenergies(wave)  = sum(hfpsi(:,:,:,:,wave) * hpsi(:,:,:,:)) * dv
-            dispersions(wave) = sum( hpsi(:,:,:,:)**2)  * dv   -spenergies(wave)**2          
+            spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
+            dispersions(wave) = sum( hpsi(:,:)**2)  * dv   -spenergies(wave)**2          
 
             gradientnorm = gradientnorm + occupations(wave) * &
-            & sum((spenergies(wave) * hfpsi(:,:,:,:,wave) - hpsi(:,:,:,:))**2)*dv
+            & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
 
-            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,:,:,wave)
+            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
             hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    
            
-            hfpsi(:,:,:,:,wave) = hfpsi(:,:,:,:,wave) -  dt/hbar * hpsi
+            hfpsi(:,:,wave) = hfpsi(:,:,wave) -  dt/hbar * hpsi
         enddo
     
         gradientnorm = sqrt(gradientnorm)/(neutrons + protons)  
@@ -186,11 +187,11 @@ contains
         
         integer, intent(in)   :: iteration
         integer               :: wave, iso,k,i
-        real(KIND = dp)       :: hpsi(nx,ny,nz,4)
-        real(KIND = dp), allocatable, save :: Updates(:,:,:,:,:)      
+        real(KIND = dp)       :: hpsi(nx*ny*nz,4)
+        real(KIND = dp), allocatable, save :: Updates(:,:,:)      
 
         if(.not.allocated(Updates)) then
-            allocate(Updates(nx,ny,nz,4,nwt))
+            allocate(Updates(nx*ny*nz,4,nwt))
             Updates = 0.0_dp
         endif
 
@@ -206,23 +207,24 @@ contains
                 iso = +1
             endif
 
-            hpsi = sphamil( hfpsi(:,:,:,:,wave)     ,                          &
-            &              hfdpsi(:,:,:,:,:,wave)   ,                          &
-            &              hfddpsi(:,:,:,:,:,:,wave),                          &
+            hpsi = sphamil( hfpsi(:,:,wave)     ,                          &
+            &              hfdpsi(:,:,:,wave)   ,                          &
+            &              hfddpsi(:,:,:,:,wave),                          &
+            &              hfdddpsi(:,:,:,:,:,wave),                       &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso)
 
-            spenergies(wave)  = sum(hfpsi(:,:,:,:,wave) * hpsi(:,:,:,:)) * dv
-            dispersions(wave) = sum( hpsi(:,:,:,:)**2)  * dv - spenergies(wave)**2          
+            spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
+            dispersions(wave) = sum( hpsi(:,:)**2)  * dv - spenergies(wave)**2          
 
             gradientnorm = gradientnorm + occupations(wave) * &
-            & sum((spenergies(wave) * hfpsi(:,:,:,:,wave) - hpsi(:,:,:,:))**2)*dv
+            & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
             
-            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,:,:,wave)
+            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
             hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)  
 
-            updates(:,:,:,:,wave) = momfactor* updates(:,:,:,:,wave) -  dt/hbar * hpsi
+            updates(:,:,wave) = momfactor* updates(:,:,wave) -  dt/hbar * hpsi
             
-            hfpsi(:,:,:,:,wave) = hfpsi(:,:,:,:,wave) + updates(:,:,:,:,wave)
+            hfpsi(:,:,wave) = hfpsi(:,:,wave) + updates(:,:,wave)
         enddo
     
         gradientnorm = sqrt(gradientnorm)/(neutrons + protons)  
@@ -237,13 +239,17 @@ contains
 
         use functional
 
-        real(KIND=dp), intent(in) :: psi(nx,ny,nz,4)
-        real(KIND=dp) :: Ppsi(nx,ny,nz,4)
+        real(KIND=dp), intent(in), target  :: psi(nx*ny*nz,4)
+        real(KIND=dp), target              :: Ppsi(nx*ny*nz,4)
     
-        integer, intent(in) :: px(4),py(4),pz(4), iso
-        integer :: i,j,k, l, sx, sy, sz,  it
+        integer, intent(in)   :: px(4),py(4),pz(4), iso
+        integer               :: i,j,k, l, sx, sy, sz,  it
+        real(KIND=dp),pointer :: p3(:,:,:,:), Pp3(:,:,:,:)
         
         it = (iso+3)/2
+        
+        p3(1:nx,1:ny,1:nz,1:4) => psi
+        Pp3(1:nx,1:ny,1:nz,1:4) => Ppsi
 
         do l=1,4
             sx = (px(l) + 3)/2 ! These are equal to 
@@ -251,15 +257,15 @@ contains
             sz = (pz(l) + 3)/2 !    2    if pi =   +1 
             
             do i=1,ny*nz
-                Ppsi(:,i,1,l) =                     matmul(invlaplaX(:,:,sx,it),psi(:,i,1,l))
+                Pp3(:,i,1,l) =                     matmul(invlaplaX(:,:,sx,it),p3(:,i,1,l))
             enddo   
             do k=1,nz
                 do i=1,nx
-                    Ppsi(i,:,k,l) = Ppsi(i,:,k,l) + matmul(invlaplaY(:,:,sy,it),psi(i,:,k,l))
+                    Pp3(i,:,k,l) = Pp3(i,:,k,l) + matmul(invlaplaY(:,:,sy,it),p3(i,:,k,l))
                 enddo
             enddo
             do i=1,nx*ny
-                Ppsi(i,1,:,l) = Ppsi(i,1,:,l)     + matmul(invlaplaZ(:,:,sz,it),psi(i,1,:,l))
+                Pp3(i,1,:,l) = Pp3(i,1,:,l)     + matmul(invlaplaZ(:,:,sz,it),p3(i,1,:,l))
             enddo
 !            do i=1,mv
 !                Ppsi(i,1,1,l) = Ppsi(i,1,1,l) / (-hbm(it)+ F_Nm_Nm(i,it))
@@ -272,9 +278,9 @@ contains
         ! Apply a suitable preconditioner to the spwf.
         !----------------------------------------------
 
-        real(KIND=dp), intent(in) :: psi(nx,ny,nz,4)
-        real(KIND=dp)             :: Ppsi(nx,ny,nz,4)
-        integer, intent(in)       :: px(4),py(4),pz(4), iso
+        real(KIND=dp), intent(in), target :: psi(nx*ny*nz,4)
+        real(KIND=dp)                     :: Ppsi(nx*ny*nz,4)
+        integer, intent(in)               :: px(4),py(4),pz(4), iso
         
         Ppsi = psi
     end function Precondition_None
@@ -322,10 +328,10 @@ contains
         Inproduct = 0.0_dp
         do k=1,4          
                 do i=1,mv
-                       Inproduct = Inproduct + HFPsi(i,1,1,k,loca) *  & 
-                       &  ( HFddPsi(i,1,1,1,1,k,loca) + &
-                       &    HFddPsi(i,1,1,2,2,k,loca) + &
-                       &    HFddPsi(i,1,1,3,3,k,loca))
+                       Inproduct = Inproduct + HFPsi(i,k,loca) *  & 
+                       &  ( HFddPsi(i,1,1,k,loca) + &
+                       &    HFddPsi(i,2,2,k,loca) + &
+                       &    HFddPsi(i,3,3,k,loca))
                 enddo
         enddo
         epsilon0 =   epsilon0 - hbm(it) * Inproduct * dv

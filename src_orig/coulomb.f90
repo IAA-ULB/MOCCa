@@ -29,6 +29,9 @@ module Coulomb
  !------------------------------------------------------------------------------
  !Precision required of the Coulomb Solvers
  real(KIND=dp), public              :: Prec
+ 
+ integer       :: CoulombSolver = 0
+    
 
  !------------------------------------------------------------------------------
  ! Number of boundary conditions to put on all sides of the box.
@@ -50,8 +53,9 @@ contains
     call CoulombBound
     
      ! Calculate the values of the radial coordinate at every mesh point
-    call ConjugGrad (CoulombPotential,Source,1,1,1,1000,.false.,prec)
-    
+    if(CoulombSolver .ne. 0 )then
+        call ConjugGrad (CoulombPotential,Source,1,1,1,1000,.false.,prec)
+    endif
  end subroutine SolveCoulomb 
 
  subroutine SetupCoulomb
@@ -109,7 +113,7 @@ contains
     enddo
     Q20 = Q20 * dv /( 4 * pi/5.0)
     Q22 = Q22 * dv /( 4 * pi/5.0)
-    print *, Q20, Q22
+    !print *, Q20, Q22
     !---------------------------------------------------------------------------
     
     do k=1,nz+2

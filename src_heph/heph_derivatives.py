@@ -126,7 +126,7 @@ def ProcessDerivatives(fname, src, target):
     elif(heph_functional.derivative_order == 3):    
         dic['N2DIAG'] = '!'
         dic['N2ALL']  = '!'   
-        dic['N3ALL']  = '!' 
+        dic['N3ALL']  = ' ' 
         
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

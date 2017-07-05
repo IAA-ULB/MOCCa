@@ -140,7 +140,7 @@ $PRINTCOEF
     !
     !
     !
-    integer       :: it,m,n,k
+    integer       :: it,m,q,k,o
     real(KIND=dp) :: Edensity(mv,3)
     
 $CALCULATION
@@ -198,10 +198,10 @@ $PRINT
         Inproduct = 0.0_dp
         do k=1,4          
                 do i=1,mv
-                       Inproduct = Inproduct + HFPsi(i,1,1,k,wave) *  & 
-                       &  ( HFddPsi(i,1,1,1,1,k,wave) + &
-                       &    HFddPsi(i,1,1,2,2,k,wave) + &
-                       &    HFddPsi(i,1,1,3,3,k,wave))
+                       Inproduct = Inproduct + HFPsi(i,k,wave) *  & 
+                       &  ( HFddPsi(i,1,1,k,wave) + &
+                       &    HFddPsi(i,2,2,k,wave) + &
+                       &    HFddPsi(i,3,3,k,wave))
                 enddo
         enddo
         Kinetic(it)= Kinetic(it) + Occupations(wave)*Inproduct
@@ -228,7 +228,7 @@ $PRINT
         
         use Coulomb, only : SolveCoulomb
         
-        integer :: m, n, k, it
+        integer :: m, q, o, k, it
 
 $CALCFIELDS
 
@@ -238,18 +238,18 @@ $CALCFIELDS
 
   end subroutine calcFields 
   
-  function sphamil(psi, dpsi, ddpsi, sx,sy,sz,iso) result(hpsi)
+  function sphamil(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso) result(hpsi)
     !---------------------------------------------------------------------------
     ! Apply the action of the single-particle hamiltonian to the 
     ! single-particle wave-functions.
     !---------------------------------------------------------------------------
     
-    real(KIND=dp), intent(in) :: psi(nx,ny,nz,4),     dpsi(nx,ny,nz,3,4)
-    real(KIND=dp), intent(in) :: ddpsi(nx,ny,nz,3,3,4)
+    real(KIND=dp), intent(in) :: psi(mv,4)      , dpsi(mv,3,4)
+    real(KIND=dp), intent(in) :: ddpsi(mv,3,3,4), dddpsi(mv,3,3,3,4)
     integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
-    real(KIND=dp)             :: hpsi(nx,ny,nz,4)
-    real(KIND=dp)             :: temp(nx,ny,nz,4), dtemp(nx,ny,nz,3,4)
-    real(KIND=dp)             :: ddtemp(nx,ny,nz,3,3,4), laptemp(nx,ny,nz,4)
+    real(KIND=dp)             :: hpsi(mv,4)
+    real(KIND=dp)             :: temp(mv,4), dtemp(mv,3,4), laptemp(mv,4)
+    real(KIND=dp)             :: ddtemp(mv,3,3,4), dddtemp(mv,3,3,3,4)
     
     real(KIND=dp)             :: ReducedMass
     
@@ -271,9 +271,9 @@ $CALCFIELDS
     ! Action of the kinetic energy
     do k=1,4
         do i=1,mv
-            hpsi(i,1,1,k) = - hbm(it)* reducedmass *       (ddpsi(i,1,1,1,1,k) &
-            &                                             + ddpsi(i,1,1,2,2,k) &
-            &                                             + ddpsi(i,1,1,3,3,k)) 
+            hpsi(i,k) = - hbm(it)* reducedmass *       (ddpsi(i,1,1,k) &
+            &                                         + ddpsi(i,2,2,k) &
+            &                                         + ddpsi(i,3,3,k)) 
         enddo
     enddo
     !---------------------------------------------------------------------------
