@@ -40,7 +40,7 @@ import itertools
 import numpy as np
 from heph_densities import Densities_needed, tab, sumindices, derstring
 from heph_densities import lapstring, OrderOfDen, ParseOperators
-from heph_densities import  crossindices
+from heph_densities import  crossindices, Storage_Mapping, Multiplicity
 from heph_densities import deriv_needed
 import heph_linechecker
 import heph_fields
@@ -65,6 +65,24 @@ coupling_constants_1 = []
 #            2          2nd order
 #            3          3rd order derivatives
 derivative_order = 1
+
+#-------------------------------------------------------------------------------
+# Assume whether or not the functional is local. With this == 1, the 
+# script will use the following simplification
+#
+#  Action-of-C^{1,N} =  -i F^{1, N}  \nabla 
+#
+#  instead of the full
+#
+#  Action-of-C^{1,N} =  -i \frac{1}{2} [ F^{1, N} \nabla + \nabla F^{1, N} ]
+#
+# Similar relations for C densities with odd number of derivatives are used too.
+#
+# Note that I still fail to account for this formally (except for C^{1,N}), but 
+# this seems to hold if the functional is local.
+#
+#-------------------------------------------------------------------------------
+assume_locality = 0
 
 def initfunctional(fname):
 
@@ -148,6 +166,7 @@ def initfunctional(fname):
     print  description.replace('#', tab)
     print ' Number of terms:      %d'%len(Functional_terms)
     print ' Order of derivatives: %d'%derivative_order
+    print ' Locality assumed:     %d'%assume_locality
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
 def PruneDeriv_needed():
@@ -209,8 +228,10 @@ def ParseDensities(term):
     # densities that make it up.
     #---------------------------------------------------------------------------
     densities = []
+    #---------------------------------------------------------------------------
     # Split along C and D-s
     temp      = ''
+    #---------------------------------------------------------------------------
     # Don't take into account any density dependence naming
     split     = term.replace('_DD', '').split('_') 
     for i in range(len(split)):
@@ -221,7 +242,7 @@ def ParseDensities(term):
                 temp = temp + split[i] + '_' + split[i+1] + '_' + split[i+2]
                 densities.append(temp)
                 temp = ''
-    
+    #---------------------------------------------------------------------------
     # Find the coupling
     coupling  = []
     foundx    = []
@@ -242,7 +263,7 @@ def ParseDensities(term):
                     ind = ind + 1 
         if(len(c) > 0) :
                 coupling.append(c)
-    
+    #---------------------------------------------------------------------------
     # Don't propagate couplings that are not between left and right operators
     for l in sumindices:
         for i in range(len(densities)): 
@@ -290,16 +311,41 @@ def ProcessFunctional(fname, src, target):
 
         sumtotal = sumtotal[:-2]
 
+        #-----------------------------------------------------------------------
         # Generate the fields of the single-particle hamiltonian
         (fielddec, fieldcalc) = heph_fields.GenerateFields(     )
         declaration = declaration + fielddec + '\n'
         
-#        # Generate the expressions for the actions of the fields
+        #-----------------------------------------------------------------------
+        # Generate the expressions for the actions of the fields
         SkyrmeAction = ''
         for field in heph_fields.Fields_needed:
-            SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field)
-#        
-
+            #-------------------------------------------------------------------
+            # Check if we need to symmetrize the action
+            #-------------------------------------------------------------------
+            (left,right,coupling,cross) = heph_fields.ParseOperatorsField(field)
+            #-------------------------------------------------------------------
+            # Generate the expression for the application of the ordinary 
+            # operator structure
+            if( left != right):
+                if( 'C' in left or 'C' in right):   
+                    # Only symmetrize non-symmetric C's if asked for
+                    if(assume_locality == 1):
+                        SkyrmeAction = SkyrmeAction +                          \
+                                            heph_fields.GenerateAction(field, 0)
+                    else:
+                        SkyrmeAction = SkyrmeAction +                          \
+                                            heph_fields.GenerateAction(field, 1)
+                        SkyrmeAction = SkyrmeAction +                          \
+                                            heph_fields.GenerateAction(field,-1)
+                else:
+                    # Always symmetrize non-symmetric D's
+                    SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,+1)
+                    SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,-1)
+            else:
+                SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field, 0)
+            
+            
         #-----------------------------------------------------------------------
         # Now make sure all of the lines are not too long for compilation.
         declaration = heph_linechecker.LineFormat(declaration)
@@ -329,7 +375,10 @@ def ProcessFunctional(fname, src, target):
                         generated.write(Template(line).substitute(dic))  
 
 def GenTermExpression( term, ccoef, DD, DDrear):
-
+    #---------------------------------------------------------------------------
+    # Generate the expressions for the terms in the functional.
+    #
+    #---------------------------------------------------------------------------
     global  sumindices
 
     declaration = ''
@@ -341,10 +390,12 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     # And, not forgetting, its contribution to the rearrangement energy
     decl_template   = Template('real(KIND=dp) :: $CPCTE(2,2), $TERM(2,2)')
     edent_template  = Template('sum($DEN(:$IND,:),2)')
-    edenq_template  = Template('$DEN(:$IND,it)')
+    edenq_template  = Template('$DEN(:$IND,$IT)')
     
     comment_template= Template(   tab + '!' + 38 * '- ' + '\n' +               \
                                   tab + '! Calculation of $TERM \n')
+                                  
+    end_comment     =             tab + '!' + 38 * '- ' + '\n'
                                   
     doloop_template    =    tab + 'do %s = 1, 3 \n'
     enddoloop_template =    tab + 'enddo \n'
@@ -353,9 +404,8 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     
     calc_z_template = Template(   tab + 'Edensity = 0.0_dp \n')
     calc_a_template = Template(   tab + 'EDensity(:,3) = Edensity(:,3) + $EDENT\n')
-    calc_b_template = Template(   tab + 'do it=1,2 \n' +                                \
-                                2*tab + 'Edensity(:,it) = Edensity(:,it) + $EDENQ \n' + \
-                                  tab + 'enddo \n')
+    calc_b_template = Template(   tab + 'Edensity(:,1) = Edensity(:,1) + $EDENN\n' + \
+                                  tab + 'Edensity(:,2) = Edensity(:,2) + $EDENP\n'  )
     calc_DD_template= Template(   tab + 'do m=1,3 \n' +                                 \
                                 2*tab + 'EDensity(:,m) = Edensity(:,m) * $DD \n' +      \
                                   tab + 'enddo \n')
@@ -369,6 +419,8 @@ def GenTermExpression( term, ccoef, DD, DDrear):
                                   tab + '$CPCTE(1,2) = $CPCTE(1,1) - $CPCTE(2,1) \n' + \
                                   tab + '$CPCTE(2,2) =             2*$CPCTE(2,1) \n')       
                                  
+                                 
+    write_edensity = Template( tab + ' call output_Edensity(Edensity, "$FILENAME")' )
     print_template      = Template(tab +" print('(a30 , 3f15.6)'), '$TERM', $TERM(:,1), sum($TERM(:,1)) \n")
     print_cpl_template  = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE")
     
@@ -422,54 +474,78 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     dic ['TERM' ] = term
     dic ['CPCTE'] = 'B' + dic ['TERM'][1:]    
   
-    dic['EDENT'] = ''
-    dic['EDENQ'] = ''
-    prevorder = 0 
-    for i in range(len(densities)):
-        isodic = {}
-        isodic['DEN'] = densities[i]
-        
-        isodic['IND'] = ''
-        for l in range(prevorder, prevorder + orders[i]):
-            for c in true_coupling:
-                if( l in c ):
-                    isodic['IND'] = isodic['IND'] + ',' + sumindices[true_coupling.index(c)]
-        
-        dic['EDENT'] = dic['EDENT'] + edent_template.substitute(isodic) + '*'
-        dic['EDENQ'] = dic['EDENQ'] + edenq_template.substitute(isodic) + '*'
+    #---------------------------------------------------------------------------
+    # arguments for all the couplings
+    args = list(itertools.product(range(3), repeat=len(true_coupling)))
             
-        # Take out the final '*' which should not be necessary
-        prevorder = prevorder + orders[i]
-  
-    dic['EDENT'] = dic['EDENT'][:-1]
-    dic['EDENQ'] = dic['EDENQ'][:-1]  
-    
     declaration = decl_template.substitute(dic) 
-
     calculation = comment_template.substitute(dic)
     calculation = calculation = calculation + calc_z_template.substitute(dic)
-    
-    for i in range(doloops):
-        calculation  = calculation + doloop_template%sumindices[i]
+    for arg in args: 
+        dic['EDENT'] = ''
+        dic['EDENP'] = ''
+        dic['EDENN'] = ''
+        prevorder = 0 
+        for i in range(len(densities)):
+            isodic = {}
+            isodic['DEN'] = densities[i]
+            
+            #-------------------------------------------------------------------
+            # Get the index of the density correct
+            (der,lap,left,right, coupl, cross) = ParseOperators(densities[i])
+            
+            isodic['IND'] = ''
+            indices = ()
+            for l in range(prevorder, prevorder + orders[i]):
+                for c in true_coupling:
+                    if( l in c ):
+                       indices = indices + (arg[true_coupling.index(c)],) 
+                        
+            # The first indices are necessarily external derivatives
+            if(der > 0):
+                derind = Storage_Mapping(indices[:der])
+                indices = (derind,) + indices[der:]
+                
+            for l in indices:
+                isodic['IND'] = isodic['IND'] + ',' + str(l+1)
+            
+            dic['EDENT'] = dic['EDENT'] + edent_template.substitute(isodic) + '*'
+            
+            isodic['IT'] = 1
+            dic['EDENN'] = dic['EDENN'] + edenq_template.substitute(isodic) + '*'
+            isodic['IT'] = 2
+            dic['EDENP'] = dic['EDENP'] + edenq_template.substitute(isodic) + '*'    
+            # Take out the final '*' which should not be necessary
+            prevorder = prevorder + orders[i]
+      
+        dic['EDENT'] = dic['EDENT'][:-1]
+        dic['EDENN'] = dic['EDENN'][:-1]  
+        dic['EDENP'] = dic['EDENP'][:-1]  
         
-    calculation = calculation + calc_a_template.substitute(dic)
-    calculation = calculation + calc_b_template.substitute(dic)
-    for i in range(doloops):
-        calculation = calculation + enddoloop_template
+        calculation = calculation +'\n' + tab + '! indices = ' + str(arg) + '\n'
+        calculation = calculation + calc_a_template.substitute(dic)
+        calculation = calculation + calc_b_template.substitute(dic)
+
+    calculation = calculation + '\n'
     if(DD != ''):
         dic['DD'] = DD
         calculation = calculation + calc_DD_template.substitute(dic)
+
+    dic['FILENAME'] ='edensities/' + dic['TERM'] + '.dat'
+    calculation = calculation + write_edensity.substitute(dic) + '\n'
     calculation = calculation + calc_c_template.substitute(dic) 
     calculation = calculation + calc_d_template.substitute(dic) + '\n'
     calculation = calculation + calc_e_template.substitute(dic)
     calculation = calculation + calc_f_template.substitute(dic)
+    
+    calculation = calculation + end_comment + '\n'
     
     printing = print_template.substitute(dic) 
     
     dic['EXP1'] = ccoef[0]
     dic['EXP2'] = ccoef[1]
     
-    calccoef = calc_coef_template.substitute(dic)
+    calccoef  = calc_coef_template.substitute(dic)
     printcoef = print_cpl_template.substitute(dic)    
     sumtotal  = sumtotal_template.substitute(dic)
     

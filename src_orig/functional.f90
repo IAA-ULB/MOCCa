@@ -140,8 +140,8 @@ $PRINTCOEF
     !
     !
     !
-    integer       :: it,m,q,k,o
     real(KIND=dp) :: Edensity(mv,3)
+    integer       :: m
     
 $CALCULATION
     
@@ -199,9 +199,9 @@ $PRINT
         do k=1,4          
                 do i=1,mv
                        Inproduct = Inproduct + HFPsi(i,k,wave) *  & 
-                       &  ( HFddPsi(i,1,1,k,wave) + &
-                       &    HFddPsi(i,2,2,k,wave) + &
-                       &    HFddPsi(i,3,3,k,wave))
+                       &  ( HFddPsi(i,1,k,wave) + &
+                       &    HFddPsi(i,4,k,wave) + &
+                       &    HFddPsi(i,6,k,wave))
                 enddo
         enddo
         Kinetic(it)= Kinetic(it) + Occupations(wave)*Inproduct
@@ -228,7 +228,7 @@ $PRINT
         
         use Coulomb, only : SolveCoulomb
         
-        integer :: m, q, o, k, it
+        integer :: it
 
 $CALCFIELDS
 
@@ -244,12 +244,15 @@ $CALCFIELDS
     ! single-particle wave-functions.
     !---------------------------------------------------------------------------
     
-    real(KIND=dp), intent(in) :: psi(mv,4)      , dpsi(mv,3,4)
-    real(KIND=dp), intent(in) :: ddpsi(mv,3,3,4), dddpsi(mv,3,3,3,4)
+    real(KIND=dp), intent(in) ::   psi(mv,4)  ,   dpsi(mv,3,4)
+    real(KIND=dp), intent(in) :: ddpsi(mv,6,4), dddpsi(mv,10,4)
     integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
     real(KIND=dp)             :: hpsi(mv,4)
-    real(KIND=dp)             :: temp(mv,4), dtemp(mv,3,4), laptemp(mv,4)
-    real(KIND=dp)             :: ddtemp(mv,3,3,4), dddtemp(mv,3,3,3,4)
+    real(KIND=dp)             :: temp(mv,4)
+    real(KIND=dp)             ::   dtemp(mv,3,4)
+    real(KIND=dp)             ::  ddtemp(mv,3,3,4)
+    real(KIND=dp)             :: dddtemp(mv,3,3,3,4)
+    real(KIND=dp)             :: laptemp(mv,4)
     
     real(KIND=dp)             :: ReducedMass
     
@@ -271,9 +274,9 @@ $CALCFIELDS
     ! Action of the kinetic energy
     do k=1,4
         do i=1,mv
-            hpsi(i,k) = - hbm(it)* reducedmass *       (ddpsi(i,1,1,k) &
-            &                                         + ddpsi(i,2,2,k) &
-            &                                         + ddpsi(i,3,3,k)) 
+            hpsi(i,k) = - hbm(it)* reducedmass *       (ddpsi(i,1,k) &
+            &                                         + ddpsi(i,4,k) &
+            &                                         + ddpsi(i,6,k)) 
         enddo
     enddo
     !---------------------------------------------------------------------------
@@ -288,7 +291,6 @@ $CALCFIELDS
     !    deriving stuff is not correct for a term
     !          hbar^2_2m
     !---------------------------------------------------------------------------
-    
 $SKYRMEACTION
     
   end function sphamil
@@ -312,6 +314,7 @@ $SKYRMEACTION
     
     ! Calculation of rearrangement energy
 $EREAR   
+
     spwfenergy = spwfenergy - e_rear
     
     spwfenergy = 0.5 * spwfenergy + 0.5 * sum(kinetic)
@@ -319,8 +322,33 @@ $EREAR
     ! Always add the 1-body COMcorrection. In case it is used iteratively, it
     ! is double counted along with the kinetic energy!
     if(COM1body.gt.0) then
-    	SpwfEnergy = SpwfEnergy  + sum(COMCorrection(1,:))/2.0_dp
+        SpwfEnergy = SpwfEnergy  + sum(COMCorrection(1,:))/2.0_dp
     endif
     
   end function calcspwfenergy
+  
+  subroutine output_Edensity(Edensity, N)
+    !---------------------------------------------------------------------------
+    ! Write the energydensity to a file with name N.
+    !
+    !
+    !---------------------------------------------------------------------------
+    character(len=*), intent(in)   :: N
+    real(KIND=dp), intent(in), target ::  Edensity(nx*ny*nz,3)
+    real(KIND=dp), pointer :: w(:,:,:,:)
+    
+    real(KIND=dp) :: r,x
+    integer       :: i,j,k
+    
+    w(1:nx,1:ny,1:nz,1:3) => Edensity
+    
+    open(12, File=N)
+    
+    do i=1,nx
+      x = dx/2 + (i-1)*dx
+      r = sqrt(3*x**2)
+      write(12, '(5f10.5)') r, w(i,i,i,1),  w(i,i,i,2),  w(i,i,i,3) 
+    enddo
+    close(12)
+  end subroutine output_Edensity
 end module functional

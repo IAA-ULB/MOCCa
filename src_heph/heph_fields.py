@@ -73,7 +73,7 @@ def GenerateFields():
                            3*tab + 'allocate($FIELD(mv$ALLOCIND,2)) \n'   +\
                            2*tab + 'endif \n' + \
                            2*tab + '$FIELD = 0.0 \n')
-    field_calc_temp    = Template( 2*tab + '$FIELD(:$IND,it) = $FIELD(:$IND,it)  & \n')
+    field_calc_temp    = Template( 3*tab + '$FIELD(:$IND,it) = $FIELD(:$IND,it)  & \n')
     field_calc_den_a     = Template('* sum($DENSITY(:$DENIND,:),$SUMIND)  ')
     field_calc_den_b     = Template('* $DENSITY(:$DENIND,it)')
     field_calc_den_c     = Template('* $DENSITY(:$DENIND,3-it)')
@@ -193,7 +193,6 @@ def GenerateFields():
         FIELDCALC    = FIELDCALC + isoloop
         
         for fieldterm in fieldlist:
-             
              # Find the number of indices over which there have to be sums
              NumberOfIndices = 0
              for d2 in [den] + fieldterm[0]:
@@ -203,110 +202,127 @@ def GenerateFields():
              NumberOfIndices = NumberOfIndices - len(fieldterm[4]) 
              # But the external derivatives do            
              NumberOfIndices = NumberOfIndices + fieldterm[1]
+             #------------------------------------------------------------------
+             # arguments for all the indices
+             args = list(itertools.product(range(3), repeat=NumberOfIndices))
              
-             # get the indices of the field correct
-             dic['IND']     = ''
-             #print den, fieldterm[0], fieldterm[4]
-             for k in range(OrderOfDen(den)):
-                for c in fieldterm[4]:
-                    if k in c:
-                        dic['IND']      = dic['IND']  + ',%s'%sumindices[fieldterm[4].index(c)]
-       
-             for k in range(NumberOfIndices):
-                FIELDCALC = FIELDCALC + doloop_template%sumindices[k]
-             
-             FIELDCALC = FIELDCALC + field_calc_temp.substitute(dic)
-             
-             dic['DENSITY']  = ''
-             dic['EXPR1']    = ''
-             dic['EXPR2']    = ''
-             dic['EXPR3'] = ''
-             ind = heph_functional.Functional_terms.index(term)
-             dic['DD']       = fieldterm[5]
-             
-             if(len(dic['DD']) >0 ):
-                dic['DD']       = dic['DD'] + '*'
-             
-             lastorder = OrderOfDen(den)
-             for i in range(len(fieldterm[0])):
-                dic['DENSITY']  =                    fieldterm[2] * 'Lap_' \
-                                                   + fieldterm[1] * 'Der_' \
-                                                   + fieldterm[0][i] 
-                # Make sure the combination of laplacians and derivatives
-                # is in the right ordering 
-                dercount = dic['DENSITY'].count('Der')
-                lapcount = dic['DENSITY'].count('Lap')
-                
-                dic['DENSITY'] = dic['DENSITY'].replace('Der_', '').replace('Lap_', '')
-                dic['DENSITY'] = lapcount * 'Lap_' + dercount * 'Der_' + dic['DENSITY']
-                
-                
-                if( fieldterm[1]%2 == 0) :
-                        dic['SIGN']     =  '+'
-                else:
-                        dic['SIGN']     =  '-'
-                dic['CPLCTE']   =  fieldterm[3]
-               
-                
-                # Get the indices of the density in the field
-                dic['DENIND']      = ''
-                dic['SUMIND']      = 2 
-                for k in range(lastorder, lastorder + OrderOfDen(dic['DENSITY'])):
+             for arg in args:
+                 # get the indices of the field correct
+                 dic['IND']     = ''
+                 for k in range(OrderOfDen(den)):
                     for c in fieldterm[4]:
-                        if k in c:   
-                            dic['DENIND']= dic['DENIND']     + ',' \
-                                         + sumindices[fieldterm[4].index(c)]
-                
-                dic['EXPR1'] = dic['EXPR1'] + field_calc_den_a.substitute(dic)
-                dic['EXPR2'] = dic['EXPR2'] + field_calc_den_b.substitute(dic)
-               
-                if(len(dic['DD']) >0):
-                    dic['EXPR3'] = dic['EXPR3'] + field_calc_den_c.substitute(dic)
-             
-                    lastorder = lastorder + OrderOfDen(dic['DENSITY'])
-             FIELDCALC = FIELDCALC + field_calc_b_temp.substitute(dic)
-             FIELDCALC = FIELDCALC + field_calc_c_temp.substitute(dic)
-             if(fieldterm[6] == 1):
-                FIELDCALC = FIELDCALC + field_calc_d_temp.substitute(dic)
-             
-             FIELDCALC = FIELDCALC[:-4] + '\n'
-             for k in range(NumberOfIndices):
-                FIELDCALC = FIELDCALC + enddoloop_template
+                        if k in c:
+                            dic['IND']      = dic['IND']  + ',%s'%(arg[fieldterm[4].index(c)]+1)
+           
+                 FIELDCALC = FIELDCALC + field_calc_temp.substitute(dic)
+                 
+                 dic['DENSITY']  = ''
+                 dic['EXPR1']    = ''
+                 dic['EXPR2']    = ''
+                 dic['EXPR3'] = ''
+                 ind = heph_functional.Functional_terms.index(term)
+                 dic['DD']       = fieldterm[5]
+                 
+                 if(len(dic['DD']) >0 ):
+                    dic['DD']       = dic['DD'] + '*'
+                 
+                 lastorder = OrderOfDen(den)
+                 for i in range(len(fieldterm[0])):
+                    dic['DENSITY']  =                    fieldterm[2] * 'Lap_' \
+                                                       + fieldterm[1] * 'Der_' \
+                                                       + fieldterm[0][i] 
+                    #-----------------------------------------------------------
+                    # Make sure the combination of laplacians and derivatives
+                    # is in the right ordering 
+                    dercount = dic['DENSITY'].count('Der')
+                    lapcount = dic['DENSITY'].count('Lap')
+                    
+                    dic['DENSITY'] = dic['DENSITY'].replace('Der_', '').replace('Lap_', '')
+                    dic['DENSITY'] = lapcount * 'Lap_' + dercount * 'Der_' + dic['DENSITY']
+                    
+                    if( fieldterm[1]%2 == 0) :
+                            dic['SIGN']     =  '+'
+                    else:
+                            dic['SIGN']     =  '-'
+                    dic['CPLCTE']   =  fieldterm[3]
+                    
+                    #-----------------------------------------------------------
+                    # Get the indices of the density in the field
+                    indices = ()
+                    for k in range(lastorder, lastorder + OrderOfDen(dic['DENSITY'])):
+                        for c in fieldterm[4]:
+                            if k in c:   
+                                indices = indices + (arg[fieldterm[4].index(c)],)
+                    #-----------------------------------------------------------
+                    # The first indices are necessarily external derivatives
+                    if(dercount > 0):
+                        derind  = Storage_Mapping(indices[:dercount])
+                        indices = (derind,) + indices[dercount:]
+                    
+                    dic['DENIND']      = ''
+                    dic['SUMIND']      = 2 
+                    for l in indices:
+                        dic['DENIND'] = dic['DENIND'] + ',' + str(l+1)
+
+                    
+                    dic['EXPR1'] = dic['EXPR1'] + field_calc_den_a.substitute(dic)
+                    dic['EXPR2'] = dic['EXPR2'] + field_calc_den_b.substitute(dic)
+                   
+                    if(len(dic['DD']) >0):
+                        dic['EXPR3'] = dic['EXPR3'] + field_calc_den_c.substitute(dic)
+                 
+                        lastorder = lastorder + OrderOfDen(dic['DENSITY'])
+                 FIELDCALC = FIELDCALC + field_calc_b_temp.substitute(dic)
+                 FIELDCALC = FIELDCALC + field_calc_c_temp.substitute(dic)
+                 if(fieldterm[6] == 1):
+                    FIELDCALC = FIELDCALC + field_calc_d_temp.substitute(dic)
+                 
+                 FIELDCALC = FIELDCALC[:-4] + '\n \n'
         FIELDCALC    = FIELDCALC + isoloop_end
 
 
     return(declaration,FIELDCALC)
 
-def GenerateAction(field):
+def GenerateAction(field, symmetrize):
     #---------------------------------------------------------------------------
     #
     #
     #
     #---------------------------------------------------------------------------
     
+    #---------------------------------------------------------------------------
+    WFNames   = ['psi', 'dpsi', 'ddpsi', 'dddpsi', 'ddddpsi']
+    Direction = ["X", 'Y', 'Z']
+    #---------------------------------------------------------------------------
+    # Templates to fill in.
+    #---------------------------------------------------------------------------
     action_final    = Template(  tab + \
-    'hpsi(:,$IND) =  hpsi(:,$IND) $SIGN $TEMP(:$LIND,$RCOMP)\n')
+    'hpsi(:,$IND) =  hpsi(:,$IND) $SIGN $LMULT $TEMP(:$LIND,$RCOMP)\n')
     temp_ini        = tab + 'temp = 0.0 \n'
     action_temp    = Template(2*tab + \
-    'temp(i,$IND) =  temp(i,$IND) $SIGN $FIELD(i$FIELDIND,it) * $WF(i$RIND,$RCOMP)\n')
+    'temp(i,$IND) =  temp(i,$IND) $SIGN $RMULT $FIELD(i$FIELDIND,it) * $WF(i$RIND,$RCOMP)\n')
     
     derive_temp     = Template(tab + \
     'call Derive_$DIR($DNUMBER(:,$RCOMP), $SYM, d$DNUMBER(:,$DIRIND,$RCOMP)) \n')
     lap_temp        = Template(tab + \
-                      'call Derive_lap(temp(:,$RCOMP), $SYMX, $SYMY, $SYMZ, laptemp(:,$RCOMP)) \n')
-    
-    
+    'call Derive_lap(temp(:,$RCOMP), $SYMX, $SYMY, $SYMZ, laptemp(:,$RCOMP)) \n')
     
     position_loop   = tab + 'do i=1,mv\n'
     position_end    = tab + 'enddo    \n'
     
     action_comment  = Template(tab + '!' + 75*'-' + '\n'\
-                          +    tab + '! Action of $FIELD \n')
+                          +    tab + '! Action of $FIELD symmetrized: $SYM \n')
     
-    WFNames = ['psi', 'dpsi', 'ddpsi', 'dddpsi', 'ddddpsi']
-    Direction = ["X", 'Y', 'Z']
-    
-    (left,right,coupling,cross) =  ParseOperatorsField(field)
+    #---------------------------------------------------------------------------
+    # Parse the field under consideration
+    (left,right,coupling,cross) = ParseOperatorsField(field)
+    #---------------------------------------------------------------------------
+    # If symmetrize is non-zero, change left <-> right and the couplings
+    # accordingly
+    if(symmetrize == -1 ):
+        switch_field = field.split('_')
+        switch_field = switch_field[0] + '_'+ switch_field[2] + '_'+ switch_field[1]
+        (left,right,coupling,cross) = ParseOperatorsField(switch_field)
     #---------------------------------------------------------------------------
     #Building the left and right operators
     operatordic = {}
@@ -331,7 +347,8 @@ def GenerateAction(field):
         RightOperator = Combine(operatordic[r], RightOperator)
     
     #Dimension of the field without contractions
-    ndim = LeftOperator.dimension + RightOperator.dimension - 2*len(coupling) + len(cross)
+    ndim = LeftOperator.dimension + RightOperator.dimension                    
+    ndim = ndim - 2*len(coupling) + len(cross)
     
     dic = {}
     dic['FIELD']  = field
@@ -342,11 +359,12 @@ def GenerateAction(field):
     start[1,0] = 2  
     start[2,0] = 3 
     start[3,0] = 4    
-        
+    
+    #---------------------------------------------------------------------------
     # Construct an iterator with all possible combinations of uncontracted 
     # indices
+    dic['SYM'] = symmetrize
     expression = action_comment.substitute(dic)
-    
     #---------------------------------------------------------------------------
     # So this is quite complicated. 
     # Steps:
@@ -378,25 +396,62 @@ def GenerateAction(field):
     fieldind_passed = []
     
     for c in coupling: 
-       if(c[0] < LeftOperator.dimension and c[1] < LeftOperator.dimension ):
+       if(c[0] < ldim and c[1] < ldim ):
             lcoupl.append(c)
-       elif(c[0] >= LeftOperator.dimension and c[1] >= LeftOperator.dimension ):
+       elif(c[0] >= ldim and c[1] >= ldim ):
             rcoupl.append(c)
        else:
             ccoupl.append(c)
-    rdim  = RightOperator.dimension - len(coupling)
+    rdim  = RightOperator.dimension - len(ccoupl) - 2*len(rcoupl)
     ldim  = LeftOperator.dimension  - 2*len(lcoupl)
     
     # all possible values for the arguments of the left-operator
-    largs = itertools.product(range(3), repeat=ldim)
+    largs = list(itertools.product(range(3), repeat=ldim))
+    #-------------------------------------------------------------------
+    # Go over the uncontracted right-indices and get the independent  
+    # components, and the multiplicities. 
+    larg_stor = []
+    larg_new  = []
+    multiplicities         = []    
+    for true_larg in largs: 
+        l_stor = Storage_Mapping(true_larg[:LeftOperator.derorder])
+        mult   = Multiplicity(true_larg[:LeftOperator.derorder])
+        l_new  = (l_stor,) + true_larg[LeftOperator.derorder:]
+    
+        Found = False
+        for new in larg_stor:
+            if(new == l_new):
+                Found = True
+        if(not Found):
+            larg_stor.append(l_new)
+            larg_new.append(true_larg)
+            multiplicities.append(mult)
+    
+    largs = larg_new
     
     for true_larg in largs:
         # reset temp to 0
         expression = expression + temp_ini
         
+        # Get the multiplicity correct
+        m = multiplicities[largs.index(true_larg)]
+        
+        if( m != 1):
+            dic['LMULT'] = str(m) + ' * '
+        else:
+            dic['LMULT'] = ''
+            
+        if(symmetrize == 1 or symmetrize== -1):
+            dic['LMULT'] = dic['LMULT'] + ' 0.5d0 * '
+         
         leftind  = LeftOperator(true_larg, start)
-        rargs    = itertools.product(range(3), repeat=rdim-len(cross))
+        rargs    = list(itertools.product(range(3), repeat=rdim-len(cross)))
+
+        dic['RMULT'] = ''
+        
+        master_rarg = []
         for rarg in rargs:
+
             rarg_uncontracted = []
             if(RightOperator.dimension == 0):  
                 rarg_uncontracted=[rarg]
@@ -443,13 +498,15 @@ def GenerateAction(field):
                         p = p + (rarg[ii],)
                         ii = ii +1
                 rarg_uncontracted.append(p)
-            #---------------------------------------------------------------
+            #-------------------------------------------------------------------
             # Loop over right-arguments
             expression = expression + position_loop
+                
             for true_rarg in rarg_uncontracted:
+                # Action of the right operator for this indices
                 rightind = RightOperator(true_rarg, start)
                 
-                #-----------------------------------------------------------
+                #---------------------------------------------------------------
                 # Indices of the field in the multiplication
                 dic['FIELDIND'] = ''
                 for l in range(LeftOperator.dimension):
@@ -463,13 +520,17 @@ def GenerateAction(field):
                 for r in range(len(rarg)):
                     dic['FIELDIND']= dic['FIELDIND'] + ',' \
                                            + str(abs(rarg[r])+1)
-                #-----------------------------------------------------------
+                                           
+                # Get the packed storage-scheme index
+                rarg_stor = Storage_Mapping(true_rarg[:RightOperator.derorder])
+                #---------------------------------------------------------------
                 # Action of the right-operator
                 for k in range(4): 
                     dic['IND']     = k + 1
-                    dic['RIND']    = ''
-                    for r in range(RightOperator.derorder):
-                        dic['RIND'] = dic['RIND'] + ',' + str(abs(true_rarg[r])+1) 
+                    
+                    dic['RIND'] = ''
+                    if( len(true_rarg)>0):
+                        dic['RIND'] =  dic['RIND']  + ',' + str(rarg_stor +1 )                        
                        
                     dic['RCOMP']   = int(abs(rightind[k,0])) 
                     
@@ -547,22 +608,24 @@ def GenerateAction(field):
                     
                     expression = expression + derive_temp.substitute(dic)
                 lasttemp = (lorder+1) * 'd' + 'temp'
-        
-        
         #-----------------------------------------------------------------------
         # Add final result to hpsi
         dic['TEMP'] = lasttemp
+        
         for k in range(4):
             dic['LIND']    = ''
-            for l in true_larg:
+            for l in true_larg[0:LeftOperator.derorder]:
                 dic['LIND'] = dic['LIND'] + ',' + str(l+1)
             dic['IND']     = k + 1
             dic['RCOMP']   = int(abs(leftind[k,0])) 
             SIGN           = np.sign(leftind[k,0])
+            if((symmetrize == -1) and ('C' in left or 'C' in right)):
+                SIGN = - SIGN
             if(SIGN > 0) :
                 dic['SIGN']= '+'
             else :
                 dic['SIGN']= '-'
+                
             expression = expression + action_final.substitute(dic)
         expression = expression + '\n'
         #-----------------------------------------------------------------------
@@ -596,10 +659,10 @@ def ParseOperatorsField(field):
     for l in sumindices:
         c   = ()
         ind = 0
-        for i in range(len(field)):      
+        for i in range(1,len(field)):      
             if(field[i] == l):
                 c = c+ (ind,)
-            if(field[i] in sumindices):
+            if(field[i-1] in ['N', 'S']):
                 ind = ind + 1 
         if(len(c) > 0) :
             coupling.append(c)

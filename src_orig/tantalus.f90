@@ -53,12 +53,13 @@ subroutine ReachForWaterAndFood
     
     implicit none
    
-    integer :: iter, lol, i
+    integer :: iter, lol, i, j,k,m, mu, nu
+    real(KIND=dp) :: a
 
     call iniwavefunctions()
-   call NaiveFill(occupations)
+    call NaiveFill(occupations)
     
-    open (12,form='unformatted',file='MOCCa.test')
+    open (12,form='unformatted',file='wf/MOCCa.C12.SLy4.dx=0.53.wf')
     read(12)
     read(12)
     read(12)
@@ -110,6 +111,18 @@ subroutine ReachForWaterAndFood
             call PrintEnergy            
         endif
     enddo
+
+!    open (12,file='SST.dat')
+!    do i=1,nx
+!      j = i
+!      k = i
+!      m = i + (j-1)*nx + (k-1)*nx*nx
+!!      print *, i, m
+!      r = ( dx/2 + (i-1)*dx) 
+!      write(12, '(5f10.5)') r,  D_NmNkNq_NmNkNq(i,1), D_NmNkNq_NmNkNq(i,2) &
+!      &                    , sum(D_NmNkNq_NmNkNq(i,:))
+!      
+!    enddo
 
 end subroutine ReachForWaterAndFood
 

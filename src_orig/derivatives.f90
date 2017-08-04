@@ -240,12 +240,16 @@ $N2DIAG    ! px = sign of the symmetry transformation in the x-direction
 $N2DIAG    ! py = sign of the symmetry transformation in the y-direction
 $N2DIAG    ! pz = sign of the symmetry transformation in the z-direction
 $N2DIAG    !
-$N2DIAG    ! diag = 0   All of the second order derivatives are calculated.
-$N2DIAG    ! diag = 1   Only the xx,yy and zz derivatives are calculated.
+$N2DIAG    ! Note that higher-order derivative tensors are stored in lexicographical order
+$N2DIAG    ! in order to cut down on the number of indices and wasted computation.
+$N2DIAG    !            1    2    3    4    5    6    7    8    9    10
+$N2DIAG    ! 1st order: Dx   Dy   Dz
+$N2DIAG    ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
+$N2DIAG    ! 3rd order: Dxxx Dxxy Dxxz Dxyy Dxyz Dxzz Dyyy Dyyz Dyzz Dzz
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    
 $N2DIAG    real(KIND=dp), intent(in)  :: f(:,:,:)
-$N2DIAG    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:,:)
+$N2DIAG    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:)
 $N2DIAG    integer, intent(in)        :: px,py,pz
 $N2DIAG    
 $N2DIAG    integer                    :: i,k, sx, sy,sz
@@ -256,18 +260,18 @@ $N2DIAG    sz = (pz + 3)/2 !    2    if pi =   +1
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    !  First order derivatives and diagonal second-order ones
 $N2DIAG    do i=1,ny*nz
-$N2DIAG         df(:,i,1,1)   =        matmul(derX  (:,:,sx),f(:,i,1))
-$N2DIAG        ddf(:,i,1,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
+$N2DIAG         df(:,i,1,1) =        matmul(derX  (:,:,sx),f(:,i,1))
+$N2DIAG        ddf(:,i,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
 $N2DIAG    enddo   
 $N2DIAG    do k=1,nz
 $N2DIAG        do i=1,nx
-$N2DIAG            df(i,:,k,2)    =    matmul(derY  (:,:,sy),f(i,:,k))
-$N2DIAG            ddf(i,:,k,2,2) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
+$N2DIAG            df(i,:,k,2) =    matmul(derY  (:,:,sy),f(i,:,k))
+$N2DIAG           ddf(i,:,k,4) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
 $N2DIAG        enddo
 $N2DIAG    enddo
 $N2DIAG    do i=1,nx*ny
-$N2DIAG        df(i,1,:,3)    =        matmul(derZ  (:,:,sz),f(i,1,:))
-$N2DIAG        ddf(i,1,:,3,3) =        matmul(laplaZ(:,:,sz),f(i,1,:))
+$N2DIAG        df(i,1,:,3) =        matmul(derZ  (:,:,sz),f(i,1,:))
+$N2DIAG       ddf(i,1,:,6) =        matmul(laplaZ(:,:,sz),f(i,1,:))
 $N2DIAG    enddo
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG end subroutine Derive_tot_3D
@@ -281,13 +285,13 @@ $N2DIAG    ! avoid copying matrices and not impact the speed. (Let's see in prac
 $N2DIAG    !----------------------------------------------------------------------------
 $N2DIAG    
 $N2DIAG    real(KIND=dp), intent(in),target  :: f(:)
-$N2DIAG    real(KIND=dp), intent(out),target,contiguous :: df(:,:), ddf(:,:,:)
+$N2DIAG    real(KIND=dp), intent(out),target,contiguous :: df(:,:), ddf(:,:)
 $N2DIAG    integer, intent(in)        :: px,py,pz
-$N2DIAG    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:,:), ddf3(:,:,:,:,:)
+$N2DIAG    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:,:), ddf3(:,:,:,:)
 $N2DIAG    
-$N2DIAG    f3 (1:nx,1:ny,1:nz)          => f
-$N2DIAG    df3(1:nx,1:ny,1:nz,1:3)      => df
-$N2DIAG    ddf3(1:nx,1:ny,1:nz,1:3,1:3) => ddf
+$N2DIAG    f3 (1:nx,1:ny,1:nz)      => f
+$N2DIAG    df3(1:nx,1:ny,1:nz,1:3)  => df
+$N2DIAG    ddf3(1:nx,1:ny,1:nz,1:6) => ddf
 $N2DIAG    
 $N2DIAG    call Derive_tot_3d(f3, px,py,pz,df3, ddf3)
 $N2DIAG    
@@ -303,13 +307,13 @@ $N2ALL    ! avoid copying matrices and not impact the speed. (Let's see in pract
 $N2ALL    !----------------------------------------------------------------------------
 $N2ALL    
 $N2ALL    real(KIND=dp), intent(in),target  :: f(:)
-$N2ALL    real(KIND=dp), intent(out),target,contiguous :: df(:,:), ddf(:,:,:)
+$N2ALL    real(KIND=dp), intent(out),target,contiguous :: df(:,:), ddf(:,:)
 $N2ALL    integer, intent(in)        :: px,py,pz
-$N2ALL    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:,:), ddf3(:,:,:,:,:)
+$N2ALL    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:,:), ddf3(:,:,:,:)
 $N2ALL    
-$N2ALL    f3 (1:nx,1:ny,1:nz)          => f
-$N2ALL    df3(1:nx,1:ny,1:nz,1:3)      => df
-$N2ALL    ddf3(1:nx,1:ny,1:nz,1:3,1:3) => ddf
+$N2ALL    f3 (1:nx,1:ny,1:nz)      => f
+$N2ALL    df3(1:nx,1:ny,1:nz,1:3)  => df
+$N2ALL    ddf3(1:nx,1:ny,1:nz,1:6) => ddf
 $N2ALL    
 $N2ALL    call Derive_tot_3d(f3, px,py,pz,df3, ddf3)
 $N2ALL    
@@ -331,12 +335,16 @@ $N2ALL    ! px = sign of the symmetry transformation in the x-direction
 $N2ALL    ! py = sign of the symmetry transformation in the y-direction
 $N2ALL    ! pz = sign of the symmetry transformation in the z-direction
 $N2ALL    !
-$N2ALL    ! diag = 0   All of the second order derivatives are calculated.
-$N2ALL    ! diag = 1   Only the xx,yy and zz derivatives are calculated.
+$N2ALL    ! Note that higher-order derivative tensors are stored in lexicographical order
+$N2ALL    ! in order to cut down on the number of indices and wasted computation.
+$N2ALL    !            1    2    3    4    5    6    7    8    9    10
+$N2ALL    ! 1st order: Dx   Dy   Dz
+$N2ALL    ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
+$N2ALL    ! 3rd order: Dxxx Dxxy Dxxz Dxyy Dxyz Dxzz Dyyy Dyyz Dyzz Dzz
 $N2ALL    !---------------------------------------------------------------------------
 $N2ALL    
 $N2ALL    real(KIND=dp), intent(in)  :: f(:,:,:)
-$N2ALL    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:,:)
+$N2ALL    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:)
 $N2ALL    integer, intent(in)        :: px,py,pz
 $N2ALL    
 $N2ALL    integer                    :: i,k, sx, sy,sz
@@ -347,33 +355,30 @@ $N2ALL    sz = (pz + 3)/2 !    2    if pi =   +1
 $N2ALL    !---------------------------------------------------------------------------
 $N2ALL    !  First order derivatives and diagonal second-order ones
 $N2ALL    do i=1,ny*nz
-$N2ALL         df(:,i,1,1)   =        matmul(derX  (:,:,sx),f(:,i,1))
-$N2ALL        ddf(:,i,1,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
+$N2ALL           df(:,i,1,1) =        matmul(derX  (:,:,sx),f(:,i,1))
+$N2ALL          ddf(:,i,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
 $N2ALL    enddo   
 $N2ALL    do k=1,nz
 $N2ALL        do i=1,nx
-$N2ALL            df(i,:,k,2)    =    matmul(derY  (:,:,sy),f(i,:,k))
-$N2ALL            ddf(i,:,k,2,2) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
+$N2ALL           df(i,:,k,2) =    matmul(derY  (:,:,sy),f(i,:,k))
+$N2ALL          ddf(i,:,k,4) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
 $N2ALL        enddo
 $N2ALL    enddo
 $N2ALL    do i=1,nx*ny
-$N2ALL        df(i,1,:,3)    =        matmul(derZ  (:,:,sz),f(i,1,:))
-$N2ALL        ddf(i,1,:,3,3) =        matmul(laplaZ(:,:,sz),f(i,1,:))
+$N2ALL           df(i,1,:,3) =        matmul(derZ  (:,:,sz),f(i,1,:))
+$N2ALL          ddf(i,1,:,6) =        matmul(laplaZ(:,:,sz),f(i,1,:))
 $N2ALL    enddo
 $N2ALL    !---------------------------------------------------------------------------
 $N2ALL    ! Off-diagonal second order derivatives
 $N2ALL    do k=1,nz
 $N2ALL      do i=1,nx
-$N2ALL          ddf(i,:,k,2,1) =      matmul(derY  (:,:,sy),df(i,:,k,1))
-$N2ALL          ddf(i,:,k,1,2) =      ddf(i,:,k,2,1) 
+$N2ALL          ddf(i,:,k,2) =      matmul(derY  (:,:,sy),df(i,:,k,1))
 $N2ALL      enddo
 $N2ALL    enddo
 $N2ALL    
 $N2ALL    do i=1,nx*ny
-$N2ALL      ddf(i,1,:,3,1) =      matmul(derZ  (:,:,sz),df(i,1,:,1))
-$N2ALL      ddf(i,1,:,1,3) =      ddf(i,1,:,3,1) 
-$N2ALL      ddf(i,1,:,3,2) =      matmul(derZ  (:,:,sz),df(i,1,:,2))
-$N2ALL      ddf(i,1,:,2,3) =      ddf(i,1,:,3,2) 
+$N2ALL          ddf(i,1,:,3) =      matmul(derZ  (:,:,sz),df(i,1,:,1))
+$N2ALL          ddf(i,1,:,5) =      matmul(derZ  (:,:,sz),df(i,1,:,2))
 $N2ALL    enddo
 $N2ALL
 $N2ALL end subroutine Derive_tot_3D
@@ -396,11 +401,17 @@ $N3ALL    ! px = sign of the symmetry transformation in the x-direction
 $N3ALL    ! py = sign of the symmetry transformation in the y-direction
 $N3ALL    ! pz = sign of the symmetry transformation in the z-direction
 $N3ALL    !
+$N3ALL    ! Note that higher-order derivative tensors are stored in lexicographical order
+$N3ALL    ! in order to cut down on the number of indices and wasted computation.
+$N3ALL    !            1    2    3    4    5    6    7    8    9    10
+$N3ALL    ! 1st order: Dx   Dy   Dz
+$N3ALL    ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
+$N3ALL    ! 3rd order: Dxxx Dxxy Dxxz Dxyy Dxyz Dxzz Dyyy Dyyz Dyzz Dzz
 $N3ALL    !---------------------------------------------------------------------------
 $N3ALL    
 $N3ALL    real(KIND=dp), intent(in)  :: f(:,:,:)
-$N3ALL    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:,:)
-$N3ALL    real(KIND=dp), intent(out) :: dddf(:,:,:,:,:,:)
+$N3ALL    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:)
+$N3ALL    real(KIND=dp), intent(out) :: dddf(:,:,:,:)
 $N3ALL    integer, intent(in)        :: px,py,pz
 $N3ALL    
 $N3ALL    integer                    :: i,j,k, sx, sy,sz, ax, ay, az
@@ -414,92 +425,74 @@ $N3ALL    az = 3 - sz !    1    if si =    2
 $N3ALL    !---------------------------------------------------------------------------
 $N3ALL    !  First order derivatives and diagonal second-order ones
 $N3ALL    do i=1,ny*nz
-$N3ALL         df(:,i,1,1)   =        matmul(derX  (:,:,sx),f(:,i,1))
-$N3ALL        ddf(:,i,1,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
+$N3ALL               df(:,i,1,1) =    matmul(derX  (:,:,sx),f(:,i,1))
+$N3ALL              ddf(:,i,1,1) =    matmul(laplaX(:,:,sx),f(:,i,1)) 
 $N3ALL    enddo   
 $N3ALL    do k=1,nz
 $N3ALL        do i=1,nx
-$N3ALL            df(i,:,k,2)    =    matmul(derY  (:,:,sy),f(i,:,k))
-$N3ALL            ddf(i,:,k,2,2) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
+$N3ALL               df(i,:,k,2) =    matmul(derY  (:,:,sy),f(i,:,k))
+$N3ALL              ddf(i,:,k,4) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
 $N3ALL        enddo
 $N3ALL    enddo
 $N3ALL    do i=1,nx*ny
-$N3ALL        df(i,1,:,3)    =        matmul(derZ  (:,:,sz),f(i,1,:))
-$N3ALL        ddf(i,1,:,3,3) =        matmul(laplaZ(:,:,sz),f(i,1,:))
+$N3ALL               df(i,1,:,3) =    matmul(derZ  (:,:,sz),f(i,1,:))
+$N3ALL              ddf(i,1,:,6) =    matmul(laplaZ(:,:,sz),f(i,1,:))
 $N3ALL    enddo
 $N3ALL    !---------------------------------------------------------------------------
 $N3ALL    ! Off-diagonal second order derivatives
 $N3ALL    do k=1,nz
 $N3ALL      do i=1,nx
-$N3ALL          ddf(i,:,k,2,1) =      matmul(derY  (:,:,sy),df(i,:,k,1))
-$N3ALL          ddf(i,:,k,1,2) =      ddf(i,:,k,2,1) 
+$N3ALL              ddf(i,:,k,2) =    matmul(derY  (:,:,sy),df(i,:,k,1))
 $N3ALL      enddo
 $N3ALL    enddo
 $N3ALL    
 $N3ALL    do i=1,nx*ny
-$N3ALL      ddf(i,1,:,3,1) =      matmul(derZ  (:,:,sz),df(i,1,:,1))
-$N3ALL      ddf(i,1,:,1,3) =      ddf(i,1,:,3,1) 
-$N3ALL      ddf(i,1,:,3,2) =      matmul(derZ  (:,:,sz),df(i,1,:,2))
-$N3ALL      ddf(i,1,:,2,3) =      ddf(i,1,:,3,2) 
+$N3ALL              ddf(i,1,:,3) =    matmul(derZ  (:,:,sz),df(i,1,:,1))
+$N3ALL              ddf(i,1,:,5) =    matmul(derZ  (:,:,sz),df(i,1,:,2))
 $N3ALL    enddo
 $N3ALL
 $N3ALL    !---------------------------------------------------------------------------
 $N3ALL    ! Third order derivatives
 $N3ALL    do k=1,nz
 $N3ALL      do j=1,ny
-$N3ALL          dddf(:,j,k,1,1,1) =      matmul(derX  (:,:,sx),ddf(:,j,k,1,1))
-$N3ALL          dddf(:,j,k,1,1,2) =      matmul(derX  (:,:,ax),ddf(:,j,k,1,2))
-$N3ALL          dddf(:,j,k,1,1,3) =      matmul(derX  (:,:,ax),ddf(:,j,k,1,3))
-$N3ALL
-$N3ALL          dddf(:,j,k,1,2,2) =      matmul(derX  (:,:,sx),ddf(:,j,k,2,2))
-$N3ALL          dddf(:,j,k,1,2,3) =      matmul(derX  (:,:,sx),ddf(:,j,k,2,3))
-$N3ALL          dddf(:,j,k,1,3,3) =      matmul(derX  (:,:,sx),ddf(:,j,k,3,3))
+$N3ALL             dddf(:,j,k, 1)=    matmul(derX  (:,:,sx),ddf(:,j,k,1))
+$N3ALL             dddf(:,j,k, 2)=    matmul(derX  (:,:,ax),ddf(:,j,k,2))
+$N3ALL             dddf(:,j,k, 3)=    matmul(derX  (:,:,ax),ddf(:,j,k,3))
+$N3ALL 
+$N3ALL             dddf(:,j,k, 4)=    matmul(derX  (:,:,sx),ddf(:,j,k,4))
+$N3ALL             dddf(:,j,k, 5)=    matmul(derX  (:,:,sx),ddf(:,j,k,5))
+$N3ALL             dddf(:,j,k, 6)=    matmul(derX  (:,:,sx),ddf(:,j,k,6))
 $N3ALL      enddo
 $N3ALL    enddo
 $N3ALL    do k=1,nz
 $N3ALL      do i=1,nx
-$N3ALL          dddf(i,:,k,2,2,2) =      matmul(derY  (:,:,sy),ddf(i,:,k,2,2))
-$N3ALL          dddf(i,:,k,2,2,3) =      matmul(derY  (:,:,ay),ddf(i,:,k,2,3))
-$N3ALL          dddf(i,:,k,2,3,3) =      matmul(derY  (:,:,sy),ddf(i,:,k,3,3))
+$N3ALL             dddf(i,:,k, 7)=    matmul(derY  (:,:,sy),ddf(i,:,k,4))
+$N3ALL             dddf(i,:,k, 8)=    matmul(derY  (:,:,ay),ddf(i,:,k,5))
+$N3ALL             dddf(i,:,k, 9)=    matmul(derY  (:,:,sy),ddf(i,:,k,6))
 $N3ALL      enddo
 $N3ALL    enddo
 $N3ALL    do j=1,ny
 $N3ALL      do i=1,nx
-$N3ALL          dddf(i,j,:,3,3,3) =      matmul(derZ  (:,:,sz),ddf(i,j,:,3,3))
+$N3ALL             dddf(i,j,:,10) =   matmul(derZ  (:,:,sz),ddf(i,j,:,6))
 $N3ALL      enddo
 $N3ALL    enddo
-$N3ALL    dddf(:,:,:,1,2,1) = dddf(:,:,:,1,1,2)
-$N3ALL    dddf(:,:,:,2,1,1) = dddf(:,:,:,1,1,2)
-$N3ALL    dddf(:,:,:,1,3,1) = dddf(:,:,:,1,1,3)
-$N3ALL    dddf(:,:,:,3,1,1) = dddf(:,:,:,1,1,3)
-$N3ALL    dddf(:,:,:,3,1,3) = dddf(:,:,:,1,3,3)
-$N3ALL    dddf(:,:,:,3,3,1) = dddf(:,:,:,1,3,3)
-$N3ALL    dddf(:,:,:,2,1,2) = dddf(:,:,:,1,2,2)
-$N3ALL    dddf(:,:,:,2,2,1) = dddf(:,:,:,1,2,2)
-$N3ALL    dddf(:,:,:,1,3,2) = dddf(:,:,:,1,2,3)
-$N3ALL    dddf(:,:,:,3,1,2) = dddf(:,:,:,1,2,3)
-$N3ALL    dddf(:,:,:,3,2,1) = dddf(:,:,:,1,2,3)
-$N3ALL    dddf(:,:,:,2,3,2) = dddf(:,:,:,2,2,3)
-$N3ALL    dddf(:,:,:,3,2,2) = dddf(:,:,:,2,2,3)
-$N3ALL    dddf(:,:,:,3,3,2) = dddf(:,:,:,2,3,3)
-$N3ALL    dddf(:,:,:,3,2,3) = dddf(:,:,:,2,3,3)
 $N3ALL end subroutine Derive_tot_3D
 
 $N3ALL subroutine Derive_tot_1D(f, px, py, pz, df, ddf, dddf)
 $N3ALL    real(KIND=dp), intent(in),  target, contiguous :: f(:)
-$N3ALL    real(KIND=dp), intent(out), target, contiguous :: df(:,:), ddf(:,:,:)
-$N3ALL    real(KIND=dp), intent(out), target, contiguous :: dddf(:,:,:,:)
+$N3ALL    real(KIND=dp), intent(out), target, contiguous :: df(:,:), ddf(:,:)
+$N3ALL    real(KIND=dp), intent(out), target, contiguous :: dddf(:,:)
 $N3ALL    integer, intent(in)        :: px,py,pz
 $N3ALL    
 $N3ALL    integer                    :: i,j,k, sx, sy,sz, ax, ay, az
 $N3ALL    
 $N3ALL    real(KIND=dp), pointer :: f3(:,:,:), df3(:,:,:,:)
-$N3ALL    real(KIND=dp), pointer :: ddf3(:,:,:,:,:), dddf3(:,:,:,:,:,:)
+$N3ALL    real(KIND=dp), pointer :: ddf3(:,:,:,:), dddf3(:,:,:,:)
 $N3ALL
-$N3ALL       f3(1:nx, 1:ny, 1:nz)             => f
-$N3ALL      df3(1:nx, 1:ny, 1:nz,1:3)         => df
-$N3ALL     ddf3(1:nx, 1:ny, 1:nz,1:3,1:3)     => ddf
-$N3ALL    dddf3(1:nx, 1:ny, 1:nz,1:3,1:3,1:3) => dddf
+$N3ALL       f3(1:nx, 1:ny, 1:nz)      => f
+$N3ALL      df3(1:nx, 1:ny, 1:nz,1:3)  => df
+$N3ALL     ddf3(1:nx, 1:ny, 1:nz,1:6)  => ddf
+$N3ALL    dddf3(1:nx, 1:ny, 1:nz,1:10) => dddf
 $N3ALL   
 $N3ALL    call Derive_tot_3D(f3, px, py, pz, df3, ddf3, dddf3)
 $N3ALL 

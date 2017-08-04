@@ -30,12 +30,18 @@ module wavefunctions
  !------------------------------------------------------------------------------
  ! Array containing the values of the spwfs in the Hartree-Fock basis
  ! and their derivatives
- ! Dimensions (nx,ny,nz,4,nwt)
- real(KIND=dp), allocatable ::   HFPsi(:,:,:)
- real(KIND=dp), allocatable ::  HFdPsi(:,:,:,:)   ! First order derivatives
- real(KIND=dp), allocatable :: HFddPsi(:,:,:,:,:) ! Second order derivatives
- real(KIND=dp), allocatable :: HFdddPsi(:,:,:,:,:,:) ! Third order derivatives
-! 
+ !
+ ! Note that higher-order derivative tensors are stored in lexicographical order
+ ! in order to cut down on the number of indices and wasted computation.
+ !            1    2    3    4    5    6    7    8    9    10
+ ! 1st order: Dx   Dy   Dz
+ ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
+ ! 3rd order: Dxxx Dxxy Dxxz Dxyy Dxyz Dxzz Dyyy Dyyz Dyzz Dzz
+
+ real(KIND=dp), allocatable ::      HFPsi(:,:,:)
+ real(KIND=dp), allocatable ::   HFdPsi(:,:,:,:) ! First order derivatives
+ real(KIND=dp), allocatable ::  HFddPsi(:,:,:,:) ! Second order derivatives
+ real(KIND=dp), allocatable :: HFdddPsi(:,:,:,:) ! Third order derivatives
  !------------------------------------------------------------------------------
  ! Density matrix rho and anomalous density matrix kappa
  ! Dimensions (nwt, nwt) (although many are zero when symmetries are conserved)
@@ -199,10 +205,10 @@ contains
     
     if(.not.allocated(HFdPsi)) then
         allocate(HFdPsi(nx*ny*nz,3,4,nwt))
-        allocate(HFddPsi(nx*ny*nz,3,3,4,nwt))
+        allocate(HFddPsi(nx*ny*nz,6,4,nwt))
     endif
 $N3    if(.not.allocated(HFdddpsi)) then
-$N3        allocate(HFdddPsi(nx*ny*nz,3,3,3,4,nwt))
+$N3        allocate(HFdddPsi(nx*ny*nz,10,4,nwt))
 $N3    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Currently EV8 symmetries are hardcoded, as well as the
@@ -211,12 +217,12 @@ $N3    endif
 
 $N2        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
 $N2        &                                           HFdPsi(:,:,k,wave),     &
-$N2        &                                           HFddPsi(:,:,:,k,wave))
+$N2        &                                           HFddPsi(:,:,k,wave))
 
 $N3        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
 $N3        &                                           HFdPsi(:,:,k,wave),     &
-$N3        &                                           HFddPsi(:,:,:,k,wave),  &
-$N3        &                                           HFdddPsi(:,:,:,:,k,wave))
+$N3        &                                           HFddPsi(:,:,k,wave),    &
+$N3        &                                           HFdddPsi(:,:,k,wave))
 
         enddo
     enddo

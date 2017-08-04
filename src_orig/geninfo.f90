@@ -6,10 +6,10 @@ module GenInfo
     save
     !---------------------------------------------------------------------------
     !Number of points in every direction and total number of points
-    integer :: nx=10,ny=10,nz=10, mv
+    integer :: nx=30,ny=30,nz=30, mv
     !---------------------------------------------------------------------------
     ! Total number of single-particle wave-functions
-    integer :: nwt=40
+    integer :: nwt=12
     !---------------------------------------------------------------------------
     !Number of protons and neutrons in the nucleus
     real(KIND=dp)  :: Neutrons=10, Protons=10

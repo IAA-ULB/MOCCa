@@ -193,6 +193,9 @@ Dec_template   = Template(   tab + 'real*8,allocatable :: $NAME(:$TOTALIND,:)')
 Der_template   = Template( 2*tab +'call Derive_grad($NAME(:$IND,it),$PX,$PY,$PZ,der_$NAME(:,1$IND,it), &\n') 
 Der_template_b = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,2$IND,it), &\n')
 Der_template_c = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,3$IND,it))  \n')
+
+Der_indep_template = Template( 2*tab +'call Derive_$DIR($NAME(:$IND,it), $PS,der_$NAME(:$DERIND,it)) \n') 
+
 Lap_template   = Template( 2*tab +'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ, lap_$NAME(:$IND,it)) \n')
 
 #---------------------------------------------------------------------------
@@ -435,11 +438,20 @@ def GenDensityExpression(denin, derivative_combinations):
             continue
         
         dic['NAME']    = l*'Lap_' + d*'Der_' + density
-        dic['TOTALIND']= totalind
-        dic['DIM']     = dim
-        for i in range(d):
-            dic['TOTALIND']= dic['TOTALIND'] + ',:' 
-            dic['DIM']     = dic['DIM']      + ',3' 
+        if(d>0):
+            dic['TOTALIND']= totalind + ',:'
+        else:
+            dic['TOTALIND']= totalind
+        # Instead of adding dimensions to the FORTRAN array, we add simply
+        # number of derivatives, since they are a completely symmetric tensor
+        derind = Number_symmetric(3,d)
+        if(derind != 1):
+            dic['DIM']     = ',' + str(derind)  + dim  
+        else:
+            dic['DIM']     = dim
+#        for i in range(d):
+#            dic['TOTALIND']= dic['TOTALIND'] + ',:' 
+#            dic['DIM']     = dic['DIM']      + ',3' 
 
         Declaration    = Declaration    + '\n' + Dec_template.substitute(dic)
         Initialisation = Initialisation + '\n' + Ini_template.substitute(dic)
@@ -575,39 +587,45 @@ def GenDensityExpression(denin, derivative_combinations):
             larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
             rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
            
-            lol = Storage_Mapping(rarg)
-            
+            # Get the index of the reduced storage scheme for all of the 
+            # derivative indices
+            larg_stor= Storage_Mapping(larg[:LeftOperator.derorder])
+            rarg_stor= Storage_Mapping(rarg[:RightOperator.derorder])
+                       
             leftind  = LeftOperator(larg, start)
             rightind = RightOperator(rarg, start)
             
             lcolumns =  leftind.shape[1] 
             rcolumns = rightind.shape[1]
-            
-            # Note that the derivative operators have their indices on the left
+
             LIND = ''
             RIND = ''
-            for lder in range(LeftOperator.derorder):
-                LIND = LIND +  ',' + str(abs(larg[lder])+1)
-            for rder in range(RightOperator.derorder):
-                RIND = RIND +  ',' + str(abs(rarg[rder])+1)      
-            dic['LIND']   = LIND
-            dic['RIND']   = RIND
+#            for lder in range(LeftOperator.derorder):
+#                LIND = LIND +  ',' + str(abs(larg[lder])+1)
+#            for rder in range(RightOperator.derorder):
+#                RIND = RIND +  ',' + str(abs(rarg[rder])+1)
+
+            # only nablas are symmetric
+            if(len(larg[:LeftOperator.derorder])>0):       
+                LIND = LIND + ',' + str(larg_stor+1)
+            if(len(rarg[:RightOperator.derorder])>0):
+                RIND = RIND + ',' + str(rarg_stor+1)
+            
+            dic['LIND'] = LIND
+            dic['RIND'] = RIND
             
             for i in range(4):
                 SIGN          = np.sign(leftind[i])*np.sign(rightind[i])
-                
                 for l in true_arg:
                     if( l  == 0):
                        SIGN = SIGN
                     else:
                        SIGN = SIGN * np.sign(l)
-
                 if(SIGN > 0) :
                     dic['SIGN']   = '+'
                 else :
                     dic['SIGN']   = '-'
-                dic['RCOMP'] = str(int(abs(rightind[i,0]
-                )))
+                dic['RCOMP'] = str(int(abs(rightind[i,0])))
                 dic['LCOMP'] = str(int(abs( leftind[i,0])))
                 Expression = Expression +  \
                             '& \n               &' +  \
@@ -626,54 +644,75 @@ def GenDensityExpression(denin, derivative_combinations):
             Derivation = Derivation + Den_line.substitute(dic)
             Derivation = Derivation + Den_comment_deriv.substitute(dic)
         for c in derivative_combinations:
-            
             if(c == (0,0)):
                 continue
             Derivation = Derivation + Den_comment_deriv_b%(c[0], c[1])
             
+            deriv_args = list(itertools.product(range(3),repeat=c[1]))
+
             # Arguments of the derivative operators
             # name of the derivative
             if(c[0] == 0):
                 dic['NAME'] = (c[1]-1)*'Der_' + density
-                try:
-                    deriv_args = itertools.product(range(3), repeat=c[1]-1)
-                except:
-                    continue
             else:
-                dic['NAME'] = (c[0]-1)*'lap_' + (c[1])*'der_' + density
-                try:
-                    deriv_args = itertools.product(range(3), repeat=c[1])
-                except:
-                    continue
+                dic['NAME'] = (c[0]-1)*'Lap_' + (c[1])*'Der_' + density
             if(c[1] != 0):
-                for darg in deriv_args: 
-                    #Preparing symmetries for derivatives
-                    (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg)
-                    dic['PX']    = str(px)
-                    dic['PY']    = str(py)
-                    dic['PZ']    = str(pz)
+                # Get only the independent derivative operations
+                deriv_args= sorted(list(set([tuple(sorted(da)) for da in deriv_args])))
                 
-                    dic['IND']  =  ''
-                    for i in darg:
-                        dic['IND']  = dic['IND'] + ',%d'%(i+1)
-                    dic['IND']  = dic['IND'] +  IND  
-            
+                for darg in deriv_args: 
+                    
+                    directions = ['X', 'Y', 'Z']
+                    dic['DIR'] = directions[darg[0]]
                     
                     # Decide if we need to use a gradient or a laplacian routine
                     if(c[0] > 0):
-                        Derivation  = Derivation + Lap_template.substitute(dic)
-                    else:        
-                        Derivation   = Derivation  + Der_template.substitute(dic)
-                        dic['DERSPACE'] = (18+len(density)+ len(dic['IND']) +10) * ' '
-                        Derivation   = Derivation  + Der_template_b.substitute(dic)
-                        Derivation   = Derivation  + Der_template_c.substitute(dic)
+                        # There is a Laplacian involved, and we first calculate
+                        # all derivatives, and then only after laplacians.
+                        #
+                        # The symmetries are determined by the left- and rightoperator,
+                        # but also by the arguments of these, as well as
+                        # all (!) arguments of derivatives.
+                        # This explains the darg[1:]
+                        (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg)
+                        dic['PX']    = str(px)
+                        dic['PY']    = str(py)
+                        dic['PZ']    = str(pz) 
+
+                        if(len(darg) > 0):
+                            dic['IND'] = ',' + str(Storage_Mapping(darg)+1) + IND
+                        else:
+                            dic['IND'] = IND     
+                        Derivation     = Derivation + Lap_template.substitute(dic)
+                    else:
+                        # There is no laplacian, so we only calculate partial
+                        # derivatives
+                        #
+                        # The symmetries are determined by the left- and rightoperator,
+                        # but also by the arguments of these, as well as
+                        # all but the current arguments of derivatives.
+                        # This explains the darg[1:]
+                        (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg[1:])
+                        dic['PX']    = str(px)
+                        dic['PY']    = str(py)
+                        dic['PZ']    = str(pz) 
+                                
+                        syms = (px,py,pz)
+                        dic['PS'] = syms[darg[0]]
+                        
+                        dic['DERIND']  = ',' + str(Storage_Mapping(darg)+1) + IND
+                        if(len(darg) > 1):
+                            dic['IND'] =  ',' + str(Storage_Mapping(darg[1:])+1) + IND
+                        else:
+                            dic['IND'] = IND     
+                        Derivation     = Derivation  + Der_indep_template.substitute(dic)
             else:
                     (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg)
-                    dic['PX']    = str(px)
-                    dic['PY']    = str(py)
-                    dic['PZ']    = str(pz)
+                    dic['PX']    = str(px) #+ 'd0'
+                    dic['PY']    = str(py) #+ 'd0'
+                    dic['PZ']    = str(pz) #+ 'd0'
                     
-                    dic['IND']  =   IND  
+                    dic['IND']  =  IND  
                     
                     # Decide if we need to use a gradient or a laplacian routine
                     Derivation  = Derivation + Lap_template.substitute(dic)
@@ -1028,10 +1067,16 @@ def Storage_Mapping(indices):
     #---------------------------------------------------------------------------
     # Map the indices (i,j,k,...) of a totally symmetric tensor unto indices
     # that are used for efficient storage
+    #
+    #
+    # Note that negative numbers are treated as positive, in order to not
+    # upset the vector products.
     #---------------------------------------------------------------------------
 
     # Sort the indices into lexicographical order
-    s_indices = sorted(indices)
+    s_indices = sorted(np.abs(indices)) 
+    # np.abs, because normal abs doesn't accept tuples
+    
     
     # Find the number of total elements that are possible
     k = len(indices)
@@ -1047,6 +1092,17 @@ def Storage_Mapping(indices):
     return(index)
     
 def Number_symmetric(n,k):
-    
-    
+    #---------------------------------------------------------------------------
+    # Returns the number of independent elements in a totally symmetric tensor
+    # of order k over dimension n.
+    #---------------------------------------------------------------------------
     return(factorial(n + k - 1)/(factorial(k) * factorial(n-1)))
+    
+def Multiplicity(indices):
+    #---------------------------------------------------------------------------
+    # Get the total number of independent combinations that can be obtained by
+    # permutation the indices.
+    
+    a = set(list(itertools.permutations(indices)))
+    m = len(a)
+    return(m)

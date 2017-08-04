@@ -132,7 +132,7 @@ contains
         
         gradientnorm = 0.0_dp
 
-        !call invertderivatives()
+        call invertderivatives()
 
         do wave=1,nwt
             if(wave .lt. nwn) then
@@ -143,8 +143,8 @@ contains
 
             hpsi = sphamil( hfpsi(:,:,wave)     ,                          &
             &              hfdpsi(:,:,:,wave)   ,                          &
-            &              hfddpsi(:,:,:,:,wave),                          &
-            &              hfdddpsi(:,:,:,:,:,wave),                       &
+            &              hfddpsi(:,:,:,wave),                            &
+            &              hfdddpsi(:,:,:,wave),                           &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso)
 
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
@@ -209,8 +209,8 @@ contains
 
             hpsi = sphamil( hfpsi(:,:,wave)     ,                          &
             &              hfdpsi(:,:,:,wave)   ,                          &
-            &              hfddpsi(:,:,:,:,wave),                          &
-            &              hfdddpsi(:,:,:,:,:,wave),                       &
+            &              hfddpsi(:,:,:,wave)  ,                          &
+            &              hfdddpsi(:,:,:,wave) ,                          &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso)
 
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
@@ -257,7 +257,7 @@ contains
             sz = (pz(l) + 3)/2 !    2    if pi =   +1 
             
             do i=1,ny*nz
-                Pp3(:,i,1,l) =                     matmul(invlaplaX(:,:,sx,it),p3(:,i,1,l))
+                Pp3(:,i,1,l) =                    matmul(invlaplaX(:,:,sx,it),p3(:,i,1,l))
             enddo   
             do k=1,nz
                 do i=1,nx
@@ -268,7 +268,7 @@ contains
                 Pp3(i,1,:,l) = Pp3(i,1,:,l)     + matmul(invlaplaZ(:,:,sz,it),p3(i,1,:,l))
             enddo
 !            do i=1,mv
-!                Ppsi(i,1,1,l) = Ppsi(i,1,1,l) / (-hbm(it)+ F_Nm_Nm(i,it))
+!                Ppsi(i,l) = Pp3(i,1,1,l) / (-hbm(it)+ F_N_N(i,1,1,it))
 !            enddo
         enddo
     end function Precondition_PG
@@ -329,9 +329,9 @@ contains
         do k=1,4          
                 do i=1,mv
                        Inproduct = Inproduct + HFPsi(i,k,loca) *  & 
-                       &  ( HFddPsi(i,1,1,k,loca) + &
-                       &    HFddPsi(i,2,2,k,loca) + &
-                       &    HFddPsi(i,3,3,k,loca))
+                       &  ( HFddPsi(i,1,k,loca) + &
+                       &    HFddPsi(i,4,k,loca) + &
+                       &    HFddPsi(i,6,k,loca))
                 enddo
         enddo
         epsilon0 =   epsilon0 - hbm(it) * Inproduct * dv
@@ -354,7 +354,6 @@ contains
             do i=1,ny
                 invLaplaY(i,i,pm,it) =  invLaplaY(i,i,pm,it) - epsilon0
             enddo
-
             call dgetrf (ny, ny, invLaplaY(:,:,pm,it), ny,pivoty, ierror) 		
             call dgetri (ny, invLaplaY(:,:,pm,it), nx, pivoty, work, ny, ierror) 
         enddo
@@ -364,7 +363,6 @@ contains
             do i=1,nz
                 invLaplaZ(i,i,pm,it) =  invLaplaZ(i,i,pm,it) - epsilon0
             enddo
-
             call dgetrf (nz, nz, invLaplaZ(:,:,pm,it), nz,pivotz, ierror) 		
             call dgetri (nz, invLaplaZ(:,:,pm,it), nz, pivotz, work, nz, ierror) 
         enddo
