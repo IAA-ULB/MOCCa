@@ -10,8 +10,6 @@
 #   Q Is the isospin coupling of the fields ok?
 #   A NO, see Sadoudi.
 #
-#
-#
 #   C Add option for more than one derivative and/or laplacian to the action-
 #     of fields routine
 #   C Add possibility for non-derivative operators in the left-operator, as 
@@ -402,9 +400,12 @@ def GenerateAction(field, symmetrize):
             rcoupl.append(c)
        else:
             ccoupl.append(c)
+
     rdim  = RightOperator.dimension - len(ccoupl) - 2*len(rcoupl)
     ldim  = LeftOperator.dimension  - 2*len(lcoupl)
     
+    print field,rdim
+
     # all possible values for the arguments of the left-operator
     largs = list(itertools.product(range(3), repeat=ldim))
     #-------------------------------------------------------------------

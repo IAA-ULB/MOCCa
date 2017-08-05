@@ -20,17 +20,19 @@ In short, it is a FORTRAN program that iteratively optimizes a given Skyrme-type
 
 ### Current status
 
-* 
+* Hartree-Fock calculations in EV8-like symmetries. 
 * 
 
 
 
 ### Known Problems 
+* Coulomb implementation is bugged.
 
-1. Spin-orbit term currently crashes Hephaestos, even though it worked in the past.
-2. Vector couplings: only one per term is admitted at this point in time. 
+
 --------------------------------------------------------------
 ### Planned features
+
+* Feature parity with MOCCa (of course)
 
 --------------------------------------------------------------
 
@@ -66,7 +68,7 @@ The second major function of Hephaestos is to adapt the Tantalus source code bas
 
 ### Known Problems 
 
-1. Spin-orbit term currently crashes Hephaestos, even though it worked in the past.
+1. When not assuming locality of the functional, creation of a spin-orbit crashes Hephaestos.
 2. Vector couplings: only one per term is admitted at this point in time. 
 --------------------------------------------------------------
 ### Planned features

@@ -82,7 +82,7 @@ derivative_order = 1
 # this seems to hold if the functional is local.
 #
 #-------------------------------------------------------------------------------
-assume_locality = 0
+assume_locality = 1
 
 def initfunctional(fname):
 
