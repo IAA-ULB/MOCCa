@@ -53,9 +53,8 @@ subroutine ReachForWaterAndFood
     
     implicit none
    
-    integer :: iter, lol, i, j,k,m, mu, nu
-    real(KIND=dp) :: a
-
+    integer :: iter, lol,i
+   
     call iniwavefunctions()
     call NaiveFill(occupations)
     

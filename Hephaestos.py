@@ -25,16 +25,17 @@ FORTRANFILES=['compilation.f90', 'geninfo.f90' , 'constants.f90', 'diag.f90' ,
               'densities.f90', 'functional.f90','evolution.f90', 'IO.f90', 'tantalus.f90' ]
 
 # File containing the definition of the functional
-FUNC_FILE = 'N3LO.func'
+FUNC_FILE      = 'NLO.func'
+FUNC_PAIR_FILE = 'ULB.pair.func' 
 
 #-------------------------------------------------------------------------------
 heph_name= \
-'==============================================================\n' + \
+'==============================================================\n' +\
 "| | | |  ___  _ __  | |__    __ _   ___  ___ | |_  ___   ___  \n" +\
 "| |_| | / _ \| '_ \ | '_ \  / _` | / _ \/ __|| __|/ _ \ / __| \n" +\
 "|  _  ||  __/| |_) || | | || (_| ||  __/\__ \| |_| (_) |\__ \ \n" +\
 "|_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/ \n" +\
-" Copyright W.Ryssens & M. Bender \n" + \
+" Copyright W.Ryssens & M. Bender \n"                              +\
 "==============================================================\n"
 
 print heph_name
@@ -55,7 +56,7 @@ if(not FOUND):
 # Initialize all of Hephaestos' own modules
 print ' a)  Hephaestos is initializing its own modules.'
 heph_symmetries.initsymmetries()
-heph_functional.initfunctional(FUNC_FILE)
+heph_functional.initfunctional(FUNC_FILE, FUNC_PAIR_FILE)
 heph_densities.initdensities()
 heph_fields.initfields()
 

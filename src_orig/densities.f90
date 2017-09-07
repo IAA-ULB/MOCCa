@@ -37,6 +37,7 @@ use compilation
 use geninfo
 use wavefunctions, only: HFPsi, HFdPsi, HFddPsi, HFdddpsi
 use wavefunctions, only: occupations, HFBlocks, blocks
+use wavefunctions, only: upairing, vpairing
 use derivatives  
 
 implicit none
@@ -86,7 +87,21 @@ $INITIALIZATION
 $EXPRESSION
         enddo
     enddo
-    
+
+    ! Calculation by summing of the pairing densities
+    do wave=1,nwt
+        ! Isospin is neutron in the first half of blocks, proton in the rest
+        it = 2
+        if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
+        weight = upairing(wave) * vpairing(wave)
+        if( iteration.ne.0)  then
+             weight = weight * (1-denmix)
+        endif
+        do i=1,mv
+!   PAIRINGEXPRESSION
+        enddo
+    enddo       
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by 
     ! deriving other ones. 

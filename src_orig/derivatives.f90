@@ -484,8 +484,6 @@ $N3ALL    real(KIND=dp), intent(out), target, contiguous :: df(:,:), ddf(:,:)
 $N3ALL    real(KIND=dp), intent(out), target, contiguous :: dddf(:,:)
 $N3ALL    integer, intent(in)        :: px,py,pz
 $N3ALL    
-$N3ALL    integer                    :: i,j,k, sx, sy,sz, ax, ay, az
-$N3ALL    
 $N3ALL    real(KIND=dp), pointer :: f3(:,:,:), df3(:,:,:,:)
 $N3ALL    real(KIND=dp), pointer :: ddf3(:,:,:,:), dddf3(:,:,:,:)
 $N3ALL

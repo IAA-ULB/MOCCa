@@ -40,22 +40,26 @@ import itertools
 import numpy as np
 from heph_densities import Densities_needed, tab, sumindices, derstring
 from heph_densities import lapstring, OrderOfDen, ParseOperators
-from heph_densities import  crossindices, Storage_Mapping, Multiplicity
-from heph_densities import deriv_needed
+from heph_densities import crossindices, Storage_Mapping, Multiplicity
+from heph_densities import deriv_needed, Pair_densities_needed
+
 import heph_linechecker
 import heph_fields
 #-------------------------------------------------------------------------------
 # Array containing the expressions of all the functional terms. 
-Functional_terms     = []
-density_dependence   = []
-field_DD_terms       = {}
-DD_rearcoefs         = []
+Functional_terms      = []
+Functional_pair_terms = []
+density_dependence    = []
+field_DD_terms        = {}
+DD_rearcoefs          = []
 #-------------------------------------------------------------------------------
 # Strings telling Tantalus how to calculate coupling constants from Skyrme
 # force values for the isoscalar (_0) and isovector (_1) coupling. 
 coupling_constants_0 = []
 coupling_constants_1 = []
 
+coupling_constants_pair_0 = []
+coupling_constants_pair_1 = []
 #-------------------------------------------------------------------------------
 # Switch determining what order of derivatives is needed to be computed.
 #
@@ -65,7 +69,6 @@ coupling_constants_1 = []
 #            2          2nd order
 #            3          3rd order derivatives
 derivative_order = 1
-
 #-------------------------------------------------------------------------------
 # Assume whether or not the functional is local. With this == 1, the 
 # script will use the following simplification
@@ -84,12 +87,12 @@ derivative_order = 1
 #-------------------------------------------------------------------------------
 assume_locality = 1
 
-def initfunctional(fname):
+def initfunctional(fname, fpairname):
 
     global Functional_terms, Densities_needed, derivative_order
     
     # Read the functional from a given file
-    description = ReadFunctional(fname)
+    (description, pair_description) = ReadFunctional(fname, fpairname)
     
     # Generating the list of all densities
     tempden     = []
@@ -152,7 +155,7 @@ def initfunctional(fname):
             for l in sumindices:
                 add = add.replace(derstring + l + '_','')
             Densities_needed.append(add)
-        
+    #---------------------------------------------------------------------------     
     # Finding out how many derivatives we need to take of the spwfs
     derivative_order = 1    
     for den in Densities_needed:
@@ -161,7 +164,7 @@ def initfunctional(fname):
         derivative_order = max(derivative_order, ders)
 
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
-    print ' Functional taken from file %s'%fname
+    print ' P-h functional taken from file %s'%fname
     print ' Description from file:'
     print  description.replace('#', tab)
     print ' Number of terms:      %d'%len(Functional_terms)
@@ -169,12 +172,17 @@ def initfunctional(fname):
     print ' Locality assumed:     %d'%assume_locality
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
-def PruneDeriv_needed():
+    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
+    print ' P-p functional taken from file %s'%fpairname
+    print ' Description from file:'
+    print  pair_description.replace('#', tab)
+    print ' Number of terms:      %d'%len(Functional_pair_terms)
+    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
+def PruneDeriv_needed():
     #---------------------------------------------------------------------------
     # Add all of the possible combinations with less derivatives and laplacians,
     # so that we can build the eventually needed combinations.
-    
     for i in range(len(deriv_needed)):
         newderiv=[]
         for j in deriv_needed[i]:
@@ -191,13 +199,17 @@ def PruneDeriv_needed():
         deriv_needed[i] = list(set(deriv_needed[i]))
         deriv_needed[i] = sorted(deriv_needed[i])
         
-def ReadFunctional(fname):
-    #
-    # Read the functional terms and the coupling coefficients from file fname.
-    #
-    global Functional_terms
+def ReadFunctional(fname, fpairname):
+    #-------------------------------------------------------------------------
+    # Read the functional terms and the coupling coefficients from the
+    # ph functional file (fname) and the pp functional file (fpairname).
+    #-------------------------------------------------------------------------
+    global Functional_terms, Functional_pair_terms
 
-    description=''
+    description      = ''
+    pair_description = ''
+    #-------------------------------------------------------------------------
+    # Read the ph functional
     with open(fname, 'r') as f:
         for line in f: 
             try:
@@ -219,8 +231,27 @@ def ReadFunctional(fname):
                 print 'Problem reading the following line in the functional file.'
                 print line
                 exit()      
-
-    return(description)
+    #---------------------------------------------------------------------------
+    # Read the pp functional
+    with open(fpairname, 'r') as f:
+        for line in f: 
+            try:
+                if(len(line.split()) == 0):
+                    continue
+                if(line[0] != '#' and line[0] != '!'):
+                    split = line.split(';')
+                    Functional_pair_terms.append(split[0].replace(' ', ''))                
+                    
+                    coupling_constants_0.append(split[5].replace(' ', ''))
+                    coupling_constants_1.append(split[6].replace(' ', ''))   
+                                
+                elif(line[0] == '#'):
+                    pair_description = pair_description + line
+            except IndexError:
+                print 'Problem reading the following line in the pairing-functional file.'
+                print line
+                exit()      
+    return(description, pair_description)
     
 def ParseDensities(term): 
     #---------------------------------------------------------------------------
