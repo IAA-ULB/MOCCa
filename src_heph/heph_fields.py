@@ -10,13 +10,10 @@
 #   Q Is the isospin coupling of the fields ok?
 #   A NO, see Sadoudi.
 #
-#
-#
 #   C Add option for more than one derivative and/or laplacian to the action-
 #     of fields routine
 #   C Add possibility for non-derivative operators in the left-operator, as 
 #     currently all indices are assumed to be derivatives ones.
-#
 #   C add automatic declaration of dtemp, ddtemp, lapdtemp etc to the actions
 #     to save memory in default cases.
 #-------------------------------------------------------------------------------
@@ -321,7 +318,7 @@ def GenerateAction(field, symmetrize):
     # accordingly
     if(symmetrize == -1 ):
         switch_field = field.split('_')
-        switch_field = switch_field[0] + '_'+ switch_field[2] + '_'+ switch_field[1]
+        switch_field = switch_field[0]+'_'+switch_field[2]+'_'+ switch_field[1]
         (left,right,coupling,cross) = ParseOperatorsField(switch_field)
     #---------------------------------------------------------------------------
     #Building the left and right operators

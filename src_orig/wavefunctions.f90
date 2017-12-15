@@ -36,7 +36,7 @@ module wavefunctions
  !            1    2    3    4    5    6    7    8    9    10
  ! 1st order: Dx   Dy   Dz
  ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
- ! 3rd order: Dxxx Dxxy Dxxz Dxyy Dxyz Dxzz Dyyy Dyyz Dyzz Dzz
+ ! 3rd order: Dxxx Dxxy Dxxz Dxyy Dxyz Dxzz Dyyy Dyyz Dyzz Dzzz
 
  real(KIND=dp), allocatable ::      HFPsi(:,:,:)
  real(KIND=dp), allocatable ::   HFdPsi(:,:,:,:) ! First order derivatives

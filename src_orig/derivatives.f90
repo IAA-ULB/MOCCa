@@ -1,5 +1,5 @@
 module derivatives
- !=======================================================================
+ !==============================================================================
  !  #######   ##   #    # #####   ##   #      #    #  ####
  !     #     #  #  ##   #   #    #  #  #      #    # #
  !     #    #    # # #  #   #   #    # #      #    #  ####
@@ -9,35 +9,49 @@ module derivatives
  !
  !  Copyright W. Ryssens & M. Bender
  !
- !=======================================================================
+ !==============================================================================
  !
  ! Module that defines the derivatives of functions on the mesh. 
- !
- !
- !=======================================================================
- !
- ! Important CAVEAT: at the moment Tantalus will only allow you to use
- ! symmetry combinations that give rise to 'local' derivatives, i.e. 
- ! symmetry combinations that will let you relate 
- !  
- !   f(-i, j, k) => f(i,j,k)
- !   f( i,-j, k) => f(i,j,k)
- !   f( i, j,-k) => f(i,j,k)
- !
- ! If this is not the case, the matrix multiplications become 'nonlocal'
- ! in the memory-storage meaning of the word, and a naive implementation 
- ! of the matrix multiplication would result in exploding matrix sizes.
  ! 
- !=======================================================================
- !------------------------------------------------------------------------------
- ! To be replaced by Hephaestos  
+ ! Many changes are made by Hephaestos to this source code.
  !
  ! LINESIZE   : total box size as a function of nx/ny/nz
  ! LINESIZEX $LINESIZEX
  ! LINESIZEY $LINESIZEY
  ! LINESIZEZ $LINESIZEZ
  !
- !------------------------------------------------------------------------------
+ ! Flags to decide which derivatives of the spwfs get calculated
+ !  exclamation marks means they are commented out
+ !      Only diagonal second order derivatives
+ !      N2DIAG  : $N2DIAG
+ !
+ !      All second order derivatives (and diagonal third order ones)
+ !      N2ALL   : $N2ALL
+ ! 
+ !      All third order derivatives
+ !      N3ALL   : $N3ALL   
+ !==============================================================================
+ ! Technical notes:
+ !
+ ! * At the moment Tantalus will only allow you to use
+ !   symmetry combinations that give rise to 'local' derivatives, i.e. 
+ !   symmetry combinations that will let you relate 
+ !  
+ !   f(-i, j, k) => f(i,j,k)
+ !   f( i,-j, k) => f(i,j,k)
+ !   f( i, j,-k) => f(i,j,k)
+ !
+ !   If this is not the case, the matrix multiplications become 'nonlocal'
+ !   in the memory-storage meaning of the word, and a naive implementation 
+ !   of the matrix multiplication would result in exploding matrix sizes.
+ !
+ !
+ ! * For historical and readability reasons, the derivatives are all implemented
+ !   with respect to 3D functions. Note that the spwfs and densities are all 
+ !   implemented as vectors on the mesh. This disparity is currently solved 
+ !   using pointer remapping, but I'm not sure this is an effective way to do
+ !   things.
+ !==============================================================================
  
  use compilation
  use geninfo

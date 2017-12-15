@@ -13,8 +13,7 @@ module densities
 !
 ! Some technical notes:
 !
-! a) Unlike most stuff, the densities are represented as vectors on the mesh, 
-!    instead of 3D arrays. 
+! a) The densities are represented as vectors on the mesh, instead of 3D arrays. 
 !    Advantages: 
 !      *) Two less indices, which is needed to naively store densities
 !         and their derivatives for N2/3LO. Fortran 90 was limited to 
@@ -32,6 +31,13 @@ module densities
 !         3D pointers, which is hopefully more efficient than a call to RESHAPE.
 !         If this ever takes up a significant fraction of computation time, one
 !         can think of explicitly writing the 1D derivative code.
+!
+! b) Note that the storage scheme for derivatives is not yet implemented on the 
+!    level of densities, only on the level of derivatives of densities.
+!    Thus
+!           D_N_N is fully stored with indices (nx*ny*nz,3,3,2)
+!    But 
+!           Der_Der_D_I_I is stored as (nx*ny*nz,7,2)
 !===============================================================================
 use compilation
 use geninfo

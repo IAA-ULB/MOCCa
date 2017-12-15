@@ -10,19 +10,12 @@
 # for writing to Tantalus source files. 
 #
 # The type of functional is read from file, passed into the initfunctional
-# procedure. It should be built as follows
-#   *) One term per line, separations by point-commas (;)
-#   *) First entry is the name of the term, following the naming scheme
-#   *) Second entry is a possible density dependence of the term
-#   *) third entry is the isospin-scalar coupling constant, defined in 
-#      function of quantities known by Tantalus.
-#   *) fourth entry is the isospin-vector coupling constant, similary defined.
-#   *) Lines starting with '!' will be ignored.
-#   *) Lines starting with '#' will not have consequences for the code,
-#      but will be printed to the output of Hephaestos.
-# Example, the rho^2 term
-#    E_D_I_I_D_I_I ;   ; +3.0/8.0*t0+0*t0*x0+0*t3+0*t3*x3 ; 
-#                                            -1.0/8.0*t0-0.25*t0*x0+0*t3+0*t3*x3 
+# procedure. 
+# Example, the density dependent term from standard Skyrme
+# E_D_I_I_D_I_I_DD ;  
+#                 (sum(D_I_I,2)**(yt3a)) ;  D_I_I ; 
+#          yt3a*(sum(D_I_I,2)**(yt3a-1)) ;   yt3a ; 
+#                    3.0_dp/48.0_dp * t3 ; - 1.0_dp/24.0_dp * t3 * (0.5_dp + x3) 
 #
 # Once read the code will parse the input for
 #   a) the densities needed to calculate these terms
@@ -62,7 +55,7 @@ coupling_constants_1 = []
 # Note that this is not directly i => ith order.
 #  derivative_order <=> derivatives of spwfs calculated
 #            1          1st order + trace of 2nd order (laplacian)
-#            2          2nd order
+#            2          2nd order + trace of 3rd order
 #            3          3rd order derivatives
 derivative_order = 1
 
@@ -80,7 +73,6 @@ derivative_order = 1
 #
 # Note that I still fail to account for this formally (except for C^{1,N}), but 
 # this seems to hold if the functional is local.
-#
 #-------------------------------------------------------------------------------
 assume_locality = 0
 
@@ -107,7 +99,6 @@ def initfunctional(fname):
     for i in range(len(tempden)):
         (deri, lapi, lefti, righti, coupi, crossi) = ParseOperators(tempden[i])
         Found = False
-        #print tempden[i], coupi
         for j in range(len(Densities_needed)):
             (derj, lapj, leftj, rightj, coupj, crossj) = ParseOperators(Densities_needed[j])
             #-------------------------------------------------------------------
@@ -170,11 +161,9 @@ def initfunctional(fname):
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
 def PruneDeriv_needed():
-
     #---------------------------------------------------------------------------
     # Add all of the possible combinations with less derivatives and laplacians,
     # so that we can build the eventually needed combinations.
-    
     for i in range(len(deriv_needed)):
         newderiv=[]
         for j in deriv_needed[i]:
@@ -192,9 +181,9 @@ def PruneDeriv_needed():
         deriv_needed[i] = sorted(deriv_needed[i])
         
 def ReadFunctional(fname):
-    #
+    #---------------------------------------------------------------------------
     # Read the functional terms and the coupling coefficients from file fname.
-    #
+    #---------------------------------------------------------------------------
     global Functional_terms
 
     description=''
@@ -216,7 +205,7 @@ def ReadFunctional(fname):
                 elif(line[0] == '#'):
                     description = description + line
             except IndexError:
-                print 'Problem reading the following line in the functional file.'
+                print 'Problem reading the following line in the func file.'
                 print line
                 exit()      
 
@@ -255,9 +244,9 @@ def ParseDensities(term):
                if(term[i-1] != 'x'): 
                     c = c+ (ind,)
                else:    
-                    if(foundx[sumindices.index(l)] == 0):
-                        foundx[sumindices.index(l)] = foundx[sumindices.index(l)] +1
-                        c = c+ (ind,)
+                 if(foundx[sumindices.index(l)] == 0):
+                    foundx[sumindices.index(l)] = foundx[sumindices.index(l)] +1
+                    c = c+ (ind,)
                         
             if(term[i] in sumindices):
                     ind = ind + 1 
@@ -285,6 +274,11 @@ def ParseDensities(term):
     return (densities, coupling)
 
 def ProcessFunctional(fname, src, target):
+        #---------------------------------------------------------------------------
+        # Master routine calling the other ones to generate a functional based
+        # on the parsing done before.
+        #-----------------------------------------------------------------------
+    
         declaration = ''
         calculation = ''
         form        = ''
@@ -344,8 +338,6 @@ def ProcessFunctional(fname, src, target):
                     SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,-1)
             else:
                 SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field, 0)
-            
-            
         #-----------------------------------------------------------------------
         # Now make sure all of the lines are not too long for compilation.
         declaration = heph_linechecker.LineFormat(declaration)

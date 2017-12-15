@@ -1,5 +1,5 @@
 module nil8
- !=======================================================================
+ !==============================================================================
  !  #######   ##   #    # #####   ##   #      #    #  ####
  !     #     #  #  ##   #   #    #  #  #      #    # #
  !     #    #    # # #  #   #   #    # #      #    #  ####
@@ -9,15 +9,15 @@ module nil8
  !
  !  Copyright W. Ryssens & M. Bender
  !
- !=======================================================================
+ !==============================================================================
  !
  ! Module able to generate new wave-functions from a Nilsson model 
  ! Hamiltonian.  Code was taken from nil8 (v1.0.0), but I do not 
- ! guarantee it actually diagonalizes the nilsson Hamiltonian. 
+ ! guarantee it actually diagonalizes the correct nilsson Hamiltonian. 
  !
  ! In any case, more info can (in principle) be found in 
  !
- !=======================================================================
+ !==============================================================================
  
  use compilation
  use diag

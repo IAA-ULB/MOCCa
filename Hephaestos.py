@@ -11,25 +11,26 @@
 #-------------------------------------------------------------------------------
 from os.path import isfile as isfile
 import os
-from src_heph import heph_densities, heph_symmetries, heph_functional, heph_fields
+from src_heph import heph_densities,heph_symmetries,heph_functional,heph_fields
 from src_heph import preprocess as pp
 #-------------------------------------------------------------------------------
 # Path to the original FORTRAN source
 SRCPATH = 'src_orig/'
 # Path to put the generated source for compilation
 GENPATH = 'src/'
-#List of FORTRAN files to process
-FORTRANFILES=['compilation.f90', 'geninfo.f90' , 'constants.f90', 'diag.f90' ,
-              'nil8.f90', 'coulomb.f90',
-              'derivatives.f90', 'wavefunctions.f90', 'hartree-fock.f90',
-              'densities.f90', 'functional.f90','evolution.f90', 'IO.f90', 'tantalus.f90' ]
+#List of FORTRAN files needed for a functional code.
+FORTRANFILES=['compilation.f90'  , 'geninfo.f90'      , 'constants.f90'   , 
+              'diag.f90'         , 'nil8.f90'         , 'coulomb.f90'     ,
+              'derivatives.f90'  , 'wavefunctions.f90', 'hartree-fock.f90',
+              'densities.f90'    , 'functional.f90'   , 'evolution.f90'   , 
+              'IO.f90'           , 'tantalus.f90' ]
 
 # File containing the definition of the functional
-FUNC_FILE = 'N3LO.func'
+FUNC_FILE = 'functionals/N3LO.func'
 
 #-------------------------------------------------------------------------------
 heph_name= \
-'==============================================================\n' + \
+'==============================================================\n' +\
 "| | | |  ___  _ __  | |__    __ _   ___  ___ | |_  ___   ___  \n" +\
 "| |_| | / _ \| '_ \ | '_ \  / _` | / _ \/ __|| __|/ _ \ / __| \n" +\
 "|  _  ||  __/| |_) || | | || (_| ||  __/\__ \| |_| (_) |\__ \ \n" +\
@@ -53,21 +54,27 @@ if(not FOUND):
 
 #-------------------------------------------------------------------------------
 # Initialize all of Hephaestos' own modules
+print '**************************************************************'
 print ' a)  Hephaestos is initializing its own modules.'
 heph_symmetries.initsymmetries()
 heph_functional.initfunctional(FUNC_FILE)
 heph_densities.initdensities()
 heph_fields.initfields()
-
+print '**************************************************************'
 #-------------------------------------------------------------------------------
 # Treat all of the source files to a nice dose of preprocessing.
+print 
+print '**************************************************************'
 print ' b)  Hephaestos is processing the template source code.'
+print '**************************************************************'
 for fname in FORTRANFILES:
      print ' * Processing ' + fname
      pp.preprocess(fname,SRCPATH,GENPATH)
     
 #-------------------------------------------------------------------------------
 # Check if all files got generated correctly. 
+print 
+print '**************************************************************'
 print ' c)  Checking that all source code is properly generated.'
 
 FOUND=True    
@@ -75,11 +82,9 @@ for fname in FORTRANFILES:
     if(not isfile(GENPATH + fname)):
         print 'You are missing %s%s'%(GENPATH, fname)
         FOUND=False
-print "--------------------------------------------------------"        
 if(not FOUND):
-    print 'Hephaestos did not treat all the source code files.'
+    print '     Hephaestos did not treat all the source code files.'
 else :
-    print 'Correct exit. Ready for compilation.'
-print "--------------------------------------------------------"
-
-
+    print '     Correct exit. Ready for compilation.'
+    print '     Happy optimizing!'
+print '**************************************************************'
