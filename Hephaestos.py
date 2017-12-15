@@ -26,7 +26,8 @@ FORTRANFILES=['compilation.f90'  , 'geninfo.f90'      , 'constants.f90'   ,
               'IO.f90'           , 'tantalus.f90' ]
 
 # File containing the definition of the functional
-FUNC_FILE = 'functionals/N3LO.func'
+FUNC_FILE      = 'functionals/NLO.func'
+FUNC_PAIR_FILE = 'functionals/ULB.pair.func' 
 
 #-------------------------------------------------------------------------------
 heph_name= \
@@ -35,7 +36,7 @@ heph_name= \
 "| |_| | / _ \| '_ \ | '_ \  / _` | / _ \/ __|| __|/ _ \ / __| \n" +\
 "|  _  ||  __/| |_) || | | || (_| ||  __/\__ \| |_| (_) |\__ \ \n" +\
 "|_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/ \n" +\
-" Copyright W.Ryssens & M. Bender \n" + \
+" Copyright W.Ryssens & M. Bender \n"                              +\
 "==============================================================\n"
 
 print heph_name
@@ -57,7 +58,7 @@ if(not FOUND):
 print '**************************************************************'
 print ' a)  Hephaestos is initializing its own modules.'
 heph_symmetries.initsymmetries()
-heph_functional.initfunctional(FUNC_FILE)
+heph_functional.initfunctional(FUNC_FILE, FUNC_PAIR_FILE)
 heph_densities.initdensities()
 heph_fields.initfields()
 print '**************************************************************'

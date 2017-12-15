@@ -399,9 +399,12 @@ def GenerateAction(field, symmetrize):
             rcoupl.append(c)
        else:
             ccoupl.append(c)
+
     rdim  = RightOperator.dimension - len(ccoupl) - 2*len(rcoupl)
     ldim  = LeftOperator.dimension  - 2*len(lcoupl)
     
+    print field,rdim
+
     # all possible values for the arguments of the left-operator
     largs = list(itertools.product(range(3), repeat=ldim))
     #-------------------------------------------------------------------

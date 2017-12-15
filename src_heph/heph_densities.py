@@ -74,9 +74,9 @@
 # work of this script, and the absence of "current of currents" is very
 # important in this respect.
 #
-# Four operators are currently defined in this file, with which we can construct
+# Five operators are currently defined in this file, with which we can construct
 # all of the densities necessary.
-#               Identity, Nabla, Sigma and Current
+#               Identity, Nabla, Sigma, Current and TR
 # All take a list of indices (even though Identity and Current don't need them) 
 # and a 4-vector of components. As output, they permutate the components 
 # according to their operator action and the index, with possible signs. 
@@ -127,7 +127,6 @@
 #    C Currently for EV8-like symmetries, due to no decision yet about 
 #      bookkeeping in Hephaestos itself. 
 #    C Automatic continuation when time-reversal is conserved
-#    C Add pairing densities (simply add another flag)
 #
 #   NC To be debated: do I want to create the concept of a densityvector again?
 #
@@ -154,6 +153,9 @@ ArrayNames=['HFPsi', 'HFdPsi', 'HFddPsi', 'HFdddPsi']
 # and NOT tau_mn fully. 
 Densities_needed   = []
 deriv_needed       = []
+#-------------------------------------------------------------------------------
+# Array containing all of the pairing densities needed.
+Pair_densities_needed = []
 #-------------------------------------------------------------------------------
 # Indices over which sums are supposed to go in both the FORTRAN code and the 
 # naming scheme.
@@ -243,14 +245,15 @@ def ProcessDensities(fname, src, target):
     Declaration    = ''
     Initialisation = ''
     Derivation     = ''
+    PairExpression = ''
     
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
-    print ' Generated densities '
+    print ' Generated densities                               '
+    print ' P-H part                                          '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     print '      Name     DIM with / out    Derivative combs. '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     for i in range(len(Densities_needed)):
-
         den = Densities_needed[i]
         print '%15s %6d %6d     '%(den,OrderOfDen(den),         \
                                           OrderOfDen(den,contract=False)),  \
@@ -263,7 +266,23 @@ def ProcessDensities(fname, src, target):
         Initialisation = Initialisation + '\n' + ini
         Derivation     = Derivation     + '\n' + der
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
+    print ' P-P part                                          '
+    print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
+    print '      Name     DIM with / out    Derivative combs. '
+    print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
+    for i in range(len(Pair_densities_needed)):
+        den = Pair_densities_needed[i]
+        print '%15s %6d %6d     '%(den,OrderOfDen(den),         \
+                              OrderOfDen(den,contract=False)),  \
+                              [(0,0)]
+
+        (e,dec,ini,der)  = GenDensityExpression(den,[(0,0)])
+#        Declaration    = Declaration    + '\n' + dec
+#        PairExpression = PairExpression + '\n' + e
+#        Initialisation = Initialisation + '\n' + ini
+#        Derivation     = Derivation     + '\n' + der
         
+    
     # Substitute into the densities.f90 file.        
     dic={}
     dic['DECLARATION'   ] = Declaration
@@ -900,6 +919,17 @@ def Current(mu,indices):
     out[1,:] = - indices[0,:]
     out[2,:] =   indices[3,:]
     out[3,:] = - indices[2,:]
+    
+    return out
+
+def TR(mu,indices):
+    # Operates on indices to a time-reverse of the spwf
+    out = np.zeros_like(indices)
+
+    out[0,:] =   indices[2,:] 
+    out[1,:] = - indices[3,:]
+    out[2,:] = - indices[0,:]
+    out[3,:] =   indices[1,:]
     
     return out
 
