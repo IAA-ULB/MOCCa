@@ -64,8 +64,8 @@ $DECLARATION
     ! The amount of iterations to keep in memory for the density mixing
     integer           :: memory = 1
     !---------------------------------------------------------------------------
-    ! The type of mixing to perform.
-    character(len=20) :: mixing='linear'
+    ! Precondition the update of the density or not. 
+    integer :: den_precon=0
     
     !---------------------------------------------------------------------------
     ! Preconditioning matrices for the D_I_I
@@ -76,7 +76,7 @@ contains
 
 subroutine readdensit
 
-    namelist /densit/ denmix, memory, mixing
+    namelist /densit/ denmix, memory, den_precon
 
     read(unit=*, nml = densit)
 
@@ -93,13 +93,16 @@ subroutine densit(iteration)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
 $INITIALIZATION
-    
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Save old density for next iteration.
+    ! Save old density for next iteration and mixing.
+    ! Note that this is only necessary at the moment for the ordinary rho
+    ! density, it is the one that can make calculations unstable.
     if(.not. allocated(D_I_I_hist)) then
         allocate(D_I_I_hist(nx*ny*nz,2,memory)) ; D_I_I_hist = 0.0_dp
     endif   
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Saving the previous density for mixing    
     D_I_I_hist(:,:,1) = D_I_I
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -140,9 +143,8 @@ $EXPRESSION
 !    enddo     
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Mixing the ordinary density via the asked for mixing+preconditioning 
-    ! scheme.
-    if(iteration.ne.0) call MassageDensity
+    ! The asked for mixing+preconditioning scheme.
+    call MassageDensity(iteration)
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by 
@@ -153,16 +155,21 @@ $DERIVATION
     enddo  
 end subroutine densit
 
-subroutine MassageDensity
+subroutine MassageDensity(iteration)
     !---------------------------------------------------------------------------
     ! Operate on the density before feeding it into the rest of the program.
     !
+    ! Parameters controlling the behaviour
     !
+    !  memory : number of previous iterations to keep in memory
+    !   
+    !   
     !---------------------------------------------------------------------------
     
+    integer, intent(in)   :: iteration
     real(KIND=dp),pointer :: res(:,:,:), Pres(:,:,:)
-    real(KIND=dp)         :: C, eps, particles(2)
-    real(KIND=dp), target :: resid(nx*ny*nz), Presid(nx*ny*nz)
+    real(KIND=dp)         :: C, eps, particles(2), mixparam
+    real(KIND=dp), target :: resid(nx*ny*nz,2), Presid(nx*ny*nz,2)
     integer               :: it, sx, sy, sz, i,j,k
     
     if(.not.allocated(preconX_den)) then
@@ -171,56 +178,59 @@ subroutine MassageDensity
         allocate(preconZ_den(nz,nz,2,2))        ; preconZ_den= 0.0_dp
     endif
     
-    if(mixing .ne. 'precon') return
-    
-    !---------------------------------------------------------------------------
-    ! Decide on the preconditioning constants eps and c
-    ! For now guess c to be B3 of SLy4
-    C   = - 10 
-    eps = - 300 ! Guess?
-
-    particles(1) = neutrons
-    particles(2) = protons
-    print *, 'Mixing is happening!'
-    !---------------------------------------------------------------------------
-    ! Apply the preconditioner
-    do it=1,2
+    if(iteration.eq.0) return
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Compute the residual
+    resid = D_I_I - D_I_I_hist(:,:,1)
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Perform preconditioning if asked for.
+    if(den_precon .eq. 1 ) then 
+        print *, 'Preconditioning'
         !-----------------------------------------------------------------------
-        ! Invert the derivatives.
-        call InvertDerivatives(eps,C,preconX_den(:,:,:,it), &
-        &                            preconY_den(:,:,:,it), &
-        &                            preconZ_den(:,:,:,it))
-    
-        ! Compute the residual
-        resid = D_I_I(:,it) - D_I_I_hist(:,it,1)
-        ! Remap to 3D
-        res(1:nx,1:ny,1:nz)  =>  resid(1:nx*ny*nz)
-        Pres(1:nx,1:ny,1:nz) => Presid(1:nx*ny*nz)
-        
-        do i=1,ny*nz
-            Pres(:,i,1) =                                                      &
-            &                       matmul(preconX_den(:,:,2,it),res(:,i,1))
-        enddo
-        do k=1,nz
-            do i=1,nx
-                Pres(i,:,k) = Pres(i,:,k) +                                  &
-                &                   matmul(preconY_den(:,:,2,it),res(i,:,k))
-            enddo
-        enddo
-        do i=1,nx*ny
-            Pres(i,1,:) = Pres(i,1,:) +                                      &
-            &                       matmul(preconZ_den(:,:,2,it),res(i,1,:))
-        enddo
-        
+        ! Decide on the preconditioning constants eps and c
+        C   = - 20  *0.012/6.7   
+        eps = - 900 *0.012/6.7 ! Guess?
 
-        print *, sum(res)*dv, sum(Pres)*dv, sum(D_I_I(:,it))*dv      
-!        D_I_I(:,it) = D_I_I_hist(:,it,1) + Presid(:)
-!        print *, 'norm', sum(Presid**2)*dv
-!        ! Renormalizing
-!        D_I_I(:,it) = D_I_I(:,it)* (particles(it)/(sum(D_I_I(:,it)))/dv)
-    enddo
-    !---------------------------------------------------------------------------
+        particles(1) = neutrons
+        particles(2) = protons
+        print *, 'Mixing is happening!'
+        !-----------------------------------------------------------------------
+        ! Apply the preconditioner
+        do it=1,2
+            !-------------------------------------------------------------------
+            ! Invert the derivatives.
+            call InvertDerivatives(eps,C,preconX_den(:,:,:,it), &
+            &                            preconY_den(:,:,:,it), &
+            &                            preconZ_den(:,:,:,it))
+        
+            ! Remap to 3D
+            res(1:nx,1:ny,1:nz)  =>  resid(1:nx*ny*nz,it)
+            Pres(1:nx,1:ny,1:nz) => Presid(1:nx*ny*nz,it)
+            
+            do i=1,ny*nz
+                Pres(:,i,1) =                                                  &
+                &                       matmul(preconX_den(:,:,2,it),res(:,i,1))
+            enddo
+            do k=1,nz
+                do i=1,nx
+                    Pres(i,:,k) = Pres(i,:,k) +                                &
+                    &                   matmul(preconY_den(:,:,2,it),res(i,:,k))
+                enddo
+            enddo
+            do i=1,nx*ny
+                Pres(i,1,:) = Pres(i,1,:) +                                    &
+                &                       matmul(preconZ_den(:,:,2,it),res(i,1,:))
+            enddo
+            
+        enddo
+        resid = Presid 
+    endif
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Perform mixing
+    ! Only simple linear mixing at the moment.
+    D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * resid
     
+    print *, 'Den', sum(D_I_I)*dv
 end subroutine MassageDensity
     
 end module densities
