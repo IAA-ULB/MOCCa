@@ -175,8 +175,8 @@ Den_template_2 = Template(   tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,wave) * $RIGHTWF(i
 Ini_template   = Template(   tab+'if(.not.allocated($NAME)) then     \n' + \
                            2*tab+'allocate($NAME(mv$DIM,2)) \n'          + \
                            2*tab+'$NAME = 0.0d0 \n'                      + \
-                             tab+'endif \n'                              + \
-                             tab+'$NAME = denmix * $NAME')
+                             tab+'endif \n'                              ) #+ \
+#                             tab+'$NAME = denmix * $NAME')
 Dec_template   = Template(   tab + 'real*8,allocatable :: $NAME(:$TOTALIND,:)')
 Der_template   = Template( 2*tab +'call Derive_grad($NAME(:$IND,it),$PX,$PY,$PZ,der_$NAME(:,1$IND,it), &\n') 
 Der_template_b = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,2$IND,it), &\n')

@@ -77,12 +77,12 @@ subroutine ReachForWaterAndFood
 !    enddo
     
     call inilag()
-    
     call printSpwfs
     call deriveall()
     
     call calcedfcoefs()
     call printedfcoefs()     
+    
     call densit(0)
     call calcFields()
     call CalcEnergy()

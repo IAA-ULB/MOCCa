@@ -55,7 +55,7 @@ $DECLARATION
 
     !---------------------------------------------------------------------------
     ! Density-mixing parameter default value
-    real(KIND=dp) :: denmix = 0.65_dp
+    real(KIND=dp) :: denmix = 0.75_dp
     
     !---------------------------------------------------------------------------
     ! Previous value(s) of the density rho.
@@ -94,6 +94,19 @@ subroutine densit(iteration)
     ! Allocation and initialization
 $INITIALIZATION
     
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Save old density for next iteration.
+    if(.not. allocated(D_I_I_hist)) then
+        allocate(D_I_I_hist(nx*ny*nz,2,memory)) ; D_I_I_hist = 0.0_dp
+    endif   
+    D_I_I_hist(:,:,1) = D_I_I
+    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Zero the current density
+    D_I_I   = 0.0
+    D_Nm_Nm = 0.0
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculation by summing the densities
     do wave=1,nwt
@@ -106,6 +119,11 @@ $EXPRESSION
         enddo
     enddo
     
+    if(iteration.eq.0) then
+    
+    else
+        D_I_I = denmix*D_I_I_hist(:,:,1) + (1-denmix)*D_I_I
+    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -     
 !    ! Calculation by summing of the pairing densities
 !    do wave=1,nwt
@@ -125,13 +143,7 @@ $EXPRESSION
     ! Mixing the ordinary density via the asked for mixing+preconditioning 
     ! scheme.
     if(iteration.ne.0) call MassageDensity
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Save old density for next iteration.
-    if(.not. allocated(D_I_I_hist)) then
-        allocate(D_I_I_hist(nx*ny*nz,2,memory)) ; D_I_I_hist = 0.0_dp
-    endif   
-    D_I_I_hist(:,:,1) = D_I_I
-    if(any(D_I_I.lt.0.0_dp)) print *, 'negative density'
+    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by 
     ! deriving other ones. 

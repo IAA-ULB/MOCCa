@@ -115,7 +115,6 @@ contains
     ! a) Generating the nilsson wave-functions in an EV8-box   
     call nilsson (HFPsi,kparz,spenergies,5,4,nwt,nwn,nwp,                      &
     &           floor(neutrons),floor(protons),nx,ny,nz,0.8d0,0.2d0,0.2d0,0.2d0)
-    call GramSchmidt
     allocate(dispersions(nwt))
     allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
     allocate(upairing(nwt), vpairing(nwt))
@@ -195,6 +194,9 @@ contains
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
 
+    ! Simply because I mistrust the nilsson routine
+    call GramSchmidt
+    
   end subroutine iniwavefunctions
   
   subroutine deriveall()
