@@ -557,7 +557,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
         calculation = calculation + calc_DD_template.substitute(dic)
 
     dic['FILENAME'] ='edensities/' + dic['TERM'] + '.dat'
-    calculation = calculation + write_edensity.substitute(dic) + '\n'
+    #calculation = calculation + write_edensity.substitute(dic) + '\n'
     calculation = calculation + calc_c_template.substitute(dic) 
     calculation = calculation + calc_d_template.substitute(dic) + '\n'
     calculation = calculation + calc_e_template.substitute(dic)

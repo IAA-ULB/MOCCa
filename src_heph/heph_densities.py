@@ -168,6 +168,7 @@ derstring = 'Der'
 #-------------------------------------------------------------------------------
 # Density calculation template to fill in
 # Could be defined globally, but is nice to have here for quick reference
+
 Den_template_1 = Template( 2*tab+'$NAME(i$IND,it) = $NAME(i$IND,it) + $WEIGHT * (')
 Den_template_2 = Template(   tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,wave) * $RIGHTWF(i$RIND,$RCOMP,wave)')
 

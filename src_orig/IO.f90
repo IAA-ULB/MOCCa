@@ -32,7 +32,7 @@ contains
    
     1 format ( 20('-'), 'General Information ', 20('-'))
     2 format ( 'Mesh parameters' )
-    3 format ( '   nx = ', i5 , ' ny = ' , i5 , ' nz = ' , i5)
+    3 format ( '   nx = ', i5 , ' ny = ' , i5 , ' nz = ' , i5, ' mv = ' , i5)
     4 format ( '   dx = ', f20.10,' (fm  ) ')
     5 format ( '   dv = ', f5.2,' (fm^3) ')
     6 format ( 'Nucleus')
@@ -44,7 +44,7 @@ contains
 
     print 1
     print 2
-    print 3 , nx, ny, nz
+    print 3 , nx, ny, nz, mv
     print 4 , dx
     print 5 , dv
     print 6

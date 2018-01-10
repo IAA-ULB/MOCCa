@@ -129,7 +129,7 @@ $PRINTCOEF
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
     
-    CoulombDirect = calccoulombenergy()
+    !CoulombDirect = calccoulombenergy()
     
  end subroutine CalcEnergy
  
@@ -149,7 +149,6 @@ $CALCULATION
 $TOTAL
     
     TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)
-    
  end subroutine CompSkyrme
  
  subroutine PrintSkyrme()
@@ -234,7 +233,7 @@ $CALCFIELDS
 
         !-----------------------------------------------------------------------
         ! Include the Coulomb Potential
-        call SolveCoulomb()
+        !call SolveCoulomb()
 
   end subroutine calcFields 
   

@@ -38,6 +38,9 @@ def preprocess(fname, src, target):
     if(fname=='wavefunctions.f90'):
         ProcessWavefunctions(fname, src, target)
         return
+    if(fname=='precondition.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='tantalus.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return

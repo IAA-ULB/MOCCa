@@ -115,6 +115,7 @@ contains
     ! a) Generating the nilsson wave-functions in an EV8-box   
     call nilsson (HFPsi,kparz,spenergies,5,4,nwt,nwn,nwp,                      &
     &           floor(neutrons),floor(protons),nx,ny,nz,0.8d0,0.2d0,0.2d0,0.2d0)
+    call GramSchmidt
     allocate(dispersions(nwt))
     allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
     allocate(upairing(nwt), vpairing(nwt))
@@ -167,7 +168,6 @@ contains
         if(kparz(i) .gt. 0) HFBlocks(5) = HFBlocks(5) +1
         if(kparz(i) .lt. 0) HFBlocks(7) = HFBlocks(7) +1
     enddo
-
     
     do i=1, HFBlocks(1)
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
@@ -194,7 +194,6 @@ contains
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
-    
 
   end subroutine iniwavefunctions
   

@@ -57,23 +57,26 @@ subroutine ReachForWaterAndFood
    
     call iniwavefunctions()
     call NaiveFill(occupations)
-    
-    open (12,form='unformatted',file='wf/MOCCa.C12.SLy4.dx=0.53.wf')
-    read(12)
-    read(12)
-    read(12)
-    read(12)
-    read(12)
-    nwt = nwp + nwn
-    
-    
-    do i=1,nwt
-        read(12) HFPsi(:,:,i)
-        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, lol, lol,lol,lol,lol
-    enddo
+ 
+!-------------------------------------------------------------------------------   
+! Use this to  quick-and-dirty read wavefunctions from a MOCCa file until I 
+! get around to a proper IO module.
+!-------------------------------------------------------------------------------
+!    open (12,form='unformatted',file='wf/MOCCa.C12.SLy4.dx=0.53.wf')
+!    read(12)
+!    read(12)
+!    read(12)
+!    read(12)
+!    read(12)
+!    nwt = nwp + nwn
+!    
+!    
+!    do i=1,nwt
+!        read(12) HFPsi(:,:,i)
+!        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, lol, lol,lol,lol,lol
+!    enddo
     
     call inilag()
-    call NaiveFill(occupations)
     
     call printSpwfs
     call deriveall()
@@ -81,12 +84,10 @@ subroutine ReachForWaterAndFood
     call calcedfcoefs()
     call printedfcoefs()     
     call densit(0)
-    
     call calcFields()
     call CalcEnergy()
     call PrintEnergy 
     
-
     do iter=1,maxiter
         print *,  '*************************************'
         print *,  ' Iteration ', iter
@@ -105,7 +106,6 @@ subroutine ReachForWaterAndFood
         call CalcEnergy()
         
         if(mod(iter,PrintIter).eq.0) then
-            
             call PrintSpwfs
             call PrintEnergy            
         endif
