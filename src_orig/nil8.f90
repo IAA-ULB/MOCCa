@@ -543,13 +543,14 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
         do k = 1,mz
             do j=1,my
                 do i=1,mx
-                    wfs(i + (j-1) * nx + (k-1) * ny * nx,1,nwave) = psi(i,j,k,1)
-                    wfs(i + (j-1) * nx + (k-1) * ny * nx,2,nwave) = psi(i,j,k,2)
-                    wfs(i + (j-1) * nx + (k-1) * ny * nx,3,nwave) = psi(i,j,k,3)
-                    wfs(i + (j-1) * nx + (k-1) * ny * nx,4,nwave) = psi(i,j,k,4)
+                    wfs(i + (j-1) * mx + (k-1) * my * mx,1,nwave) = psi(i,j,k,1)
+                    wfs(i + (j-1) * mx + (k-1) * my * mx,2,nwave) = psi(i,j,k,2)
+                    wfs(i + (j-1) * mx + (k-1) * my * mx,3,nwave) = psi(i,j,k,3)
+                    wfs(i + (j-1) * mx + (k-1) * my * mx,4,nwave) = psi(i,j,k,4)
                 enddo
             enddo
         enddo
+
     enddo
 15 continue
 
