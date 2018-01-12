@@ -30,7 +30,7 @@ contains
     !
     ! Calculates and returns matrices invX, invY and invZ that are
     !    
-    !      (epsilon + C * Delta_{x/y/z})^{-1}
+    !      (C * Delta_{x/y/z} - eps)^{-1}
     !---------------------------------------------------------------------------
     ! OUTPUT
     real(KIND=dp),intent(out) :: invX(nx,nx,2),invY(ny,ny,2),invZ(nz,nz,2)

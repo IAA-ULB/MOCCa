@@ -75,7 +75,7 @@ contains
         &                    momfactor
 
         read(unit=*, nml=evolution)
-        
+        !-----------------------------------------------------------------------
         !  Assign the correct preconditioner
         call to_upper(Precondition, Precondition)
         if(adjustl(Precondition) .eq. 'PG' ) then
@@ -83,7 +83,7 @@ contains
         else 
             Precon => Precondition_none
         endif
-        
+        !-----------------------------------------------------------------------
         ! Assign the correct evolution routine
         call to_upper(Strategy, Strategy)
         if(adjustl(Strategy) .eq. 'IMTIME' ) then
@@ -135,7 +135,7 @@ contains
         gradientnorm = 0.0_dp
 
         ! Calculate the preconditioning matrices
-        if(Precondition .ne. 'None' ) call CalculatePreconditioners()
+        if(Precondition .ne. 'NONE' ) call CalculatePreconditioners()
         
         do wave=1,nwt
             if(wave .lt. nwn) then
@@ -158,12 +158,12 @@ contains
 
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
             hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    
-           
+
             hfpsi(:,:,wave) = hfpsi(:,:,wave) -  dt/hbar * hpsi
         enddo
     
         gradientnorm = sqrt(gradientnorm)/(neutrons + protons)  
-        if(abs(gradientnorm) .lt.1d-5) stop
+        !if(abs(gradientnorm) .lt.5d-5) stop
         call GramSchmidt
     
     end subroutine Evolve_graddesc
@@ -190,7 +190,7 @@ contains
         
         integer, intent(in)   :: iteration
         integer               :: wave, iso,k,i
-        real(KIND = dp)       :: hpsi(nx*ny*nz,4)
+        real(KIND = dp)       :: hpsi(nx*ny*nz,4), olde
         real(KIND = dp), allocatable, save :: Updates(:,:,:)      
 
         if(.not.allocated(Updates)) then
@@ -200,7 +200,7 @@ contains
 
         gradientnorm = 0.0_dp
 
-!        call invertderivatives()
+        if(Precondition .ne. 'NONE' ) call CalculatePreconditioners()
 
         do wave=1,nwt
             if(wave .lt. nwn) then
@@ -216,15 +216,17 @@ contains
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso)
 
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
-            dispersions(wave) = sum( hpsi(:,:)**2)  * dv - spenergies(wave)**2          
-
+            
+            olde              = dispersions(wave)
+            dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
+            
             gradientnorm = gradientnorm + occupations(wave) * &
             & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
             
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
             hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)  
 
-            updates(:,:,wave) = momfactor* updates(:,:,wave) -  dt/hbar * hpsi
+            updates(:,:,wave) = momfactor*updates(:,:,wave) -  dt/hbar * hpsi
             
             hfpsi(:,:,wave) = hfpsi(:,:,wave) + updates(:,:,wave)
         enddo
@@ -343,8 +345,9 @@ contains
             call InvertDerivatives(epsilon0, -hbm(it),preconX(:,:,:,it),       &
             &                                         preconY(:,:,:,it),       &
             &                                         preconZ(:,:,:,it))
-                                          
+                                           
         enddo
+        
     end subroutine CalculatePreconditioners
     
 !    subroutine InvertDerivatives

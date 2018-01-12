@@ -52,6 +52,7 @@ module functional
     integer       :: COM1body = 2
     real(KIND=dp) :: nucleonmass(2) = (/939.565379_dp , 938.272046_dp /)
     
+    real(KIND=dp) :: eps =1d-20
 
     real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange

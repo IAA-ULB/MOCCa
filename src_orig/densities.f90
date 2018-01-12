@@ -65,18 +65,21 @@ $DECLARATION
     integer           :: memory = 1
     !---------------------------------------------------------------------------
     ! Precondition the update of the density or not. 
-    integer :: den_precon=0
+    integer :: den_precon=0, den_mix=0
     
     !---------------------------------------------------------------------------
     ! Preconditioning matrices for the D_I_I
     real*8, allocatable :: preconX_den(:,:,:,:)
     real*8, allocatable :: preconY_den(:,:,:,:)
     real*8, allocatable :: preconZ_den(:,:,:,:) 
+    
+    ! Temporary
+    real*8 :: Cden, epsden
 contains
 
 subroutine readdensit
 
-    namelist /densit/ denmix, memory, den_precon
+    namelist /densit/ denmix, memory, den_precon, Cden, epsden, den_mix
 
     read(unit=*, nml = densit)
 
@@ -101,8 +104,11 @@ $INITIALIZATION
     if(.not. allocated(D_I_I_hist)) then
         allocate(D_I_I_hist(nx*ny*nz,2,memory)) ; D_I_I_hist = 0.0_dp
     endif   
+    do i=1,memory-1
+        D_I_I_hist(:,:,memory-i+1) = D_I_I_hist(:,:,memory-i)
+    enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Saving the previous density for mixing    
+    ! Saving the input density for mixing    
     D_I_I_hist(:,:,1) = D_I_I
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -121,12 +127,7 @@ $INITIALIZATION
 $EXPRESSION
         enddo
     enddo
-    
-    if(iteration.eq.0) then
-    
-    else
-        D_I_I = denmix*D_I_I_hist(:,:,1) + (1-denmix)*D_I_I
-    endif
+   
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -     
 !    ! Calculation by summing of the pairing densities
 !    do wave=1,nwt
@@ -170,7 +171,17 @@ subroutine MassageDensity(iteration)
     real(KIND=dp),pointer :: res(:,:,:), Pres(:,:,:)
     real(KIND=dp)         :: C, eps, particles(2), mixparam
     real(KIND=dp), target :: resid(nx*ny*nz,2), Presid(nx*ny*nz,2)
-    integer               :: it, sx, sy, sz, i,j,k
+    integer               :: it, sx, sy, sz, i,j,k, succes, N, iter
+    
+    !---------------------------------------------------------------------------
+    real(KIND=dp), allocatable,save :: DIIS_matrix(:,:), RHS(:), residuals(:,:,:)
+    integer, allocatable ,save :: PivotInfo(:)
+    
+    real(KIND=dp), allocatable :: TMP(:,:)
+    real(KIND=dp)              :: Work(100)
+    
+    !---------------------------------------------------------------------------
+    real(KIND=dp), allocatable :: w(:), g(:,:), beta(:,:), B_matrix(:,:)
     
     if(.not.allocated(preconX_den)) then
         allocate(preconX_den(nx,nx,2,2))        ; preconX_den= 0.0_dp
@@ -184,16 +195,14 @@ subroutine MassageDensity(iteration)
     resid = D_I_I - D_I_I_hist(:,:,1)
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Perform preconditioning if asked for.
-    if(den_precon .eq. 1 ) then 
-        print *, 'Preconditioning'
+    if(den_precon.eq.1) then 
         !-----------------------------------------------------------------------
         ! Decide on the preconditioning constants eps and c
-        C   = - 20  *0.012/6.7   
-        eps = - 900 *0.012/6.7 ! Guess?
+        C   = Cden 
+        eps = epsden ! Guess?
 
         particles(1) = neutrons
         particles(2) = protons
-        print *, 'Mixing is happening!'
         !-----------------------------------------------------------------------
         ! Apply the preconditioner
         do it=1,2
@@ -221,16 +230,135 @@ subroutine MassageDensity(iteration)
                 Pres(i,1,:) = Pres(i,1,:) +                                    &
                 &                       matmul(preconZ_den(:,:,2,it),res(i,1,:))
             enddo
-            
         enddo
         resid = Presid 
     endif
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Perform mixing
-    ! Only simple linear mixing at the moment.
-    D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * resid
+    select case(den_mix) 
+    case(0) 
+        ! Simple linear mixing at the moment.
+        D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * resid
+    case(1)
+        !-----------------------------------------------------------------------
+        ! DIIS mixing with (N) iterations
+        if(.not.allocated(DIIS_matrix)) then
+            allocate(DIIS_matrix(memory+1, memory+1)); DIIS_matrix=0
+            allocate(RHS(memory+1))                  ; RHS=0
+            allocate(PivotInfo(memory+1))            ; PivotInfo =0
+            allocate(residuals(mv, 2, memory))       ; residuals = 0
+        endif
+        !-----------------------------------------------------------------------
+        ! Save the output density as history.
+        ! This is crucial to maintain enough information in the density 
+        ! mixing algorithm.
+        D_I_I_hist(:,:,1) = D_I_I
     
-    print *, 'Den', sum(D_I_I)*dv
+        !N is the number of mixed iterations
+        N = min(Iteration, memory)
+        
+        ! DIIS matrix elements are constructed from past residuals
+        do i=1,N-1
+            residuals(:,:,N-i+1) = residuals(:,:,N-i) 
+        enddo
+        residuals(:,:,1)= resid 
+        
+        do i=1,N
+            do j=i,N
+                DIIS_matrix(i,j) = sum(residuals(:,:,i) * residuals(:,:,j))*dv
+                DIIS_matrix(j,i) = DIIS_matrix(i,j)
+            enddo
+        enddo
+
+        if(Iteration.le.1) then
+          !---------------------------------------------------------------------
+          !Return linear damping when not enough info is present
+          D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * resid
+          return
+        endif
+        
+        !-----------------------------------------------------------------------
+        ! Small gradient solver to solve the optimization problem.
+        !
+        ! Needs to be cleaned up.
+        !
+        ! Initial guess 
+        RHS(1:N)  = 1/sqrt(1.0*N)
+        do iter=1,100
+            RHS(1:N) = RHS(1:N)-200*RHS(1:N)*matmul(DIIS_matrix(1:N,1:N),RHS(1:N)**2)
+            ! Normalize
+            RHS(1:N) = RHS(1:N)/sqrt(sum(RHS(1:N)**2))
+        enddo
+        print *, 'RHS', RHS(1:N)
+!-------------------------------------------------------------------------------
+!        Quarantined code to do old-style DIIS.
+!------------------------------------------------------------------------------- 
+!
+!        RHS                  =   0.0_dp
+!        DIIS_Matrix(N+1,1:N) =  -1.0_dp
+!        DIIS_Matrix(1:N,N+1) =  -1.0_dp
+!        DIIS_Matrix(N+1,N+1) =   0.0_dp
+!        RHS(N+1)             =  -1
+!        
+!        call DSYSV('L',N+1,1,DIIS_Matrix(1:N+1,1:N+1),N+1,pivotinfo,RHS(1:N+1),&
+!        &           N+1,work,size(Work),Succes)
+!        if(Succes.ne.0) then
+!            print *, 'Error while solving the DIIS linear system.', Succes
+!            stop
+!        endif
+!------------------------------------------------------------------------------- 
+
+        !-----------------------------------------------------------------------
+        ! Construct the new density.
+        ! Note that we add an extra point into the last direction to keep
+        ! on adding new information.
+        D_I_I = 0.0
+        do i=1,N
+            D_I_I = D_I_I + RHS(i)**2*D_I_I_hist(:,:,i)
+        enddo
+        
+    case(2)
+        
+
+!        !-----------------------------------------------------------------------
+!        ! Broyden mixing algorithm
+!        if(.not.allocated(residuals)) then
+!            allocate(residuals(mv, 2, memory))       ; residuals = 0
+!            allocate(B_matrix(memory, memory))       ; B_matrix = 0
+!            allocate(beta(memory, memory))           ; beta = 0
+!        endif
+!        
+!        !-----------------------------------------------------------------------
+!        ! N is the number of mixed iterations
+!        N = min(Iteration, memory)
+!        do i=1,N-1
+!            residuals(:,:,N-i+1) = residuals(:,:,N-i) 
+!        enddo
+!        residuals(:,:,1)= resid 
+!        
+!        !---------------------------------------------------------------------
+!        D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * residuals(:,:,1)
+!        
+!        !Return linear damping when not enough info is present
+!        if(Iteration.le.1) return
+!        !-----------------------------------------------------------------------
+!        ! Build the matrix of residual products (not yet normalized)
+!        do i=2,N
+!            do j=i,N
+!                B_matrix(i,j) = sum(                                           &
+!                &               (residuals(:,:,i) - residuals(:,:,i-1))        &
+!                &               (residuals(:,:,j) - residuals(:,:,j-1)))*dv
+!                
+!                B_matrix(i,j) = B_matrix(j,i)
+!            enddo
+!        enddo
+!        ! Build the 
+        
+        
+    end select
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Safeguard
+    where(D_I_I.lt.1d-10) D_I_I = 0 
 end subroutine MassageDensity
     
 end module densities
