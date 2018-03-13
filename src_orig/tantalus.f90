@@ -84,6 +84,7 @@ subroutine ReachForWaterAndFood
     call printedfcoefs()     
     
     call densit(0)
+
     call calcFields()
     call CalcEnergy()
     call PrintEnergy 

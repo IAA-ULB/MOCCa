@@ -29,6 +29,9 @@ def preprocess(fname, src, target):
     if(fname=='compilation.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='sphericalharmonics.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='geninfo.f90'):
         ProcessGeninfo(fname, src, target)
         return

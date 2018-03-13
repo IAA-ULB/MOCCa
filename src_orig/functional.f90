@@ -95,7 +95,7 @@ $PRINTCOEF
     6 format (15x, 'Kinetic Energy:', 3f15.6)
    61 format (15x, '    COM 1-body:', 3f15.6)
     7 format (15x, 'Coulomb Direct:', 3f15.6)
-    8 format (15x, 'Coulomb Direct:', 3f15.6)
+    8 format (15x, '      Exchange:', 3f15.6)
     
     9 format (15x, '  Total energy:', 30x, f15.6)
    10 format (15x, '    from spwfs:', 30x, f15.6)
@@ -119,7 +119,7 @@ $PRINTCOEF
     ! Calculate all of the relevant energies.
     !---------------------------------------------------------------------------
     
-    use Coulomb, only : calccoulombenergy
+    use Coulomb, only : CoulombEnergy_Direct,CoulombEnergy_Exchange
     
     ! Kinetic energy
     Kinetic = CompKinetic()
@@ -127,20 +127,25 @@ $PRINTCOEF
     call CompCOMCorrection()
     ! Skyrme functional
     call compSkyrme()
+
+    ! Direct contribution of the Coulomb potential
+    CoulombDirect   = CoulombEnergy_Direct(D_I_I(:,2))
+    ! Exchange contribution
+    CoulombExchange = CoulombEnergy_Exchange(D_I_I(:,2)) 
+
+    ! Total energy
+    TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)
+    TotalE = TotalE + CoulombDirect + CoulombExchange
+
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
-    
-    !CoulombDirect = calccoulombenergy()
-    
+
  end subroutine CalcEnergy
  
  subroutine CompSkyrme()
     !---------------------------------------------------------------------------
-    !
-    ! 
-    !
-    !
-    !
+    ! Calculate the Skyrme part to the functional.
+    !---------------------------------------------------------------------------
     real(KIND=dp) :: Edensity(mv,3)
     integer       :: m
     
@@ -148,8 +153,7 @@ $CALCULATION
     
     Skyrme = &
 $TOTAL
-    
-    TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)
+
  end subroutine CompSkyrme
  
  subroutine PrintSkyrme()
@@ -226,16 +230,32 @@ $PRINT
 
   subroutine calcFields()
         
-        use Coulomb, only : SolveCoulomb
+        use Coulomb, only : SolveCoulomb, CoulombPotential, Exchangepotential
         
-        integer :: it
+        integer :: it,i,j,k
 
 $CALCFIELDS
 
         !-----------------------------------------------------------------------
         ! Include the Coulomb Potential
-        !call SolveCoulomb()
-
+        call SolveCoulomb(D_I_I(:,2))
+        
+        !-----------------------------------------------------------------------
+        ! Add the Coulomb contribution to the field corresponding to rho.
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              ! Direct contribution
+              ! The index juggling is ugly, but necessary. The Coulomb potential
+              ! is defined on a slightly larger box using boundary conditions.
+              ! A simple abstract statement might mess this up.
+              F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2) =                                &
+              &       F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2) + CoulombPotential(i,j,k)
+            enddo
+          enddo
+        enddo
+        ! Exchange contribution
+        F_I_I(1:mv,2) = F_I_I(1:mv,2) + ExchangePotential(1:mv)
   end subroutine calcFields 
   
   function sphamil(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso) result(hpsi)
@@ -312,12 +332,14 @@ $SKYRMEACTION
         spwfenergy = spwfenergy + occupations(wave) * spenergies(wave)
     enddo
     
-    ! Calculation of rearrangement energy
+    ! Calculation of rearrangement energy (without Coulomb Exchange)
 $EREAR   
 
-    spwfenergy = spwfenergy - e_rear
+    ! Add the rearrangement energy 
+    spwfenergy = spwfenergy - e_rear 
     
-    spwfenergy = 0.5 * spwfenergy + 0.5 * sum(kinetic)
+    ! Add everything and don't forget about Coulomb exchange
+    spwfenergy = 0.5 * spwfenergy + 0.5 * sum(kinetic) + CoulombExchange/3.d0
     
     ! Always add the 1-body COMcorrection. In case it is used iteratively, it
     ! is double counted along with the kinetic energy!

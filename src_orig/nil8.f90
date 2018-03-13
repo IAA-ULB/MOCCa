@@ -431,7 +431,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
                 ia    = ia + 1
                 a(ia) = s(i,j)
             enddo
-            e(nn+i) = h(i,i)*ho0 - 50.0
+            e(nn+i) = d(i)*ho0 - 50.0
         enddo
     16 continue
     !if (it.eq.1) print 101,x,y,cb
@@ -541,14 +541,14 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
         kk  = 0
 
         do k = 1,mz
-            do j=1,my
-                do i=1,mx
-                    wfs(i + (j-1) * mx + (k-1) * my * mx,1,nwave) = psi(i,j,k,1)/sqrt(2.0)
-                    wfs(i + (j-1) * mx + (k-1) * my * mx,2,nwave) = psi(i,j,k,2)/sqrt(2.0)
-                    wfs(i + (j-1) * mx + (k-1) * my * mx,3,nwave) = psi(i,j,k,3)/sqrt(2.0)
-                    wfs(i + (j-1) * mx + (k-1) * my * mx,4,nwave) = psi(i,j,k,4)/sqrt(2.0)
-                enddo
+          do j=1,my
+            do i=1,mx
+              wfs(i+(j-1)*mx+(k-1)*my*mx,1,nwave) = psi(i,j,k,1)/sqrt(2.0)
+              wfs(i+(j-1)*mx+(k-1)*my*mx,2,nwave) = psi(i,j,k,2)/sqrt(2.0)
+              wfs(i+(j-1)*mx+(k-1)*my*mx,3,nwave) = psi(i,j,k,3)/sqrt(2.0)
+              wfs(i+(j-1)*mx+(k-1)*my*mx,4,nwave) = psi(i,j,k,4)/sqrt(2.0)
             enddo
+          enddo
         enddo
 
     enddo

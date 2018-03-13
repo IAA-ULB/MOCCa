@@ -66,20 +66,19 @@ $DECLARATION
     !---------------------------------------------------------------------------
     ! Precondition the update of the density or not. 
     integer :: den_precon=0, den_mix=0
-    
     !---------------------------------------------------------------------------
     ! Preconditioning matrices for the D_I_I
     real*8, allocatable :: preconX_den(:,:,:,:)
     real*8, allocatable :: preconY_den(:,:,:,:)
     real*8, allocatable :: preconZ_den(:,:,:,:) 
-    
+    !---------------------------------------------------------------------------
     ! Temporary
-    real*8 :: Cden, epsden
+    real*8 :: Cden, epsden, denmom
 contains
 
 subroutine readdensit
 
-    namelist /densit/ denmix, memory, den_precon, Cden, epsden, den_mix
+    namelist /densit/ denmix, memory, den_precon, Cden, epsden, den_mix, denmom
 
     read(unit=*, nml = densit)
 
@@ -174,14 +173,14 @@ subroutine MassageDensity(iteration)
     integer               :: it, sx, sy, sz, i,j,k, succes, N, iter
     
     !---------------------------------------------------------------------------
-    real(KIND=dp), allocatable,save :: DIIS_matrix(:,:), RHS(:), residuals(:,:,:)
+    real(KIND=dp), allocatable, save :: denupdates(:,:)
+    
+    !---------------------------------------------------------------------------
+    real(KIND=dp), allocatable,save :: DIIS_matrix(:,:), RHS(:),residuals(:,:,:)
     integer, allocatable ,save :: PivotInfo(:)
     
     real(KIND=dp), allocatable :: TMP(:,:)
     real(KIND=dp)              :: Work(100)
-    
-    !---------------------------------------------------------------------------
-    real(KIND=dp), allocatable :: w(:), g(:,:), beta(:,:), B_matrix(:,:)
     
     if(.not.allocated(preconX_den)) then
         allocate(preconX_den(nx,nx,2,2))        ; preconX_den= 0.0_dp
@@ -239,6 +238,7 @@ subroutine MassageDensity(iteration)
     case(0) 
         ! Simple linear mixing at the moment.
         D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * resid
+
     case(1)
         !-----------------------------------------------------------------------
         ! DIIS mixing with (N) iterations
@@ -316,10 +316,14 @@ subroutine MassageDensity(iteration)
         do i=1,N
             D_I_I = D_I_I + RHS(i)**2*D_I_I_hist(:,:,i)
         enddo
-        
-    case(2)
-        
 
+    case(2)
+         ! Density mixing with some momentum added in :)
+         if(.not.allocated(DenUpdates)) then
+            allocate(DenUpdates(mv,2)) ; DenUpdates = 0
+         endif
+         DenUpdates = (1-denmix) * resid + denmom*DenUpdates
+         D_I_I = D_I_I_hist(:,:,1) + DenUpdates
 !        !-----------------------------------------------------------------------
 !        ! Broyden mixing algorithm
 !        if(.not.allocated(residuals)) then

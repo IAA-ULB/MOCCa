@@ -54,8 +54,13 @@ module evolution
     ! Procedure pointer for the preconditioning
     procedure(Precondition_PG),pointer :: Precon 
 
+    !---------------------------------------------------------------------------
+    ! Default value of the momentum factor.
     real(KIND=dp) :: momfactor=0.1
     !---------------------------------------------------------------------------
+    ! Index of the spwf which is maximised instead of minimised
+    integer :: maxind = 0
+    
     !---------------------------------------------------------------------------
     ! Inverse of the second order derivative matrices with appropriate constants
     real*8, allocatable :: preconX(:,:,:,:)
@@ -199,7 +204,6 @@ contains
         endif
 
         gradientnorm = 0.0_dp
-
         if(Precondition .ne. 'NONE' ) call CalculatePreconditioners()
 
         do wave=1,nwt
@@ -208,30 +212,36 @@ contains
             else
                 iso = +1
             endif
-
-            hpsi = sphamil( hfpsi(:,:,wave)     ,                          &
-            &              hfdpsi(:,:,:,wave)   ,                          &
-            &              hfddpsi(:,:,:,wave)  ,                          &
-            &              hfdddpsi(:,:,:,wave) ,                          &
+            !-------------------------------------------------------------------
+            ! Calculate the single-particle hamiltonian.
+            hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
+            &              hfdpsi(:,:,:,wave)   ,                              &
+            &              hfddpsi(:,:,:,wave)  ,                              &
+            &              hfdddpsi(:,:,:,wave) ,                              &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso)
 
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
-            
-            olde              = dispersions(wave)
             dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
             
             gradientnorm = gradientnorm + occupations(wave) * &
             & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
-            
+            !-------------------------------------------------------------------
+            ! Take of the part that is propagation in its own direction.
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
+            !-------------------------------------------------------------------
+            ! Precondition the update if necessary.
             hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)  
-
-            updates(:,:,wave) = momfactor*updates(:,:,wave) -  dt/hbar * hpsi
+            !-------------------------------------------------------------------
+            ! Add some history and 'momentum' to the update. 
+            updates(:,:,wave) = momfactor*updates(:,:,wave) - dt/hbar * hpsi
             
+            !-------------------------------------------------------------------
+            ! Update the wavefunctions.
             hfpsi(:,:,wave) = hfpsi(:,:,wave) + updates(:,:,wave)
         enddo
     
         gradientnorm = sqrt(gradientnorm)/(neutrons + protons)  
+        ! Orthonormalize
         call GramSchmidt
     
     end subroutine Evolve_momentum

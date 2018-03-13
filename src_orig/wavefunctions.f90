@@ -113,8 +113,8 @@ contains
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! a) Generating the nilsson wave-functions in an EV8-box   
-    call nilsson (HFPsi,kparz,spenergies,5,4,nwt,nwn,nwp,                      &
-    &           floor(neutrons),floor(protons),nx,ny,nz,0.8d0,0.2d0,0.2d0,0.2d0)
+    call nilsson (HFPsi,kparz,spenergies,6,5,nwt,nwp,nwn,                      &
+    &           floor(neutrons),floor(protons),nx,ny,nz,dx,0.2d0,0.2d0,0.2d0)
     allocate(dispersions(nwt))
     allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
     allocate(upairing(nwt), vpairing(nwt))
@@ -213,7 +213,7 @@ $N3    if(.not.allocated(HFdddpsi)) then
 $N3        allocate(HFdddPsi(nx*ny*nz,10,4,nwt))
 $N3    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Currently EV8 symmetries are hardcoded, as well as the
+    ! Currently EV8 symmetries are hardcoded.
     do wave=1,nwt
         do k=1,4
 

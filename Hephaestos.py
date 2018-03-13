@@ -19,7 +19,8 @@ SRCPATH = 'src_orig/'
 # Path to put the generated source for compilation
 GENPATH = 'src/'
 #List of FORTRAN files needed for a functional code.
-FORTRANFILES=['compilation.f90'  , 'geninfo.f90'      , 'constants.f90'   , 
+FORTRANFILES=['compilation.f90'  , 'geninfo.f90'      , 'sphericalharmonics.f90'
+              ,'constants.f90'   , 
               'diag.f90'         , 'nil8.f90'         , 'coulomb.f90'     ,
               'derivatives.f90'  , 'precondition.f90' , 'wavefunctions.f90',
               'hartree-fock.f90',
