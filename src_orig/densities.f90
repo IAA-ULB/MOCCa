@@ -112,8 +112,7 @@ $INITIALIZATION
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Zero the current density
-    D_I_I   = 0.0
-    D_Nm_Nm = 0.0
+$ZEROING
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculation by summing the densities

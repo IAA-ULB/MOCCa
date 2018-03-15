@@ -177,6 +177,7 @@ Ini_template   = Template(   tab+'if(.not.allocated($NAME)) then     \n' + \
                            2*tab+'$NAME = 0.0d0 \n'                      + \
                              tab+'endif \n'                              ) #+ \
 #                             tab+'$NAME = denmix * $NAME')
+Zero_template  = Template(   tab+'$NAME = 0.0d0 \n')
 Dec_template   = Template(   tab + 'real*8,allocatable :: $NAME(:$TOTALIND,:)')
 Der_template   = Template( 2*tab +'call Derive_grad($NAME(:$IND,it),$PX,$PY,$PZ,der_$NAME(:,1$IND,it), &\n') 
 Der_template_b = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,2$IND,it), &\n')
@@ -247,7 +248,7 @@ def ProcessDensities(fname, src, target):
     Initialisation = ''
     Derivation     = ''
     PairExpression = ''
-    
+    Zeroing        = ''
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     print ' Generated densities                               '
     print ' P-H part                                          '
@@ -260,12 +261,13 @@ def ProcessDensities(fname, src, target):
                                           OrderOfDen(den,contract=False)),  \
                                           deriv_needed[i]
 
-        (e,dec,ini,der)  = GenDensityExpression(Densities_needed[i],     \
-                                                    deriv_needed[i])
+        (e,dec,ini,der,zeroi)  = GenDensityExpression(Densities_needed[i],     \
+                                                        deriv_needed[i])
         Declaration    = Declaration    + '\n' + dec
         Expression     = Expression     + '\n' + e
         Initialisation = Initialisation + '\n' + ini
         Derivation     = Derivation     + '\n' + der
+        Zeroing        = Zeroing        + '\n' + zeroi
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     print ' P-P part                                          '
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
@@ -277,7 +279,7 @@ def ProcessDensities(fname, src, target):
                               OrderOfDen(den,contract=False)),  \
                               [(0,0)]
 
-        (e,dec,ini,der)  = GenDensityExpression(den,[(0,0)])
+        (e,dec,ini,der,zeroi)  = GenDensityExpression(den,[(0,0)])
 #        Declaration    = Declaration    + '\n' + dec
 #        PairExpression = PairExpression + '\n' + e
 #        Initialisation = Initialisation + '\n' + ini
@@ -289,7 +291,8 @@ def ProcessDensities(fname, src, target):
     dic['DECLARATION'   ] = Declaration
     dic['INITIALIZATION'] = Initialisation
     dic['EXPRESSION'    ] = Expression
-    dic['DERIVATION'    ] = Derivation 
+    dic['DERIVATION'    ] = Derivation
+    dic['ZEROING'       ] = Zeroing 
  
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
@@ -357,7 +360,7 @@ def ParseOperators(density):
 def GenDensityExpression(denin, derivative_combinations):
     #---------------------------------------------------------------------------
     # Generate the following strings 
-    #       (Expression, Declaration, Initialisation, Derivation)
+    #       (Expression, Declaration, Initialisation, Derivation, Zeroing)
     #
     # to plug into FORTRAN source code, that takes care of everything regarding
     # that density.
@@ -372,7 +375,7 @@ def GenDensityExpression(denin, derivative_combinations):
     Declaration   = ''
     Initialisation= ''
     Derivation    = ''
-
+    Zeroing       = ''
     #---------------------------------------------------------------------------
     # Parse the structure from the name
     density = denin    
@@ -436,7 +439,7 @@ def GenDensityExpression(denin, derivative_combinations):
     # Get the declaration of the density and its derivatives right
     Declaration    = Dec_template.substitute(dic)
     Initialisation = Ini_template.substitute(dic)
-    
+    Zeroing        = Zero_template.substitute(dic)
     for c in derivative_combinations:
         l = c[0]
         d = c[1]
@@ -729,7 +732,7 @@ def GenDensityExpression(denin, derivative_combinations):
         dic['NAME'] = density
     Expression = Expression + Den_line.substitute(dic) 
     
-    return (Expression, Declaration, Initialisation, Derivation)
+    return (Expression, Declaration, Initialisation, Derivation, Zeroing)
     
     
 def GenVecProd(density, coupling):
