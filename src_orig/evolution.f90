@@ -82,7 +82,7 @@ contains
         read(unit=*, nml=evolution)
         !-----------------------------------------------------------------------
         !  Assign the correct preconditioner
-        call to_upper(Precondition, Precondition)
+        Precondition = to_upper(Precondition )
         if(adjustl(Precondition) .eq. 'PG' ) then
             Precon => Precondition_PG
         else 
@@ -90,7 +90,7 @@ contains
         endif
         !-----------------------------------------------------------------------
         ! Assign the correct evolution routine
-        call to_upper(Strategy, Strategy)
+        Strategy = to_upper(Strategy)
         if(adjustl(Strategy) .eq. 'IMTIME' ) then
             Evolve => Evolve_graddesc
         elseif(adjustl(Strategy) .eq. 'MOMENTUM') then

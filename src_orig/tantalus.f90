@@ -20,7 +20,7 @@ program Tantalus
 
  100 format (/,' ___________________________________________________________', &
      &       /,'|                                                          |', &
-     &       /,'|                                    version VERY UNSTABLE |', &
+     &       /,'|                                            V 0.1 (Pan)   |', &
      &       /,'|                                                          |', &
      &       /,'|  #######   ##   #    # #####   ##   #      #    #  ####  |', &
      &       /,'|     #     #  #  ##   #   #    #  #  #      #    # #      |', &
@@ -34,14 +34,33 @@ program Tantalus
 
  print 100
  
+ !------------------------------------------------------------------------------
+ ! Read input from STDIN
  call ReadInput
+ !------------------------------------------------------------------------------
+ ! Initalize relevant matrices throughout the code.
+ call inilag() ! Derivative matrices. 
+ !------------------------------------------------------------------------------
+ ! Read wavefunctions
+ call ReadWavefunction
+ !------------------------------------------------------------------------------
+ ! Print all relevant input gleaned from STDIN and the wf file.
  call PrintInput
+ !------------------------------------------------------------------------------
+ ! Go out and try to reach convergence, only to fail time and time again....
  call ReachForWaterAndFood
  
 end program Tantalus
 
-
 subroutine ReachForWaterAndFood
+    !---------------------------------------------------------------------------
+    !
+    ! Evolve the single-particle wavefunctions and densities.
+    !
+    !
+    !
+    !
+    !---------------------------------------------------------------------------
     use compilation
     use derivatives
     use wavefunctions
@@ -50,46 +69,61 @@ subroutine ReachForWaterAndFood
     use hartreefock
     use functional
     use evolution
+    use IO
     
     implicit none
    
-    integer :: iter, lol,i
+    integer :: iter, i
    
-    call iniwavefunctions()
-    call NaiveFill(occupations)
- 
-!-------------------------------------------------------------------------------   
-! Use this to  quick-and-dirty read wavefunctions from a MOCCa file until I 
-! get around to a proper IO module.
-!-------------------------------------------------------------------------------
-!    open (12,form='unformatted',file='wf/MOCCa.C12.SLy4.dx=0.53.wf')
-!    read(12)
-!    read(12)
-!    read(12)
-!    read(12)
-!    read(12)
-!    nwt = nwp + nwn
-!    
-!    
-!    do i=1,nwt
-!        read(12) HFPsi(:,:,i)
-!        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, lol, lol,lol,lol,lol
-!    enddo
-    
-    call inilag()
-    call printSpwfs
     call deriveall()
-    
-    call calcedfcoefs()
-    call printedfcoefs()     
-    
+    !---------------------------------------------------------------------------
+    ! Solve the pairing. For now just HF.
+    call NaiveFill(occupations)
+    !---------------------------------------------------------------------------
+    ! Calculate the initial densities.
     call densit(0)
-
+    ! And the initial fields.
     call calcFields()
+    ! And even the initial energy.
     call CalcEnergy()
+
+    call printSpwfs
     call PrintEnergy 
     
     do iter=1,maxiter
+        ! One step in the evolution.
+        call Evolve(iter)
+        ! Restore all the different derivatives.
+        call deriveall()
+        ! Solve the pairing problem.
+        call NaiveFill(occupations)
+        ! Update the densities
+        call densit(iter)
+        ! Update the fields
+        call calcFields()
+        ! Recalculate the energy
+        call CalcEnergy()
+        ! Decide between full or partial printout.
+        if(mod(iter,PrintIter).eq.0) then
+            call PrintSpwfs
+            call PrintEnergy            
+        else
+            call printsummary
+        endif
+    enddo
+      
+    !---------------------------------------------------------------------------
+    ! Write output to the outputfile.
+    call WriteTantalus(12, outputfilename)
+    !---------------------------------------------------------------------------
+end subroutine ReachForWaterAndFood
+
+
+subroutine printsummary
+    !---------------------------------------------------------------------------
+    ! Not very advanced printing of a summary of the iteration.
+    ! 
+    !---------------------------------------------------------------------------
         print *,  '*************************************'
         print *,  ' Iteration ', iter
         print *,  ' Energy =  ', totalE
@@ -97,76 +131,4 @@ subroutine ReachForWaterAndFood
         print *,  ' GradNorm =  ', gradientnorm
         print *,  '*************************************'
         
-        call Evolve(iter)
-        call deriveall()
-        call NaiveFill(occupations)
-
-        call densit(iter)
-       
-        call calcFields()
-        call CalcEnergy()
-        
-        if(mod(iter,PrintIter).eq.0) then
-            call PrintSpwfs
-            call PrintEnergy            
-        endif
-    enddo
-
-!    open (12,file='SST.dat')
-!    do i=1,nx
-!      j = i
-!      k = i
-!      m = i + (j-1)*nx + (k-1)*nx*nx
-!!      print *, i, m
-!      r = ( dx/2 + (i-1)*dx) 
-!      write(12, '(5f10.5)') r,  D_NmNkNq_NmNkNq(i,1), D_NmNkNq_NmNkNq(i,2) &
-!      &                    , sum(D_NmNkNq_NmNkNq(i,:))
-!      
-!    enddo
-
-end subroutine ReachForWaterAndFood
-
-subroutine ReadInput
-    !--------------------------------------------
-    ! Subroutine to read all the data from STDIN.
-    !
-    !--------------------------------------------
-
-    use GenInfo,       only : ReadGenInfo
-    use Evolution,     only : ReadEvolution
-    use wavefunctions, only : ReadWFdata
-    use densities,     only : ReadDensit
-    
-    call ReadGenInfo
-    call ReadEvolution
-    call ReadDensit
-    call ReadWFdata
-
-end subroutine ReadInput
-
-
-!    open (12,form='unformatted',file='MOCCa.test')
-!    read(12)
-!    read(12)
-!    read(12)
-!    read(12)
-!    read(12)
-!    allocate(Occupations(nwt))
-!    allocate(spenergies(nwt)); allocate(dispersions(nwt))
-!    allocate(HFPsi(nx,ny,nz,4,nwt))
-!    
-!    do i=1,nwt
-!        read(12) HFPsi(:,:,:,:,i)
-!        read(12), occupations(i), spenergies(i), lol, lol, lol, lol, lol, iso, k,par,k,k
-!    enddo
-!    
-!    nwn=10
-!    nwp=10
-!    
-!    HFBlocks(1) = 7
-!    HFBlocks(3) = 3
-!    HFBlocks(5) = 7
-!    HFBlocks(7) = 3
-!    
-!    allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
-
+end subroutine printsummary

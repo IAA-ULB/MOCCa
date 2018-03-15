@@ -60,7 +60,7 @@ contains
     return
   end function LeviCivita
   
-  subroutine to_upper (str, string)
+  function to_upper (str) result (string)
     !---------------------------------------------------------------------------
     ! Subroutine that changes a string to uppercase.
     !---------------------------------------------------------------------------
@@ -85,5 +85,5 @@ contains
     endif
     end do
 
-  end subroutine to_upper
+  end function to_upper
 end module GenInfo
