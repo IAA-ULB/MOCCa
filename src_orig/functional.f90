@@ -44,14 +44,20 @@ module functional
     real(KIND=dp) :: to=0.0
     real(KIND=dp) :: wso=123.0
     real(KIND=dp) :: wsoq=123.0
+    !---------------------------------------------------------------------------
+    ! N2LO Central
     real(KIND=dp) :: t1n2=24.3409
     real(KIND=dp) :: t2n2=-27.31975
     real(KIND=dp) :: x1n2=-0.344
     real(KIND=dp) :: x2n2=-1.0  
+    ! N3LO central
     real(KIND=dp) :: t1n3= 2.3409
     real(KIND=dp) :: t2n3=-2.31975
     real(KIND=dp) :: x1n3=-0.344
-    real(KIND=dp) :: x2n3=-1.0   
+    real(KIND=dp) :: x2n3=-1.0 
+    ! N2LO Tensor
+    real(KIND=dp) :: ten2 = 10.0
+    real(KIND=dp) :: ton2 = -5.0  
     !---------------------------------------------------------------------------
     ! Constants that enter the game, together with the e2 from the Coulomb
     ! module.

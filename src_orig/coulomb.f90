@@ -68,6 +68,9 @@ contains
     if(.not.allocated(CoulombPotential)) then
         call setupcoulomb
     endif
+    
+    if(coul.eq.0) return
+    
     !---------------------------------------------------------------------------
     ! Set the boundary conditions.
     call CoulombBound(rhop)
@@ -167,9 +170,7 @@ contains
         ! Real part
         Qlm = - sum(Source(1:nx,1:ny,1:nz) * SpherHarmCoulomb(:,:,:,l,m,1))*dv
         ! Imaginary part assumed to be zero for the moment.
-        
-        
-        print *, 'lm', l, m, Qlm/e2/sqrt(4*pi), Qlm/e2/(4*pi)
+!        print *, 'lm', l, m, Qlm/e2/sqrt(4*pi), Qlm/e2/(4*pi)
         
         Qlm = 1.0/(2*l+1) * Qlm
         
@@ -208,6 +209,8 @@ contains
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: rhop(mv)
     real(KIND=dp) :: factor, Cenergy
+
+    if(coul.eq.0) return
 
     factor  = -0.75_dp*(3/pi)**(1/3._dp)*e2*dv
     Cenergy = factor*sum(rhop**(4.0/3.0))

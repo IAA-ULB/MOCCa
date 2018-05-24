@@ -30,8 +30,8 @@ module evolution
     real(KIND=dp):: dt    =  0.01
     real(KIND=dp):: hbar  =  6.58211928_dp
     !---------------------------------------------------------------------------
-    ! Norm of the gradient
-    real(KIND=dp) :: gradientnorm
+    ! Norm of the gradient and weighted sum of the dispersionss
+    real(KIND=dp) :: gradientnorm, d2h
     !---------------------------------------------------------------------------
     !Maximum number of iterations and number of iterations to skip printing of
     ! the code in the evolve subroutine
@@ -56,10 +56,7 @@ module evolution
 
     !---------------------------------------------------------------------------
     ! Default value of the momentum factor.
-    real(KIND=dp) :: momfactor=0.1
-    !---------------------------------------------------------------------------
-    ! Index of the spwf which is maximised instead of minimised
-    integer :: maxind = 0
+    real(KIND=dp) :: momfactor=0.0
     
     !---------------------------------------------------------------------------
     ! Inverse of the second order derivative matrices with appropriate constants
@@ -138,6 +135,7 @@ contains
         real(KIND = dp)     :: hpsi(nx*ny*nz,4)
         
         gradientnorm = 0.0_dp
+        d2h          = 0.0_dp
 
         ! Calculate the preconditioning matrices
         if(Precondition .ne. 'NONE' ) call CalculatePreconditioners()
@@ -160,6 +158,7 @@ contains
 
             gradientnorm = gradientnorm + occupations(wave) * &
             & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
+            d2h          = d2h + occupations(wave)*dispersions(wave)
 
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
             hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    

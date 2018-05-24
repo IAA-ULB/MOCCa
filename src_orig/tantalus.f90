@@ -108,7 +108,7 @@ subroutine ReachForWaterAndFood
             call PrintSpwfs
             call PrintEnergy            
         else
-            call printsummary
+            call printsummary(iter)
         endif
     enddo
       
@@ -119,16 +119,21 @@ subroutine ReachForWaterAndFood
 end subroutine ReachForWaterAndFood
 
 
-subroutine printsummary
+subroutine printsummary(iter)
     !---------------------------------------------------------------------------
     ! Not very advanced printing of a summary of the iteration.
     ! 
     !---------------------------------------------------------------------------
-        print *,  '*************************************'
-        print *,  ' Iteration ', iter
-        print *,  ' Energy =  ', totalE
-        print *,  ' Spwfs  =  ', spwfenergy
-        print *,  ' GradNorm =  ', gradientnorm
-        print *,  '*************************************'
+    use functional
+    use evolution 
+    integer, intent(in) :: iter
+
+    print *,  '*************************************'
+    print *,  ' Iteration ', iter
+    print *,  ' Energy =  ', totalE
+    print *,  ' Spwfs  =  ', spwfenergy
+    print *,  ' GradNorm =', gradientnorm
+    print *,  ' Dispersion=', d2h
+    print *,  '*************************************'
         
 end subroutine printsummary

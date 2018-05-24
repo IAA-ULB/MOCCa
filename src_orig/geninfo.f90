@@ -20,6 +20,9 @@ module GenInfo
     !---------------------------------------------------------------------------
     ! Pi is always practical to have.
     real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
+    !---------------------------------------------------------------------------
+    ! Temporary integer, whether or not coulomb is added
+    integer :: coul = 1
     
 contains
 
@@ -27,6 +30,7 @@ contains
 
     Namelist /nucleus/ neutrons,protons
     Namelist /mesh/    nx,ny,nz, dx
+    Namelist /coulomb/    coul
 
 
     ! Reading the information on the nucleus
@@ -34,6 +38,10 @@ contains
 
     ! Reading information on the mesh
     read (unit=*, nml=mesh)
+    
+    ! Reading information on Coulomb
+    read (unit=*, nml=coulomb)
+
 
     mv = nx * ny * nz
     dv = (dx**3)*(2**$NUMSYM)

@@ -28,7 +28,7 @@ FORTRANFILES=['compilation.f90'  , 'geninfo.f90'      , 'sphericalharmonics.f90'
               'IO.f90'           , 'tantalus.f90' ]
 
 # File containing the definition of the functional
-FUNC_FILE      = 'functionals/NLO.func'
+FUNC_FILE      = 'functionals/N2LO.tensor.func'
 FUNC_PAIR_FILE = 'functionals/ULB.pair.func' 
 
 #-------------------------------------------------------------------------------
