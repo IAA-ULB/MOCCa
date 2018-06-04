@@ -13,6 +13,9 @@ from os.path import isfile as isfile
 import os
 from src_heph import heph_densities,heph_symmetries,heph_functional,heph_fields
 from src_heph import preprocess as pp
+import sys
+
+
 #-------------------------------------------------------------------------------
 # Path to the original FORTRAN source
 SRCPATH = 'src_orig/'
@@ -28,7 +31,7 @@ FORTRANFILES=['compilation.f90'  , 'geninfo.f90'      , 'sphericalharmonics.f90'
               'IO.f90'           , 'tantalus.f90' ]
 
 # File containing the definition of the functional
-FUNC_FILE      = 'functionals/N2LO.tensor.func'
+FUNC_FILE      = 'functionals/' + sys.argv[1]
 FUNC_PAIR_FILE = 'functionals/ULB.pair.func' 
 
 #-------------------------------------------------------------------------------
