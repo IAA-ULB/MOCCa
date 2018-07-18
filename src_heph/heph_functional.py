@@ -307,7 +307,7 @@ def ParseDensities(term):
     return (densities, coupling)
 
 def ProcessFunctional(fname, src, target):
-        #---------------------------------------------------------------------------
+        #-----------------------------------------------------------------------
         # Master routine calling the other ones to generate a functional based
         # on the parsing done before.
         #-----------------------------------------------------------------------
@@ -322,6 +322,7 @@ def ProcessFunctional(fname, src, target):
         fieldcalc   = ''
         erear       = ''
         
+        #-----------------------------------------------------------------------
         # Generate the terms in the functional
         for i in range(len(Functional_terms)): 
                 (d,c,p,cc, pc,st,er)  = GenTermExpression(Functional_terms[i], \
@@ -424,7 +425,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     #---------------------------------------------------------------------------
     # Templates for the declaration, calculation and printing of an energy term.
     # And, not forgetting, its contribution to the rearrangement energy
-    decl_template   = Template('real(KIND=dp) :: $CPCTE(2,2), $TERM(2,2)')
+    decl_template   = Template( tab + 'real(KIND=dp) :: $CPCTE(2,2), $TERM(2,2)')
     edent_template  = Template('sum($DEN(:$IND,:),2)')
     edenq_template  = Template('$DEN(:$IND,$IT)')
     

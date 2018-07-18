@@ -31,7 +31,8 @@ subject to constraints on the shape of the various nuclear densities.
 
 
 ### Known Problems 
-* 
+* Coulomb solver is bugged:
+  the spwfenergy does not match the functional energy at convergence
 
 --------------------------------------------------------------
 ### Planned features

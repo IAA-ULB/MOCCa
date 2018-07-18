@@ -66,9 +66,13 @@ def GenerateFields():
     global sumindices,tab
 
     field_decl_temp = Template(  tab + 'real(KIND=dp), allocatable :: $FIELD(:$DECLIND,:) \n')
+    fhist_decl_temp = Template(  tab + 'real(KIND=dp), allocatable :: ${FIELD}_hist(:$DECLIND,:) \n')
+    
     field_allo_temp = Template(2*tab + 'if(.not.allocated($FIELD)) then\n'+\
                            3*tab + 'allocate($FIELD(mv$ALLOCIND,2)) \n'   +\
+                           3*tab + 'allocate(${FIELD}_hist(mv$ALLOCIND,2)) \n'+\
                            2*tab + 'endif \n' + \
+                           2*tab + '${FIELD}_hist = $FIELD \n' + 
                            2*tab + '$FIELD = 0.0 \n')
     field_calc_temp    = Template( 3*tab + '$FIELD(:$IND,it) = $FIELD(:$IND,it)  & \n')
     field_calc_den_a     = Template('* sum($DENSITY(:$DENIND,:),$SUMIND)  ')
@@ -111,7 +115,7 @@ def GenerateFields():
         #-----------------------------------------------------------------------
         for term in heph_functional.Functional_terms: 
             (densities, cpl) = heph_functional.ParseDensities(term)
-            #-----------------------------------------------------------------------
+            #-------------------------------------------------------------------
             # Replace the densities in the list by the ones actually calculated
             for i in range(len(densities)):
                 (x,y,l2,r2,c2,cr2) = ParseOperators(densities[i])
@@ -194,6 +198,8 @@ def GenerateFields():
             dic['DECLIND']  = dic['DECLIND']  + ',:'
        
         declaration  = declaration + field_decl_temp.substitute(dic)
+        declaration  = declaration + fhist_decl_temp.substitute(dic)
+        
         FIELDCALC    = FIELDCALC + field_allo_temp.substitute(dic)
         FIELDCALC    = FIELDCALC + isoloop
         

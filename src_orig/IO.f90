@@ -34,13 +34,13 @@ contains
     use GenInfo,       only : ReadGenInfo
     use Evolution,     only : ReadEvolution
     use wavefunctions, only : ReadWFdata
-    use densities,     only : ReadDensit
+    use scfiteration,  only : readscfiteration
 
     NameList /IO/ InputFileName,OutputFileName
     
     call ReadGenInfo
     call ReadEvolution
-    call ReadDensit
+    call ReadSCFIteration
     call ReadWFdata
     
     read (unit=*, nml=IO)
@@ -55,6 +55,7 @@ contains
    
     use wavefunctions
     use evolution
+    use scfiteration
    
     1 format ( 20('-'), 'General Information ', 20('-'))
     2 format ( 'Mesh parameters' )
@@ -83,8 +84,10 @@ contains
     print 10, inputfilename, outputfilename
 
     call printevolution
+    call printscfiteration
     call calcedfcoefs()
     call printedfcoefs()   
+    
     
   end subroutine PrintInput
   

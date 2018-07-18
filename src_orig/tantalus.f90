@@ -81,7 +81,7 @@ subroutine ReachForWaterAndFood
     call NaiveFill(occupations)
     !---------------------------------------------------------------------------
     ! Calculate the initial densities.
-    call densit(0)
+    call densit()
     ! And the initial fields.
     call calcFields()
     ! And even the initial energy.
@@ -98,7 +98,7 @@ subroutine ReachForWaterAndFood
         ! Solve the pairing problem.
         call NaiveFill(occupations)
         ! Update the densities
-        call densit(iter)
+        call densit()
         ! Update the fields
         call calcFields()
         ! Recalculate the energy

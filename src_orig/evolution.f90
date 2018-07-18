@@ -14,11 +14,10 @@ module evolution
 ! Module that governs the evolution of the single-particle wavefunctions from 
 ! one iteration to the next. 
 !
-! Currently possible 
+! Currently possible are 
 !
 ! IMTIME => Gradient Descent/Imaginary Time
 ! HEAVYB => Heavy-ball dynamics
-!
 ! 
 !===============================================================================
 
