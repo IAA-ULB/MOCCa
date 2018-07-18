@@ -12,9 +12,14 @@ Copyright W. Ryssens & M. Bender
 
 #### What is Tantalus?
 
-Tantalus is the future of the mean-field codes using Lagrange mesh representation as developed originally in the Bonche-Flocard-Heenen collaboration. It is the successor to EV(B)8, CR8, EV4 and MOCCa, all rolled into one.
+Tantalus is the future of the mean-field codes using Lagrange mesh 
+representation as developed originally in the Bonche-Flocard-Heenen 
+collaboration. It is the successor to EV(B)8, CR8, EV4 and MOCCa, all rolled 
+into one.
 
-In short, it is a FORTRAN program that iteratively optimizes a given Skyrme-type energy density functional for a given number of protons and neutrons, possibly subject to constraints on the shape of the various nuclear densities. 
+In short, it is a FORTRAN program that iteratively optimizes a given Skyrme-type
+energy density functional for a given number of protons and neutrons, possibly 
+subject to constraints on the shape of the various nuclear densities. 
 
 --------------------------------------------------------------
 
@@ -26,13 +31,12 @@ In short, it is a FORTRAN program that iteratively optimizes a given Skyrme-type
 
 
 ### Known Problems 
-* Coulomb implementation is bugged.
-
+* 
 
 --------------------------------------------------------------
 ### Planned features
 
-* Feature parity with MOCCa (of course)
+* Feature parity with MOCCa 
 
 --------------------------------------------------------------
 
@@ -43,9 +47,12 @@ In short, it is a FORTRAN program that iteratively optimizes a given Skyrme-type
 --------------------------------------------------------------
 ### What is Hephaestos?
 
-Hephaestos is a (collection of) Python script(s) that partially writes the FORTRAN source code for Tantalus, depending on type of functional as well as intrinsic symmetries chosen. 
+Hephaestos is a (collection of) Python script(s) that partially writes the 
+FORTRAN source code for Tantalus, depending on type of functional as well as 
+intrinsic symmetries chosen. 
 
-The generation of source code depends on a given list of terms that make up an energy density functional, Hephaestos writes the Tantalus source code that
+The generation of source code depends on a given list of terms that make up an 
+energy density functional, Hephaestos writes the Tantalus source code that
 
 * Calculates the mean-field densities needed (possibly contracted)
 * Calculates the coupling constants associated with the various functional term
@@ -62,14 +69,24 @@ The second major function of Hephaestos is to adapt the Tantalus source code bas
 ### Current status
 
 * Correct treatment for two-body Skyrme functionals (without pairing densities) up to N3LO level. This was tested self-consistently with MOCCa and WHISKY up to N2LO level and non-selfconsistently with WHISKY up to N3LO level.
-* 
-
 
 
 ### Known Problems 
 
-1. When not assuming locality of the functional, creation of a spin-orbit crashes Hephaestos.
-2. Vector couplings: only one per term is admitted at this point in time. 
+1. Vector products: only one per term is admitted at this point in time. 
+
+2. Hephaestos incorrectly determines the densities needed for this input
+    E_C_I_NkSk_C_NqNq_NmSm
+    E_C_I_NmSk_C_NqNq_NkSm
+    
+   The code in that case decides to only calculate C_NqNq_NmSm, while the 
+   second term cannot be calculated with that contraction.
+   
+   The reversed input seems to work....
+    E_C_I_NmSk_C_NqNq_NkSm
+    E_C_I_NkSk_C_NqNq_NmSm
+   
+   
 --------------------------------------------------------------
 ### Planned features
 
@@ -78,7 +95,6 @@ The second major function of Hephaestos is to adapt the Tantalus source code bas
 --------------------------------------------------------------
 ### Other ideas
 
-* Use the density ring structure to eliminate specific contractions of densities, specifically at N3LO level.
 * 
 --------------------------------------------------------------
 
