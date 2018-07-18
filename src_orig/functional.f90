@@ -284,14 +284,23 @@ $CALCFIELDS
         F_I_I(1:mv,2) = F_I_I(1:mv,2) + ExchangePotential(1:mv)
   end subroutine calcFields 
   
-  function sphamil(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso) result(hpsi)
+  function sphamil(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
+                                                                  & result(hpsi)
     !---------------------------------------------------------------------------
     ! Apply the action of the single-particle hamiltonian to the 
     ! single-particle wave-functions.
     !---------------------------------------------------------------------------
     
-    real(KIND=dp), intent(in) ::   psi(mv,4)  ,   dpsi(mv,3,4)
-    real(KIND=dp), intent(in) :: ddpsi(mv,6,4), dddpsi(mv,10,4)
+    use derivatives
+    
+    ! Logical indicating if the derivatives need to be calculated before
+    ! applying h.
+    ! If false, the derivatives are passed in. If True, the derivatives are not
+    ! passed in and need to be calculated.
+    logical, intent(in)       :: onthefly 
+    
+    real(KIND=dp), intent(in)    :: psi(mv,4)  
+    real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4), dddpsi(mv,10,4)
     integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
     real(KIND=dp)             :: hpsi(mv,4)
     real(KIND=dp)             :: temp(mv,4)
@@ -307,7 +316,7 @@ $CALCFIELDS
     !---------------------------------------------------------------------------
     ! Determine the isospin index
     it = (iso + 3)/2
-    
+    !---------------------------------------------------------------------------
     ! Reduced mass in case of self-consistent 1-body COM correction
     if(COM1body .eq. 2) then
         Reducedmass = (1.0_dp-nucleonmass(it)/                                 &
@@ -316,6 +325,16 @@ $CALCFIELDS
         Reducedmass = 1.0_dp
     endif
     
+    if(OnTheFly) then
+      ! Calculate the derivatives
+      do k=1,4
+!-------------------------------------------------------------------------------
+$N2        call Derive_tot(psi(:,k),sx(k),sy(k),sz(k),dpsi(:,:,k),ddpsi(:,:,k))
+$N3        call Derive_tot(psi(:,k),sx(k),sy(k),sz(k),dpsi(:,:,k),ddpsi(:,:,k),&
+$N3        &                                     dddpsi(:,:,k))
+!-------------------------------------------------------------------------------
+        enddo
+    endif
     !---------------------------------------------------------------------------
     ! Action of the kinetic energy
     do k=1,4
@@ -334,7 +353,7 @@ $CALCFIELDS
     !    density. 
     ! c) The kinetic energy is NOT included in the F_N_N field, because 
     !    a constant is not in the Lagrange basis; so the current way of
-    !    deriving stuff is not correct for a term
+    !    deriving stuff is not correct for a term of the form
     !          hbar^2_2m
     !---------------------------------------------------------------------------
 $SKYRMEACTION

@@ -14,9 +14,12 @@ module evolution
 ! Module that governs the evolution of the single-particle wavefunctions from 
 ! one iteration to the next. 
 !
-! Currently possible:
-!   a) Gradient descent aka imaginary time step.
+! Currently possible 
 !
+! IMTIME => Gradient Descent/Imaginary Time
+! HEAVYB => Heavy-ball dynamics
+!
+! 
 !===============================================================================
 
     use wavefunctions
@@ -41,7 +44,14 @@ module evolution
     character(len=20) :: Precondition = 'None'
     !---------------------------------------------------------------------------
     ! Strategy for evolution of the spwfs
-    character(len=20) :: Strategy = 'IMTIME'
+    ! Valid choices: 
+    !   IMTIME => Gradient Descent/Imaginary Time
+    !   HEAVYB => Heavy-ball dynamics
+    character(len=20) :: Strategy = 'HEAVYB'
+    !---------------------------------------------------------------------------
+    ! Allow Tantalus to estimate the runtime parameters of the algorithm 
+    ! or stay faithful to those specified by the user.
+    logical :: EstimateParams = .true.
     !---------------------------------------------------------------------------
     !Procedure that determines the evolution of a Spwf under imaginary time.
     abstract interface
@@ -53,28 +63,27 @@ module evolution
     !---------------------------------------------------------------------------
     ! Procedure pointer for the preconditioning
     procedure(Precondition_PG),pointer :: Precon 
-
     !---------------------------------------------------------------------------
     ! Default value of the momentum factor.
-    real(KIND=dp) :: momfactor=0.0
-    
+    real(KIND=dp) :: momentum=0.0
     !---------------------------------------------------------------------------
     ! Inverse of the second order derivative matrices with appropriate constants
     real*8, allocatable :: preconX(:,:,:,:)
     real*8, allocatable :: preconY(:,:,:,:)
     real*8, allocatable :: preconZ(:,:,:,:) 
+
 contains
     
     subroutine ReadEvolution
-    !---------------------------------------------------------------------------
-    ! Read the information on the evolution of the spwfs. 
-    !
-    !
-    !---------------------------------------------------------------------------
+        !-----------------------------------------------------------------------
+        ! Read the information on the evolution of the spwfs. 
+        !
+        !
+        !-----------------------------------------------------------------------
         use geninfo
 
         namelist /evolution/ dt, maxiter, printiter, precondition, strategy,   &
-        &                    momfactor
+        &                    momentum
 
         read(unit=*, nml=evolution)
         !-----------------------------------------------------------------------
@@ -90,7 +99,7 @@ contains
         Strategy = to_upper(Strategy)
         if(adjustl(Strategy) .eq. 'IMTIME' ) then
             Evolve => Evolve_graddesc
-        elseif(adjustl(Strategy) .eq. 'MOMENTUM') then
+        elseif(adjustl(Strategy) .eq. 'HEAVYB') then
             Evolve => Evolve_momentum
         else
             stop ('STRATEGY NOT RECOGNIZED.')
@@ -106,13 +115,21 @@ contains
 
         1 format(90('-'))
         2 format(' Evolution strategy: ', a20 )
-        3 format('    Parameters:  dt= ', f7.4)        
-        4 format(' Preconditioning   : ', a20 )
+        3 format(' dt= ', f7.4, ' mu= ', f7.4 )        
+        4 format(' Estimate (dt,mu)  : ', a3)
+        5 format(' Preconditioning   : ', a20 )
     
         print 1
         print 2, adjustl(Strategy)
-        print 3, dt
-        print 4, adjustl(Precondition)
+        print 3, dt, momentum
+        
+        if( EstimateParams) then
+          print 4, 'YES'
+        else 
+          print 4, ' NO'
+        endif
+        
+        print 5, adjustl(Precondition)
         print 1
     end subroutine PrintEvolution
 
@@ -122,10 +139,14 @@ contains
         ! a) For every wave-function do a gradient step
         !    
         !    psi => ( 1 - dt/hbar h ) psi
+        !
         ! b) Calculate values:
+        !
         !    < psi | h   | psi >
         !    < psi | h^2 | psi >
-        ! b) Orthonormalize within symmetry blocks
+        !
+        ! c) Orthonormalize within symmetry blocks
+        !
         !-----------------------------------------------------------------------
         
         use wavefunctions
@@ -151,7 +172,7 @@ contains
             &              hfdpsi(:,:,:,wave)   ,                              &
             &              hfddpsi(:,:,:,wave),                                &
             &              hfdddpsi(:,:,:,wave),                               &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso)
+            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
 
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             dispersions(wave) = sum( hpsi(:,:)**2)  * dv   -spenergies(wave)**2          
@@ -167,9 +188,7 @@ contains
         enddo
     
         gradientnorm = sqrt(gradientnorm)/(neutrons + protons)  
-        !if(abs(gradientnorm) .lt.5d-5) stop
         call GramSchmidt
-    
     end subroutine Evolve_graddesc
 
     subroutine Evolve_momentum(iteration)
@@ -177,17 +196,17 @@ contains
         ! 
         ! a) For every wave-function do a gradient step, but with and added 
         !    momentum term 
-        !    psi^(i+1) => ( 1 - dt/hbar h ) psi^(i) + gamma * deltapsi
+        !
+        !    psi^(i+1) => ( 1 - dt/hbar h ) psi^(i) + mu * deltapsi
         !    
         !    where deltapsi is the difference
         !       psi^(i) - psi^(i-1)
-        !
-        !    gamma is currently a simple constant = 0.9
         ! 
         ! b) Calculate values:
         !    < psi | h   | psi >
         !    < psi | h^2 | psi >
-        ! b) Orthonormalize within symmetry blocks
+        !
+        ! c) Orthonormalize within symmetry blocks
         !-----------------------------------------------------------------------
         
         use wavefunctions
@@ -195,6 +214,7 @@ contains
         integer, intent(in)   :: iteration
         integer               :: wave, iso,k,i
         real(KIND = dp)       :: hpsi(nx*ny*nz,4), olde
+        ! Store the change in the spwfs from last iteration
         real(KIND = dp), allocatable, save :: Updates(:,:,:)      
 
         if(.not.allocated(Updates)) then
@@ -202,9 +222,14 @@ contains
             Updates = 0.0_dp
         endif
 
-        gradientnorm = 0.0_dp
-        if(Precondition .ne. 'NONE' ) call CalculatePreconditioners()
+        if(Precondition .ne. 'NONE') then
+          print *, 'Preconditioning not supported with heavy-ball.'
+        endif  
+        if(EstimateParams) call IterativeEstimation(iteration)
 
+        gradientnorm = 0.0_dp
+        d2h = 0.0_dp
+        
         do wave=1,nwt
             if(wave .lt. nwn) then
                 iso = -1
@@ -212,38 +237,137 @@ contains
                 iso = +1
             endif
             !-------------------------------------------------------------------
-            ! Calculate the single-particle hamiltonian.
+            ! Calculate the action of the single-particle hamiltonian.
             hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
             &              hfdpsi(:,:,:,wave)   ,                              &
             &              hfddpsi(:,:,:,wave)  ,                              &
             &              hfdddpsi(:,:,:,wave) ,                              &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso)
-
+            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+          
+            !-------------------------------------------------------------------
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
+            d2h          = d2h + occupations(wave)*dispersions(wave)
             
             gradientnorm = gradientnorm + occupations(wave) * &
             & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
             !-------------------------------------------------------------------
-            ! Take of the part that is propagation in its own direction.
+            ! Remove the part that is propagation in its own direction.
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
             !-------------------------------------------------------------------
-            ! Precondition the update if necessary.
-            hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)  
-            !-------------------------------------------------------------------
             ! Add some history and 'momentum' to the update. 
-            updates(:,:,wave) = momfactor*updates(:,:,wave) - dt/hbar * hpsi
-            
+            updates(:,:,wave) = momentum*updates(:,:,wave) - dt/hbar * hpsi
             !-------------------------------------------------------------------
             ! Update the wavefunctions.
             hfpsi(:,:,wave) = hfpsi(:,:,wave) + updates(:,:,wave)
         enddo
     
-        gradientnorm = sqrt(gradientnorm)/(neutrons + protons)  
+        gradientnorm = sqrt(gradientnorm)/(neutrons + protons) 
+        d2h          = d2h/(neutrons+protons)
         ! Orthonormalize
         call GramSchmidt
     
     end subroutine Evolve_momentum
+
+    subroutine IterativeEstimation(Iteration)
+      !-------------------------------------------------------------------------
+      ! Estimate optimum parameters (dt,mu) of the iterative process to try and
+      ! achieve optimal convergence. 
+      !-------------------------------------------------------------------------
+            
+      use wavefunctions
+      
+      1 format (a20, 99f10.3)
+      2 format ('-----------------------------------------------------------')
+      3 format (' Warning: maximum value on the mesh could not be estimated.')
+      4 format (' maxE = ', f10.3,  ' convergence =', es10.3)
+     
+      integer, intent(in)              :: iteration
+      
+      real(KIND=dp), allocatable, save :: maxspwf(:,:)
+      real(KIND=dp), allocatable, save :: update(:,:), actionofh(:,:)
+      real(KIND=dp), allocatable, save ::   dmax(:,:,:)
+      real(KIND=dp), allocatable, save ::  ddmax(:,:,:)
+      real(KIND=dp), allocatable, save :: dddmax(:,:,:)
+      
+      integer       :: estiter, iter, sxm(4), sym(4), szm(4), ii, i
+      real(KIND=dp) :: con, maxE, compare, relE, kappa
+      !-------------------------------------------------------------------------
+      ! Step 1: Solve the auxiliary problem for the largest single-particle 
+      !         ennergy on the mesh
+      if(Iteration .eq.1) then
+          ! Initialize with a random spwf at the start.
+          allocate(maxspwf(nx*ny*nz,4)) 
+          allocate(update(nx*ny*nz,4)) ; allocate(actionofh(nx*ny*nz,4))
+          allocate(dmax(nx*ny*nz,3,4))
+          allocate(ddmax(nx*ny*nz,6,4))
+          allocate(dddmax(nx*ny*nz,10,4))
+            
+          call random_number(maxspwf)                        ! randomize
+          maxspwf = 1.0/sqrt(sum(maxspwf**2)*dv) * maxspwf   ! normalize
+      endif
+
+      estiter = 500
+      update  = 0.0
+
+      ! For now, assume positive parity, +i signature neutron.
+      sxm(1) =  1 ; sym(1) = +1 ; szm(1) = +1
+      sxm(2) = -1 ; sym(2) = -1 ; szm(2) = +1 
+      sxm(3) = -1 ; sym(3) = +1 ; szm(3) = -1
+      sxm(4) =  1 ; sym(4) = -1 ; szm(4) = -1
+
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Iterative estimation of the maximal energy
+      do iter=1,estiter
+          !---------------------------------------------------------------------
+          ! Note that onthefly = .true., making sphamil take care of the 
+          ! derivatives itself
+          actionofh = sphamil(maxspwf, dmax, ddmax, dddmax,sxm,sym,szm,1,.true.)
+          con       = maxE
+          maxE      = sum(actionofh * maxspwf) * dv
+          con       = con - maxE
+          !---------------------------------------------------------------------
+          ! notice the sign, we are maximising instead of minimising.
+          update   = dt/hbar*( actionofh - maxE*maxspwf) + momentum *update 
+          maxspwf  = maxspwf + update
+          !---------------------------------------------------------------------
+          ! Normalize
+          maxspwf = 1.0/sqrt(sum(maxspwf**2)*dv) * maxspwf   ! normalize
+          !---------------------------------------------------------------------
+          ! Don't be to picky about convergence, within the order of an MeV is
+          ! good enough.
+          if(abs(con).lt. 1d-2) exit
+      enddo
+      !-------------------------------------------------------------------------
+      ! Step 2: estimate the minimal relevant energy
+      !         currently only for HF calculations.
+      do i=1,nwt
+        if(abs(occupations(i)).lt.0.5) cycle
+        do ii=1,nwt
+            if(abs(occupations(i)).gt.0.5) cycle
+            
+            compare = spenergies(ii)  - spenergies(i) 
+            if(compare .gt. 0.0) then
+              relE = min(relE, compare)
+            endif
+            
+        enddo
+      enddo
+      ! Safeguard the difference
+      if(relE .lt. 0.05) relE = 0.05
+  
+      !-------------------------------------------------------------------------
+      ! Step 3: use these estimations to determine a value for dt and mu.
+      maxE  = maxE - minval(spenergies)
+      kappa = relE/maxE
+      momentum = ((sqrt(kappa) - 1)/(sqrt(kappa)+1))**2
+      dt    = 4.0/(maxE+relE+2*sqrt(maxE*relE))*hbar*0.90
+      
+  end subroutine IterativeEstimation
+    
+!===============================================================================
+! Preconditioning routines
+!===============================================================================
 
     function Precondition_PG(psi, px, py, pz, iso) result(Ppsi)
         !-----------------------------------------------------------------------
@@ -358,92 +482,4 @@ contains
         enddo
         
     end subroutine CalculatePreconditioners
-    
-!    subroutine InvertDerivatives
-!    !---------------------------------------------------------------------------
-!    ! Construct the inverse matrices of the second Lagrange derivative 
-!    ! matrices.
-!    !---------------------------------------------------------------------------
-!    
-!    integer :: pivotx(nx)
-!    integer :: pivoty(ny)
-!    integer :: pivotz(nz)    
-!    integer :: ierror, pm,i, loca,k, it, startind, endind
-
-!    real(KIND=dp), allocatable:: toinvert(:,:)
-!    real(KIND=dp) :: work(nz)
-!    real(KIND=dp) :: epsilon0, inproduct, epsilon0old(2) = 0.0_dp
-!    
-!    if(.not.allocated(invlaplaX)) then
-!        allocate(invlaplaX(nx,nx,2,2))
-!        allocate(invlaplaY(ny,ny,2,2))
-!        allocate(invlaplaZ(nz,nz,2,2))
-!    endif
-
-!    do it=1,2
-!        !-----------------------------------------------------------------------
-!        ! Find a proper value for epsilon0
-!        epsilon0 = 0.0_dp
-!        
-!        if (it .eq. 1) then
-!            startind = 1
-!            endind   = nwn
-!        else
-!            startind = nwn+1
-!            endind   = nwt
-!        endif
-
-!        do i=startind, endind
-!            if(spenergies(i) .lt.  epsilon0) then
-!                epsilon0 = spenergies(i)
-!                loca = i
-!            endif
-!        enddo
-!        Inproduct = 0.0_dp
-!        do k=1,4          
-!                do i=1,mv
-!                       Inproduct = Inproduct + HFPsi(i,k,loca) *  & 
-!                       &  ( HFddPsi(i,1,k,loca) + &
-!                       &    HFddPsi(i,4,k,loca) + &
-!                       &    HFddPsi(i,6,k,loca))
-!                enddo
-!        enddo
-!        epsilon0 =   epsilon0 - hbm(it) * Inproduct * dv
-!        epsilon0 = -  epsilon0 /hbm(it)
-
-
-!        !-----------------------------------------------------------------------
-!        ! Invert the shifted Laplacians
-!        do pm=1,2
-!            invLaplaX(:,:,pm,it) =  laplaX(:,:,pm)
-!            do i=1,nx
-!                invLaplaX(i,i,pm,it) = invLaplaX(i,i,pm,it) - epsilon0
-!            enddo
-!            call dgetrf (nx, nx, invLaplaX(:,:,pm,it), nx,pivotx, ierror) 		
-!            call dgetri (nx, invLaplaX(:,:,pm,it), nx, pivotx, work, nx, ierror) 
-!        enddo
-
-!        do pm=1,2
-!            invLaplaY(:,:,pm,it) = laplaY(:,:,pm)
-!            do i=1,ny
-!                invLaplaY(i,i,pm,it) =  invLaplaY(i,i,pm,it) - epsilon0
-!            enddo
-!            call dgetrf (ny, ny, invLaplaY(:,:,pm,it), ny,pivoty, ierror) 		
-!            call dgetri (ny, invLaplaY(:,:,pm,it), nx, pivoty, work, ny, ierror) 
-!        enddo
-
-!        do pm=1,2
-!            invLaplaZ(:,:,pm,it) = laplaZ(:,:,pm)
-!            do i=1,nz
-!                invLaplaZ(i,i,pm,it) =  invLaplaZ(i,i,pm,it) - epsilon0
-!            enddo
-!            call dgetrf (nz, nz, invLaplaZ(:,:,pm,it), nz,pivotz, ierror) 		
-!            call dgetri (nz, invLaplaZ(:,:,pm,it), nz, pivotz, work, nz, ierror) 
-!        enddo
-
-!        if(ierror.ne.0) then
-!            print *, 'Error in inverting the shifted laplacians.'
-!        endif
-!    enddo
-! end subroutine InvertDerivatives
 end module evolution

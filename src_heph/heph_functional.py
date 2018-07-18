@@ -382,7 +382,7 @@ def ProcessFunctional(fname, src, target):
         fieldcalc   = heph_linechecker.LineFormat(fieldcalc)
         SkyrmeAction= heph_linechecker.LineFormat(SkyrmeAction)
         erear       = heph_linechecker.LineFormat(erear)
-        # - - - - - - - - - - - - - - - - - - - - -
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         # Substitute into the functional.f90 file.        
         dic={}
         dic['DECLARATION']    = declaration
@@ -394,6 +394,17 @@ def ProcessFunctional(fname, src, target):
         dic['CALCFIELDS']     = fieldcalc
         dic['SKYRMEACTION']   = SkyrmeAction
         dic['EREAR']          = erear
+        
+        if(derivative_order == 1):
+          dic['N2'] = ' '    
+          dic['N3'] = '!'
+        elif(derivative_order == 2): 
+          dic['N2'] = ' '
+          dic['N3'] = '!'
+        elif(derivative_order == 3):
+          dic['N2'] = '!'
+          dic['N3'] = ' '
+        
         with open(src+fname, 'r') as template:
                 with open(target+fname, 'w') as generated:
                     for line in template:

@@ -130,10 +130,9 @@ subroutine printsummary(iter)
 
     print *,  '*************************************'
     print *,  ' Iteration ', iter
-    print *,  ' Energy =  ', totalE
-    print *,  ' Spwfs  =  ', spwfenergy
-    print *,  ' GradNorm =', gradientnorm
-    print *,  ' Dispersion=', d2h
+    print *,  ' dt=', dt, ' mu=', momentum
+    print *,  ' Energy =  ', totalE, ' Spwfs  =  ', spwfenergy
+    print *,  ' GradNorm =', gradientnorm, ' Dispersion=', d2h
     print *,  '*************************************'
         
 end subroutine printsummary
