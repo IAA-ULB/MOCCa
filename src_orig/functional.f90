@@ -56,8 +56,10 @@ module functional
     real(KIND=dp) :: x1n3=-0.344
     real(KIND=dp) :: x2n3=-1.0 
     ! N2LO Tensor
-    real(KIND=dp) :: ten2 = 10.0
-    real(KIND=dp) :: ton2 = -5.0  
+    ! Note that these are the constants from Michaels notes, that is to say 
+    ! 4 times as large as the ones in Danys/Lysandras notes
+    real(KIND=dp) :: ten2 =  40.0
+    real(KIND=dp) :: ton2 = -20.0  
     !---------------------------------------------------------------------------
     ! Constants that enter the game, together with the e2 from the Coulomb
     ! module.

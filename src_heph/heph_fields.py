@@ -122,14 +122,22 @@ def GenerateFields():
                                        x*'Der_' +               \
                                        altden
             #-------------------------------------------------------------------
-            # Change the coupling if the density needed is contracted
+            # Remove all the mentions of couplings inside the density if only
+            # contractions are calculated.
+            # 
             altterm = term
             for c in cpl: 
                 for i in range(len(densities)):
                     if(OrderOfDen(densities[i]) != OrderOfDen(densities[i], contract=False)):
-                        if(densities[i].count(sumindices[cpl.index(c)]) == 2):
+                      for s in sumindices:
+                          if(densities[i].count(s) == 2):
                             # Replace internal couplings
-                            altterm = altterm.replace(sumindices[cpl.index(c)],'')
+                            altterm = altterm.replace(s,'')
+                        
+#                     if(densities[i].count(sumindices[cpl.index(c)]) == 2):
+#                          # Replace internal couplings
+#                          altterm = altterm.replace(sumindices[cpl.index(c)],'')
+
             (rubbish, cpl) = heph_functional.ParseDensities(altterm)
             #-------------------------------------------------------------------
             # Check if the term contains this density
@@ -193,12 +201,17 @@ def GenerateFields():
              # Find the number of indices over which there have to be sums
              NumberOfIndices = 0
              for d2 in [den] + fieldterm[0]:
-                (der, lap, left, right, cpl, crs) = ParseOperators(d2)
+                #(der, lap, left, right, cpl, crs) = ParseOperators(d2)
                 NumberOfIndices= NumberOfIndices + OrderOfDen(d2) 
+                      
              # The couplings however do not need individual indices 
              NumberOfIndices = NumberOfIndices - len(fieldterm[4]) 
              # But the external derivatives do            
              NumberOfIndices = NumberOfIndices + fieldterm[1]
+             
+             
+             #print den, fieldterm[0], NumberOfIndices
+             
              #------------------------------------------------------------------
              # arguments for all the indices
              args = list(itertools.product(range(3), repeat=NumberOfIndices))
@@ -209,7 +222,8 @@ def GenerateFields():
                  for k in range(OrderOfDen(den)):
                     for c in fieldterm[4]:
                         if k in c:
-                            dic['IND']      = dic['IND']  + ',%s'%(arg[fieldterm[4].index(c)]+1)
+                            dic['IND'] = dic['IND'] \
+                                          + ',%s'%(arg[fieldterm[4].index(c)]+1)
            
                  FIELDCALC = FIELDCALC + field_calc_temp.substitute(dic)
                  
@@ -403,8 +417,6 @@ def GenerateAction(field, symmetrize):
     rdim  = RightOperator.dimension - len(ccoupl) - 2*len(rcoupl)
     ldim  = LeftOperator.dimension  - 2*len(lcoupl)
     
-    print field,rdim
-
     # all possible values for the arguments of the left-operator
     largs = list(itertools.product(range(3), repeat=ldim))
     #-------------------------------------------------------------------
