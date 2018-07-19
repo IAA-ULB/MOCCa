@@ -101,31 +101,31 @@ contains
     ! Precision desired of the Coulomb solver
     Prec = 1.d-9/(dx**3*nx*ny*nz)
     
-    !---------------------------------------------------------------------------
-    ! Set-up the values of r and spherharmcoulomb on the mesh.
-    ! Currently ONLY for EV8-like boxes.
-    allocate(r(nx+BC,ny+BC,nz+BC))                                 ;  r = 0.0_dp
-    allocate(SpherHarmCoulomb(nx+BC,ny+BC,nz+BC,0:maxm,0:maxm,2)) 
-    SpherHarmCoulomb = 0.0_dp
-    
-    do i=1,nx+BC
-          mesh(1,i,:,:) = (1/2.0_dp +(i-1))*dx
-    enddo
-    do j=1,ny+BC
-          mesh(2,:,j,:) = (1/2.0_dp +(j-1))*dx
-    enddo
-    do k=1,nz+BC
-          mesh(3,:,:,k) = (1/2.0_dp +(k-1))*dx
-    enddo
-    do k=1,nz+BC
-      do j=1,ny+BC
-        do i=1,nx+BC
-          r(i,j,k) = sqrt(sum(mesh(:,i,j,k)**2))
-        enddo
-      enddo
-    enddo
-    
-    call GenSphericalHarmonics(maxm,nx+BC,ny+BC,nz+BC,mesh,SpherHarmCoulomb,3,1)
+!    !---------------------------------------------------------------------------
+!    ! Set-up the values of r and spherharmcoulomb on the mesh.
+!    ! Currently ONLY for EV8-like boxes.
+!    allocate(r(nx+BC,ny+BC,nz+BC))                                 ;  r = 0.0_dp
+!    allocate(SpherHarmCoulomb(nx+BC,ny+BC,nz+BC,0:maxm,0:maxm,2)) 
+!    SpherHarmCoulomb = 0.0_dp
+!    
+!    do i=1,nx+BC
+!          mesh(1,i,:,:) = (1/2.0_dp +(i-1))*dx
+!    enddo
+!    do j=1,ny+BC
+!          mesh(2,:,j,:) = (1/2.0_dp +(j-1))*dx
+!    enddo
+!    do k=1,nz+BC
+!          mesh(3,:,:,k) = (1/2.0_dp +(k-1))*dx
+!    enddo
+!    do k=1,nz+BC
+!      do j=1,ny+BC
+!        do i=1,nx+BC
+!          r(i,j,k) = sqrt(sum(mesh(:,i,j,k)**2))
+!        enddo
+!      enddo
+!    enddo
+!    
+!    call GenSphericalHarmonics(maxm,nx+BC,ny+BC,nz+BC,mesh,SpherHarmCoulomb,3,1)
     !---------------------------------------------------------------------------    
  end subroutine SetupCoulomb
     

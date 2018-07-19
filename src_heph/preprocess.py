@@ -56,6 +56,9 @@ def preprocess(fname, src, target):
     if(fname=='scfiteration.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='moments.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='constants.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return

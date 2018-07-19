@@ -27,7 +27,8 @@ FORTRANFILES=['compilation.f90'  , 'geninfo.f90'      , 'sphericalharmonics.f90'
               'diag.f90'         , 'nil8.f90'         , 'coulomb.f90'     ,
               'derivatives.f90'  , 'precondition.f90' , 'wavefunctions.f90',
               'hartree-fock.f90',
-              'densities.f90'    , 'functional.f90'   , 'evolution.f90'   , 
+              'densities.f90'    , 'moments.f90', 
+              'functional.f90'   , 'evolution.f90'    , 
               'scfiteration.f90' , 'IO.f90'           , 'tantalus.f90' ]
 
 # File containing the definition of the functional

@@ -1,8 +1,15 @@
 module sphericalharmonics
-!-------------------------------------------------------------------------------
-! Module containing the means to generate the values of the spherical harmonics
-! on the mesh. Heavily copy-pasted from Moments.f90 in MOCCa.
-!-------------------------------------------------------------------------------
+!===============================================================================
+!  #######   ##   #    # #####   ##   #      #    #  ####
+!     #     #  #  ##   #   #    #  #  #      #    # #
+!     #    #    # # #  #   #   #    # #      #    #  ####
+!     #    ###### #  # #   #   ###### #      #    #      #
+!     #    #    # #   ##   #   #    # #      #    # #    #
+!     #    #    # #    #   #   #    # ######  ####   ####
+!
+!  Copyright W. Ryssens & M. Bender
+!
+!===============================================================================
 ! The representation of the spherical harmonics used is the one from Messiah,
 ! using real spherical harmonics.
 !
@@ -20,23 +27,16 @@ module sphericalharmonics
 !   Re Y_lm =  1/2 * (Y_l+m + Y_l-m)
 !   Im Y_lm = -i/2 * (Y_l+m - Y_l-m)
 !
-!
-!  Multipole moments of the density
-!      \langle \hat{Q}^e_{lm} \rangle = \int d^3r rho(r) r^l Y_{lm} 
-!  Magnetic multipole moments, i.e. vector multipoles of the spin and current
-!  density
-!      \langle \hat{Q}^m_{lm} \rangle = Q^m_lm,spin + Q^m_lm,orbit 
-!      Q^m_lm,spin                = 0.5*\int d^3r s_m(r) nabla_m(r^l Y_{lm}) 
-!      Q^m_lm,orbit               =     \int d^3r (rxj)_m(r) nabla_m(r^l Y_{lm}) 
-!-------------------------------------------------------------------------------
+!===============================================================================
  use geninfo
 
  implicit none
  
 contains
 
-   subroutine GenSphericalHarmonics(maxmoment,mx,my,mz,Mesh,SpherHarmMesh,     &
-   &                             quantisationaxis,secondaryaxis)
+   subroutine GenSphericalHarmonics(maxmoment,mx,my,mz,                        &
+   &                                meshx,meshy,meshz, SpherHarmMesh,          &
+   &                                quantisationaxis,secondaryaxis)
     !---------------------------------------------------------------------------
     ! This function computes the values of all the spherical harmonics up to
     ! l=Maxmoment where Mesh supplies the values of the x/y/z coordinates.
@@ -51,11 +51,12 @@ contains
     !
     ! Translating this formula into Cartesian coordinates is also highly
     ! dependent on the values for QuantisationAxis and SecondaryAxis.
+    ! See explanation in the moments module.
     !---------------------------------------------------------------------------
 
     integer, intent(in)        :: mx,my,mz, maxmoment
     integer, intent(in)        :: quantisationaxis,secondaryaxis
-    real(KIND=dp), intent(in)  :: Mesh(3,mx,my,mz)
+    real(KIND=dp), intent(in)  :: meshx(mx), meshy(my), meshz(mz)
 
     real(KIND=dp)  :: LegendreMesh (mx,my,mz,0:MaxMoment,0:MaxMoment)
     real(KIND=dp)  :: SpherHarmMesh(mx,my,mz,0:MaxMoment,0:MaxMoment,2)
@@ -65,14 +66,12 @@ contains
     integer        :: i,j,k,l,m,q
     real(KIND=dp)  :: factorialquotient
 
-    !LegendreMesh = 0.0_dp  
-
     do k=1,mz
       do j=1,my
         do i=1,mx
-          X = Mesh(1,i,j,k)
-          Y = Mesh(2,i,j,k)
-          Z = Mesh(3,i,j,k)
+          X = MeshX(i)
+          Y = MeshY(j)
+          Z = MeshZ(k)
 
           r        =sqrt(X**2+Y**2+Z**2)
           phi      =0

@@ -285,6 +285,7 @@ $PRINT
     ! Includes preconditioning of F_I_I at the moment only.
     !---------------------------------------------------------------------------
     use Coulomb, only : SolveCoulomb, CoulombPotential, Exchangepotential
+    use moments
     
     integer :: it,i,j,k
     real(KIND=dp), allocatable :: update(:,:)
@@ -312,6 +313,10 @@ $CALCFIELDS
     ! Exchange contribution
     F_I_I(1:mv,2) = F_I_I(1:mv,2) + ExchangePotential(1:mv)
     
+    !---------------------------------------------------------------------------
+    ! Add the contribution from the constraints on the electric multipole 
+    ! moments. 
+    F_I_I =  F_I_I + Constraint_I_I
     !---------------------------------------------------------------------------
     ! Precondition the field corresponding to rho, F_I_I.
     if(.not.all(F_I_I_hist.eq.0.0_dp) .and. potentialpreconditioning.eq.1) then

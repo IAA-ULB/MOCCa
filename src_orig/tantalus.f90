@@ -70,26 +70,33 @@ subroutine ReachForWaterAndFood
     use functional
     use evolution
     use IO
+    use moments
     
     implicit none
    
     integer :: iter, i
    
+    ! Derive all the single-particle wavefunctions
     call deriveall()
-    !---------------------------------------------------------------------------
+   
     ! Solve the pairing. For now just HF.
     call NaiveFill(occupations)
-    !---------------------------------------------------------------------------
+   
     ! Calculate the initial densities.
     call densit()
-    ! And the initial fields.
+
+    call CalculateAllMoments()
+    
     call calcFields()
-    ! And even the initial energy.
     call CalcEnergy()
 
+    ! Initial printout
     call printSpwfs
+    call printallmoments
     call PrintEnergy 
-    
+
+    !---------------------------------------------------------------------------
+    ! Start of the iterations
     do iter=1,maxiter
         ! One step in the evolution.
         call Evolve(iter)
@@ -97,15 +104,23 @@ subroutine ReachForWaterAndFood
         call deriveall()
         ! Solve the pairing problem.
         call NaiveFill(occupations)
+        
         ! Update the densities
         call densit()
+        
+        call CalculateAllMoments()
+        call ReadjustAllMoments(1) 
+        call ReadjustAllMoments(2) 
+        
         ! Update the fields
         call calcFields()
         ! Recalculate the energy
         call CalcEnergy()
+        !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
         if(mod(iter,PrintIter).eq.0) then
             call PrintSpwfs
+            call printallmoments
             call PrintEnergy            
         else
             call printsummary(iter)

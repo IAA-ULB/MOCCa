@@ -23,11 +23,18 @@ module GenInfo
     !---------------------------------------------------------------------------
     ! Temporary integer, whether or not coulomb is added
     integer :: coul = 1
+    !---------------------------------------------------------------------------
+    ! Coordinates of the mesh points for the calculation as well as the 
+    ! coulomb calculation
+    real(KIND=dp), allocatable :: meshx(:), meshy(:), meshz(:)
+    real(KIND=dp), allocatable :: coulmeshx(:), coulmeshy(:), coulmeshz(:)
     
 contains
 
   subroutine ReadGenInfo
-
+    !---------------------------------------------------------------------------
+    ! Read some of the general information needed.
+    !---------------------------------------------------------------------------
     Namelist /nucleus/ neutrons,protons
     Namelist /mesh/    nx,ny,nz, dx
     Namelist /coulomb/    coul
@@ -42,10 +49,35 @@ contains
     ! Reading information on Coulomb
     read (unit=*, nml=coulomb)
 
-
     mv = nx * ny * nz
     dv = (dx**3)*(2**$NUMSYM)
+    
+    call inimesh
   end subroutine ReadGenInfo
+  
+  subroutine inimesh
+    !---------------------------------------------------------------------------
+    ! Generate the coordinates of the mesh points for the demanded Lagrange mesh
+    ! Severe modification for Hephaestos will be necessary.
+    !---------------------------------------------------------------------------
+    integer       :: i
+    real(KIND=dp) :: X,Y,Z
+    
+    allocate(    meshx(nx  ),     meshy(ny  ),     meshz(nz  ))
+    allocate(coulmeshx(nx+2), coulmeshy(ny+2), coulmeshz(nz+2))
+    
+    do i=1,nx
+      meshx(i) = (1/2.0_dp +(i-1))*dx
+    enddo
+    
+    do i=1,ny
+      meshy(i) = (1/2.0_dp +(i-1))*dx
+    enddo
+    
+    do i=1,nz
+      meshz(i) = (1/2.0_dp +(i-1))*dx
+    enddo
+  end subroutine inimesh
 
   pure integer function LeviCivita(i,j,k)
     !---------------------------------------------------------------------------

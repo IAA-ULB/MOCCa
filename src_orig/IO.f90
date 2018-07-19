@@ -31,10 +31,11 @@ contains
     !
     !---------------------------------------------------------------------------
 
-    use GenInfo,       only : ReadGenInfo
+    use geninfo,       only : ReadGenInfo
     use Evolution,     only : ReadEvolution
     use wavefunctions, only : ReadWFdata
     use scfiteration,  only : readscfiteration
+    use moments,       only : readmomentdata
 
     NameList /IO/ InputFileName,OutputFileName
     
@@ -44,7 +45,9 @@ contains
     call ReadWFdata
     
     read (unit=*, nml=IO)
-
+    
+    call readmomentdata
+    
   end subroutine ReadInput
 
   subroutine PrintInput

@@ -290,7 +290,7 @@ contains
       real(KIND=dp), allocatable, save :: dddmax(:,:,:)
       
       integer       :: estiter, iter, sxm(4), sym(4), szm(4), ii, i
-      real(KIND=dp) :: con, maxE, compare, relE, kappa
+      real(KIND=dp) :: con, maxE, compare, relE, kappa, dtmax
       !-------------------------------------------------------------------------
       ! Step 1: Solve the auxiliary problem for the largest single-particle 
       !         ennergy on the mesh
@@ -315,6 +315,12 @@ contains
       sxm(3) = -1 ; sym(3) = +1 ; szm(3) = -1
       sxm(4) =  1 ; sym(4) = -1 ; szm(4) = -1
 
+      !-------------------------------------------------------------------------
+      ! The appropriate maximum dt for the maximising problem is very much 
+      ! higher: the highest eigenvalue is now the absolute value of the
+      ! minimum sp-energy!
+      dtmax = 4.0/(abs(minval(spenergies)))*0.9
+
       !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Iterative estimation of the maximal energy
       do iter=1,estiter
@@ -327,7 +333,7 @@ contains
           con       = con - maxE
           !---------------------------------------------------------------------
           ! notice the sign, we are maximising instead of minimising.
-          update   = dt/hbar*( actionofh - maxE*maxspwf) + momentum *update 
+          update   = dtmax*( actionofh - maxE*maxspwf) + momentum *update 
           maxspwf  = maxspwf + update
           !---------------------------------------------------------------------
           ! Normalize
@@ -337,6 +343,12 @@ contains
           ! good enough.
           if(abs(con).lt. 1d-2) exit
       enddo
+      if(iter.eq.estiter+1) then
+       print 1
+       print 2
+       print 3
+       print 4, maxE, con
+      endif
       !-------------------------------------------------------------------------
       ! Step 2: estimate the minimal relevant energy
       !         currently only for HF calculations.
