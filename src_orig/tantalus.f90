@@ -71,7 +71,7 @@ subroutine ReachForWaterAndFood
     use evolution
     use IO
     use moments
-    use coulomb
+    use coulombmod
     
     implicit none
    

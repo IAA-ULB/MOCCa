@@ -47,6 +47,9 @@ def preprocess(fname, src, target):
     if(fname=='tantalus.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='parameterization.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='functional.f90'):
         ProcessFunctional(fname, src, target)
         return

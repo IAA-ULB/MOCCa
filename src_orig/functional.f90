@@ -21,7 +21,7 @@ module functional
  use compilation
  use geninfo
  use densities
- 
+ use parameterization
 
  implicit none
  
