@@ -205,7 +205,7 @@ module moments
   !-----------------------------------------------------------------------------
   ! Starting point for the linked list of moments.
   !-----------------------------------------------------------------------------
-  type(Moment),   pointer :: Root         ! Electric multipole moments
+  type(Moment),save, pointer :: Root         ! Electric multipole moments
   !-----------------------------------------------------------------------------
   ! CutoffType
   ! 0 : Density-dependent cutoff
@@ -478,7 +478,7 @@ contains
     1 format ('Nan in Q_{ ,' i2, ' ', i2, '}')
     
     class(Moment),        intent(inout) :: ToCalculate
-    integer                             :: i,it
+    integer                             :: it
 
     !Initialise
     ToCalculate%Value      = 0.0_dp
@@ -681,9 +681,6 @@ contains
     ! Subroutine that readjusts the constraint of a certain multipole moment.
     !---------------------------------------------------------------------------
     type(Moment), pointer    :: ToReadjust
-    real(KIND=dp)            :: O2(2),Old(2),OldIntensity(2),factor(2)
-    real(KIND=dp)            :: G1, G2, oldC
-    integer                  :: it
 
    11 format ( '------------------------------------')
    12 format ( ' Constraint on Q_{ ', 2i2, ' has no ')
@@ -698,8 +695,7 @@ contains
     ! Augmented Lagrangian readjustment
     if(ToReadjust%Intensity .eq. 0.0) then
           ! Find suitable intensity, if none was found before
-          O2 = sum(ToReadjust%Squared)
-          ToReadjust%Intensity = sqrt(1/sum(O2))
+          ToReadjust%Intensity = sqrt(1/sum(ToReadjust%Squared))
           print 11
           print 12, ToReadjust%l,ToReadjust%m
           print 13
@@ -726,7 +722,7 @@ contains
     integer             :: l,m, ConstraintType
     real(KIND=dp)       :: Constraint, iq1=-1000000, iq2=-1000000, Intensity
     logical             :: MoreConstraints=.false., Impart
-    type(Moment),pointer:: Current, New
+    type(Moment),pointer:: Current
     real(KIND=dp), allocatable:: LegacyCon(:)
 
     NameList /MomentParam/                                                     &
@@ -869,22 +865,14 @@ contains
     character(len=1)      :: AX='Z',secAx1='Y', secAx2='Z'
 
   100 format (15('-'),' Electric Multipole Moments ', 16('-'))
-  101 format (15('-'),' Magnetic Multipole Moments ', 16('-'))   
-  201 format (15('-'),' J0 Multipole Moments       ', 16('-'))    
   102 format (60('-'))
     1 format (60('_'))
     2 format (17x,4x, 'Neutrons',8x, 'Protons',9x, 'Total')
     7 format ('Beta_{', 2i2 , '} ', 3(1x,f15.8) )
    71 format ('Beta_{',2x, i2,'} ', 3(1x,f15.8) )
     8 format ('Q_{',i2,'} ',5x, 3(1x,f15.4))
-    9 format ('Constrained', 33x, f15.4)
-   91 format ('Pulling to ', 33x, f15.4)
-   92 format ('Multiplier ', 33x, f15.4)
    10 format ('Quantisation Axis             : ', a1)
    11 format ('  With secondary axis ordering: ', a1, ',', a1)
-   12 format (' Units: ',/,&
-   &          '   spin/orbit/total: hbar fm^(l-1)', /, &
-   &          '   phys:             mu_N fm^(l-1)'  )
 
 
    ! Print information on the quantisationaxis and secondary axis
@@ -1177,8 +1165,8 @@ contains
     integer, intent(in)   :: l
     type(Moment), pointer :: Current
     real(KIND=dp)         :: ql(2), fm
-    integer :: q,m
-
+    integer               :: m
+    
     ql = 0.0_dp ; m=0
     Current => FindMoment(l,0,.false.)
     do while(m.lt.l .and. .not.associated(Current))

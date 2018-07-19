@@ -38,9 +38,9 @@ module evolution
     !Maximum number of iterations and number of iterations to skip printing of
     ! the code in the evolve subroutine
     integer :: MaxIter=100, PrintIter=10
-    !---------------------------------------------------------------------------
-    ! Precondition, whether to use the PG preconditioner
-    character(len=20) :: Precondition = 'None'
+!    !---------------------------------------------------------------------------
+!    ! Precondition, whether to use the PG preconditioner
+!    character(len=20) :: Precondition = 'None'
     !---------------------------------------------------------------------------
     ! Strategy for evolution of the spwfs
     ! Valid choices: 
@@ -61,7 +61,7 @@ module evolution
     procedure(Evolve_Interface),pointer :: Evolve    
     !---------------------------------------------------------------------------
     ! Procedure pointer for the preconditioning
-    procedure(Precondition_PG),pointer :: Precon 
+    !procedure(Precondition_PG),pointer :: Precon 
     !---------------------------------------------------------------------------
     ! Default value of the momentum factor.
     real(KIND=dp) :: momentum=0.0
@@ -81,18 +81,17 @@ contains
         !-----------------------------------------------------------------------
         use geninfo
 
-        namelist /evolution/ dt, maxiter, printiter, precondition, strategy,   &
-        &                    momentum
+        namelist /evolution/ dt, maxiter, printiter, strategy, momentum
 
         read(unit=*, nml=evolution)
         !-----------------------------------------------------------------------
         !  Assign the correct preconditioner
-        Precondition = to_upper(Precondition )
-        if(adjustl(Precondition) .eq. 'PG' ) then
-            Precon => Precondition_PG
-        else 
-            Precon => Precondition_none
-        endif
+!        Precondition = to_upper(Precondition )
+!        if(adjustl(Precondition) .eq. 'PG' ) then
+!            Precon => Precondition_PG
+!        else 
+!            Precon => Precondition_none
+!        endif
         !-----------------------------------------------------------------------
         ! Assign the correct evolution routine
         Strategy = to_upper(Strategy)
@@ -116,7 +115,7 @@ contains
         2 format(' Evolution strategy: ', a20 )
         3 format(' dt= ', f7.4, ' mu= ', f7.4 )        
         4 format(' Estimate (dt,mu)  : ', a3)
-        5 format(' Preconditioning   : ', a20 )
+!        5 format(' Preconditioning   : ', a20 )
     
         print 1
         print 2, adjustl(Strategy)
@@ -128,7 +127,7 @@ contains
           print 4, ' NO'
         endif
         
-        print 5, adjustl(Precondition)
+!        print 5, adjustl(Precondition)
         print 1
     end subroutine PrintEvolution
 
@@ -151,14 +150,14 @@ contains
         use wavefunctions
         
         integer, intent(in) :: iteration
-        integer             :: wave, iso,k,i
+        integer             :: wave, iso
         real(KIND = dp)     :: hpsi(nx*ny*nz,4)
         
         gradientnorm = 0.0_dp
         d2h          = 0.0_dp
 
         ! Calculate the preconditioning matrices
-        if(Precondition .ne. 'NONE' ) call CalculatePreconditioners()
+!        if(Precondition .ne. 'NONE' ) call CalculatePreconditioners()
         
         do wave=1,nwt
             if(wave .lt. nwn) then
@@ -181,7 +180,7 @@ contains
             d2h          = d2h + occupations(wave)*dispersions(wave)
 
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
-            hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    
+            !hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    
 
             hfpsi(:,:,wave) = hfpsi(:,:,wave) -  dt/hbar * hpsi
         enddo
@@ -211,8 +210,8 @@ contains
         use wavefunctions
         
         integer, intent(in)   :: iteration
-        integer               :: wave, iso,k,i
-        real(KIND = dp)       :: hpsi(nx*ny*nz,4), olde
+        integer               :: wave, iso
+        real(KIND = dp)       :: hpsi(nx*ny*nz,4)
         ! Store the change in the spwfs from last iteration
         real(KIND = dp), allocatable, save :: Updates(:,:,:)      
 
@@ -221,9 +220,9 @@ contains
             Updates = 0.0_dp
         endif
 
-        if(Precondition .ne. 'NONE') then
-          print *, 'Preconditioning not supported with heavy-ball.'
-        endif  
+!        if(Precondition .ne. 'NONE') then
+!          print *, 'Preconditioning not supported with heavy-ball.'
+!        endif  
         if(EstimateParams) call IterativeEstimation(iteration)
 
         gradientnorm = 0.0_dp
@@ -246,10 +245,10 @@ contains
             !-------------------------------------------------------------------
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
-            d2h          = d2h + occupations(wave)*dispersions(wave)
+            d2h               = d2h + occupations(wave)*dispersions(wave)
             
             gradientnorm = gradientnorm + occupations(wave) * &
-            & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
+            & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi)**2)*dv
             !-------------------------------------------------------------------
             ! Remove the part that is propagation in its own direction.
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
@@ -290,7 +289,7 @@ contains
       real(KIND=dp), allocatable, save :: dddmax(:,:,:)
       
       integer       :: estiter, iter, sxm(4), sym(4), szm(4), ii, i
-      real(KIND=dp) :: con, maxE, compare, relE, kappa, dtmax
+      real(KIND=dp) :: con, maxE, compare, relE, kappa
       !-------------------------------------------------------------------------
       ! Step 1: Solve the auxiliary problem for the largest single-particle 
       !         ennergy on the mesh
@@ -319,7 +318,7 @@ contains
       ! The appropriate maximum dt for the maximising problem is very much 
       ! higher: the highest eigenvalue is now the absolute value of the
       ! minimum sp-energy!
-      dtmax = 4.0/(abs(minval(spenergies)))*0.9
+!      dtmax = 4.0/(abs(minval(spenergies)))*0.9
 
       !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Iterative estimation of the maximal energy
@@ -332,9 +331,9 @@ contains
           maxE      = sum(actionofh * maxspwf) * dv
           con       = con - maxE
           !---------------------------------------------------------------------
-          ! notice the sign, we are maximising instead of minimising.
-          update   = dtmax*( actionofh - maxE*maxspwf) + momentum *update 
-          maxspwf  = maxspwf + update
+          ! Simple power iteration seems to better than gradient descent          
+!          update   = dtmax*( actionofh - maxE*maxspwf) + momentum *update 
+          maxspwf  = actionofh !maxspwf + update
           !---------------------------------------------------------------------
           ! Normalize
           maxspwf = 1.0/sqrt(sum(maxspwf**2)*dv) * maxspwf   ! normalize
@@ -343,6 +342,7 @@ contains
           ! good enough.
           if(abs(con).lt. 1d-2) exit
       enddo
+       print *, 'conv', iter, con
       if(iter.eq.estiter+1) then
        print 1
        print 2
@@ -352,16 +352,15 @@ contains
       !-------------------------------------------------------------------------
       ! Step 2: estimate the minimal relevant energy
       !         currently only for HF calculations.
+      relE = 10000000
       do i=1,nwt
         if(abs(occupations(i)).lt.0.5) cycle
         do ii=1,nwt
-            if(abs(occupations(i)).gt.0.5) cycle
-            
+            if(abs(occupations(ii)).gt.0.5) cycle
             compare = spenergies(ii)  - spenergies(i) 
             if(compare .gt. 0.0) then
               relE = min(relE, compare)
             endif
-            
         enddo
       enddo
       ! Safeguard the difference
@@ -380,117 +379,117 @@ contains
 ! Preconditioning routines
 !===============================================================================
 
-    function Precondition_PG(psi, px, py, pz, iso) result(Ppsi)
-        !-----------------------------------------------------------------------
-        ! Apply a suitable preconditioner to the spwf.
-        !-----------------------------------------------------------------------
+!    function Precondition_PG(psi, px, py, pz, iso) result(Ppsi)
+!        !-----------------------------------------------------------------------
+!        ! Apply a suitable preconditioner to the spwf.
+!        !-----------------------------------------------------------------------
 
-        use functional
+!        use functional
 
-        real(KIND=dp), intent(in), target  :: psi(nx*ny*nz,4)
-        real(KIND=dp), target              :: Ppsi(nx*ny*nz,4)
+!        real(KIND=dp), intent(in), target  :: psi(nx*ny*nz,4)
+!        real(KIND=dp), target              :: Ppsi(nx*ny*nz,4)
+!    
+!        integer, intent(in)   :: px(4),py(4),pz(4), iso
+!        integer               :: i,j,k, l, sx, sy, sz,  it
+!        real(KIND=dp),pointer :: p3(:,:,:,:), Pp3(:,:,:,:)
+!        
+!        it = (iso+3)/2
+!        
+!        p3(1:nx,1:ny,1:nz,1:4) => psi
+!        Pp3(1:nx,1:ny,1:nz,1:4) => Ppsi
+
+!        do l=1,4
+!            sx = (px(l) + 3)/2 ! These are equal to 
+!            sy = (py(l) + 3)/2 !    1    if pi =   -1  or 0
+!            sz = (pz(l) + 3)/2 !    2    if pi =   +1 
+!            
+!            do i=1,ny*nz
+!                Pp3(:,i,1,l) =                                                 &
+!                &                       matmul(preconX(:,:,sx,it),p3(:,i,1,l))
+!            enddo   
+!            do k=1,nz
+!                do i=1,nx
+!                    Pp3(i,:,k,l) = Pp3(i,:,k,l) +                              &
+!                    &                   matmul(preconY(:,:,sy,it),p3(i,:,k,l))
+!                enddo
+!            enddo
+!            do i=1,nx*ny
+!                Pp3(i,1,:,l) = Pp3(i,1,:,l) +                                  &
+!                &                       matmul(preconZ(:,:,sz,it),p3(i,1,:,l))
+!            enddo
+!        enddo
+!    end function Precondition_PG
+
+!    function Precondition_None(psi, px, py, pz, iso) result(Ppsi)
+!        !-----------------------------------------------
+!        ! Apply a suitable preconditioner to the spwf.
+!        !----------------------------------------------
+
+!        real(KIND=dp), intent(in), target :: psi(nx*ny*nz,4)
+!        real(KIND=dp)                     :: Ppsi(nx*ny*nz,4)
+!        integer, intent(in)               :: px(4),py(4),pz(4), iso
+!        
+!        Ppsi = psi
+!    end function Precondition_None
     
-        integer, intent(in)   :: px(4),py(4),pz(4), iso
-        integer               :: i,j,k, l, sx, sy, sz,  it
-        real(KIND=dp),pointer :: p3(:,:,:,:), Pp3(:,:,:,:)
-        
-        it = (iso+3)/2
-        
-        p3(1:nx,1:ny,1:nz,1:4) => psi
-        Pp3(1:nx,1:ny,1:nz,1:4) => Ppsi
-
-        do l=1,4
-            sx = (px(l) + 3)/2 ! These are equal to 
-            sy = (py(l) + 3)/2 !    1    if pi =   -1  or 0
-            sz = (pz(l) + 3)/2 !    2    if pi =   +1 
-            
-            do i=1,ny*nz
-                Pp3(:,i,1,l) =                                                 &
-                &                       matmul(preconX(:,:,sx,it),p3(:,i,1,l))
-            enddo   
-            do k=1,nz
-                do i=1,nx
-                    Pp3(i,:,k,l) = Pp3(i,:,k,l) +                              &
-                    &                   matmul(preconY(:,:,sy,it),p3(i,:,k,l))
-                enddo
-            enddo
-            do i=1,nx*ny
-                Pp3(i,1,:,l) = Pp3(i,1,:,l) +                                  &
-                &                       matmul(preconZ(:,:,sz,it),p3(i,1,:,l))
-            enddo
-        enddo
-    end function Precondition_PG
-
-    function Precondition_None(psi, px, py, pz, iso) result(Ppsi)
-        !-----------------------------------------------
-        ! Apply a suitable preconditioner to the spwf.
-        !----------------------------------------------
-
-        real(KIND=dp), intent(in), target :: psi(nx*ny*nz,4)
-        real(KIND=dp)                     :: Ppsi(nx*ny*nz,4)
-        integer, intent(in)               :: px(4),py(4),pz(4), iso
-        
-        Ppsi = psi
-    end function Precondition_None
-    
-    subroutine CalculatePreconditioners
-        !-----------------------------------------------------------------------
-        ! Find suitable constants for use in the preconditioners and employ
-        ! to calculate the preconditioning matrices.
-        !-----------------------------------------------------------------------
-    
-        integer       ::  pm,i, loca,k, it, startind, endind
-        real(KIND=dp) :: epsilon0, inproduct
-        
-        if(.not.allocated(preconx)) then
-            allocate(preconx(nx,nx,2,2))
-            allocate(precony(ny,ny,2,2))
-            allocate(preconz(nz,nz,2,2))
-        endif
-    
-        do it=1,2
-            !-------------------------------------------------------------------
-            ! Find a proper value for epsilon0
-            epsilon0 = 0.0_dp
-            
-            if (it .eq. 1) then
-                startind = 1
-                endind   = nwn
-            else
-                startind = nwn+1
-                endind   = nwt
-            endif
-            !-------------------------------------------------------------------
-            ! Find the minimum sp. energy for this nucleon species.
-            do i=startind, endind
-                if(spenergies(i) .lt.  epsilon0) then
-                    epsilon0 = spenergies(i)
-                    loca = i
-                endif
-            enddo
-            !-------------------------------------------------------------------
-            ! Calculate the kinetic energy of this particular level.
-            Inproduct = 0.0_dp
-            do k=1,4          
-                    do i=1,mv
-                           Inproduct = Inproduct + HFPsi(i,k,loca) *  & 
-                           &  ( HFddPsi(i,1,k,loca) + &
-                           &    HFddPsi(i,4,k,loca) + &
-                           &    HFddPsi(i,6,k,loca))
-                    enddo
-            enddo
-            ! Epsilon is the potential energy, i.e. E_spwf - E_kin
-            epsilon0 =   epsilon0 + hbm(it) * Inproduct * dv
-            !-------------------------------------------------------------------
-            ! Precalculate the inverse of the matrices
-            !
-            !  ( epsilon - hbar/2m * Delta)^{-1}
-            ! 
-            call InvertDerivatives(epsilon0, -hbm(it),preconX(:,:,:,it),       &
-            &                                         preconY(:,:,:,it),       &
-            &                                         preconZ(:,:,:,it))
-                                           
-        enddo
-        
-    end subroutine CalculatePreconditioners
+!    subroutine CalculatePreconditioners
+!        !-----------------------------------------------------------------------
+!        ! Find suitable constants for use in the preconditioners and employ
+!        ! to calculate the preconditioning matrices.
+!        !-----------------------------------------------------------------------
+!    
+!        integer       :: i, loca,k, it, startind, endind
+!        real(KIND=dp) :: epsilon0, inproduct
+!        
+!        if(.not.allocated(preconx)) then
+!            allocate(preconx(nx,nx,2,2))
+!            allocate(precony(ny,ny,2,2))
+!            allocate(preconz(nz,nz,2,2))
+!        endif
+!    
+!        do it=1,2
+!            !-------------------------------------------------------------------
+!            ! Find a proper value for epsilon0
+!            epsilon0 = 0.0_dp
+!            
+!            if (it .eq. 1) then
+!                startind = 1
+!                endind   = nwn
+!            else
+!                startind = nwn+1
+!                endind   = nwt
+!            endif
+!            !-------------------------------------------------------------------
+!            ! Find the minimum sp. energy for this nucleon species.
+!            do i=startind, endind
+!                if(spenergies(i) .lt.  epsilon0) then
+!                    epsilon0 = spenergies(i)
+!                    loca = i
+!                endif
+!            enddo
+!            !-------------------------------------------------------------------
+!            ! Calculate the kinetic energy of this particular level.
+!            Inproduct = 0.0_dp
+!            do k=1,4          
+!                    do i=1,mv
+!                           Inproduct = Inproduct + HFPsi(i,k,loca) *  & 
+!                           &  ( HFddPsi(i,1,k,loca) + &
+!                           &    HFddPsi(i,4,k,loca) + &
+!                           &    HFddPsi(i,6,k,loca))
+!                    enddo
+!            enddo
+!            ! Epsilon is the potential energy, i.e. E_spwf - E_kin
+!            epsilon0 =   epsilon0 + hbm(it) * Inproduct * dv
+!            !-------------------------------------------------------------------
+!            ! Precalculate the inverse of the matrices
+!            !
+!            !  ( epsilon - hbar/2m * Delta)^{-1}
+!            ! 
+!            call InvertDerivatives(epsilon0, -hbm(it),preconX(:,:,:,it),       &
+!            &                                         preconY(:,:,:,it),       &
+!            &                                         preconZ(:,:,:,it))
+!                                           
+!        enddo
+!        
+!    end subroutine CalculatePreconditioners
 end module evolution

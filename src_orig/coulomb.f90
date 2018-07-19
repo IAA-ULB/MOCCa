@@ -1,4 +1,4 @@
-module Coulomb
+module Coulombmod
  !==============================================================================
  !  #######   ##   #    # #####   ##   #      #    #  ####
  !     #     #  #  ##   #   #    #  #  #      #    # #
@@ -14,13 +14,22 @@ module Coulomb
  !
  !
  !==============================================================================
+ !
+ ! Technical note: 
+ ! Something prevented me from calling this module simply 'Coulomb' for 
+ ! unknown reasons....
+ !
+ !==============================================================================
 
  use geninfo
  use densities
  use derivatives, only: CoulombLaplacian
+ use moments 
  
  implicit none
 
+ public
+ 
  !------------------------------------------------------------------------------
  ! The array containing the Coulomb Potential in the original box,
  ! enlarged with the boundary conditions. 
@@ -49,7 +58,10 @@ module Coulomb
  !------------------------------------------------------------------------------
  ! Value of the electron charge, squared
  real(KIND=dp) :: e2 =1.43996446_dp
-
+ !------------------------------------------------------------------------------
+ ! Temporary integer, whether or not coulomb is added
+ integer, public :: coultreatment = 1
+ 
 contains
 
  subroutine SolveCoulomb(rhop)
@@ -61,7 +73,6 @@ contains
     ! 2) 
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: rhop(mv)
-    integer :: i,j,k
     
     !---------------------------------------------------------------------------
     ! Initialize all of the arrays.
@@ -69,7 +80,7 @@ contains
         call setupcoulomb
     endif
     
-    if(coul.eq.0) return
+    if(coultreatment.eq.0) return
     
     !---------------------------------------------------------------------------
     ! Set the boundary conditions.
@@ -89,8 +100,6 @@ contains
     use sphericalharmonics
     
     integer       :: i,j,k
-    real(KIND=dp) :: mesh(3,nx+BC, ny+BC, nz+BC)
-    real(KIND=dp), pointer     :: sperharm(:,:,:,:,:,:)
     
     !---------------------------------------------------------------------------
     ! Allocate the CoulombPotential array (second-order boundary conditions)
@@ -101,50 +110,49 @@ contains
     ! Precision desired of the Coulomb solver
     Prec = 1.d-9/(dx**3*nx*ny*nz)
     
-!    !---------------------------------------------------------------------------
-!    ! Set-up the values of r and spherharmcoulomb on the mesh.
-!    ! Currently ONLY for EV8-like boxes.
-!    allocate(r(nx+BC,ny+BC,nz+BC))                                 ;  r = 0.0_dp
-!    allocate(SpherHarmCoulomb(nx+BC,ny+BC,nz+BC,0:maxm,0:maxm,2)) 
-!    SpherHarmCoulomb = 0.0_dp
-!    
-!    do i=1,nx+BC
-!          mesh(1,i,:,:) = (1/2.0_dp +(i-1))*dx
-!    enddo
-!    do j=1,ny+BC
-!          mesh(2,:,j,:) = (1/2.0_dp +(j-1))*dx
-!    enddo
-!    do k=1,nz+BC
-!          mesh(3,:,:,k) = (1/2.0_dp +(k-1))*dx
-!    enddo
-!    do k=1,nz+BC
-!      do j=1,ny+BC
-!        do i=1,nx+BC
-!          r(i,j,k) = sqrt(sum(mesh(:,i,j,k)**2))
-!        enddo
-!      enddo
-!    enddo
-!    
-!    call GenSphericalHarmonics(maxm,nx+BC,ny+BC,nz+BC,mesh,SpherHarmCoulomb,3,1)
+    !---------------------------------------------------------------------------
+    ! Set-up the values of r and spherharmcoulomb on the mesh.
+    allocate(r(nx+BC,ny+BC,nz+BC))                                 ;  r = 0.0_dp
+    allocate(SpherHarmCoulomb(nx+BC,ny+BC,nz+BC,0:maxm,0:maxm,2)) 
+    SpherHarmCoulomb = 0.0_dp
+    
+    do k=1,nz+BC
+      do j=1,ny+BC
+        do i=1,nx+BC
+          r(i,j,k) = coulmeshx(i)**2 + coulmeshx(j)**2 + coulmeshz(k)**2
+        enddo
+      enddo
+    enddo
+    
+    call GenSphericalHarmonics(maxm,nx+BC,ny+BC,nz+BC,coulmeshx,coulmeshy,     &
+    &                 coulmeshz,SpherHarmCoulomb,QuantisationAxis,SecondaryAxis)
     !---------------------------------------------------------------------------    
  end subroutine SetupCoulomb
+  
+ subroutine readcoul
+    !---------------------------------------------------------------------------
+    ! Runtime treatment of coulomb options
+    Namelist /coulomb/    coultreatment
+  
+    read (unit=*, nml=coulomb)
+ 
+ end subroutine readcoul
     
  subroutine CoulombBound(rhop)
     !---------------------------------------------------------------------------
     ! Calculates the boundary conditions of the Coulomb potential based on the 
     ! multipole moments of the point charge density. 
-    !
-    ! Currently only takes into account the monopole and quadrupole term in EV8
-    ! like calculations. 
     !---------------------------------------------------------------------------
     
     real(KIND=dp), intent(in) :: rhop(mv)
-    integer                   :: i,j,k,l,m, ex
-    real(KIND=dp)             :: factor, Qlm
-    
+    integer                   :: i,j,k,l,m, im
+    real(KIND=dp)             ::  Qlm
+    type(Moment), pointer     :: Current
+    logical                   :: cont
     !---------------------------------------------------------------------------
     ! Set up the source term: 
-    ! In mean-field calculations it is the proton density with a prefactor.
+    ! For standard parameterizations it is the simply the proton density with
+    ! a prefactor.
     Source = 0.0_dp
     do k=1,nz
         do j=1,ny
@@ -165,20 +173,41 @@ contains
     ! Meaning: even l, even m and only real parts.
     !---------------------------------------------------------------------------
     CoulombPotential=0
-    do l=0,maxm,2
-      do m=0,l,2
-        ! Real part
-        Qlm = - sum(Source(1:nx,1:ny,1:nz) * SpherHarmCoulomb(:,:,:,l,m,1))*dv
-        ! Imaginary part assumed to be zero for the moment.
-!        print *, 'lm', l, m, Qlm/e2/sqrt(4*pi), Qlm/e2/(4*pi)
-        
-        Qlm = 1.0/(2*l+1) * Qlm
-        
-        CoulombPotential = CoulombPotential + Qlm*SpherHarmCoulomb(:,:,:,l,m,1)&
-        &                                   /(r**(2*l+1))
+    
+    nullify(Current)
+    Current => Root
+    Cont = .true.
+    do while(Cont)
+      l = Current%l
+      m = Current%m
+      Im = 1
+      if(Current%Impart) Im = 2
+
+      Qlm = e2*Current%Value(2)*(4*pi/(2*l+1))
+
+      do k=1,nz+BC
+        do j=1,ny+BC
+          do i=1,nx+BC
+            if( i.gt.nx .or. j.gt.ny .or. k.gt.nz) then
+              CoulombPotential(i,j,k) = CoulombPotential(i,j,k) +             &
+              &           Qlm*SpherHarmCoulomb(i,j,k,l,m,Im)/(r(i,j,k)**(2*l+1))
+            endif
+          enddo
+        enddo
       enddo
-    enddo
-   
+      
+      !print *, 'Coul', l, m, Qlm, Current%Value(2)
+      !-------------------------------------------------------------------------
+      !Transferring to the next moment in the list, until the r**2 is reached or
+      ! the highest admissible L.
+      if(Current%Next%l .ge. 0 .and. Current%Next%l .le. maxm) then
+        Current => Current%Next
+      else
+      !Signalling that there is no further moment
+        Cont=.false.
+      endif
+    end do
+    nullify(current)
  end subroutine CoulombBound
  
  function CoulombEnergy_direct(rhop) result(CEnergy)
@@ -209,8 +238,9 @@ contains
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: rhop(mv)
     real(KIND=dp) :: factor, Cenergy
-
-    if(coul.eq.0) return
+    
+    Cenergy = 0.0_dp
+    if(coultreatment.eq.0) return
 
     factor  = -0.75_dp*(3/pi)**(1/3._dp)*e2*dv
     Cenergy = factor*sum(rhop**(4.0/3.0))
@@ -266,7 +296,7 @@ contains
     logical, intent(in)               :: iprint
     
     integer                    :: iteration
-    real(KIND=dp), allocatable :: p_k(:,:,:), Temp(:,:,:),Temp2(:,:,:)
+    real(KIND=dp), allocatable :: p_k(:,:,:), Temp(:,:,:)
     real(KIND=dp), allocatable :: Residual(:,:,:)
     real(KIND=dp)              :: PoissonNorm, Integral, a_k, c_k
     real(KIND=dp)              :: NewPoissonNorm
@@ -309,9 +339,10 @@ contains
       p_k = Residual    + c_k*p_k
       
       ! Diagnostic printing
-      !print *, iteration, PoissonNorm
+!      print *, 'Coul, it',  iteration, PoissonNorm
     enddo
 
     return
   end subroutine ConjugGrad
-end module Coulomb
+
+end module Coulombmod

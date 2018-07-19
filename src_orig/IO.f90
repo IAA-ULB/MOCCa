@@ -36,10 +36,15 @@ contains
     use wavefunctions, only : ReadWFdata
     use scfiteration,  only : readscfiteration
     use moments,       only : readmomentdata
+    use Coulombmod,    only : readcoul
+  
+    implicit none
 
     NameList /IO/ InputFileName,OutputFileName
     
     call ReadGenInfo
+    call readcoul
+
     call ReadEvolution
     call ReadSCFIteration
     call ReadWFdata

@@ -143,15 +143,8 @@ subroutine MassageDensity()
     !---------------------------------------------------------------------------
     ! Operate on the density before feeding it into the rest of the program.
     !---------------------------------------------------------------------------
+    real(KIND=dp), target :: resid(nx*ny*nz,2)
     
-    real(KIND=dp),pointer :: res(:,:,:), Pres(:,:,:)
-    real(KIND=dp)         :: C, eps, particles(2), mixparam
-    real(KIND=dp), target :: resid(nx*ny*nz,2), Presid(nx*ny*nz,2)
-    integer               :: it, sx, sy, sz, i,j,k, succes, N, iter
-    
-    real(KIND=dp), allocatable :: TMP(:,:)
-    real(KIND=dp)              :: Work(100)
-
     if(all(D_I_I_hist.eq.0.0)) return
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Compute the residual

@@ -21,9 +21,6 @@ module GenInfo
     ! Pi is always practical to have.
     real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
     !---------------------------------------------------------------------------
-    ! Temporary integer, whether or not coulomb is added
-    integer :: coul = 1
-    !---------------------------------------------------------------------------
     ! Coordinates of the mesh points for the calculation as well as the 
     ! coulomb calculation
     real(KIND=dp), allocatable :: meshx(:), meshy(:), meshz(:)
@@ -37,18 +34,13 @@ contains
     !---------------------------------------------------------------------------
     Namelist /nucleus/ neutrons,protons
     Namelist /mesh/    nx,ny,nz, dx
-    Namelist /coulomb/    coul
-
-
+    
     ! Reading the information on the nucleus
     read (unit=*, nml=nucleus)
 
     ! Reading information on the mesh
     read (unit=*, nml=mesh)
     
-    ! Reading information on Coulomb
-    read (unit=*, nml=coulomb)
-
     mv = nx * ny * nz
     dv = (dx**3)*(2**$NUMSYM)
     
@@ -61,21 +53,32 @@ contains
     ! Severe modification for Hephaestos will be necessary.
     !---------------------------------------------------------------------------
     integer       :: i
-    real(KIND=dp) :: X,Y,Z
     
     allocate(    meshx(nx  ),     meshy(ny  ),     meshz(nz  ))
     allocate(coulmeshx(nx+2), coulmeshy(ny+2), coulmeshz(nz+2))
     
     do i=1,nx
-      meshx(i) = (1/2.0_dp +(i-1))*dx
+      meshx(i)     = (1/2.0_dp +(i-1))*dx
+    enddo
+    
+    do i=1,nx+2
+      coulmeshx(i) = (1/2.0_dp +(i-1))*dx
     enddo
     
     do i=1,ny
       meshy(i) = (1/2.0_dp +(i-1))*dx
     enddo
     
+    do i=1,ny+2
+      coulmeshy(i) = (1/2.0_dp +(i-1))*dx
+    enddo
+    
     do i=1,nz
       meshz(i) = (1/2.0_dp +(i-1))*dx
+    enddo
+    
+    do i=1,nz+2
+      coulmeshz(i) = (1/2.0_dp +(i-1))*dx
     enddo
   end subroutine inimesh
 

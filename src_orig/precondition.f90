@@ -66,8 +66,7 @@ contains
     integer :: pivotx(nx)
     integer :: pivoty(ny)
     integer :: pivotz(nz)    
-    integer :: ierror, pm,i, k
-    real(KIND=dp), allocatable:: toinvert(:,:)
+    integer :: ierror, pm,i
     real(KIND=dp) :: work(nz)
 
     !---------------------------------------------------------------------------

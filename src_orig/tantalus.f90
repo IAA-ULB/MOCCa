@@ -71,10 +71,11 @@ subroutine ReachForWaterAndFood
     use evolution
     use IO
     use moments
+    use coulomb
     
     implicit none
    
-    integer :: iter, i
+    integer :: iter
    
     ! Derive all the single-particle wavefunctions
     call deriveall()
@@ -100,6 +101,7 @@ subroutine ReachForWaterAndFood
     do iter=1,maxiter
         ! One step in the evolution.
         call Evolve(iter)
+        
         ! Restore all the different derivatives.
         call deriveall()
         ! Solve the pairing problem.
@@ -107,6 +109,7 @@ subroutine ReachForWaterAndFood
         
         ! Update the densities
         call densit()
+        
         
         call CalculateAllMoments()
         call ReadjustAllMoments(1) 
@@ -116,12 +119,13 @@ subroutine ReachForWaterAndFood
         call calcFields()
         ! Recalculate the energy
         call CalcEnergy()
+        
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
         if(mod(iter,PrintIter).eq.0) then
             call PrintSpwfs
             call printallmoments
-            call PrintEnergy            
+            call PrintEnergy           
         else
             call printsummary(iter)
         endif

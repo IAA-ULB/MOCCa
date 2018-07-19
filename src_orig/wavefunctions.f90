@@ -101,8 +101,9 @@ contains
     !--------------------------------------------------------------------
     
     real(KIND=dp)             :: homegax, homegay,homegaz, alpha,qqq
-    real(KIND=dp),allocatable :: fullbox(:,:,:)
-    integer                   :: i,j,k, wave, p
+    !real(KIND=dp),allocatable :: fullbox(:,:,:)
+    !integer                   :: j,k, p
+    integer                   :: i
     integer, allocatable      :: kparz(:)
         
     alpha = 0.2    

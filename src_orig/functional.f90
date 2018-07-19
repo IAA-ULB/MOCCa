@@ -168,7 +168,7 @@ $PRINTCOEF
     ! Calculate all of the relevant energies.
     !---------------------------------------------------------------------------
     
-    use Coulomb, only : CoulombEnergy_Direct,CoulombEnergy_Exchange
+    use Coulombmod, only : CoulombEnergy_Direct,CoulombEnergy_Exchange
     
     ! Kinetic energy
     Kinetic = CompKinetic()
@@ -284,7 +284,7 @@ $PRINT
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Includes preconditioning of F_I_I at the moment only.
     !---------------------------------------------------------------------------
-    use Coulomb, only : SolveCoulomb, CoulombPotential, Exchangepotential
+    use Coulombmod , only : SolveCoulomb, CoulombPotential, Exchangepotential
     use moments
     
     integer :: it,i,j,k
@@ -412,12 +412,13 @@ $SKYRMEACTION
     !---------------------------------------------------------------------------
     
     use wavefunctions
+    use moments
     
     integer       :: wave
     real(KIND=dp) :: spwfenergy, e_rear
     
     ! Start by summing the single-particle energies
-    spwfenergy = 0
+    spwfenergy = 0 ; e_rear = 0
     do wave=1,nwt
         spwfenergy = spwfenergy + occupations(wave) * spenergies(wave)
     enddo
@@ -437,6 +438,9 @@ $EREAR
         SpwfEnergy = SpwfEnergy  + sum(COMCorrection(1,:))/2.0_dp
     endif
     
+    !Subtract contribution by constraints
+    SpwfEnergy = SpwfEnergy - sum(Constraint_I_I * D_I_I)*dv/2.0_dp
+    
   end function calcspwfenergy
   
   subroutine output_Edensity(Edensity, N)
@@ -450,7 +454,7 @@ $EREAR
     real(KIND=dp), pointer :: w(:,:,:,:)
     
     real(KIND=dp) :: r,x
-    integer       :: i,j,k
+    integer       :: i
     
     w(1:nx,1:ny,1:nz,1:3) => Edensity
     
