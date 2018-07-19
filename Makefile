@@ -31,8 +31,8 @@ run_heph:
 	python Hephaestos.py $(FUNC) #> hephaestos.out
 
 clean:
-	rm  -f $(OBJDIR)/*
-	rm  -f $(MODDIR)/*
+	rm  -f $(OBJDIR)/*.o
+	rm  -f $(MODDIR)/*.mod
 
 $(OBJDIR)/%.o : $(SRCDIR)/%.f90
 	$(CXX) $(CXXFLAGS) -c  $< -o $@ 
