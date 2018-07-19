@@ -436,11 +436,12 @@ contains
 ! Calculation routines
 !
 !===============================================================================
-  subroutine CalculateAllMoments()
+  subroutine DealWithMoments()
     !---------------------------------------------------------------------------
     ! Subroutine that
     !   1) Calculates the values of all multipole moments
-    !   2) Calculate the energy associated to the multipole constraints
+    !   2) Readjust any constraints
+    !   3) Calculate the contribution to the sphamiltonian
     !   3) Calculate the quadrupole moments in different representations
     !---------------------------------------------------------------------------
     use Densities
@@ -461,13 +462,16 @@ contains
         Current => Current%Next
         call Current%Calculate(Current)
     enddo
-
+    
+    ! Readjust the constraints
+    call ReadjustAllMoments()
+    
     ! Calculate the contribution to the single-particle hamiltonian
     call Sphamilcontribution()
     call CalcQuadrupoleAlt()
 
     return
-  end subroutine CalculateAllMoments
+  end subroutine DealwithMoments
   
   subroutine Calculate_electric(ToCalculate)
     !---------------------------------------------------------------------------
@@ -526,7 +530,7 @@ contains
     Mom%Beta(3)   = factor*sum(Mom%Value)
   end subroutine CalcBeta
   
-   subroutine CalcQuadrupoleAlt()
+  subroutine CalcQuadrupoleAlt()
     !---------------------------------------------------------------------------
     ! Calculates the Quadrupole moments in their various representations.
     ! See the formulas in 
@@ -656,21 +660,19 @@ contains
     
   end subroutine SpHamilcontribution
   
-  subroutine ReadjustAllMoments(constrainttype)
+  subroutine ReadjustAllMoments()
     !---------------------------------------------------------------------------
-    ! Readjust all the multipole constraints of the given constrainttype.
+    ! Readjust all the multipole constraints.
     !---------------------------------------------------------------------------
     
     type(Moment), pointer :: Current
-    integer               :: Constrainttype
 
     nullify(Current)
     Current => Root
 
     do while(associated(Current%Next))
         Current => Current%Next
-        if(Current%ConstraintType.ne.constrainttype) cycle
-        call Readjust(Current)
+        if(Current%constrainttype .ne. 0)  call Readjust(Current)
     enddo
     nullify(Current)
     

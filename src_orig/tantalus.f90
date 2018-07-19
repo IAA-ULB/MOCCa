@@ -86,7 +86,7 @@ subroutine ReachForWaterAndFood
     ! Calculate the initial densities.
     call densit()
 
-    call CalculateAllMoments()
+    call DealWithMoments()
     
     call calcFields()
     call CalcEnergy()
@@ -110,10 +110,7 @@ subroutine ReachForWaterAndFood
         ! Update the densities
         call densit()
         
-        
-        call CalculateAllMoments()
-        call ReadjustAllMoments(1) 
-        call ReadjustAllMoments(2) 
+        call DealWithMoments()
         
         ! Update the fields
         call calcFields()
