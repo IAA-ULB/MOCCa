@@ -25,6 +25,7 @@ module Coulombmod
  use densities
  use derivatives, only: CoulombLaplacian
  use moments 
+ use parameterization
  
  implicit none
 
@@ -55,9 +56,6 @@ module Coulombmod
  ! Currently hardcoded at 8: does not cost anything CPU-time wise and 
  ! has been shown to be sufficient in MOCCa.
  integer, parameter :: maxm=8
- !------------------------------------------------------------------------------
- ! Value of the electron charge, squared
- real(KIND=dp) :: e2 =1.43996446_dp
  !------------------------------------------------------------------------------
  ! Temporary integer, whether or not coulomb is added
  integer, public :: coultreatment = 1

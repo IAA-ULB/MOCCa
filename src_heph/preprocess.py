@@ -20,7 +20,7 @@ from string           import Template
 from heph_densities   import ProcessDensities
 from heph_derivatives import ProcessDerivatives
 from heph_symmetries  import ReduceAxes
-from heph_functional  import ProcessFunctional
+from heph_functional  import ProcessFunctional, ProcessParameterization
 from heph_wavefunctions import ProcessWavefunctions
 
 def preprocess(fname, src, target):
@@ -48,7 +48,7 @@ def preprocess(fname, src, target):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='parameterization.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessParameterization(fname, src, target)
         return
     if(fname=='functional.f90'):
         ProcessFunctional(fname, src, target)

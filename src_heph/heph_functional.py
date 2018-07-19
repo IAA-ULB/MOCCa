@@ -53,6 +53,12 @@ coupling_constants_1 = []
 
 coupling_constants_pair_0 = []
 coupling_constants_pair_1 = []
+
+#-------------------------------------------------------------------------------
+# Strings telling Tantalus which parameters are used to compute coupling 
+# constants
+paramparameters = []
+
 #-------------------------------------------------------------------------------
 # Switch determining what order of derivatives is needed to be computed.
 #
@@ -161,6 +167,12 @@ def initfunctional(fname, fpairname):
     print ' Number of terms:      %d'%len(Functional_terms)
     print ' Order of derivatives: %d'%derivative_order
     print ' Locality assumed:     %d'%assume_locality
+    print ' # Parameters          %d'%len(paramparameters)
+    #print   paramparameters
+    for i in range(len(paramparameters)/3):
+        print '  ', paramparameters[3*i:3*i+3]    
+    if(len(paramparameters)%3 != 0):
+        print '  ', paramparameters[3*(i+1):3*(i+1)+len(paramparameters)%3]
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
@@ -201,47 +213,71 @@ def ReadFunctional(fname, fpairname):
     pair_description = ''
     #-------------------------------------------------------------------------
     # Read the ph functional
+    termsstart = 0
     with open(fname, 'r') as f:
-        for line in f: 
+        for line in f:
             try:
                 if(len(line.split()) == 0):
+                    print 'a'
                     continue
-                if(line[0] != '#' and line[0] != '!'):
+                elif(line[0] == '#'):
+                     #-sign indicates description                   
+                     description = description + line
+                     continue
+                elif(line[0:6] == '!TERMS'):
+                    # Signal that the constants part is over
+                    termsstart  = 1   
+                    print paramparameters 
+                    continue            
+                elif(line[0] == '!'):
+                    continue
+                
+                # Parse constants only
+                if(termsstart == 0):
+                    split = line.split(';')
+                    for s in split:
+                        paramparameters.append(s.replace(' ','').replace('\n', ''))
+                elif(termsstart == 1):
+                    #  Start parsing terms in the functional   
                     split = line.split(';')
                     Functional_terms.append(split[0].replace(' ', ''))
-                    density_dependence.append(split[1].replace(' ', ''))
-                    dd_den   = split[2].replace(' ', '')
-                    f_dd     = split[3].replace(' ', '')
-                    field_DD_terms[split[0].replace(' ', '')] =  (dd_den, f_dd)
-                    DD_rearcoefs.append(split[4].replace(' ', ''))
-                    coupling_constants_0.append(split[5].replace(' ', ''))
-                    coupling_constants_1.append(split[6].replace(' ', ''))   
-                elif(line[0] == '#'):
-                    description = description + line
+                    coupling_constants_0.append(split[1].replace(' ', ''))
+                    coupling_constants_1.append(split[2].replace(' ', ''))   
+                        
+                    if(len(split)>3):
+                        density_dependence.append(split[3].replace(' ', ''))
+                        dd_den   = split[4].replace(' ', '')
+                        f_dd     = split[5].replace(' ', '')
+                        field_DD_terms[split[0].replace(' ', '')] =(dd_den,f_dd)
+                        DD_rearcoefs.append(split[6].replace(' ', ''))
+                    else:
+                        density_dependence.append('')
+                        field_DD_terms[split[0].replace(' ', '')] =  ('','')
+                        DD_rearcoefs.append('')
             except IndexError:
                 print 'Problem reading the following line in the func file.'
                 print line
                 exit()      
     #---------------------------------------------------------------------------
     # Read the pp functional
-    with open(fpairname, 'r') as f:
-        for line in f: 
-            try:
-                if(len(line.split()) == 0):
-                    continue
-                if(line[0] != '#' and line[0] != '!'):
-                    split = line.split(';')
-                    Functional_pair_terms.append(split[0].replace(' ', ''))                
-                    
-                    coupling_constants_0.append(split[5].replace(' ', ''))
-                    coupling_constants_1.append(split[6].replace(' ', ''))   
-                                
-                elif(line[0] == '#'):
-                    pair_description = pair_description + line
-            except IndexError:
-                print 'Problem reading the following line in the pairing-functional file.'
-                print line
-                exit()      
+#    with open(fpairname, 'r') as f:
+#        for line in f: 
+#            try:
+#                if(len(line.split()) == 0):
+#                    continue
+#                if(line[0] != '#' and line[0] != '!'):
+#                    split = line.split(';')
+#                    Functional_pair_terms.append(split[0].replace(' ', ''))                
+#                    
+#                    coupling_constants_0.append(split[5].replace(' ', ''))
+#                    coupling_constants_1.append(split[6].replace(' ', ''))   
+#                                
+#                elif(line[0] == '#'):
+#                    pair_description = pair_description + line
+#            except IndexError:
+#                print 'Problem reading the following line in the pairing-functional file.'
+#                print line
+#                exit()      
     return(description, pair_description)
     
 def ParseDensities(term): 
@@ -305,6 +341,27 @@ def ParseDensities(term):
                     pass
         
     return (densities, coupling)
+
+def ProcessParameterization(fname, src, target):
+        #-----------------------------------------------------------------------
+        # Processing of the parameterization.f90 file to include the different 
+        # parameters.
+        decl_template = Template( tab + 'real(KIND=dp) :: $PARAM = -12345 \n')
+
+        decl = ''
+
+        for s in paramparameters:
+            dic= {}
+            dic['PARAM'] = s
+            
+            decl = decl + decl_template.substitute(dic)
+
+        dic= {}
+        dic['PARAMDECL'] = decl
+        with open(src+fname, 'r') as template:
+            with open(target+fname, 'w') as generated:
+                for line in template:
+                    generated.write(Template(line).substitute(dic))  
 
 def ProcessFunctional(fname, src, target):
         #-----------------------------------------------------------------------

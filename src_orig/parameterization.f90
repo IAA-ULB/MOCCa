@@ -17,6 +17,23 @@ module parameterization
  
  implicit none
  
+$PARAMDECL
+    !---------------------------------------------------------------------------
+    ! Constants that enter the game, together with the e2 from the Coulomb
+    ! module.
+    !---------------------------------------------------------------------------
+    real(KIND=dp) :: hbm(2)         = 20.73551910_dp 
+    real(KIND=dp) :: nucleonmass(2) = (/939.565379_dp , 938.272046_dp /)
+    !---------------------------------------------------------------------------  
+    ! Treatment of the one-body COM correction.
+    ! (0) not included
+    ! (1) perturbatively included
+    ! (2) completely included
+    integer       :: COM1body = 2
+    !---------------------------------------------------------------------------
+    ! Value of the electron charge, squared
+    real(KIND=dp) :: e2 =1.43996446_dp
+
 contains
 
   !=============================================================================

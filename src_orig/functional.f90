@@ -31,57 +31,47 @@ module functional
     !---------------------------------------------------------------------------
     ! Name of the force, to be scanned for on the appropriate .param file.
     character(len=20) :: afor
-    !---------------------------------------------------------------------------
-    ! List of coupling constants that can be employed by .func files to 
-    ! define a functional.
-    !---------------------------------------------------------------------------
-    real(KIND=dp) :: t0=-2488.913
-    real(KIND=dp) :: x0=0.834
-    real(KIND=dp) :: t1=486.818
-    real(KIND=dp) :: x1=-0.344
-    real(KIND=dp) :: t2=-546.395
-    real(KIND=dp) :: x2=-1.0
-    real(KIND=dp) :: t3=13777.0
-    real(KIND=dp) :: x3=1.354
-    real(KIND=dp) :: yt3a= 0.166666666666666666667 
-    real(KIND=dp) :: te=0.0
-    real(KIND=dp) :: to=0.0
-    real(KIND=dp) :: wso=123.0
-    real(KIND=dp) :: wsoq=123.0
-    !---------------------------------------------------------------------------
-    ! N2LO Central
-    real(KIND=dp) :: t1n2=24.3409
-    real(KIND=dp) :: t2n2=-27.31975
-    real(KIND=dp) :: x1n2=-0.344
-    real(KIND=dp) :: x2n2=-1.0  
-    !---------------------------------------------------------------------------
-    ! N3LO central
-    real(KIND=dp) :: t1n3= 2.3409
-    real(KIND=dp) :: t2n3=-2.31975
-    real(KIND=dp) :: x1n3=-0.344
-    real(KIND=dp) :: x2n3=-1.0 
-    !---------------------------------------------------------------------------
-    ! N2LO Tensor
-    ! Note that these are the constants from Michaels notes, that is to say 
-    ! 4 times as large as the ones in Danys/Lysandras notes
-    real(KIND=dp) :: ten2 =  40.0
-    real(KIND=dp) :: ton2 = -20.0  
-    !---------------------------------------------------------------------------
-    ! Constants that enter the game, together with the e2 from the Coulomb
-    ! module.
-    !---------------------------------------------------------------------------
-    real(KIND=dp) :: hbm(2)         = 20.73551910_dp 
-    real(KIND=dp) :: nucleonmass(2) = (/939.565379_dp , 938.272046_dp /)
+!    !---------------------------------------------------------------------------
+!    ! List of coupling constants that can be employed by .func files to 
+!    ! define a functional.
+!    !---------------------------------------------------------------------------
+!    real(KIND=dp) :: t0=-2488.913
+!    real(KIND=dp) :: x0=0.834
+!    real(KIND=dp) :: t1=486.818
+!    real(KIND=dp) :: x1=-0.344
+!    real(KIND=dp) :: t2=-546.395
+!    real(KIND=dp) :: x2=-1.0
+!    real(KIND=dp) :: t3=13777.0
+!    real(KIND=dp) :: x3=1.354
+!    real(KIND=dp) :: yt3a= 0.166666666666666666667 
+!    real(KIND=dp) :: te=0.0
+!    real(KIND=dp) :: to=0.0
+!    real(KIND=dp) :: wso=123.0
+!    real(KIND=dp) :: wsoq=123.0
+!    !---------------------------------------------------------------------------
+!    ! N2LO Central
+!    real(KIND=dp) :: t1n2=24.3409
+!    real(KIND=dp) :: t2n2=-27.31975
+!    real(KIND=dp) :: x1n2=-0.344
+!    real(KIND=dp) :: x2n2=-1.0  
+!    !---------------------------------------------------------------------------
+!    ! N3LO central
+!    real(KIND=dp) :: t1n3= 2.3409
+!    real(KIND=dp) :: t2n3=-2.31975
+!    real(KIND=dp) :: x1n3=-0.344
+!    real(KIND=dp) :: x2n3=-1.0 
+!    !---------------------------------------------------------------------------
+!    ! N2LO Tensor
+!    ! Note that these are the constants from Michaels notes, that is to say 
+!    ! 4 times as large as the ones in Danys/Lysandras notes
+!    real(KIND=dp) :: ten2 =  40.0
+!    real(KIND=dp) :: ton2 = -20.0  
+
     !---------------------------------------------------------------------------
     ! Definition of global contributions to the energy
     real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
-    !---------------------------------------------------------------------------  
-    ! Treatment of the one-body COM correction.
-    ! (0) not included
-    ! (1) perturbatively included
-    ! (2) completely included
-    integer       :: COM1body = 2
+
 
     !===========================================================================
     ! NUMERICAL OPTIONS
