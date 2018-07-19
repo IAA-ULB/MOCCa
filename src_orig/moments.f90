@@ -250,6 +250,9 @@ module moments
   !  a) Electric multipole => Constraint_I_I => F_I_I
   !-----------------------------------------------------------------------------
   real(kind=dp), allocatable, target :: Constraint_I_I(:,:)
+  !-----------------------------------------------------------------------------
+  ! Logical to see if any moments with constrainttype are present
+  logical :: projectpresent = .false.
 
 contains
   
@@ -844,6 +847,8 @@ contains
                   Current%Constraint = Constraint
                 endif
               endif
+              
+              if(constrainttype.eq.2) projectpresent = .true.
               !-----------------------------------------------------------------
         endif
      enddo

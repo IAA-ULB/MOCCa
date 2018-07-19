@@ -374,7 +374,73 @@ contains
       dt    = 4.0/(maxE+relE+2*sqrt(maxE*relE))*hbar*0.90
       
   end subroutine IterativeEstimation
+!===============================================================================
+! Projection on the feasible subspace routine
+!===============================================================================  
+  subroutine FeasibleProject()
+  !-----------------------------------------------------------------------------
+  ! Subroutine performing one (or more) alternate step for the alternating
+  ! constraints. The idea is a a simple gradient step in the direction of a
+  ! satisfied constraint, meaning that the objective function being minimized is
+  !
+  !  ( < O > - O_target )^2
+  ! 
+  ! and we update the single-particle wavefunctions according to 
+  !
+  ! psi = ( 1 - epsilon \hat{O} ) psi
+  !  
+  ! with
+  !
+  ! epsilon = 1/2 * ( <C> - C )/( < C^2 >)
+  !
+  ! where < C >^2 is the one-body part of the two-body operator C.
+  !-----------------------------------------------------------------------------
+
+   use wavefunctions
+   use moments
+
+   type(Moment),pointer  :: Current
+   real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
+   real(KIND=dp)         :: O2, value, des
+   integer               :: it, wave, k
+
+   Current    => Root
+   multipole = 0.0_dp
+   call compcutoff()
+   
+   do while(associated(Current%Next))
+    Current => Current%next
+   
+    if(Current%ConstraintType.lt.2) cycle
+    O2    = sum(Current%Squared)                    ! < C^2 >
+    Value = sum(Current%Value)                      ! Current value of <C>
+    Des   = Current%Constraint                      ! Desired final value
     
+    update = 0.0
+    !-----------------------------------------------------------------------
+    !Calculate the update
+    do it=1,2
+        Update(:,it) = 0.5*(Value-Des)/O2*Cutoff(:,it)*Current%SpherHarm
+    enddo
+    multipole = multipole + Update
+   enddo
+   !---------------------------------------------------------------------------
+   ! With the update in hand, we update the spwfs
+   do wave=1,nwt
+
+      it = 1
+      if(wave .gt. nwn) it = 2
+
+      !Substituting the correction
+      do k=1,4
+        HFPsi(:,k,wave) = (1 - multipole(:,it))*HFPsi(:,k,wave)
+      enddo
+    enddo
+   !---------------------------------------------------------------------------
+   ! Finally, orthonormalisation
+   call Gramschmidt
+  end subroutine feasibleproject
+  
 !===============================================================================
 ! Preconditioning routines
 !===============================================================================

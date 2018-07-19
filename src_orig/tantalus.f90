@@ -101,6 +101,15 @@ subroutine ReachForWaterAndFood
     do iter=1,maxiter
         ! One step in the evolution.
         call Evolve(iter)
+        ! Solve pairing problem the first time
+        call NaiveFill(occupations)
+        
+        if(projectpresent) then
+          ! Do an approximate projection on the feasible set
+          call feasibleproject()
+          ! Solve pairing problem the second time
+          call NaiveFill(occupations)
+        endif
         
         ! Restore all the different derivatives.
         call deriveall()
