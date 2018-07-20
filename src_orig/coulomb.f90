@@ -56,9 +56,7 @@ module Coulombmod
  ! Currently hardcoded at 8: does not cost anything CPU-time wise and 
  ! has been shown to be sufficient in MOCCa.
  integer, parameter :: maxm=8
- !------------------------------------------------------------------------------
- ! Temporary integer, whether or not coulomb is added
- integer, public :: coultreatment = 1
+
  
 contains
 
@@ -117,7 +115,7 @@ contains
     do k=1,nz+BC
       do j=1,ny+BC
         do i=1,nx+BC
-          r(i,j,k) = coulmeshx(i)**2 + coulmeshx(j)**2 + coulmeshz(k)**2
+          r(i,j,k) = sqrt(coulmeshx(i)**2 + coulmeshx(j)**2 + coulmeshz(k)**2)
         enddo
       enddo
     enddo
@@ -127,14 +125,14 @@ contains
     !---------------------------------------------------------------------------    
  end subroutine SetupCoulomb
   
- subroutine readcoul
-    !---------------------------------------------------------------------------
-    ! Runtime treatment of coulomb options
-    Namelist /coulomb/    coultreatment
-  
-    read (unit=*, nml=coulomb)
+! subroutine readcoul
+!    !---------------------------------------------------------------------------
+!    ! Runtime treatment of coulomb options
+!    Namelist /coulomb/    coultreatment
+!  
+!    read (unit=*, nml=coulomb)
  
- end subroutine readcoul
+! end subroutine readcoul
     
  subroutine CoulombBound(rhop)
     !---------------------------------------------------------------------------
@@ -186,7 +184,7 @@ contains
       do k=1,nz+BC
         do j=1,ny+BC
           do i=1,nx+BC
-            if( i.gt.nx .or. j.gt.ny .or. k.gt.nz) then
+            if( (i.gt.nx) .or. (j.gt.ny) .or. (k.gt.nz)) then
               CoulombPotential(i,j,k) = CoulombPotential(i,j,k) +             &
               &           Qlm*SpherHarmCoulomb(i,j,k,l,m,Im)/(r(i,j,k)**(2*l+1))
             endif
@@ -194,7 +192,6 @@ contains
         enddo
       enddo
       
-      !print *, 'Coul', l, m, Qlm, Current%Value(2)
       !-------------------------------------------------------------------------
       !Transferring to the next moment in the list, until the r**2 is reached or
       ! the highest admissible L.

@@ -38,6 +38,11 @@ from heph_densities import deriv_needed, Pair_densities_needed
 
 import heph_linechecker
 import heph_fields
+
+#-------------------------------------------------------------------------------
+# Name of the functional_file
+func_name = ''
+
 #-------------------------------------------------------------------------------
 # Array containing the expressions of all the functional terms. 
 Functional_terms      = []
@@ -87,10 +92,13 @@ assume_locality = 1
 
 def initfunctional(fname, fpairname):
 
-    global Functional_terms, Densities_needed, derivative_order
+    global Functional_terms, Densities_needed, derivative_order, func_name
     
     # Read the functional from a given file
     (description, pair_description) = ReadFunctional(fname, fpairname)
+    
+    # Set the name of the functional file, without the directory structure
+    func_name = '"%s"'%fname.split('/')[-1].upper()
     
     # Generating the list of all densities
     tempden     = []
@@ -346,18 +354,25 @@ def ProcessParameterization(fname, src, target):
         #-----------------------------------------------------------------------
         # Processing of the parameterization.f90 file to include the different 
         # parameters.
-        decl_template = Template( tab + 'real(KIND=dp) :: $PARAM = -12345 \n')
+        decl_template = Template( tab + 'real(KIND=dp) :: $PARAM = -123456789 \n')
+        read_template = Template( ' $PARAM,')
 
-        decl = ''
+
+        decl      = ''
+        readparam = ''
 
         for s in paramparameters:
             dic= {}
-            dic['PARAM'] = s
+            dic['PARAM']     = s
             
-            decl = decl + decl_template.substitute(dic)
-
+            decl      = decl + decl_template.substitute(dic)
+            readparam = readparam + read_template.substitute(dic)
+        # Remove the trailing comma and add line-end
+        readparam = readparam[:-1] + '\n'    
+        
         dic= {}
-        dic['PARAMDECL'] = decl
+        dic['PARAMDECL']  = decl
+        dic['READPARAMS'] = readparam
         with open(src+fname, 'r') as template:
             with open(target+fname, 'w') as generated:
                 for line in template:
@@ -452,6 +467,7 @@ def ProcessFunctional(fname, src, target):
         dic['CALCFIELDS']     = fieldcalc
         dic['SKYRMEACTION']   = SkyrmeAction
         dic['EREAR']          = erear
+        dic['FUNC_NAME']      = func_name
         
         if(derivative_order == 1):
           dic['N2'] = ' '    

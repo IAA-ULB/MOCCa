@@ -32,19 +32,18 @@ contains
     !---------------------------------------------------------------------------
 
     use geninfo,       only : ReadGenInfo
-    use Evolution,     only : ReadEvolution
+    use evolution,     only : ReadEvolution
     use wavefunctions, only : ReadWFdata
     use scfiteration,  only : readscfiteration
     use moments,       only : readmomentdata
-    use Coulombmod,    only : readcoul
+    use functional,    only : readfunctional
   
     implicit none
 
     NameList /IO/ InputFileName,OutputFileName
     
     call ReadGenInfo
-    call readcoul
-
+    call readfunctional
     call ReadEvolution
     call ReadSCFIteration
     call ReadWFdata
@@ -93,9 +92,7 @@ contains
 
     call printevolution
     call printscfiteration
-    call calcedfcoefs()
     call printedfcoefs()   
-    
     
   end subroutine PrintInput
   
@@ -150,6 +147,7 @@ contains
     
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ifn
+    character(len=20)            :: func_name_check
     integer                      :: io, version
     logical                      :: exists
     
@@ -199,8 +197,8 @@ contains
     ! No idea yet on how to implement this, as the nature of the densities
     ! calculated every calculation can be very different.      
     read(chan, iostat=io)
-    ! Name of the force.
-    read(chan, iostat=io) afor
+    ! Name of the force and functional
+    read(chan, iostat=io) name_param, func_name_check
     ! Pairing information                                      (NOT IMPLEMENTED)
     read(chan, iostat=io)
     ! Cranking information                                     (NOT IMPLEMENTED)
@@ -302,7 +300,7 @@ contains
     ! calculated every calculation can be very different.      
     write(chan, iostat=io)
     ! Name of the force.
-    write(chan, iostat=io) afor
+    write(chan, iostat=io) name_param, func_name
     ! Pairing information                                      (NOT IMPLEMENTED)
     write(chan, iostat=io)
     ! Cranking information                                     (NOT IMPLEMENTED)
