@@ -522,8 +522,14 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     calc_c_template = Template(   tab + '$TERM(1,2) = $CPCTE(1,2) * sum( Edensity(:,3)) * dv \n')
     calc_d_template = Template(   tab + '$TERM(2,2) = $CPCTE(2,2) * dv & \n'+           \
                                   tab + '&'+6*tab+' * sum(Edensity(:,1) + Edensity(:,2) ) \n')
-    calc_e_template = Template(   tab + '$TERM(1,1) = $CPCTE(1,1)/$CPCTE(1,2) * $TERM(1,2)\n')
-    calc_f_template = Template(   tab + '$TERM(2,1) = sum($TERM(:,2)) - $TERM(1,1) \n')
+    # Alternative calculation in isospin way
+#    calc_e_template = Template(   tab + '$TERM(1,1) = $CPCTE(1,1)/$CPCTE(1,2) * $TERM(1,2)\n')
+#    calc_f_template = Template(   tab + '$TERM(2,1) = sum($TERM(:,2)) - $TERM(1,1) \n')
+
+    calc_e_template = Template(   tab + '$TERM(1,1) = $TERM(1,2) + 0.5* $TERM(2,2)\n')
+    calc_f_template = Template(   tab + '$TERM(2,1) =              0.5* $TERM(2,2)\n')
+    
+    
     calc_coef_template = Template(tab + '$CPCTE(1,1) = $EXP1 \n' + \
                                   tab + '$CPCTE(2,1) = $EXP2 \n' + \
                                   tab + '$CPCTE(1,2) = $CPCTE(1,1) - $CPCTE(2,1) \n' + \

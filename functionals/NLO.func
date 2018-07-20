@@ -1,5 +1,7 @@
-# Testing functional for new input type
-t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3;  wso ; wsoq ; sigma
+# NLO functional with Jmunu terms optional
+# Time-reversal invariant
+# Useable for SLy4,5,5*,s1,.....
+t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3;  wso ; wsoq ; sigma ; CT0 ; CT1
 !TERMS
 !-------------------------------------------------------------------------------
 ! NLO terms     
@@ -12,6 +14,6 @@ E_D_I_I_D_I_I_DD         ;+1.0/6.0*Cc(t3,x3,+1,0,0)                             
 E_D_I_I_Derm_C_I_NxmSxm  ;  -wso/2.0 - wsoq/4.0     ; - wsoq/4.0
 !-------------------------------------------------------------------------------
 ! SLy5-like JmnJmn term
-E_C_I_NmSk_C_I_NmSk      ; -1.0/2.0*Cc(t1,x1,+1,1,0) - 1.0/2.0*Cc(t2,x2,-1,1,0) ; -1.0/2.0*Cc(t1,x1,+1,1,1) - 1.0/2.0*Cc(t2,x2,-1,1,1)
+E_C_I_NmSk_C_I_NmSk      ; -CT0  ;  -CT1
 !-------------------------------------------------------------------------------
                            
