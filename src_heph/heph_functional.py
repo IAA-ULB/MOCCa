@@ -354,25 +354,41 @@ def ProcessParameterization(fname, src, target):
         #-----------------------------------------------------------------------
         # Processing of the parameterization.f90 file to include the different 
         # parameters.
-        decl_template = Template( tab + 'real(KIND=dp) :: $PARAM = -123456789 \n')
-        read_template = Template( ' $PARAM,')
-
+        decl_template = Template(  tab + 'real(KIND=dp) :: $PARAM = -123456789 \n')
+        read_template = Template(        ' $PARAM,')
+        print_template= Template(2*tab + 'print "(a6,2x, f10.3)", "$PARAM", $PARAM \n ')
+        
+        check_a_template = Template(  tab + 'if($PARAM .eq. -123456789) then \n')
+        check_b_template = Template(2*tab + '   print *, "$PARAM not read from .param file." \n')
+        check_c_template = Template(2*tab + '   stop \n')        
+        check_d_template = Template(  tab + 'endif \n')
 
         decl      = ''
         readparam = ''
-
+        printparam= ''
+        checkparam= ''
         for s in paramparameters:
             dic= {}
             dic['PARAM']     = s
             
             decl      = decl + decl_template.substitute(dic)
             readparam = readparam + read_template.substitute(dic)
+            printparam= printparam+ print_template.substitute(dic)
+            checkparam= checkparam+ check_a_template.substitute(dic)
+            checkparam= checkparam+ check_b_template.substitute(dic)
+            checkparam= checkparam+ check_c_template.substitute(dic)
+            checkparam= checkparam+ check_d_template.substitute(dic)
+            checkparam= checkparam+ '\n'
+            
         # Remove the trailing comma and add line-end
         readparam = readparam[:-1] + '\n'    
         
         dic= {}
-        dic['PARAMDECL']  = decl
-        dic['READPARAMS'] = readparam
+        dic['PARAMDECL']   = decl
+        dic['READPARAMS']  = readparam
+        dic['PRINTPARAMS'] = printparam
+        dic['CHECKPARAMS'] = checkparam
+        
         with open(src+fname, 'r') as template:
             with open(target+fname, 'w') as generated:
                 for line in template:

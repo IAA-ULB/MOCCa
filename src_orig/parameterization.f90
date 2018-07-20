@@ -63,7 +63,7 @@ contains
       stop
     endif
     
-    read (unit=12, nml=skf)                   ! Read the parameterization info
+    read (unit=12, nml=skf)                     ! Read the parameterization info
     close(unit=12)
         
     name = to_upper(name)  ; func_file = to_upper(func_file)
@@ -88,8 +88,34 @@ contains
     
     !---------------------------------------------------------------------------
     ! Checking that all requested parameters have been read.
+    ! Hephaestos generates a list of 'ifs' that check if the parameters are
+    ! exactly their initializer
+$CHECKPARAMS
     
   end subroutine readparameterization
+  
+  subroutine printparameterization(param_name, func_name)
+    !---------------------------------------------------------------------------
+    ! Printing the available information on the parameterization/functional.
+    !
+    !---------------------------------------------------------------------------
+    character(len=*), intent(in) :: param_name, func_name
+    
+    1 format (90('-'))
+    2 format (' Parameterization name', / , 5x, 20a)
+    3 format (' Functional name      ', / , 5x, 20a)
+    4 format (' - - - - - - - - - - -')
+    5 format (' Parameters' )
+    
+    print 1
+    print 2, adjustl(param_name)
+    print 3, adjustl(func_name)
+    print 4
+    print 5
+$PRINTPARAMS
+    print 4
+  end subroutine printparameterization
+  
   !=============================================================================
   ! Various functions that might be useful to define coupling constants in 
   ! the .func files.

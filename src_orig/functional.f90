@@ -132,6 +132,15 @@ $CALCCOEF
  
  end subroutine calcedfcoefs
  
+ subroutine printfunctional
+    !---------------------------------------------------------------------------
+    ! Print all information on the functional.
+    !---------------------------------------------------------------------------
+    call printparameterization(name_param, func_name)
+    call printedfcoefs
+    
+ end subroutine printfunctional
+ 
  subroutine printedfcoefs
     !---------------------------------------------------------------------------
     ! Print the values of the EFD coefs used.

@@ -92,7 +92,7 @@ contains
 
     call printevolution
     call printscfiteration
-    call printedfcoefs()   
+    call printfunctional  
     
   end subroutine PrintInput
   
