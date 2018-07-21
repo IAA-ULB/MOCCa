@@ -686,6 +686,7 @@ contains
     ! Subroutine that readjusts the constraint of a certain multipole moment.
     !---------------------------------------------------------------------------
     type(Moment), pointer    :: ToReadjust
+    real(KIND=dp) :: slow
 
    11 format ( '------------------------------------')
    12 format ( ' Constraint on Q_{ ', 2i2, ' has no ')
@@ -707,8 +708,12 @@ contains
           print 14, ToReadjust%Intensity
           print 11
     endif
+    
+    slow = ReadjustSlowdown
+    if(Toreadjust%constrainttype.eq.2) slow = 1.0
+
     ! Set the new multiplier        
-    ToReadjust%Multiplier =  ToReadjust%Multiplier +   ReadjustSlowdown *      &
+    ToReadjust%Multiplier =  ToReadjust%Multiplier +   slow *                  &
     &     ToReadjust%Intensity*(ToReadjust%Constraint - sum(ToReadjust%Value))
 
     return
