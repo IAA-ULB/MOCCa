@@ -71,6 +71,7 @@ def GenerateFields():
     field_allo_temp = Template(2*tab + 'if(.not.allocated($FIELD)) then\n'+\
                            3*tab + 'allocate($FIELD(mv$ALLOCIND,2)) \n'   +\
                            3*tab + 'allocate(${FIELD}_hist(mv$ALLOCIND,2)) \n'+\
+                           3*tab + '$FIELD = 0.0 ; ${FIELD}_hist = 0.0 \n' + \
                            2*tab + 'endif \n' + \
                            2*tab + '${FIELD}_hist = $FIELD \n' + 
                            2*tab + '$FIELD = 0.0 \n')
