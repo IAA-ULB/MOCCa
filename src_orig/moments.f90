@@ -439,13 +439,11 @@ contains
 ! Calculation routines
 !
 !===============================================================================
-  subroutine DealWithMoments()
+  subroutine CalculateMoments()
     !---------------------------------------------------------------------------
     ! Subroutine that
     !   1) Calculates the values of all multipole moments
-    !   2) Readjust any constraints
-    !   3) Calculate the contribution to the sphamiltonian
-    !   3) Calculate the quadrupole moments in different representations
+    !   2) Calculate the quadrupole moments in different representations
     !---------------------------------------------------------------------------
     use Densities
     
@@ -465,16 +463,11 @@ contains
         Current => Current%Next
         call Current%Calculate(Current)
     enddo
-    
-    ! Readjust the constraints
-    call ReadjustAllMoments()
-    
-    ! Calculate the contribution to the single-particle hamiltonian
-    call Sphamilcontribution()
+
     call CalcQuadrupoleAlt()
 
     return
-  end subroutine DealwithMoments
+  end subroutine CalculateMoments
   
   subroutine Calculate_electric(ToCalculate)
     !---------------------------------------------------------------------------
@@ -663,19 +656,20 @@ contains
     
   end subroutine SpHamilcontribution
   
-  subroutine ReadjustAllMoments()
+  subroutine ReadjustAllMoments(ctype)
     !---------------------------------------------------------------------------
-    ! Readjust all the multipole constraints.
+    ! Readjust all the multipole constraints of type ctype
     !---------------------------------------------------------------------------
     
     type(Moment), pointer :: Current
+    integer, intent(in)   :: ctype
 
     nullify(Current)
     Current => Root
 
     do while(associated(Current%Next))
         Current => Current%Next
-        if(Current%constrainttype .ne. 0)  call Readjust(Current)
+        if(Current%constrainttype .eq. ctype)  call Readjust(Current)
     enddo
     nullify(Current)
     

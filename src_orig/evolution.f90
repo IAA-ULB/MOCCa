@@ -373,6 +373,10 @@ contains
       momentum = ((sqrt(kappa) - 1)/(sqrt(kappa)+1))**2
       dt    = 4.0/(maxE+relE+2*sqrt(maxE*relE))*hbar*0.90
       
+      print *, '-----------------------'
+      print *, maxE, relE, kappa
+      print *, dt, momentum
+      
   end subroutine IterativeEstimation
 !===============================================================================
 ! Projection on the feasible subspace routine

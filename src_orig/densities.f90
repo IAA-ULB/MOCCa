@@ -70,13 +70,14 @@ $DECLARATION
 
 contains
 
-subroutine densit()
+subroutine densit(SaveRho)
     !---------------------------------------------------------------------------
-    ! Calculate all of the densities
+    ! Calculate all of the densities. 
+    ! If SaveRho=.false., do not save the previous values to history!
     !---------------------------------------------------------------------------
     integer      :: i, it, wave
     real(KIND=dp):: weight
-    
+    logical      :: SaveRho
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
 $INITIALIZATION
@@ -88,12 +89,14 @@ $INITIALIZATION
     if(.not. allocated(D_I_I_hist)) then
         allocate(D_I_I_hist(nx*ny*nz,2,memory)) ; D_I_I_hist = 0.0_dp
     endif   
-    do i=1,memory-1
-        D_I_I_hist(:,:,memory-i+1) = D_I_I_hist(:,:,memory-i)
-    enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Saving the input density for mixing    
-    D_I_I_hist(:,:,1) = D_I_I
+    if(SaveRho) then
+      do i=1,memory-1
+          D_I_I_hist(:,:,memory-i+1) = D_I_I_hist(:,:,memory-i)
+      enddo
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+      ! Saving the input density for mixing    
+      D_I_I_hist(:,:,1) = D_I_I
+    endif
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Zero the current density

@@ -84,9 +84,9 @@ subroutine ReachForWaterAndFood
     call NaiveFill(occupations)
    
     ! Calculate the initial densities.
-    call densit()
+    call densit(SaveRho=.false.)
 
-    call DealWithMoments()
+    call CalculateMoments()
     
     call calcFields()
     call CalcEnergy()
@@ -101,14 +101,23 @@ subroutine ReachForWaterAndFood
     do iter=1,maxiter
         ! One step in the evolution.
         call Evolve(iter)
+       
         ! Solve pairing problem the first time
         call NaiveFill(occupations)
         
         if(projectpresent) then
+          ! Update the densities
+          ! Note that this update is incorrect, as we do not want to perform a 
+          ! set of derivatives
+          call densit(SaveRho=.true.)
+          
+          call CalculateMoments()
+          ! Readjust the projection constraints here, to not take into account
+          ! the update from the projection
+          call ReadjustAllMoments(2)
+          
           ! Do an approximate projection on the feasible set
           call feasibleproject()
-          ! Solve pairing problem the second time
-          call NaiveFill(occupations)
         endif
         
         ! Restore all the different derivatives.
@@ -117,9 +126,16 @@ subroutine ReachForWaterAndFood
         call NaiveFill(occupations)
         
         ! Update the densities
-        call densit()
-        
-        call DealWithMoments()
+        if(projectpresent) then 
+          call densit(SaveRho=.false.)
+        else
+          call densit(SaveRho=.true.)
+        endif
+        ! Calculate a) moments values, b) readjustment and c) finally the 
+        ! contribution to the sphamiltonian.
+        call CalculateMoments()
+        call ReadjustAllMoments(1)
+        call Sphamilcontribution()
         
         ! Update the fields
         call calcFields()
