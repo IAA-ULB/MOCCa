@@ -66,12 +66,12 @@ subroutine ReachForWaterAndFood
     use wavefunctions
     use constants
     use densities
-    use hartreefock
     use functional
     use evolution
     use IO
     use moments
     use coulombmod
+    use pairing 
     
     implicit none
    
@@ -80,9 +80,9 @@ subroutine ReachForWaterAndFood
     ! Derive all the single-particle wavefunctions
     call deriveall()
    
-    ! Solve the pairing. For now just HF.
-    call NaiveFill(occupations)
-   
+    ! Solve the pairing.
+    call SolvePairing()
+    
     ! Calculate the initial densities.
     call densit(SaveRho=.false.)
 
@@ -94,6 +94,7 @@ subroutine ReachForWaterAndFood
     ! Initial printout
     call printSpwfs
     call printallmoments
+    call printpairing
     call PrintEnergy 
 
     !---------------------------------------------------------------------------
@@ -103,7 +104,7 @@ subroutine ReachForWaterAndFood
         call Evolve(iter)
        
         ! Solve pairing problem the first time
-        call NaiveFill(occupations)
+        call SolvePairing()
         
         if(projectpresent) then
           ! Update the densities
@@ -123,7 +124,7 @@ subroutine ReachForWaterAndFood
         ! Restore all the different derivatives.
         call deriveall()
         ! Solve the pairing problem.
-        call NaiveFill(occupations)
+        call SolvePairing()
         
         ! Update the densities
         if(projectpresent) then 
@@ -147,6 +148,7 @@ subroutine ReachForWaterAndFood
         if(mod(iter,PrintIter).eq.0) then
             call PrintSpwfs
             call printallmoments
+            call printpairing
             call PrintEnergy           
         else
             call printsummary(iter)

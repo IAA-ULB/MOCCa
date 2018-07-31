@@ -80,6 +80,15 @@ def preprocess(fname, src, target):
     if(fname=='coulomb.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='pairing.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
+    if(fname=='BCS.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
+    if(fname=='pairingcutoffs.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='densities.f90'):
         ProcessDensities(fname, src, target)
         return

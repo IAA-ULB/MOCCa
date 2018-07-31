@@ -63,7 +63,7 @@ def initsymmetries():
 
         # EV8 symmetries for now
         Signature = 3    ; Simplex = 0 ; Parity = 1 ; TimeSimplex = 2;
-        TimeReversal = 0 ; TimeSignature = 0
+        TimeReversal = 1 ; TimeSignature = 0
 
         CheckSymmetryChoice()
         CheckReduction()
@@ -149,7 +149,8 @@ def CheckReduction():
      print 'You asked for more reduction of axes than the symmetries can cover.'
      exit()
     elif(s < p):
-     print 'The symmetries you demanded provide more reduction of axes than you asked for.'
+     print 'The symmetries you demanded provide more reduction of axes ' \
+         + 'than you asked for.'
      exit()
 
     #-----------------------------------------------------------------------

@@ -26,14 +26,13 @@ FORTRANFILES=['compilation.f90'  , 'geninfo.f90'      , 'sphericalharmonics.f90'
               ,'constants.f90'   , 
               'diag.f90'         , 'nil8.f90'         , 'coulomb.f90'     ,
               'derivatives.f90'  , 'precondition.f90' , 'wavefunctions.f90',
-              'hartree-fock.f90',
-              'densities.f90'    , 'moments.f90', 
+              'hartree-fock.f90' , 'BCS.f90' , 'pairingcutoffs.f90',
+              'densities.f90'    , 'moments.f90'          ,   'pairing.f90'    ,
               'functional.f90'   , 'parameterization.f90' , 'evolution.f90'    , 
               'scfiteration.f90' , 'IO.f90'           , 'tantalus.f90' ]
 
 # File containing the definition of the functional
 FUNC_FILE      = 'functionals/' + sys.argv[1]
-FUNC_PAIR_FILE = 'functionals/ULB.pair.func' 
 
 #-------------------------------------------------------------------------------
 heph_name= \
@@ -64,7 +63,7 @@ if(not FOUND):
 print '**************************************************************'
 print ' a)  Hephaestos is initializing its own modules.'
 heph_symmetries.initsymmetries()
-heph_functional.initfunctional(FUNC_FILE, FUNC_PAIR_FILE)
+heph_functional.initfunctional(FUNC_FILE)
 heph_densities.initdensities()
 heph_fields.initfields()
 print '**************************************************************'

@@ -34,7 +34,7 @@ import numpy as np
 from heph_densities import Densities_needed, tab, sumindices, derstring
 from heph_densities import lapstring, OrderOfDen, ParseOperators
 from heph_densities import crossindices, Storage_Mapping, Multiplicity
-from heph_densities import deriv_needed, Pair_densities_needed
+from heph_densities import deriv_needed
 
 import heph_linechecker
 import heph_fields
@@ -55,9 +55,6 @@ DD_rearcoefs          = []
 # force values for the isoscalar (_0) and isovector (_1) coupling. 
 coupling_constants_0 = []
 coupling_constants_1 = []
-
-coupling_constants_pair_0 = []
-coupling_constants_pair_1 = []
 
 #-------------------------------------------------------------------------------
 # Strings telling Tantalus which parameters are used to compute coupling 
@@ -90,12 +87,12 @@ derivative_order = 1
 #-------------------------------------------------------------------------------
 assume_locality = 1
 
-def initfunctional(fname, fpairname):
+def initfunctional(fname):
 
     global Functional_terms, Densities_needed, derivative_order, func_name
     
     # Read the functional from a given file
-    (description, pair_description) = ReadFunctional(fname, fpairname)
+    description = ReadFunctional(fname)
     
     # Set the name of the functional file, without the directory structure
     func_name = '"%s"'%fname.split('/')[-1].upper()
@@ -117,7 +114,8 @@ def initfunctional(fname, fpairname):
         (deri, lapi, lefti, righti, coupi, crossi) = ParseOperators(tempden[i])
         Found = False
         for j in range(len(Densities_needed)):
-            (derj, lapj, leftj, rightj, coupj, crossj) = ParseOperators(Densities_needed[j])
+            (derj, lapj, leftj, rightj, coupj, crossj) = \
+                                             ParseOperators(Densities_needed[j])
             #-------------------------------------------------------------------
             # Two densities are identical if the left- and right-operators
             # are the same.
@@ -183,12 +181,12 @@ def initfunctional(fname, fpairname):
         print '  ', paramparameters[3*(i+1):3*(i+1)+len(paramparameters)%3]
     print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
-    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
-    print ' P-p functional taken from file %s'%fpairname
-    print ' Description from file:'
-    print  pair_description.replace('#', tab)
-    print ' Number of terms:      %d'%len(Functional_pair_terms)
-    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
+#    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
+#    print ' P-p functional taken from file %s'%fpairname
+#    print ' Description from file:'
+#    print  pair_description.replace('#', tab)
+#    print ' Number of terms:      %d'%len(Functional_pair_terms)
+#    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
 def PruneDeriv_needed():
     #---------------------------------------------------------------------------
@@ -210,7 +208,7 @@ def PruneDeriv_needed():
         deriv_needed[i] = list(set(deriv_needed[i]))
         deriv_needed[i] = sorted(deriv_needed[i])
         
-def ReadFunctional(fname, fpairname):
+def ReadFunctional(fname):
     #-------------------------------------------------------------------------
     # Read the functional terms and the coupling coefficients from the
     # ph functional file (fname) and the pp functional file (fpairname).
@@ -223,70 +221,50 @@ def ReadFunctional(fname, fpairname):
     # Read the ph functional
     termsstart = 0
     with open(fname, 'r') as f:
-        for line in f:
-            try:
-                if(len(line.split()) == 0):
-                    print 'a'
-                    continue
-                elif(line[0] == '#'):
-                     #-sign indicates description                   
-                     description = description + line
-                     continue
-                elif(line[0:6] == '!TERMS'):
-                    # Signal that the constants part is over
-                    termsstart  = 1   
-                    print paramparameters 
-                    continue            
-                elif(line[0] == '!'):
-                    continue
-                
-                # Parse constants only
-                if(termsstart == 0):
-                    split = line.split(';')
-                    for s in split:
-                        paramparameters.append(s.replace(' ','').replace('\n', ''))
-                elif(termsstart == 1):
-                    #  Start parsing terms in the functional   
-                    split = line.split(';')
-                    Functional_terms.append(split[0].replace(' ', ''))
-                    coupling_constants_0.append(split[1].replace(' ', ''))
-                    coupling_constants_1.append(split[2].replace(' ', ''))   
-                        
-                    if(len(split)>3):
-                        density_dependence.append(split[3].replace(' ', ''))
-                        dd_den   = split[4].replace(' ', '')
-                        f_dd     = split[5].replace(' ', '')
-                        field_DD_terms[split[0].replace(' ', '')] =(dd_den,f_dd)
-                        DD_rearcoefs.append(split[6].replace(' ', ''))
-                    else:
-                        density_dependence.append('')
-                        field_DD_terms[split[0].replace(' ', '')] =  ('','')
-                        DD_rearcoefs.append('')
-            except IndexError:
-                print 'Problem reading the following line in the func file.'
-                print line
-                exit()      
-    #---------------------------------------------------------------------------
-    # Read the pp functional
-#    with open(fpairname, 'r') as f:
-#        for line in f: 
-#            try:
-#                if(len(line.split()) == 0):
-#                    continue
-#                if(line[0] != '#' and line[0] != '!'):
-#                    split = line.split(';')
-#                    Functional_pair_terms.append(split[0].replace(' ', ''))                
-#                    
-#                    coupling_constants_0.append(split[5].replace(' ', ''))
-#                    coupling_constants_1.append(split[6].replace(' ', ''))   
-#                                
-#                elif(line[0] == '#'):
-#                    pair_description = pair_description + line
-#            except IndexError:
-#                print 'Problem reading the following line in the pairing-functional file.'
-#                print line
-#                exit()      
-    return(description, pair_description)
+      for line in f:
+        try:
+            if(len(line.split()) == 0):
+                continue
+            elif(line[0] == '#'):
+                 #-sign indicates description of the functional                  
+                 description = description + line
+                 continue
+            elif(line[0:6] == '!TERMS'):
+                # Signal that the parameters part of the functional is over.
+                termsstart  = 1   
+                print paramparameters 
+                continue            
+            elif(line[0] == '!'):
+                continue
+            
+            if(termsstart == 0):
+                # Parse the parameters of the functional
+                split = line.split(';')
+                for s in split:
+                    paramparameters.append(s.replace(' ','').replace('\n', ''))
+            elif(termsstart == 1):
+                #  Start the actual terms of the functional
+                split = line.split(';')
+                Functional_terms.append(split[0].replace(' ', ''))
+                coupling_constants_0.append(split[1].replace(' ', ''))
+                coupling_constants_1.append(split[2].replace(' ', ''))   
+                    
+                if(len(split)>3):
+                    density_dependence.append(split[3].replace(' ', ''))
+                    dd_den   = split[4].replace(' ', '')
+                    f_dd     = split[5].replace(' ', '')
+                    field_DD_terms[split[0].replace(' ', '')] =(dd_den,f_dd)
+                    DD_rearcoefs.append(split[6].replace(' ', ''))
+                else:
+                    density_dependence.append('')
+                    field_DD_terms[split[0].replace(' ', '')] =  ('','')
+                    DD_rearcoefs.append('')
+        except IndexError:
+            print 'Problem reading the following line in the func file.'
+            print line
+            exit()      
+
+    return description
     
 def ParseDensities(term): 
     #---------------------------------------------------------------------------
@@ -295,16 +273,15 @@ def ParseDensities(term):
     #---------------------------------------------------------------------------
     densities = []
     #---------------------------------------------------------------------------
-    # Split along C and D-s
+    # Split along underscores, while not checking the _DD suffix
     temp      = ''
-    #---------------------------------------------------------------------------
-    # Don't take into account any density dependence naming
     split     = term.replace('_DD', '').split('_') 
     for i in range(len(split)):
         if split[i][0:3] == derstring or split[i] == lapstring:
                 temp  = temp + split[i] + '_'               
                 
-        if split[i] == 'D' or split[i] == 'C':
+        if split[i] == 'D' or split[i] == 'C' \
+                           or split[i] == 'DP' or split[i] =='CP':
                 temp = temp + split[i] + '_' + split[i+1] + '_' + split[i+2]
                 densities.append(temp)
                 temp = ''
@@ -567,6 +544,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     densities = []
     for den in tempden:
         (der,lap,left,right, coupl, cross) = ParseOperators(den)
+        print 'parsing', den, left, right
         for i in range(len(Densities_needed)):
             (derref, lapref, leftref, rightref, couplref, crossref) = \
                                              ParseOperators(Densities_needed[i])

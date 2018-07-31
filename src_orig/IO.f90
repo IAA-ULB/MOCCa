@@ -37,6 +37,7 @@ contains
     use scfiteration,  only : readscfiteration
     use moments,       only : readmomentdata
     use functional,    only : readfunctional
+    use pairing,       only : initpairing
   
     implicit none
 
@@ -44,6 +45,7 @@ contains
     
     call ReadGenInfo
     call readfunctional
+    call initpairing
     call ReadEvolution
     call ReadSCFIteration
     call ReadWFdata

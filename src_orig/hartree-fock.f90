@@ -22,10 +22,9 @@ module hartreefock
  
  implicit none
  
+contains
  
- contains
- 
- subroutine NaiveFill(Occupations)
+ subroutine NaiveFill()
     !---------------------------------------------------------------------------
     ! This subroutine finds the orbitals with the lowest single particle
     ! energy and fills them, after sorting all the levels.
@@ -33,12 +32,10 @@ module hartreefock
     
     integer :: i,j,n,p, ProtonUpperBound, NeutronUpperBound
     integer :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp), allocatable :: Occupations(:)
     
     n=0; p=0
     !---------------------------------------------------------------------------
     !Setting all occupation numbers to Zero
-    if(.not.allocated(Occupations)) allocate(Occupations(nwt))
     Occupations = 0.0_dp
     !---------------------------------------------------------------------------
     ProtonUpperBound  = floor(Protons)

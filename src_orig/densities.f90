@@ -43,7 +43,6 @@ use compilation
 use geninfo
 use wavefunctions, only: HFPsi, HFdPsi, HFddPsi, HFdddpsi
 use wavefunctions, only: occupations, HFBlocks, blocks
-use wavefunctions, only: upairing, vpairing
 use derivatives 
 use preconditioning 
 
@@ -103,31 +102,37 @@ $INITIALIZATION
 $ZEROING
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Calculation by summing the densities
+    ! PARTICLE-HOLE DENSITIES
     do wave=1,nwt
         ! Isospin is neutron in the first half of blocks, proton in the rest
         it = 2
         if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
-        weight = occupations(wave)
+        
+        ! For ordinary densities
+        weight  = occupations(wave)
+
         do i=1,mv
 $EXPRESSION
         enddo
     enddo
-   
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -     
-!    ! Calculation by summing of the pairing densities
+    
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!    ! PAIRING DENSITIES
 !    do wave=1,nwt
 !        ! Isospin is neutron in the first half of blocks, proton in the rest
 !        it = 2
 !        if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
-!        weight = upairing(wave) * vpairing(wave)
-!        if( iteration.ne.0)  then
-!             weight = weight * (1-denmix)
-!        endif
+!        
+!        ! For ordinary densities
+!        ! Currenlty only suitable for BCS pairing with timereversal conserved
+!        !
+!        ! Factor of two is for the time-reversed pair as well
+!        weight  = 2 * upairing(wave) * vpairing(wave)
+!       
 !        do i=1,mv
-!!   PAIRINGEXPRESSION
+!$PAIREXPRESSION
 !        enddo
-!    enddo     
+!    enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! The asked for mixing+preconditioning scheme.

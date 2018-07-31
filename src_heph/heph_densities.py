@@ -128,13 +128,12 @@
 #      bookkeeping in Hephaestos itself. 
 #    C Automatic continuation when time-reversal is conserved
 #
-#   NC To be debated: do I want to create the concept of a densityvector again?
-#
 #-------------------------------------------------------------------------------
 
-from string         import Template
-from math           import log, factorial
-import numpy        as np
+from string          import Template
+from math            import log, factorial
+import heph_symmetries 
+import numpy         as np
 import itertools
 
 #-------------------------------------------------------------------------------
@@ -153,9 +152,7 @@ ArrayNames=['HFPsi', 'HFdPsi', 'HFddPsi', 'HFdddPsi']
 # and NOT tau_mn fully. 
 Densities_needed   = []
 deriv_needed       = []
-#-------------------------------------------------------------------------------
-# Array containing all of the pairing densities needed.
-Pair_densities_needed = []
+
 #-------------------------------------------------------------------------------
 # Indices over which sums are supposed to go in both the FORTRAN code and the 
 # naming scheme.
@@ -169,32 +166,39 @@ derstring = 'Der'
 # Density calculation template to fill in
 # Could be defined globally, but is nice to have here for quick reference
 
-Den_template_1 = Template( 2*tab+'$NAME(i$IND,it) = $NAME(i$IND,it) + $WEIGHT * (')
-Den_template_2 = Template(   tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,wave) * $RIGHTWF(i$RIND,$RCOMP,wave)')
+Den_template_1 = Template( \
+                        2*tab+'$NAME(i$IND,it) = $NAME(i$IND,it) + $WEIGHT * (')
+Den_template_2 = Template( \
+         tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,wave) * $RIGHTWF(i$RIND,$RCOMP,wave)')
 
 Ini_template   = Template(   tab+'if(.not.allocated($NAME)) then     \n' + \
                            2*tab+'allocate($NAME(mv$DIM,2)) \n'          + \
                            2*tab+'$NAME = 0.0d0 \n'                      + \
-                             tab+'endif \n'                              ) #+ \
-#                             tab+'$NAME = denmix * $NAME')
+                             tab+'endif \n'                              ) 
 Zero_template  = Template(   tab+'$NAME = 0.0d0 \n')
-Dec_template   = Template(   tab + 'real*8, allocatable, target :: $NAME(:$TOTALIND,:)')
-Der_template   = Template( 2*tab +'call Derive_grad($NAME(:$IND,it),$PX,$PY,$PZ,der_$NAME(:,1$IND,it), &\n') 
+Dec_template   = Template( \
+                     tab + 'real*8, allocatable, target :: $NAME(:$TOTALIND,:)')
+Der_template   = Template( 2*tab + \
+      'call Derive_grad($NAME(:$IND,it),$PX,$PY,$PZ,der_$NAME(:,1$IND,it), &\n') 
 Der_template_b = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,2$IND,it), &\n')
 Der_template_c = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,3$IND,it))  \n')
 
-Der_indep_template = Template( 2*tab +'call Derive_$DIR($NAME(:$IND,it), $PS,der_$NAME(:$DERIND,it)) \n') 
+Der_indep_template = Template( 2*tab + \
+             'call Derive_$DIR($NAME(:$IND,it), $PS,der_$NAME(:$DERIND,it)) \n') 
 
-Lap_template   = Template( 2*tab +'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ, lap_$NAME(:$IND,it)) \n')
+Lap_template   = Template( 2*tab + \
+       'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ, lap_$NAME(:$IND,it)) \n')
 
-#---------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # Some templates for comments to put into the densities file
 Den_comment          = Template(2*tab+'! Calculation of density $NAME \n')
 
-Den_comment_deriv    = Template(2*tab+'! Derivation of density $NAME(:$IND,it)  \n')
+Den_comment_deriv    = Template(2*tab+ \
+                                   '! Derivation of density $NAME(:$IND,it) \n')
 Den_comment_deriv_b  =         (2*tab+'! LAP = %d, DER = %d \n')
-Den_line             = Template(2*tab+'! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  \n')
-#---------------------------------------------------------------------------
+Den_line             = Template(2*tab+ \
+  '! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  \n')
+#-------------------------------------------------------------------------------
 
 def initdensities():
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -238,6 +242,15 @@ def initdensities():
     Sigma.signature_z    = np.array([-1,-1, 1])
     Sigma.name           = 'S'
     
+    TR.derorder     = 0
+    TR.dimension    = 0
+    TR.parity       = np.array([ 1])
+    TR.time         = np.array([ 1])
+    TR.signature_x  = np.array([-1])   
+    TR.signature_y  = np.array([-1])
+    TR.signature_z  = np.array([-1])
+    TR.name         = 'T'
+    
 def ProcessDensities(fname, src, target):
     #---------------------------------------------------------------------------
     # Master routine calling the other routines based on a list of densities.
@@ -264,33 +277,21 @@ def ProcessDensities(fname, src, target):
         (e,dec,ini,der,zeroi)  = GenDensityExpression(Densities_needed[i],     \
                                                         deriv_needed[i])
         Declaration    = Declaration    + '\n' + dec
-        Expression     = Expression     + '\n' + e
+        
+        if('P' in den): 
+          PairExpression = PairExpression + '\n' + e
+        else:
+          Expression     = Expression     + '\n' + e
         Initialisation = Initialisation + '\n' + ini
         Derivation     = Derivation     + '\n' + der
         Zeroing        = Zeroing        + '\n' + zeroi
-    print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
-    print ' P-P part                                          '
-    print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
-    print '      Name     DIM with / out    Derivative combs. '
-    print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
-    for i in range(len(Pair_densities_needed)):
-        den = Pair_densities_needed[i]
-        print '%15s %6d %6d     '%(den,OrderOfDen(den),         \
-                              OrderOfDen(den,contract=False)),  \
-                              [(0,0)]
-
-        (e,dec,ini,der,zeroi)  = GenDensityExpression(den,[(0,0)])
-#        Declaration    = Declaration    + '\n' + dec
-#        PairExpression = PairExpression + '\n' + e
-#        Initialisation = Initialisation + '\n' + ini
-#        Derivation     = Derivation     + '\n' + der
-        
     
     # Substitute into the densities.f90 file.        
     dic={}
     dic['DECLARATION'   ] = Declaration
     dic['INITIALIZATION'] = Initialisation
     dic['EXPRESSION'    ] = Expression
+    dic['PAIREXPRESSION'] = PairExpression
     dic['DERIVATION'    ] = Derivation
     dic['ZEROING'       ] = Zeroing 
  
@@ -309,7 +310,8 @@ def ParseOperators(density):
     der   = density.count(derstring)
     lap   = density.count(lapstring)
 
-    split = density.replace(derstring + '_', '').replace(lapstring + '_', '').split('_')
+    split = density.replace(derstring + '_', '').replace(lapstring + '_', '')
+    split = split.split('_')
 
     left = split[1]
     right= split[2]
@@ -321,6 +323,12 @@ def ParseOperators(density):
        
     if('C' in density):      
             right = 'C' + right
+    
+    if('P' in density):
+            # Add a timereversal operator on the left for pairing densities
+            left  = left + 'T'
+#            if(heph_symmetries.TimeReversal == 1):
+#                left = left + 'T'
     #---------------------------------------------------------------------------
     # Find the coupling over the sumindices
     coupling  = []
@@ -386,6 +394,7 @@ def GenDensityExpression(denin, derivative_combinations):
     operatordic['N'] = Nabla
     operatordic['S'] = Sigma
     operatordic['C'] = Current
+    operatordic['T'] = TR
     
     LeftOperator = Identity
     for i in range(len(left)):
@@ -405,7 +414,7 @@ def GenDensityExpression(denin, derivative_combinations):
     dic['LEFTWF']  = ArrayNames[ LeftOperator.derorder]
     dic['RIGHTWF'] = ArrayNames[RightOperator.derorder]
     dic['WEIGHT']  = 'weight'  # For now defined in the FORTRAN code
-    
+      
     totalind= ''
     dim     = ''
     
@@ -928,6 +937,9 @@ def Current(mu,indices):
 
 def TR(mu,indices):
     # Operates on indices to a time-reverse of the spwf
+    # Implemented as
+    # i sigma_y K 
+    # where K is the complex conjugation
     out = np.zeros_like(indices)
 
     out[0,:] =   indices[2,:] 

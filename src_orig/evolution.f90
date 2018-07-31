@@ -342,7 +342,7 @@ contains
           ! good enough.
           if(abs(con).lt. 1d-2) exit
       enddo
-       print *, 'conv', iter, con
+
       if(iter.eq.estiter+1) then
        print 1
        print 2
@@ -372,11 +372,7 @@ contains
       kappa = relE/maxE
       momentum = ((sqrt(kappa) - 1)/(sqrt(kappa)+1))**2
       dt    = 4.0/(maxE+relE+2*sqrt(maxE*relE))*hbar*0.90
-      
-      print *, '-----------------------'
-      print *, maxE, relE, kappa
-      print *, dt, momentum
-      
+            
   end subroutine IterativeEstimation
 !===============================================================================
 ! Projection on the feasible subspace routine

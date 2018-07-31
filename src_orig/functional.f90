@@ -22,6 +22,7 @@ module functional
  use geninfo
  use densities
  use parameterization
+ use pairing
 
  implicit none
  
@@ -33,30 +34,7 @@ module functional
     character(len=20) :: name_param 
     ! Name of the functional file this code was compiled with
     character(len=20), parameter :: func_name = $FUNC_NAME
-!    !---------------------------------------------------------------------------
-!    ! List of coupling constants that can be employed by .func files to 
-!    ! define a functional.
-!    !---------------------------------------------------------------------------
-!    real(KIND=dp) :: t0=-2488.913
-!    real(KIND=dp) :: x0=0.834
-!    real(KIND=dp) :: t1=486.818
-!    real(KIND=dp) :: x1=-0.344
-!    real(KIND=dp) :: t2=-546.395
-!    real(KIND=dp) :: x2=-1.0
-!    real(KIND=dp) :: t3=13777.0
-!    real(KIND=dp) :: x3=1.354
-!    real(KIND=dp) :: yt3a= 0.166666666666666666667 
-!    real(KIND=dp) :: te=0.0
-!    real(KIND=dp) :: to=0.0
-!    real(KIND=dp) :: wso=123.0
-!    real(KIND=dp) :: wsoq=123.0
-!    !---------------------------------------------------------------------------
-!    ! N2LO Central
-!    real(KIND=dp) :: t1n2=24.3409
-!    real(KIND=dp) :: t2n2=-27.31975
-!    real(KIND=dp) :: x1n2=-0.344
-!    real(KIND=dp) :: x2n2=-1.0  
-!    !---------------------------------------------------------------------------
+
 !    ! N3LO central
 !    real(KIND=dp) :: t1n3= 2.3409
 !    real(KIND=dp) :: t2n3=-2.31975
@@ -73,6 +51,7 @@ module functional
     ! Definition of global contributions to the energy
     real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
+    real(KIND=dp) :: PairingEnergy(2)
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
@@ -167,9 +146,9 @@ $PRINTCOEF
    61 format (15x, '    COM 1-body:', 3f15.6)
     7 format (15x, 'Coulomb Direct:', 3f15.6)
     8 format (15x, '      Exchange:', 3f15.6)
-    
-    9 format (15x, '  Total energy:', 30x, f15.6)
-   10 format (15x, '    from spwfs:', 30x, f15.6)
+    9 format (15x, 'Pairing energy:', 3f15.6)
+   99 format (15x, '  Total energy:', 30x, f15.6)
+  100 format (15x, '    from spwfs:', 30x, f15.6)
 
     call printSkyrme
 
@@ -179,9 +158,10 @@ $PRINTCOEF
     print 61, COMcorrection(1,:), sum(COMcorrection(1,:))
     print 7, 0.0, CoulombDirect, CoulombDirect
     print 8, 0.0, CoulombExchange, CoulombExchange
+    print 9, PairingEnergy, sum(PairingEnergy)
     print 1
-    print  9, TotalE
-    print 10, spwfenergy
+    print  99, TotalE
+    print 100, spwfenergy
     print 1
  end subroutine PrintEnergy
  
@@ -199,13 +179,16 @@ $PRINTCOEF
     ! Skyrme functional
     call compSkyrme()
 
+    ! Pairing energy
+    PairingEnergy = CalcPairingEnergy()
+
     ! Direct contribution of the Coulomb potential
     CoulombDirect   = CoulombEnergy_Direct(D_I_I(:,2))
     ! Exchange contribution
     CoulombExchange = CoulombEnergy_Exchange(D_I_I(:,2)) 
 
     ! Total energy
-    TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)
+    TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection) + sum(PairingEnergy)
     TotalE = TotalE + CoulombDirect + CoulombExchange
 
     ! Total energy from single-particle energies
@@ -462,6 +445,9 @@ $EREAR
     
     !Subtract contribution by constraints
     SpwfEnergy = SpwfEnergy - sum(Constraint_I_I * D_I_I)*dv/2.0_dp
+    
+    ! Add the pairing energy
+    SpwfEnergy = SpwfEnergy + sum(PairingEnergy)
     
   end function calcspwfenergy
   

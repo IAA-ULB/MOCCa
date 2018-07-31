@@ -50,7 +50,6 @@ module wavefunctions
  ! Occupations of the single-particle wave-functions, i.e. the eigenvalues
  ! of rho. 
  real(KIND=dp), allocatable :: occupations(:)
- real(KIND=dp), allocatable :: upairing(:), vpairing(:) 
  !------------------------------------------------------------------------------
  ! Single-particle energies, diagonal elements of the single-particle
  ! hamiltonian
@@ -118,7 +117,6 @@ contains
     &           floor(neutrons),floor(protons),nx,ny,nz,dx,0.2d0,0.2d0,0.2d0)
     allocate(dispersions(nwt))
     allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
-    allocate(upairing(nwt), vpairing(nwt))
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! b) blow-up into the full box
 !    allocate(fullbox(2*nx, 2*ny, 2*nz, 4, nwt))
