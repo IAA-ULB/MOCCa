@@ -31,8 +31,18 @@ program Tantalus
      &       /,'|                                                          |', &
      &       /,'|  Copyright  P.-H. Heenen, M.Bender & W. Ryssens          |', &
      &       /,'|__________________________________________________________|')
+ 
+ 299 format (  ' -------------- Version Information ------------------------')
+ 300 format (  '  VERSION1') ! Git commit
+ 301 format (  '  VERSION2') ! Author of commit
+ 302 format (  '  VERSION3') ! Date
+
 
  print 100
+ print 299
+ print 300
+ print 301
+ print 302
  
  !------------------------------------------------------------------------------
  ! Read input from STDIN
