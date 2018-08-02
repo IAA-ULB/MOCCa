@@ -26,6 +26,7 @@ import heph_functional
 
 # List of fields needed 
 Fields_needed = []
+Pairing_Fields_needed = []
 
 def initfields():
     #---------------------------------------------------------------------------
@@ -105,7 +106,10 @@ def GenerateFields():
         dic = {}
         dic['FIELD'] = den.replace('D', 'F').replace('C', 'G')
 
-        Fields_needed.append(dic['FIELD'])
+        if('P' not in den): 
+          Fields_needed.append(dic['FIELD'])
+        else:
+          Pairing_Fields_needed.append(dic['FIELD'])
         #-----------------------------------------------------------------------
         #  Get the operator structure of the density correctly                                
         (der, lap, left, right, coupling,cross) = ParseOperators(den) 
@@ -314,8 +318,12 @@ def GenerateAction(field, symmetrize):
     #---------------------------------------------------------------------------
     # Templates to fill in.
     #---------------------------------------------------------------------------
-    action_final    = Template(  tab + \
+    action_final            = Template(  tab + \
     'hpsi(:,$IND) =  hpsi(:,$IND) $SIGN $LMULT $TEMP(:$LIND,$RCOMP)\n')
+    action_final_pairing    = Template(  tab + \
+    'deltapsi(:,$IND) =  deltapsi(:,$IND) $SIGN $LMULT $TEMP(:$LIND,$RCOMP)\n')
+    
+    
     temp_ini        = tab + 'temp = 0.0 \n'
     action_temp    = Template(2*tab + \
     'temp(i,$IND) =  temp(i,$IND) $SIGN $RMULT $FIELD(i$FIELDIND,it) * $WF(i$RIND,$RCOMP)\n')
@@ -348,6 +356,7 @@ def GenerateAction(field, symmetrize):
     operatordic['N'] = Nabla
     operatordic['S'] = Sigma
     operatordic['C'] = Current
+    operatordic['T'] = TR
     
     LeftOperator = Identity
     for i in range(len(left)):
@@ -644,8 +653,11 @@ def GenerateAction(field, symmetrize):
                 dic['SIGN']= '+'
             else :
                 dic['SIGN']= '-'
-                
-            expression = expression + action_final.substitute(dic)
+            
+            if('P' not in field):
+              expression = expression + action_final.substitute(dic)
+            else:
+              expression = expression + action_final_pairing.substitute(dic)
         expression = expression + '\n'
         #-----------------------------------------------------------------------
         # End of true_larg loop
@@ -670,7 +682,13 @@ def ParseOperatorsField(field):
         right = right.replace(l, '')
         
     if(field[0] == 'G'):      
-            right = 'C' + right
+        right = 'C' + right
+    
+    #
+    # There doesn't need to be an explicit time-reversal operator in the 
+    # definition of the act of Delta
+    # 
+    
     #---------------------------------------------------------------------------
     # Find the coupling
     coupling  = []

@@ -410,44 +410,51 @@ def ProcessFunctional(fname, src, target):
         declaration = declaration + fielddec + '\n'
         
         #-----------------------------------------------------------------------
-        # Generate the expressions for the actions of the fields
+        # Generate the expressions for the actions of the Skyrme fields
         SkyrmeAction = ''
         for field in heph_fields.Fields_needed:
-            #-------------------------------------------------------------------
-            # Check if we need to symmetrize the action
-            #-------------------------------------------------------------------
-            (left,right,coupling,cross) = heph_fields.ParseOperatorsField(field)
-            #-------------------------------------------------------------------
-            # Generate the expression for the application of the ordinary 
-            # operator structure
-            if( left != right):
-                if( 'C' in left or 'C' in right):   
-                    # Only symmetrize non-symmetric C's if asked for
-                    if(assume_locality == 1):
-                        SkyrmeAction = SkyrmeAction +                          \
-                                            heph_fields.GenerateAction(field, 0)
-                    else:
-                        SkyrmeAction = SkyrmeAction +                          \
-                                            heph_fields.GenerateAction(field, 1)
-                        SkyrmeAction = SkyrmeAction +                          \
-                                            heph_fields.GenerateAction(field,-1)
-                else:
-                    # Always symmetrize non-symmetric D's
-                    SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,+1)
-                    SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,-1)
+          #-------------------------------------------------------------------
+          # Check if we need to symmetrize the action
+          #-------------------------------------------------------------------
+          (left,right,coupling,cross) = heph_fields.ParseOperatorsField(field)
+          #-------------------------------------------------------------------
+          # Generate the expression for the application of the ordinary 
+          # operator structure
+          # Disregard T's that are present
+          if( left != right) : 
+            if( 'C' in left or 'C' in right):   
+              # Only symmetrize non-symmetric C's if asked for
+              if(assume_locality == 1):
+                  SkyrmeAction = SkyrmeAction +                          \
+                                      heph_fields.GenerateAction(field, 0)
+              else:
+                  SkyrmeAction = SkyrmeAction +                          \
+                                      heph_fields.GenerateAction(field, 1)
+                  SkyrmeAction = SkyrmeAction +                          \
+                                      heph_fields.GenerateAction(field,-1)
             else:
-                SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field, 0)
+                # Always symmetrize non-symmetric D's
+                SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,+1)
+                SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,-1)
+        #-----------------------------------------------------------------------
+        # Generate the expressions for the actions of the pairing fields.
+        PairingAction = ''
+        for field in heph_fields.Pairing_Fields_needed:
+          (left,right,coupling,cross) = heph_fields.ParseOperatorsField(field)
+          PairingAction =PairingAction + heph_fields.GenerateAction(field, 0)
+          
         #-----------------------------------------------------------------------
         # Now make sure all of the lines are not too long for compilation.
-        declaration = heph_linechecker.LineFormat(declaration)
-        calculation = heph_linechecker.LineFormat(calculation)
-        printing    = heph_linechecker.LineFormat(printing)
-        calccoef    = heph_linechecker.LineFormat(calccoef)
-        printcoef   = heph_linechecker.LineFormat(printcoef)
-        sumtotal    = heph_linechecker.LineFormat(sumtotal)
-        fieldcalc   = heph_linechecker.LineFormat(fieldcalc)
-        SkyrmeAction= heph_linechecker.LineFormat(SkyrmeAction)
-        erear       = heph_linechecker.LineFormat(erear)
+        declaration   = heph_linechecker.LineFormat(declaration)
+        calculation   = heph_linechecker.LineFormat(calculation)
+        printing      = heph_linechecker.LineFormat(printing)
+        calccoef      = heph_linechecker.LineFormat(calccoef)
+        printcoef     = heph_linechecker.LineFormat(printcoef)
+        sumtotal      = heph_linechecker.LineFormat(sumtotal)
+        fieldcalc     = heph_linechecker.LineFormat(fieldcalc)
+        SkyrmeAction  = heph_linechecker.LineFormat(SkyrmeAction)
+        PairingAction = heph_linechecker.LineFormat(PairingAction)
+        erear         = heph_linechecker.LineFormat(erear)
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         # Substitute into the functional.f90 file.        
         dic={}
@@ -459,6 +466,7 @@ def ProcessFunctional(fname, src, target):
         dic['TOTAL']          = sumtotal
         dic['CALCFIELDS']     = fieldcalc
         dic['SKYRMEACTION']   = SkyrmeAction
+        dic['PAIRINGACTION']  = PairingAction
         dic['EREAR']          = erear
         dic['FUNC_NAME']      = func_name
         

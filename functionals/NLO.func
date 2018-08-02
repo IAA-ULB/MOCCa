@@ -20,7 +20,7 @@ E_D_I_I_Derm_C_I_NxmSxm  ;  -wso/2.0 - wsoq/4.0     ; - wsoq/4.0
 E_C_I_NmSk_C_I_NmSk      ; -CT0  ;  -CT1
 !-------------------------------------------------------------------------------
 ! Pairing interaction (no density dependence yet)
-!E_DP_I_I_DP_I_I            ; -Vn ; -Vp
+E_DP_I_I_DP_I_I            ; -1250 ; -1250
 !E_CP_I_I_CP_I_I            ; -Vn ; -Vp
 !E_DP_Nm_Nm_DP_I_I          ; -Vn ; -Vp
 !E_CP_Nm_Nm_CP_I_I          ; -Vn ; -Vp

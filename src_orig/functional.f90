@@ -97,6 +97,10 @@ contains
     call readparameterization(name_param, func_name)
     call calcedfcoefs()
 
+    ! Put the pairing routines pointers to the action of Delta
+    print *, 'Associating'
+    delta_action_BCS => delta_action
+
  end subroutine readfunctional
  
  subroutine calcedfcoefs()
@@ -409,6 +413,40 @@ $N3        &                                     dddpsi(:,:,k))
 $SKYRMEACTION
     
   end function sphamil
+  
+  function delta_action(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly)      &
+  &                                                             result(deltapsi)
+    !---------------------------------------------------------------------------
+    ! Logical indicating if the derivatives need to be calculated before
+    ! applying delta.
+    ! If false, the derivatives are passed in. If True, the derivatives are not
+    ! passed in and need to be calculated.
+    logical, intent(in)       :: onthefly 
+    
+    real(KIND=dp), intent(in)    :: psi(mv,4)  
+    real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4), dddpsi(mv,10,4)
+    integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
+    real(KIND=dp)             :: deltapsi(mv,4)
+    real(KIND=dp)             :: temp(mv,4)
+    real(KIND=dp)             ::   dtemp(mv,3,4)
+    real(KIND=dp)             ::  ddtemp(mv,3,3,4)
+    real(KIND=dp)             :: dddtemp(mv,3,3,3,4)
+    real(KIND=dp)             :: laptemp(mv,4)
+    
+    integer :: it, i,k
+    
+    !---------------------------------------------------------------------------
+    ! Determine the isospin index
+    it = (iso + 3)/2
+    
+    !---------------------------------------------------------------------------
+    ! Zero the action of Delta. 
+    ! This is the place to include Coulomb pairing etc...
+    deltapsi = 0.0
+   
+$PAIRINGACTION
+   
+  end function delta_action
   
   function calcspwfenergy() result(spwfenergy)
     !---------------------------------------------------------------------------

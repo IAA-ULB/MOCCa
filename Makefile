@@ -47,13 +47,14 @@ $(OBJDIR)/%.o : $(SRCDIR)/%.f90
 setversioninfo:
   # Copy the git information into the main code, so it can be printed
 	cp $(SRCDIR)/tantalus.f90 $(SRCDIR)/tantalus.version.f90
-	sed -i.bak 's/VERSION1/${GIT_INFO1}/' $(SRCDIR)/tantalus.version.f90 
-	sed -i.bak 's/VERSION2/${GIT_INFO2}/' $(SRCDIR)/tantalus.version.f90 
-	sed -i.bak 's/VERSION3/${GIT_INFO3}/' $(SRCDIR)/tantalus.version.f90 
+	sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' $(SRCDIR)/tantalus.version.f90 
+	sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' $(SRCDIR)/tantalus.version.f90 
+	sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' $(SRCDIR)/tantalus.version.f90 
 	rm $(SRCDIR)/tantalus.version.f90.bak
 
 getgitinfo:
 	# Get information from 'git show', to see what kind of build this is.
-	$(eval GIT_INFO1=$(shell git show | grep 'commit'))
+	$(eval GIT_INFO1=$(shell git show | grep 'commit '))
 	$(eval GIT_INFO2=$(shell git show | grep 'Author:'))
 	$(eval GIT_INFO3=$(shell git show | grep 'Date:'))
+

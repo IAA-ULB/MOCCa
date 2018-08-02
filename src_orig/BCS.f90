@@ -26,9 +26,9 @@ module BCS
  
  !------------------------------------------------------------------------------
  real(KIND=dp) :: FermiPrec = 1d-9
- !
  integer       :: maxBCSiter = 100
-  
+ logical       :: ConstantGap = .false.
+ 
  !------------------------------------------------------------------------------
  ! Values of the BCS gaps Delta.
  real(KIND=dp), allocatable :: BCSGaps(:)
@@ -36,6 +36,9 @@ module BCS
  real(KIND=dp), allocatable :: BCSqps(:)
   
  real(KIND=dp), allocatable :: BCSoccupations(:)
+ 
+ !------------------------------------------------------------------------------
+ procedure(delta_action_dummy), pointer :: delta_action_BCS
 
 contains
  
@@ -107,15 +110,39 @@ contains
     ! Calculate the BCS pairing gaps.
     ! Currently only does constant gap. 
     !---------------------------------------------------------------------------
-    integer                      :: wave
+    integer                      :: wave, iso
+    real(KIND=dp)                :: deltapsi(mv,4)
 
     if(.not.allocated(BCSGaps)) then
         allocate(BCSGaps(nwt)) ; BCSGaps = 0.0
     endif
 
-    do wave=1,nwt
-        BCSGaps(wave) = 2.0 * PCutoffs(wave)**2
-    enddo
+    if(ConstantGap) then  
+      ! Constantgap pairing
+      do wave=1,nwt
+          BCSGaps(wave) = 2.0 * PCutoffs(wave)**2
+      enddo
+    else
+      ! Use the delta_action to calculate the elements in the gaps
+       do wave=1,nwt
+            if(wave .lt. nwn) then
+                iso = -1
+            else
+                iso = +1
+            endif
+            
+            if(.not.associated(Delta_action_BCS)) stop
+             
+            deltapsi = delta_action_BCS(  hfpsi(:,:,wave)  ,                   &
+            &                            hfdpsi(:,:,:,wave),                   &
+            &                           hfddpsi(:,:,:,wave),                   &
+            &                          hfdddpsi(:,:,:,wave),                   &
+            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+ 
+ 
+            BCSgaps(wave) = sum(hfpsi(:,:,wave)*deltapsi)*dv * Pcutoffs(wave)**2
+       enddo   
+    endif
 
   end subroutine CalcBCSGaps
 
@@ -202,5 +229,27 @@ contains
     enddo
 
    end subroutine calcBCSOccupations
+
+!===============================================================================
+!  Never to be used function to define an interface for delta_action
+!===============================================================================   
+ function delta_action_dummy(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
+                                                                result(deltapsi)
+    !---------------------------------------------------------------------------
+    ! Dummy function to allow this module to acces the functional.f90 module 
+    ! to acces the information on the acces of deltas.
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in)    :: psi(mv,4)  
+    real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4), dddpsi(mv,10,4)
+    integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
+    real(KIND=dp)             :: deltapsi(mv,4)
+    real(KIND=dp)             :: temp(mv,4)
+    real(KIND=dp)             ::   dtemp(mv,3,4)
+    real(KIND=dp)             ::  ddtemp(mv,3,3,4)
+    real(KIND=dp)             :: dddtemp(mv,3,3,3,4)
+    real(KIND=dp)             :: laptemp(mv,4)
+    logical, intent(in)       :: onthefly
+ end function
   
 end module

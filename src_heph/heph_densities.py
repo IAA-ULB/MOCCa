@@ -327,8 +327,8 @@ def ParseOperators(density):
     if('P' in density):
             # Add a timereversal operator on the left for pairing densities
             left  = left + 'T'
-#            if(heph_symmetries.TimeReversal == 1):
-#                left = left + 'T'
+            if(heph_symmetries.TimeReversal == 1):
+                left = left + 'T'
     #---------------------------------------------------------------------------
     # Find the coupling over the sumindices
     coupling  = []
@@ -1060,7 +1060,8 @@ def OrderOfDen(density, contract=True):
     # Note that it is safe to use this on a field too.
     #---------------------------------------------------------------------------
 
-    # Add a dimension for every derivative and don't count the capital D,C,F,G
+    # Add a dimension for every derivative and 
+    # don't count the capital D,C,F,G, P 
     test  = density.replace('_', '')
     order = test.count(derstring) - 1 
     test  = test.replace(derstring, '')
@@ -1068,7 +1069,7 @@ def OrderOfDen(density, contract=True):
     
     for i in range(len(test)):
         letter = test[i]
-        if(letter.isupper() and letter != 'I'):
+        if(letter.isupper() and letter != 'I' and letter != 'P'):
             # Every capital letter that is not I adds an index
             order = order + 1
         if( (letter in sumindices + crossindices) and contract):
