@@ -16,6 +16,7 @@ module IO
 
 use geninfo
 use wavefunctions
+use pairing
 
 implicit none
 
@@ -107,9 +108,12 @@ contains
     if(trim(to_upper(inputfilename)).eq.'INIT') then  
       ! Generate starting point with Nilsson wavefunctions.
       call iniwavefunctions()
+      ! Guess some pairing gaps
+      call GuessGaps()
     else
       ! If not, start from a previous calculation.
       call ReadTantalus(12, inputfilename)
+      ! No need to guess gaps, they should read from file. 
     endif
   end subroutine ReadWaveFunction
   

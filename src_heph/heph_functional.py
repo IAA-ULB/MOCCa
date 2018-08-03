@@ -399,10 +399,11 @@ def ProcessFunctional(fname, src, target):
                 printing    = printing    + p + '\n'
                 calccoef    = calccoef    + cc+ '\n'
                 printcoef   = printcoef   + pc+ '\n'
-                sumtotal    = sumtotal    + st+ '&\n'
+                if(st != ''):
+                  sumtotal    = sumtotal    + st+ '&\n'
                 erear       = erear       + er
 
-        sumtotal = sumtotal[:-2]
+        sumtotal = rreplace(sumtotal, '&\n', '', 1)
 
         #-----------------------------------------------------------------------
         # Generate the fields of the single-particle hamiltonian
@@ -433,9 +434,12 @@ def ProcessFunctional(fname, src, target):
                   SkyrmeAction = SkyrmeAction +                          \
                                       heph_fields.GenerateAction(field,-1)
             else:
-                # Always symmetrize non-symmetric D's
-                SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,+1)
-                SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,-1)
+              # Always symmetrize non-symmetric D's
+              SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,+1)
+              SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,-1)
+          else:
+              SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field, 0)
+
         #-----------------------------------------------------------------------
         # Generate the expressions for the actions of the pairing fields.
         PairingAction = ''
@@ -665,7 +669,11 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     
     calccoef  = calc_coef_template.substitute(dic)
     printcoef = print_cpl_template.substitute(dic)    
-    sumtotal  = sumtotal_template.substitute(dic)
+    
+    if('P' not in term): 
+      sumtotal  = sumtotal_template.substitute(dic)
+    else:
+      sumtotal = ''
     
     # Getting the contribution to the rearrangement energy
     # Two-body, non-density dependent terms don't have rearrangement terms.
@@ -681,3 +689,8 @@ def GenTermExpression( term, ccoef, DD, DDrear):
         erear = rear_template.substitute(dic)
         
     return (declaration, calculation, printing, calccoef, printcoef, sumtotal, erear)
+    
+    
+def rreplace(s, old, new, occurrence):
+     li = s.rsplit(old, occurrence)  
+     return new.join(li)

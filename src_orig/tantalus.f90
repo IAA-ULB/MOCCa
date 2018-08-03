@@ -64,12 +64,32 @@ end program Tantalus
 
 subroutine ReachForWaterAndFood
     !---------------------------------------------------------------------------
-    !
     ! Evolve the single-particle wavefunctions and densities.
     !
+    ! 
+    ! The overall iterative scheme is as explained in
+    !   W. Ryssens et al. [HEAVY-BALL PAPER]
     !
     !
+    ! Which is
     !
+    !   Initialization
+    ! 
+    !   Until convergence do
+    !   |  1. Calculate matrix elements of h and Delta
+    !   |  2. Evolve the HF-basis with the heavy-ball method
+    !   |  3. Solve the pairing equations with matrix elements from 1.
+    !   |     HF : fill the lowest levels
+    !   |     BCS: solve the BCS equations to obtain the occupations
+    !   |     HFB: a. solve the HFB equations in the HF-basis
+    !   |          b. construct the canonical basis
+    !   |  4. Perform feasible projection if asked for
+    !   |  5. Construct the densities
+    !   |    5b. Update the Lagrange multipliers of the constraints
+    !   |  6. Construct the fields
+    !   |     (including Coulomb and potential constraint contribution)
+    !   |  7. Print iteration info
+    !   |_____________________________
     !---------------------------------------------------------------------------
     use compilation
     use derivatives
@@ -82,23 +102,29 @@ subroutine ReachForWaterAndFood
     use moments
     use coulombmod
     use pairing 
+    use printing
     
     implicit none
    
     integer :: iter
    
+    !---------------------------------------------------------------------------
+    ! Initial calculations
+    !---------------------------------------------------------------------------
+    
     ! Derive all the single-particle wavefunctions
     call deriveall()
    
-    ! Solve the pairing.
+    ! Solve the pairing, with the current values of <h> and the pairing gaps.
     call SolvePairing()
-    
+   
     ! Calculate the initial densities.
     call densit(SaveRho=.false.)
 
     call CalculateMoments()
-    
     call calcFields()
+    call CalcGaps(FermiEnergy)
+    
     call CalcEnergy()
 
     ! Initial printout
@@ -109,11 +135,20 @@ subroutine ReachForWaterAndFood
 
     !---------------------------------------------------------------------------
     ! Start of the iterations
+    !---------------------------------------------------------------------------
     do iter=1,maxiter
-        ! One step in the evolution.
+    
+        ! Calculate the gaps Delta with the current 
+        ! a) fields 
+        ! b) density matrix and anomalous density matrix 
+        ! c) Fermi-energy
+        call CalcGaps(FermiEnergy)
+        
+        ! One heavy-ball step.
+        ! Note that the (diagonal) matrix elements of <h> get calculated here
         call Evolve(iter)
        
-        ! Solve pairing problem the first time
+        ! Solve pairing problem
         call SolvePairing()
         
         if(projectpresent) then
@@ -163,6 +198,7 @@ subroutine ReachForWaterAndFood
         else
             call printsummary(iter)
         endif
+        !-----------------------------------------------------------------------
     enddo
       
     !---------------------------------------------------------------------------

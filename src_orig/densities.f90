@@ -43,6 +43,7 @@ use compilation
 use geninfo
 use wavefunctions, only: HFPsi, HFdPsi, HFddPsi, HFdddpsi
 use wavefunctions, only: occupations, HFBlocks, blocks
+use pairing
 use derivatives 
 use preconditioning 
 
@@ -109,30 +110,32 @@ $ZEROING
         if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
         
         ! For ordinary densities
-        weight  = occupations(wave)
+        weight  = occupations(wave) 
 
         do i=1,mv
 $EXPRESSION
         enddo
     enddo
     
-!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!    ! PAIRING DENSITIES
-!    do wave=1,nwt
-!        ! Isospin is neutron in the first half of blocks, proton in the rest
-!        it = 2
-!        if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
-!        
-!        ! For ordinary densities
-!        ! Currenlty only suitable for BCS pairing with timereversal conserved
-!        !
-!        ! Factor of two is for the time-reversed pair as well
-!        weight  = 2 * upairing(wave) * vpairing(wave)
-!       
-!        do i=1,mv
-!$PAIREXPRESSION
-!        enddo
-!    enddo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! PAIRING DENSITIES
+    
+    ! Make sure the cutoffs are calculated
+    do wave=1,nwt
+        ! Isospin is neutron in the first half of blocks, proton in the rest
+        it = 2
+        if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
+        
+        ! For ordinary densities
+        ! Currenlty only suitable for BCS pairing with timereversal conserved
+        !
+        ! Factor of two is for the time-reversed pair as well
+        weight  = 0.5*kappa_pairing(wave,wave) * Pcutoffs(wave)**2
+       
+        do i=1,mv
+$PAIREXPRESSION
+        enddo
+    enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! The asked for mixing+preconditioning scheme.

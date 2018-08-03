@@ -5,10 +5,10 @@ MODDIR :=   mod
 TARGET :=   Tantalus.exe
 SRC    :=   compilation.f90 geninfo.f90 constants.f90 sphericalharmonics.f90    
 SRC    +=   diag.f90 nil8.f90 derivatives.f90 precondition.f90 wavefunctions.f90
-SRC    +=   pairingcutoffs.f90 hartree-fock.f90 densities.f90 BCS.f90 
-SRC    +=   pairing.f90 moments.f90 parameterization.f90 coulomb.f90 
+SRC    +=   pairingcutoffs.f90 hartree-fock.f90  BCS.f90 pairing.f90
+SRC    +=   densities.f90 moments.f90 parameterization.f90 coulomb.f90 
 SRC    +=   functional.f90 evolution.f90 scfiteration.f90 IO.f90 
-SRC    +=   tantalus.version.f90
+SRC    +=   printing.f90 tantalus.version.f90
 
 ################################################################################
 # Compiler details

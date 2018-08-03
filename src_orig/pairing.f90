@@ -52,12 +52,14 @@ module pairing
  !------------------------------------------------------------------------------
  ! Cutoff functions
  integer :: CutType = 1
- 
  !------------------------------------------------------------------------------
  ! Type of pairing to employ.
  ! (0), (1), (2)
  integer :: PairingType = 0
-
+   
+ !------------------------------------------------------------------------------
+ ! Decide which module gets to calculate the pairing gaps.
+ procedure(calcBCSgaps), pointer :: CalcGaps
  
 contains
 
@@ -68,7 +70,7 @@ contains
     !---------------------------------------------------------------------------
     character(len=20) :: Type
     
-    NameList /Pairing/ Type, CutType
+    NameList /Pairing/ Type, CutType, Constantgap 
     read(unit=*, NML=Pairing)
   
     Type = to_upper(Type)
@@ -81,6 +83,7 @@ contains
       print *, 'This type of pairing is not implemented yet.'
     endif
     
+    ! Cutoff decision
     select case(CutType)
     case(1)
        PairingCutoff => SymmetricFermi
@@ -88,7 +91,44 @@ contains
        PairingCutoff => CosineCut
     end select
     
+    ! Gap-calculation decision
+    select case(PairingType)
+    case(0)
+      CalcGaps => calcHFgaps
+    case(1)
+      CalcGaps => calcBCSgaps
+    case(2)
+      stop
+    end select
+    
   end subroutine initpairing
+  
+  subroutine GuessGaps()
+    !---------------------------------------------------------------------------
+    ! 
+    !
+    !
+    !---------------------------------------------------------------------------
+    integer :: wave
+    
+    select case (PairingType)
+    case(0)
+      ! Nothing to do for HF calculations
+      return
+    case(1)
+      !BCS Calculation
+      if(.not.allocated(BCSGaps)) then
+        allocate(BCSGaps(nwt)) ; BCSGaps = 0.0
+      endif
+      ! Simply put 2.0 with a correct cutoff
+      do wave=1,nwt
+        BCSgaps(wave) = 1.0 
+      enddo
+    case(2)
+      ! HFB calculations
+      stop
+    end select  
+  end subroutine GuessGaps
   
   subroutine SolvePairing
     !---------------------------------------------------------------------------
@@ -106,7 +146,6 @@ contains
     case(0)
       call NaiveFill()
     case(1)
-    
       !-------------------------------------------------------------------------
       ! BCS-type pairing
       ! The diagonal elements of rho and kappa are only set. 
@@ -126,8 +165,6 @@ contains
     !
     !---------------------------------------------------------------------------
     
-    use densities
-    
     1 format (26('-'), ' Pairing ', 25('-'))
     2 format (25x, ' N ',7x, ' P ')
     3 format (' Fermi Level (MeV) ',2x,f10.5,2x,f10.5)
@@ -143,7 +180,7 @@ contains
         ! BCS and HFB
         print 2
         print 3, FermiEnergy
-        print 4, sum(D_I_I(:,1))*dv, sum(D_I_I(:,2))*dv
+!        print 4, sum(D_I_I(:,1))*dv, sum(D_I_I(:,2))*dv
     end select
     print 7
   end subroutine PrintPairing
@@ -166,7 +203,7 @@ contains
       do wave=1,nwt
           it = 1
           if(wave .gt. nwn) it =2
-          E(it) = E(it) - 0.5*BCSgaps(wave)*Kappa_pairing(wave,wave)
+          E(it) = E(it) - BCSgaps(wave)*Kappa_pairing(wave,wave)
       enddo
     case(2)
     

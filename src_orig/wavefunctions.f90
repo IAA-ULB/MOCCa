@@ -92,12 +92,20 @@ contains
   end subroutine ReadWFdata
 
   subroutine iniwavefunctions()   
-    !--------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     ! Build harmonic oscillator eigenfunctions
     ! a) in an EV8-like box
     ! b) expanding to the full box
     ! c) restricting again to the box desired 
-    !--------------------------------------------------------------------
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Also initialized:
+    !  *) Diagonal matrix elements of <h>
+    ! 
+    ! Not initialized here:
+    !  *) Delta for the gaps. Since this module can not know what kind of 
+    !     pairing is needed, it cannot correctly guess a structure. 
+    !---------------------------------------------------------------------------
     
     real(KIND=dp)             :: homegax, homegay,homegaz, alpha,qqq
     !real(KIND=dp),allocatable :: fullbox(:,:,:)
@@ -111,13 +119,14 @@ contains
     homegax  = alpha*qqq**(-2*cos(-2*pi/3)/3)
     homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
     
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
     call nilsson (HFPsi,kparz,spenergies,6,5,nwt,nwp,nwn,                      &
     &           floor(neutrons),floor(protons),nx,ny,nz,dx,0.2d0,0.2d0,0.2d0)
     allocate(dispersions(nwt))
     allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! b) blow-up into the full box
 !    allocate(fullbox(2*nx, 2*ny, 2*nz, 4, nwt))
 !    do wave=1,nwt
@@ -193,7 +202,7 @@ contains
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
 
-    ! Simply because I mistrust the nilsson routine
+    ! Simply because I distrust the nilsson routine
     call GramSchmidt
     
   end subroutine iniwavefunctions
@@ -228,45 +237,6 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
         enddo
     enddo
   end subroutine DeriveAll
-  
-  subroutine PrintSpwfs
-    !---------------------------------------------------------------------------
-    ! Print the info on the single-particle wave-functions in the HFBasis.
-    !---------------------------------------------------------------------------
-    
-    10 format (21 ('-'), ' Sp wavefunctions ', 41('-'))
-    20 format (90 ('-'))
-    30 format (90 ('_'),/,3x , 'Neutron wavefunctions')
-    40 format (90 ('_'),/,3x , 'Proton  wavefunctions')
-    50 format (90 ('_'),/,3x , 'HF Basis')
-    
-    11 format (i3, 3x, f7.4, 3x, f10.3, 3x, e10.3 )
-
-    integer       :: wave,k
-    integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
-
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Order the spwfs according to growing energy
-    ProtonOrder = OrderSpwfsISO(+1)
-    NeutronOrder= OrderSpwfsISO(-1)
-    
-    print 10
-    print 50
-    print 30
-    print 10
-    do k=1,nwn 
-        wave = NeutronOrder(k)
-        print 11, wave, occupations(wave), spenergies(wave), dispersions(wave)
-    enddo
-    
-    print 40  
-    print 10
-    do k=1,nwp
-        wave = ProtonOrder(k)
-        print 11, wave, occupations(wave), spenergies(wave),  dispersions(wave)
-    enddo
-    print 20
-  end subroutine PrintSpwfs
   
   function OrderSpwfsISO(Isospin) result(Indices)
     !---------------------------------------------------------------------------

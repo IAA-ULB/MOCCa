@@ -48,12 +48,11 @@ contains
   !
   ! |----
   ! | Do until the Fermi energy is stationary
-  ! |   1) Determine the pairing gaps Delta_{ij} using the pairing fields.
-  ! |      from the fields module.
-  ! |   2) Calculate the BCS quasiparticle energies with those gaps
-  ! |   3) Calculate the Fermi energy with closed formula
+  ! |   1) Calculate the BCS quasiparticle energies
+  ! |        using the matrix elements of h and delta already calculated!
+  ! |   2) Calculate the Fermi energy with closed formula
   ! |----
-  !     4) Calculate the entries in rho_pairing and kappa_pairing
+  !     3) Calculate the entries in rho_pairing and kappa_pairing
   !-----------------------------------------------------------------------------
   real(KIND=dp), intent(inout) :: fermi(2)
   real(KIND=dp), intent(inout) :: rho_pairing(nwt,nwt), kappa_pairing(nwt,nwt)
@@ -67,24 +66,23 @@ contains
     &        ' Old Fermi:    ', 2f12.7,/,                   &
     &        ' New Fermi:    ', 2f12.7,/,                   &
     &        '---------------------------------------')
-  
-  do iter =1, maxBCSiter
-    
-    call ComputePairingCutoffs(fermi)
-    
-    oldfermi = fermi
 
-    call calcBCSGaps()
+  do iter =1, maxBCSiter
+    oldfermi = fermi
     call BCSQPEnergies(Fermi)
     call BCSFindFermiEnergy(Fermi)
+
     ! Check for convergence
-    
     if( all(abs(fermi - oldfermi).lt.FermiPrec)) then
       exit
     elseif(iter.eq.maxBCSiter) then
       print 1, iter, oldfermi, fermi
     endif          
   enddo
+  
+  ! Compute the cutoffs: this is not needed at this point, but it is needed 
+  ! for the calculation of the pairdensities afterwards
+  call ComputePairingCutoffs(fermi)
   
   call calcBCSoccupations(Fermi)
   !-----------------------------------------------------------------------------
@@ -98,24 +96,27 @@ contains
   ! Kappa is in its canonical form for a BCS calculation.
   ! However, we are not storing the time-reversed partners in this case, so
   ! put the matrix elements (i,ibar) on the diagonal anyway.
+  !
+  ! u * v  = 0.5 * Delta/(sqrt(epsilon**2 + Delta**2))
+  !
   kappa_pairing = 0.0
   do wave=1,nwt
-    kappa_pairing(wave,wave) = BCSgaps(wave)/(BCSqps(wave))
+    kappa_pairing(wave,wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave))
   enddo
 
  end subroutine solvepairing_BCS
  
- subroutine CalcBCSGaps()
+ subroutine CalcBCSGaps(fermi)
     !---------------------------------------------------------------------------
     ! Calculate the BCS pairing gaps.
     ! Currently only does constant gap. 
     !---------------------------------------------------------------------------
     integer                      :: wave, iso
     real(KIND=dp)                :: deltapsi(mv,4)
-
-    if(.not.allocated(BCSGaps)) then
-        allocate(BCSGaps(nwt)) ; BCSGaps = 0.0
-    endif
+    real(KIND=dp), intent(in)    :: fermi(2)
+    
+    ! Compute the cutoffs
+    call ComputePairingCutoffs(fermi)
 
     if(ConstantGap) then  
       ! Constantgap pairing
@@ -139,9 +140,10 @@ contains
             &                          hfdddpsi(:,:,:,wave),                   &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
  
- 
             BCSgaps(wave) = sum(hfpsi(:,:,wave)*deltapsi)*dv * Pcutoffs(wave)**2
-       enddo   
+            
+            print *, 'GAPS', BCSgaps(wave), BCSgaps(wave)/2
+       enddo
     endif
 
   end subroutine CalcBCSGaps

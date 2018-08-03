@@ -89,6 +89,9 @@ def preprocess(fname, src, target):
     if(fname=='pairingcutoffs.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='printing.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='densities.f90'):
         ProcessDensities(fname, src, target)
         return

@@ -98,7 +98,6 @@ contains
     call calcedfcoefs()
 
     ! Put the pairing routines pointers to the action of Delta
-    print *, 'Associating'
     delta_action_BCS => delta_action
 
  end subroutine readfunctional
@@ -335,7 +334,10 @@ $CALCFIELDS
       update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,+1,+1)
       F_I_I =  F_I_I_hist + update
     endif
-        
+    
+    do i=1,nx
+      print *, 'FIELDS', FP_I_I(i,1)
+    enddo  
   end subroutine calcFields 
   
   function sphamil(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &

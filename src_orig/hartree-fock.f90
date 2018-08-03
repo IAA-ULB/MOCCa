@@ -63,5 +63,13 @@ contains
     enddo
     return
   end subroutine NaiveFill
+  
+  subroutine CalcHFgaps(Fermi)
+    !---------------------------------------------------------------------------
+    ! Dummy routine.
+    !
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: Fermi(2)  
+  end subroutine calcHFgaps
 
 end module hartreefock
