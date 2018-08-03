@@ -115,7 +115,6 @@ contains
     real(KIND=dp)                :: deltapsi(mv,4)
     real(KIND=dp), intent(in)    :: fermi(2)
     
-    ! Compute the cutoffs
     call ComputePairingCutoffs(fermi)
 
     if(ConstantGap) then  
