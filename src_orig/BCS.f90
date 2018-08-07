@@ -139,9 +139,7 @@ contains
             &                          hfdddpsi(:,:,:,wave),                   &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
  
-            BCSgaps(wave) = sum(hfpsi(:,:,wave)*deltapsi)*dv * Pcutoffs(wave)**2
-            
-            print *, 'GAPS', BCSgaps(wave), BCSgaps(wave)/2
+            BCSgaps(wave) = 0.5*sum(hfpsi(:,:,wave)*deltapsi)*dv * Pcutoffs(wave)**2
        enddo
     endif
 
@@ -208,7 +206,7 @@ contains
    ! Find the occupation numbers of the HFBasis from the quasiparticle energies
    ! and the Fermi energies.
    !
-   ! v^2_k = 0.5 * 1 - (Epsilon - Lambda)/(E_{qp})
+   ! v^2_k = 0.5 * (1 - (Epsilon - Lambda)/(E_{qp}))
    !
    ! or formula (6.51) on page 231 in Ring & Schuck.
    !----------------------------------------------------------------------------
@@ -225,9 +223,11 @@ contains
         if(wave .gt. nwn) it = 2
         
         eqp = BCSqps(wave)
-        !There is already an intrinsic factor two here due to Time-reversal
-        BCSOccupations(wave) = (1 - (spenergies(wave) - Fermi(it))/eqp)
+        BCSOccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
     enddo
+
+    ! Time reversal symmetry
+    BCSOccupations = 2 *BCSOccupations
 
    end subroutine calcBCSOccupations
 

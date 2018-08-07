@@ -119,7 +119,6 @@ $EXPRESSION
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! PAIRING DENSITIES
-    
     if(PairingType.ne. 0) then
         ! Make sure the cutoffs are calculated
         do wave=1,nwt
@@ -128,10 +127,8 @@ $EXPRESSION
             if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
             
             ! For ordinary densities
-            ! Currenlty only suitable for BCS pairing with T conserved
-            !
-            ! Factor of two is for the time-reversed pair as well
-            weight  = 0.5*kappa_pairing(wave,wave) * Pcutoffs(wave)**2
+            ! Currently only suitable for BCS pairing with T conserved
+            weight  = kappa_pairing(wave,wave) * Pcutoffs(wave)**2
            
             do i=1,mv
     $PAIREXPRESSION

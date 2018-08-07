@@ -670,10 +670,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     calccoef  = calc_coef_template.substitute(dic)
     printcoef = print_cpl_template.substitute(dic)    
     
-    if('P' not in term): 
-      sumtotal  = sumtotal_template.substitute(dic)
-    else:
-      sumtotal = ''
+    sumtotal  = sumtotal_template.substitute(dic)
     
     # Getting the contribution to the rearrangement energy
     # Two-body, non-density dependent terms don't have rearrangement terms.
