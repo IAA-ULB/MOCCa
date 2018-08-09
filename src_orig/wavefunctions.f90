@@ -37,11 +37,18 @@ module wavefunctions
  ! 1st order: Dx   Dy   Dz
  ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
  ! 3rd order: Dxxx Dxxy Dxxz Dxyy Dxyz Dxzz Dyyy Dyyz Dyzz Dzzz
-
- real(KIND=dp), allocatable ::      HFPsi(:,:,:)
- real(KIND=dp), allocatable ::   HFdPsi(:,:,:,:) ! First order derivatives
- real(KIND=dp), allocatable ::  HFddPsi(:,:,:,:) ! Second order derivatives
- real(KIND=dp), allocatable :: HFdddPsi(:,:,:,:) ! Third order derivatives
+ real(KIND=dp), allocatable, target ::      HFPsi(:,:,:)
+ real(KIND=dp), allocatable, target ::   HFdPsi(:,:,:,:)!First order derivatives
+ real(KIND=dp), allocatable, target ::  HFddPsi(:,:,:,:)!Second order derivatives
+ real(KIND=dp), allocatable, target :: HFdddPsi(:,:,:,:)!Third order derivatives
+ 
+ !------------------------------------------------------------------------------
+ ! Array containing the values of the spwfs in the Canonical basis
+ ! and their derivatives.
+ real(KIND=dp), allocatable, target ::     CANPsi(:,:,:)
+ real(KIND=dp), allocatable, target ::  CANdPsi(:,:,:,:)!First order derivatives
+ real(KIND=dp), allocatable, target ::CANddPsi(:,:,:,:)!Second order derivatives
+ real(KIND=dp), allocatable, target ::CANdddPsi(:,:,:,:)!Third order derivatives
  !------------------------------------------------------------------------------
  ! Density matrix rho and anomalous density matrix kappa
  ! Dimensions (nwt, nwt) (although many are zero when symmetries are conserved)
@@ -209,7 +216,9 @@ contains
   
   subroutine deriveall()
     !---------------------------------------------------------------------------
-    ! Derives all of the single-particle wave-functions. (For now in the HFbasis)
+    ! Derives all of the single-particle wave-functions. 
+    ! a) In the HF basis
+    ! b) In the canonical basis
     !---------------------------------------------------------------------------
     integer :: wave,k
     
@@ -217,8 +226,21 @@ contains
         allocate(HFdPsi(nx*ny*nz,3,4,nwt))
         allocate(HFddPsi(nx*ny*nz,6,4,nwt))
     endif
+    
+    if(allocated(CanPsi)) then
+      if(.not.allocated(CANdPsi)) then
+          allocate( CANdPsi(nx*ny*nz,3,4,nwt))
+          allocate(CANddPsi(nx*ny*nz,6,4,nwt))
+      endif
+    endif
+    
 $N3    if(.not.allocated(HFdddpsi)) then
 $N3        allocate(HFdddPsi(nx*ny*nz,10,4,nwt))
+$N3    endif
+$N3    if(allocated(CanPsi)) then
+$N3       if(.not.allocated(CANdddpsi)) then
+$N3         llocate(CandddPsi(nx*ny*nz,10,4,nwt))
+$N3       endif
 $N3    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Currently EV8 symmetries are hardcoded.
@@ -236,6 +258,24 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
 
         enddo
     enddo
+    
+    if(allocated(CanPsi)) then
+      do wave=1,nwt
+        do k=1,4
+
+$N2        call Derive_tot(CANPsi(:,k,wave), sx(k,wave),sy(k,wave), sz(k,wave),&
+$N2        &                                           CANdPsi(:,:,k,wave),    &
+$N2        &                                           CANddPsi(:,:,k,wave))
+
+$N3        call Derive_tot(CANPsi(:,k,wave), sx(k,wave),sy(k,wave), sz(k,wave),&
+$N3        &                                           CANdPsi(:,:,k,wave),    &
+$N3        &                                           CANddPsi(:,:,k,wave),   &
+$N3        &                                           CANdddPsi(:,:,k,wave))
+
+        enddo
+      enddo
+    endif
+    
   end subroutine DeriveAll
   
   function OrderSpwfsISO(Isospin) result(Indices)

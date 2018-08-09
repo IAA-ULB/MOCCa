@@ -36,6 +36,7 @@ module pairing
  use wavefunctions
  use hartreefock
  use BCS
+ use HFB
  use pairingcutoffs
   
  implicit none
@@ -43,6 +44,9 @@ module pairing
  !------------------------------------------------------------------------------
  ! Pairing density matrix and anomalous density matrix in the HF basis. 
  real(KIND=dp), allocatable :: rho_pairing(:,:), kappa_pairing(:,:)
+ real(KIND=dp), allocatable :: rho_can(:), kappa_can(:)
+ ! Transformation from the HFBasis into the canonical basis
+ real(KIND=dp), allocatable :: CanTransfo(:,:)
  !------------------------------------------------------------------------------
  ! Fermi energy for neutrons and protons.
  real(KIND=dp) :: FermiEnergy(2) 
@@ -79,10 +83,13 @@ contains
       pairingtype = 0
     elseif('BCS' .eq. adjustl(type)) then
       pairingtype = 1
+    elseif('HFB' .eq. adjustl(type)) then
+      pairingtype = 2
     else
       print *, 'This type of pairing is not implemented yet.'
     endif
     
+    !---------------------------------------------------------------------------
     ! Cutoff decision
     select case(CutType)
     case(1)
@@ -90,16 +97,18 @@ contains
     case(2)
        PairingCutoff => CosineCut
     end select
-    
-    ! Gap-calculation decision
+    !---------------------------------------------------------------------------
     select case(PairingType)
     case(0)
       CalcGaps => calcHFgaps
     case(1)
       CalcGaps => calcBCSgaps
     case(2)
-      stop
+      !
     end select
+    !---------------------------------------------------------------------------
+    ! 
+    
     
   end subroutine initpairing
   
@@ -109,24 +118,45 @@ contains
     !
     !
     !---------------------------------------------------------------------------
-    integer :: wave
+    integer :: wave, wave2, si, B, N
     
     select case (PairingType)
     case(0)
+      !-------------------------------------------------------------------------
       ! Nothing to do for HF calculations
       return
     case(1)
+      !-------------------------------------------------------------------------
       !BCS Calculation
       if(.not.allocated(BCSGaps)) then
         allocate(BCSGaps(nwt)) ; BCSGaps = 0.0
       endif
-      ! Simply put 2.0 with a correct cutoff
+      ! Simply put 1.0 
       do wave=1,nwt
         BCSgaps(wave) = 1.0 
       enddo
     case(2)
+      !-------------------------------------------------------------------------
       ! HFB calculations
-      stop
+      if(.not.allocated(HFBGaps)) then
+        ! Factor of 2 through time-reversal
+        allocate(HFBGaps(2*nwt,2*nwt)) ; HFBGaps = 0.0
+      endif
+
+      ! Determine the size of the HFB matrices
+      call initHFB()  
+      
+      si = 0 
+      do B= 1,4
+        N = HFBsizes(B)/2
+        do wave=si+1,si + N
+          do wave2=si+1+N, si+1+2*N
+            HFBgaps( wave, wave2) = 5.0
+            HFBgaps(wave2, wave)  =-5.0
+          enddo 
+        enddo
+        si = si + 2*N
+      enddo
     end select  
   end subroutine GuessGaps
   
@@ -137,9 +167,9 @@ contains
     integer :: wave
     
     if(.not.allocated(rho_pairing)) then
-      allocate(rho_pairing(nwt,nwt))     ; rho_pairing   = 0.0
-      allocate(kappa_pairing(nwt,nwt))   ; kappa_pairing = 0.0
-      allocate(occupations(nwt))         ; occupations   = 0.0
+      allocate(rho_pairing(2*nwt,2*nwt))     ; rho_pairing   = 0.0
+      allocate(kappa_pairing(2*nwt,2*nwt))   ; kappa_pairing = 0.0
+      allocate(occupations(nwt))             ; occupations   = 0.0
     endif
     
     select case (Pairingtype)
@@ -154,6 +184,23 @@ contains
       do wave=1,nwt
         occupations(wave) = rho_pairing(wave,wave)
       enddo 
+    case(2)
+      !-------------------------------------------------------------------------
+      ! HFB-type pairing
+      
+      if(.not.allocated(CanTransfo)) then
+        allocate(CanTransfo(2*nwt, 2*nwt)) ; CanTransfo = 0.0
+        allocate(rho_can(2*nwt))           ; rho_can    = 0.0
+        allocate(kappa_can(2*nwt))         ; kappa_can  = 0.0 
+      endif
+      
+      ! Find the Fermi energy
+      call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing)
+      
+      ! Find the transformation to the canonical basis
+      call Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can, cantransfo)
+      
+    
     end select
     
   end subroutine SolvePairing

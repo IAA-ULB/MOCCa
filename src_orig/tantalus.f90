@@ -111,12 +111,11 @@ subroutine ReachForWaterAndFood
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
+    ! Solve the pairing, with the current values of <h> and the pairing gaps.
+    call SolvePairing()
     
     ! Derive all the single-particle wavefunctions
     call deriveall()
-   
-    ! Solve the pairing, with the current values of <h> and the pairing gaps.
-    call SolvePairing()
    
     ! Calculate the initial densities.
     call densit(SaveRho=.false.)

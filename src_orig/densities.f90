@@ -67,7 +67,19 @@ $DECLARATION
     !---------------------------------------------------------------------------
     ! The amount of iterations to keep in memory for the density mixing
     integer           :: memory = 1
-
+    
+    !---------------------------------------------------------------------------
+    ! Pointer to which basis is supposed to be used to calculate the densities
+    ! Based on pairingtype
+    !  (0) HF  => use the HF basis
+    !  (1) BCS => use the HF basis
+    !  (2) HFB => Use the canonical basis
+    real(KIND=dp), pointer ::      DenPsi(:,:,:)
+    real(KIND=dp), pointer ::   DendPsi(:,:,:,:)
+    real(KIND=dp), pointer ::  DenddPsi(:,:,:,:)
+    real(KIND=dp), pointer :: DendddPsi(:,:,:,:)
+    !---------------------------------------------------------------------------
+    
 contains
 
 subroutine densit(SaveRho)
@@ -78,6 +90,16 @@ subroutine densit(SaveRho)
     integer      :: i, it, wave
     real(KIND=dp):: weight
     logical      :: SaveRho
+    
+    select case(PairingType)
+    case(0,1)
+      ! HF or BCS Calculation
+      DenPsi => HFPsi ; DenDPsi => HFDPsi ; DenddPsi => HFddPsi 
+      DendddPsi => HFdddpsi
+    case(2)
+      DenPsi => CanPsi ; DenDPsi => CanDPsi ; DenddPsi => CanddPsi 
+      DendddPsi => Candddpsi
+    end select
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
 $INITIALIZATION
@@ -119,7 +141,7 @@ $EXPRESSION
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! PAIRING DENSITIES
-    if(PairingType.ne. 0) then
+    if(PairingType.eq. 0) then
         ! Make sure the cutoffs are calculated
         do wave=1,nwt
             ! Isospin is neutron in the first half of blocks, proton in the rest

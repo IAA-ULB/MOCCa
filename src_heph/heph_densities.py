@@ -141,9 +141,9 @@ import itertools
 # 4 spaces for W.R., but I can imagine other people have different standards.
 tab           = '    '
 
-# Names of the arrays storing the single-particle wavefunctions in Tantalus.
-# Not automatically adapted yet, but easily changeable. 
-ArrayNames=['HFPsi', 'HFdPsi', 'HFddPsi', 'HFdddPsi']
+# Names of the arrays storing the single-particle states in Tantalus, from 
+# which the densities need to be calculated.
+ArrayNames=['DenPsi', 'DendPsi', 'DenddPsi', 'DendddPsi']
 
 #-------------------------------------------------------------------------------
 # Array containing all the different densities needed. Note that this contains 
