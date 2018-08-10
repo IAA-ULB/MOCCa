@@ -165,13 +165,14 @@ subroutine ReachForWaterAndFood
           
           ! Do an approximate projection on the feasible set
           call feasibleproject()
+
+          ! Solve the pairing problem.
+          call SolvePairing()
         endif
-        
+ 
         ! Restore all the different derivatives.
         call deriveall()
-        ! Solve the pairing problem.
-        call SolvePairing()
-        
+ 
         ! Update the densities
         if(projectpresent) then 
           call densit(SaveRho=.false.)
