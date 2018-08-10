@@ -41,8 +41,7 @@ module densities
 !===============================================================================
 use compilation
 use geninfo
-use wavefunctions, only: HFPsi, HFdPsi, HFddPsi, HFdddpsi
-use wavefunctions, only: occupations, HFBlocks, blocks
+use wavefunctions
 use pairing
 use derivatives 
 use preconditioning 
@@ -94,12 +93,14 @@ subroutine densit(SaveRho)
     select case(PairingType)
     case(0,1)
       ! HF or BCS Calculation
-      DenPsi => HFPsi ; DenDPsi => HFDPsi ; DenddPsi => HFddPsi 
-      DendddPsi => HFdddpsi
+      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
+      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
     case(2)
-      DenPsi => CanPsi ; DenDPsi => CanDPsi ; DenddPsi => CanddPsi 
-      DendddPsi => Candddpsi
+      ! HFB calculation
+      DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
+      DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
     end select
+    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
 $INITIALIZATION
@@ -132,16 +133,16 @@ $ZEROING
         if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
         
         ! For ordinary densities
-        weight  = occupations(wave) 
+        weight  = rho_can(wave) 
 
         do i=1,mv
 $EXPRESSION
         enddo
     enddo
-    
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! PAIRING DENSITIES
-    if(PairingType.eq. 0) then
+    if(PairingType.ne. 0) then
         ! Make sure the cutoffs are calculated
         do wave=1,nwt
             ! Isospin is neutron in the first half of blocks, proton in the rest
@@ -150,14 +151,13 @@ $EXPRESSION
             
             ! For ordinary densities
             ! Currently only suitable for BCS pairing with T conserved
-            weight  = kappa_pairing(wave,wave) * Pcutoffs(wave)**2
+            weight  = kappa_can(wave) * Pcutoffs(wave)**2
            
             do i=1,mv
     $PAIREXPRESSION
             enddo
         enddo
     endif
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! The asked for mixing+preconditioning scheme.
     call MassageDensity()

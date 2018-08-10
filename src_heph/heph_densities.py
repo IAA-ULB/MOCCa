@@ -168,8 +168,10 @@ derstring = 'Der'
 
 Den_template_1 = Template( \
                         2*tab+'$NAME(i$IND,it) = $NAME(i$IND,it) + $WEIGHT * (')
-Den_template_2 = Template( \
+Den_template_diag = Template( \
          tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,wave) * $RIGHTWF(i$RIND,$RCOMP,wave)')
+Den_template_nondiag = Template( \
+       tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,wave1) * $RIGHTWF(i$RIND,$RCOMP,wave2)')
 
 Ini_template   = Template(   tab+'if(.not.allocated($NAME)) then     \n' + \
                            2*tab+'allocate($NAME(mv$DIM,2)) \n'          + \
@@ -468,9 +470,6 @@ def GenDensityExpression(denin, derivative_combinations):
             dic['DIM']     = ',' + str(derind)  + dim  
         else:
             dic['DIM']     = dim
-#        for i in range(d):
-#            dic['TOTALIND']= dic['TOTALIND'] + ',:' 
-#            dic['DIM']     = dic['DIM']      + ',3' 
 
         Declaration    = Declaration    + '\n' + Dec_template.substitute(dic)
         Initialisation = Initialisation + '\n' + Ini_template.substitute(dic)
@@ -648,7 +647,7 @@ def GenDensityExpression(denin, derivative_combinations):
                 dic['LCOMP'] = str(int(abs( leftind[i,0])))
                 Expression = Expression +  \
                             '& \n               &' +  \
-                            Den_template_2.substitute(dic)
+                            Den_template_diag.substitute(dic)
         # Don't forget the closing bracket
         Expression = Expression +  ')\n'
         #----------------------------------------------------------------------- 

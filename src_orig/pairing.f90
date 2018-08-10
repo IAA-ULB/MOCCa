@@ -104,12 +104,10 @@ contains
     case(1)
       CalcGaps => calcBCSgaps
     case(2)
-      !
+      CalcGaps => calcHFBgaps
     end select
     !---------------------------------------------------------------------------
     ! 
-    
-    
   end subroutine initpairing
   
   subroutine GuessGaps()
@@ -145,17 +143,17 @@ contains
 
       ! Determine the size of the HFB matrices
       call initHFB()  
-      
+      HFBGaps = 0.0
       si = 0 
-      do B= 1,4
-        N = HFBsizes(B)/2
-        do wave=si+1,si + N
-          do wave2=si+1+N, si+1+2*N
-            HFBgaps( wave, wave2) = 5.0
-            HFBgaps(wave2, wave)  =-5.0
+      do B= 1,8
+        N = HFBlocks(B)
+        do wave=si+1,si+N
+          do wave2=wave+1,si+N
+            HFBgaps( wave, wave2) = 1.0
+            HFBgaps(wave2, wave)  =-1.0
           enddo 
         enddo
-        si = si + 2*N
+        si = si + N
       enddo
     end select  
   end subroutine GuessGaps
@@ -166,43 +164,42 @@ contains
     !---------------------------------------------------------------------------
     integer :: wave
     
-    if(.not.allocated(rho_pairing)) then
-      allocate(rho_pairing(2*nwt,2*nwt))     ; rho_pairing   = 0.0
-      allocate(kappa_pairing(2*nwt,2*nwt))   ; kappa_pairing = 0.0
-      allocate(occupations(nwt))             ; occupations   = 0.0
+    if(.not.allocated(rho_can)) then
+      allocate(rho_can(nwt))   ; rho_can    = 0.0
+      allocate(kappa_can(nwt)) ; kappa_can  = 0.0 
     endif
     
     select case (Pairingtype)
     case(0)
-      call NaiveFill()
+      call NaiveFill(rho_can)
     case(1)
       !-------------------------------------------------------------------------
       ! BCS-type pairing
       ! The diagonal elements of rho and kappa are only set. 
-      call solvepairing_BCS(FermiEnergy, rho_pairing, kappa_pairing)
-      ! The density matrices need not be changed, HFBasis = canonical basis.
-      do wave=1,nwt
-        occupations(wave) = rho_pairing(wave,wave)
-      enddo 
+      call solvepairing_BCS(FermiEnergy, rho_can, kappa_can)
+      
     case(2)
       !-------------------------------------------------------------------------
       ! HFB-type pairing
-      
       if(.not.allocated(CanTransfo)) then
-        allocate(CanTransfo(2*nwt, 2*nwt)) ; CanTransfo = 0.0
-        allocate(rho_can(2*nwt))           ; rho_can    = 0.0
-        allocate(kappa_can(2*nwt))         ; kappa_can  = 0.0 
+        ! Allocate the full matrices
+        allocate(CanTransfo(nwt, nwt))     ; CanTransfo    = 0.0
+        allocate(rho_pairing(nwt,nwt))     ; rho_pairing   = 0.0
+        allocate(kappa_pairing(nwt,nwt))   ; kappa_pairing = 0.0
       endif
-      
       ! Find the Fermi energy
       call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing)
       
       ! Find the transformation to the canonical basis
       call Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can, cantransfo)
       
-    
+      ! Apply this transformation
+      call ConstructCanonicalBasis(cantransfo, rho_can)
     end select
     
+    ! Compute the cutoffs
+    call ComputePairingCutoffs(fermienergy)
+
   end subroutine SolvePairing
   
   subroutine printpairing
@@ -250,7 +247,7 @@ contains
       do wave=1,nwt
           it = 1
           if(wave .gt. nwn) it =2
-          E(it) = E(it) - BCSgaps(wave)*Kappa_pairing(wave,wave)
+          E(it) = E(it) - BCSgaps(wave)*Kappa_can(wave)
       enddo
     case(2)
     

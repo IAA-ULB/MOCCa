@@ -42,7 +42,7 @@ module BCS
 
 contains
  
- subroutine solvepairing_BCS(fermi, rho_pairing, kappa_pairing)
+ subroutine solvepairing_BCS(fermi, rho_can, kappa_can)
   !-----------------------------------------------------------------------------
   ! Driver routine for the solving of the BCS equations.
   !
@@ -55,7 +55,8 @@ contains
   !     3) Calculate the entries in rho_pairing and kappa_pairing
   !-----------------------------------------------------------------------------
   real(KIND=dp), intent(inout) :: fermi(2)
-  real(KIND=dp), intent(inout) :: rho_pairing(nwt,nwt), kappa_pairing(nwt,nwt)
+  real(KIND=dp), intent(inout) :: rho_can(:)
+  real(KIND=dp), intent(inout) :: kappa_can(:)
   real(KIND=dp)                :: oldfermi(2)
   integer                      :: iter, wave
   
@@ -80,16 +81,13 @@ contains
     endif          
   enddo
   
-  ! Compute the cutoffs: this is not needed at this point, but it is needed 
-  ! for the calculation of the pairdensities afterwards
-  call ComputePairingCutoffs(fermi)
-  
   call calcBCSoccupations(Fermi)
+  
   !-----------------------------------------------------------------------------
   ! Rho_pairing is diagonal for a BCS calculation
-  rho_pairing = 0.0
+  rho_can = 0.0
   do wave=1,nwt
-    rho_pairing(wave,wave) = BCSoccupations(wave)
+    rho_can(wave) = BCSoccupations(wave)
   enddo
  
   !-----------------------------------------------------------------------------
@@ -99,24 +97,20 @@ contains
   !
   ! u * v  = 0.5 * Delta/(sqrt(epsilon**2 + Delta**2))
   !
-  kappa_pairing = 0.0
+  kappa_can = 0.0
   do wave=1,nwt
-    kappa_pairing(wave,wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave))
+    kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave))
   enddo
-
  end subroutine solvepairing_BCS
  
  subroutine CalcBCSGaps(fermi)
     !---------------------------------------------------------------------------
     ! Calculate the BCS pairing gaps.
-    ! Currently only does constant gap. 
     !---------------------------------------------------------------------------
     integer                      :: wave, iso
     real(KIND=dp)                :: deltapsi(mv,4)
     real(KIND=dp), intent(in)    :: fermi(2)
     
-    call ComputePairingCutoffs(fermi)
-
     if(ConstantGap) then  
       ! Constantgap pairing
       do wave=1,nwt
@@ -143,7 +137,6 @@ contains
             &               Pcutoffs(wave)**2
        enddo
     endif
-
   end subroutine CalcBCSGaps
 
   subroutine BCSFindFermiEnergy (Fermi)

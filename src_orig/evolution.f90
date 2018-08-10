@@ -175,9 +175,9 @@ contains
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             dispersions(wave) = sum( hpsi(:,:)**2)  * dv   -spenergies(wave)**2          
 
-            gradientnorm = gradientnorm + occupations(wave) * &
+            gradientnorm = gradientnorm + rho_can(wave) * &
             & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
-            d2h          = d2h + occupations(wave)*dispersions(wave)
+            d2h          = d2h + rho_can(wave)*dispersions(wave)
 
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
             !hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    
@@ -245,9 +245,9 @@ contains
             !-------------------------------------------------------------------
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
-            d2h               = d2h + occupations(wave)*dispersions(wave)
+            d2h               = d2h + rho_can(wave)*dispersions(wave)
             
-            gradientnorm = gradientnorm + occupations(wave) * &
+            gradientnorm = gradientnorm + rho_can(wave) * &
             & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi)**2)*dv
             !-------------------------------------------------------------------
             ! Remove the part that is propagation in its own direction.
@@ -354,9 +354,9 @@ contains
       !         currently only for HF calculations.
       relE = 10000000
       do i=1,nwt
-        if(abs(occupations(i)).lt.0.5) cycle
+        if(abs(rho_can(i)).lt.0.5) cycle
         do ii=1,nwt
-            if(abs(occupations(ii)).gt.0.5) cycle
+            if(abs(rho_can(ii)).gt.0.5) cycle
             compare = spenergies(ii)  - spenergies(i) 
             if(compare .gt. 0.0) then
               relE = min(relE, compare)

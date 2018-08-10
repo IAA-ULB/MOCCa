@@ -24,7 +24,7 @@ module hartreefock
  
 contains
  
- subroutine NaiveFill()
+ subroutine NaiveFill(occupations)
     !---------------------------------------------------------------------------
     ! This subroutine finds the orbitals with the lowest single particle
     ! energy and fills them, after sorting all the levels.
@@ -32,6 +32,7 @@ contains
     
     integer :: i,j,n,p, ProtonUpperBound, NeutronUpperBound
     integer :: ProtonOrder(nwp), NeutronOrder(nwn)
+    real(KIND=dp), intent(out) :: occupations(2*nwt)
     
     n=0; p=0
     !---------------------------------------------------------------------------

@@ -54,15 +54,12 @@ module wavefunctions
  ! Dimensions (nwt, nwt) (although many are zero when symmetries are conserved)
  !real(KIND=dp), allocatable :: rho(:,:), kappa(:,:)
  !------------------------------------------------------------------------------
- ! Occupations of the single-particle wave-functions, i.e. the eigenvalues
- ! of rho. 
- real(KIND=dp), allocatable :: occupations(:)
- !------------------------------------------------------------------------------
  ! Single-particle energies, diagonal elements of the single-particle
  ! hamiltonian
  ! \langle psi_i | h | psi_i \rangle
  real(KIND=dp), allocatable :: spenergies(:) 
  real(KIND=dp), allocatable :: dispersions(:)
+ real(KIND=dp), allocatable :: canenergies(:)
  !------------------------------------------------------------------------------
  ! Number of the blocks with the same quantum numbers that divide up the 
  ! HFBasis. Any possibility has a maximum of two spatial operators that 

@@ -97,9 +97,11 @@ contains
     call readparameterization(name_param, func_name)
     call calcedfcoefs()
 
+    !---------------------------------------------------------------------------
     ! Put the pairing routines pointers to the action of Delta
     delta_action_BCS => delta_action
-
+    delta_action_HFB => delta_action
+    
  end subroutine readfunctional
  
  subroutine calcedfcoefs()
@@ -270,7 +272,7 @@ $PRINT
                        &    HFddPsi(i,6,k,wave))
                 enddo
         enddo
-        Kinetic(it)= Kinetic(it) + Occupations(wave)*Inproduct
+        Kinetic(it)= Kinetic(it) + rho_can(wave)*Inproduct
     enddo
     Kinetic=-Kinetic * hbm * dv
     return
@@ -338,10 +340,7 @@ $CALCFIELDS
       update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,+1,+1)
       F_I_I =  F_I_I_hist + update
     endif
-    
-    do i=1,nx
-      print *, 'FIELDS', FP_I_I(i,1)
-    enddo  
+ 
   end subroutine calcFields 
   
   function sphamil(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
@@ -469,7 +468,7 @@ $PAIRINGACTION
     ! Start by summing the single-particle energies
     spwfenergy = 0 ; e_rear = 0
     do wave=1,nwt
-        spwfenergy = spwfenergy + occupations(wave) * spenergies(wave)
+        spwfenergy = spwfenergy + rho_can(wave) * spenergies(wave)
     enddo
     
     ! Calculation of rearrangement energy (without Coulomb Exchange)

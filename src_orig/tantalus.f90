@@ -122,6 +122,8 @@ subroutine ReachForWaterAndFood
 
     call CalculateMoments()
     call calcFields()
+    
+    stop
     call CalcGaps(FermiEnergy)
     
     call CalcEnergy()
@@ -131,7 +133,7 @@ subroutine ReachForWaterAndFood
     call printallmoments
     call printpairing
     call PrintEnergy 
-
+  
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------

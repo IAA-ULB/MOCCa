@@ -19,7 +19,8 @@ contains
 
   subroutine PrintSpwfs
     !---------------------------------------------------------------------------
-    ! Print the info on the single-particle wave-functions in the HFBasis.
+    ! Print the info on the single-particle wave-functions in the HFBasis 
+    ! and in the canonical basis.
     !---------------------------------------------------------------------------
     
     10 format (21 ('-'), ' Sp wavefunctions ', 41('-'))
@@ -27,6 +28,7 @@ contains
     30 format (90 ('_'),/,3x , 'Neutron wavefunctions')
     40 format (90 ('_'),/,3x , 'Proton  wavefunctions')
     50 format (90 ('_'),/,3x , 'HF Basis')
+    60 format (90 ('_'),/,3x , 'CAN Basis')
     
     11 format (i3, 3x, f5.2, 3x, f7.4, 3x, f10.3, 3x, e10.3, 3x, f7.4)
 
@@ -35,6 +37,8 @@ contains
     real(KIND=dp) :: p
   
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! HFBasis
+  
     ! Order the spwfs according to growing energy
     ProtonOrder = OrderSpwfsISO(+1)
     NeutronOrder= OrderSpwfsISO(-1)
@@ -50,10 +54,13 @@ contains
         if(wave .gt. HFBlocks(1)) p = -1
         
         if(pairingtype.eq.1) then
-          print 11, wave, p, occupations(wave), spenergies(wave), &
+          print 11, wave, p, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), BCSgaps(wave)
+        elseif(pairingtype.eq.2) then
+          print 11, wave, p, rho_pairing(wave,wave), spenergies(wave), &
+          &               dispersions(wave), 0.0
         else
-          print 11, wave, p, occupations(wave), spenergies(wave), &
+          print 11, wave, p, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), 0.0
         endif
     enddo
@@ -67,14 +74,47 @@ contains
       if(wave .gt. sum(HFBlocks(1:5))) p = -1
         
         if(pairingtype.eq.1) then
-          print 11, wave, p, occupations(wave), spenergies(wave), &
+          print 11, wave, p, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), BCSgaps(wave)
+        elseif(pairingtype.eq.2) then
+          print 11, wave, p, rho_pairing(wave,wave), spenergies(wave), &
+          &               dispersions(wave), 0.0
         else
-          print 11, wave, p, occupations(wave), spenergies(wave), &
+          print 11, wave, p, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), 0.0
         endif
     enddo
     print 20
+    
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! CanBasis
+    if(PairingType.ne.2) return
+    
+    print 10
+    print 60
+    print 30
+    print 10
+    
+        do wave=1,nwn 
+        
+        if(wave .lt. HFBlocks(1)) p = +1
+        if(wave .gt. HFBlocks(1)) p = -1
+        
+        print 11, wave, p, rho_can(wave), canenergies(wave), &
+          &               0.0, 0.0
+    enddo
+    print 40  
+    print 10
+    do wave=1,nwp
+        
+      if(wave .lt. sum(HFBlocks(1:5))) p = +1
+      if(wave .gt. sum(HFBlocks(1:5))) p = -1
+        
+      print 11, wave, p, rho_can(wave), canenergies(wave), &
+      &               0.0, 0.0
+    enddo
+    print 20
+    
   end subroutine PrintSpwfs
   
 end module

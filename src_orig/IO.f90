@@ -194,11 +194,10 @@ contains
     ! First allocate the needed space
     allocate(HFPsi(filenx*fileny*filenz,4, filenwn+filenwp))
     
-    allocate(Occupations(filenwn+filenwp))
     allocate(spenergies(filenwn+filenwp))
     allocate(dispersions(filenwn+filenwp))
     
-    read(chan,iostat=io) occupations, spenergies, dispersions
+    read(chan,iostat=io) rho_can, spenergies, dispersions
     read(chan,iostat=io) HFPsi                              
     ! Densities                                                (NOT IMPLEMENTED)
     ! No idea yet on how to implement this, as the nature of the densities
@@ -300,7 +299,7 @@ contains
     ! HFBLocks information 
     write(Chan,iostat=io) nwn, nwp, hfblocks
     ! Wavefunctions  
-    write(chan,iostat=io) occupations, spenergies, dispersions
+    write(chan,iostat=io) rho_can, spenergies, dispersions
     write(chan,iostat=io) HFPsi                              
     ! Densities                                                (NOT IMPLEMENTED)
     ! No idea yet on how to implement this, as the nature of the densities
