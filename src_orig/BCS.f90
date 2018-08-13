@@ -26,7 +26,7 @@ module BCS
  
  !------------------------------------------------------------------------------
  real(KIND=dp) :: FermiPrec = 1d-9
- integer       :: maxBCSiter = 100
+ integer       :: maxBCSiter = 500
  logical       :: ConstantGap = .false.
  
  !------------------------------------------------------------------------------
@@ -72,6 +72,8 @@ contains
     oldfermi = fermi
     call BCSQPEnergies(Fermi)
     call BCSFindFermiEnergy(Fermi)
+    
+    print *, iter, Fermi
 
     ! Check for convergence
     if( all(abs(fermi - oldfermi).lt.FermiPrec)) then
@@ -136,6 +138,17 @@ contains
             BCSgaps(wave) = 0.5*sum(hfpsi(:,:,wave)*deltapsi)*dv * &
             &               Pcutoffs(wave)**2
        enddo
+       
+       
+           
+    print *
+    print *, 'HFB Gaps '    
+    print *
+    do wave=1,nwt
+        print ('(99f8.4)'), BCSGaps(wave)
+    enddo
+    print *
+    
     endif
   end subroutine CalcBCSGaps
 

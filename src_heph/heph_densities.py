@@ -15,7 +15,7 @@
 #-------------------------------------------------------------------------------
 #
 # The workhorse of this module is the function
-#   GenDensityExpression(LeftOperator, RightOperator, Der, Lap)
+#   GenDensityExpression
 #       
 # That, when given a left-operator, right-operator for the density
 # and which derivatives are needed of this density returns
@@ -169,7 +169,8 @@ derstring = 'Der'
 Den_template_1 = Template( \
                         2*tab+'$NAME(i$IND,it) = $NAME(i$IND,it) + $WEIGHT * (')
 Den_template_diag = Template( \
-         tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,wave) * $RIGHTWF(i$RIND,$RCOMP,wave)')
+            tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,$LEFTWAVE) * ' + \
+                '$RIGHTWF(i$RIND,$RCOMP,$RIGHTWAVE)')
 Den_template_nondiag = Template( \
        tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,wave1) * $RIGHTWF(i$RIND,$RCOMP,wave2)')
 
@@ -262,7 +263,8 @@ def ProcessDensities(fname, src, target):
     Declaration    = ''
     Initialisation = ''
     Derivation     = ''
-    PairExpression = ''
+    BCSExpression  = ''
+    HFBExpression  = ''
     Zeroing        = ''
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     print ' Generated densities                               '
@@ -276,14 +278,23 @@ def ProcessDensities(fname, src, target):
                                           OrderOfDen(den,contract=False)),  \
                                           deriv_needed[i]
 
+        # Summation with leftwf = rightwf
         (e,dec,ini,der,zeroi)  = GenDensityExpression(Densities_needed[i],     \
-                                                        deriv_needed[i])
+                                                deriv_needed[i], 'wave', 'wave')
         Declaration    = Declaration    + '\n' + dec
         
         if('P' in den): 
-          PairExpression = PairExpression + '\n' + e
+          # The BCS expression is diagonal in 'wave'
+          BCSExpression = BCSExpression + '\n' + e
+          # But we also need the HFB expression 
+          # So we recall the routine with different 'wave' indices
+          # This summation is blokwise, hence the 'si+'
+          (e,dec,ini,der,zeroi)  = GenDensityExpression(Densities_needed[i],   \
+                                         deriv_needed[i], 'si+wave2', 'si+wave')
+          HFBExpression = HFBExpression + '\n' + e
         else:
-          Expression     = Expression     + '\n' + e
+          Expression    = Expression     + '\n' + e
+          
         Initialisation = Initialisation + '\n' + ini
         Derivation     = Derivation     + '\n' + der
         Zeroing        = Zeroing        + '\n' + zeroi
@@ -293,7 +304,8 @@ def ProcessDensities(fname, src, target):
     dic['DECLARATION'   ] = Declaration
     dic['INITIALIZATION'] = Initialisation
     dic['EXPRESSION'    ] = Expression
-    dic['PAIREXPRESSION'] = PairExpression
+    dic['BCSEXPRESSION']  = BCSExpression
+    dic['HFBEXPRESSION']  = HFBExpression
     dic['DERIVATION'    ] = Derivation
     dic['ZEROING'       ] = Zeroing 
  
@@ -367,16 +379,20 @@ def ParseOperators(density):
 
     return(der, lap, left, right, coupling, cross)
 
-def GenDensityExpression(denin, derivative_combinations):
+def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
     #---------------------------------------------------------------------------
     # Generate the following strings 
     #       (Expression, Declaration, Initialisation, Derivation, Zeroing)
     #
     # to plug into FORTRAN source code, that takes care of everything regarding
     # that density.
-    # 
-    # Notice that we need to pass in the number of derivatives of the density
-    # that will be necessary afterwards.
+    # --------------------------------------------------------------------------
+    # *) Derivative_combinations
+    #    Declares the different external derivatives of that density that need
+    #    to be calculated by the code
+    #
+    # *) leftwave, rightwave
+    #    Strings indicating to the summation what the left and right spwf is.
     #---------------------------------------------------------------------------
    
     #---------------------------------------------------------------------------
@@ -413,9 +429,11 @@ def GenDensityExpression(denin, derivative_combinations):
     dic= {}
     dic['NAME']    = density
     
-    dic['LEFTWF']  = ArrayNames[ LeftOperator.derorder]
-    dic['RIGHTWF'] = ArrayNames[RightOperator.derorder]
-    dic['WEIGHT']  = 'weight'  # For now defined in the FORTRAN code
+    dic['LEFTWF']    = ArrayNames[ LeftOperator.derorder]
+    dic['RIGHTWF']   = ArrayNames[RightOperator.derorder]
+    dic['LEFTWAVE']  = leftwave
+    dic['RIGHTWAVE'] = rightwave
+    dic['WEIGHT']    = 'weight'            # For now defined in the FORTRAN code
       
     totalind= ''
     dim     = ''

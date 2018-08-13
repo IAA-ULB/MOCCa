@@ -45,8 +45,14 @@ module pairing
  ! Pairing density matrix and anomalous density matrix in the HF basis. 
  real(KIND=dp), allocatable :: rho_pairing(:,:), kappa_pairing(:,:)
  real(KIND=dp), allocatable :: rho_can(:), kappa_can(:)
+ ! History of the pairing matrices
+ real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
+ 
  ! Transformation from the HFBasis into the canonical basis
  real(KIND=dp), allocatable :: CanTransfo(:,:)
+ ! Transformation from the HFBasis into the basis where Kappa (with cutoffs)
+ ! is canonical.
+ real(KIND=dp), allocatable :: CanCutTransfo(:,:)
  !------------------------------------------------------------------------------
  ! Fermi energy for neutrons and protons.
  real(KIND=dp) :: FermiEnergy(2) 
@@ -64,6 +70,10 @@ module pairing
  !------------------------------------------------------------------------------
  ! Decide which module gets to calculate the pairing gaps.
  procedure(calcBCSgaps), pointer :: CalcGaps
+ 
+ !------------------------------------------------------------------------------
+ ! Mixing parameter for the HFB equations
+ real(KIND=dp) :: HFBMix = 1.0
  
 contains
 
@@ -148,10 +158,11 @@ contains
       do B= 1,8
         N = HFBlocks(B)
         do wave=si+1,si+N
-          do wave2=wave+1,si+N
-            HFBgaps( wave, wave2) = 1.0
-            HFBgaps(wave2, wave)  =-1.0
-          enddo 
+           HFBGaps(wave,wave) = 1.0
+!          do wave2=wave+1,si+N
+!            HFBgaps( wave, wave2) = 1.0
+!            HFBgaps(wave2, wave)  =-1.0
+!          enddo 
         enddo
         si = si + N
       enddo
@@ -177,24 +188,30 @@ contains
       ! BCS-type pairing
       ! The diagonal elements of rho and kappa are only set. 
       call solvepairing_BCS(FermiEnergy, rho_can, kappa_can)
-      
     case(2)
       !-------------------------------------------------------------------------
       ! HFB-type pairing
       if(.not.allocated(CanTransfo)) then
         ! Allocate the full matrices
         allocate(CanTransfo(nwt, nwt))     ; CanTransfo    = 0.0
+        allocate(CanCutTransfo(nwt, nwt))  ; CanCutTransfo = 0.0
         allocate(rho_pairing(nwt,nwt))     ; rho_pairing   = 0.0
         allocate(kappa_pairing(nwt,nwt))   ; kappa_pairing = 0.0
+        allocate(rho_history(nwt,nwt))     ; rho_history   = 0.0
+        allocate(kappa_history(nwt,nwt))   ; kappa_history = 0.0
       endif
+      
+      ! Save the previous configuration
+      rho_history   = rho_pairing
+      kappa_history = kappa_pairing
+      
       ! Find the Fermi energy
       call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing)
       
-      ! Find the transformation to the canonical basis
-      call Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can, cantransfo)
-      
-      ! Apply this transformation
-      call ConstructCanonicalBasis(cantransfo, rho_can)
+      if(.not.all(rho_history.eq.0.0)) then
+        rho_pairing   =  HFBmix * rho_pairing   + (1-HFBmix) * rho_history
+        kappa_pairing =  HFBmix * kappa_pairing + (1-HFBmix) * kappa_history
+      endif      
     end select
     
     ! Compute the cutoffs
@@ -224,7 +241,7 @@ contains
         ! BCS and HFB
         print 2
         print 3, FermiEnergy
-!        print 4, sum(D_I_I(:,1))*dv, sum(D_I_I(:,2))*dv
+        print 4, sum(rho_can(1:nwn)), sum(rho_can(nwn+1:nwt))
     end select
     print 7
   end subroutine PrintPairing
@@ -234,7 +251,7 @@ contains
     ! Calculate the pairingenergy
     !
     !---------------------------------------------------------------------------
-    integer       :: wave, it
+    integer       :: wave, it, wave2
     real(KIND=dp) :: E(2)
     
     E = 0.0
@@ -250,7 +267,14 @@ contains
           E(it) = E(it) - BCSgaps(wave)*Kappa_can(wave)
       enddo
     case(2)
-    
+      do wave=1,nwt
+        do wave2=wave,nwt
+          it = 1
+          if(wave .gt. nwn) it =2
+          ! Factor of two due to symmetricity
+          E(it) = E(it) + Kappa_pairing(wave2,wave)*HFBgaps(wave,wave2)
+        enddo
+      enddo
     end select
   end function calcpairingenergy
 

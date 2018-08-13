@@ -86,21 +86,10 @@ subroutine densit(SaveRho)
     ! Calculate all of the densities. 
     ! If SaveRho=.false., do not save the previous values to history!
     !---------------------------------------------------------------------------
-    integer      :: i, it, wave
+    integer      :: i, it, wave, wave2, B, N, si
     real(KIND=dp):: weight
     logical      :: SaveRho
-    
-    select case(PairingType)
-    case(0,1)
-      ! HF or BCS Calculation
-      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
-      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
-    case(2)
-      ! HFB calculation
-      DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
-      DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
-    end select
-    
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
 $INITIALIZATION
@@ -125,12 +114,41 @@ $INITIALIZATION
     ! Zero the current density
 $ZEROING
 
+    if(PairingType.eq.2) then
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Construct the transformations to 
+      ! a) Canonical basis, where rho_pairing is diagonal
+      ! b) Cut-canonical basis, where kappa_pairing with cutoffs is diagonal
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      call Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,           &
+      &               cantransfo,cancuttransfo)
+     
+      ! Apply this transformation
+      call ConstructCanonicalBasis(cantransfo)
+      call derivecan()
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Correctly set the pointers to the spwfs
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    select case(PairingType)
+    case(0,1)
+      ! HF or BCS Calculation
+      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
+      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
+    case(2)
+      ! HFB calculation
+      DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
+      DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
+    end select
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! PARTICLE-HOLE DENSITIES
     do wave=1,nwt
         ! Isospin is neutron in the first half of blocks, proton in the rest
         it = 2
-        if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
+        if(wave.le.nwn) it = 1
         
         ! For ordinary densities
         weight  = rho_can(wave) 
@@ -139,25 +157,76 @@ $ZEROING
 $EXPRESSION
         enddo
     enddo
+   
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Construct the basis where kappa (with cutoffs) is canonical 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! PAIRING DENSITIES
-    if(PairingType.ne. 0) then
-        ! Make sure the cutoffs are calculated
-        do wave=1,nwt
-            ! Isospin is neutron in the first half of blocks, proton in the rest
-            it = 2
-            if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
+    select case (PairingType) 
+    case(0)
+      !----------------------------------------
+      ! HF calculation, no need to get the gaps
+      !----------------------------------------
+    case(1)
+      !----------------------------------------------
+      ! BCS calculation, the sums are over i == ibar.
+      !----------------------------------------------
+      do wave=1,nwt
+          ! Isospin is neutron in the first half of blocks, proton in the rest
+          it = 2
+          if(wave.le.nwn) it = 1
+          weight  = kappa_can(wave) * Pcutoffs(wave)**2
+          print *, wave, weight
             
-            ! For ordinary densities
-            ! Currently only suitable for BCS pairing with T conserved
-            weight  = kappa_can(wave) * Pcutoffs(wave)**2
-           
+          do i=1,mv
+$BCSEXPRESSION
+          enddo
+      enddo
+    case(2)
+      !------------------------------------
+      ! HFB calculations: full summations.
+      !------------------------------------
+      
+      ! For now, sum the pairing densities in the HFbasis, not the canonical
+      ! basis.
+      DenPsi    => HFPsi   ; DenDPsi   => HFdPsi 
+      DenddPsi  => HFddPsi ; DendddPsi => HFdddpsi
+      
+      si = 0
+      do B=1,8
+        N = HFBlocks(B)
+        
+        it = 2
+        if( B.le. 4) it = 1
+        
+        
+        do wave=1,N
+          do wave2=wave,N      
+            !-------------------------------------------------------------------
+            ! Time-reversal implies an extra application of T.
+            !-------------------------------------------------------------------
+            ! Factor of 2 due to skew symmetry
+            weight  =    kappa_pairing(si+wave,si+wave2)*                     &
+            &                               Pcutoffs(si+wave)*Pcutoffs(si+wave2)
+            
+            
+            if(abs(weight) .gt. 1d-5) then
+              print *, si+wave, si+wave2, weight
+            endif
             do i=1,mv
-    $PAIREXPRESSION
+$HFBEXPRESSION
             enddo
+          enddo
         enddo
-    endif
+        si = si + N
+      enddo
+    end select
+
+!    print *, 'Densities'
+!    print ('(99f8.4)') , DP_I_I(1:nx,1)
+!    print ('(99f8.4)') , DP_I_I(1:nx,2)
+!    print *
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! The asked for mixing+preconditioning scheme.
     call MassageDensity()

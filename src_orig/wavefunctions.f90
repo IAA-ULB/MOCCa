@@ -211,10 +211,9 @@ contains
     
   end subroutine iniwavefunctions
   
-  subroutine deriveall()
+  subroutine deriveHF()
     !---------------------------------------------------------------------------
     ! Derives all of the single-particle wave-functions. 
-    ! a) In the HF basis
     ! b) In the canonical basis
     !---------------------------------------------------------------------------
     integer :: wave,k
@@ -224,21 +223,10 @@ contains
         allocate(HFddPsi(nx*ny*nz,6,4,nwt))
     endif
     
-    if(allocated(CanPsi)) then
-      if(.not.allocated(CANdPsi)) then
-          allocate( CANdPsi(nx*ny*nz,3,4,nwt))
-          allocate(CANddPsi(nx*ny*nz,6,4,nwt))
-      endif
-    endif
-    
 $N3    if(.not.allocated(HFdddpsi)) then
 $N3        allocate(HFdddPsi(nx*ny*nz,10,4,nwt))
 $N3    endif
-$N3    if(allocated(CanPsi)) then
-$N3       if(.not.allocated(CANdddpsi)) then
-$N3         llocate(CandddPsi(nx*ny*nz,10,4,nwt))
-$N3       endif
-$N3    endif
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Currently EV8 symmetries are hardcoded.
     do wave=1,nwt
@@ -255,7 +243,29 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
 
         enddo
     enddo
-    
+  end subroutine DeriveHF
+  
+  subroutine deriveCan()
+    !---------------------------------------------------------------------------
+    ! Derives all of the single-particle wave-functions. 
+    ! b) In the canonical basis
+    !---------------------------------------------------------------------------
+    integer :: wave,k
+      
+    if(allocated(CanPsi)) then
+      if(.not.allocated(CANdPsi)) then
+          allocate( CANdPsi(nx*ny*nz,3,4,nwt))
+          allocate(CANddPsi(nx*ny*nz,6,4,nwt))
+      endif
+    endif
+
+$N3    if(allocated(CanPsi)) then
+$N3       if(.not.allocated(CANdddpsi)) then
+$N3         llocate(CandddPsi(nx*ny*nz,10,4,nwt))
+$N3       endif
+$N3    endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Currently EV8 symmetries are hardcoded.
     if(allocated(CanPsi)) then
       do wave=1,nwt
         do k=1,4
@@ -273,7 +283,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       enddo
     endif
     
-  end subroutine DeriveAll
+  end subroutine DeriveCan
   
   function OrderSpwfsISO(Isospin) result(Indices)
     !---------------------------------------------------------------------------

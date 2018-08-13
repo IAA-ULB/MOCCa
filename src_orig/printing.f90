@@ -57,8 +57,8 @@ contains
           print 11, wave, p, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), BCSgaps(wave)
         elseif(pairingtype.eq.2) then
-          print 11, wave, p, rho_pairing(wave,wave), spenergies(wave), &
-          &               dispersions(wave), 0.0
+          print 11, wave, p,2* rho_pairing(wave,wave), spenergies(wave), &
+          &               dispersions(wave), maxval(abs(HFBgaps(wave,:)))
         else
           print 11, wave, p, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), 0.0
@@ -77,25 +77,25 @@ contains
           print 11, wave, p, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), BCSgaps(wave)
         elseif(pairingtype.eq.2) then
-          print 11, wave, p, rho_pairing(wave,wave), spenergies(wave), &
-          &               dispersions(wave), 0.0
+          print 11, wave, p, 2*rho_pairing(wave,wave), spenergies(wave), &
+          &               dispersions(wave), maxval(abs(HFBgaps(wave,:)))
         else
           print 11, wave, p, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), 0.0
         endif
     enddo
     print 20
+    if(PairingType.ne.2) return
     
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! CanBasis
-    if(PairingType.ne.2) return
     
     print 10
     print 60
     print 30
     print 10
     
-        do wave=1,nwn 
+    do wave=1,nwn 
         
         if(wave .lt. HFBlocks(1)) p = +1
         if(wave .gt. HFBlocks(1)) p = -1

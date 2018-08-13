@@ -81,7 +81,8 @@ contains
         !-----------------------------------------------------------------------
         use geninfo
 
-        namelist /evolution/ dt, maxiter, printiter, strategy, momentum
+        namelist /evolution/ dt, maxiter, printiter, strategy, momentum,       &
+        &                    estimateparams
 
         read(unit=*, nml=evolution)
         !-----------------------------------------------------------------------

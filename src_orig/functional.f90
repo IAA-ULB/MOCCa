@@ -255,6 +255,20 @@ $PRINT
     integer          :: wave, it,k,i
     real(KIND=dp)    :: Inproduct
     real(KIND=dp)    :: Kinetic(2)
+    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Correctly set the pointers to the spwfs
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    select case(PairingType)
+    case(0,1)
+      ! HF or BCS Calculation
+      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
+      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
+    case(2)
+      ! HFB calculation
+      DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
+      DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
+    end select
 
     ! Kinetic Energy
     Kinetic = 0.0_dp
@@ -266,10 +280,10 @@ $PRINT
         Inproduct = 0.0_dp
         do k=1,4          
                 do i=1,mv
-                       Inproduct = Inproduct + HFPsi(i,k,wave) *  & 
-                       &  ( HFddPsi(i,1,k,wave) + &
-                       &    HFddPsi(i,4,k,wave) + &
-                       &    HFddPsi(i,6,k,wave))
+                       Inproduct = Inproduct + DenPsi(i,k,wave) *  & 
+                       &  ( DenddPsi(i,1,k,wave) + &
+                       &    DenddPsi(i,4,k,wave) + &
+                       &    DenddPsi(i,6,k,wave))
                 enddo
         enddo
         Kinetic(it)= Kinetic(it) + rho_can(wave)*Inproduct
@@ -468,7 +482,11 @@ $PAIRINGACTION
     ! Start by summing the single-particle energies
     spwfenergy = 0 ; e_rear = 0
     do wave=1,nwt
-        spwfenergy = spwfenergy + rho_can(wave) * spenergies(wave)
+        if(pairingtype.lt.2) then
+          spwfenergy = spwfenergy + rho_can(wave) * spenergies(wave)
+        else
+          spwfenergy = spwfenergy + rho_can(wave) * canenergies(wave)
+        endif
     enddo
     
     ! Calculation of rearrangement energy (without Coulomb Exchange)

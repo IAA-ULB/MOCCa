@@ -115,17 +115,14 @@ subroutine ReachForWaterAndFood
     call SolvePairing()
     
     ! Derive all the single-particle wavefunctions
-    call deriveall()
+    call deriveHF()
    
     ! Calculate the initial densities.
     call densit(SaveRho=.false.)
 
     call CalculateMoments()
     call calcFields()
-    
-    stop
     call CalcGaps(FermiEnergy)
-    
     call CalcEnergy()
 
     ! Initial printout
@@ -143,7 +140,7 @@ subroutine ReachForWaterAndFood
         ! a) fields 
         ! b) density matrix and anomalous density matrix 
         ! c) Fermi-energy
-        call CalcGaps(FermiEnergy)
+        !call CalcGaps(FermiEnergy)
         
         ! One heavy-ball step.
         ! Note that the (diagonal) matrix elements of <h> get calculated here
@@ -171,7 +168,7 @@ subroutine ReachForWaterAndFood
         endif
  
         ! Restore all the different derivatives.
-        call deriveall()
+        call deriveHF()
  
         ! Update the densities
         if(projectpresent) then 

@@ -104,7 +104,6 @@ contains
   enddo
   
   df = 0.0
-  converged = .false.
   
   !-----------------------------------------------------------------------------
   ! Start iterations over the Fermi energy
@@ -160,6 +159,7 @@ contains
      
      print *, iter, particles, Fermi
 
+     converged = .false.
      if(abs(dn(1,1)) .lt. FermiPrec) then
       converged(1) = .true.
      endif
@@ -185,8 +185,8 @@ contains
        enddo
        ! Update
        do it=1,2
-        if(converged(it)) cycle            ! Do not iterate when close enough                         
-        Fermi(it) = Fermi(it) + df(it) 
+          if(converged(it)) cycle            ! Do not iterate when close enough                         
+          Fermi(it) = Fermi(it) + df(it) 
        enddo
      endif
      
@@ -243,7 +243,8 @@ contains
     
  end function ConstructHFBHamil
 
- subroutine Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can, transfo)
+ subroutine Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,          &
+ &                                                     rhotransfo, kappatransfo)
   !-----------------------------------------------------------------------------
   ! a) Diagonalize  Rho
   ! b) Canonicalize Kappa
@@ -254,20 +255,21 @@ contains
   real(KIND=dp), intent(in)  :: rho_pairing(nwt,nwt)
   real(KIND=dp), intent(in)  :: kappa_pairing(nwt,nwt)
   real(KIND=dp), intent(out) :: rho_can(nwt), kappa_can(nwt)
-  real(KIND=dp), intent(out) :: transfo(nwt,nwt)
+  real(KIND=dp), intent(out) :: rhotransfo(nwt,nwt), kappatransfo(nwt,nwt)
+  real(KIND=dp)              :: temptransfo(nwt,nwt)
   
-  real(KIND=dp) :: work(2*nwt)
+  real(KIND=dp) :: work(2*nwt), E, X(nwt), Y(nwt)
   real(KIND=dp), allocatable :: tmp(:,:), cpy(:)
   
-  integer :: si,N, B, i, sb
+  integer :: si,N, B, i, sb, j
   
   !-----------------------------------------------------------------------------
   ! a) Diagonalize rho
   !
   ! Transforms as rho'  = D^dagger rho D
   !-----------------------------------------------------------------------------
-  si      = 0
-  transfo = 0
+  si         = 0
+  rhotransfo = 0 ; kappatransfo = 0
   do B=1,4
     N =HFBsizes(B)
     
@@ -275,13 +277,9 @@ contains
     
     tmp = rho_pairing(si+1:si+N, si+1:si+N)
     
-    ! Diagonalize first part
-    call diagon(tmp,N,N,transfo(si+1:si+N,si+1:si+N),rho_can(si+1:si+N),work)
-    
-!    do i=1,N
-!          print ('(90f6.2)'), transfo(si+i,si+1:si+N)
-!    enddo
-!    print *
+    ! Diagonalize rho in this block
+    call diagon(tmp,N,N,rhotransfo(si+1:si+N,si+1:si+N),rho_can(si+1:si+N),work)
+
     si = si + N
     deallocate(tmp)
   enddo
@@ -289,68 +287,95 @@ contains
   ! Time-reversal
   rho_can = 2*rho_can
   
-  !-----------------------------------------------------------------------------
-  ! b) Bring kappa into canonical form
-  !
-  ! This is currently applying the cantransfo deduced from the diagonalisation
-  ! of rho for a mean-field calculation. 
-  !
-  ! When no antilinear, antihermitian symmetry is conserved, we need to take
-  ! out an additional phase here!
-  !
-  ! Transforms as kappa'  = D^dagger kappa D^*
-  !-----------------------------------------------------------------------------
-  si = 0
-  do B=1,4
-  
-    N = HFBsizes(B)
-    
-    allocate(tmp(N,N))
-    
-!    do i=1,N
-!      print ('(99f8.2)'), kappa_pairing(si+i, si+1:si+N)
-!    enddo
-!    print *
-
-    !---------------------------------------------------------------------------
-    ! We transform kappa**2, this is slightly easier to manipulate
-    tmp = matmul(kappa_pairing(si+1:si+N, si+1:si+N), &
-    &                                        kappa_pairing(si+1:si+N,si+1:si+N))
-    
-!    do i=1,N
-!      print ('(99f8.2)'), tmp(i,1:N)
-!    enddo
-!    print *
-    
-    ! Apply the transformation
-    tmp = matmul(tmp,transfo(si+1:si+N,si+1:si+N))
-    tmp = matmul(transpose(transfo(si+1:si+N,si+1:si+N)), tmp)
-
-    do i=1,N
-      kappa_can(si + i) = sqrt(abs(tmp(i,i)))
-    enddo
-    
-!    do i=1,N
-!      print ('(99f8.2)'), tmp(i,1:N)
-!    enddo
-!    print *
-!    print *, '-----------------------'
-
-    si = si + N
-    deallocate(tmp)
+  do i=1,nwt
+    if(rho_can(i).gt.2.0) rho_can(i) = 2.0
+    if(rho_can(i).lt.0.0) rho_can(i) = 0.0
   enddo
+  
+!  !-----------------------------------------------------------------------------
+!  ! b) Bring kappa (with cutoffs) into canonical form
+!  !
+!  ! Transforms as kappa'  = D^dagger kappa D^*
+!  !-----------------------------------------------------------------------------
+!  si = 0
+!  do B=1,4
+!  
+!    N = HFBsizes(B)
+!    
+!    allocate(tmp(N,N))
+!    
+!!    print *, 'Kappa'
+!!    do i=1,N
+!!      print ('(99f8.2)'), kappa_pairing(si+i, si+1:si+N)
+!!    enddo
+!!    print *
+
+!    !---------------------------------------------------------------------------
+!    ! Construct kappa with cutoffs in this block
+!    tmp = kappa_pairing(si+1:si+N, si+1:si+N) 
+!    do i=1,N
+!      do j=1,N
+!        tmp(i,j) = tmp(i,j) * Pcutoffs(si+i) * Pcutoffs(si+j)
+!      enddo
+!    enddo
+!    
+!    ! Lets diagonalize -(kappa)^2
+!    tmp = - matmul(tmp, tmp)
+!    call diagon(tmp,N,N,temptransfo(si+1:si+N,si+1:si+N),kappa_can(si+1:si+N), & 
+!    &                                                                      work)
+!    
+!    print *, 'kappa 2'
+!    print *, kappa_can(si+1:si+N)
+!    
+!!    do i=1,N
+!!        print ('(90f8.2)') , temptransfo(si+1:si+N,i)
+!!    enddo
+!!    stop
+!    
+!    ! Reconstruct kappa
+!    tmp = kappa_pairing(si+1:si+N, si+1:si+N) 
+!    do i=1,N
+!      do j=1,N
+!        tmp(i,j) = tmp(i,j) * Pcutoffs(si+i) * Pcutoffs(si+j)
+!      enddo
+!    enddo
+!    
+!    do i=1,N,2
+!      ! Every pair of eigenvalues K^2 
+!      E = sqrt(kappa_can(si+i))
+!      kappa_can(si+i)   =  E
+!      kappa_can(si+i+1) = -E
+!    
+!      X(1:N) = temptransfo(si+1:si+N, si+i) 
+!    
+!      kappatransfo(si+1:si+N, si+i)   =  X(1:N)
+!      Y(1:N) =                             matmul(tmp,X(1:N))
+!      kappatransfo(si+1:si+N, si+i+1) = Y(1:N)/sum(Y(1:N)**2)       
+!    enddo
+!    
+!    do i=1,N
+!        print ('(90f8.2)') , kappatransfo(si+1:si+N,i)
+!    enddo
+!    stop
+!    
+!    stop
+!    !---------------------------------------------------------------------------
+
+!    si = si + N
+!    deallocate(tmp)
+!  enddo
+!  print *, 'Canonical'
+!  stop
  end subroutine Canonical
  
- subroutine ConstructCanonicalBasis(Transfo, rho_can)
+ subroutine ConstructCanonicalBasis(Transfo)
   !-----------------------------------------------------------------------------
-  ! Construct the canonical basis, based on the passed-in value of the 
-  ! canonical transformation.
-  !
-  !
+  ! Transform the spwf wavefunctions in the HFBasis into Canbasis, with the 
+  ! passed in Transfo. 
   !-----------------------------------------------------------------------------
 
   integer                   :: wave1, wave2, B, N, si
-  real(KIND=dp), intent(in) :: Transfo(nwt,nwt), rho_can(nwt)
+  real(KIND=dp), intent(in) :: Transfo(nwt,nwt)
   
   if(.not.allocated(CanPsi)) then
     allocate(CanPsi(mv,4,nwt)) ; CanPsi      = 0.0
@@ -364,22 +389,19 @@ contains
     !---------------------------------------------------------------------------
     ! Apply the transformation in this symmetry block
     do wave1=1, N 
-!      print *, 'rho_can', rho_can(si+wave1)
-!      print *, 'E_sp', spenergies(si+1:si+N) 
-!      print *, 'transfo', Transfo(si+wave1, si+1:si+N)
       do wave2=1,N
         CanPsi(:,:,si+wave1)  = CanPsi(:,:,si+wave1) +                         &
         &                       Transfo(si+wave2,si+wave1) * HFPsi(:,:,si+wave2) 
         
-        Canenergies(si+wave1) = Canenergies(si+wave1) +                        &
-        &                   Transfo(si+wave2,si+wave1)**2 * spenergies(si+wave2) 
+        canenergies(si+wave1) = canenergies(si+wave1) +                        &
+        &               abs(Transfo(si+wave2,si+wave1)**2) *spenergies(si+wave2) 
       enddo 
-!      print *, 'canenergy', Canenergies(si+wave1)
-!      print *
     enddo
+    
     si = si +  N
+    !---------------------------------------------------------------------------
   enddo
-!  stop
+  
  end subroutine ConstructCanonicalBasis
 
  subroutine calcHFBgaps(Fermi)
@@ -396,25 +418,35 @@ contains
   !-----------------------------------------------------------------------------
   ! Use the delta_action to calculate the elements in the gaps
   si = 0
+  HFBgaps = 0
   do B=1,8
     N = HFBlocks(B)
     
     iso = 1
     if(B>4) iso = 2
   
-    do wave1=1,nwt
-      deltapsi = delta_action_HFB(  hfpsi(:,:,wave1)  ,                   &
-      &                            hfdpsi(:,:,:,wave1),                   &
-      &                           hfddpsi(:,:,:,wave1),                   &
-      &                          hfdddpsi(:,:,:,wave1),                   &
-      &              sx(:,wave1), sy(:,wave1), sz(:,wave1),iso,.false.)
+    do wave1=1,N
+      deltapsi = delta_action_HFB(  hfpsi(:,:,si+wave1)  ,                   &
+      &                            hfdpsi(:,:,:,si+wave1),                   &
+      &                           hfddpsi(:,:,:,si+wave1),                   &
+      &                          hfdddpsi(:,:,:,si+wave1),                   &
+      &              sx(:,si+wave1), sy(:,si+wave1), sz(:,si+wave1),iso,.false.)
       
-      do wave2=wave1+1,nwt
-
+      do wave2=wave1,N
         HFBgaps(si+wave2,si+wave1) = 0.5*sum(hfpsi(:,:,si+wave2)*deltapsi)*dv *&
         &                                  Pcutoffs(si+wave1)*Pcutoffs(si+wave2)
+        HFBgaps(si+wave1,si+wave2) = - HFBgaps(si+wave2,si+wave1)
       enddo
     enddo
+    
+    print *
+    print *, 'HFB Gaps '    
+    print *
+    do wave1=1,N
+        print ('(99f8.4)'), HFBGaps(si+wave1, si+1:si+N)
+    enddo
+    print *
+    
     si = si + N
   enddo
 
@@ -444,3 +476,79 @@ contains
  end function
 
 end module HFB
+
+
+!===============================================================================
+! CODE ZOO
+!===============================================================================
+!  si = 0
+!  do B=1,4
+!  
+!    N = HFBsizes(B)
+!    
+!    allocate(tmp(N,N))
+!    
+!    print *, 'Kappa'
+!    do i=1,N
+!      print ('(99f8.2)'), kappa_pairing(si+i, si+1:si+N)
+!    enddo
+!    print *
+
+!    !---------------------------------------------------------------------------
+!    ! We transform kappa**2, this is slightly easier to manipulate
+!    tmp = kappa_pairing(si+1:si+N, si+1:si+N) !matmul(kappa_pairing(si+1:si+N, si+1:si+N), &
+!    !&                                        kappa_pairing(si+1:si+N,si+1:si+N))
+!    
+!    ! Apply the transformation
+!    tmp = matmul(tmp,transfo(si+1:si+N,si+1:si+N))
+!    tmp = matmul(transpose(transfo(si+1:si+N,si+1:si+N)), tmp)
+
+!    print *
+!    print *, 'Transformed kappa'
+!    do i=1,N
+!      print ('(99f8.2)'), tmp(i, 1:N)
+!    enddo
+!    print *
+
+!!    do i=1,N
+!!      kappa_can(si + i) = sqrt(abs(tmp(i,i)))
+!!    enddo
+!!    print *, 'Canonical elements of kappa'
+!!    print *, kappa_can(si+1:si+N) 
+!!    print *
+
+!    ! Construct kappa with cutoffs
+!    tmp = kappa_pairing(si+1:si+N, si+1:si+N)
+!    do i=1,N
+!      do j=1,N
+!        tmp(i,j) = tmp(i,j) * Pcutoffs(si+i) * Pcutoffs(si+j)
+!      enddo
+!    enddo
+!    
+!    print *
+!    print *, 'Kappa with cutoffs'
+!    do i=1,N
+!      print ('(99f8.2)'), tmp(i, 1:N)
+!    enddo
+!    print *
+!    !---------------------------------------------------------------------------
+!    ! Apply the transformation
+!    tmp = matmul(tmp,transfo(si+1:si+N,si+1:si+N))
+!    tmp = matmul(transpose(transfo(si+1:si+N,si+1:si+N)), tmp)
+
+!    print *
+!    print *, 'Transformed kappa with cutoffs'
+!    do i=1,N
+!      print ('(99f8.2)'), tmp(i, 1:N)
+!    enddo
+!    print *
+!    print *, '-----------------------------------'
+
+
+!    si = si + N
+!    deallocate(tmp)
+!  enddo
+!  print *, 'Canonical'
+!  stop
+
+!
