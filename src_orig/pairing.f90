@@ -48,6 +48,7 @@ module pairing
  ! History of the pairing matrices
  real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
  
+ !------------------------------------------------------------------------------
  ! Transformation from the HFBasis into the canonical basis
  real(KIND=dp), allocatable :: CanTransfo(:,:)
  ! Transformation from the HFBasis into the basis where Kappa (with cutoffs)
@@ -57,7 +58,7 @@ module pairing
  ! Fermi energy for neutrons and protons.
  real(KIND=dp) :: FermiEnergy(2) 
  !------------------------------------------------------------------------------
- !
+ ! Particle number dispersion
  real(KIND=dp) :: Dispersion(2)
  !------------------------------------------------------------------------------
  ! Cutoff functions
@@ -213,9 +214,10 @@ contains
         kappa_pairing =  HFBmix * kappa_pairing + (1-HFBmix) * kappa_history
       endif      
     end select
-    
+    !---------------------------------------------------------------------------
     ! Compute the cutoffs
     call ComputePairingCutoffs(fermienergy)
+    !---------------------------------------------------------------------------
 
   end subroutine SolvePairing
   
@@ -258,7 +260,7 @@ contains
     
     select case(PairingType) 
     case(0)
-    
+      ! HF case
     case(1)
       ! BCS case
       do wave=1,nwt

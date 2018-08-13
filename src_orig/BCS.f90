@@ -73,8 +73,6 @@ contains
     call BCSQPEnergies(Fermi)
     call BCSFindFermiEnergy(Fermi)
     
-    print *, iter, Fermi
-
     ! Check for convergence
     if( all(abs(fermi - oldfermi).lt.FermiPrec)) then
       exit
@@ -135,20 +133,10 @@ contains
             &                          hfdddpsi(:,:,:,wave),                   &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
  
-            BCSgaps(wave) = 0.5*sum(hfpsi(:,:,wave)*deltapsi)*dv * &
-            &               Pcutoffs(wave)**2
+            ! Mystery factor 0.5 in  here
+            BCSgaps(wave) = 0.5*sum(hfpsi(:,:,wave)*deltapsi)*dv*              &
+            &                                                  Pcutoffs(wave)**2
        enddo
-       
-       
-           
-    print *
-    print *, 'HFB Gaps '    
-    print *
-    do wave=1,nwt
-        print ('(99f8.4)'), BCSGaps(wave)
-    enddo
-    print *
-    
     endif
   end subroutine CalcBCSGaps
 

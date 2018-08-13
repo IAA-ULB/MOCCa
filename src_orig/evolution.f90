@@ -176,10 +176,17 @@ contains
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             dispersions(wave) = sum( hpsi(:,:)**2)  * dv   -spenergies(wave)**2          
 
-            gradientnorm = gradientnorm + rho_can(wave) * &
-            & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
-            d2h          = d2h + rho_can(wave)*dispersions(wave)
-
+            select case(pairingtype)
+            case(0,1)
+              d2h          = d2h + rho_can(wave)*dispersions(wave)
+              gradientnorm = gradientnorm + rho_can(wave) *                    &
+              & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
+            case(2) 
+              d2h          = d2h + rho_pairing(wave,wave)*dispersions(wave)
+              gradientnorm = gradientnorm + rho_pairing(wave,wave) *           &
+              & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
+            end select
+              
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
             !hpsi =   Precon(hpsi, sx(:,wave), sy(:,wave), sz(:,wave), iso)    
 
@@ -246,10 +253,18 @@ contains
             !-------------------------------------------------------------------
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
-            d2h               = d2h + rho_can(wave)*dispersions(wave)
             
-            gradientnorm = gradientnorm + rho_can(wave) * &
-            & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi)**2)*dv
+            select case(pairingtype)
+            case(0,1)
+              d2h          = d2h + rho_can(wave)*dispersions(wave)
+              gradientnorm = gradientnorm + rho_can(wave) *                    &
+              & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
+            case(2) 
+              d2h          = d2h + rho_pairing(wave,wave)*dispersions(wave)
+              gradientnorm = gradientnorm + rho_pairing(wave,wave) *           &
+              & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
+            end select
+            
             !-------------------------------------------------------------------
             ! Remove the part that is propagation in its own direction.
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)

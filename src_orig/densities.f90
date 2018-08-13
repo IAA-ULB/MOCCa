@@ -177,7 +177,6 @@ $EXPRESSION
           it = 2
           if(wave.le.nwn) it = 1
           weight  = kappa_can(wave) * Pcutoffs(wave)**2
-          print *, wave, weight
             
           do i=1,mv
 $BCSEXPRESSION
@@ -210,10 +209,10 @@ $BCSEXPRESSION
             weight  =    kappa_pairing(si+wave,si+wave2)*                     &
             &                               Pcutoffs(si+wave)*Pcutoffs(si+wave2)
             
-            
-            if(abs(weight) .gt. 1d-5) then
-              print *, si+wave, si+wave2, weight
-            endif
+!            
+!            if(abs(weight) .gt. 1d-5) then
+!              print *, si+wave, si+wave2, weight
+!            endif
             do i=1,mv
 $HFBEXPRESSION
             enddo

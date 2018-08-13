@@ -140,7 +140,7 @@ subroutine ReachForWaterAndFood
         ! a) fields 
         ! b) density matrix and anomalous density matrix 
         ! c) Fermi-energy
-        !call CalcGaps(FermiEnergy)
+        call CalcGaps(FermiEnergy)
         
         ! One heavy-ball step.
         ! Note that the (diagonal) matrix elements of <h> get calculated here

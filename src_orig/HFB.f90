@@ -28,7 +28,7 @@ module HFB
   ! Gaps and quasiparticle energies
   real(KIND=dp), allocatable :: HFBGaps(:,:)
   real(KIND=dp), allocatable :: HFBqps(:)
-  
+  !-----------------------------------------------------------------------------
   ! Maximum amount of iterations for finding a Fermi energy
   integer :: maxHFBiter  = 100
   integer :: HFBsizes(4) = 0
@@ -422,8 +422,8 @@ contains
   do B=1,8
     N = HFBlocks(B)
     
-    iso = 1
-    if(B>4) iso = 2
+    iso = -1
+    if(B>4) iso = 1
   
     do wave1=1,N
       deltapsi = delta_action_HFB(  hfpsi(:,:,si+wave1)  ,                   &
@@ -432,21 +432,13 @@ contains
       &                          hfdddpsi(:,:,:,si+wave1),                   &
       &              sx(:,si+wave1), sy(:,si+wave1), sz(:,si+wave1),iso,.false.)
       
+      ! Mystery factor 0.5 in here
       do wave2=wave1,N
         HFBgaps(si+wave2,si+wave1) = 0.5*sum(hfpsi(:,:,si+wave2)*deltapsi)*dv *&
         &                                  Pcutoffs(si+wave1)*Pcutoffs(si+wave2)
         HFBgaps(si+wave1,si+wave2) = - HFBgaps(si+wave2,si+wave1)
       enddo
     enddo
-    
-    print *
-    print *, 'HFB Gaps '    
-    print *
-    do wave1=1,N
-        print ('(99f8.4)'), HFBGaps(si+wave1, si+1:si+N)
-    enddo
-    print *
-    
     si = si + N
   enddo
 
