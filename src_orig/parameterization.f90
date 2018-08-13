@@ -34,6 +34,7 @@ $PARAMDECL
     ! (1) perturbatively included
     ! (2) completely included
     integer       :: COM1body = 2
+    integer       :: COM2body = 0
     !------------------------------------------------------------------------------
     ! Temporary integer, whether or not coulomb is added
     integer, public :: coultreatment = 1

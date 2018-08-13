@@ -266,5 +266,104 @@ subroutine MassageDensity()
     ! Safeguard
     where(D_I_I.lt.1d-10) D_I_I = 0 
 end subroutine MassageDensity
+
+  function CompNablaMelements() result(NablaMelements)
+    !---------------------------------------------------------------------------
+    ! Computes the matrix elements of Nabla
+    !
+    !   < Psi_i | \nabla | \Psi_j >
+    !
+    ! Some notes:
+    ! 1) They are, in general, complex!
+    ! 2) Symmetries restrict them in weird ways:
+    !    Same p             => <Nx> = <Ny> = <Nz> = 0
+    !    Same signature     => <Nx> = <Ny> = 0
+    !    Different signature=> <Nz> = 0
+    !    Different isospin  => <Nx> = <Ny> = <Nz> = 0
+    ! 3) We must not forget the time-reversed states when time reversal is
+    !    conserved!
+    !---------------------------------------------------------------------------
+    ! IMPORTANT NOTE
+    !---------------------------------------------------------------------------
+    ! The symmetries under (i <=> j) have been simply set to 1 and not been 
+    ! checked. I implemented this lazily, since the 2-body COMcorrection
+    ! only depends on the matrix elements squared.
+    !---------------------------------------------------------------------------
+    ! Why do we need them?
+    !  1) Calculation of 2-body COM correction in Energy module.
+    !---------------------------------------------------------------------------
+    ! This is one of the most complicated routines in MOCCa, due to the
+    ! complications of the symmetries here. Any suggestions to make this
+    ! less complicated are absolutely welcome!
+    ! P.S. I nominate the subroutine pipj in CR8/EV8/EV4 as the place in the
+    ! respective codes that needs clarification the most, as several
+    ! transformation are totally implicit.
+    !---------------------------------------------------------------------------
+  
+    integer       :: si,i,j,k
+    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt), psi(mv,4)
+    real(KIND=dp) :: derx(mv,4), dery(mv,4), derz(mv,4)
+
+    !---------------------------------------------------------------------------
+    NablaMElements= 0.0_dp
+    
+    do i=1, HFBlocks(1)
+     do j=HFBlocks(1)+HFBlocks(2)+1, HFBlocks(1)+HFBlocks(2)+HFBlocks(3)
+      !-------------------------------------------------------------------------
+      ! Positive parity neutrons with s=+i
+      Derx  =  TimeReverse(DendPsi(:,1,:,j))
+      Dery  =  TimeReverse(DendPsi(:,1,:,j))
+      Derz  =  DendPsi(:,:,3,j)
+      !-------------------------------------------------------------------------
+      NablaMElements(1,1,i,j) = dv*                                            &
+      & sum(                     derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+      &                       +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+      NablaMElements(2,2,i,j) = dv*                                            &
+      & sum(                     dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)   &
+      &                       -  dery(:,4) * psi(:,3) + dery(:,3) * psi(:,4))
+      NablaMElements(3,1,i,j) = dv*                                            &
+      & sum(                     derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)   &
+      &                       +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+      !-------------------------------------------------------------------------     
+      ! Negative parity neutrons with s=+i can be obtained with symmetry
+      !--------------------------------!
+      ! THE SIGNS ARE MOST LIKELY WRONG!
+      !--------------------------------!
+      NablaMElements(1,1,j,i) = NablaMElements(1,1,i,j)
+      NablaMElements(2,2,j,i) = NablaMElements(2,2,i,j)
+      NablaMElements(3,1,j,i) = NablaMElements(3,1,i,j)
+     enddo
+    enddo
+
+    do i=sum(HFblocks(1:4))+1,sum(HFblocks(1:5))
+     ! Positive parity protons with s=+i
+     do j=sum(HFBlocks(1:6))+1,sum(HFblocks(1:6)) + HFBlocks(7)
+      Derx  =  TimeReverse(DendPsi(:,1,:,j))
+      Dery  =  TimeReverse(DendPsi(:,1,:,j))
+      Derz  =  DendPsi(:,:,3,j)
+      !-------------------------------------------------------------------------
+      NablaMElements(1,1,i,j) = dv*                                            &
+      & sum(                     derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+      &                        + derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+      NablaMElements(2,2,i,j) = dv*                                            &
+      & sum(                     dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)   &
+      &                        - dery(:,4) * psi(:,3) + dery(:,3) * psi(:,4))
+      NablaMElements(3,1,i,j) = dv*                                            &
+      & sum(                     derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)   &
+      &                        + derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+      !-------------------------------------------------------------------------     
+      ! Negative parity neutrons with s=+i can be obtained with symmetry
+      !--------------------------------!
+      ! THE SIGNS ARE MOST LIKELY WRONG!
+      !--------------------------------!
+      NablaMElements(1,1,j,i) = NablaMElements(1,1,i,j)
+      NablaMElements(2,2,j,i) = NablaMElements(2,1,i,j  )
+      NablaMElements(3,1,j,i) = NablaMElements(3,1,i,j)
+     enddo
+    enddo
+
+    !---------------------------------------------------------------------------
+  end function CompNablaMelements
+  
     
 end module densities

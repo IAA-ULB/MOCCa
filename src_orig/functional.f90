@@ -296,12 +296,39 @@ $PRINT
     !---------------------------------------------------------------------------
     ! M. Bender et al., Eur. Phys. J. A 7, 467-478 (2000)
     !---------------------------------------------------------------------------
+    integer       :: it, i,j
+    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt)
    
     COMCorrection = 0.0_dp
     if(COM1Body .gt. 0) then
       !Deduce 1-body COM correction from the Kinetic Energy
       COMCorrection(1,:) = - Kinetic(:) * nucleonmass/ &
       &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
+    endif
+    
+    if(COM2body .eq. 1) then
+      ! Calculate 2-body COMcorrection
+      NablaMElements = compNablaMelements()
+      
+      COMCorrection(2,:) = 0.0
+      ! We sum carelessly over all single-particle wavefunctions, since the
+      ! ones forbidden by symmetry are calculated as zero in the Spwfstorage
+      ! module.
+      do i=1,nwt
+        it = 1
+        if(i.gt.nwn) it = 2
+        do j=1,nwt
+            COMCorrection(2,it) = COMCorrection(2,it) +                        &
+            &         rho_can(i) * rho_can(j) *(sum(NablaMElements(i,j,:,:)**2))
+        enddo
+      enddo
+      !Some more constants
+      COMCorrection(2,:) = COMCorrection(2,:) * hbm * nucleonmass/ &
+      &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
+      ! Take out the extra factor 4 due to the occupation factors being double
+      ! what they should be.
+      COMCorrection(2,:) = 0.25 * COMCorrection(2,:)
+      
     endif
 
   end subroutine CompCOMCorrection

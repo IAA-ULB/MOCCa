@@ -378,7 +378,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       Indices(HolePos)  = ToInsertIndex
     enddo
   end function OrderSpwfsSym
-  
+
   subroutine GramSchmidt
     !---------------------------------------------------------------------------
     ! This subroutine uses a Gram-Schmidt scheme to orthonormalise the Spwfs in
@@ -433,5 +433,19 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     enddo
    
   end subroutine GramSchmidt
+  
+  function TimeReverse(psi) result(Tpsi)
+    !---------------------------------------------------------------------------
+    ! Perform a time-reversal on the input spinor.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: Psi(mv,4)
+    real(KIND=dp)             :: Tpsi(mv,4)
+    
+    TPsi(:,1) =   Psi(:,3)
+    TPsi(:,2) = - Psi(:,4)
+    TPsi(:,3) = - Psi(:,1)
+    TPsi(:,4) =   Psi(:,2)
+    
+  end function TimeReverse
   
 end module wavefunctions
