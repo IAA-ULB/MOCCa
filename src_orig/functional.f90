@@ -51,7 +51,7 @@ module functional
     ! Definition of global contributions to the energy
     real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
-    real(KIND=dp) :: PairingEnergy(2)
+    real(KIND=dp) :: PairingEnergy(2), PairDenEnergy(2)
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
@@ -156,6 +156,7 @@ $PRINTCOEF
     7 format (15x, ' Coulomb Direct:', 3f15.6)
     8 format (15x, '       Exchange:', 3f15.6)
     9 format (15x, 'Pairing (delta):', 3f15.6)
+   91 format (15x, 'Pairing (densi):', 3f15.6)
    99 format (15x, '   Total energy:', 30x, f15.6)
   100 format (15x, '     from spwfs:', 30x, f15.6)
 
@@ -168,9 +169,12 @@ $PRINTCOEF
 	if(any(COMcorrection(2,:).ne.0)) then
 		print 62, COMcorrection(2,:), sum(COMcorrection(2,:))
 	endif
+    print *
     print 7, 0.0, CoulombDirect, CoulombDirect
     print 8, 0.0, CoulombExchange, CoulombExchange
-    print 9, PairingEnergy, sum(PairingEnergy)
+    print *
+    print 9 , PairingEnergy, sum(PairingEnergy)
+    print 91, PairDenEnergy, sum(PairDenEnergy)
     print 1
     print  99, TotalE
     print 100, spwfenergy
@@ -220,6 +224,9 @@ $CALCULATION
     
     Skyrme = &
 $TOTAL
+
+    PairDenEnergy = &
+$TOTALPAIR
 
  end subroutine CompSkyrme
  

@@ -384,26 +384,32 @@ def ProcessFunctional(fname, src, target):
         calccoef    = ''
         printcoef   = ''
         sumtotal    = ''
+        pairtotal   = ''
         fieldcalc   = ''
         erear       = ''
         
         #-----------------------------------------------------------------------
         # Generate the terms in the functional
         for i in range(len(Functional_terms)): 
-                (d,c,p,cc, pc,st,er)  = GenTermExpression(Functional_terms[i], \
-                            [coupling_constants_0[i], coupling_constants_1[i]],\
-                                         density_dependence[i], DD_rearcoefs[i])
+            (d,c,p,cc, pc,st,pt,er)  = GenTermExpression(Functional_terms[i], \
+                        [coupling_constants_0[i], coupling_constants_1[i]],\
+                                     density_dependence[i], DD_rearcoefs[i])
 
-                declaration = declaration + d + '\n'
-                calculation = calculation + c + '\n'
-                printing    = printing    + p + '\n'
-                calccoef    = calccoef    + cc+ '\n'
-                printcoef   = printcoef   + pc+ '\n'
-                if(st != ''):
-                  sumtotal    = sumtotal    + st+ '&\n'
-                erear       = erear       + er
+            declaration = declaration + d + '\n'
+            calculation = calculation + c + '\n'
+            printing    = printing    + p + '\n'
+            calccoef    = calccoef    + cc+ '\n'
+            printcoef   = printcoef   + pc+ '\n'
+            sumtotal    = sumtotal    + st+ '&\n'
+            if('P' in Functional_terms[i]):    
+              pairtotal   = pairtotal   + pt+ '&\n'
+            erear       = erear       + er
 
-        sumtotal = rreplace(sumtotal, '&\n', '', 1)
+        sumtotal  = rreplace( sumtotal, '&\n', '', 1)
+        pairtotal = rreplace(pairtotal, '&\n', '', 1)
+
+        if(len(pairtotal) == 0):    
+            pairtotal = '0'
 
         #-----------------------------------------------------------------------
         # Generate the fields of the single-particle hamiltonian
@@ -468,6 +474,7 @@ def ProcessFunctional(fname, src, target):
         dic['CALCCOEF']       = calccoef   
         dic['PRINTCOEF']      = printcoef 
         dic['TOTAL']          = sumtotal
+        dic['TOTALPAIR']      = pairtotal
         dic['CALCFIELDS']     = fieldcalc
         dic['SKYRMEACTION']   = SkyrmeAction
         dic['PAIRINGACTION']  = PairingAction
@@ -516,6 +523,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     enddoloop_template =    tab + 'enddo \n'
    
     sumtotal_template  = Template( 2*tab + ' & + $TERM(:,1)')
+    pairtotal_template  = Template( 2*tab + ' & + $TERM(:,1)')
     
     calc_z_template = Template(   tab + 'Edensity = 0.0_dp \n')
     calc_a_template = Template(   tab + 'EDensity(:,3) = Edensity(:,3) + $EDENT\n')
@@ -671,6 +679,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     printcoef = print_cpl_template.substitute(dic)    
     
     sumtotal  = sumtotal_template.substitute(dic)
+    pairtotal = pairtotal_template.substitute(dic)
     
     # Getting the contribution to the rearrangement energy
     # Two-body, non-density dependent terms don't have rearrangement terms.
@@ -685,7 +694,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
         dic['REARCOEF'] = rearcoef
         erear = rear_template.substitute(dic)
         
-    return (declaration, calculation, printing, calccoef, printcoef, sumtotal, erear)
+    return (declaration, calculation, printing, calccoef, printcoef, sumtotal, pairtotal, erear)
     
     
 def rreplace(s, old, new, occurrence):

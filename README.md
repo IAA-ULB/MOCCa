@@ -33,7 +33,7 @@ Source code folders are
 Information on the various functionals are
 
 *  `functionals/` : Contains the definition of various forms of functionals (`.func` files), as input for Hephaestos.
-*  `parameterizations/` : Contains various parameterization file (`.param` files), each linked to a particular `.func` file.  
+*  `parameterizations/` : Contains various parameterization file (`.param` files), each linked to a particular `.func` file. 
 
 Auxiliary folders are
 
