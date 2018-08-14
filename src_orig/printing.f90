@@ -86,5 +86,38 @@ contains
     print 20
     if(PairingType.ne.2) return
   end subroutine PrintSpwfs
+
+  subroutine printqps
+    !---------------------------------------------------------------------------
+    ! Print all relevant info on quasiparticles.
+    !---------------------------------------------------------------------------
+    integer :: i, N, B, si
+    
+    1  format (33 ('-'), 'Quasiparticles',33('-'))
+    2  format (80 ('_'))
+    3  format ( i3, f7.2 )
+
+    11  format(80 ('-'))
+
+    print 1
+    
+    si = 0
+    do B=1,8
+        N = HFblocks(B)
+
+        if(N.eq.0) cycle
+        
+        print 2
+        print *, 'Block ', B
+        print 2
+        do i=1,N
+            print 3, i, QPenergies(si+i)
+        enddo
+        si = si + N
+    enddo
+    print 11
+
+
+  end subroutine printqps
   
 end module

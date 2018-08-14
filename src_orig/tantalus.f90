@@ -127,6 +127,7 @@ subroutine ReachForWaterAndFood
 
     ! Initial printout
     call printSpwfs
+    call printQps
     call printallmoments
     call printpairing
     call PrintEnergy 
@@ -191,6 +192,7 @@ subroutine ReachForWaterAndFood
         ! Decide between full or partial printout.
         if(mod(iter,PrintIter).eq.0) then
             call PrintSpwfs
+            call PrintQps
             call printallmoments
             call printpairing
             call PrintEnergy           

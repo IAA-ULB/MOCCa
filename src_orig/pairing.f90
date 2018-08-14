@@ -47,7 +47,10 @@ module pairing
  real(KIND=dp), allocatable :: rho_can(:), kappa_can(:)
  ! History of the pairing matrices
  real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
- 
+ !------------------------------------------------------------------------------
+ ! Quasiparticle excitation energies, either HF, BCS or HFB.
+ real(KIND=dp), allocatable :: QPenergies(:)
+
  !------------------------------------------------------------------------------
  ! Transformation from the HFBasis into the canonical basis
  real(KIND=dp), allocatable :: CanTransfo(:,:)
@@ -128,6 +131,8 @@ contains
     !
     !---------------------------------------------------------------------------
     integer :: wave, wave2, si, B, N
+
+    allocate(QPenergies(nwt))
     
     select case (PairingType)
     case(0)
@@ -159,11 +164,9 @@ contains
       do B= 1,8
         N = HFBlocks(B)
         do wave=si+1,si+N
-           HFBGaps(wave,wave) = 1.0
-!          do wave2=wave+1,si+N
-!            HFBgaps( wave, wave2) = 1.0
-!            HFBgaps(wave2, wave)  =-1.0
-!          enddo 
+          do wave2=si+1,si+N
+            HFBgaps( wave, wave2) = 1.0
+          enddo 
         enddo
         si = si + N
       enddo
@@ -188,7 +191,7 @@ contains
       !-------------------------------------------------------------------------
       ! BCS-type pairing
       ! The diagonal elements of rho and kappa are only set. 
-      call solvepairing_BCS(FermiEnergy, rho_can, kappa_can)
+      call solvepairing_BCS(FermiEnergy, rho_can, kappa_can, qpenergies)
 
     case(2)
       !-------------------------------------------------------------------------
@@ -208,7 +211,7 @@ contains
       kappa_history = kappa_pairing
       
       ! Find the Fermi energy
-      call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing)
+      call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing, qpenergies)
       
       if(.not.all(rho_history.eq.0.0)) then
         rho_pairing   =  HFBmix * rho_pairing   + (1-HFBmix) * rho_history
