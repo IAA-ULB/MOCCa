@@ -189,6 +189,7 @@ contains
       ! BCS-type pairing
       ! The diagonal elements of rho and kappa are only set. 
       call solvepairing_BCS(FermiEnergy, rho_can, kappa_can)
+
     case(2)
       !-------------------------------------------------------------------------
       ! HFB-type pairing
