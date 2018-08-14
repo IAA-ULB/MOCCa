@@ -19,8 +19,7 @@ contains
 
   subroutine PrintSpwfs
     !---------------------------------------------------------------------------
-    ! Print the info on the single-particle wave-functions in the HFBasis 
-    ! and in the canonical basis.
+    ! Print the info on the single-particle wave-functions in the HFBasis.
     !---------------------------------------------------------------------------
     
     10 format (21 ('-'), ' Sp wavefunctions ', 41('-'))
@@ -86,35 +85,6 @@ contains
     enddo
     print 20
     if(PairingType.ne.2) return
-    
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! CanBasis
-    
-    print 10
-    print 60
-    print 30
-    print 10
-    
-    do wave=1,nwn 
-        
-        if(wave .lt. HFBlocks(1)) p = +1
-        if(wave .gt. HFBlocks(1)) p = -1
-        
-        print 11, wave, p, rho_can(wave), canenergies(wave), &
-          &               0.0, 0.0
-    enddo
-    print 40  
-    print 10
-    do wave=1,nwp
-        
-      if(wave .lt. sum(HFBlocks(1:5))) p = +1
-      if(wave .gt. sum(HFBlocks(1:5))) p = -1
-        
-      print 11, wave, p, rho_can(wave), canenergies(wave), &
-      &               0.0, 0.0
-    enddo
-    print 20
-    
   end subroutine PrintSpwfs
   
 end module
