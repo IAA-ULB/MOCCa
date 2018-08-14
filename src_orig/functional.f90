@@ -152,6 +152,7 @@ $PRINTCOEF
     5 format (30x, '       neutron        proton         total')
     6 format (15x, ' Kinetic Energy:', 3f15.6)
    61 format (15x, '     COM 1-body:', 3f15.6)
+   62 format (15x, '     COM 2-body:', 3f15.6)
     7 format (15x, ' Coulomb Direct:', 3f15.6)
     8 format (15x, '       Exchange:', 3f15.6)
     9 format (15x, 'Pairing (delta):', 3f15.6)
@@ -164,6 +165,9 @@ $PRINTCOEF
     print 5
     print 6, Kinetic, sum(Kinetic)
     print 61, COMcorrection(1,:), sum(COMcorrection(1,:))
+	if(any(COMcorrection(2,:).ne.0)) then
+		print 62, COMcorrection(2,:), sum(COMcorrection(2,:))
+	endif
     print 7, 0.0, CoulombDirect, CoulombDirect
     print 8, 0.0, CoulombExchange, CoulombExchange
     print 9, PairingEnergy, sum(PairingEnergy)
@@ -297,7 +301,7 @@ $PRINT
     ! M. Bender et al., Eur. Phys. J. A 7, 467-478 (2000)
     !---------------------------------------------------------------------------
     integer       :: it, i,j
-    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt)
+    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),temp(3,2)
    
     COMCorrection = 0.0_dp
     if(COM1Body .gt. 0) then
@@ -314,21 +318,22 @@ $PRINT
       ! We sum carelessly over all single-particle wavefunctions, since the
       ! ones forbidden by symmetry are calculated as zero in the Spwfstorage
       ! module.
+
+      temp = 0
       do i=1,nwt
         it = 1
         if(i.gt.nwn) it = 2
-        do j=1,nwt
-            COMCorrection(2,it) = COMCorrection(2,it) +                        &
-            &         rho_can(i) * rho_can(j) *(sum(NablaMElements(i,j,:,:)**2))
+        do j=1,nwt  
+            !  Factor 0.5 = 0.25 * 2
+            ! 0.25 since rho_can is double what it should be
+            ! 2    since we are only summing over half of the states
+			COMCorrection(2,it) = COMCorrection(2,it) +                        &
+            &     0.5*rho_can(i) * rho_can(j) *(sum(NablaMElements(:,:,i,j)**2))
         enddo
-      enddo
-      !Some more constants
+      enddo	
+	  !Some more constants
       COMCorrection(2,:) = COMCorrection(2,:) * hbm * nucleonmass/ &
       &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
-      ! Take out the extra factor 4 due to the occupation factors being double
-      ! what they should be.
-      COMCorrection(2,:) = 0.25 * COMCorrection(2,:)
-      
     endif
 
   end subroutine CompCOMCorrection
@@ -529,6 +534,10 @@ $EREAR
     ! is double counted along with the kinetic energy!
     if(COM1body.gt.0) then
         SpwfEnergy = SpwfEnergy  + sum(COMCorrection(1,:))/2.0_dp
+    endif
+
+    if(COM2body.gt.0) then
+        SpwfEnergy = SpwfEnergy  + sum(COMCorrection(2,:))  
     endif
     
     !Subtract contribution by constraints

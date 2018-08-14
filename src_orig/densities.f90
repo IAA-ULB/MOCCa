@@ -309,21 +309,23 @@ end subroutine MassageDensity
     
     do i=1, HFBlocks(1)
      do j=HFBlocks(1)+HFBlocks(2)+1, HFBlocks(1)+HFBlocks(2)+HFBlocks(3)
-      !-------------------------------------------------------------------------
+	  !-------------------------------------------------------------------------
       ! Positive parity neutrons with s=+i
       Derx  =  TimeReverse(DendPsi(:,1,:,j))
-      Dery  =  TimeReverse(DendPsi(:,1,:,j))
-      Derz  =  DendPsi(:,:,3,j)
+      Dery  =  TimeReverse(DendPsi(:,2,:,j))
+      Derz  =  DendPsi(:,3,:,j)
+      psi   =  DenPsi(:,:,i)
       !-------------------------------------------------------------------------
       NablaMElements(1,1,i,j) = dv*                                            &
       & sum(                     derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
       &                       +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
       NablaMElements(2,2,i,j) = dv*                                            &
       & sum(                     dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)   &
-      &                       -  dery(:,4) * psi(:,3) + dery(:,3) * psi(:,4))
+      &                       -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
       NablaMElements(3,1,i,j) = dv*                                            &
       & sum(                     derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)   &
       &                       +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+
       !-------------------------------------------------------------------------     
       ! Negative parity neutrons with s=+i can be obtained with symmetry
       !--------------------------------!
@@ -337,17 +339,19 @@ end subroutine MassageDensity
 
     do i=sum(HFblocks(1:4))+1,sum(HFblocks(1:5))
      ! Positive parity protons with s=+i
-     do j=sum(HFBlocks(1:6))+1,sum(HFblocks(1:6)) + HFBlocks(7)
+     do j=sum(HFBlocks(1:6))+1,sum(HFblocks(1:7))
       Derx  =  TimeReverse(DendPsi(:,1,:,j))
-      Dery  =  TimeReverse(DendPsi(:,1,:,j))
-      Derz  =  DendPsi(:,:,3,j)
+      Dery  =  TimeReverse(DendPsi(:,2,:,j))
+      Derz  =  DendPsi(:,3,:,j)
+      psi   =  DenPsi(:,:,i)
+
       !-------------------------------------------------------------------------
       NablaMElements(1,1,i,j) = dv*                                            &
       & sum(                     derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
       &                        + derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
       NablaMElements(2,2,i,j) = dv*                                            &
       & sum(                     dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)   &
-      &                        - dery(:,4) * psi(:,3) + dery(:,3) * psi(:,4))
+      &                        - dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
       NablaMElements(3,1,i,j) = dv*                                            &
       & sum(                     derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)   &
       &                        + derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
@@ -357,7 +361,7 @@ end subroutine MassageDensity
       ! THE SIGNS ARE MOST LIKELY WRONG!
       !--------------------------------!
       NablaMElements(1,1,j,i) = NablaMElements(1,1,i,j)
-      NablaMElements(2,2,j,i) = NablaMElements(2,1,i,j  )
+      NablaMElements(2,2,j,i) = NablaMElements(2,2,i,j)
       NablaMElements(3,1,j,i) = NablaMElements(3,1,i,j)
      enddo
     enddo

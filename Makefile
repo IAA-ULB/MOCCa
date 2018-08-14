@@ -2,6 +2,9 @@ OBJDIR :=   obj
 SRCDIR :=   src
 MODDIR :=   mod
 
+# Public src directory
+SRCPUBLIC := ../tantalus_public/src/
+
 TARGET :=   Tantalus.exe
 SRC    :=   compilation.f90 geninfo.f90 constants.f90 sphericalharmonics.f90    
 SRC    +=   diag.f90 nil8.f90 derivatives.f90 precondition.f90 wavefunctions.f90
@@ -43,7 +46,11 @@ clean:
 
 $(OBJDIR)/%.o : $(SRCDIR)/%.f90
 	$(CXX) $(CXXFLAGS) -c  $< -o $@ 
-	
+
+genpublic: run_heph getgitinfo setversioninfo
+  # Generate a public version of Tantalus with Hephaestos in src_public
+	cp $(SRCDIR)/*.f90 $(SRCPUBLIC)/
+
 setversioninfo:
   # Copy the git information into the main code, so it can be printed
 	cp $(SRCDIR)/tantalus.f90 $(SRCDIR)/tantalus.version.f90
