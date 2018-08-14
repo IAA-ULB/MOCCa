@@ -29,6 +29,7 @@ module BCS
  integer       :: maxBCSiter = 500
  logical       :: ConstantGap = .false.
  
+ real(KIND=dp) :: BCSdispersion(2)
  !------------------------------------------------------------------------------
  ! Values of the BCS gaps Delta.
  real(KIND=dp), allocatable :: BCSGaps(:)
@@ -227,6 +228,18 @@ contains
 
     ! Time reversal symmetry
     BCSOccupations = 2 *BCSOccupations
+
+    ! BCS dispersion
+    BCSdispersion = 0.0    
+    do wave=1,nwn
+        BCSdispersion(1) = BCSdispersion(1) +                                  &
+        &                          BCSoccupations(wave)*(1-BCSoccupations(wave))
+    enddo
+
+    do wave=nwp+1,nwt
+        BCSdispersion(2) = BCSdispersion(2) +                                  &
+        &                          BCSoccupations(wave)*(1-BCSoccupations(wave))
+    enddo
 
    end subroutine calcBCSOccupations
 

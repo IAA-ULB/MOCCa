@@ -31,6 +31,8 @@ module HFB
   ! Maximum amount of iterations for finding a Fermi energy
   integer :: maxHFBiter  = 100
   integer :: HFBsizes(4) = 0
+  !------------------------------------------------------------------------------
+  real(KIND=dp) :: HFBdispersion(2)
   
   procedure(delta_action_dummy), pointer :: delta_action_HFB
 
@@ -79,7 +81,7 @@ contains
 
   real(KIND=dp)              :: sphamil(nwt,nwt),vect(2*nwt,2*nwt)
   real(KIND=dp)              :: eigen(2*nwt),  work(nwt)
-  real(KIND=dp)              :: particles(2), temp(nwt)
+  real(KIND=dp)              :: particles(2), temp(nwt), chi(nwt,nwt)
   real(KIND=dp), allocatable :: HFBHamil(:,:)
   
   logical                    :: converged(2)
@@ -152,7 +154,7 @@ contains
         si = si +  N
         sb = sb +2*N
      enddo
-
+    
      !--------------------------------------------------------------------------
      ! Adjust Fermi energy, using a secant method for the moment
      dn(:,2) = dn(:,1)
@@ -190,7 +192,7 @@ contains
           Fermi(it) = Fermi(it) + df(it) 
        enddo
      endif
-     
+     !--------------------------------------------------------------------------
   enddo
 
   !-----------------------------------------------------------------------------
@@ -214,6 +216,25 @@ contains
  
     si = si +   N
     sb = sb + 2*N
+  enddo
+  !-----------------------------------------------------------------------------
+  ! Side-effect, calculate the dispersion
+  si            = 0
+  HFBdispersion = 0.0
+  do B=1,4
+    N = HFBsizes(B) 
+    it  = 1
+    if(B > 2) it = 2
+    
+    ! rho squared
+    chi(si+1:si+N, si+1:si+N) = matmul(rho_pairing(si+1:si+N, si+1:si+N),      &
+    &                                        rho_pairing(si+1:si+N, si+1:si+N) )    
+
+    !                                       Tr rho - Tr rho^2
+    do i=1,N
+        HFBdispersion(it) = HFBdispersion(it) + rho_pairing(si+i, si+i)        &
+        &                                     - chi(si+i, si+i) 
+    enddo
   enddo
   !-----------------------------------------------------------------------------
  end subroutine solvepairing_HFB

@@ -50,7 +50,6 @@ module pairing
  !------------------------------------------------------------------------------
  ! Quasiparticle excitation energies, either HF, BCS or HFB.
  real(KIND=dp), allocatable :: QPenergies(:)
-
  !------------------------------------------------------------------------------
  ! Transformation from the HFBasis into the canonical basis
  real(KIND=dp), allocatable :: CanTransfo(:,:)
@@ -224,7 +223,7 @@ contains
     !---------------------------------------------------------------------------
 
   end subroutine SolvePairing
-  
+
   subroutine printpairing
     !---------------------------------------------------------------------------
     !
@@ -236,6 +235,7 @@ contains
     2 format (25x, ' N ',7x, ' P ')
     3 format (' Fermi Level (MeV) ',2x,f10.5,2x,f10.5)
     4 format (' Particles         ',2x,f10.5,2x,f10.5)
+    5 format (' Dispersion        ',2x,f10.5,2x,f10.5)
     7 format (60('-'))
 
     print 1
@@ -248,6 +248,12 @@ contains
         print 2
         print 3, FermiEnergy
         print 4, sum(rho_can(1:nwn)), sum(rho_can(nwn+1:nwt))
+        select case(PairingType)
+        case(1)
+            print 5, BCSdispersion
+        case(2)
+            print 5, HFBdispersion
+        end select
     end select
     print 7
   end subroutine PrintPairing
