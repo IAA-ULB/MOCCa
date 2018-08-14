@@ -27,7 +27,6 @@ module HFB
   !-----------------------------------------------------------------------------
   ! Gaps and quasiparticle energies
   real(KIND=dp), allocatable :: HFBGaps(:,:)
-  real(KIND=dp), allocatable :: HFBqps(:)
   !-----------------------------------------------------------------------------
   ! Maximum amount of iterations for finding a Fermi energy
   integer :: maxHFBiter  = 100
@@ -59,7 +58,7 @@ contains
   
  end subroutine initHFB
 
- subroutine solvepairing_HFB(fermi, rho_pairing, kappa_pairing)
+ subroutine solvepairing_HFB(fermi, rho_pairing, kappa_pairing, qpenergies)
   !-----------------------------------------------------------------------------
   ! Driver routine for the solving of the HFB equations.
   !
@@ -74,7 +73,7 @@ contains
   !-----------------------------------------------------------------------------
   
   real(KIND=dp)              :: fermi(2)
-  real(KIND=dp)              :: rho_pairing(nwt,nwt)
+  real(KIND=dp)              :: rho_pairing(nwt,nwt), qpenergies(nwt)
   real(KIND=dp)              :: kappa_pairing(nwt,nwt)
   real(KIND=dp)              :: df(2), dn(2,2)
 
@@ -136,7 +135,11 @@ contains
           vect(sb  +1:sb+N,   sb+i) = vect(sb+N+1:sb+2*N, sb+i)
           vect(sb+N+1:sb+2*N, sb+i) = temp 
         enddo
-        
+
+        !-----------------------------------------------------------------------
+        ! Saving the quasiparticle excitation energies
+        qpenergies(si+1:si+N) = eigen(sb+N+1:sb+2*N)
+
         !-----------------------------------------------------------------------
         ! Calculate the number of particles in here  
         ! Sum_i rho_ii = sum_ij V^*_ij V^T_ji = sum_ij V^*_ij V_ij
@@ -156,8 +159,6 @@ contains
      
      dn(1,1) = particles(1) - neutrons
      dn(2,1) = particles(2) - protons
-     
-     print *, iter, particles, Fermi
 
      converged = .false.
      if(abs(dn(1,1)) .lt. FermiPrec) then
@@ -407,8 +408,6 @@ contains
  subroutine calcHFBgaps(Fermi)
   !-----------------------------------------------------------------------------
   ! Calculates the HFB gaps for use in the HFB solver.
-  !
-  !
   !-----------------------------------------------------------------------------
   real(KIND=dp), intent(in) :: Fermi(2)
   integer                   :: wave1, wave2, iso, si, B, N

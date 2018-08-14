@@ -330,12 +330,6 @@ contains
       sxm(3) = -1 ; sym(3) = +1 ; szm(3) = -1
       sxm(4) =  1 ; sym(4) = -1 ; szm(4) = -1
 
-      !-------------------------------------------------------------------------
-      ! The appropriate maximum dt for the maximising problem is very much 
-      ! higher: the highest eigenvalue is now the absolute value of the
-      ! minimum sp-energy!
-!      dtmax = 4.0/(abs(minval(spenergies)))*0.9
-
       !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Iterative estimation of the maximal energy
       do iter=1,estiter
@@ -348,8 +342,7 @@ contains
           con       = con - maxE
           !---------------------------------------------------------------------
           ! Simple power iteration seems to better than gradient descent          
-!          update   = dtmax*( actionofh - maxE*maxspwf) + momentum *update 
-          maxspwf  = actionofh !maxspwf + update
+          maxspwf  = actionofh 
           !---------------------------------------------------------------------
           ! Normalize
           maxspwf = 1.0/sqrt(sum(maxspwf**2)*dv) * maxspwf   ! normalize
@@ -367,21 +360,28 @@ contains
       endif
       !-------------------------------------------------------------------------
       ! Step 2: estimate the minimal relevant energy
-      !         currently only for HF calculations.
-      relE = 10000000
-      do i=1,nwt
-        if(abs(rho_can(i)).lt.0.5) cycle
-        do ii=1,nwt
-            if(abs(rho_can(ii)).gt.0.5) cycle
-            compare = spenergies(ii)  - spenergies(i) 
-            if(compare .gt. 0.0) then
-              relE = min(relE, compare)
-            endif
-        enddo
-      enddo
+
+      select case(PairingType)
+
+      case(0)   
+          ! HF calculation: look at the difference in spwf energies
+          relE = 10000000
+          do i=1,nwt
+            if(abs(rho_can(i)).lt.0.5) cycle
+            do ii=1,nwt
+                if(abs(rho_can(ii)).gt.0.5) cycle
+                compare = spenergies(ii)  - spenergies(i) 
+                if(compare .gt. 0.0) then
+                  relE = min(relE, compare)
+                endif
+            enddo
+          enddo
+      case(1,2)
+          ! BCS or HFB calculation: look at quasiparticle energies
+          relE = minval(QPenergies)
+      end select
       ! Safeguard the difference
       if(relE .lt. 0.05) relE = 0.05
-  
       !-------------------------------------------------------------------------
       ! Step 3: use these estimations to determine a value for dt and mu.
       maxE  = maxE - minval(spenergies)

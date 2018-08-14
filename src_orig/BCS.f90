@@ -42,7 +42,7 @@ module BCS
 
 contains
  
- subroutine solvepairing_BCS(fermi, rho_can, kappa_can)
+ subroutine solvepairing_BCS(fermi, rho_can, kappa_can, qpenergies)
   !-----------------------------------------------------------------------------
   ! Driver routine for the solving of the BCS equations.
   !
@@ -56,7 +56,7 @@ contains
   !-----------------------------------------------------------------------------
   real(KIND=dp), intent(inout) :: fermi(2)
   real(KIND=dp), intent(inout) :: rho_can(:)
-  real(KIND=dp), intent(inout) :: kappa_can(:)
+  real(KIND=dp), intent(inout) :: kappa_can(:), qpenergies(:)
   real(KIND=dp)                :: oldfermi(2)
   integer                      :: iter, wave
   
@@ -101,6 +101,10 @@ contains
   do wave=1,nwt
     kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave))
   enddo
+
+  ! Qpenergies in this case are the BCSqpenergies
+  Qpenergies = BCSqps
+
  end subroutine solvepairing_BCS
  
  subroutine CalcBCSGaps(fermi)
