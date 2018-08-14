@@ -2,7 +2,7 @@
 
 # Tantalus & Hephaestos
 > Copyright W. Ryssens, P.H. Heenen & M. Bender
-> Sunday, 05. August 2018 09:02PM 
+> Tuesday, 14. August 2018 05:40PM 
 
 ----------
 ### An introduction to Greek mythology
@@ -72,15 +72,6 @@ __Things do check if the code does not want to compile__
 * Are the `src/`,`mod/` and `obj/` directories present in your directory tree?
 
 -------
-### How do I run Tantalus? 
-
-The minimal STDIN input for a calculation is given
-
-For more information, please take look in the `tantalus_examples/` folder. 
-
-A manual detailing (some of) the more advanced runtime options of Tantalus will be available soon<sup>TM</sup>.
-
--------
 ### How do I run Hephaestos?
 
 Answer:	
@@ -90,3 +81,54 @@ Answer:
 where `NLO.func` is the name of the functional file in the `functionals` folder, and can be replaced by the functional definition file of your choice.  (Specifying a functional file is __not optional__!) The code will process files from the `src_orig/ ` directory and place processed files in the `src` directory. 
 
 Separate running of Hephaestos is not immediately useful, as after that Tantalus still needs to be compiled. 
+
+-------
+### How do I run Tantalus? 
+
+The minimal STDIN input for a calculation is
+
+	cat << EOF > tant.data
+	# Definition of the nucleus 
+	&nucleus
+	neutrons=8, protons=8
+	/
+	# Parameters of the Lagrange mesh. 
+	&mesh
+	nx=12, ny=12, nz=12, dx=1.0
+	/
+	# The code will look, on a file forces.param, for the parameterization with 
+	# this name.
+	&func
+	name_param='SLy4'
+	/
+	# Options for the pairing.
+	&pairing
+	/
+	# maxiter = Maximum number of iterations to be performed
+	&evolution
+	maxiter=100
+	/
+	&scfiteration
+	/
+	# Number of neutron (nwn) and proton (nwp) spwfs to use.
+	&wfs
+	nwn = 15, nwp = 15
+	/
+	# Inputfilename  = file from which to continue the calculation
+	# Outputfilename = .wf file to write after the end of the calculation. 
+	# init signals the code to perform its own initialization.
+	&IO
+	InputFilename='init'
+	Outputfilename='tant.wf'
+	/
+	&MomentParam
+	/
+	EOF
+
+For more information, please take look in the `tantalus_examples/` folder.  It contains three bash scripts that should put you on your way.
+
+* `run.minimal.sh̀` Start here. A Hartree-Fock calculation for 16O with SLy4.
+* `run.pairing.sh`  Example running the code with BCS and HFB pairing, for 24Mg.
+* `run.constrained.sh` Example of a constrained calculation for 20Ne.
+
+A manual detailing (some of) the more advanced runtime options of Tantalus will be available soon<sup>TM</sup>.

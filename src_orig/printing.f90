@@ -99,6 +99,8 @@ contains
 
     11  format(80 ('-'))
 
+    if(PairingType.eq.0) return
+
     print 1
     
     si = 0

@@ -10,18 +10,14 @@
 #      start from scratch. 
 #-------------------------------------------------------------------------------
 #
-#  This particular runscript illustrates the most basic calculation.
-#  Initializing from a set of Nilsson orbitals (inputfilename='init'), the 
-#  code performs a Hartree-Fock optimization for 16O, with the SLy4 
-#  parameterization of the NLO functional, in a limited box of (12,12,12,1.0)
-#  points with all symmetries possible conserved.
+#  This particular runscript illustrates a constrained calculation, obtaining
+#  a triaxial configuration for 20Ne.
 #
 ################################################################################
 
 exe='Tantalus.NLO.func.exe'
 execdir='../exec'
-param='../parameterizations/SLy4.param'
-outfile='Tant.out'
+param='../parameterizations/SLy5s1.param'
 
 #Create storage directories
 if [ ! -d "out/" ]; then
@@ -39,42 +35,45 @@ cp $param          work/forces.param
 
 cd work
 
+for Q20 in `seq 10 10 30`
+do
+
+outfile="Tant.Q20=$Q20.out"
+echo "Calculating configuration with Q20=$Q20 fm^2"
+
 #-------------------------------------------------------------------------------
-# Creating the runtime data
 cat << EOF > tant.data
 &nucleus
-neutrons=8, protons=8
+neutrons=10, protons=10
 /
-# Parameters of the Lagrange mesh. 
 &mesh
 nx=12, ny=12, nz=12, dx=1.0
 /
-# The code will look, on a file forces.param, for the parameterization with 
-# this name.
 &func
-name_param='SLy4'
+name_param='SLy5s1'
 /
-# Options for the pairing.
 &pairing
+Type="BCS"
 /
-# maxiter = Maximum number of iterations to be performed
 &evolution
 maxiter=100
 /
 &scfiteration
 /
-# Number of neutron (nwn) and proton (nwp) spwfs to use.
 &wfs
 nwn = 15, nwp = 15
 /
-# Inputfilename  = file from which to continue the calculation
-# Outputfilename = .wf file to write after the end of the calculation. 
-# init signals the code to perform its own initialization.
 &IO
 InputFilename='init'
 Outputfilename='tant.wf'
 /
 &MomentParam
+MoreConstraints=.true.
+/
+&MomentConstraint
+l=2
+m=0
+Constraint=$Q20
 /
 EOF
 
@@ -85,6 +84,7 @@ EOF
 #Cleaning up
 mv tant.wf  ../wf
 mv $outfile ../out
+#-------------------------------------------------------------------------------
+done
 rm *.exe
 rm *.data
-#-------------------------------------------------------------------------------
