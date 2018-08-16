@@ -95,6 +95,9 @@ def preprocess(fname, src, target):
     if(fname=='HFB.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='folding.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='densities.f90'):
         ProcessDensities(fname, src, target)
         return
