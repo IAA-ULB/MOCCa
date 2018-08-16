@@ -10,8 +10,8 @@ module Coulombmod
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
- ! Module that solves the Coulomb problem of the proton point density.
- !
+ ! Module that solves the Coulomb problem of the proton density. 
+ !==============================================================================
  !
  !==============================================================================
  !
@@ -35,7 +35,7 @@ module Coulombmod
  ! The array containing the Coulomb Potential in the original box,
  ! enlarged with the boundary conditions. 
  !------------------------------------------------------------------------------
- real(KIND=dp), allocatable :: CoulombPotential(:,:,:), source(:,:,:)
+ real(KIND=dp), allocatable :: CoulombPotential(:,:,:)
  real(KIND=dp), allocatable :: ExchangePotential(:)
  !------------------------------------------------------------------------------
  !Precision required of the Coulomb Solvers
@@ -56,8 +56,17 @@ module Coulombmod
  ! Currently hardcoded at 8: does not cost anything CPU-time wise and 
  ! has been shown to be sufficient in MOCCa.
  integer, parameter :: maxm=8
-
- 
+ !------------------------------------------------------------------------------
+ ! Effective size of the proton to take into account. 
+ ! The proton density is folded with a Gaussian
+ !   G(|r1 - r2|) = (r0 * sqrt(pi))**(-1) * exp[-(r/r0)**2]
+ ! If r0 = 0, this is a delta-function and no folding is performed.
+ real(KIND=dp) :: protonsize = 0.8
+ !------------------------------------------------------------------------------
+ ! Gaussian matrices, to be used when folding is required.
+ !------------------------------------------------------------------------------
+ real(KIND=dp), allocatable :: Gaussx(:,:), Gaussy(:,:), Gaussz(:,:)
+   
 contains
 
  subroutine SolveCoulomb(rhop)
@@ -68,8 +77,17 @@ contains
     ! 1) Puts everything in a box with 2 more points
     ! 2) 
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: rhop(mv)
+
+    use Folding    
+
+    real(KIND=dp), intent(in)  :: rhop(mv)
+    real(KIND=dp), allocatable :: source(:,:,:)
+    integer                    :: i,j,k
     
+    if(.not.allocated(Source)) then
+        allocate(Source(nx+2,ny+2,nz+2))           ; Source = 0.0_dp
+    endif
+
     !---------------------------------------------------------------------------
     ! Initialize all of the arrays.
     if(.not.allocated(CoulombPotential)) then
@@ -79,8 +97,25 @@ contains
     if(coultreatment.eq.0) return
     
     !---------------------------------------------------------------------------
+    ! Set up the source term: 
+    ! For standard parameterizations it is the simply the proton density with
+    ! a prefactor.
+    Source = 0.0_dp
+    do k=1,nz
+        do j=1,ny
+            do i=1,nx
+                Source(i,j,k) = -  4*pi*e2*rhop(i + (j-1)*nx + (k-1)*ny*nx)
+            enddo
+        enddo
+    enddo
+    if(protonsize.ne.0.0_dp) then
+        ! Fold the source with a Gaussian
+        Source = FoldGaussian(Source, GaussX, GaussY, GaussZ, nx+2, ny+2, nz+2)
+    endif
+    
+    !---------------------------------------------------------------------------
     ! Set the boundary conditions.
-    call CoulombBound(rhop)
+    call CoulombBound(Source)
  
     ! Solve for the direct coulomb potential   
     call ConjugGrad (CoulombPotential,Source,1,1,1,1000,.false.,prec)
@@ -94,13 +129,13 @@ contains
     ! Initialize the entire module. 
     !---------------------------------------------------------------------------
     use sphericalharmonics
+    use folding
     
     integer       :: i,j,k
     
     !---------------------------------------------------------------------------
     ! Allocate the CoulombPotential array (second-order boundary conditions)
     allocate(CoulombPotential(nx+2,ny+2,nz+2)) ; CoulombPotential = 0.0_dp
-    allocate(Source(nx+2,ny+2,nz+2))           ; Source = 0.0_dp
     allocate(ExchangePotential(mv))            ; ExchangePotential = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
@@ -122,51 +157,46 @@ contains
     
     call GenSphericalHarmonics(maxm,nx+BC,ny+BC,nz+BC,coulmeshx,coulmeshy,     &
     &                 coulmeshz,SpherHarmCoulomb,QuantisationAxis,SecondaryAxis)
-    !---------------------------------------------------------------------------    
- end subroutine SetupCoulomb
-  
-! subroutine readcoul
-!    !---------------------------------------------------------------------------
-!    ! Runtime treatment of coulomb options
-!    Namelist /coulomb/    coultreatment
-!  
-!    read (unit=*, nml=coulomb)
- 
-! end subroutine readcoul
+    !---------------------------------------------------------------------------
+    ! If the proton has a finite size, we need to fold the density with a
+    ! Gaussian. This sets up the necessary matrices.
+    !---------------------------------------------------------------------------
+    if(protonsize .ne. 0.0_dp) then
+        if(.not.allocated(Gaussx)) then
+            allocate(Gaussx(nx+2,nx+2), Gaussy(ny+2,ny+2), Gaussz(nz+2,nz+2)) 
+            Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
+        endif
+        !-----------------------------------------------------------------------
+        ! Construct Gauss matrices
+        call ConstructFoldingMatrices(Gaussx,Gaussy,Gaussz)
+    endif
     
- subroutine CoulombBound(rhop)
+ end subroutine SetupCoulomb
+    
+ subroutine CoulombBound(source)
     !---------------------------------------------------------------------------
     ! Calculates the boundary conditions of the Coulomb potential based on the 
     ! multipole moments of the point charge density. 
     !---------------------------------------------------------------------------
     
-    real(KIND=dp), intent(in) :: rhop(mv)
+    use folding
+
+    real(KIND=dp), intent(in) :: source(mv)
     integer                   :: i,j,k,l,m, im
-    real(KIND=dp)             ::  Qlm
+    real(KIND=dp)             :: Qlm
     type(Moment), pointer     :: Current
     logical                   :: cont
-    !---------------------------------------------------------------------------
-    ! Set up the source term: 
-    ! For standard parameterizations it is the simply the proton density with
-    ! a prefactor.
-    Source = 0.0_dp
-    do k=1,nz
-        do j=1,ny
-            do i=1,nx
-                Source(i,j,k) = -  4*pi*e2*rhop(i + (j-1)*nx + (k-1)*ny*nx)
-            enddo
-        enddo
-    enddo
 
     !---------------------------------------------------------------------------
     ! Calculate the multipole moment expansion of the source term.
     ! We put the boundary condition on every point, and use the potential 
     ! generated this way as an initial guess.
     !---------------------------------------------------------------------------
-    ! The selection of multipole moments is currently not at all done according
-    ! to the symmetries of the problem, but rather for an EV8 box.
-    !
-    ! Meaning: even l, even m and only real parts.
+    ! The source density is expanded into multipole moments for the boundary   
+    ! conditions. This is linked to the linked list of multipole moments, 
+    ! not because they are calculated with them, but simply to not have
+    ! another place in the code where decisions regarding symmetries need
+    ! to be chosen.
     !---------------------------------------------------------------------------
     CoulombPotential=0
     
@@ -179,8 +209,13 @@ contains
       Im = 1
       if(Current%Impart) Im = 2
 
-      Qlm = e2*Current%Value(2)*(4*pi/(2*l+1))
-
+      ! Recalculate the multipole distribution, since source is not
+      ! necessarily the point proton distribution.
+      Qlm = -sum(Source * SpherHarmCoulomb(1:mv,1,1,l,m,Im)) * dv
+      
+      !  Previous implementation
+      !Qlm = e2*Current%Value(2)*(4*pi/(2*l+1)) 
+      
       do k=1,nz+BC
         do j=1,ny+BC
           do i=1,nx+BC
@@ -204,6 +239,57 @@ contains
     end do
     nullify(current)
  end subroutine CoulombBound
+
+ subroutine ConstructFoldingMatrices(Gx,Gy,Gz)  
+    !---------------------------------------------------------------------------
+    ! Construct the matrices for Gaussian folding, taking into account the 
+    ! symmetries of the density. 
+    !---------------------------------------------------------------------------
+    use folding
+    
+    real(KIND=dp), intent(out) :: Gx(:,:), Gy(:,:), Gz(:,:)
+    integer :: linX, linY, linZ, i,j
+     
+    linX = nx
+    linY = ny
+    linZ = nz
+    
+    !---------------------------------------------------------------------------
+    ! Elements actually represented on the mesh
+    do i=1,nx+2
+        do j=1,nx+2           
+            Gx(i,j) = Gaussian(coulmeshx(i), coulmeshx(j), protonsize)
+        enddo
+    enddo
+    do i=1,ny+2
+        do j=1,ny+2          
+            Gy(i,j) = Gaussian(coulmeshy(i), coulmeshy(j), protonsize)
+        enddo
+    enddo
+    do i=1,nz+2
+        do j=1,nz+2         
+            Gz(i,j) = Gaussian(coulmeshz(i), coulmeshz(j), protonsize)
+        enddo
+    enddo
+    !---------------------------------------------------------------------------
+    ! Elements to be gotten by symmetry
+    do i=1,nx+2
+        do j=1,nx+2
+            Gx(i,j) = Gx(i,j) + Gaussian(-coulmeshx(i), coulmeshx(j),protonsize)
+        enddo
+    enddo
+    do i=1,ny+2
+        do j=1,ny+2
+            Gy(i,j) = Gy(i,j) + Gaussian(-coulmeshy(i), coulmeshy(j),protonsize)
+        enddo
+    enddo
+    do i=1,nz+2
+        do j=1,nz+2
+            Gz(i,j) = Gz(i,j) + Gaussian(-coulmeshz(i), coulmeshz(j),protonsize)
+        enddo
+    enddo
+    !---------------------------------------------------------------------------
+ end subroutine ConstructFoldingMatrices
  
  function CoulombEnergy_direct(rhop) result(CEnergy)
     !---------------------------------------------------------------------------

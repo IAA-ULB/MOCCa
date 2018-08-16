@@ -27,7 +27,6 @@ contains
     30 format (90 ('_'),/,3x , 'Neutron wavefunctions')
     40 format (90 ('_'),/,3x , 'Proton  wavefunctions')
     50 format (90 ('_'),/,3x , 'HF Basis')
-    60 format (90 ('_'),/,3x , 'CAN Basis')
     
     11 format (i3, 3x, f5.2, 3x, f7.4, 3x, f10.3, 3x, e10.3, 3x, f7.4)
 

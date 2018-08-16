@@ -360,11 +360,10 @@ contains
       endif
       !-------------------------------------------------------------------------
       ! Step 2: estimate the minimal relevant energy
-
+      relE = 100000000
       select case(PairingType)
       case(0)   
           ! HF calculation: look at the difference in spwf energies
-          relE = 10000000
           do i=1,nwt
             if(abs(rho_can(i)).lt.0.5) cycle
             do ii=1,nwt
