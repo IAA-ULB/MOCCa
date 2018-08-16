@@ -307,6 +307,17 @@ end subroutine MassageDensity
     !---------------------------------------------------------------------------
     NablaMElements= 0.0_dp
     
+    select case(PairingType)
+    case(0,1)
+      ! HF or BCS Calculation
+      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
+      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
+    case(2)
+      ! HFB calculation
+      DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
+      DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
+    end select
+    
     do i=1, HFBlocks(1)
      do j=HFBlocks(1)+HFBlocks(2)+1, HFBlocks(1)+HFBlocks(2)+HFBlocks(3)
 	  !-------------------------------------------------------------------------
@@ -328,12 +339,10 @@ end subroutine MassageDensity
 
       !-------------------------------------------------------------------------     
       ! Negative parity neutrons with s=+i can be obtained with symmetry
-      !--------------------------------!
-      ! THE SIGNS ARE MOST LIKELY WRONG!
-      !--------------------------------!
-      NablaMElements(1,1,j,i) = NablaMElements(1,1,i,j)
-      NablaMElements(2,2,j,i) = NablaMElements(2,2,i,j)
-      NablaMElements(3,1,j,i) = NablaMElements(3,1,i,j)
+      !-------------------------------------------------------------------------
+      NablaMElements(1,1,j,i) = - NablaMElements(1,1,i,j)
+      NablaMElements(2,2,j,i) =   NablaMElements(2,2,i,j)
+      NablaMElements(3,1,j,i) =   NablaMElements(3,1,i,j)
      enddo
     enddo
 
@@ -357,12 +366,10 @@ end subroutine MassageDensity
       &                        + derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
       !-------------------------------------------------------------------------     
       ! Negative parity neutrons with s=+i can be obtained with symmetry
-      !--------------------------------!
-      ! THE SIGNS ARE MOST LIKELY WRONG!
-      !--------------------------------!
-      NablaMElements(1,1,j,i) = NablaMElements(1,1,i,j)
-      NablaMElements(2,2,j,i) = NablaMElements(2,2,i,j)
-      NablaMElements(3,1,j,i) = NablaMElements(3,1,i,j)
+      !-------------------------------------------------------------------------
+      NablaMElements(1,1,j,i) = - NablaMElements(1,1,i,j)
+      NablaMElements(2,2,j,i) =   NablaMElements(2,2,i,j)
+      NablaMElements(3,1,j,i) =   NablaMElements(3,1,i,j)
      enddo
     enddo
 

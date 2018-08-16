@@ -306,10 +306,27 @@ $PRINT
   subroutine CompCOMCorrection()
     !---------------------------------------------------------------------------
     ! M. Bender et al., Eur. Phys. J. A 7, 467-478 (2000)
+    !
+    ! For EV8-like symmetries, we have
+    !
+    !
+    ! E_ph = + sum_km v^2_k v^2_m [ Re{nabla_x},k,m . Re{nabla_x},k,m          
+    !                              +Im{nabla_y},k,m . Im{nabla_y},k,m     
+    !                              +Re{nabla_z},k,m . Re{nabla_z},k,m ]   
+    !
+    !
+    ! E_pp = -2 sum_k,m>0 v_k u_k v_m u_m {-Re(nabla_x)k,m . Re(nabla_x)-k,-m   
+    !                                      +Im(nabla_y)k,m . Im(nabla_y)-k,-m   
+    !                                      +Re(nabla_z)k,m . Re(nabla_z)-k,-m } 
+    !
+    !
+    !
+    ! Note: this routine will need quite some work to be generalized to 
+    !       different symmetry combinations. 
     !---------------------------------------------------------------------------
     integer       :: it, i,j
-    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),temp(3,2)
-   
+    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),temp(3), fac
+    
     COMCorrection = 0.0_dp
     if(COM1Body .gt. 0) then
       !Deduce 1-body COM correction from the Kinetic Energy
@@ -326,22 +343,30 @@ $PRINT
       ! ones forbidden by symmetry are calculated as zero in the Spwfstorage
       ! module.
 
+      !-------------------------------------------------------------------------
+      ! particle-hole, and particle-particle part.
+      ! We abuse the current symmetries here
+      !-------------------------------------------------------------------------
       temp = 0
       do i=1,nwt
         it = 1
         if(i.gt.nwn) it = 2
         do j=1,nwt  
-            !  Factor 0.5 = 0.25 * 2
-            ! 0.25 since rho_can is double what it should be
-            ! 2    since we are only summing over half of the states
-			COMCorrection(2,it) = COMCorrection(2,it) +                        &
-            &     0.5*rho_can(i) * rho_can(j) *(sum(NablaMElements(:,:,i,j)**2))
+        
+            fac = rho_can(i)*rho_can(j) + kappa_can(i)*kappa_can(j)
+                    
+            temp(1) = temp(1) + fac*NablaMElements(1,1,i,j)**2
+            temp(2) = temp(2) + fac*NablaMElements(2,2,i,j)**2
+            temp(3) = temp(3) + fac*NablaMElements(3,1,i,j)**2
         enddo
       enddo	
-	  !Some more constants
-      COMCorrection(2,:) = COMCorrection(2,:) * hbm * nucleonmass/ &
-      &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
-    endif
+      !  Factor 0.5 = 0.25 * 2
+      ! 0.25 since rho_can is double what it should be
+      ! 2    since we are only summing over half of the states
+			COMCorrection(2,it) = 0.5*sum(temp)
+      
+      print *, '2-body COM, ph', temp
+    endif      
 
   end subroutine CompCOMCorrection
 

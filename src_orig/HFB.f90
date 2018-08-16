@@ -314,6 +314,33 @@ contains
     if(rho_can(i).lt.0.0) rho_can(i) = 0.0
   enddo
   
+  !-----------------------------------------------------------------------------
+  ! b) Bring kappa (with cutoffs) into canonical form
+  !
+  ! Transforms as kappa'  = D^dagger kappa D^*
+  !-----------------------------------------------------------------------------
+  si = 0
+  do B=1,4
+  
+    N = HFBsizes(B)
+    
+    allocate(tmp(N,N))
+    tmp = kappa_pairing(si+1:si+N, si+1:si+N)   
+
+    tmp = matmul(transpose(rhotransfo(si+1:si+N, si+1:si+N)), tmp)
+    tmp = matmul(tmp,rhotransfo(si+1:si+N, si+1:si+N))
+  
+    ! With the assumption of time-reversal, the diagonal matrix elements in this
+    ! transformed kappa matrix are the matrix elements (i, ibar)
+    do i=1,N
+        kappa_can(si+i) = tmp(i,i)
+    enddo
+    
+    deallocate(tmp)
+    si = si + N
+  enddo
+    
+  
 !  !-----------------------------------------------------------------------------
 !  ! b) Bring kappa (with cutoffs) into canonical form
 !  !
