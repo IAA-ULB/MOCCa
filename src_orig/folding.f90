@@ -70,8 +70,8 @@ contains
       folded(i,j,:) = matmul(Gz, folded(i,j,:))
     enddo
   enddo
-  ! Add in the volume element
-  folded = dv * folded
+  ! Add in the volume element (but not the symmetry factor! )
+  folded = folded * dx**3
   !-----------------------------------------------------------------------------
  end function FoldGaussian
  

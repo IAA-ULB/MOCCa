@@ -57,12 +57,6 @@ module Coulombmod
  ! has been shown to be sufficient in MOCCa.
  integer, parameter :: maxm=8
  !------------------------------------------------------------------------------
- ! Effective size of the proton to take into account. 
- ! The proton density is folded with a Gaussian
- !   G(|r1 - r2|) = (r0 * sqrt(pi))**(-1) * exp[-(r/r0)**2]
- ! If r0 = 0, this is a delta-function and no folding is performed.
- real(KIND=dp) :: protonsize = 0.8
- !------------------------------------------------------------------------------
  ! Gaussian matrices, to be used when folding is required.
  !------------------------------------------------------------------------------
  real(KIND=dp), allocatable :: Gaussx(:,:), Gaussy(:,:), Gaussz(:,:)
@@ -83,6 +77,7 @@ contains
     real(KIND=dp), intent(in)  :: rhop(mv)
     real(KIND=dp), allocatable :: source(:,:,:)
     integer                    :: i,j,k
+    real(KIND=dp)              :: R, dd(2)
     
     if(.not.allocated(Source)) then
         allocate(Source(nx+2,ny+2,nz+2))           ; Source = 0.0_dp
@@ -109,8 +104,43 @@ contains
         enddo
     enddo
     if(protonsize.ne.0.0_dp) then
+        
+!        do k=1,nz+2
+!            do j=1,ny+2
+!                do i=1,nx+2
+!                    R = coulmeshx(i)**2 + coulmeshy(j)**2 + coulmeshz(k)**2
+!                    Source(i,j,k) = (1.0/(1* sqrt(pi)))**3 * exp(-R/(1**2))
+!                enddo
+!            enddo
+!        enddo       
+
+!        print *, 'sum', sum(Source)*dv
+
+!        dd = 0
+!        do k=1,nz+2
+!            do j=1,ny   +2
+!                do i=1,nx+2
+!                    R = coulmeshx(i)**2 + coulmeshy(j)**2 + coulmeshz(k)**2
+!                    DD(1) = DD(1) + R * Source(i,j,k)
+!                enddo
+!            enddo
+!        enddo
+!    
         ! Fold the source with a Gaussian
         Source = FoldGaussian(Source, GaussX, GaussY, GaussZ, nx+2, ny+2, nz+2)
+
+!        do k=1,nz+2
+!            do j=1,ny+2   
+!                do i=1,nx+2
+!                    R = coulmeshx(i)**2 + coulmeshy(j)**2 + coulmeshz(k)**2
+!                    DD(2) = DD(2) + R * Source(i,j,k)
+!                enddo
+!            enddo
+!        enddo
+!        
+!        DD = DD * dv   /(-4*pi*e2*protons) 
+!        print *, DD, DD(1) +  protonsize**2
+!        print *, Source(1,1:ny,4)
     endif
     
     !---------------------------------------------------------------------------
@@ -248,44 +278,47 @@ contains
     use folding
     
     real(KIND=dp), intent(out) :: Gx(:,:), Gy(:,:), Gz(:,:)
+    real(KIND=dp)              :: r0
     integer :: linX, linY, linZ, i,j
      
     linX = nx
     linY = ny
     linZ = nz
+
+    r0 = sqrt(2.0/3.0) * protonsize
     
     !---------------------------------------------------------------------------
     ! Elements actually represented on the mesh
     do i=1,nx+2
         do j=1,nx+2           
-            Gx(i,j) = Gaussian(coulmeshx(i), coulmeshx(j), protonsize)
+            Gx(i,j) = Gaussian(coulmeshx(i), coulmeshx(j), r0)
         enddo
     enddo
     do i=1,ny+2
         do j=1,ny+2          
-            Gy(i,j) = Gaussian(coulmeshy(i), coulmeshy(j), protonsize)
+            Gy(i,j) = Gaussian(coulmeshy(i), coulmeshy(j), r0)
         enddo
     enddo
     do i=1,nz+2
         do j=1,nz+2         
-            Gz(i,j) = Gaussian(coulmeshz(i), coulmeshz(j), protonsize)
+            Gz(i,j) = Gaussian(coulmeshz(i), coulmeshz(j), r0)
         enddo
     enddo
     !---------------------------------------------------------------------------
     ! Elements to be gotten by symmetry
     do i=1,nx+2
         do j=1,nx+2
-            Gx(i,j) = Gx(i,j) + Gaussian(-coulmeshx(i), coulmeshx(j),protonsize)
+            Gx(i,j) = Gx(i,j) + Gaussian(-coulmeshx(i), coulmeshx(j),r0)
         enddo
     enddo
     do i=1,ny+2
         do j=1,ny+2
-            Gy(i,j) = Gy(i,j) + Gaussian(-coulmeshy(i), coulmeshy(j),protonsize)
+            Gy(i,j) = Gy(i,j) + Gaussian(-coulmeshy(i), coulmeshy(j),r0)
         enddo
     enddo
     do i=1,nz+2
         do j=1,nz+2
-            Gz(i,j) = Gz(i,j) + Gaussian(-coulmeshz(i), coulmeshz(j),protonsize)
+            Gz(i,j) = Gz(i,j) + Gaussian(-coulmeshz(i), coulmeshz(j),r0)
         enddo
     enddo
     !---------------------------------------------------------------------------
