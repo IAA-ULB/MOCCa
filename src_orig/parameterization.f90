@@ -111,19 +111,90 @@ $CHECKPARAMS
     !---------------------------------------------------------------------------
     character(len=*), intent(in) :: param_name, func_name
     
-    1 format (90('-'))
+    1 format (80('-'))
     2 format (' Parameterization name', / , 5x, 20a)
     3 format (' Functional name      ', / , 5x, 20a)
     4 format (' - - - - - - - - - - -')
     5 format (' Parameters' )
+    
+    6 format (' Other options' )
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    7  format (' Coulomb Treatment = ', i2)
+    70 format ('   No direct, nor exchange energy.')
+    71 format ('   Direct and exchange included.')
+    72 format ('   Only Direct contribution included.') 
+  
+    8  format ('   Protonsize = ', f5.3 )
+    81 format ('   Charge density folded.')
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    9  format (' Center-of-mass options')
+    93 format ('   One-body: self-consistent')
+    92 format ('   One-body: perturbative')
+    91 format ('   One-body: not included')
+    96 format ('   Two-body: self-consistent')
+    95 format ('   Two-body: perturbative')
+    94 format ('   Two-body: not included')
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    100 format( ' Elementary Constants')
+    101 format(" e^2            = ", f11.8 ,' (sqrt(MeV fm)) ')
+    102 format(" hbar^2/(2*mn)  = ", f11.8 ,' (MeV fm^2)'&
+    &           ,/," hbar^2/(2*mp)  = ", f11.8 ,' (MeV fm^2)')
     
     print 1
     print 2, adjustl(param_name)
     print 3, adjustl(func_name)
     print 4
     print 5
+    
 $PRINTPARAMS
+    
     print 4
+    print 6
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    ! All coulomb options
+    print 7, coultreatment
+    select case(Coultreatment)
+    case(0)
+      print 70
+    case(1)
+      print 71
+    case(2)
+      print 72
+    end select 
+    
+    print 8, protonsize
+    if(protonsize.ne.0.0) then
+      print 81
+    endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    print 4
+    print 9
+    select case (COM1body)
+    case(0)
+      print 91
+    case(1)
+      print 92
+    case(2)
+      print 93
+    end select
+    select case (COM2body)
+    case(0)
+      print 94
+    case(1)
+      print 95
+    case(2)
+      print 96
+      stop
+    end select
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    ! Constants
+    print 4
+    print 100
+    print 101, e2
+    print 102, hbm
+    
+    
+    
   end subroutine printparameterization
   
   !=============================================================================

@@ -148,17 +148,23 @@ $PRINTCOEF
     !---------------------------------------------------------------------------
     ! Print all of the information on the energy.
     !---------------------------------------------------------------------------
+    use Coulombmod
+    
     1 format (80('-'))
     5 format (30x, '       neutron        proton         total')
     6 format (15x, ' Kinetic Energy:', 3f15.6)
    61 format (15x, '     COM 1-body:', 3f15.6)
    62 format (15x, '     COM 2-body:', 3f15.6)
     7 format (15x, ' Coulomb Direct:', 3f15.6)
+   71 format (15x, '   Dir. (point):', 3f15.6)
     8 format (15x, '       Exchange:', 3f15.6)
+   81 format (15x, '   Exc. (point):', 3f15.6)  
     9 format (15x, 'Pairing (delta):', 3f15.6)
    91 format (15x, 'Pairing (densi):', 3f15.6)
    99 format (15x, '   Total energy:', 30x, f15.6)
   100 format (15x, '     from spwfs:', 30x, f15.6)
+
+    real(KIND=dp) :: temp
 
     call printSkyrme
 
@@ -171,7 +177,15 @@ $PRINTCOEF
 	  endif
     print *
     print 7, 0.0, CoulombDirect, CoulombDirect
+    if(protonsize.ne.0) then
+      temp = CoulombEnergy_Direct(D_I_I(:,2))
+      print 71, 0.0, temp, temp
+    endif
     print 8, 0.0, CoulombExchange, CoulombExchange
+    if(protonsize.ne.0) then
+      temp = CoulombEnergy_Exchange(D_I_I(:,2))
+      print 71, 0.0, temp, temp
+    endif
     print *
     print 9 , PairingEnergy, sum(PairingEnergy)
     print 91, PairDenEnergy, sum(PairDenEnergy)
@@ -186,7 +200,7 @@ $PRINTCOEF
     ! Calculate all of the relevant energies.
     !---------------------------------------------------------------------------
     
-    use Coulombmod, only : CoulombEnergy_Direct,CoulombEnergy_Exchange
+    use Coulombmod
     
     ! Kinetic energy
     Kinetic = CompKinetic()
@@ -200,9 +214,11 @@ $PRINTCOEF
     PairingEnergy = CalcPairingEnergy()
 
     ! Direct contribution of the Coulomb potential
-    CoulombDirect   = CoulombEnergy_Direct(D_I_I(:,2))
+    ! Note that this is calculated with the charge density as stored in the 
+    ! Coulomb module, which is not necessarily the proton point density!
+    CoulombDirect   = CoulombEnergy_Direct(ChargeDensity)
     ! Exchange contribution
-    CoulombExchange = CoulombEnergy_Exchange(D_I_I(:,2)) 
+    CoulombExchange = CoulombEnergy_Exchange(ChargeDensity) 
 
     ! Total energy
     TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)

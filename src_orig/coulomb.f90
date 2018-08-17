@@ -36,6 +36,7 @@ module Coulombmod
  !------------------------------------------------------------------------------
  real(KIND=dp), allocatable :: CoulombPotential(:,:,:)
  real(KIND=dp), allocatable :: ExchangePotential(:)
+ real(KIND=dp), allocatable :: chargedensity(:,:,:)
  !------------------------------------------------------------------------------
  !Precision required of the Coulomb Solvers
  real(KIND=dp), public              :: Prec
@@ -65,10 +66,7 @@ contains
  subroutine SolveCoulomb(rhop)
     !---------------------------------------------------------------------------
     ! Master routine to solve the Coulomb problem for a given source-density.
-    ! Input is the source on the mesh (modulo a factor 4*e2*pi).
-    ! 
-    ! 1) Puts everything in a box with 2 more points
-    ! 2) 
+    ! Input is the point proton density.
     !---------------------------------------------------------------------------
 
     use Folding    
@@ -90,6 +88,14 @@ contains
     
     if(coultreatment.eq.0) return
     
+    do i=1,mv
+      ChargeDensity(i,1,1) = rhop(i)
+    enddo
+    if(protonsize.ne.0.0_dp) then
+        ! Fold the source with a Gaussian
+        ChargeDensity=FoldGaussian(ChargeDensity, GaussX, GaussY, GaussZ, nx, ny, nz)
+    endif
+    
     !---------------------------------------------------------------------------
     ! Set up the source term: 
     ! For standard parameterizations it is the simply the proton density with
@@ -98,15 +104,10 @@ contains
     do k=1,nz
         do j=1,ny
             do i=1,nx
-                Source(i,j,k) = -  4*pi*e2*rhop(i + (j-1)*nx + (k-1)*ny*nx)
+                Source(i,j,k) = -4*pi*e2*Chargedensity(i,j,k)
             enddo
         enddo
     enddo
-    if(protonsize.ne.0.0_dp) then
-        ! Fold the source with a Gaussian
-        Source = FoldGaussian(Source, GaussX, GaussY, GaussZ, nx+2, ny+2, nz+2)
-    endif
-    
     !---------------------------------------------------------------------------
     ! Set the boundary conditions.
     call CoulombBound(Source)
@@ -135,6 +136,7 @@ contains
     ! Allocate the CoulombPotential array (second-order boundary conditions)
     allocate(CoulombPotential(nx+2,ny+2,nz+2)) ; CoulombPotential = 0.0_dp
     allocate(ExchangePotential(mv))            ; ExchangePotential = 0.0_dp
+    allocate(ChargeDensity(nx,ny,nz))          ; ChargeDensity     = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
     Prec = 1.d-9/(dx**3*nx*ny*nz)
@@ -161,7 +163,7 @@ contains
     !---------------------------------------------------------------------------
     if(protonsize .ne. 0.0_dp) then
         if(.not.allocated(Gaussx)) then
-            allocate(Gaussx(nx+2,nx+2), Gaussy(ny+2,ny+2), Gaussz(nz+2,nz+2)) 
+            allocate(Gaussx(nx,nx), Gaussy(ny,ny), Gaussz(nz,nz)) 
             Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
         endif
         !-----------------------------------------------------------------------
@@ -211,7 +213,7 @@ contains
       ! necessarily the point proton distribution.
       Qlm = -sum(Source * SpherHarmCoulomb(1:mv,1,1,l,m,Im)) * dv
       
-      !  Previous implementation
+      !  Previous implementation based on values of the multipole moments
       !Qlm = e2*Current%Value(2)*(4*pi/(2*l+1)) 
       
       do k=1,nz+BC
@@ -246,55 +248,63 @@ contains
     use folding
     
     real(KIND=dp), intent(out) :: Gx(:,:), Gy(:,:), Gz(:,:)
-    real(KIND=dp)              :: r0
-    integer :: linX, linY, linZ, i,j
+    real(KIND=dp)              :: r0, D, X, Y,Z
+    integer :: linX, linY, linZ, i,j,k
      
     linX = nx
     linY = ny
     linZ = nz
 
-    r0 = sqrt(2.0/3.0) * protonsize
-    
+    r0 = protonsize * sqrt(2.0/3.0)
     !---------------------------------------------------------------------------
     ! Elements actually represented on the mesh
-    do i=1,nx+2
-        do j=1,nx+2           
-            Gx(i,j) = Gaussian(coulmeshx(i), coulmeshx(j), r0)
+    do i=1,nx
+        do j=1,nx           
+            Gx(i,j) = Gaussian(meshx(i), meshx(j), r0)
         enddo
     enddo
-    do i=1,ny+2
-        do j=1,ny+2          
-            Gy(i,j) = Gaussian(coulmeshy(i), coulmeshy(j), r0)
+    do i=1,ny
+        do j=1,ny          
+            Gy(i,j) = Gaussian(meshy(i), meshy(j), r0)
         enddo
     enddo
-    do i=1,nz+2
-        do j=1,nz+2         
-            Gz(i,j) = Gaussian(coulmeshz(i), coulmeshz(j), r0)
+    do i=1,nz
+        do j=1,nz         
+            Gz(i,j) = Gaussian(meshz(i), meshz(j), r0)
         enddo
     enddo
+    
     !---------------------------------------------------------------------------
     ! Elements to be gotten by symmetry
-    do i=1,nx+2
-        do j=1,nx+2
-            Gx(i,j) = Gx(i,j) + Gaussian(-coulmeshx(i), coulmeshx(j),r0)
+    do i=1,nx
+        do j=1,nx
+            Gx(i,j) = Gx(i,j) + Gaussian(-meshx(i), meshx(j),r0)
         enddo
     enddo
-    do i=1,ny+2
-        do j=1,ny+2
-            Gy(i,j) = Gy(i,j) + Gaussian(-coulmeshy(i), coulmeshy(j),r0)
+    do i=1,ny
+        do j=1,ny
+            Gy(i,j) = Gy(i,j) + Gaussian(-meshy(i), meshy(j),r0)
         enddo
     enddo
-    do i=1,nz+2
-        do j=1,nz+2
-            Gz(i,j) = Gz(i,j) + Gaussian(-coulmeshz(i), coulmeshz(j),r0)
+    do i=1,nz
+        do j=1,nz
+            Gz(i,j) = Gz(i,j) + Gaussian(-meshz(i), meshz(j),r0)
         enddo
     enddo
     !---------------------------------------------------------------------------
+    ! Normalize; otherwise the integral of the Gaussian is not necessarily 1.
+    Gx = Gx/(sum(Gx(:,1))*dx)
+    Gy = Gy/(sum(Gy(:,1))*dx)
+    Gz = Gz/(sum(Gz(:,1))*dx)
+
  end subroutine ConstructFoldingMatrices
  
  function CoulombEnergy_direct(rhop) result(CEnergy)
     !---------------------------------------------------------------------------
     ! Calculate the (direct) electrostatic energy of the system.
+    !
+    ! Note that rhop is not necessarily the point-proton density that is 
+    ! passed in.
     !---------------------------------------------------------------------------
     real(KIND=dp) :: CEnergy
     real(KIND=dp), intent(in) :: rhop(mv)
@@ -317,6 +327,8 @@ contains
     !---------------------------------------------------------------------------
     ! Calculate the (exchange) electrostatic energy of the system in the 
     ! Slater approximation.
+    ! Note that rhop is not necessarily the point-proton density that is 
+    ! passed in.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: rhop(mv)
     real(KIND=dp) :: factor, Cenergy
