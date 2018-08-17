@@ -37,7 +37,8 @@ $PARAMDECL
     integer       :: COM2body = 0
     !------------------------------------------------------------------------------
     ! Temporary integer, whether or not coulomb is added
-    integer, public :: coultreatment = 1
+    integer       :: coultreatment = 1
+    
     !---------------------------------------------------------------------------
     ! Value of the electron charge, squared
     real(KIND=dp) :: e2 =1.43996446_dp 

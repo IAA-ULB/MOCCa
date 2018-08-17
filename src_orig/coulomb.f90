@@ -13,12 +13,11 @@ module Coulombmod
  ! Module that solves the Coulomb problem of the proton density. 
  !==============================================================================
  !
- !==============================================================================
+ ! Reminder about Coultreatment
  !
- ! Technical note: 
- ! Something prevented me from calling this module simply 'Coulomb' for 
- ! unknown reasons....
- !
+ !   (0) => No Coulomb 
+ !   (1) => Ordinary: direct and exchange
+ !   (2) => Only direct
  !==============================================================================
 
  use geninfo
@@ -104,43 +103,8 @@ contains
         enddo
     enddo
     if(protonsize.ne.0.0_dp) then
-        
-!        do k=1,nz+2
-!            do j=1,ny+2
-!                do i=1,nx+2
-!                    R = coulmeshx(i)**2 + coulmeshy(j)**2 + coulmeshz(k)**2
-!                    Source(i,j,k) = (1.0/(1* sqrt(pi)))**3 * exp(-R/(1**2))
-!                enddo
-!            enddo
-!        enddo       
-
-!        print *, 'sum', sum(Source)*dv
-
-!        dd = 0
-!        do k=1,nz+2
-!            do j=1,ny   +2
-!                do i=1,nx+2
-!                    R = coulmeshx(i)**2 + coulmeshy(j)**2 + coulmeshz(k)**2
-!                    DD(1) = DD(1) + R * Source(i,j,k)
-!                enddo
-!            enddo
-!        enddo
-!    
         ! Fold the source with a Gaussian
         Source = FoldGaussian(Source, GaussX, GaussY, GaussZ, nx+2, ny+2, nz+2)
-
-!        do k=1,nz+2
-!            do j=1,ny+2   
-!                do i=1,nx+2
-!                    R = coulmeshx(i)**2 + coulmeshy(j)**2 + coulmeshz(k)**2
-!                    DD(2) = DD(2) + R * Source(i,j,k)
-!                enddo
-!            enddo
-!        enddo
-!        
-!        DD = DD * dv   /(-4*pi*e2*protons) 
-!        print *, DD, DD(1) +  protonsize**2
-!        print *, Source(1,1:ny,4)
     endif
     
     !---------------------------------------------------------------------------
@@ -150,8 +114,12 @@ contains
     ! Solve for the direct coulomb potential   
     call ConjugGrad (CoulombPotential,Source,1,1,1,1000,.false.,prec)
  
-    ! Exchange potential in Slater approximation
-    ExchangePotential = -(3.0/pi)**(1.0/3.0_dp)*e2*(rhop**(1.0_dp/3.0_dp))     
+    if(Coultreatment.eq.1) then
+      ! Exchange potential in Slater approximation
+      ExchangePotential = -(3.0/pi)**(1.0/3.0_dp)*e2*(rhop**(1.0_dp/3.0_dp))   
+    else
+      ExchangePotential = 0.0
+    endif  
  end subroutine SolveCoulomb 
 
  subroutine SetupCoulomb
@@ -354,7 +322,7 @@ contains
     real(KIND=dp) :: factor, Cenergy
     
     Cenergy = 0.0_dp
-    if(coultreatment.eq.0) return
+    if(coultreatment.ne.1) return
 
     factor  = -0.75_dp*(3/pi)**(1/3._dp)*e2*dv
     Cenergy = factor*sum(rhop**(4.0/3.0))

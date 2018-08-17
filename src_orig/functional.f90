@@ -166,9 +166,9 @@ $PRINTCOEF
     print 5
     print 6, Kinetic, sum(Kinetic)
     print 61, COMcorrection(1,:), sum(COMcorrection(1,:))
-	if(any(COMcorrection(2,:).ne.0)) then
-		print 62, COMcorrection(2,:), sum(COMcorrection(2,:))
-	endif
+	  if(any(COMcorrection(2,:).ne.0)) then
+		 print 62, COMcorrection(2,:), sum(COMcorrection(2,:))
+	  endif
     print *
     print 7, 0.0, CoulombDirect, CoulombDirect
     print 8, 0.0, CoulombExchange, CoulombExchange
@@ -325,7 +325,7 @@ $PRINT
     !       different symmetry combinations. 
     !---------------------------------------------------------------------------
     integer       :: it, i,j
-    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),temp(3), fac
+    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),temp(3,2), fac
     
     COMCorrection = 0.0_dp
     if(COM1Body .gt. 0) then
@@ -355,18 +355,21 @@ $PRINT
         
             fac = rho_can(i)*rho_can(j) + kappa_can(i)*kappa_can(j)
                     
-            temp(1) = temp(1) + fac*NablaMElements(1,1,i,j)**2
-            temp(2) = temp(2) + fac*NablaMElements(2,2,i,j)**2
-            temp(3) = temp(3) + fac*NablaMElements(3,1,i,j)**2
+            temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,i,j)**2
+            temp(2,it) = temp(2,it) + fac*NablaMElements(2,2,i,j)**2
+            temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,i,j)**2
         enddo
       enddo	
       !  Factor 0.5 = 0.25 * 2
       ! 0.25 since rho_can is double what it should be
       ! 2    since we are only summing over half of the states
-			COMCorrection(2,it) = 0.5*sum(temp)
-      
-      print *, '2-body COM, ph', temp
-    endif      
+      do it=1,2
+			  COMCorrection(2,it) = 0.5*sum(temp(:,it))
+      enddo
+      ! Some constants
+      COMCorrection(2,:) = COMCorrection(2,:) * hbm * nucleonmass/             & 
+      &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
+     endif      
 
   end subroutine CompCOMCorrection
 
