@@ -67,14 +67,14 @@ contains
     use evolution
     use scfiteration
    
-    1 format ( 20('-'), 'General Information ', 20('-'))
-    2 format ( 'Mesh parameters' )
+    1 format ( 30('-'), 'General Information ', 30('-'))
+    2 format ( ' Mesh parameters' )
     3 format ( '   nx = ', i5 , ' ny = ' , i5 , ' nz = ' , i5, ' mv = ' , i5)
     4 format ( '   dx = ', f20.10,' (fm  ) ')
     5 format ( '   dv = ', f5.2,' (fm^3) ')
-    6 format ( 'Nucleus')
+    6 format ( ' Nucleus')
     7 format ( '    N = ', f10.5  ,'  Z = ', f10.5)
-    8 format ( 'Wavefunctions')
+    8 format ( ' Wavefunctions')
     9 format ( '  nwt = ', i5, / &
     &          '  nwn = ', i5, / &
     &          '  nwp = ', i5 )
@@ -82,6 +82,7 @@ contains
     &          '  inputfilename  =', a20, / &
     &          '  outputfilename =', a20)
 
+    print *
     print 1
     print 2
     print 3 , nx, ny, nz, mv

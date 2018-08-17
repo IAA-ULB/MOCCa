@@ -112,12 +112,11 @@ $CHECKPARAMS
     character(len=*), intent(in) :: param_name, func_name
     
     1 format (80('-'))
-    2 format (' Parameterization name', / , 5x, 20a)
-    3 format (' Functional name      ', / , 5x, 20a)
+    2 format (' Parameterization name',  5x, 20a)
+    3 format (' Functional name      ',  5x, 20a)
     4 format (' - - - - - - - - - - -')
     5 format (' Parameters' )
     
-    6 format (' Other options' )
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     7  format (' Coulomb Treatment = ', i2)
     70 format ('   No direct, nor exchange energy.')
@@ -149,7 +148,7 @@ $CHECKPARAMS
 $PRINTPARAMS
     
     print 4
-    print 6
+    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     ! All coulomb options
     print 7, coultreatment
@@ -192,8 +191,6 @@ $PRINTPARAMS
     print 100
     print 101, e2
     print 102, hbm
-    
-    
     
   end subroutine printparameterization
   

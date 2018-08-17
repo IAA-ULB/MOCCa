@@ -59,10 +59,10 @@ contains
     ! Print some info on the SCF-update.
     !---------------------------------------------------------------------------
     
-    1 format(90('-'))
-    2 format(' Evolution strategy: ', a30 )
-    3 format(' denmix= '            , f7.4)        
-    4 format(' Preconfactor= '      , f7.4)
+    1 format(80('-'))
+    2 format(' Evolution strategy: ',/, 2x, a30 )
+    3 format('   denmix= '            , f7.4)        
+    4 format('   Preconfactor= '      , f7.4)
     
     print 1
     select case(scfscheme)
@@ -73,7 +73,6 @@ contains
       print 2, 'Linear mixing of densities'
       print 3, denmix
     end select
-    print 1
   end subroutine printscfiteration
 
 end module

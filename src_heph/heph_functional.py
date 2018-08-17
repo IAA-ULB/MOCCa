@@ -377,29 +377,31 @@ def ProcessFunctional(fname, src, target):
         # on the parsing done before.
         #-----------------------------------------------------------------------
     
-        declaration = ''
-        calculation = ''
-        form        = ''
-        printing    = ''
-        calccoef    = ''
-        printcoef   = ''
-        sumtotal    = ''
-        pairtotal   = ''
-        fieldcalc   = ''
-        erear       = ''
+        declaration   = ''
+        calculation   = ''
+        form          = ''
+        printing      = ''
+        calccoef      = ''
+        printcoef_iso = ''
+        printcoef_pn  = ''
+        sumtotal      = ''
+        pairtotal     = ''
+        fieldcalc     = ''
+        erear         = ''
         
         #-----------------------------------------------------------------------
         # Generate the terms in the functional
         for i in range(len(Functional_terms)): 
-            (d,c,p,cc, pc,st,pt,er)  = GenTermExpression(Functional_terms[i], \
-                        [coupling_constants_0[i], coupling_constants_1[i]],\
-                                     density_dependence[i], DD_rearcoefs[i])
+            (d,c,p,cc, pc_iso, pc_pn,st,pt,er)  = \
+             GenTermExpression(Functional_terms[i], [coupling_constants_0[i], \
+             coupling_constants_1[i]],density_dependence[i], DD_rearcoefs[i])
 
             declaration = declaration + d + '\n'
             calculation = calculation + c + '\n'
             printing    = printing    + p + '\n'
             calccoef    = calccoef    + cc+ '\n'
-            printcoef   = printcoef   + pc+ '\n'
+            printcoef_iso = printcoef_iso   + pc_iso + '\n'
+            printcoef_pn  = printcoef_pn    + pc_pn  + '\n'
             sumtotal    = sumtotal    + st+ '&\n'
             if('P' in Functional_terms[i]):    
               pairtotal   = pairtotal   + pt+ '&\n'
@@ -459,7 +461,8 @@ def ProcessFunctional(fname, src, target):
         calculation   = heph_linechecker.LineFormat(calculation)
         printing      = heph_linechecker.LineFormat(printing)
         calccoef      = heph_linechecker.LineFormat(calccoef)
-        printcoef     = heph_linechecker.LineFormat(printcoef)
+        printcoef_iso = heph_linechecker.LineFormat(printcoef_iso)
+        printcoef_pn  = heph_linechecker.LineFormat(printcoef_pn)
         sumtotal      = heph_linechecker.LineFormat(sumtotal)
         fieldcalc     = heph_linechecker.LineFormat(fieldcalc)
         SkyrmeAction  = heph_linechecker.LineFormat(SkyrmeAction)
@@ -472,7 +475,8 @@ def ProcessFunctional(fname, src, target):
         dic['CALCULATION']    = calculation
         dic['PRINT']          = printing
         dic['CALCCOEF']       = calccoef   
-        dic['PRINTCOEF']      = printcoef 
+        dic['PRINTCOEF_ISO']  = printcoef_iso
+        dic['PRINTCOEF_PN']   = printcoef_pn
         dic['TOTAL']          = sumtotal
         dic['TOTALPAIR']      = pairtotal
         dic['CALCFIELDS']     = fieldcalc
@@ -535,9 +539,6 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     calc_c_template = Template(   tab + '$TERM(1,2) = $CPCTE(1,2) * sum( Edensity(:,3)) * dv \n')
     calc_d_template = Template(   tab + '$TERM(2,2) = $CPCTE(2,2) * dv & \n'+           \
                                   tab + '&'+6*tab+' * sum(Edensity(:,1) + Edensity(:,2) ) \n')
-    # Alternative calculation in isospin way
-#    calc_e_template = Template(   tab + '$TERM(1,1) = $CPCTE(1,1)/$CPCTE(1,2) * $TERM(1,2)\n')
-#    calc_f_template = Template(   tab + '$TERM(2,1) = sum($TERM(:,2)) - $TERM(1,1) \n')
 
     calc_e_template = Template(   tab + '$TERM(1,1) = $TERM(1,2) + 0.5* $TERM(2,2)\n')
     calc_f_template = Template(   tab + '$TERM(2,1) =              0.5* $TERM(2,2)\n')
@@ -551,7 +552,9 @@ def GenTermExpression( term, ccoef, DD, DDrear):
                                  
     write_edensity = Template( tab + ' call output_Edensity(Edensity, "$FILENAME")' )
     print_template      = Template(tab +" print('(a30 , 3f15.6)'), '$TERM', $TERM(:,1), sum($TERM(:,1)) \n")
-    print_cpl_template  = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE")
+    
+    print_cpl_pn_template   = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE(:,1)")
+    print_cpl_iso_template  = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE(:,2)")
     
     rear_template       = Template(tab +" e_rear = e_rear $REARCOEF*sum($TERM(:,2))\n")
     
@@ -676,7 +679,9 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     dic['EXP2'] = ccoef[1]
     
     calccoef  = calc_coef_template.substitute(dic)
-    printcoef = print_cpl_template.substitute(dic)    
+    
+    printcoef_pn = print_cpl_pn_template.substitute(dic)    
+    printcoef_iso= print_cpl_iso_template.substitute(dic)    
     
     sumtotal  = sumtotal_template.substitute(dic)
     pairtotal = pairtotal_template.substitute(dic)
@@ -694,8 +699,8 @@ def GenTermExpression( term, ccoef, DD, DDrear):
         dic['REARCOEF'] = rearcoef
         erear = rear_template.substitute(dic)
         
-    return (declaration, calculation, printing, calccoef, printcoef, sumtotal, pairtotal, erear)
-    
+    return (declaration, calculation, printing, calccoef, printcoef_iso, 
+                                       printcoef_pn, sumtotal, pairtotal, erear)    
     
 def rreplace(s, old, new, occurrence):
      li = s.rsplit(old, occurrence)  

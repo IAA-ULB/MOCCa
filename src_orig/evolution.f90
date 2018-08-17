@@ -44,9 +44,9 @@ module evolution
     !---------------------------------------------------------------------------
     ! Strategy for evolution of the spwfs
     ! Valid choices: 
-    !   IMTIME => Gradient Descent/Imaginary Time
-    !   HEAVYB => Heavy-ball dynamics
-    character(len=20) :: Strategy = 'HEAVYB'
+    !   IMTIME    => Gradient Descent/Imaginary Time
+    !   HEAVYBALL => Heavy-ball dynamics
+    character(len=20) :: Strategy = 'HEAVYBALL'
     !---------------------------------------------------------------------------
     ! Allow Tantalus to estimate the runtime parameters of the algorithm 
     ! or stay faithful to those specified by the user.
@@ -98,7 +98,7 @@ contains
         Strategy = to_upper(Strategy)
         if(adjustl(Strategy) .eq. 'IMTIME' ) then
             Evolve => Evolve_graddesc
-        elseif(adjustl(Strategy) .eq. 'HEAVYB') then
+        elseif(adjustl(Strategy) .eq. 'HEAVYBALL') then
             Evolve => Evolve_momentum
         else
             stop ('STRATEGY NOT RECOGNIZED.')
@@ -112,24 +112,23 @@ contains
         !
         !-----------------------------------------------------------------------
 
-        1 format(90('-'))
+        1 format(80('-'))
         2 format(' Evolution strategy: ', a20 )
-        3 format(' dt= ', f7.4, ' mu= ', f7.4 )        
-        4 format(' Estimate (dt,mu)  : ', a3)
+        3 format('   dt= ', f7.4, ' mu= ', f7.4 )        
+        4 format('   Estimate (dt,mu)  : ', a3)
 !        5 format(' Preconditioning   : ', a20 )
     
         print 1
         print 2, adjustl(Strategy)
-        print 3, dt, momentum
         
         if( EstimateParams) then
           print 4, 'YES'
         else 
           print 4, ' NO'
+          print 3, dt, momentum
         endif
         
 !        print 5, adjustl(Precondition)
-        print 1
     end subroutine PrintEvolution
 
     subroutine Evolve_graddesc(iteration)
