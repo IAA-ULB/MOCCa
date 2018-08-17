@@ -91,6 +91,7 @@ contains
     do i=1,mv
       ChargeDensity(i,1,1) = rhop(i)
     enddo
+    
     if(protonsize.ne.0.0_dp) then
         ! Fold the source with a Gaussian
         ChargeDensity=FoldGaussian(ChargeDensity, GaussX, GaussY, GaussZ, nx, ny, nz)
@@ -114,6 +115,14 @@ contains
  
     ! Solve for the direct coulomb potential   
     call ConjugGrad (CoulombPotential,Source,1,1,1,1000,.false.,prec)
+ 
+   
+    if(protonsize.ne.0.0_dp .and. Protonsize_selfconsistent) then
+        ! Fold the source with a Gaussian
+        CoulombPotential(1:nx,1:ny, 1:nz)                                      &
+        &                     =FoldGaussian(CoulombPotential(1:nx,1:ny, 1:nz), &
+        &                                    GaussX, GaussY, GaussZ, nx, ny, nz)
+    endif
  
     if(Coultreatment.eq.1) then
       ! Exchange potential in Slater approximation
@@ -248,7 +257,7 @@ contains
     use folding
     
     real(KIND=dp), intent(out) :: Gx(:,:), Gy(:,:), Gz(:,:)
-    real(KIND=dp)              :: r0, D, X, Y,Z
+    real(KIND=dp)              :: r0, D, X, Y,Z, test(nx,ny,nz)
     integer :: linX, linY, linZ, i,j,k
      
     linX = nx
@@ -274,6 +283,21 @@ contains
         enddo
     enddo
     
+!    D = 0
+!    do i=1,nx
+!      D = D + Gaussian(meshx(i), 0.0d0, r0) * meshx(i)**2
+!      D = D + Gaussian(meshx(i), 0.0d0, r0) * meshx(i)**2
+!    enddo
+!!    do i=1,ny
+!!      D = D + Gaussian(meshy(i), 0.0d0, r0) !* meshy(i)**2
+!!      D = D + Gaussian(meshy(i), 0.0d0, r0) !* meshy(i)**2
+!!    enddo
+!!    do i=1,nz
+!!      D = D + Gaussian(meshz(i), 0.0d0, r0) !* meshz(i)**2
+!!      D = D + Gaussian(meshz(i), 0.0d0, r0) !* meshy(i)**2
+!!    enddo
+!    print *, 'R2', D*dx*3, protonsize**2
+!    stop
     !---------------------------------------------------------------------------
     ! Elements to be gotten by symmetry
     do i=1,nx
@@ -296,6 +320,46 @@ contains
     Gx = Gx/(sum(Gx(:,1))*dx)
     Gy = Gy/(sum(Gy(:,1))*dx)
     Gz = Gz/(sum(Gz(:,1))*dx)
+    
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          test(i,j,k) = Gaussian(meshx(i),0.0d0,1.0d0)*Gaussian(meshy(j),0.0d0,1.0d0)&
+          &            *Gaussian(meshx(k),0.0d0,1.0d0)
+        enddo
+      enddo
+    enddo
+    
+    print *, sum(test)*dv
+    print *, test(1:nx,1,1)
+    
+    D = 0
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
+        enddo
+      enddo
+    enddo
+    print *, 'rms', D*dv
+    
+    test = FoldGaussian(test,Gaussx,Gaussy,Gaussz, nx, ny, nz)
+    
+    print *, sum(test)*dv
+    print *, test(1:nx, 1,1)
+    
+    D = 0
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
+        enddo
+      enddo
+    enddo
+    print *, 'rms', D*dv
+    
+    
+    stop
 
  end subroutine ConstructFoldingMatrices
  

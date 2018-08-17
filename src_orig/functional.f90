@@ -185,12 +185,12 @@ $PRINTCOEF_PN
 	  endif
     print *
     print 7, 0.0, CoulombDirect, CoulombDirect
-    if(protonsize.ne.0) then
+    if(protonsize.ne.0 .and. (.not. protonsize_selfconsistent)) then
       temp = CoulombEnergy_Direct(D_I_I(:,2))
       print 71, 0.0, temp, temp
     endif
     print 8, 0.0, CoulombExchange, CoulombExchange
-    if(protonsize.ne.0) then
+    if(protonsize.ne.0 .and. (.not. protonsize_selfconsistent)) then
       temp = CoulombEnergy_Exchange(D_I_I(:,2))
       print 71, 0.0, temp, temp
     endif
@@ -221,12 +221,18 @@ $PRINTCOEF_PN
     ! It is summed by integrating Delta instead of the pairing densities. 
     PairingEnergy = CalcPairingEnergy()
 
-    ! Direct contribution of the Coulomb potential
-    ! Note that this is calculated with the charge density as stored in the 
-    ! Coulomb module, which is not necessarily the proton point density!
-    CoulombDirect   = CoulombEnergy_Direct(ChargeDensity)
-    ! Exchange contribution
-    CoulombExchange = CoulombEnergy_Exchange(ChargeDensity) 
+
+    if(protonsize_selfconsistent .or. protonsize.eq.0.0) then
+      ! Direct contribution of the Coulomb potential
+      CoulombDirect   = CoulombEnergy_Direct(D_I_I(:,2))
+      ! Exchange contribution
+      CoulombExchange = CoulombEnergy_Exchange(D_I_I(:,2)) 
+    else
+      ! Direct contribution of the Coulomb potential
+      CoulombDirect   = CoulombEnergy_Direct(ChargeDensity)
+      ! Exchange contribution
+      CoulombExchange = CoulombEnergy_Exchange(ChargeDensity) 
+    endif
 
     ! Total energy
     TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)

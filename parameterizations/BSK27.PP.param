@@ -5,7 +5,7 @@
 !
 !-------------------------------------------------------------------------------
 &skf 
-name     = "BSK27" 
+name     = "BSK27.PP" 
 func_file= 'NLO.func'
 t0  = -0.1837060863E+04 , x0 = 0.4600673712E+00
 t1  =  0.3761855572E+03 , x1 =-0.3858531133E+00
@@ -22,7 +22,6 @@ hbm(1)      = 20.72126890,20.74983164
 COM1Body = 2
 COM2Body = 1
 e2            = 1.43996446
-Protonsize    = 0.77
-protonsize_selfconsistent = .false.
+Protonsize    = 0
 CoulTreatment = 2
 /

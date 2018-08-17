@@ -30,7 +30,7 @@ contains
   real(KIND=dp), intent(in) :: r1, r2, r0
   real(KIND=dp) :: dr, G
   
-  dr = abs(r1-r2)/r0
+  dr = abs(r1-r2)/(r0)
   G = 1.0/(r0 * sqrt(pi)) * exp(-dr**2)
   return
  end function Gaussian
@@ -55,23 +55,21 @@ contains
   ! First convolute/fold along the X-direction
   do k=1,mz
     do j=1,my
-      folded(:,j,k) = matmul(Gx, f(1:mx,j,k))
+      folded(:,j,k) = matmul(Gx, f(1:mx,j,k))*dx
     enddo
   enddo
   ! Then the Y-direction
   do k=1,mz
     do i=1,mx
-      folded(i,:,k) = matmul(Gy, folded(i,1:my,k))
+      folded(i,:,k) = matmul(Gy, folded(i,1:my,k))*dx
     enddo
   enddo
   ! Then the Z-direction
   do j=1,my
     do i=1,mx
-      folded(i,j,:) = matmul(Gz, folded(i,j,:))
+      folded(i,j,:) = matmul(Gz, folded(i,j,:))*dx
     enddo
   enddo
-  ! Add in the volume element (but not the symmetry factor! )
-  folded = folded * dx**3
   !-----------------------------------------------------------------------------
  end function FoldGaussian
  
