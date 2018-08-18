@@ -1,0 +1,269 @@
+\documentclass[print,amsmath,amssymb,aps,prc,nofootinbib,notitlepage]{revtex4-1}
+
+\usepackage[usenames,dvipsnames]{xcolor}
+\usepackage{graphicx}% Include figure files
+\usepackage{dcolumn}% Align table columns on decimal point
+\usepackage{bm}% bold math
+\usepackage{hyperref}% add hypertext capabilities
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+
+\renewcommand{\topfraction}{.85}
+\renewcommand{\bottomfraction}{.7}
+\renewcommand{\textfraction}{.15}
+\renewcommand{\floatpagefraction}{.66}
+\renewcommand{\dbltopfraction}{.66}
+\renewcommand{\dblfloatpagefraction}{.66}
+\setcounter{topnumber}{9}
+\setcounter{bottomnumber}{9}
+\setcounter{totalnumber}{20}
+\setcounter{dbltopnumber}{9}
+
+\newcommand*{\w}[1]{\textcolor{red}{WR: #1}}
+\newcommand*{\wrnote}[1]{\footnote{\textcolor{red}{WR: #1}}}
+\newcommand{\phh}[1]{\textcolor{blue}{#1}}
+\newcommand{\phhnote}[1]{\footnote{\textcolor{blue}{PHH: #1}}}
+\newcommand{\nn}{\nonumber}
+\renewcommand{\vec}[1]{{\bf #1}}
+\newcommand{\rmd}{{\rm d}}
+\newcommand{\MeV}{{\rm MeV}}
+\newcommand{\fm}{{\rm fm}}
+\newcommand{\iunit}{{\rm i}}
+\newcommand{\econ}{{\rm e}}
+\newcommand{\rvec}{\vec{r}}
+\newcommand{\rvecp}{\vec{r}{\, }'}
+\newcommand{\xvec}{\vec{x}}
+\newcommand{\xvecp}{\vec{x}{\, }'}
+\newcommand{\etal}{\emph{et al.}}
+
+\newcommand{\tensym}[1]{\underline{\textsf{#1}}}
+\newcommand{\nuc}[2]{$^{#1}$\textrm{#2}}
+
+\renewcommand{\Re}{\text{Re}}
+\renewcommand{\Im}{\text{Im}}
+
+\usepackage{fancyvrb}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+\author{W. Ryssens}
+\email{w.ryssens@ipnl.in2p3.fr}
+\affiliation{IPNL, Universit\'e de Lyon, Universit\'e Lyon 1, CNRS/IN2P3,  
+                                                   F-69622 Villeurbanne, France}
+\author{M. Bender}
+\email{bender@ipnl.in2p3.fr}
+\affiliation{IPNL, Universit\'e de Lyon, Universit\'e Lyon 1, CNRS/IN2P3, 
+                                                   F-69622 Villeurbanne, France}
+\author{P.-H. Heenen}
+\email{phheenen@ulb.ac.be}
+\affiliation{PNTPM, CP229, Universit\'e Libre de Bruxelles, 
+                                                      B-1050 Bruxelles, Belgium}
+    
+\date{18th of August 2018}
+
+\title{Tantalus or MOCCa v2.0, a short guide to the input parameters}
+
+\maketitle
+
+\setlength{\parindent}{0pt}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Introduction; running the code}
+
+For a succesful run of Tantalus, one needs, a) a compiled Tantalus.exe, b)
+a forces.param file containing the parameterization desired and c)
+a set of runtime data, to be provided to Tantalus on STDIN. This manual 
+documents (in rather concise fashion) the structure of the forces.param file and
+the STDIN input for Tantalus. It does NOT document ALL of the possible options 
+of the code, but only the ones that are of key importance to new users. \\
+
+In short, the code can be run succesfully using 
+%
+\begin{Verbatim}
+./Tantalus.exe < tant.data 
+\end{Verbatim}
+%
+where tant.data contains input, as formatted in section \ref{sec:STDIN}. In the 
+current working directory, a `forces.param' file is present, formatted along the
+ lines of section~\ref{sec:param}, that contains the info of the asked-for 
+parametrization.
+
+For examples that can easily be run, please look in the tantalus\_examples 
+folder in this repository for a set of tutorial scripts.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{The runtime input}
+\label{sec:STDIN}
+
+Tantalus reads input from STDIN, using the FORTRAN namelist machinery. The 
+available namelists are indicated in Fig.~\ref{fig:namelists}; the ordering 
+of the namelist is important. The most important keywords for every namelist
+are explained on the next page. 
+
+One of these namelists is special, the MomentConstraint namelist: it is 
+repeatable. Every occurence of this namelist indicates to Tantalus that a 
+constraint on a specific multipole moment <Qlm> should be included in the 
+calculation. A calculation with a constraint on X multipole moments, should thus
+ include X separate MomentConstraint namelists in the input data.
+
+\begin{figure}[b]
+\begin{minipage}{.7\textwidth}
+
+\begin{Verbatim}[frame=single]
+&nucleus/
+&mesh/
+&func/
+&pairing/
+&evolution/
+&scfiteration/
+&wfs/
+&IO/
+&MomentParam/
+&MomentConstraint/
+\end{Verbatim}
+\end{minipage}
+\caption{List of namelist inputs, in the correct order.}
+\label{fig:namelists}
+\end{figure}
+
+\clearpage
+
+\begin{Verbatim}
+&nucleus 
+neutrons   = Number of neutrons. Can be non-integer.
+protons    = Number of protons. Can be non-integer.
+/
+\end{Verbatim}
+\begin{Verbatim}
+&mesh
+nx/y/z     = number of points in x/y/z direction.
+dx         = mesh discretisation (in fm).
+/
+\end{Verbatim}
+
+\begin{Verbatim}
+&func
+name_param  = name of the parametrization, needs to match name on forces.param.
+/
+\end{Verbatim}
+
+\begin{Verbatim}
+&pairing
+Type        = `HF', `BCS' or `HFB'.
+/
+\end{Verbatim}
+
+\begin{Verbatim}
+&evolution
+maxiter     = maximum number of mean-field iterations.
+printiter   = Large printouts after every multiple of this value. 
+/
+\end{Verbatim}
+
+\begin{Verbatim}
+&scfiteration
+preconfactor   = Factor beta in the preconditioning of the potential F_I_I.
+                 Higher values result in more stable, but slower convergence. 
+                 The default value, 1.0, is however really good.
+/
+\end{Verbatim}
+
+\begin{Verbatim}
+&wfs
+nwn            = number of neutron wavefunctions. 
+                 Needs to match the input file, if present.
+nwp            = number of proton wavefunctions. 
+                 Needs to match the input file, if present.
+/
+\end{Verbatim}
+
+\begin{Verbatim}
+&IO
+Inputfilename  = name of the .wf file Tantalus will read.
+                 If this is 'INIT', Tantalus will not read any file and initialize from scratch.
+Outputfilename = name of the .wf file Tantalus will write.
+/
+\end{Verbatim}
+
+\begin{Verbatim}
+&MomentParam
+MoreConstraints = Logical. If .true., signals that the namelist &MomentConstraint/ will follow.
+/
+\end{Verbatim}
+
+\begin{Verbatim}
+&MomentConstraint
+l               = Integer, indicating the degree l of the multipole moment Qlm to constrain.
+m               = Integer, indicating the degree m of the multipole moment Qlm to constrain.
+Constrain       = Value to constrain <Qlm> to.
+Iteration       = If zero (0), Tantalus will constrain the moment for the entire run.
+                  If non-zero, the constraint will only be used for this number of iterations.
+                  Very useful for breaking self-consistent symmetries.
+MoreConstraints = Logical. If .true., signals that more &MomentConstraints will follow.
+                           If .false., signals that this is the last &MomentConstraint.
+/
+\end{Verbatim}
+
+
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{The structure of a parameterization (.param) file }
+\label{sec:param}
+
+The forces.param file should (for the current version of the code) only contain
+one namelist \textsc{skf}. The content of this file varies, depending on the 
+choices made at compilation time by Hephaestos. We will thus describe here only the 
+particular keywords in the public version.
+
+
+\begin{figure}[h]
+\begin{minipage}{\textwidth}
+\begin{Verbatim}[frame=single]
+&skf 
+name     = "SLy4"            ! Name of the parameterization.
+                             ! This needs to match name_param in the input data
+func_file= 'NLO.func'        ! Name of the functional file used for compilation. 
+t0       =  -2488.913,       ! t0 parameter of the Skyrme parameterization
+t1       =    486.818,       !  
+t2       =   -546.395,       !  
+t3       =  13777.0,         !
+x0       =      0.834,       !
+x1       =     -0.344,       !
+x2       =     -1.0,         !
+x3       =       1.354,      ! 
+sigma    =      0.1666667    ! Exponent of the density dependence.
+wso      =    123.0,         ! Spin-orbit strength.
+wsoq     =    123.0          !  
+CT0      =      0.0          ! Coupling constant (isoscalar) of the J^2 terms
+CT1      =      0.0          ! Coupling constant (isovector) of the J^2 terms
+Vn       = -625.00000        ! Pairing strength, isoscalar-like.
+Vp       = -625.00000        ! Pairing strength, isoscalar-vector. 
+alpha    =    1.0            ! Alpha parameter in the ULB pairing interaction. 
+hbm(1)   = 20.73551910, 20.73551910  ! Value of hbar^2/2m
+COM1Body = 2                 ! Treatment of the one-body COM correction.
+                             !   (0) => None.
+                             !   (1) => Perturbative.
+                             !   (2) => Self-consistent
+COM2Body = 0                 ! Treatment of the two-body COM correction.
+                             !   (0) => None.
+                             !   (1) => Perturbative.
+CoulombTreatment = 1         ! Treatment of Coulomb interaction.
+                             !   (0) => No Coulomb included.
+                             !   (1) => Direct and exchange (Slater) contribution
+                             !   (2) => Only direct contribution.
+protonsize =       0.0       ! Rms radius of the proton to be assumed.
+                             ! If 0.0, no folding is used.
+/
+\end{Verbatim}
+\end{minipage}
+\label{fig:paramexample}
+\caption{Example of a .param file, corresponding to a calculation with the SLy4
+         parameterization. This input file corresponds to the NLO.func 
+         functional file.}
+\end{figure}
+
+
+
+\end{document}
