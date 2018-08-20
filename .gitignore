@@ -10,3 +10,8 @@ tantalus_examples/out/*
 tantalus_examples/wf/*
 tantalus_examples/work/*
 
+manual/tex_source/*.aux
+manual/tex_source/*.log
+manual/tex_source/*.bib
+manual/tex_source/*.pdf
+manual/tex_source/*.out
