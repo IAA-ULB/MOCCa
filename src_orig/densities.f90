@@ -267,7 +267,7 @@ subroutine MassageDensity()
     where(D_I_I.lt.1d-10) D_I_I = 0 
 end subroutine MassageDensity
 
-  function CompNablaMelements() result(NablaMelements)
+function CompNablaMelements() result(NablaMelements)
     !---------------------------------------------------------------------------
     ! Computes the matrix elements of Nabla
     !
@@ -374,7 +374,24 @@ end subroutine MassageDensity
     enddo
 
     !---------------------------------------------------------------------------
-  end function CompNablaMelements
+end function CompNablaMelements
   
+subroutine readDensities(io)
+    !---------------------------------------------------------------------------
+    ! Read the densities from file. This is comparatively complicated, as a 
+    ! constant number of densities can not be assumed. 
+    !
+    ! io : the channel from which to read.
+    !---------------------------------------------------------------------------
+    
+    integer, intent(in) :: io
+
+    !---------------------------------------------------------------------------
+    ! The format of storage for densities.
+    ! 
+    !  a20  :  Name/Structure of the density, i.e. 'D_I_I'
+    !  
+end subroutine readDensities
+
     
 end module densities
