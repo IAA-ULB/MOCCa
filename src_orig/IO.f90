@@ -81,6 +81,10 @@ contains
    10 format ( ' IO information', / &
     &          '  inputfilename  =', a20, / &
     &          '  outputfilename =', a20)
+   11 format ( ' Convergence required', / &
+    &          '  Energy convergence           < ', e8.1, / & 
+    &          '  Multipole moment convergence < ', e8.1, / &
+    &          '  Dispersion convergence       < ', e8.1 )
 
     print *
     print 1
@@ -93,6 +97,7 @@ contains
     print 8
     print 9 , nwt,nwn,nwp
     print 10, inputfilename, outputfilename
+    print 11, energy_prec, moment_prec, disp_prec
 
     call printevolution
     call printscfiteration
