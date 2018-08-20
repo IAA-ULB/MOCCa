@@ -60,7 +60,7 @@ contains
     !---------------------------------------------------------------------------
     
     1 format(80('-'))
-    2 format(' Evolution strategy: ',/, 2x, a30 )
+    2 format(' SCF iteration strategy: ',/, 2x, a30 )
     3 format('   denmix= '            , f7.4)        
     4 format('   Preconfactor= '      , f7.4)
     

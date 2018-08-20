@@ -82,6 +82,7 @@ subroutine Converged(C)
 
     use Moments
     use functional
+    use evolution
 
     logical       :: C
     integer       :: i
