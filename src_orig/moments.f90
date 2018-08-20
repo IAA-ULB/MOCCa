@@ -159,7 +159,10 @@ module moments
       ! Calculated value of the moment with and without cutoff,
       ! for neutrons and protons.
       !-------------------------------------------------------------------------
-      real(KIND=dp) :: Value(2) 
+      real(KIND=dp) :: Value(2)
+      !-------------------------------------------------------------------------
+      ! Value of the multipole at the previous iteration
+      real(KIND=dp) :: history(2)
       !-------------------------------------------------------------------------
       ! Calculated value of the moment SQUARED.
       ! So < Q_{lm}^2 > and < Q_{lm}>^3
@@ -479,6 +482,9 @@ contains
     
     class(Moment),        intent(inout) :: ToCalculate
     integer                             :: it
+
+    ! Save the history
+    Tocalculate%history = tocalculate%value
 
     !Initialise
     ToCalculate%Value      = 0.0_dp

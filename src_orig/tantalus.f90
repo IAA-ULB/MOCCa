@@ -66,6 +66,60 @@ program Tantalus
  
 end program Tantalus
 
+subroutine Converged(C) 
+    !---------------------------------------------------------------------------
+    ! Checks if the code has converged using the following convergence 
+    ! criteria. 
+    !
+    !   energy_prec     1d-9     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec 
+    !                            This needs to be true across 5 iterations. 
+    !
+    !   moment_prec     1d-3     abs((Qlm^(i) - Qlm^(i))/Qlm^(i)) < moment_prec
+    !                                if Qlm^(i) is large enough
+    !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
+    !                                     < disp_prec
+    !---------------------------------------------------------------------------
+
+    use Moments
+    use functional
+
+    logical       :: C
+    integer       :: i
+    real(KIND=dp) :: dE(5), dQ
+
+    type(Moment), pointer  :: Current 
+
+    C = .true.
+
+    !---------------------------------------------------------------------------
+    ! Checking the evolution of the energy
+    do i =1,4
+            dE(i) = abs(Ehistory(i) - Ehistory(i+1))/abs(totalE)
+    enddo
+    dE(5) = abs(TotalE - Ehistory(1))/abs(totalE)
+    
+    if(.not. all(dE .lt. energy_prec)) then
+     C = .false.
+    endif
+    !---------------------------------------------------------------------------
+    ! Checking the weighted dispersion
+    if(d2H .gt. disp_prec) C = .false.
+
+    !---------------------------------------------------------------------------
+    ! Check all of the multipole moments
+    Current => Root
+
+    do while(associated(Current%next)) 
+        Current => Current%next
+        if(sum(Current%Value)>1) then
+            dQ = abs(sum(Current%history)-sum(Current%value))
+            dQ = dQ/abs(sum(Current%value))
+            if(dQ > moment_prec) C = .false.
+        endif
+    enddo   
+
+end subroutine Converged
+
 subroutine ReachForWaterAndFood
     !---------------------------------------------------------------------------
     ! Evolve the single-particle wavefunctions and densities.
@@ -109,9 +163,19 @@ subroutine ReachForWaterAndFood
     use printing
     
     implicit none
+
+    1 format('----------------------------------')
+    2 format('| Convergence criteria satisfied.|')
+    3 format('| dE < ', e10.3, 15x, ' | ')
+    4 format('| dQ < ', e10.3, 15x, ' | ')
+    5 format('| dH < ', e10.3, 15x, ' | ')        
+    6 format('| Ending the iterative proces.   |')
    
     integer :: iter
-   
+    logical :: ConvergenceAchieved
+
+    ConvergenceAchieved = .false.   
+    
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
@@ -191,10 +255,13 @@ subroutine ReachForWaterAndFood
         call calcFields()
         ! Recalculate the energy
         call CalcEnergy()
+
+        ! Check for convergence
+        call Converged(ConvergenceAchieved)
         
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
-        if(mod(iter,PrintIter).eq.0) then
+        if(mod(iter,PrintIter).eq.0 .or. ConvergenceAchieved) then
             call PrintSpwfs
             call PrintQps
             call printallmoments
@@ -204,6 +271,16 @@ subroutine ReachForWaterAndFood
             call printsummary(iter)
         endif
         !-----------------------------------------------------------------------
+        if(ConvergenceAchieved) then
+            print 1
+            print 2
+            print 3, energy_prec
+            print 4, moment_prec
+            print 5, disp_prec
+            print 6
+            print 1
+            exit
+        endif
     enddo
       
     !---------------------------------------------------------------------------

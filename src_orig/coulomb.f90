@@ -321,45 +321,45 @@ contains
     Gy = Gy/(sum(Gy(:,1))*dx)
     Gz = Gz/(sum(Gz(:,1))*dx)
     
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          test(i,j,k) = Gaussian(meshx(i),0.0d0,1.0d0)*Gaussian(meshy(j),0.0d0,1.0d0)&
-          &            *Gaussian(meshx(k),0.0d0,1.0d0)
-        enddo
-      enddo
-    enddo
-    
-    print *, sum(test)*dv
-    print *, test(1:nx,1,1)
-    
-    D = 0
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
-        enddo
-      enddo
-    enddo
-    print *, 'rms', D*dv
-    
-    test = FoldGaussian(test,Gaussx,Gaussy,Gaussz, nx, ny, nz)
-    
-    print *, sum(test)*dv
-    print *, test(1:nx, 1,1)
-    
-    D = 0
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
-        enddo
-      enddo
-    enddo
-    print *, 'rms', D*dv
-    
-    
-    stop
+!    do k=1,nz
+!      do j=1,ny
+!        do i=1,nx
+!          test(i,j,k) = Gaussian(meshx(i),0.0d0,1.0d0)*Gaussian(meshy(j),0.0d0,1.0d0)&
+!          &            *Gaussian(meshx(k),0.0d0,1.0d0)
+!        enddo
+!      enddo
+!    enddo
+!    
+!    print *, sum(test)*dv
+!    print *, test(1:nx,1,1)
+!    
+!    D = 0
+!    do k=1,nz
+!      do j=1,ny
+!        do i=1,nx
+!          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
+!        enddo
+!      enddo
+!    enddo
+!    print *, 'rms', D*dv
+!    
+!    test = FoldGaussian(test,Gaussx,Gaussy,Gaussz, nx, ny, nz)
+!    
+!    print *, sum(test)*dv
+!    print *, test(1:nx, 1,1)
+!    
+!    D = 0
+!    do k=1,nz
+!      do j=1,ny
+!        do i=1,nx
+!          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
+!        enddo
+!      enddo
+!    enddo
+!    print *, 'rms', D*dv
+!    
+!    
+!    stop
 
  end subroutine ConstructFoldingMatrices
  

@@ -49,7 +49,7 @@ module functional
 
     !---------------------------------------------------------------------------
     ! Definition of global contributions to the energy
-    real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy
+    real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy, Ehistory(5)
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
     real(KIND=dp) :: PairingEnergy(2), PairDenEnergy(2)
     !===========================================================================
@@ -209,6 +209,8 @@ $PRINTCOEF_PN
     !---------------------------------------------------------------------------
     
     use Coulombmod
+
+    integer :: i
     
     ! Kinetic energy
     Kinetic = CompKinetic()
@@ -233,6 +235,12 @@ $PRINTCOEF_PN
       ! Exchange contribution
       CoulombExchange = CoulombEnergy_Exchange(ChargeDensity) 
     endif
+
+    ! Saving history
+    do i=4,1,-1
+        Ehistory(i+1) = Ehistory(i)
+    enddo
+    Ehistory(1) = TotalE    
 
     ! Total energy
     TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)

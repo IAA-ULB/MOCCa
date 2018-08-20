@@ -198,7 +198,6 @@ contains
     allocate(spenergies(filenwn+filenwp))
     allocate(dispersions(filenwn+filenwp))
     
-    read(chan,iostat=io) rho_can, spenergies, dispersions
     read(chan,iostat=io) HFPsi                              
     ! Densities                                                (NOT IMPLEMENTED)
     ! No idea yet on how to implement this, as the nature of the densities
@@ -206,8 +205,12 @@ contains
     read(chan, iostat=io)
     ! Name of the force and functional
     read(chan, iostat=io) name_param, func_name_check
-    ! Pairing information                                      (NOT IMPLEMENTED)
-    read(chan, iostat=io)
+    ! Information on the auxiliary state                       (NOT IMPLEMENTED)
+    read(chan, iostat=io) spenergies
+    read(chan, iostat=io) ! Delta
+    read(chan, iostat=io) ! rho
+    read(chan, iostat=io) ! kappa
+    read(chan, iostat=io) ! Cantransfo
     ! Cranking information                                     (NOT IMPLEMENTED)
     read(chan, iostat=io)
     ! Multipole moment information                             (NOT IMPLEMENTED)

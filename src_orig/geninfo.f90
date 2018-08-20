@@ -25,6 +25,16 @@ module GenInfo
     ! coulomb calculation
     real(KIND=dp), allocatable :: meshx(:), meshy(:), meshz(:)
     real(KIND=dp), allocatable :: coulmeshx(:), coulmeshy(:), coulmeshz(:)
+
+    !---------------------------------------------------------------------------
+    ! Convergence criteria
+    !      Name       Default         
+    !   energy_prec     1d-9     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec
+    !   moment_prec     1d-3     abs((Qlm^(i) - Qlm^(i))/Qlm^(i)) < moment_prec
+    !                                if Qlm^(i) is large enough
+    !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
+    !                                     < disp_prec
+    real(KIND=dp) :: energy_prec = 1d-9, moment_prec = 1d-3, disp_prec = 1d-5
     
 contains
 
