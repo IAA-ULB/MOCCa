@@ -166,10 +166,11 @@ subroutine ReachForWaterAndFood
 
     1 format('----------------------------------')
     2 format('| Convergence criteria satisfied.|')
-    3 format('| dE < ', e10.3, 15x, ' | ')
-    4 format('| dQ < ', e10.3, 15x, ' | ')
-    5 format('| dH < ', e10.3, 15x, ' | ')        
-    6 format('| Ending the iterative proces.   |')
+    3 format('| Needed ', i4, ' iterations.', 8x,'|')
+    4 format('| dE < ', e10.3, 15x, ' | ')
+    5 format('| dQ < ', e10.3, 15x, ' | ')
+    6 format('| dH < ', e10.3, 15x, ' | ')        
+    7 format('| Ending the iterative proces.   |')
    
     integer :: iter
     logical :: ConvergenceAchieved
@@ -274,10 +275,11 @@ subroutine ReachForWaterAndFood
         if(ConvergenceAchieved) then
             print 1
             print 2
-            print 3, energy_prec
-            print 4, moment_prec
-            print 5, disp_prec
-            print 6
+            print 3, iter
+            print 4, energy_prec
+            print 5, moment_prec
+            print 6, disp_prec
+            print 7
             print 1
             exit
         endif
@@ -289,21 +291,37 @@ subroutine ReachForWaterAndFood
     !---------------------------------------------------------------------------
 end subroutine ReachForWaterAndFood
 
-
 subroutine printsummary(iter)
     !---------------------------------------------------------------------------
-    ! Not very advanced printing of a summary of the iteration.
+    ! Short printout after an iteration
     ! 
     !---------------------------------------------------------------------------
     use functional
     use evolution 
-    integer, intent(in) :: iter
+    use moments    
 
-    print *,  '*************************************'
-    print *,  ' Iteration ', iter
-    print *,  ' dt=', dt, ' mu=', momentum
-    print *,  ' Energy =  ', totalE, ' Spwfs  =  ', spwfenergy
-    print *,  ' GradNorm =', gradientnorm, ' Dispersion=', d2h
-    print *,  '*************************************'
+    integer, intent(in)   :: iter
+    type(Moment), pointer :: Q20, Q22
+    real(KIND=dp)         :: dQ20, dQ22
+     
+
+    1 format (80('-'))
+    2 format (' Iteration = ',i4)
+    3 format (' dt  = ', f8.4, '  mu  = ', f8.4, '  D2H = ', e8.1)
+    4 format (' E   = ', f8.3,  ' DE  = ', e8.1)
+    5 format (' Q20 = ', f12.4,'  Q22 = ', f12.4, &
+    &         ' dQ20= ', e8.1, '  dQ22= ', e8.1)
+    
+    Q20 =>FindMoment(2,0,.false.     )
+    Q22 =>FindMoment(2,2,.false., Q20)
+
+    print 1
+    print 2, iter
+    print 3, dt, momentum, d2h
+    print 4, totalE,  abs(totalE - Ehistory(1)/abs(totalE))
+
+    dQ20 = abs(sum(Q20%value) - sum(Q20%history))
+    dQ22 = abs(sum(Q22%value) - sum(Q22%history))
+    print 5, sum(Q20%value), sum(Q22%value), dQ20,dQ22
         
 end subroutine printsummary
