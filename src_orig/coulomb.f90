@@ -57,9 +57,12 @@ module Coulombmod
  ! has been shown to be sufficient in MOCCa.
  integer, parameter :: maxm=8
  !------------------------------------------------------------------------------
- ! Gaussian matrices, to be used when folding is required.
+ ! Gaussian matrices, to be used when folding of the nucleon densities to 
+ ! obtain the charge densities are required. 
+ ! The fourth index is the isospin index, the third whether it is the 
+ ! Gaussian with positive or negative sign.
  !------------------------------------------------------------------------------
- real(KIND=dp), allocatable :: Gaussx(:,:), Gaussy(:,:), Gaussz(:,:)
+ real(KIND=dp), allocatable :: Gaussx(:,:,:,:), Gaussy(:,:,:,:), Gaussz(:,:,:,:)
    
 contains
 
@@ -171,9 +174,9 @@ contains
     ! If the proton has a finite size, we need to fold the density with a
     ! Gaussian. This sets up the necessary matrices.
     !---------------------------------------------------------------------------
-    if(protonsize(1) .ne. 0.0_dp) then
+    if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
         if(.not.allocated(Gaussx)) then
-            allocate(Gaussx(nx,nx), Gaussy(ny,ny), Gaussz(nz,nz)) 
+            allocate(Gaussx(nx,nx,2,2), Gaussy(ny,ny,2,2), Gaussz(nz,nz,2,2)) 
             Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
         endif
         !-----------------------------------------------------------------------
@@ -257,113 +260,67 @@ contains
     !---------------------------------------------------------------------------
     use folding
     
-    real(KIND=dp), intent(out) :: Gx(:,:), Gy(:,:), Gz(:,:)
-    real(KIND=dp)              :: r0, D, X, Y,Z, test(nx,ny,nz)
-    integer :: linX, linY, linZ, i,j,k
+    real(KIND=dp), intent(out) :: Gx(:,:,:), Gy(:,:,:), Gz(:,:,:)
+    real(KIND=dp)              :: rplus(2), rmin(2) D, X, Y,Z, test(nx,ny,nz)
+    integer                    :: i,j,k, it
      
-    linX = nx
-    linY = ny
-    linZ = nz
+    rplus(1) = neutronsize(1) * sqrt(2.0/3.0)
+    rmin(1)  = neutronsize(2) * sqrt(2.0/3.0)
 
-    r0 = protonsize(1) * sqrt(2.0/3.0)
-    !---------------------------------------------------------------------------
-    ! Elements actually represented on the mesh
-    do i=1,nx
-        do j=1,nx           
-            Gx(i,j) = Gaussian(meshx(i), meshx(j), r0)
-        enddo
-    enddo
-    do i=1,ny
-        do j=1,ny          
-            Gy(i,j) = Gaussian(meshy(i), meshy(j), r0)
-        enddo
-    enddo
-    do i=1,nz
-        do j=1,nz         
-            Gz(i,j) = Gaussian(meshz(i), meshz(j), r0)
-        enddo
+    rplus(2) = protonsize(1) * sqrt(2.0/3.0)
+    rmin(2)  = protonsize(2) * sqrt(2.0/3.0)
+    
+    do it=1,2
+        if(rplus(it) .ne. 0.0_dp) then 
+            !-------------------------------------------------------------------
+            ! Elements actually represented on the mesh, of the Gaussian with
+            ! positive sign.
+            do i=1,nx
+                do j=1,nx           
+                    Gx(i,j,1,it) = Gaussian(meshx(i), meshx(j), rplus(it))
+                enddo
+            enddo
+            do i=1,ny
+                do j=1,ny          
+                    Gy(i,j,1,it) = Gaussian(meshy(i), meshy(j), rplus(it))
+                enddo
+            enddo
+            do i=1,nz
+                do j=1,nz         
+                    Gz(i,j,1,it) = Gaussian(meshz(i), meshz(j), rplus(it))
+                enddo
+            enddo
+            !-------------------------------------------------------------------
+            ! Elements to be gotten by symmetry, of the Gaussian with positive 
+            ! sign
+            do i=1,nx
+                do j=1,nx
+                    Gx(i,j,1,it) = Gx(i,j) + Gaussian(-meshx(i), meshx(j),rplus(it))
+                enddo
+            enddo
+            do i=1,ny
+                do j=1,ny
+                    Gy(i,j,1,it) = Gy(i,j) + Gaussian(-meshy(i), meshy(j),rplus(it))
+                enddo
+            enddo
+            do i=1,nz
+                do j=1,nz
+                    Gz(i,j,1,it) = Gz(i,j) + Gaussian(-meshz(i), meshz(j),rplus(it))
+                enddo
+            enddo
+        endif
+
+        !-----------------------------------------------------------------------
+        ! Normalize; otherwise the numerical inaccuracies treat nonexistent
+        ! charge.
+        Gx(:,:,it) = Gx/(sum(Gx(:,1,it))*dx)
+        Gy(:,:,it) = Gy/(sum(Gy(:,1,it))*dx)
+        Gz(:,:,it) = Gz/(sum(Gz(:,1,it))*dx)
     enddo
     
-!    D = 0
-!    do i=1,nx
-!      D = D + Gaussian(meshx(i), 0.0d0, r0) * meshx(i)**2
-!      D = D + Gaussian(meshx(i), 0.0d0, r0) * meshx(i)**2
-!    enddo
-!!    do i=1,ny
-!!      D = D + Gaussian(meshy(i), 0.0d0, r0) !* meshy(i)**2
-!!      D = D + Gaussian(meshy(i), 0.0d0, r0) !* meshy(i)**2
-!!    enddo
-!!    do i=1,nz
-!!      D = D + Gaussian(meshz(i), 0.0d0, r0) !* meshz(i)**2
-!!      D = D + Gaussian(meshz(i), 0.0d0, r0) !* meshy(i)**2
-!!    enddo
-!    print *, 'R2', D*dx*3, protonsize**2
-!    stop
-    !---------------------------------------------------------------------------
-    ! Elements to be gotten by symmetry
-    do i=1,nx
-        do j=1,nx
-            Gx(i,j) = Gx(i,j) + Gaussian(-meshx(i), meshx(j),r0)
-        enddo
-    enddo
-    do i=1,ny
-        do j=1,ny
-            Gy(i,j) = Gy(i,j) + Gaussian(-meshy(i), meshy(j),r0)
-        enddo
-    enddo
-    do i=1,nz
-        do j=1,nz
-            Gz(i,j) = Gz(i,j) + Gaussian(-meshz(i), meshz(j),r0)
-        enddo
-    enddo
-    !---------------------------------------------------------------------------
-    ! Normalize; otherwise the integral of the Gaussian is not necessarily 1.
-    Gx = Gx/(sum(Gx(:,1))*dx)
-    Gy = Gy/(sum(Gy(:,1))*dx)
-    Gz = Gz/(sum(Gz(:,1))*dx)
-    
-!    do k=1,nz
-!      do j=1,ny
-!        do i=1,nx
-!          test(i,j,k) = Gaussian(meshx(i),0.0d0,1.0d0)*Gaussian(meshy(j),0.0d0,1.0d0)&
-!          &            *Gaussian(meshx(k),0.0d0,1.0d0)
-!        enddo
-!      enddo
-!    enddo
-!    
-!    print *, sum(test)*dv
-!    print *, test(1:nx,1,1)
-!    
-!    D = 0
-!    do k=1,nz
-!      do j=1,ny
-!        do i=1,nx
-!          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
-!        enddo
-!      enddo
-!    enddo
-!    print *, 'rms', D*dv
-!    
-!    test = FoldGaussian(test,Gaussx,Gaussy,Gaussz, nx, ny, nz)
-!    
-!    print *, sum(test)*dv
-!    print *, test(1:nx, 1,1)
-!    
-!    D = 0
-!    do k=1,nz
-!      do j=1,ny
-!        do i=1,nx
-!          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
-!        enddo
-!      enddo
-!    enddo
-!    print *, 'rms', D*dv
-!    
-!    
-!    stop
-
  end subroutine ConstructFoldingMatrices
- 
+
+
  function CoulombEnergy_direct(rhop) result(CEnergy)
     !---------------------------------------------------------------------------
     ! Calculate the (direct) electrostatic energy of the system.
@@ -505,3 +462,59 @@ contains
   end subroutine ConjugGrad
 
 end module Coulombmod
+
+!    D = 0
+!    do i=1,nx
+!      D = D + Gaussian(meshx(i), 0.0d0, r0) * meshx(i)**2
+!      D = D + Gaussian(meshx(i), 0.0d0, r0) * meshx(i)**2
+!    enddo
+!!    do i=1,ny
+!!      D = D + Gaussian(meshy(i), 0.0d0, r0) !* meshy(i)**2
+!!      D = D + Gaussian(meshy(i), 0.0d0, r0) !* meshy(i)**2
+!!    enddo
+!!    do i=1,nz
+!!      D = D + Gaussian(meshz(i), 0.0d0, r0) !* meshz(i)**2
+!!      D = D + Gaussian(meshz(i), 0.0d0, r0) !* meshy(i)**2
+!!    enddo
+!    print *, 'R2', D*dx*3, protonsize**2
+!    stop
+    
+!    do k=1,nz
+!      do j=1,ny
+!        do i=1,nx
+!          test(i,j,k) = Gaussian(meshx(i),0.0d0,1.0d0)*Gaussian(meshy(j),0.0d0,1.0d0)&
+!          &            *Gaussian(meshx(k),0.0d0,1.0d0)
+!        enddo
+!      enddo
+!    enddo
+!    
+!    print *, sum(test)*dv
+!    print *, test(1:nx,1,1)
+!    
+!    D = 0
+!    do k=1,nz
+!      do j=1,ny
+!        do i=1,nx
+!          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
+!        enddo
+!      enddo
+!    enddo
+!    print *, 'rms', D*dv
+!    
+!    test = FoldGaussian(test,Gaussx,Gaussy,Gaussz, nx, ny, nz)
+!    
+!    print *, sum(test)*dv
+!    print *, test(1:nx, 1,1)
+!    
+!    D = 0
+!    do k=1,nz
+!      do j=1,ny
+!        do i=1,nx
+!          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
+!        enddo
+!      enddo
+!    enddo
+!    print *, 'rms', D*dv
+!    
+!    
+!    stop

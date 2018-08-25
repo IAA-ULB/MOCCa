@@ -35,6 +35,14 @@ contains
   return
  end function Gaussian
  
+ subroutine Gauss_1D(G,r0, p)
+    !---------------------------------------------------------------------------
+    ! Function that constructs a matrix to fold in 1-D with a Gaussian of
+    ! parameter r0 and symmetry sign p. (To be filled in by Hephaestos later.)
+    !---------------------------------------------------------------------------
+    
+ end subroutine Gauss_1D
+ 
  function FoldGaussian(f,Gx,Gy,Gz, mx, my, mz) result(Folded)
   !-----------------------------------------------------------------------------
   ! Returns the folded function 
