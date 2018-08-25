@@ -92,9 +92,10 @@ contains
       ChargeDensity(i,1,1) = rhop(i)
     enddo
     
-    if(protonsize.ne.0.0_dp) then
+    if(any(protonsize.ne.0.0_dp)) then
         ! Fold the source with a Gaussian
-        ChargeDensity=FoldGaussian(ChargeDensity, GaussX, GaussY, GaussZ, nx, ny, nz)
+        ChargeDensity=FoldGaussian(ChargeDensity, GaussX, GaussY, GaussZ,      &
+        &                                                            nx, ny, nz)
     endif
     
     !---------------------------------------------------------------------------
@@ -117,7 +118,7 @@ contains
     call ConjugGrad (CoulombPotential,Source,1,1,1,1000,.false.,prec)
  
    
-    if(protonsize.ne.0.0_dp .and. Protonsize_selfconsistent) then
+    if(protonsize(1).ne.0.0_dp .and. nucleonsize_selfconsistent) then
         ! Fold the source with a Gaussian
         CoulombPotential(1:nx,1:ny, 1:nz)                                      &
         &                     =FoldGaussian(CoulombPotential(1:nx,1:ny, 1:nz), &
@@ -170,7 +171,7 @@ contains
     ! If the proton has a finite size, we need to fold the density with a
     ! Gaussian. This sets up the necessary matrices.
     !---------------------------------------------------------------------------
-    if(protonsize .ne. 0.0_dp) then
+    if(protonsize(1) .ne. 0.0_dp) then
         if(.not.allocated(Gaussx)) then
             allocate(Gaussx(nx,nx), Gaussy(ny,ny), Gaussz(nz,nz)) 
             Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
@@ -264,7 +265,7 @@ contains
     linY = ny
     linZ = nz
 
-    r0 = protonsize * sqrt(2.0/3.0)
+    r0 = protonsize(1) * sqrt(2.0/3.0)
     !---------------------------------------------------------------------------
     ! Elements actually represented on the mesh
     do i=1,nx

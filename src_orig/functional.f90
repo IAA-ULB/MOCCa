@@ -185,12 +185,12 @@ $PRINTCOEF_PN
 	  endif
     print *
     print 7, 0.0, CoulombDirect, CoulombDirect
-    if(protonsize.ne.0 .and. (.not. protonsize_selfconsistent)) then
+    if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
       temp = CoulombEnergy_Direct(D_I_I(:,2))
       print 71, 0.0, temp, temp
     endif
     print 8, 0.0, CoulombExchange, CoulombExchange
-    if(protonsize.ne.0 .and. (.not. protonsize_selfconsistent)) then
+    if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
       temp = CoulombEnergy_Exchange(D_I_I(:,2))
       print 71, 0.0, temp, temp
     endif
@@ -224,7 +224,7 @@ $PRINTCOEF_PN
     PairingEnergy = CalcPairingEnergy()
 
 
-    if(protonsize_selfconsistent .or. protonsize.eq.0.0) then
+    if(nucleonsize_selfconsistent .or. all(protonsize.eq.0.0)) then
       ! Direct contribution of the Coulomb potential
       CoulombDirect   = CoulombEnergy_Direct(D_I_I(:,2))
       ! Exchange contribution
