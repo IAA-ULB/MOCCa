@@ -28,7 +28,7 @@ FUNC   :=  NLO.func
 
 EXENAME:= Tantalus.$(FUNC).exe
 
-LIBS = -llapack  -lblas
+LIBS =
 
 ################################################################################
 # Recipes

@@ -238,8 +238,7 @@ wso      =    123.0,         ! Spin-orbit strength.
 wsoq     =    123.0          !  
 CT0      =      0.0          ! Coupling constant (isoscalar) of the J^2 terms
 CT1      =      0.0          ! Coupling constant (isovector) of the J^2 terms
-Vn       = -625.00000        ! Pairing strength, isoscalar-like.
-Vp       = -625.00000        ! Pairing strength, isoscalar-vector. 
+Vt       =  -1250.00000      ! Pairing strength of the ULB interaction.
 alpha    =    1.0            ! Alpha parameter in the ULB pairing interaction. 
 hbm(1)   = 20.73551910, 20.73551910  ! Value of hbar^2/2m
 COM1Body = 2                 ! Treatment of the one-body COM correction.
@@ -253,8 +252,21 @@ CoulombTreatment = 1         ! Treatment of Coulomb interaction.
                              !   (0) => No Coulomb included.
                              !   (1) => Direct and exchange (Slater) contribution
                              !   (2) => Only direct contribution.
-protonsize =       0.0       ! Rms radius of the proton to be assumed.
-                             ! If 0.0, no folding is used.
+protonsize  =  0.0, 0.0      ! Rms radii  (r+, r-) of a double Gaussian model 
+                             ! to be used for the proton.
+                             ! If 0.0, no folding is used for either Gaussian.
+neutronsize =  0.0, 0.0      ! Rms radii  (r+, r-) of a double Gaussian model 
+                             ! to be used for the neutron.
+                             ! If 0.0, no folding is used for either Gaussian.
+                             ! Note that input for protons and neutrons is NOT analogous. 
+                             ! The input for protons is the proton rms-radius. 
+                             ! The input for neutrons is r_+^2 , r_-^2 in the model of
+                             ! Chandra & Sauer PRC13, 245 
+HOCOMform   = .false.        ! Whether or not to correct the above rms radii    
+                             ! for the c.m. correction in a HO basis.
+nucleonsize_selfconsistent = .true.
+                             ! Whether to use the folding selfconsistently, 
+                             ! or only in the calculation of the energy.
 /
 \end{Verbatim}
 \end{minipage}

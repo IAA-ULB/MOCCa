@@ -312,7 +312,7 @@ contains
     real(KIND=dp), intent(out) :: Gx(:,:,:,:), Gy(:,:,:,:), Gz(:,:,:,:)
     real(KIND=dp)              :: rplus(2), rmin(2)
     real(KIND=dp)              :: hbom, mhb, B
-    integer                    :: i,j,k, it
+    integer                    :: it
 
     ! The determination from input for neutrons and protons is not the same     
     rplus(1) = sqrt(neutronsize(1))
