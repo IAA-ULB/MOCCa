@@ -62,9 +62,11 @@ contains
     enddo
 
     ! Normalize, to avoid the numerical errors due to the mesh discretization.
-    do i=1,m    
-        G(:,i) = G(:,i)/(sum(G(:,i)*dx))
-    enddo
+!    do i=1,m    
+!        G(:,i) = G(:,i)/(sum(G(:,i)*dx))
+!    enddo
+
+    G(:,:) = G(:,:)/(sum(G(:,1)*dx))
  end subroutine Gauss_1D
  
  function FoldGaussian(f,Gx,Gy,Gz, mx, my, mz) result(Folded)

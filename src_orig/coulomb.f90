@@ -112,15 +112,11 @@ contains
  
     ! Solve for the direct coulomb potential   
     call ConjugGrad (CoulombPotential,Source,1,1,1,1000,.false.,prec)
- 
-   
-!    if(protonsize(1).ne.0.0_dp .and. nucleonsize_selfconsistent) then
-!        ! Fold the source with a Gaussian
-!        CoulombPotential(1:nx,1:ny, 1:nz)                                      &
-!        &                     =FoldGaussian(CoulombPotential(1:nx,1:ny, 1:nz), &
-!        &                                    GaussX, GaussY, GaussZ, nx, ny, nz)
+
+!    if(nucleonsize_selfconsistent) then
+!        call FoldPotential()
 !    endif
- 
+! 
     if(Coultreatment.eq.1) then
       ! Exchange potential in Slater approximation
       ExchangePotential = -(3.0/pi)**(1.0/3.0_dp)*e2*(rhop**(1.0_dp/3.0_dp))   
@@ -131,8 +127,8 @@ contains
 
  subroutine ConstructChargeDensity(rho_charge)
     !---------------------------------------------------------------------------
-    ! Construct the charge density from
-    !
+    ! Construct the charge density from the proton and neutron densities,  
+    ! using various effective form
     !---------------------------------------------------------------------------
 
     use Folding
@@ -181,8 +177,8 @@ contains
         &                                                            nx, ny, nz)
     endif
     if(neutronsize(2).gt.0.0) then
-        ! Fold the source with a Gaussian
-        rho_charge = rho_charge + &
+        ! Fold the source with a Gaussian, minus sign this time
+        rho_charge = rho_charge - &
         & FoldGaussian(temp, GaussX(:,:,2,1), GaussY(:,:,2,1), GaussZ(:,:,2,1),&
         &                                                            nx, ny, nz)
     endif
@@ -314,15 +310,37 @@ contains
     use folding
     
     real(KIND=dp), intent(out) :: Gx(:,:,:,:), Gy(:,:,:,:), Gz(:,:,:,:)
-    real(KIND=dp)              :: rplus(2), rmin(2), D, X, Y,Z, test(nx,ny,nz)
+    real(KIND=dp)              :: rplus(2), rmin(2)
+    real(KIND=dp)              :: hbom, mhb, B
     integer                    :: i,j,k, it
-     
-    rplus(1) = neutronsize(1) * sqrt(2.0/3.0)
-    rmin(1)  = neutronsize(2) * sqrt(2.0/3.0)
+
+    ! The determination from input for neutrons and protons is not the same     
+    rplus(1) = sqrt(neutronsize(1))
+    rmin(1)  = sqrt(neutronsize(2))
 
     rplus(2) = protonsize(1) * sqrt(2.0/3.0)
     rmin(2)  = protonsize(2) * sqrt(2.0/3.0)
-    
+
+    !---------------------------------------------------------------------------
+    ! Harmonic-oscillator correction
+    if(hocomform) then
+        ! hbar x omega
+        hbom  = 41.0 * (neutrons + protons)**(-1.0/3.0)
+        ! 2m/hbar^2 
+        mhb = 2.0/(1.0/hbm(1)+1.0/hbm(2)) 
+        ! B^{-1} = hbar * omega/m * A = 1/2 * A * hbar omega * 2m/hbar^2 
+        B = sqrt( 1.0/( 0.5 * hbom/mhb  * (neutrons + protons)))
+
+        do it=1,2
+            if(rplus(it).ne.0.0) then
+                rplus(it) = sqrt(rplus(it)**2 - B**2)
+            endif
+            if(rmin(it).ne.0.0) then
+                rmin(it) = sqrt(rmin(it)**2 - B**2)
+            endif
+        enddo
+    endif
+
     do it=1,2
         if(rplus(it) .ne. 0.0_dp) then 
                 call Gauss_1D(Gx(:,:,1,it), meshx, nx, rplus(it), +1)

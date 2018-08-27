@@ -180,9 +180,9 @@ $PRINTCOEF_PN
     print 5
     print 6, Kinetic, sum(Kinetic)
     print 61, COMcorrection(1,:), sum(COMcorrection(1,:))
-	  if(any(COMcorrection(2,:).ne.0)) then
-		 print 62, COMcorrection(2,:), sum(COMcorrection(2,:))
-	  endif
+    if(any(COMcorrection(2,:).ne.0)) then
+     print 62, COMcorrection(2,:), sum(COMcorrection(2,:))
+    endif
     print *
     print 7, 0.0, CoulombDirect, CoulombDirect
     if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
@@ -397,12 +397,12 @@ $PRINT
             temp(2,it) = temp(2,it) + fac*NablaMElements(2,2,i,j)**2
             temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,i,j)**2
         enddo
-      enddo	
+      enddo
       !  Factor 0.5 = 0.25 * 2
       ! 0.25 since rho_can is double what it should be
       ! 2    since we are only summing over half of the states
       do it=1,2
-			  COMCorrection(2,it) = 0.5*sum(temp(:,it))
+        COMCorrection(2,it) = 0.5*sum(temp(:,it))
       enddo
       ! Some constants
       COMCorrection(2,:) = COMCorrection(2,:) * hbm * nucleonmass/             & 

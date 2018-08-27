@@ -309,7 +309,7 @@ subroutine printsummary(iter)
     1 format (80('-'))
     2 format (' Iteration = ',i4)
     3 format (' dt  = ', f8.4, '  mu  = ', f8.4, '  D2H = ', e8.1)
-    4 format (' E   = ', f8.3,  ' DE  = ', e8.1)
+    4 format (' E   = ', f10.3,  ' DE  = ', e8.1)
     5 format (' Q20 = ', f12.4,'  Q22 = ', f12.4, &
     &         ' dQ20= ', e8.1, '  dQ22= ', e8.1)
     
@@ -319,7 +319,7 @@ subroutine printsummary(iter)
     print 1
     print 2, iter
     print 3, dt, momentum, d2h
-    print 4, totalE,  abs(totalE - Ehistory(1)/abs(totalE))
+    print 4, totalE,  abs(totalE - Ehistory(1))/abs(totalE)
 
     dQ20 = abs(sum(Q20%value) - sum(Q20%history))
     dQ22 = abs(sum(Q22%value) - sum(Q22%history))

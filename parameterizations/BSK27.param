@@ -15,14 +15,15 @@ wso = 0.1146308139E+03 , wsoq=0.1146308139E+03
 sigma    =      0.3 
 CT0      =      0.0
 CT1      =      0.0
-Vn       = -625.00000
-Vp       = -625.00000
+Vt       =  -1250.00000
 alpha    =    1.0
 hbm(1)      = 20.72126890,20.74983164
 COM1Body = 2
 COM2Body = 1
 e2            = 1.43996446
-Protonsize    = 0.895
-protonsize_selfconsistent = .false.
+Protonsize    = 0.895, 0.0
+Neutronsize   = 0.387, 0.467 
+HOcomform     = .true.
+nucleonsize_selfconsistent=.false.
 CoulTreatment = 2
 /
