@@ -91,15 +91,8 @@ contains
     
     if(coultreatment.eq.0) return
     
-    do i=1,mv
-      ChargeDensity(i,1,1) = rhop(i)
-    enddo
-    
-    if(any(protonsize.ne.0.0_dp)) then
-        ! Fold the source with a Gaussian
-        ChargeDensity=FoldGaussian(ChargeDensity, GaussX, GaussY, GaussZ,      &
-        &                                                            nx, ny, nz)
-    endif
+    ! Construct the charge density on the (nx/ny/nz)-sized mesh.
+    call ConstructChargeDensity(ChargeDensity)
     
     !---------------------------------------------------------------------------
     ! Set up the source term: 
@@ -121,12 +114,12 @@ contains
     call ConjugGrad (CoulombPotential,Source,1,1,1,1000,.false.,prec)
  
    
-    if(protonsize(1).ne.0.0_dp .and. nucleonsize_selfconsistent) then
-        ! Fold the source with a Gaussian
-        CoulombPotential(1:nx,1:ny, 1:nz)                                      &
-        &                     =FoldGaussian(CoulombPotential(1:nx,1:ny, 1:nz), &
-        &                                    GaussX, GaussY, GaussZ, nx, ny, nz)
-    endif
+!    if(protonsize(1).ne.0.0_dp .and. nucleonsize_selfconsistent) then
+!        ! Fold the source with a Gaussian
+!        CoulombPotential(1:nx,1:ny, 1:nz)                                      &
+!        &                     =FoldGaussian(CoulombPotential(1:nx,1:ny, 1:nz), &
+!        &                                    GaussX, GaussY, GaussZ, nx, ny, nz)
+!    endif
  
     if(Coultreatment.eq.1) then
       ! Exchange potential in Slater approximation
@@ -135,6 +128,66 @@ contains
       ExchangePotential = 0.0
     endif  
  end subroutine SolveCoulomb 
+
+ subroutine ConstructChargeDensity(rho_charge)
+    !---------------------------------------------------------------------------
+    ! Construct the charge density from
+    !
+    !---------------------------------------------------------------------------
+
+    use Folding
+
+    real(KIND=dp) :: rho_charge(nx,ny,nz), temp(nx,ny,nz)
+    integer       :: i
+    
+    rho_charge = 0.0
+
+    !---------------------------------------------------------------------------
+    ! Proton contributions to the charge density.
+    
+    ! We start from the proton point density
+    do i=1, mv
+        temp(i,1,1) = D_I_I(i,2)
+    enddo       
+
+    if(protonsize(1).gt.0.0) then
+        ! Fold the source with a Gaussian
+        rho_charge = rho_charge + &
+        & FoldGaussian(temp, GaussX(:,:,1,2), GaussY(:,:,1,2), GaussZ(:,:,1,2),&
+        &                                                            nx, ny, nz)
+    endif
+    if(protonsize(2).gt.0.0) then
+        ! Fold the source with another Gaussian, this time with minus sign.
+        rho_charge = rho_charge - &
+        & FoldGaussian(temp, GaussX(:,:,2,2), GaussY(:,:,2,2), GaussZ(:,:,2,2),&
+        &                                                            nx, ny, nz)
+    endif
+
+    if(all(protonsize.eq.0.0)) then
+        rho_charge = temp
+    endif
+
+    !---------------------------------------------------------------------------
+    ! Neutron contributions to the charge density.
+    if(all(neutronsize.eq.0.0)) return
+
+    do i=1, mv
+        temp(i,1,1) = D_I_I(i,1)
+    enddo       
+    if(neutronsize(1).gt.0.0) then
+        ! Fold the source with a Gaussian
+        rho_charge = rho_charge + &
+        & FoldGaussian(temp, GaussX(:,:,1,1), GaussY(:,:,1,1), GaussZ(:,:,1,1),&
+        &                                                            nx, ny, nz)
+    endif
+    if(neutronsize(2).gt.0.0) then
+        ! Fold the source with a Gaussian
+        rho_charge = rho_charge + &
+        & FoldGaussian(temp, GaussX(:,:,2,1), GaussY(:,:,2,1), GaussZ(:,:,2,1),&
+        &                                                            nx, ny, nz)
+    endif
+    !---------------------------------------------------------------------------
+ end subroutine ConstructChargeDensity
 
  subroutine SetupCoulomb
     !---------------------------------------------------------------------------
@@ -260,8 +313,8 @@ contains
     !---------------------------------------------------------------------------
     use folding
     
-    real(KIND=dp), intent(out) :: Gx(:,:,:), Gy(:,:,:), Gz(:,:,:)
-    real(KIND=dp)              :: rplus(2), rmin(2) D, X, Y,Z, test(nx,ny,nz)
+    real(KIND=dp), intent(out) :: Gx(:,:,:,:), Gy(:,:,:,:), Gz(:,:,:,:)
+    real(KIND=dp)              :: rplus(2), rmin(2), D, X, Y,Z, test(nx,ny,nz)
     integer                    :: i,j,k, it
      
     rplus(1) = neutronsize(1) * sqrt(2.0/3.0)
@@ -272,54 +325,18 @@ contains
     
     do it=1,2
         if(rplus(it) .ne. 0.0_dp) then 
-            !-------------------------------------------------------------------
-            ! Elements actually represented on the mesh, of the Gaussian with
-            ! positive sign.
-            do i=1,nx
-                do j=1,nx           
-                    Gx(i,j,1,it) = Gaussian(meshx(i), meshx(j), rplus(it))
-                enddo
-            enddo
-            do i=1,ny
-                do j=1,ny          
-                    Gy(i,j,1,it) = Gaussian(meshy(i), meshy(j), rplus(it))
-                enddo
-            enddo
-            do i=1,nz
-                do j=1,nz         
-                    Gz(i,j,1,it) = Gaussian(meshz(i), meshz(j), rplus(it))
-                enddo
-            enddo
-            !-------------------------------------------------------------------
-            ! Elements to be gotten by symmetry, of the Gaussian with positive 
-            ! sign
-            do i=1,nx
-                do j=1,nx
-                    Gx(i,j,1,it) = Gx(i,j) + Gaussian(-meshx(i), meshx(j),rplus(it))
-                enddo
-            enddo
-            do i=1,ny
-                do j=1,ny
-                    Gy(i,j,1,it) = Gy(i,j) + Gaussian(-meshy(i), meshy(j),rplus(it))
-                enddo
-            enddo
-            do i=1,nz
-                do j=1,nz
-                    Gz(i,j,1,it) = Gz(i,j) + Gaussian(-meshz(i), meshz(j),rplus(it))
-                enddo
-            enddo
+                call Gauss_1D(Gx(:,:,1,it), meshx, nx, rplus(it), +1)
+                call Gauss_1D(Gy(:,:,1,it), meshy, ny, rplus(it), +1)
+                call Gauss_1D(Gz(:,:,1,it), meshz, nz, rplus(it), +1)
         endif
-
-        !-----------------------------------------------------------------------
-        ! Normalize; otherwise the numerical inaccuracies treat nonexistent
-        ! charge.
-        Gx(:,:,it) = Gx/(sum(Gx(:,1,it))*dx)
-        Gy(:,:,it) = Gy/(sum(Gy(:,1,it))*dx)
-        Gz(:,:,it) = Gz/(sum(Gz(:,1,it))*dx)
+        if(rmin(it) .ne. 0.0_dp) then 
+                call Gauss_1D(Gx(:,:,2,it), meshx, nx, rmin(it), +1)
+                call Gauss_1D(Gy(:,:,2,it), meshy, ny, rmin(it), +1)
+                call Gauss_1D(Gz(:,:,2,it), meshz, nz, rmin(it), +1)
+        endif
     enddo
     
  end subroutine ConstructFoldingMatrices
-
 
  function CoulombEnergy_direct(rhop) result(CEnergy)
     !---------------------------------------------------------------------------

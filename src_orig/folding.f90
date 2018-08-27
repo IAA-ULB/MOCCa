@@ -35,12 +35,36 @@ contains
   return
  end function Gaussian
  
- subroutine Gauss_1D(G,r0, p)
+ subroutine Gauss_1D(G, mesh, m, r0, p)
     !---------------------------------------------------------------------------
     ! Function that constructs a matrix to fold in 1-D with a Gaussian of
     ! parameter r0 and symmetry sign p. (To be filled in by Hephaestos later.)
     !---------------------------------------------------------------------------
+
+    real(KIND=dp)             :: G(m,m)
+    integer, intent(in)       ::  m, p
+    real(KIND=dp), intent(in) :: r0, mesh(m)
     
+    integer :: i,j
+    
+    ! Elements actually represented on the mesh
+    do i=1,m
+        do j=1,m          
+            G(i,j) = Gaussian(mesh(i), mesh(j), r0)
+        enddo
+    enddo
+    !---------------------------------------------------------------------------
+    ! Elements to be gotten by symmetry.
+    do i=1,m
+        do j=1,m          
+            G(i,j) = G(i,j) + p*Gaussian(-mesh(i), mesh(j), r0)
+        enddo
+    enddo
+
+    ! Normalize, to avoid the numerical errors due to the mesh discretization.
+    do i=1,m    
+        G(:,i) = G(:,i)/(sum(G(:,i)*dx))
+    enddo
  end subroutine Gauss_1D
  
  function FoldGaussian(f,Gx,Gy,Gz, mx, my, mz) result(Folded)
