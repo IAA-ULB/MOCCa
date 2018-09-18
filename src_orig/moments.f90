@@ -191,15 +191,16 @@ module moments
       !-------------------------------------------------------------------------
       real(KIND=dp) :: Beta(3)
       !-------------------------------------------------------------------------
+      ! Logical: if True, use the Lagrange multiplier as read from file.
+      logical :: multfromfile = .false.
+      logical :: continue     = .false.
+      !-------------------------------------------------------------------------
       ! Procedure pointer to the routine used to calculate the moment.
       procedure(Calculate_electric),   pointer, nopass :: Calculate
       !-------------------------------------------------------------------------
       ! Procedure pointer to the routine used to print output of the moment.
       procedure(PrintMoment_electric), pointer, nopass :: PrintMoment
       !-------------------------------------------------------------------------
-!    contains
-!      procedure, pass,   :: WriteMoment
-!      generic                 :: Write=> WriteMoment
   end type Moment
 
   !-----------------------------------------------------------------------------
@@ -256,6 +257,10 @@ module moments
   !-----------------------------------------------------------------------------
   ! Logical to see if any moments with constrainttype are present
   logical :: projectpresent = .false.
+  !-----------------------------------------------------------------------------
+  ! If true, the code takes ALL of the information on the constrained moments
+  ! from the read-in wavefunction file.
+  logical :: ContinueAll = .false.
 
 contains
   
@@ -731,21 +736,22 @@ contains
     integer             :: iostat, iteration
     integer             :: l,m, ConstraintType
     real(KIND=dp)       :: Constraint, iq1=-1000000, iq2=-1000000, Intensity
-    logical             :: MoreConstraints=.false., Impart
+    logical             :: MoreConstraints=.false., Impart, MultfromFile
+    logical             :: continue
     type(Moment),pointer:: Current
     real(KIND=dp), allocatable:: LegacyCon(:)
 
     NameList /MomentParam/                                                     &
     &           QuantisationAxis, SecondaryAxis, MaxMoment, &  ! General options
     &           radd, acut, cutofftype,                     &   ! Cutoff options
+    &           ContinueAll,                                &
     &           MoreConstraints            ! Signal that constraints will follow
-     
-    
+      
     NameList /MomentConstraint/                                                &
     &          l,m, Impart,                    & ! Defining the multipole moment 
     &          Constraint,Intensity, ConstraintType, & ! Defining the constraint 
-    &          iq1, iq2, Iteration,                                            &
-    &          MoreConstraints             ! Signal that constraints will follow
+    &          iq1, iq2, Iteration, multfromfile, continue,                    &
+    &          MoreConstraints        ! Signal that more constraints will follow
 
     nullify(Current)
 
@@ -792,9 +798,9 @@ contains
     do while(MoreConstraints)
         !-----------------------------------------------------------------------
         !Initialisation
-        l=0; m=0; Impart=.false.  ; Intensity =0.0_dp
+        l=0; m=0; Impart=.false.  ; Intensity      = 0.0_dp
         Constraint=0.0_dp         ; MoreConstraints=.false.   
-        ConstraintType=2          
+        ConstraintType=2          ; MultfromFile   =.false. ; continue = .false.
         iq1=-1000000_dp           ; iq2=-1000000_dp ; iteration = -1 
 
         read(unit=*, NML=MomentConstraint, IOSTAT=iostat)
@@ -852,6 +858,9 @@ contains
                   Current%Constraint = Constraint
                 endif
               endif
+
+              Current%MultFromFile = MultFromFile
+              Current%Continue     = Continue
               
               if(constrainttype.eq.2) projectpresent = .true.
               !-----------------------------------------------------------------
@@ -1414,6 +1423,62 @@ contains
     enddo
 
   end subroutine StandardCutoff
+
+!===============================================================================
+! Read/write moments from file
+!===============================================================================
+  subroutine ReadMoment(IChan, ioerror)
+    !---------------------------------------------------------------------------
+    ! Subroutine to read information on a multipole moment from the 
+    ! next line. 
+    !---------------------------------------------------------------------------
+    integer, intent(in)    :: IChan
+    integer, intent(inout) :: ioerror
+
+    type (Moment), pointer :: Mom
+
+    integer                :: l,m, ConStraintType
+    real(KIND=dp)          :: Value(2), Intensity, Constraint, Multiplier 
+    real(KIND=dp)          :: deviation
+    logical                :: impart
+
+    read(IChan, iostat=ioerror) l,m,impart, ConstraintType, Value,Constraint,  &
+    &                           Deviation,Multiplier,Intensity
+    if(ioerror.ne.0) return
+    !---------------------------------------------------------------------------
+    ! Finding moment.
+    Mom => FindMoment(l,m,Impart)
+    !---------------------------------------------------------------------------
+    ! Assigning correct values
+    Mom%ConstraintType = ConstraintType
+    Mom%Value          = Value    
+
+    if(ContinueAll  .or. mom%continue) then    
+      Mom%Constraint     = Constraint
+      Mom%Intensity      = Intensity
+    endif
+  
+    if(Mom%multfromfile .or. ContinueAll) then        
+      Mom%Multiplier     = Multiplier
+    endif
+  end subroutine ReadMoment
+
+  subroutine WriteMoment(Mom,Ochan)
+    !---------------------------------------------------------------------------
+    ! Subroutine that writes all relevant values of multipole moment to file.
+    !---------------------------------------------------------------------------
+    class(Moment), intent(in) :: Mom
+    integer, intent(in)       :: Ochan
+    integer                   :: io
+
+    io = 0
+    write(OChan)                Mom%l,Mom%m,Mom%Impart, Mom%constrainttype,  &
+    &                           Mom%value, Mom%constraint,Mom%deviation,     &
+    &                           Mom%multiplier, Mom%Intensity       
+    
+if(io.ne.0) call stp('Error while writing multipole moment to file!')
+  end subroutine WriteMoment
+
 
 !===============================================================================
 ! Various things

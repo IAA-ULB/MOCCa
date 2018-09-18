@@ -163,6 +163,7 @@ contains
     !---------------------------------------------------------------------------
     
     use functional
+    use moments
     
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ifn
@@ -254,8 +255,13 @@ contains
 
     ! Cranking information                                     (NOT IMPLEMENTED)
     read(chan, iostat=io)
-    ! Multipole moment information                             (NOT IMPLEMENTED)
-    read(chan, iostat=io)
+
+    !---------------------------------------------------------------------------
+    ! Multipole moment information                             
+    io = 0
+    do while(io.eq.0)
+      call ReadMoment(chan,io)
+    enddo
     
     !---------------------------------------------------------------------------
     ! Sanity checks
@@ -328,15 +334,18 @@ contains
     !        |   HFBgaps            
     ! Densities                                              (*)
     ! CrankingInfo                                           (*)                      
-    ! Moments                                                (*)
-    !
+    ! Multipole Moments                                                 
+    !     | The code writes the data on ALL the multipole moments.
+    !     | For the format of the lines, see the Moments module.
     !---------------------------------------------------------------------------
 
     use functional
+    use moments
 
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ofn
     integer                      :: io
+    type(moment), pointer        :: mom
     
     open (chan,form='unformatted',file=ofn)
 
@@ -387,8 +396,13 @@ contains
      
     ! Cranking information                                     (NOT IMPLEMENTED)
     write(chan, iostat=io)
-    ! Multipole moment information                             (NOT IMPLEMENTED)
-    write(chan, iostat=io)
+    !---------------------------------------------------------------------------
+    ! Multipole moment information                             
+    mom => root
+    do while(associated(mom%next))
+      mom => mom%next
+      call Writemoment(mom,chan)
+    enddo
     
   end subroutine WriteTantalus
 end module IO
