@@ -90,8 +90,8 @@ contains
   
   dn = 0.0
   
+  ! Guess a new Fermi energy if none is there
   if(all(Fermi.eq.0.0))   Fermi = -5
-  
   !-----------------------------------------------------------------------------
   ! Construct the single-particle hamiltonian from the sp.energes
   sphamil = 0
@@ -105,11 +105,9 @@ contains
   enddo
   
   df = 0.0
-  
   !-----------------------------------------------------------------------------
   ! Start iterations over the Fermi energy
   do iter=1,maxHFBiter
-      
      vect      = 0.0
      eigen     = 0.0
      particles = 0.0
@@ -154,7 +152,6 @@ contains
         si = si +  N
         sb = sb +2*N
      enddo
-    
      !--------------------------------------------------------------------------
      ! Adjust Fermi energy, using a secant method for the moment
      dn(:,2) = dn(:,1)
@@ -169,7 +166,6 @@ contains
      if(abs(dn(2,1)) .lt. FermiPrec) then
       converged(2) = .true.
      endif
-     
      if(all(converged)) exit
      
      if(iter.eq.1) then

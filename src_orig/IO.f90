@@ -139,7 +139,6 @@ contains
     ! 
     ! Things read from file. (Not yet implemented ones are indicated by *)
     !
-    !
     ! Version
     ! Convergence information: E, dE                         (*)
     ! nx,ny,nz,dx,dt                    
@@ -147,10 +146,17 @@ contains
     ! neutrons,protons
     ! Number of wavefunctions in every block
     ! (nwt) Wavefunctions                                    
-    ! Densities                                              (*)
     ! Forcename                                              
-    ! Pairing information                                    (*)
-    !    -> Include canonical transformation 
+    ! Pairing information                                    
+    !    - Pairingtype
+    !    - Rho_can = occupation factors 
+    !      (HF)  nothing
+    !      (BCS) BCSGaps
+    !      (HFB) rho_pairing    
+    !        |   kappa_pairing
+    !        |   can_transfo
+    !        |   HFBgaps            
+    ! Densities                                              (*)
     ! CrankingInfo                                           (*)                      
     ! Moments                                                (*)
     !
@@ -164,8 +170,10 @@ contains
     integer                      :: io, version
     logical                      :: exists
     
-    integer       :: filenx, fileny, filenz, filenwn, filenwp,i
+    integer       :: filenx, fileny, filenz, filenwn, filenwp,i, filepairing
+    integer       :: filenwt 
     real(KIND=dp) :: filedx
+    real(KIND=dp), allocatable :: filegaps(:,:)
     
     1 format ('Number of mesh points does not correspond to file.', / &
     &         'On file: nx= ', i3, ' ny= ', i3, ' nz= ',i3,            / &
@@ -195,27 +203,55 @@ contains
     read(Chan,iostat=io) neutrons,protons
     ! HFBLocks information 
     read(Chan,iostat=io) filenwn, filenwp, hfblocks
+    filenwt = filenwn + filenwp
     ! Wavefunctions
     !- - - - - - - - - - - - - - - -
     ! First allocate the needed space
     allocate(HFPsi(filenx*fileny*filenz,4, filenwn+filenwp))
-    
     allocate(spenergies(filenwn+filenwp))
     allocate(dispersions(filenwn+filenwp))
+    allocate(rho_can(filenwn + filenwp))
     
+    read(chan,iostat=io) spenergies, dispersions    
     read(chan,iostat=io) HFPsi                              
+    ! Name of the force and functional
+    read(chan, iostat=io) name_param, func_name_check
+
+    !---------------------------------------------------------------------------
+    ! Pairing information                                      
+    read(chan, iostat=io) filepairing
+    ! Write the occupation factors in all cases
+    read(chan, iostat=io) rho_can
+    select case (filepairing)
+    case(0)
+        ! HF: nothing to read
+    case(1)
+        ! BCS: read the gaps
+        allocate(filegaps(filenwn+filenwp,1))
+        read(chan, iostat=io) FermiEnergy       ! Lambda
+        read(chan, iostat=io) filegaps
+        
+        ! Simply copy the gaps for now
+        allocate(BCSGaps(filenwt)) ;  BCSGaps = filegaps(:,1)        
+    case(2)
+        ! HFB
+
+        allocate(filegaps(2*filenwt, 2*filenwt)) 
+        read(chan, iostat=io) FermiEnergy       ! Lambda
+        read(chan, iostat=io) ! rho
+        read(chan, iostat=io) ! kappa
+        read(chan, iostat=io) ! Canonical transformation
+        read(chan, iostat=io) filegaps     ! Full matrix of gaps
+
+        ! Simply copy the gaps for now
+        allocate(HFBGaps(2*filenwt, 2*filenwt)) ; HFBGaps = filegaps  
+    end select   
+    !---------------------------------------------------------------------------
     ! Densities                                                (NOT IMPLEMENTED)
     ! No idea yet on how to implement this, as the nature of the densities
     ! calculated every calculation can be very different.      
     read(chan, iostat=io)
-    ! Name of the force and functional
-    read(chan, iostat=io) name_param, func_name_check
-    ! Information on the auxiliary state                       (NOT IMPLEMENTED)
-    read(chan, iostat=io) spenergies
-    read(chan, iostat=io) ! Delta
-    read(chan, iostat=io) ! rho
-    read(chan, iostat=io) ! kappa
-    read(chan, iostat=io) ! Cantransfo
+
     ! Cranking information                                     (NOT IMPLEMENTED)
     read(chan, iostat=io)
     ! Multipole moment information                             (NOT IMPLEMENTED)
@@ -271,7 +307,6 @@ contains
     ! 
     ! Things written to file. (Not yet implemented ones are indicated by *)
     !
-    !
     ! Version
     ! Convergence information: E, dE                         (*)
     ! nx,ny,nz,dx,dt                    
@@ -279,10 +314,19 @@ contains
     ! neutrons,protons
     ! Number of wavefunctions in every block
     ! (nwt) Wavefunctions                                    
-    ! Densities                                              (*)
     ! Forcename                                              
-    ! Pairing information                                    (*)
-    !    -> Include canonical transformation 
+    ! Pairing information                                    
+    !    - Pairingtype
+    !    - Rho_can = occupation factors 
+    !      (HF)  nothing
+    !      (BCS) Fermi level
+    !        |   BCSGaps  
+    !      (HFB) Fermi level
+    !        |   rho_pairing    
+    !        |   kappa_pairing
+    !        |   can_transfo
+    !        |   HFBgaps            
+    ! Densities                                              (*)
     ! CrankingInfo                                           (*)                      
     ! Moments                                                (*)
     !
@@ -308,16 +352,39 @@ contains
     ! HFBLocks information 
     write(Chan,iostat=io) nwn, nwp, hfblocks
     ! Wavefunctions  
-    write(chan,iostat=io) rho_can, spenergies, dispersions
+    write(chan,iostat=io) spenergies, dispersions
     write(chan,iostat=io) HFPsi                              
+    ! Name of the force.
+    write(chan, iostat=io) name_param, func_name
+    !---------------------------------------------------------------------------
+    ! Pairing information                                      
+    write(chan, iostat=io) PairingType
+
+    ! Write the occupation factors in all cases
+    write(chan, iostat=io) rho_can
+
+    select case (PairingType)
+    case(0)
+        ! HF: nothing to write
+    case(1)
+        ! BCS
+        write(chan, iostat=io) FermiEnergy
+        write(chan, iostat=io) BCSGaps 
+    case(2)
+        ! HFB
+        write(chan, iostat=io) FermiEnergy       ! Lambda
+        write(chan, iostat=io) rho_pairing       ! rho
+        write(chan, iostat=io) kappa_pairing     ! kappa
+        write(chan, iostat=io) Cantransfo        ! Canonical transformation
+        write(chan, iostat=io) HFBgaps           ! Full matrix of gaps
+    end select
+    !---------------------------------------------------------------------------
+
     ! Densities                                                (NOT IMPLEMENTED)
     ! No idea yet on how to implement this, as the nature of the densities
     ! calculated every calculation can be very different.      
-    write(chan, iostat=io)
-    ! Name of the force.
-    write(chan, iostat=io) name_param, func_name
-    ! Pairing information                                      (NOT IMPLEMENTED)
-    write(chan, iostat=io)
+    write(chan, iostat=io)   
+     
     ! Cranking information                                     (NOT IMPLEMENTED)
     write(chan, iostat=io)
     ! Multipole moment information                             (NOT IMPLEMENTED)

@@ -131,7 +131,6 @@ contains
     !---------------------------------------------------------------------------
     integer :: wave, wave2, si, B, N
 
-    allocate(QPenergies(nwt))
     
     select case (PairingType)
     case(0)
@@ -155,9 +154,7 @@ contains
         ! Factor of 2 through time-reversal
         allocate(HFBGaps(2*nwt,2*nwt)) ; HFBGaps = 0.0
       endif
-
-      ! Determine the size of the HFB matrices
-      call initHFB()  
+  
       HFBGaps = 0.0
       si = 0 
       do B= 1,8
@@ -180,7 +177,12 @@ contains
     
     if(.not.allocated(rho_can)) then
       allocate(rho_can(nwt))   ; rho_can    = 0.0
+    endif
+    if(.not.allocated(kappa_can)) then
       allocate(kappa_can(nwt)) ; kappa_can  = 0.0 
+    endif
+    if(.not.allocated(qpenergies)) then
+        allocate(QPenergies(nwt)) ; qpenergies = 0.0
     endif
     
     select case (Pairingtype)
@@ -198,17 +200,28 @@ contains
       if(.not.allocated(CanTransfo)) then
         ! Allocate the full matrices
         allocate(CanTransfo(nwt, nwt))     ; CanTransfo    = 0.0
+      endif
+      if(.not.allocated(CanCutTransfo)) then
         allocate(CanCutTransfo(nwt, nwt))  ; CanCutTransfo = 0.0
+      endif
+      if(.not. allocated(rho_pairing)) then
         allocate(rho_pairing(nwt,nwt))     ; rho_pairing   = 0.0
+      endif
+      if(.not.allocated(kappa_pairing)) then
         allocate(kappa_pairing(nwt,nwt))   ; kappa_pairing = 0.0
+      endif
+      if(.not.allocated(rho_history)) then
         allocate(rho_history(nwt,nwt))     ; rho_history   = 0.0
+      endif
+      if(.not. allocated(kappa_history)) then
         allocate(kappa_history(nwt,nwt))   ; kappa_history = 0.0
       endif
-      
+      if(all(HFBsizes.eq.0)) call inithfb
+      !-------------------------------------------------------------------------
       ! Save the previous configuration
       rho_history   = rho_pairing
       kappa_history = kappa_pairing
-      
+      !-------------------------------------------------------------------------
       ! Find the Fermi energy
       call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing, qpenergies)
       
