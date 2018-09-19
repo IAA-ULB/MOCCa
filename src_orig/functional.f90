@@ -411,17 +411,23 @@ $PRINT
 
   end subroutine CompCOMCorrection
 
-  subroutine calcFields()
+  subroutine calcFields(calcall)
     !---------------------------------------------------------------------------
     ! Calculate all of the Skyrme potentials.
+    !
+    ! Calcall input decides whether or not to calculate ALL fields. 
+    ! If Calcall is true, all of the potentials get recalculated.
+    ! If Calcall is false, only potentials that are equal to zero get calculated.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Includes preconditioning of F_I_I at the moment only.
     !---------------------------------------------------------------------------
     use Coulombmod , only : SolveCoulomb, CoulombPotential, Exchangepotential
     use moments
     
-    integer :: it,i,j,k
+    integer                    :: it,i,j,k, maxit
     real(KIND=dp), allocatable :: update(:,:)
+    logical, intent(in)        :: calcall
+
 
 $CALCFIELDS
 
@@ -645,4 +651,50 @@ $EREAR
     enddo
     close(12)
   end subroutine output_Edensity
+
+    subroutine WritePotentials(chan)
+    !---------------------------------------------------------------------------
+    !  Subroutine writing the different potentials to file.
+    !---------------------------------------------------------------------------
+    integer, intent(in) :: chan
+    integer             :: io
+
+    ! Signalling how many fields have been stored.
+    write(chan, iostat=io) $FIELDNUMBER
+
+    ! Then, for every potential write the 
+    ! * Name 
+    ! * Value
+    ! Note that the name is written as a length-30 string, padded with spaces.
+    ! If not, the unformatted in/out cannot correctly determine the end of a
+    ! string and comparisons can not be made.
+$WRITEPOTENTIALS
+    end subroutine WritePotentials
+
+    subroutine ReadPotentials(chan)
+    !---------------------------------------------------------------------------
+    !  Subroutine writing the different potentials to file.
+    !---------------------------------------------------------------------------
+    integer, intent(in) :: chan
+    integer             :: io, fieldnumber, fieldcount
+    character(len=30)   :: fieldname
+
+    ! Checking how many fields have been stored
+    read(chan, iostat=io) fieldnumber
+
+    do fieldcount = 1,fieldnumber
+        ! Read the fieldname
+        read(chan, iostat=io) fieldname   
+        ! Manually check for 
+
+        select case(trim(fieldname))
+$READPOTENTIALS
+        CASE DEFAULT
+          ! The potential is not in this program, forget about it
+          read(chan, iostat=io)
+        end select
+    enddo
+
+    end subroutine ReadPotentials
+
 end module functional

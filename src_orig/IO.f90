@@ -156,8 +156,8 @@ contains
     !        |   kappa_pairing
     !        |   can_transfo
     !        |   HFBgaps            
-    ! Densities                                              (*)
     ! CrankingInfo                                           (*)                      
+    ! Potentials                                             
     ! Moments                                                (*)
     !
     !---------------------------------------------------------------------------
@@ -247,15 +247,11 @@ contains
         ! Simply copy the gaps for now
         allocate(HFBGaps(2*filenwt, 2*filenwt)) ; HFBGaps = filegaps  
     end select   
-    !---------------------------------------------------------------------------
-    ! Densities                                                (NOT IMPLEMENTED)
-    ! No idea yet on how to implement this, as the nature of the densities
-    ! calculated every calculation can be very different.      
-    read(chan, iostat=io)
-
     ! Cranking information                                     (NOT IMPLEMENTED)
     read(chan, iostat=io)
-
+    !---------------------------------------------------------------------------
+    ! Potentials                                               
+    call readpotentials(chan)
     !---------------------------------------------------------------------------
     ! Multipole moment information                             
     io = 0
@@ -387,15 +383,11 @@ contains
         write(chan, iostat=io) Cantransfo        ! Canonical transformation
         write(chan, iostat=io) HFBgaps           ! Full matrix of gaps
     end select
-    !---------------------------------------------------------------------------
-
-    ! Densities                                                (NOT IMPLEMENTED)
-    ! No idea yet on how to implement this, as the nature of the densities
-    ! calculated every calculation can be very different.      
-    write(chan, iostat=io)   
-     
     ! Cranking information                                     (NOT IMPLEMENTED)
     write(chan, iostat=io)
+    !---------------------------------------------------------------------------
+    ! Potentials on file
+    call writepotentials(chan)
     !---------------------------------------------------------------------------
     ! Multipole moment information                             
     mom => root

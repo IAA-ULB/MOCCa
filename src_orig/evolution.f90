@@ -383,9 +383,15 @@ contains
       ! Step 3: use these estimations to determine a value for dt and mu.
       maxE  = maxE - minval(spenergies)
       kappa = relE/maxE
-      momentum = ((sqrt(kappa) - 1)/(sqrt(kappa)+1))**2
-      dt    = 4.0/(maxE+relE+2*sqrt(maxE*relE))*hbar*0.90
-            
+      
+      if(Iteration.eq.1) then
+        ! Don't mess up with a too large step at the start of the iterations
+        dt = 2.0/maxE*hbar* 0.90
+        momentum = 0.0
+      else        
+        momentum = ((sqrt(kappa) - 1)/(sqrt(kappa)+1))**2
+        dt    = 4.0/(maxE+relE+2*sqrt(maxE*relE))*hbar*0.90
+      endif  
   end subroutine IterativeEstimation
 !===============================================================================
 ! Projection on the feasible subspace routine

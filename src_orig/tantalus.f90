@@ -191,7 +191,9 @@ subroutine ReachForWaterAndFood
     call densit(SaveRho=.false.)
 
     call CalculateMoments()
-    call calcFields()
+    
+    ! Only calculate the fields that have not been initialized from file.
+    call calcFields(calcall=.false.)
     call CalcGaps(FermiEnergy)
     call CalcEnergy()
 
@@ -253,8 +255,8 @@ subroutine ReachForWaterAndFood
         call ReadjustAllMoments(1)
         call Sphamilcontribution()
         
-        ! Update the fields
-        call calcFields()
+        ! Update all of the fields
+        call calcFields(calcall=.true.)
         ! Recalculate the energy
         call CalcEnergy()
 

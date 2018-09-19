@@ -49,7 +49,8 @@ def initfields():
             (der, lap, left, right, coupling, cross) = ParseOperators(den)
             for j in range(len(Densities_needed)):
                 altden = Densities_needed[j]
-                (altder, altlap, altleft, altright, altcoupling, altcross) = ParseOperators(altden)    
+                (altder, altlap, altleft, altright, altcoupling, altcross)     \
+                                                        = ParseOperators(altden)    
                 if(altleft == left and altright == right):
                     # Set minimum derivatives
                     deriv_needed[j].append((totallap, totalder))
@@ -73,15 +74,24 @@ def GenerateFields():
                            3*tab + 'allocate($FIELD(mv$ALLOCIND,2)) \n'   +\
                            3*tab + 'allocate(${FIELD}_hist(mv$ALLOCIND,2)) \n'+\
                            3*tab + '$FIELD = 0.0 ; ${FIELD}_hist = 0.0 \n' + \
-                           2*tab + 'endif \n' + \
-                           2*tab + '${FIELD}_hist = $FIELD \n' + 
-                           2*tab + '$FIELD = 0.0 \n')
-    field_calc_temp    = Template( 3*tab + '$FIELD(:$IND,it) = $FIELD(:$IND,it)  & \n')
+                           2*tab + 'endif \n')
+    field_hist_temp = Template( 2*tab + 'if(calcall) then \n' + 
+                                3*tab + '${FIELD}_hist = $FIELD \n' + 
+                                3*tab + '$FIELD = 0.0 \n'           + 
+                                2*tab + 'endif \n')
+
+    field_line             = Template(2*tab+ \
+    '!----------------------------------------------------------------------\n')
+    field_calc_temp_a    = Template( 2*tab + '! Calculation of $FIELD \n')
+    field_calc_temp_b    = Template( 3*tab + '$FIELD(:$IND,it) = $FIELD(:$IND,it)  & \n')
     field_calc_den_a     = Template('* sum($DENSITY(:$DENIND,:),$SUMIND)  ')
     field_calc_den_b     = Template('* $DENSITY(:$DENIND,it)')
     field_calc_den_c     = Template('* $DENSITY(:$DENIND,3-it)')
 
-    isoloop     = 2*tab + 'do it=1,2 \n'
+    isoloop = Template(2*tab + 'maxit = 2 \n' + \
+              2*tab + 'if((.not.calcall).and.(any(${FIELD}.ne.0.0))) maxit=0\n'+\
+              2*tab + 'do it=1,maxit \n')
+    
     isoloop_end = 2*tab + 'enddo\n'
 
     field_calc_b_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(1,2) $EXPR1 & \n') 
@@ -91,6 +101,12 @@ def GenerateFields():
     doloop_template    = 2*tab + 'do %s = 1, 3 \n'
     enddoloop_template = 2*tab + 'enddo \n'
 
+    field_write_template_a = Template(tab + ('write(chan, iostat=io) "$FIELDFILLED" \n'))
+    field_write_template_b = Template(tab + ('write(chan, iostat=io)  $FIELD  \n'))
+
+    field_read_template_a  = Template(2*tab + ('case("$FIELD") \n'))
+    field_read_template_b  = Template(2*tab + ('read(chan, iostat=io)  $FIELD \n'))
+
     cplcts    = []       
     for term in heph_functional.Functional_terms:      
         cplcts.append(term.replace('E_', 'B_'))
@@ -99,12 +115,19 @@ def GenerateFields():
     # and the action of the field. 
     FIELDCALC   = ''
     declaration = ''
+
+    fieldread = ''
+    fieldwrite= ''
         
     for den in heph_functional.Densities_needed:
         #-----------------------------------------------------------------------
         # Name the field correctly
         dic = {}
         dic['FIELD'] = den.replace('D', 'F').replace('C', 'G')
+
+        #Get a string of length 30 with the field name, but with extra spaces
+        # at the end
+        dic['FIELDFILLED'] = dic['FIELD'].ljust(30)
 
         if('P' not in den): 
           Fields_needed.append(dic['FIELD'])
@@ -204,9 +227,19 @@ def GenerateFields():
        
         declaration  = declaration + field_decl_temp.substitute(dic)
         declaration  = declaration + fhist_decl_temp.substitute(dic)
+
+        fieldread    = fieldread   + field_read_template_a.substitute(dic)
+        fieldread    = fieldread   + field_allo_temp.substitute(dic)
+        fieldread    = fieldread   + field_read_template_b.substitute(dic)
         
+        fieldwrite   = fieldwrite  + field_write_template_a.substitute(dic)
+        fieldwrite   = fieldwrite  + field_write_template_b.substitute(dic)
+        
+        FIELDCALC = FIELDCALC + field_line.substitute(dic)
+        FIELDCALC = FIELDCALC + field_calc_temp_a.substitute(dic)
         FIELDCALC    = FIELDCALC + field_allo_temp.substitute(dic)
-        FIELDCALC    = FIELDCALC + isoloop
+        FIELDCALC    = FIELDCALC + field_hist_temp.substitute(dic)
+        FIELDCALC    = FIELDCALC + isoloop.substitute(dic)
         
         for fieldterm in fieldlist:
              # Find the number of indices over which there have to be sums
@@ -236,7 +269,7 @@ def GenerateFields():
                             dic['IND'] = dic['IND'] \
                                           + ',%s'%(arg[fieldterm[4].index(c)]+1)
            
-                 FIELDCALC = FIELDCALC + field_calc_temp.substitute(dic)
+                 FIELDCALC = FIELDCALC + field_calc_temp_b.substitute(dic)
                  
                  dic['DENSITY']  = ''
                  dic['EXPR1']    = ''
@@ -301,9 +334,9 @@ def GenerateFields():
                  
                  FIELDCALC = FIELDCALC[:-4] + '\n \n'
         FIELDCALC    = FIELDCALC + isoloop_end
+        FIELDCALC    = FIELDCALC + field_line.substitute(dic)
 
-
-    return(declaration,FIELDCALC)
+    return(declaration, FIELDCALC, fieldwrite, fieldread)
 
 def GenerateAction(field, symmetrize):
     #---------------------------------------------------------------------------

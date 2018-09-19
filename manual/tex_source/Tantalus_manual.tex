@@ -189,6 +189,9 @@ Outputfilename = name of the .wf file Tantalus will write.
 \begin{Verbatim}
 &MomentParam
 MoreConstraints = Logical. If .true., signals that the namelist &MomentConstraint/ will follow.
+ContinueAll     = Logical. If .true., signal that the data of the constrained 
+                  multipole moments should be taken from the input .wf file, not
+                  from STDIN.
 /
 \end{Verbatim}
 
@@ -196,12 +199,13 @@ MoreConstraints = Logical. If .true., signals that the namelist &MomentConstrain
 &MomentConstraint
 l               = Integer, indicating the degree l of the multipole moment Qlm to constrain.
 m               = Integer, indicating the degree m of the multipole moment Qlm to constrain.
-Constrain       = Value to constrain <Qlm> to.
+Constraint      = Value to constrain <Qlm> to.
 Iteration       = If zero (0), Tantalus will constrain the moment for the entire run.
                   If non-zero, the constraint will only be used for this number of iterations.
                   Very useful for breaking self-consistent symmetries.
 MoreConstraints = Logical. If .true., signals that more &MomentConstraints will follow.
                            If .false., signals that this is the last &MomentConstraint.
+Multfromfile    = Logical. If .true., start the calculation with the Lagrange multiplier on file.
 /
 \end{Verbatim}
 

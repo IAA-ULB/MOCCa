@@ -12,7 +12,6 @@ def LineFormat_oneline(code):
     if(len(code) <= 100):
         splitcode = code
     else:
-        
         split = textwrap.wrap(code, width=100, break_long_words=False)
         splitcode = ''
         for c in split:
@@ -20,14 +19,10 @@ def LineFormat_oneline(code):
         
         splitcode = splitcode[2:-3]
     return(splitcode)
-    
-    
 
 def LineFormat(code):
-    
     split = code.split('\n')
     splitcode= ''  
     for l in split:
         splitcode = splitcode + LineFormat_oneline(l) + '\n'
-        
     return splitcode

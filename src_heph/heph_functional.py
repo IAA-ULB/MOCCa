@@ -388,6 +388,8 @@ def ProcessFunctional(fname, src, target):
         pairtotal     = ''
         fieldcalc     = ''
         erear         = ''
+        writing       = ''
+        reading       = ''
         
         #-----------------------------------------------------------------------
         # Generate the terms in the functional
@@ -415,9 +417,12 @@ def ProcessFunctional(fname, src, target):
 
         #-----------------------------------------------------------------------
         # Generate the fields of the single-particle hamiltonian
-        (fielddec, fieldcalc) = heph_fields.GenerateFields(     )
-        declaration = declaration + fielddec + '\n'
-        
+        (fielddec, fieldcalc, fieldwrite,fieldread) =                          \
+                                               heph_fields.GenerateFields(     )
+        declaration = declaration + fielddec   + '\n'
+        writing     = writing     + fieldwrite 
+        reading     = reading     + fieldread 
+
         #-----------------------------------------------------------------------
         # Generate the expressions for the actions of the Skyrme fields
         SkyrmeAction = ''
@@ -454,7 +459,7 @@ def ProcessFunctional(fname, src, target):
         for field in heph_fields.Pairing_Fields_needed:
           (left,right,coupling,cross) = heph_fields.ParseOperatorsField(field)
           PairingAction =PairingAction + heph_fields.GenerateAction(field, 0)
-          
+
         #-----------------------------------------------------------------------
         # Now make sure all of the lines are not too long for compilation.
         declaration   = heph_linechecker.LineFormat(declaration)
@@ -468,10 +473,15 @@ def ProcessFunctional(fname, src, target):
         SkyrmeAction  = heph_linechecker.LineFormat(SkyrmeAction)
         PairingAction = heph_linechecker.LineFormat(PairingAction)
         erear         = heph_linechecker.LineFormat(erear)
+        reading       = heph_linechecker.LineFormat(reading)
+        writing       = heph_linechecker.LineFormat(writing)
+
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        # Substitute into the functional.f90 file.        
+        # Substitute into the functional.f90 file.  
+        # The [:-3] indices cut off the final linebreak for somewhat neater code      
         dic={}
-        dic['DECLARATION']    = declaration
+
+        dic['DECLARATION']    = declaration[:-3]
         dic['CALCULATION']    = calculation
         dic['PRINT']          = printing
         dic['CALCCOEF']       = calccoef   
@@ -484,7 +494,10 @@ def ProcessFunctional(fname, src, target):
         dic['PAIRINGACTION']  = PairingAction
         dic['EREAR']          = erear
         dic['FUNC_NAME']      = func_name
-        
+        dic['FIELDNUMBER']    = len(Densities_needed)
+        dic['WRITEPOTENTIALS']= writing[:-3]
+        dic['READPOTENTIALS'] = reading[:-3]
+
         if(derivative_order == 1):
           dic['N2'] = ' '    
           dic['N3'] = '!'
