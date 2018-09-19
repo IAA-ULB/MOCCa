@@ -427,35 +427,50 @@ $PRINT
     integer                    :: it,i,j,k, maxit
     real(KIND=dp), allocatable :: update(:,:)
     logical, intent(in)        :: calcall
+    logical                    :: rhoread
 
+    ! We need to determine if F_I_I was read from file or not. 
+    ! If it was, it already includes Coulomb and constraining fields and we
+    ! should not add them again.
+    if(.not.calcall) then
+        if(.not.allocated(F_I_I))then
+            rhoread = .true.
+        endif
+    else
+        rhoread = .false.
+    endif
 
 $CALCFIELDS
 
-    !---------------------------------------------------------------------------
+    !-----------------------------------------------------------------------
     ! Solve for the Coulomb Potential
     call SolveCoulomb(D_I_I(:,2))
-    
-    !---------------------------------------------------------------------------
-    ! Add the Coulomb contribution to the field corresponding to rho.
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          ! Direct contribution
-          ! The index juggling is ugly, but necessary. The Coulomb potential
-          ! is defined on a slightly larger box using boundary conditions.
-          ! A simple abstract statement might mess this up.
-          F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2) =                                &
-          &       F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2) + CoulombPotential(i,j,k)
+
+    if(.not. rhoread) then    
+        print *, 'Adding Coulomb'
+        !-----------------------------------------------------------------------
+        ! Add the Coulomb contribution to the field corresponding to rho.
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              ! Direct contribution
+              ! The index juggling is ugly, but necessary. The Coulomb potential
+              ! is defined on a slightly larger box using boundary conditions.
+              ! A simple abstract statement might mess this up.
+              F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2) =                                &
+              &       F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2) + CoulombPotential(i,j,k)
+            enddo
+          enddo
         enddo
-      enddo
-    enddo
-    ! Exchange contribution
-    F_I_I(1:mv,2) = F_I_I(1:mv,2) + ExchangePotential(1:mv)
-    
-    !---------------------------------------------------------------------------
-    ! Add the contribution from the constraints on the electric multipole 
-    ! moments. 
-    F_I_I =  F_I_I + Constraint_I_I
+        ! Exchange contribution
+        F_I_I(1:mv,2) = F_I_I(1:mv,2) + ExchangePotential(1:mv)
+        
+        !-----------------------------------------------------------------------
+        ! Add the contribution from the constraints on the electric multipole 
+        ! moments. 
+        F_I_I =  F_I_I + Constraint_I_I
+    endif
+
     !---------------------------------------------------------------------------
     ! Precondition the field corresponding to rho, F_I_I.
     if(.not.all(F_I_I_hist.eq.0.0_dp) .and. potentialpreconditioning.eq.1) then
