@@ -172,7 +172,7 @@ contains
     logical                      :: exists
     
     integer       :: filenx, fileny, filenz, filenwn, filenwp,i, filepairing
-    integer       :: filenwt 
+    integer       :: filenwt, fileneutrons, fileprotons
     real(KIND=dp) :: filedx
     real(KIND=dp), allocatable :: filegaps(:,:)
     
@@ -201,7 +201,7 @@ contains
     ! Symmetry information                                     (NOT IMPLEMENTED)
     read(Chan,iostat=io) 
     !Number of protons and neutrons
-    read(Chan,iostat=io) neutrons,protons
+    read(Chan,iostat=io) fileneutrons, fileprotons
     ! HFBLocks information 
     read(Chan,iostat=io) filenwn, filenwp, hfblocks
     filenwt = filenwn + filenwp
