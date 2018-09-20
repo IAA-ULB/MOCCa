@@ -447,7 +447,6 @@ $CALCFIELDS
     call SolveCoulomb(D_I_I(:,2))
 
     if(.not. rhoread) then    
-        print *, 'Adding Coulomb'
         !-----------------------------------------------------------------------
         ! Add the Coulomb contribution to the field corresponding to rho.
         do k=1,nz

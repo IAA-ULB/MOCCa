@@ -249,6 +249,10 @@ subroutine ReachForWaterAndFood
         else
           call densit(SaveRho=.true.)
         endif
+
+        !See if some moments were temporary
+        call TurnOffConstraints(iter)
+
         ! Calculate a) moments values, b) readjustment and c) finally the 
         ! contribution to the sphamiltonian.
         call CalculateMoments()

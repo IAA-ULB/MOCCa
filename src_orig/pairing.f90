@@ -85,7 +85,7 @@ contains
     ! Read and initialize pairing options. 
     !
     !---------------------------------------------------------------------------
-    character(len=20) :: Type
+    character(len=20) :: Type = 'HF'
     
     NameList /Pairing/ Type, CutType, Constantgap 
     read(unit=*, NML=Pairing)
@@ -98,6 +98,8 @@ contains
       pairingtype = 1
     elseif('HFB' .eq. adjustl(type)) then
       pairingtype = 2
+    elseif('' .eq. adjustl(type)) then
+      pairingtype = 0
     else
       print *, 'This type of pairing is not implemented yet.'
     endif
