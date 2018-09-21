@@ -1450,10 +1450,11 @@ contains
     Mom => FindMoment(l,m,Impart)
     !---------------------------------------------------------------------------
     ! Assigning correct values
-    Mom%ConstraintType = ConstraintType
-    Mom%Value          = Value    
-
+   
     if(ContinueAll  .or. mom%continue) then    
+      Mom%ConstraintType = ConstraintType
+      Mom%Value          = Value    
+    
       Mom%Constraint     = Constraint
       Mom%Intensity      = Intensity
     endif
