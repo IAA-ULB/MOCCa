@@ -4,7 +4,7 @@
 ! Particle-hole parameters
 t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3;  wso ; wsoq ; sigma ; CT0 ; CT1 
 ! Pairing strengths
-Vt ; alpha
+Vt ; alpha ; sigmap
 !TERMS
 !-------------------------------------------------------------------------------
 ! NLO terms     
@@ -20,4 +20,4 @@ E_D_I_I_Derm_C_I_NxmSxm  ;  -wso/2.0 - wsoq/4.0     ; - wsoq/4.0
 E_C_I_NmSk_C_I_NmSk      ; -CT0  ;  -CT1
 !-------------------------------------------------------------------------------
 ! Pairing interaction 
-E_DP_I_I_DP_I_I          ;  Vt/2 ; Vt/2 ;  (1 - alpha/0.16 * sum(D_I_I,2)) ;  D_I_I ; 0.0 ; 0.0 ;                   
+E_DP_I_I_DP_I_I          ;  Vt/2 ; Vt/2 ;  (1 - alpha * (sum(D_I_I,2)/0.16)**(sigmap)) ;  D_I_I ; 0.0 ; 0.0 ;                   

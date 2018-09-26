@@ -244,6 +244,9 @@ CT0      =      0.0          ! Coupling constant (isoscalar) of the J^2 terms
 CT1      =      0.0          ! Coupling constant (isovector) of the J^2 terms
 Vt       =  -1250.00000      ! Pairing strength of the ULB interaction.
 alpha    =    1.0            ! Alpha parameter in the ULB pairing interaction. 
+sigma_p  =    1.0            ! Power of the density dependence in the pairing 
+                             ! interaction. Alpha in EQ. (2) in 
+                             !   S. Goriely et al, PRC88, 061302 (2013).
 hbm(1)   = 20.73551910, 20.73551910  ! Value of hbar^2/2m
 COM1Body = 2                 ! Treatment of the one-body COM correction.
                              !   (0) => None.
@@ -268,10 +271,9 @@ neutronsize =  0.0, 0.0      ! Rms radii  (r+, r-) of a double Gaussian model
                              ! Chandra & Sauer PRC13, 245 
 HOCOMform   = .false.        ! Whether or not to correct the above rms radii    
                              ! for the c.m. correction in a HO basis.
-nucleonsize_selfconsistent = .true.
+nucleonsize_selfconsistent = .true./
                              ! Whether to use the folding selfconsistently, 
                              ! or only in the calculation of the energy.
-/
 \end{Verbatim}
 \end{minipage}
 \label{fig:paramexample}
