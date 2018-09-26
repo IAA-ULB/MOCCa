@@ -433,8 +433,10 @@ $PRINT
     ! If it was, it already includes Coulomb and constraining fields and we
     ! should not add them again.
     if(.not.calcall) then
-        if(.not.allocated(F_I_I))then
+        if(allocated(F_I_I))then
             rhoread = .true.
+        else
+            rhoread = .false.        
         endif
     else
         rhoread = .false.
