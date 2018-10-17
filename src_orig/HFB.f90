@@ -27,6 +27,7 @@ module HFB
   !-----------------------------------------------------------------------------
   ! Gaps and quasiparticle energies
   real(KIND=dp), allocatable :: HFBGaps(:,:)
+
   !-----------------------------------------------------------------------------
   ! Maximum amount of iterations for finding a Fermi energy
   integer :: maxHFBiter  = 100
@@ -60,7 +61,8 @@ contains
   
  end subroutine initHFB
 
- subroutine solvepairing_HFB(fermi, rho_pairing, kappa_pairing, qpenergies)
+ subroutine solvepairing_HFB(fermi, rho_pairing, kappa_pairing, gen_den,       &
+ &                                                qpenergies,HFBmix, HFBmixtype)
   !-----------------------------------------------------------------------------
   ! Driver routine for the solving of the HFB equations.
   !
@@ -73,14 +75,23 @@ contains
   ! |----
   !     5) Return rho_pairing and kappa_pairing
   !-----------------------------------------------------------------------------
-  
+
+  !-----------------------------------------------------------------------------  
+  ! History of the pairing matrices
+  real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
+  real(KIND=dp), allocatable ::  gen_den_history(:)
+
+  ! Options for the mixing of the HFB configurations
+  real(KIND=dp), intent(in)  :: HFBmix
+  integer, intent(in)        :: HFBmixtype
+
   real(KIND=dp)              :: fermi(2)
   real(KIND=dp)              :: rho_pairing(nwt,nwt), qpenergies(nwt)
-  real(KIND=dp)              :: kappa_pairing(nwt,nwt)
+  real(KIND=dp)              :: kappa_pairing(nwt,nwt), gen_den(2*nwt)
   real(KIND=dp)              :: df(2), dn(2,2)
 
   real(KIND=dp)              :: sphamil(nwt,nwt),vect(2*nwt,2*nwt)
-  real(KIND=dp)              :: eigen(2*nwt),  work(nwt)
+  real(KIND=dp)              :: eigen(2*nwt),  work(nwt), tempp
   real(KIND=dp)              :: particles(2), temp(nwt), chi(nwt,nwt)
   real(KIND=dp), allocatable :: HFBHamil(:,:)
   
@@ -88,6 +99,22 @@ contains
   
   integer                    :: si, sb, N, B, iter, wave1, it, i,j,k
   
+  !-----------------------------------------------------------------------------
+  if(.not.allocated(rho_history)) then
+        allocate(rho_history(nwt,nwt))     ; rho_history   = 0.0
+  endif
+  if(.not. allocated(kappa_history)) then
+        allocate(kappa_history(nwt,nwt))   ; kappa_history = 0.0
+  endif  
+  if(.not.allocated(gen_den_history)) then
+        allocate(gen_den_history(2*nwt)) ;  gen_den_history = 0.0
+  endif
+  !-----------------------------------------------------------------------------
+  ! Saving the history
+  rho_history     = rho_pairing
+  kappa_history   = kappa_pairing
+  gen_den_history = gen_den
+
   dn = 0.0
   
   ! Guess a new Fermi energy if none is there
@@ -105,6 +132,7 @@ contains
   enddo
   
   df = 0.0
+        
   !-----------------------------------------------------------------------------
   ! Start iterations over the Fermi energy
   do iter=1,maxHFBiter
@@ -141,11 +169,23 @@ contains
         qpenergies(si+1:si+N) = eigen(sb+N+1:sb+2*N)
 
         !-----------------------------------------------------------------------
+        ! Construct the generalized density matrix of the type of state we are
+        ! looking for. 
+        gen_den(sb+1:sb+2*N) = 0.0_dp
+        do i=1,N
+            gen_den(sb+N+i) = 1.0_dp
+        enddo  
+
+        !-----------------------------------------------------------------------
         ! Calculate the number of particles in here  
-        ! Sum_i rho_ii = sum_ij V^*_ij V^T_ji = sum_ij V^*_ij V_ij
-        particles(it) =  particles(it)  & 
-        &                   + 2*sum(vect(sb+N+1:sb+2*N, sb+N+1:sb+2*N)**2)
-        ! Time reversal is responsible for the factor 2
+        ! Sum_i rho_ii = 
+        !            sum_(ij>N) Gd_(j) V^*_ij V^T_ji = sum_ij Gd_(j) V^*_ij V_ij
+        !          + sum_(ij<N) Gd_(j) U^*_ij U^T_ji = sum_ij Gd_(j) U^*_ij U_ij  
+        do i=N+1,2*N
+            particles(it) = particles(it) +                                    &
+            &            + 2 * gen_den(sb+i) * sum(vect(sb+N+1:sb+2*N, sb+i)**2)            
+            ! Time reversal is responsible for the factor 2
+        enddo
 
         deallocate(HFBHamil)
         ! Startindex (si) for the next block.
@@ -192,6 +232,13 @@ contains
   enddo
 
   !-----------------------------------------------------------------------------
+  ! Linear mixing of the generalized density matrix, if asked for.
+  if(.not.all(gen_den_history.eq.0.0)) then
+        if(HFBmixtype .eq. 1) then
+            gen_den   =  HFBmix * gen_den   + (1-HFBmix) * gen_den_history
+        endif
+  endif  
+  !-----------------------------------------------------------------------------
   ! Construct the density and anomalous density matrix.
   rho_pairing = 0.0 ; kappa_pairing = 0.0
 
@@ -203,9 +250,15 @@ contains
       do j=1,N
         do k=1,N
           rho_pairing(si+i,si+j)  = rho_pairing(si+i,si+j) +                   &
-          &                            vect(sb+N+i,sb+N+k) * vect(sb+N+j,sb+N+k)
+          &            gen_den(sb+  k)*vect(sb+  i,sb+N+k) * vect(sb+  j,sb+N+k)
+          rho_pairing(si+i,si+j)  = rho_pairing(si+i,si+j) +                   &
+          &            gen_den(sb+N+k)*vect(sb+N+i,sb+N+k) * vect(sb+N+j,sb+N+k)
+
+
           kappa_pairing(si+i,si+j)  = kappa_pairing(si+i,si+j) +               &
-          &                            vect(sb+N+i,sb+N+k) * vect(sb  +j,sb+N+k) 
+          &            gen_den(sb+  k)*vect(sb+  i,sb+N+k) * vect(sb+N+j,sb+N+k)
+          kappa_pairing(si+i,si+j)  = kappa_pairing(si+i,si+j) +               &
+          &            gen_den(sb+N+k)*vect(sb+N+i,sb+N+k) * vect(sb  +j,sb+N+k)
         enddo
       enddo
     enddo
@@ -213,6 +266,15 @@ contains
     si = si +   N
     sb = sb + 2*N
   enddo
+  !-----------------------------------------------------------------------------
+  ! Linear mixing of rho and kappa, if asked for.  
+  if(.not.all(rho_history.eq.0.0)) then
+        if(HFBmixtype .eq. 0) then
+            rho_pairing   =  HFBmix * rho_pairing   + (1-HFBmix) * rho_history
+            kappa_pairing =  HFBmix * kappa_pairing + (1-HFBmix) * kappa_history
+        endif
+  endif  
+
   !-----------------------------------------------------------------------------
   ! Side-effect, calculate the dispersion
   si            = 0

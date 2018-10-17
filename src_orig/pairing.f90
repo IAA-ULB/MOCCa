@@ -45,8 +45,7 @@ module pairing
  ! Pairing density matrix and anomalous density matrix in the HF basis. 
  real(KIND=dp), allocatable :: rho_pairing(:,:), kappa_pairing(:,:)
  real(KIND=dp), allocatable :: rho_can(:), kappa_can(:)
- ! History of the pairing matrices
- real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
+ real(KIND=dp), allocatable :: gen_den(:)
  !------------------------------------------------------------------------------
  ! Quasiparticle excitation energies, either HF, BCS or HFB.
  real(KIND=dp), allocatable :: QPenergies(:)
@@ -77,6 +76,11 @@ module pairing
  !------------------------------------------------------------------------------
  ! Mixing parameter for the HFB equations
  real(KIND=dp) :: HFBMix = 1.0
+ !------------------------------------------------------------------------------
+ ! Mixtype HFB
+ ! 0 => linear mixing of rho and kappa
+ ! 1 => linear mixing of the generalized density
+ integer       :: HFBmixtype = 0
  
 contains
 
@@ -87,7 +91,7 @@ contains
     !---------------------------------------------------------------------------
     character(len=20) :: Type = 'HF'
     
-    NameList /Pairing/ Type, CutType, Constantgap 
+    NameList /Pairing/ Type, CutType, Constantgap, hfbmix, hfbmixtype
     read(unit=*, NML=Pairing)
   
     Type = to_upper(Type)
@@ -124,6 +128,37 @@ contains
     !---------------------------------------------------------------------------
     ! 
   end subroutine initpairing
+
+  subroutine printpairing_init
+    !---------------------------------------------------------------------------
+    ! Print information on the treatment of pairing at the start of the run.
+    1 format(80('-'))
+    2 format(' Pairing treatment: ', a30)
+    3 format(' Linear mixing of (rho,kappa)')    
+    4 format(' Linear mixing of eigenvalues of R')
+    5 format(' HFBmix = ', f5.3)
+
+    print 1
+
+    select case (pairingtype)
+    case(0)
+        print 2, 'Hartree-Fock (HF)'
+    case(1)
+        print 2, 'Bardeen-Cooper-Schrieffer (HF+BCS)'
+    case(2)
+        print 2, 'Hartree-Fock-Bogoliubov (HFB)'
+    end select
+
+    if(pairingtype.eq.2) then
+        if(HFBmixtype.eq.0) then
+            print 3
+        elseif(HFBmixtype.eq.1) then
+            print 4
+        endif 
+        print 5, HFBmix
+    endif    
+
+  end subroutine printpairing_init
   
   subroutine GuessGaps()
     !---------------------------------------------------------------------------
@@ -211,26 +246,18 @@ contains
       endif
       if(.not.allocated(kappa_pairing)) then
         allocate(kappa_pairing(nwt,nwt))   ; kappa_pairing = 0.0
+      endif     
+      if(.not.allocated(gen_den)) then
+        allocate(gen_den(2*nwt))         ;  gen_den         = 0.0
       endif
-      if(.not.allocated(rho_history)) then
-        allocate(rho_history(nwt,nwt))     ; rho_history   = 0.0
-      endif
-      if(.not. allocated(kappa_history)) then
-        allocate(kappa_history(nwt,nwt))   ; kappa_history = 0.0
-      endif
+
       if(all(HFBsizes.eq.0)) call inithfb
-      !-------------------------------------------------------------------------
-      ! Save the previous configuration
-      rho_history   = rho_pairing
-      kappa_history = kappa_pairing
+
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
-      call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing, qpenergies)
-      
-      if(.not.all(rho_history.eq.0.0)) then
-        rho_pairing   =  HFBmix * rho_pairing   + (1-HFBmix) * rho_history
-        kappa_pairing =  HFBmix * kappa_pairing + (1-HFBmix) * kappa_history
-      endif      
+      call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing, gen_den,  &
+      &                                           qpenergies,HFBmix, HFBmixtype)
+          
     end select
     !---------------------------------------------------------------------------
     ! Compute the cutoffs

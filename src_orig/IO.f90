@@ -101,6 +101,7 @@ contains
 
     call printevolution
     call printscfiteration
+    call printpairing_init
     call printfunctional  
     
   end subroutine PrintInput
