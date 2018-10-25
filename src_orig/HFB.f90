@@ -30,7 +30,7 @@ module HFB
 
   !-----------------------------------------------------------------------------
   ! Maximum amount of iterations for finding a Fermi energy
-  integer :: maxHFBiter  = 100
+  integer :: maxHFBiter  = 200
   integer :: HFBsizes(4) = 0
   !------------------------------------------------------------------------------
   real(KIND=dp) :: HFBdispersion(2)
@@ -62,7 +62,7 @@ contains
  end subroutine initHFB
 
  subroutine solvepairing_HFB(fermi, rho_pairing, kappa_pairing, gen_den,       &
- &                                                qpenergies,HFBmix, HFBmixtype)
+ &                         qpenergies,HFBmix, HFBmixtype,BlockType,Blockindices)
   !-----------------------------------------------------------------------------
   ! Driver routine for the solving of the HFB equations.
   !
@@ -84,6 +84,10 @@ contains
   ! Options for the mixing of the HFB configurations
   real(KIND=dp), intent(in)  :: HFBmix
   integer, intent(in)        :: HFBmixtype
+
+  ! Configuration for the blocking
+  integer, intent(in)        :: Blockindices(:)
+  integer, intent(in)        :: BlockType
 
   real(KIND=dp)              :: fermi(2)
   real(KIND=dp)              :: rho_pairing(nwt,nwt), qpenergies(nwt)
@@ -154,6 +158,7 @@ contains
   
         call diagon (HFBHamil,2*N,2*N,vect(sb+1:sb+2*N, sb+1:sb+2*N),    &
         &                                         eigen(sb+1:sb+2*N),work)
+        deallocate(HFBHamil)
 
         !-----------------------------------------------------------------------
         ! Switching half of the eigenvectors
@@ -163,31 +168,42 @@ contains
           vect(sb  +1:sb+N,   sb+i) = vect(sb+N+1:sb+2*N, sb+i)
           vect(sb+N+1:sb+2*N, sb+i) = temp 
         enddo
-
+        
         !-----------------------------------------------------------------------
         ! Saving the quasiparticle excitation energies
         qpenergies(si+1:si+N) = eigen(sb+N+1:sb+2*N)
 
-        !-----------------------------------------------------------------------
-        ! Construct the generalized density matrix of the type of state we are
-        ! looking for. 
-        gen_den(sb+1:sb+2*N) = 0.0_dp
-        do i=1,N
-            gen_den(sb+N+i) = 1.0_dp
-        enddo  
+        ! Startindex (si) for the next block.
+        si = si +  N
+        sb = sb +2*N
+     enddo
+     !--------------------------------------------------------------------------
+     ! Construct the configuration matrix R
+     gen_den = ConstructGenDen(Vect,QPenergies,BlockType,BlockIndices)
+     !--------------------------------------------------------------------------
 
+     si = 0 ; sb = 0
+     do B=1,4                
+        it = 1
+        if(B>2) it = 2
+        N = HFBsizes(B)
         !-----------------------------------------------------------------------
         ! Calculate the number of particles in here  
         ! Sum_i rho_ii = 
         !            sum_(ij>N) Gd_(j) V^*_ij V^T_ji = sum_ij Gd_(j) V^*_ij V_ij
         !          + sum_(ij<N) Gd_(j) U^*_ij U^T_ji = sum_ij Gd_(j) U^*_ij U_ij  
         do i=N+1,2*N
-            particles(it) = particles(it) +                                    &
+            particles(it) = particles(it)                                      &
             &            + 2 * gen_den(sb+i) * sum(vect(sb+N+1:sb+2*N, sb+i)**2)            
             ! Time reversal is responsible for the factor 2
         enddo
-
-        deallocate(HFBHamil)
+        do i=1,N
+            particles(it) = particles(it)                                      &
+            &            + 2 * gen_den(sb+i) *     sum(vect(sb+1:sb+N, sb+i)**2)            
+            ! Time reversal is responsible for the factor 2
+        enddo
+        
+        !-----------------------------------------------------------------------
         ! Startindex (si) for the next block.
         si = si +  N
         sb = sb +2*N
@@ -296,7 +312,114 @@ contains
   enddo
   !-----------------------------------------------------------------------------
  end subroutine solvepairing_HFB
+
+ function ConstructGenDen(Vect, QPenergies, BlockType,BlockIndices) result(R)
+    !---------------------------------------------------------------------------
+    ! Construct the mixing matrix R.
+    !
+    !
+    ! 
+    !---------------------------------------------------------------------------
+    integer, intent(in)       :: BlockType
+    integer, intent(in)       :: BlockIndices(:)
+    real(KIND=dp), intent(in) :: qpenergies(:), vect(:,:)
+    real(KIND=dp), allocatable:: R(:)
+    
+    integer :: N, B, sb, i, NB, j, block,  qblock, ind
+    real(KIND=dp) :: compare
+
+    N = size(qpenergies) 
+    allocate(R(2*N))
+
+    ! Construct the DEFAULT configuration, corresponding to all positive energy
+    ! quasiparticles.
+    sb = 0
+    do B=1,4
+        N = HFBsizes(B)
+            
+        R(sb+1:sb+2*N) = 0.0_dp
+        do i=N+1, 2*N
+            R(sb+i) = 1.0_dp
+        enddo
+        sb = sb + 2*N        
+    enddo
+    
+    select case(Blocktype)
+    case(0)
+        !-----------------------------------------------------------------------
+        ! No blocking asked for. 
+
+    case(1)
+        !-----------------------------------------------------------------------
+        ! Ordinary blocking.
+        print *, 'Time-reversal breaking needed and not implemented.'
+
+    case(2)
+        !-----------------------------------------------------------------------
+        ! EFA blocking
+        NB = size(BlockIndices)
+
+        do j=1,NB
+            compare = 0.0
+            ind     = 0
+
+            ! Check which block we are dealing with
+            call Identify(Blockindices(j), block, qblock)            
+!            print *, "Found", Blockindices(j), block, qblock
+            !-------------------------------------------------------------------
+            ! Look for the column in the second half of the eigenvectors with
+            ! the largest overlap with asked for state.
+            sb = 0
+            do B=1,4
+                N = HFBsizes(B)
+                if(B.eq.qblock) then
+                    do i=N+1,2*N
+                        if(vect(sb+block,sb+i)**2 .gt. compare) then
+                            compare = vect(sb+block+N,sb+i)**2 
+                            ind     = i
+                        endif
+                    enddo
+                endif
+                sb = sb +2*N
+      
+            enddo 
+!            print *, 'Blocking column', ind, ind-HFBsizes(qblock)  
+            sb = 0
+            do B=1,4
+                N = HFBsizes(B)
+                if(qblock.eq.B) then
+                    ! Turn off the selected column
+                    R(sb+ind)         = 0
+                    R(sb+2*N-ind+1) = 0.5  
+                endif
+                sb = sb + 2*N
+            enddo    
+        enddo
+    end select
+ end function constructGenDen
  
+ subroutine Identify(i, bi, qblock)
+    !---------------------------------------------------------------------------
+    ! Identifies both the symmetry block(qblock) and index in said symmetry 
+    ! block (bi), based on the index i in the HF basis. 
+    !---------------------------------------------------------------------------
+    integer, intent(in)  :: i
+    integer, intent(out) :: bi, qblock    
+        
+    integer :: sb, N, B
+
+    sb = 0
+    do B=1,4
+        N = HFBSizes(B)
+        if( i .gt. sb .and. i.le.sb+N) then
+            qblock = B
+            bi     = i - sb
+            return
+        endif
+        sb = sb + N
+    enddo
+ end subroutine Identify
+
  function ConstructHFBHamil(sphamil, gaps, Fermi) result(H)
     !---------------------------------------------------------------------------
     ! Construct the HFB hamiltonian
@@ -396,8 +519,7 @@ contains
     
     deallocate(tmp)
     si = si + N
-  enddo
-    
+  enddo    
   
 !  !-----------------------------------------------------------------------------
 !  ! b) Bring kappa (with cutoffs) into canonical form

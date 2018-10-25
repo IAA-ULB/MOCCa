@@ -81,6 +81,21 @@ module pairing
  ! 0 => linear mixing of rho and kappa
  ! 1 => linear mixing of the generalized density
  integer       :: HFBmixtype = 0
+ !------------------------------------------------------------------------------
+ ! Type of blocking we want. 
+ ! (0) no blocking
+ ! (1) ordinary blocking
+ ! (2) EFA blocking. 
+ ! Signals the code to look for a new namelist "Indices"
+ !
+ ! This currently only works for HFB calculations, but could be envisaged for 
+ ! BCS calculations as well. 
+ !------------------------------------------------------------------------------
+ integer :: BlockType  = 0
+ integer :: BlockNumber= 0 
+ !------------------------------------------------------------------------------
+ ! Indices of the levels to block. 
+ integer, allocatable :: BlockIndices(:) 
  
 contains
 
@@ -91,7 +106,10 @@ contains
     !---------------------------------------------------------------------------
     character(len=20) :: Type = 'HF'
     
-    NameList /Pairing/ Type, CutType, Constantgap, hfbmix, hfbmixtype
+    NameList /Pairing/ Type, CutType, Constantgap, hfbmix, hfbmixtype,         &
+    &                  BlockType, BlockNumber
+    NameList /Indices/ BlockIndices
+
     read(unit=*, NML=Pairing)
   
     Type = to_upper(Type)
@@ -106,8 +124,20 @@ contains
       pairingtype = 0
     else
       print *, 'This type of pairing is not implemented yet.'
+      stop
     endif
     
+    if(Blocktype.lt.0 .or. BlockType.gt.2) then
+        print *, 'This value of BlockType is not accepted.'
+        stop
+    endif
+    !---------------------------------------------------------------------------
+    ! Reading information on the blocking if needed.
+    if(BlockNumber.ne.0) then
+        allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
+        read(unit=*, nml=Indices)
+    endif
+
     !---------------------------------------------------------------------------
     ! Cutoff decision
     select case(CutType)
@@ -256,7 +286,7 @@ contains
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
       call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing, gen_den,  &
-      &                                           qpenergies,HFBmix, HFBmixtype)
+      &                  qpenergies,HFBmix, HFBmixtype, BlockType, Blockindices)
           
     end select
     !---------------------------------------------------------------------------
