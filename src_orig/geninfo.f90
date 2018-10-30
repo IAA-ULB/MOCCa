@@ -27,6 +27,11 @@ module GenInfo
     real(KIND=dp), allocatable :: coulmeshx(:), coulmeshy(:), coulmeshz(:)
 
     !---------------------------------------------------------------------------
+    ! Inverse temperature Beta = (k_b T)^{-1}.
+    ! Negative values are used to indicate an infinite value, i.e. T = 0.
+    real(KIND=dp) :: inversetemp = -1
+
+    !---------------------------------------------------------------------------
     ! Convergence criteria
     !      Name       Default         
     !   energy_prec     1d-9     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec
@@ -42,7 +47,7 @@ contains
     !---------------------------------------------------------------------------
     ! Read some of the general information needed.
     !---------------------------------------------------------------------------
-    Namelist /nucleus/ neutrons,protons
+    Namelist /nucleus/ neutrons,protons, inversetemp
     Namelist /mesh/    nx,ny,nz, dx
     
     ! Reading the information on the nucleus

@@ -13,8 +13,12 @@ module HFB
  !
  !==============================================================================
  !
- ! Module that is useful for solving the HFB problem. 
+ ! Module that solves the HFB problem.
  !
+ !==============================================================================
+ !
+ ! TODO 
+ !   * Think about time-reversal, it will be some index juggling to get correct.
  !
  !==============================================================================
   use diag
@@ -61,7 +65,7 @@ contains
   
  end subroutine initHFB
 
- subroutine solvepairing_HFB(fermi, rho_pairing, kappa_pairing, gen_den,       &
+ subroutine solvepairing_HFB(fermi, rho_pairing, kappa_pairing, configmatrix,  &
  &                         qpenergies,HFBmix, HFBmixtype,BlockType,Blockindices)
   !-----------------------------------------------------------------------------
   ! Driver routine for the solving of the HFB equations.
@@ -79,7 +83,7 @@ contains
   !-----------------------------------------------------------------------------  
   ! History of the pairing matrices
   real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
-  real(KIND=dp), allocatable ::  gen_den_history(:)
+  real(KIND=dp), allocatable ::  configmatrix_history(:)
 
   ! Options for the mixing of the HFB configurations
   real(KIND=dp), intent(in)  :: HFBmix
@@ -91,7 +95,7 @@ contains
 
   real(KIND=dp)              :: fermi(2)
   real(KIND=dp)              :: rho_pairing(nwt,nwt), qpenergies(nwt)
-  real(KIND=dp)              :: kappa_pairing(nwt,nwt), gen_den(2*nwt)
+  real(KIND=dp)              :: kappa_pairing(nwt,nwt), configmatrix(2*nwt)
   real(KIND=dp)              :: df(2), dn(2,2)
 
   real(KIND=dp)              :: sphamil(nwt,nwt),vect(2*nwt,2*nwt)
@@ -110,14 +114,14 @@ contains
   if(.not. allocated(kappa_history)) then
         allocate(kappa_history(nwt,nwt))   ; kappa_history = 0.0
   endif  
-  if(.not.allocated(gen_den_history)) then
-        allocate(gen_den_history(2*nwt)) ;  gen_den_history = 0.0
+  if(.not.allocated(configmatrix_history)) then
+        allocate(configmatrix_history(2*nwt)) ;  configmatrix_history = 0.0
   endif
   !-----------------------------------------------------------------------------
   ! Saving the history
   rho_history     = rho_pairing
   kappa_history   = kappa_pairing
-  gen_den_history = gen_den
+  configmatrix_history = configmatrix
 
   dn = 0.0
   
@@ -179,7 +183,7 @@ contains
      enddo
      !--------------------------------------------------------------------------
      ! Construct the configuration matrix R
-     gen_den = ConstructGenDen(Vect,QPenergies,BlockType,BlockIndices)
+     configmatrix = ConstructConfiguration(Vect,QPenergies,BlockType,BlockIndices)
      !--------------------------------------------------------------------------
 
      si = 0 ; sb = 0
@@ -189,17 +193,17 @@ contains
         N = HFBsizes(B)
         !-----------------------------------------------------------------------
         ! Calculate the number of particles in here  
-        ! Sum_i rho_ii = 
-        !            sum_(ij>N) Gd_(j) V^*_ij V^T_ji = sum_ij Gd_(j) V^*_ij V_ij
-        !          + sum_(ij<N) Gd_(j) U^*_ij U^T_ji = sum_ij Gd_(j) U^*_ij U_ij  
+        ! Sum_i rho_ii =  Sum_ii   U   f U^{\dagger} + V^{*}(1 - f)V^{T}
+        !            sum_(ij>N) f_(j) V^*_ij V^T_ji = sum_ij f_(j) V^*_ij V_ij
+        !          + sum_(ij<N) f_(j) U^*_ij U^T_ji = sum_ij f_(j) U^*_ij U_ij  
         do i=N+1,2*N
             particles(it) = particles(it)                                      &
-            &            + 2 * gen_den(sb+i) * sum(vect(sb+N+1:sb+2*N, sb+i)**2)            
+            &     + 2 * configmatrix(sb+i) * sum(vect(sb+N+1:sb+2*N, sb  +i)**2)            
             ! Time reversal is responsible for the factor 2
         enddo
         do i=1,N
             particles(it) = particles(it)                                      &
-            &            + 2 * gen_den(sb+i) *     sum(vect(sb+1:sb+N, sb+i)**2)            
+            &     + 2 * configmatrix(sb+i) * sum(vect(sb  +1:sb+  N, sb+N+i)**2)            
             ! Time reversal is responsible for the factor 2
         enddo
         
@@ -249,13 +253,16 @@ contains
 
   !-----------------------------------------------------------------------------
   ! Linear mixing of the generalized density matrix, if asked for.
-  if(.not.all(gen_den_history.eq.0.0)) then
+  if(.not.all(configmatrix_history.eq.0.0)) then
         if(HFBmixtype .eq. 1) then
-            gen_den   =  HFBmix * gen_den   + (1-HFBmix) * gen_den_history
-        endif
+            configmatrix   =  HFBmix * configmatrix   + (1-HFBmix) * configmatrix_history
+        endif   
   endif  
   !-----------------------------------------------------------------------------
   ! Construct the density and anomalous density matrix.
+  ! 
+  ! rho   =  U   f U^{\dagger} + V^{*}(1 - f)V^{T}
+  ! kappa =  U   f V^{\dagger} + V^{*}(1 - f)U^{T} 
   rho_pairing = 0.0 ; kappa_pairing = 0.0
 
   si = 0 ; sb = 0
@@ -265,16 +272,19 @@ contains
     do i=1,N
       do j=1,N
         do k=1,N
+          !                                   U      f  U^{\dagger}
           rho_pairing(si+i,si+j)  = rho_pairing(si+i,si+j) +                   &
-          &            gen_den(sb+  k)*vect(sb+  i,sb+N+k) * vect(sb+  j,sb+N+k)
+          &       configmatrix(sb+  k)*vect(sb+  i,sb+N+k) * vect(sb+  j,sb+N+k)
+          !                                   V^* (1-f) V^{T}
           rho_pairing(si+i,si+j)  = rho_pairing(si+i,si+j) +                   &
-          &            gen_den(sb+N+k)*vect(sb+N+i,sb+N+k) * vect(sb+N+j,sb+N+k)
+          &       configmatrix(sb+N+k)*vect(sb+N+i,sb+N+k) * vect(sb+N+j,sb+N+k)
 
-
+          !                                   U   f        V^{\dagger}     
           kappa_pairing(si+i,si+j)  = kappa_pairing(si+i,si+j) +               &
-          &            gen_den(sb+  k)*vect(sb+  i,sb+N+k) * vect(sb+N+j,sb+N+k)
+          &       configmatrix(sb+  k)*vect(sb+  i,sb+N+k) * vect(sb+N+j,sb+N+k)
+          !                                   V^{*}(1 - f) U^{T} 
           kappa_pairing(si+i,si+j)  = kappa_pairing(si+i,si+j) +               &
-          &            gen_den(sb+N+k)*vect(sb+N+i,sb+N+k) * vect(sb  +j,sb+N+k)
+          &       configmatrix(sb+N+k)*vect(sb+N+i,sb+N+k) * vect(sb  +j,sb+N+k)
         enddo
       enddo
     enddo
@@ -313,47 +323,61 @@ contains
   !-----------------------------------------------------------------------------
  end subroutine solvepairing_HFB
 
- function ConstructGenDen(Vect, QPenergies, BlockType,BlockIndices) result(R)
+ function ConstructConfiguration(Vect, QPenergies, BlockType,BlockIndices) &
+                                      & result(R)
     !---------------------------------------------------------------------------
-    ! Construct the mixing matrix R.
-    !
-    !
-    ! 
+    ! Construct the configuration matrix C, to determine what kind of HFB  
+    ! state we are aiming to construct.
     !---------------------------------------------------------------------------
     integer, intent(in)       :: BlockType
     integer, intent(in)       :: BlockIndices(:)
     real(KIND=dp), intent(in) :: qpenergies(:), vect(:,:)
     real(KIND=dp), allocatable:: R(:)
     
-    integer :: N, B, sb, i, NB, j, block,  qblock, ind
-    real(KIND=dp) :: compare
+    integer :: N, B, sb, i, NB, j, block,  qblock, ind, si
+    real(KIND=dp) :: compare, occ
 
     N = size(qpenergies) 
-    allocate(R(2*N))
-
+    allocate(R(2*N)) ;  R = 0
+    
+    !---------------------------------------------------------------------------
     ! Construct the DEFAULT configuration, corresponding to all positive energy
     ! quasiparticles.
+    !---------------------------------------------------------------------------
     sb = 0
+    si = 0    
     do B=1,4
-        N = HFBsizes(B)
-            
-        R(sb+1:sb+2*N) = 0.0_dp
-        do i=N+1, 2*N
-            R(sb+i) = 1.0_dp
+        N = HFBsizes(B)   
+        do i=1,N
+            if(inversetemp .gt. 0.0_dp) then
+                !---------------------------------------------------------------
+                ! At finite temperature, things can get partially occupied and 
+                ! we are dealing with a statistical mixture.
+                occ = exp(inversetemp * Qpenergies(si+i))
+                occ = 1.0/occ
+                R(sb+N+i) = 1.0_dp - occ
+                R(sb  +i) =          occ
+            else
+                !---------------------------------------------------------------
+                !Completely empty or full, we want pure HFB states.
+                R(sb+N+i) = 1.0_dp
+                R(sb  +i) = 0.0_dp       
+            endif
         enddo
+        si = si +   N 
         sb = sb + 2*N        
     enddo
-    
+
+    !---------------------------------------------------------------------------
+    ! Modify this default configuration when needed.
     select case(Blocktype)
     case(0)
         !-----------------------------------------------------------------------
         ! No blocking asked for. 
-
     case(1)
         !-----------------------------------------------------------------------
         ! Ordinary blocking.
         print *, 'Time-reversal breaking needed and not implemented.'
-
     case(2)
         !-----------------------------------------------------------------------
         ! EFA blocking
@@ -396,7 +420,7 @@ contains
             enddo    
         enddo
     end select
- end function constructGenDen
+ end function constructconfiguration
  
  subroutine Identify(i, bi, qblock)
     !---------------------------------------------------------------------------
@@ -670,7 +694,6 @@ contains
   enddo
 
  end subroutine calcHFBgaps
- 
  
 !===============================================================================
 !  Never to be used function to define an interface for delta_action

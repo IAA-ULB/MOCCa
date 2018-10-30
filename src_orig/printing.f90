@@ -89,12 +89,13 @@ contains
   subroutine printqps
     !---------------------------------------------------------------------------
     ! Print all relevant info on quasiparticles.
+    ! Very bare-bones for the moment.
     !---------------------------------------------------------------------------
-    integer :: i, N, B, si
+    integer :: i, N, B, si, sb
     
     1  format (33 ('-'), 'Quasiparticles',33('-'))
     2  format (80 ('_'))
-    3  format ( i3, f7.2 )
+    3  format ( i3, 3f7.2 )
 
     11  format(80 ('-'))
 
@@ -103,6 +104,7 @@ contains
     print 1
     
     si = 0
+    sb = 0
     do B=1,8
         N = HFblocks(B)
 
@@ -112,9 +114,10 @@ contains
         print *, 'Block ', B
         print 2
         do i=1,N
-            print 3, i, QPenergies(si+i)
+            print 3, i, QPenergies(si+i), configmatrix(sb+N+i), configmatrix(sb+i)
         enddo
         si = si + N
+        sb = sb + 2*N
     enddo
     print 11
 

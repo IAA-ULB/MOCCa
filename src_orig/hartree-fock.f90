@@ -28,6 +28,10 @@ contains
     !---------------------------------------------------------------------------
     ! This subroutine finds the orbitals with the lowest single particle
     ! energy and fills them, after sorting all the levels.
+    !
+    ! At zero temperature, the occupations are simply set to be one or zero.
+    ! Note that this does not necessarily play well near spherical symmetry for
+    ! non-magic numbers of nucleons.
     !---------------------------------------------------------------------------
     
     integer :: i,j,n,p, ProtonUpperBound, NeutronUpperBound
@@ -71,6 +75,7 @@ contains
     !
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: Fermi(2)  
+
   end subroutine calcHFgaps
 
 end module hartreefock

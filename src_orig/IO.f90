@@ -85,6 +85,7 @@ contains
     &          '  Energy convergence           < ', e8.1, / & 
     &          '  Multipole moment convergence < ', e8.1, / &
     &          '  Dispersion convergence       < ', e8.1 )
+   12 format ( ' Inverse temperature Beta = ', f10.5)
 
     print *
     print 1
@@ -96,9 +97,11 @@ contains
     print 7 , neutrons, protons
     print 8
     print 9 , nwt,nwn,nwp
+    print 12, inversetemp
     print 10, inputfilename, outputfilename
     print 11, energy_prec, moment_prec, disp_prec
-
+    
+    
     call printevolution
     call printscfiteration
     call printpairing_init

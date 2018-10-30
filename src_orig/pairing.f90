@@ -45,7 +45,7 @@ module pairing
  ! Pairing density matrix and anomalous density matrix in the HF basis. 
  real(KIND=dp), allocatable :: rho_pairing(:,:), kappa_pairing(:,:)
  real(KIND=dp), allocatable :: rho_can(:), kappa_can(:)
- real(KIND=dp), allocatable :: gen_den(:)
+ real(KIND=dp), allocatable :: configmatrix(:)
  !------------------------------------------------------------------------------
  ! Quasiparticle excitation energies, either HF, BCS or HFB.
  real(KIND=dp), allocatable :: QPenergies(:)
@@ -277,16 +277,16 @@ contains
       if(.not.allocated(kappa_pairing)) then
         allocate(kappa_pairing(nwt,nwt))   ; kappa_pairing = 0.0
       endif     
-      if(.not.allocated(gen_den)) then
-        allocate(gen_den(2*nwt))         ;  gen_den         = 0.0
+      if(.not.allocated(configmatrix)) then
+        allocate(configmatrix(2*nwt))      ;  configmatrix        = 0.0
       endif
 
       if(all(HFBsizes.eq.0)) call inithfb
 
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
-      call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing, gen_den,  &
-      &                  qpenergies,HFBmix, HFBmixtype, BlockType, Blockindices)
+      call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing,           &
+      &    configmatrix, qpenergies,HFBmix, HFBmixtype, BlockType, Blockindices)
           
     end select
     !---------------------------------------------------------------------------
