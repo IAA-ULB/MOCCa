@@ -251,6 +251,10 @@ contains
     if(.not.allocated(qpenergies)) then
         allocate(QPenergies(nwt)) ; qpenergies = 0.0
     endif
+    ! Always allocate the configuration matrix C
+    if(.not.allocated(configmatrix)) then
+       allocate(configmatrix(2*nwt))      ;  configmatrix = 0.0
+    endif
     
     select case (Pairingtype)
     case(0)
@@ -277,9 +281,6 @@ contains
       if(.not.allocated(kappa_pairing)) then
         allocate(kappa_pairing(nwt,nwt))   ; kappa_pairing = 0.0
       endif     
-      if(.not.allocated(configmatrix)) then
-        allocate(configmatrix(2*nwt))      ;  configmatrix        = 0.0
-      endif
 
       if(all(HFBsizes.eq.0)) call inithfb
 
