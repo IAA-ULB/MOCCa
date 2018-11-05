@@ -64,15 +64,11 @@ if(not FOUND):
 print '**************************************************************'
 print ' a)  Hephaestos is initializing its own modules.'
 heph_symmetries.initsymmetries()
-heph_functional.initfunctional(FUNC_FILE)
+description = heph_functional.initfunctional(FUNC_FILE)
 heph_densities.initdensities()
 heph_fields.initfields()
 print '**************************************************************'
-#-------------------------------------------------------------------------------
-# Output all of the relevant things into .tex files.
 
-latex.FillDensities()
-exit()
 #-------------------------------------------------------------------------------
 # Treat all of the source files to a nice dose of preprocessing.
 print 
@@ -82,12 +78,19 @@ print '**************************************************************'
 for fname in FORTRANFILES:
      print ' * Processing ' + fname
      pp.preprocess(fname,SRCPATH,GENPATH)
-    
+
+#-------------------------------------------------------------------------------
+# Output all of the relevant things into .tex files.
+print '**************************************************************'
+print ' c)  Hephaestos is creating the .tex files.'
+print '**************************************************************'
+latex.Build(FUNC_FILE, description)
+
 #-------------------------------------------------------------------------------
 # Check if all files got generated correctly. 
 print 
 print '**************************************************************'
-print ' c)  Checking that all source code is properly generated.'
+print ' d)  Checking that all source code is properly generated.'
 
 FOUND=True    
 for fname in FORTRANFILES:

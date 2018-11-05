@@ -188,6 +188,8 @@ def initfunctional(fname):
 #    print ' Number of terms:      %d'%len(Functional_pair_terms)
 #    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
+    return(description)
+
 def PruneDeriv_needed():
     #---------------------------------------------------------------------------
     # Add all of the possible combinations with less derivatives and laplacians,
@@ -247,7 +249,7 @@ def ReadFunctional(fname):
                 split = line.split(';')
                 Functional_terms.append(split[0].replace(' ', ''))
                 coupling_constants_0.append(split[1].replace(' ', ''))
-                coupling_constants_1.append(split[2].replace(' ', ''))   
+                coupling_constants_1.append(split[2].replace(' ', '').replace('\n', ''))   
                     
                 if(len(split)>3):
                     density_dependence.append(split[3].replace(' ', ''))
@@ -580,7 +582,6 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     densities = []
     for den in tempden:
         (der,lap,left,right, coupl, cross) = ParseOperators(den)
-        print 'parsing', den, left, right
         for i in range(len(Densities_needed)):
             (derref, lapref, leftref, rightref, couplref, crossref) = \
                                              ParseOperators(Densities_needed[i])
