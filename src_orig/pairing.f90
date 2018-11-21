@@ -96,7 +96,10 @@ module pairing
  !------------------------------------------------------------------------------
  ! Indices of the levels to block. 
  integer, allocatable :: BlockIndices(:) 
- 
+
+ !------------------------------------------------------------------------------
+ ! Entropy of the statistical mixture in the case of finite temperature
+ real(KIND=dp) :: entropy(2) = 0
 contains
 
   subroutine initpairing
@@ -362,5 +365,33 @@ contains
       enddo
     end select
   end function calcpairingenergy
+
+  subroutine CalcEntropy()
+    !---------------------------------------------------------------------------
+    ! Calculate the entropy associated with a given statistical mixture at
+    ! finite temperature.
+    !---------------------------------------------------------------------------
+
+    integer :: i
+
+    select case(PairingType)
+    case(0)
+        print *, 'Entropy calculation not yet implemented for HF.' 
+        stop
+    case (1)
+        print *, 'Entropy calculation not yet implemented for BCS.'
+    case (2)
+        entropy = 0
+        ! S = - sum_i f_i ln(f_i)
+        do i=1,2*nwn
+            entropy(1) = entropy(1) - configmatrix(i) * log(configmatrix(i))
+        enddo
+        do i=2*nwn+1, 2*nwt
+            entropy(2) = entropy(2) - configmatrix(i) * log(configmatrix(i))
+        enddo
+    end select
+    
+  end subroutine CalcEntropy
+
 
 end module

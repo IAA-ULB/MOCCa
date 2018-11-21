@@ -171,6 +171,8 @@ $PRINTCOEF_PN
    91 format (15x, 'Pairing (densi):', 3f15.6)
    99 format (15x, '   Total energy:', 30x, f15.6)
   100 format (15x, '     from spwfs:', 30x, f15.6)
+  101 format (15x, '    Free Energy:', 30x, f15.6)
+  102 format (15x, '        Entropy:', 3f15.6)
 
     real(KIND=dp) :: temp
 
@@ -200,6 +202,12 @@ $PRINTCOEF_PN
     print 1
     print  99, TotalE
     print 100, spwfenergy
+    
+    if(inversetemp .ne. -1) then
+        print 101, TotalE - sum(entropy)/inversetemp
+        print 102, entropy, sum(entropy)
+    endif
+
     print 1
  end subroutine PrintEnergy
  
@@ -248,6 +256,9 @@ $PRINTCOEF_PN
 
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
+
+    ! Entropy calculation when temperature is finite
+    call calcentropy()
 
  end subroutine CalcEnergy
  
@@ -668,7 +679,7 @@ $EREAR
     close(12)
   end subroutine output_Edensity
 
-    subroutine WritePotentials(chan)
+  subroutine WritePotentials(chan)
     !---------------------------------------------------------------------------
     !  Subroutine writing the different potentials to file.
     !---------------------------------------------------------------------------
@@ -685,9 +696,9 @@ $EREAR
     ! If not, the unformatted in/out cannot correctly determine the end of a
     ! string and comparisons can not be made.
 $WRITEPOTENTIALS
-    end subroutine WritePotentials
+  end subroutine WritePotentials
 
-    subroutine ReadPotentials(chan)
+  subroutine ReadPotentials(chan)
     !---------------------------------------------------------------------------
     !  Subroutine writing the different potentials to file.
     !---------------------------------------------------------------------------
@@ -711,6 +722,6 @@ $READPOTENTIALS
         end select
     enddo
 
-    end subroutine ReadPotentials
+  end subroutine ReadPotentials
 
 end module functional
