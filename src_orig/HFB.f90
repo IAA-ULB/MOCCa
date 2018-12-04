@@ -89,13 +89,17 @@ contains
   real(KIND=dp), intent(in)  :: HFBmix
   integer, intent(in)        :: HFBmixtype
 
+
+  !-----------------------------------------------------------------------------
+  real(KIND=dp) :: configmatrix(2*nwt), c
+
   ! Configuration for the blocking
   integer, intent(in)        :: Blockindices(:)
   integer, intent(in)        :: BlockType
 
   real(KIND=dp)              :: fermi(2)
   real(KIND=dp)              :: rho_pairing(nwt,nwt), qpenergies(nwt)
-  real(KIND=dp)              :: kappa_pairing(nwt,nwt), configmatrix(2*nwt)
+  real(KIND=dp)              :: kappa_pairing(nwt,nwt)
   real(KIND=dp)              :: df(2), dn(2,2)
 
   real(KIND=dp)              :: sphamil(nwt,nwt),vect(2*nwt,2*nwt)
@@ -164,15 +168,23 @@ contains
         &                                         eigen(sb+1:sb+2*N),work)
         deallocate(HFBHamil)
 
-        !-----------------------------------------------------------------------
-        ! Switching half of the eigenvectors
-        eigen(sb+1:sb+N) = -eigen(sb+1:sb+N)
-        do i = 1,N
-          temp                      = vect(sb+1  :sb+N,   sb+i)
-          vect(sb  +1:sb+N,   sb+i) = vect(sb+N+1:sb+2*N, sb+i)
-          vect(sb+N+1:sb+2*N, sb+i) = temp 
-        enddo
-        
+!
+!       Vect now contains the eigenvectors of the HFB hamiltonian in the 
+!       given parity-isospin block, ordered by increasing E_qp.
+!
+
+!        !-----------------------------------------------------------------------
+!        ! Switching half of the eigenvectors
+!
+!        This is not needed in a time-reversal invariant code.
+!         
+!        eigen(sb+1:sb+N) = -eigen(sb+1:sb+N)
+!        do i = 1,N
+!          temp                      = vect(sb+1  :sb+N,   sb+i)
+!          vect(sb  +1:sb+N,   sb+i) = vect(sb+N+1:sb+2*N, sb+i)
+!          vect(sb+N+1:sb+2*N, sb+i) = temp 
+!        enddo
+!        
         !-----------------------------------------------------------------------
         ! Saving the quasiparticle excitation energies
         qpenergies(si+1:si+N) = eigen(sb+N+1:sb+2*N)
@@ -182,8 +194,8 @@ contains
         sb = sb +2*N
      enddo
      !--------------------------------------------------------------------------
-     ! Construct the configuration matrix R
-     configmatrix = ConstructConfiguration(Vect,QPenergies,BlockType,BlockIndices)
+     ! Construct the configuration matrix C
+     configmatrix=ConstructConfiguration(Vect,QPenergies,BlockType,BlockIndices)
      !--------------------------------------------------------------------------
 
      si = 0 ; sb = 0
@@ -255,7 +267,7 @@ contains
   ! Linear mixing of the generalized density matrix, if asked for.
   if(.not.all(configmatrix_history.eq.0.0)) then
         if(HFBmixtype .eq. 1) then
-            configmatrix   =  HFBmix * configmatrix   + (1-HFBmix) * configmatrix_history
+            configmatrix=HFBmix*configmatrix+(1-HFBmix)*configmatrix_history
         endif   
   endif  
   !-----------------------------------------------------------------------------
@@ -266,7 +278,6 @@ contains
   rho_pairing = 0.0 ; kappa_pairing = 0.0
 
   si = 0 ; sb = 0
-  particles = 0
   do B=1,4
     N = HFBsizes(B)
     do i=1,N
@@ -279,6 +290,7 @@ contains
           rho_pairing(si+i,si+j)  = rho_pairing(si+i,si+j) +                   &
           &       configmatrix(sb+N+k)*vect(sb+N+i,sb+N+k) * vect(sb+N+j,sb+N+k)
 
+!          print *, k, configmatrix(sb+k), configmatrix(sb+N+k)
           !                                   U   f        V^{\dagger}     
           kappa_pairing(si+i,si+j)  = kappa_pairing(si+i,si+j) +               &
           &       configmatrix(sb+  k)*vect(sb+  i,sb+N+k) * vect(sb+N+j,sb+N+k)
@@ -288,10 +300,11 @@ contains
         enddo
       enddo
     enddo
- 
+
     si = si +   N
     sb = sb + 2*N
   enddo
+
   !-----------------------------------------------------------------------------
   ! Linear mixing of rho and kappa, if asked for.  
   if(.not.all(rho_history.eq.0.0)) then
@@ -320,6 +333,8 @@ contains
         &                                     - chi(si+i, si+i) 
     enddo
   enddo
+  ! Time-reversal
+  HFBdispersion = 2 * HFBdispersion 
   !-----------------------------------------------------------------------------
  end subroutine solvepairing_HFB
 
@@ -378,6 +393,7 @@ contains
         !-----------------------------------------------------------------------
         ! Ordinary blocking.
         print *, 'Time-reversal breaking needed and not implemented.'
+        stop
     case(2)
         !-----------------------------------------------------------------------
         ! EFA blocking
@@ -389,7 +405,6 @@ contains
 
             ! Check which block we are dealing with
             call Identify(Blockindices(j), block, qblock)            
-!            print *, "Found", Blockindices(j), block, qblock
             !-------------------------------------------------------------------
             ! Look for the column in the second half of the eigenvectors with
             ! the largest overlap with asked for state.
@@ -405,21 +420,33 @@ contains
                     enddo
                 endif
                 sb = sb +2*N
-      
             enddo 
-!            print *, 'Blocking column', ind, ind-HFBsizes(qblock)  
-            sb = 0
+
+            print *, 'Blocking column', ind, ind-HFBsizes(qblock)  
+            
+            sb = 0 ; si =0 
             do B=1,4
                 N = HFBsizes(B)
                 if(qblock.eq.B) then
-                    ! Turn off the selected column
-                    R(sb+ind)         = 0
-                    R(sb+2*N-ind+1) = 0.5  
+                    R(sb+ind-N)       = 0.5
+                    R(sb+ind)         = 0.5
                 endif
                 sb = sb + 2*N
+                si = si +1
             enddo    
         enddo
     end select
+
+!    sb = 0
+!    do B=1,4
+!        N = HFBsizes(B)
+!        do i=1,2*N
+!            print *,' Config', i, R(sb+i)
+!        enddo
+!        print *
+!        sb = sb + 2*N
+!    enddo
+
  end function constructconfiguration
  
  subroutine Identify(i, bi, qblock)
@@ -507,6 +534,9 @@ contains
     ! Diagonalize rho in this block
     call diagon(tmp,N,N,rhotransfo(si+1:si+N,si+1:si+N),rho_can(si+1:si+N),work)
 
+    ! DEBUG
+    print ('(a6, i3, 20f10.3)'), 'Occ B=',B, rho_can(si+1:si+N)
+
     si = si + N
     deallocate(tmp)
   enddo
@@ -545,7 +575,8 @@ contains
     si = si + N
   enddo    
   
-!  !-----------------------------------------------------------------------------
+
+   !-----------------------------------------------------------------------------
 !  ! b) Bring kappa (with cutoffs) into canonical form
 !  !
 !  ! Transforms as kappa'  = D^dagger kappa D^*
