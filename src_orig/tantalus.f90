@@ -265,7 +265,7 @@ subroutine ReachForWaterAndFood
         call CalcEnergy()
 
         ! Check for convergence
-        call Converged(ConvergenceAchieved)
+!        call Converged(ConvergenceAchieved)
         
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
@@ -294,7 +294,7 @@ subroutine ReachForWaterAndFood
       
     !---------------------------------------------------------------------------
     ! Write output to the outputfile.
-    call WriteTantalus(12, outputfilename)
+    call WriteTantalus(12, outputfilename)     
     !---------------------------------------------------------------------------
 end subroutine ReachForWaterAndFood
 

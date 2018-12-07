@@ -110,7 +110,7 @@ contains
     character(len=20) :: Type = 'HF'
     
     NameList /Pairing/ Type, CutType, Constantgap, hfbmix, hfbmixtype,         &
-    &                  BlockType, BlockNumber
+    &                  BlockType, BlockNumber, cutneutron, cutproton
     NameList /Indices/ BlockIndices
 
     read(unit=*, NML=Pairing)
@@ -149,6 +149,8 @@ contains
     case(2)
        PairingCutoff => CosineCut
     end select
+    pairingcut(1) = cutneutron
+    pairingcut(2) = cutproton
     !---------------------------------------------------------------------------
     select case(PairingType)
     case(0)
@@ -167,9 +169,12 @@ contains
     ! Print information on the treatment of pairing at the start of the run.
     1 format(80('-'))
     2 format(' Pairing treatment: ', a30)
-    3 format(' Linear mixing of (rho,kappa)')    
-    4 format(' Linear mixing of eigenvalues of R')
-    5 format(' HFBmix = ', f5.3)
+    3 format('   Linear mixing of (rho,kappa)')    
+    4 format('   Linear mixing of eigenvalues of R')
+    5 format('   HFBmix = ', f5.3)
+    6 format('   Cutoff parameters  = ', a20)
+    7 format('     dE (n,p) = ', 2f4.1, ' MeV ')
+    8 format('     mu (n,p) = ', 2f4.1, ' MeV ')
 
     print 1
 
@@ -190,6 +195,16 @@ contains
         endif 
         print 5, HFBmix
     endif    
+
+    select case(CutType)
+    case(1)
+       print 6, 'Symmetric Fermi'
+    case(2)
+       print 6, 'Cosine'
+    end select
+
+    print 7, pairingcut
+    print 8, PairingMu
 
   end subroutine printpairing_init
   

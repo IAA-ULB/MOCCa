@@ -24,6 +24,9 @@ implicit none
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100) :: inputfilename, outputfilename
 
+  ! Signal the code to write extra output.
+  integer :: BXLFIT = 0
+
 contains
 
   subroutine ReadInput
@@ -42,7 +45,7 @@ contains
   
     implicit none
 
-    NameList /IO/ InputFileName,OutputFileName
+    NameList /IO/ InputFileName,OutputFileName, BXLFIT
     
     call ReadGenInfo
     call readfunctional
@@ -81,11 +84,12 @@ contains
    10 format ( ' IO information', / &
     &          '  inputfilename  =', a20, / &
     &          '  outputfilename =', a20)
-   11 format ( ' Convergence required', / &
+   11 format ( '  BXL output     =', a20)
+   12 format ( ' Convergence required', / &
     &          '  Energy convergence           < ', e8.1, / & 
     &          '  Multipole moment convergence < ', e8.1, / &
     &          '  Dispersion convergence       < ', e8.1 )
-   12 format ( ' Inverse temperature Beta = ', f10.5)
+   13 format ( ' Inverse temperature Beta = ', f10.5)
 
     print *
     print 1
@@ -97,9 +101,12 @@ contains
     print 7 , neutrons, protons
     print 8
     print 9 , nwt,nwn,nwp
-    print 12, inversetemp
+    print 13, inversetemp
     print 10, inputfilename, outputfilename
-    print 11, energy_prec, moment_prec, disp_prec
+    if(BXLFIT .eq. 1) then
+        print 11
+    endif
+    print 12, energy_prec, moment_prec, disp_prec
     
     
     call printevolution
@@ -400,5 +407,46 @@ contains
       call Writemoment(mom,chan)
     enddo
     
+    ! Bonus file for quick feedback into the fit
+    if(BXLFIT) then
+        call Brussels_output
+    endif  
+    
   end subroutine WriteTantalus
+
+  subroutine Brussels_output
+    !---------------------------------------------------------------------------
+    ! Write an extra file for use in the Brussels fitting protocol to
+    !     Out/zXXXnXXX.out   
+    !
+    ! It contains on a single line
+    !
+    !      N, Z, Total energy, Q20, Q22, <r^2_p>
+    !---------------------------------------------------------------------------
+
+    use Moments    
+    use functional
+    type(Moment), pointer :: Q20, Q22, r2
+    integer       :: N,Z
+    real(KIND=dp) :: E, quad(2), rms 
+
+    character(len=17) :: filedone
+    
+    Q20 =>FindMoment( 2,0,.false.)
+    Q22 =>FindMoment( 2,2,.false., Q20)
+    r2  =>FindMoment(-1,0,.false., Q22)
+
+    ! Write the filename
+    write(filedone,'("Out/z",i3.3,"n",i3.3,".out")') int(protons),int(neutrons)
+    open(unit=10,file=filedone)
+
+    E = TotalE
+    quad(1) = sum(Q20%value)
+    quad(2) = sum(Q22%value)    
+    rms     =     r2%value(2)
+    write(10,'(2i4,4f15.6)') int(protons),int(neutrons),E,quad,rms
+    close(10)
+
+  end subroutine Brussels_output
+    
 end module IO

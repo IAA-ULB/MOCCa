@@ -208,14 +208,17 @@ contains
         ! Sum_i rho_ii =  Sum_ii   U   f U^{\dagger} + V^{*}(1 - f)V^{T}
         !            sum_(ij>N) f_(j) V^*_ij V^T_ji = sum_ij f_(j) V^*_ij V_ij
         !          + sum_(ij<N) f_(j) U^*_ij U^T_ji = sum_ij f_(j) U^*_ij U_ij  
-        do i=N+1,2*N
+        
+!        print *, 'B', B, N, configmatrix(sb+1:sb+2*N)
+
+        do i=1,N
             particles(it) = particles(it)                                      &
-            &     + 2 * configmatrix(sb+i) * sum(vect(sb+N+1:sb+2*N, sb  +i)**2)            
+            &     + 2*configmatrix(sb+N+i) * sum(vect(sb+N+1:sb+2*N, sb+N+i)**2)            
             ! Time reversal is responsible for the factor 2
         enddo
         do i=1,N
             particles(it) = particles(it)                                      &
-            &     + 2 * configmatrix(sb+i) * sum(vect(sb  +1:sb+  N, sb+N+i)**2)            
+            &     + 2*configmatrix(sb  +i) * sum(vect(sb  +1:sb+  N, sb+N+i)**2)            
             ! Time reversal is responsible for the factor 2
         enddo
         
@@ -283,6 +286,7 @@ contains
     do i=1,N
       do j=1,N
         do k=1,N
+          !---------------------------------------------------------------------
           !                                   U      f  U^{\dagger}
           rho_pairing(si+i,si+j)  = rho_pairing(si+i,si+j) +                   &
           &       configmatrix(sb+  k)*vect(sb+  i,sb+N+k) * vect(sb+  j,sb+N+k)
@@ -290,9 +294,10 @@ contains
           rho_pairing(si+i,si+j)  = rho_pairing(si+i,si+j) +                   &
           &       configmatrix(sb+N+k)*vect(sb+N+i,sb+N+k) * vect(sb+N+j,sb+N+k)
 
-!          print *, k, configmatrix(sb+k), configmatrix(sb+N+k)
+          !---------------------------------------------------------------------
           !                                   U   f        V^{\dagger}     
-          kappa_pairing(si+i,si+j)  = kappa_pairing(si+i,si+j) +               &
+          ! Note the minus sign due to the hidden time-reversal!
+          kappa_pairing(si+i,si+j)  = kappa_pairing(si+i,si+j) -               &
           &       configmatrix(sb+  k)*vect(sb+  i,sb+N+k) * vect(sb+N+j,sb+N+k)
           !                                   V^{*}(1 - f) U^{T} 
           kappa_pairing(si+i,si+j)  = kappa_pairing(si+i,si+j) +               &
@@ -332,9 +337,10 @@ contains
         HFBdispersion(it) = HFBdispersion(it) + rho_pairing(si+i, si+i)        &
         &                                     - chi(si+i, si+i) 
     enddo
+    si = si + N
   enddo
   ! Time-reversal
-  HFBdispersion = 2 * HFBdispersion 
+  HFBdispersion = 4 * HFBdispersion 
   !-----------------------------------------------------------------------------
  end subroutine solvepairing_HFB
 
@@ -422,7 +428,7 @@ contains
                 sb = sb +2*N
             enddo 
 
-            print *, 'Blocking column', ind, ind-HFBsizes(qblock)  
+!            print *, 'Blocking column', ind, ind - HFBsizes(qblock)  
             
             sb = 0 ; si =0 
             do B=1,4
@@ -432,7 +438,7 @@ contains
                     R(sb+ind)         = 0.5
                 endif
                 sb = sb + 2*N
-                si = si +1
+                si = si + N
             enddo    
         enddo
     end select
@@ -534,8 +540,13 @@ contains
     ! Diagonalize rho in this block
     call diagon(tmp,N,N,rhotransfo(si+1:si+N,si+1:si+N),rho_can(si+1:si+N),work)
 
-    ! DEBUG
-    print ('(a6, i3, 20f10.3)'), 'Occ B=',B, rho_can(si+1:si+N)
+!    ! DEBUG
+!    do i=1,N
+!       print ('(20f10.3)'), rho_pairing(si+i,si+1:si+N)        
+!    enddo
+!    print *
+!    print ('(a6, i3, 20f10.3)'), 'Occ B=',B, rho_can(si+1:si+N)
+!    print *
 
     si = si + N
     deallocate(tmp)
@@ -566,7 +577,9 @@ contains
     tmp = matmul(tmp,rhotransfo(si+1:si+N, si+1:si+N))
   
     ! With the assumption of time-reversal, the diagonal matrix elements in this
-    ! transformed kappa matrix are the matrix elements (i, ibar)
+    ! transformed kappa matrix are the matrix elements (i, ibar).
+    !
+    ! They are used in the BCS case only:
     do i=1,N
         kappa_can(si+i) = tmp(i,i)
     enddo

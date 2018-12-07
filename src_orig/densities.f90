@@ -209,10 +209,6 @@ $BCSEXPRESSION
             weight  =    kappa_pairing(si+wave,si+wave2)*                     &
             &                               Pcutoffs(si+wave)*Pcutoffs(si+wave2)
             
-!            
-!            if(abs(weight) .gt. 1d-5) then
-!              print *, si+wave, si+wave2, weight
-!            endif
             do i=1,mv
 $HFBEXPRESSION
             enddo
@@ -221,11 +217,6 @@ $HFBEXPRESSION
         si = si + N
       enddo
     end select
-
-!    print *, 'Densities'
-!    print ('(99f8.4)') , DP_I_I(1:nx,1)
-!    print ('(99f8.4)') , DP_I_I(1:nx,2)
-!    print *
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! The asked for mixing+preconditioning scheme.
     call MassageDensity()

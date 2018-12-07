@@ -17,7 +17,8 @@ module pairingcutoffs
 
  !------------------------------------------------------------------------------
  ! Parameters for the symmetric Fermi function cutoff
- real(KIND=dp) :: PairingCut(2) = 5.0_dp, PairingMu(2) =0.5
+ real(KIND=dp) :: cutneutron = 5, cutproton= 5.
+ real(KIND=dp) :: PairingCut(2) = 0,  PairingMu(2) =0.5
  !------------------------------------------------------------------------------
  ! Storage for all cutoffs. 
  ! Currently these are ALWAYS in the HF basis.
