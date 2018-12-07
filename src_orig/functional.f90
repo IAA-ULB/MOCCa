@@ -168,7 +168,7 @@ $PRINTCOEF_PN
     8 format (15x, '       Exchange:', 3f15.6)
    81 format (15x, '   Exc. (point):', 3f15.6)  
     9 format (15x, 'Pairing (delta):', 3f15.6)
-   91 format (15x, 'Pairing (densi):', 3f15.6)
+   91 format (15x, 'Pairing (densi):', 30x, f15.6)
    99 format (15x, '   Total energy:', 30x, f15.6)
   100 format (15x, '     from spwfs:', 30x, f15.6)
   101 format (15x, '    Free Energy:', 30x, f15.6)
@@ -198,7 +198,7 @@ $PRINTCOEF_PN
     endif
     print *
     print 9 , PairingEnergy, sum(PairingEnergy)
-    print 91, PairDenEnergy, sum(PairDenEnergy)
+    print 91, sum(PairDenEnergy)
     print 1
     print  99, TotalE
     print 100, spwfenergy
