@@ -23,11 +23,12 @@ contains
     !---------------------------------------------------------------------------
     
     10 format (21 ('-'), ' Sp wavefunctions ', 41('-'))
-    20 format (90 ('-'))
-    30 format (90 ('_'),/,3x , 'Neutron wavefunctions')
-    40 format (90 ('_'),/,3x , 'Proton  wavefunctions')
-    50 format (90 ('_'),/,3x , 'HF Basis')
-    
+    20 format (80 ('-'))
+    30 format (80 ('_'),/,3x , 'Neutron wavefunctions')
+    40 format (80 ('_'),/,3x , 'Proton  wavefunctions')
+    50 format (80 ('_'),/,3x , 'HF Basis')
+    60 format ('  i     P       occ           E       d2h          Delta    ')    
+
     11 format (i3, 3x, f5.2, 3x, f7.4, 3x, f10.3, 3x, e10.3, 3x, f7.4)
 
     integer       :: wave,k
@@ -44,6 +45,7 @@ contains
     print 10
     print 50
     print 30
+    print 60
     print 10
     do k=1,nwn 
         wave = NeutronOrder(k)
@@ -64,6 +66,7 @@ contains
     enddo
     
     print 40  
+    print 60
     print 10
     do k=1,nwp
         wave = ProtonOrder(k)
@@ -95,7 +98,9 @@ contains
     
     1  format (33 ('-'), 'Quasiparticles',33('-'))
     2  format (80 ('_'))
-    3  format ( i3, 3f7.2 )
+    3  format ( i3, 2f7.2 )
+    4  format ('Block ', i1, /,  a8, ' parity ', a8)
+    5  format ( '  N    Eqp   f_n')
 
     11  format(80 ('-'))
 
@@ -111,10 +116,20 @@ contains
         if(N.eq.0) cycle
         
         print 2
-        print *, 'Block ', B
+        select case (B)
+        case(1)
+            print 4,  B , 'positive', 'neutrons' 
+        case(3)
+            print 4,  B , 'negative' , 'neutrons'
+        case(5)        
+            print 4,  B , 'positive' , 'protons'
+        case(7)        
+            print 4,  B , 'negative' , 'protons'
+        end select
+        print 5
         print 2
         do i=1,N
-            print 3, i, QPenergies(si+i), configmatrix(sb+N+i), configmatrix(sb+i)
+            print 3, i, QPenergies(si+i), configmatrix(sb+i)
         enddo
         si = si + N
         sb = sb + 2*N

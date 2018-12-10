@@ -66,7 +66,7 @@ contains
  end subroutine initHFB
 
  subroutine solvepairing_HFB(fermi, rho_pairing, kappa_pairing, configmatrix,  &
- &                         qpenergies,HFBmix, HFBmixtype,BlockType,Blockindices)
+ &            qpenergies,HFBmix, HFBmixtype,BlockType,Blockindices, blocklowest)
   !-----------------------------------------------------------------------------
   ! Driver routine for the solving of the HFB equations.
   !
@@ -89,6 +89,7 @@ contains
   real(KIND=dp), intent(in)  :: HFBmix
   integer, intent(in)        :: HFBmixtype
 
+  character(len=2), intent(in) ::  BlockLowest(:)
 
   !-----------------------------------------------------------------------------
   real(KIND=dp) :: configmatrix(2*nwt), c
@@ -195,7 +196,8 @@ contains
      enddo
      !--------------------------------------------------------------------------
      ! Construct the configuration matrix C
-     configmatrix=ConstructConfiguration(Vect,QPenergies,BlockType,BlockIndices)
+     configmatrix=ConstructConfiguration(Vect,QPenergies,BlockType,BlockIndices&
+                 &                       ,BlockLowest)
      !--------------------------------------------------------------------------
 
      si = 0 ; sb = 0
@@ -344,19 +346,22 @@ contains
   !-----------------------------------------------------------------------------
  end subroutine solvepairing_HFB
 
- function ConstructConfiguration(Vect, QPenergies, BlockType,BlockIndices) &
-                                      & result(R)
+ function ConstructConfiguration(Vect, QPenergies, BlockType, BlockIndices,    &
+ &                              Blocklowest)                           result(R)
     !---------------------------------------------------------------------------
     ! Construct the configuration matrix C, to determine what kind of HFB  
     ! state we are aiming to construct.
     !---------------------------------------------------------------------------
-    integer, intent(in)       :: BlockType
-    integer, intent(in)       :: BlockIndices(:)
-    real(KIND=dp), intent(in) :: qpenergies(:), vect(:,:)
-    real(KIND=dp), allocatable:: R(:)
+    integer, intent(in)          :: BlockType
+    integer, intent(in)          :: BlockIndices(:)
+    character(len=2), intent(in) ::  BlockLowest(:)
+
+    real(KIND=dp), intent(in)    :: qpenergies(:), vect(:,:)
+    real(KIND=dp), allocatable   :: R(:)
     
-    integer :: N, B, sb, i, NB, j, block,  qblock, ind, si
-    real(KIND=dp) :: compare, occ
+    integer       :: N, B, sb, i, NB, j, block,  qblock, ind, si
+    real(KIND=dp) :: compare, occ, qpp, qpm
+    integer       :: nblock(4) = 0
 
     N = size(qpenergies) 
     allocate(R(2*N)) ;  R = 0
@@ -389,27 +394,36 @@ contains
         sb = sb + 2*N        
     enddo
 
+    ! The type of occupation we need in the next part.
+    occ = 0
+    select case(Blocktype)
+    case(1,2)
+        ! Full blocking
+        occ = 1.0_dp
+        print *, 'Time-reversal breaking needed and not implemented.'
+        stop
+    case(3,4)
+        ! EFA blocking
+        occ = 0.5_dp 
+    end select
+
     !---------------------------------------------------------------------------
     ! Modify this default configuration when needed.
     select case(Blocktype)
     case(0)
         !-----------------------------------------------------------------------
         ! No blocking asked for. 
-    case(1)
+    case(1,3)
         !-----------------------------------------------------------------------
-        ! Ordinary blocking.
-        print *, 'Time-reversal breaking needed and not implemented.'
-        stop
-    case(2)
-        !-----------------------------------------------------------------------
-        ! EFA blocking
-        NB = size(BlockIndices)
+        ! The user asked for a specific configuration that needs 
+        ! to be identified
 
+        NB = size(BlockIndices)
         do j=1,NB
             compare = 0.0
             ind     = 0
 
-            ! Check which block we are dealing with
+            ! Check which block the requested index is in.
             call Identify(Blockindices(j), block, qblock)            
             !-------------------------------------------------------------------
             ! Look for the column in the second half of the eigenvectors with
@@ -427,31 +441,80 @@ contains
                 endif
                 sb = sb +2*N
             enddo 
-
-!            print *, 'Blocking column', ind, ind - HFBsizes(qblock)  
-            
+            !-------------------------------------------------------------------
+            !  Change the occupation of this particular qp
             sb = 0 ; si =0 
             do B=1,4
                 N = HFBsizes(B)
                 if(qblock.eq.B) then
-                    R(sb+ind-N)       = 0.5
-                    R(sb+ind)         = 0.5
+                    R(sb+ind-N)       = occ 
+                    R(sb+ind)         = 1 - occ
                 endif
                 sb = sb + 2*N
                 si = si + N
             enddo    
         enddo
-    end select
+    case(2,4)
+        !-----------------------------------------------------------------------
+        ! The user asked for a the lowest configuration of a specific type
 
-!    sb = 0
-!    do B=1,4
-!        N = HFBsizes(B)
-!        do i=1,2*N
-!            print *,' Config', i, R(sb+i)
-!        enddo
-!        print *
-!        sb = sb + 2*N
-!    enddo
+        ! First we count how many excitations to do in every HF-block
+        NB = size(BlockIndices)
+        nblock = 0
+        do j=1,NB
+            select case(Blocklowest(j))
+            case('n+')
+                nblock(1) = nblock(1) + 1 
+            case('n-')
+                nblock(2) = nblock(2) + 1
+            case('p+')
+                nblock(3) = nblock(3) + 1
+            case('p-')
+                nblock(4) = nblock(4) + 1
+            ! In this case, we need to compare QPenergies between different 
+            ! parity blocks
+            case('n0')  
+                 ! Next Positive parity neutrons 
+                 qpp = Qpenergies(              nblock(1)+1)
+                 ! Next negative parity neutron                 
+                 qpm = Qpenergies(HFBsizes(1) + nblock(2)+1)
+                 if (qpp < qpm) then
+                    nblock(1) = nblock(1) + 1
+                 else 
+                    nblock(2) = nblock(2) + 1
+                 endif
+            case('p0')
+                 ! Next Positive parity proton
+                 qpp = Qpenergies(sum(HFBSizes(1:2)) + nblock(3)+1)
+                 ! Next negative parity neutron                 
+                 qpm = Qpenergies(sum(HFBSizes(1:3)) + nblock(4)+1)
+                 if (qpp < qpm) then
+                    nblock(3) = nblock(3) + 1
+                 else 
+                    nblock(4) = nblock(4) + 1
+                 endif
+            case DEFAULT
+                print *, 'Blocklowest not valid.'
+                stop
+            end select
+        enddo 
+        
+        ! Now, for every block, flip the required number of qps.
+        ! Note that this is currently limited to the positive signature states.
+        sb = 0
+        si = 0
+        do B=1,4
+            N = HFBsizes(B)
+            do j = 1,nblock(B)  
+                    ! The qps are ordered in energy from the diagonalization
+                    R(sb + N + j ) = 1 - occ
+                    R(sb     + j ) =     occ
+            enddo
+            si = si +   N
+            sb = sb + 2*N
+        enddo   
+
+    end select
 
  end function constructconfiguration
  

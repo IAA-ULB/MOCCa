@@ -150,9 +150,31 @@ name_param  = name of the parametrization, needs to match name on forces.param.
 
 \begin{Verbatim}
 &pairing
-Type        = `HF', `BCS' or `HFB'.
-Cuttype     = Symmetric Fermi cutoff (1) or cosine cutoff (2).
+Type                  = `HF', `BCS' or `HFB'.
+Cuttype               = Symmetric Fermi cutoff (1) or cosine cutoff (2).
 Cutneutron, Cutproton = energy-distance around Fermi energy for cutoff.
+BlockType             = No blocking (0), True blocking (1&2), 
+                        EFA based on indices(3), EFA based on lowest energy(4)
+BlockNumber           = Number of quasiparticles to excite.
+/
+\end{Verbatim}
+
+\begin{Verbatim}
+&Indices
+!             NOTE: this namelist is only read if BlockNumber in the 
+!                   &pairing/ namelist is nonzero.
+BlockIndices = Blocknumber integers. These are the indices of the states in the 
+               Hartree-Fock basis, for which the code will attempt to construct
+               quasiparticle excitations with large overlap with them.
+BlockLowest  = Set of 'a2' formatted strings, of length BlockNumber.
+               'n+','n-' : lowest quasi-neutron of positive/negative parity
+               'p+','p-' : lowest quasi-proton of positive/negative parity
+               'n0','p0' : lowest quasi-neutron/proton of either parity.
+               Note that all of these can be combined. The input
+                'n+', 'n+', 'p0', 'p0'
+               will result in the code trying to construct the lowest state
+               with two-quasi-neutrons of positive parity and two quasi-protons
+               of whatever parity.
 /
 \end{Verbatim}
 
@@ -180,11 +202,23 @@ nwp            = number of proton wavefunctions.
 /
 \end{Verbatim}
 
+\clearpage
 \begin{Verbatim}
 &IO
 Inputfilename  = name of the .wf file Tantalus will read.
                  If this is 'INIT', Tantalus will not read any file and initialize from scratch.
 Outputfilename = name of the .wf file Tantalus will write.
+BXLFIT         = string. Extra output will be written to the following file 
+                  `${BXLFIT}zXXXnYYY.out'
+                 where XXX      = the number of protons  (forced to be integer)
+                       YYY      = the number of neutrons (forced to be integer)
+                       ${BXLFIT}= the value of the string.
+
+                On this file is a single line with
+                    Z , N, E, Q_20^{tot}, Q_22^{tot}, np.sqrt( <r_p^2>/Z )       
+                where E is the total energy calculated from the functional and 
+                the proton rms radius is always based on the point proton 
+                density without any correction!          
 /
 \end{Verbatim}
 
@@ -274,7 +308,7 @@ neutronsize =  0.0, 0.0      ! Rms radii  (r+, r-) of a double Gaussian model
 HOCOMform   = .false.        ! Whether or not to correct the above rms radii    
                              ! for the c.m. correction in a HO basis.
 nucleonsize_selfconsistent = .true./
-                             ! Whether to use the folding selfconsistently, 
+                             ! Whether to use the folding self-consistently, 
                              ! or only in the calculation of the energy.
 \end{Verbatim}
 \end{minipage}

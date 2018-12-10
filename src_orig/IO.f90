@@ -25,7 +25,7 @@ implicit none
   character(len=100) :: inputfilename, outputfilename
 
   ! Signal the code to write extra output.
-  integer :: BXLFIT = 0
+  character(len=20) :: BXLFIT = ''
 
 contains
 
@@ -103,8 +103,8 @@ contains
     print 9 , nwt,nwn,nwp
     print 13, inversetemp
     print 10, inputfilename, outputfilename
-    if(BXLFIT .eq. 1) then
-        print 11
+    if(BXLFIT .ne. '') then
+        print 11, BXLFIT 
     endif
     print 12, energy_prec, moment_prec, disp_prec
     
@@ -408,7 +408,7 @@ contains
     enddo
     
     ! Bonus file for quick feedback into the fit
-    if(BXLFIT) then
+    if(BXLFIT .ne. '') then
         call Brussels_output
     endif  
     
@@ -430,21 +430,23 @@ contains
     integer       :: N,Z
     real(KIND=dp) :: E, quad(2), rms 
 
-    character(len=17) :: filedone
+    character(len=len(BXLFIT)+12) :: filedone
     
     Q20 =>FindMoment( 2,0,.false.)
     Q22 =>FindMoment( 2,2,.false., Q20)
-    r2  =>FindMoment(-1,0,.false., Q22)
+    r2  =>FindMoment(-2,0,.false., Q22) ! The rms radius is associated with l=-2
 
     ! Write the filename
-    write(filedone,'("Out/z",i3.3,"n",i3.3,".out")') int(protons),int(neutrons)
+    write(filedone,'(a,"z",i3.3,"n",i3.3,".out")'), trim(adjustl(BXLFIT)),     &
+    & int(protons),int(neutrons)
     open(unit=10,file=filedone)
 
     E = TotalE
     quad(1) = sum(Q20%value)
     quad(2) = sum(Q22%value)    
     rms     =     r2%value(2)
-    write(10,'(2i4,4f15.6)') int(protons),int(neutrons),E,quad,rms
+
+    write(10,'(2i4,5f15.6)') int(protons),int(neutrons),E,quad,sqrt(rms/protons)
     close(10)
 
   end subroutine Brussels_output

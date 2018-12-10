@@ -84,18 +84,31 @@ module pairing
  !------------------------------------------------------------------------------
  ! Type of blocking we want. 
  ! (0) no blocking
- ! (1) ordinary blocking
- ! (2) EFA blocking. 
- ! Signals the code to look for a new namelist "Indices"
+ ! (1) ordinary blocking, based on indices
+ ! (2) ordinary blockgin, asking for lowest energy configurations
+ ! (3) EFA blocking, based on indices.
+ ! (4) EFA blocking, asking for lowest energy configurations.
+ ! 
+ ! If this is nonzero, the code will look for a new namelist "Indices"
  !
- ! This currently only works for HFB calculations, but could be envisaged for 
- ! BCS calculations as well. 
+ ! This currently only works for HFB calculations!
  !------------------------------------------------------------------------------
  integer :: BlockType  = 0
  integer :: BlockNumber= 0 
  !------------------------------------------------------------------------------
  ! Indices of the levels to block. 
  integer, allocatable :: BlockIndices(:) 
+ !------------------------------------------------------------------------------ 
+ ! EFA blocking for the lowest qp. 
+ ! Indicated by either
+ ! 'n+' : positive parity neutron
+ ! 'n-' : negative parity neutron
+ ! 'n0' : (any parity)    neutron
+ ! 'p+' : positive parity proton
+ ! 'p-' : negative parity proton
+ ! 'p0' : (any parity)    proton
+ ! '  ' : nothing
+ character(len=2), allocatable :: BlockLowest(:)
 
  !------------------------------------------------------------------------------
  ! Entropy of the statistical mixture in the case of finite temperature
@@ -111,7 +124,7 @@ contains
     
     NameList /Pairing/ Type, CutType, Constantgap, hfbmix, hfbmixtype,         &
     &                  BlockType, BlockNumber, cutneutron, cutproton
-    NameList /Indices/ BlockIndices
+    NameList /Indices/ BlockIndices, blocklowest
 
     read(unit=*, NML=Pairing)
   
@@ -130,7 +143,7 @@ contains
       stop
     endif
     
-    if(Blocktype.lt.0 .or. BlockType.gt.2) then
+    if(Blocktype.lt.0 .or. BlockType.gt.4) then
         print *, 'This value of BlockType is not accepted.'
         stop
     endif
@@ -138,6 +151,7 @@ contains
     ! Reading information on the blocking if needed.
     if(BlockNumber.ne.0) then
         allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
+        allocate(BlockLowest(BlockNumber))  ; BlockLowest  = ' ' 
         read(unit=*, nml=Indices)
     endif
 
@@ -176,6 +190,16 @@ contains
     7 format('     dE (n,p) = ', 2f4.1, ' MeV ')
     8 format('     mu (n,p) = ', 2f4.1, ' MeV ')
 
+    90 format ('  Blocking Options')
+    91 format ('    Blocking type: ', i1)
+    92 format ('    Ordinary Blocking' )
+    93 format ('    Equal Filling    ' )
+    
+    10 format ('    Blocknumber  = ', i2 )
+    
+    11 format ('    Blocklowest  = ', 20(1x, a2))
+    12 format ('    BlockIndices = ', 20i3)
+    
     print 1
 
     select case (pairingtype)
@@ -205,6 +229,29 @@ contains
 
     print 7, pairingcut
     print 8, PairingMu
+
+    if(Blocktype .ne. 0) then
+        print 90
+        print 91, Blocktype
+        select case(Blocktype)
+        case(1)
+            print 92
+            print 10, Blocknumber
+            print 12, Blockindices
+        case(2)
+            print 92
+            print 10, Blocknumber   
+            print 11, Blocklowest
+        case(3)
+            print 93
+            print 10, Blocknumber
+            print 12, BlockIndices
+        case(4)
+            print 93
+            print 10, Blocknumber
+            print 11, Blocklowest
+        end select
+    endif
 
   end subroutine printpairing_init
   
@@ -305,7 +352,8 @@ contains
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
       call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing,           &
-      &    configmatrix, qpenergies,HFBmix, HFBmixtype, BlockType, Blockindices)
+      &                    configmatrix, qpenergies,HFBmix, HFBmixtype,        &
+      &                       BlockType, Blockindices, blocklowest)
           
     end select
     !---------------------------------------------------------------------------
