@@ -437,12 +437,18 @@ contains
 
     integer :: i
 
+    if(inversetemp == -1) then  
+        entropy  = 0
+        return
+    endif
+
     select case(PairingType)
     case(0)
         print *, 'Entropy calculation not yet implemented for HF.' 
         stop
     case (1)
         print *, 'Entropy calculation not yet implemented for BCS.'
+        stop
     case (2)
         entropy = 0
         ! S = - sum_i f_i ln(f_i)
