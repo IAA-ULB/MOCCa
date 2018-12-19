@@ -68,7 +68,79 @@ contains
     enddo
     return
   end subroutine NaiveFill
+
+  subroutine FiniteTemperatureHF(occupations,  Fermi)
+    !---------------------------------------------------------------------------
+    ! Simple bisection routine to find the correct Fermi energy for a finite
+    ! temperature HF calculation. A Newton type method might be more efficient, 
+    ! but I fear for rounding errors and instability with exp() of either large
+    ! or small numbers.
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(out) :: occupations(nwt), energies(nwt,2)
+    real(KIND=dp)              :: Fermi(2), Fmin, Fplus, betaE, Nmin, Nmax
+    integer                    :: Order(nwt,2), nw
+    integer                    :: it, maxiter=100, i, N
+
+    
+    !---------------------------------------------------------------------------
+    !Finding the order of the spwfs, in terms of energy
+    Order = 0    
+    Order(1:nwn,1) = OrderSpwfsISO(-1)
+    Order(1:nwp,2) = OrderSpwfsISO(+1)
+    
+    do i=1,nwn
+        energies(i,2) = spenergies(Order(i,1))
+    enddo
+    do i=1,nwp
+        energies(i,2) = spenergies(Order(i,2)) 
+    enddo      
+
+    do it=1,2
+        
+        if(it .eq. 1) then
+            N = neutrons ; nw = nwn
+        else then
+            N = protons  ; nw = nwp
+        endif
+
+        ! Establish a search interval
+        Fmin = spenergies(Order( 1,it))
+        Fmax = spenergies(Order(nw,it))
+    
+        Nmin = sumoccupations(Fermi(it), energies(1:nw,it))
+        Nmax = 
+    
+
+
+
+    enddo    
+
+  end subroutine FiniteTemperatureHF
+
+  function sumoccupations(mu, energies) result (N)
+    !---------------------------------------------------------------------------
+    ! Simple function that sums the occupations for given mu and sp-energies.
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in) :: energies(:), mu
+    real(KIND=dp)             :: N
+    integer                   :: i
+
+    N = 0
+    do i=1, size(energies)
+        betaE = inversetemp * (energies(i) - mu)
+        N = N + 1.0/(1 + exp(betaE))
+    enddo
+
+  end function sumoccupations
   
+
+  recursive function FermiBisection()
+  
+
+  end function FermiBisection
+
   subroutine CalcHFgaps(Fermi)
     !---------------------------------------------------------------------------
     ! Dummy routine.

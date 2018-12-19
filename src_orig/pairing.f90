@@ -323,7 +323,11 @@ contains
     
     select case (Pairingtype)
     case(0)
-      call NaiveFill(rho_can)
+        if(inversetemp .eq. -1) then
+            call NaiveFill(rho_can)
+        else
+            call FiniteTemperatureHF(rho_can,FermiEnergy)
+        endif
     case(1)
       !-------------------------------------------------------------------------
       ! BCS-type pairing
