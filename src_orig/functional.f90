@@ -204,6 +204,7 @@ $PRINTCOEF_PN
     print 100, spwfenergy
     
     if(inversetemp .ne. -1) then
+        ! F = E - T * S
         print 101, TotalE - sum(entropy)/inversetemp
         print 102, entropy, sum(entropy)
     endif

@@ -439,7 +439,7 @@ contains
     ! finite temperature.
     !---------------------------------------------------------------------------
 
-    integer :: i
+    integer :: i, it
 
     if(inversetemp == -1) then  
         entropy  = 0
@@ -448,8 +448,21 @@ contains
 
     select case(PairingType)
     case(0)
-        print *, 'Entropy calculation not yet implemented for HF.' 
-        stop
+        entropy = 0
+        do i=1,nwt
+            if(i .gt. nwn) then
+                it = 2
+            else
+                it = 1
+            endif
+            if(rho_can(i) .gt. 1d-10) then
+                ! Notice the factor 2 for time-reversal. The rho_cans are
+                ! double the true occupations!                 
+                entropy(it) = entropy(it) - rho_can(i)/2.0 * log(rho_can(i)/2.0)
+            endif
+        enddo
+        ! Reputting the factor 2.
+        entropy = 2 * entropy
     case (1)
         print *, 'Entropy calculation not yet implemented for BCS.'
         stop

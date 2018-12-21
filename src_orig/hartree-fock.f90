@@ -77,10 +77,11 @@ contains
     ! or small numbers.
     !---------------------------------------------------------------------------
 
-    real(KIND=dp), intent(out) :: occupations(nwt), energies(nwt,2)
-    real(KIND=dp)              :: Fermi(2), Fmin, Fplus, betaE, Nmin, Nmax
+    real(KIND=dp), intent(out) :: occupations(nwt)      
+    real(KIND=dp)              :: energies(nwt,2), N
+    real(KIND=dp)              :: Fermi(2), Fmin, Fmax, betaE, Nmin, Nmax
     integer                    :: Order(nwt,2), nw
-    integer                    :: it, maxiter=100, i, N
+    integer                    :: it, maxiter=100, i
 
     
     !---------------------------------------------------------------------------
@@ -90,7 +91,7 @@ contains
     Order(1:nwp,2) = OrderSpwfsISO(+1)
     
     do i=1,nwn
-        energies(i,2) = spenergies(Order(i,1))
+        energies(i,1) = spenergies(Order(i,1))
     enddo
     do i=1,nwp
         energies(i,2) = spenergies(Order(i,2)) 
@@ -100,44 +101,89 @@ contains
         
         if(it .eq. 1) then
             N = neutrons ; nw = nwn
-        else then
+        else 
             N = protons  ; nw = nwp
         endif
-
+        
+        !-----------------------------------------------------------------------
         ! Establish a search interval
-        Fmin = spenergies(Order( 1,it))
-        Fmax = spenergies(Order(nw,it))
+        Fmin = energies(1,it)
+        Fmax = energies(nw,it)
+
+        Nmin = FToccupations(Fmin, energies(1:nw,it)) - N
+        Nmax = FToccupations(Fmax, energies(1:nw,it)) - N
     
-        Nmin = sumoccupations(Fermi(it), energies(1:nw,it))
-        Nmax = 
-    
+        if(Nmin .gt. 0 .or. Nmax .lt. 0) then
+            print *, 'Bracketing of Fermi energy is wrong.'
+            print *, Fmin, Nmin
+            print *, Fmax, Nmax
+            print *, spenergies(Order(1,it)),spenergies(Order(nw,it)) 
+            stop
+        endif
 
-
-
+        Fermi(it) = FermiBisection(Fmin,Nmin,Fmax,Nmax, energies(1:nw,it),N)
     enddo    
+
+    !---------------------------------------------------------------------------
+    ! Actually calculate the occupations
+    do i = 1,nwt
+        if (i .gt. nwn) then
+            it    = 2 
+        else
+            it    = 1
+        endif        
+        betaE = inversetemp * (spenergies(i) - Fermi(it))
+        occupations(i) = 2.0/(1 + exp(betaE))
+    enddo
+
 
   end subroutine FiniteTemperatureHF
 
-  function sumoccupations(mu, energies) result (N)
+  function FToccupations(mu, energies) result (N)
     !---------------------------------------------------------------------------
     ! Simple function that sums the occupations for given mu and sp-energies.
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: energies(:), mu
-    real(KIND=dp)             :: N
+    real(KIND=dp)             :: N, betaE
     integer                   :: i
 
     N = 0
     do i=1, size(energies)
         betaE = inversetemp * (energies(i) - mu)
-        N = N + 1.0/(1 + exp(betaE))
+        N     = N + 1.0/(1 + exp(betaE))
     enddo
 
-  end function sumoccupations
-  
+    ! Time-reversal gives the factor 2
+    N = 2 * N
 
-  recursive function FermiBisection()
+  end function FToccupations
   
+  recursive function FermiBisection(xmin, Nmin, xmax, Nmax, energies, N) result(x)
+    !---------------------------------------------------------------------------
+    ! Bisection search for an appropriate chemical potential for the FT HF.
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp)             :: xmin, xmax, x, Nmin, Nmax, xnew, Nnew
+    real(KIND=dp), intent(in) :: energies(:), N
+
+    if(abs(Nmin) .lt. pairing_prec) then
+        x = xmin        
+        return 
+    endif
+    if(abs(Nmax) .lt. pairing_prec) then
+        x = xmax
+        return
+    endif   
+    
+    xnew = 0.5 * (xmin + xmax)
+    Nnew = FToccupations(xnew, energies) - N
+
+    if(Nnew .gt. 0) then
+        x = FermiBisection(xmin, Nmin, xnew, Nnew, energies,N)
+    else
+        x = FermiBisection(xnew, Nnew, xmax, Nmax, energies,N)            
+    endif
 
   end function FermiBisection
 

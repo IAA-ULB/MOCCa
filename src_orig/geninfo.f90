@@ -40,6 +40,7 @@ module GenInfo
     !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
     !                                     < disp_prec
     real(KIND=dp) :: energy_prec = 1d-11, moment_prec = 1d-5, disp_prec = 1d-7
+    real(KIND=dp) :: pairing_prec = 1d-9
     
 contains
 
