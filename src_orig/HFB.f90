@@ -158,7 +158,7 @@ contains
      do B=1,4
         
         it = 1
-        if(B>2) it = 2
+        if(B .gt. 2) it = 2
      
         N = HFBsizes(B)
         allocate(HFBHamil(2*N,2*N)) 
@@ -203,7 +203,7 @@ contains
      si = 0 ; sb = 0
      do B=1,4                
         it = 1
-        if(B>2) it = 2
+        if(B.gt.2) it = 2
         N = HFBsizes(B)
         !-----------------------------------------------------------------------
         ! Calculate the number of particles in here  
@@ -328,7 +328,7 @@ contains
   do B=1,4
     N = HFBsizes(B) 
     it  = 1
-    if(B > 2) it = 2
+    if(B .gt. 2) it = 2
     
     ! rho squared
     chi(si+1:si+N, si+1:si+N) = matmul(rho_pairing(si+1:si+N, si+1:si+N),      &
@@ -781,7 +781,7 @@ contains
     N = HFBlocks(B)
     
     iso = -1
-    if(B>4) iso = 1
+    if(B .gt. 4) iso = 1
   
     do wave1=1,N
       deltapsi = delta_action_HFB(  hfpsi(:,:,si+wave1)  ,                   &
