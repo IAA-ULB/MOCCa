@@ -182,7 +182,7 @@ contains
     !---------------------------------------------------------------------------
     ! Print information on the treatment of pairing at the start of the run.
     1 format(80('-'))
-    2 format(' Pairing treatment: ', a30)
+    2 format(' Pairing treatment: ', a60)
     3 format('   Linear mixing of (rho,kappa)')    
     4 format('   Linear mixing of eigenvalues of R')
     5 format('   HFBmix = ', f5.3)
@@ -381,13 +381,19 @@ contains
     5 format (' Dispersion        ',2x,f10.5,2x,f10.5)
     7 format (60('-'))
 
-    print 1
-
     select case(PairingType)
     case (0)
+        if(inversetemp .eq. -1) return
+        
+        print 1
+        print 2
+        print 3, FermiEnergy
+        print 4, sum(rho_can(1:nwn)), sum(rho_can(nwn+1:nwt))
+
         return
     case (1,2)
         ! BCS and HFB
+        print 1    
         print 2
         print 3, FermiEnergy
         print 4, sum(rho_can(1:nwn)), sum(rho_can(nwn+1:nwt))

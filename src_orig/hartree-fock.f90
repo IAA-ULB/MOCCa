@@ -107,7 +107,7 @@ contains
         
         !-----------------------------------------------------------------------
         ! Establish a search interval
-        Fmin = energies(1,it)
+        Fmin = -100
         Fmax = energies(nw,it)
 
         Nmin = FToccupations(Fmin, energies(1:nw,it)) - N

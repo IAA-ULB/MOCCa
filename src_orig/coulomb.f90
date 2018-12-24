@@ -243,7 +243,7 @@ contains
     
     use folding
 
-    real(KIND=dp), intent(in) :: source(mv)
+    real(KIND=dp), intent(in) :: source(nx+BC,ny+BC,nz+BC)
     integer                   :: i,j,k,l,m, im
     real(KIND=dp)             :: Qlm
     type(Moment), pointer     :: Current
@@ -271,13 +271,35 @@ contains
       Im = 1
       if(Current%Impart) Im = 2
 
+
       ! Recalculate the multipole distribution, since source is not
       ! necessarily the point proton distribution.
-      Qlm = -sum(Source * SpherHarmCoulomb(1:mv,1,1,l,m,Im)) * dv
+      Qlm = 0
+      do k=1,nz+BC
+        do j=1,ny+BC  
+          do i=1,nx+BC
+            Qlm = Qlm - Source(i,j,k) * SpherHarmCoulomb(i,j,k,l,m,Im)
+
+          enddo
+        enddo
+      enddo 
+
+      Qlm = 0
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            Qlm = Qlm - Source(i,j,k) * SpherHarmCoulomb(i,j,k,l,m,Im)
+
+          enddo
+        enddo
+      enddo 
+   
+      Qlm = Qlm * dv/(2*l+1)  
       
       !  Previous implementation based on values of the multipole moments
       !Qlm = e2*Current%Value(2)*(4*pi/(2*l+1)) 
-      
+
+
       do k=1,nz+BC
         do j=1,ny+BC
           do i=1,nx+BC
