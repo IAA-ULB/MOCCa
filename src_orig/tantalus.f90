@@ -175,6 +175,9 @@ subroutine ReachForWaterAndFood
    
     integer :: iter
     logical :: ConvergenceAchieved
+    !---------------------------------------------------------------------------
+    ! Logical to see if any moments with projection are necessary
+    logical :: projectpresent = .false.
 
     ConvergenceAchieved = .false.   
     
@@ -219,9 +222,13 @@ subroutine ReachForWaterAndFood
         ! Note that the (diagonal) matrix elements of <h> get calculated here
         call Evolve(iter)
        
+        ! Save      
+        FermiHistory = FermiEnergy
         ! Solve pairing problem
         call SolvePairing()
-        
+
+        projectpresent = checkconstraints()        
+
         if(projectpresent) then
           ! Update the densities
           ! Note that this update is incorrect, as we do not want to perform a 
@@ -253,7 +260,7 @@ subroutine ReachForWaterAndFood
         !See if some moments were temporary
         call TurnOffConstraints(iter)
 
-        ! Calculate a) moments values, b) readjustment and c) finally the 
+        ! Calculate a) moments values, b) readjustment and c) finally their
         ! contribution to the sphamiltonian.
         call CalculateMoments()
         call ReadjustAllMoments(1)
@@ -306,18 +313,22 @@ subroutine printsummary(iter)
     use functional
     use evolution 
     use moments    
+    use pairing
+    
+    implicit none
 
     integer, intent(in)   :: iter
     type(Moment), pointer :: Q20, Q22
-    real(KIND=dp)         :: dQ20, dQ22
+    real(KIND=dp)         :: dQ20, dQ22, dF(2)
      
 
     1 format (80('-'))
     2 format (' Iteration = ',i4)
-    3 format (' dt  = ', f8.4, '  mu  = ', f8.4, '  D2H = ', e8.1)
-    4 format (' E   = ', f10.3,  ' DE  = ', e8.1)
-    5 format (' Q20 = ', f12.4,'  Q22 = ', f12.4, &
-    &         ' dQ20= ', e8.1, '  dQ22= ', e8.1)
+    3 format (' dt  = ', f8.4, 4x, '  mu  = ', f8.4, '  D2H = ', e8.1)
+    4 format (' E   = ', f10.3,2x, '  DE  = ', e8.1)
+    5 format (' Q20 = ', f12.4,    '  Q22 = ', f12.4, &
+    &         ' dQ20= ', e8.1, 4x, '  dQ22= ', e8.1)
+    6 format (' dmun= ', e8.1, 4x, '  dmup= ', e8.1)
     
     Q20 =>FindMoment(2,0,.false.     )
     Q22 =>FindMoment(2,2,.false., Q20)
@@ -327,8 +338,12 @@ subroutine printsummary(iter)
     print 3, dt, momentum, d2h
     print 4, totalE,  abs(totalE - Ehistory(1))/abs(totalE)
 
+    dF   = FermiEnergy - FermiHistory
+    print 6, dF
+
     dQ20 = abs(sum(Q20%value) - sum(Q20%history))
     dQ22 = abs(sum(Q22%value) - sum(Q22%history))
     print 5, sum(Q20%value), sum(Q22%value), dQ20,dQ22
         
+    
 end subroutine printsummary

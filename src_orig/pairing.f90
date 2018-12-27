@@ -57,7 +57,7 @@ module pairing
  real(KIND=dp), allocatable :: CanCutTransfo(:,:)
  !------------------------------------------------------------------------------
  ! Fermi energy for neutrons and protons.
- real(KIND=dp) :: FermiEnergy(2) 
+ real(KIND=dp) :: FermiEnergy(2) , FermiHistory(2)
  !------------------------------------------------------------------------------
  ! Particle number dispersion
  real(KIND=dp) :: Dispersion(2)
@@ -320,7 +320,7 @@ contains
     if(.not.allocated(configmatrix)) then
        allocate(configmatrix(2*nwt))      ;  configmatrix = 0.0
     endif
-    
+        
     select case (Pairingtype)
     case(0)
         if(inversetemp .eq. -1) then
@@ -358,7 +358,6 @@ contains
       call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing,           &
       &                    configmatrix, qpenergies,HFBmix, HFBmixtype,        &
       &                       BlockType, Blockindices, blocklowest)
-          
     end select
     !---------------------------------------------------------------------------
     ! Compute the cutoffs
@@ -422,20 +421,20 @@ contains
       ! HF case
     case(1)
       ! BCS case
-      do wave=1,nwt
+      do wave = 1,nwt
           it = 1
-          if(wave .gt. nwn) it =2
+          if(wave .gt. nwn) it = 2
           E(it) = E(it) - BCSgaps(wave)*Kappa_can(wave)
       enddo
     case(2)
-      do wave=1,nwt
-        do wave2=wave,nwt
+      do wave = 1,nwt
+        do wave2 = wave,nwt
           it = 1
-          if(wave .gt. nwn) it =2
-          ! Factor of two due to symmetricity
-          E(it) = E(it) + Kappa_pairing(wave2,wave)*HFBgaps(wave,wave2)
+          if(wave .gt. nwn) it = 2
+          E(it) = E(it) - Kappa_pairing(wave2,wave)*HFBgaps(wave,wave2)
         enddo
       enddo
+      print *
     end select
   end function calcpairingenergy
 

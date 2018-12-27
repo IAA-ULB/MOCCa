@@ -255,9 +255,6 @@ module moments
   !-----------------------------------------------------------------------------
   real(kind=dp), allocatable, target :: Constraint_I_I(:,:)
   !-----------------------------------------------------------------------------
-  ! Logical to see if any moments with constrainttype are present
-  logical :: projectpresent = .false.
-  !-----------------------------------------------------------------------------
   ! If true, the code takes ALL of the information on the constrained moments
   ! from the read-in wavefunction file.
   logical :: ContinueAll = .false.
@@ -861,14 +858,14 @@ contains
 
               Current%MultFromFile = MultFromFile
               Current%Continue     = Continue
-              
-              if(constrainttype.eq.2) projectpresent = .true.
+             
               !-----------------------------------------------------------------
         endif
      enddo
      nullify(Current)
      return
   end subroutine ReadMomentData
+
 
 !===============================================================================
 ! Printing routines
@@ -1518,6 +1515,26 @@ if(io.ne.0) call stp('Error while writing multipole moment to file!')
             endif
     enddo
   end subroutine TurnOffConstraints
+
+  function checkconstraints() result(projectpresent)
+    !---------------------------------------------------------------------------
+    ! Check all moments for constrainttype == 2.
+    !---------------------------------------------------------------------------
+    
+    logical :: projectpresent
+    type(Moment), pointer :: current
+
+    projectpresent = .false.
+    Current => Root
+    do while(associated(Current%next))
+        Current => Current%Next
+        if(Current%constrainttype .eq. 2) then
+            projectpresent = .true.
+            return
+        endif
+    enddo
+
+  end function checkconstraints
 
   recursive function FindMoment(l,m,Impart,StartMoment) result(FoundMoment)
     !---------------------------------------------------------------------------

@@ -195,20 +195,12 @@ $BCSEXPRESSION
       si = 0
       do B=1,8
         N = HFBlocks(B)
-        
         it = 2
         if( B.le. 4) it = 1
-        
-        
         do wave=1,N
           do wave2=wave,N      
-            !-------------------------------------------------------------------
-            ! Time-reversal implies an extra application of T.
-            !-------------------------------------------------------------------
-            ! Factor of 2 due to skew symmetry
             weight  =    kappa_pairing(si+wave,si+wave2)*                     &
             &                               Pcutoffs(si+wave)*Pcutoffs(si+wave2)
-            
             do i=1,mv
 $HFBEXPRESSION
             enddo

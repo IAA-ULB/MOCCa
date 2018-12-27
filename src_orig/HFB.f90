@@ -124,8 +124,8 @@ contains
   endif
   !-----------------------------------------------------------------------------
   ! Saving the history
-  rho_history     = rho_pairing
-  kappa_history   = kappa_pairing
+  rho_history          = rho_pairing
+  kappa_history        = kappa_pairing
   configmatrix_history = configmatrix
 
   dn = 0.0
@@ -168,11 +168,9 @@ contains
         call diagon (HFBHamil,2*N,2*N,vect(sb+1:sb+2*N, sb+1:sb+2*N),    &
         &                                         eigen(sb+1:sb+2*N),work)
         deallocate(HFBHamil)
-
-!
 !       Vect now contains the eigenvectors of the HFB hamiltonian in the 
 !       given parity-isospin block, ordered by increasing E_qp.
-!
+
 
 !        !-----------------------------------------------------------------------
 !        ! Switching half of the eigenvectors
@@ -211,8 +209,6 @@ contains
         !            sum_(ij>N) f_(j) V^*_ij V^T_ji = sum_ij f_(j) V^*_ij V_ij
         !          + sum_(ij<N) f_(j) U^*_ij U^T_ji = sum_ij f_(j) U^*_ij U_ij  
         
-!        print *, 'B', B, N, configmatrix(sb+1:sb+2*N)
-
         do i=1,N
             particles(it) = particles(it)                                      &
             &     + 2*configmatrix(sb+N+i) * sum(vect(sb+N+1:sb+2*N, sb+N+i)**2)            
@@ -308,6 +304,10 @@ contains
       enddo
     enddo
 
+!    do i=1,N
+!        print *, (kappa_pairing(si+i,si+1:si+N))
+!    enddo   
+!    print *, 
     si = si +   N
     sb = sb + 2*N
   enddo
@@ -562,7 +562,7 @@ contains
     enddo
     
     H(1:N, N+1:2*N)     =  gaps
-    H(N+1:2*N, 1:N)     = -gaps
+    H(N+1:2*N, 1:N)     =  gaps !No minus sign due to time-reversal
     
  end function ConstructHFBHamil
 
@@ -794,7 +794,7 @@ contains
       do wave2=wave1,N
         HFBgaps(si+wave2,si+wave1) = 0.5*sum(hfpsi(:,:,si+wave2)*deltapsi)*dv *&
         &                                  Pcutoffs(si+wave1)*Pcutoffs(si+wave2)
-        HFBgaps(si+wave1,si+wave2) = - HFBgaps(si+wave2,si+wave1)
+        HFBgaps(si+wave1,si+wave2) = HFBgaps(si+wave2,si+wave1)
       enddo
     enddo
     si = si + N
