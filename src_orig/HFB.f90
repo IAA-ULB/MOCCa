@@ -171,7 +171,6 @@ contains
 !       Vect now contains the eigenvectors of the HFB hamiltonian in the 
 !       given parity-isospin block, ordered by increasing E_qp.
 
-
 !        !-----------------------------------------------------------------------
 !        ! Switching half of the eigenvectors
 !
@@ -303,11 +302,7 @@ contains
         enddo
       enddo
     enddo
-
-!    do i=1,N
-!        print *, (kappa_pairing(si+i,si+1:si+N))
-!    enddo   
-!    print *, 
+ 
     si = si +   N
     sb = sb + 2*N
   enddo
@@ -801,6 +796,54 @@ contains
   enddo
 
  end subroutine calcHFBgaps
+
+ subroutine PrintHFBconvergence(rho_pairing, kappa_pairing)
+    !----------------------------------------------------------------------------
+    ! Prints out some convergence info on the HFB subproblem.
+    !   a) size of rho*rho - rho + kapppa * kappa^T
+    !   b) size of rho*kappa - kappa * rho
+    ! These should be small at convergence.
+    !----------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: rho_pairing(:,:), kappa_pairing(:,:)
+    real(KIND=dp) :: test1(4), test2(4)
+    real(KIND=dp), allocatable :: A(:,:) , r(:,:), k(:,:)
+    integer       :: N,i,j, P,it, B, si
+    
+
+    1 format (' HFB convergence:   (N,+)    (N,-)    (P,+)    (P,-)')
+    2 format ('  r^2-r+k*k^T    = ',  4es9.2)
+    3 format ('  r*k-k*r        = ',  4es9.2)
+
+    print *
+    print 1
+    
+    si = 0
+    do B=1,4
+        N = HFBlocks(B)
+        
+        it = 2
+        if(B .le. 2) it = 1
+
+        allocate(A(N,N), r(N,N), k(N,N))
+        r = rho_pairing(si+1:si+N,si+1:si+N)
+        k = kappa_pairing(si+1:si+N,si+1:si+N)
+        
+        ! A = rho^2 - rho + kappa * kappa^T
+        A = matmul(r,r) - r + matmul(k, transpose(k))
+        test1(B) = sqrt(sum(A**2))
+
+        ! A = rho * kappa - kappa * rho
+        A = matmul(r, k) - matmul(k,r)
+
+        test2(B) = sqrt(sum(A**2))
+        si = si + N
+        deallocate(A,r,k)
+    enddo
+
+    print 2, test1
+    print 3, test2
+
+ end subroutine PrintHFBconvergence
  
 !===============================================================================
 !  Never to be used function to define an interface for delta_action

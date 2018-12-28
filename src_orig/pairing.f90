@@ -308,17 +308,17 @@ contains
     integer :: wave
     
     if(.not.allocated(rho_can)) then
-      allocate(rho_can(nwt))   ; rho_can    = 0.0
+      allocate(rho_can(nwt))              ; rho_can    = 0.0
     endif
     if(.not.allocated(kappa_can)) then
-      allocate(kappa_can(nwt)) ; kappa_can  = 0.0 
+      allocate(kappa_can(nwt))            ; kappa_can  = 0.0 
     endif
     if(.not.allocated(qpenergies)) then
-        allocate(QPenergies(nwt)) ; qpenergies = 0.0
+        allocate(QPenergies(nwt))         ; qpenergies = 0.0
     endif
     ! Always allocate the configuration matrix C
     if(.not.allocated(configmatrix)) then
-       allocate(configmatrix(2*nwt))      ;  configmatrix = 0.0
+       allocate(configmatrix(2*nwt))      ; configmatrix = 0.0
     endif
         
     select case (Pairingtype)
@@ -401,7 +401,10 @@ contains
             print 5, BCSdispersion
         case(2)
             print 5, HFBdispersion
+            call PrintHFBConvergence(rho_pairing, kappa_pairing)
         end select
+        
+       
     end select
     print 7
   end subroutine PrintPairing
@@ -431,7 +434,7 @@ contains
         do wave2 = wave,nwt
           it = 1
           if(wave .gt. nwn) it = 2
-          E(it) = E(it) - Kappa_pairing(wave2,wave)*HFBgaps(wave,wave2)
+          E(it) = E(it) - Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
         enddo
       enddo
       print *

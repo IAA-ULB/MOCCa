@@ -160,7 +160,7 @@ contains
 !        if(Precondition .ne. 'NONE' ) call CalculatePreconditioners()
         
         do wave=1,nwt
-            if(wave .lt. nwn) then
+            if(wave .le. nwn) then
                 iso = -1
             else
                 iso = +1
@@ -236,7 +236,7 @@ contains
         d2h = 0.0_dp
         
         do wave=1,nwt
-            if(wave .lt. nwn) then
+            if(wave .le. nwn) then
                 iso = -1
             else
                 iso = +1
