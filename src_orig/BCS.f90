@@ -124,7 +124,7 @@ contains
     else
       ! Use the delta_action to calculate the elements in the gaps
        do wave=1,nwt
-            if(wave .lt. nwn) then
+            if(wave .le. nwn) then
                 iso = -1
             else
                 iso = +1
@@ -226,9 +226,6 @@ contains
         BCSOccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
     enddo
 
-    ! Time reversal symmetry
-    BCSOccupations = 2 *BCSOccupations
-
     ! BCS dispersion
     BCSdispersion = 0.0    
     do wave=1,nwn
@@ -240,6 +237,10 @@ contains
         BCSdispersion(2) = BCSdispersion(2) +                                  &
         &                          BCSoccupations(wave)*(1-BCSoccupations(wave))
     enddo
+
+    ! Time reversal symmetry
+    BCSOccupations = 2 *BCSOccupations
+    BCSdispersion  = 2 * BCSdispersion
 
    end subroutine calcBCSOccupations
 
