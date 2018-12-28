@@ -1,0 +1,51 @@
+# N2LO time-even functional with tensor terms as proposed by Michael
+# includes density dependence 
+! Particle-hole parameters
+t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3;  wso ; wsoq ; sigma ; CT0 ; CT1 
+! N2LO parameters
+t1n2 ; x1n2 ; t2n2 ; x2n2 ; ten2 ; ton2
+!TERMS
+!-------------------------------------------------------------------------------
+! NLO terms     
+E_D_I_I_D_I_I            ; Cc(t0,x0,+1,0,0)                                     ;         Cc(t0,x0,+1,0,1)
+E_D_I_I_D_Nm_Nm          ;+1.0/2.0*Cc(t1,x1,+1,0,0) + 1.0/2.0*Cc(t2,x2,-1,0,0)  ; +1.0/2.0*Cc(t1,x1,+1,0,1) + 1.0/2.0*Cc(t2,x2,-1,0,1)
+E_D_I_I_Lap_D_I_I        ;-3.0/8.0*Cc(t1,x1,+1,0,0) + 1.0/8.0*Cc(t2,x2,-1,0,0)  ; -3.0/8.0*Cc(t1,x1,+1,0,1) + 1.0/8.0*Cc(t2,x2,-1,0,1) 
+E_D_I_I_D_I_I_DD         ;+1.0/6.0*Cc(t3,x3,+1,0,0)                             ; +1.0/6.0*Cc(t3,x3,+1,0,1)                              ;  (sum(D_I_I,2)**(sigma)) ;  D_I_I ; sigma*((sum(D_I_I,2)+eps)**(sigma-1)) ; sigma ;
+!-------------------------------------------------------------------------------
+! Time-even spin-orbit
+E_D_I_I_Derm_C_I_NxmSxm          ;  -wso/2.0 - wsoq/4.0     ; - wsoq/4.0
+!-------------------------------------------------------------------------------
+! SLy5-like JmnJmn term
+E_C_I_NmSk_C_I_NmSk              ; -CT0  ;  -CT1
+!-------------------------------------------------------------------------------
+! N2LO terms
+! Without spin
+! DrhoDrho, rhoQ, tau^2, tau_mn^2, taumn dmdnrho
+E_Lap_D_I_I_Lap_D_I_I     ; +3.0/16.0*Cc(t1n2,x1n2,+1,0,0) - 1.0/16.0*Cc(t2n2,x2n2,-1,0,0) ; +3.0/16.0*Cc(t1n2,x1n2,+1,0,1) - 1.0/16.0*Cc(t2n2,x2n2,-1,0,1)
+E_D_I_I_D_NmNm_NkNk       ; +1.0/4.0 *Cc(t1n2,x1n2,+1,0,0) + 1.0/4.0 *Cc(t2n2,x2n2,-1,0,0) ; +1.0/4.0 *Cc(t1n2,x1n2,+1,0,1) + 1.0/4.0 *Cc(t2n2,x2n2,-1,0,1)
+E_D_Nm_Nm_D_Nk_Nk         ; +1.0/4.0 *Cc(t1n2,x1n2,+1,0,0) + 1.0/4.0 *Cc(t2n2,x2n2,-1,0,0) ; +1.0/4.0 *Cc(t1n2,x1n2,+1,0,1) + 1.0/4.0 *Cc(t2n2,x2n2,-1,0,1)
+E_D_Nm_Nk_D_Nm_Nk         ; +2.0/4.0 *Cc(t1n2,x1n2,+1,0,0) + 2.0/4.0 *Cc(t2n2,x2n2,-1,0,0) ; +2.0/4.0 *Cc(t1n2,x1n2,+1,0,1) + 2.0/4.0 *Cc(t2n2,x2n2,-1,0,1)
+E_D_Nm_Nk_Derm_Derk_D_I_I ; -2.0/4.0 *Cc(t1n2,x1n2,+1,0,0) - 2.0/4.0 *Cc(t2n2,x2n2,-1,0,0) ; -2.0/4.0 *Cc(t1n2,x1n2,+1,0,1) - 2.0/4.0 *Cc(t2n2,x2n2,-1,0,1)
+! With spin
+! ImT^2, JmnVmn
+E_C_Nm_NoSk_C_Nm_NoSk     ; -2.0/4.0 *Cc(t1n2,x1n2,+1,1,0) - 2.0/4.0 *Cc(t2n2,x2n2,-1,1,0) ; -2.0/4.0 *Cc(t1n2,x1n2,+1,1,1) - 2.0/4.0 *Cc(t2n2,x2n2,-1,1,1)
+E_C_I_NmSo_C_Nk_NkNmSo    ; -1.0     *Cc(t1n2,x1n2,+1,1,0) - 1.0     *Cc(t2n2,x2n2,-1,1,0) ; -1.0     *Cc(t1n2,x1n2,+1,1,1) - 1.0     *Cc(t2n2,x2n2,-1,1,1)                         
+!-------------------------------------------------------------------------------
+! N2LO tensor
+!
+! Term 1
+E_C_I_NmSm_C_No_NkNkSo        ; 1.0 ; 2.0
+E_C_I_NmSk_C_Nm_NoNoSk        ; 1.0 ; 2.0
+E_C_I_NoSm_C_NmNk_NoSk        ; 1.0 ; 2.0
+E_Derk_Derm_C_I_NkNm_C_I_NoNo ; 1.0 ; 2.0
+E_Derk_C_I_NmNk_Dero_C_I_NmNk ; 1.0 ; 2.0
+!
+! Term 2
+E_Lap_C_I_NkNm_C_I_NmNk       ; 1.0 ; 2.0
+E_Lap_C_I_NmNm_C_I_NkNk       ; 1.0 ; 2.0
+E_Derm_C_I_NkSm_Dero_C_I_NkSo ; 1.0 ; 2.0
+!
+! Term 3
+E_C_I_NmSk_C_NoNo_NmSk        ; 1.0 ; 2.0
+E_C_I_NmSk_Lap_C_I_NmSk       ; 1.0 ; 2.0
+E_Derm_C_I_NmSk_Dero_C_I_NoSk ; 1.0 ; 2.0
