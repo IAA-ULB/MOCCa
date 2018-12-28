@@ -431,7 +431,7 @@ contains
       enddo
     case(2)
       do wave = 1,nwt
-        do wave2 = wave,nwt
+        do wave2 = 1,nwt
           it = 1
           if(wave .gt. nwn) it = 2
           E(it) = E(it) - Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)

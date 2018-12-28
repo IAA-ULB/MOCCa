@@ -199,8 +199,9 @@ $BCSEXPRESSION
         if( B.le. 4) it = 1
         do wave=1,N
           do wave2=wave,N      
-            weight  =    kappa_pairing(si+wave,si+wave2)*                     &
+            weight  =     kappa_pairing(si+wave,si+wave2)*                     &
             &                               Pcutoffs(si+wave)*Pcutoffs(si+wave2)
+            if(wave.ne.wave2) weight = 2 * weight
             do i=1,mv
 $HFBEXPRESSION
             enddo
