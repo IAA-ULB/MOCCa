@@ -201,6 +201,9 @@ $BCSEXPRESSION
           do wave2=wave,N      
             weight  =     kappa_pairing(si+wave,si+wave2)*                     &
             &                               Pcutoffs(si+wave)*Pcutoffs(si+wave2)
+            ! The contribution per pair of wavefunctions (ibar, j) is 
+            ! is symmetric with (i, jbar). Hence we add a factor of two for
+            ! everything, EXCEPT the diagonal component.
             if(wave.ne.wave2) weight = 2 * weight
             do i=1,mv
 $HFBEXPRESSION
