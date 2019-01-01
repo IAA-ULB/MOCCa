@@ -194,7 +194,7 @@ $PRINTCOEF_PN
     print 8, 0.0, CoulombExchange, CoulombExchange
     if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
       temp = CoulombEnergy_Exchange(D_I_I(:,2))
-      print 71, 0.0, temp, temp
+      print 81, 0.0, temp, temp
     endif
     print *
     print 9 , PairingEnergy, sum(PairingEnergy)

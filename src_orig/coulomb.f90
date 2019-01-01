@@ -36,7 +36,6 @@ module Coulombmod
  !------------------------------------------------------------------------------
  real(KIND=dp), allocatable :: CoulombPotential(:,:,:)
  real(KIND=dp), allocatable :: ExchangePotential(:)
- real(KIND=dp), allocatable :: chargedensity(:,:,:)
  !------------------------------------------------------------------------------
  !Precision required of the Coulomb Solvers
  real(KIND=dp), public              :: Prec
@@ -90,10 +89,7 @@ contains
     endif
     
     if(coultreatment.eq.0) return
-    
-    ! Construct the charge density on the (nx/ny/nz)-sized mesh.
-    call ConstructChargeDensity(ChargeDensity)
-    
+        
     !---------------------------------------------------------------------------
     ! Set up the source term: 
     ! For standard parameterizations it is the simply the proton density with
@@ -113,10 +109,6 @@ contains
     ! Solve for the direct coulomb potential   
     call ConjugGrad (CoulombPotential,Source,1,1,1,1000,.false.,prec)
 
-!    if(nucleonsize_selfconsistent) then
-!        call FoldPotential()
-!    endif
-! 
     if(Coultreatment.eq.1) then
       ! Exchange potential in Slater approximation
       ExchangePotential = -(3.0/pi)**(1.0/3.0_dp)*e2*(rhop**(1.0_dp/3.0_dp))   
@@ -133,14 +125,32 @@ contains
 
     use Folding
 
-    real(KIND=dp) :: rho_charge(nx,ny,nz), temp(nx,ny,nz)
-    integer       :: i
+    real(KIND=dp), allocatable :: rho_charge(:,:,:)
+    real(KIND=dp)              :: temp(nx,ny,nz)
+    integer                    :: i
     
+    if(.not.allocated(rho_charge)) then
+        allocate(rho_charge(nx,ny,nz))
+    endif
+
     rho_charge = 0.0
 
     !---------------------------------------------------------------------------
-    ! Proton contributions to the charge density.
-    
+    ! If the proton has a finite size, we need to fold the density with a
+    ! Gaussian. This sets up the necessary matrices.
+    !---------------------------------------------------------------------------
+    if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
+        if(.not.allocated(Gaussx)) then
+            allocate(Gaussx(nx,nx,2,2), Gaussy(ny,ny,2,2), Gaussz(nz,nz,2,2)) 
+            Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
+        endif
+        !-----------------------------------------------------------------------
+        ! Construct Gauss matrices
+        call ConstructFoldingMatrices(Gaussx,Gaussy,Gaussz)
+    endif
+
+    !---------------------------------------------------------------------------
+    ! Proton contributions to the charge density.    
     ! We start from the proton point density
     do i=1, mv
         temp(i,1,1) = D_I_I(i,2)
@@ -198,7 +208,6 @@ contains
     ! Allocate the CoulombPotential array (second-order boundary conditions)
     allocate(CoulombPotential(nx+2,ny+2,nz+2)) ; CoulombPotential = 0.0_dp
     allocate(ExchangePotential(mv))            ; ExchangePotential = 0.0_dp
-    allocate(ChargeDensity(nx,ny,nz))          ; ChargeDensity     = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
     Prec = 1.d-9/(dx**3*nx*ny*nz)
@@ -219,19 +228,6 @@ contains
     
     call GenSphericalHarmonics(maxm,nx+BC,ny+BC,nz+BC,coulmeshx,coulmeshy,     &
     &                 coulmeshz,SpherHarmCoulomb,QuantisationAxis,SecondaryAxis)
-    !---------------------------------------------------------------------------
-    ! If the proton has a finite size, we need to fold the density with a
-    ! Gaussian. This sets up the necessary matrices.
-    !---------------------------------------------------------------------------
-    if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
-        if(.not.allocated(Gaussx)) then
-            allocate(Gaussx(nx,nx,2,2), Gaussy(ny,ny,2,2), Gaussz(nz,nz,2,2)) 
-            Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
-        endif
-        !-----------------------------------------------------------------------
-        ! Construct Gauss matrices
-        call ConstructFoldingMatrices(Gaussx,Gaussy,Gaussz)
-    endif
     
  end subroutine SetupCoulomb
     
@@ -271,7 +267,6 @@ contains
       Im = 1
       if(Current%Impart) Im = 2
 
-
       ! Recalculate the multipole distribution, since source is not
       ! necessarily the point proton distribution.
       Qlm = 0
@@ -294,12 +289,9 @@ contains
         enddo
       enddo 
    
-      Qlm = Qlm * dv/(2*l+1)  
-      
+      Qlm = Qlm * dv/(2*l+1)        
       !  Previous implementation based on values of the multipole moments
       !Qlm = e2*Current%Value(2)*(4*pi/(2*l+1)) 
-
-
       do k=1,nz+BC
         do j=1,ny+BC
           do i=1,nx+BC
@@ -519,59 +511,3 @@ contains
   end subroutine ConjugGrad
 
 end module Coulombmod
-
-!    D = 0
-!    do i=1,nx
-!      D = D + Gaussian(meshx(i), 0.0d0, r0) * meshx(i)**2
-!      D = D + Gaussian(meshx(i), 0.0d0, r0) * meshx(i)**2
-!    enddo
-!!    do i=1,ny
-!!      D = D + Gaussian(meshy(i), 0.0d0, r0) !* meshy(i)**2
-!!      D = D + Gaussian(meshy(i), 0.0d0, r0) !* meshy(i)**2
-!!    enddo
-!!    do i=1,nz
-!!      D = D + Gaussian(meshz(i), 0.0d0, r0) !* meshz(i)**2
-!!      D = D + Gaussian(meshz(i), 0.0d0, r0) !* meshy(i)**2
-!!    enddo
-!    print *, 'R2', D*dx*3, protonsize**2
-!    stop
-    
-!    do k=1,nz
-!      do j=1,ny
-!        do i=1,nx
-!          test(i,j,k) = Gaussian(meshx(i),0.0d0,1.0d0)*Gaussian(meshy(j),0.0d0,1.0d0)&
-!          &            *Gaussian(meshx(k),0.0d0,1.0d0)
-!        enddo
-!      enddo
-!    enddo
-!    
-!    print *, sum(test)*dv
-!    print *, test(1:nx,1,1)
-!    
-!    D = 0
-!    do k=1,nz
-!      do j=1,ny
-!        do i=1,nx
-!          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
-!        enddo
-!      enddo
-!    enddo
-!    print *, 'rms', D*dv
-!    
-!    test = FoldGaussian(test,Gaussx,Gaussy,Gaussz, nx, ny, nz)
-!    
-!    print *, sum(test)*dv
-!    print *, test(1:nx, 1,1)
-!    
-!    D = 0
-!    do k=1,nz
-!      do j=1,ny
-!        do i=1,nx
-!          D = D + (Meshx(i)**2 + Meshy(j)**2 + Meshz(k)**2) *  test(i,j,k)
-!        enddo
-!      enddo
-!    enddo
-!    print *, 'rms', D*dv
-!    
-!    
-!    stop

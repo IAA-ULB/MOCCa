@@ -343,7 +343,8 @@ contains
     !Appending the radius squared to the ordinary list
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
-            
+    NextMoment%Calculate    => Calculate_rms  
+
     do k=1,nz
       do j=1,ny
         do i=1,nx
@@ -518,6 +519,47 @@ contains
 
     return
   end subroutine Calculate_electric
+
+  subroutine Calculate_rms(ToCalculate)
+    !---------------------------------------------------------------------------
+    ! Subroutine to calculate the rms radii of both nucleon species.
+    ! This proceeds in the same way as the Calculate_electric, but is different
+    ! since it possibly needs to include the folding for the finite size of the
+    ! proton. 
+    !---------------------------------------------------------------------------
+    use densities, only : chargedensity, D_I_I
+
+    class(Moment),        intent(inout) :: ToCalculate
+    integer                             :: it
+
+    ! Save the history
+    Tocalculate%history = tocalculate%value
+
+    !Initialise
+    ToCalculate%Value      = 0.0_dp
+    ToCalculate%Squared    = 0.0_dp
+
+    ! Neutron rms radius
+    ToCalculate%Value(1)    = ToCalculate%Value(1)     + &
+    &       sum(ToCalculate%SpherHarm*D_I_I(:,1))
+    ToCalculate%Squared(1)    = ToCalculate%Squared(1) + &
+    &       sum(ToCalculate%SpherHarm**2*D_I_I(:,1))
+
+    ! The charge density in the Coulomb module includes the folding when it is 
+    ! included in the functional.
+    ToCalculate%Value(2)    = ToCalculate%Value(2)        + &
+    &       sum(ToCalculate%SpherHarm*chargedensity(1:nx*ny*nz,1,1))
+    ToCalculate%Squared(2)    = ToCalculate%Squared(2)    + &
+    &       sum(ToCalculate%SpherHarm**2*chargedensity(1:nx*ny*nz,1,1))
+    
+    ! Set the deviation
+    if(ToCalculate%ConstraintType.ne.0) then
+      ToCalculate%deviation    =                                               &
+      &                     abs(sum(ToCalculate%Value) - ToCalculate%constraint)
+    endif
+    call CalcBeta(ToCalculate)
+
+  end subroutine Calculate_rms
   
   subroutine CalcBeta(Mom)
   !-----------------------------------------------------------------------------

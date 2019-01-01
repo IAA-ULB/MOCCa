@@ -421,7 +421,11 @@ contains
     !
     ! It contains on a single line
     !
-    !      N, Z, Total energy, Q20, Q22, <r^2_p>
+    !      N, Z, Total energy, Q20(n), Q20(p), Q22(n), Q22(p), Q(n), Q(p),  &   
+    !    &    G(n), G(p), <r^2_p>
+    !
+    ! where <r^2_p> is calculated as in the moments module, i.e. it is 
+    ! calculated from the charge density.
     !---------------------------------------------------------------------------
 
     use Moments    
@@ -446,7 +450,8 @@ contains
     quad(2) = sum(Q22%value)    
     rms     =     r2%value(2)
 
-    write(10,'(2i4,5f15.6)') int(protons),int(neutrons),E,quad,sqrt(rms/protons)
+    write(10,'(2i4,9f15.6)') int(protons),int(neutrons),E,quad, & 
+    &                        Q(1:2), G(1:2), sqrt(rms/protons)
     close(10)
 
   end subroutine Brussels_output

@@ -215,10 +215,14 @@ BXLFIT         = string. Extra output will be written to the following file
                        ${BXLFIT}= the value of the string.
 
                 On this file is a single line with
-                    Z , N, E, Q_20^{tot}, Q_22^{tot}, np.sqrt( <r_p^2>/Z )       
-                where E is the total energy calculated from the functional and 
-                the proton rms radius is always based on the point proton 
-                density without any correction!          
+                    Z, N, Total energy, Q20(n), Q20(p), Q22(n), Q22(p),        &
+                  & Q(n), Q(p), G(n), G(p), <r^2_p>
+       
+                where E is the total energy calculated from the functional, the 
+                proton radius is calculated from the charge density, Q is the 
+                total deformation, and G is the triaxiality angle gamma. 
+                (Q and G are defined in Eq. 68 and 69 in 
+                   W. Ryssens, CPC 187, 175-194 (2015))
 /
 \end{Verbatim}
 

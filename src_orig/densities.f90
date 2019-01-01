@@ -64,6 +64,12 @@ $DECLARATION
     ! Previous value(s) of the density rho.
     real(KIND=dp), allocatable :: D_I_I_hist(:,:,:)
     !---------------------------------------------------------------------------
+    ! Charge density of the protons, possibly including the correction for the 
+    ! finite size of the proton. It is stored here, as both the moments module 
+    ! and the coulomb module need it, even though Coulomb depends on the moments
+    ! module.
+    real(KIND=dp), allocatable :: chargedensity(:,:,:)
+    !---------------------------------------------------------------------------
     ! The amount of iterations to keep in memory for the density mixing
     integer           :: memory = 1
     

@@ -192,11 +192,17 @@ subroutine ReachForWaterAndFood
    
     ! Calculate the initial densities.
     call densit(SaveRho=.false.)
-
-    call CalculateMoments()
+    ! Construct the charge density on the (nx/ny/nz)-sized mesh.
+    ! This was previously included in the Coulomb routines, but now needs to be 
+    ! called separatedly, since the chargedensity is used for the calculation 
+    ! of the rms radius.
+    call ConstructChargeDensity(ChargeDensity)
     
+    call CalculateMoments()
+
     ! Only calculate the fields that have not been initialized from file.
     call calcFields(calcall=.false.)
+    
     call CalcGaps(FermiEnergy)
     call CalcEnergy()
 
@@ -234,6 +240,7 @@ subroutine ReachForWaterAndFood
           ! Note that this update is incorrect, as we do not want to perform a 
           ! set of derivatives
           call densit(SaveRho=.true.)
+          call ConstructChargeDensity(ChargeDensity)
           
           call CalculateMoments()
           ! Readjust the projection constraints here, to not take into account
@@ -256,6 +263,7 @@ subroutine ReachForWaterAndFood
         else
           call densit(SaveRho=.true.)
         endif
+        call ConstructChargeDensity(ChargeDensity)
 
         !See if some moments were temporary
         call TurnOffConstraints(iter)
@@ -272,7 +280,7 @@ subroutine ReachForWaterAndFood
         call CalcEnergy()
 
         ! Check for convergence
-!        call Converged(ConvergenceAchieved)
+        call Converged(ConvergenceAchieved)
         
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
