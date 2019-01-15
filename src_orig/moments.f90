@@ -540,17 +540,17 @@ contains
     ToCalculate%Squared    = 0.0_dp
 
     ! Neutron rms radius
-    ToCalculate%Value(1)    = ToCalculate%Value(1)     + &
-    &       sum(ToCalculate%SpherHarm*D_I_I(:,1))
-    ToCalculate%Squared(1)    = ToCalculate%Squared(1) + &
-    &       sum(ToCalculate%SpherHarm**2*D_I_I(:,1))
+    ToCalculate%Value(1)    = sum(ToCalculate%SpherHarm*D_I_I(:,1))
+    ToCalculate%Squared(1)  = sum(ToCalculate%SpherHarm**2*D_I_I(:,1))
 
     ! The charge density in the Coulomb module includes the folding when it is 
     ! included in the functional.
-    ToCalculate%Value(2)    = ToCalculate%Value(2)        + &
-    &       sum(ToCalculate%SpherHarm*chargedensity(1:nx*ny*nz,1,1))
-    ToCalculate%Squared(2)    = ToCalculate%Squared(2)    + &
-    &       sum(ToCalculate%SpherHarm**2*chargedensity(1:nx*ny*nz,1,1))
+    ToCalculate%Value(2)    =  sum(ToCalculate%SpherHarm*   chargedensity(1:nx*ny*nz,1,1))
+    ToCalculate%Squared(2)  =  sum(ToCalculate%SpherHarm**2*chargedensity(1:nx*ny*nz,1,1))
+
+    !  Volume elements
+    ToCalculate%Value     = ToCalculate%Value   * dv
+    ToCalculate%Squared   = ToCalculate%Squared * dv
     
     ! Set the deviation
     if(ToCalculate%ConstraintType.ne.0) then
