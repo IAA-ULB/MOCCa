@@ -466,7 +466,9 @@ contains
             if(rho_can(i) .gt. 1d-10) then
                 ! Notice the factor 2 for time-reversal. The rho_cans are
                 ! double the true occupations!                 
-                entropy(it) = entropy(it) - rho_can(i)/2.0 * log(rho_can(i)/2.0)
+                entropy(it) = entropy(it) &
+                &          -       rho_can(i)/2.0  * dlog(     rho_can(i)/2.0) & 
+                &          -  (1 - rho_can(i)/2.0) * dlog( 1 - rho_can(i)/2.0)
             endif
         enddo
         ! Reputting the factor 2.
@@ -476,6 +478,8 @@ contains
         stop
     case (2)
         entropy = 0
+        ! Notice that this sum is over ALL quasiparticles, not just the chosen
+        ! ones!
         ! S = - sum_i f_i ln(f_i)
         do i=1,2*nwn
             entropy(1) = entropy(1) - configmatrix(i) * log(configmatrix(i))
