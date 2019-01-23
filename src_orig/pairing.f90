@@ -467,8 +467,11 @@ contains
                 ! Notice the factor 2 for time-reversal. The rho_cans are
                 ! double the true occupations!                 
                 entropy(it) = entropy(it) &
-                &          -       rho_can(i)/2.0  * dlog(     rho_can(i)/2.0) & 
-                &          -  (1 - rho_can(i)/2.0) * dlog( 1 - rho_can(i)/2.0)
+                &          -       rho_can(i)/2.0  * dlog(     rho_can(i)/2.0)
+                if( rho_can(i).le.1.0d0) then 
+                    entropy(it) = entropy(it) &
+                    &          -  (1 - rho_can(i)/2.0) * dlog( 1 - rho_can(i)/2.0)
+                endif
             endif
         enddo
         ! Reputting the factor 2.
