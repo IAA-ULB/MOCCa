@@ -456,6 +456,7 @@ contains
 
     select case(PairingType)
     case(0)
+        !-----------------------------------------------------------------------
         entropy = 0
         do i=1,nwt
             if(i .gt. nwn) then
@@ -468,28 +469,34 @@ contains
                 ! double the true occupations!                 
                 entropy(it) = entropy(it) &
                 &          -       rho_can(i)/2.0  * dlog(     rho_can(i)/2.0)
-                if( rho_can(i).le.1.0d0) then 
+                if( rho_can(i).le.2.0d0) then 
                     entropy(it) = entropy(it) &
-                    &          -  (1 - rho_can(i)/2.0) * dlog( 1 - rho_can(i)/2.0)
+                    &      -  (1 - rho_can(i)/2.0) * dlog( 1 - rho_can(i)/2.0)
                 endif
             endif
         enddo
-        ! Reputting the factor 2.
+        ! Restoring the factor 2.
         entropy = 2 * entropy
     case (1)
+        !-----------------------------------------------------------------------
         print *, 'Entropy calculation not yet implemented for BCS.'
         stop
     case (2)
         entropy = 0
+        !-----------------------------------------------------------------------
         ! Notice that this sum is over ALL quasiparticles, not just the chosen
         ! ones!
         ! S = - sum_i f_i ln(f_i)
         do i=1,2*nwn
+            ! proton  quasiparticles
             entropy(1) = entropy(1) - configmatrix(i) * log(configmatrix(i))
         enddo
         do i=2*nwn+1, 2*nwt
+            ! neutron quasiparticles
             entropy(2) = entropy(2) - configmatrix(i) * log(configmatrix(i))
         enddo
+        ! And a factor of two for time-reversal  
+        entropy = 2* entropy
     end select
     
   end subroutine CalcEntropy

@@ -375,7 +375,7 @@ contains
                 ! At finite temperature, things can get partially occupied and 
                 ! we are dealing with a statistical mixture.
                 occ = exp(inversetemp * Qpenergies(si+i))
-                occ = 1.0/occ
+                occ = 1.0/(1 + occ)
                 R(sb+N+i) = 1.0_dp - occ
                 R(sb  +i) =          occ
             else
