@@ -133,7 +133,7 @@ contains
   ! Guess a new Fermi energy if none is there
   if(all(Fermi.eq.0.0))   Fermi = -5
   !-----------------------------------------------------------------------------
-  ! Construct the single-particle hamiltonian from the sp.energes
+  ! Construct the single-particle hamiltonian from the sp.energies
   sphamil = 0
   si      = 0
   do B=1,8
@@ -145,7 +145,14 @@ contains
   enddo
   
   df = 0.0
-        
+
+  !-----------------------------------------------------------------------------
+  ! If fermifix = true, we don't have to iterate
+  if(fixfermi) then
+        Fermi(1)   = mun ; Fermi(2) = mup
+        maxHFBIter = 1
+  endif
+     
   !-----------------------------------------------------------------------------
   ! Start iterations over the Fermi energy
   do iter=1,maxHFBiter
@@ -168,21 +175,6 @@ contains
         call diagon (HFBHamil,2*N,2*N,vect(sb+1:sb+2*N, sb+1:sb+2*N),    &
         &                                         eigen(sb+1:sb+2*N),work)
         deallocate(HFBHamil)
-!       Vect now contains the eigenvectors of the HFB hamiltonian in the 
-!       given parity-isospin block, ordered by increasing E_qp.
-
-!        !-----------------------------------------------------------------------
-!        ! Switching half of the eigenvectors
-!
-!        This is not needed in a time-reversal invariant code.
-!         
-!        eigen(sb+1:sb+N) = -eigen(sb+1:sb+N)
-!        do i = 1,N
-!          temp                      = vect(sb+1  :sb+N,   sb+i)
-!          vect(sb  +1:sb+N,   sb+i) = vect(sb+N+1:sb+2*N, sb+i)
-!          vect(sb+N+1:sb+2*N, sb+i) = temp 
-!        enddo
-!        
         !-----------------------------------------------------------------------
         ! Saving the quasiparticle excitation energies
         qpenergies(si+1:si+N) = eigen(sb+N+1:sb+2*N)
@@ -191,12 +183,12 @@ contains
         si = si +  N
         sb = sb +2*N
      enddo
+     
      !--------------------------------------------------------------------------
      ! Construct the configuration matrix C
      configmatrix=ConstructConfiguration(Vect,QPenergies,BlockType,BlockIndices&
                  &                       ,BlockLowest)
      !--------------------------------------------------------------------------
-
      si = 0 ; sb = 0
      do B=1,4                
         it = 1
@@ -206,8 +198,7 @@ contains
         ! Calculate the number of particles in here  
         ! Sum_i rho_ii =  Sum_ii   U   f U^{\dagger} + V^{*}(1 - f)V^{T}
         !            sum_(ij>N) f_(j) V^*_ij V^T_ji = sum_ij f_(j) V^*_ij V_ij
-        !          + sum_(ij<N) f_(j) U^*_ij U^T_ji = sum_ij f_(j) U^*_ij U_ij  
-        
+        !          + sum_(ij<N) f_(j) U^*_ij U^T_ji = sum_ij f_(j) U^*_ij U_ij         
         do i=1,N
             particles(it) = particles(it)                                      &
             &     + 2*configmatrix(sb+N+i) * sum(vect(sb+N+1:sb+2*N, sb+N+i)**2)            
@@ -225,44 +216,47 @@ contains
         sb = sb +2*N
      enddo
      !--------------------------------------------------------------------------
-     ! Adjust Fermi energy, using a secant method for the moment
-     dn(:,2) = dn(:,1)
-     
-     dn(1,1) = particles(1) - neutrons
-     dn(2,1) = particles(2) - protons
+     ! Sufficient if the Fermi level is fixed; get out of the loops
+     if(.not. fixfermi) then
+         !----------------------------------------------------------------------
+         ! Adjust Fermi energy, using a secant method for the moment
+         dn(:,2) = dn(:,1)
+         
+         dn(1,1) = particles(1) - neutrons
+         dn(2,1) = particles(2) - protons
 
-     converged = .false.
-     if(abs(dn(1,1)) .lt. FermiPrec) then
-      converged(1) = .true.
-     endif
-     if(abs(dn(2,1)) .lt. FermiPrec) then
-      converged(2) = .true.
-     endif
-     if(all(converged)) exit
-     
-     if(iter.eq.1) then
-       ! Try a new value for the next iteration
-       Fermi = Fermi + 0.1
-       df = 0.1
-     else
-       ! Secant update
-       df = -dn(:,1) * df(:)/(dn(:,1) - dn(:,2))
-       
-       ! Safeguard against large steps
-       do it=1,2
-         if(abs(df(it)) .gt. 1.0) then
-            df(it) = df(it)/abs(df(it))
+         converged = .false.
+         if(abs(dn(1,1)) .lt. FermiPrec) then
+          converged(1) = .true.
          endif
-       enddo
-       ! Update
-       do it=1,2
-          if(converged(it)) cycle            ! Do not iterate when close enough                         
-          Fermi(it) = Fermi(it) + df(it) 
-       enddo
-     endif
-     !--------------------------------------------------------------------------
+         if(abs(dn(2,1)) .lt. FermiPrec) then
+          converged(2) = .true.
+         endif
+         if(all(converged)) exit
+         
+         if(iter.eq.1) then
+           ! Try a new value for the next iteration
+           Fermi = Fermi + 0.1
+           df = 0.1
+         else
+           ! Secant update
+           df = -dn(:,1) * df(:)/(dn(:,1) - dn(:,2))
+           
+           ! Safeguard against large steps
+           do it=1,2
+             if(abs(df(it)) .gt. 1.0) then
+                df(it) = df(it)/abs(df(it))
+             endif
+           enddo
+           ! Update
+           do it=1,2
+              if(converged(it)) cycle         ! Do not iterate when close enough                         
+              Fermi(it) = Fermi(it) + df(it) 
+           enddo
+         endif
+         !----------------------------------------------------------------------
+    endif
   enddo
-
   !-----------------------------------------------------------------------------
   ! Linear mixing of the generalized density matrix, if asked for.
   if(.not.all(configmatrix_history.eq.0.0)) then

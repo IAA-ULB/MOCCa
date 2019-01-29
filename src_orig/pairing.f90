@@ -382,9 +382,9 @@ contains
     
     1 format (26('-'), ' Pairing ', 25('-'))
     2 format (25x, ' N ',7x, ' P ')
-    3 format (' Fermi Level (MeV) ',2x,f10.5,2x,f10.5)
-    4 format (' Particles         ',2x,f10.5,2x,f10.5)
-    5 format (' Dispersion        ',2x,f10.5,2x,f10.5)
+    3 format (' Fermi Level (MeV) ',2x,f13.8,2x,f13.8)
+    4 format (' Particles         ',2x,f13.8,2x,f13.8)
+    5 format (' Dispersion        ',2x,f13.8,2x,f13.8)
     7 format (60('-'))
 
     select case(PairingType)
