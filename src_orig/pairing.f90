@@ -181,6 +181,7 @@ contains
   subroutine printpairing_init
     !---------------------------------------------------------------------------
     ! Print information on the treatment of pairing at the start of the run.
+    !---------------------------------------------------------------------------
     1 format(80('-'))
     2 format(' Pairing treatment: ', a60)
     3 format('   Linear mixing of (rho,kappa)')    
@@ -189,6 +190,8 @@ contains
     6 format('   Cutoff parameters  = ', a20)
     7 format('     dE (n,p) = ', 2f4.1, ' MeV ')
     8 format('     mu (n,p) = ', 2f4.1, ' MeV ')
+
+  100 format('   Fixed Fermi= ', 2f12.4)
 
     90 format ('  Blocking Options')
     91 format ('    Blocking type: ', i1)
@@ -229,6 +232,10 @@ contains
 
     print 7, pairingcut
     print 8, PairingMu
+
+    if(fixfermi) then
+        print 100, mun, mup
+    endif
 
     if(Blocktype .ne. 0) then
         print 90
@@ -403,8 +410,6 @@ contains
             print 5, HFBdispersion
             call PrintHFBConvergence(rho_pairing, kappa_pairing)
         end select
-        
-       
     end select
     print 7
   end subroutine PrintPairing

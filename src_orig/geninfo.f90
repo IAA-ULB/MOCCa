@@ -12,7 +12,11 @@ module GenInfo
     integer :: nwt=12
     !---------------------------------------------------------------------------
     !Number of protons and neutrons in the nucleus
-    real(KIND=dp)  :: Neutrons=10, Protons=10
+    real(KIND=dp) :: Neutrons=10, Protons=10
+    ! .... or alternatively a fixed chemical potential/fermi energy
+    real(KIND=dp) :: mun = -10d8, mup = -10d8
+    ! .... which is signalled by this particular flag
+    logical       :: fixfermi = .false.
     !---------------------------------------------------------------------------
     ! Line element and volume element of the box. dx is in fm, dv in fm^3.
     real(KIND=dp)  :: dx=0.8_dp
@@ -25,12 +29,10 @@ module GenInfo
     ! coulomb calculation
     real(KIND=dp), allocatable :: meshx(:), meshy(:), meshz(:)
     real(KIND=dp), allocatable :: coulmeshx(:), coulmeshy(:), coulmeshz(:)
-
     !---------------------------------------------------------------------------
     ! Inverse temperature Beta = (k_b T)^{-1}.
     ! Negative values are used to indicate an infinite value, i.e. T = 0.
     real(KIND=dp) :: inversetemp = -1
-
     !---------------------------------------------------------------------------
     ! Convergence criteria
     !      Name       Default         
@@ -48,11 +50,16 @@ contains
     !---------------------------------------------------------------------------
     ! Read some of the general information needed.
     !---------------------------------------------------------------------------
-    Namelist /nucleus/ neutrons,protons, inversetemp
+    Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi
     Namelist /mesh/    nx,ny,nz, dx
     
     ! Reading the information on the nucleus
     read (unit=*, nml=nucleus)
+
+    if(fixfermi .and. (mun.eq.-10d8 .or.mup.eq.-10d8) )then
+        print *, 'You should fix an appropriate Lambda_N and Lambda_P'
+        stop
+    endif
 
     ! Reading information on the mesh
     read (unit=*, nml=mesh)

@@ -108,7 +108,6 @@ contains
     endif
     print 12, energy_prec, moment_prec, disp_prec
     
-    
     call printevolution
     call printscfiteration
     call printpairing_init

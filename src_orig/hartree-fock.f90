@@ -83,49 +83,56 @@ contains
     integer                    :: Order(nwt,2), nw
     integer                    :: it, maxiter=100, i
 
-    
-    !---------------------------------------------------------------------------
-    !Finding the order of the spwfs, in terms of energy
-    Order = 0    
-    Order(1:nwn,1) = OrderSpwfsISO(-1)
-    Order(1:nwp,2) = OrderSpwfsISO(+1)
-    
-    do i=1,nwn
-        energies(i,1) = spenergies(Order(i,1))
-    enddo
-    do i=1,nwp
-        energies(i,2) = spenergies(Order(i,2)) 
-    enddo      
-
-    do it=1,2
-        
-        if(it .eq. 1) then
-            N = neutrons ; nw = nwn
-        else 
-            N = protons  ; nw = nwp
-        endif
-        
+    if( fixfermi ) then
         !-----------------------------------------------------------------------
-        ! Establish a search interval
-        Fmin = -100
-        Fmax = energies(nw,it)
-
-        Nmin = FToccupations(Fmin, energies(1:nw,it)) - N
-        Nmax = FToccupations(Fmax, energies(1:nw,it)) - N
+        ! We perform a calculation at fixed chemical potential
+        Fermi(1) = mun ; Fermi(2) = mup
+    else
+        !-----------------------------------------------------------------------
+        ! We fix the particle number to <N> = neutrons, <Z> = protons.
     
-        if(Nmin .gt. 0 .or. Nmax .lt. 0) then
-            print *, 'Bracketing of Fermi energy is wrong.'
-            print *, Fmin, Nmin
-            print *, Fmax, Nmax
-            print *, spenergies(Order(1,it)),spenergies(Order(nw,it)) 
-            stop
-        endif
+        !Finding the order of the spwfs, in terms of energy
+        Order = 0    
+        Order(1:nwn,1) = OrderSpwfsISO(-1)
+        Order(1:nwp,2) = OrderSpwfsISO(+1)
+        
+        do i=1,nwn
+            energies(i,1) = spenergies(Order(i,1))
+        enddo
+        do i=1,nwp
+            energies(i,2) = spenergies(Order(i,2)) 
+        enddo      
 
-        Fermi(it) = FermiBisection(Fmin,Nmin,Fmax,Nmax, energies(1:nw,it),N)
-    enddo    
+        do it=1,2
+            
+            if(it .eq. 1) then
+                N = neutrons ; nw = nwn
+            else 
+                N = protons  ; nw = nwp
+            endif
+            
+            !-------------------------------------------------------------------
+            ! Establish a search interval
+            Fmin = -1000
+            Fmax = energies(nw,it)
+
+            Nmin = FToccupations(Fmin, energies(1:nw,it)) - N
+            Nmax = FToccupations(Fmax, energies(1:nw,it)) - N
+        
+            if(Nmin .gt. 0 .or. Nmax .lt. 0) then
+                print *, 'Bracketing of Fermi energy is wrong.'
+                print *, Fmin, Nmin
+                print *, Fmax, Nmax
+                print *, spenergies(Order(1,it)),spenergies(Order(nw,it)) 
+                stop
+            endif
+
+            Fermi(it) = FermiBisection(Fmin,Nmin,Fmax,Nmax, energies(1:nw,it),N)
+        enddo       
+    endif
 
     !---------------------------------------------------------------------------
-    ! Actually calculate the occupations
+    ! Actually calculate the occupations for the fixed chemical potential
     do i = 1,nwt
         if (i .gt. nwn) then
             it    = 2 
