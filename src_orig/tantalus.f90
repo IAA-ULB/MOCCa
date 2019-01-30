@@ -326,8 +326,8 @@ subroutine printsummary(iter)
     implicit none
 
     integer, intent(in)   :: iter
-    type(Moment), pointer :: Q20, Q22
-    real(KIND=dp)         :: dQ20, dQ22, dF(2)
+    type(Moment), pointer :: Q20, Q22, part
+    real(KIND=dp)         :: dQ20, dQ22, dF(2), DN(2)
      
 
     1 format (80('-'))
@@ -337,7 +337,9 @@ subroutine printsummary(iter)
     5 format (' Q20 = ', f12.4,    '  Q22 = ', f12.4, &
     &         ' dQ20= ', e8.1, 4x, '  dQ22= ', e8.1)
     6 format (' dmun= ', e8.1, 4x, '  dmup= ', e8.1)
-    
+    7 format (' dN  = ', e8.1, 4x, '  dZ  = ', e8.1)  
+
+    part=>FindMoment(0,0,.false.)
     Q20 =>FindMoment(2,0,.false.     )
     Q22 =>FindMoment(2,2,.false., Q20)
 
@@ -346,9 +348,14 @@ subroutine printsummary(iter)
     print 3, dt, momentum, d2h
     print 4, totalE,  abs(totalE - Ehistory(1))/abs(totalE)
 
-    dF   = FermiEnergy - FermiHistory
-    print 6, dF
-
+    if(fixfermi) then
+        dN = part%value - part%history 
+        print 7, dN
+    else
+        dF   = FermiEnergy - FermiHistory
+        print 6, dF
+    endif
+    
     dQ20 = abs(sum(Q20%value) - sum(Q20%history))
     dQ22 = abs(sum(Q22%value) - sum(Q22%history))
     print 5, sum(Q20%value), sum(Q22%value), dQ20,dQ22

@@ -21,6 +21,8 @@ module hartreefock
  use wavefunctions
  
  implicit none
+
+ real(KIND=dp) :: HFdispersion(2) = 0.0
  
 contains
  
@@ -143,6 +145,21 @@ contains
         occupations(i) = 2.0/(1 + exp(betaE))
     enddo
 
+    !---------------------------------------------------------------------------
+    ! Calculate the HF dispersion
+    !---------------------------------------------------------------------------
+    HFdispersion = 0.0
+    do i=1,nwt
+        if (i .gt. nwn) then
+            it    = 2 
+        else
+            it    = 1
+        endif   
+        ! Note the time-reversal factors of two
+        HFdispersion(it) = HFdispersion(it) +                                  &
+        &                            occupations(i)/2.0 * (1-occupations(i)/2.0)
+    enddo
+    HFdispersion = 2 * HFDispersion
 
   end subroutine FiniteTemperatureHF
 

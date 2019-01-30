@@ -1057,7 +1057,7 @@ contains
     character(len=2)                :: ReIm
       1 format (A2, '  Q_{', 2i2, '}', 3(1x,f15.4) )
       2 format ('Constrained ',  33x, f15.4)
-      3 format (' Particles  ',  3(1x,f15.4))
+      3 format (' Particles    ',  3(5x,f11.6))
       4 format (' RMS radius ',  3(1x,f15.4))
       5 format (A2, ' La_{',i2,i2,'}',   33x,  f15.4)
       6 format (A2, ' De_{',i2,i2,'}',   33x,  e15.7) 

@@ -68,7 +68,6 @@ module pairing
  ! Type of pairing to employ.
  ! (0), (1), (2)
  integer :: PairingType = 0
-   
  !------------------------------------------------------------------------------
  ! Decide which module gets to calculate the pairing gaps.
  procedure(calcBCSgaps), pointer :: CalcGaps
@@ -109,7 +108,11 @@ module pairing
  ! 'p0' : (any parity)    proton
  ! '  ' : nothing
  character(len=2), allocatable :: BlockLowest(:)
-
+    
+ !------------------------------------------------------------------------------
+ ! Estimation of 
+ ! dNi/dLambda_j 
+ real(KIND=dp) :: dNda(2,2) = 0.0
  !------------------------------------------------------------------------------
  ! Entropy of the statistical mixture in the case of finite temperature
  real(KIND=dp) :: entropy(2) = 0
@@ -385,6 +388,9 @@ contains
     3 format (' Fermi Level (MeV) ',2x,f13.8,2x,f13.8)
     4 format (' Particles         ',2x,f13.8,2x,f13.8)
     5 format (' Dispersion        ',2x,f13.8,2x,f13.8)
+    6 format (' dN/da             ',2x,f13.8,2x,f13.8,/,                       & 
+    &         ' dZ/da             ',2x,f13.8,2x,f13.8 )
+
     7 format (60('-'))
 
     select case(PairingType)
@@ -395,8 +401,7 @@ contains
         print 2
         print 3, FermiEnergy
         print 4, sum(rho_can(1:nwn)), sum(rho_can(nwn+1:nwt))
-
-        return
+        print 5, HFdispersion
     case (1,2)
         ! BCS and HFB
         print 1    
@@ -411,6 +416,12 @@ contains
             call PrintHFBConvergence(rho_pairing, kappa_pairing)
         end select
     end select
+
+    if(inversetemp.ne.-1) then
+        call EstimateDNDA()
+        print 6, dNda
+    endif
+    
     print 7
   end subroutine PrintPairing
   
@@ -506,5 +517,46 @@ contains
     
   end subroutine CalcEntropy
 
+  subroutine EstimatedNda()
+    !---------------------------------------------------------------------------
+    ! A subroutine that estimates 
+    !
+    !               dN_i/da_j 
+    ! 
+    ! through a very naive approximation.
+    !---------------------------------------------------------------------------
 
+    integer :: it, i
+    real(KIND=dp)  :: betaE
+
+    select case(PairingType)    
+    case(0)
+        !-----------------------------------------------------------------------
+        ! Hartree-fock
+        !          
+        !  dN_i 
+        ! ------ =  \delta_ij sum_k [1 + exp(X)]^{-1} exp[X] 
+        !  da_j
+        !
+        !        with X_k = beta (epsilon_k - mu_i)
+        !        and the sum is only over the correct isospin
+        !-----------------------------------------------------------------------
+        dNda = 0
+        do i = 1,nwt
+            if (i .gt. nwn) then
+                it    = 2 
+            else
+                it    = 1
+            endif        
+            betaE       = inversetemp * (spenergies(i) - FermiEnergy(it))
+            dNda(it,it) = dNda(it,it) + inversetemp *                          &
+            &             2*(1.0/(1 + exp(betaE)))**2 *  exp(betaE)
+        enddo
+
+    case(1)
+        stop
+    case(2)
+        stop
+    end select
+  end subroutine EstimatedNda
 end module
