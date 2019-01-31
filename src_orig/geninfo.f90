@@ -50,7 +50,8 @@ contains
     !---------------------------------------------------------------------------
     ! Read some of the general information needed.
     !---------------------------------------------------------------------------
-    Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi
+    Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
+    &                  energy_prec, moment_prec, disp_prec
     Namelist /mesh/    nx,ny,nz, dx
     
     ! Reading the information on the nucleus

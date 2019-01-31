@@ -401,7 +401,7 @@ contains
         print 2
         print 3, FermiEnergy
         print 4, sum(rho_can(1:nwn)), sum(rho_can(nwn+1:nwt))
-        print 5, HFdispersion
+        print 5,  HFdispersion
     case (1,2)
         ! BCS and HFB
         print 1    
