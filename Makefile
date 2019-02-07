@@ -18,10 +18,14 @@ SRC    +=   printing.f90 tantalus.version.f90
 # Compiler details
 CXX      :=  gfortran
 
-ifeq($(CXX),gfortran)
+ifeq ($(CXX),gfortran)
+
 	CXXFLAGS := -O3 -J$(MODDIR) -Wall
+
 else ifeq ($(CXX),ifort)
+
 	CXXFLAGS := -03 -assume realloc-lhs -assume byterecl -no-wrap-margin -module $(MODDIR)
+
 endif
 
 ################################################################################
