@@ -102,23 +102,22 @@ subroutine Converged(C)
     if(.not. all(dE .lt. energy_prec)) then
      C = .false.
     endif
+
     !---------------------------------------------------------------------------
     ! Checking the weighted dispersion
     if(d2H .gt. disp_prec) C = .false.
-
     !---------------------------------------------------------------------------
-    ! Check all of the multipole moments
+    ! Check all of the multipole moments that are large enough
     Current => Root
 
     do while(associated(Current%next)) 
         Current => Current%next
-        if(sum(Current%Value)>1) then
+        if(Current%Beta(3).gt.0.05) then
             dQ = abs(sum(Current%history)-sum(Current%value))
             dQ = dQ/abs(sum(Current%value))
             if(dQ > moment_prec) C = .false.
         endif
     enddo   
-
 end subroutine Converged
 
 subroutine ReachForWaterAndFood
@@ -162,7 +161,8 @@ subroutine ReachForWaterAndFood
     use coulombmod
     use pairing 
     use printing
-    
+    use temperature_projection    
+
     implicit none
 
     1 format('----------------------------------')
@@ -306,7 +306,10 @@ subroutine ReachForWaterAndFood
             exit
         endif
     enddo
-      
+    if(inversetemp .ne. -1) then
+        call projectThermal
+    endif      
+
     !---------------------------------------------------------------------------
     ! Write output to the outputfile.
     call WriteTantalus(12, outputfilename)     

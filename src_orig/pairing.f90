@@ -388,8 +388,8 @@ contains
     3 format (' Fermi Level (MeV) ',2x,f13.8,2x,f13.8)
     4 format (' Particles         ',2x,f13.8,2x,f13.8)
     5 format (' Dispersion        ',2x,f13.8,2x,f13.8)
-    6 format (' dN/da             ',2x,f13.8,2x,f13.8,/,                       & 
-    &         ' dZ/da             ',2x,f13.8,2x,f13.8 )
+!    6 format (' dN/da             ',2x,f13.8,2x,f13.8,/,                       & 
+!    &         ' dZ/da             ',2x,f13.8,2x,f13.8 )
 
     7 format (60('-'))
 
@@ -417,10 +417,10 @@ contains
         end select
     end select
 
-    if(inversetemp.ne.-1) then
-        call EstimateDNDA()
-        print 6, dNda
-    endif
+!    if(inversetemp.ne.-1) then
+!        call EstimateDNDA()
+!        print 6, dNda
+!    endif
     
     print 7
   end subroutine PrintPairing
@@ -517,46 +517,46 @@ contains
     
   end subroutine CalcEntropy
 
-  subroutine EstimatedNda()
-    !---------------------------------------------------------------------------
-    ! A subroutine that estimates 
-    !
-    !               dN_i/da_j 
-    ! 
-    ! through a very naive approximation.
-    !---------------------------------------------------------------------------
+!  subroutine EstimatedNda()
+!    !---------------------------------------------------------------------------
+!    ! A subroutine that estimates 
+!    !
+!    !               dN_i/da_j 
+!    ! 
+!    ! through a very naive approximation.
+!    !---------------------------------------------------------------------------
 
-    integer :: it, i
-    real(KIND=dp)  :: betaE
+!    integer :: it, i
+!    real(KIND=dp)  :: betaE
 
-    select case(PairingType)    
-    case(0)
-        !-----------------------------------------------------------------------
-        ! Hartree-fock
-        !          
-        !  dN_i 
-        ! ------ =  \delta_ij sum_k [1 + exp(X)]^{-1} exp[X] 
-        !  da_j
-        !
-        !        with X_k = beta (epsilon_k - mu_i)
-        !        and the sum is only over the correct isospin
-        !-----------------------------------------------------------------------
-        dNda = 0
-        do i = 1,nwt
-            if (i .gt. nwn) then
-                it    = 2 
-            else
-                it    = 1
-            endif        
-            betaE       = inversetemp * (spenergies(i) - FermiEnergy(it))
-            dNda(it,it) = dNda(it,it) + inversetemp *                          &
-            &             2*(1.0/(1 + exp(betaE)))**2 *  exp(betaE)
-        enddo
+!    select case(PairingType)    
+!    case(0)
+!        !-----------------------------------------------------------------------
+!        ! Hartree-fock
+!        !          
+!        !  dN_i 
+!        ! ------ =  \delta_ij sum_k [1 + exp(X)]^{-1} exp[X] 
+!        !  da_j
+!        !
+!        !        with X_k = beta (epsilon_k - mu_i)
+!        !        and the sum is only over the correct isospin
+!        !-----------------------------------------------------------------------
+!        dNda = 0
+!        do i = 1,nwt
+!            if (i .gt. nwn) then
+!                it    = 2 
+!            else
+!                it    = 1
+!            endif        
+!            betaE       = inversetemp * (spenergies(i) - FermiEnergy(it))
+!            dNda(it,it) = dNda(it,it) + inversetemp *                          &
+!            &             2*(1.0/(1 + exp(betaE)))**2 *  exp(betaE)
+!        enddo
 
-    case(1)
-        stop
-    case(2)
-        stop
-    end select
-  end subroutine EstimatedNda
+!    case(1)
+!        stop
+!    case(2)
+!        stop
+!    end select
+!  end subroutine EstimatedNda
 end module
