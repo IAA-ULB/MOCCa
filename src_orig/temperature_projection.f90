@@ -46,6 +46,87 @@ contains
         
     end subroutine ProjectThermal
     
+    subroutine ProjectThermalHFB()
+      !-------------------------------------------------------------------------
+      !
+      !
+      !
+      ! Note that this routine relies heavily on timereversal.
+      !-------------------------------------------------------------------------
+      
+      complex*16, allocatable :: matrix(:,:), A(:,:), Tau(:,:), work(:)
+      real*16, allocatable    :: scales(:)
+      complex*16              :: Iimag, phi, detM, detA
+      integer                 :: i,j,si,sb, B, N, info
+
+      allocate(matrix(2*nwt, 2*nwt))
+
+      Iimag = cmplx(0, 1.0)
+
+      si = 0 ; sb = 0
+      !-------------------------------------------------------------------------
+      ! a) Building the matrix of which we need the determinant
+      do B=1,8
+          N = HFBsizes(B) ;  if (N.eq.0) cycle
+
+          do i=1,N
+              !M  = e^{- i phi N}
+              matrix(sb+i  ,sb+i  ) = exp(-Iimag * phi)
+              matrix(sb+i+N,sb+i+N) = exp( Iimag * phi)
+          enddo
+          ! M = W^\dagger e^{- i phi N} W
+          matrix(sb+1:sb+2*N, sb+1:sb+2*N) = matmul(                           &
+          &                                   matrix(sb+1:sb+2*N, sb+1:sb+2*N),&
+          &                                Bogoliubov(sb+1:sb+2*N, sb+1:sb+2*N)) 
+
+          matrix(sb+1:sb+2*N, sb+1:sb+2*N) = matmul(                           &
+          &                    transpose(Bogoliubov(sb+1:sb+2*N, sb+1:sb+2*N)),&
+          &                                    matrix(sb+1:sb+2*N, sb+1:sb+2*N))
+
+
+          do i=1,N
+              ! M = W^dagger e^{-i phi N} W + e^{-\beta E}
+              matrix(sb+i  ,sb+i  ) = matrix(sb+i  ,sb+i  )                    &
+              &                          + exp( -inversetemp * qpenergies(si+i))
+              matrix(sb+i+N,sb+i+N) = matrix(sb+i  ,sb+i  )                    &
+              &                          + exp(  inversetemp * qpenergies(si+i))
+          enddo
+          si = si +  N
+          sb = sb +2*N
+      enddo
+      !------------------------------------------------------------------------- 
+      ! b) Piece-wise QR decomposition with the zgerqf lapack routine
+      si = 0 ; sb = 0
+
+      detM = 0.0
+      do B=1,8
+         N = HFBsizes(B) ;  if (N.eq.0) cycle
+         
+         allocate(A(2*N,2*N), tau(2*N,2*N), work(2*N), scales(2*N)) 
+         A = matrix(sb+1:sb+2*N,sb+1:sb+2*N)
+         call ZGERQF(2*N, 2*N,A, 2*N, tau, work, 2*N,info)
+
+         if(info.ne.0) then
+            print *, 'ZGERQF failed. Error code = ', info
+            stop
+         endif
+
+         !  Extract the scales of the problem
+         do i=1,2*N
+            scales(i)  = maxval(abs(A(i,1:2*N)))
+            A(i,1:2*N) = A(i,1:2*N)/scales(i)
+         enddo
+
+         ! Compute the logarithm of the determinant
+         do i=1,2*N
+            detM = detM + log(scales(i)) + log(A(i,i))
+         enddo
+         deallocate(A, tau, work, scales)
+      enddo
+      
+      deallocate(matrix)      
+    end subroutine ProjectThermalHFB
+
     subroutine ProjectThermalHartreeFock()
         !-----------------------------------------------------------------------
         !
@@ -106,6 +187,7 @@ contains
             terms_n(iphi) = (exp(-Iimag * phi * protons) * prod**2)/(2*nwp)     
         enddo
 
+        !-----------------------------------------------------------------------
         Z(1) = log(sum(terms_n))
         Z(2) = log(sum(terms_p))
 
@@ -141,4 +223,16 @@ contains
         
     end subroutine PrintThermalProjection
 
+    subroutine QRDeterminant
+        !-----------------------------------------------------------------------
+        ! Use a QR-decomposition to calculate
+        !
+        !   log(det(A))
+        ! 
+        ! for A a complex matrix, in a stable fashion. 
+        !
+        ! We calculate the
+        !-----------------------------------------------------------------------
+
+    end subroutine 
 end module temperature_projection
