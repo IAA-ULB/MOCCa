@@ -22,6 +22,7 @@ from heph_derivatives import ProcessDerivatives
 from heph_symmetries  import ReduceAxes
 from heph_functional  import ProcessFunctional, ProcessParameterization
 from heph_wavefunctions import ProcessWavefunctions
+from heph_pairing     import ProcessHFB
 
 def preprocess(fname, src, target):
       # Decides which routine to call on which file.
@@ -93,7 +94,8 @@ def preprocess(fname, src, target):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='HFB.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessHFB(fname, src, target)
+#        os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='folding.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)

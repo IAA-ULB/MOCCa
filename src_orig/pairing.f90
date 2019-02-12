@@ -17,20 +17,6 @@ module pairing
  ! as some routines of general interest.
  !
  !==============================================================================
- !
- ! The overall strategy is to delegate as much work as possible to the specific
- ! different pairing solvers, leaving only the truely 'global' quantities here.
- ! These are: 
- !  a) The density matrix rho_pairing
- !  b) The anomalous density kappa_pairing
- !  c) The pairing cutoffs
- !  d) The Fermi energy
- !  e) The dispersion 
- ! All of the rest, including the U and V matrices and all other possible 
- ! quantities are not truly 'global'. It is only these quantities that determine
- ! the final many-body auxiliary state.
- !
- !==============================================================================
 
  use compilation
  use wavefunctions
@@ -44,8 +30,12 @@ module pairing
  !------------------------------------------------------------------------------
  ! Pairing density matrix and anomalous density matrix in the HF basis. 
  real(KIND=dp), allocatable :: rho_pairing(:,:), kappa_pairing(:,:)
+ ! ... and in the canonical basis ...
  real(KIND=dp), allocatable :: rho_can(:), kappa_can(:)
+ ! ...  and the "configuration matrix" ...
  real(KIND=dp), allocatable :: configmatrix(:)
+ ! ... and finally, the Bogliubov transformation ...
+ real(KIND=dp), allocatable :: Bogoliubov(:,:)
  !------------------------------------------------------------------------------
  ! Quasiparticle excitation energies, either HF, BCS or HFB.
  real(KIND=dp), allocatable :: QPenergies(:)
@@ -71,7 +61,6 @@ module pairing
  !------------------------------------------------------------------------------
  ! Decide which module gets to calculate the pairing gaps.
  procedure(calcBCSgaps), pointer :: CalcGaps
- 
  !------------------------------------------------------------------------------
  ! Mixing parameter for the HFB equations
  real(KIND=dp) :: HFBMix = 1.0
@@ -108,14 +97,14 @@ module pairing
  ! 'p0' : (any parity)    proton
  ! '  ' : nothing
  character(len=2), allocatable :: BlockLowest(:)
-    
- !------------------------------------------------------------------------------
- ! Estimation of 
- ! dNi/dLambda_j 
- real(KIND=dp) :: dNda(2,2) = 0.0
  !------------------------------------------------------------------------------
  ! Entropy of the statistical mixture in the case of finite temperature
  real(KIND=dp) :: entropy(2) = 0
+
+! !-----------------------------------------------------------------------------
+! ! Estimation of 
+! ! dNi/dLambda_j 
+! real(KIND=dp) :: dNda(2,2) = 0.0
 contains
 
   subroutine initpairing
@@ -360,14 +349,17 @@ contains
       if(.not.allocated(kappa_pairing)) then
         allocate(kappa_pairing(nwt,nwt))   ; kappa_pairing = 0.0
       endif     
+      if(.not.allocated(Bogoliubov)) then
+        allocate(Bogoliubov(2*nwt,2*nwt))  ; Bogoliubov    = 0.0
+      endif
 
-      if(all(HFBsizes.eq.0)) call inithfb
+      if(.not. allocated(HFBsizes)) call inithfb
 
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
-      call solvepairing_HFB(FermiEnergy, rho_pairing, kappa_pairing,           &
-      &                    configmatrix, qpenergies,HFBmix, HFBmixtype,        &
-      &                       BlockType, Blockindices, blocklowest)
+      call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
+      &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
+      &                     BlockType, Blockindices, blocklowest)
     end select
     !---------------------------------------------------------------------------
     ! Compute the cutoffs
@@ -453,7 +445,6 @@ contains
           E(it) = E(it) - Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
         enddo
       enddo
-      print *
     end select
   end function calcpairingenergy
 

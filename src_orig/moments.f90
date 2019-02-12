@@ -924,9 +924,9 @@ contains
     real(KIND=dp)         :: ql(2), factor, R
     character(len=1)      :: AX='Z',secAx1='Y', secAx2='Z'
 
-  100 format (15('-'),' Electric Multipole Moments ', 16('-'))
+  100 format (16('-'),' Electric Multipole Moments ', 17('-'))
   102 format (60('-'))
-    1 format (60('_'))
+    1 format (62('_'))
     2 format (17x,4x, 'Neutrons',8x, 'Protons',9x, 'Total')
     7 format ('Beta_{', 2i2 , '} ', 3(1x,f15.8) )
    71 format ('Beta_{',2x, i2,'} ', 3(1x,f15.8) )

@@ -576,9 +576,8 @@ $SKYRMEACTION
   &                                                             result(deltapsi)
     !---------------------------------------------------------------------------
     ! Logical indicating if the derivatives need to be calculated before
-    ! applying delta.
-    ! If false, the derivatives are passed in. If True, the derivatives are not
-    ! passed in and need to be calculated.
+    ! applying delta. If false, the derivatives are passed in. If True, the 
+    ! derivatives are not passed in and need to be calculated.
     logical, intent(in)       :: onthefly 
     
     real(KIND=dp), intent(in)    :: psi(mv,4)  

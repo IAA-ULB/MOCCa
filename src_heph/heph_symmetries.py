@@ -48,7 +48,7 @@ TimeSimplex   = 0
 TimeSignature = 0
 #
 # Whether or not time-reversal is conserved. Can be 0 (broken) or 1 (conserved).
-TimeReversal  = 0
+TimeReversal  = 1
 #
 #===============================================================================
 # Whether you want a reduction of each of the Cartesian axes. 
