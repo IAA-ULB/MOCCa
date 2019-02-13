@@ -58,7 +58,7 @@ contains
   real(KIND=dp), intent(inout) :: fermi(2)
   real(KIND=dp), intent(inout) :: rho_can(:)
   real(KIND=dp), intent(inout) :: kappa_can(:), qpenergies(:)
-  real(KIND=dp)                :: oldfermi(2)
+  real(KIND=dp)                :: oldfermi(2), fac
   integer                      :: iter, wave
   
   1 format('---------------------------------------',/,     &
@@ -88,7 +88,17 @@ contains
   ! Rho_pairing is diagonal for a BCS calculation
   rho_can = 0.0
   do wave=1,nwt
-    rho_can(wave) = BCSoccupations(wave)
+
+    if(inversetemp.eq.-1) then
+      rho_can(wave) = BCSoccupations(wave)
+    else
+      ! Occupations are 
+      !   n_a = f_i + v_i^2 (1 - 2 * f_i)
+      fac = 1 + exp(inversetemp * BCSqps(wave))
+      ! Note that there is already a factor two due to timereversal in    
+      ! BCSoccupations, but not in the first term in the formula above.
+      rho_can(wave) = 2.0/fac + BCSoccupations(wave) * (1 - 2.0/fac)
+    endif
   enddo
  
   !-----------------------------------------------------------------------------
@@ -100,12 +110,20 @@ contains
   !
   kappa_can = 0.0
   do wave=1,nwt
-    kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave))
+    if(inversetemp.eq.-1) then
+      kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave))
+    else
+      ! At finite temperature, the elements of kappa are
+      ! kappa_i\bar{i} = u_i v_i ( 1 - 2 * f_i )
+      fac = 1 + exp(inversetemp * BCSqps(wave))
+      kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave)) * (1 - 2.0/fac)
+    endif
   enddo
 
   ! Qpenergies in this case are the BCSqpenergies
   Qpenergies = BCSqps
 
+  call calcBCSdispersion(rho_can)
  end subroutine solvepairing_BCS
  
  subroutine CalcBCSGaps(fermi)
@@ -151,12 +169,12 @@ contains
    ! number constraints 
    !----------------------------------------------------------------------------
     real(KIND=dp),intent(inout) :: Fermi(2)
-    real(KIND=dp)               :: LambdaSums(2,2), eqp, nom, Particles(2)
+    real(KIND=dp)               :: LambdaSums(2,2), eqp, nom, Particles(2), fac
     integer                     :: wave, it
 
     Particles(1) = Neutrons; Particles(2) = Protons
 
-    LambdaSums=0.0_dp
+    LambdaSums=0.0_dp 
     !Sum the quasiparticle energies to get the correct lambda.
     do wave=1,nwt
       it = 1
@@ -165,12 +183,19 @@ contains
       eqp = BCSqps(wave)
       nom = spenergies(wave)
 
-      lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp)
-      lambdasums(2,it)= lambdasums(2,it) + 1.0_dp/eqp
+      if(inversetemp.ne.-1) then  
+        fac = 1.0/(1 + exp(inversetemp * eqp))
+        lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp*(1-2*fac))
+        lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)        
+      else
+        lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp)
+        lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp
+      endif
+
     enddo
     ! There is a nice analytical formula for the Fermi energy in the BCS case
     do it=1,2
-        Fermi(it) =  (Particles(it) - lambdasums(1,it))/lambdasums(2,it)
+        Fermi(it) =  (particles(it) - lambdasums(1,it))/lambdasums(2,it)
     enddo
   end subroutine BCSFindFermiEnergy
   
@@ -226,23 +251,33 @@ contains
         BCSOccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
     enddo
 
-    ! BCS dispersion
-    BCSdispersion = 0.0    
-    do wave=1,nwn
-        BCSdispersion(1) = BCSdispersion(1) +                                  &
-        &                          BCSoccupations(wave)*(1-BCSoccupations(wave))
-    enddo
-
-    do wave=nwp+1,nwt
-        BCSdispersion(2) = BCSdispersion(2) +                                  &
-        &                          BCSoccupations(wave)*(1-BCSoccupations(wave))
-    enddo
-
     ! Time reversal symmetry
-    BCSOccupations = 2 *BCSOccupations
-    BCSdispersion  = 2 * BCSdispersion
+    BCSOccupations = 2 * BCSOccupations
 
    end subroutine calcBCSOccupations
+
+   subroutine calcBCSdispersion(rho_can)
+      !-------------------------------------------------------------------------
+      ! Calculate the dispersion 
+      !  Tr rho - rho^2
+      !-------------------------------------------------------------------------
+      real(KIND=dp), intent(in):: rho_can(:)
+      integer :: wave
+
+      ! BCS dispersion
+      BCSdispersion = 0.0    
+      do wave=1,nwn
+        BCSdispersion(1) = BCSdispersion(1) +                                  &
+        &                                0.5*rho_can(wave)*(1-0.5*rho_can(wave))
+      enddo
+
+      do wave=nwp+1,nwt
+        BCSdispersion(2) = BCSdispersion(2) +                                  &
+        &                                0.5*rho_can(wave)*(1-0.5*rho_can(wave))
+      enddo
+      BCSdispersion  = 2 * BCSdispersion
+
+   end subroutine calcBCSdispersion
 
 !===============================================================================
 !  Never to be used function to define an interface for delta_action

@@ -236,8 +236,8 @@ module HFB
       si = si + N
     enddo
     deallocate(chi)
-    ! Time-reversal introduces two factors of two
-$TR    HFBdispersion = 4 * HFBdispersion 
+    ! Time-reversal introduces a factor of two
+$TR    HFBdispersion = 2 * HFBdispersion 
 
   end subroutine solvepairing_HFB
 

@@ -454,7 +454,8 @@ contains
     ! finite temperature.
     !---------------------------------------------------------------------------
 
-    integer :: i, it
+    integer       :: i, it
+    real(KIND=dp) :: fac
 
     if(inversetemp == -1) then  
         entropy  = 0
@@ -486,8 +487,24 @@ contains
         entropy = 2 * entropy
     case (1)
         !-----------------------------------------------------------------------
-        print *, 'Entropy calculation not yet implemented for BCS.'
-        stop
+        entropy = 0
+        do i=1,nwt
+            if(i .gt. nwn) then
+                it = 2
+            else
+                it = 1
+            endif
+        
+            fac = inversetemp * BCSqps(i)
+            fac = 1.0/(1 + exp(fac))
+            if(fac .gt. 1d-10) then
+              entropy(it) = entropy(it) - fac * log(fac) 
+              if( (1 - fac) .gt. 1d-10) then            
+                entropy(it) = entropy(it)- (1-fac) * log(1-fac)
+              endif
+            endif
+        enddo
+        entropy = 2 * entropy
     case (2)
         entropy = 0
         !-----------------------------------------------------------------------
