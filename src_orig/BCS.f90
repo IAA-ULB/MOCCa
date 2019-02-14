@@ -35,9 +35,8 @@ module BCS
  real(KIND=dp), allocatable :: BCSGaps(:)
  ! BCS quasiparticle energies
  real(KIND=dp), allocatable :: BCSqps(:)
-  
+ ! BCS occupations, i.e. 2 * v_i^2
  real(KIND=dp), allocatable :: BCSoccupations(:)
- 
  !------------------------------------------------------------------------------
  procedure(delta_action_dummy), pointer :: delta_action_BCS
 
