@@ -74,8 +74,7 @@ contains
         ! We calculate first the unprojected partition function
         ! lnZ = -Beta * E_HF - beta * mu * <N> + S_HF
         partition = -inversetemp* (totalE          + FermiEnergy(1) * neutrons &
-        &                                          + FermiEnergy(2) * protons )&
-        &           + sum(entropy)
+        &                                          + FermiEnergy(2) * protons )
 
         !-----------------------------------------------------------------------
         ! Neutrons
@@ -170,8 +169,7 @@ contains
         ! We calculate first the unprojected partition function
         ! lnZ = -Beta * E_HF - beta * mu * <N> + S_HF
         partition = -inversetemp* (totalE          + FermiEnergy(1) * neutrons &
-        &                                          + FermiEnergy(2) * protons )&
-        &           + sum(entropy)
+        &                                          + FermiEnergy(2) * protons )
 
         !-----------------------------------------------------------------------
         ! We estimate <V>
@@ -260,8 +258,7 @@ contains
       ! We calculate first the unprojected partition function
       ! lnZ = -Beta * E_HF - beta * mu * <N> + S_HF
       partition = -inversetemp* (totalE          + FermiEnergy(1) * neutrons &
-      &                                          + FermiEnergy(2) * protons )&
-      &           + sum(entropy)
+      &                                          + FermiEnergy(2) * protons )
 
       call HFBdeterminant(Bogoliubov(1:2*nwn,1:2*nwn),neutrons,HFBsizes(1:4),  &
                                                               Qpenergies(1:nwn))
