@@ -65,16 +65,17 @@ contains
         ! We estimate <V>
         Venergy = - totalE
         do i=1,nwt
-            Venergy = Venergy + 0.5 *spenergies(i) * rho_can(i)
+            Venergy = Venergy + spenergies(i) * rho_can(i)
         enddo
 
         Iimag = dcmplx(0,1.0)  
 
         !-----------------------------------------------------------------------
         ! We calculate first the unprojected partition function
-        ! lnZ = -Beta * E_HF - beta * mu * <N> + S_HF
-        partition = -inversetemp* (totalE          + FermiEnergy(1) * neutrons &
-        &                                          + FermiEnergy(2) * protons )
+        ! lnZ = -Beta * E_HF - beta * mu * <N> 
+        partition = -inversetemp*  totalE          - FermiEnergy(1) * neutrons &
+        &                                          - FermiEnergy(2) * protons  &
+        &           + sum(entropy)
 
         !-----------------------------------------------------------------------
         ! Neutrons
@@ -167,15 +168,16 @@ contains
         
         !-----------------------------------------------------------------------
         ! We calculate first the unprojected partition function
-        ! lnZ = -Beta * E_HF - beta * mu * <N> + S_HF
-        partition = -inversetemp* (totalE          + FermiEnergy(1) * neutrons &
-        &                                          + FermiEnergy(2) * protons )
+        ! lnZ = -Beta * E_HF - beta * mu * <N> 
+        partition = -inversetemp *  totalE         - FermiEnergy(1) * neutrons &
+        &                                          - FermiEnergy(2) * protons  & 
+        &           + sum(entropy)
 
         !-----------------------------------------------------------------------
         ! We estimate <V>
         Venergy = - totalE
         do i=1,nwt
-            Venergy = Venergy + 0.5 *spenergies(i) * rho_can(i)
+            Venergy = Venergy +  spenergies(i) * rho_can(i)
         enddo
 
         Z = 0
