@@ -116,7 +116,7 @@ contains
             !-------------------------------------------------------------------
             ! Establish a search interval
             Fmin = -1000
-            Fmax = energies(nw,it)
+            Fmax = 100
 
             Nmin = FToccupations(Fmin, energies(1:nw,it)) - N
             Nmax = FToccupations(Fmax, energies(1:nw,it)) - N

@@ -20,11 +20,11 @@ implicit none
     !---------------------------------------------------------------------------
     ! Contains the natural logarithms of the various partition functions.
     !---------------------------------------------------------------------------
-    real(KIND=dp) :: partition
+    real(KIND=dp) :: partition, partition_tilde
     real(KIND=dp) :: projectedpartition, projectedpartition_nov(2)
 
 
-    real(KIND=dp) :: projection_cutoff = 1d10
+    real(KIND=dp) :: projection_cutoff = 10
 contains
 
     subroutine ProjectThermal()
@@ -73,10 +73,12 @@ contains
         !-----------------------------------------------------------------------
         ! We calculate first the unprojected partition function
         ! lnZ = -Beta * E_HF - beta * mu * <N> 
-        partition = -inversetemp*  totalE          - FermiEnergy(1) * neutrons &
-        &                                          - FermiEnergy(2) * protons  &
+        partition = - inversetemp    *  totalE                                 & 
+        &           + FermiEnergy(1) * neutrons                                &
+        &           + FermiEnergy(2) * protons                                 & 
         &           + sum(entropy)
 
+        partition_tilde = - inversetemp    *  totalE   + sum(entropy)
         !-----------------------------------------------------------------------
         ! Neutrons
         allocate(xi(2*nwn)) ; xi =1.0
@@ -169,10 +171,12 @@ contains
         !-----------------------------------------------------------------------
         ! We calculate first the unprojected partition function
         ! lnZ = -Beta * E_HF - beta * mu * <N> 
-        partition = -inversetemp *  totalE         - FermiEnergy(1) * neutrons &
-        &                                          - FermiEnergy(2) * protons  & 
+        partition = - inversetemp    *  totalE                                 & 
+        &           + FermiEnergy(1) * neutrons                                &
+        &           + FermiEnergy(2) * protons                                 & 
         &           + sum(entropy)
 
+        partition_tilde = - inversetemp    *  totalE  + sum(entropy)
         !-----------------------------------------------------------------------
         ! We estimate <V>
         Venergy = - totalE
@@ -181,7 +185,6 @@ contains
         enddo
 
         Z = 0
-
         !-----------------------------------------------------------------------       
         ! We sum the logarithms of all the factors for numerical stability.  
         do iphi=1,2*nwn
@@ -207,7 +210,7 @@ contains
         do iphi=1,2*nwp
             phi = pi*(iphi-1)/nwp
             temp = 0            
-            do wave=1,nwn
+            do wave=nwn+1,nwt
                fac  = inversetemp * (spenergies(wave) - fermienergy(2))
                if(fac .lt. -projection_cutoff) then
                   temp = temp - fac + Iimag * phi
@@ -231,8 +234,8 @@ contains
     
         !-----------------------------------------------------------------------
         !  Further, easy corrections
-        Z(1) = Z(1)- inversetemp * FermiEnergy(1)*neutrons - log(2*nwn * 1.0)
-        Z(2) = Z(2)- inversetemp * FermiEnergy(2)*protons  - log(2*nwp * 1.0)
+        Z(1) = Z(1) - inversetemp * FermiEnergy(1)*neutrons - log(2*nwn * 1.0)
+        Z(2) = Z(2) - inversetemp * FermiEnergy(2)*protons  - log(2*nwp * 1.0)
 
         projectedpartition_nov = Z
         projectedpartition     = sum(Z) + inversetemp * Venergy
@@ -348,18 +351,24 @@ contains
         1 format (80('-'))
         2 format (' Thermal particle number projection')
         3 format (' Partition function')
-        4 format (' Ordinary   lnZ           : ', f15.7)
-        5 format (' Projected  lnZ (No V) (n): ', f15.7,/, &
-        &         '                       (p): ', f15.7,/, &
-        &         '                       (t): ', f15.7)
-        6 format (' Projected  lnZ (With   V): ', f15.7)
+        4 format (' lnZ (constant mu)  : ', f20.12)
+        5 format (' lnZ (constant  N)  : ', f20.12)
+!        5 format (' Projected  lnZ (No V) (n): ', f20.12,/, &
+!        &         '                       (p): ', f20.12,/, &
+!        &         '                       (t): ', f20.12)
+        6 format (' lnZ (canonical)    : ', f20.12)
+       61 format (' Full precision     : ', f20.12) 
+
+
 
         print 1
         print 2
         print 3
         print 4, partition
-        print 5, projectedpartition_nov, sum(projectedpartition_nov)
+        print 5, partition_tilde
+!        print 5, projectedpartition_nov, sum(projectedpartition_nov)
         print 6, projectedpartition
+        print 61, TotalE
         print 1
         
     end subroutine PrintThermalProjection
