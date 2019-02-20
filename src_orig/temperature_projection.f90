@@ -20,11 +20,11 @@ implicit none
     !---------------------------------------------------------------------------
     ! Contains the natural logarithms of the various partition functions.
     !---------------------------------------------------------------------------
-    real(KIND=dp) :: partition, partition_tilde
-    real(KIND=dp) :: projectedpartition, projectedpartition_nov(2)
-
+    real*16 :: partition, partition_tilde
+    real*16 :: projectedpartition, projectedpartition_nov(2)
 
     real(KIND=dp) :: projection_cutoff = 10
+
 contains
 
     subroutine ProjectThermal()
@@ -42,7 +42,7 @@ contains
         case(1)
             call ProjectThermalBCS
         case(2)
-            call ProjectThermalHFB
+!            call ProjectThermalHFB
         end select
 
         call PrintThermalProjection
@@ -56,10 +56,10 @@ contains
         !-----------------------------------------------------------------------
 
         complex*32, allocatable :: xi(:)
-        complex*32              :: fac, Iimag, temp, avn, avp
+        complex*32              :: fac, Iimag, temp
 
         integer :: iphi, wave, i
-        real*16 :: u, v, eqp, Z(2), phi, Venergy
+        real*16 :: u, v, eqp, Z(2), phi, Venergy, avn, avp
 
         !-----------------------------------------------------------------------
         ! We estimate <V>
@@ -81,7 +81,7 @@ contains
         partition_tilde = - inversetemp    *  totalE   + sum(entropy)
         !-----------------------------------------------------------------------
         ! Neutrons
-        allocate(xi(2*nwn)) ; xi =1.0
+        allocate(xi(2*nwn)) ; xi =0.0
 
         do iphi = 1, 2*nwn
           phi = pi * (iphi-1)/nwn
@@ -100,10 +100,9 @@ contains
 
               temp = inversetemp * Eqp
               temp = temp - inversetemp * ( spenergies(wave) - FermiEnergy(1) )
-          
               temp = temp + log(fac)
  
-              xi(iphi) = xi(iphi) + temp + log(fac)
+              xi(iphi) = xi(iphi) + temp 
           enddo
           xi(iphi) = xi(iphi) - Iimag * phi * neutrons
         enddo
@@ -112,12 +111,12 @@ contains
         xi  = xi - avn
 
         Z(1) = avn + DBLE(log(sum(exp(xi))))
-        Z(1) = Z(1) - inversetemp * FermiEnergy(1) * neutrons - log(2*nwp * 1.0)    
+        Z(1) = Z(1) - inversetemp * FermiEnergy(1) * neutrons - log(2*nwn * 1.0)    
 
         deallocate(xi)
         !-----------------------------------------------------------------------
         ! Protons
-        allocate(xi(2*nwp)) ; xi = 1.0
+        allocate(xi(2*nwp)) ; xi = 0.0
 
         do iphi = 1, 2*nwp
           phi = pi * (iphi-1)/nwp
@@ -127,15 +126,16 @@ contains
               v   =     BCSoccupations(wave)/2
               eqp = BCSqps(wave)
 
-              temp = inversetemp * Eqp
-              temp = temp - inversetemp * ( spenergies(wave) - FermiEnergy(2) )
-
               fac = u     
               fac = fac +     exp(  2 * Iimag * phi)    * v 
               fac = fac + 2 * exp( -  inversetemp*eqp + Iimag * phi)
               fac = fac +     exp( -2*inversetemp*eqp) * (v+exp(2*Iimag*phi)* u)
 
-              xi(iphi) = xi(iphi) + temp + log(fac)
+              temp = inversetemp * Eqp
+              temp = temp - inversetemp * ( spenergies(wave) - FermiEnergy(2) )
+              temp = temp + log(fac)
+ 
+              xi(iphi) = xi(iphi) + temp 
           enddo
           xi(iphi) = xi(iphi) - Iimag * phi * protons 
         enddo
@@ -160,11 +160,11 @@ contains
         !
         !-----------------------------------------------------------------------
     
-        integer          :: it, i, iphi, wave
-        real*16          :: terms_n(2*nwn), terms_p(2*nwp), Z(2), maxn, maxp
-        real*16          :: Venergy, fac
+        integer          :: i, iphi, wave
+        complex*32       :: terms_n(2*nwn), terms_p(2*nwp)
+        real*16          :: Venergy, fac, Z(2), avn, avp
         complex*32       :: temp, Iimag
-        complex*32       ::  N, phi, avn, avp
+        complex*32       ::  phi
 
         Iimag = dcmplx(0,1.0)
         
@@ -189,19 +189,10 @@ contains
         ! We sum the logarithms of all the factors for numerical stability.  
         do iphi=1,2*nwn
             phi = pi*(iphi-1)/nwn
-            temp = 0            
-            
+            temp = 0                        
             do wave=1,nwn
                fac  = inversetemp * (spenergies(wave) - fermienergy(1))
-               ! If fac is large and positive, numerical precision of this 
-               ! does not matter, it will be close to zero. 
-               ! If fac is large and negative, we approximate
-               !     log(1 + exp(-fac + i phi)) =>  -fac + i phi
-               if(fac .lt. -projection_cutoff) then
-                  temp = temp - fac + Iimag * phi
-               else
-                  temp = temp + log(1+exp(-fac + Iimag*phi))  
-               endif
+               temp = temp + log(1+exp(-fac + Iimag*phi))  
             enddo
             !  Factor 2 is time-reversal
             terms_n(iphi) =  2 * temp + (-Iimag * phi * neutrons) 
@@ -212,25 +203,21 @@ contains
             temp = 0            
             do wave=nwn+1,nwt
                fac  = inversetemp * (spenergies(wave) - fermienergy(2))
-               if(fac .lt. -projection_cutoff) then
-                  temp = temp - fac + Iimag * phi
-               else
-                  temp = temp + log(1+exp(-fac + Iimag*phi))  
-               endif            
+               temp = temp + log(1+exp(-fac + Iimag*phi))  
             enddo
             terms_p(iphi) =  2 * temp + (-Iimag * phi * protons) 
         enddo
 
         ! We subtract the average of all logarithms from the terms....
-        avn = sum(terms_n)/(2*nwn)
-        avp = sum(terms_p)/(2*nwn)
+        avn = sum(abs(terms_n))/(2*nwn)
+        avp = sum(abs(terms_p))/(2*nwp)
       
         terms_n = terms_n - avn
         terms_p = terms_p - avp        
           
         ! ... and add it again at the end
-        Z(1) = log(sum(exp(terms_n))) + avn
-        Z(2) = log(sum(exp(terms_p))) + avp
+        Z(1) = DBLE(log(sum(exp(terms_n)))) + avn
+        Z(2) = DBLE(log(sum(exp(terms_p)))) + avp
     
         !-----------------------------------------------------------------------
         !  Further, easy corrections
@@ -242,104 +229,104 @@ contains
   
     end subroutine ProjectThermalHartreeFock
 
-    subroutine ProjectThermalHFB()
-      !-------------------------------------------------------------------------
-      !
-      !
-      !
-      ! Note that this routine relies heavily on timereversal.
-      !-------------------------------------------------------------------------
-      
-      complex*16, allocatable :: matrix(:,:), A(:,:), Tau(:,:), work(:)
-      real*16, allocatable    :: scales(:)
-      complex*16              :: Iimag, phi, detM, detA
-      integer                 :: i,j,si,sb, B, N, info
+!    subroutine ProjectThermalHFB()
+!      !-------------------------------------------------------------------------
+!      !
+!      !
+!      !
+!      ! Note that this routine relies heavily on timereversal.
+!      !-------------------------------------------------------------------------
+!      
+!      complex*16, allocatable :: matrix(:,:), A(:,:), Tau(:,:), work(:)
+!      real*16, allocatable    :: scales(:)
+!      complex*16              :: Iimag, phi, detM, detA
+!      integer                 :: i,j,si,sb, B, N, info
 
-      allocate(matrix(2*nwt, 2*nwt))
+!      allocate(matrix(2*nwt, 2*nwt))
 
-      Iimag = cmplx(0, 1.0)
+!      Iimag = cmplx(0, 1.0)
 
-      !-------------------------------------------------------------------------
-      ! We calculate first the unprojected partition function
-      ! lnZ = -Beta * E_HF - beta * mu * <N> + S_HF
-      partition = -inversetemp* (totalE          + FermiEnergy(1) * neutrons &
-      &                                          + FermiEnergy(2) * protons )
+!      !-------------------------------------------------------------------------
+!      ! We calculate first the unprojected partition function
+!      ! lnZ = -Beta * E_HF - beta * mu * <N> + S_HF
+!      partition = -inversetemp* (totalE          + FermiEnergy(1) * neutrons &
+!      &                                          + FermiEnergy(2) * protons )
 
-      call HFBdeterminant(Bogoliubov(1:2*nwn,1:2*nwn),neutrons,HFBsizes(1:4),  &
-                                                              Qpenergies(1:nwn))
-   
-    end subroutine ProjectThermalHFB
+!      call HFBdeterminant(Bogoliubov(1:2*nwn,1:2*nwn),neutrons,HFBsizes(1:4),  &
+!                                                              Qpenergies(1:nwn))
+!   
+!    end subroutine ProjectThermalHFB
 
-    subroutine HFBdeterminant(Bogo, particles, blocks,Eqp )
-        !-----------------------------------------------------------------------
-        !
-        !-----------------------------------------------------------------------
+!    subroutine HFBdeterminant(Bogo, particles, blocks,Eqp )
+!        !-----------------------------------------------------------------------
+!        !
+!        !-----------------------------------------------------------------------
 
-        real(KIND=dp), intent(in) :: Bogo(:,:), Eqp(:)
-        real(KIND=dp), intent(in) :: particles
-        real(KIND=dp)             :: phi
-        integer, intent(in)       :: blocks(4)
+!        real(KIND=dp), intent(in) :: Bogo(:,:), Eqp(:)
+!        real(KIND=dp), intent(in) :: particles
+!        real(KIND=dp)             :: phi
+!        integer, intent(in)       :: blocks(4)
 
-        complex*16, allocatable :: matrix(:,:), tau(:,:), work(:),detM(:)   
-        complex*16              ::  Iimag
- 
-        integer :: iphi, N, Ntotal, sb, si, B, info, i
+!        complex*16, allocatable :: matrix(:,:), tau(:,:), work(:),detM(:)   
+!        complex*16              ::  Iimag
+! 
+!        integer :: iphi, N, Ntotal, sb, si, B, info, i
 
 
-        Iimag = cmplx(0, 1.0)
+!        Iimag = cmplx(0, 1.0)
 
-        Ntotal = sum(blocks)
-        allocate(detM(2*Ntotal)) ; detM = 0
+!        Ntotal = sum(blocks)
+!        allocate(detM(2*Ntotal)) ; detM = 0
 
-        do iphi=1,2*Ntotal
+!        do iphi=1,2*Ntotal
 
-          sb = 0 ; si = 0
-          phi = pi * (iphi - 1)/Ntotal
+!          sb = 0 ; si = 0
+!          phi = pi * (iphi - 1)/Ntotal
 
-          detM(iphi) = 0
-          ! We calculate the logarithm of the derminant of every subblock
-          do B = 1,4
-            N = blocks(B) ; if (N .eq. 0) cycle
+!          detM(iphi) = 0
+!          ! We calculate the logarithm of the derminant of every subblock
+!          do B = 1,4
+!            N = blocks(B) ; if (N .eq. 0) cycle
 
-            !-------------------------------------------------------------------
-            ! Building the matrix in this symmetry block
-            allocate(matrix(2*N, 2*N)) ; matrix = 0        
-            do i=1,N
-              !M  = e^{- i phi N}
-              matrix(i  ,i  ) = exp(-Iimag * phi)
-              matrix(i+N,i+N) = exp( Iimag * phi)
-            enddo
+!            !-------------------------------------------------------------------
+!            ! Building the matrix in this symmetry block
+!            allocate(matrix(2*N, 2*N)) ; matrix = 0        
+!            do i=1,N
+!              !M  = e^{- i phi N}
+!              matrix(i  ,i  ) = exp(-Iimag * phi)
+!              matrix(i+N,i+N) = exp( Iimag * phi)
+!            enddo
 
-            matrix = matmul( matrix, transpose(Bogo(sb+1:sb+2*N, sb+1:sb+2*N))) 
-            matrix = matmul( Bogo(sb+1:sb+2*N, sb+1:sb+2*N), matrix)
+!            matrix = matmul( matrix, transpose(Bogo(sb+1:sb+2*N, sb+1:sb+2*N))) 
+!            matrix = matmul( Bogo(sb+1:sb+2*N, sb+1:sb+2*N), matrix)
 
-            do i=1,N
-              ! M = W^dagger e^{-i phi N} W + e^{-\beta E}
-              matrix(i  ,i  ) = matrix(i  ,i  ) + exp( -inversetemp * Eqp(si+i))
-              matrix(i+N,i+N) = matrix(i+N,i+N) + exp(  inversetemp * Eqp(si+i))
-            enddo    
+!            do i=1,N
+!              ! M = W^dagger e^{-i phi N} W + e^{-\beta E}
+!              matrix(i  ,i  ) = matrix(i  ,i  ) + exp( -inversetemp * Eqp(si+i))
+!              matrix(i+N,i+N) = matrix(i+N,i+N) + exp(  inversetemp * Eqp(si+i))
+!            enddo    
 
-            !-------------------------------------------------------------------
-            !  Performing a QR decomposition
-            allocate(tau(2*N,2*N), work(4*N)) 
+!            !-------------------------------------------------------------------
+!            !  Performing a QR decomposition
+!            allocate(tau(2*N,2*N), work(4*N)) 
 
-            call ZGEQRF(2*N, 2*N, matrix, 2*N, tau, work, 4*N,info)
+!            call ZGEQRF(2*N, 2*N, matrix, 2*N, tau, work, 4*N,info)
 
-            do i=1,2*N
-              detM(iphi) = detM(iphi) + log((-1)**(iphi) * matrix(i,i))
-            enddo
+!            do i=1,2*N
+!              detM(iphi) = detM(iphi) + log((-1)**(iphi) * matrix(i,i))
+!            enddo
 
-            deallocate(matrix, work, tau)
-            sb = sb + 2*N
-            si = si +   N
-          enddo
-          detM(iphi) = detM(iphi) - Iimag * phi * particles
-          print *, phi, detM(iphi)
-        enddo
-        print *, sum(detM)
-        !-----------------------------------------------------------------------
+!            deallocate(matrix, work, tau)
+!            sb = sb + 2*N
+!            si = si +   N
+!          enddo
+!          detM(iphi) = detM(iphi) - Iimag * phi * particles
+!          print *, phi, detM(iphi)
+!        enddo
+!        print *, sum(detM)
+!        !-----------------------------------------------------------------------
 
-    end subroutine HFBdeterminant
+!    end subroutine HFBdeterminant
 
     subroutine PrintThermalProjection
         !-----------------------------------------------------------------------
