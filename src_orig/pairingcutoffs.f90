@@ -52,7 +52,7 @@ contains
     ! Fermi level.
     ! Cutoff is taken with a fermi function both above and below the fermi 
     !    energy.
-    !        f^-2 = [1 + exp((epsilon - lambda - DeltaE)/mu)]
+    !        f^-2 = [1 + exp((  epsilon - lambda - DeltaE)/mu)]
     !             * [1 + exp((- epsilon + lambda - DeltaE)/mu)]
     !    with mu and DeltaE being read from input.
     !    This is described in S.J. Krieger et al., Nucl. Phys.A517 (1990) 275

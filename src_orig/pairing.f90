@@ -101,6 +101,14 @@ module pairing
  ! Entropy of the statistical mixture in the case of finite temperature
  real(KIND=dp) :: entropy(2) = 0
 
+ !------------------------------------------------------------------------------
+ ! Values for the average pairing gap
+ ! First index is for 
+ ! (1) f_k v_k ^2 weighted
+ ! (2) f_k u_k v_k weighted
+ !  The second index is for isospin.
+ real(KIND=dp) :: average_gap(2,2)
+
 ! !-----------------------------------------------------------------------------
 ! ! Estimation of 
 ! ! dNi/dLambda_j 
@@ -333,6 +341,8 @@ contains
       ! The diagonal elements of rho and kappa are only set. 
       call solvepairing_BCS(FermiEnergy, rho_can, kappa_can, qpenergies)
 
+      ! Calculate the average gap
+      average_gap = average_gap_BCS()
     case(2)
       !-------------------------------------------------------------------------
       ! HFB-type pairing
@@ -383,6 +393,9 @@ contains
 !    6 format (' dN/da             ',2x,f13.8,2x,f13.8,/,                       & 
 !    &         ' dZ/da             ',2x,f13.8,2x,f13.8 )
 
+    6 format (' Average gap   v^2 ',2x, f13.8, 2x, f13.8,/,                    &
+              ' Average gap   uv  ',2x, f13.8, 2x, f13.8)
+
     7 format (60('-'))
 
     select case(PairingType)
@@ -403,6 +416,7 @@ contains
         select case(PairingType)
         case(1)
             print 5, BCSdispersion
+            print 6, average_gap
         case(2)
             print 5, HFBdispersion
             call PrintHFBConvergence(rho_pairing, kappa_pairing)
@@ -512,12 +526,16 @@ contains
         ! ones!
         ! S = - sum_i f_i ln(f_i)
         do i=1,2*nwn
-            ! proton  quasiparticles
-            entropy(1) = entropy(1) - configmatrix(i) * log(configmatrix(i))
+            ! neutron  quasiparticles
+            if(configmatrix(i).gt.0d0) then
+             entropy(1) = entropy(1) - configmatrix(i) * log(configmatrix(i))
+            endif
         enddo
         do i=2*nwn+1, 2*nwt
-            ! neutron quasiparticles
-            entropy(2) = entropy(2) - configmatrix(i) * log(configmatrix(i))
+            ! proton quasiparticles
+            if(configmatrix(i).gt.0d0) then
+              entropy(2) = entropy(2) - configmatrix(i) * log(configmatrix(i))
+            endif
         enddo
         ! And a factor of two for time-reversal  
         entropy = 2* entropy

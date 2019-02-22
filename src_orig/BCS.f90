@@ -114,7 +114,7 @@ contains
     else
       ! At finite temperature, the elements of kappa are
       ! kappa_i\bar{i} = u_i v_i ( 1 - 2 * f_i )
-      fac = 1 + exp(inversetemp * BCSqps(wave))
+      fac             = 1 + exp(inversetemp * BCSqps(wave))
       kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave)) * (1 - 2.0/fac)
     endif
   enddo
@@ -122,7 +122,9 @@ contains
   ! Qpenergies in this case are the BCSqpenergies
   Qpenergies = BCSqps
 
+  ! Side effects, calculate the dispersion 
   call calcBCSdispersion(rho_can)
+
  end subroutine solvepairing_BCS
  
  subroutine CalcBCSGaps(fermi)
@@ -277,6 +279,35 @@ contains
       BCSdispersion  = 2 * BCSdispersion
 
    end subroutine calcBCSdispersion
+
+   function average_gap_BCS() result(gap)
+      !-------------------------------------------------------------------------
+      ! 
+      !-------------------------------------------------------------------------
+
+      real(KIND=dp) :: gap(2,2), norm(2,2), v2, uv
+      integer       :: it, wave
+
+      gap = 0 ; norm = 0
+      if(.not.allocated(Pcutoffs)) return      
+      do wave=1,nwt
+        it = 1
+        if(wave.gt.nwn) it = 2
+      
+        uv = 0.5 * BCSgaps(wave)/(BCSqps(wave))
+        v2 =       BCSoccupations(wave)
+
+        ! Note that the definition of the gaps include the cutoff factors. 
+        !  v^2 weighted 
+        gap(1,it) = gap(1,it)    + v2 * BCSgaps(wave) *  Pcutoffs(wave)
+        norm(1,it)= norm(1,it)   + v2                 *  Pcutoffs(wave)
+        ! uv weighted
+        gap(2,it) = gap(2,it)  + uv * BCSgaps(wave)   *  Pcutoffs(wave)
+        norm(2,it)= norm(2,it) + uv                   *  Pcutoffs(wave)
+      enddo
+      gap = gap/norm
+      
+   end function average_gap_BCS
 
 !===============================================================================
 !  Never to be used function to define an interface for delta_action
