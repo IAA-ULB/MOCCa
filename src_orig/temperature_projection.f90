@@ -42,7 +42,7 @@ contains
         case(1)
             call ProjectThermalBCS
         case(2)
-!            call ProjectThermalHFB
+            call ProjectThermalHFB
         end select
 
         call PrintThermalProjection
@@ -245,48 +245,97 @@ contains
       !-------------------------------------------------------------------------
       ! Note that this routine relies heavily on timereversal.
       !-------------------------------------------------------------------------
-      
-      complex*16              :: Iimag, phi, detM, detA
-      integer                 :: i,j,si,sb, B, N, info
-      real(KIND=dp)           :: Venergy
-
-      Iimag = cmplx(0, 1.0)
-      !-----------------------------------------------------------------------
+      integer                 :: i,j, it
+      real(KIND=dp)           :: Venergy, f, Eqp
+      real*16, allocatable    :: neutron_terms(:), proton_terms(:)
+      real*16                 :: avn, avp, Z(2)
+      !-------------------------------------------------------------------------
       ! We calculate first the unprojected partition function
       ! lnZ = -Beta * E_HF - beta * mu * <N> 
       partition = - inversetemp    *  totalE                                   & 
       &           + FermiEnergy(1) * neutrons                                  &
       &           + FermiEnergy(2) * protons                                   & 
       &           + sum(entropy)
-
-      !-----------------------------------------------------------------------
+      partition_tilde = - inversetemp    *  totalE  + sum(entropy)
+      !-------------------------------------------------------------------------
       ! We estimate <V>
+      !
+      ! <V>  = <H_HFB> - E
+      !      = sum_k>0 E^qp_k f_k - 1/2 * sum_k E^qp_k  
+      !                           + 1/2 * Tr (h - mu) - E
+      !                           + mu * N 
       Venergy = - totalE
       do i=1,nwt
-          Venergy = Venergy +  spenergies(i) * rho_can(i)
-      enddo
+          it = 1
+          if(i.gt.nwn) it = 2
 
-      
-      call HFBdeterminant(Bogoliubov(1:2*nwn,1:2*nwn),neutrons,HFBsizes(1:4),  &
-                                                              Qpenergies(1:nwn))
-   
+          !  All of the factors 2 are due to time-reversal
+          Eqp = qpenergies(i)
+          f  = 1.0/(1+exp(inversetemp*Eqp))
+          Venergy=Venergy+ 2*(Eqp*(f-0.5) + 0.5*(spenergies(i)-FermiEnergy(it)))                  
+      enddo
+      Venergy = Venergy + FermiEnergy(1) * neutrons + FermiEnergy(2) * protons
+
+      !-------------------------------------------------------------------------
+      neutron_terms = &
+      &        HFBdeterminant(Bogoliubov(      1:2*nwn,      1:2*nwn),neutrons,&
+      &                                        HFBsizes(1:4), Qpenergies(1:nwn))
+      proton_terms = &
+      &        HFBdeterminant(Bogoliubov(2*nwn+1:2*nwt,2*nwn+1:2*nwt),protons, &
+      &                                   HFBsizes(5:8),  Qpenergies(nwn+1:nwt))
+
+      !-------------------------------------------------------------------------
+      avn = sum(neutron_terms)/(2*nwn)
+      avp = sum(proton_terms)/(2*nwp)
+
+      neutron_terms = neutron_terms - avn
+      proton_terms  = proton_terms  - avp
+    
+      Z = 0
+      do i=1,2*nwn
+        Z(1) = Z(1) + (-1)**(i-1) * exp(neutron_terms(i))
+      enddo
+      do i=1,2*nwp
+        Z(2) = Z(2) + (-1)**(i-1) * exp(proton_terms(i))
+      enddo
+      print *, Z
+      Z(1) = log(Z(1)) + avn 
+      Z(2) = log(Z(2)) + avp
+      !-------------------------------------------------------------------------
+      do i=1,nwt
+        it = 1
+        if(i.gt. nwn) it = 2
+        Z(it) = Z(it) - inversetemp * (spenergies(i) - FermiEnergy(it)) 
+      enddo
+      !-------------------------------------------------------------------------      
+      Z(1) = Z(1) - inversetemp * FermiEnergy(1)*neutrons - log(2*nwn * 1.0)
+      Z(2) = Z(2) - inversetemp * FermiEnergy(2)*protons  - log(2*nwp * 1.0)
+
+      projectedpartition_nov = Z
+      projectedpartition     = sum(Z) + inversetemp * Venergy
+
     end subroutine ProjectThermalHFB
 
-    subroutine HFBdeterminant(Bogo, particles, blocks,Eqp )
+    function HFBdeterminant(Bogo, particles, blocks,Eqp) result(detMR)
         !-----------------------------------------------------------------------
         !
         !-----------------------------------------------------------------------
-
         real(KIND=dp), intent(in) :: Bogo(:,:), Eqp(:)
         real(KIND=dp), intent(in) :: particles
         real(KIND=dp)             :: phi
         integer, intent(in)       :: blocks(4)
 
-        complex*16, allocatable :: matrix(:,:), tau(:,:), work(:),detM(:)   
-        complex*16              ::  Iimag
- 
-        integer :: iphi, N, Ntotal, sb, si, B, info, i
-
+        !-----------------------------------------------------------------------
+        ! Attention: this routine does not operate at the full possible 
+        ! precision for complex numbers (complex*32). The reason is that 
+        ! Lapack does not provide a subroutine for the QR decomposition. 
+        ! Feeding larger precision complex numbers into LAPACK routines gives
+        ! nonsense results.
+        !-----------------------------------------------------------------------
+        complex*16, allocatable :: matrix(:,:), tau(:,:), work(:),detM(:)  
+        complex*16              :: Iimag
+        real*16, allocatable    :: detMR(:)
+        integer                 :: iphi, N, Ntotal, sb, si, B, info, i, it
 
         Iimag = cmplx(0, 1.0)
 
@@ -294,7 +343,6 @@ contains
         allocate(detM(2*Ntotal)) ; detM = 0
 
         do iphi=1,2*Ntotal
-
           sb = 0 ; si = 0
           phi = pi * (iphi - 1)/Ntotal
 
@@ -312,8 +360,8 @@ contains
               matrix(i+N,i+N) = exp( Iimag * phi)
             enddo
 
-            matrix = matmul( matrix, transpose(Bogo(sb+1:sb+2*N, sb+1:sb+2*N))) 
-            matrix = matmul( Bogo(sb+1:sb+2*N, sb+1:sb+2*N), matrix)
+            matrix = matmul(           matrix,(Bogo(sb+1:sb+2*N, sb+1:sb+2*N))) 
+            matrix = matmul(transpose(Bogo(sb+1:sb+2*N, sb+1:sb+2*N)), matrix)
 
             do i=1,N
               ! M = W^dagger e^{-i phi N} W + e^{-\beta E}
@@ -324,24 +372,28 @@ contains
             !-------------------------------------------------------------------
             !  Performing a QR decomposition
             allocate(tau(2*N,2*N), work(4*N)) 
-
             call ZGEQRF(2*N, 2*N, matrix, 2*N, tau, work, 4*N,info)
 
-            do i=1,2*N
-              detM(iphi) = detM(iphi) + log((-1)**(iphi) * matrix(i,i))
-            enddo
+            if(info.ne.0) then
+              print *, 'ZGERQF failed. Error=' , info
+              stop
+            endif
 
+            ! Logarithm of the determinant
+            do i=1,2*N
+              detM(iphi) = detM(iphi) + log(matrix(i,i))
+            enddo
             deallocate(matrix, work, tau)
             sb = sb + 2*N
             si = si +   N
           enddo
           detM(iphi) = detM(iphi) - Iimag * phi * particles
-          print *, phi, detM(iphi)
         enddo
-        print *, sum(detM)
         !-----------------------------------------------------------------------
+        allocate(detMR(2*Ntotal))
+        detMR = DBLE(detM)
 
-    end subroutine HFBdeterminant
+    end function HFBdeterminant
 
     subroutine PrintThermalProjection
         !-----------------------------------------------------------------------
