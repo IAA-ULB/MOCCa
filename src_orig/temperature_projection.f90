@@ -14,6 +14,7 @@ use BCS
 use pairing
 use functional
 use wavefunctions
+use moments
 
 implicit none
 
@@ -59,7 +60,9 @@ contains
         complex*32              :: fac, Iimag, temp
 
         integer :: iphi, wave, i, it
-        real*16 :: u, v, eqp, Z(2), phi, Venergy, avn, avp, f
+        real*16 :: u, v, eqp, Z(2), phi, Venergy, avn, avp, f, constraints
+
+        type(moment), pointer   :: current
 
         !-----------------------------------------------------------------------
         ! We estimate <V>
@@ -68,6 +71,9 @@ contains
         !      = sum_k>0 E^qp_k f_k - 1/2 * sum_k E^qp_k  
         !                           + 1/2 * Tr (h - mu) - E
         !                           + mu * N 
+        !                           
+        ! Missing: contribution of constraints
+        !-----------------------------------------------------------------------
         Venergy = - totalE
         do i=1,nwt
             it = 1
@@ -79,6 +85,17 @@ contains
             &                 + 2.0 * 0.5 * (spenergies(i) - FermiEnergy(it))                  
         enddo
         Venergy = Venergy + FermiEnergy(1) * neutrons + FermiEnergy(2) * protons
+  
+        constraints = 0
+        Current =>Root
+        do while(associated(Current%next)) 
+            Current => Current%next
+            if(Current%constrainttype .ne.0) then
+              constraints = constraints + Current%multiplier*sum(Current%value)
+            endif
+        enddo
+
+        Venergy = Venergy + constraints
 
         Iimag = dcmplx(0,1.0)  
         !-----------------------------------------------------------------------
@@ -87,9 +104,9 @@ contains
         partition = - inversetemp    *  totalE                                 & 
         &           + FermiEnergy(1) * neutrons                                &
         &           + FermiEnergy(2) * protons                                 & 
-        &           + sum(entropy)
+        &           + sum(entropy)   + constraints
 
-        partition_tilde = - inversetemp    *  totalE   + sum(entropy)
+        partition_tilde = - inversetemp * totalE   + sum(entropy) + constraints
         !-----------------------------------------------------------------------
         ! Neutrons
         allocate(xi(2*nwn)) ; xi =0.0
@@ -172,27 +189,38 @@ contains
     
         integer          :: i, iphi, wave
         complex*32       :: terms_n(2*nwn), terms_p(2*nwp)
-        real*16          :: Venergy, fac, Z(2), avn, avp
+        real*16          :: Venergy, fac, Z(2), avn, avp, constraints
         complex*32       :: temp, Iimag
         complex*32       ::  phi
+        type(moment), pointer  :: Current
 
         Iimag = dcmplx(0,1.0)
-        
+
+        constraints = 0
+        Current =>Root
+        do while(associated(Current%next)) 
+            Current => Current%next
+            if(Current%constrainttype .ne.0) then
+              constraints = constraints + Current%multiplier*sum(Current%value)
+            endif
+        enddo
         !-----------------------------------------------------------------------
         ! We calculate first the unprojected partition function
         ! lnZ = -Beta * E_HF - beta * mu * <N> 
         partition = - inversetemp    *  totalE                                 & 
         &           + FermiEnergy(1) * neutrons                                &
         &           + FermiEnergy(2) * protons                                 & 
-        &           + sum(entropy)
+        &           + sum(entropy) + constraints
 
-        partition_tilde = - inversetemp    *  totalE  + sum(entropy)
+        partition_tilde = - inversetemp    *  totalE  + sum(entropy)           &
+        &                                             + constraints
         !-----------------------------------------------------------------------
         ! We estimate <V>
         Venergy = - totalE
         do i=1,nwt
             Venergy = Venergy +  spenergies(i) * rho_can(i)
         enddo
+        Venergy = Venergy + constraints
 
         Z = 0
         !-----------------------------------------------------------------------       
