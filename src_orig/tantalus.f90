@@ -161,7 +161,8 @@ subroutine ReachForWaterAndFood
     use coulombmod
     use pairing 
     use printing
-    use temperature_projection    
+    use temperature_projection
+    use momentsofinertia    
 
     implicit none
 
@@ -288,6 +289,7 @@ subroutine ReachForWaterAndFood
             call PrintSpwfs
             call PrintQps
             call printallmoments
+            call PrintMomentsofIntertia
             call printpairing
             call PrintEnergy           
         else

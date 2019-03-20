@@ -27,7 +27,9 @@ $PARAMDECL
     !---------------------------------------------------------------------------
     real(KIND=dp) :: hbm(2)         = 20.73551910_dp 
     real(KIND=dp) :: nucleonmass(2) = (/939.565379_dp , 938.272046_dp /)
-
+    ! Hbar times the speed of light, in units of MeV fm
+    ! Only used for calculating moments of inertia
+    real(KIND=dp) :: hbarclum       = 197.32697_dp 
     !---------------------------------------------------------------------------  
     ! Treatment of the one-body COM correction.
     ! (0) not included
