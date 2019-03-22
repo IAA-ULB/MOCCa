@@ -89,7 +89,7 @@ contains
     &          '  Energy convergence           < ', e8.1, / & 
     &          '  Multipole moment convergence < ', e8.1, / &
     &          '  Dispersion convergence       < ', e8.1 )
-   13 format ( ' Inverse temperature Beta = ', f10.5)
+   13 format ( ' Inverse temperature Beta = ', f14.9)
 
     print *
     print 1
