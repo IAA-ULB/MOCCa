@@ -81,6 +81,7 @@ contains
     9 format ( '  nwt = ', i5, / &
     &          '  nwn = ', i5, / &
     &          '  nwp = ', i5 )
+   99 format ( '  Nilsson initialization with hom = (', 3(f7.3) ,')')
    10 format ( ' IO information', / &
     &          '  inputfilename  =', a20, / &
     &          '  outputfilename =', a20)
@@ -101,6 +102,8 @@ contains
     print 7 , neutrons, protons
     print 8
     print 9 , nwt,nwn,nwp
+    if(trim(to_upper(inputfilename)).eq.'INIT') print 99, osc_freq
+
     print 13, inversetemp
     print 10, inputfilename, outputfilename
     if(BXLFIT .ne. '') then

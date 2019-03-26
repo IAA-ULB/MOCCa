@@ -147,6 +147,7 @@ contains
 
     !---------------------------------------------------------------------------
     ! Calculate the HF dispersion
+    !  DN = 2  Tr (rho (1-rho))
     !---------------------------------------------------------------------------
     HFdispersion = 0.0
     do i=1,nwt
@@ -159,8 +160,10 @@ contains
         HFdispersion(it) = HFdispersion(it) +                                  &
         &                            occupations(i)/2.0 * (1-occupations(i)/2.0)
     enddo
+    ! Factor of two from the formula
     HFdispersion = 2 * HFDispersion
-
+    ! Factor two for time-reversal
+    HFdispersion = 2 * HFDispersion
   end subroutine FiniteTemperatureHF
 
   function FToccupations(mu, energies) result (N)

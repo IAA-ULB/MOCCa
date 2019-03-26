@@ -177,8 +177,6 @@ contains
   
         projectedpartition_nov = Z
         projectedpartition     = sum(Z) + inversetemp * Venergy
-        
-        print *, 'V', Venergy
 
     end subroutine ProjectThermalBCS    
 
@@ -264,8 +262,6 @@ contains
 
         projectedpartition_nov = Z
         projectedpartition     = sum(Z) + inversetemp * Venergy
-  
-        print *, 'V', Venergy
 
     end subroutine ProjectThermalHartreeFock
     
@@ -326,7 +322,6 @@ contains
       do i=1,2*nwp
         Z(2) = Z(2) + (-1)**(i-1) * exp(proton_terms(i))
       enddo
-      print *, Z
       Z(1) = log(Z(1)) + avn 
       Z(2) = log(Z(2)) + avp
       !-------------------------------------------------------------------------

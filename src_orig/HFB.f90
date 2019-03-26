@@ -236,6 +236,8 @@ module HFB
       si = si + N
     enddo
     deallocate(chi)
+    ! Factor 2 from the formula
+    HFBdispersion = 2 * HFBdispersion 
     ! Time-reversal introduces a factor of two
 $TR    HFBdispersion = 2 * HFBdispersion 
 
@@ -552,8 +554,9 @@ $TR     particles = 2 * particles
           lambda = lambda + 0.1
           df     =          0.1
         else
-          df     = -dn(1) * df/(dn(1) - dn(2))
-          if(abs(df).gt.1.0) df = 0.5 * df/abs(df)
+          df     = - dn(1) * df/(dn(1) - dn(2))
+
+          if(abs(df).gt.1.0) df = 0.1 * df/abs(df)
           lambda = lambda + df
         endif
       enddo

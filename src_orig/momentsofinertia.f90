@@ -6,7 +6,7 @@ module momentsofinertia
 
   implicit none
 
-  real(KIND=dp) :: Belyaev(3,3), Rigid(3,3)
+  real(KIND=dp) :: Belyaev(3,3), Rigid(3,3), J2(3,3)
 
 contains
 
@@ -60,9 +60,304 @@ contains
 
   end subroutine calcrigid
 
-  subroutine calcBelyaev()
-    
-  end subroutine calcBelyaev
+!  subroutine calcBelyaev()
+!    !---------------------------------------------------------------------------
+!    ! Calculate the Belyaev moment of inertia in the many-body state.
+!    !
+!    ! Full expressions for the BCS case at finite temperature can be found in
+!    ! 
+!    !   Y. Alhassid et al., Phys. Rev. C 72, 064326 (2005).
+!    !  
+!    ! This formula is NOT valid when time-reversal is broken.
+!    ! 
+!    ! I repeat it here
+!    !  
+!    ! I_ij = sum[k,l>0] ME_{kl} * weight_{kl}
+!    ! 
+!    ! where    
+!    !
+!    !      ME_{kl} = < k|j_i| l> < l|j_j| k>  + < l|j_i| k> < k|j_j| l>
+!    !              + < k|j_i|-l> <-l|j_j| k>  + <-k|j_i| l> < l|j_j|-k>
+!    ! 
+!    !
+!    !---------------------------------------------------------------------------
+!    ! Attention: ONLY WORKS IN EV8 mode at the moment. 
+!    !---------------------------------------------------------------------------
+
+!      integer       :: i,j,it, nw, b, si, ii,jj
+!      real(KIND=dp) :: ME_R, ME_I, ME, DE, fac
+
+!      real(kind=dp) :: psi(mv,4), dpsi(mv,3,4), phi(mv,4), dphi(mv,3,4)
+
+!      Belyaev = 0
+
+!      select case(PairingType)
+!      case(0)
+!        ! This is the Hartree-fock case, the moment of inertia reduces to the 
+!        ! Inglis formula.
+!        si =0
+!        do b = 1, Blocks 
+!          do i = 1, HFBlocks(b)
+!            ii = i + si
+
+!            it = 1
+!            if(ii .gt. nwn) it = 2
+
+!            do j = 1, HFblocks(b)
+!              jj = j + si
+
+!              dE  = spenergies(jj) - spenergies(ii)
+!              fac = ((1 - rho_can(jj)/2.) * rho_can(ii)/2. - &
+!              &      (1 - rho_can(ii)/2.) * rho_can(jj)/2.)**2
+!          
+!              ! Only positive quasiparticle excitations count
+!              if(dE .lt. 1d-12) cycle              
+
+!              ! J_x is perfectly anti-block-diagonal in EV8 symmetries, hence 
+!              ! the extra T. Also, when simplexes are conserved, it is real.
+!              ME_R = angmom_xt_real(HFPsi(:,:,ii),HFPsi(:,:,jj),HFDPsi(:,:,:,jj))
+!              ME_I = 0
+
+!              ME = ME_R**2 + ME_I**2
+!              Belyaev(1,it) = Belyaev(1,it) + fac*ME/dE
+! 
+!              ! J_y is perfectly anti-block-diagonal in EV8 symmetries, hence 
+!              ! the extra T. Also, when simplexes are conserved, it is real.
+!              ME_R = 0 
+!              ME_I = angmom_yt_imag(HFPsi(:,:,ii),HFPsi(:,:,jj),HFDPsi(:,:,:,jj))
+
+!              ME = ME_R**2 + ME_I**2
+!              Belyaev(2,it) = Belyaev(2,it) + fac*ME/dE
+
+!              ! J_z is perfectly block-diagonal in EV8 symmetries, and its 
+!              ! matrix elements are real when any time-simplex is conserved.
+!              ME_R = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,jj),HFDPsi(:,:,:,jj))
+!              ME_I = 0
+
+!              ME = ME_R**2 + ME_I**2
+!              Belyaev(3,it) = Belyaev(3,it) + fac*ME/dE
+
+!            enddo
+!          enddo
+!          si = si + hfblocks(b)
+!        enddo
+!      case(1)
+!        !-----------------------------------------------------------------------
+!        ! The BCS case, the reference basis is the HF basis.
+!        !-----------------------------------------------------------------------
+!        si =0
+!        do b = 1, Blocks 
+!         do i = 1, HFBlocks(b)
+!          ii = i + si
+!          it = 1
+!          if(ii .gt. nwn) it = 2
+!          do j = 1, HFblocks(b)
+!              jj = j + si
+!  
+!              dE  = BCSqps(jj) + BCSqps(ii)
+!              fac = ((1 - rho_can(jj)/2.) * rho_can(ii)/2. - &
+!              &      (1 - rho_can(ii)/2.) * rho_can(jj)/2.)**2
+!          
+!              ! J_x is perfectly anti-block-diagonal in EV8 symmetries, hence 
+!              ! the extra T. Also, when simplexes are conserved, it is real.
+!              ME_R = angmom_xt_real(HFPsi(:,:,ii),HFPsi(:,:,jj),HFDPsi(:,:,:,jj))
+!              ME_I = 0
+
+!              ME = ME_R**2 + ME_I**2
+!              Belyaev(1,it) = Belyaev(1,it) + fac*ME/dE
+! 
+!              ! J_y is perfectly anti-block-diagonal in EV8 symmetries, hence 
+!              ! the extra T. Also, when simplexes are conserved, it is real.
+!              ME_R = 0 
+!              ME_I = angmom_yt_imag(HFPsi(:,:,ii),HFPsi(:,:,jj),HFDPsi(:,:,:,jj))
+
+!              ME = ME_R**2 + ME_I**2
+!              Belyaev(2,it) = Belyaev(2,it) + fac*ME/dE
+
+!              ! J_z is perfectly block-diagonal in EV8 symmetries, and its 
+!              ! matrix elements are real when any time-simplex is conserved.
+!              ME_R = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,jj),HFDPsi(:,:,:,jj))
+!              ME_I = 0
+
+!              ME = ME_R**2 + ME_I**2
+!              Belyaev(3,it) = Belyaev(3,it) + fac*ME/dE
+!          enddo
+!         enddo
+!         si = si + HFBlocks(b)
+!        enddo
+!      case(2)
+!        ! Belyaev formula not implemented yet for HFB.
+!!        stop
+!      end select
+!     ! One factor of 2 from the formula
+!     ! An extra factor of two for time-reversal 
+!      Belyaev(:,1:2) = 4 * Belyaev(:,1:2)
+!      Belyaev(:,3) = sum(Belyaev(:,1:2),2)
+!  end subroutine calcBelyaev
+
+  subroutine calcJ2andBelyaev
+    !---------------------------------------------------------------------------
+    ! Calculate the expectation value of J^2_mu in the many-body state, as well
+    ! as the Belyaev moment of inertia. 
+    ! 
+    ! Full expressions for both, in the BCS case at finite temperature 
+    ! can be found in
+    ! 
+    !   Y. Alhassid et al., Phys. Rev. C 72, 064326 (2005).
+    !
+    ! This formula is NOT valid when time-reversal is broken.
+    ! 
+    !  <J_i J_j> = sum_[ kl > 0 ]  ME_{kl} * weight_{kl}
+    !    I_ij    = sum_[ kl > 0 ]  ME_{kl} * weight^B_{kl}
+    !   
+    ! where
+    !      ME_{kl} = < k|j_i| l> < l|j_j| k>  + < l|j_i| k> < k|j_j| l>
+    !              + < k|j_i|-l> <-l|j_j| k>  + <-k|j_i| l> < l|j_j|-k>
+    !    
+    ! and
+    ! 
+    !     weight_{kl}  = [u^2_k u_l^2 + u_k v_k u_l v_l] * f_k (1-f_l)     (a)
+    !                  + [v^2_k v_l^2 + u_k v_k u_l v_l] * (1-f_k) f_l     (b)
+    !                  + [u_k^2 v_l^2 - u_k v_k u_l v_l] * f_k f_l         (c)
+    !                  + [v_k^2 u_l^2 - u_k v_k u_l v_l] * (1-f_k) (1-f_l) (d)
+    !
+    !
+    !    weight^B_{kl} = (u_k u_l + v_k v_l)**2 * (f_l - f_k)/(E_k - E_l)  (Ba)
+    !                  + (u_k v_l - v_k u_l)**2 * (1-f_k-f_l)/(E_k + E_l)  (Bb)
+    !
+    ! with the additional caveat that 
+    !
+    !   (f_l - f_k)/(E_k - E_l) => - df_k/dE_k as E_k => E_l
+    !   
+    !
+    ! - df_k/dE_k = beta exp(beta * E_k)* f_k^2
+    !
+    ! Due to conserved signature and time-simplexes, the only matrix elements
+    ! that enter the calculation of ME_{kl} are of the form
+    !
+    !     < i | J_mu^2 | j > 
+    !  Re < i | J_x T  | j > 
+    !  Im < i | J_y T  | j >
+    !  Re < i | J_z    | j > 
+    !---------------------------------------------------------------------------
+    ! Mental note to self.
+    ! - - - - - - - - - - - -
+    ! This routine has been checked
+    !  *) Belyaev & J2 are close to values produced by EV8 for Zr84, 
+    !     though not identical due to the difference in derivatives.
+    !  *) BCS formulas and HF formulas agree
+    !       a) when the pairing strength is set to zero, at zero temperature
+    !       b) at high temperature after the pairing phase transition 
+    !  *) Both HF and BCS formulas tend towards the zero temperature value as   
+    !     beta gets increased.
+    !  *) The formulas correctly produce 0 for spherical configurations at
+    !     zero temperature.
+    !---------------------------------------------------------------------------
+    integer       :: i,j, b, it, ii, jj, si
+    real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj
+    real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde
+
+    J2 = 0  ;  Belyaev = 0
+    if(PairingType .eq. 2) return ! The routine is not made for HFB yet.
+
+    si = 0
+    do b = 1, Blocks 
+      do i=1, HFBlocks(b)
+        ii = si + i
+        it = 1
+        if(ii.gt.nwn) it = 2
+        do j=1,HFblocks(b)
+          jj = si + j
+        
+          ! |< k | j_x | -l >|^2  
+          ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2 
+          ! |< k | j_y | -l >|^2 
+          ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+          ! |< k | j_z |  l >|^2 
+          ME(3)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+
+          ! The factor two is because of the presence of the four terms in 
+          ! ME_{kl}, which are pair-wise equal when J_i = J_j.
+          ME = 2 * ME 
+
+          select case (PairingType)
+          case(0) 
+            ! HF ---------------------------------------------------------------
+            fi = rho_can(ii)/2. ; fj = rho_can(jj)/2.
+ 
+            J2(:,it) = J2(:,it) + ME * fi*(1-fj)
+
+            if(inversetemp.eq.-1) then
+              dfdE = fj - fi
+              if(abs(dfdE).gt.0) then
+                  dfdE = dfdE/(spenergies(ii) - spenergies(jj))
+              endif
+            else
+              if(abs(spenergies(ii) - spenergies(jj)).gt.1d-8) then
+                dfdE = (fj - fi)/(spenergies(ii) - spenergies(jj))
+              else                
+                dfdE = fi**2 * inversetemp                                     &
+                &            * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
+              endif
+            endif
+
+            Belyaev(:,it) = Belyaev(:,it) + ME * dfde
+          case(1)
+            ! BCS --------------------------------------------------------------
+            vi = BCSOccupations(ii)/2. ; vj = BCSOccupations(jj)/2.
+            ui = 1 - vi                ; uj = 1 - vj
+            fi = BCSf(ii)              ; fj = BCSf(jj)
+            uvi = ui*vi                ; uvj = uj*vj         
+
+            ! Take the square root, but take care for numerical errors producing 
+            ! small negative numbers.
+            if(uvi .gt. 0) then
+              uvi = sqrt(uvi) 
+            else
+              uvi = 0
+            endif
+            if(uvj .gt. 0) then
+               uvj = sqrt(uvj)
+            else
+               uvj = 0
+            endif
+
+            !-------------------------------------------------------------------
+            ! <J^2>
+            ! [u^2_k u_l^2 + u_k v_k u_l v_l] * f_k (1-f_l)                  (a)
+            wa = (ui*uj + uvi*uvj) * fi * (1-fj)
+            ! [v^2_k v_l^2 + u_k v_k u_l v_l] * (1-f_k) f_l                  (b)
+            wb = (vi*vj + uvi*uvj) * (1-fi) * fj
+            ! [u_k^2 v_l^2 - u_k v_k u_l v_l] * f_k f_l                      (c)
+            wc = (ui*vj - uvi*uvj) * fi * fj
+            ! [v_k^2 u_l^2 - u_k v_k u_l v_l] * (1-f_k) (1-f_l)              (d)
+            wd = (vi*uj - uvi*uvj) * (1-fi) *(1-fj)
+  
+            J2(:,it) = J2(:,it) + ME * (wa+wb+wc+wd)
+            !-------------------------------------------------------------------
+            ! I_xx, I_yy and I_zz
+            if(abs(BCSqps(ii) - BCSqps(jj)).gt.1d-5) then            
+              dfde = (fj - fi)/(BCSqps(ii) - BCSqps(jj))
+            else
+              ! beta exp(beta * E_k)* f_k^2
+              dfde = inversetemp * exp(inversetemp*BCSqps(ii)) * fi**2
+            endif
+            ! (u_k u_l + v_k v_l)**2 * (f_l - f_k)/(E_k - E_l)  (Ba)
+            Ba = (ui*uj + vi*vj + 2*uvi*uvj) * dfdE 
+            
+            dfdE = (1 - fi - fj)/(BCSqps(ii) + BCSqps(jj))
+            ! (u_k v_l - v_k u_l)**2 * (1-f_k-f_l)/(E_k + E_l)  (Bb)
+            Bb = (ui*vj + uj*vi - 2*uvi*uvj) * dfde
+      
+            Belyaev(:,it) =  Belyaev(:,it) + ME * (Ba + Bb)
+          end select
+        enddo
+      enddo
+      si = si + HFBlocks(b)
+    enddo
+    !  Sum for the total
+    J2(:,3) = sum(J2(:,1:2),2) ; Belyaev(:,3) = sum(Belyaev(:,1:2),2)
+  end subroutine calcJ2andBelyaev
 
   subroutine PrintMomentsofIntertia()
     !---------------------------------------------------------------------------
@@ -78,10 +373,15 @@ contains
     8 format (' I_B X ', 3f15.7)
     9 format (' I_B Y ', 3f15.7)
    10 format (' I_B Z ', 3f15.7)
+   11 format ('                 J^2        (hbar^2)')
+   12 format (' J2_X  ', 3f15.7)
+   13 format (' J2_Y  ', 3f15.7)
+   14 format (' J2_Z  ', 3f15.7)
+   15 format (' J2_t  ', 3f15.7)
   100 format (60('-'))
 
-    call calcrigid()
-    call calcBelyaev    
+    call calcrigid()  
+    call calcJ2andBelyaev
 
     print 1
     print 2
@@ -89,12 +389,19 @@ contains
     print 4, Rigid(1,:)
     print 5, Rigid(2,:)
     print 6, Rigid(3,:)
+    print *
     print 7
     print 3
     print  8, Belyaev(1,:)
     print  9, Belyaev(2,:)
     print 10, Belyaev(3,:)
+    print *
+    print 11
+    print 12, J2(1,:)
+    print 13, J2(2,:)
+    print 14, J2(3,:) 
+    print 15, sum(J2,1)
     print 100
-  
+
   end subroutine PrintMomentsofIntertia
 end module momentsofinertia

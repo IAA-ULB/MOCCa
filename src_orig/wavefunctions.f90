@@ -23,6 +23,7 @@ module wavefunctions
  !==============================================================================
  use compilation
  use derivatives
+ use geninfo
  use nil8
  
  implicit none
@@ -81,6 +82,11 @@ module wavefunctions
  ! Properties of the single-particle wave-functions with regard to reflections
  ! of the axes.
  integer, allocatable :: sx(:,:), sy(:,:), sz(:,:)
+ !------------------------------------------------------------------------------
+ ! Oscillator frequencies to use for the initialization with a Nilsson  
+ ! hamiltonian.
+ real(KIND=dp) :: osc_freq(3) = 0.2
+
 contains 
 
   subroutine ReadWFdata
@@ -88,7 +94,7 @@ contains
     ! Read the number of single-particle neutron and proton wave-functions.
     !
     !
-    namelist /wfs/ nwn, nwp
+    namelist /wfs/ nwn, nwp, osc_freq
 
     read(unit=*, nml = wfs)
 
@@ -125,8 +131,8 @@ contains
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
-    call nilsson (HFPsi,kparz,spenergies,7,6,nwt,nwp,nwn,                      &
-    &           floor(neutrons),floor(protons),nx,ny,nz,dx,0.2d0,0.2d0,0.2d0)
+    call nilsson (HFPsi,kparz,spenergies,6,5,nwt,nwp,nwn,                      &
+    &           floor(neutrons),floor(protons),nx,ny,nz,dx,osc_freq)
     allocate(dispersions(nwt))
     allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
     
@@ -206,8 +212,9 @@ contains
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
 
+!    HFPsi = HFPsi*sqrt(2.)
     ! Simply because I distrust the nilsson routine
-    call GramSchmidt
+!    call GramSchmidt
     
   end subroutine iniwavefunctions
   
@@ -448,4 +455,525 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     
   end function TimeReverse
   
+  function angmom_x_real(wf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     Re < wf2 | j_x | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_x = 1/2*( 0  1 ) + i z \partial_y - i y\partial_z
+    !                 ( 1  0 )
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
+    integer                   :: i,j  
+    real(KIND=dp)             :: angmom
+
+    angmom = 0    
+
+    do i=1,mv
+      ! Spin part
+      angmom = angmom       + 0.5*(  wf2(i,1) * wf1(i,3)                       &
+      &                            + wf2(i,2) * wf1(i,4)                       & 
+      &                            + wf2(i,3) * wf1(i,1)                       &
+      &                            + wf2(i,4) * wf1(i,2))                        
+      ! Orbital part
+      angmom = angmom &
+      &           + wf2(i,2) * meshgrid(i,3) * dwf1(i,2,1)                     &
+      &           - wf2(i,2) * meshgrid(i,2) * dwf1(i,3,1)                     &
+      !
+      &           - wf2(i,1) * meshgrid(i,3) * dwf1(i,2,2)                     &
+      &           + wf2(i,1) * meshgrid(i,2) * dwf1(i,3,2)                     &
+      !
+      &           + wf2(i,4) * meshgrid(i,3) * dwf1(i,2,3)                     &
+      &           - wf2(i,4) * meshgrid(i,2) * dwf1(i,3,3)                     &
+      !
+      &           - wf2(i,3) * meshgrid(i,3) * dwf1(i,2,4)                     &
+      &           + wf2(i,3) * meshgrid(i,2) * dwf1(i,3,4)
+    enddo
+    angmom = angmom * dv
+
+  end function angmom_x_real
+
+  function angmom_x_imag(wf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !    Im < wf2 | j_x | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_x = 1/2*( 0  1 ) + i z \partial_y - i y\partial_z
+    !                 ( 1  0 )
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
+    integer                   :: i,j  
+    real(KIND=dp)             :: angmom
+
+    angmom = 0    
+
+    do i=1,mv
+      ! Spin part
+      angmom = angmom       + 0.5*(  wf2(i,1) * wf1(i,4)                       &
+      &                            - wf2(i,2) * wf1(i,3)                       & 
+      &                            + wf2(i,3) * wf1(i,1)                       &
+      &                            - wf2(i,4) * wf1(i,2))                        
+      ! Orbital part
+      angmom = angmom &
+      &           + wf2(i,1) * meshgrid(i,3) * dwf1(i,2,1)                     &
+      &           - wf2(i,1) * meshgrid(i,2) * dwf1(i,3,1)                     &
+      !
+      &           + wf2(i,2) * meshgrid(i,3) * dwf1(i,2,2)                     &
+      &           - wf2(i,2) * meshgrid(i,2) * dwf1(i,3,2)                     &
+      !
+      &           + wf2(i,3) * meshgrid(i,3) * dwf1(i,2,3)                     &
+      &           - wf2(i,3) * meshgrid(i,2) * dwf1(i,3,3)                     &
+      !
+      &           + wf2(i,4) * meshgrid(i,3) * dwf1(i,2,4)                     &
+      &           - wf2(i,4) * meshgrid(i,2) * dwf1(i,3,4)
+    enddo
+    angmom = angmom * dv
+
+  end function angmom_x_imag
+
+  function angmom_xt_real(wf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     < wf2 | j_x T | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_x = 1/2*( 0  1 ) + i z \partial_y - i y\partial_z
+    !                 ( 1  0 )
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:)
+    integer                   :: i,j  
+    real(KIND=dp)             :: angmom
+
+    angmom = 0    
+    do i=1,mv
+      ! Spin part
+      angmom = angmom       + 0.5*(- wf2(i,1) * wf1(i,1)                       &
+      &                            + wf2(i,2) * wf1(i,2)                       & 
+      &                            + wf2(i,3) * wf1(i,3)                       &
+      &                            - wf2(i,4) * wf1(i,4))                        
+      ! Orbital part
+      angmom = angmom &
+      &           + wf2(i,2) * meshgrid(i,3) * dwf1(i,2,3)                     &
+      &           - wf2(i,2) * meshgrid(i,2) * dwf1(i,3,3)                     &
+      !
+      &           + wf2(i,1) * meshgrid(i,3) * dwf1(i,2,4)                     &
+      &           - wf2(i,1) * meshgrid(i,2) * dwf1(i,3,4)                     &
+      !
+      &           - wf2(i,4) * meshgrid(i,3) * dwf1(i,2,1)                     &
+      &           + wf2(i,4) * meshgrid(i,2) * dwf1(i,3,1)                     &
+      !
+      &           - wf2(i,3) * meshgrid(i,3) * dwf1(i,2,2)                     &
+      &           + wf2(i,3) * meshgrid(i,2) * dwf1(i,3,2)
+    enddo
+    angmom = angmom * dv
+  end function angmom_xt_real
+
+  function angmom_x_quad(wf2, dwf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     < wf2 | j^\dagger_x j_x | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_x = 1/2*( 0  1 ) + i z \partial_y - i y\partial_z
+    !                 ( 1  0 )
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:), dwf2(:,:,:)
+    integer                   :: i,j  
+    real(KIND=dp)             :: angmom, l1,l2,l3,l4, r1,r2,r3,r4
+
+    angmom = 0    
+    do i=1,mv
+
+       ! Action of J_x to the right
+       r1 = - meshgrid(i,3)* dwf1(i,2,2) + meshgrid(i,2)* dwf1(i,3,2)          & 
+       &    + 0.5_dp       * wf1(i,3)
+       r2 = + meshgrid(i,3)* dwf1(i,2,1) - meshgrid(i,2)* dwf1(i,3,1)          & 
+       &    + 0.5_dp       * wf1(i,4)
+       r3 = - meshgrid(i,3)* dwf1(i,2,4) + meshgrid(i,2)* dwf1(i,3,4)          & 
+       &    + 0.5_dp       * wf1(i,1)
+       r4 = + meshgrid(i,3)* dwf1(i,2,3) - meshgrid(i,2)* dwf1(i,3,3)          & 
+       &    + 0.5_dp       * wf1(i,2)
+            
+       ! Action of J_x to the left
+       l1 = - meshgrid(i,3)* dwf2(i,2,2) + meshgrid(i,2)* dwf2(i,3,2)          & 
+       &    + 0.5_dp       * wf2(i,3)
+       l2 = + meshgrid(i,3)* dwf2(i,2,1) - meshgrid(i,2)* dwf2(i,3,1)          & 
+       &    + 0.5_dp       * wf2(i,4)
+       l3 = - meshgrid(i,3)* dwf2(i,2,4) + meshgrid(i,2)* dwf2(i,3,4)          & 
+       &    + 0.5_dp       * wf2(i,1)
+       l4 = + meshgrid(i,3)* dwf2(i,2,3) - meshgrid(i,2)* dwf2(i,3,3)          & 
+       &    + 0.5_dp       * wf2(i,2)
+            
+        angmom = angmom + l1*r1 + l2*r2 + l3*r3 + l4*r4
+    enddo
+    angmom = angmom * dv
+  end function angmom_x_quad
+
+  function angmom_y_real(wf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     Re < wf2 | j_y | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_z = 1/2*( 0 -i ) + i x \partial_z - i z\partial_x
+    !                 ( i  0 )
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
+    integer                   :: i,j  
+    real(KIND=dp)             :: angmom
+
+    angmom = 0
+    do i=1,mv
+      ! Spin part
+      angmom = angmom       + 0.5*(  wf2(i,1) * wf1(i,4)                       &
+      &                            - wf2(i,2) * wf1(i,3)                       & 
+      &                            - wf2(i,3) * wf1(i,2)                       &
+      &                            + wf2(i,4) * wf1(i,1))                        
+      ! Orbital part
+      angmom = angmom                                                          &
+      &           + wf2(i,2) * meshgrid(i,1) * dwf1(i,3,1)                     &
+      &           - wf2(i,2) * meshgrid(i,3) * dwf1(i,1,1)                     &
+      !
+      &           - wf2(i,1) * meshgrid(i,1) * dwf1(i,3,2)                     &
+      &           + wf2(i,1) * meshgrid(i,3) * dwf1(i,1,2)                     &
+      !
+      &           + wf2(i,4) * meshgrid(i,1) * dwf1(i,3,3)                     &
+      &           - wf2(i,4) * meshgrid(i,3) * dwf1(i,1,3)                     &
+      !
+      &           - wf2(i,3) * meshgrid(i,1) * dwf1(i,3,4)                     &
+      &           + wf2(i,3) * meshgrid(i,3) * dwf1(i,1,4) 
+     !-------------------------------------------------------------------------
+    enddo
+    angmom = angmom * dv
+
+  end function angmom_y_real
+
+  function angmom_y_imag(wf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     Im < wf2 | j_y | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_z = 1/2*( 0 -i ) + i x \partial_z - i z\partial_x
+    !                 ( i  0 )
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
+    integer                   :: i,j  
+    real(KIND=dp)             :: angmom
+
+    angmom = 0
+    do i=1,mv
+      ! Spin part
+      angmom = angmom       + 0.5*(  wf2(i,1) * wf1(i,4)                       &
+      &                            - wf2(i,2) * wf1(i,3)                       & 
+      &                            + wf2(i,3) * wf1(i,1)                       &
+      &                            - wf2(i,4) * wf1(i,2))                        
+      ! Orbital part
+      angmom = angmom &
+      &           + wf2(i,1) * meshgrid(i,3) * dwf1(i,2,1)                     &
+      &           - wf2(i,1) * meshgrid(i,2) * dwf1(i,3,1)                     &
+      !
+      &           + wf2(i,2) * meshgrid(i,3) * dwf1(i,2,2)                     &
+      &           - wf2(i,2) * meshgrid(i,2) * dwf1(i,3,2)                     &
+      !
+      &           + wf2(i,3) * meshgrid(i,3) * dwf1(i,2,3)                     &
+      &           - wf2(i,3) * meshgrid(i,2) * dwf1(i,3,3)                     &
+      !
+      &           + wf2(i,4) * meshgrid(i,3) * dwf1(i,2,4)                     &
+      &           - wf2(i,4) * meshgrid(i,2) * dwf1(i,3,4)
+    enddo
+    angmom = angmom * dv
+
+  end function angmom_y_imag
+
+  function angmom_yt_imag(wf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     < wf2 | j_yT | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_y = 1/2*( 0 -i ) + i x \partial_z - i z\partial_x
+    !                 ( i  0 )
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
+    integer                   :: i,j  
+    real(KIND=dp)             :: angmom
+
+    angmom = 0
+    do i=1,mv
+      ! Spin part
+      angmom = angmom       + 0.5*(- wf2(i,1) * wf1(i,1)                       &
+      &                            + wf2(i,2) * wf1(i,2)                       & 
+      &                            - wf2(i,3) * wf1(i,3)                       &
+      &                            + wf2(i,4) * wf1(i,4))                        
+      ! Orbital part
+      angmom = angmom                                                          &
+      &           + wf2(i,1) * meshgrid(i,3) * dwf1(i,1,3)                     &
+      &           - wf2(i,1) * meshgrid(i,1) * dwf1(i,3,3)                     &
+      !
+      &           - wf2(i,2) * meshgrid(i,3) * dwf1(i,1,4)                     &
+      &           + wf2(i,2) * meshgrid(i,1) * dwf1(i,3,4)                     &
+      !
+      &           - wf2(i,3) * meshgrid(i,3) * dwf1(i,1,1)                     &
+      &           + wf2(i,3) * meshgrid(i,1) * dwf1(i,3,1)                     &
+      !
+      &           + wf2(i,4) * meshgrid(i,3) * dwf1(i,1,2)                     &
+      &           - wf2(i,4) * meshgrid(i,1) * dwf1(i,3,2) 
+     !-------------------------------------------------------------------------
+    enddo
+    angmom = angmom * dv
+
+  end function angmom_yt_imag
+
+  function angmom_y_quad(wf2, dwf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     < wf2 | j^\dagger_y j_y | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_y = 1/2*( 0 -i ) + i x \partial_z - i z\partial_x
+    !                 ( i  0 )    
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:), dwf2(:,:,:)
+    integer                   :: i,j  
+    real(KIND=dp)             :: angmom, l1,l2,l3,l4, r1,r2,r3,r4
+
+    angmom = 0    
+    do i=1,mv
+       ! Action of J_y to the right
+       r1 = - meshgrid(i,1)* dwf1(i,3,2) + meshgrid(i,3)* dwf1(i,1,2)          & 
+       &    + 0.5_dp       * wf1(i,4)
+       r2 = + meshgrid(i,1)* dwf1(i,3,1) - meshgrid(i,3)* dwf1(i,1,1)          & 
+       &    - 0.5_dp       * wf1(i,3)
+       r3 = - meshgrid(i,1)* dwf1(i,3,4) + meshgrid(i,3)* dwf1(i,1,4)          & 
+       &    - 0.5_dp       * wf1(i,2)
+       r4 = + meshgrid(i,1)* dwf1(i,3,3) - meshgrid(i,3)* dwf1(i,1,3)          & 
+       &    + 0.5_dp       * wf1(i,1)
+            
+       ! Action of J_y to the left
+       l1 = - meshgrid(i,1)* dwf2(i,3,2) + meshgrid(i,3)* dwf2(i,1,2)          & 
+       &    + 0.5_dp       * wf2(i,4)
+       l2 = + meshgrid(i,1)* dwf2(i,3,1) - meshgrid(i,3)* dwf2(i,1,1)          & 
+       &    - 0.5_dp       * wf2(i,3)
+       l3 = - meshgrid(i,1)* dwf2(i,3,4) + meshgrid(i,3)* dwf2(i,1,4)          & 
+       &    - 0.5_dp       * wf2(i,2)
+       l4 = + meshgrid(i,1)* dwf2(i,3,3) - meshgrid(i,3)* dwf2(i,1,3)          & 
+       &    + 0.5_dp       * wf2(i,1)
+        angmom = angmom + l1*r1 + l2*r2 + l3*r3 + l4*r4
+    enddo
+    angmom = angmom * dv
+  end function angmom_y_quad
+
+  function angmom_z_real(wf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     < wf2 | j_z | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_z = 1/2*( 1  0 ) + i y \partial_x - i x\partial_y
+    !                 ( 0 -1 ) 
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
+    real(KIND=dp)             :: angmom
+    integer                   :: i
+
+    angmom = 0
+
+    do i=1,nx*ny*nz
+      !-------------------------------------------------------------------------
+      ! Real part  
+      ! Spin part
+      angmom = angmom    + 0.5*(         wf2(i,1) * wf1(i,1)                   &
+      &                                + wf2(i,2) * wf1(i,2)                   & 
+      &                                - wf2(i,3) * wf1(i,3)                   &
+      &                                - wf2(i,4) * wf1(i,4))                        
+      ! Orbital part
+      angmom = angmom              +                                           &
+      &                              wf2(i,2) * meshgrid(i,2) * dwf1(i,1,1)    &
+      &                            - wf2(i,2) * meshgrid(i,1) * dwf1(i,2,1)    &
+      !                 
+      &                            - wf2(i,1) * meshgrid(i,2) * dwf1(i,1,2)    &
+      &                            + wf2(i,1) * meshgrid(i,1) * dwf1(i,2,2)    &
+      !
+      &                            + wf2(i,4) * meshgrid(i,2) * dwf1(i,1,3)    &
+      &                            - wf2(i,4) * meshgrid(i,1) * dwf1(i,2,3)    &
+      !                 
+      &                            - wf2(i,3) * meshgrid(i,2) * dwf1(i,1,4)    &
+      &                            + wf2(i,3) * meshgrid(i,1) * dwf1(i,2,4)
+    enddo
+
+    angmom = angmom * dv
+
+  end function angmom_z_real
+
+  function angmom_z_imag(wf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !    Im < wf2 | j_z | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_z = 1/2*( 1  0 ) + i y \partial_x - i x\partial_y
+    !                 ( 0 -1 ) 
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
+    integer                   :: i,j  
+    real(KIND=dp)             :: angmom
+
+    angmom = 0    
+
+    do i=1,mv
+      !-------------------------------------------------------------------------
+      ! Real part  
+
+      ! Spin part
+      angmom = angmom       + 0.5*(- wf2(i,2) * wf1(i,1)                       &
+      &                            + wf2(i,1) * wf1(i,2)                       & 
+      &                            + wf2(i,4) * wf1(i,3)                       &
+      &                            - wf2(i,3) * wf1(i,4))                        
+      ! Orbital part
+      angmom = angmom &
+      &           + wf2(i,1) * meshgrid(i,2) * dwf1(i,1,1)                     &
+      &           - wf2(i,1) * meshgrid(i,1) * dwf1(i,2,1)                     &
+      !
+      &           + wf2(i,2) * meshgrid(i,2) * dwf1(i,1,2)                     &
+      &           - wf2(i,2) * meshgrid(i,1) * dwf1(i,2,2)                     &
+      !
+      &           + wf2(i,3) * meshgrid(i,2) * dwf1(i,1,3)                     &
+      &           - wf2(i,3) * meshgrid(i,1) * dwf1(i,2,3)                     &
+      !
+      &           + wf2(i,4) * meshgrid(i,2) * dwf1(i,1,4)                     &
+      &           - wf2(i,4) * meshgrid(i,1) * dwf1(i,2,4)
+    enddo
+    angmom = angmom * dv
+
+  end function angmom_z_imag
+
+  function angmom_zt_real(wf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     < wf2 | j_z T | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_z = 1/2*( 1  0 ) + i y \partial_x - i x\partial_y
+    !                 ( 0 -1 ) 
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
+    integer                   :: i,j  
+    real(KIND=dp)             :: angmom
+
+    angmom = 0
+    do i=1,mv
+      !-------------------------------------------------------------------------
+      ! Real part  
+
+      ! Spin part
+      angmom = angmom    + 0.5*(         wf2(i,1) * wf1(i,3)                   &
+      &                                - wf2(i,2) * wf1(i,4)                   & 
+      &                                + wf2(i,3) * wf1(i,1)                   &
+      &                                - wf2(i,4) * wf1(i,2))                        
+      ! Orbital part
+      angmom = angmom                                                          &
+      &                            + wf2(i,2) * meshgrid(i,2) * dwf1(i,1,3)    &
+      &                            - wf2(i,2) * meshgrid(i,1) * dwf1(i,2,3)    &
+      !                 
+      &                            + wf2(i,1) * meshgrid(i,2) * dwf1(i,1,4)    &
+      &                            - wf2(i,1) * meshgrid(i,1) * dwf1(i,2,4)    &
+      !
+      &                            - wf2(i,4) * meshgrid(i,2) * dwf1(i,1,1)    &
+      &                            + wf2(i,4) * meshgrid(i,1) * dwf1(i,2,1)    &
+      !                 
+      &                            - wf2(i,3) * meshgrid(i,2) * dwf1(i,1,2)    &
+      &                            + wf2(i,3) * meshgrid(i,1) * dwf1(i,2,2)
+    enddo
+    angmom = dv * angmom
+  end function angmom_zt_real
+
+  function angmom_z_quad(wf2, dwf2, wf1, dwf1) result(angmom)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     < wf2 | j^\dagger_z j_z | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       J_z = 1/2*( 1  0 ) + i y \partial_x - i x\partial_y
+    !                 ( 0 -1 ) 
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:), dwf2(:,:,:)
+    integer                   :: i,j  
+    real(KIND=dp)             :: angmom, l1,l2,l3,l4, r1,r2,r3,r4
+
+    angmom = 0    
+    do i=1,mv
+       ! Action of J_z to the right
+       r1 = - meshgrid(i,2)* dwf1(i,1,2) + meshgrid(i,1)* dwf1(i,2,2)          & 
+       &    + 0.5_dp       * wf1(i,1)
+       r2 = + meshgrid(i,2)* dwf1(i,1,1) - meshgrid(i,1)* dwf1(i,2,1)          & 
+       &    + 0.5_dp       * wf1(i,2)
+       r3 = - meshgrid(i,2)* dwf1(i,1,4) + meshgrid(i,1)* dwf1(i,2,4)          & 
+       &    - 0.5_dp       * wf1(i,3)
+       r4 = + meshgrid(i,2)* dwf1(i,1,3) - meshgrid(i,1)* dwf1(i,2,3)          & 
+       &    - 0.5_dp       * wf1(i,4)
+            
+       ! Action of J_z to the left
+       l1 = - meshgrid(i,2)* dwf2(i,1,2) + meshgrid(i,1)* dwf2(i,2,2)          & 
+       &    + 0.5_dp       * wf2(i,1)
+       l2 = + meshgrid(i,2)* dwf2(i,1,1) - meshgrid(i,1)* dwf2(i,2,1)          & 
+       &    + 0.5_dp       * wf2(i,2)
+       l3 = - meshgrid(i,2)* dwf2(i,1,4) + meshgrid(i,1)* dwf2(i,2,4)          & 
+       &    - 0.5_dp       * wf2(i,3)
+       l4 = + meshgrid(i,2)* dwf2(i,1,3) - meshgrid(i,1)* dwf2(i,2,3)          & 
+       &    - 0.5_dp       * wf2(i,4)
+       
+       angmom = angmom + l1*r1 + l2*r2 + l3*r3 + l4*r4
+    enddo
+    angmom = angmom * dv
+  end function angmom_z_quad
+
 end module wavefunctions

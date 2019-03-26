@@ -27,7 +27,7 @@ module nil8
 contains
 
 subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
- &                   dx,hox,hoy,hoz)
+ &                   dx,osc_freq)
     !---------------------------------------------------------------------------
     ! Subroutine taken from nil8.1.0.0.f, written by 
     !         Bonche, Flocard and Heenen 
@@ -93,9 +93,10 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     integer              , intent(in)        :: meven, modd,mx,my,mz,nwt,nwp,nwn
     integer              , intent(in)        :: npp, npn
     integer, allocatable, intent(inout)      :: kparz(:)
-    real(KIND=dp), intent(in)                :: hox, hoy, hoz
     real(KIND=dp), allocatable, intent(inout):: wfs(:,:,:), esp1(:)
-    
+    real(KIND=dp), intent(in)                :: osc_freq(3)
+    real(KIND=dp)                            :: hox, hoy, hoz
+
     real(KIND=dp), allocatable :: h(:,:), s(:,:), d(:), wd(:), e(:)
     real(KIND=dp), allocatable :: he(:,:,:) , a(:)
     integer                    :: npar(2,2), nvv, nz2, nz1, nx1, nx2, ny1, ny2
@@ -105,7 +106,8 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     integer                    :: mblc, mq, mqa, ms, nblc, ndd, ndim
     integer, allocatable       :: nsi(:,:),ns(:), nx(:), ny(:), nz(:), irep(:)
     integer, allocatable       :: nor(:), npa(:), ntrs(:)
-    
+
+
     dimension xk(4),xmu(4),cf(2), hbm(2), psi(mx,my,mz,4)
     
     data ca,cb /0.986d0,0.14d0/
@@ -113,6 +115,8 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     &           ,0.0d0 ,0.0d0 ,  0.42d0,  0.60d0   /
     parameter (hhbar=6.58218d0,xxmn =1.044673d0)
     
+    hox = osc_freq(1) ; hoy = osc_freq(2) ; hoz = osc_freq(3)
+
     mblc =  meven+modd+1
     ms   = (mblc*(mblc**2-1))/6
     ndim = (mblc*(mblc-1))/2
@@ -543,10 +547,10 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
         do k = 1,mz
           do j=1,my
             do i=1,mx
-              wfs(i+(j-1)*mx+(k-1)*my*mx,1,nwave) = psi(i,j,k,1)/sqrt(2.0)
-              wfs(i+(j-1)*mx+(k-1)*my*mx,2,nwave) = psi(i,j,k,2)/sqrt(2.0)
-              wfs(i+(j-1)*mx+(k-1)*my*mx,3,nwave) = psi(i,j,k,3)/sqrt(2.0)
-              wfs(i+(j-1)*mx+(k-1)*my*mx,4,nwave) = psi(i,j,k,4)/sqrt(2.0)
+              wfs(i+(j-1)*mx+(k-1)*my*mx,1,nwave) = psi(i,j,k,1)
+              wfs(i+(j-1)*mx+(k-1)*my*mx,2,nwave) = psi(i,j,k,2)
+              wfs(i+(j-1)*mx+(k-1)*my*mx,3,nwave) = psi(i,j,k,3)
+              wfs(i+(j-1)*mx+(k-1)*my*mx,4,nwave) = psi(i,j,k,4)
             enddo
           enddo
         enddo

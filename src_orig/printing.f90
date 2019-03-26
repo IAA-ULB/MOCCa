@@ -26,14 +26,14 @@ contains
     20 format (80 ('-'))
     30 format (80 ('_'),/,3x , 'Neutron wavefunctions')
     40 format (80 ('_'),/,3x , 'Proton  wavefunctions')
-    50 format (80 ('_'),/,3x , 'HF Basis')
-    60 format ('  i     P       occ           E       d2h          Delta    ')    
+    60 format (2x,'i',4x,'P',3x,'occ',7x,'E',8x,'d2h',4x,'Delta',3x,'JxT',4x,&
+    &             'JyT', 4x ,'Jz', 5x, 'J')    
 
-    11 format (i3, 3x, f5.2, 3x, f7.4, 3x, f10.3, 3x, e10.3, 3x, f7.4)
+    11 format (i3, 1x, f4.1, 2x, f6.4, 1x, f9.3, 1x, es8.1,1x,f6.2, 4(2x, f5.2))
 
     integer       :: wave,k
     integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp) :: p
+    real(KIND=dp) :: p, Jx, Jy, Jz, JJ
   
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! HFBasis
@@ -43,7 +43,6 @@ contains
     NeutronOrder= OrderSpwfsISO(-1)
     
     print 10
-    print 50
     print 30
     print 60
     print 10
@@ -52,16 +51,33 @@ contains
         
         if(wave .lt. HFBlocks(1)) p = +1
         if(wave .gt. HFBlocks(1)) p = -1
+
+        !-----------------------------------------------------------------------
+        ! Depending on the symmetries, select different quantities to print 
+        ! for Jx, Jy, Jz. Currently configured for EV8 mode!
+        Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
+        Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+        Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
         
+        JJ = & 
+        &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+        & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+        & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
+        JJ = (-1. + sqrt(1. + 4*JJ))/2.
+
         if(pairingtype.eq.1) then
           print 11, wave, p, rho_can(wave), spenergies(wave), &
-          &               dispersions(wave), BCSgaps(wave)
+          &               dispersions(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
         elseif(pairingtype.eq.2) then
-          print 11, wave, p,2* rho_pairing(wave,wave), spenergies(wave), &
-          &               dispersions(wave), maxval(abs(HFBgaps(wave,:)))
+          print 11, wave, p,2* rho_pairing(wave,wave), spenergies(wave),       &
+          &               dispersions(wave), maxval(abs(HFBgaps(wave,:))),     &
+          &               Jx, Jy, Jz, JJ
         else
           print 11, wave, p, rho_can(wave), spenergies(wave), &
-          &               dispersions(wave), 0.0
+          &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ                
         endif
     enddo
     
@@ -71,18 +87,35 @@ contains
     do k=1,nwp
         wave = ProtonOrder(k)
         
-      if(wave .lt. sum(HFBlocks(1:5))) p = +1
-      if(wave .gt. sum(HFBlocks(1:5))) p = -1
-        
+        if(wave .lt. sum(HFBlocks(1:5))) p = +1
+        if(wave .gt. sum(HFBlocks(1:5))) p = -1
+
+        !-----------------------------------------------------------------------
+        ! Depending on the symmetries, select different quantities to print 
+        ! for Jx, Jy, Jz. Currently configured for EV8 mode!
+        Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+        Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+        Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+
+        JJ = & 
+        &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+        & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+        & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
+        JJ = -0.5*(1. - sqrt(1. + 4*JJ))       
+
         if(pairingtype.eq.1) then
-          print 11, wave, p, rho_can(wave), spenergies(wave), &
-          &               dispersions(wave), BCSgaps(wave)
+          print 11, wave, p, rho_can(wave), spenergies(wave),                  &
+          &               dispersions(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
         elseif(pairingtype.eq.2) then
-          print 11, wave, p, 2*rho_pairing(wave,wave), spenergies(wave), &
-          &               dispersions(wave), maxval(abs(HFBgaps(wave,:)))
+          print 11, wave, p, 2*rho_pairing(wave,wave), spenergies(wave),       &
+          &               dispersions(wave), maxval(abs(HFBgaps(wave,:))),     &
+          &               Jx, Jy, Jz, JJ
         else
-          print 11, wave, p, rho_can(wave), spenergies(wave), &
-          &               dispersions(wave), 0.0
+          print 11, wave, p, rho_can(wave), spenergies(wave),                  &
+          &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ
         endif
     enddo
     print 20

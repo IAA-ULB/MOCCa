@@ -28,6 +28,7 @@ module GenInfo
     ! Coordinates of the mesh points for the calculation as well as the 
     ! coulomb calculation
     real(KIND=dp), allocatable :: meshx(:), meshy(:), meshz(:)
+    real(KIND=dp), allocatable, target :: meshgrid(:,:)
     real(KIND=dp), allocatable :: coulmeshx(:), coulmeshy(:), coulmeshz(:)
     !---------------------------------------------------------------------------
     ! Inverse temperature Beta = (k_b T)^{-1}.
@@ -76,10 +77,12 @@ contains
     ! Generate the coordinates of the mesh points for the demanded Lagrange mesh
     ! Severe modification for Hephaestos will be necessary.
     !---------------------------------------------------------------------------
-    integer       :: i
-    
+    integer                :: i,j,k
+    real(KIND=dp), pointer :: gridx(:,:,:), gridY(:,:,:)  , gridZ(:,:,:)    
+
     allocate(    meshx(nx  ),     meshy(ny  ),     meshz(nz  ))
     allocate(coulmeshx(nx+2), coulmeshy(ny+2), coulmeshz(nz+2))
+    allocate( meshgrid(mv,3))
     
     do i=1,nx
       meshx(i)     = (1/2.0_dp +(i-1))*dx
@@ -104,6 +107,22 @@ contains
     do i=1,nz+2
       coulmeshz(i) = (1/2.0_dp +(i-1))*dx
     enddo
+    
+    meshgrid = 0
+    gridx(1:nx,1:ny,1:nz) => meshgrid(1:nx*ny*nz,1)
+    gridy(1:nx,1:ny,1:nz) => meshgrid(1:nx*ny*nz,2)
+    gridz(1:nx,1:ny,1:nz) => meshgrid(1:nx*ny*nz,3)
+
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          gridx(i,j,k) = meshx(i)
+          gridy(i,j,k) = meshy(j)
+          gridz(i,j,k) = meshz(k)
+        enddo 
+      enddo
+    enddo
+    
   end subroutine inimesh
 
   pure integer function LeviCivita(i,j,k)

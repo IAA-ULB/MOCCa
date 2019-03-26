@@ -35,8 +35,20 @@ module BCS
  real(KIND=dp), allocatable :: BCSGaps(:)
  ! BCS quasiparticle energies
  real(KIND=dp), allocatable :: BCSqps(:)
- ! BCS occupations, i.e. 2 * v_i^2
+ !------------------------------------------------------------------------------
+ ! BCS occupations, i.e. 2 * v_i^2 
+ ! (factor 2 due to time-reversal)
+ ! - - - - - - - - - - - - - - - --  - - - - - - - - - - - - - - - - - - - - - -
+ ! IMPORTANT NOTE:
+ !  These are NOT ALWAYS equal to the diagonal matrix elements of the 
+ !  density matrix. This is ONLY true at zero temperature. They are ALWAYS
+ !  equal to 2 * v_i**2, but NOT always equal to rho_ii !
+ !------------------------------------------------------------------------------
  real(KIND=dp), allocatable :: BCSoccupations(:)
+ !------------------------------------------------------------------------------
+ ! BCS occupation factors f
+ !  f_i = 1/(1 + exp(beta * E_qp))
+ real(KIND=dp), allocatable :: BCSf(:)
  !------------------------------------------------------------------------------
  procedure(delta_action_dummy), pointer :: delta_action_BCS
 
@@ -93,20 +105,20 @@ contains
     else
       ! Occupations are 
       !   n_a = f_i + v_i^2 (1 - 2 * f_i)
-      fac = 1 + exp(inversetemp * BCSqps(wave))
+      fac = BCSf(wave) 
       ! Note that there is already a factor two due to timereversal in    
       ! BCSoccupations, but not in the first term in the formula above.
-      rho_can(wave) = 2.0/fac + BCSoccupations(wave) * (1 - 2.0/fac)
+      rho_can(wave) = 2.0*fac + BCSoccupations(wave) * (1 - 2.0*fac)
     endif
   enddo
- 
+
   !-----------------------------------------------------------------------------
   ! Kappa is in its canonical form for a BCS calculation.
   ! However, we are not storing the time-reversed partners in this case, so
   ! put the matrix elements (i,ibar) on the diagonal anyway.
   !
   ! u * v  = 0.5 * Delta/(sqrt(epsilon**2 + Delta**2))
-  !
+  !-----------------------------------------------------------------------------
   kappa_can = 0.0
   do wave=1,nwt
     if(inversetemp.eq.-1) then
@@ -114,8 +126,8 @@ contains
     else
       ! At finite temperature, the elements of kappa are
       ! kappa_i\bar{i} = u_i v_i ( 1 - 2 * f_i )
-      fac             = 1 + exp(inversetemp * BCSqps(wave))
-      kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave)) * (1 - 2.0/fac)
+      fac             = BCSf(wave)
+      kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave)) * (1 - 2.0*fac)
     endif
   enddo
 
@@ -185,7 +197,7 @@ contains
       nom = spenergies(wave)
 
       if(inversetemp.ne.-1) then  
-        fac = 1.0/(1 + exp(inversetemp * eqp))
+        fac =  BCSf(wave) !1.0/(1 + exp(inversetemp * eqp))
         lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp*(1-2*fac))
         lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)        
       else
@@ -215,6 +227,7 @@ contains
 
     if(.not.allocated(BCSqps)) then
       allocate(BCSqps(nwt)) ; BCSqps=0
+      allocate(BCSf(nwt)) ; BCSf = 0.0
     endif
    
     do wave=1,nwt
@@ -225,6 +238,13 @@ contains
         lambda  = Fermi(it)
         BCSqps(wave)  = sqrt((epsilon - lambda)**2 + abs(BCSgaps(wave))**2)
     enddo
+    
+    if(inversetemp.ne.-1) then
+      BCSf = 1./(1. + exp(inversetemp * BCSqps))
+    else
+      BCSf = 0
+    endif
+
   end subroutine BCSQPEnergies
 
   subroutine calcBCSOccupations(Fermi)
@@ -276,7 +296,7 @@ contains
         BCSdispersion(2) = BCSdispersion(2) +                                  &
         &                                0.5*rho_can(wave)*(1-0.5*rho_can(wave))
       enddo
-      BCSdispersion  = 2 * BCSdispersion
+      BCSdispersion  = 4 * BCSdispersion
 
    end subroutine calcBCSdispersion
 
