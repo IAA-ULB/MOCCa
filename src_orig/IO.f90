@@ -17,6 +17,9 @@ module IO
 use geninfo
 use wavefunctions
 use pairing
+use functional
+use momentsofinertia
+use moments
 
 implicit none
 
@@ -25,7 +28,7 @@ implicit none
   character(len=100) :: inputfilename, outputfilename
 
   ! Signal the code to write extra output.
-  character(len=20) :: BXLFIT = ''
+  character(len=20) :: BXLFIT = '', COMBI=''
 
 contains
 
@@ -45,7 +48,7 @@ contains
   
     implicit none
 
-    NameList /IO/ InputFileName,OutputFileName, BXLFIT
+    NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI
     
     call ReadGenInfo
     call readfunctional
@@ -86,6 +89,7 @@ contains
     &          '  inputfilename  =', a20, / &
     &          '  outputfilename =', a20)
    11 format ( '  BXL output     =', a20)
+  111 format ( '  Combi ouput    =', a20)
    12 format ( ' Convergence required', / &
     &          '  Energy convergence           < ', e8.1, / & 
     &          '  Multipole moment convergence < ', e8.1, / &
@@ -108,6 +112,9 @@ contains
     print 10, inputfilename, outputfilename
     if(BXLFIT .ne. '') then
         print 11, BXLFIT 
+    endif
+    if(COMBI .ne. '') then
+        print 111, COMBI
     endif
     print 12, energy_prec, moment_prec, disp_prec
     
@@ -413,7 +420,11 @@ contains
     if(BXLFIT .ne. '') then
         call Brussels_output
     endif  
-    
+
+    ! Output for the level density code
+    if(COMBI .ne. '') then
+        call Combi_output()
+    endif
   end subroutine WriteTantalus
 
   subroutine Brussels_output
@@ -457,5 +468,87 @@ contains
     close(10)
 
   end subroutine Brussels_output
+
+  subroutine combi_output
+    !---------------------------------------------------------------------------
+    ! Write an extra file for input of the combinatorial level density code.
+    !
+    !
+    ! ATTENTION: this output assumes an axial nucleus with a symmetry axis 
+    !            along the z-axis. If the single-particle states are not  
+    !            (at least approximately) eigenstates of J_z, then this output
+    !            will effectively be nonsense.
+    !---------------------------------------------------------------------------
+
+    integer, allocatable :: indices(:)
+    integer              :: i,ii, p1, p2,jj
+    real(KIND=dp)        :: R0, A, fac, mstate1, mstate2
+
+    1 format (a1, 3i4)
+    2 format (2(f5.1,i2,3f8.3))
+    3 format ( 2i4,16(x,f6.2),2f9.2)
+
+    open(unit=6, file=COMBI)
+
+    ! a) single-particle neutron states
+    write(6, fmt=1) '*', int(protons), int(neutrons+protons), nwn/2
+    indices = OrderSpwfsISO(-1)
+
+    do i=1,nwn/2
+        ii    = indices(i)
+        jj    = indices(i+nwn/2)
+
+        if(ii .lt. (HFBlocks(1))) p1 =  0
+        if(ii .gt. (HFBlocks(1))) p1 =  1
+
+        if(jj .lt. (HFBlocks(1))) p2 =  0
+        if(jj .gt. (HFBlocks(1))) p2 =  1
+
+        mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
+        mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
+        
+        write(6,fmt=2),abs(mstate1),p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+        &              abs(mstate2),p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
+    enddo
+
+    ! b) single-particle neutron states
+    write(6, fmt=1) ' ', int(protons), int(neutrons+protons), nwp/2
+    indices = OrderSpwfsISO(+1)
+    do i=1,nwp/2
+        ii     = indices(i)
+        jj     = indices(i+nwp/2)
+
+        if(ii .lt. sum(HFBlocks(1:3))) p1 =  0
+        if(ii .gt. sum(HFBlocks(1:3))) p1 =  1
+
+        if(jj .lt. sum(HFBlocks(1:3))) p2 =  0
+        if(jj .gt. sum(HFBlocks(1:3))) p2 =  1
+
+        mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
+        mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
+        
+        write(6,fmt=2),abs(mstate1),p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+        &              abs(mstate2),p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
+    enddo
+
+    !  The final line is composed of various informations
+    !  Z, A, beta2, beta4, Gn, Gp, Deltan, Deltap, ddmn, ddmp,
+    !       econdn,econdp,eshcorn,eshcorp,lambdan,lambdap,ainer,rigid,
+    !       etott,etable
+
+    R0  = 1.2
+    A   = neutrons + protons
+    fac = 4. * pi/(3. * (R0 *(A))**2 * A) * Q(3) * sqrt(5/(16*pi))
+
+    !                                              Q40   Gn   Gp  Deltan Deltap  
+    write(unit=6, fmt=3), int(protons),int(A),fac*Q(3), 0.0, 0.0, 0.0,   0.0,   0.0,&
+    !                     ddmn, ddmp, econdn, econdp, eshcorn, eshcorp 
+    &                      0.0,  0.0,    0.0,    0.0,     0.0,     0.0,        & 
+     !                     lambdan, lambdap, ainer, rigid, etott, etable
+    &                      FermiEnergy(1),  FermiEnergy(2), Belyaev(3,3),      &
+    &                      Rigid(3,3), totalE, 0.0
+
+    close(unit=6)
+  end subroutine combi_output
     
 end module IO
