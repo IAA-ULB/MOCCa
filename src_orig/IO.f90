@@ -28,7 +28,7 @@ implicit none
   character(len=100) :: inputfilename, outputfilename
 
   ! Signal the code to write extra output.
-  character(len=20) :: BXLFIT = '', COMBI=''
+  character(len=40) :: BXLFIT = '', COMBI=''
 
 contains
 
