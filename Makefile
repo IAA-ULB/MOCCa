@@ -11,8 +11,8 @@ SRC    +=   folding.f90
 SRC    +=   diag.f90 nil8.f90 derivatives.f90 precondition.f90 wavefunctions.f90
 SRC    +=   pairingcutoffs.f90 hartree-fock.f90 BCS.f90 HFB.f90 pairing.f90
 SRC    +=   densities.f90 moments.f90 parameterization.f90 coulomb.f90 
-SRC    +=   functional.f90 evolution.f90 scfiteration.f90 IO.f90 
-SRC    +=   temperature_projection.f90 momentsofinertia.f90
+SRC    +=   functional.f90 evolution.f90 scfiteration.f90 momentsofinertia.f90 IO.f90 
+SRC    +=   temperature_projection.f90 
 SRC    +=   printing.f90 tantalus.version.f90
 
 ################################################################################
@@ -25,7 +25,7 @@ ifeq ($(CXX),gfortran)
 
 else ifeq ($(CXX),ifort)
 
-	CXXFLAGS := -03 -assume realloc-lhs -assume byterecl -no-wrap-margin -module $(MODDIR)
+	CXXFLAGS := -O3 -assume realloc-lhs -assume byterecl -no-wrap-margin -module $(MODDIR)
 
 endif
 
@@ -38,7 +38,7 @@ FUNC   :=  NLO.func
 
 EXENAME:= Tantalus.$(FUNC).exe
 
-LIBS := -llapack -lblas
+LIBS   := -mkl
 
 ################################################################################
 # Recipes

@@ -486,7 +486,7 @@ contains
 
     1 format (a1, 3i4)
     2 format (2(f5.1,i2,3f8.3))
-    3 format ( 2i4,16(x,f6.2),2f9.2)
+    3 format ( 2i4,17(x,f7.4),2f9.2)
 
     open(unit=6, file=COMBI)
 
@@ -550,8 +550,8 @@ contains
     write(unit=6, fmt=3), int(protons),int(A),fac*Q(3), 0.0, 0.0, 0.0, 0.0,0.0,&
     !                     ddmn, ddmp, econdn, econdp, eshcorn, eshcorp 
     &                      0.0,  0.0,    0.0,    0.0,     0.0,     0.0,        & 
-     !                     lambdan, lambdap, ainer, rigid, etott, etable
-    &                      FermiEnergy(1),  FermiEnergy(2), Belyaev(3,3),      &
+     !                     lambdan, lambdap, ANONYMOUOS NUMBER,  ainer, rigid, 
+    &                      FermiEnergy(1),  FermiEnergy(2), 0.0, Belyaev(3,3), &
     &                      Rigid(3,3), totalE, 0.0
 
     close(unit=6)
