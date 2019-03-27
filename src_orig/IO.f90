@@ -506,9 +506,12 @@ contains
 
         mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
         mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
-        
-        write(6,fmt=2),abs(mstate1),p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
-        &              abs(mstate2),p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
+
+        mstate1 = force_halfinteger(mstate1)
+        mstate2 = force_halfinteger(mstate2)
+
+        write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+        &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
     enddo
 
     ! b) single-particle neutron states
@@ -526,9 +529,12 @@ contains
 
         mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
         mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
+
+        mstate1 = force_halfinteger(mstate1)
+        mstate2 = force_halfinteger(mstate2)
         
-        write(6,fmt=2),abs(mstate1),p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
-        &              abs(mstate2),p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
+        write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+        &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
     enddo
 
     !  The final line is composed of various informations
@@ -541,7 +547,7 @@ contains
     fac = 4. * pi/(3. * (R0 *(A))**2 * A) * Q(3) * sqrt(5/(16*pi))
 
     !                                              Q40   Gn   Gp  Deltan Deltap  
-    write(unit=6, fmt=3), int(protons),int(A),fac*Q(3), 0.0, 0.0, 0.0,   0.0,   0.0,&
+    write(unit=6, fmt=3), int(protons),int(A),fac*Q(3), 0.0, 0.0, 0.0, 0.0,0.0,&
     !                     ddmn, ddmp, econdn, econdp, eshcorn, eshcorp 
     &                      0.0,  0.0,    0.0,    0.0,     0.0,     0.0,        & 
      !                     lambdan, lambdap, ainer, rigid, etott, etable
@@ -551,4 +557,20 @@ contains
     close(unit=6)
   end subroutine combi_output
     
+  function force_halfinteger(j) result(jforced)
+      
+      real(KIND=dp) :: j, jforced
+      integer       :: i
+
+      i = 1
+      do while(i .lt. 2*abs(j))     
+          i = i + 2 
+      enddo
+
+      if(abs(2*abs(j) - i) .lt. abs(2*abs(j)-i+2)) then
+          jforced = i/2.0_dp
+      else
+          jforced = i/2.0_dp - 1
+      endif
+  end function force_halfinteger
 end module IO
