@@ -18,8 +18,12 @@ wso      =   127.649
 hbm(1)   =    20.721260, 20.749821  
 CT0      =     0.0
 CT1      =     0.0
-Vt       = -1250.00000
-alpha    =     1.0
+Vp       =  -665.102
+Vn       =  -558.101
+! What is called the switching density  \rho_pair in the paper can be simulated
+! in our case through the appropriate use of our scaling factor alpha. 
+!    We have alpha = 0.16/\rho_pair.
+alpha    =     0.80914331951
 sigmap   =     1.0
 hbm(1)   = 20.721260, 20.749821
 COM1Body = 1

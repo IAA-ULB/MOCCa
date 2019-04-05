@@ -386,6 +386,7 @@ def ProcessFunctional(fname, src, target):
         calccoef      = ''
         printcoef_iso = ''
         printcoef_pn  = ''
+        printcoef_pair= ''
         sumtotal      = ''
         pairtotal     = ''
         fieldcalc     = ''
@@ -396,7 +397,7 @@ def ProcessFunctional(fname, src, target):
         #-----------------------------------------------------------------------
         # Generate the terms in the functional
         for i in range(len(Functional_terms)): 
-            (d,c,p,cc, pc_iso, pc_pn,st,pt,er)  = \
+            (d,c,p,cc, pc_iso, pc_pn,pc_pair, st,pt,er)  = \
              GenTermExpression(Functional_terms[i], [coupling_constants_0[i], \
              coupling_constants_1[i]],density_dependence[i], DD_rearcoefs[i])
 
@@ -406,6 +407,7 @@ def ProcessFunctional(fname, src, target):
             calccoef    = calccoef    + cc+ '\n'
             printcoef_iso = printcoef_iso   + pc_iso + '\n'
             printcoef_pn  = printcoef_pn    + pc_pn  + '\n'
+            printcoef_pair= printcoef_pair  + pc_pair+ '\n'
             sumtotal    = sumtotal    + st+ '&\n'
             if('P' in Functional_terms[i]):    
               pairtotal   = pairtotal   + pt+ '&\n'
@@ -489,6 +491,7 @@ def ProcessFunctional(fname, src, target):
         dic['CALCCOEF']       = calccoef   
         dic['PRINTCOEF_ISO']  = printcoef_iso
         dic['PRINTCOEF_PN']   = printcoef_pn
+        dic['PRINTCOEF_PAIR'] = printcoef_pair
         dic['TOTAL']          = sumtotal
         dic['TOTALPAIR']      = pairtotal
         dic['CALCFIELDS']     = fieldcalc
@@ -558,18 +561,28 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     calc_e_template = Template(   tab + '$TERM(1,1) = $TERM(1,2) + 0.5* $TERM(2,2)\n')
     calc_f_template = Template(   tab + '$TERM(2,1) =              0.5* $TERM(2,2)\n')
     
-    
-    calc_coef_template = Template(tab + '$CPCTE(1,1) = $EXP1 \n' + \
-                                  tab + '$CPCTE(2,1) = $EXP2 \n' + \
-                                  tab + '$CPCTE(1,2) = $CPCTE(1,1) - $CPCTE(2,1) \n' + \
-                                  tab + '$CPCTE(2,2) =             2*$CPCTE(2,1) \n')       
-                                 
+    calc_pair_a_temp= Template(   tab + 'Edensity(:,1) = Edensity(:,1) + $EDENN\n' + \
+                                  tab + 'Edensity(:,2) = Edensity(:,2) + $EDENP\n'  )
+    calc_pair_b_temp= Template(   tab   + 'do it=1,2 \n' + \
+                                  2*tab + '$TERM(:,it) = $CPCTE(1,it) * sum(Edensity(:,it)) \n'  + \
+                                  tab   + 'enddo \n')
+    calc_pair_c_temp = Template(  tab + '$TERM(1,1) = $CPCTE(1,1) * sum( Edensity(:,1)) * dv \n')
+    calc_pair_d_temp = Template(  tab + '$TERM(2,1) = $CPCTE(2,1) * sum( Edensity(:,2)) * dv \n')
+
+    calc_coef_template  = Template(tab + '$CPCTE(1,1) = $EXP1 \n' + \
+                                   tab + '$CPCTE(2,1) = $EXP2 \n' + \
+                                   tab + '$CPCTE(1,2) = $CPCTE(1,1) - $CPCTE(2,1) \n' + \
+                                   tab + '$CPCTE(2,2) =             2*$CPCTE(2,1) \n')       
+
+    calc_coef_pair_temp = Template(tab + '$CPCTE(1,1) = $EXP1 \n' + \
+                                   tab + '$CPCTE(2,1) = $EXP2 \n')    
                                  
     write_edensity = Template( tab + ' call output_Edensity(Edensity, "$FILENAME")' )
     print_template      = Template(tab +" print('(a30 , 3f15.6)'), '$TERM', $TERM(:,1), sum($TERM(:,1)) \n")
     
     print_cpl_pn_template   = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE(:,1)")
     print_cpl_iso_template  = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE(:,2)")
+    print_cpl_pair_template = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE(:,1)")
     
     rear_template       = Template(tab +" e_rear = e_rear $REARCOEF*sum($TERM(:,2))\n")
     
@@ -670,21 +683,35 @@ def GenTermExpression( term, ccoef, DD, DDrear):
         dic['EDENP'] = dic['EDENP'][:-1]  
         
         calculation = calculation +'\n' + tab + '! indices = ' + str(arg) + '\n'
-        calculation = calculation + calc_a_template.substitute(dic)
-        calculation = calculation + calc_b_template.substitute(dic)
 
+        if('P' not in term ):
+          # Ordinary mean-field densities only in the term
+          calculation = calculation + calc_a_template.substitute(dic)
+          calculation = calculation + calc_b_template.substitute(dic)
+        else:
+          # Pairing mean-field densities in the term.
+          calculation = calculation + calc_pair_a_temp.substitute(dic)
+          calculation = calculation + calc_pair_b_temp.substitute(dic)
+            
     calculation = calculation + '\n'
     if(DD != ''):
-        dic['DD'] = DD
+        dic['DD'] = DD  
         calculation = calculation + calc_DD_template.substitute(dic)
 
     dic['FILENAME'] ='edensities/' + dic['TERM'] + '.dat'
     #calculation = calculation + write_edensity.substitute(dic) + '\n'
-    calculation = calculation + calc_c_template.substitute(dic) 
-    calculation = calculation + calc_d_template.substitute(dic) + '\n'
-    calculation = calculation + calc_e_template.substitute(dic)
-    calculation = calculation + calc_f_template.substitute(dic)
-    
+ 
+    if('P' not in term):  
+      # Ordinary mean-field densities
+      calculation = calculation + calc_c_template.substitute(dic) 
+      calculation = calculation + calc_d_template.substitute(dic) + '\n'
+      calculation = calculation + calc_e_template.substitute(dic)
+      calculation = calculation + calc_f_template.substitute(dic)
+    else:
+      # Pairing mean-field densities.
+      calculation = calculation + calc_pair_c_temp.substitute(dic) 
+      calculation = calculation + calc_pair_d_temp.substitute(dic) + '\n'
+
     calculation = calculation + end_comment + '\n'
     
     printing = print_template.substitute(dic) 
@@ -694,8 +721,15 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     
     calccoef  = calc_coef_template.substitute(dic)
     
-    printcoef_pn = print_cpl_pn_template.substitute(dic)    
-    printcoef_iso= print_cpl_iso_template.substitute(dic)    
+    if('P' not in term):
+        # Ordinary mean-field densities
+        printcoef_pn  = print_cpl_pn_template.substitute(dic)    
+        printcoef_iso = print_cpl_iso_template.substitute(dic)
+        printcoef_pair= ''
+    else:
+        printcoef_pn  = ''
+        printcoef_iso = ''
+        printcoef_pair= print_cpl_pair_template.substitute(dic) 
     
     sumtotal  = sumtotal_template.substitute(dic)
     pairtotal = pairtotal_template.substitute(dic)
@@ -714,7 +748,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
         erear = rear_template.substitute(dic)
         
     return (declaration, calculation, printing, calccoef, printcoef_iso, 
-                                       printcoef_pn, sumtotal, pairtotal, erear)    
+                       printcoef_pn, printcoef_pair, sumtotal, pairtotal, erear)    
     
 def rreplace(s, old, new, occurrence):
      li = s.rsplit(old, occurrence)  

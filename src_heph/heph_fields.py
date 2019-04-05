@@ -84,9 +84,15 @@ def GenerateFields():
     '!----------------------------------------------------------------------\n')
     field_calc_temp_a    = Template( 2*tab + '! Calculation of $FIELD \n')
     field_calc_temp_b    = Template( 3*tab + '$FIELD(:$IND,it) = $FIELD(:$IND,it)  & \n')
+
     field_calc_den_a     = Template('* sum($DENSITY(:$DENIND,:),$SUMIND)  ')
     field_calc_den_b     = Template('* $DENSITY(:$DENIND,it)')
     field_calc_den_c     = Template('* $DENSITY(:$DENIND,3-it)')
+
+    # Note the convention for coupling constants for the pairing term is 
+    # different. We do not deal with isoscalar and isovector coupling constants
+    # but rather with the coupling constants for neutrons and protons.
+    field_calc_den_pair  = Template('* $DENSITY(:$DENIND,it)')
 
     isoloop = Template(2*tab + 'maxit = 2 \n' + \
               2*tab + 'if((.not.calcall).and.(any(${FIELD}.ne.0.0))) maxit=0\n'+\
@@ -94,9 +100,11 @@ def GenerateFields():
     
     isoloop_end = 2*tab + 'enddo\n'
 
-    field_calc_b_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(1,2) $EXPR1 & \n') 
-    field_calc_c_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(2,2) $EXPR2 & \n') 
-    field_calc_d_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(2,2) $EXPR3 & \n') 
+    field_calc_b_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(1,2)  $EXPR1 & \n') 
+    field_calc_c_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(2,2)  $EXPR2 & \n') 
+    field_calc_d_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(2,2)  $EXPR3 & \n') 
+
+    field_pair_temp    = Template( 3*tab + '& $SIGN $DD $CPLCTE(it,1) $EXPR2 \n') 
 
     doloop_template    = 2*tab + 'do %s = 1, 3 \n'
     enddoloop_template = 2*tab + 'enddo \n'
@@ -218,6 +226,7 @@ def GenerateFields():
             dd = heph_functional.field_DD_terms[term]
             if(dd[0] == den):
                 fieldlist.append([densities, altder, altlap, cplct, cpl, dd[1],1])
+
         # Create the expression for the field
         dic['ALLOCIND']= ''
         dic['DECLIND'] = ''
@@ -235,8 +244,8 @@ def GenerateFields():
         fieldwrite   = fieldwrite  + field_write_template_a.substitute(dic)
         fieldwrite   = fieldwrite  + field_write_template_b.substitute(dic)
         
-        FIELDCALC = FIELDCALC + field_line.substitute(dic)
-        FIELDCALC = FIELDCALC + field_calc_temp_a.substitute(dic)
+        FIELDCALC    = FIELDCALC + field_line.substitute(dic)
+        FIELDCALC    = FIELDCALC + field_calc_temp_a.substitute(dic)
         FIELDCALC    = FIELDCALC + field_allo_temp.substitute(dic)
         FIELDCALC    = FIELDCALC + field_hist_temp.substitute(dic)
         FIELDCALC    = FIELDCALC + isoloop.substitute(dic)
@@ -252,7 +261,6 @@ def GenerateFields():
              NumberOfIndices = NumberOfIndices - len(fieldterm[4]) 
              # But the external derivatives do            
              NumberOfIndices = NumberOfIndices + fieldterm[1]
-             
              
              #print den, fieldterm[0], NumberOfIndices
              
@@ -319,20 +327,26 @@ def GenerateFields():
                     for l in indices:
                         dic['DENIND'] = dic['DENIND'] + ',' + str(l+1)
 
-                    
                     dic['EXPR1'] = dic['EXPR1'] + field_calc_den_a.substitute(dic)
                     dic['EXPR2'] = dic['EXPR2'] + field_calc_den_b.substitute(dic)
                    
                     if(len(dic['DD']) >0):
                         dic['EXPR3'] = dic['EXPR3'] + field_calc_den_c.substitute(dic)
-                 
                         lastorder = lastorder + OrderOfDen(dic['DENSITY'])
-                 FIELDCALC = FIELDCALC + field_calc_b_temp.substitute(dic)
-                 FIELDCALC = FIELDCALC + field_calc_c_temp.substitute(dic)
-                 if(fieldterm[6] == 1):
-                    FIELDCALC = FIELDCALC + field_calc_d_temp.substitute(dic)
-                 
-                 FIELDCALC = FIELDCALC[:-4] + '\n \n'
+
+                 if('P' not in den):
+                    # Ordinary mean-field densities; coupling constants are
+                    # the isoscalar and isovector ones
+                    FIELDCALC = FIELDCALC + field_calc_b_temp.substitute(dic)
+                    FIELDCALC = FIELDCALC + field_calc_c_temp.substitute(dic)
+                    if(fieldterm[6] == 1):
+                       FIELDCALC = FIELDCALC + field_calc_d_temp.substitute(dic)
+                    FIELDCALC = FIELDCALC[:-4] + '\n \n'
+                 else:
+                    # Pairing densities, coupling constants are pn ones.  
+                    FIELDCALC = FIELDCALC + field_pair_temp.substitute(dic)
+                                
+
         FIELDCALC    = FIELDCALC + isoloop_end
         FIELDCALC    = FIELDCALC + field_line.substitute(dic)
 

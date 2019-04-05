@@ -171,6 +171,9 @@ $CHECKPARAMS
     96 format ('   Two-body: self-consistent')
     95 format ('   Two-body: perturbative')
     94 format ('   Two-body: not included')
+    
+    97 format (' WARNING: COM correction is not completely selfconsistent.')
+    98 format ("          Energy from spwfs and functional will not match.")
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     100 format( ' Elementary Constants')
     101 format(" e^2            = ", f11.8 ,' (sqrt(MeV fm)) ')
@@ -239,8 +242,15 @@ $PRINTPARAMS
       print 95
     case(2)
       print 96
+      print *, 'Self-consistent inclusion of the two-body center of mass',  &
+      &        ' correction is not available.'
       stop
     end select
+    
+    if((COM1body .eq. 1) .or. (COM2body.eq. 1)) then
+        print 97
+        print 98
+    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     ! Constants
     print 4

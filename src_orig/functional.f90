@@ -136,6 +136,8 @@ $CALCCOEF
     5 format (36x, '  C_0            C_1    ')
     6 format (38x, 'BFH representation ')
     7 format (36x, '  C_0            C_q    ')
+    8 format (38x, 'Pairing terms ')
+    9 format (36x, '  neutron        proton ')
     
     print 1
     print 3
@@ -149,6 +151,10 @@ $PRINTCOEF_ISO
     print 6
     print 7
 $PRINTCOEF_PN
+    print 2
+    print 8
+    print 9
+$PRINTCOEF_PAIR
     print 2
  end subroutine printedfcoefs
 
@@ -268,7 +274,7 @@ $PRINTCOEF_PN
     ! Calculate the Skyrme part to the functional.
     !---------------------------------------------------------------------------
     real(KIND=dp) :: Edensity(mv,3)
-    integer       :: m
+    integer       :: m, it
     
 $CALCULATION
     
