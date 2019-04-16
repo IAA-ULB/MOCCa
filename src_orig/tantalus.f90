@@ -15,7 +15,6 @@ program Tantalus
  use geninfo
  use wavefunctions
  use IO
- use particleinbox
  use temperature_projection 
 
  implicit none
