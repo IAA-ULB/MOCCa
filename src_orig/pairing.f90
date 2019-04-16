@@ -100,7 +100,6 @@ module pairing
  !------------------------------------------------------------------------------
  ! Entropy of the statistical mixture in the case of finite temperature
  real(KIND=dp) :: entropy(2) = 0
-
  !------------------------------------------------------------------------------
  ! Values for the average pairing gap
  ! First index is for 
@@ -109,10 +108,18 @@ module pairing
  !  The second index is for isospin.
  real(KIND=dp) :: average_gap(2,2)
 
-! !-----------------------------------------------------------------------------
-! ! Estimation of 
-! ! dNi/dLambda_j 
-! real(KIND=dp) :: dNda(2,2) = 0.0
+ !------------------------------------------------------------------------------
+ ! Integer tracking the way the contribution from a free gas is counted for the 
+ ! readjustment of the Fermi energy.
+ ! 0) No correction: the number of particles is the ordinary counting.
+ ! 1) Subtraction  : the nucleus is modelled as being immersed in a gas of 
+ !                   free particles. The number of particles is the calculated
+ !                   one MINUS the number of particles in a free gas at the 
+ !                   same chemical potential.
+ integer       :: particles_in_gas = 0
+ real(KIND=dp) :: ngas(2)
+
+
 contains
 
   subroutine initpairing
@@ -123,7 +130,9 @@ contains
     character(len=20) :: Type = 'HF'
     
     NameList /Pairing/ Type, CutType, Constantgap, hfbmix, hfbmixtype,         &
-    &                  BlockType, BlockNumber, cutneutron, cutproton
+    &                  BlockType, BlockNumber, cutneutron, cutproton,          &
+    &                  particles_in_gas
+
     NameList /Indices/ BlockIndices, blocklowest
 
     read(unit=*, NML=Pairing)
@@ -146,6 +155,16 @@ contains
     if(Blocktype.lt.0 .or. BlockType.gt.4) then
         print *, 'This value of BlockType is not accepted.'
         stop
+    endif
+    
+    if(particles_in_gas .lt. 0 .or. particles_in_gas .gt. 1) then
+      print *, 'This value for particles_in_gas is not accepted.'
+      stop
+    endif
+
+    if(particles_in_gas .ne. 0 .and. inversetemp .eq. -1) then
+       print *, 'Particles_in_gas should be zero for T=0 calculations.'
+      stop
     endif
     !---------------------------------------------------------------------------
     ! Reading information on the blocking if needed.
@@ -191,18 +210,22 @@ contains
     7 format('     dE (n,p) = ', 2f4.1, ' MeV ')
     8 format('     mu (n,p) = ', 2f4.1, ' MeV ')
 
+   13 format('   Gas-treatment:  Normal'            )    
+   14 format('   Gas-treatment:  Subtraction method')    
+
   100 format('   Fixed Fermi= ', 2f12.4)
 
-    90 format ('  Blocking Options')
-    91 format ('    Blocking type: ', i1)
-    92 format ('    Ordinary Blocking' )
-    93 format ('    Equal Filling    ' )
-    
-    10 format ('    Blocknumber  = ', i2 )
-    
-    11 format ('    Blocklowest  = ', 20(1x, a2))
-    12 format ('    BlockIndices = ', 20i3)
-    
+   90 format ('  Blocking Options')
+   91 format ('    Blocking type: ', i1)
+   92 format ('    Ordinary Blocking' )
+   93 format ('    Equal Filling    ' )
+   
+   10 format ('    Blocknumber  = ', i2 )
+   
+   11 format ('    Blocklowest  = ', 20(1x, a2))
+   12 format ('    BlockIndices = ', 20i3)
+
+
     print 1
 
     select case (pairingtype)
@@ -235,6 +258,12 @@ contains
 
     if(fixfermi) then
         print 100, mun, mup
+    endif
+  
+    if(particles_in_gas .eq.1) then
+      print 14
+    else
+      print 13
     endif
 
     if(Blocktype .ne. 0) then
@@ -312,6 +341,8 @@ contains
     !---------------------------------------------------------------------------
     ! Master routine for the solving of the pairing equations.
     !---------------------------------------------------------------------------
+    use parameterization, only : hbm
+
     integer :: wave
     
     if(.not.allocated(rho_can)) then
@@ -333,7 +364,7 @@ contains
         if(inversetemp .eq. -1) then
             call NaiveFill(rho_can)
         else
-            call FiniteTemperatureHF(rho_can,FermiEnergy)
+            call FiniteTemperatureHF(rho_can,FermiEnergy, particles_in_gas)
         endif
     case(1)
       !-------------------------------------------------------------------------
@@ -371,6 +402,14 @@ contains
       &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
       &                     BlockType, Blockindices, blocklowest)
     end select
+
+    !---------------------------------------------------------------------------
+    ! If beta != infty, we calculate the number of particles in the gas
+    if(inversetemp.ne.-1) then
+      ngas(1) = gasoccupations(fermienergy(1), hbm(1))
+      ngas(2) = gasoccupations(fermienergy(2), hbm(2))
+    endif
+
     !---------------------------------------------------------------------------
     ! Compute the cutoffs
     call ComputePairingCutoffs(fermienergy)
@@ -384,7 +423,7 @@ contains
     !
     !
     !---------------------------------------------------------------------------
-    
+
     1 format (26('-'), ' Pairing ', 25('-'))
     2 format (25x, ' N ',7x, ' P ')
     3 format (' Fermi Level (MeV) ',2x,f13.8,2x,f13.8)
@@ -395,8 +434,10 @@ contains
 
     6 format (' Average gap   v^2 ',2x, f13.8, 2x, f13.8,/,                    &
               ' Average gap   uv  ',2x, f13.8, 2x, f13.8)
-
     7 format (60('-'))
+
+    8 format ('  gas-like         ', 2x, f13.8, 2x, f13.8)
+    9 format ('  nucleus          ', 2x, f13.8, 2x, f13.8)
 
     select case(PairingType)
     case (0)
@@ -406,6 +447,12 @@ contains
         print 2
         print 3, FermiEnergy
         print 4, sum(rho_can(1:nwn)), sum(rho_can(nwn+1:nwt))
+
+        if(inversetemp .ne. -1)then
+          print 8, ngas
+          print 9, sum(rho_can(1:nwn))-ngas(1), sum(rho_can(nwn+1:nwt))-ngas(2)
+        endif
+  
         print 5,  HFdispersion
     case (1,2)
         ! BCS and HFB

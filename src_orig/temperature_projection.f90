@@ -430,22 +430,20 @@ contains
         3 format (' Partition function')
         4 format (' lnZ (constant mu)  : ', f20.12)
         5 format (' lnZ (constant  N)  : ', f20.12)
+        6 format (' lnZ (free gas)     : ', f20.12)
+
 !        5 format (' Projected  lnZ (No V) (n): ', f20.12,/, &
 !        &         '                       (p): ', f20.12,/, &
 !        &         '                       (t): ', f20.12)
-        6 format (' lnZ (canonical)    : ', f20.12)
-       61 format (' Full precision     : ', f20.12) 
-
-
+        7 format (' lnZ (canonical)    : ', f20.12)
 
         print 1
         print 2
         print 3
         print 4, partition
         print 5, partition_tilde
-!        print 5, projectedpartition_nov, sum(projectedpartition_nov)
-        print 6, projectedpartition
-        print 61, TotalE
+        print 6, sum(gaspartition())
+        print 7, projectedpartition
         print 1
         
     end subroutine PrintThermalProjection
@@ -461,5 +459,88 @@ contains
         ! We calculate the
         !-----------------------------------------------------------------------
 
-    end subroutine 
+    end subroutine QRdeterminant
+
+    function gaspartition() result(lnZ)
+        !-----------------------------------------------------------------------
+        ! Calculate lnZ for the free Fermion gas at this particular temperature.
+        !
+        !    Z = Pi_{k } (1 + exp(-beta * (epsilon_k - mu)))
+        !
+        ! where epsilon_k is the single-particle energy of a state in the box, 
+        ! without the nuclear potential.
+        ! 
+        ! For Lagrange derivatives, these single-particle energies are 
+        ! given exactly by the kinetic energies of the basis functions.
+        !
+        ! The one-dimensional energies are
+        ! 
+        !    epsilon_kx = hbar^2/(2*m) (2*pi * kx/(2*nx * dx))**2
+        !
+        ! where nx is the size of the EV8-box and 
+        !
+        !    kx = +/- 1/2, +/-3/2, ....
+        !
+        ! and we should not forget the spin degree of freedom, resulting in a
+        ! overall degeneracy of two!
+        !
+        ! The levels in the full (3D) box can thus be indexed as
+        ! 
+        !    psi_kxkykz with a single-particle energy of 
+        !     eps_kxkykz  = (eps_kx + eps_ky + eps_kz) 
+        !
+        ! Since the box-size is not necessarily the same in all dimensions, we 
+        ! cannot profit from the degeneracy in the levels for exactly cubic 
+        ! boxes. 
+        !-----------------------------------------------------------------------
+
+        real(KIND=dp) :: lnZ(2)
+        integer       :: kx, ky, kz, it
+        real(KIND=dp) :: ex, ey, ez, f, etot, add, checkx, checky, checkz
+        real(KIND=dp) :: maxe
+
+        lnZ = 0 ; maxe = maxval(spenergies)
+      
+        do it=1,2
+          kz = 1
+          do while(.true.) 
+            ! Factor of two since our k's are integer
+            ez = hbm(it)*(pi*kz/(2*nz*dx))**2 
+            
+            checkz = log(1+exp(-inversetemp*(ez - Fermienergy(it))))
+            if(checkz.lt. 1d-8) exit
+
+            ky = 1
+            do while(.true.)
+              ey     = hbm(it)*(pi*ky/(2*ny*dx))**2 
+              checky = log(1+exp(-inversetemp*(ey - Fermienergy(it))))
+              if(checky.lt. 1d-8) exit
+    
+              kx = 1
+              do while(.true.) 
+                ex = hbm(it)*(pi*kx/(2*nx*dx))**2 
+                checkx = log(1+exp(-inversetemp*(ex - Fermienergy(it))))
+                if(checkx.lt. 1d-8) then
+                  exit
+                endif                
+                etot = ex + ey + ez
+    
+                if(etot .gt. maxe) then
+                  ! There is an implicit energy cutoff in our calculation:
+                  ! the highest single-particle energy of the spwfs we consider.
+                  exit
+                endif          
+                f    = exp(-inversetemp*(etot - FermiEnergy(it)))  
+                add  = log(1+f)
+                lnZ(it) = lnZ(it) + add
+                kx = kx + 1
+              enddo
+              ky = ky + 1
+            enddo
+            kz = kz + 1
+          enddo
+        enddo
+        lnZ = lnZ * 2 ! Time-reversal 
+    end function gaspartition
+
 end module temperature_projection

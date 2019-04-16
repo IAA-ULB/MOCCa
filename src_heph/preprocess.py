@@ -106,6 +106,9 @@ def preprocess(fname, src, target):
     if(fname=='momentsofinertia.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='particleinabox.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='densities.f90'):
         ProcessDensities(fname, src, target)
         return

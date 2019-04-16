@@ -71,15 +71,18 @@ contains
     return
   end subroutine NaiveFill
 
-  subroutine FiniteTemperatureHF(occupations,  Fermi)
+  subroutine FiniteTemperatureHF(occupations, Fermi, particles_in_gas)
     !---------------------------------------------------------------------------
     ! Simple bisection routine to find the correct Fermi energy for a finite
     ! temperature HF calculation. A Newton type method might be more efficient, 
     ! but I fear for rounding errors and instability with exp() of either large
     ! or small numbers.
     !---------------------------------------------------------------------------
+  
+    use parameterization, only : hbm
 
-    real(KIND=dp), intent(out) :: occupations(nwt)      
+    real(KIND=dp), intent(out) :: occupations(nwt)
+    integer, intent(in)        :: particles_in_gas      
     real(KIND=dp)              :: energies(nwt,2), N
     real(KIND=dp)              :: Fermi(2), Fmin, Fmax, betaE, Nmin, Nmax
     integer                    :: Order(nwt,2), nw
@@ -93,7 +96,7 @@ contains
         !-----------------------------------------------------------------------
         ! We fix the particle number to <N> = neutrons, <Z> = protons.
     
-        !Finding the order of the spwfs, in terms of energy
+        ! Finding the order of the spwfs, in terms of energy
         Order = 0    
         Order(1:nwn,1) = OrderSpwfsISO(-1)
         Order(1:nwp,2) = OrderSpwfsISO(+1)
@@ -129,7 +132,22 @@ contains
                 stop
             endif
 
-            Fermi(it) = FermiBisection(Fmin,Nmin,Fmax,Nmax, energies(1:nw,it),N)
+            ! First solve the ordinary problem
+            Fermi(it)=FermiBisection(Fmin,Nmin,Fmax,Nmax, energies(1:nw,it),N, &
+            &                          0, hbm(it))
+
+            ! Then solve the problem, when corrected for Ngas
+            ! We do this in two steps, as
+            !  N_nucleus = N_total - N_gas is not a monotonic function at all.
+            ! Note that this particular implementation is a bit stupid: we 
+            ! assume the corrected Fermi energy to be not too far (2 MeV) from
+            ! the uncorrected one.
+            if(particles_in_gas.eq.1) then
+              Fmin = Fermi(it) - 2
+              Fmax = Fermi(it) + 2
+              Fermi(it) = FermiBisection(Fmin,Nmin,Fmax,Nmax, energies(1:nw,it)& 
+              &                                    ,N,particles_in_gas, hbm(it))
+            endif
         enddo       
     endif
 
@@ -186,13 +204,15 @@ contains
 
   end function FToccupations
   
-  recursive function FermiBisection(xmin, Nmin, xmax, Nmax, energies, N) result(x)
+  recursive function FermiBisection(xmin,Nmin,xmax,Nmax, energies, N,gas,hbm)  &
+  &                  result(x)
     !---------------------------------------------------------------------------
     ! Bisection search for an appropriate chemical potential for the FT HF.
     !---------------------------------------------------------------------------
 
-    real(KIND=dp)             :: xmin, xmax, x, Nmin, Nmax, xnew, Nnew
-    real(KIND=dp), intent(in) :: energies(:), N
+    real(KIND=dp)             :: xmin, xmax, x, Nmin, Nmax, xnew, Nnew, Ngas
+    real(KIND=dp), intent(in) :: energies(:), N, hbm  
+    integer, intent(in)       :: gas
 
     if(abs(Nmin) .lt. pairing_prec) then
         x = xmin        
@@ -204,15 +224,96 @@ contains
     endif   
     
     xnew = 0.5 * (xmin + xmax)
-    Nnew = FToccupations(xnew, energies) - N
+    Nnew = FToccupations(xnew, energies)
+    !---------------------------------------------------------------------------
+    ! We correct for the number of particles suspended in the gas around the
+    ! (compound) nucleus.
+    select case(gas)
+    case(0)
+      !  No correction
+    case(1)
+      !  Subtraction method
+      Ngas = gasoccupations(xnew, hbm)
+      Nnew = Nnew - Ngas
+    end select
+    Nnew =  Nnew - N
 
     if(Nnew .gt. 0) then
-        x = FermiBisection(xmin, Nmin, xnew, Nnew, energies,N)
+        x = FermiBisection(xmin, Nmin, xnew, Nnew, energies,N, gas, hbm)
     else
-        x = FermiBisection(xnew, Nnew, xmax, Nmax, energies,N)            
+        x = FermiBisection(xnew, Nnew, xmax, Nmax, energies,N, gas, hbm)            
     endif
 
   end function FermiBisection
+
+  function gasoccupations(fermi, hbm) result(s)
+    !---------------------------------------------------------------------------
+    ! We count the number of particles in the free gas.
+    !
+    ! For Lagrange derivatives in a 1D box, the single-particle energies are
+    !
+    !    epsilon_kx = hbar^2/(2*m) (2*pi * kx/(2*nx * dx))**2
+    !
+    ! where nx is the size of the EV8-box and 
+    !
+    !    kx = +/- 1/2, +/-3/2, ....
+    !
+    ! and we should not forget the spin degree of freedom, resulting in a
+    ! overall degeneracy of two!
+    !
+    ! The levels in the full (3D) box can thus be indexed as
+    ! 
+    !    psi_kxkykz with a single-particle energy of 
+    !     eps_kxkykz  = (eps_kx + eps_ky + eps_kz) 
+    !
+    ! Since the box-size is not necessarily the same in all dimensions, we 
+    ! cannot profit from the degeneracy in the levels for exactly cubic 
+    ! boxes. 
+    !-----------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: hbm, fermi
+    real(KIND=dp)             :: s, maxe,ez,ey,ex,checkz, checky, checkx, etot
+    integer                   :: wave, kx, ky, kz
+
+    s = 0
+    maxe = maxval(spenergies)
+    
+    kz=1
+    do while(.true.)
+      ez = hbm*(pi*kz/(2*nz*dx))**2
+
+      checkz = 1.d0/(1.0d0 + exp(inversetemp*(ez - fermi))) 
+      if(checkz.lt. 1d-8) exit
+ 
+      ky = 1
+      do while(.true.)
+        ey     = hbm*(pi*ky/(2*ny*dx))**2 
+
+        checky = 1.d0/(1.0d0 + exp(inversetemp*(ey - fermi))) 
+        if(checky.lt. 1d-8) exit
+
+        kx = 1
+        do while(.true.) 
+          ex = hbm*(pi*kx/(2*nx*dx))**2 
+
+          checkx = 1.d0/(1.0d0 + exp(inversetemp*(ex - fermi))) 
+          if(checkx .lt. 1d-8) exit
+
+          etot = ex + ey + ez
+          if(etot .gt. maxe) then
+            ! There is an implicit energy cutoff in our calculation:
+            ! the highest single-particle energy of the spwfs we consider.
+            exit
+          endif          
+          s  = s + 1.d0/(1.0d0 + exp(inversetemp*(etot - fermi))) 
+          kx = kx + 1
+        enddo
+        ky = ky + 1
+      enddo
+      kz = kz + 1
+    enddo   
+    ! Spin degree of freedom
+    s= 2*s
+  end function gasoccupations
 
   subroutine CalcHFgaps(Fermi)
     !---------------------------------------------------------------------------

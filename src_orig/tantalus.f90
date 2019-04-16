@@ -15,7 +15,9 @@ program Tantalus
  use geninfo
  use wavefunctions
  use IO
- 
+ use particleinbox
+ use temperature_projection 
+
  implicit none
 
  100 format &
@@ -60,6 +62,7 @@ program Tantalus
  !------------------------------------------------------------------------------
  ! Print all relevant input gleaned from STDIN and the wf file.
  call PrintInput
+
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
  call ReachForWaterAndFood

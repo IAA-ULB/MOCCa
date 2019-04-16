@@ -564,6 +564,142 @@ $TR     particles = 2 * particles
       deallocate(work)  ; deallocate(eigen)
   end subroutine FindFermi
 
+  subroutine FindFermi_Brent(H, blocks, targetparticles, config, Bogo, Eqp,    & 
+   &                         lambda, maxhfbiter, blocktype, blockconf)
+      !-------------------------------------------------------------------------
+      ! Subroutine that diagonalizes the HFB hamiltonian (repeatedly) to find  
+      ! the correct Fermi energy that fixes the average number of particles.
+      ! The routine only solves this for one particular isospin.
+      !
+      ! This particular subroutine employs Brents method to fix the Fermi 
+      ! energy. See
+      ! 
+      ! https://en.wikipedia.org/wiki/Brent%27s_method
+      ! 
+      ! which combines bisection, secant method and inverse quadratic 
+      ! interpolation.The original source is probably
+      ! R. P. Brent (1973), "Chapter 4: An Algorithm with Guaranteed Convergence
+      ! for Finding a Zero of a Function", Algorithms for Minimization without
+      ! Derivatives, Englewood Cliffs, NJ: Prentice-Hall,  
+      !
+      ! Input
+      !   H        : HFB hamiltonian, without Fermi energy
+      !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
+      !              the problem.
+      !   particles: Average number of particles to target. 
+      !   lambda   : Initial guess for the Fermi energy
+      !   maxhfbiter: Maximum number of iterations to perform
+      !
+      ! Output
+      !   config   : Configuration matrix of the final solution
+      !   Eqp      : Quasiparticle energies of the final solution
+      !   Bogo     : Bogoliubov transformation that diagonalizes H
+      !   Lambda   : Final fermi energy
+      !-------------------------------------------------------------------------
+      ! This routine is very heavily inspired by the routine implemented in 
+      ! MOCCa by M. Bender. 
+      !-------------------------------------------------------------------------
+      real(KIND=dp), intent(in)    :: H(:,:), targetparticles
+      real(KIND=dp), intent(out)   :: config(:), Bogo(:,:), Eqp(:)
+      real(KIND=dp), intent(inout) :: lambda
+      integer, intent(in)          :: blocks(4), maxhfbiter, blocktype
+      integer, intent(in)          :: blockconf(:)
+
+      real(KIND=dp), allocatable   :: eigen(:), work(:), A(:,:)
+      real(KIND=dp)                :: df, dn(2), particles
+
+      integer :: iter, sb, si, N, B, i
+
+      ! Initialization
+      df = 0 ; dn = 0.0
+      allocate(work(2*sum(blocks)))
+      allocate(eigen(2*sum(blocks)))
+      do iter=1, maxHFBiter
+
+        !-----------------------------------------------------------------------
+        ! a) Diagonalization of the HFB Hamiltonian by block. 
+        si = 0 ; sb = 0
+        do B=1,4
+          N = blocks(B) ; if(N .eq. 0) cycle
+  
+          ! Construct the blocks of H including the Fermi energy
+          allocate(A(2*N,2*N)) ; A = 0
+          
+          A = H(sb+1:sb+2*N, sb+1:sb+2*N)
+          do i=1,N
+            A(i  ,i  ) = A(i  , i  ) - lambda
+            A(i+N,i+N) = A(i+N, i+N) + lambda
+          enddo
+                          
+          ! Diagonalize every block
+          call diagon (A,2*N,2*N,Bogo(sb+1:sb+2*N, sb+1:sb+2*N),               &
+          &                       eigen(sb+1:sb+2*N),work)
+
+          Eqp(si+1:si+N) = eigen(sb+N+1:sb+2*N)
+          deallocate(A)
+          ! Indices for the next block
+          si = si +   N
+          sb = sb + 2*N
+        enddo
+        !-----------------------------------------------------------------------
+        ! b) We construct the configuration matrix that was asked for
+        config = ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf) 
+        !-----------------------------------------------------------------------
+        ! c) Count the total number of particles that we have.
+        si = 0 ; sb = 0
+        particles   = 0
+        do B=1,4                
+            N = HFBsizes(B) ;  if(N .eq. 0) cycle 
+            !-------------------------------------------------------------------
+            ! Calculate the number of particles in here  
+            ! Sum_i rho_ii =  Sum_ii   U   f U^{\dagger} + V^{*}(1 - f)V^{T}
+            !          sum_(ij>N) f_(j) V^*_ij V^T_ji = sum_ij f_(j) V^*_ij V_ij
+            !        + sum_(ij<N) f_(j) U^*_ij U^T_ji = sum_ij f_(j) U^*_ij U_ij         
+            do i=1,N
+                particles = particles                                          &
+                &         +   config(sb+N+i)*sum(bogo(sb+N+1:sb+2*N, sb+N+i)**2)            
+            enddo
+            do i=1,N
+                particles = particles                                          &
+                &         +   config(sb  +i)*sum(bogo(sb  +1:sb+  N, sb+N+i)**2)            
+            enddo
+
+            ! indices
+            si = si +  N
+            sb = sb +2*N
+        enddo
+        ! When Time-reversal is conserved, we need an extra factor of two
+$TR     particles = 2 * particles            
+
+        ! Return if we do not want to readjust the Fermi energy
+        if(MaxHFBiter.eq.1) return
+        
+        !-----------------------------------------------------------------------
+        ! d) Readjust the Fermi energy based on the number of particles.
+        !    We use the secant method.
+        dn(2) = dn(1)
+        dn(1) = particles - targetparticles
+      
+!        print ('(i3,f8.3,f8.3,3x, f4.1, f8.3, 3x, e12.3)'),                   &
+!        &  iter, lambda, particles, targetparticles, df, dn(1)
+
+        if(abs(dn(1)).lt.pairing_prec) return
+          
+        if(iter.eq.1) then
+          ! We try lambda + 0.1 for the first iteration
+          lambda = lambda + 0.1
+          df     =          0.1
+        else
+          df     = - dn(1) * df/(dn(1) - dn(2))
+
+          if(abs(df).gt.1.0) df = 0.1 * df/abs(df)
+          lambda = lambda + df
+        endif
+      enddo
+
+      deallocate(work)  ; deallocate(eigen)
+  end subroutine FindFermi_brent
+
   function ConstructHFBHamil(sphamil, gaps) result(H)
     !---------------------------------------------------------------------------
     ! Construct the HFB hamiltonian
