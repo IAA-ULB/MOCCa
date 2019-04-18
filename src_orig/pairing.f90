@@ -116,6 +116,7 @@ module pairing
  !                   free particles. The number of particles is the calculated
  !                   one MINUS the number of particles in a free gas at the 
  !                   same chemical potential.
+ ! 2) Nogas        : the code is only allowed to occupy the bound states.
  integer       :: particles_in_gas = 0
  real(KIND=dp) :: ngas(2)
 
@@ -157,7 +158,7 @@ contains
         stop
     endif
     
-    if(particles_in_gas .lt. 0 .or. particles_in_gas .gt. 1) then
+    if(particles_in_gas .lt. 0 .or. particles_in_gas .gt. 2) then
       print *, 'This value for particles_in_gas is not accepted.'
       stop
     endif
@@ -212,6 +213,7 @@ contains
 
    13 format('   Gas-treatment:  Normal'            )    
    14 format('   Gas-treatment:  Subtraction method')    
+   15 format('   Gas-treatment:  Bound states only')    
 
   100 format('   Fixed Fermi= ', 2f12.4)
 
@@ -262,6 +264,8 @@ contains
   
     if(particles_in_gas .eq.1) then
       print 14
+    elseif(particles_in_gas .eq.2) then
+      print 15
     else
       print 13
     endif

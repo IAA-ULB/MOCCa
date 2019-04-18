@@ -85,9 +85,17 @@ contains
     integer, intent(in)        :: particles_in_gas      
     real(KIND=dp)              :: energies(nwt,2), N
     real(KIND=dp)              :: Fermi(2), Fmin, Fmax, betaE, Nmin, Nmax
-    integer                    :: Order(nwt,2), nw
+    integer                    :: Order(nwt,2), nw, nwn_alt, nwp_alt, nw_alt
     integer                    :: it, maxiter=100, i
 
+    nwn_alt = 0 ; nwp_alt = 0
+    do i=1,nwn
+        if(spenergies(i).lt.0) nwn_alt = nwn_alt+1  
+    enddo
+    do i=nwn+1,nwt
+        if(spenergies(i).lt.0) nwp_alt = nwp_alt+1  
+    enddo
+  
     if( fixfermi ) then
         !-----------------------------------------------------------------------
         ! We perform a calculation at fixed chemical potential
@@ -111,18 +119,29 @@ contains
         do it=1,2
             
             if(it .eq. 1) then
-                N = neutrons ; nw = nwn
+                N = neutrons ; nw = nwn ; nw_alt = nwn_alt
             else 
-                N = protons  ; nw = nwp
+                N = protons  ; nw = nwp ; nw_alt = nwp_alt
             endif
             
             !-------------------------------------------------------------------
             ! Establish a search interval
-            Fmin = -1000
-            Fmax = 100
+            select case(particles_in_gas)
+            case(0,1)
+              ! Analytically, these are guaranteed to be lower and upper bounds
+              ! if we are looking for a traditional solution.
+              Fmin = minval(spenergies) - log(2*nw/N - 1)/inversetemp
+              Fmax = maxval(spenergies) - log(2*nw/N - 1)/inversetemp
+            case(2)
+              ! But the upper bound is no longer good if we are only occupying
+              ! bound states.
+              
+              Fmin = minval(spenergies) - log(2*nw_alt/N - 1)/inversetemp
+              Fmax =                    - log(2*nw_alt/N - 1)/inversetemp
+            end select 
 
-            Nmin = FToccupations(Fmin, energies(1:nw,it)) - N
-            Nmax = FToccupations(Fmax, energies(1:nw,it)) - N
+            Nmin = FToccupations(Fmin, energies(1:nw,it), particles_in_gas) - N
+            Nmax = FToccupations(Fmax, energies(1:nw,it), particles_in_gas) - N
         
             if(Nmin .gt. 0 .or. Nmax .lt. 0) then
                 print *, 'Bracketing of Fermi energy is wrong.'
@@ -131,23 +150,27 @@ contains
                 print *, spenergies(Order(1,it)),spenergies(Order(nw,it)) 
                 stop
             endif
+              
+            select case (particles_in_gas)
+            case(0,2)
+              ! Ordinary case & only bound states case
+              Fermi(it) = FermiBisection(Fmin,Nmin,Fmax,Nmax, energies(1:nw,it)& 
+              &                                    ,N,particles_in_gas, hbm(it))
+            case(1)
+              ! We do this in two steps, as
+              !  N_nucleus = N_total - N_gas is not a monotonic function at all.
+              ! Note that this particular implementation is a bit stupid: we 
+              ! assume the corrected Fermi energy to be not too far (2 MeV) from
+              ! the uncorrected one.
+              ! First solve the ordinary problem
+              Fermi(it)=FermiBisection(Fmin,Nmin,Fmax,Nmax, energies(1:nw,it), &
+              &                        N, 0, hbm(it))
 
-            ! First solve the ordinary problem
-            Fermi(it)=FermiBisection(Fmin,Nmin,Fmax,Nmax, energies(1:nw,it),N, &
-            &                          0, hbm(it))
-
-            ! Then solve the problem, when corrected for Ngas
-            ! We do this in two steps, as
-            !  N_nucleus = N_total - N_gas is not a monotonic function at all.
-            ! Note that this particular implementation is a bit stupid: we 
-            ! assume the corrected Fermi energy to be not too far (2 MeV) from
-            ! the uncorrected one.
-            if(particles_in_gas.eq.1) then
               Fmin = Fermi(it) - 2
               Fmax = Fermi(it) + 2
               Fermi(it) = FermiBisection(Fmin,Nmin,Fmax,Nmax, energies(1:nw,it)& 
               &                                    ,N,particles_in_gas, hbm(it))
-            endif
+            end select
         enddo       
     endif
 
@@ -159,8 +182,19 @@ contains
         else
             it    = 1
         endif        
-        betaE = inversetemp * (spenergies(i) - Fermi(it))
-        occupations(i) = 2.0/(1 + exp(betaE))
+
+        select case(particles_in_gas)
+        case(0,1)
+          betaE = inversetemp * (spenergies(i) - Fermi(it))
+          occupations(i) = 2.0/(1 + exp(betaE))
+        case(2)
+          betaE = inversetemp * (spenergies(i) - Fermi(it))
+          if(spenergies(i) .gt. 0) then
+            occupations(i) = 0  
+          else
+            occupations(i) = 2.0/(1 + exp(betaE))
+          endif
+        end select
     enddo
 
     !---------------------------------------------------------------------------
@@ -184,21 +218,33 @@ contains
     HFdispersion = 2 * HFDispersion
   end subroutine FiniteTemperatureHF
 
-  function FToccupations(mu, energies) result (N)
+  function FToccupations(mu, energies, gas) result (N)
     !---------------------------------------------------------------------------
     ! Simple function that sums the occupations for given mu and sp-energies.
     !---------------------------------------------------------------------------
 
+    integer, intent(in)       :: gas
     real(KIND=dp), intent(in) :: energies(:), mu
     real(KIND=dp)             :: N, betaE
     integer                   :: i
 
     N = 0
-    do i=1, size(energies)
-        betaE = inversetemp * (energies(i) - mu)
-        N     = N + 1.0/(1 + exp(betaE))
-    enddo
 
+    select case(gas)
+    case(0,1)
+      do i=1, size(energies)
+          betaE = inversetemp * (energies(i) - mu)
+          N     = N + 1.0/(1 + exp(betaE))
+      enddo
+    case(2) 
+      ! Only take into account bound states
+      do i=1, size(energies)
+          betaE = inversetemp * (energies(i) - mu)
+          if(energies(i) .lt. 0) then 
+            N     = N + 1.0/(1 + exp(betaE))
+          endif
+      enddo
+    end select
     ! Time-reversal gives the factor 2
     N = 2 * N
 
@@ -224,12 +270,13 @@ contains
     endif   
     
     xnew = 0.5 * (xmin + xmax)
-    Nnew = FToccupations(xnew, energies)
+    Nnew = FToccupations(xnew, energies, gas)
+
     !---------------------------------------------------------------------------
     ! We correct for the number of particles suspended in the gas around the
     ! (compound) nucleus.
     select case(gas)
-    case(0)
+    case(0,2)
       !  No correction
     case(1)
       !  Subtraction method

@@ -227,6 +227,9 @@ contains
             phi = pi*(iphi-1)/nwn
             temp = 0                        
             do wave=1,nwn
+               if(spenergies(wave) .gt. 0 .and. particles_in_gas .eq. 2) then
+                  cycle
+               endif
                fac  = inversetemp * (spenergies(wave) - fermienergy(1))
                temp = temp + log(1+exp(-fac + Iimag*phi))  
             enddo
@@ -238,6 +241,9 @@ contains
             phi = pi*(iphi-1)/nwp
             temp = 0            
             do wave=nwn+1,nwt
+               if(spenergies(wave) .gt. 0 .and. particles_in_gas .eq. 2) then
+                  cycle
+               endif
                fac  = inversetemp * (spenergies(wave) - fermienergy(2))
                temp = temp + log(1+exp(-fac + Iimag*phi))  
             enddo
@@ -500,6 +506,8 @@ contains
         real(KIND=dp) :: maxe
 
         lnZ = 0 ; maxe = maxval(spenergies)
+
+        if(particles_in_gas .eq. 2) return
       
         do it=1,2
           kz = 1
