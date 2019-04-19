@@ -479,7 +479,6 @@ $TR    HFBdispersion = 2 * HFBdispersion
       allocate(work(2*sum(blocks)))
       allocate(eigen(2*sum(blocks)))
       do iter=1, maxHFBiter
-
         !-----------------------------------------------------------------------
         ! a) Diagonalization of the HFB Hamiltonian by block. 
         si = 0 ; sb = 0
@@ -513,7 +512,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
         si = 0 ; sb = 0
         particles   = 0
         do B=1,4                
-            N = HFBsizes(B) ;  if(N .eq. 0) cycle 
+            N = Blocks(B) ;  if(N .eq. 0) cycle 
             !-------------------------------------------------------------------
             ! Calculate the number of particles in here  
             ! Sum_i rho_ii =  Sum_ii   U   f U^{\dagger} + V^{*}(1 - f)V^{T}
