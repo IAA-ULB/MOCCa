@@ -132,7 +132,7 @@ contains
     
     NameList /Pairing/ Type, CutType, Constantgap, hfbmix, hfbmixtype,         &
     &                  BlockType, BlockNumber, cutneutron, cutproton,          &
-    &                  particles_in_gas
+    &                  particles_in_gas, maxhfbiter
 
     NameList /Indices/ BlockIndices, blocklowest
 
@@ -374,7 +374,8 @@ contains
       !-------------------------------------------------------------------------
       ! BCS-type pairing
       ! The diagonal elements of rho and kappa are only set. 
-      call solvepairing_BCS(FermiEnergy, rho_can, kappa_can, qpenergies)
+      call solvepairing_BCS(FermiEnergy, rho_can, kappa_can, qpenergies,       &
+      &                     particles_in_gas)
 
       ! Calculate the average gap
       average_gap = average_gap_BCS()

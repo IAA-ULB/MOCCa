@@ -54,7 +54,7 @@ module BCS
 
 contains
  
- subroutine solvepairing_BCS(fermi, rho_can, kappa_can, qpenergies)
+ subroutine solvepairing_BCS(fermi, rho_can, kappa_can, qpenergies,gas)
   !-----------------------------------------------------------------------------
   ! Driver routine for the solving of the BCS equations.
   !
@@ -71,6 +71,7 @@ contains
   real(KIND=dp), intent(inout) :: kappa_can(:), qpenergies(:)
   real(KIND=dp)                :: oldfermi(2), fac
   integer                      :: iter, wave
+  integer, intent(in)          :: gas
   
   1 format('---------------------------------------',/,     &
     &        ' Warning! ',/,                                &
@@ -82,8 +83,8 @@ contains
 
   do iter =1, maxBCSiter
     oldfermi = fermi
-    call BCSQPEnergies(Fermi)
-    call BCSFindFermiEnergy(Fermi)
+    call BCSQPEnergies(Fermi, gas)
+    call BCSFindFermiEnergy(Fermi, gas)
     
     ! Check for convergence
     if( all(abs(fermi - oldfermi).lt.FermiPrec)) then
@@ -93,7 +94,7 @@ contains
     endif          
   enddo
   
-  call calcBCSoccupations(Fermi)
+  call calcBCSoccupations(Fermi, gas)
   
   !-----------------------------------------------------------------------------
   ! Rho_pairing is diagonal for a BCS calculation
@@ -176,7 +177,7 @@ contains
     endif
   end subroutine CalcBCSGaps
 
-  subroutine BCSFindFermiEnergy (Fermi)
+  subroutine BCSFindFermiEnergy (Fermi, gas)
    !----------------------------------------------------------------------------
    ! Function that finds the correct Fermi energy to satisfy the particle 
    ! number constraints 
@@ -184,6 +185,7 @@ contains
     real(KIND=dp),intent(inout) :: Fermi(2)
     real(KIND=dp)               :: LambdaSums(2,2), eqp, nom, Particles(2), fac
     integer                     :: wave, it
+    integer, intent(in)         :: gas
 
     Particles(1) = Neutrons; Particles(2) = Protons
 
@@ -196,13 +198,30 @@ contains
       eqp = BCSqps(wave)
       nom = spenergies(wave)
 
-      if(inversetemp.ne.-1) then  
-        fac =  BCSf(wave) !1.0/(1 + exp(inversetemp * eqp))
-        lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp*(1-2*fac))
-        lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)        
+      if(inversetemp.eq.-1) then  
+          lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp)
+          lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp
       else
-        lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp)
-        lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp
+        select case(gas)
+        case(0)
+          ! Ordinary finite-temperature BCS
+          fac =  BCSf(wave) !1.0/(1 + exp(inversetemp * eqp))
+          lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp*(1-2*fac))
+          lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)  
+        case(1)
+          ! Subtraction method for gas degrees of freedom          
+
+        case(2)
+          ! Taking into account only bound states
+          fac =  BCSf(wave) !1.0/(1 + exp(inversetemp * eqp))
+
+          if(nom .lt. 0) then
+            ! Only the bound states contribute
+            lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp*(1-2*fac))
+            lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)  
+          endif
+        end select
+
       endif
 
     enddo
@@ -212,7 +231,7 @@ contains
     enddo
   end subroutine BCSFindFermiEnergy
   
-  subroutine BCSQPEnergies(Fermi)
+  subroutine BCSQPEnergies(Fermi, gas)
    !----------------------------------------------------------------------------
    ! This subroutine calculates the BCS quasiparticle energies as a function of
    ! the Fermi energies and the pairing gaps.
@@ -222,6 +241,7 @@ contains
    ! which is formula (6.72) on page 235 in Ring & Shuck.
    !----------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: Fermi(2)
+    integer, intent(in)       :: gas
     integer                   :: wave, it
     real(KIND=dp)             :: epsilon, lambda
 
@@ -240,14 +260,27 @@ contains
     enddo
     
     if(inversetemp.ne.-1) then
-      BCSf = 1./(1. + exp(inversetemp * BCSqps))
+      select case(gas)
+      case(0)
+        BCSf = 1./(1. + exp(inversetemp * BCSqps))
+      case(1)
+  
+      case(2)
+        do wave=1,nwt
+          if(spenergies(wave) .lt. 0) then
+            BCSf(wave) = 1./(1. + exp(inversetemp * BCSqps(wave)))
+          else 
+            BCSf(wave) = 0
+          endif
+        enddo
+      end select
     else
       BCSf = 0
     endif
 
   end subroutine BCSQPEnergies
 
-  subroutine calcBCSOccupations(Fermi)
+  subroutine calcBCSOccupations(Fermi, gas)
    !----------------------------------------------------------------------------
    ! Find the occupation numbers of the HFBasis from the quasiparticle energies
    ! and the Fermi energies.
@@ -257,6 +290,7 @@ contains
    ! or formula (6.51) on page 231 in Ring & Schuck.
    !----------------------------------------------------------------------------
     real(KIND=dp), intent(in)   :: Fermi(2)
+    integer, intent(in)         :: gas
     integer                     :: wave,it
     real(KIND=dp)               :: eqp
     
