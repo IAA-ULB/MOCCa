@@ -72,7 +72,6 @@ contains
         !                           + 1/2 * Tr (h - mu) - E
         !                           + mu * N 
         !                           
-        ! Missing: contribution of constraints
         !-----------------------------------------------------------------------
         Venergy = - totalE
         do i=1,nwt
@@ -116,6 +115,9 @@ contains
           
           ! Calculate xi^BCS for every n
           do wave=1,nwn
+              ! Note that there is no adaptation to the particular choice for 
+              ! the treatment of the gas. The BCS module should have taken care
+              ! of correctly setting BCSoccupations to zero where necessary.               
               
               u   = 1 - BCSoccupations(wave)/2.0
               v   =     BCSoccupations(wave)/2.0

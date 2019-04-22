@@ -303,7 +303,23 @@ contains
         if(wave .gt. nwn) it = 2
         
         eqp = BCSqps(wave)
-        BCSOccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
+
+        if(inversetemp.eq.-1) then
+          ! Zero-temperature BCS
+          BCSOccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
+        else
+          ! Finite temperature BCS
+          select case(gas)
+          case(0,1)
+            BCSOccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
+          case(2)
+            if(spenergies(wave).gt.0) then
+              BCSoccupations(wave) = 0
+            else
+              BCSoccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
+            endif
+          end select
+        endif
     enddo
 
     ! Time reversal symmetry

@@ -560,9 +560,11 @@ contains
             else
                 it = 1
             endif
-        
-            fac = inversetemp * BCSqps(i)
-            fac = 1.0/(1 + exp(fac))
+
+            ! We use the BCSf array, and not a recalculated version of the 
+            ! occupation factors: depending on other options they might have 
+            ! changed. 
+            fac = BCSf(i)        
             if(fac .gt. 1d-10) then
               entropy(it) = entropy(it) - fac * log(fac) 
               if( (1 - fac) .gt. 1d-10) then            
