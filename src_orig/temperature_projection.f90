@@ -78,6 +78,7 @@ contains
             it = 1
             if(i.gt.nwn) it = 2
 
+            if(spenergies(i) .gt. 0 .and. particles_in_gas.eq.2) cycle
             !  All of the factors 2 due to time-reversal
             f  = 1.0/(1+exp(inversetemp* BCSqps(i)))
             Venergy = Venergy + 2 * BCSqps(i) * (f - 0.5)                      &
@@ -115,10 +116,8 @@ contains
           
           ! Calculate xi^BCS for every n
           do wave=1,nwn
-              ! Note that there is no adaptation to the particular choice for 
-              ! the treatment of the gas. The BCS module should have taken care
-              ! of correctly setting BCSoccupations to zero where necessary.               
-              
+              if(spenergies(wave).gt.0 .and. particles_in_gas.eq.2) cycle            
+
               u   = 1 - BCSoccupations(wave)/2.0
               v   =     BCSoccupations(wave)/2.0
               eqp = BCSqps(wave)
@@ -152,6 +151,8 @@ contains
           phi = pi * (iphi-1)/nwp
           
           do wave=nwn+1,nwt
+              if(spenergies(wave).gt.0 .and. particles_in_gas.eq.2) cycle            
+
               u   = 1 - BCSoccupations(wave)/2
               v   =     BCSoccupations(wave)/2
               eqp = BCSqps(wave)
