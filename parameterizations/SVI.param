@@ -1,0 +1,31 @@
+!-------------------------------------------------------------------------------
+! SVI parameterization
+! From
+!   M. Beiner et al.
+!   Nuclear ground-state properties and self-consisteent calculations with the
+!   Skyrme interaction
+!   Nuclear Physics A238 29 - 69 (1975).
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SVI" 
+func_file= 'NLO.func'
+t0       =  -1101.81,
+t1       =    271.67,
+t2       =   -138.33,
+t3       =  17000.0, 
+x0       =      0.583,
+x1       =      0,
+x2       =      0,
+x3       =      1,
+sigma    =      1
+wso      =    115.0,
+wsoq     =    115.0 
+CT0      =      0.0
+CT1      =      0.0
+Vp       =  -1250.00000
+Vn       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73551910, 20.73551910 
+COM1Body = 2
+/
