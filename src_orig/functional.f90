@@ -363,7 +363,7 @@ $PRINT
     !---------------------------------------------------------------------------
     ! M. Bender et al., Eur. Phys. J. A 7, 467-478 (2000)
     !
-    ! For EV8-like symmetries, we have
+    ! For EV8-like symmetries, we have for the two-body part
     !
     !
     ! E_ph = + sum_km v^2_k v^2_m [ Re{nabla_x},k,m . Re{nabla_x},k,m          
@@ -375,21 +375,50 @@ $PRINT
     !                                      +Im(nabla_y)k,m . Im(nabla_y)-k,-m   
     !                                      +Re(nabla_z)k,m . Re(nabla_z)-k,-m } 
     !
-    !
-    !
     ! Note: this routine will need quite some work to be generalized to 
     !       different symmetry combinations. 
+    !
+    !---------------------------------------------------------------------------
+    ! There is also a phenomenological way to include the two-body part as a
+    ! rescaling of the one-body part, as documented in 
+    ! 
+    !  M. Butler, D. Sprung and J. Martorell
+    !  A improved approximate treatment of c.m. motion in DDHF calculations.
+    !  Nucl. Phys. A422 157-166 (1984).
+    !
+    ! The one-body part is obtained as
+    ! 
+    !   hbar^2/2m => hbar^2/(2*m) * (1 - f(A)/A)
+    ! 
+    ! with 
+    ! 
+    !   f(A) = 2/(t + 1/(3t)) with t = (1.5 * A)**(1/3).
+    !
+    ! It is activated by putting COM1Body = 3, COM2BODY = 0.
     !---------------------------------------------------------------------------
     integer       :: it, i,j
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),temp(3,2), fac
+    real(KIND=dp) :: Butler_t, Butler_f
     
     COMCorrection = 0.0_dp
-    if(COM1Body .gt. 0) then
-      !Deduce 1-body COM correction from the Kinetic Energy
+    select case(COM1Body)
+    case(0)
+      ! No contribution
+    case(1,2)
+      ! Deduce 1-body COM correction from the Kinetic Energy
       COMCorrection(1,:) = - Kinetic(:) * nucleonmass/ &
       &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
-    endif
-    
+    case(3)
+      ! Deduce 1-body COM correction from the Kinetic Energy with Butlers 
+      ! formula.
+
+      Butler_t = (1.5 * (neutrons + protons))**(1./3.)
+      Butler_f = 2./(Butler_t + 1./(3*Butler_t))
+
+      COMCorrection(1,:) = - Kinetic(:) * nucleonmass * Butler_f/ &
+      &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
+    end select    
+
     if(COM2body .eq. 1) then
       ! Calculate 2-body COMcorrection
       NablaMElements = compNablaMelements()
@@ -527,7 +556,7 @@ $CALCFIELDS
     real(KIND=dp)             :: dddtemp(mv,3,3,3,4)
     real(KIND=dp)             :: laptemp(mv,4)
     
-    real(KIND=dp)             :: ReducedMass
+    real(KIND=dp)             :: ReducedMass, Butler_t, Butler_f
     
     integer :: it, i,k
     
@@ -536,12 +565,19 @@ $CALCFIELDS
     it = (iso + 3)/2
     !---------------------------------------------------------------------------
     ! Reduced mass in case of self-consistent 1-body COM correction
-    if(COM1body .eq. 2) then
-        Reducedmass = (1.0_dp-nucleonmass(it)/                                 &
-        &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
-    else
-        Reducedmass = 1.0_dp
-    endif
+    select case(COM1Body)
+    case(0,1)      
+      Reducedmass = 1.0_dp
+    case(2)
+      Reducedmass = (1.0_dp-nucleonmass(it)/                                   &
+      &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
+    case(3)
+      
+      Butler_t = (1.5 * (neutrons + protons))**(1./3.)
+      Butler_f = 2./(Butler_t + 1./(3*Butler_t))
+      Reducedmass = (1.0_dp-nucleonmass(it) * Butler_f/                        &
+      &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
+    end select
     
     if(OnTheFly) then
       ! Calculate the derivatives
