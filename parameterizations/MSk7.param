@@ -1,0 +1,43 @@
+!-------------------------------------------------------------------------------
+! MSk7 parameterization
+!
+! from
+!   S. Goriely, F. Tondeur and J. M. Pearson
+!   A Hartree-Fock Nuclear Mass Table
+!   Atomic data and Nuclear Data Tables
+!
+! but more information on the implementation can be found in 
+! 
+!   F. Tondeur, S. Goriely, J. M. Pearson and M. Onsi
+!   Towards a Hartree-Fock mass formula 
+!   Phys. Rev. C 62, 024308.
+!
+! which deals with the forces MSK1-6.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "MSk7" 
+func_file= 'NLO.func'
+t0       =  -1828.23,
+t1       =    259.400,
+t2       =   -292.840,
+t3       =  13421.7, 
+x0       =      0.576761,
+x1       =     -0.5,
+x2       =     -0.5,
+x3       =      0.785290,
+sigma    =      0.33333333333333333333333 
+wso      =    118.807,
+wsoq     =    118.807, 
+CT0      =     -2.09, 
+CT1      =     69.03,
+Vp       =      0.00000
+Vn       =      0.00000
+alpha    =    1.0
+sigmap   =    1.0
+COM1Body = 3                            ! => Special Butler-style COM correction
+COM2Body = 0
+Protonsize    = 0.895, 0.0
+Neutronsize   = 0.000, 0.000 
+HOcomform     = .true.
+nucleonsize_selfconsistent=.false.
+/
