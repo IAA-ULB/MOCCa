@@ -28,7 +28,7 @@ implicit none
   character(len=100) :: inputfilename, outputfilename
 
   ! Signal the code to write extra output.
-  character(len=40) :: BXLFIT = '', COMBI=''
+  character(len=40) :: BXLFIT = '', COMBI='', denfile=''
 
 contains
 
@@ -48,7 +48,7 @@ contains
   
     implicit none
 
-    NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI
+    NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile
     
     call ReadGenInfo
     call readfunctional
@@ -424,6 +424,11 @@ contains
     ! Output for the level density code
     if(COMBI .ne. '') then
         call Combi_output()
+    endif
+
+    ! Write the density to a file for postprocessing 
+    if(DENFILE .ne. '') then
+      call writedensity(D_I_I, DENFILE)
     endif
   end subroutine WriteTantalus
 

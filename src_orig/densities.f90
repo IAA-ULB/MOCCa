@@ -368,5 +368,39 @@ function CompNablaMelements() result(NablaMelements)
 
     !---------------------------------------------------------------------------
 end function CompNablaMelements
-    
+
+subroutine writedensity(den ,fname)
+  !-----------------------------------------------------------------------------
+  ! Write the density to file for plotting afterwards.
+  !-----------------------------------------------------------------------------
+
+  real(KIND=dp),intent(in), target :: den(:,:)
+  real(KIND=dp), pointer           :: dn(:,:,:), dp(:,:,:)
+  character(len=*), intent(in)     :: fname
+  integer                          :: io, i,j,k
+  
+
+  open(1,file=fname, iostat=io)
+  if(io.ne.0) then    
+    print *, 'Something went wrong with writing a density to file.'
+    print *, 'filename = ', fname
+    stop
+  endif
+
+  dn(1:nx,1:ny,1:nz)  => den(:,1)
+  dp(1:nx,1:ny,1:nz)  => den(:,2)
+  
+  write(1, fmt='(3i3, f15.3)') nx,ny, nz, dx
+  do k=1,nz
+    do j=1,ny
+      do i=1,nx
+        write(1, fmt='(2f8.3, 3es25.12)')                                      & 
+        &               meshx(i), meshx(j), meshz(k), dn(i,j,k), dp(i,j,k) 
+      enddo
+    enddo
+  enddo
+
+  close(1)
+end subroutine
+
 end module densities

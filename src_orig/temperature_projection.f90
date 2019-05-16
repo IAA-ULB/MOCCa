@@ -484,7 +484,7 @@ contains
         !
         ! The one-dimensional energies are
         ! 
-        !    epsilon_kx = hbar^2/(2*m) (2*pi * kx/(2*nx * dx))**2
+        !    epsilon_kx = hbar^2/(2*m) (pi * kx/(2*nx * dx))**2
         !
         ! where nx is the size of the EV8-box and 
         !
