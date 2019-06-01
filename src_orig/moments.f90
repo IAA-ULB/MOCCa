@@ -921,7 +921,7 @@ contains
     !-------------------------------------------------------------------------
     type(Moment), pointer :: Current => null()
     integer               :: currentl
-    real(KIND=dp)         :: ql(2), factor, R
+    real(KIND=dp)         :: ql(3), factor, R
     character(len=1)      :: AX='Z',secAx1='Y', secAx2='Z'
 
   100 format (16('-'),' Electric Multipole Moments ', 17('-'))
@@ -1013,7 +1013,7 @@ contains
     do currentl=1, MaxMoment
       ql = CalculateTotalQl(currentl)
       if(all(ql.eq.0.0_dp)) cycle
-      print 8, currentl,ql,sum(ql)
+      print 8, currentl,ql
 
       Current => FindMoment(Currentl,0,.false.)
       if(.not.associated(Current)) cycle
@@ -1031,7 +1031,7 @@ contains
 
       ql = CalculateTotalQl(currentl)
       if(all(ql.eq.0.0_dp)) cycle
-      print 71, currentl,factor*ql,factor*sum(ql)
+      print 71, currentl,factor*ql
       Current => FindMoment(Currentl,0,.false.)
       if(.not.associated(Current)) cycle
     enddo
@@ -1224,7 +1224,7 @@ contains
 
     integer, intent(in)   :: l
     type(Moment), pointer :: Current
-    real(KIND=dp)         :: ql(2), fm
+    real(KIND=dp)         :: ql(3), fm
     integer               :: m
     
     ql = 0.0_dp ; m=0
@@ -1240,7 +1240,8 @@ contains
          return
     endif
 
-    ql = Current%Value**2
+    ql(1:2) =     Current%Value**2
+    ql(3)   = sum(Current%Value)**2
     do while(associated(Current%Next))
       Current  => Current%Next
       if(Current%l .ne.l) exit
@@ -1251,10 +1252,11 @@ contains
         fm=1
       endif
 
-      ql = ql + Current%Value**2*fm
+      ql(1:2) = ql(1:2) + Current%Value**2*fm
+      ql(3)   = ql(3)   + sum(Current%Value)**2*fm
     enddo
     nullify(Current)
-
+    ql = sqrt(ql)
   end function CalculateTotalQl
 
 !===============================================================================

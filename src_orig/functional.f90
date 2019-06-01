@@ -51,7 +51,7 @@ module functional
     ! Definition of global contributions to the energy
     real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy, Ehistory(5)
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
-    real(KIND=dp) :: PairingEnergy(2), PairDenEnergy(2)
+    real(KIND=dp) :: PairingEnergy(2), PairDenEnergy(2), RotCorrection
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
@@ -169,6 +169,7 @@ $PRINTCOEF_PAIR
     6 format (15x, ' Kinetic Energy:', 3f15.6)
    61 format (15x, '     COM 1-body:', 3f15.6)
    62 format (15x, '     COM 2-body:', 3f15.6)
+   63 format (15x, '    Rotational :', 30x, f15.6)
     7 format (15x, ' Coulomb Direct:', 3f15.6)
    71 format (15x, '   Dir. (point):', 3f15.6)
     8 format (15x, '       Exchange:', 3f15.6)
@@ -191,6 +192,11 @@ $PRINTCOEF_PAIR
     if(any(COMcorrection(2,:).ne.0)) then
      print 62, COMcorrection(2,:), sum(COMcorrection(2,:))
     endif
+
+    if(rotcorr .ne.  0) then
+      print 63, Rotcorrection
+    endif
+  
     print *
     print 7, 0.0, CoulombDirect, CoulombDirect
     if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
@@ -222,7 +228,7 @@ $PRINTCOEF_PAIR
     !---------------------------------------------------------------------------
     ! Calculate all of the relevant energies.
     !---------------------------------------------------------------------------
-    
+    use momentsofinertia
     use Coulombmod
 
     integer :: i
@@ -238,7 +244,6 @@ $PRINTCOEF_PAIR
     ! It is summed by integrating Delta instead of the pairing densities. 
     PairingEnergy = CalcPairingEnergy()
 
-
     if(nucleonsize_selfconsistent .or. all(protonsize.eq.0.0)) then
       ! Direct contribution of the Coulomb potential
       CoulombDirect   = CoulombEnergy_Direct(D_I_I(:,2))
@@ -251,6 +256,10 @@ $PRINTCOEF_PAIR
       CoulombExchange = CoulombEnergy_Exchange(ChargeDensity) 
     endif
 
+    call calcrigid()  
+    call calcJ2andBelyaev()
+    call calcRotationalCorrection()
+
     ! Saving history
     do i=4,1,-1
         Ehistory(i+1) = Ehistory(i)
@@ -259,7 +268,7 @@ $PRINTCOEF_PAIR
 
     ! Total energy
     TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)
-    TotalE = TotalE + CoulombDirect + CoulombExchange
+    TotalE = TotalE + CoulombDirect + CoulombExchange + Rotcorrection
 
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
@@ -457,6 +466,41 @@ $PRINT
      endif      
 
   end subroutine CompCOMCorrection
+
+  subroutine calcRotationalCorrection()
+    !---------------------------------------------------------------------------
+    ! Calculate the rotational correction to the energy as
+    !     E_crank = - \sum_{\mu} <J_mu^2>/(2 * I_{\mu})   
+    !
+    ! This is ill-defined for spherical nuclei, so we use the following
+    ! prescription from     
+    !    D. Pena-Arteaga, EPJA 52, 320 (2016).
+    ! which is
+    !    E_rot = E_crank * b * tanh(c|beta_2|)
+    !
+    !---------------------------------------------------------------------------
+    use momentsofinertia
+    use moments  
+
+    integer       :: it,i
+    real(KIND=dp) :: B2, A, Q2(3)
+
+    Rotcorrection = 0.0
+    if(Rotcorr .eq. 0) return
+
+    A = neutrons+protons    
+    Q2= calculatetotalql(2) 
+    B2= abs(4*pi/3. /((1.2*A**(1./3.))**2 * A) * Q2(3))
+
+
+    do i=1,3
+      if(Belyaev(i,3) .gt. 1d-5) then
+        RotCorrection = RotCorrection + J2(i,3)/(2*Belyaev(i,3))
+      endif
+    enddo
+    
+    RotCorrection = - Rotcorrection !* rotcorrb * tanh(rotcorrc * B2)
+  end subroutine calcRotationalCorrection
 
   subroutine calcFields(calcall)
     !---------------------------------------------------------------------------
@@ -693,6 +737,9 @@ $EREAR
     
     ! Add the pairing energy
     SpwfEnergy = SpwfEnergy + sum(PairingEnergy)
+
+    ! Add the rotational correction
+    Spwfenergy = Spwfenergy + Rotcorrection
     
   end function calcspwfenergy
   

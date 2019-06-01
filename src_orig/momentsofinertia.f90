@@ -245,9 +245,6 @@ contains
    15 format (' J2_t  ', 3f15.7)
   100 format (60('-'))
 
-    call calcrigid()  
-    call calcJ2andBelyaev
-
     print 1
     print 2
     print 3

@@ -178,9 +178,10 @@ subroutine ReachForWaterAndFood
    
     integer :: iter
     logical :: ConvergenceAchieved
-    !---------------------------------------------------------------------------
     ! Logical to see if any moments with projection are necessary
     logical :: projectpresent = .false.
+    ! Message for the output of the code, useful for the Brussels group.
+    character(len=99) :: iomsg = 'START'
 
     ConvergenceAchieved = .false.   
     
@@ -213,9 +214,9 @@ subroutine ReachForWaterAndFood
     call printSpwfs
     call printQps
     call printallmoments
+    call PrintMomentsofIntertia
     call printpairing
     call PrintEnergy 
-  
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
@@ -307,16 +308,21 @@ subroutine ReachForWaterAndFood
             print 6, disp_prec
             print 7
             print 1
+
+            iomsg='CONVERGED'
             exit
         endif
     enddo
     if(inversetemp .ne. -1) then
         call projectThermal
-    endif      
+    endif    
 
+    if(iter.eq.maxiter+1) then
+      iomsg='MAXITER'  
+    endif
     !---------------------------------------------------------------------------
     ! Write output to the outputfile.
-    call WriteTantalus(12, outputfilename)     
+    call WriteTantalus(12, outputfilename, iter-1, iomsg)     
     !---------------------------------------------------------------------------
 end subroutine ReachForWaterAndFood
 

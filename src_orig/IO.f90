@@ -321,7 +321,7 @@ contains
     close(chan)
   end subroutine ReadTantalus
 
-  subroutine WriteTantalus(chan, ofn)
+  subroutine WriteTantalus(chan, ofn, iter, iomsg)
     !---------------------------------------------------------------------------
     ! Subroutine that dumps all information to file for future runs.
     ! Heavily based on the MOCCa output routine.
@@ -362,7 +362,9 @@ contains
     character(len=*), intent(in) :: ofn
     integer                      :: io
     type(moment), pointer        :: mom
-    
+    integer, intent(in)          :: iter
+    character(len=*), intent(in) :: iomsg
+
     open (chan,form='unformatted',file=ofn)
 
     write(chan, iostat=io) 1
@@ -415,10 +417,11 @@ contains
       mom => mom%next
       call Writemoment(mom,chan)
     enddo
+    close(chan)
     
     ! Bonus file for quick feedback into the fit
     if(BXLFIT .ne. '') then
-        call Brussels_output
+        call Brussels_output(iter, iomsg)
     endif  
 
     ! Output for the level density code
@@ -432,7 +435,7 @@ contains
     endif
   end subroutine WriteTantalus
 
-  subroutine Brussels_output
+  subroutine Brussels_output(iter, iomsg)
     !---------------------------------------------------------------------------
     ! Write an extra file for use in the Brussels fitting protocol to
     !     Out/zXXXnXXX.out   
@@ -440,17 +443,29 @@ contains
     ! It contains on a single line
     !
     !      N, Z, Total energy, Q20(n), Q20(p), Q22(n), Q22(p), Q(n), Q(p),  &   
-    !    &    G(n), G(p), <r^2_p>
+    ! &    Gamma(n), Gamma(p),  <r^2_p>, Rotcorrection, iter, io
     !
-    ! where <r^2_p> is calculated as in the moments module, i.e. it is 
-    ! calculated from the charge density.
+    ! Notes:
+    ! *  <r^2_p> is calculated as in the moments module, i.e. it is calculated  
+    !    from the charge density, which is not necessarily the proton density.
+    ! * io is a character that indicates if problems have been detected.
+    !   Currently:
+    !      * 'CONVERGED'     =>  The calculation exited when it was judged 
+    !                            complete.
+    !      * 'MAXITER'       => The calculation reached the maximum specified 
+    !                           number of iterations without thinking it was 
+    !                           complete. Does not necessarily mean something 
+    !                           is wrong.
     !---------------------------------------------------------------------------
 
     use Moments    
     use functional
+    character(len=*), intent(in) :: iomsg
+
     type(Moment), pointer :: Q20, Q22, r2
-    integer       :: N,Z
-    real(KIND=dp) :: E, quad(2), rms 
+    integer               :: N,Z
+    real(KIND=dp)         :: E, quad(2), rms 
+    integer, intent(in)   :: iter
 
     character(len=len(BXLFIT)+12) :: filedone
     
@@ -461,6 +476,7 @@ contains
     ! Write the filename
     write(filedone,'(a,"z",i3.3,"n",i3.3,".out")'), trim(adjustl(BXLFIT)),     &
     & int(protons),int(neutrons)
+  
     open(unit=10,file=filedone)
 
     E = TotalE
@@ -468,8 +484,11 @@ contains
     quad(2) = sum(Q22%value)    
     rms     =     r2%value(2)
 
-    write(10,'(2i4,9f15.6)') int(protons),int(neutrons),E,quad, & 
-    &                        Q(1:2), G(1:2), sqrt(rms/protons)
+    write(10,'(2i4,9f15.6, i6)', advance='NO')  &
+    &     int(protons),int(neutrons),E,quad, Q(1:2), G(1:2), sqrt(rms/protons),&
+    &     Rotcorrection, iter
+  
+    write(10, '(2x, a99)') adjustl(iomsg)
     close(10)
 
   end subroutine Brussels_output
