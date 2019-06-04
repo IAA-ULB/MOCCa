@@ -105,10 +105,10 @@ contains
     close(unit=12)
 
     ! Temporary check: there is something weird going on.
-    if(nucleonsize_selfconsistent .and. any(protonsize.ne.0)) then
-        print *, 'The selfconsistent inclusion of nucleonsize needs some work.'
-        stop
-    endif
+!    if(nucleonsize_selfconsistent .and. any(protonsize.ne.0)) then
+!        print *, 'The selfconsistent inclusion of nucleonsize needs some work.'
+!        stop
+!    endif
         
     name = to_upper(name)  ; func_file = to_upper(func_file)
 

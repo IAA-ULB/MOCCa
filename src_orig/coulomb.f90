@@ -35,7 +35,10 @@ module Coulombmod
  ! enlarged with the boundary conditions. 
  !------------------------------------------------------------------------------
  real(KIND=dp), allocatable :: CoulombPotential(:,:,:)
- real(KIND=dp), allocatable :: ExchangePotential(:)
+ real(KIND=dp), allocatable :: ExchangePotential(:,:,:)
+ ! Array with the folded Coulomb potential, necessary if we take the proton size
+ ! into account in a self-consistent way.
+ real(KIND=dp), allocatable :: FoldedCoul(:,:,:), FoldedExchange(:,:,:)
  !------------------------------------------------------------------------------
  !Precision required of the Coulomb Solvers
  real(KIND=dp), public              :: Prec
@@ -57,9 +60,8 @@ module Coulombmod
  integer, parameter :: maxm=8
  !------------------------------------------------------------------------------
  ! Gaussian matrices, to be used when folding of the nucleon densities to 
- ! obtain the charge densities are required. 
- ! The fourth index is the isospin index, the third whether it is the 
- ! Gaussian with positive or negative sign.
+ ! obtain the charge densities are required. The fourth index is the isospin 
+ ! index, the third whether it is the Gaussian with positive or negative sign.
  !------------------------------------------------------------------------------
  real(KIND=dp), allocatable :: Gaussx(:,:,:,:), Gaussy(:,:,:,:), Gaussz(:,:,:,:)
    
@@ -75,7 +77,7 @@ contains
 
     real(KIND=dp), intent(in)  :: rhop(mv)
     real(KIND=dp), allocatable :: source(:,:,:)
-    integer                    :: i,j,k
+    integer                    :: i,j,k,ii
     real(KIND=dp)              :: R, dd(2)
     
     if(.not.allocated(Source)) then
@@ -110,11 +112,36 @@ contains
     call ConjugGrad (CoulombPotential,Source,1,1,1,1000,.false.,prec)
 
     if(Coultreatment.eq.1) then
+      !-------------------------------------------------------------------------
       ! Exchange potential in Slater approximation
-      ExchangePotential = -(3.0/pi)**(1.0/3.0_dp)*e2*(rhop**(1.0_dp/3.0_dp))   
+      if( all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0) ) then
+        do k=1,nz
+          do j=1,ny
+              do i=1,nx
+               ii = i+(j-1)*nx+(k-1)*ny*nx
+               ExchangePotential(i,j,k) =                                      & 
+                 &        -(3.0/pi)**(1.0/3.0_dp)*e2*(rhop(ii)**(1.0_dp/3.0_dp))   
+              enddo
+          enddo
+        enddo
+      else
+       ! Incorporating finite size effects
+       ExchangePotential =  &
+       &             -(3.0/pi)**(1.0/3.0_dp)*e2*(ChargeDensity**(1.0_dp/3.0_dp)) 
+     endif
     else
+      !-------------------------------------------------------------------------
+      ! No Coulomb Exchange
       ExchangePotential = 0.0
     endif  
+
+    ! Obtain the folded Coulomb potentials (direct and exchange) if needed.
+    if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
+      if(nucleonsize_selfconsistent) then
+         FoldedCoul    =FoldCoulombPotential(CoulombPotential (1:nx,1:ny,1:nz))
+         FoldedExchange=FoldCoulombPotential(ExchangePotential(1:nx,1:ny,1:nz))
+      endif
+    endif
  end subroutine SolveCoulomb 
 
  subroutine ConstructChargeDensity(rho_charge)
@@ -195,6 +222,35 @@ contains
     !---------------------------------------------------------------------------
  end subroutine ConstructChargeDensity
 
+ function FoldCoulombPotential(pot) result(Folded)
+    !---------------------------------------------------------------------------
+    ! Obtain the folded Coulomb potential, for use in the single-particle
+    ! hamiltonian when the finite size correction for the proton is included
+    ! self-consistently.
+    !---------------------------------------------------------------------------
+    use Folding
+
+    real(KIND=dp), intent(in)  :: pot(:,:,:)
+    real(KIND=dp), allocatable :: Folded(:,:,:)
+    integer                   :: i,j,k
+
+    allocate(folded(nx,ny,nz)) ; folded = 0.0
+
+    if(protonsize(1).gt.0.0) then
+        ! Fold the potential with the Gaussian of positive sign
+        folded = folded + FoldGaussian( pot,GaussX(:,:,1,2), &
+        &                                   GaussY(:,:,1,2), & 
+        &                                   GaussZ(:,:,1,2), nx, ny, nz)
+    endif
+    if(protonsize(2).gt.0.0) then
+        ! Fold the potential with the Gaussian of negative sign
+        folded = folded + FoldGaussian( pot,GaussX(:,:,2,2), &
+        &                                   GaussY(:,:,2,2), & 
+        &                                   GaussZ(:,:,2,2), nx, ny, nz)
+    endif
+    
+ end function FoldCoulombPotential
+
  subroutine SetupCoulomb
     !---------------------------------------------------------------------------
     ! Initialize the entire module. 
@@ -207,7 +263,7 @@ contains
     !---------------------------------------------------------------------------
     ! Allocate the CoulombPotential array (second-order boundary conditions)
     allocate(CoulombPotential(nx+2,ny+2,nz+2)) ; CoulombPotential = 0.0_dp
-    allocate(ExchangePotential(mv))            ; ExchangePotential = 0.0_dp
+    allocate(ExchangePotential(nx,ny,nz))      ; ExchangePotential = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
     Prec = 1.d-9/(dx**3*nx*ny*nz)

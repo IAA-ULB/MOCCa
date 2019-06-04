@@ -244,7 +244,7 @@ $PRINTCOEF_PAIR
     ! It is summed by integrating Delta instead of the pairing densities. 
     PairingEnergy = CalcPairingEnergy()
 
-    if(nucleonsize_selfconsistent .or. all(protonsize.eq.0.0)) then
+    if( all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0) ) then
       ! Direct contribution of the Coulomb potential
       CoulombDirect   = CoulombEnergy_Direct(D_I_I(:,2))
       ! Exchange contribution
@@ -513,6 +513,7 @@ $PRINT
     ! Includes preconditioning of F_I_I at the moment only.
     !---------------------------------------------------------------------------
     use Coulombmod , only : SolveCoulomb, CoulombPotential, Exchangepotential
+    use Coulombmod , only : Foldedcoul,  FoldedExchange
     use moments
     
     integer                    :: it,i,j,k, maxit
@@ -542,21 +543,39 @@ $CALCFIELDS
     if(.not. rhoread) then    
         !-----------------------------------------------------------------------
         ! Add the Coulomb contribution to the field corresponding to rho.
-        do k=1,nz
-          do j=1,ny
-            do i=1,nx
-              ! Direct contribution
-              ! The index juggling is ugly, but necessary. The Coulomb potential
-              ! is defined on a slightly larger box using boundary conditions.
-              ! A simple abstract statement might mess this up.
-              F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2) =                                &
-              &       F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2) + CoulombPotential(i,j,k)
+        ! The index juggling is ugly, but necessary. The Coulomb 
+        ! potential is defined on a slightly larger box using boundary 
+        ! conditions. A simple abstract statement might mess this up.
+        if(.not. nucleonsize_selfconsistent) then
+          ! We put the direct coulomb potential. Note that this breaks 
+          ! self-consistency if protons and neutrons are not treated as 
+          ! point particles.
+          do k=1,nz
+            do j=1,ny
+              do i=1,nx
+                F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)=F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)&
+                &                              + CoulombPotential(i,j,k)       &
+                &                              + ExchangePotential(i,j,k)
+              enddo
             enddo
           enddo
-        enddo
-        ! Exchange contribution
-        F_I_I(1:mv,2) = F_I_I(1:mv,2) + ExchangePotential(1:mv)
-        
+
+        else
+          ! Use the folded coulombpotential, for full self-consistency.
+          if(.not. allocated(foldedcoul)) then
+            print *, 'Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.'      
+            stop
+          endif
+          do k=1,nz
+            do j=1,ny
+              do i=1,nx
+                F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)=F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)&
+                &                              + FoldedCoul(i,j,k)             &
+                &                              + FoldedExchange(i,j,k)
+              enddo
+            enddo
+          enddo
+        endif 
         !-----------------------------------------------------------------------
         ! Add the contribution from the constraints on the electric multipole 
         ! moments. 
