@@ -14,7 +14,7 @@ module diag
  use compilation
 
 contains
-      subroutine diagon (a,ndim,n,v,d,wd)
+      subroutine diagon (a,ndim,n,v,d,wd, ifail)
 !c..............................................................................
 !c  diagonalization of a real symmetric matrix (a(i,j)                         .
 !c     input : a  n*n matrix           (with declared dimensions ndim*ndim)    .
@@ -33,6 +33,7 @@ contains
       parameter (eps=9.0d-12,epsd=1.0d-16,tol=1.0d-36,jstop=30)
       dimension a(ndim,ndim),v(ndim,ndim),d(ndim),wd(ndim)
 
+      ifail = 0
 !c........................................................................
       v(1,1) = one
       d(1)   = a(1,1)
@@ -139,7 +140,11 @@ contains
   203   continue
         if (m.eq.l) go to 211
   204   continue
-        if (j.eq.jstop) stop 'diagon jstop'
+!        if (j.eq.jstop) stop 'diagon jstop'
+        if(j.eq.jstop) then
+          ifail = 1
+          return
+        endif
         j = j + 1
         p = (d(l+1)-d(l))/(two*wd(l))
         r = sqrt(p*p+one)

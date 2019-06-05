@@ -546,7 +546,8 @@ $CALCFIELDS
         ! The index juggling is ugly, but necessary. The Coulomb 
         ! potential is defined on a slightly larger box using boundary 
         ! conditions. A simple abstract statement might mess this up.
-        if(.not. nucleonsize_selfconsistent) then
+        if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+          &                             (.not. nucleonsize_selfconsistent)) then
           ! We put the direct coulomb potential. Note that this breaks 
           ! self-consistency if protons and neutrons are not treated as 
           ! point particles.

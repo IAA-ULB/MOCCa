@@ -32,6 +32,8 @@ module HFB
   ! Pointer to relink procedures
   procedure(delta_action_dummy), pointer :: delta_action_HFB
   !-----------------------------------------------------------------------------
+  ! Which routine to use to find the Fermi energy
+  procedure(FindFermi_Brent), pointer  :: FindFermi
 
   contains
 
@@ -258,8 +260,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
     real(KIND=dp), allocatable   :: R(:)
       
     integer                      :: N, B, sb, i, NB, j, qblock, ind, si, bi
-    real(KIND=dp)                :: compare, occ, qpmin, qpb
-    integer                      :: toblock(4)
+    real(KIND=dp)                :: compare, occ, qpmin
+    integer                      :: toblock(4), qpb
 
     N = size(Eqp) 
     allocate(R(2*N)) ;  R = 0
@@ -442,8 +444,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
 
   end subroutine PairingMatrices
 
-  subroutine FindFermi(H, blocks, targetparticles, config, Bogo, Eqp,  lambda, &
-  &                    maxhfbiter, blocktype, blockconf)
+  subroutine FindFermi_secant(H, blocks, targetparticles, config, Bogo, Eqp,   & 
+            &                lambda, maxhfbiter, blocktype, blockconf)
       !-------------------------------------------------------------------------
       ! Subroutine that diagonalizes the HFB hamiltonian (repeatedly) to find  
       ! the correct Fermi energy that fixes the average number of particles.
@@ -469,82 +471,24 @@ $TR    HFBdispersion = 2 * HFBdispersion
       integer, intent(in)          :: blocks(4), maxhfbiter, blocktype
       integer, intent(in)          :: blockconf(:)
 
-      real(KIND=dp), allocatable   :: eigen(:), work(:), A(:,:)
       real(KIND=dp)                :: df, dn(2), particles
 
-      integer :: iter, sb, si, N, B, i
+      integer :: iter, sb, si, N, B, i, ifail
 
       ! Initialization
       df = 0 ; dn = 0.0
-      allocate(work(2*sum(blocks)))
-      allocate(eigen(2*sum(blocks)))
       do iter=1, maxHFBiter
-        !-----------------------------------------------------------------------
-        ! a) Diagonalization of the HFB Hamiltonian by block. 
-        si = 0 ; sb = 0
-        do B=1,4
-          N = blocks(B) ; if(N .eq. 0) cycle
-  
-          ! Construct the blocks of H including the Fermi energy
-          allocate(A(2*N,2*N)) ; A = 0
-          
-          A = H(sb+1:sb+2*N, sb+1:sb+2*N)
-          do i=1,N
-            A(i  ,i  ) = A(i  , i  ) - lambda
-            A(i+N,i+N) = A(i+N, i+N) + lambda
-          enddo
-                          
-          ! Diagonalize every block
-          call diagon (A,2*N,2*N,Bogo(sb+1:sb+2*N, sb+1:sb+2*N),               &
-          &                       eigen(sb+1:sb+2*N),work)
 
-          Eqp(si+1:si+N) = eigen(sb+N+1:sb+2*N)
-          deallocate(A)
-          ! Indices for the next block
-          si = si +   N
-          sb = sb + 2*N
-        enddo
-        !-----------------------------------------------------------------------
-        ! b) We construct the configuration matrix that was asked for
-        config = ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf) 
-        !-----------------------------------------------------------------------
-        ! c) Count the total number of particles that we have.
-        si = 0 ; sb = 0
-        particles   = 0
-        do B=1,4                
-            N = Blocks(B) ;  if(N .eq. 0) cycle 
-            !-------------------------------------------------------------------
-            ! Calculate the number of particles in here  
-            ! Sum_i rho_ii =  Sum_ii   U   f U^{\dagger} + V^{*}(1 - f)V^{T}
-            !          sum_(ij>N) f_(j) V^*_ij V^T_ji = sum_ij f_(j) V^*_ij V_ij
-            !        + sum_(ij<N) f_(j) U^*_ij U^T_ji = sum_ij f_(j) U^*_ij U_ij         
-            do i=1,N
-                particles = particles                                          &
-                &         +   config(sb+N+i)*sum(bogo(sb+N+1:sb+2*N, sb+N+i)**2)            
-            enddo
-            do i=1,N
-                particles = particles                                          &
-                &         +   config(sb  +i)*sum(bogo(sb  +1:sb+  N, sb+N+i)**2)            
-            enddo
-
-            ! indices
-            si = si +  N
-            sb = sb +2*N
-        enddo
-        ! When Time-reversal is conserved, we need an extra factor of two
-$TR     particles = 2 * particles            
-
+        particles = & 
+        &   diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf)
         ! Return if we do not want to readjust the Fermi energy
         if(MaxHFBiter.eq.1) return
         
         !-----------------------------------------------------------------------
-        ! d) Readjust the Fermi energy based on the number of particles.
-        !    We use the secant method.
+        ! Readjust the Fermi energy based on the number of particles.
+        ! We use the secant method.
         dn(2) = dn(1)
         dn(1) = particles - targetparticles
-      
-!        print ('(i3,f8.3,f8.3,3x, f4.1, f8.3, 3x, e12.3)'),                   &
-!        &  iter, lambda, particles, targetparticles, df, dn(1)
 
         if(abs(dn(1)).lt.pairing_prec) return
           
@@ -554,14 +498,110 @@ $TR     particles = 2 * particles
           df     =          0.1
         else
           df     = - dn(1) * df/(dn(1) - dn(2))
-
+  
           if(abs(df).gt.1.0) df = 0.1 * df/abs(df)
           lambda = lambda + df
         endif
       enddo
+  end subroutine FindFermi_secant
 
-      deallocate(work)  ; deallocate(eigen)
-  end subroutine FindFermi
+  function diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf)& 
+  &        result(particles)
+      !-------------------------------------------------------------------------
+      ! Routine that diagonalizes, block by block, a HFB Hamiltonian that is 
+      ! passed in. It does the low-level work for all the high-level routines
+      ! in this moodule. 
+      !
+      ! Input
+      !   H        : HFB hamiltonian, without Fermi energy
+      !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
+      !              the problem.
+      !   lambda   : Fermi energy.
+      !
+      ! Output
+      !   config   : Configuration matrix of the final solution
+      !   Eqp      : Quasiparticle energies of the final solution
+      !   Bogo     : Bogoliubov transformation that diagonalizes H
+      !   Lambda   : Final fermi energy
+      ! 
+      !   particles: total number of particles for this input
+      !-------------------------------------------------------------------------
+      real(KIND=dp), intent(in)    :: H(:,:)
+      real(KIND=dp), intent(out)   :: config(:), Bogo(:,:), Eqp(:)
+      real(KIND=dp), intent(inout) :: lambda
+      integer, intent(in)          :: blocks(4), blocktype
+      integer, intent(in)          :: blockconf(:)
+
+      real(KIND=dp), allocatable   :: eigen(:), work(:), A(:,:)
+      real(KIND=dp)                :: particles
+
+      integer :: iter, sb, si, N, B, i, ifail
+
+      allocate(work(2*sum(blocks)))
+      allocate(eigen(2*sum(blocks)))
+      !-----------------------------------------------------------------------
+      ! a) Diagonalization of the HFB Hamiltonian by block. 
+      si = 0 ; sb = 0
+      do B=1,4
+        N = blocks(B) ; if(N .eq. 0) cycle
+
+        ! Construct the blocks of H including the Fermi energy
+        allocate(A(2*N,2*N)) ; A = 0
+        
+        A = H(sb+1:sb+2*N, sb+1:sb+2*N)
+        do i=1,N
+          A(i  ,i  ) = A(i  , i  ) - lambda
+          A(i+N,i+N) = A(i+N, i+N) + lambda
+        enddo
+                        
+        ! Diagonalize every block
+        call diagon (A,2*N,2*N,Bogo(sb+1:sb+2*N, sb+1:sb+2*N),               &
+        &                       eigen(sb+1:sb+2*N),work, ifail)
+
+        if(ifail.ne.0) then
+          print *, 'WARNING: diagon failed in subroutine DiagByBlock.'
+          print *, '         Problematic block B = ', B
+          stop
+        endif
+
+        Eqp(si+1:si+N) = eigen(sb+N+1:sb+2*N)
+        deallocate(A)
+        ! Indices for the next block
+        si = si +   N
+        sb = sb + 2*N
+      enddo
+      !-----------------------------------------------------------------------
+      ! b) We construct the configuration matrix that was asked for
+      config = ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf) 
+      !-----------------------------------------------------------------------
+      ! c) Count the total number of particles that we have.
+      si = 0 ; sb = 0
+      particles   = 0
+      do B=1,4                
+          N = Blocks(B) ;  if(N .eq. 0) cycle 
+          !-------------------------------------------------------------------
+          ! Calculate the number of particles in here  
+          ! Sum_i rho_ii =  Sum_ii   U   f U^{\dagger} + V^{*}(1 - f)V^{T}
+          !          sum_(ij>N) f_(j) V^*_ij V^T_ji = sum_ij f_(j) V^*_ij V_ij
+          !        + sum_(ij<N) f_(j) U^*_ij U^T_ji = sum_ij f_(j) U^*_ij U_ij         
+          do i=1,N
+              particles = particles                                          &
+              &         +   config(sb+N+i)*sum(bogo(sb+N+1:sb+2*N, sb+N+i)**2)            
+          enddo
+          do i=1,N
+              particles = particles                                          &
+              &         +   config(sb  +i)*sum(bogo(sb  +1:sb+  N, sb+N+i)**2)            
+          enddo
+
+          ! indices
+          si = si +  N
+          sb = sb +2*N
+      enddo
+      ! When Time-reversal is conserved, we need an extra factor of two
+$TR   particles = 2 * particles                 
+
+      deallocate(work, eigen)
+  end function diagbyblock
 
   subroutine FindFermi_Brent(H, blocks, targetparticles, config, Bogo, Eqp,    & 
    &                         lambda, maxhfbiter, blocktype, blockconf)
@@ -585,9 +625,9 @@ $TR     particles = 2 * particles
       !   H        : HFB hamiltonian, without Fermi energy
       !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
       !              the problem.
-      !   particles: Average number of particles to target. 
       !   lambda   : Initial guess for the Fermi energy
       !   maxhfbiter: Maximum number of iterations to perform
+      !   targetparticles: Average number of particles to target. 
       !
       ! Output
       !   config   : Configuration matrix of the final solution
@@ -595,8 +635,8 @@ $TR     particles = 2 * particles
       !   Bogo     : Bogoliubov transformation that diagonalizes H
       !   Lambda   : Final fermi energy
       !-------------------------------------------------------------------------
-      ! This routine is very heavily inspired by the routine implemented in 
-      ! MOCCa by M. Bender. 
+      ! This routine is very heavily inspired/copy-pasted by the routines 
+      ! implemented in MOCCa by M. Bender. 
       !-------------------------------------------------------------------------
       real(KIND=dp), intent(in)    :: H(:,:), targetparticles
       real(KIND=dp), intent(out)   :: config(:), Bogo(:,:), Eqp(:)
@@ -604,100 +644,231 @@ $TR     particles = 2 * particles
       integer, intent(in)          :: blocks(4), maxhfbiter, blocktype
       integer, intent(in)          :: blockconf(:)
 
-      real(KIND=dp), allocatable   :: eigen(:), work(:), A(:,:)
-      real(KIND=dp)                :: df, dn(2), particles
+      real(KIND=dp)                :: InitialBracket(2), FA, FB, N
+      integer                      :: idir = 0 , idirsig = 1, FailCount
+      logical                      :: Success
+ 
+      !-------------------------------------------------------------------------
+      ! STEP 1: set up an initial bracket
+      !-------------------------------------------------------------------------
+      N = diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf)
+      N = N - targetparticles
+      ! Check if this guess for lambda is good enough
+      if(abs(N).lt.pairing_prec) return
 
-      integer :: iter, sb, si, N, B, i
+      ! Use present Fermi energy as starting point and check the direction
+      ! where the zero of <N>-N0 can be expected.
+      ! If <N>-N0 <  0, search at higher values.
+      ! If <N>-N0 >= 0, search at lower  values.
+      ! Initialize InitialBracket(it,1) = A, InitialBracket(it,2) = B with 
+      ! present  Fermi energy.
+      ! "dir" is the label of the InitialBracket(it,idir) that has to be moved,
+      ! "idirsig" is the sign of steps needed to go into that direction.
 
-      ! Initialization
-      df = 0 ; dn = 0.0
-      allocate(work(2*sum(blocks)))
-      allocate(eigen(2*sum(blocks)))
-      do iter=1, maxHFBiter
+      InitialBracket(:) = lambda
+      if ( N .lt. 0.0_dp ) then 
+        idir   =  2 ;  idirsig =  1
+      else 
+        idir   =  1 ;  idirsig = -1
+      endif
 
-        !-----------------------------------------------------------------------
-        ! a) Diagonalization of the HFB Hamiltonian by block. 
-        si = 0 ; sb = 0
-        do B=1,4
-          N = blocks(B) ; if(N .eq. 0) cycle
-  
-          ! Construct the blocks of H including the Fermi energy
-          allocate(A(2*N,2*N)) ; A = 0
-          
-          A = H(sb+1:sb+2*N, sb+1:sb+2*N)
-          do i=1,N
-            A(i  ,i  ) = A(i  , i  ) - lambda
-            A(i+N,i+N) = A(i+N, i+N) + lambda
-          enddo
-                          
-          ! Diagonalize every block
-          call diagon (A,2*N,2*N,Bogo(sb+1:sb+2*N, sb+1:sb+2*N),               &
-          &                       eigen(sb+1:sb+2*N),work)
+      ! Try to find a boundary that brackets the Fermi energy in the direction 
+      ! into which the Fermi energy has to be changed.
+      FailCount = -1 ;  Success = .false.
 
-          Eqp(si+1:si+N) = eigen(sb+N+1:sb+2*N)
-          deallocate(A)
-          ! Indices for the next block
-          si = si +   N
-          sb = sb + 2*N
-        enddo
-        !-----------------------------------------------------------------------
-        ! b) We construct the configuration matrix that was asked for
-        config = ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf) 
-        !-----------------------------------------------------------------------
-        ! c) Count the total number of particles that we have.
-        si = 0 ; sb = 0
-        particles   = 0
-        do B=1,4                
-            N = HFBsizes(B) ;  if(N .eq. 0) cycle 
-            !-------------------------------------------------------------------
-            ! Calculate the number of particles in here  
-            ! Sum_i rho_ii =  Sum_ii   U   f U^{\dagger} + V^{*}(1 - f)V^{T}
-            !          sum_(ij>N) f_(j) V^*_ij V^T_ji = sum_ij f_(j) V^*_ij V_ij
-            !        + sum_(ij<N) f_(j) U^*_ij U^T_ji = sum_ij f_(j) U^*_ij U_ij         
-            do i=1,N
-                particles = particles                                          &
-                &         +   config(sb+N+i)*sum(bogo(sb+N+1:sb+2*N, sb+N+i)**2)            
-            enddo
-            do i=1,N
-                particles = particles                                          &
-                &         +   config(sb  +i)*sum(bogo(sb  +1:sb+  N, sb+N+i)**2)            
-            enddo
-
-            ! indices
-            si = si +  N
-            sb = sb +2*N
-        enddo
-        ! When Time-reversal is conserved, we need an extra factor of two
-$TR     particles = 2 * particles            
-
-        ! Return if we do not want to readjust the Fermi energy
-        if(MaxHFBiter.eq.1) return
+      do while(.not. Success)
+        FailCount = FailCount + 1
         
-        !-----------------------------------------------------------------------
-        ! d) Readjust the Fermi energy based on the number of particles.
-        !    We use the secant method.
-        dn(2) = dn(1)
-        dn(1) = particles - targetparticles
-      
-!        print ('(i3,f8.3,f8.3,3x, f4.1, f8.3, 3x, e12.3)'),                   &
-!        &  iter, lambda, particles, targetparticles, df, dn(1)
+        ! update moving boundary and recalculate particle numbers at both.
+        InitialBracket(idir) = &
+        &                 InitialBracket(idir) + idirsig * 0.01_dp*(FailCount+1)
 
-        if(abs(dn(1)).lt.pairing_prec) return
-          
-        if(iter.eq.1) then
-          ! We try lambda + 0.1 for the first iteration
-          lambda = lambda + 0.1
-          df     =          0.1
-        else
-          df     = - dn(1) * df/(dn(1) - dn(2))
+        FA = diagbyblock(H,blocks,config,Bogo,Eqp,InitialBracket(1),blocktype, &
+        &                                                             blockconf)
+        FB = diagbyblock(H,blocks,config,Bogo,Eqp,InitialBracket(2),blocktype, &
+        &                                                             blockconf)
+        FA = FA - targetparticles ; FB = FB - targetparticles
 
-          if(abs(df).gt.1.0) df = 0.1 * df/abs(df)
-          lambda = lambda + df
+        ! check if N(epsilon_F) is a monotonically growing function.
+        ! It should be, but who knows, pigs may fly ...
+        if ( FB .lt. FA ) then 
+          print '(" : Warning N(eps_F) decreases ")'
+          print '(" A = ",f13.8," FA = ",f14.8," B = ",f13.8," FB = ",f14.8)', &
+               & InitialBracket(1),FA+N, InitialBracket(2),FB+N
+        endif
+
+        ! diagnostic printing for convergence analysis (usually commented out)
+!        print '(" Bracketing ",i4,1l2,(2(f13.8,es16.7)))',        &
+!              & FailCount,Success,InitialBracket(1),FA, InitialBracket(2),FB          
+        ! code failure (Fermi energy has changed by 30 MeV)
+        if (Failcount .gt. 76) then
+          print '(/," A = ", f13.8, "FA = ",1es12.4,              &
+               &    " B = ", f13.8, "FB = ",1es12.4)',            &
+               &     InitialBracket(1),FA,InitialBracket(2),FB 
+          stop 'FindFermiBrent: Search for InitialBracket failed.'
+        endif
+        ! check if root is bracketed for isospin it after the update
+        if( FA*FB .lt. 0.0_dp ) then 
+            ! Correct Bracket found!
+            Success = .true.
         endif
       enddo
-
-      deallocate(work)  ; deallocate(eigen)
+      !-------------------------------------------------------------------------
+      ! STEP 2: call the routine for the actual bisection
+      !-------------------------------------------------------------------------
+      call BrentBisection(lambda,N,InitialBracket(1), InitialBracket(2),FA,FB, &
+      &                   maxHFBIter,H,blocks, targetparticles, config, Bogo,  & 
+      &                   Eqp, blocktype, blockconf)
+  
   end subroutine FindFermi_brent
+
+  subroutine BrentBisection(lambda,particles, X1,X2,FX1,FX2,Depth, H, blocks,  & 
+    &                   targetparticles, config, Bogo, Eqp, blocktype, blockconf)
+    !---------------------------------------------------------------------------
+    ! This routine searches for the Fermi energy
+    ! by Brent's methods https://en.wikipedia.org/wiki/Brent%27s_method
+    ! which combines bisection, secant method and inverse quadratic 
+    ! interpolation. The original source is probably
+    ! R. P. Brent (1973), "Chapter 4: An Algorithm with Guaranteed Convergence
+    ! for Finding a Zero of a Function", Algorithms for Minimization without
+    ! Derivatives, Englewood Cliffs, NJ: Prentice-Hall, 
+    !---------------------------------------------------------------------------
+    ! see pages 1188 - 1189 of http://apps.nrbook.com/fortran/index.html
+    ! W. H. Press, S. A. Teukolsky, W. T. Vetterling and B. P. Flannery,
+    ! Numerical Recipes in Fortran in Fortran 90, Second Edition (1996).
+    !---------------------------------------------------------------------------
+    ! Input
+    !   H        : HFB hamiltonian, without Fermi energy
+    !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
+    !              the problem.
+    !   maxhfbiter: Maximum number of iterations to perform
+    !   targetparticles: Average number of particles to target. 
+    !
+    ! Output
+    !   config   : Configuration matrix of the final solution
+    !   Eqp      : Quasiparticle energies of the final solution
+    !   Bogo     : Bogoliubov transformation that diagonalizes H
+    !   Lambda   : Final fermi energy
+    !   Particles: Final number of particles
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in)    :: H(:,:), targetparticles
+    real(KIND=dp), intent(out)   :: config(:), Bogo(:,:), Eqp(:), lambda
+    real(KIND=dp), intent(out)   :: particles
+    integer, intent(in)          :: blocks(4), blocktype
+    integer, intent(in)          :: blockconf(:)
+    integer, intent(in)          :: Depth
+    real(KIND=dp), intent(in)    :: X1 , X2, FX1 , FX2 
+    real(KIND=dp)                :: A , B, C , FA, FB , FC
+    real(KIND=dp)                :: D , E, S , P  , Q , R 
+    real(KIND=dp)                :: Num , Tol , XM 
+    real(KIND=dp)                :: eps = 1.d-9
+    integer                      :: it , FailCount , i
+    logical                      :: Found
+
+    A  = X1 ; B  = X2 
+    FA = FX1; FB = FX2
+    Found = .false.    
+    if (A .eq. B) then 
+      !-------------------------------------------------------------------------
+      ! This signals that FA = FB is zero within the tolerance.
+      ! Either near-converged HFB or HF case of completely broken-down pairing
+      ! which also satisfies FA = FB = 0 within an interval. The 
+      ! latter case cannot be handled by the algorithm below.
+      !-------------------------------------------------------------------------
+      Found = .true.
+    endif
+
+    C = B ; FC = FB
+  
+    FailCount = -1
+
+    do while(.not.Found) 
+      FailCount = FailCount + 1
+      if ( ( FB .gt. 0.0_dp .and. FC .gt. 0.0_dp ) .or. & 
+         & ( FB .lt. 0.0_dp .and. FC .lt. 0.0_dp ) )  then
+        C  = A     ;  FC = FA
+        D  = B - A ;  E  = D
+      endif
+      if ( abs(FC) .lt. abs(FB) ) then
+        A  = B ;  FA = FB
+        B  = C ;  FB = FC
+        C  = A ;  FC = FA
+      endif
+      !-------------------------------------------------------------------------
+      ! Convergence check
+      ! Note (W.R.): I have tightened convergence a bit compared to the values
+      !              in MOCCa by M.B. 
+      !-------------------------------------------------------------------------
+      Tol  = 2.0_dp * eps * abs(B) + 0.05_dp * Pairing_prec
+      XM   = 0.5_dp * (C-B)
+      !----------------------------------------------------------------
+      ! Note: the tolerance is on the precision of the Fermi energy,
+      ! NOT the nearness of the particle number to the targeted value.
+      !----------------------------------------------------------------
+      if ( abs(XM) .le. Tol .or. FB .eq. 0.0_dp ) then
+        Lambda =  B
+        Found = .true. 
+      endif
+      if ( abs(E) .ge. Tol .and. abs(FA) .gt. abs(FB) ) then
+        S = FB/FA
+        if ( A .eq. C ) then
+          P = 2.0_dp * XM * S
+          Q = 1.0_dp - S
+        else
+          Q = FA/FC
+          R = FB/FC
+          P = S * (2.0_dp * XM * Q * (Q-R) & 
+                  &    - (B-A)*(R-1.0_dp))
+          Q = (Q-1.0_dp)*(R-1.0_dp)*(S-1.0_dp)
+        endif
+        if ( P .gt. 0.0_dp ) Q = -Q
+        P = abs(P)
+        if (2.0_dp * P .lt. min(3.0_dp*XM*Q - abs(Tol*Q),abs(E*Q))) then
+          E = D
+          D = P / Q
+        else
+          D = XM
+          E = D 
+        endif
+      else
+        D = XM
+        E = D 
+      endif
+      A  = B 
+      FA = FB
+      B  = B + merge(D,sign(Tol,XM),abs(D) .gt. Tol)    
+  
+      !-------------------------------------------------------------------------
+      ! B is present best guess for the fermi energy, FB the corresponding 
+      ! particle number.
+      !-------------------------------------------------------------------------
+      Num = diagbyblock(H, blocks, config, Bogo,Eqp,B, blocktype,blockconf)
+      FB  = Num - targetparticles
+
+      !-------------------------------------------------------------------------
+      ! diagnostic printing for convergence analysis (usually commented out)
+      !-------------------------------------------------------------------------
+      ! NOTE: B is the the best guess for the zero of F. A has been the previous
+      ! "closest" interval boundary that is not updated after Found
+      ! is set to .true. The actual zero might therefore be outside the 
+      ! interval [A,B]. If so, the true zero is typically closer to B than 
+      ! A is to B.
+      !-------------------------------------------------------------------------
+      ! Note further: as A and B are swapped from time to time, B might be 
+      ! smaller than A when printed here
+      !-------------------------------------------------------------------------
+!      print '(" BrentBisection ",i4,(1l2,2(f13.8,es16.7),f14.8))',    &
+!           & FailCount, Found,A,FA,B,FB,Num
+!     
+      if ( FailCount .gt. Depth ) then
+        print '(/," Warning: BrentBisection did not converge after ",i4," iterations")', & 
+        &      FailCount
+      endif
+    enddo
+    ! Output
+    Lambda    = B ; particles = FB
+  end subroutine BrentBisection
 
   function ConstructHFBHamil(sphamil, gaps) result(H)
     !---------------------------------------------------------------------------
@@ -855,12 +1026,12 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
 
   subroutine Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,         &
   &                                                     rhotransfo, kappatransfo)
-    !-----------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     ! a) Diagonalize  Rho
     ! b) Canonicalize Kappa
     ! c) Return the diagonal elements of rho, and the offdiagonal elements of 
     !    kappa, as well as the transformation.
-    !-----------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     
     real(KIND=dp), intent(in)  :: rho_pairing(nwt,nwt)
     real(KIND=dp), intent(in)  :: kappa_pairing(nwt,nwt)
@@ -871,13 +1042,13 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
     real(KIND=dp) :: work(2*nwt), E, X(nwt), Y(nwt)
     real(KIND=dp), allocatable :: tmp(:,:), cpy(:)
     
-    integer :: si,N, B, i, sb, j
+    integer :: si,N, B, i, sb, j, ifail
     
-    !-----------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     ! a) Diagonalize rho
     !
     ! Transforms as rho'  = D^dagger rho D
-    !-----------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     si         = 0
     rhotransfo = 0 ; kappatransfo = 0
     do B=1,8
@@ -888,7 +1059,13 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
       tmp = rho_pairing(si+1:si+N, si+1:si+N)
       
       ! Diagonalize rho in this block
-      call diagon(tmp,N,N,rhotransfo(si+1:si+N,si+1:si+N),rho_can(si+1:si+N),work)
+      call diagon(tmp,N,N,rhotransfo(si+1:si+N,si+1:si+N),rho_can(si+1:si+N),work, ifail)
+
+      if(ifail.ne.0) then
+        print *, 'WARNING: diagon failed in subroutine Canonical.'
+        print *, '         Problematic block B = ', B
+        stop
+      endif
 
 !      ! DEBUG
 !      do i=1,N
@@ -926,8 +1103,8 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
       tmp = matmul(transpose(rhotransfo(si+1:si+N, si+1:si+N)), tmp)
       tmp = matmul(tmp,rhotransfo(si+1:si+N, si+1:si+N))
     
-      ! With the assumption of time-reversal, the diagonal matrix elements in this
-      ! transformed kappa matrix are the matrix elements (i, ibar).
+      ! With the assumption of time-reversal, the diagonal matrix elements in 
+      ! this transformed kappa matrix are the matrix elements (i, ibar).
       !
       ! They are used in the BCS case only:
       do i=1,N
@@ -941,10 +1118,10 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
    end subroutine Canonical
    
    subroutine ConstructCanonicalBasis(Transfo)
-    !-----------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     ! Transform the spwf wavefunctions in the HFBasis into Canbasis, with the 
     ! passed in Transfo. 
-    !-----------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
 
     integer                   :: wave1, wave2, B, N, si
     real(KIND=dp), intent(in) :: Transfo(nwt,nwt)
@@ -958,20 +1135,20 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
     CanPsi = 0.0 ; canenergies = 0.0
     do B=1,8
       N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
-      !---------------------------------------------------------------------------
+      !-------------------------------------------------------------------------
       ! Apply the transformation in this symmetry block
       do wave1=1, N 
         do wave2=1,N
-          CanPsi(:,:,si+wave1)  = CanPsi(:,:,si+wave1) +                         &
-          &                       Transfo(si+wave2,si+wave1) * HFPsi(:,:,si+wave2) 
+          CanPsi(:,:,si+wave1)  = CanPsi(:,:,si+wave1) +                       &
+          &                     Transfo(si+wave2,si+wave1) * HFPsi(:,:,si+wave2) 
           
-          canenergies(si+wave1) = canenergies(si+wave1) +                        &
-          &               abs(Transfo(si+wave2,si+wave1)**2) *spenergies(si+wave2) 
+          canenergies(si+wave1) = canenergies(si+wave1) +                      &
+          &             abs(Transfo(si+wave2,si+wave1)**2) *spenergies(si+wave2) 
         enddo 
       enddo
       
       si = si +  N
-      !---------------------------------------------------------------------------
+      !-------------------------------------------------------------------------
     enddo
     
    end subroutine ConstructCanonicalBasis

@@ -103,7 +103,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     integer                    :: nwave, nodd, nnn2, nnn1, nn2, nn1, nn, nmax
     integer                    :: nij,i,i1,ia,ii,it, iwave,ix, nb, n, kk, iy, iz
     integer                    :: j,ja, k, nw, neven, ni, ni1, np, nvec
-    integer                    :: mblc, mq, mqa, ms, nblc, ndd, ndim
+    integer                    :: mblc, mq, mqa, ms, nblc, ndd, ndim, ifail
     integer, allocatable       :: nsi(:,:),ns(:), nx(:), ny(:), nz(:), irep(:)
     integer, allocatable       :: nor(:), npa(:), ntrs(:)
 
@@ -427,7 +427,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
             18 h(j,i) = h(i,j)
         17 continue
 
-     call diagon (h,ndim,n,s,d,wd)
+     call diagon (h,ndim,n,s,d,wd, ifail)
     !c.......................storage and shift of the single particle energies
         irep(ni) = ia
         do i=1,n

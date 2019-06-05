@@ -59,6 +59,11 @@ module pairing
  ! (0), (1), (2)
  integer :: PairingType = 0
  !------------------------------------------------------------------------------
+ ! Decide which Fermisolver to use. 
+ ! "Brent"  => use a modified bisection solver
+ ! "Secant" => use a secant routine
+ character(len=99) :: FermiSolver='Brent'
+ !------------------------------------------------------------------------------
  ! Decide which module gets to calculate the pairing gaps.
  procedure(calcBCSgaps), pointer :: CalcGaps
  !------------------------------------------------------------------------------
@@ -132,14 +137,14 @@ contains
     
     NameList /Pairing/ Type, CutType, Constantgap, hfbmix, hfbmixtype,         &
     &                  BlockType, BlockNumber, cutneutron, cutproton,          &
-    &                  particles_in_gas, maxhfbiter
+    &                  particles_in_gas, maxhfbiter, FermiSolver
 
     NameList /Indices/ BlockIndices, blocklowest
 
     read(unit=*, NML=Pairing)
   
-    Type = to_upper(Type)
-    
+    Type        = to_upper(Type)
+
     if('HF' .eq.adjustl(type)) then
       pairingtype = 0
     elseif('BCS' .eq. adjustl(type)) then
@@ -150,6 +155,16 @@ contains
       pairingtype = 0
     else
       print *, 'This type of pairing is not implemented yet.'
+      stop
+    endif
+
+    FermiSolver = to_upper(FermiSolver)    
+    if(adjustl(FermiSolver).eq.'SECANT') then
+      FindFermi => FindFermi_secant
+    elseif(adjustl(FermiSolver).eq.'BRENT') then
+      FindFermi => FindFermi_brent
+    else
+      print *, 'Unknown FermiSolver', FermiSolver, ' selected.'
       stop
     endif
     
@@ -204,6 +219,7 @@ contains
     !---------------------------------------------------------------------------
     1 format(80('-'))
     2 format(' Pairing treatment: ', a60)
+   21 format('   Fermi-solver: ', a99 )
     3 format('   Linear mixing of (rho,kappa)')    
     4 format('   Linear mixing of eigenvalues of R')
     5 format('   HFBmix = ', f5.3)
@@ -237,6 +253,7 @@ contains
         print 2, 'Bardeen-Cooper-Schrieffer (HF+BCS)'
     case(2)
         print 2, 'Hartree-Fock-Bogoliubov (HFB)'
+        print 21, adjustl(FermiSolver)
     end select
 
     if(pairingtype.eq.2) then
