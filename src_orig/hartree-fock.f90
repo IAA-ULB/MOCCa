@@ -86,7 +86,7 @@ contains
     real(KIND=dp)              :: energies(nwt,2), N
     real(KIND=dp)              :: Fermi(2), Fmin, Fmax, betaE, Nmin, Nmax
     integer                    :: Order(nwt,2), nw, nwn_alt, nwp_alt, nw_alt
-    integer                    :: it, maxiter=100, i
+    integer                    :: it, i
 
     nwn_alt = 0 ; nwp_alt = 0
     do i=1,nwn
@@ -319,7 +319,7 @@ contains
     !-----------------------------------------------------------------------
     real(KIND=dp), intent(in) :: hbm, fermi
     real(KIND=dp)             :: s, maxe,ez,ey,ex,checkz, checky, checkx, etot
-    integer                   :: wave, kx, ky, kz
+    integer                   :: kx, ky, kz
 
     s = 0
     maxe = maxval(spenergies)

@@ -364,8 +364,6 @@ contains
     !---------------------------------------------------------------------------
     use parameterization, only : hbm
 
-    integer :: wave
-    
     if(.not.allocated(rho_can)) then
       allocate(rho_can(nwt))              ; rho_can    = 0.0
     endif

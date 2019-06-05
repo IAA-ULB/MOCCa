@@ -21,7 +21,10 @@ def LineFormat_oneline(code):
     return(splitcode)
 
 def LineFormat(code):
+    # Remove trailing whitespace
+    code = code.rstrip()
     split = code.split('\n')
+
     splitcode= ''  
     for l in split:
         splitcode = splitcode + LineFormat_oneline(l) + '\n'

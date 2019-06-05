@@ -278,7 +278,7 @@ contains
       !-------------------------------------------------------------------------
       ! Note that this routine relies heavily on timereversal.
       !-------------------------------------------------------------------------
-      integer                 :: i,j, it
+      integer                 :: i, it
       real(KIND=dp)           :: Venergy, f, Eqp
       real*16, allocatable    :: neutron_terms(:), proton_terms(:)
       real*16                 :: avn, avp, Z(2)
@@ -367,7 +367,7 @@ contains
         complex*16, allocatable :: matrix(:,:), tau(:,:), work(:),detM(:)  
         complex*16              :: Iimag
         real*16, allocatable    :: detMR(:)
-        integer                 :: iphi, N, Ntotal, sb, si, B, info, i, it
+        integer                 :: iphi, N, Ntotal, sb, si, B, info, i
 
         Iimag = cmplx(0, 1.0)
 

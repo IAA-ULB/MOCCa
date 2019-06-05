@@ -530,7 +530,6 @@ contains
     use densities, only : chargedensity, D_I_I
 
     class(Moment),        intent(inout) :: ToCalculate
-    integer                             :: it
 
     ! Save the history
     Tocalculate%history = tocalculate%value
@@ -545,8 +544,10 @@ contains
 
     ! The charge density in the Coulomb module includes the folding when it is 
     ! included in the functional.
-    ToCalculate%Value(2)    =  sum(ToCalculate%SpherHarm*   chargedensity(1:nx*ny*nz,1,1))
-    ToCalculate%Squared(2)  =  sum(ToCalculate%SpherHarm**2*chargedensity(1:nx*ny*nz,1,1))
+    ToCalculate%Value(2)    =  &
+    &                sum(ToCalculate%SpherHarm*   chargedensity(1:nx*ny*nz,1,1))
+    ToCalculate%Squared(2)  =  &
+    &                sum(ToCalculate%SpherHarm**2*chargedensity(1:nx*ny*nz,1,1))
 
     !  Volume elements
     ToCalculate%Value     = ToCalculate%Value   * dv

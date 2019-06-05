@@ -442,7 +442,7 @@ contains
     !
     ! It contains on a single line
     !
-    !      N, Z, Total energy, Q20(n), Q20(p), Q22(n), Q22(p), Q(n), Q(p),  &   
+    !      N, Z, Total energy, Q20(t), Q22(t), Q(t), Q(t),  &   
     ! &    Gamma(n), Gamma(p),  <r^2_p>, Rotcorrection, iter, io
     !
     ! Notes:
@@ -463,8 +463,7 @@ contains
     character(len=*), intent(in) :: iomsg
 
     type(Moment), pointer :: Q20, Q22, r2
-    integer               :: N,Z
-    real(KIND=dp)         :: E, quad(2), rms 
+    real(KIND=dp)         :: E, quad(2), rms, q2(3)
     integer, intent(in)   :: iter
 
     character(len=len(BXLFIT)+12) :: filedone
@@ -483,9 +482,10 @@ contains
     quad(1) = sum(Q20%value)
     quad(2) = sum(Q22%value)    
     rms     =     r2%value(2)
+    q2      = CalculateTotalQl(2)
 
-    write(10,'(2i4,9f15.6, i6)', advance='NO')  &
-    &     int(protons),int(neutrons),E,quad, Q(1:2), G(1:2), sqrt(rms/protons),&
+    write(10,'(2i4,7f15.6, i6)', advance='NO')  &
+    &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi, sqrt(rms/protons),&
     &     Rotcorrection, iter
   
     write(10, '(2x, a99)') adjustl(iomsg)

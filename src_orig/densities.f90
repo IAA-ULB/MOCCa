@@ -293,7 +293,7 @@ function CompNablaMelements() result(NablaMelements)
     ! transformation are totally implicit.
     !---------------------------------------------------------------------------
   
-    integer       :: si,i,j,k
+    integer       :: i,j
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt), psi(mv,4)
     real(KIND=dp) :: derx(mv,4), dery(mv,4), derz(mv,4)
 

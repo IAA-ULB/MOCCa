@@ -85,7 +85,7 @@ module HFB
     ! Quantities for the HFB hamiltonian
     real(KIND=dp)              :: sphamil(nwt,nwt), HFBHamil(2*nwt, 2*nwt)
     
-    integer                    :: si, sb, N, B, iter, wave1, it, i,j,k, np, nn
+    integer                     :: si, sb, N, B,  wave1, it, i, np, nn
     integer                     :: n_ind, p_ind
     real(KIND=dp), allocatable :: chi(:,:)
     !-----------------END OF DECLARATIONS --------------------------------------
@@ -265,6 +265,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
 
     N = size(Eqp) 
     allocate(R(2*N)) ;  R = 0
+    qpb = -1
 
     !---------------------------------------------------------------------------
     ! Construct the DEFAULT configuration, corresponding to all positive energy
@@ -360,9 +361,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
         ! The user asked for a the lowest configuration of a specific type.
         ! In this case, blockconf contains the number of qp excitations to  
         ! construct in every block.
-
         toblock = blockconf(1:4)
-
+    
         if(blockconf(5).ne.0) then
           do i = 1, blockconf(5)
             qpmin = 10000000
@@ -472,8 +472,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
       integer, intent(in)          :: blockconf(:)
 
       real(KIND=dp)                :: df, dn(2), particles
-
-      integer :: iter, sb, si, N, B, i, ifail
+      integer                      :: iter
 
       ! Initialization
       df = 0 ; dn = 0.0
@@ -534,8 +533,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
 
       real(KIND=dp), allocatable   :: eigen(:), work(:), A(:,:)
       real(KIND=dp)                :: particles
-
-      integer :: iter, sb, si, N, B, i, ifail
+      integer                      :: sb, si, N, B, i, ifail
 
       allocate(work(2*sum(blocks)))
       allocate(eigen(2*sum(blocks)))
@@ -763,7 +761,7 @@ $TR   particles = 2 * particles
     real(KIND=dp)                :: D , E, S , P  , Q , R 
     real(KIND=dp)                :: Num , Tol , XM 
     real(KIND=dp)                :: eps = 1.d-9
-    integer                      :: it , FailCount , i
+    integer                      :: FailCount
     logical                      :: Found
 
     A  = X1 ; B  = X2 
@@ -779,7 +777,8 @@ $TR   particles = 2 * particles
       Found = .true.
     endif
 
-    C = B ; FC = FB
+    C = B ; FC = FB 
+    E = -1000000 ; D = -1000000
   
     FailCount = -1
 
@@ -877,8 +876,7 @@ $TR   particles = 2 * particles
     
     real(KIND=dp), intent(in) :: sphamil(:,:), gaps(:,:)
     real(KIND=dp), allocatable  :: H(:,:)
-    
-    integer :: N, i
+    integer :: N
     
     N = size(sphamil,1)
     allocate(H(2*N,2*N)) ; H = 0
@@ -928,8 +926,10 @@ $TR   particles = 2 * particles
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: Fermi(2)
     integer                   :: wave1, wave2, iso, si,  B, N, inda, indb
-    real(KIND=dp)             :: deltapsi(mv,4)
+    real(KIND=dp)             :: deltapsi(mv,4), val(2)
     
+    val = Fermi ! To avoid the unused dummy argument warning from the compiler
+
     if(.not.associated(Delta_action_HFB)) stop
     !---------------------------------------------------------------------------
     ! Use the delta_action to calculate the elements in the gaps
@@ -990,7 +990,7 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
     real(KIND=dp), intent(in)  :: rho_pairing(:,:), kappa_pairing(:,:)
     real(KIND=dp)              :: test1(4), test2(4)
     real(KIND=dp), allocatable :: A(:,:) , r(:,:), k(:,:)
-    integer                    :: N,i,j, P, B, si
+    integer                    :: N, B, si
 
     1 format (' HFB convergence:   (N,+)    (N,-)    (P,+)    (P,-)')
     2 format ('  r^2-r+k*k^T    = ',  4es9.2)
@@ -1037,12 +1037,11 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
     real(KIND=dp), intent(in)  :: kappa_pairing(nwt,nwt)
     real(KIND=dp), intent(out) :: rho_can(nwt), kappa_can(nwt)
     real(KIND=dp), intent(out) :: rhotransfo(nwt,nwt), kappatransfo(nwt,nwt)
-    real(KIND=dp)              :: temptransfo(nwt,nwt)
     
-    real(KIND=dp) :: work(2*nwt), E, X(nwt), Y(nwt)
-    real(KIND=dp), allocatable :: tmp(:,:), cpy(:)
+    real(KIND=dp)              :: work(2*nwt)
+    real(KIND=dp), allocatable :: tmp(:,:)
     
-    integer :: si,N, B, i, sb, j, ifail
+    integer :: si,N, B, i, ifail
     
     !---------------------------------------------------------------------------
     ! a) Diagonalize rho

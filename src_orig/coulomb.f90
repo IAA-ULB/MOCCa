@@ -78,7 +78,6 @@ contains
     real(KIND=dp), intent(in)  :: rhop(mv)
     real(KIND=dp), allocatable :: source(:,:,:)
     integer                    :: i,j,k,ii
-    real(KIND=dp)              :: R, dd(2)
     
     if(.not.allocated(Source)) then
         allocate(Source(nx+2,ny+2,nz+2))           ; Source = 0.0_dp
@@ -232,7 +231,6 @@ contains
 
     real(KIND=dp), intent(in)  :: pot(:,:,:)
     real(KIND=dp), allocatable :: Folded(:,:,:)
-    integer                   :: i,j,k
 
     allocate(folded(nx,ny,nz)) ; folded = 0.0
 

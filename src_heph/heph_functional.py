@@ -482,10 +482,9 @@ def ProcessFunctional(fname, src, target):
 
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         # Substitute into the functional.f90 file.  
-        # The [:-3] indices cut off the final linebreak for somewhat neater code      
         dic={}
 
-        dic['DECLARATION']    = declaration[:-3]
+        dic['DECLARATION']    = declaration
         dic['CALCULATION']    = calculation
         dic['PRINT']          = printing
         dic['CALCCOEF']       = calccoef   
@@ -500,8 +499,8 @@ def ProcessFunctional(fname, src, target):
         dic['EREAR']          = erear
         dic['FUNC_NAME']      = func_name
         dic['FIELDNUMBER']    = len(Densities_needed)
-        dic['WRITEPOTENTIALS']= writing[:-3]
-        dic['READPOTENTIALS'] = reading[:-3]
+        dic['WRITEPOTENTIALS']= writing
+        dic['READPOTENTIALS'] = reading
 
         if(derivative_order == 1):
           dic['N2'] = ' '    
@@ -558,9 +557,21 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     calc_d_template = Template(   tab + '$TERM(2,2) = $CPCTE(2,2) * dv & \n'+           \
                                   tab + '&'+6*tab+' * sum(Edensity(:,1) + Edensity(:,2) ) \n')
 
-    calc_e_template = Template(   tab + '$TERM(1,1) = $TERM(1,2) + 0.5* $TERM(2,2)\n')
-    calc_f_template = Template(   tab + '$TERM(2,1) =              0.5* $TERM(2,2)\n')
-    
+    # WR note: I'm not sure what I was thinking when dividing contributions to 
+    #          the energy this way. It is wrong, and I fail to see how it ever
+    #          worked.      
+#    calc_e_template = Template(   tab + '$TERM(1,1) = $TERM(1,2) + 0.5* $TERM(2,2)\n')
+#    calc_f_template = Template(   tab + '$TERM(2,1) =              0.5* $TERM(2,2)\n')
+
+    # This new division of contributions is only correct for bilinear terms.
+    # If we want to include trilinear terms, we should probably explicitly 
+    # construct isoscalar and isovector densities.    
+    calc_e_template = Template(   tab + '$TERM(1,1) = dv * ( & \n' + 
+                                  tab + '& ($CPCTE(1,2)+0.5*$CPCTE(2,2)) * sum(Edensity(:,3))) \n')
+    calc_f_template = Template(   tab + '$TERM(2,1) = dv * & \n' +
+                                  tab + '& (         $CPCTE(2,2) * sum(Edensity(:,1) + Edensity(:,2)) & \n' + 
+                                  tab + '&   - 0.5 * $CPCTE(2,2) * sum(Edensity(:,3))               )   \n')
+  
     calc_pair_a_temp= Template(   tab + 'Edensity(:,1) = Edensity(:,1) + $EDENN\n' + \
                                   tab + 'Edensity(:,2) = Edensity(:,2) + $EDENP\n'  )
     calc_pair_b_temp= Template(   tab   + 'do it=1,2 \n' + \
@@ -578,7 +589,12 @@ def GenTermExpression( term, ccoef, DD, DDrear):
                                    tab + '$CPCTE(2,1) = $EXP2 \n')    
                                  
     write_edensity = Template( tab + ' call output_Edensity(Edensity, "$FILENAME")' )
-    print_template      = Template(tab +" print('(a30 , 3f15.6)'), '$TERM', $TERM(:,1), sum($TERM(:,1)) \n")
+    print_template = Template(tab +" print('(a30 , 3f15.6)'), '$TERM',    & \n"+ 
+                              tab +"                           $TERM(:,1),& \n"+
+                              tab +"                       sum($TERM(:,1))  \n")
+    print_P_templ  = Template(tab +" print('(a30 , 30x, f15.6)'), '$TERM',& \n"+
+                              tab +"                       sum($TERM(:,1))  \n")
+
     
     print_cpl_pn_template   = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE(:,1)")
     print_cpl_iso_template  = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE(:,2)")
@@ -707,14 +723,17 @@ def GenTermExpression( term, ccoef, DD, DDrear):
       calculation = calculation + calc_d_template.substitute(dic) + '\n'
       calculation = calculation + calc_e_template.substitute(dic)
       calculation = calculation + calc_f_template.substitute(dic)
+
+      printing = print_template.substitute(dic) 
+
     else:
       # Pairing mean-field densities.
       calculation = calculation + calc_pair_c_temp.substitute(dic) 
       calculation = calculation + calc_pair_d_temp.substitute(dic) + '\n'
 
-    calculation = calculation + end_comment + '\n'
-    
-    printing = print_template.substitute(dic) 
+      printing = print_P_templ.substitute(dic) 
+
+    calculation = calculation + end_comment 
     
     dic['EXP1'] = ccoef[0]
     dic['EXP2'] = ccoef[1]

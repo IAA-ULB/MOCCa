@@ -469,7 +469,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
-    integer                   :: i,j  
+    integer                   :: i  
     real(KIND=dp)             :: angmom
 
     angmom = 0    
@@ -512,7 +512,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
-    integer                   :: i,j  
+    integer                   :: i
     real(KIND=dp)             :: angmom
 
     angmom = 0    
@@ -555,7 +555,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:)
-    integer                   :: i,j  
+    integer                   :: i
     real(KIND=dp)             :: angmom
 
     angmom = 0    
@@ -596,7 +596,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
     
     real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:), dwf2(:,:,:)
-    integer                   :: i,j  
+    integer                   :: i
     real(KIND=dp)             :: angmom, l1,l2,l3,l4, r1,r2,r3,r4
 
     angmom = 0    
@@ -641,7 +641,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
-    integer                   :: i,j  
+    integer                   :: i 
     real(KIND=dp)             :: angmom
 
     angmom = 0
@@ -684,7 +684,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
-    integer                   :: i,j  
+    integer                   :: i
     real(KIND=dp)             :: angmom
 
     angmom = 0
@@ -726,7 +726,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
-    integer                   :: i,j  
+    integer                   :: i
     real(KIND=dp)             :: angmom
 
     angmom = 0
@@ -769,7 +769,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
     
     real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:), dwf2(:,:,:)
-    integer                   :: i,j  
+    integer                   :: i
     real(KIND=dp)             :: angmom, l1,l2,l3,l4, r1,r2,r3,r4
 
     angmom = 0    
@@ -857,7 +857,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
-    integer                   :: i,j  
+    integer                   :: i
     real(KIND=dp)             :: angmom
 
     angmom = 0    
@@ -902,7 +902,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !                 ( 0 -1 ) 
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
-    integer                   :: i,j  
+    integer                   :: i 
     real(KIND=dp)             :: angmom
 
     angmom = 0
@@ -946,7 +946,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
     
     real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:), dwf2(:,:,:)
-    integer                   :: i,j  
+    integer                   :: i
     real(KIND=dp)             :: angmom, l1,l2,l3,l4, r1,r2,r3,r4
 
     angmom = 0    

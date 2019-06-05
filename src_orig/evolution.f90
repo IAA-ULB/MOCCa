@@ -150,11 +150,15 @@ contains
         use wavefunctions
         
         integer, intent(in) :: iteration
-        integer             :: wave, iso
+        integer             :: wave, iso, iter
         real(KIND = dp)     :: hpsi(nx*ny*nz,4)
         
         gradientnorm = 0.0_dp
         d2h          = 0.0_dp
+
+        iter = iteration      ! To get around the unused variable warnings
+                              ! from compilers. Note that the variable needs to
+                              ! be declared for the procedure pointers to work.
 
         ! Calculate the preconditioning matrices
 !        if(Precondition .ne. 'NONE' ) call CalculatePreconditioners()

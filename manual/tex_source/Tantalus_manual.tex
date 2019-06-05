@@ -243,8 +243,6 @@ Multfromfile    = Logical. If .true., start the calculation with the Lagrange mu
 \end{Verbatim}
 
 
-\clearpage
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The structure of a parameterization (.param) file }
 \label{sec:param}
@@ -307,6 +305,14 @@ HOCOMform   = .false.        ! Whether or not to correct the above rms radii
 nucleonsize_selfconsistent = .true./
                              ! Whether to use the folding self-consistently, 
                              ! or only in the calculation of the energy.
+rotcorr     = 0              ! Whether (1) or not (0) to include the rotational 
+                             ! correction for the energy based on the Belyaev 
+                             ! moment of intertia.
+rotcorrb    = 0              ! Parameters b and c for the contribution of the 
+rotcorrc    = 0              ! rotational correction, based on Eq. (14)
+                             ! from D.  Pena-Arteaga et al. EPJA 52, 320 (2016).
+                             ! except for an extra minus sign, of which I'm 
+                             ! pretty sure it is a typo.
 \end{Verbatim}
 \end{minipage}
 \label{fig:paramexample}
@@ -315,6 +321,43 @@ nucleonsize_selfconsistent = .true./
          functional file.}
 \end{figure}
 
+\clearpage
 
+\section{Output for the Brussels fitting codes}
+
+Output for the Brussels fitting codes is activated by entering a non-empty string
+for the \texttt{BXLFIT} parameter. The end-result is that Tantalus opens a file
+named \texttt{\$BXLFITz\$Zn\$N.out} 
+and writes a single line to it at the end of the iterations. 
+
+\begin{Verbatim}
+N, Z, Total energy, Q20(t), Q22(t), Q(t), Gamma(t), R_charge^RMS, Rotcorrection, iter, iomsg
+\end{Verbatim}
+
+The individual entries are
+
+\begin{Verbatim}
+ N           = Average number of neutrons
+ Z           = Average number of protons
+Total Energy = Total energy, includes evereything including the rotational 
+               correction if asked for.
+Q2M(t)       = Value of <Q_{2m}> in fm^2 for the total density.
+               Note that these values depend on the orientation of the nucleus 
+               in the box.
+Q(t)         = Total quadrupole moments of the total density. Units of fm^2. 
+               This is always positive and does not discriminate between 
+               prolate and oblate shapes, but in return it does not depend on 
+               the orientation of the nucleus in the box.
+Gamma(t)     = Triaxality angle of the total density in DEGREES. This quantity
+               depends on the orientation of the nucleus in the box. 
+R_charge^RMS = RMS radius of the charge density. Includes the finite size 
+               correction of the protons and neutrons if asked for.
+Rotcorrection= Energy associated with the rotational correction.
+iter         = Number of SCF iterations performed by the code before exiting. 
+iomsg        = Output message by the code. Currently can be 
+               CONVERGED : the code exited because it judged convergence to be reached.
+               MAXITER   : the code exited becauseit reached its maximum of iterations.
+               More exit codes will undoubtedly be added.
+\end{Verbatim}
 
 \end{document}
