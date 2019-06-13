@@ -32,9 +32,13 @@ module pairing
  real(KIND=dp), allocatable :: rho_pairing(:,:), kappa_pairing(:,:)
  ! ... and in the canonical basis ...
  real(KIND=dp), allocatable :: rho_can(:), kappa_can(:)
+ ! Note that the object kappa_can only has an effect on the calculation 
+ ! in the BCS case, when kappa is actually off-diagonal. In the HFB case, no
+ ! guarantees are given as to the canonical form of kappa, and the code does not
+ ! rely on it being this way.
  ! ...  and the "configuration matrix" ...
  real(KIND=dp), allocatable :: configmatrix(:)
- ! ... and finally, the Bogliubov transformation ...
+ ! ... and finally, the Bogliubov transformation.
  real(KIND=dp), allocatable :: Bogoliubov(:,:)
  !------------------------------------------------------------------------------
  ! Quasiparticle excitation energies, either HF, BCS or HFB.
