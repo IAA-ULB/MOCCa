@@ -768,11 +768,13 @@ contains
 ! In/output
 !===============================================================================
 
-  subroutine ReadMomentData
+  subroutine ReadMomentData(file_number)
     !---------------------------------------------------------------------------
     ! A subroutine that governs the input of this module.
     !---------------------------------------------------------------------------
 
+    integer(dp), intent(in), optional   :: file_number   
+  
     integer             :: iostat, iteration
     integer             :: l,m, ConstraintType
     real(KIND=dp)       :: Constraint, iq1=-1000000, iq2=-1000000, Intensity
@@ -798,7 +800,11 @@ contains
     iostat = 0 ;  l = 1
 
     !Reading the parameters
-    read(unit=*,NML=MomentParam )
+    if(present(file_number)) then
+      read(unit=file_number,NML=MomentParam )
+    else
+      read(unit=*,NML=MomentParam )
+    endif
 
     if(QuantisationAxis.le.0 .or. QuantisationAxis .gt. 3) then
         print *, 'Illegal value of quantisation axis!'
@@ -843,7 +849,12 @@ contains
         ConstraintType=2          ; MultfromFile   =.false. ; continue = .false.
         iq1=-1000000_dp           ; iq2=-1000000_dp ; iteration = -1 
 
-        read(unit=*, NML=MomentConstraint, IOSTAT=iostat)
+        if(present(file_number)) then
+          read(unit=file_number, NML=MomentConstraint, IOSTAT=iostat)
+        else
+          read(unit=*, NML=MomentConstraint, IOSTAT=iostat)
+        endif
+
         if(iostat .ne. 0) then
           print *, "Input error for moment constraints." 
           stop

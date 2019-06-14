@@ -73,7 +73,7 @@ module evolution
 
 contains
     
-    subroutine ReadEvolution
+    subroutine ReadEvolution(file_number)
         !-----------------------------------------------------------------------
         ! Read the information on the evolution of the spwfs. 
         !
@@ -81,10 +81,17 @@ contains
         !-----------------------------------------------------------------------
         use geninfo
 
+        integer(dp), intent(in), optional   :: file_number   
+
         namelist /evolution/ dt, maxiter, printiter, strategy, momentum,       &
         &                    estimateparams
 
-        read(unit=*, nml=evolution)
+
+        if(present(file_number)) then
+          read(unit=file_number, nml=evolution)
+        else
+          read(unit=*, nml=evolution)
+        endif
         !-----------------------------------------------------------------------
         !  Assign the correct preconditioner
 !        Precondition = to_upper(Precondition )

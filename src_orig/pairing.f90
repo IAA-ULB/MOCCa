@@ -29,7 +29,7 @@ module pairing
  
  !------------------------------------------------------------------------------
  ! Pairing density matrix and anomalous density matrix in the HF basis. 
- real(KIND=dp), allocatable :: rho_pairing(:,:), kappa_pairing(:,:)
+ real(KIND=dp), allocatable :: rho_pairing(:,:),  kappa_pairing(:,:)
  ! ... and in the canonical basis ...
  real(KIND=dp), allocatable :: rho_can(:), kappa_can(:)
  ! Note that the object kappa_can only has an effect on the calculation 
@@ -132,12 +132,13 @@ module pairing
 
 contains
 
-  subroutine initpairing
+  subroutine initpairing(file_number)
     !---------------------------------------------------------------------------
     ! Read and initialize pairing options. 
     !
     !---------------------------------------------------------------------------
     character(len=20) :: Type = 'HF'
+    integer(dp), intent(in), optional   :: file_number   
     
     NameList /Pairing/ Type, CutType, Constantgap, hfbmix, hfbmixtype,         &
     &                  BlockType, BlockNumber, cutneutron, cutproton,          &
@@ -145,8 +146,12 @@ contains
 
     NameList /Indices/ BlockIndices, blocklowest
 
-    read(unit=*, NML=Pairing)
-  
+    if(present(file_number)) then
+      read(unit=file_number, NML=Pairing)
+    else
+      read(unit=*, NML=Pairing)
+    endif  
+
     Type        = to_upper(Type)
 
     if('HF' .eq.adjustl(type)) then

@@ -9,11 +9,13 @@ TARGET :=   Tantalus.exe
 SRC    :=   compilation.f90 geninfo.f90 constants.f90 sphericalharmonics.f90
 SRC    +=   folding.f90   
 SRC    +=   diag.f90 nil8.f90 derivatives.f90 precondition.f90 wavefunctions.f90
-SRC    +=   pairingcutoffs.f90 parameterization.f90 hartree-fock.f90 BCS.f90 HFB.f90 pairing.f90
-SRC    +=   densities.f90 moments.f90 coulomb.f90 momentsofinertia.f90 
-SRC    +=   functional.f90 evolution.f90 scfiteration.f90 IO.f90 
-SRC    +=   temperature_projection.f90 
-SRC    +=   printing.f90 tantalus.version.f90
+SRC    +=   pairingcutoffs.f90 parameterization.f90 hartree-fock.f90 BCS.f90 
+SRC    +=   HFB.f90 pairing.f90 densities.f90 moments.f90 coulomb.f90 
+SRC    +=   momentsofinertia.f90  functional.f90 evolution.f90 scfiteration.f90 
+SRC    +=   IO.f90 temperature_projection.f90 printing.f90 tantalus.version.f90
+
+SINGLE_SRC = $(SRC) run_single.f90
+MPI_SRC    = $(SRC) run_mpi.f90
 
 ################################################################################
 # Compiler details
@@ -31,20 +33,27 @@ endif
 
 ################################################################################
 # Precompilation instructions
-PRE    :=  run_heph getgitinfo setversioninfo 
-OBJ    :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SRC))
+PRE         :=  run_heph getgitinfo setversioninfo 
+SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
+MPI_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(MPI_SRC))
+
 # Default functional is an NLO one
 FUNC   :=  NLO.func
 
-EXENAME:= Tantalus.$(FUNC).exe
+mpi:    EXENAME:= Tantalus.$(FUNC).mpi.exe
+single: EXENAME:= Tantalus.$(FUNC).exe
 
 LIBS   := -llapack -lblas
 
 ################################################################################
 # Recipes
-$(TARGET): $(PRE) $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJ) $(LIBS)
-	mv $(TARGET) exec/$(EXENAME)
+single: $(PRE) $(SINGLE_OBJ)
+	$(CXX) $(CXXFLAGS) -o $@ $(SINGLE_OBJ) $(LIBS)
+	mv single exec/$(EXENAME)
+
+mpi: $(PRE) $(MPI_OBJ)
+	$(CXX) $(CXXFLAGS) -o $@ $(MPI_OBJ) $(LIBS)
+	mv mpi exec/$(EXENAME)
 
 run_heph:
   # Run Hephaestos with the correct .func file to generate the source code in 

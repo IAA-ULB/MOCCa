@@ -48,6 +48,12 @@ def preprocess(fname, src, target):
     if(fname=='tantalus.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='run_single.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
+    if(fname=='run_mpi.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='parameterization.f90'):
         ProcessParameterization(fname, src, target)
         return

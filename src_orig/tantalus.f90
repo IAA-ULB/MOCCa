@@ -1,4 +1,10 @@
-program Tantalus
+module Tantalus
+
+ implicit none
+
+contains
+
+subroutine Run_Tantalus(file_number,input_file)
  !==============================================================================
  !  #######   ##   #    # #####   ##   #      #    #  ####
  !     #     #  #  ##   #   #    #  #  #      #    # #
@@ -9,6 +15,10 @@ program Tantalus
  !
  !  Copyright W. Ryssens & M. Bender
  !
+ !------------------------------------------------------------------------------
+ ! While I (W.R.) like to think about Tantalus as a standalone code, this 
+ ! 'main' routine is now written as a subroutine (with inputs!) to accomodate
+ ! meta-codes that want to run Tantalus multiple times. 
  !==============================================================================
 
  use compilation
@@ -18,6 +28,11 @@ program Tantalus
  use temperature_projection 
 
  implicit none
+
+ ! These inputs control where the code will look for its input. Leaving them 
+ ! empty will have the code rely on STDIN for input.
+ integer(dp), intent(in), optional   :: file_number   
+ character(11), intent(in), optional :: input_file 
 
  100 format &
      &  (/,8x,' ___________________________________________________________', &
@@ -51,7 +66,7 @@ program Tantalus
  
  !------------------------------------------------------------------------------
  ! Read input from STDIN
- call ReadInput
+ call ReadInput(file_number, input_file)
  !------------------------------------------------------------------------------
  ! Initalize relevant matrices throughout the code.
  call inilag() ! Derivative matrices. 
@@ -61,12 +76,11 @@ program Tantalus
  !------------------------------------------------------------------------------
  ! Print all relevant input gleaned from STDIN and the wf file.
  call PrintInput
-
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
  call ReachForWaterAndFood
  
-end program Tantalus
+end subroutine Run_Tantalus
 
 subroutine Converged(C) 
     !---------------------------------------------------------------------------
@@ -373,5 +387,5 @@ subroutine printsummary(iter)
     dQ22 = abs(sum(Q22%value) - sum(Q22%history))
     print 5, sum(Q20%value), sum(Q22%value), dQ20,dQ22
         
-    
 end subroutine printsummary
+end module Tantalus

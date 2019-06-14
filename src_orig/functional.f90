@@ -81,17 +81,23 @@ $DECLARATION
       
 contains
 
- subroutine readfunctional()
+ subroutine readfunctional(file_number)
     !---------------------------------------------------------------------------
     ! Initializes the functional
     ! a) read the details of the parameterization from file
     ! b) calculate the coupling constants
     !---------------------------------------------------------------------------
     
+    integer(dp), intent(in), optional   :: file_number 
+
     namelist /func/ name_param
     
-    read(unit=*, nml=func) 
-   
+    if(present(file_number)) then
+      read(unit=file_number, nml=func) 
+    else
+      read(unit=*, nml=func) 
+    endif
+
     name_param = to_upper(name_param)
     
     call readparameterization(name_param, func_name)

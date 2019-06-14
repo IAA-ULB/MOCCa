@@ -89,15 +89,21 @@ module wavefunctions
 
 contains 
 
-  subroutine ReadWFdata
+  subroutine ReadWFdata(file_number)
     !---------------------------------------------------------------------------
     ! Read the number of single-particle neutron and proton wave-functions.
     !
-    !
+    !---------------------------------------------------------------------------
+
+    integer(dp), intent(in), optional   :: file_number   
+
     namelist /wfs/ nwn, nwp, osc_freq
 
-    read(unit=*, nml = wfs)
-
+    if(present(file_number)) then
+      read(unit=file_number, nml = wfs)
+    else
+      read(unit=*, nml = wfs)
+    endif
     nwt = nwn + nwp
   end subroutine ReadWFdata
 

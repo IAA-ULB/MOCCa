@@ -32,10 +32,10 @@ implicit none
 
 contains
 
-  subroutine ReadInput
+  subroutine ReadInput(file_number, input_file)
     !---------------------------------------------------------------------------
-    ! Subroutine to read all the data from STDIN.
-    !
+    ! Subroutine to read all the data from the specified file (via the
+    ! specified channel) or from STDIN if the variables are not present.
     !---------------------------------------------------------------------------
 
     use geninfo,       only : ReadGenInfo
@@ -48,19 +48,43 @@ contains
   
     implicit none
 
+    ! These inputs control where the code will look for its input. Leaving them 
+    ! empty will have the code rely on STDIN for input.
+    integer(dp), intent(in), optional   :: file_number   
+    character(11), intent(in), optional :: input_file 
+
+    logical :: exists
+
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile
     
-    call ReadGenInfo
-    call readfunctional
-    call initpairing
-    call ReadEvolution
-    call ReadSCFIteration
-    call ReadWFdata
+    if(present(file_number)) then
+      inquire(file=input_file, exist=exists)
+      if(.not. exists) then
+        print *, 'Specified input file does not exist!'
+        stop
+      endif
+      open(unit=file_number, file=input_file) 
+    endif
+
+    call ReadGenInfo(file_number)
+    call readfunctional(file_number)
+    call initpairing(file_number)
+    call ReadEvolution(file_number)
+    call ReadSCFIteration(file_number)
+    call ReadWFdata(file_number)
     
-    read (unit=*, nml=IO)
+    if(present(file_number)) then
+      read (unit=file_number, nml=IO)
+    else
+      read (unit=*, nml=IO)
+    endif
     
-    call readmomentdata
-    
+    call readmomentdata(file_number)
+
+    if(present(file_number)) then
+      close(unit=file_number)
+    endif
+
   end subroutine ReadInput
 
   subroutine PrintInput

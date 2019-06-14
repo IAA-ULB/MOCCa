@@ -47,16 +47,22 @@ module GenInfo
     
 contains
 
-  subroutine ReadGenInfo
+  subroutine ReadGenInfo(file_number)
     !---------------------------------------------------------------------------
     ! Read some of the general information needed.
     !---------------------------------------------------------------------------
+    integer(dp), intent(in), optional   :: file_number   
+
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec
     Namelist /mesh/    nx,ny,nz, dx
     
     ! Reading the information on the nucleus
-    read (unit=*, nml=nucleus)
+    if(present(file_number)) then
+      read (unit=file_number, nml=nucleus)
+    else
+      read (unit=*, nml=nucleus)
+    endif
 
     if(fixfermi .and. (mun.eq.-10d8 .or.mup.eq.-10d8) )then
         print *, 'You should fix an appropriate Lambda_N and Lambda_P'
@@ -64,8 +70,11 @@ contains
     endif
 
     ! Reading information on the mesh
-    read (unit=*, nml=mesh)
-    
+    if(present(file_number)) then
+      read (unit=file_number, nml=mesh)
+    else
+      read (unit=*, nml=mesh)
+    endif   
     mv = nx * ny * nz
     dv = (dx**3)*(2**$NUMSYM)
     

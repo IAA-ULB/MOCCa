@@ -29,16 +29,21 @@ module SCFiteration
 
 contains
 
-  subroutine readscfiteration
+  subroutine readscfiteration(file_number)
     !---------------------------------------------------------------------------
     ! Read the namelist determining the SCF-update.
     !
     !---------------------------------------------------------------------------
-    
+          
+    integer(dp), intent(in), optional   :: file_number   
+
     namelist /scfiteration/ scfscheme, denmix, preconfactor
     
-    read (unit=*, nml=scfiteration)
-    
+    if(present(file_number)) then
+      read (unit=file_number, nml=scfiteration)
+    else
+      read (unit=*, nml=scfiteration)
+    endif    
     ! Interpreting the scfscheme choice in terms of densities and potentials
     select case(scfscheme)
     
