@@ -982,4 +982,24 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = angmom * dv
   end function angmom_z_quad
 
+  subroutine clean_wavefunctions()
+
+    if(allocated(HFPsi))    deallocate(HFPsi)
+    if(allocated(HFdPsi))   deallocate(HFdPsi)
+    if(allocated(HFddPsi))  deallocate(HFddPsi)
+    if(allocated(HFdddPsi)) deallocate(HFdddPsi)
+
+    if(allocated(CANPsi))    deallocate(CANPsi)
+    if(allocated(CANdPsi))   deallocate(CANdPsi)
+    if(allocated(CANddPsi))  deallocate(CANddPsi)
+    if(allocated(CANdddPsi)) deallocate(CANdddPsi)
+
+    if(allocated(spenergies))  deallocate(spenergies)
+    if(allocated(dispersions)) deallocate(dispersions)
+    if(allocated(canenergies)) deallocate(canenergies)
+
+    if(allocated(sx)) deallocate(sx,sy,sz)
+
+  end subroutine clean_wavefunctions
+
 end module wavefunctions

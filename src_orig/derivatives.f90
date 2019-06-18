@@ -875,4 +875,10 @@ $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(derZ  (:,:,sz),f3($SYMPARTNERZ))
     lf = lf/(dx**2)
  end function Coulomblaplacian
 
+ subroutine clean_derivatives()
+  if(allocated(derX)) then
+    deallocate(derX, derY, derZ)
+    deallocate(laplaX, laplaY, laplaZ)
+  endif
+ end subroutine clean_derivatives
 end module derivatives

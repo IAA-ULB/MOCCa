@@ -379,6 +379,14 @@ contains
       
    end function average_gap_BCS
 
+   subroutine clean_BCS()
+
+     if(allocated(BCSgaps))        deallocate(BCSgaps) 
+     if(allocated(BCSqps))         deallocate(BCSqps) 
+     if(allocated(BCSoccupations)) deallocate(BCSoccupations)
+     if(allocated(BCSf))           deallocate(BCSf)
+ 
+   end subroutine clean_BCS
 !===============================================================================
 !  Never to be used function to define an interface for delta_action
 !===============================================================================   

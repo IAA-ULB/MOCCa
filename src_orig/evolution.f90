@@ -588,4 +588,10 @@ contains
 !        enddo
 !        
 !    end subroutine CalculatePreconditioners
+
+    subroutine clean_evolution()
+      if(allocated(preconx)) deallocate(preconx)
+      if(allocated(precony)) deallocate(precony)
+      if(allocated(preconz)) deallocate(preconz)
+    end subroutine clean_evolution
 end module evolution

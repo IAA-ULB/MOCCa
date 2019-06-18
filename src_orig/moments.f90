@@ -1640,6 +1640,14 @@ if(io.ne.0) call stp('Error while writing multipole moment to file!')
     endif
     return
   end function FindMoment
+
+  subroutine clean_moments
+
+    if(allocated(Constraint_I_I)) deallocate(Constraint_I_I)
+    if(allocated(Cutoff))         deallocate(Cutoff)
+    nullify(Root)
+
+  end subroutine clean_moments
 !===============================================================================
 !
 !===============================================================================

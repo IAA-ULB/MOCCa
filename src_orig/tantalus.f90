@@ -79,6 +79,9 @@ subroutine Run_Tantalus(file_number,input_file)
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
  call ReachForWaterAndFood
+ !------------------------------------------------------------------------------
+ ! Clean up after running, just in case we need to run again.
+ call Cleanupthemess()
  
 end subroutine Run_Tantalus
 
@@ -388,4 +391,35 @@ subroutine printsummary(iter)
     print 5, sum(Q20%value), sum(Q22%value), dQ20,dQ22
         
 end subroutine printsummary
+
+subroutine cleanupthemess()
+  !-----------------------------------------------------------------------------
+  !
+  ! 
+  !-----------------------------------------------------------------------------
+  use geninfo
+  use derivatives
+  use wavefunctions
+  use pairingcutoffs
+  use BCS
+  use HFB
+  use pairing
+  use densities
+  use moments
+  use coulombmod
+  use evolution
+
+  call clean_geninfo
+  call clean_derivatives
+  call clean_wavefunctions
+  call clean_pairingcutoffs
+  call clean_BCS
+  call clean_HFB
+  call clean_pairing
+!  call clean_densities
+  call clean_moments
+  call clean_coulomb
+  call clean_evolution
+
+end subroutine cleanupthemess
 end module Tantalus

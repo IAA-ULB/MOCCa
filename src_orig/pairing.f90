@@ -621,6 +621,20 @@ contains
     
   end subroutine CalcEntropy
 
+  subroutine clean_pairing()
+
+    if(allocated(rho_pairing))   deallocate(rho_pairing)
+    if(allocated(kappa_pairing)) deallocate(kappa_pairing)
+    if(allocated(configmatrix))  deallocate(configmatrix)
+    if(allocated(Bogoliubov))    deallocate(Bogoliubov)
+    if(allocated(QPenergies))    deallocate(QPenergies)
+    if(allocated(CanTransfo))    deallocate(CanTransfo)
+    if(allocated(CanCutTransfo)) deallocate(CanCutTransfo)
+    if(allocated(BlockIndices))  deallocate(BlockIndices)
+    if(allocated(Blocklowest))   deallocate(BlockLowest)
+
+  end subroutine clean_pairing
+
 !  subroutine EstimatedNda()
 !    !---------------------------------------------------------------------------
 !    ! A subroutine that estimates 

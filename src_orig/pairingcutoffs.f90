@@ -102,4 +102,7 @@ contains
   
   end function Cosinecut
   
+  subroutine clean_pairingcutoffs
+    if(allocated(Pcutoffs)) deallocate(Pcutoffs)
+  end subroutine clean_pairingcutoffs
 end module pairingcutoffs

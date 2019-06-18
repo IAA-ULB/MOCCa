@@ -564,4 +564,16 @@ contains
     return
   end subroutine ConjugGrad
 
+  subroutine clean_coulomb()
+    if(allocated(CoulombPotential))  deallocate(CoulombPotential)
+    if(allocated(ExchangePotential)) deallocate(ExchangePotential)
+    if(allocated(FoldedCoul))        deallocate(FoldedCoul)
+    if(allocated(FoldedExchange))    deallocate(FoldedExchange)
+    if(allocated(SpherHarmCoulomb))  deallocate(SpherHarmCoulomb)
+    if(allocated(r))                 deallocate(r)
+    if(allocated(Gaussx))            deallocate(Gaussx)
+    if(allocated(gaussy))            deallocate(gaussy)
+    if(allocated(gaussz))            deallocate(gaussz)
+  end subroutine clean_coulomb
+
 end module Coulombmod

@@ -28,8 +28,8 @@ module GenInfo
     ! Coordinates of the mesh points for the calculation as well as the 
     ! coulomb calculation
     real(KIND=dp), allocatable :: meshx(:), meshy(:), meshz(:)
-    real(KIND=dp), allocatable, target :: meshgrid(:,:)
     real(KIND=dp), allocatable :: coulmeshx(:), coulmeshy(:), coulmeshz(:)
+    real(KIND=dp), allocatable, target :: meshgrid(:,:)
     !---------------------------------------------------------------------------
     ! Inverse temperature Beta = (k_b T)^{-1}.
     ! Negative values are used to indicate an infinite value, i.e. T = 0.
@@ -181,4 +181,18 @@ contains
     end do
 
   end function to_upper
+  
+  subroutine clean_geninfo()
+    !---------------------------------------------------------------------------
+    ! Deallocate all allocated arrays, to exit in a clean fashion.
+    !
+    !---------------------------------------------------------------------------
+  
+    if(allocated(meshx)) then
+      deallocate(meshx, meshy, meshz)
+      deallocate(coulmeshx, coulmeshy, coulmeshz)
+      deallocate(meshgrid)
+    endif
+
+  end subroutine clean_geninfo
 end module GenInfo
