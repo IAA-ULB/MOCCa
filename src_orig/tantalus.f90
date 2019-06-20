@@ -63,7 +63,7 @@ subroutine Run_Tantalus(file_number,input_file)
  print 301
  print 302
  print 303
- 
+
  !------------------------------------------------------------------------------
  ! Read input from STDIN
  call ReadInput(file_number, input_file)
@@ -72,10 +72,10 @@ subroutine Run_Tantalus(file_number,input_file)
  call inilag() ! Derivative matrices. 
  !------------------------------------------------------------------------------
  ! Read wavefunctions
- call ReadWavefunction
+ call ReadWavefunction(file_number)
  !------------------------------------------------------------------------------
  ! Print all relevant input gleaned from STDIN and the wf file.
- call PrintInput
+ call PrintInput(file_number, input_file)
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
  call ReachForWaterAndFood
@@ -416,7 +416,7 @@ subroutine cleanupthemess()
   call clean_BCS
   call clean_HFB
   call clean_pairing
-!  call clean_densities
+  call clean_densities
   call clean_moments
   call clean_coulomb
   call clean_evolution

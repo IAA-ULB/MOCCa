@@ -369,6 +369,17 @@ function CompNablaMelements() result(NablaMelements)
     !---------------------------------------------------------------------------
 end function CompNablaMelements
 
+subroutine clean_densities
+$CLEANING
+    if(allocated(D_I_I_hist))    deallocate(D_I_I_hist)
+    if(allocated(chargedensity)) deallocate(chargedensity)
+    nullify(DenPsi)
+    nullify(DendPsi)
+    nullify(DenddPsi)
+    nullify(DendddPsi)
+
+end subroutine clean_densities
+
 subroutine writedensity(den ,fname)
   !-----------------------------------------------------------------------------
   ! Write the density to file for plotting afterwards.
@@ -401,6 +412,6 @@ subroutine writedensity(den ,fname)
   enddo
 
   close(1)
-end subroutine
+end subroutine writedensity
 
 end module densities

@@ -179,6 +179,7 @@ Ini_template   = Template(   tab+'if(.not.allocated($NAME)) then     \n' + \
                            2*tab+'$NAME = 0.0d0 \n'                      + \
                              tab+'endif \n'                              ) 
 Zero_template  = Template(   tab+'$NAME = 0.0d0 \n')
+Clean_template = Template(   tab+'if(allocated($NAME)) deallocate($NAME)')
 Dec_template   = Template( \
                      tab + 'real*8, allocatable, target :: $NAME(:$TOTALIND,:)')
 Der_template   = Template( 2*tab + \
@@ -266,6 +267,8 @@ def ProcessDensities(fname, src, target):
     BCSExpression  = ''
     HFBExpression  = ''
     Zeroing        = ''
+    Cleaning       = ''
+
     print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
     print ' Generated densities                               '
     print ' P-H part                                          '
@@ -279,8 +282,8 @@ def ProcessDensities(fname, src, target):
                                           deriv_needed[i]
 
         # Summation with leftwf = rightwf
-        (e,dec,ini,der,zeroi)  = GenDensityExpression(Densities_needed[i],     \
-                                                deriv_needed[i], 'wave', 'wave')
+        (e,dec,ini,der,zeroi,cleani)  = \
+       GenDensityExpression(Densities_needed[i],deriv_needed[i], 'wave', 'wave')
         Declaration    = Declaration    + '\n' + dec
         
         if('P' in den): 
@@ -289,8 +292,9 @@ def ProcessDensities(fname, src, target):
           # But we also need the HFB expression 
           # So we recall the routine with different 'wave' indices
           # This summation is blokwise, hence the 'si+'
-          (e,dec,ini,der,zeroi)  = GenDensityExpression(Densities_needed[i],   \
-                                         deriv_needed[i], 'si+wave2', 'si+wave')
+          (e,dec,ini,der,zeroi,cleani)  = \
+                     GenDensityExpression(Densities_needed[i], deriv_needed[i],\
+                                                          'si+wave2', 'si+wave')
           HFBExpression = HFBExpression + '\n' + e
         else:
           Expression    = Expression     + '\n' + e
@@ -298,6 +302,7 @@ def ProcessDensities(fname, src, target):
         Initialisation = Initialisation + '\n' + ini
         Derivation     = Derivation     + '\n' + der
         Zeroing        = Zeroing        + '\n' + zeroi
+        Cleaning       = Cleaning       + '\n' + cleani
     
     # Substitute into the densities.f90 file.        
     dic={}
@@ -308,6 +313,7 @@ def ProcessDensities(fname, src, target):
     dic['HFBEXPRESSION']  = HFBExpression
     dic['DERIVATION'    ] = Derivation
     dic['ZEROING'       ] = Zeroing 
+    dic['CLEANING'      ] = Cleaning 
  
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
@@ -402,6 +408,8 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
     Initialisation= ''
     Derivation    = ''
     Zeroing       = ''
+    Cleaning      = ''
+
     #---------------------------------------------------------------------------
     # Parse the structure from the name
     density = denin    
@@ -469,6 +477,8 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
     Declaration    = Dec_template.substitute(dic)
     Initialisation = Ini_template.substitute(dic)
     Zeroing        = Zero_template.substitute(dic)
+    Cleaning       = Clean_template.substitute(dic)
+
     for c in derivative_combinations:
         l = c[0]
         d = c[1]
@@ -758,8 +768,7 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
         dic['NAME'] = density
     Expression = Expression + Den_line.substitute(dic) 
     
-    return (Expression, Declaration, Initialisation, Derivation, Zeroing)
-    
+    return (Expression, Declaration, Initialisation, Derivation, Zeroing, Cleaning)
     
 def GenVecProd(density, coupling):
     #---------------------------------------------------------------------------

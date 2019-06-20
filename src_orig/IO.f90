@@ -87,7 +87,7 @@ contains
 
   end subroutine ReadInput
 
-  subroutine PrintInput
+  subroutine PrintInput(file_number, input_file)
   !-----------------------------------------------------------------------------
   ! This subroutine prints all relevant information of the input, both from the
   ! user and from the wavefunction file.
@@ -96,6 +96,9 @@ contains
     use wavefunctions
     use evolution
     use scfiteration
+
+    integer*8, intent(in), optional     :: file_number
+    character(11), intent(in), optional :: input_file 
    
     1 format ( 30('-'), 'General Information ', 30('-'))
     2 format ( ' Mesh parameters' )
@@ -114,6 +117,8 @@ contains
     &          '  outputfilename =', a20)
    11 format ( '  BXL output     =', a20)
   111 format ( '  Combi ouput    =', a20)
+ 1111 format ( '  Input data     =', a20, / &
+               '     on unit ', i10)
    12 format ( ' Convergence required', / &
     &          '  Energy convergence           < ', e8.1, / & 
     &          '  Multipole moment convergence < ', e8.1, / &
@@ -123,6 +128,7 @@ contains
     print *
     print 1
     print 2
+
     print 3 , nx, ny, nz, mv
     print 4 , dx
     print 5 , dv
@@ -140,6 +146,9 @@ contains
     if(COMBI .ne. '') then
         print 111, COMBI
     endif
+    if(present(file_number)) then
+      print 1111,  adjustl(trim(input_file)), file_number
+    endif
     print 12, energy_prec, moment_prec, disp_prec
     
     call printevolution
@@ -149,12 +158,14 @@ contains
     
   end subroutine PrintInput
   
-  subroutine Readwavefunction
+  subroutine Readwavefunction(file_number )
     !---------------------------------------------------------------------------
     ! Read information from a finished Tantalus calculation.
     ! This is the part that should decide on how to read from different inputs.
     !---------------------------------------------------------------------------
     
+    integer*8, intent(in), optional :: file_number
+
     if(trim(to_upper(inputfilename)).eq.'INIT') then  
       ! Generate starting point with Nilsson wavefunctions.
       call iniwavefunctions()

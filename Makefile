@@ -22,13 +22,10 @@ MPI_SRC    = $(SRC) run_mpi.f90
 CXX      :=  gfortran
 
 ifeq ($(CXX),gfortran)
-
-	CXXFLAGS := -O3 -J$(MODDIR) -Wall
-
+#	CXXFLAGS := -J$(MODDIR) -Wall -fbacktrace -g3
+	CXXFLAGS := -O3 -J$(MODDIR) -Wall 
 else ifeq ($(CXX),ifort)
-
 	CXXFLAGS := -O3 -assume realloc-lhs -assume byterecl -no-wrap-margin -module $(MODDIR)
-
 endif
 
 ################################################################################

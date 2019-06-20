@@ -1530,7 +1530,10 @@ contains
     &                           Mom%value, Mom%constraint,Mom%deviation,     &
     &                           Mom%multiplier, Mom%Intensity       
     
-if(io.ne.0) call stp('Error while writing multipole moment to file!')
+    if(io.ne.0) then
+      print *, 'Error while writing multipole moment to file!'
+      stop
+    endif
   end subroutine WriteMoment
 
 

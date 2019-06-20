@@ -128,7 +128,7 @@ contains
     !integer                   :: j,k, p
     integer                   :: i
     integer, allocatable      :: kparz(:)
-        
+    
     alpha = 0.2    
     qqq   = 1.0    
     homegaz  = alpha*qqq**(-2.0/3.0)
@@ -139,6 +139,7 @@ contains
     ! a) Generating the nilsson wave-functions in an EV8-box   
     call nilsson (HFPsi,kparz,spenergies,6,5,nwt,nwp,nwn,                      &
     &           floor(neutrons),floor(protons),nx,ny,nz,dx,osc_freq)
+
     allocate(dispersions(nwt))
     allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
     
@@ -183,6 +184,7 @@ contains
 !        enddo
 !    enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    hfblocks = 0
     do i=1,nwn
         if(kparz(i) .gt. 0) HFBlocks(1) = HFBlocks(1) +1
         if(kparz(i) .lt. 0) HFBlocks(3) = HFBlocks(3) +1
@@ -198,12 +200,14 @@ contains
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
     enddo
+
     do i=HFBlocks(1) + 1,HFBlocks(1) + HFBlocks(3)
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
         sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
+
     do i=HFBlocks(1) + HFBlocks(3)+1,HFBlocks(1) + HFBlocks(3) +HFBlocks(5)
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
         sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
@@ -221,7 +225,6 @@ contains
 !    HFPsi = HFPsi*sqrt(2.)
     ! Simply because I distrust the nilsson routine
 !    call GramSchmidt
-    
   end subroutine iniwavefunctions
   
   subroutine deriveHF()
@@ -998,7 +1001,9 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     if(allocated(dispersions)) deallocate(dispersions)
     if(allocated(canenergies)) deallocate(canenergies)
 
-    if(allocated(sx)) deallocate(sx,sy,sz)
+    if(allocated(sx)) deallocate(sx)
+    if(allocated(sy)) deallocate(sy)
+    if(allocated(sz)) deallocate(sz)
 
   end subroutine clean_wavefunctions
 

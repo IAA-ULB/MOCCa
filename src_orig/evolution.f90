@@ -320,6 +320,14 @@ contains
       ! Step 1: Solve the auxiliary problem for the largest single-particle 
       !         ennergy on the mesh
       if(Iteration .eq.1) then
+
+          if(allocated(maxspwf))   deallocate(maxspwf)
+          if(allocated(update))    deallocate(update)
+          if(allocated(actionofh)) deallocate(actionofh)
+          if(allocated(dmax))      deallocate(dmax)
+          if(allocated(ddmax))     deallocate(ddmax)
+          if(allocated(dddmax))    deallocate(dddmax)
+
           ! Initialize with a random spwf at the start.
           allocate(maxspwf(nx*ny*nz,4)) 
           allocate(update(nx*ny*nz,4)) ; allocate(actionofh(nx*ny*nz,4))
