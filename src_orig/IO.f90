@@ -158,13 +158,11 @@ contains
     
   end subroutine PrintInput
   
-  subroutine Readwavefunction(file_number )
+  subroutine Readwavefunction()
     !---------------------------------------------------------------------------
     ! Read information from a finished Tantalus calculation.
     ! This is the part that should decide on how to read from different inputs.
     !---------------------------------------------------------------------------
-    
-    integer*8, intent(in), optional :: file_number
 
     if(trim(to_upper(inputfilename)).eq.'INIT') then  
       ! Generate starting point with Nilsson wavefunctions.

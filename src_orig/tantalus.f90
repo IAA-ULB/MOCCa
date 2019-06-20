@@ -4,7 +4,7 @@ module Tantalus
 
 contains
 
-subroutine Run_Tantalus(file_number,input_file)
+subroutine Run_Tantalus(run_mode, file_number,input_file)
  !==============================================================================
  !  #######   ##   #    # #####   ##   #      #    #  ####
  !     #     #  #  ##   #   #    #  #  #      #    # #
@@ -33,7 +33,8 @@ subroutine Run_Tantalus(file_number,input_file)
  ! empty will have the code rely on STDIN for input.
  integer(dp), intent(in), optional   :: file_number   
  character(11), intent(in), optional :: input_file 
-
+ character(len=*), intent(in)        :: run_mode 
+ character(len=43)                   :: mode_print
  100 format &
      &  (/,8x,' ___________________________________________________________', &
      &   /,8x,'|                                                          |', &
@@ -46,9 +47,11 @@ subroutine Run_Tantalus(file_number,input_file)
      &   /,8x,'|     #    #    # #   ##   #   #    # #      #    # #    # |', &
      &   /,8x,'|     #    #    # #    #   #   #    # ######  ####   ####  |', &
      &   /,8x,'|                                                          |', &
-     &   /,8x,'|  Copyright  P.-H. Heenen, M.Bender & W. Ryssens          |', &
+     &   /,8x,'|  Copyright  P.-H. Heenen, M. Bender & W. Ryssens         |', &
      &   /,8x,'|                                                          |')
  
+ 200 format ( 8x, '|', 58('-'), '|'  ,/,8x, '| Runtype = ', a43, 4x, '|')
+
  299 format ( 8x,'|-------------- Version Information -----------------------|')
  300 format ( 8x,'| VERSION1',  8x, '|') ! Git commit
  301 format ( 8x,'| VERSION2',  7x, '|') ! Author of commit
@@ -58,6 +61,8 @@ subroutine Run_Tantalus(file_number,input_file)
 
  print *
  print 100
+ write(mode_print, '(a43)') run_mode
+ print 200, adjustl(mode_print)
  print 299
  print 300
  print 301
@@ -72,7 +77,7 @@ subroutine Run_Tantalus(file_number,input_file)
  call inilag() ! Derivative matrices. 
  !------------------------------------------------------------------------------
  ! Read wavefunctions
- call ReadWavefunction(file_number)
+ call ReadWavefunction()
  !------------------------------------------------------------------------------
  ! Print all relevant input gleaned from STDIN and the wf file.
  call PrintInput(file_number, input_file)

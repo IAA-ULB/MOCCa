@@ -1,3 +1,26 @@
+#-------------------------------------------------------------------------------
+# Make options included at this point
+#
+#   all:    Build both single and mpi executables.
+#           Note that Hephaestos is only used once to generate the code.
+#   single: Ordinary mode, one calculation. Corresponds to run_single.f90.
+#   mpi:    (Possibly) multiple runs. Corresponds to run_mpi.f90.
+#
+#-------------------------------------------------------------------------------
+#
+# OPTIONS:
+#                                                    DEFAULT
+#  CXX      : compiler to use                        gfortran
+#  CXXFLAGS : compiler flags                         -O3 -J$(MODDIR) -Wall
+#  PRE      : steps to do before compilation         run Hephaestos
+#  FUNC     : functional definition file             NLO.func
+#
+#-------------------------------------------------------------------------------
+# Executables at the end will be named
+#  Tantalus.$(FUNC).exe        => single
+#  Tantalus.$(FUNC).mpi.exe    => mpi
+#-------------------------------------------------------------------------------
+
 OBJDIR :=   obj
 SRCDIR :=   src
 MODDIR :=   mod
@@ -44,6 +67,8 @@ LIBS   := -llapack -lblas
 
 ################################################################################
 # Recipes
+all: single mpi
+
 single: $(PRE) $(SINGLE_OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $(SINGLE_OBJ) $(LIBS)
 	mv single exec/$(EXENAME)
@@ -81,4 +106,6 @@ getgitinfo:
 	$(eval GIT_INFO1=$(shell git show | grep 'commit '))
 	$(eval GIT_INFO2=$(shell git show | grep 'Author:'))
 	$(eval GIT_INFO3=$(shell git show | grep 'Date:'))
+
+################################################################################
 
