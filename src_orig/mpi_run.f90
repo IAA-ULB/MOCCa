@@ -1,12 +1,14 @@
 !-------------------------------------------------------------------------------
-! Original code by E. Olsen, simplified for testing purposes by W.R.
+! Original code by E. Olsen.
 !-------------------------------------------------------------------------------
-! This code is for running Tantalus in parallel and contains an MPI for this purpose.
-! It also contains the ability to fit forces, based of off Stephane Goriely's run_mocca.f and chi.f
-! Also includes minsq.f for parameter fitting and minimization.
-! Reads "datain" to get information on the interaction parameters and for which nuclei to make a mass table
-! Each (Z,N) gets sent to a core to have its binding energy and associated ground state properties calculated;
-! binding energy is sent back for chi.f to make further calculations
+! This code is for running Tantalus in parallel and contains an MPI for this 
+! purpose. It also contains the ability to fit forces, based of off Stephane 
+! Goriely's run_mocca.f and chi.f.
+! Also includes minsq.f for parameter fitting and minimization.  Reads "datain" 
+! to get information on the interaction parameters and for which nuclei to make 
+! a mass table. Each (Z,N) gets sent to a core to have its binding energy and 
+! associated ground state properties calculated; binding energy is sent back for
+! chi.f to make further calculations
 
 !-------------------------------------------------------------------------------
 ! 1. Master core determines necessary information for the mass table calculation

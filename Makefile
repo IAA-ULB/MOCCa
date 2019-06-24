@@ -38,7 +38,7 @@ SRC    +=   momentsofinertia.f90  functional.f90 evolution.f90 scfiteration.f90
 SRC    +=   IO.f90 temperature_projection.f90 printing.f90 tantalus.version.f90
 
 SINGLE_SRC = $(SRC) run_single.f90
-MPI_SRC    = $(SRC) run_mpi.f90
+MPI_SRC    = $(SRC) multirun_example.f90
 
 ################################################################################
 # Compiler details

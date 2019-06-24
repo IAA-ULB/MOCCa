@@ -54,6 +54,9 @@ def preprocess(fname, src, target):
     if(fname=='run_mpi.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='multirun_example.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='parameterization.f90'):
         ProcessParameterization(fname, src, target)
         return
