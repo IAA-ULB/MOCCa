@@ -88,7 +88,7 @@ module derivatives
     module procedure derive_grad_3D
  end interface
  
- interface derive_tot
+ interface derive_tot 
     module procedure derive_tot_1D
     module procedure derive_tot_3D
  end interface
@@ -102,12 +102,7 @@ module derivatives
     module procedure derive_1D
     module procedure derive_3D
  end interface
- 
- !------------------------------------------------------------------------------
- ! Coefficients of the Coulomb laplacian
- real(KIND=dp),parameter,dimension(5) :: CoulCoefs=(/ &
- & -1.0_dp/12.0_dp,4.0_dp/3.0_dp,-5.0_dp/2.0_dp,4.0_dp/3.0_dp, -1.0_dp/12.0_dp/)
- 
+
 contains 
     
  subroutine inilag
@@ -772,109 +767,6 @@ $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(derZ  (:,:,sz),f3($SYMPARTNERZ))
     
  end subroutine Derive_1d
  
- function Coulomblaplacian(f, sx, sy, sz) result(lf)
-    !---------------------------------------------------------------------------
-    ! Subroutine applying a finite difference operator (of order two) to the  
-    ! function f. Note that this function should be defined on the box + 2 
-    ! points in every direction, as boundary conditions are necessary. 
-    ! 
-    ! Note that these boundary conditions are not touched by this procedure.
-    !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: f(nx+2,ny+2,nz+2)
-    real(KIND=dp)             :: lf(nx+2,ny+2,nz+2)
-    integer, intent(in)       :: sx, sy, sz
-    integer :: i,j,k
-
-    lf = 0.0_dp
-    !---------------------------------------------------------------------------
-    ! X-direction
-    do k=1,nz
-        do j=1,ny
-            do i=3,nx
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(5) * f(i+2,j,k)
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(4) * f(i+1,j,k)
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(3) * f(i  ,j,k)
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(2) * f(i-1,j,k)
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(1) * f(i-2,j,k)
-            enddo
-        enddo
-    enddo
-    do k=1,nz
-        do j=1,ny
-            lf(1,j,k) = lf(1,j,k) +      CoulCoefs(5) * f(3,j,k)
-            lf(1,j,k) = lf(1,j,k) +      CoulCoefs(4) * f(2,j,k)
-            lf(1,j,k) = lf(1,j,k) +      CoulCoefs(3) * f(1,j,k)
-            lf(1,j,k) = lf(1,j,k) + sx * CoulCoefs(2) * f(1,j,k)
-            lf(1,j,k) = lf(1,j,k) + sx * CoulCoefs(1) * f(2,j,k)
-            
-            lf(2,j,k) = lf(2,j,k) +      CoulCoefs(5) * f(4,j,k)
-            lf(2,j,k) = lf(2,j,k) +      CoulCoefs(4) * f(3,j,k)
-            lf(2,j,k) = lf(2,j,k) +      CoulCoefs(3) * f(2,j,k)
-            lf(2,j,k) = lf(2,j,k) +      CoulCoefs(2) * f(1,j,k)
-            lf(2,j,k) = lf(2,j,k) + sx * CoulCoefs(1) * f(1,j,k)
-        enddo
-    enddo
-    !---------------------------------------------------------------------------
-    ! Y-direction
-    do k=1,nz
-        do j=3,ny
-            do i=1,nx
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(5) * f(i,j+2,k)
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(4) * f(i,j+1,k)
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(3) * f(i,j  ,k)
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(2) * f(i,j-1,k)
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(1) * f(i,j-2,k)
-            enddo
-        enddo
-    enddo
-    do k=1,nz
-        do i=1,nx
-            lf(i,1,k) = lf(i,1,k) +      CoulCoefs(5) * f(i,3,k)
-            lf(i,1,k) = lf(i,1,k) +      CoulCoefs(4) * f(i,2,k)
-            lf(i,1,k) = lf(i,1,k) +      CoulCoefs(3) * f(i,1,k)
-            lf(i,1,k) = lf(i,1,k) + sy * CoulCoefs(2) * f(i,1,k)
-            lf(i,1,k) = lf(i,1,k) + sy * CoulCoefs(1) * f(i,2,k)
-            
-            lf(i,2,k) = lf(i,2,k) +      CoulCoefs(5) * f(i,4,k)
-            lf(i,2,k) = lf(i,2,k) +      CoulCoefs(4) * f(i,3,k)
-            lf(i,2,k) = lf(i,2,k) +      CoulCoefs(3) * f(i,2,k)
-            lf(i,2,k) = lf(i,2,k) +      CoulCoefs(2) * f(i,1,k)
-            lf(i,2,k) = lf(i,2,k) + sy * CoulCoefs(1) * f(i,1,k)
-        enddo
-    enddo
-    !---------------------------------------------------------------------------
-    ! Z-direction
-    do k=3,nz
-        do j=1,ny
-            do i=1,nx
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(5) * f(i,j,k+2)
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(4) * f(i,j,k+1)
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(3) * f(i,j,k  )
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(2) * f(i,j,k-1)
-                lf(i,j,k) = lf(i,j,k) + CoulCoefs(1) * f(i,j,k-2)
-            enddo
-        enddo
-    enddo
-        
-    do j=1,ny
-        do i=1,nx
-            lf(i,j,1) = lf(i,j,1) +      CoulCoefs(5) * f(i,j,3)
-            lf(i,j,1) = lf(i,j,1) +      CoulCoefs(4) * f(i,j,2)
-            lf(i,j,1) = lf(i,j,1) +      CoulCoefs(3) * f(i,j,1)
-            lf(i,j,1) = lf(i,j,1) + sz * CoulCoefs(2) * f(i,j,1)
-            lf(i,j,1) = lf(i,j,1) + sz * CoulCoefs(1) * f(i,j,2)
-            
-            lf(i,j,2) = lf(i,j,2) +      CoulCoefs(5) * f(i,j,4)
-            lf(i,j,2) = lf(i,j,2) +      CoulCoefs(4) * f(i,j,3)
-            lf(i,j,2) = lf(i,j,2) +      CoulCoefs(3) * f(i,j,2)
-            lf(i,j,2) = lf(i,j,2) +      CoulCoefs(2) * f(i,j,1)
-            lf(i,j,2) = lf(i,j,2) + sz * CoulCoefs(1) * f(i,j,1)
-        enddo
-    enddo
-    
-    lf = lf/(dx**2)
- end function Coulomblaplacian
-
  subroutine clean_derivatives()
   if(allocated(derX)) then
     deallocate(derX, derY, derZ)

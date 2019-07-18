@@ -22,7 +22,6 @@ module Coulombmod
 
  use geninfo
  use densities
- use derivatives, only: CoulombLaplacian
  use moments 
  use parameterization
  
@@ -44,15 +43,17 @@ module Coulombmod
  real(KIND=dp), public              :: Prec
  !------------------------------------------------------------------------------
  ! Number of boundary conditions to put on all sides of the box.
- ! Currently hard-coded to be 2, corresponding to the Laplacian defined in
- ! derivatives.f90.
- integer, parameter :: BC = 2
+ integer :: BC = 2
  !------------------------------------------------------------------------------
  ! Arrays containing,
  ! 1) the values of the spherical harmonics on the extended mesh and
  ! 2) the value of the radial coordinate r on the extended mesh.
  !------------------------------------------------------------------------------
- real(KIND=dp), allocatable, target :: SpherHarmCoulomb(:,:,:,:,:,:),r(:,:,:)
+ real(KIND=dp), allocatable, target :: SpherHarmCoulomb(:,:,:,:,:,:),r(:,:,:)  
+ !------------------------------------------------------------------------------
+ ! Coordinates of the mesh in the enlarged coulomb box.
+ real(KIND=dp), allocatable :: coulmeshx(:), coulmeshy(:), coulmeshz(:)
+ real(KIND=dp), allocatable :: coulgrid(:,:)
  !------------------------------------------------------------------------------
  ! Maximum l of the multipole moments to use in the boundary conditions
  ! Currently hardcoded at 8: does not cost anything CPU-time wise and 
@@ -64,7 +65,23 @@ module Coulombmod
  ! index, the third whether it is the Gaussian with positive or negative sign.
  !------------------------------------------------------------------------------
  real(KIND=dp), allocatable :: Gaussx(:,:,:,:), Gaussy(:,:,:,:), Gaussz(:,:,:,:)
-   
+ 
+ !------------------------------------------------------------------------------
+ ! Coefficients of the Coulomb laplacian
+ !------------------------------------------------------------------------------
+ real(KIND=dp), allocatable :: CoulCoefs(:)
+ real(KIND=dp),parameter,dimension(3) :: CoulCoefs_3=(/ &
+ &  1.0_dp,-2.0_dp,1.0_dp /)
+ real(KIND=dp),parameter,dimension(5) :: CoulCoefs_5=(/ &
+ & -1.0_dp/12.0_dp,4.0_dp/3.0_dp,-5.0_dp/2.0_dp,4.0_dp/3.0_dp, -1.0_dp/12.0_dp/)
+ real(KIND=dp),parameter,dimension(7) :: CoulCoefs_7 =(/ &
+ &     1.0_dp/90.0_dp, -3.0_dp/20.0_dp, 3.0_dp/2.0_dp, -49.0_dp/18.0_dp,       &
+ &     3.0_dp/2.0_dp,  -3.0_dp/20.0_dp, 1.0_dp/90.0_dp/)
+ real(KIND=dp),parameter,dimension(9) :: CoulCoefs_9 =(/ &
+ & -9.0_dp/8064.0_dp, 128.0_dp/8064.0_dp, -1008.0_dp/8064.0_dp, 1.0_dp,     &
+ & -14350.0_dp/8064.0_dp, 1.0_dp, -1008.0_dp/8064.0_dp, 128.0_dp/8064.0_dp, &
+ & -9.0_dp/8064.0_dp /)
+
 contains
 
  subroutine SolveCoulomb(rhop)
@@ -79,18 +96,41 @@ contains
     real(KIND=dp), allocatable :: source(:,:,:)
     integer                    :: i,j,k,ii
     
-    if(.not.allocated(Source)) then
-        allocate(Source(nx+2,ny+2,nz+2))           ; Source = 0.0_dp
+    if(.not.allocated(CoulCoefs)) then
+       select case(coulorder)
+         case(1)
+          BC = 1
+          allocate(CoulCoefs(3)) ; CoulCoefs = CoulCoefs_3
+         case(2)
+          BC = 2
+          allocate(CoulCoefs(5)) ; CoulCoefs = CoulCoefs_5
+         case(3)
+          BC = 3
+          allocate(CoulCoefs(7)) ; CoulCoefs = CoulCoefs_7
+         case(4)
+          BC = 4
+          allocate(CoulCoefs(9)) ; CoulCoefs = CoulCoefs_9 
+          CoulCoefs = Coulcoefs * (8064.0_dp)/(5040.0_dp) !Legacy from CR8
+         case DEFAULT
+          print *, 'This order for the Coulomb discretisation is not supported.'
+          stop
+       end select
     endif
 
+    if(.not.allocated(Source)) then
+        allocate(Source(nx+BC,ny+BC,nz+BC))           ; Source = 0.0_dp
+    endif
+
+    if(.not.allocated(coulmeshx)) then  
+      call inimesh(coulmeshx, coulmeshy, coulmeshz,nx+BC,ny+BC,nz+BC,coulgrid)
+    endif
     !---------------------------------------------------------------------------
     ! Initialize all of the arrays.
     if(.not.allocated(CoulombPotential)) then
         call setupcoulomb
     endif
     
-    if(coultreatment.eq.0) return
-        
+    if(coultreatment.eq.0) return        
     !---------------------------------------------------------------------------
     ! Set up the source term: 
     ! For standard parameterizations it is the simply the proton density with
@@ -260,7 +300,7 @@ contains
     
     !---------------------------------------------------------------------------
     ! Allocate the CoulombPotential array (second-order boundary conditions)
-    allocate(CoulombPotential(nx+2,ny+2,nz+2)) ; CoulombPotential = 0.0_dp
+    allocate(CoulombPotential(nx+BC,ny+BC,nz+BC)) ; CoulombPotential = 0.0_dp
     allocate(ExchangePotential(nx,ny,nz))      ; ExchangePotential = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
@@ -323,16 +363,6 @@ contains
 
       ! Recalculate the multipole distribution, since source is not
       ! necessarily the point proton distribution.
-      Qlm = 0
-      do k=1,nz+BC
-        do j=1,ny+BC  
-          do i=1,nx+BC
-            Qlm = Qlm - Source(i,j,k) * SpherHarmCoulomb(i,j,k,l,m,Im)
-
-          enddo
-        enddo
-      enddo 
-
       Qlm = 0
       do k=1,nz
         do j=1,ny
@@ -445,7 +475,6 @@ contains
         enddo
     enddo
     CEnergy = CEnergy * dv * 0.5_dp
-
  end function CoulombEnergy_Direct
  
  function CoulombEnergy_Exchange(rhop) result(CEnergy)
@@ -564,6 +593,110 @@ contains
     return
   end subroutine ConjugGrad
 
+  function Coulomblaplacian(f, sx, sy, sz) result(lf)
+    !---------------------------------------------------------------------------
+    ! Subroutine applying a finite difference operator (of order two) to the  
+    ! function f. Note that this function should be defined on the box + BC 
+    ! points in every direction, as boundary conditions are necessary. 
+    ! 
+    ! Note that these boundary conditions are not touched by this procedure.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: f(nx+BC,ny+BC,nz+BC)
+    real(KIND=dp)             :: lf(nx+BC,ny+BC,nz+BC)
+    integer, intent(in)       :: sx, sy, sz
+    integer :: i,j,k,l
+
+    lf = 0.0_dp
+    !---------------------------------------------------------------------------
+    ! X-direction
+    do k=1,nz
+        do j=1,ny
+            do i=1+BC,nx
+              do l=-BC,+BC
+                 lf(i,j,k) = lf(i,j,k) + CoulCoefs(l+BC+1) * f(i+l,j,k)
+              enddo
+            enddo
+        enddo
+    enddo
+
+    do k=1,nz
+      do j=1,ny
+        do i=1,BC
+          ! Forwards and backwards difference without plane reflection
+          do l=-i+1,BC
+!            if(i.eq.3) print *,'+',i, l, CoulCoefs(l+BC+1) , i+l
+            lf(i,j,k) = lf(i,j,k) +      CoulCoefs(l+BC+1)  * f(i+l,j,k)
+          enddo
+          ! Backwards difference (with plane reflection)
+          do l=-BC,-i
+!            if(i.eq.3) print *,'-',i, l, CoulCoefs(l+BC+1) , -i-l+1 
+            lf(i,j,k) = lf(i,j,k) + sx * CoulCoefs(l+BC+1) * f(-i-l+1,j,k)
+          enddo
+!          if(i.eq.3)  stop
+        enddo
+      enddo
+    enddo
+
+    !---------------------------------------------------------------------------
+    ! Y-direction
+    do k=1,nz
+        do j=1+BC,ny
+            do i=1,nx
+              do l=-BC,+BC
+                 lf(i,j,k) = lf(i,j,k) + CoulCoefs(l+BC+1) * f(i,j+l,k)
+              enddo
+            enddo
+        enddo
+    enddo
+
+    do k=1,nz
+      do j=1,BC
+        do i=1,nx
+          ! Forwards and backwards difference without plane reflection
+          do l=-j+1,BC
+            lf(i,j,k) = lf(i,j,k) +      CoulCoefs(l+BC+1)  * f(i,j+l,k)
+          enddo
+          ! Backwards difference (with plane reflection)
+          do l=-BC,-j
+            lf(i,j,k) = lf(i,j,k) + sy * CoulCoefs(l+BC+1) * f(i,-j-l+1,k)
+          enddo
+        enddo
+      enddo
+    enddo
+
+    !---------------------------------------------------------------------------
+    ! Z-direction
+    !---------------------------------------------------------------------------
+    do k=1+BC,nz
+        do j=1,ny
+            do i=1,nx
+              do l=-BC,+BC
+                 lf(i,j,k) = lf(i,j,k) + CoulCoefs(l+BC+1) * f(i,j,k+l)
+              enddo
+            enddo
+        enddo
+    enddo
+
+    do k=1,BC
+      do j=1,ny
+        do i=1,nx
+          ! Forwards and backwards difference without plane reflection
+          do l=-k+1,BC
+            lf(i,j,k) = lf(i,j,k) +      CoulCoefs(l+BC+1)  * f(i,j,k+l)
+          enddo
+          ! Backwards difference (with plane reflection)
+          do l=-BC,-k
+            lf(i,j,k) = lf(i,j,k) + sz * CoulCoefs(l+BC+1) * f(i,j, -k-l+1)
+          enddo
+        enddo
+      enddo
+    enddo
+
+    !---------------------------------------------------------------------------
+    lf = lf/(dx**2)
+
+  end function Coulomblaplacian
+
   subroutine clean_coulomb()
     if(allocated(CoulombPotential))  deallocate(CoulombPotential)
     if(allocated(ExchangePotential)) deallocate(ExchangePotential)
@@ -574,6 +707,9 @@ contains
     if(allocated(Gaussx))            deallocate(Gaussx)
     if(allocated(gaussy))            deallocate(gaussy)
     if(allocated(gaussz))            deallocate(gaussz)
+    if(allocated(Coulcoefs))         deallocate(coulcoefs)
+    if(allocated(coulmeshx))         deallocate(coulmeshx, coulmeshy, coulmeshz)
+
   end subroutine clean_coulomb
 
 end module Coulombmod

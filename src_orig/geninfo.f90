@@ -27,8 +27,7 @@ module GenInfo
     !---------------------------------------------------------------------------
     ! Coordinates of the mesh points for the calculation as well as the 
     ! coulomb calculation
-    real(KIND=dp), allocatable :: meshx(:), meshy(:), meshz(:)
-    real(KIND=dp), allocatable :: coulmeshx(:), coulmeshy(:), coulmeshz(:)
+    real(KIND=dp), allocatable         :: meshx(:), meshy(:), meshz(:)
     real(KIND=dp), allocatable, target :: meshgrid(:,:)
     !---------------------------------------------------------------------------
     ! Inverse temperature Beta = (k_b T)^{-1}.
@@ -78,56 +77,45 @@ contains
     mv = nx * ny * nz
     dv = (dx**3)*(2**$NUMSYM)
     
-    call inimesh
+    call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid)
   end subroutine ReadGenInfo
   
-  subroutine inimesh
+  subroutine inimesh(x,y,z, mx, my, mz, mesh)
     !---------------------------------------------------------------------------
-    ! Generate the coordinates of the mesh points for the demanded Lagrange mesh
+    ! Generate the coordinates of the mesh points for the Lagrange mesh.
     ! Severe modification for Hephaestos will be necessary.
     !---------------------------------------------------------------------------
-    integer                :: i,j,k
+    integer                                         :: i,j,k
+    integer, intent(in)                             :: mx, my, mz
+    real(KIND=dp), intent(out), allocatable         :: x(:), y(:), z(:)
+    real(KIND=dp), intent(out), allocatable, target :: mesh(:,:)
+
     real(KIND=dp), pointer :: gridx(:,:,:), gridY(:,:,:)  , gridZ(:,:,:)    
 
-    allocate(    meshx(nx  ),     meshy(ny  ),     meshz(nz  ))
-    allocate(coulmeshx(nx+2), coulmeshy(ny+2), coulmeshz(nz+2))
-    allocate( meshgrid(mv,3))
+    allocate( x(mx), y(my),z(mz))
+    allocate(mesh(mx*my*mz,3))
     
-    do i=1,nx
-      meshx(i)     = (1/2.0_dp +(i-1))*dx
+    do i=1,mx
+      x(i) = (1/2.0_dp +(i-1))*dx
+    enddo    
+    do i=1,my
+      y(i) = (1/2.0_dp +(i-1))*dx
+    enddo
+    do i=1,mz
+      z(i) = (1/2.0_dp +(i-1))*dx
     enddo
     
-    do i=1,nx+2
-      coulmeshx(i) = (1/2.0_dp +(i-1))*dx
-    enddo
-    
-    do i=1,ny
-      meshy(i) = (1/2.0_dp +(i-1))*dx
-    enddo
-    
-    do i=1,ny+2
-      coulmeshy(i) = (1/2.0_dp +(i-1))*dx
-    enddo
-    
-    do i=1,nz
-      meshz(i) = (1/2.0_dp +(i-1))*dx
-    enddo
-    
-    do i=1,nz+2
-      coulmeshz(i) = (1/2.0_dp +(i-1))*dx
-    enddo
-    
-    meshgrid = 0
-    gridx(1:nx,1:ny,1:nz) => meshgrid(1:nx*ny*nz,1)
-    gridy(1:nx,1:ny,1:nz) => meshgrid(1:nx*ny*nz,2)
-    gridz(1:nx,1:ny,1:nz) => meshgrid(1:nx*ny*nz,3)
+    mesh = 0
+    gridx(1:mx,1:my,1:mz) => mesh(1:mx*my*mz,1)
+    gridy(1:mx,1:my,1:mz) => mesh(1:mx*my*mz,2)
+    gridz(1:mx,1:my,1:mz) => mesh(1:mx*my*mz,3)
 
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          gridx(i,j,k) = meshx(i)
-          gridy(i,j,k) = meshy(j)
-          gridz(i,j,k) = meshz(k)
+    do k=1,mz
+      do j=1,my
+        do i=1,mx
+          gridx(i,j,k) = x(i)
+          gridy(i,j,k) = y(j)
+          gridz(i,j,k) = z(k)
         enddo 
       enddo
     enddo
@@ -190,7 +178,6 @@ contains
   
     if(allocated(meshx)) then
       deallocate(meshx, meshy, meshz)
-      deallocate(coulmeshx, coulmeshy, coulmeshz)
       deallocate(meshgrid)
     endif
 
