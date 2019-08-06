@@ -131,9 +131,9 @@ contains
     
     1  format (33 ('-'), 'Quasiparticles',33('-'))
     2  format (80 ('_'))
-    3  format ( i3, 2f7.2 )
+    3  format ( i3, 1f7.2, 1es12.2 )
     4  format ('Block ', i1, /,  a8, ' parity ', a8)
-    5  format ( '  N    Eqp   f_n')
+    5  format ( '  N    Eqp     f_n')
 
     11  format(80 ('-'))
 
@@ -162,7 +162,12 @@ contains
         print 5
         print 2
         do i=1,N
-            print 3, i, QPenergies(si+i), configmatrix(sb+i)
+            select case(pairingtype)
+            case(2)
+              print 3, i, QPenergies(si+i), configmatrix(sb+i)
+            case(1)
+              print 3, i, BCSqps(si+i), BCSf(si+i)
+            end select
         enddo
         si = si + N
         sb = sb + 2*N

@@ -91,10 +91,10 @@ module HFB
     !-----------------END OF DECLARATIONS --------------------------------------
 
     if(.not.allocated(rho_history)) then
-          allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
-          allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0
-          allocate(configmatrix_history(2*nwt))     ; configmatrix_history = 0.0
-          allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0
+      allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
+      allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0
+      allocate(configmatrix_history(2*nwt))     ; configmatrix_history = 0.0
+      allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0
     endif
 
     ! Saving the history
@@ -293,7 +293,6 @@ $TR    HFBdispersion = 2 * HFBdispersion
         si = si +   N 
         sb = sb + 2*N        
     enddo
-
     !---------------------------------------------------------------------------
     occ = 0
     select case(Blocktype)
@@ -1089,7 +1088,7 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
     !---------------------------------------------------------------------------
     ! b) Bring kappa into canonical form
     !
-    ! Transforms as kappa'  = D^dagger kappa D^*
+    ! Transforms as kappa'  = D^T kappa D^*
     !---------------------------------------------------------------------------
     si = 0
     do B=1,8
