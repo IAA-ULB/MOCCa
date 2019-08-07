@@ -230,13 +230,15 @@ subroutine ReachForWaterAndFood
     call calcFields(calcall=.false.)
     
     call CalcGaps(FermiEnergy)
+    call setBelyaevProcedure()
     call CalcEnergy()
 
     ! Initial printout
     call printSpwfs
     call printQps
     call printallmoments
-    call PrintMomentsofIntertia
+    call PrintMomentsofInertia
+
     call printpairing
     call PrintEnergy 
     !---------------------------------------------------------------------------
@@ -314,7 +316,7 @@ subroutine ReachForWaterAndFood
             call PrintSpwfs
             call PrintQps
             call printallmoments
-            call PrintMomentsofIntertia
+            call PrintMomentsofInertia
             call printpairing
             call PrintEnergy           
         else

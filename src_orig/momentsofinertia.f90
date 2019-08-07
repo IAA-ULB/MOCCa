@@ -8,7 +8,20 @@ module momentsofinertia
 
   real(KIND=dp) :: Belyaev(3,3), Rigid(3,3), J2(3,3)
 
+  procedure(calcJ2andBelyaev_HF), pointer :: calcJ2andBelyaev 
+
 contains
+
+  subroutine setBelyaevProcedure()
+    select case(Pairingtype)
+    case(0)
+      calcJ2andBelyaev => calcJ2andBelyaev_HF 
+    case(1)
+      calcJ2andBelyaev => calcJ2andBelyaev_BCS
+    case(2)
+      calcJ2andBelyaev => calcJ2andBelyaev_HFB
+    end select
+  end subroutine
 
   subroutine calcrigid()
     !---------------------------------------------------------------------------
@@ -60,7 +73,65 @@ contains
 
   end subroutine calcrigid
 
-  subroutine calcJ2andBelyaev
+  subroutine calcJ2andBelyaev_HF
+    !---------------------------------------------------------------------------
+    !
+    !
+    !---------------------------------------------------------------------------
+
+    integer       :: i,j, b, it, ii, jj, si
+    real(KIND=dp) :: ME(3), fi, fj, dfde
+
+    J2 = 0  ;  Belyaev = 0
+ 
+    si = 0  
+    do b = 1, Blocks
+      do i=1, HFBlocks(b)
+        ii = si + i
+        it = 1
+        if(ii.gt.nwn) it = 2
+        do j=1,HFblocks(b)
+          jj = si + j
+        
+          ! |< k | j_x | -l >|^2  
+          ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2 
+          ! |< k | j_y | -l >|^2 
+          ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+          ! |< k | j_z |  l >|^2 
+          ME(3)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+
+          ! The factor two is because of the presence of the four terms in 
+          ! ME_{kl}, which are pair-wise equal when J_i = J_j.
+          ME = 2 * ME 
+
+          fi = rho_can(ii)/2. ; fj = rho_can(jj)/2.
+
+          J2(:,it) = J2(:,it) + ME * fi*(1-fj)
+
+          if(inversetemp.eq.-1) then
+            dfdE = fj - fi
+            if(abs(dfdE).gt.0) then
+                dfdE = dfdE/(spenergies(ii) - spenergies(jj))
+            endif
+          else
+            if(abs(spenergies(ii) - spenergies(jj)).gt.1d-8) then
+              dfdE = (fj - fi)/(spenergies(ii) - spenergies(jj))
+            else                
+              dfdE = fi**2 * inversetemp                                     &
+              &            * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
+            endif
+          endif
+
+          Belyaev(:,it) = Belyaev(:,it) + ME * dfde
+        enddo
+      enddo
+      si = si +   HFBlocks(b)
+    enddo
+    !  Sum for the total
+    J2(:,3) = sum(J2(:,1:2),2) ; Belyaev(:,3) = sum(Belyaev(:,1:2),2)
+  end subroutine 
+
+  subroutine calcJ2andBelyaev_BCS
     !---------------------------------------------------------------------------
     ! Calculate the expectation value of J^2_mu in the many-body state, as well
     ! as the Belyaev moment of inertia. 
@@ -69,15 +140,7 @@ contains
     ! can be found in
     ! 
     !   Y. Alhassid et al., Phys. Rev. C 72, 064326 (2005).
-    !
-    ! For the HFB case, see the folder 'momentsofinertia' in the notes folder.  
-    ! In that case, the easiest is to work in the canonical basis, as this
-    ! turns six summations over all single-particle states into just two. For
-    ! this choice, the formula is identical.
     ! 
-    ! This routine is only valid for EV8-like symmetries, and especially
-    ! time-reversal is assumed: in that case the one-body portion is always 
-    ! zero. 
     !
     !  <J_i J_j> = sum_[ kl > 0 ]  ME_{kl} * weight_{kl}
     !    I_ij    = sum_[ kl > 0 ]  ME_{kl} * weight^B_{kl}
@@ -125,14 +188,14 @@ contains
     !  *) The formulas correctly produce 0 for spherical configurations at
     !     zero temperature.
     !---------------------------------------------------------------------------
-    integer       :: i,j, b, it, ii, jj, si, sb
+    integer       :: i,j, b, it, ii, jj, si
     real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj
     real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde
 
     J2 = 0  ;  Belyaev = 0
  
-    si = 0  ; sb = 0
-    do b = 1, Blocks 
+    si = 0  
+    do b = 1, Blocks
       do i=1, HFBlocks(b)
         ii = si + i
         it = 1
@@ -140,187 +203,252 @@ contains
         do j=1,HFblocks(b)
           jj = si + j
         
-          select case (PairingType)
-          case(0) 
-            ! HF ---------------------------------------------------------------
-            ! |< k | j_x | -l >|^2  
-            ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2 
-            ! |< k | j_y | -l >|^2 
-            ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
-            ! |< k | j_z |  l >|^2 
-            ME(3)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+          ! BCS --------------------------------------------------------------
+          ! |< k | j_x | -l >|^2  
+          ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2 
+          ! |< k | j_y | -l >|^2 
+          ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+          ! |< k | j_z |  l >|^2 
+          ME(3)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
 
-            ! The factor two is because of the presence of the four terms in 
-            ! ME_{kl}, which are pair-wise equal when J_i = J_j.
-            ME = 2 * ME 
+          ! The factor two is because of the presence of the four terms in 
+          ! ME_{kl}, which are pair-wise equal when J_i = J_j.
+          ME = 2 * ME 
 
-            fi = rho_can(ii)/2. ; fj = rho_can(jj)/2.
- 
-            J2(:,it) = J2(:,it) + ME * fi*(1-fj)
+          vi  = BCSOccupations(ii)/2. ; vj  = BCSOccupations(jj)/2.
+          ui  = 1 - vi                ; uj  = 1 - vj
+          fi  = BCSf(ii)              ; fj  = BCSf(jj)
+          uvi = ui*vi                 ; uvj = uj*vj         
 
-            if(inversetemp.eq.-1) then
-              dfdE = fj - fi
-              if(abs(dfdE).gt.0) then
-                  dfdE = dfdE/(spenergies(ii) - spenergies(jj))
-              endif
-            else
-              if(abs(spenergies(ii) - spenergies(jj)).gt.1d-8) then
-                dfdE = (fj - fi)/(spenergies(ii) - spenergies(jj))
-              else                
-                dfdE = fi**2 * inversetemp                                     &
-                &            * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
-              endif
-            endif
+          ! Take the square root, but take care for numerical errors producing 
+          ! small negative numbers.
+          if(uvi .gt. 0) then
+            uvi = sqrt(uvi) 
+          else
+            uvi = 0
+          endif
+          if(uvj .gt. 0) then
+             uvj = sqrt(uvj)
+          else
+             uvj = 0
+          endif
 
-            Belyaev(:,it) = Belyaev(:,it) + ME * dfde
-          case(1)
-            ! BCS --------------------------------------------------------------
-            ! |< k | j_x | -l >|^2  
-            ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2 
-            ! |< k | j_y | -l >|^2 
-            ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
-            ! |< k | j_z |  l >|^2 
-            ME(3)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+          !-------------------------------------------------------------------
+          ! <J^2>
+          ! [u^2_k u_l^2 + u_k v_k u_l v_l] * f_k (1-f_l)                  (a)
+          wa = (ui*uj + uvi*uvj) * fi * (1-fj)
+          ! [v^2_k v_l^2 + u_k v_k u_l v_l] * (1-f_k) f_l                  (b)
+          wb = (vi*vj + uvi*uvj) * (1-fi) * fj
+          ! [u_k^2 v_l^2 - u_k v_k u_l v_l] * f_k f_l                      (c)
+          wc = (ui*vj - uvi*uvj) * fi * fj
+          ! [v_k^2 u_l^2 - u_k v_k u_l v_l] * (1-f_k) (1-f_l)              (d)
+          wd = (vi*uj - uvi*uvj) * (1-fi) *(1-fj)
 
-            ! The factor two is because of the presence of the four terms in 
-            ! ME_{kl}, which are pair-wise equal when J_i = J_j.
-            ME = 2 * ME 
-
-            vi = BCSOccupations(ii)/2. ; vj = BCSOccupations(jj)/2.
-            ui = 1 - vi                ; uj = 1 - vj
-            fi = BCSf(ii)              ; fj = BCSf(jj)
-            uvi = ui*vi                ; uvj = uj*vj         
-
-            ! Take the square root, but take care for numerical errors producing 
-            ! small negative numbers.
-            if(uvi .gt. 0) then
-              uvi = sqrt(uvi) 
-            else
-              uvi = 0
-            endif
-            if(uvj .gt. 0) then
-               uvj = sqrt(uvj)
-            else
-               uvj = 0
-            endif
-
-            !-------------------------------------------------------------------
-            ! <J^2>
-            ! [u^2_k u_l^2 + u_k v_k u_l v_l] * f_k (1-f_l)                  (a)
-            wa = (ui*uj + uvi*uvj) * fi * (1-fj)
-            ! [v^2_k v_l^2 + u_k v_k u_l v_l] * (1-f_k) f_l                  (b)
-            wb = (vi*vj + uvi*uvj) * (1-fi) * fj
-            ! [u_k^2 v_l^2 - u_k v_k u_l v_l] * f_k f_l                      (c)
-            wc = (ui*vj - uvi*uvj) * fi * fj
-            ! [v_k^2 u_l^2 - u_k v_k u_l v_l] * (1-f_k) (1-f_l)              (d)
-            wd = (vi*uj - uvi*uvj) * (1-fi) *(1-fj)
-  
-            J2(:,it) = J2(:,it) + ME * (wa+wb+wc+wd)
-            !-------------------------------------------------------------------
-            ! I_xx, I_yy and I_zz
-            if(abs(BCSqps(ii) - BCSqps(jj)).gt.1d-5) then            
-              dfde = (fj - fi)/(BCSqps(ii) - BCSqps(jj))
-            else
-              if(inversetemp.gt.0) then
-                ! beta exp(beta * E_k)* f_k^2
-                dfde = inversetemp * exp(inversetemp*BCSqps(ii)) * fi**2
-              else
-                dfde = 0 ! All QPS are unoccupied for T=0 calculation
-              endif
-            endif
-            ! (u_k u_l + v_k v_l)**2 * (f_l - f_k)/(E_k - E_l)  (Ba)
-            Ba = (ui*uj + vi*vj + 2*uvi*uvj) * dfdE 
-            
-            dfdE = (1 - fi - fj)/(BCSqps(ii) + BCSqps(jj))
-            ! (u_k v_l - v_k u_l)**2 * (1-f_k-f_l)/(E_k + E_l)  (Bb)
-            Bb = (ui*vj + uj*vi - 2*uvi*uvj) * dfde
-      
-            Belyaev(:,it) =  Belyaev(:,it) + ME * (Ba + Bb)
-          
-          case(2)
-            ! HFB --------------------------------------------------------------
-            ! We perform the calculation in the canonical basis, where it is
-            ! significantly simpler to exploit the symmetries of the problem
-            ! and we avoid four summations. 
-            ! |< k | j_x | -l >|^2  
-            ME(1)= angmom_xt_real(canpsi(:,:,ii),canpsi(:,:,jj),candpsi(:,:,:,jj))**2 
-            ! |< k | j_y | -l >|^2 
-            ME(2)= angmom_yt_imag(canpsi(:,:,ii),canpsi(:,:,jj),candpsi(:,:,:,jj))**2  
-            ! |< k | j_z |  l >|^2 
-            ME(3)= angmom_z_real (canpsi(:,:,ii),canpsi(:,:,jj),candpsi(:,:,:,jj))**2  
-
-            ! The factor two is because of the presence of the four terms in 
-            ! ME_{kl}, which are pair-wise equal when J_i = J_j.
-            ME = 2 * ME 
-
-            ! NOTE: it is wrong to take rho_can/2 as v^2: these are the matrix
-            ! elements of the density, which is not the same at T!=0 
-            ! as the v^2.
-            vi = rho_can(ii)/2.     ; vj = rho_can(jj)/2.
-            ui = 1 - vi             ; uj = 1 - vj
-            uvi= ui * vi            ; uvj = uj*vj
-            fi = configmatrix(i+sb) ; fj = configmatrix(j+sb)
-
-            ! Take the square root, but take care for numerical errors producing 
-            ! small negative numbers.
-            if(uvi .gt. 0) then
-              uvi = sqrt(uvi) 
-            else
-              uvi = 0
-            endif
-            if(uvj .gt. 0) then
-               uvj = sqrt(uvj)
-            else
-               uvj = 0
-            endif
-            ! Note that the above does not guarantee us the correct sign of 
-            ! u_i*v_i and u_j*v_j.  However, the calculation is independent of
-            ! said sign. 
-            !-------------------------------------------------------------------
-            ! <J^2>
-            ! [u^2_k u_l^2 + u_k v_k u_l v_l] * f_k (1-f_l)                  (a)
-            wa = (ui*uj + uvi*uvj) * fi * (1-fj)
-            ! [v^2_k v_l^2 + u_k v_k u_l v_l] * (1-f_k) f_l                  (b)
-            wb = (vi*vj + uvi*uvj) * (1-fi) * fj
-            ! [u_k^2 v_l^2 - u_k v_k u_l v_l] * f_k f_l                      (c)
-            wc = (ui*vj - uvi*uvj) * fi * fj
-            ! [v_k^2 u_l^2 - u_k v_k u_l v_l] * (1-f_k) (1-f_l)              (d)
-            wd = (vi*uj - uvi*uvj) * (1-fi) *(1-fj)
-  
-            J2(:,it) = J2(:,it) + ME * (wa+wb+wc+wd)
-
-            !-------------------------------------------------------------------
-            ! I_xx, I_yy and I_zz
-            if(abs(Qpenergies(ii) - Qpenergies(jj)).gt.1d-5) then            
-              dfde = (fj - fi)/(Qpenergies(ii) - Qpenergies(jj))
-            else
+          J2(:,it) = J2(:,it) + ME * (wa+wb+wc+wd)
+          !-------------------------------------------------------------------
+          ! I_xx, I_yy and I_zz
+          if(abs(BCSqps(ii) - BCSqps(jj)).gt.1d-5) then            
+            dfde = (fj - fi)/(BCSqps(ii) - BCSqps(jj))
+          else
+            if(inversetemp.gt.0) then
               ! beta exp(beta * E_k)* f_k^2
-              if(inversetemp.gt.0) then
-                dfde = inversetemp * exp(inversetemp*Qpenergies(ii)) * fi**2
-              else
-                dfde = 0 ! All QPS are unoccupied at T=0
-              endif
+              dfde = inversetemp * exp(inversetemp*BCSqps(ii)) * fi**2
+            else
+              dfde = 0 ! All QPS are unoccupied for T=0 calculation
             endif
-            ! (u_k u_l + v_k v_l)**2 * (f_l - f_k)/(E_k - E_l)  (Ba)
-            Ba = (ui*uj + vi*vj + 2*uvi*uvj) * dfdE 
-            
-            dfdE = (1 - fi - fj)/(QPenergies(ii) + QPenergies(jj))
-            ! (u_k v_l - v_k u_l)**2 * (1-f_k-f_l)/(E_k + E_l)  (Bb)
-            Bb = (ui*vj + uj*vi - 2*uvi*uvj) * dfde
-      
-            Belyaev(:,it) =  Belyaev(:,it) + ME * (Ba + Bb)
+          endif
+          ! (u_k u_l + v_k v_l)**2 * (f_l - f_k)/(E_k - E_l)  (Ba)
+          Ba = (ui*uj + vi*vj + 2*uvi*uvj) * dfdE 
+          
+          dfdE = (1 - fi - fj)/(BCSqps(ii) + BCSqps(jj))
 
-          end select
+          ! (u_k v_l - v_k u_l)**2 * (1-f_k-f_l)/(E_k + E_l)  (Bb)
+          Bb = (ui*vj + uj*vi - 2*uvi*uvj) * dfde
+    
+          Belyaev(:,it) =  Belyaev(:,it) + ME * (Ba + Bb)
         enddo
       enddo
       si = si +   HFBlocks(b)
-      sb = sb + 2*HFBlocks(b)
     enddo
     !  Sum for the total
     J2(:,3) = sum(J2(:,1:2),2) ; Belyaev(:,3) = sum(Belyaev(:,1:2),2)
-  end subroutine calcJ2andBelyaev
+  end subroutine calcJ2andBelyaev_BCS
 
-  subroutine PrintMomentsofIntertia()
+  subroutine calcJ2andBelyaev_HFB
+    !---------------------------------------------------------------------------
+    ! Calculate the expectation value of J^2_mu in the many-body state, as well
+    ! as the Belyaev moment of inertia. 
+    ! 
+    ! No calculation for the Belyaev moment of inertia at finite temperature 
+    ! right now.
+    !---------------------------------------------------------------------------
+   
+    integer       :: i,j, b, it, ii, jj, si, N,k, kk, l, ll, sb
+    real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj
+    real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde, fac
+
+    real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
+    real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
+
+    real(KIND=dp) :: J20(nwt,nwt, 3)
+
+    J2 = 0  ;  Belyaev = 0
+    jx = 0  ; jy = 0 ; jz = 0
+
+    !---------------------------------------------------------------------------
+    ! First, we calculate the full matrix elements of jx, jy and jz
+    si = 0  
+    do b = 1, Blocks
+      N = HFBlocks(b)
+      do i=1, N
+        ii = si + i
+        it = 1
+        if(ii.gt.nwn) it = 2
+        do j=1,N
+          jj = si + j
+        
+          ! |< k | j_x | -l >|^2            
+          jx(ii,jj)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
+          ! |< k | j_y | -l >|^2 
+          jy(ii,jj)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+          ! |< k | j_z |  l >|^2 
+          jz(ii,jj)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))  
+        enddo
+      enddo
+
+      jx_can(si+1:si+N, si+1:si+N) = &
+      &  matmul(transpose(cantransfo(si+1:si+N, si+1:si+N)), &
+      &                              jx(si+1:si+N, si+1:si+N))
+      jy_can(si+1:si+N, si+1:si+N) = &
+      &  matmul(transpose(cantransfo(si+1:si+N, si+1:si+N)), &
+      &                              jy(si+1:si+N, si+1:si+N))
+
+      jz_can(si+1:si+N, si+1:si+N) = &
+      & matmul(transpose(cantransfo(si+1:si+N, si+1:si+N)), &
+      &                              jz(si+1:si+N, si+1:si+N))
+
+      jx_can(si+1:si+N, si+1:si+N) = &
+      & matmul(jx_can(si+1:si+N, si+1:si+N), &
+      &        cantransfo(si+1:si+N, si+1:si+N))
+
+      jy_can(si+1:si+N, si+1:si+N) = & 
+      & matmul(jy_can(si+1:si+N, si+1:si+N), &
+      &        cantransfo(si+1:si+N, si+1:si+N))
+
+      jz_can(si+1:si+N, si+1:si+N) = &
+      & matmul(jz_can(si+1:si+N, si+1:si+N), &
+      &        cantransfo(si+1:si+N, si+1:si+N))
+
+      si = si + N
+    enddo
+
+    !---------------------------------------------------------------------------
+    ! Then we calculate the expectation value of J^2, in the canonical basis
+    !---------------------------------------------------------------------------
+    si = 0  
+    do b = 1, Blocks
+      N = HFBlocks(b)
+      do i=1, N
+        ii = si + i
+        it = 1
+        if(ii.gt.nwn) it = 2
+        do j=1,N
+          jj = si + j
+
+          ! Factors 1./2 due to time-reversal
+          fac=  rho_can(ii)/2.*(1-rho_can(jj)/2.)-kappa_can(ii)*kappa_can(jj)
+          ME(1) = 2*jx_can(ii,jj)**2 
+          ME(2) = 2*jy_can(ii,jj)**2 
+          ME(3) = 2*jz_can(ii,jj)**2  
+
+          J2(:,it) = J2(:,it) + ME * fac
+        enddo
+      enddo
+      si = si + N
+    enddo
+    J2(:,3) = sum(J2(:,1:2),2) 
+
+    if(inversetemp .gt. 0) return
+    !---------------------------------------------------------------------------
+    ! Then the Belyaev moment of inertia in the ordinary sp. basis.
+    !
+    ! From expanding the many-body wave-function around the HFB minimum for 
+    ! small rotational frequency omega, we get the following expression
+    !
+    !  I_{mm} = 2 \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
+    !
+    ! based on pg 131 in Ring and Schuck, equation 3.92.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! First, construct J20
+    call calcJ20(jx,bogoliubov, j20(:,:,1)) ! J20_x with an added T
+    call calcJ20(jy,bogoliubov, j20(:,:,2)) ! J20_y with an added T
+    call calcJ20(jz,bogoliubov, j20(:,:,3)) ! J20_z
+  
+    si = 0 ; sb = 0
+    do b = 1, Blocks
+      N = HFBlocks(b)
+
+      do i=1, N
+        ii = si + i
+        it = 1
+        if(ii.gt.nwn) it = 2
+          
+        do j=1,N
+          jj = si + j
+          Belyaev(:,it) = Belyaev(:,it) + &
+          &                2*J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))    
+        enddo
+      enddo
+      si = si + N
+      sb = sb + N
+    enddo
+
+    Belyaev(:,3) = sum(Belyaev(:,1:2),2)
+
+  end subroutine calcJ2andBelyaev_HFB  
+
+  subroutine calcJ20(j,bogo, j20)
+    !---------------------------------------------------------------------------
+    ! Small subroutine to calculate the matrix J20 in the Ring and Schuck 
+    ! notation.
+    !
+    !  J20 = U^\dagger j V^* - V^\dagger j^t U^*
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in)  :: j(nwt,nwt)
+    real(KIND=dp), intent(in)  :: bogo(2*nwt, 2*nwt)
+    real(KIND=dp), intent(out) :: j20(nwt,nwt)
+    real(KIND=dp)              :: tmp(nwt,nwt)
+    integer :: N, si, sb, b
+
+    si = 0 ; sb = 0
+    do b = 1, Blocks
+      N = HFBlocks(b)
+
+      ! U^\dagger j 
+      j20(si+1:si+N, si+1:si+N) = &
+      & matmul(transpose(bogo(sb+1:sb+N, sb+N+1:sb+2*N)),j(si+1:si+N,si+1:si+N))
+
+      ! U^\dagger j V^*
+      j20(si+1:si+N, si+1:si+N) = &
+      & matmul( j20(si+1:si+N, si+1:si+N), (bogo(sb+N+1:sb+2*N, sb+N+1:sb+2*N)))
+
+      ! V^\dagger j^t 
+      tmp(si+1:si+N, si+1:si+N) = transpose(j(si+1:si+N, si+1:si+N))
+      tmp(si+1:si+N, si+1:si+N) = &
+      & matmul(transpose(bogo(sb+N+1:sb+2*N, sb+N+1:sb+2*N)),                  &
+      &                             tmp(si+1:si+N,si+1:si+N))
+      
+      ! V^\dagger j^T U
+      j20(si+1:si+N, si+1:si+N) = j20(si+1:si+N, si+1:si+N) - &
+      &  matmul( tmp(si+1:si+N, si+1:si+N), (bogo(sb+1:sb+N, sb+N+1:sb+2*N)))
+
+      si = si +   N
+      sb = sb + 2*N
+    enddo
+  end subroutine calcJ20
+
+  subroutine PrintMomentsofInertia()
     !---------------------------------------------------------------------------
     !
     !---------------------------------------------------------------------------
@@ -361,5 +489,5 @@ contains
     print 15, sum(J2,1)
     print 100
 
-  end subroutine PrintMomentsofIntertia
+  end subroutine PrintMomentsofInertia
 end module momentsofinertia
