@@ -326,10 +326,10 @@ contains
     
       Z = 0
       do i=1,2*nwn
-        Z(1) = Z(1) + (-1)**(i-1) * exp(neutron_terms(i))
+        Z(1) = Z(1) + exp(neutron_terms(i))
       enddo
       do i=1,2*nwp
-        Z(2) = Z(2) + (-1)**(i-1) * exp(proton_terms(i))
+        Z(2) = Z(2) + exp(proton_terms(i))
       enddo
       Z(1) = log(Z(1)) + avn 
       Z(2) = log(Z(2)) + avp
@@ -364,9 +364,10 @@ contains
         ! Feeding larger precision complex numbers into LAPACK routines gives
         ! nonsense results.
         !-----------------------------------------------------------------------
-        complex*16, allocatable :: matrix(:,:), tau(:,:), work(:),detM(:)  
+        complex*16, allocatable :: matrix(:,:), tau(:,:), work(:),detM(:),eig(:) 
+        complex*16, allocatable :: un(:,:), vl(:,:), vr(:,:)
         complex*16              :: Iimag
-        real*16, allocatable    :: detMR(:)
+        real*16, allocatable    :: detMR(:), rwork(:), qpe_copy(:), W(:,:)
         integer                 :: iphi, N, Ntotal, sb, si, B, info, i
 
         Iimag = cmplx(0, 1.0)
@@ -392,34 +393,64 @@ contains
               matrix(i+N,i+N) = exp( Iimag * phi)
             enddo
 
-            matrix = matmul(           matrix,(Bogo(sb+1:sb+2*N, sb+1:sb+2*N))) 
-            matrix = matmul(transpose(Bogo(sb+1:sb+2*N, sb+1:sb+2*N)), matrix)
+            allocate(W(2*N,2*N)) ; W = 0
+            allocate(qpe_copy(2*N)) ; qpe_copy = 0
+
+            do i=1, N/2
+              qpe_copy(i)      = Eqp(si+N+i)          
+              qpe_copy(i+N)    = Eqp(si+N+1-i)              
+
+              W(:,i)           = Bogo(sb  +1:sb+2*N  ,i+N)
+              W(1:N,i+N)       =-Bogo(sb+N+1:sb  +N  ,sb+i+N)
+              W(N+1:N,i+N)     = Bogo(sb  +1:sb  +N  ,sb+i+N)
+           enddo
+
+            matrix = matmul(transpose(W),matrix)
+            matrix = matmul(      matrix,W)
 
             do i=1,N
               ! M = W^dagger e^{-i phi N} W + e^{-\beta E}
-              matrix(i  ,i  ) = matrix(i  ,i  ) + exp( -inversetemp * Eqp(si+i))
-              matrix(i+N,i+N) = matrix(i+N,i+N) + exp(  inversetemp * Eqp(si+i))
+              matrix(i  ,i  ) = matrix(i  ,i  ) + exp( -inversetemp * qpe_copy(si+i))
+              matrix(i+N,i+N) = matrix(i+N,i+N) + exp(  inversetemp * qpe_copy(si+i))
             enddo    
 
+            deallocate(W, qpe_copy)
             !-------------------------------------------------------------------
             !  Performing a QR decomposition
             allocate(tau(2*N,2*N), work(4*N)) 
             call ZGEQRF(2*N, 2*N, matrix, 2*N, tau, work, 4*N,info)
+            ! ZGEQRF returns the matrix R in matrix, but the matrix Q is hidden 
+            ! in matrix and tau via 'reflectors' and stuff...
 
             if(info.ne.0) then
               print *, 'ZGERQF failed. Error=' , info
               stop
             endif
 
+            ! We obtain the unitary matrix Q
+            allocate(un(2*N,2*N)) ;  un = matrix
+            call zungqr(2*N, 2*N, 2*N, un, 2*N, tau, work, 4*N,info)
+            deallocate(work)
+
+            allocate(eig(2*N)) ; eig = 0
+            allocate(work(8*N), rwork(8*N))
+            ! Diagonalize the Q matrix
+            call zgeev ('N','N',2*N,un,2*N,eig,vl,2*N,vr,2*N,work,8*N,         & 
+            &                                                   rwork,8*N, info)
+
             ! Logarithm of the determinant
             do i=1,2*N
-              detM(iphi) = detM(iphi) + log(matrix(i,i))
+              detM(iphi) = detM(iphi) + log(matrix(i,i)) + log(eig(i))
             enddo
-            deallocate(matrix, work, tau)
+            deallocate(matrix, work, tau, rwork, eig, un)
             sb = sb + 2*N
             si = si +   N
           enddo
-          detM(iphi) = detM(iphi) - Iimag * phi * particles
+
+          detM(iphi) = detM(iphi) - Iimag * phi * particles 
+          if(mod(iphi,2).eq.1) then
+             detM(iphi) =  detM(iphi) + Iimag * pi
+          endif
         enddo
         !-----------------------------------------------------------------------
         allocate(detMR(2*Ntotal))

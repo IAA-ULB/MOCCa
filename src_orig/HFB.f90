@@ -403,6 +403,10 @@ $TR    HFBdispersion = 2 * HFBdispersion
     !
     !    rho   = U   f U^\dagger + V^* (1 - f) V^T
     !    kappa = U   f V^\dagger + V^* (1 - f) U^T  
+    !
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !  Notice how this routine only uses the last half of the columns of the  
+    !  Bogoliubov transformation.m
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: config(:), Bogo(:,:)

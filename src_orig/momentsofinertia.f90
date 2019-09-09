@@ -189,7 +189,7 @@ contains
     !     zero temperature.
     !---------------------------------------------------------------------------
     integer       :: i,j, b, it, ii, jj, si
-    real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj
+    real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj, fac
     real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde
 
     J2 = 0  ;  Belyaev = 0
@@ -285,12 +285,12 @@ contains
    
     integer       :: i,j, b, it, ii, jj, si, N,k, kk, l, ll, sb
     real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj
-    real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde, fac
+    real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde, fac, degen
 
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
 
-    real(KIND=dp) :: J20(nwt,nwt, 3)
+    real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3)
 
     J2 = 0  ;  Belyaev = 0
     jx = 0  ; jy = 0 ; jz = 0
@@ -368,7 +368,6 @@ contains
     enddo
     J2(:,3) = sum(J2(:,1:2),2) 
 
-    if(inversetemp .gt. 0) return
     !---------------------------------------------------------------------------
     ! Then the Belyaev moment of inertia in the ordinary sp. basis.
     !
@@ -378,11 +377,22 @@ contains
     !  I_{mm} = 2 \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
     !
     ! based on pg 131 in Ring and Schuck, equation 3.92.
+    !
+    ! For a statistical mixture (such as an EFA configuration), this formula
+    ! doesn't capture everything 
+    !
+    !  I_mm = 2 \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab} (1 - f_a - f_b)
+    !       + 2 \sum_{ab} (E_a - E_b)^{-1} |J^{11}|^2_{m,ab} (f_b - f_a)
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! First, construct J20
     call calcJ20(jx,bogoliubov, j20(:,:,1)) ! J20_x with an added T
     call calcJ20(jy,bogoliubov, j20(:,:,2)) ! J20_y with an added T
     call calcJ20(jz,bogoliubov, j20(:,:,3)) ! J20_z
+
+    !Then , construct J11
+    call calcJ11(jx,bogoliubov, j11(:,:,1), +1) ! J20_x with an added T
+    call calcJ11(jy,bogoliubov, j11(:,:,2), +1) ! J20_y with an added T
+    call calcJ11(jz,bogoliubov, j11(:,:,3), +1) ! J20_z
   
     si = 0 ; sb = 0
     do b = 1, Blocks
@@ -395,14 +405,31 @@ contains
           
         do j=1,N
           jj = si + j
+          !---------------------------------------------------------------------
+          !         1- f_i - f_j 
+          fac = 1 - configmatrix(sb+i) - configmatrix(sb+j)
+
           Belyaev(:,it) = Belyaev(:,it) + &
-          &                2*J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))    
+          &           2*fac*J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))    
+
+          !---------------------------------------------------------------------
+          !      f_j - f_i
+          fac =  configmatrix(sb+j) - configmatrix(sb+i)
+
+          if(abs(Qpenergies(ii) - Qpenergies(jj)) .gt. 1d-8) then
+            Belyaev(:,it) = Belyaev(:,it) + &
+            &           2* fac*J11(ii,jj,:)**2 /(Qpenergies(ii)-Qpenergies(jj))   
+          elseif(inversetemp .gt. 0) then
+            degen = inversetemp * configmatrix(sb+i)**2 *                      &
+            &                                  exp(inversetemp * Qpenergies(ii))
+            Belyaev(:,it) = Belyaev(:,it) +  2*J11(ii,jj,:)**2 * degen   
+          endif 
+          !---------------------------------------------------------------------
         enddo
       enddo
-      si = si + N
-      sb = sb + N
+      si = si +   N
+      sb = sb + 2*N
     enddo
-
     Belyaev(:,3) = sum(Belyaev(:,1:2),2)
 
   end subroutine calcJ2andBelyaev_HFB  
@@ -413,6 +440,22 @@ contains
     ! notation.
     !
     !  J20 = U^\dagger j V^* - V^\dagger j^t U^*
+    !
+    !---------------------------------------------------------------------------
+    ! Because of time-reversal symmetry, one should exercice caution when using 
+    ! this routine. The full U and V matrices are 
+    !
+    !   ( U^+ 0  )    and  ( 0   -V ^+)
+    !   ( 0   U^-)         ( V^+  0   )
+    !
+    ! and only the U^+ and V^+ are stored in memory. 
+    !
+    ! So, if the single-particle matrix elements passed in are just 
+    !   < a | j_mu | b > this routine actually returns - J^{20}_{a\bar{b}} 
+    ! where \bar{b} is the time-reversed partner of b.  
+    ! 
+    ! If instead, the single-particle matrix elements that are passed in are
+    !   < a | j_mu T | b >, the result of this routine 
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in)  :: j(nwt,nwt)
@@ -446,7 +489,49 @@ contains
       si = si +   N
       sb = sb + 2*N
     enddo
+
   end subroutine calcJ20
+
+  subroutine calcJ11(j,bogo, j11, s)
+    !---------------------------------------------------------------------------
+    ! Small subroutine to calculate the matrix J11 in the Ring and Schuck 
+    ! notation.
+    !
+    !  J11 = U^\dagger j U - V^\dagger j^t V^*
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in)  :: j(nwt,nwt)
+    real(KIND=dp), intent(in)  :: bogo(2*nwt, 2*nwt)
+    real(KIND=dp), intent(out) :: j11(nwt,nwt)
+    real(KIND=dp)              :: tmp(nwt,nwt)
+    integer :: N, si, sb, b, s
+
+    si = 0 ; sb = 0
+    do b = 1, Blocks
+      N = HFBlocks(b)
+
+      ! U^\dagger j 
+      j11(si+1:si+N, si+1:si+N) = &
+      & matmul(transpose(bogo(sb+1:sb+N, sb+N+1:sb+2*N)),j(si+1:si+N,si+1:si+N))
+
+      ! U^\dagger j U
+      j11(si+1:si+N, si+1:si+N) = &
+      & matmul( j11(si+1:si+N, si+1:si+N), (bogo(sb+1:sb+N, sb+N+1:sb+2*N)))
+
+      ! V^\dagger j^t 
+      tmp(si+1:si+N, si+1:si+N) = transpose(j(si+1:si+N, si+1:si+N))
+      tmp(si+1:si+N, si+1:si+N) = &
+      & matmul(transpose(bogo(sb+N+1:sb+2*N, sb+N+1:sb+2*N)),                  &
+      &                             tmp(si+1:si+N,si+1:si+N))
+      
+      ! V^\dagger j^T V
+      j11(si+1:si+N, si+1:si+N) = j11(si+1:si+N, si+1:si+N) + s * &
+      &  matmul( tmp(si+1:si+N, si+1:si+N),(bogo(sb+N+1:sb+2*N, sb+N+1:sb+2*N)))
+
+      si = si +   N
+      sb = sb + 2*N
+    enddo
+  end subroutine calcJ11
 
   subroutine PrintMomentsofInertia()
     !---------------------------------------------------------------------------

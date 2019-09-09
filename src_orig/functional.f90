@@ -502,7 +502,11 @@ $PRINT
       endif
     enddo
     
-    RotCorrection = - Rotcorrection !* rotcorrb * tanh(rotcorrc * B2)
+    RotCorrection = - Rotcorrection * rotcorrb * tanh(rotcorrc * B2)
+
+!    print *, B2, J2(3,3), Belyaev(3,3), tanh(rotcorrc * B2), rotcorrb * tanh(rotcorrc * B2) , rotcorrection
+!!    stop
+
   end subroutine calcRotationalCorrection
 
   subroutine calcFields(calcall)
