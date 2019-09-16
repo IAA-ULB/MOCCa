@@ -35,7 +35,7 @@ module HFB
   ! Which routine to use to find the Fermi energy
   procedure(FindFermi_Brent), pointer  :: FindFermi
 
-  contains
+contains
 
   subroutine initHFB
     !---------------------------------------------------------------------------
