@@ -495,17 +495,33 @@ $PRINT
     Q2= calculatetotalql(2) 
     B2= abs(4*pi/3. /((1.2*A**(1./3.))**2 * A) * Q2(3))
 
+    select case(pairingtype)
 
-    do i=1,3
-      if(Belyaev(i,3) .gt. 1d-5) then
-        RotCorrection = RotCorrection + J2(i,3)/(2*Belyaev(i,3))
+    case(0,1)
+      ! HF or BCS
+      do i=1,3
+        if(Belyaev(i,3) .gt. 1d-5) then
+          RotCorrection = RotCorrection + J2(i,3)/(2*Belyaev(i,3))
+        endif
+      enddo
+
+    case (2)
+      if(inversetemp.lt.0) then
+        do i=1,3
+          if(Bely_coll(i,3) .gt. 1d-5) then
+            RotCorrection = RotCorrection + J2_coll(i,3)/(2*Bely_coll(i,3))
+          endif
+        enddo
+      else
+        do i=1,3
+          if(Belyaev(i,3) .gt. 1d-5) then
+            RotCorrection = RotCorrection + J2(i,3)/(2*Belyaev(i,3))
+          endif
+        enddo
       endif
-    enddo
+    end select
     
     RotCorrection = - Rotcorrection * rotcorrb * tanh(rotcorrc * B2)
-
-!    print *, B2, J2(3,3), Belyaev(3,3), tanh(rotcorrc * B2), rotcorrb * tanh(rotcorrc * B2) , rotcorrection
-!!    stop
 
   end subroutine calcRotationalCorrection
 

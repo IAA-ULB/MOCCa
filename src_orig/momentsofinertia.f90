@@ -7,7 +7,7 @@ module momentsofinertia
   implicit none
 
   real(KIND=dp) :: Belyaev(3,3), Rigid(3,3), J2(3,3)
-  real(KIND=dp) :: J2_coll(3,3)
+  real(KIND=dp) :: J2_coll(3,3), Bely_coll(3,3)
 
   procedure(calcJ2andBelyaev_HF), pointer :: calcJ2andBelyaev 
 
@@ -292,8 +292,9 @@ contains
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
 
     real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3)
+    logical       :: blocked
 
-    J2 = 0  ;  Belyaev = 0
+    J2 = 0  ; Belyaev = 0; J2_coll = 0; Bely_coll = 0
     jx = 0  ; jy = 0 ; jz = 0
 
     !---------------------------------------------------------------------------
@@ -390,7 +391,6 @@ contains
     !---------------------------------------------------------------------------
     if(inversetemp .lt. 0) then
       si = 0 ; sb = 0
-      J2_coll = 0
       do b=1,Blocks
         N = hfbsizes(b)
         do i=1, N
@@ -398,8 +398,22 @@ contains
           it = 1
           if(ii.gt.nwn) it = 2
 
+          ! Don't include the contribution from the blocked qps
+          blocked = .false.
+          do k=1, size(blocked_qps) 
+            if((sb+i) .eq. blocked_qps(k)) blocked = .true.
+          enddo
+          if(blocked) cycle
+    
           do j=1,N
             jj = j + si
+
+            ! Don't include the contribution from the blocked qps
+            blocked = .false.
+            do k=1, size(blocked_qps) 
+              if((sb + j) .eq. blocked_qps(k)) blocked = .true.
+            enddo
+            if(blocked) cycle
             
             ME = J20(ii,jj,:)**2             
             J2_coll(:,it) = J2_coll(:,it) + ME          
@@ -457,14 +471,29 @@ contains
             &                                  exp(inversetemp * Qpenergies(ii))
             Belyaev(:,it) = Belyaev(:,it) +  2*J11(ii,jj,:)**2 * degen   
           endif 
+
+          if(inversetemp.lt.0) then
+            ! A 'collective' Belyaev moment of inertia
+            ! Don't include the contribution from the blocked qps
+            blocked = .false.
+            do k=1, size(blocked_qps) 
+              if((sb + j) .eq. blocked_qps(k)) blocked = .true.
+              if((sb + i) .eq. blocked_qps(k)) blocked = .true.
+            enddo
+            if(blocked) cycle
+
+            Bely_coll(:,it) = Bely_coll(:,it) + &
+            &            2*J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))    
+          endif
+        
           !---------------------------------------------------------------------
         enddo
       enddo
       si = si +   N
       sb = sb + 2*N
     enddo
-    Belyaev(:,3) = sum(Belyaev(:,1:2),2)
-
+    Belyaev(:,3)   = sum(Belyaev(:,1:2),2)
+    Bely_coll(:,3) = sum(Bely_coll(:,1:2), 2)
   end subroutine calcJ2andBelyaev_HFB  
 
   subroutine calcJ20(j,bogo, j20)
@@ -571,21 +600,22 @@ contains
     !
     !---------------------------------------------------------------------------
     1 format (21('-'), 'Rotational properties', 20('-'))
-    2 format ('                Rigid rotor (hbar^2/MeV)')
+    2 format ('                Rigid rotor          (hbar^2/MeV)')
     3 format ('              n', 14x ,'p',14x,'t ')
     4 format (' I_R X ', 3f15.7)
     5 format (' I_R Y ', 3f15.7)
     6 format (' I_R Z ', 3f15.7)
-    7 format ('                Belyaev     (hbar^2/MeV) ')
+    7 format ('                Belyaev              (hbar^2/MeV) ')
+   71 format ('                Belyaev (collective) (hbar^2/MeV) ')
     8 format (' I_B X ', 3f15.7)
     9 format (' I_B Y ', 3f15.7)
    10 format (' I_B Z ', 3f15.7)
-   11 format ('                 J^2        (hbar^2)')
+   11 format ('                 J^2                 (hbar^2)')
    12 format (' J2_X  ', 3f15.7)
    13 format (' J2_Y  ', 3f15.7)
    14 format (' J2_Z  ', 3f15.7)
    15 format (' J2_t  ', 3f15.7)
-   16 format ('                 J^2_coll   (hbar^2)')
+   16 format ('                 J^2 (collective)    (hbar^2)')
 
   100 format (60('-'))
 
@@ -602,18 +632,25 @@ contains
     print  9, Belyaev(2,:)
     print 10, Belyaev(3,:)
     print *
+    print 71
+    print  3
+    print  8, Bely_coll(1,:)
+    print  9, Bely_coll(2,:)
+    print 10, Bely_coll(3,:)
+    print *
     print 11
+    print 3
     print 12, J2(1,:)
     print 13, J2(2,:)
     print 14, J2(3,:) 
     print 15, sum(J2,1)
     print *
     print 16
-    print *
+    print 3
     print 12, J2_coll(1,:)
     print 13, J2_coll(2,:)
     print 14, J2_coll(3,:)
-    
+    print 15, sum(J2_coll, 1)
 
   end subroutine PrintMomentsofInertia
 end module momentsofinertia

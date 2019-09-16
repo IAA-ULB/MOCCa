@@ -87,7 +87,7 @@ contains
     real(KIND=dp)              :: sphamil(nwt,nwt), HFBHamil(2*nwt, 2*nwt)
     
     integer                     :: si, sb, N, B,  wave1, it, i, np, nn
-    integer                     :: n_ind, p_ind
+    integer                     :: n_ind, p_ind, NB
     real(KIND=dp), allocatable :: chi(:,:)
     !-----------------END OF DECLARATIONS --------------------------------------
 
@@ -194,6 +194,22 @@ contains
     &              qpenergies(nwn+1:nwt),Fermi(2), maxhfbiter,                 &
     &              blocktype, proton_block, p_blocked)     
 
+    ! 
+    if(allocated(blocked_qps)) deallocate(blocked_qps)
+    NB = 0 ;  NN = 0 ; NP = 0
+    if(allocated(n_blocked)) NN = size(n_blocked)
+    if(allocated(p_blocked)) NP = size(p_blocked)
+    NB = NP + NN
+
+    allocate(blocked_qps(NB))
+    if(allocated(n_blocked))  blocked_qps(   1:NN) = n_blocked
+    if(allocated(p_blocked)) then
+       ! We need to offset stuff by the number of neutron qps
+       do i=1, NP
+         blocked_qps(NN+i) = p_blocked(i) + 2*sum(HFBsizes(1:4))
+       enddo
+    endif
+
     !---------------------------------------------------------------------------
     ! c) Optionally mix the configuration matrices.  
     if(.not.all(configmatrix_history.eq.0.0)) then
@@ -246,8 +262,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
 
   end subroutine solvepairing_HFB
 
-  function ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf)     &
-  &                              result(R)
+  function ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf,     &
+  &                               blocked_qp)   result(R)
     !---------------------------------------------------------------------------
     ! Construct the configuration matrix, based on the various user options.
     !
@@ -256,7 +272,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
     integer, intent(in)          :: BlockType
     integer, intent(in)          :: blocks(4) 
     integer, intent(in)          :: blockconf(:)
-
+    integer, allocatable         :: blocked_qp(:)
     real(KIND=dp), intent(in)    :: Eqp(:), Bogo(:,:)
     real(KIND=dp), allocatable   :: R(:)
       
@@ -319,6 +335,9 @@ $TR    HFBdispersion = 2 * HFBdispersion
         ! HF-basis.
 
         NB = size(blockconf)
+        if(.not.allocated(blocked_qp)) then
+          allocate(blocked_qp(NB)) ; blocked_qp = 0
+        endif        
 
         do j=1,NB
             compare = 0.0
@@ -350,6 +369,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
                 if(qblock.eq.B) then
                     R(sb+ind-N)       = occ 
                     R(sb+ind)         = 1 - occ
+                    ! Save which one we blocked
+                    blocked_qp(j) = sb+ind
                 endif
                 sb = sb + 2*N
                 si = si + N
@@ -362,7 +383,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
         ! In this case, blockconf contains the number of qp excitations to  
         ! construct in every block.
         toblock = blockconf(1:4)
-    
+
         if(blockconf(5).ne.0) then
           do i = 1, blockconf(5)
             qpmin = 10000000
@@ -380,8 +401,18 @@ $TR    HFBdispersion = 2 * HFBdispersion
           enddo
         endif
 
+        NB = sum(toblock)
+
+        if(allocated(blocked_qp)) then
+          deallocate(blocked_qp)
+        endif
+
+        if(.not.allocated(blocked_qp)) then
+          allocate(blocked_qp(NB)) ; blocked_qp = 0
+        endif        
+
         !  For every block, we flip the required number of qps.
-        sb = 0 ; si = 0
+        sb = 0 ; si = 0 ; ind = 0
         do B=1,4
           N = blocks(B) ; if (N.eq.0) cycle
           do j=1,toblock(B)
@@ -389,6 +420,10 @@ $TR    HFBdispersion = 2 * HFBdispersion
             !  So we simply flip the first ones
             R(sb + N + j ) = 1 - occ
             R(sb     + j ) =     occ
+
+            ! Saving the one we flipped
+            ind = ind + 1
+            blocked_qp(ind) = sb + j
           enddo
           si = si +   N
           sb = sb + 2*N
@@ -484,7 +519,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
       do iter=1, maxHFBiter
 
         particles = & 
-        &   diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf)
+        &   diagbyblock(H,blocks, config, Bogo,Eqp,lambda, blocktype,blockconf,&
+        &               blocked_qp)
         ! Return if we do not want to readjust the Fermi energy
         if(MaxHFBiter.eq.1) return
         
@@ -509,8 +545,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
       enddo
   end subroutine FindFermi_secant
 
-  function diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf)& 
-  &        result(particles)
+  function diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf,&
+  &                    blocked_qp) result(particles)
       !-------------------------------------------------------------------------
       ! Routine that diagonalizes, block by block, a HFB Hamiltonian that is 
       ! passed in. It does the low-level work for all the high-level routines
@@ -535,6 +571,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
       real(KIND=dp), intent(inout) :: lambda
       integer, intent(in)          :: blocks(4), blocktype
       integer, intent(in)          :: blockconf(:)
+      integer, allocatable         :: blocked_qp(:)
 
       real(KIND=dp), allocatable   :: eigen(:), work(:), A(:,:)
       real(KIND=dp)                :: particles
@@ -575,7 +612,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
       enddo
       !-----------------------------------------------------------------------
       ! b) We construct the configuration matrix that was asked for
-      config = ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf) 
+      config = ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf, &
+      &                               blocked_qp) 
       !-----------------------------------------------------------------------
       ! c) Count the total number of particles that we have.
       si = 0 ; sb = 0
@@ -655,7 +693,8 @@ $TR   particles = 2 * particles
       !-------------------------------------------------------------------------
       ! STEP 1: set up an initial bracket
       !-------------------------------------------------------------------------
-      N = diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf)
+      N = diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf, &
+      &               blocked_qp)
       N = N - targetparticles
       ! Check if this guess for lambda is good enough
       if(abs(N).lt.pairing_prec) return
@@ -688,9 +727,9 @@ $TR   particles = 2 * particles
         &                 InitialBracket(idir) + idirsig * 0.01_dp*(FailCount+1)
 
         FA = diagbyblock(H,blocks,config,Bogo,Eqp,InitialBracket(1),blocktype, &
-        &                                                             blockconf)
+        &                                                 blockconf, blocked_qp)
         FB = diagbyblock(H,blocks,config,Bogo,Eqp,InitialBracket(2),blocktype, &
-        &                                                             blockconf)
+        &                                                 blockconf, blocked_qp)
         FA = FA - targetparticles ; FB = FB - targetparticles
 
         ! check if N(epsilon_F) is a monotonically growing function.
@@ -722,12 +761,12 @@ $TR   particles = 2 * particles
       !-------------------------------------------------------------------------
       call BrentBisection(lambda,N,InitialBracket(1), InitialBracket(2),FA,FB, &
       &                   maxHFBIter,H,blocks, targetparticles, config, Bogo,  & 
-      &                   Eqp, blocktype, blockconf)
+      &                   Eqp, blocktype, blockconf, blocked_qp)
   
   end subroutine FindFermi_brent
 
   subroutine BrentBisection(lambda,particles, X1,X2,FX1,FX2,Depth, H, blocks,  & 
-    &                   targetparticles, config, Bogo, Eqp, blocktype, blockconf)
+    &      targetparticles, config, Bogo, Eqp, blocktype, blockconf, blocked_qp)
     !---------------------------------------------------------------------------
     ! This routine searches for the Fermi energy
     ! by Brent's methods https://en.wikipedia.org/wiki/Brent%27s_method
@@ -763,6 +802,8 @@ $TR   particles = 2 * particles
     integer, intent(in)          :: blockconf(:)
     integer, intent(in)          :: Depth
     real(KIND=dp), intent(in)    :: X1 , X2, FX1 , FX2 
+    integer, allocatable         :: blocked_qp(:)
+
     real(KIND=dp)                :: A , B, C , FA, FB , FC
     real(KIND=dp)                :: D , E, S , P  , Q , R 
     real(KIND=dp)                :: Num , Tol , XM 
@@ -848,7 +889,8 @@ $TR   particles = 2 * particles
       ! B is present best guess for the fermi energy, FB the corresponding 
       ! particle number.
       !-------------------------------------------------------------------------
-      Num = diagbyblock(H, blocks, config, Bogo,Eqp,B, blocktype,blockconf)
+      Num = diagbyblock(H, blocks, config, Bogo,Eqp,B, blocktype,blockconf,    &
+      &                 blocked_qp)
       FB  = Num - targetparticles
 
       !-------------------------------------------------------------------------
