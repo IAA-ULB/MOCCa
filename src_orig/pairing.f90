@@ -95,6 +95,8 @@ module pairing
  !------------------------------------------------------------------------------
  ! Indices of the levels to block. 
  integer, allocatable :: BlockIndices(:) 
+ ! Indices of the quasi-particles that ended up blocked.
+ integer, allocatable :: blocked_qps(:)
  !------------------------------------------------------------------------------ 
  ! EFA blocking for the lowest qp. 
  ! Indicated by either
@@ -429,7 +431,7 @@ contains
       ! Find the Fermi energy
       call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
       &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
-      &                     BlockType, Blockindices, blocklowest)
+      &                     BlockType, Blockindices, blocklowest, blocked_qps)
     end select
 
     !---------------------------------------------------------------------------

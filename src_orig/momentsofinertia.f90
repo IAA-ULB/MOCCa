@@ -7,6 +7,7 @@ module momentsofinertia
   implicit none
 
   real(KIND=dp) :: Belyaev(3,3), Rigid(3,3), J2(3,3)
+  real(KIND=dp) :: J2_coll(3,3)
 
   procedure(calcJ2andBelyaev_HF), pointer :: calcJ2andBelyaev 
 
@@ -342,6 +343,16 @@ contains
       si = si + N
     enddo
 
+    ! First, construct J20
+    call calcJ20(jx,bogoliubov, j20(:,:,1)) ! J20_x with an added T
+    call calcJ20(jy,bogoliubov, j20(:,:,2)) ! J20_y with an added T
+    call calcJ20(jz,bogoliubov, j20(:,:,3)) ! J20_z
+
+    !Then , construct J11
+    call calcJ11(jx,bogoliubov, j11(:,:,1), +1) ! J20_x with an added T
+    call calcJ11(jy,bogoliubov, j11(:,:,2), +1) ! J20_y with an added T
+    call calcJ11(jz,bogoliubov, j11(:,:,3), +1) ! J20_z
+  
     !---------------------------------------------------------------------------
     ! Then we calculate the expectation value of J^2, in the canonical basis
     !---------------------------------------------------------------------------
@@ -369,6 +380,37 @@ contains
     J2(:,3) = sum(J2(:,1:2),2) 
 
     !---------------------------------------------------------------------------
+    ! I also calculate some approximation for the collective angular momentum, 
+    ! which I define as <J^2> without the contribution from the blocked qps. 
+    ! To safely remove this contribution, I calculate this in the qp basis.
+    ! 
+    !  <J^2> = sum_{ab} |J^20_ab|^2
+    !
+    ! where the sum simply does not include the blocked qps. 
+    !---------------------------------------------------------------------------
+    if(inversetemp .lt. 0) then
+      si = 0 ; sb = 0
+      J2_coll = 0
+      do b=1,Blocks
+        N = hfbsizes(b)
+        do i=1, N
+          ii = si + i
+          it = 1
+          if(ii.gt.nwn) it = 2
+
+          do j=1,N
+            jj = j + si
+            
+            ME = J20(ii,jj,:)**2             
+            J2_coll(:,it) = J2_coll(:,it) + ME          
+          enddo
+        enddo
+        si = si +   N
+        sb = sb + 2*N
+      enddo
+      J2_coll(:,3) = sum(J2_coll(:,1:2), 2)  
+    endif
+    !---------------------------------------------------------------------------
     ! Then the Belyaev moment of inertia in the ordinary sp. basis.
     !
     ! From expanding the many-body wave-function around the HFB minimum for 
@@ -379,21 +421,12 @@ contains
     ! based on pg 131 in Ring and Schuck, equation 3.92.
     !
     ! For a statistical mixture (such as an EFA configuration), this formula
-    ! doesn't capture everything 
+    ! doesn't capture everything and we have to generalize:
     !
     !  I_mm = 2 \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab} (1 - f_a - f_b)
     !       + 2 \sum_{ab} (E_a - E_b)^{-1} |J^{11}|^2_{m,ab} (f_b - f_a)
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! First, construct J20
-    call calcJ20(jx,bogoliubov, j20(:,:,1)) ! J20_x with an added T
-    call calcJ20(jy,bogoliubov, j20(:,:,2)) ! J20_y with an added T
-    call calcJ20(jz,bogoliubov, j20(:,:,3)) ! J20_z
 
-    !Then , construct J11
-    call calcJ11(jx,bogoliubov, j11(:,:,1), +1) ! J20_x with an added T
-    call calcJ11(jy,bogoliubov, j11(:,:,2), +1) ! J20_y with an added T
-    call calcJ11(jz,bogoliubov, j11(:,:,3), +1) ! J20_z
-  
     si = 0 ; sb = 0
     do b = 1, Blocks
       N = HFBlocks(b)
@@ -552,6 +585,8 @@ contains
    13 format (' J2_Y  ', 3f15.7)
    14 format (' J2_Z  ', 3f15.7)
    15 format (' J2_t  ', 3f15.7)
+   16 format ('                 J^2_coll   (hbar^2)')
+
   100 format (60('-'))
 
     print 1
@@ -572,7 +607,13 @@ contains
     print 13, J2(2,:)
     print 14, J2(3,:) 
     print 15, sum(J2,1)
-    print 100
+    print *
+    print 16
+    print *
+    print 12, J2_coll(1,:)
+    print 13, J2_coll(2,:)
+    print 14, J2_coll(3,:)
+    
 
   end subroutine PrintMomentsofInertia
 end module momentsofinertia

@@ -35,7 +35,7 @@ module HFB
   ! Which routine to use to find the Fermi energy
   procedure(FindFermi_Brent), pointer  :: FindFermi
 
-  contains
+contains
 
   subroutine initHFB
     !---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ module HFB
 
   subroutine solvepairing_HFB(fermi, Bogoliubov, rho_pairing, kappa_pairing,   &
   &                           configmatrix, qpenergies,HFBmix, HFBmixtype,     &
-  &                                         BlockType,Blockindices, blocklowest)
+  &                            BlockType,Blockindices, blocklowest, blocked_qps)
 
     !---------------------------------------------------------------------------
     ! Driver routine for the solving of the HFB equations, represented in the 
@@ -81,6 +81,7 @@ module HFB
     integer, intent(in)          :: BlockType
     character(len=2), intent(in) :: BlockLowest(:)
     integer, allocatable         :: neutron_block(:), proton_block(:)
+    integer, allocatable         :: blocked_qps(:), p_blocked(:), n_blocked(:)
 
     ! Quantities for the HFB hamiltonian
     real(KIND=dp)              :: sphamil(nwt,nwt), HFBHamil(2*nwt, 2*nwt)
@@ -185,13 +186,13 @@ module HFB
     &              neutrons, configmatrix(  1:2*nwn),                          &
     &              Bogoliubov(1:2*nwn, 1:2*nwn),                               &
     &              qpenergies(1:nwn),    Fermi(1), maxhfbiter,                 &
-    &              blocktype, neutron_block)   
+    &              blocktype, neutron_block, n_blocked)   
 
     call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBsizes(5:8),       &
     &              protons, configmatrix(2*nwn+1:2*nwt),                       &
     &              Bogoliubov(2*nwn+1:2*nwt, 2*nwn+1:2*nwt),                   &
     &              qpenergies(nwn+1:nwt),Fermi(2), maxhfbiter,                 &
-    &              blocktype, proton_block)     
+    &              blocktype, proton_block, p_blocked)     
 
     !---------------------------------------------------------------------------
     ! c) Optionally mix the configuration matrices.  
@@ -448,7 +449,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
   end subroutine PairingMatrices
 
   subroutine FindFermi_secant(H, blocks, targetparticles, config, Bogo, Eqp,   & 
-            &                lambda, maxhfbiter, blocktype, blockconf)
+            &              lambda, maxhfbiter, blocktype, blockconf, blocked_qp)
       !-------------------------------------------------------------------------
       ! Subroutine that diagonalizes the HFB hamiltonian (repeatedly) to find  
       ! the correct Fermi energy that fixes the average number of particles.
@@ -473,6 +474,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
       real(KIND=dp), intent(inout) :: lambda
       integer, intent(in)          :: blocks(4), maxhfbiter, blocktype
       integer, intent(in)          :: blockconf(:)
+      integer, allocatable         :: blocked_qp(:)
 
       real(KIND=dp)                :: df, dn(2), particles
       integer                      :: iter
@@ -605,7 +607,7 @@ $TR   particles = 2 * particles
   end function diagbyblock
 
   subroutine FindFermi_Brent(H, blocks, targetparticles, config, Bogo, Eqp,    & 
-   &                         lambda, maxhfbiter, blocktype, blockconf)
+   &                       lambda, maxhfbiter, blocktype, blockconf, blocked_qp)
       !-------------------------------------------------------------------------
       ! Subroutine that diagonalizes the HFB hamiltonian (repeatedly) to find  
       ! the correct Fermi energy that fixes the average number of particles.
@@ -648,6 +650,7 @@ $TR   particles = 2 * particles
       real(KIND=dp)                :: InitialBracket(2), FA, FB, N
       integer                      :: idir = 0 , idirsig = 1, FailCount
       logical                      :: Success
+      integer, allocatable         :: blocked_qp(:)
  
       !-------------------------------------------------------------------------
       ! STEP 1: set up an initial bracket
