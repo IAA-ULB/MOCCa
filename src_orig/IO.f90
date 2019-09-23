@@ -518,8 +518,8 @@ contains
     q2      = CalculateTotalQl(2)
 
     write(10,'(2i4,7f15.6, i6)', advance='NO')  &
-    &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi, sqrt(rms/protons),&
-    &     Rotcorrection, iter
+    &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi,  &
+    &     sqrt(rms/protons), Rotcorrection, iter
   
     write(10, '(2x, a99)') adjustl(iomsg)
     close(10)

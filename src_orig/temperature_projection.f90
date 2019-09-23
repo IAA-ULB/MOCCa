@@ -223,6 +223,7 @@ contains
         enddo
         Venergy = Venergy + constraints
 
+
         Z = 0
         !-----------------------------------------------------------------------       
         ! We sum the logarithms of all the factors for numerical stability.  
@@ -279,9 +280,9 @@ contains
       ! Note that this routine relies heavily on timereversal.
       !-------------------------------------------------------------------------
       integer                 :: i, it
-      real(KIND=dp)           :: Venergy, f, Eqp
-      real*16, allocatable    :: neutron_terms(:), proton_terms(:)
-      real*16                 :: avn, avp, Z(2)
+      real(KIND=dp)           :: Venergy, f, Eqp, trh(2)
+      complex*32, allocatable :: neutron_terms(:), proton_terms(:), avn, avp, temp
+      real*16                 :: Z(2)
       !-------------------------------------------------------------------------
       ! We calculate first the unprojected partition function
       ! lnZ = -Beta * E_HF - beta * mu * <N> 
@@ -319,38 +320,47 @@ contains
 
       !-------------------------------------------------------------------------
       avn = sum(neutron_terms)/(2*nwn)
-      avp = sum(proton_terms)/(2*nwp)
+      avp = sum(proton_terms) /(2*nwp)
 
       neutron_terms = neutron_terms - avn
       proton_terms  = proton_terms  - avp
     
-      Z = 0
+      temp = 0
       do i=1,2*nwn
-        Z(1) = Z(1) + exp(neutron_terms(i))
+        temp = temp + exp(neutron_terms(i))
       enddo
+      Z(1) = DBLE(log(temp) + avn)
+
+      temp = 0
       do i=1,2*nwp
-        Z(2) = Z(2) + exp(proton_terms(i))
+        temp = temp + exp(proton_terms(i))
       enddo
-      Z(1) = log(Z(1)) + avn 
-      Z(2) = log(Z(2)) + avp
+      Z(2) = DBLE(log(temp) + avp)
+
       !-------------------------------------------------------------------------
+      !  Half of the tr(h - mu)
+      trh = 0
       do i=1,nwt
         it = 1
         if(i.gt. nwn) it = 2
-        Z(it) = Z(it) - inversetemp * (spenergies(i) - FermiEnergy(it)) 
+        trh(it) = trh(it) + spenergies(i) - fermiEnergy(it)
       enddo
+
       !-------------------------------------------------------------------------      
       Z(1) = Z(1) - inversetemp * FermiEnergy(1)*neutrons - log(2*nwn * 1.0)
       Z(2) = Z(2) - inversetemp * FermiEnergy(2)*protons  - log(2*nwp * 1.0)
 
       projectedpartition_nov = Z
-      projectedpartition     = sum(Z) + inversetemp * Venergy
-
+      projectedpartition     = sum(Z) + inversetemp * (Venergy - sum(trh))
     end subroutine ProjectThermalHFB
 
-    function HFBdeterminant(Bogo, particles, blocks,Eqp) result(detMR)
+    function HFBdeterminant(Bogo, particles, blocks,Eqp) result(detM)
         !-----------------------------------------------------------------------
+        ! Calculate
+        !  
+        ! with xi_n = det(W^\dagger e^{-i phi_n N} W + e^{-beta E}) 
         !
+        ! which is eq. (B2) from P. Fanto et al, PRC 96, 014305 (2017).
         !-----------------------------------------------------------------------
         real(KIND=dp), intent(in) :: Bogo(:,:), Eqp(:)
         real(KIND=dp), intent(in) :: particles
@@ -367,17 +377,16 @@ contains
         complex*16, allocatable :: matrix(:,:), tau(:,:), work(:),detM(:),eig(:) 
         complex*16, allocatable :: un(:,:), vl(:,:), vr(:,:)
         complex*16              :: Iimag
-        real*16, allocatable    :: detMR(:), rwork(:), qpe_copy(:), W(:,:)
+        real*8, allocatable     :: rwork(:), qpe_copy(:), W(:,:)
         integer                 :: iphi, N, Ntotal, sb, si, B, info, i
 
         Iimag = cmplx(0, 1.0)
 
-        Ntotal = sum(blocks)
-        allocate(detM(2*Ntotal)) ; detM = 0
+        Ntotal = sum(blocks) ; allocate(detM(2*Ntotal)) ; detM = 0
 
         do iphi=1,2*Ntotal
           sb = 0 ; si = 0
-          phi = pi * (iphi - 1)/Ntotal
+          phi = pi * iphi /Ntotal
 
           detM(iphi) = 0
           ! We calculate the logarithm of the derminant of every subblock
@@ -393,27 +402,25 @@ contains
               matrix(i+N,i+N) = exp( Iimag * phi)
             enddo
 
-            allocate(W(2*N,2*N)) ; W = 0
+            allocate(W(2*N,2*N))    ; W        = 0
             allocate(qpe_copy(2*N)) ; qpe_copy = 0
 
-            do i=1, N/2
-              qpe_copy(i)      = Eqp(si+N+i)          
-              qpe_copy(i+N)    = Eqp(si+N+1-i)              
-
-              W(:,i)           = Bogo(sb  +1:sb+2*N  ,i+N)
-              W(1:N,i+N)       =-Bogo(sb+N+1:sb  +N  ,sb+i+N)
-              W(N+1:N,i+N)     = Bogo(sb  +1:sb  +N  ,sb+i+N)
-           enddo
+             do i=1, N
+              qpe_copy(i)      =   Eqp(si+i)          
+              qpe_copy(i+N)    = - Eqp(si+i)
+              ! Bogoliubov transformation with conserved time-reversal
+              W(   :   ,i  )     = Bogo(sb  +1:sb+2*N, sb+i+N) ! U and V
+              W(  1:  N,i+N)     =-Bogo(sb+N+1:sb+2*N, sb+i+N) !-V 
+              W(N+1:2*N,i+N)     = Bogo(sb  +1:sb+  N, sb+i+N) ! U
+            enddo
 
             matrix = matmul(transpose(W),matrix)
-            matrix = matmul(      matrix,W)
+            matrix = matmul(matrix, W)
 
-            do i=1,N
+            do i=1,2*N
               ! M = W^dagger e^{-i phi N} W + e^{-\beta E}
-              matrix(i  ,i  ) = matrix(i  ,i  ) + exp( -inversetemp * qpe_copy(si+i))
-              matrix(i+N,i+N) = matrix(i+N,i+N) + exp(  inversetemp * qpe_copy(si+i))
+              matrix(i,i) = matrix(i,i) + exp( -inversetemp * qpe_copy(i))
             enddo    
-
             deallocate(W, qpe_copy)
             !-------------------------------------------------------------------
             !  Performing a QR decomposition
@@ -430,6 +437,12 @@ contains
             ! We obtain the unitary matrix Q
             allocate(un(2*N,2*N)) ;  un = matrix
             call zungqr(2*N, 2*N, 2*N, un, 2*N, tau, work, 4*N,info)
+
+            if(info.ne.0) then
+              print *, 'ZUNGQR failed. Error=' , info
+              stop
+            endif
+
             deallocate(work)
 
             allocate(eig(2*N)) ; eig = 0
@@ -438,10 +451,16 @@ contains
             call zgeev ('N','N',2*N,un,2*N,eig,vl,2*N,vr,2*N,work,8*N,         & 
             &                                                   rwork,8*N, info)
 
+            if(info.ne.0) then
+              print *, 'ZGEEV failed. Error=' , info
+              stop
+            endif
+
             ! Logarithm of the determinant
             do i=1,2*N
               detM(iphi) = detM(iphi) + log(matrix(i,i)) + log(eig(i))
             enddo
+
             deallocate(matrix, work, tau, rwork, eig, un)
             sb = sb + 2*N
             si = si +   N
@@ -452,9 +471,6 @@ contains
              detM(iphi) =  detM(iphi) + Iimag * pi
           endif
         enddo
-        !-----------------------------------------------------------------------
-        allocate(detMR(2*Ntotal))
-        detMR = DBLE(detM)
 
     end function HFBdeterminant
 
