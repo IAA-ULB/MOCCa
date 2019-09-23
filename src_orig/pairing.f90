@@ -637,46 +637,4 @@ contains
 
   end subroutine clean_pairing
 
-!  subroutine EstimatedNda()
-!    !---------------------------------------------------------------------------
-!    ! A subroutine that estimates 
-!    !
-!    !               dN_i/da_j 
-!    ! 
-!    ! through a very naive approximation.
-!    !---------------------------------------------------------------------------
-
-!    integer :: it, i
-!    real(KIND=dp)  :: betaE
-
-!    select case(PairingType)    
-!    case(0)
-!        !-----------------------------------------------------------------------
-!        ! Hartree-fock
-!        !          
-!        !  dN_i 
-!        ! ------ =  \delta_ij sum_k [1 + exp(X)]^{-1} exp[X] 
-!        !  da_j
-!        !
-!        !        with X_k = beta (epsilon_k - mu_i)
-!        !        and the sum is only over the correct isospin
-!        !-----------------------------------------------------------------------
-!        dNda = 0
-!        do i = 1,nwt
-!            if (i .gt. nwn) then
-!                it    = 2 
-!            else
-!                it    = 1
-!            endif        
-!            betaE       = inversetemp * (spenergies(i) - FermiEnergy(it))
-!            dNda(it,it) = dNda(it,it) + inversetemp *                          &
-!            &             2*(1.0/(1 + exp(betaE)))**2 *  exp(betaE)
-!        enddo
-
-!    case(1)
-!        stop
-!    case(2)
-!        stop
-!    end select
-!  end subroutine EstimatedNda
 end module

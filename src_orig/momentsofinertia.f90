@@ -190,7 +190,7 @@ contains
     !     zero temperature.
     !---------------------------------------------------------------------------
     integer       :: i,j, b, it, ii, jj, si
-    real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj, fac
+    real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj
     real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde
 
     J2 = 0  ;  Belyaev = 0
@@ -284,9 +284,8 @@ contains
     ! right now.
     !---------------------------------------------------------------------------
    
-    integer       :: i,j, b, it, ii, jj, si, N,k, kk, l, ll, sb
-    real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj
-    real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde, fac, degen
+    integer       :: i,j, b, it, ii, jj, si, N,k, sb
+    real(KIND=dp) :: ME(3), degen, fac
 
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
@@ -616,8 +615,6 @@ contains
    14 format (' J2_Z  ', 3f15.7)
    15 format (' J2_t  ', 3f15.7)
    16 format ('                 J^2 (collective)    (hbar^2)')
-
-  100 format (60('-'))
 
     print 1
     print 2

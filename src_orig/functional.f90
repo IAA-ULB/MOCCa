@@ -710,16 +710,16 @@ $SKYRMEACTION
     ! derivatives are not passed in and need to be calculated.
     logical, intent(in)       :: onthefly 
     
-    real(KIND=dp), intent(in)    :: psi(mv,4)  
-    real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4), dddpsi(mv,10,4)
-    integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
-    real(KIND=dp)             :: deltapsi(mv,4)
-    real(KIND=dp)             :: temp(mv,4)
-    real(KIND=dp)             ::   dtemp(mv,3,4)
-    real(KIND=dp)             ::  ddtemp(mv,3,3,4)
-    real(KIND=dp)             :: dddtemp(mv,3,3,3,4)
-    real(KIND=dp)             :: laptemp(mv,4)
-    integer                   :: it,i,k
+    real(KIND=dp), intent(in)    :: psi(:,:)  
+    real(KIND=dp), intent(inout) :: dpsi(:,:,:),ddpsi(:,:,:), dddpsi(:,:,:)
+    integer, intent(in)        :: sx(:),sy(:),sz(:),   iso
+    real(KIND=dp), allocatable :: deltapsi(:,:)
+    real(KIND=dp)              ::    temp(mv,4)
+    real(KIND=dp)              ::   dtemp(mv,3,4)
+    real(KIND=dp)              ::  ddtemp(mv,3,3,4)
+    real(KIND=dp)              :: dddtemp(mv,3,3,3,4)
+    real(KIND=dp)              :: laptemp(mv,4)
+    integer                    :: it,i,k
     
     !---------------------------------------------------------------------------
     ! Determine the isospin index
@@ -728,6 +728,7 @@ $SKYRMEACTION
     !---------------------------------------------------------------------------
     ! Zero the action of Delta. 
     ! This is the place to include Coulomb pairing etc...
+    allocate(deltapsi(mv, 4))
     deltapsi = 0.0
    
 $PAIRINGACTION

@@ -31,6 +31,21 @@ module HFB
   real(KIND=dp) :: HFBdispersion(2)
   ! Pointer to relink procedures
   procedure(delta_action_dummy), pointer :: delta_action_HFB
+
+  interface
+   function delta_action_dummy(psi,dpsi,ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
+                                                                result(deltapsi)
+      !-------------------------------------------------------------------------
+      ! Dummy function to allow this module to acces the functional.f90 module 
+      ! to acces the information on the acces of deltas.
+      !-------------------------------------------------------------------------
+      real*8, intent(in)    :: psi(:,:)  
+      real*8, intent(inout) :: dpsi(:,:,:),ddpsi(:,:,:), dddpsi(:,:,:)
+      integer, intent(in)   :: sx(:),sy(:),sz(:),iso
+      real*8, allocatable   :: deltapsi(:,:)
+      logical, intent(in)   :: onthefly
+   end function
+  end interface
   !-----------------------------------------------------------------------------
   ! Which routine to use to find the Fermi energy
   procedure(FindFermi_Brent), pointer  :: FindFermi
@@ -1227,26 +1242,26 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
     if(allocated(HFBgaps))  deallocate(HFBGaps)
     if(allocated(HFBsizes)) deallocate(HFBsizes)
    end subroutine clean_HFB
-!===============================================================================
-!  Never to be used function to define an interface for delta_action
-!===============================================================================   
-   function delta_action_dummy(psi,dpsi,ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
-                                                                result(deltapsi)
-      !-------------------------------------------------------------------------
-      ! Dummy function to allow this module to acces the functional.f90 module 
-      ! to acces the information on the acces of deltas.
-      !-------------------------------------------------------------------------
-      
-      real(KIND=dp), intent(in)    :: psi(mv,4)  
-      real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4), dddpsi(mv,10,4)
-      integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
-      real(KIND=dp)             :: deltapsi(mv,4)
-      real(KIND=dp)             :: temp(mv,4)
-      real(KIND=dp)             ::   dtemp(mv,3,4)
-      real(KIND=dp)             ::  ddtemp(mv,3,3,4)
-      real(KIND=dp)             :: dddtemp(mv,3,3,3,4)
-      real(KIND=dp)             :: laptemp(mv,4)
-      logical, intent(in)       :: onthefly
-   end function
+!!===============================================================================
+!!  Never to be used function to define an interface for delta_action
+!!===============================================================================   
+!   function delta_action_dummy(psi,dpsi,ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
+!                                                                result(deltapsi)
+!      !-------------------------------------------------------------------------
+!      ! Dummy function to allow this module to acces the functional.f90 module 
+!      ! to acces the information on the acces of deltas.
+!      !-------------------------------------------------------------------------
+!      
+!      real(KIND=dp), intent(in)    :: psi(mv,4)  
+!      real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4), dddpsi(mv,10,4)
+!      integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
+!      real(KIND=dp)             :: deltapsi(mv,4)
+!      real(KIND=dp)             :: temp(mv,4)
+!      real(KIND=dp)             ::   dtemp(mv,3,4)
+!      real(KIND=dp)             ::  ddtemp(mv,3,3,4)
+!      real(KIND=dp)             :: dddtemp(mv,3,3,3,4)
+!      real(KIND=dp)             :: laptemp(mv,4)
+!      logical, intent(in)       :: onthefly
+!   end function
  
 end module
