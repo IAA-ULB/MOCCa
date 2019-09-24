@@ -188,6 +188,9 @@ contains
       do wave1=1,N
         sphamil(si+wave1,si+wave1) = spenergies(si+wave1)
       enddo
+
+      if(.not.allocated(HFBgaps)) stop
+
       HFBHamil(sb+1:sb+2*N, sb+1:sb+2*N) = ConstructHFBHamil(                  & 
       &               sphamil(si+1:si+N,si+1:si+N),HFBgaps(si+1:si+N,si+1:si+N))  
       
@@ -943,7 +946,7 @@ $TR   particles = 2 * particles
     
     N = size(sphamil,1)
     allocate(H(2*N,2*N)) ; H = 0
-    
+
     H(1:N, 1:N)         =  sphamil
     H(N+1:2*N, N+1:2*N) = -sphamil
     

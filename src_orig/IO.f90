@@ -286,7 +286,17 @@ contains
         read(chan, iostat=io) filegaps
         
         ! Simply copy the gaps for now
-        allocate(BCSGaps(filenwt)) ;  BCSGaps = filegaps(:,1)        
+        select case(pairingtype)
+        case(0)
+        ! Do nothing      
+        case(1)
+          allocate(BCSGaps(filenwt)) ;  BCSGaps = filegaps(:,1)        
+        case(2)
+          allocate(HFBgaps(filenwt, filenwt)) ; HFBgaps = 0
+          do i=1, filenwt
+              HFBgaps(i,i) = filegaps(i,1)
+          enddo
+        end select
     case(2)
         ! HFB
 

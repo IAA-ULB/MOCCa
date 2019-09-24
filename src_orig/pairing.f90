@@ -425,8 +425,9 @@ contains
         allocate(Bogoliubov(2*nwt,2*nwt))  ; Bogoliubov    = 0.0
       endif
 
-      if(.not. allocated(HFBsizes)) call inithfb
-
+      if(.not. allocated(HFBsizes)) then
+        call inithfb
+      endif
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
       call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
