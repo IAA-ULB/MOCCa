@@ -375,7 +375,7 @@ contains
         ! nonsense results.
         !-----------------------------------------------------------------------
         complex*16, allocatable :: matrix(:,:), tau(:,:), work(:),detM(:),eig(:) 
-        complex*16, allocatable :: un(:,:), vl(:,:), vr(:,:)
+        complex*16, allocatable :: un(:,:), vl(:,:), vr(:,:), cwork(:)
         complex*16              :: Iimag
         real*8, allocatable     :: rwork(:), qpe_copy(:), W(:,:)
         integer                 :: iphi, N, Ntotal, sb, si, B, info, i
@@ -446,9 +446,9 @@ contains
             deallocate(work)
 
             allocate(eig(2*N)) ; eig = 0
-            allocate(work(8*N), rwork(8*N))
+            allocate(cwork(8*N), rwork(8*N))
             ! Diagonalize the Q matrix
-            call zgeev ('N','N',2*N,un,2*N,eig,vl,2*N,vr,2*N,work,8*N,         & 
+            call zgeev ('N','N',2*N,un,2*N,eig,vl,2*N,vr,2*N,cwork,8*N,         & 
             &                                                   rwork,8*N, info)
 
             if(info.ne.0) then
