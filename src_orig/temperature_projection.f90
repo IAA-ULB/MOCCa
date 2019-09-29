@@ -461,7 +461,7 @@ contains
               detM(iphi) = detM(iphi) + log(matrix(i,i)) + log(eig(i))
             enddo
 
-            deallocate(matrix, work, tau, rwork, eig, un)
+            deallocate(matrix, cwork, tau, rwork, eig, un)
             sb = sb + 2*N
             si = si +   N
           enddo
