@@ -307,8 +307,19 @@ contains
         read(chan, iostat=io) ! Canonical transformation
         read(chan, iostat=io) filegaps     ! Full matrix of gaps
 
-        ! Simply copy the gaps for now
-        allocate(HFBGaps(2*filenwt, 2*filenwt)) ; HFBGaps = filegaps  
+        select case(pairingtype)
+        case(0)
+          ! Do nothing
+        case(1)
+          ! Use the diagonal HFBgaps for the BCSgaps
+          allocate(BCSgaps(filenwt)) 
+          do i=1, filenwt
+            BCSgaps(i) = filegaps(i,i)
+          enddo
+        case(2)
+          ! Simply copy the gaps for now
+          allocate(HFBGaps(2*filenwt, 2*filenwt)) ; HFBGaps = filegaps  
+        end select
     end select   
     ! Cranking information                                     (NOT IMPLEMENTED)
     read(chan, iostat=io)
