@@ -497,11 +497,13 @@ contains
     ! It contains on a single line
     !
     !      N, Z, Total energy, Q20(t), Q22(t), Q(t), Q(t),  &   
-    ! &    Gamma(n), Gamma(p),  <r^2_p>, Rotcorrection, iter, io
+    ! &    Gamma(n), Gamma(p),  <r^2_p>, B(1:3), Rotcorrection(1:3), iter, io
     !
     ! Notes:
     ! *  <r^2_p> is calculated as in the moments module, i.e. it is calculated  
     !    from the charge density, which is not necessarily the proton density.
+    ! * B is the Belyaev moment of inertia, along every axis
+    ! * Rotcorrection is the rotational correction, separately along every axis
     ! * io is a character that indicates if problems have been detected.
     !   Currently:
     !      * 'CONVERGED'     =>  The calculation exited when it was judged 
@@ -549,7 +551,7 @@ contains
       endif
     end select
   
-    write(10,'(2i4,12f15.6, i6)', advance='NO')  &
+    write(10,'(2i4,12(1x,f15.6), i6)', advance='NO')  &
     &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi,  &
     &     sqrt(rms/protons),  B(:), Rotcorrection, iter
   
