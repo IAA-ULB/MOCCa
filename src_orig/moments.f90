@@ -245,7 +245,7 @@ module moments
   ! (Q,gamma): Q, G
   ! iq1, iq2 : iq1, iq2
   !-----------------------------------------------------------------------------
-  real(kind=DP)   :: QCartesian(3,3,3), Q(3), G(3), iq1(3), iq2(3)
+  real(kind=DP)   :: QCartesian(3,3,3), Q(3), G(3), iq1(3), iq2(3),  Qi(3,3)
   !-----------------------------------------------------------------------------
   ! Quantisation axis of the moments.
   integer :: QuantisationAxis=3, SecondaryAxis=1
@@ -1136,7 +1136,6 @@ contains
    43 format(' X^2_i T', 2x ,3f15.7) 
 
     !real(kind=DP)        :: QAlt(3), GAlt(3)
-    real(KIND=dp) :: Qi(3,3)
     integer       :: i,j,k, it
 
     print 1
@@ -1209,12 +1208,14 @@ contains
         do j=1,ny
           do i=1,nx
             Qi(1,it) = Qi(1,it) + meshx(i)**2*D_I_I(i+(j-1)*nx +(k-1)*ny*nx,it)
-            Qi(2,it) = Qi(1,it) + meshy(i)**2*D_I_I(i+(j-1)*nx +(k-1)*ny*nx,it)
-            Qi(3,it) = Qi(1,it) + meshz(i)**2*D_I_I(i+(j-1)*nx +(k-1)*ny*nx,it)
+            Qi(2,it) = Qi(2,it) + meshy(j)**2*D_I_I(i+(j-1)*nx +(k-1)*ny*nx,it)
+            Qi(3,it) = Qi(3,it) + meshz(k)**2*D_I_I(i+(j-1)*nx +(k-1)*ny*nx,it)
           enddo
         enddo
       enddo
     enddo
+    Qi = Qi*dv
+
     do i=1,3
       Qi(i,3) = Qi(i,1) + Qi(i,2)
     enddo

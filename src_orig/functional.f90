@@ -51,7 +51,7 @@ module functional
     ! Definition of global contributions to the energy
     real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy, Ehistory(5)
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
-    real(KIND=dp) :: PairingEnergy(2), PairDenEnergy(2), RotCorrection
+    real(KIND=dp) :: PairingEnergy(2), PairDenEnergy(2), RotCorrection(3)
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
@@ -174,7 +174,7 @@ $PRINTCOEF_PAIR
     6 format (15x, ' Kinetic Energy:', 3f15.6)
    61 format (15x, '     COM 1-body:', 3f15.6)
    62 format (15x, '     COM 2-body:', 3f15.6)
-   63 format (15x, '    Rotational :', 30x, f15.6)
+   63 format (15x, '   Rotational ', a1, ':', 30x, f15.6)
     7 format (15x, ' Coulomb Direct:', 3f15.6)
    71 format (15x, '   Dir. (point):', 3f15.6)
     8 format (15x, '       Exchange:', 3f15.6)
@@ -199,7 +199,9 @@ $PRINTCOEF_PAIR
     endif
 
     if(rotcorr .ne.  0) then
-      print 63, Rotcorrection
+      print 63, 'X',  Rotcorrection(1)
+      print 63, 'Y',  Rotcorrection(2)
+      print 63, 'Z',  Rotcorrection(3)
     endif
   
     print *
@@ -273,7 +275,7 @@ $PRINTCOEF_PAIR
 
     ! Total energy
     TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)
-    TotalE = TotalE + CoulombDirect + CoulombExchange + Rotcorrection
+    TotalE = TotalE + CoulombDirect + CoulombExchange + sum(Rotcorrection)
 
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
@@ -481,12 +483,15 @@ $PRINT
     ! which is
     !    E_rot = E_crank * b * tanh(c|beta_2|)
     !
+    !
+    ! We introduce an extra 
     !---------------------------------------------------------------------------
     use momentsofinertia
     use moments  
 
     integer       :: i
-    real(KIND=dp) :: B2, A, Q2(3)
+    real(KIND=dp) :: B2, A, Q2(3), damp(3), compare(3), R
+    type(moment), pointer :: rms
 
     Rotcorrection = 0.0
     if(Rotcorr .eq. 0) return
@@ -495,33 +500,34 @@ $PRINT
     Q2= calculatetotalql(2) 
     B2= abs(4*pi/3. /((1.2*A**(1./3.))**2 * A) * Q2(3))
 
-    select case(pairingtype)
+    rms => FindMoment(-2,0, .false.)
+    ! We calculate the classical moment of inertia along the axis
+    do i=1, 3
+!      compare(i) = 1./3. * 2./5. * sum(nucleonmass * rms%value(1:2)) 
+      R = 1.2 * (neutrons+protons)**(1./3.)
+      compare(i) = 1./3. * 2./5. * sum(nucleonmass)/2 * (neutrons+protons)*R**2
+    enddo
+    ! Putting it in correct units
+    compare = compare/(hbarclum**2)
 
+    ! Another possibility is to compare the moment of inertia to that one of the
+    ! rigid rotor as calculated for the density in memory.
+    !compare = compare/rigid
+
+    select case(pairingtype)
     case(0,1)
       ! HF or BCS
-      do i=1,3
-        if(Belyaev(i,3) .gt. 1d-5) then
-          RotCorrection = RotCorrection + J2(i,3)/(2*Belyaev(i,3))
-        endif
-      enddo
-
+      damp             = rotcorrb * tanh(rotcorrc * Belyaev(:,3)/compare)
+      RotCorrection    =-J2(:,3)/(2*Belyaev(:,3))*damp
     case (2)
       if(inversetemp.lt.0) then
-        do i=1,3
-          if(Bely_coll(i,3) .gt. 1d-5) then
-            RotCorrection = RotCorrection + J2_coll(i,3)/(2*Bely_coll(i,3))
-          endif
-        enddo
+        damp          = rotcorrb * tanh(rotcorrc * Bely_coll(:,3)/compare)
+        RotCorrection = - J2_coll(:,3)/(2*Bely_coll(:,3))*damp
       else
-        do i=1,3
-          if(Belyaev(i,3) .gt. 1d-5) then
-            RotCorrection = RotCorrection + J2(i,3)/(2*Belyaev(i,3))
-          endif
-        enddo
+        damp          = rotcorrb * tanh(rotcorrc * Belyaev(:,3)/compare)
+        RotCorrection = - J2(:,3)/(2*Belyaev(:,3))*damp
       endif
     end select
-    
-    RotCorrection = - Rotcorrection * rotcorrb * tanh(rotcorrc * B2)
 
   end subroutine calcRotationalCorrection
 
@@ -783,7 +789,7 @@ $EREAR
     SpwfEnergy = SpwfEnergy + sum(PairingEnergy)
 
     ! Add the rotational correction
-    Spwfenergy = Spwfenergy + Rotcorrection
+    Spwfenergy = Spwfenergy + sum(Rotcorrection)
     
   end function calcspwfenergy
   

@@ -517,7 +517,7 @@ contains
     character(len=*), intent(in) :: iomsg
 
     type(Moment), pointer :: Q20, Q22, r2
-    real(KIND=dp)         :: E, quad(2), rms, q2(3)
+    real(KIND=dp)         :: E, quad(2), rms, q2(3), B(3)
     integer, intent(in)   :: iter
 
     character(len=len(BXLFIT)+12) :: filedone
@@ -538,9 +538,20 @@ contains
     rms     =     r2%value(2)
     q2      = CalculateTotalQl(2)
 
-    write(10,'(2i4,7f15.6, i6)', advance='NO')  &
+    select case(pairingtype)
+    case(0,1)
+      B = Belyaev(:,3)
+    case(2)
+      if(inversetemp.lt.0) then
+        B = Bely_coll(:,3)
+      else
+        B = Belyaev(:,3)
+      endif
+    end select
+  
+    write(10,'(2i4,12f15.6, i6)', advance='NO')  &
     &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi,  &
-    &     sqrt(rms/protons), Rotcorrection, iter
+    &     sqrt(rms/protons),  B(:), Rotcorrection, iter
   
     write(10, '(2x, a99)') adjustl(iomsg)
     close(10)
