@@ -92,6 +92,9 @@ $(OBJDIR)/%.o : $(SRCDIR)/%.f90
 genpublic: run_heph getgitinfo setversioninfo
   # Generate a public version of Tantalus with Hephaestos in src_public
 	cp $(SRCDIR)/*.f90 $(SRCPUBLIC)/
+  # Files that should not go in the public version
+	rm $(SRCPUBLIC)/particleinabox.f90
+	rm $(SRCPUBLIC)/temperature_projection.f90
 
 setversioninfo:
   # Copy the git information into the main code, so it can be printed

@@ -156,7 +156,7 @@ contains
     character(26), Parameter :: low = 'abcdefghijklmnopqrstuvwxyz'
 
     if(len(str) .ne. len(string)) then
-        stop('Strings of different length in to_upper')
+        stop ('Strings of different length in to_upper')
     endif
     string = str
     do i = 1, len_trim(str)
