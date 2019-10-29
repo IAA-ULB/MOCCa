@@ -415,6 +415,7 @@ subroutine cleanupthemess()
   use moments
   use coulombmod
   use evolution
+  use functional
 
   call clean_geninfo
   call clean_derivatives
@@ -427,6 +428,7 @@ subroutine cleanupthemess()
   call clean_moments
   call clean_coulomb
   call clean_evolution
+  call clean_potentials
 
 end subroutine cleanupthemess
 end module Tantalus

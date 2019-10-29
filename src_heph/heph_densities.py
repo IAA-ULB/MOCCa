@@ -180,12 +180,10 @@ Ini_template   = Template(   tab+'if(.not.allocated($NAME)) then     \n' + \
                              tab+'endif \n'                              ) 
 Zero_template  = Template(   tab+'$NAME = 0.0d0 \n')
 Clean_template = Template(   tab+'if(allocated($NAME)) deallocate($NAME)')
+
 Dec_template   = Template( \
                      tab + 'real*8, allocatable, target :: $NAME(:$TOTALIND,:)')
-Der_template   = Template( 2*tab + \
-      'call Derive_grad($NAME(:$IND,it),$PX,$PY,$PZ,der_$NAME(:,1$IND,it), &\n') 
-Der_template_b = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,2$IND,it), &\n')
-Der_template_c = Template( 2*tab + ' &  $DERSPACE der_$NAME(:,3$IND,it))  \n')
+
 
 Der_indep_template = Template( 2*tab + \
              'call Derive_$DIR($NAME(:$IND,it), $PS,der_$NAME(:$DERIND,it)) \n') 
@@ -501,8 +499,9 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
 
         Declaration    = Declaration    + '\n' + Dec_template.substitute(dic)
         Initialisation = Initialisation + '\n' + Ini_template.substitute(dic)
+        Cleaning       = Cleaning + '\n' + Clean_template.substitute(dic)
+
         dic['NAME']    = density
-        
         
     #---------------------------------------------------------------------------
     # Generate the expression to calculate the density

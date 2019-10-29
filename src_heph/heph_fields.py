@@ -115,6 +115,10 @@ def GenerateFields():
     field_read_template_a  = Template(2*tab + ('case("$FIELD") \n'))
     field_read_template_b  = Template(2*tab + ('read(chan, iostat=io)  $FIELD \n'))
 
+    # Template for cleaning fields
+    clean_template   = Template(   tab+'if(allocated($FIELD)) deallocate($FIELD)')
+    clean_template_b = Template(   tab+'if(allocated(${FIELD}_hist)) deallocate(${FIELD}_hist)')
+
     cplcts    = []       
     for term in heph_functional.Functional_terms:      
         cplcts.append(term.replace('E_', 'B_'))
@@ -127,6 +131,7 @@ def GenerateFields():
     fieldread = ''
     fieldwrite= ''
         
+    fieldclean= '' 
     for den in heph_functional.Densities_needed:
         #-----------------------------------------------------------------------
         # Name the field correctly
@@ -148,6 +153,10 @@ def GenerateFields():
         # Check all of the terms if they depend on the density
         fieldlist = []
         cpcte     = ''
+
+        fieldclean = fieldclean + '\n' + clean_template.substitute(dic)
+        fieldclean = fieldclean + '\n' + clean_template_b.substitute(dic)
+
         #-----------------------------------------------------------------------
         for term in heph_functional.Functional_terms: 
             (densities, cpl) = heph_functional.ParseDensities(term)
@@ -350,7 +359,7 @@ def GenerateFields():
         FIELDCALC    = FIELDCALC + isoloop_end
         FIELDCALC    = FIELDCALC + field_line.substitute(dic)
 
-    return(declaration, FIELDCALC, fieldwrite, fieldread)
+    return(declaration, FIELDCALC, fieldwrite, fieldread, fieldclean)
 
 def GenerateAction(field, symmetrize):
     #---------------------------------------------------------------------------

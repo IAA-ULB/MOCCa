@@ -818,6 +818,14 @@ $EREAR
     close(12)
   end subroutine output_Edensity
 
+  subroutine clean_potentials()
+    !---------------------------------------------------------------------------
+    ! Clean up the allocated potentials for multiple runs.
+    !---------------------------------------------------------------------------
+    $CLEANING
+
+  end subroutine clean_potentials
+
   subroutine WritePotentials(chan)
     !---------------------------------------------------------------------------
     !  Subroutine writing the different potentials to file.

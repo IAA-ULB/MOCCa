@@ -195,6 +195,8 @@ contains
     real(KIND=dp)              :: temp(nx,ny,nz)
     integer                    :: i
     
+    ! Deallocation that rho_charge does not have the wrong dimensions
+    if(allocated(rho_charge)) deallocate(rho_charge)
     if(.not.allocated(rho_charge)) then
         allocate(rho_charge(nx,ny,nz))
     endif

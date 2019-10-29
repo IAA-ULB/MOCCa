@@ -393,6 +393,7 @@ def ProcessFunctional(fname, src, target):
         erear         = ''
         writing       = ''
         reading       = ''
+        cleaning      = ''
         
         #-----------------------------------------------------------------------
         # Generate the terms in the functional
@@ -421,12 +422,12 @@ def ProcessFunctional(fname, src, target):
 
         #-----------------------------------------------------------------------
         # Generate the fields of the single-particle hamiltonian
-        (fielddec, fieldcalc, fieldwrite,fieldread) =                          \
+        (fielddec, fieldcalc, fieldwrite,fieldread, fieldclean) =              \
                                                heph_fields.GenerateFields(     )
         declaration = declaration + fielddec   + '\n'
         writing     = writing     + fieldwrite 
         reading     = reading     + fieldread 
-
+        cleaning    = cleaning    + fieldclean
         #-----------------------------------------------------------------------
         # Generate the expressions for the actions of the Skyrme fields
         SkyrmeAction = ''
@@ -479,7 +480,7 @@ def ProcessFunctional(fname, src, target):
         erear         = heph_linechecker.LineFormat(erear)
         reading       = heph_linechecker.LineFormat(reading)
         writing       = heph_linechecker.LineFormat(writing)
-
+        cleaning      = heph_linechecker.LineFormat(cleaning)
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         # Substitute into the functional.f90 file.  
         dic={}
@@ -501,6 +502,7 @@ def ProcessFunctional(fname, src, target):
         dic['FIELDNUMBER']    = len(Densities_needed)
         dic['WRITEPOTENTIALS']= writing
         dic['READPOTENTIALS'] = reading
+        dic['CLEANING']       = cleaning
 
         if(derivative_order == 1):
           dic['N2'] = ' '    
@@ -587,7 +589,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
 
     calc_coef_pair_temp = Template(tab + '$CPCTE(1,1) = $EXP1 \n' + \
                                    tab + '$CPCTE(2,1) = $EXP2 \n')    
-                                 
+                                
     write_edensity = Template( tab + ' call output_Edensity(Edensity, "$FILENAME")' )
     print_template = Template(tab +" print('(a30 , 3f15.6)'), '$TERM',    & \n"+ 
                               tab +"                           $TERM(:,1),& \n"+
