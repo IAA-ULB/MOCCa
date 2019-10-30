@@ -873,6 +873,7 @@ $TR   particles = 2 * particles
       if ( abs(XM) .le. Tol .or. FB .eq. 0.0_dp ) then
         Lambda =  B
         Found = .true. 
+        cycle
       endif
       if ( abs(E) .ge. Tol .and. abs(FA) .gt. abs(FB) ) then
         S = FB/FA
