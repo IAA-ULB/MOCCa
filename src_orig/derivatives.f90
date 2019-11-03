@@ -118,7 +118,7 @@ contains
     allocate(derX(nx,nx,4), laplaX(nx,nx,4))
     allocate(derY(ny,ny,4), laplaY(ny,ny,4))
     allocate(derZ(nz,nz,4), laplaZ(nz,nz,4))
-    
+
     derX   = 0.0d0 ; derY   = 0.0d0 ; derZ   = 0.0d0
     laplaX = 0.0d0 ; laplaY = 0.0d0 ; laplaZ = 0.0d0
     

@@ -99,16 +99,17 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
 
     real(KIND=dp), allocatable :: h(:,:), s(:,:), d(:), wd(:), e(:)
     real(KIND=dp), allocatable :: he(:,:,:) , a(:)
+    real(KIND=dp)              :: psi(mx,my,mz,4)
+
     integer                    :: npar(2,2), nvv, nz2, nz1, nx1, nx2, ny1, ny2
     integer                    :: nwave, nodd, nnn2, nnn1, nn2, nn1, nn, nmax
     integer                    :: nij,i,i1,ia,ii,it, iwave,ix, nb, n, kk, iy, iz
-    integer                    :: j,ja, k, nw, neven, ni, ni1, np, nvec
+    integer                    :: j,ja, k, nw, neven, ni, ni1, np, nvec, ind
     integer                    :: mblc, mq, mqa, ms, nblc, ndd, ndim, ifail
     integer, allocatable       :: nsi(:,:),ns(:), nx(:), ny(:), nz(:), irep(:)
     integer, allocatable       :: nor(:), npa(:), ntrs(:)
 
-
-    dimension xk(4),xmu(4),cf(2), hbm(2), psi(mx,my,mz,4)
+    dimension xk(4),xmu(4),cf(2), hbm(2)
     
     data ca,cb /0.986d0,0.14d0/
     data xk,xmu/0.08d0,0.08d0,   0.0637d0,0.0637d0    &
@@ -129,7 +130,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     allocate(h(ndim,ndim),s(ndim,ndim),d(ndim),wd(ndim)) 
     allocate(nsi(mblc+1,4),ns(mblc+1))
     allocate(nx(ms),ny(ms), nz(ms), e(ms), nor(ms),npa(ms))
-    allocate(he(mblc,mz,3), a(mqa))
+    allocate(he(mblc,max(mx,my,mz),3), a(mqa))
     allocate(irep(mblc+1), ntrs(ms),kparz(nwt),esp1(nwt))
     
     irep = 0 ; ntrs = 0
@@ -138,7 +139,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     nx = 0 ; ny = 0 ; nz = 0 ; e = 0.0d0; nor =0 ; npa =0 
     he = 0.0d0 ; kparz=0; a= 0.0d0
     
-    allocate(wfs(mx*my*mz,4,nwt)) ; wfs = 0.0d0
+!    allocate(wfs(mx*my*mz,4,nwt)) ; wfs = 0.0d0
     
     ! In order for the compiler not to complain about non-initialised stuff.
     nvv = 0
@@ -293,14 +294,14 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
         ns(nblc+1) = ns(nblc) + ((n+1)*(n+2))/2
       enddo
 
-!c............................. one dimensionnal oscillator wave-functions
+!c............................. one dimensional oscillator wave-functions
       xis   =     (npn-npp)
       xis   = xis/(npn+npp)
       cf(2) = ca   -cb*xis
       cf(1) = 1.0d0+cb*xis
 !c.................................................... loop on the isospin
   nwave = 0
-  do 15 it=1,2
+  do it=1,2
     nn = max(mx,my,mz)
 
     do ndd=1,3
@@ -543,20 +544,34 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
         
         ny2 = 0
         kk  = 0
-
+        
+        ind = 0
         do k = 1,mz
           do j=1,my
             do i=1,mx
-              wfs(i+(j-1)*mx+(k-1)*my*mx,1,nwave) = psi(i,j,k,1)
-              wfs(i+(j-1)*mx+(k-1)*my*mx,2,nwave) = psi(i,j,k,2)
-              wfs(i+(j-1)*mx+(k-1)*my*mx,3,nwave) = psi(i,j,k,3)
-              wfs(i+(j-1)*mx+(k-1)*my*mx,4,nwave) = psi(i,j,k,4)
+
+              ind = ind + 1
+              wfs(ind,1,nwave) = psi(i,j,k,1)
+              wfs(ind,2,nwave) = psi(i,j,k,2)
+              wfs(ind,3,nwave) = psi(i,j,k,3)
+              wfs(ind,4,nwave) = psi(i,j,k,4)
+
+!              wfs(i+(j-1)*mx+(k-1)*my*mx,1,nwave) = psi(i,j,k,1)
+!              wfs(i+(j-1)*mx+(k-1)*my*mx,2,nwave) = psi(i,j,k,2)
+!              wfs(i+(j-1)*mx+(k-1)*my*mx,3,nwave) = psi(i,j,k,3)
+!              wfs(i+(j-1)*mx+(k-1)*my*mx,4,nwave) = psi(i,j,k,4)
             enddo
           enddo
         enddo
 
     enddo
-15 continue
+  enddo
+
+  deallocate(h,s,d,wd) 
+  deallocate(nsi,ns)
+  deallocate(nx,ny, nz, e, nor,npa)
+  deallocate(he, a)
+  deallocate(irep, ntrs)
 
   end subroutine nilsson 
 end module nil8

@@ -20,8 +20,8 @@
 
 exe='Tantalus.NLO.func.mpi.exe'
 execdir='../exec'
-param='../parameterizations/SLy4.param'
-outfile='Tant.minimal.out'
+param='../parameterizations/SLy4NC.param'
+outfile='Tant.mpi.out'
 
 #Create storage directories
 if [ ! -d "out/" ]; then
@@ -53,15 +53,15 @@ nx=12, ny=12, nz=12, dx=1.0
 # The code will look, on a file forces.param, for the parameterization with 
 # this name.
 &func
-name_param='SLy4'
+name_param='SLy4NC'
 /
 # Options for the pairing.
 &pairing
-type='HFB'
+type='HF'
 /
 # maxiter = Maximum number of iterations to be performed
 &evolution
-maxiter=10
+maxiter=50
 /
 &scfiteration
 /
@@ -82,24 +82,24 @@ EOF
 
 cat << EOF > data.two.in
 &nucleus
-neutrons=10, protons=10
+neutrons=8, protons=8
 /
 # Parameters of the Lagrange mesh. 
 &mesh
-nx=12, ny=12, nz=12, dx=1.0
+nx=14 ny=14, nz=14, dx=1.0
 /
 # The code will look, on a file forces.param, for the parameterization with 
 # this name.
 &func
-name_param='SLy4'
+name_param='SLy4NC'
 /
 # Options for the pairing.
 &pairing
-type='BCS'
+type='HF'
 /
 # maxiter = Maximum number of iterations to be performed
 &evolution
-maxiter=10
+maxiter=50, printiter=10
 /
 &scfiteration
 /
@@ -120,7 +120,7 @@ EOF
 
 #-------------------------------------------------------------------------------
 # Running the code
-./$exe #> $outfile
+./$exe | tee $outfile
 
 #Cleaning up
 mv tant.wf  ../wf

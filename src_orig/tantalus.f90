@@ -35,6 +35,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  character(11), intent(in), optional :: input_file 
  character(len=*), intent(in)        :: run_mode 
  character(len=43)                   :: mode_print
+
  100 format &
      &  (/,8x,' ___________________________________________________________', &
      &   /,8x,'|                                                          |', &
@@ -83,7 +84,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call PrintInput(file_number, input_file)
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
- call ReachForWaterAndFood
+ call ReachForWaterAndFood()
  !------------------------------------------------------------------------------
  ! Clean up after running, just in case we need to run again.
  call Cleanupthemess()
@@ -144,7 +145,7 @@ subroutine Converged(C)
     enddo   
 end subroutine Converged
 
-subroutine ReachForWaterAndFood
+subroutine ReachForWaterAndFood()
     !---------------------------------------------------------------------------
     ! Evolve the single-particle wavefunctions and densities.
     !
@@ -197,7 +198,7 @@ subroutine ReachForWaterAndFood
     5 format('| dQ < ', e10.3, 15x, ' | ')
     6 format('| dH < ', e10.3, 15x, ' | ')        
     7 format('| Ending the iterative proces.   |')
-   
+
     integer :: iter
     logical :: ConvergenceAchieved
     ! Logical to see if any moments with projection are necessary
@@ -241,11 +242,11 @@ subroutine ReachForWaterAndFood
 
     call printpairing
     call PrintEnergy 
+
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
-    
         ! Calculate the gaps Delta with the current 
         ! a) fields 
         ! b) density matrix and anomalous density matrix 

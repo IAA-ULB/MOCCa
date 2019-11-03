@@ -71,6 +71,10 @@ module evolution
     real*8, allocatable :: preconY(:,:,:,:)
     real*8, allocatable :: preconZ(:,:,:,:) 
 
+    !---------------------------------------------------------------------------
+    ! Store the change in the spwfs from last iteration for momentum
+    real(KIND = dp), allocatable :: Momentum_Updates(:,:,:)  
+
 contains
     
     subroutine ReadEvolution(file_number)
@@ -229,13 +233,11 @@ contains
         
         integer, intent(in)   :: iteration
         integer               :: wave, iso
-        real(KIND = dp)       :: hpsi(nx*ny*nz,4)
-        ! Store the change in the spwfs from last iteration
-        real(KIND = dp), allocatable, save :: Updates(:,:,:)      
+        real(KIND = dp)       :: hpsi(nx*ny*nz,4) 
 
-        if(.not.allocated(Updates)) then
-            allocate(Updates(nx*ny*nz,4,nwt))
-            Updates = 0.0_dp
+        if(.not.allocated(Momentum_Updates)) then
+            allocate(Momentum_Updates(nx*ny*nz,4,nwt))
+            Momentum_Updates = 0.0_dp
         endif
 
 !        if(Precondition .ne. 'NONE') then
@@ -280,10 +282,11 @@ contains
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
             !-------------------------------------------------------------------
             ! Add some history and 'momentum' to the update. 
-            updates(:,:,wave) = momentum*updates(:,:,wave) - dt/hbar * hpsi
+            momentum_updates(:,:,wave) = &
+            &               momentum*momentum_updates(:,:,wave) - dt/hbar * hpsi
             !-------------------------------------------------------------------
             ! Update the wavefunctions.
-            hfpsi(:,:,wave) = hfpsi(:,:,wave) + updates(:,:,wave)
+            hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
         enddo
     
         gradientnorm = sqrt(gradientnorm)/(neutrons + protons) 
@@ -350,6 +353,7 @@ contains
 
       !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Iterative estimation of the maximal energy
+      con = 1
       do iter=1,estiter
           !---------------------------------------------------------------------
           ! Note that onthefly = .true., making sphamil take care of the 
@@ -601,5 +605,6 @@ contains
       if(allocated(preconx)) deallocate(preconx)
       if(allocated(precony)) deallocate(precony)
       if(allocated(preconz)) deallocate(preconz)
+      if(allocated(momentum_updates)) deallocate(momentum_updates)
     end subroutine clean_evolution
 end module evolution
