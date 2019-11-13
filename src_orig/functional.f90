@@ -23,6 +23,7 @@ module functional
  use densities
  use parameterization
  use pairing
+ use timing
 
  implicit none
  
@@ -239,6 +240,8 @@ $PRINTCOEF_PAIR
     use Coulombmod
 
     integer :: i
+
+    call start_timer(T_energy)
     
     ! Kinetic energy
     Kinetic = CompKinetic()
@@ -282,6 +285,8 @@ $PRINTCOEF_PAIR
 
     ! Entropy calculation when temperature is finite
     call calcentropy()
+
+    call stop_timer(T_energy)
 
  end subroutine CalcEnergy
  
@@ -550,6 +555,8 @@ $PRINT
     logical, intent(in)        :: calcall
     logical                    :: rhoread
 
+    call start_timer(T_fields)
+  
     ! We need to determine if F_I_I was read from file or not. 
     ! If it was, it already includes Coulomb and constraining fields and we
     ! should not add them again.
@@ -621,6 +628,8 @@ $CALCFIELDS
       update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,+1,+1)
       F_I_I =  F_I_I_hist + update
     endif
+
+    call stop_timer(T_fields)
  
   end subroutine calcFields 
   

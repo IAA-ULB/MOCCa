@@ -25,7 +25,8 @@ module wavefunctions
  use derivatives
  use geninfo
  use nil8
- 
+ use timing 
+
  implicit none
  
  !------------------------------------------------------------------------------
@@ -232,10 +233,12 @@ contains
   subroutine deriveHF()
     !---------------------------------------------------------------------------
     ! Derives all of the single-particle wave-functions. 
-    ! b) In the canonical basis
+    ! a) In the HF basis
     !---------------------------------------------------------------------------
     integer :: wave,k
     
+    call start_timer(T_derivatives)
+
     if(.not.allocated(HFdPsi)) then
         allocate(HFdPsi(nx*ny*nz,3,4,nwt))
         allocate(HFddPsi(nx*ny*nz,6,4,nwt))
@@ -261,6 +264,9 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
 
         enddo
     enddo
+
+    call stop_timer(T_derivatives)
+
   end subroutine DeriveHF
   
   subroutine deriveCan()
@@ -270,6 +276,8 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
     integer :: wave,k
       
+    call start_timer(T_derivatives_can)
+
     if(allocated(CanPsi)) then
       if(.not.allocated(CANdPsi)) then
           allocate( CANdPsi(nx*ny*nz,3,4,nwt))
@@ -300,6 +308,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         enddo
       enddo
     endif
+
+    call stop_timer(T_derivatives_can)
     
   end subroutine DeriveCan
   
@@ -408,6 +418,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     integer  :: indices(maxval(HFBlocks))
     real(KIND=dp) ::  norm
     
+    call start_timer(T_ortho)
     do b = 1, Blocks 
         indices = 0
         indices(1:HFblocks(b)) = OrderSpwfsSym(b)
@@ -449,7 +460,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             enddo
         enddo
     enddo
-   
+    call stop_timer(T_ortho)
+
   end subroutine GramSchmidt
   
   function TimeReverse(psi) result(Tpsi)

@@ -45,6 +45,7 @@ use wavefunctions
 use pairing
 use derivatives 
 use preconditioning 
+use timing
 
 implicit none
 
@@ -95,6 +96,8 @@ subroutine densit(SaveRho)
     integer      :: i, it, wave, wave2, B, N, si
     real(KIND=dp):: weight
     logical      :: SaveRho
+
+    call start_timer(T_densities)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
@@ -230,6 +233,9 @@ $HFBEXPRESSION
     do it=1,2
 $DERIVATION  
     enddo  
+
+    call stop_timer(T_densities)
+
 end subroutine densit
 
 subroutine MassageDensity()

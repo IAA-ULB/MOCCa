@@ -26,6 +26,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  use wavefunctions
  use IO
  use temperature_projection 
+ use timing
 
  implicit none
 
@@ -59,6 +60,17 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  302 format ( 8x,'| VERSION3', 17x, '|') ! Date
  303 format ( 8x,'|__________________________________________________________|')
 
+ call add_timer('Tantalus'       , T_tantalus)  
+ call add_timer('HF-basis Derivatives'       , T_derivatives)  
+ call add_timer('Canonical basis Derivatives'       , T_derivatives_can)  
+ call add_timer('Spwf evolution'    , T_evolution)  
+ call add_timer('Orthonormalization', T_ortho)  
+ call add_timer('Density calculations', T_densities)  
+ call add_timer('Field calculations', T_fields)  
+ call add_timer('Energy calculations', T_energy)  
+ call add_timer('Pairing solver ', T_pairing)  
+
+ call start_timer(T_tantalus)
 
  print *
  print 100
@@ -69,6 +81,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  print 301
  print 302
  print 303
+
 
  !------------------------------------------------------------------------------
  ! Read input from STDIN
@@ -88,7 +101,14 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !------------------------------------------------------------------------------
  ! Clean up after running, just in case we need to run again.
  call Cleanupthemess()
+
+ call stop_timer(T_tantalus)
+
+ ! Print all timing info
+ call print_all_timers_flat()
+ call print_all_timers()
  
+
 end subroutine Run_Tantalus
 
 subroutine Converged(C) 
@@ -188,6 +208,7 @@ subroutine ReachForWaterAndFood()
     use printing
     use temperature_projection
     use momentsofinertia    
+    use timing
 
     implicit none
 
@@ -207,7 +228,6 @@ subroutine ReachForWaterAndFood()
     character(len=99) :: iomsg = 'START'
 
     ConvergenceAchieved = .false.   
-    
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------

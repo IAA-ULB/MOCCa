@@ -24,6 +24,7 @@ module evolution
     use wavefunctions
     use functional
     use preconditioning
+    use timing
 
     implicit none
     
@@ -235,6 +236,8 @@ contains
         integer               :: wave, iso
         real(KIND = dp)       :: hpsi(nx*ny*nz,4) 
 
+        call start_timer(T_evolution)
+
         if(.not.allocated(Momentum_Updates)) then
             allocate(Momentum_Updates(nx*ny*nz,4,nwt))
             Momentum_Updates = 0.0_dp
@@ -294,6 +297,8 @@ contains
         ! Orthonormalize
         call GramSchmidt
     
+        call stop_timer(T_evolution)
+
     end subroutine Evolve_momentum
 
     subroutine IterativeEstimation(Iteration)

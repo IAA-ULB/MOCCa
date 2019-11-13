@@ -29,8 +29,8 @@ MODDIR :=   mod
 SRCPUBLIC := ../tantalus_public/src/
 
 TARGET :=   Tantalus.exe
-SRC    :=   compilation.f90 geninfo.f90 constants.f90 sphericalharmonics.f90
-SRC    +=   folding.f90   
+SRC    :=   compilation.f90 geninfo.f90 timing.f90 constants.f90 
+SRC    +=   sphericalharmonics.f90 folding.f90   
 SRC    +=   diag.f90 nil8.f90 derivatives.f90 precondition.f90 wavefunctions.f90
 SRC    +=   pairingcutoffs.f90 parameterization.f90 hartree-fock.f90 BCS.f90 
 SRC    +=   HFB.f90 pairing.f90 densities.f90 moments.f90 coulomb.f90 
