@@ -419,6 +419,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     real(KIND=dp) ::  norm
     
     call start_timer(T_ortho)
+
     do b = 1, Blocks 
         indices = 0
         indices(1:HFblocks(b)) = OrderSpwfsSym(b)
@@ -450,6 +451,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             ! The MOCCa example is of course conserved time-reversal but broken
             ! signature.
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            !$$OMP PARALLEL private(j, mw, norm, l)
+            !$$OMP DO
             do j= i+1, HFBlocks(b)
                 mw = indices(j)    
                 ! Real part of the inproduct
@@ -458,8 +461,12 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
                     HFPsi(l,1,mw) = HFPsi(l,1,mw) - norm * HFPsi(l,1,nw)
                 enddo
             enddo
+           !$$OMP END DO
+           !$$OMP END PARALLEL 
+
         enddo
     enddo
+
     call stop_timer(T_ortho)
 
   end subroutine GramSchmidt

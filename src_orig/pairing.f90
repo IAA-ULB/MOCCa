@@ -24,6 +24,7 @@ module pairing
  use BCS
  use HFB
  use pairingcutoffs
+ use timing
   
  implicit none
  
@@ -375,6 +376,8 @@ contains
     !---------------------------------------------------------------------------
     use parameterization, only : hbm
 
+    call start_timer(T_pairing)
+
     if(.not.allocated(rho_can)) then
       allocate(rho_can(nwt))              ; rho_can    = 0.0
     endif
@@ -446,6 +449,8 @@ contains
     ! Compute the cutoffs
     call ComputePairingCutoffs(fermienergy)
     !---------------------------------------------------------------------------
+
+    call stop_timer(T_pairing)
 
   end subroutine SolvePairing
 

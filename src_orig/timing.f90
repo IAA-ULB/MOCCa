@@ -10,15 +10,17 @@ module timing
 
   implicit none
 
+  !-----------------------------------------------------------------------------
   ! Timer IDs. These are set to values by add_timer().
   integer :: T_derivatives, T_derivatives_can, T_evolution, T_ortho, T_tantalus
-  integer :: T_densities, T_fields, T_energy, T_pairing
+  integer :: T_densities, T_fields, T_energy, T_pairing, T_den_ph, T_den_pp
+  integer :: T_den_der, T_sphamil, T_coulomb, T_den_can
   !-----------------------------------------------------------------------------
   ! There are two ways to record the time:
   !  1. cpu_time measures CPU time (excludes time spent in other programs)
   !  2. system_clock measures walltime
   integer, parameter :: CPU_TIME_ = 1, SYSTEM_CLOCK_ = 2
-  integer, parameter :: TIME_TYPE = CPU_TIME_!SYSTEM_CLOCK_
+  integer, parameter :: TIME_TYPE = SYSTEM_CLOCK_
   integer(8)         :: count_rate  ! Conversion for system_clock()
 
   !-----------------------------------------------------------------------------
@@ -347,7 +349,7 @@ contains
              isubcontext = ibset(icontext,id-1)
              if (prnt) then
                 write (str,'(a,a)') spaces(1:depth*2), trim(t%name)
-                write (*,'(i2,tr1,a46,tr2,i10,tr2,f12.4,tr2,f6.2,"%")') &
+                write (*,'(i2,tr1,a40,tr2,i10,tr2,f12.4,tr2,f6.2,"%")') &
                      id, str, c%ncalls, c%tsum, c%tsum/total*100.d0
              end if
              ! Add up the amount of time spent in subtimers
@@ -359,7 +361,7 @@ contains
                 tpercent = tinternal/total*100.d0
                 if (tpercent .ge. .01d0) then
                    write (str,'(a,a)') spaces(1:(depth+1)*2), '(internal)'
-                   write (*,'(a2,tr1,a46,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
+                   write (*,'(a2,tr1,a40,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
                         '', str, '-', tinternal, tpercent
                 end if
              end if
@@ -378,11 +380,11 @@ contains
 
     call calc_total_time(total)
 
-    write (*,'(a2,tr1,a46,tr2,a10,tr2,a12,tr2,a7)') &
+    write (*,'(a2,tr1,a40,tr2,a10,tr2,a12,tr2,a7)') &
          "id", "Timer name                                    ", &
          "# of calls", "time (s)", "% total"
-    write (*,'(2("*"),tr1,46("*"),tr2,10("*"),tr2,12("*"),tr2,7("*"))')
-    write (*,'(2x,tr1,a,tr41,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
+    write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
+    write (*,'(2x,tr1,a,tr35,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
             "TOTAL", "-", total, 100.d0
 
     call print_all_timers_aux(0_8,0,nsub,tsub,total,.true.)

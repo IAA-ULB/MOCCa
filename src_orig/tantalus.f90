@@ -60,15 +60,21 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  302 format ( 8x,'| VERSION3', 17x, '|') ! Date
  303 format ( 8x,'|__________________________________________________________|')
 
- call add_timer('Tantalus'       , T_tantalus)  
+ call add_timer('Tantalus'                   , T_tantalus)  
  call add_timer('HF-basis Derivatives'       , T_derivatives)  
- call add_timer('Canonical basis Derivatives'       , T_derivatives_can)  
- call add_timer('Spwf evolution'    , T_evolution)  
- call add_timer('Orthonormalization', T_ortho)  
- call add_timer('Density calculations', T_densities)  
- call add_timer('Field calculations', T_fields)  
- call add_timer('Energy calculations', T_energy)  
- call add_timer('Pairing solver ', T_pairing)  
+ call add_timer('Canonical basis Derivatives', T_derivatives_can)  
+ call add_timer('Spwf evolution'             , T_evolution)  
+ call add_timer('Orthonormalization'         , T_ortho)  
+ call add_timer('Density calculations'       , T_densities)  
+ call add_timer('Density: pp'                , T_den_pp)
+ call add_timer('Density: ph'                , T_den_ph)  
+ call add_timer('Density: derivatives'       , T_den_der)  
+ call add_timer('Field calculations'         , T_fields)  
+ call add_timer('Energy calculations'        , T_energy)  
+ call add_timer('Pairing solver '            , T_pairing)  
+ call add_timer('Sp. Hamiltonian '           , T_sphamil)  
+ call add_timer('Coulomb solver'             , T_coulomb)  
+ call add_timer('Can. basis construction'    , T_den_can)  
 
  call start_timer(T_tantalus)
 
@@ -101,13 +107,10 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !------------------------------------------------------------------------------
  ! Clean up after running, just in case we need to run again.
  call Cleanupthemess()
-
- call stop_timer(T_tantalus)
-
+ !------------------------------------------------------------------------------
  ! Print all timing info
- call print_all_timers_flat()
+ call stop_timer(T_tantalus)
  call print_all_timers()
- 
 
 end subroutine Run_Tantalus
 
@@ -124,7 +127,6 @@ subroutine Converged(C)
     !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
     !                                     < disp_prec
     !---------------------------------------------------------------------------
-
     use Moments
     use functional
     use evolution
