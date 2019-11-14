@@ -43,10 +43,11 @@ MPI_SRC    = $(SRC) multirun_example.f90
 ################################################################################
 # Compiler details
 CXX      :=  gfortran
+OPENMP   :=  -fopenmp
 
 ifeq ($(CXX),gfortran)
 #	CXXFLAGS := -J$(MODDIR) -Wall -fbacktrace -g3
-	CXXFLAGS := -O3 -J$(MODDIR) -Wall 
+	CXXFLAGS := -O3 -J$(MODDIR) -Wall $(OPENMP)
 else ifeq ($(CXX),ifort)
 	CXXFLAGS := -O3 -assume realloc-lhs -assume byterecl -no-wrap-margin -module $(MODDIR)
 endif

@@ -97,11 +97,6 @@ module derivatives
     module procedure derive_lap_1D
     module procedure derive_lap_3D
  end interface
- 
- interface derive
-    module procedure derive_1D
-    module procedure derive_3D
- end interface
 
 contains 
     
@@ -188,50 +183,6 @@ contains
     LaplaZ(:,:,1) = matmul(derZ(:,:,2),derZ(:,:,1))
     LaplaZ(:,:,2) = matmul(derZ(:,:,1),derZ(:,:,2))    
  end subroutine inilag   
- 
- subroutine Derive_3d(f, px, py, pz, fx, fy, fz, df)
-    !---------------------------------------------------------------------------
-    ! Subroutine that computes the derivative of a function on the mesh.
-    ! This routine exists, and combines Derive_grad and Derive_lap for because
-    ! many compilers optimize the combination better than both routines 
-    ! separately (likely due to cache reusing).
-    !
-    ! fx = First order derivative in the x direction
-    ! fy = First order derivative in the y direction
-    ! fz = First order derivative in the z direction
-    ! df = Laplacien of the function.
-    !
-    ! px = sign of the symmetry transformation in the x-direction
-    ! py = sign of the symmetry transformation in the y-direction
-    ! pz = sign of the symmetry transformation in the z-direction
-    !---------------------------------------------------------------------------
-    
-    real(KIND=dp), intent(in)  :: f(:,:,:)
-    real(KIND=dp), intent(out) :: fx(:,:,:), fy(:,:,:), fz(:,:,:), df(:,:,:)
-    integer, intent(in)        :: px,py,pz
-    
-    integer                    :: i,k, sx, sy,sz
-    
-    sx = (px + 3)/2 ! These are equal to 
-    sy = (py + 3)/2 !    1    if pi =   -1  or 0
-    sz = (pz + 3)/2 !    2    if pi =   +1 
-    
-    do i=1,ny*nz
-        fx(:,i,1) =                 matmul(derX  (:,:,sx),f(:,i,1))
-        df(:,i,1) =                 matmul(laplaX(:,:,sx),f(:,i,1))
-    enddo   
-    do k=1,nz
-        do i=1,nx
-            fy(i,:,k) =             matmul(derY  (:,:,sy),f(i,:,k))
-            df(i,:,k) = df(i,:,k) + matmul(laplaY(:,:,sy),f(i,:,k))
-        enddo
-    enddo
-    do i=1,nx*ny
-        fz(i,1,:) =                 matmul(derZ  (:,:,sz),f(i,1,:))
-        df(i,1,:) = df(i,1,:) +     matmul(laplaZ(:,:,sz),f(i,1,:))
-    enddo
-    
- end subroutine Derive_3d
 
 $N2DIAG subroutine Derive_tot_3D(f, px, py, pz, df, ddf)
 $N2DIAG    !---------------------------------------------------------------------------
@@ -261,29 +212,44 @@ $N2DIAG    real(KIND=dp), intent(in)  :: f(:,:,:)
 $N2DIAG    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:)
 $N2DIAG    integer, intent(in)        :: px,py,pz
 $N2DIAG    
-$N2DIAG    integer                    :: i,k, sx, sy,sz
+$N2DIAG    integer                    :: i,k, sx, sy,sz,j
+$N2DIAG    real(KIND=dp), allocatable :: A(:,:), B(:,:)
 $N2DIAG    
 $N2DIAG    sx = (px + 3)/2 ! These are equal to 
 $N2DIAG    sy = (py + 3)/2 !    1    if pi =   -1  or 0
 $N2DIAG    sz = (pz + 3)/2 !    2    if pi =   +1 
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    !  First order derivatives and diagonal second-order ones
-$N2DIAG    do i=1,ny*nz
-$N2DIAG         df(:,i,1,1) =        matmul(derX  (:,:,sx),f(:,i,1))
-$N2DIAG        ddf(:,i,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
+$N2DIAG    A = derX(:,:,sx) ; B = laplaX(:,:,sx)
+$N2DIAG    !$$OMP PARALLEL shared(df, ddf, f, A, B, sx) private(i,j) 
+$N2DIAG    !$$OMP DO
+$N2DIAG    do j=1,nz
+$N2DIAG       do i=1,ny
+$N2DIAG         df(1:nx,i,j,1) =        matmul(A,f(1:nx,i,j))
+$N2DIAG        ddf(1:nx,i,j,1) =        matmul(B,f(1:nx,i,j)) 
+$N2DIAG       enddo
 $N2DIAG    enddo   
+$N2DIAG    !$$OMP END DO
+$N2DIAG    A = derY(:,:,sy) ; B = laplaY(:,:,sy)
+$N2DIAG    !$$OMP DO
 $N2DIAG    do k=1,nz
 $N2DIAG        do i=1,nx
-$N2DIAG            df(i,:,k,2) =    matmul(derY  (:,:,sy),f(i,:,k))
-$N2DIAG           ddf(i,:,k,4) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
+$N2DIAG            df(i,:,k,2) =    matmul(A,f(i,:,k))
+$N2DIAG           ddf(i,:,k,4) =    matmul(B,f(i,:,k))                        
 $N2DIAG        enddo
 $N2DIAG    enddo
+$N2DIAG    !$$OMP END DO
+$N2DIAG    A = derZ(:,:,sz) ; B = laplaY(:,:,sz)
+$N2DIAG    !$$OMP DO
 $N2DIAG    do i=1,nx*ny
-$N2DIAG        df(i,1,:,3) =        matmul(derZ  (:,:,sz),f(i,1,:))
-$N2DIAG       ddf(i,1,:,6) =        matmul(laplaZ(:,:,sz),f(i,1,:))
+$N2DIAG        df(i,1,:,3) =        matmul(A,f(i,1,:))
+$N2DIAG       ddf(i,1,:,6) =        matmul(B,f(i,1,:))
 $N2DIAG    enddo
+$N2DIAG    !$$OMP END DO
+$N2DIAG    !$$OMP END PARALLEL
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG end subroutine Derive_tot_3D
+
 $N2DIAG subroutine Derive_tot_1d(f, px, py, pz, df, ddf)
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    ! Subroutine that computes the gradient of a function on the mesh, but on
@@ -355,7 +321,7 @@ $N2ALL
 $N2ALL    real(KIND=dp), intent(in)  :: f(:,:,:)
 $N2ALL    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:)
 $N2ALL    integer, intent(in)        :: px,py,pz
-$N2ALL    
+$N2ALL    real(KIND=dp), allocatable :: A(:,:), B(:,:)
 $N2ALL    integer                    :: i,k, sx, sy,sz
 $N2ALL    
 $N2ALL    sx = (px + 3)/2 ! These are equal to 
@@ -363,32 +329,48 @@ $N2ALL    sy = (py + 3)/2 !    1    if pi =   -1  or 0
 $N2ALL    sz = (pz + 3)/2 !    2    if pi =   +1 
 $N2ALL    !---------------------------------------------------------------------------
 $N2ALL    !  First order derivatives and diagonal second-order ones
+$N2ALL    A = derX  (:,:,sx) ; B = laplaX(:,:,sx)
+$N2ALL    !$$OMP PARALLEL shared(df, ddf, f, A, B, sx) private(i) 
+$N2ALL    !$$OMP DO
 $N2ALL    do i=1,ny*nz
-$N2ALL           df(:,i,1,1) =        matmul(derX  (:,:,sx),f(:,i,1))
-$N2ALL          ddf(:,i,1,1) =        matmul(laplaX(:,:,sx),f(:,i,1)) 
+$N2ALL           df(:,i,1,1) =    matmul(A,f(:,i,1))
+$N2ALL          ddf(:,i,1,1) =    matmul(B,f(:,i,1)) 
 $N2ALL    enddo   
+$N2ALL    !$$OMP END DO
+$N2ALL    A = derY  (:,:,sy) ; B = laplaY(:,:,sy)
+$N2ALL    !$$OMP DO
 $N2ALL    do k=1,nz
 $N2ALL        do i=1,nx
-$N2ALL           df(i,:,k,2) =    matmul(derY  (:,:,sy),f(i,:,k))
-$N2ALL          ddf(i,:,k,4) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
+$N2ALL           df(i,:,k,2) =    matmul(A,f(i,:,k))
+$N2ALL          ddf(i,:,k,4) =    matmul(B,f(i,:,k))                        
 $N2ALL        enddo
 $N2ALL    enddo
+$N2ALL    !$$OMP END DO
+$N2ALL    A = derZ  (:,:,sz) ; B = laplaZ(:,:,sz)
+$N2ALL    !$$OMP DO
 $N2ALL    do i=1,nx*ny
-$N2ALL           df(i,1,:,3) =        matmul(derZ  (:,:,sz),f(i,1,:))
-$N2ALL          ddf(i,1,:,6) =        matmul(laplaZ(:,:,sz),f(i,1,:))
+$N2ALL           df(i,1,:,3) =    matmul(A,f(i,1,:))
+$N2ALL          ddf(i,1,:,6) =    matmul(B,f(i,1,:))
 $N2ALL    enddo
+$N2ALL    !$$OMP END DO
 $N2ALL    !---------------------------------------------------------------------------
 $N2ALL    ! Off-diagonal second order derivatives
+$N2ALL    A = derY  (:,:,sy) 
+$N2ALL    !$$OMP DO
 $N2ALL    do k=1,nz
 $N2ALL      do i=1,nx
-$N2ALL          ddf(i,:,k,2) =      matmul(derY  (:,:,sy),df(i,:,k,1))
+$N2ALL          ddf(i,:,k,2) =      matmul(A,df(i,:,k,1))
 $N2ALL      enddo
 $N2ALL    enddo
-$N2ALL    
+$N2ALL    !$$OMP END DO
+$N2ALL    A = derZ  (:,:,sz)
+$N2ALL    !$$OMP DO
 $N2ALL    do i=1,nx*ny
-$N2ALL          ddf(i,1,:,3) =      matmul(derZ  (:,:,sz),df(i,1,:,1))
-$N2ALL          ddf(i,1,:,5) =      matmul(derZ  (:,:,sz),df(i,1,:,2))
+$N2ALL          ddf(i,1,:,3) =      matmul(A,df(i,1,:,1))
+$N2ALL          ddf(i,1,:,5) =      matmul(A,df(i,1,:,2))
 $N2ALL    enddo
+$N2ALL    !$$OMP END DO
+$N2ALL    !$$OMP END PARALLEL
 $N2ALL
 $N2ALL end subroutine Derive_tot_3D
 
@@ -404,7 +386,7 @@ $N3ALL    ! df(:,1)    = First order derivative in the x direction
 $N3ALL    ! df(:,1)    = First order derivative in the y direction
 $N3ALL    ! df(:,1)    = First order derivative in the z direction
 $N3ALL    ! ddf(:,i,j) = Second order derivative in the (i,j) direction. 
-$N3ALL    ! ddf(:,i,j,k) =  third order derivative (i,j,k)
+$N3ALL    ! dddf(:,i,j,k) =  third order derivative (i,j,k)
 $N3ALL    !
 $N3ALL    ! px = sign of the symmetry transformation in the x-direction
 $N3ALL    ! py = sign of the symmetry transformation in the y-direction
@@ -565,20 +547,25 @@ $DERSYMZ        fz(i,j,:) = fz(i,j,:) + matmul(derZ  (:,:,sz),f($SYMPARTNERZ))
     integer, intent(in)        :: px
     integer                    :: j,k, sx
     
-    real(KIND=dp), pointer:: f3(:,:,:), fx3(:,:,:)
-    
+    real(KIND=dp), pointer     :: f3(:,:,:), fx3(:,:,:)
+    real(KIND=dp), allocatable :: A(:,:)
+
     sx = (px + 3)/2 
         
     f3(1:nx,1:ny,1:nz)  => f
     fx3(1:nx,1:ny,1:nz) => fx
-    
+
+    A = derX  (:,:,sx)
+    !$$OMP PARALLEL
+    !$$OMP DO
     do k=1,nz
         do j=1,ny
-        fx3(:,j,k) =             matmul(derX  (:,:,sx),f3(:,j,k))
-$DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(derX  (:,:,sx),f3($SYMPARTNERX))
+        fx3(:,j,k) =             matmul(A,f3(:,j,k))
+$DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(A,f3($SYMPARTNERX))
         enddo
     enddo   
-    
+    !$$OMP END DO
+    !$$OMP END PARALLEL
  end subroutine Derive_X
  
   subroutine Derive_Y(f, py, fy)
@@ -594,19 +581,25 @@ $DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(derX  (:,:,sx),f3($SYMPARTNERX))
     integer, intent(in)                :: py
     integer                            :: i,k, sy
     
-    real(KIND=dp), pointer :: f3(:,:,:), fy3(:,:,:)
+    real(KIND=dp), pointer     :: f3(:,:,:), fy3(:,:,:)
+    real(KIND=dp), allocatable :: A(:,:)
     
     sy = (py + 3)/2 !    1    if pi =   -1  or 0
     
     f3(1:nx,1:ny,1:nz)  => f
     fy3(1:nx,1:ny,1:nz) => fy
-    
+
+    A = derY  (:,:,sy)
+    !$$OMP PARALLEL
+    !$$OMP DO    
     do k=1,nz
         do i=1,nx
-            fy3(i,:,k) =             matmul(derY  (:,:,sy),f3(i,:,k))
-$DERSYMY       fy3(i,:,k) = fy3(i,:,k) + matmul(derX  (:,:,sy),f3($SYMPARTNERY))
+            fy3(i,:,k) =             matmul(A,f3(i,:,k))
+$DERSYMY       fy3(i,:,k) = fy3(i,:,k) + matmul(A,f3($SYMPARTNERY))
         enddo
     enddo
+    !$$OMP END DO
+    !$$OMP END PARALLEL
     
  end subroutine Derive_Y
  
@@ -622,19 +615,25 @@ $DERSYMY       fy3(i,:,k) = fy3(i,:,k) + matmul(derX  (:,:,sy),f3($SYMPARTNERY))
     integer, intent(in)        :: pz
     
     real(KIND=dp), pointer     :: f3(:,:,:), fz3(:,:,:)
+    real(KIND=dp), allocatable :: A(:,:)
     integer                    :: i,j,sz
     
     sz = (pz + 3)/2 !    2    if pi =   +1 
     
     f3(1:nx,1:ny,1:nz)  => f
     fz3(1:nx,1:ny,1:nz) => fz
-    
+
+    A = derZ  (:,:,sz)
+    !$$OMP PARALLEL shared(A, fz3, f3) private(i,j)
+    !$$OMP DO        
     do j=1,ny
         do i=1,nx
-        fz3(i,j,:) =             matmul(derZ  (:,:,sz),f3(i,j,:))
-$DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(derZ  (:,:,sz),f3($SYMPARTNERZ))
+        fz3(i,j,:) =             matmul(A,f3(i,j,:))
+$DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(A,f3($SYMPARTNERZ))
         enddo
     enddo
+    !$$OMP END DO
+    !$$OMP END PARALLEL
     
  end subroutine Derive_Z
  
@@ -735,38 +734,7 @@ $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(derZ  (:,:,sz),f3($SYMPARTNERZ))
     call Derive_grad_3d(f3, px,py,pz,fx3, fy3, fz3)
     
  end subroutine Derive_grad_1d
- 
- subroutine Derive_1d(f, px, py, pz, fx, fy, fz, df)
-    !---------------------------------------------------------------------------
-    ! Subroutine that computes the first and second order derivative on the mesh
-    !
-    ! We use a dirty trick here, by simply reshaping with pointers, which should
-    ! avoid copying matrices and not impact the speed. (Let's see in practice.)
-    !
-    ! fx = First order derivative in the x direction
-    ! fy = First order derivative in the y direction
-    ! fz = First order derivative in the z direction
 
-    ! px = sign of the symmetry transformation in the x-direction
-    ! py = sign of the symmetry transformation in the y-direction
-    ! pz = sign of the symmetry transformation in the z-direction
-    !---------------------------------------------------------------------------
-    
-    real(KIND=dp), intent(in), target  :: f(:)
-    real(KIND=dp), intent(out), target :: df(:), fx(:), fy(:), fz(:)
-    integer, intent(in)        :: px,py,pz
-    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:)
-    real(KIND=dp), pointer     :: fx3(:,:,:), fy3(:,:,:), fz3(:,:,:)
-    
-    f3(1:nx,1:ny,1:nz)   => f
-    df3(1:nx,1:ny,1:nz)  => df
-    fx3(1:nx,1:ny,1:nz)  => fx
-    fy3(1:nx,1:ny,1:nz)  => fy
-    fz3(1:nx,1:ny,1:nz)  => fz
-    call Derive_3d(f3, px,py,pz,fx3,fy3,fz3,df3)
-    
- end subroutine Derive_1d
- 
  subroutine clean_derivatives()
   if(allocated(derX)) then
     deallocate(derX, derY, derZ)

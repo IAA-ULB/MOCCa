@@ -24,7 +24,8 @@ module Coulombmod
  use densities
  use moments 
  use parameterization
- 
+ use timing 
+
  implicit none
 
  public
@@ -96,6 +97,8 @@ contains
     real(KIND=dp), allocatable :: source(:,:,:)
     integer                    :: i,j,k,ii
     
+    call start_timer(T_coulomb)
+
     if(.not.allocated(CoulCoefs)) then
        select case(coulorder)
          case(1)
@@ -181,6 +184,9 @@ contains
          FoldedExchange=FoldCoulombPotential(ExchangePotential(1:nx,1:ny,1:nz))
       endif
     endif
+
+    call stop_timer(T_coulomb)
+
  end subroutine SolveCoulomb 
 
  subroutine ConstructChargeDensity(rho_charge)

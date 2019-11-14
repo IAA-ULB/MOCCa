@@ -266,9 +266,9 @@ $PRINTCOEF_PAIR
       CoulombExchange = CoulombEnergy_Exchange(ChargeDensity) 
     endif
 
-    call calcrigid()  
-    call calcJ2andBelyaev()
-    call calcRotationalCorrection()
+!    call calcrigid()  
+!    call calcJ2andBelyaev()
+!    call calcRotationalCorrection()
 
     ! Saving history
     do i=4,1,-1
@@ -662,6 +662,7 @@ $CALCFIELDS
     
     integer :: it, i,k
     
+    call start_timer(T_sphamil)
     !---------------------------------------------------------------------------
     ! Determine the isospin index
     it = (iso + 3)/2
@@ -714,7 +715,9 @@ $N3        &                                     dddpsi(:,:,k))
     !          hbar^2_2m
     !---------------------------------------------------------------------------
 $SKYRMEACTION
-    
+
+    call stop_timer(T_sphamil)
+
   end function sphamil
   
   function delta_action(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly)      &

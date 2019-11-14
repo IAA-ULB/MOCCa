@@ -129,11 +129,14 @@ $ZEROING
       ! a) Canonical basis, where rho_pairing is diagonal
       ! b) Cut-canonical basis, where kappa_pairing with cutoffs is diagonal
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      call start_timer(T_den_can)
       call Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,           &
       &               cantransfo,cancuttransfo)
      
       ! Apply this transformation
       call ConstructCanonicalBasis(cantransfo)
+      call stop_timer(T_den_can)
+
       call derivecan()
     endif
 
@@ -151,7 +154,8 @@ $ZEROING
       DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
     end select
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    
+
+    call start_timer(T_den_ph)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! PARTICLE-HOLE DENSITIES
     do wave=1,nwt
@@ -166,10 +170,12 @@ $ZEROING
 $EXPRESSION
         enddo
     enddo
-   
+    call stop_timer(T_den_ph)
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the basis where kappa (with cutoffs) is canonical 
 
+    call start_timer(T_den_pp)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! PAIRING DENSITIES
     select case (PairingType) 
@@ -222,6 +228,7 @@ $HFBEXPRESSION
         si = si + N
       enddo
     end select
+    call stop_timer(T_den_pp)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! The asked for mixing+preconditioning scheme.
     call MassageDensity()
@@ -230,9 +237,11 @@ $HFBEXPRESSION
     ! Calculation of the 'derived' densities, densities obtainable by 
     ! deriving other ones. 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    call start_timer(T_den_der)
     do it=1,2
 $DERIVATION  
     enddo  
+    call stop_timer(T_den_der)
 
     call stop_timer(T_densities)
 

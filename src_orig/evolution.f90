@@ -246,6 +246,7 @@ contains
 !        if(Precondition .ne. 'NONE') then
 !          print *, 'Preconditioning not supported with heavy-ball.'
 !        endif  
+
         if(EstimateParams) call IterativeEstimation(iteration)
 
         gradientnorm = 0.0_dp
