@@ -266,9 +266,9 @@ $PRINTCOEF_PAIR
       CoulombExchange = CoulombEnergy_Exchange(ChargeDensity) 
     endif
 
-!    call calcrigid()  
-!    call calcJ2andBelyaev()
-!    call calcRotationalCorrection()
+    call calcrigid()  
+    call calcJ2andBelyaev()
+    call calcRotationalCorrection()
 
     ! Saving history
     do i=4,1,-1
