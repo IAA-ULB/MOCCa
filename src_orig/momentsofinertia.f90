@@ -301,6 +301,8 @@ contains
     si = 0  
     do b = 1, Blocks
       N = HFBlocks(b)
+      !$OMP PARALLEL
+      !$OMP DO      
       do i=1, N
         ii = si + i
         it = 1
@@ -316,7 +318,8 @@ contains
           jz(ii,jj)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))  
         enddo
       enddo
-
+      !$OMP END DO
+      !$OMP END PARALLEL      
       jx_can(si+1:si+N, si+1:si+N) = &
       &  matmul(transpose(cantransfo(si+1:si+N, si+1:si+N)), &
       &                              jx(si+1:si+N, si+1:si+N))

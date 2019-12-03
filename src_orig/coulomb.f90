@@ -133,7 +133,10 @@ contains
         call setupcoulomb
     endif
     
-    if(coultreatment.eq.0) return        
+    if(coultreatment.eq.0) then
+       call stop_timer(T_coulomb)
+       return
+    endif        
     !---------------------------------------------------------------------------
     ! Set up the source term: 
     ! For standard parameterizations it is the simply the proton density with
@@ -186,7 +189,7 @@ contains
     endif
 
     call stop_timer(T_coulomb)
-
+  
  end subroutine SolveCoulomb 
 
  subroutine ConstructChargeDensity(rho_charge)

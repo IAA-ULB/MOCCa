@@ -232,7 +232,7 @@ $PRINTCOEF_PAIR
     print 1
  end subroutine PrintEnergy
  
- subroutine CalcEnergy
+ subroutine CalcEnergy(iprint)
     !---------------------------------------------------------------------------
     ! Calculate all of the relevant energies.
     !---------------------------------------------------------------------------
@@ -240,6 +240,7 @@ $PRINTCOEF_PAIR
     use Coulombmod
 
     integer :: i
+    integer, intent(in) :: iprint
 
     call start_timer(T_energy)
     
@@ -266,9 +267,15 @@ $PRINTCOEF_PAIR
       CoulombExchange = CoulombEnergy_Exchange(ChargeDensity) 
     endif
 
-    call calcrigid()  
-    call calcJ2andBelyaev()
-    call calcRotationalCorrection()
+    call calcrigid()
+    if(iprint.eq. 1 .or. rotcorr .eq. 1) then
+      ! Only calculate these things if we are going to print observables
+      ! or we need a rotational correction.
+      call start_timer(T_MOI)  
+      call calcJ2andBelyaev()
+      call stop_timer(T_MOI)  
+      call calcRotationalCorrection()
+    endif
 
     ! Saving history
     do i=4,1,-1

@@ -75,6 +75,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call add_timer('Sp. Hamiltonian '           , T_sphamil)  
  call add_timer('Coulomb solver'             , T_coulomb)  
  call add_timer('Can. basis construction'    , T_den_can)  
+ call add_timer('Moments of inertia '        , T_MOI)  
 
  call start_timer(T_tantalus)
 
@@ -222,7 +223,7 @@ subroutine ReachForWaterAndFood()
     6 format('| dH < ', e10.3, 15x, ' | ')        
     7 format('| Ending the iterative proces.   |')
 
-    integer :: iter
+    integer :: iter, iprint
     logical :: ConvergenceAchieved
     ! Logical to see if any moments with projection are necessary
     logical :: projectpresent = .false.
@@ -254,7 +255,7 @@ subroutine ReachForWaterAndFood()
     
     call CalcGaps(FermiEnergy)
     call setBelyaevProcedure()
-    call CalcEnergy()
+    call CalcEnergy(1)
 
     ! Initial printout
     call printSpwfs
@@ -328,14 +329,20 @@ subroutine ReachForWaterAndFood()
         ! Update all of the fields
         call calcFields(calcall=.true.)
         ! Recalculate the energy
-        call CalcEnergy()
+        if(mod(iter,PrintIter).eq.0 .or. ConvergenceAchieved) then
+          iprint = 1
+        else
+          iprint = 0
+        endif
+        
+        call CalcEnergy(iprint)
 
         ! Check for convergence
         call Converged(ConvergenceAchieved)
         
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
-        if(mod(iter,PrintIter).eq.0 .or. ConvergenceAchieved) then
+        if(iprint .eq.1) then
             call PrintSpwfs
             call PrintQps
             call printallmoments

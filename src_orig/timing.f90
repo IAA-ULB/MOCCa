@@ -14,7 +14,7 @@ module timing
   ! Timer IDs. These are set to values by add_timer().
   integer :: T_derivatives, T_derivatives_can, T_evolution, T_ortho, T_tantalus
   integer :: T_densities, T_fields, T_energy, T_pairing, T_den_ph, T_den_pp
-  integer :: T_den_der, T_sphamil, T_coulomb, T_den_can
+  integer :: T_den_der, T_sphamil, T_coulomb, T_den_can, T_MOI
   !-----------------------------------------------------------------------------
   ! There are two ways to record the time:
   !  1. cpu_time measures CPU time (excludes time spent in other programs)
@@ -388,6 +388,8 @@ contains
             "TOTAL", "-", total, 100.d0
 
     call print_all_timers_aux(0_8,0,nsub,tsub,total,.true.)
+    write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
+
   end subroutine print_all_timers
 
   subroutine allocate_more_contexts(t)
