@@ -255,7 +255,7 @@ subroutine ReachForWaterAndFood()
     ! Only calculate the fields that have not been initialized from file.
     call calcFields(calcall=.false.)
     
-    call CalcGaps(FermiEnergy)
+    call CalcGaps(FermiEnergy, PairStabFactor)
     call setBelyaevProcedure()
     call CalcEnergy(1)
 
@@ -276,7 +276,7 @@ subroutine ReachForWaterAndFood()
         ! a) fields 
         ! b) density matrix and anomalous density matrix 
         ! c) Fermi-energy
-        call CalcGaps(FermiEnergy)
+        call CalcGaps(FermiEnergy, PairStabFactor)
         
         ! One heavy-ball step.
         ! Note that the (diagonal) matrix elements of <h> get calculated here

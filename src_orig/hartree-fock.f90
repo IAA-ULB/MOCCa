@@ -362,12 +362,12 @@ contains
     s= 2*s
   end function gasoccupations
 
-  subroutine CalcHFgaps(Fermi)
+  subroutine CalcHFgaps(Fermi, stabfactor)
     !---------------------------------------------------------------------------
     ! Dummy routine.
     !
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: Fermi(2)  
+    real(KIND=dp), intent(in) :: Fermi(2), stabfactor(2)
 
   end subroutine calcHFgaps
 

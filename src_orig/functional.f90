@@ -66,6 +66,10 @@ module functional
     !---------------------------------------------------------------------------
     ! Type of preconditioning to apply
     integer       :: potentialpreconditioning = 1
+    !---------------------------------------------------------------------------
+    ! Stabilisation factor for the pairing:
+    !    f = E_cut^2 / E_pair^2
+    real(KIND=dp) :: pairstabfactor(2) = 0.0
     !===========================================================================
     ! AUTOMATICALLY GENERATED DECLARATIONS
     !===========================================================================

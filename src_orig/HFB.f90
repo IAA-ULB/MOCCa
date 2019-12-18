@@ -420,7 +420,6 @@ $TR    HFBdispersion = 2 * HFBdispersion
         endif
 
         NB = sum(toblock)
-
         if(allocated(blocked_qp)) then
           deallocate(blocked_qp)
         endif
@@ -956,7 +955,7 @@ $TR   particles = 2 * particles
     
   end function ConstructHFBHamil 
 
-  subroutine calcHFBgaps(Fermi)
+  subroutine calcHFBgaps(Fermi, stabfactor)
     !---------------------------------------------------------------------------
     ! Calculates the HFB gaps for use in the HFB solver.
     !
@@ -991,9 +990,9 @@ $TR   particles = 2 * particles
     ! When time-reversal is not conserved, it is indeed the full matrix that 
     ! is stored. This full matrix is antisymmetric, not symmetric!
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: Fermi(2)
+    real(KIND=dp), intent(in) :: Fermi(2), stabfactor(2)
     integer                   :: wave1, wave2, iso, si,  B, N, inda, indb
-    real(KIND=dp)             :: deltapsi(mv,4), val(2)
+    real(KIND=dp)             :: deltapsi(mv,4), val(2), stabfac
     
     val = Fermi ! To avoid the unused dummy argument warning from the compiler
 
@@ -1031,10 +1030,15 @@ $TR        inda = si + wave1
           ! The second index is always in the first block. 
           indb = si + wave2 
 
+          ! Add the stabilisation factor
+          ! (1 if the pairing functional is not)  stabilized.
+          stabfac = 1 + stabfactor((iso+3)/2)
+
           ! Mystery factor 0.5 in here
           HFBgaps(indb,inda) = 0.5*sum(hfpsi(:,:,indb)*deltapsi)*dv *          &
-          &                                Pcutoffs(inda)*Pcutoffs(indb)
+          &                          Pcutoffs(inda)*Pcutoffs(indb)*stabfac
 
+ 
           ! The full matrix Delta is antisymmetric...
 $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
           ! ... but the stored matrix is symmetric when time-reversal is 

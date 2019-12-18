@@ -157,13 +157,13 @@ contains
 
  end subroutine solvepairing_BCS
  
- subroutine CalcBCSGaps(fermi)
+ subroutine CalcBCSGaps(fermi, stabfactor)
     !---------------------------------------------------------------------------
     ! Calculate the BCS pairing gaps.
     !---------------------------------------------------------------------------
     integer                      :: wave, iso
     real(KIND=dp)                :: deltapsi(mv,4)
-    real(KIND=dp), intent(in)    :: fermi(2)
+    real(KIND=dp), intent(in)    :: fermi(2), stabfactor(2)
     
     if(ConstantGap) then  
       ! Constantgap pairing

@@ -48,7 +48,7 @@ module pairing
  ! Transformation from the HFBasis into the canonical basis
  real(KIND=dp), allocatable :: CanTransfo(:,:)
  ! Transformation from the HFBasis into the basis where Kappa (with cutoffs)
- ! is canonical.
+ ! is canonical. (NOT CALCULATED AT THE MOMENT)
  real(KIND=dp), allocatable :: CanCutTransfo(:,:)
  !------------------------------------------------------------------------------
  ! Fermi energy for neutrons and protons.
@@ -61,7 +61,9 @@ module pairing
  integer :: CutType = 1
  !------------------------------------------------------------------------------
  ! Type of pairing to employ.
- ! (0), (1), (2)
+ ! (0): Hartree-Fock
+ ! (1): Hartree-Fock + BCS
+ ! (2): Hartree-Fock-Bogoliubov
  integer :: PairingType = 0
  !------------------------------------------------------------------------------
  ! Decide which Fermisolver to use. 
@@ -119,7 +121,6 @@ module pairing
  ! (2) f_k u_k v_k weighted
  !  The second index is for isospin.
  real(KIND=dp) :: average_gap(2,2)
-
  !------------------------------------------------------------------------------
  ! Integer tracking the way the contribution from a free gas is counted for the 
  ! readjustment of the Fermi energy.
