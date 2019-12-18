@@ -223,6 +223,8 @@ subroutine ReachForWaterAndFood()
     6 format('| dH < ', e10.3, 15x, ' | ')        
     7 format('| Ending the iterative proces.   |')
 
+    8 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
+
     integer :: iter, iprint
     logical :: ConvergenceAchieved
     ! Logical to see if any moments with projection are necessary
@@ -353,6 +355,15 @@ subroutine ReachForWaterAndFood()
             call printsummary(iter)
         endif
         !-----------------------------------------------------------------------
+        ! Write a wavefunction file according to checkpointiter
+        if(checkpointiter.ne.0) then
+          if(mod(iter,checkpointiter) .eq. 0) then
+            print 8, iter, outputfilename
+            iomsg='CHECKPOINT'
+            call WriteTantalus(12, outputfilename, iter-1, iomsg)     
+          endif          
+        endif
+        !-----------------------------------------------------------------------
         if(ConvergenceAchieved) then
             print 1
             print 2
@@ -400,7 +411,7 @@ subroutine printsummary(iter)
     1 format (80('-'))
     2 format (' Iteration = ',i4)
     3 format (' dt  = ', f8.4, 4x, '  mu  = ', f8.4, '  D2H = ', e8.1)
-    4 format (' E   = ', f10.3,2x, '  DE  = ', e8.1)
+    4 format (' E   = ', f10.3,2x, '  DE  = ', e12.5)
     5 format (' Q20 = ', f12.4,    '  Q22 = ', f12.4, &
     &         ' dQ20= ', e8.1, 4x, '  dQ22= ', e8.1)
     6 format (' dmun= ', e8.1, 4x, '  dmup= ', e8.1)

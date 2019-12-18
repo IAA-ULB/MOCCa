@@ -26,9 +26,10 @@ implicit none
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100) :: inputfilename, outputfilename
-
   ! Signal the code to write extra output.
   character(len=40) :: BXLFIT = '', COMBI='', denfile=''
+  ! Signal the code to write the wavefunctions periodically
+  integer :: checkpointiter = 0  
 
 contains
 
@@ -55,7 +56,8 @@ contains
 
     logical :: exists
 
-    NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile
+    NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,        & 
+    &             checkpointiter
     
     if(present(file_number)) then
       inquire(file=input_file, exist=exists)
@@ -119,6 +121,7 @@ contains
   111 format ( '  Combi ouput    =', a20)
  1111 format ( '  Input data     =', a20, / &
                '     on unit ', i10)
+  112 format ( '  Checkpointiter =', i10)
    12 format ( ' Convergence required', / &
     &          '  Energy convergence           < ', e8.1, / & 
     &          '  Multipole moment convergence < ', e8.1, / &
