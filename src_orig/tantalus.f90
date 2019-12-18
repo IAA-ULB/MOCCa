@@ -255,9 +255,11 @@ subroutine ReachForWaterAndFood()
     ! Only calculate the fields that have not been initialized from file.
     call calcFields(calcall=.false.)
     
+    PairStabfactor = CompStabilisingFactor(PairDenEnergy)
     call CalcGaps(FermiEnergy, PairStabFactor)
     call setBelyaevProcedure()
     call CalcEnergy(1)
+
 
     ! Initial printout
     call printSpwfs
@@ -265,7 +267,7 @@ subroutine ReachForWaterAndFood()
     call printallmoments
     call PrintMomentsofInertia
 
-    call printpairing
+    call printpairing(pairstabfactor)
     call PrintEnergy 
 
     !---------------------------------------------------------------------------
@@ -276,6 +278,7 @@ subroutine ReachForWaterAndFood()
         ! a) fields 
         ! b) density matrix and anomalous density matrix 
         ! c) Fermi-energy
+        PairStabfactor = CompStabilisingFactor(PairDenEnergy)
         call CalcGaps(FermiEnergy, PairStabFactor)
         
         ! One heavy-ball step.
@@ -330,8 +333,9 @@ subroutine ReachForWaterAndFood()
         
         ! Update all of the fields
         call calcFields(calcall=.true.)
+
         ! Recalculate the energy
-        if(mod(iter,PrintIter).eq.0 .or. ConvergenceAchieved) then
+        if(mod(iter,PrintIter).eq.0) then
           iprint = 1
         else
           iprint = 0
@@ -341,7 +345,7 @@ subroutine ReachForWaterAndFood()
 
         ! Check for convergence
         call Converged(ConvergenceAchieved)
-        
+        if(convergenceAchieved) iprint = 1
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
         if(iprint .eq.1) then
@@ -349,7 +353,7 @@ subroutine ReachForWaterAndFood()
             call PrintQps
             call printallmoments
             call PrintMomentsofInertia
-            call printpairing
+            call printpairing(PairStabfactor)
             call PrintEnergy           
         else
             call printsummary(iter)

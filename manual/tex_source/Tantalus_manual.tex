@@ -60,13 +60,20 @@
 \affiliation{PNTPM, CP229, Universit\'e Libre de Bruxelles, 
                                                       B-1050 Bruxelles, Belgium}
     
-\date{18th of August 2018}
+\date{24th of June 2019}
 
-\title{Tantalus or MOCCa v2.0, a short guide to the input parameters}
+\title{Tantalus or MOCCa v2.0}
+
+
+\begin{abstract}
+A slowly evolving manual to Tantalus, or as Paul-Henri liked to call it `A cup of MOCCa'.
+\end{abstract}
 
 \maketitle
 
 \setlength{\parindent}{0pt}
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Introduction; running the code}
@@ -93,20 +100,20 @@ For examples that can easily be run, please look in the tantalus\_examples
 folder in this repository for a set of tutorial scripts.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{The runtime input}
-\label{sec:STDIN}
+\section{Compilation and different run-modes}
 
-Tantalus reads input from STDIN, using the FORTRAN namelist machinery. The 
-available namelists are indicated in Fig.~\ref{fig:namelists}; the ordering 
-of the namelist is important. The most important keywords for every namelist
-are explained on the next page. 
+The code can be compiled by simply typing \texttt{make} (or \texttt{make all}) 
+in the code's directory which will compile both an ordinary (`single-run') and 
+an `mpi' (`multi-run')
+version of the code, and place both exes in the \texttt{exec/} folder. If you 
+only want one or the other, you can type \texttt{make single} or 
+\texttt{make mpi}.
 
-One of these namelists is special, the MomentConstraint namelist: it is 
-repeatable. Every occurence of this namelist indicates to Tantalus that a 
-constraint on a specific multipole moment $\langle \hat{Q}_{\ell m} \rangle$ 
- should be included in the 
-calculation. A calculation with a constraint on X multipole moments, should thus
- include X separate MomentConstraint namelists in the input data.
+The structure of the code allows for an easy extension for use in `meta'-codes, 
+i.e. it can be called as a subroutine. The default mode is compiled with
+\texttt{run\_single.f90} as main program, while the mpi mode is currently
+compiled with \texttt{multirun\_example.f90}. Future implementations need simply
+to write an analogous top-level file and add an option to the Makefile.
 
 \begin{figure}[b]
 \begin{minipage}{.7\textwidth}
@@ -128,7 +135,21 @@ calculation. A calculation with a constraint on X multipole moments, should thus
 \label{fig:namelists}
 \end{figure}
 
-\clearpage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{The runtime input}
+\label{sec:STDIN}
+
+Tantalus reads input from STDIN, using the FORTRAN namelist machinery. The 
+available namelists are indicated in Fig.~\ref{fig:namelists}; the ordering 
+of the namelist is important. The most important keywords for every namelist
+are explained on the next page. One of these namelists is special, the MomentConstraint namelist: it is 
+repeatable. Every occurence of this namelist indicates to Tantalus that a 
+constraint on a specific multipole moment $\langle \hat{Q}_{\ell m} \rangle$ 
+ should be included in the 
+calculation. A calculation with a constraint on X multipole moments, should thus
+ include X separate MomentConstraint namelists in the input data.
+
+
 
 \begin{Verbatim}
 --------------------------------------------------------------------------------
@@ -194,11 +215,8 @@ preconfactor   = Factor beta in the preconditioning of the potential F_I_I.
 /
 --------------------------------------------------------------------------------
 &wfs
-nwn            = number of neutron wavefunctions. 
-                 Needs to match the input file, if present.
-nwp            = number of proton wavefunctions. 
-                 Needs to match the input file, if present.
-/
+nwn            = number of neutron wavefunctions. Needs to match the input file, if present.
+nwp            = number of proton wavefunctions. Needs to match the input file, if present./
 --------------------------------------------------------------------------------
 &IO
 Inputfilename  = name of the .wf file Tantalus will read.
@@ -219,7 +237,8 @@ BXLFIT         = string. Extra output will be written to the following file
                 total deformation, and G is the triaxiality angle gamma. 
                 (Q and G are defined in Eq. 68 and 69 in 
                    W. Ryssens, CPC 187, 175-194 (2015))
-/
+checkpointiter= Write a checkpoint (wavefunction file) to disk every time this
+                many iterations have passed./
 --------------------------------------------------------------------------------
 &MomentParam
 MoreConstraints = Logical. If .true., signals that the namelist &MomentConstraint/ will follow.
@@ -278,6 +297,10 @@ alpha    =    1.0            ! Alpha parameter in the ULB pairing interaction.
 sigma_p  =    1.0            ! Power of the density dependence in the pairing 
                              ! interaction. Alpha in EQ. (2) in 
                              !   S. Goriely et al, PRC88, 061302 (2013).
+Estabp   =    0.0            ! Cutoff factors for the stabilized pairing 
+Estabn   =    0.0            ! functional of J. Erler et al., EPJA 37 (2008).
+                             ! Set to zero to disable.
+                             ! Typical value when active = 0.3 MeV 
 hbm(1)   = 20.73551910, 20.73551910  ! Value of hbar^2/2m
 COM1Body = 2                 ! Treatment of the one-body COM correction.
                              !   (0) => None.
@@ -321,7 +344,7 @@ rotcorrc    = 0              ! rotational correction, based on Eq. (14)
          functional file.}
 \end{figure}
 
-\clearpage
+%\clearpage
 
 \section{Output for the Brussels fitting codes}
 
@@ -357,6 +380,7 @@ iter         = Number of SCF iterations performed by the code before exiting.
 iomsg        = Output message by the code. Currently can be 
                CONVERGED : the code exited because it judged convergence to be reached.
                MAXITER   : the code exited becauseit reached its maximum of iterations.
+               CHECKPOINT: this wavefunction file was written as a checkpoint
                More exit codes will undoubtedly be added.
 \end{Verbatim}
 

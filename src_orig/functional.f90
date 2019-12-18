@@ -52,7 +52,14 @@ module functional
     ! Definition of global contributions to the energy
     real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy, Ehistory(5)
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
-    real(KIND=dp) :: PairingEnergy(2), PairDenEnergy(2), RotCorrection(3)
+    ! Two definitions of the pairingenergy: one obtained by summing the gaps
+    ! and one by integrating the particle-particle part of the functional
+    real(KIND=dp) :: PairingEnergy(2), PairDenEnergy(2)
+    ! Same thing, but with the added stabilization
+    real(KIND=dp) :: PairE_stab(2), PairDenE_stab(2)
+    !---------------------------------------------------------------------------
+    ! Rotational correction
+    real(KIND=dp) :: RotCorrection(3)
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
@@ -184,8 +191,14 @@ $PRINTCOEF_PAIR
    71 format (15x, '   Dir. (point):', 3f15.6)
     8 format (15x, '       Exchange:', 3f15.6)
    81 format (15x, '   Exc. (point):', 3f15.6)  
+
     9 format (15x, 'Pairing (delta):', 3f15.6)
    91 format (15x, 'Pairing (densi):', 30x, f15.6)
+   92 format ( 7x, 'Pair. (delta, no stab.):', 3f15.6)
+   93 format ( 7x, 'Pair. (densi, no stab.):', 30x, f15.6)
+   94 format ( 7x, 'Pair. (delta,    stab.):', 3f15.6)
+   95 format ( 7x, 'Pair. (densi,    stab.):', 30x, f15.6)
+
    99 format (15x, '   Total energy:', 30x, f15.6)
   100 format (15x, '     from spwfs:', 30x, f15.6)
   101 format (15x, '    Free Energy:', 30x, f15.6)
@@ -221,8 +234,15 @@ $PRINTCOEF_PAIR
       print 81, 0.0, temp, temp
     endif
     print *
-    print 9 , PairingEnergy, sum(PairingEnergy)
-    print 91, sum(PairDenEnergy)
+    if( abs(Estabp).lt.1d-10 .and. abs(Estabn).lt.1d-10) then
+      print 9 , PairingEnergy, sum(PairingEnergy)
+      print 91, sum(PairDenEnergy)
+    else
+      print 92, PairingEnergy, sum(PairingEnergy)
+      print 93, sum(PairDenEnergy)
+      print 94, PairE_stab, sum(PairE_stab)
+      print 95, sum(PairdenE_stab)
+    endif    
     print 1
     print  99, TotalE
     print 100, spwfenergy
@@ -258,6 +278,41 @@ $PRINTCOEF_PAIR
     ! Pairing energy: can be used to check the validity of the calculation. 
     ! It is summed by integrating Delta instead of the pairing densities. 
     PairingEnergy = CalcPairingEnergy()
+    
+    ! If the stabilisation for the pairing is active, calculate the  
+    ! stabilisationfactor and rescale the pairing energies
+    if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
+      ! We use the pairing energy obtained  by integrating the pairing 
+      ! densities
+      pairstabfactor = CompStabilisingFactor(PairDenEnergy)
+
+      ! The energy as deduced from the densities
+      PairDenE_stab = PairDenEnergy * ( 1 - pairstabfactor)
+  
+      ! The energy as deduced from the pairing gaps is no longer right, when
+      ! stabilisation is active.
+      !-------------------------------------------------------------------------
+      ! Assuming a pairing functional that is linear in (kappa kappa*),
+      ! the non-stabilised gaps and pair energy are related by
+      !   Delta  = d E_pair / d kappa*
+      !    E_pair = sum kappa* Delta 
+      ! The stabilised quantities are
+      !   Delta^s  = [ 1 + StabilisingGapFactor ] Delta 
+      !   E_pair^s = [ 1 - StabilisingGapFactor ] E_pair
+      !            = [ 1 - StabilisingGapFactor ] sum kappa* Delta 
+      ! where StabilisingGapFactor = PairingStabCut^2 / E_pair^2 is a global
+      ! state-independent factor. Therefore
+      !              [ 1 - StabilisingGapFactor ]
+      !   E_pair^s = ---------------------------- sum kappa* Delta^s
+      !              [ 1 + StabilisingGapFactor ]
+      !-------------------------------------------------------------------------
+      PairE_stab    = PairingEnergy  * (1 - pairstabfactor)/(1 + pairstabfactor)
+
+      ! We correct the 'Skyrme' energy here, as the pairing energy was already
+      ! summed in there. Hence, we subtract it and add the stabilised one. 
+      Skyrme = Skyrme - PairDenEnergy + PairdenE_stab
+    endif
+
 
     if( all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0) ) then
       ! Direct contribution of the Coulomb potential
@@ -808,8 +863,8 @@ $EREAR
     !Subtract contribution by constraints
     SpwfEnergy = SpwfEnergy - sum(Constraint_I_I * D_I_I)*dv/2.0_dp
     
-    ! Add the pairing energy
-    SpwfEnergy = SpwfEnergy + sum(PairingEnergy)
+    ! Add the pairing energy (with the stabilisation)
+    SpwfEnergy = SpwfEnergy + sum(PairdenE_stab)
 
     ! Add the rotational correction
     Spwfenergy = Spwfenergy + sum(Rotcorrection)
@@ -893,5 +948,49 @@ $READPOTENTIALS
     enddo
 
   end subroutine ReadPotentials
+
+  function CompStabilisingFactor(PairE) result(stab)
+    !---------------------------------------------------------------------------
+    ! Calculate StabilisingGapFactor =  E_cut^2/E_pair^2 when needed, i.e.
+    ! when PairingStabCut != 0. Otherwise set StabilisingGapFactor to zero.
+    ! Taken (with minor modifications from MOCCav1, routine by M. Bender)
+    !---------------------------------------------------------------------------
+    integer                   :: it
+    real(KIND=dp)             :: stab(2), cut(2)
+    ! PE is the user's choice of pairing energy
+    real(KIND=dp), intent(in) :: PairE(2)
+
+    cut(1) = Estabn 
+    cut(2) = Estabp
+    stab   = 0.0      
+
+    do it=1,2
+      !-------------------------------------------------------------------------
+      ! No stabilisation for this isospin. Set factor to zero.
+      !-------------------------------------------------------------------------
+      if ( abs(cut(it)) .lt. 1.d-10 ) cycle
+
+      !-------------------------------------------------------------------------
+      ! If pairing energy is non-zero, so just calculate the factor.
+      ! If pairing energy is zero (meaning this is either the initial call or 
+      ! a failure), fall back on predefined value (0.1 MeV).
+      !-------------------------------------------------------------------------
+      if ( abs(PairE(it)) .gt. 1.d-8 ) then
+        stab(it) = cut(it)**2/(PairE(it)**2)
+      else
+        if ( stab(it) .eq. 0.0_dp ) then
+          stab(it) = 0.1_dp
+        endif 
+        print '(" StabilisingFactor initialised to ",f12.6,  &
+            &   " for it = ",i1)', stab(it),it
+      endif
+      if ( stab(it) .gt. 10.0 ) then
+        print '(" WARNING: StabilisingFactor: for it = ",i1, & 
+        & " StabilisingGapFactor = ",1d16.8," for an energy of ",1d16.8)', &
+        & it,stab(it),PairE(it)
+      endif
+    enddo
+
+  end function CompStabilisingFactor
 
 end module functional

@@ -25,7 +25,8 @@ module pairing
  use HFB
  use pairingcutoffs
  use timing
-  
+ use parameterization  
+
  implicit none
  
  !------------------------------------------------------------------------------
@@ -239,6 +240,8 @@ contains
     6 format('   Cutoff parameters  = ', a20)
     7 format('     dE (n,p) = ', 2f4.1, ' MeV ')
     8 format('     mu (n,p) = ', 2f4.1, ' MeV ')
+   81 format('   Stabilisation active')
+   82 format('    Estab(p,n)= ', 2f4.1, ' MeV')
 
    13 format('   Gas-treatment:  Normal'            )    
    14 format('   Gas-treatment:  Subtraction method')    
@@ -292,6 +295,11 @@ contains
         print 100, mun, mup
     endif
   
+    if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
+      print 81
+      print 82, Estabp, Estabn
+    endif
+
     if(particles_in_gas .eq.1) then
       print 14
     elseif(particles_in_gas .eq.2) then
@@ -455,12 +463,14 @@ contains
 
   end subroutine SolvePairing
 
-  subroutine printpairing
+  subroutine printpairing(stabfactor)
     !---------------------------------------------------------------------------
     !
     !
     !
     !---------------------------------------------------------------------------
+
+    real*8, intent(in) :: stabfactor(2)
 
     1 format (26('-'), ' Pairing ', 25('-'))
     2 format (25x, ' N ',7x, ' P ')
@@ -477,6 +487,7 @@ contains
     8 format ('  gas-like         ', 2x, f13.8, 2x, f13.8)
     9 format ('  nucleus          ', 2x, f13.8, 2x, f13.8)
 
+   10 format (' Stab. factor      ', 2x, f13.8, 2x, f13.8)
     select case(PairingType)
     case (0)
         if(inversetemp .eq. -1) return
@@ -504,8 +515,13 @@ contains
             print 6, average_gap
         case(2)
             print 5, HFBdispersion
-            call PrintHFBConvergence(rho_pairing, kappa_pairing)
         end select
+        if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
+          print 10, stabfactor
+        endif
+
+        if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
+
     end select
 
 !    if(inversetemp.ne.-1) then

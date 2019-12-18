@@ -189,7 +189,7 @@ contains
  
             ! Mystery factor 0.5 in  here
             BCSgaps(wave) = 0.5*sum(hfpsi(:,:,wave)*deltapsi)*dv*              &
-            &                                                  Pcutoffs(wave)**2
+            &               Pcutoffs(wave)**2 * (1 + stabfactor((iso+3)/2))
        enddo
     endif
   end subroutine CalcBCSGaps
