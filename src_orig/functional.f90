@@ -864,8 +864,11 @@ $EREAR
     SpwfEnergy = SpwfEnergy - sum(Constraint_I_I * D_I_I)*dv/2.0_dp
     
     ! Add the pairing energy (with the stabilisation)
-    SpwfEnergy = SpwfEnergy + sum(PairdenE_stab)
-
+    if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
+      SpwfEnergy = SpwfEnergy + sum(PairdenE_stab)
+    else 
+      SpwfEnergy = SpwfEnergy + sum(PairdenEnergy)
+    endif
     ! Add the rotational correction
     Spwfenergy = Spwfenergy + sum(Rotcorrection)
     

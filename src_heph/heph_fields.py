@@ -265,14 +265,14 @@ def GenerateFields():
              for d2 in [den] + fieldterm[0]:
                 #(der, lap, left, right, cpl, crs) = ParseOperators(d2)
                 NumberOfIndices= NumberOfIndices + OrderOfDen(d2) 
-                      
+
              # The couplings however do not need individual indices 
-             NumberOfIndices = NumberOfIndices - len(fieldterm[4]) 
+             if(NumberOfIndices != 0):
+               NumberOfIndices = NumberOfIndices - len(fieldterm[4]) 
+
              # But the external derivatives do            
              NumberOfIndices = NumberOfIndices + fieldterm[1]
-             
-             #print den, fieldterm[0], NumberOfIndices
-             
+
              #------------------------------------------------------------------
              # arguments for all the indices
              args = list(itertools.product(range(3), repeat=NumberOfIndices))
@@ -613,7 +613,13 @@ def GenerateAction(field, symmetrize):
                     dic['IND']     = k + 1
                     
                     dic['RIND'] = ''
-                    if( len(true_rarg)>0):
+                    for l in range(RightOperator.derorder):
+                    #-----------------------------------------------------------
+                    # W.R.: I removed the following line, replacing it with the
+                    #       if-condition above. It failed when there were no
+                    #       derivatives on the right, but there was a sigma.
+                    #if( len(true_rarg)>0):
+                    #-----------------------------------------------------------
                         dic['RIND'] =  dic['RIND']  + ',' + str(rarg_stor +1 )                        
                        
                     dic['RCOMP']   = int(abs(rightind[k,0])) 
@@ -695,7 +701,6 @@ def GenerateAction(field, symmetrize):
         #-----------------------------------------------------------------------
         # Add final result to hpsi
         dic['TEMP'] = lasttemp
-        
         for k in range(4):
             dic['LIND']    = ''
             for l in true_larg[0:LeftOperator.derorder]:
