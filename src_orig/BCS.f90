@@ -187,8 +187,7 @@ contains
             &                          hfdddpsi(:,:,:,wave),                   &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
  
-            ! Mystery factor 0.5 in  here
-            BCSgaps(wave) = 0.5*sum(hfpsi(:,:,wave)*deltapsi)*dv*              &
+            BCSgaps(wave) =     sum(hfpsi(:,:,wave)*deltapsi)*dv*              &
             &               Pcutoffs(wave)**2 * (1 + stabfactor((iso+3)/2))
        enddo
     endif

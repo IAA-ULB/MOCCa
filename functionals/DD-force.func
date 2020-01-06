@@ -1,0 +1,48 @@
+#-------------------------------------------------------------------------------
+# Density dependent force on the NLO level, with optional Jmn terms. 
+# (Time-reversal invariant)
+# 
+# This is essentially the form of the SkP functional from
+#  J. Dobaczewski, H. Flocard & J. Treiner
+#  Nuclear Physics A422, 103-139 (A422).
+#
+#
+! Particle-hole parameters
+! which also determine the particle-particle part
+t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3;  wso ;  sigma 
+!TERMS
+#-------------------------------------------------------------------------------
+# Particle-hole part, ordinary NLO SKYRME
+!-------------------------------------------------------------------------------
+! NLO terms     
+E_D_I_I_D_I_I            ; Cc(t0,x0,+1,0,0)                                     ;          Cc(t0,x0,+1,0,1)
+E_D_I_I_D_Nm_Nm          ;+1.0/2.0*Cc(t1,x1,+1,0,0) + 1.0/2.0*Cc(t2,x2,-1,0,0)  ; +1.0/2.0*Cc(t1,x1,+1,0,1) + 1.0/2.0*Cc(t2,x2,-1,0,1)
+E_D_I_I_Lap_D_I_I        ;-3.0/8.0*Cc(t1,x1,+1,0,0) + 1.0/8.0*Cc(t2,x2,-1,0,0)  ; -3.0/8.0*Cc(t1,x1,+1,0,1) + 1.0/8.0*Cc(t2,x2,-1,0,1) 
+E_D_I_I_D_I_I_DD         ;+1.0/6.0*Cc(t3,x3,+1,0,0)                             ; +1.0/6.0*Cc(t3,x3,+1,0,1)                              ;  (sum(D_I_I,2)**(sigma)) ;  D_I_I ; sigma*((sum(D_I_I,2)+eps)**(sigma-1)) ; sigma ;
+!-------------------------------------------------------------------------------
+! Time-even spin-orbit
+E_D_I_I_Derm_C_I_NxmSxm  ;  -wso*3.0/4.0      ; - wso/4.0
+!-------------------------------------------------------------------------------
+! SLy5-like JmnJmn term
+E_C_I_NmSk_C_I_NmSk      ;  -(1.0_dp/8.0_dp) * (t1*x1 + t2*x2) + (1.0_dp/16.0_dp) * (t1 - t2)  ; (1.0_dp/16.0_dp) * (t1 - t2)
+#-------------------------------------------------------------------------------
+# Particle-particle part
+!-------------------------------------------------------------------------------
+! rho^\tilde \rho^\tilde 
+E_DP_I_I_DP_I_I          ;  1.0/4.0*t0*(1-x0)                                   ; 1.0/4.0*t0*(1-x0) 
+E_CP_I_I_CP_I_I          ;  1.0/4.0*t0*(1-x0)                                   ; 1.0/4.0*t0*(1-x0) 
+! rho^\tilde \tau^\tilde   
+!E_DP_I_I_DP_Nm_Nm        ;  1.0/4.0*t1*(1-x1)                                   ; 1.0/4.0*t1*(1-x1)    
+! \nabla rho^\tilde \nabla \rho^\tilde 
+!E_Derm_DP_I_I_Derm_DP_I_I; -1.0/4.0*1.0/4.0*t1*(1-x1)                           ; -1.0/4.0*1.0/4.0*t1*(1-x1)    
+! Jmn^\tilde Jmn^\tilde
+!E_DP_Nm_Sk_DP_Nm_Sk      ;  1.0/4.0*t2*(1+x2)                                   ; 1.0/4.0*t2*(1+x2)     
+! Jmm^\tilde J_nn^\tilde
+!E_DP_Nm_Sm_DP_Nk_Sk      ;  1.0/2.0 * wso                                       ; 1.0/2.0 * wso          
+! Jmn^\tilde J_nm^\tilde
+!E_DP_Nm_Sk_DP_Nk_Sm      ; -1.0/2.0 * wso                                       ;-1.0/2.0 * wso          
+! \rho^\alpha \rho^\tilde \rho^\tilde
+!E_DP_I_I_DP_I_I_DD       ;  1.0/24.0 * t3*(1-x3)                               ; 1.0/24.0* t3*(1-x3)   ;    (sum(D_I_I,2)**(sigma)) ; D_I_I ; sigma*((sum(D_I_I,2)+eps)**(sigma-1)) ; sigma ;
+
+
+

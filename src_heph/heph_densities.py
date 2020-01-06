@@ -661,6 +661,10 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
             
             for i in range(4):
                 SIGN          = np.sign(leftind[i])*np.sign(rightind[i])
+                # We add a minus sign for the pairing densities
+                if('P' in denin):
+                  SIGN = - SIGN
+
                 for l in true_arg:
                     if( l  == 0):
                        SIGN = SIGN

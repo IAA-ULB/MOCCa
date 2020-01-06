@@ -191,8 +191,27 @@ $EXPRESSION
           ! Isospin is neutron in the first half of blocks, proton in the rest
           it = 2
           if(wave.le.nwn) it = 1
-          weight  = kappa_can(wave) * Pcutoffs(wave)**2
-            
+          weight  = 2 * kappa_can(wave) * Pcutoffs(wave)**2
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! Note about the factor two in the weight:
+          ! 
+          ! \tilde{\rho}(r) = \sum_{ij} \kappa_{ij} \phi_j(r) \phi_i(r)
+          ! 
+          ! Now kappa_ij is only non-zero if both spwfs have opposite signature, 
+          ! meaning that the summation can be split into two parts.
+          !
+          ! \tilde{\rho}(r) = \sum_{i>0,j<0} \kappa_{ij} \chi_{ji}(r)
+          !                 + \sum_{i<0,j>0} \kappa_{ij} \chi_{ji}(r)
+          !
+          ! with chi_ji(r) the spatial contribution of spwfs i and j to whatever
+          ! the pairing density is. These two parts are identical because of
+          ! the skew symmetry of chi and kappa.
+          !
+          ! Historically in MOCCa and this code, this factor two was absorbed 
+          ! in the definition of the pairing strengths, but no longer.
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+
           do i=1,mv
 $BCSEXPRESSION
           enddo
@@ -214,12 +233,42 @@ $BCSEXPRESSION
         if( B.le. 4) it = 1
         do wave=1,N
           do wave2=wave,N      
-            weight  =     kappa_pairing(si+wave,si+wave2)*                     &
+            weight  =  2 *kappa_pairing(si+wave,si+wave2)*                     &
             &                               Pcutoffs(si+wave)*Pcutoffs(si+wave2)
-            ! The contribution per pair of wavefunctions (ibar, j) is 
-            ! is symmetric with (i, jbar). Hence we add a factor of two for
-            ! everything, EXCEPT the diagonal component.
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+            ! Note about the factor two in the weight:
+            ! 
+            ! \tilde{\rho}(r) = \sum_{ij} \kappa_{ij} \phi_j(r) \phi_i(r)
+            !  
+            ! Now kappa_ij is only non-zero if both spwfs have opposite signature, 
+            ! meaning that the summation can be split into two parts.
+            !
+            ! \tilde{\rho}(r) = \sum_{i>0,j<0} \kappa_{ij} \chi_{ji}(r)
+            !                 + \sum_{i<0,j>0} \kappa_{ij} \chi_{ji}(r)
+            !
+            ! with chi_ji(r) the spatial contribution of spwfs i and j to whatever
+            ! the pairing density is. These two parts are identical because of
+            ! the skew symmetry of chi and kappa.
+            !
+            ! Historically in MOCCa and this code, this factor two was absorbed 
+            ! in the definition of the pairing strengths, but no longer.
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+            ! In the HFB case, there is an EXTRA degeneracy that we exploit.
+            ! When signature is conserved we know that 
+            !
+            !         ( 0          kappa^{+-})
+            ! kappa = (                      )
+            !         ( kappa^{-+}  0        )
+            !
+            ! and using this structure is exactly the factor two used above.
+            !
+            ! If there is time-reversal symmetry, we know in addition that 
+            ! kappa^{+-} itself is symmetric, hence the factor two below this 
+            ! comment. Note that it doesn't get applied for the diagonal
+            ! component.
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -         
             if(wave.ne.wave2) weight = 2 * weight
+
             do i=1,mv
 $HFBEXPRESSION
             enddo

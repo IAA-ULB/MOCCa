@@ -710,6 +710,9 @@ def GenerateAction(field, symmetrize):
             SIGN           = np.sign(leftind[k,0])
             if((symmetrize == -1) and ('C' in left or 'C' in right)):
                 SIGN = - SIGN
+
+            if('P' in field):
+              SIGN = -SIGN
             if(SIGN > 0) :
                 dic['SIGN']= '+'
             else :

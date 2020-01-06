@@ -32,20 +32,22 @@ E_C_Nm_NoSk_C_Nm_NoSk     ; -2.0/4.0 *Cc(t1n2,x1n2,+1,1,0) - 2.0/4.0 *Cc(t2n2,x2
 E_C_I_NmSo_C_Nk_NkNmSo    ; -1.0     *Cc(t1n2,x1n2,+1,1,0) - 1.0     *Cc(t2n2,x2n2,-1,1,0) ; -1.0     *Cc(t1n2,x1n2,+1,1,1) - 1.0     *Cc(t2n2,x2n2,-1,1,1)                         
 !-------------------------------------------------------------------------------
 ! N2LO tensor
-!
-! Term 1
+! All terms seem to be present, now just to put the correct coupling constants.
+! Term 1,  
 E_C_I_NmSm_C_No_NkNkSo        ; 1.0 ; 2.0
 E_C_I_NmSk_C_Nm_NoNoSk        ; 1.0 ; 2.0
 E_C_I_NoSm_C_NmNk_NoSk        ; 1.0 ; 2.0
 E_Derk_Derm_C_I_NkNm_C_I_NoNo ; 1.0 ; 2.0
 E_Derk_C_I_NmNk_Dero_C_I_NmNk ; 1.0 ; 2.0
 !
-! Term 2
+! Term 2,  second combination on pg 49 of the current version of Michaels notes
 E_Lap_C_I_NkNm_C_I_NmNk       ; 1.0 ; 2.0
 E_Lap_C_I_NmNm_C_I_NkNk       ; 1.0 ; 2.0
 E_Derm_C_I_NkSm_Dero_C_I_NkSo ; 1.0 ; 2.0
 !
 ! Term 3
 E_C_I_NmSk_C_NoNo_NmSk        ; 1.0 ; 2.0
+! Jmn Lap Jmn
 E_C_I_NmSk_Lap_C_I_NmSk       ; 1.0 ; 2.0
-E_Derm_C_I_NmSk_Dero_C_I_NoSk ; 1.0 ; 2.0
+! Der_k Jkn Der_m J_mn
+E_Derm_C_I_NmSk_Dero_C_I_NoSk ; 1.0 ; 2.0              

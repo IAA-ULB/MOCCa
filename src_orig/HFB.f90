@@ -1034,8 +1034,7 @@ $TR        inda = si + wave1
           ! (1 if the pairing functional is not)  stabilized.
           stabfac = 1 + stabfactor((iso+3)/2)
 
-          ! Mystery factor 0.5 in here
-          HFBgaps(indb,inda) = 0.5*sum(hfpsi(:,:,indb)*deltapsi)*dv *          &
+          HFBgaps(indb,inda) =     sum(hfpsi(:,:,indb)*deltapsi)*dv *          &
           &                          Pcutoffs(inda)*Pcutoffs(indb)*stabfac
 
  
