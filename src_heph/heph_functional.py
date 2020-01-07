@@ -604,6 +604,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     print_cpl_pair_template = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE(:,1)")
     
     rear_template       = Template(tab +" e_rear = e_rear $REARCOEF*sum($TERM(:,2))\n")
+    rear_p_template     = Template(tab +" e_rear = e_rear $REARCOEF*sum($TERM(:,1))\n")
     
     #---------------------------------------------------------------------------
     # See how many indices are present everywhere.
@@ -768,7 +769,11 @@ def GenTermExpression( term, ccoef, DD, DDrear):
         else:
             rearcoef = rearcoef + ')'
         dic['REARCOEF'] = rearcoef
-        erear = rear_template.substitute(dic)
+
+        if('P' not in term):
+          erear = rear_template.substitute(dic)
+        else:
+          erear = rear_p_template.substitute(dic)
         
     return (declaration, calculation, printing, calccoef, printcoef_iso, 
                        printcoef_pn, printcoef_pair, sumtotal, pairtotal, erear)    

@@ -104,7 +104,8 @@ def GenerateFields():
     field_calc_c_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(2,2)  $EXPR2 & \n') 
     field_calc_d_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(2,2)  $EXPR3 & \n') 
 
-    field_pair_temp    = Template( 3*tab + '& $SIGN $DD $CPLCTE(it,1) $EXPR2 \n') 
+    field_pair_a_temp    = Template( 3*tab + '& $SIGN $DD $CPLCTE(it,1)   $EXPR2  & \n') 
+    field_pair_b_temp    = Template( 3*tab + '& $SIGN $DD $CPLCTE(3-it,1) $EXPR3  & \n') 
 
     doloop_template    = 2*tab + 'do %s = 1, 3 \n'
     enddoloop_template = 2*tab + 'enddo \n'
@@ -232,7 +233,9 @@ def GenerateFields():
             #-------------------------------------------------------------------
             # Now check if there are density dependences in this term that 
             # involve this density
-            dd = heph_functional.field_DD_terms[term]
+            dd    = heph_functional.field_DD_terms[term]
+            ind   = heph_functional.Functional_terms.index(term)
+            cplct = cplcts[ind]
             if(dd[0] == den):
                 fieldlist.append([densities, altder, altlap, cplct, cpl, dd[1],1])
 
@@ -343,7 +346,7 @@ def GenerateFields():
                         dic['EXPR3'] = dic['EXPR3'] + field_calc_den_c.substitute(dic)
                         lastorder = lastorder + OrderOfDen(dic['DENSITY'])
 
-                 if('P' not in den):
+                 if('P' not in dic['DENSITY']):
                     # Ordinary mean-field densities; coupling constants are
                     # the isoscalar and isovector ones
                     FIELDCALC = FIELDCALC + field_calc_b_temp.substitute(dic)
@@ -353,7 +356,10 @@ def GenerateFields():
                     FIELDCALC = FIELDCALC[:-4] + '\n \n'
                  else:
                     # Pairing densities, coupling constants are pn ones.  
-                    FIELDCALC = FIELDCALC + field_pair_temp.substitute(dic)
+                    FIELDCALC = FIELDCALC + field_pair_a_temp.substitute(dic)       
+                    if(fieldterm[6] == 1):
+                      FIELDCALC = FIELDCALC + field_pair_b_temp.substitute(dic)
+                    FIELDCALC = FIELDCALC[:-4] + '\n \n'
                                 
 
         FIELDCALC    = FIELDCALC + isoloop_end
