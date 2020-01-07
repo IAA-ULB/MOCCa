@@ -576,9 +576,10 @@ def GenTermExpression( term, ccoef, DD, DDrear):
   
     calc_pair_a_temp= Template(   tab + 'Edensity(:,1) = Edensity(:,1) + $EDENN\n' + \
                                   tab + 'Edensity(:,2) = Edensity(:,2) + $EDENP\n'  )
-    calc_pair_b_temp= Template(   tab   + 'do it=1,2 \n' + \
-                                  2*tab + '$TERM(:,it) = $CPCTE(1,it) * sum(Edensity(:,it)) \n'  + \
-                                  tab   + 'enddo \n')
+    # This one is superfluous
+#    calc_pair_b_temp= template(   tab   + 'do it=1,2 \n' + \
+#                                  2*tab + '$term(:,it) = $cpcte(1,it) * sum(edensity(:,it)) \n'  + \
+#                                  tab   + 'enddo \n')
     calc_pair_c_temp = Template(  tab + '$TERM(1,1) = $CPCTE(1,1) * sum( Edensity(:,1)) * dv \n')
     calc_pair_d_temp = Template(  tab + '$TERM(2,1) = $CPCTE(2,1) * sum( Edensity(:,2)) * dv \n')
 
@@ -709,7 +710,8 @@ def GenTermExpression( term, ccoef, DD, DDrear):
         else:
           # Pairing mean-field densities in the term.
           calculation = calculation + calc_pair_a_temp.substitute(dic)
-          calculation = calculation + calc_pair_b_temp.substitute(dic)
+          # Completely superfluous
+          #calculation = calculation + calc_pair_b_temp.substitute(dic)
             
     calculation = calculation + '\n'
     if(DD != ''):
