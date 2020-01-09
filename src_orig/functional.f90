@@ -200,6 +200,7 @@ $PRINTCOEF_PAIR
    95 format ( 7x, 'Pair. (densi,    stab.):', 30x, f15.6)
 
    99 format (15x, '   Total energy:', 30x, f15.6)
+  991 format (15x, '    (no corr.) :', 30x, f15.6)
   100 format (15x, '     from spwfs:', 30x, f15.6)
   101 format (15x, '    Free Energy:', 30x, f15.6)
   102 format (15x, '        Entropy:', 3f15.6)
@@ -245,6 +246,9 @@ $PRINTCOEF_PAIR
     endif    
     print 1
     print  99, TotalE
+    if(rotcorr.ne.0) then
+        print 991, totalE - sum(rotcorrection)
+    endif
     print 100, spwfenergy
     
     if(inversetemp .ne. -1) then
@@ -983,9 +987,9 @@ $READPOTENTIALS
       else
         if ( stab(it) .eq. 0.0_dp ) then
           stab(it) = 0.1_dp
+           print '(" StabilisingFactor initialised to ",f12.6,  &
+            &   " for it = ",i1, es15.5)', stab(it),it, PairE(it)
         endif 
-        print '(" StabilisingFactor initialised to ",f12.6,  &
-            &   " for it = ",i1)', stab(it),it
       endif
       if ( stab(it) .gt. 10.0 ) then
         print '(" WARNING: StabilisingFactor: for it = ",i1, & 
