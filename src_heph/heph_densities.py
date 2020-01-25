@@ -267,23 +267,31 @@ def ProcessDensities(fname, src, target):
     Zeroing        = ''
     Cleaning       = ''
 
-    print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
+    print '---------------------------------------------------'
     print ' Generated densities                               '
-    print ' P-H part                                          '
-    print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
+    print '---------------------------------------------------'
     print '      Name     DIM with / out    Derivative combs. '
-    print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
+    print '---------------------------------------------------'
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
         print '%15s %6d %6d     '%(den,OrderOfDen(den),         \
                                           OrderOfDen(den,contract=False)),  \
                                           deriv_needed[i]
 
+    print '---------------------------------------------------'
+    print ' SYMMETRIES '
+    print '           DEN   LARG  RARG     SX  SY  SZ   P   T'
+    print '---------------------------------------------------'
+    for i in range(len(Densities_needed)):
+        den = Densities_needed[i]
+
         # Summation with leftwf = rightwf
         (e,dec,ini,der,zeroi,cleani)  = \
        GenDensityExpression(Densities_needed[i],deriv_needed[i], 'wave', 'wave')
+        print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
+
         Declaration    = Declaration    + '\n' + dec
-        
+    
         if('P' in den): 
           # The BCS expression is diagonal in 'wave'
           BCSExpression = BCSExpression + '\n' + e
@@ -301,7 +309,8 @@ def ProcessDensities(fname, src, target):
         Derivation     = Derivation     + '\n' + der
         Zeroing        = Zeroing        + '\n' + zeroi
         Cleaning       = Cleaning       + '\n' + cleani
-    
+    print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
+
     # Substitute into the densities.f90 file.        
     dic={}
     dic['DECLARATION'   ] = Declaration
@@ -625,6 +634,7 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
         dic['IND'] = IND
         
         Expression = Expression +  Den_template_1.substitute(dic)
+
         #-----------------------------------------------------------------------
         # Now loop over the uncontracted indices
         for true_arg in uncontracted: 
@@ -635,7 +645,38 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
             # accept tuples as arguments, for whatever reasons.
             larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
             rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
-           
+
+            #-------------------------------------------------------------------
+            # print some output on the densities
+            (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg)      
+            direction = ['x', 'y', 'z']
+            pl = ''
+            for i in larg:
+              pl+=direction[i]
+            pr = ''
+            for i in rarg:
+              pr+=direction[i]
+
+            mu = larg
+            if(len(larg) == 0):     
+              mu = (0)
+            nu = rarg
+            if(len(rarg) == 0):     
+              nu = (0)
+            T   = LeftOperator.time[mu] * RightOperator.time[nu]
+            par = LeftOperator.parity[mu] * RightOperator.parity[nu]
+
+            try:    
+                if(len(T)>0):
+                  T   = T[0]
+                  par = par[0]
+            except:        
+                pass
+
+            print '%15s %4s %4s      %3s %3s %3s %+3d %+3d' \
+                  %(denin, pl, pr, px,py,pz, par, T)
+            #-------------------------------------------------------------------
+
             # Get the index of the reduced storage scheme for all of the 
             # derivative indices
             larg_stor= Storage_Mapping(larg[:LeftOperator.derorder])
@@ -1057,7 +1098,6 @@ def AxisReflection(LeftOperator, RightOperator, larg, rarg, nabla_arg = []):
             py = - py
         elif(nablaind == 2):
             pz = - pz
-    
     if(px > 0):
         px = '+1'
     else:
