@@ -278,17 +278,17 @@ def ProcessDensities(fname, src, target):
                                           OrderOfDen(den,contract=False)),  \
                                           deriv_needed[i]
 
-    print '---------------------------------------------------'
+    print '--------------------------------------------------------------------'
     print ' SYMMETRIES '
-    print '           DEN   LARG  RARG     SX  SY  SZ   P   T'
-    print '---------------------------------------------------'
+    print '           DEN   LARG  RARG      P  RX  SX  RY  SY  RZ  SZ   T'
+    print '--------------------------------------------------------------------'
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
 
         # Summation with leftwf = rightwf
         (e,dec,ini,der,zeroi,cleani)  = \
        GenDensityExpression(Densities_needed[i],deriv_needed[i], 'wave', 'wave')
-        print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
+        print ' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
         Declaration    = Declaration    + '\n' + dec
     
@@ -309,7 +309,7 @@ def ProcessDensities(fname, src, target):
         Derivation     = Derivation     + '\n' + der
         Zeroing        = Zeroing        + '\n' + zeroi
         Cleaning       = Cleaning       + '\n' + cleani
-    print ' - - - - - - - - - - - - - - - - - - - - - - - - - '
+    print ' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - '
 
     # Substitute into the densities.f90 file.        
     dic={}
@@ -648,7 +648,8 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
 
             #-------------------------------------------------------------------
             # print some output on the densities
-            (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg)      
+            (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg)   
+
             direction = ['x', 'y', 'z']
             pl = ''
             for i in larg:
@@ -673,8 +674,10 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
             except:        
                 pass
 
-            print '%15s %4s %4s      %3s %3s %3s %+3d %+3d' \
-                  %(denin, pl, pr, px,py,pz, par, T)
+             
+ 
+            print '%15s %4s %4s      %+3d %+3d %+3d %+3d %+3d %+3d %+3d %+3s' \
+                  %(denin, pl, pr, par, par*int(px), int(px), par*int(py), int(py), par*int(pz), int(pz), T)
             #-------------------------------------------------------------------
 
             # Get the index of the reduced storage scheme for all of the 
