@@ -252,6 +252,26 @@ contains
     
     !---------------------------------------------------------------------------
     ! f) Calculate the dispersion, while we are at it. 
+
+    ! We calculate the dispersion of the particle number
+    ! 
+    !  <N^2> = sum_{ab} <a^{\dagger}_{a} a_{a} a^{\dagger}_{b} a_{b} > 
+    !        = sum_{ab} rho_{aa} rho_{bb} 
+    !                +  rho_{ab} ( 1 - rho^*_{ab})
+    !                +  kappa_{ab}^* kappa_{ab}
+    !
+    ! So <N^2> - <N>^2 = Tr(rho ( 1 -rho)) +  Tr(kappa * kappa^{\dagger})
+    ! 
+    !-------------------------------------------------------------------------
+    ! Note, that at T = 0, we have that (kappa * kappa^{\dagger}) = rho(1-rho).
+    ! So in that case, we have 
+    !  < Delta N^2 > = < N^2 > - <N>^2 = 2 * Tr(rho(1-rho))
+    ! which is the old formula from EV8, CR8, etc...
+    !
+    ! We implement however the formula above, since this is the one that 
+    ! correctly generalizes to T != 0.
+    !-------------------------------------------------------------------------
+
     si            = 0
     HFBdispersion = 0.0
     allocate(chi(nwt, nwt))
@@ -268,13 +288,13 @@ contains
       !                                       Tr rho - Tr rho^2
       do i=1,N
           HFBdispersion(it) = HFBdispersion(it) + rho_pairing(si+i, si+i)      &
-          &                                     - chi(si+i, si+i) 
+          &                                     - chi(si+i, si+i)              &
+          &                                     + kappa_pairing(si+i, si+i)**2
       enddo
       si = si + N
     enddo
     deallocate(chi)
-    ! Factor 2 from the formula
-    HFBdispersion = 2 * HFBdispersion 
+
     ! Time-reversal introduces a factor of two
 $TR    HFBdispersion = 2 * HFBdispersion 
 

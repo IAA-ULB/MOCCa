@@ -153,7 +153,7 @@ contains
   Qpenergies = BCSqps
 
   ! Side effects, calculate the dispersion 
-  call calcBCSdispersion(rho_can)
+  call calcBCSdispersion(rho_can, kappa_can)
 
  end subroutine solvepairing_BCS
  
@@ -343,26 +343,46 @@ contains
 
    end subroutine calcBCSOccupations
 
-   subroutine calcBCSdispersion(rho_can)
+   subroutine calcBCSdispersion(rho_can, kappa_can)
       !-------------------------------------------------------------------------
       ! Calculate the dispersion 
       !  Tr rho - rho^2
       !-------------------------------------------------------------------------
-      real(KIND=dp), intent(in):: rho_can(:)
+      ! We calculate the dispersion of the particle number
+      ! 
+      !  <N^2> = sum_{ab} <a^{\dagger}_{a} a_{a} a^{\dagger}_{b} a_{b} > 
+      !        = sum_{ab} rho_{aa} rho_{bb} 
+      !                +  rho_{ab} ( 1 - rho^*_{ab})
+      !                +  kappa_{ab}^* kappa_{ab}
+      !
+      ! So <N^2> - <N>^2 = Tr(rho ( 1 -rho)) +  Tr(kappa * kappa^{\dagger})
+      ! 
+      !-------------------------------------------------------------------------
+      ! Note, that at T = 0, we have that (kappa * kappa^{\dagger}) = rho(1-rho).
+      ! So in that case, we have 
+      !  < Delta N^2 > = < N^2 > - <N>^2 = 2 * Tr(rho(1-rho))
+      ! which is the old formula from EV8, CR8, etc...
+      !
+      ! We implement however the formula above, since this is the one that 
+      ! correctly generalizes to T != 0.
+      !-------------------------------------------------------------------------
+      real(KIND=dp), intent(in):: rho_can(:), kappa_can(:)
       integer :: wave
 
       ! BCS dispersion
       BCSdispersion = 0.0    
       do wave=1,nwn
-        BCSdispersion(1) = BCSdispersion(1) +                                  &
-        &                                0.5*rho_can(wave)*(1-0.5*rho_can(wave))
+        BCSdispersion(1) = BCSdispersion(1)                                    &
+        &                             + 0.5*rho_can(wave)*(1-0.5*rho_can(wave))&
+        &                             + kappa_can(wave)**2
       enddo
 
       do wave=nwp+1,nwt
-        BCSdispersion(2) = BCSdispersion(2) +                                  &
-        &                                0.5*rho_can(wave)*(1-0.5*rho_can(wave))
+        BCSdispersion(2) = BCSdispersion(2)                                    &
+        &                             + 0.5*rho_can(wave)*(1-0.5*rho_can(wave))&
+        &                             + kappa_can(wave)**2
       enddo
-      BCSdispersion  = 4 * BCSdispersion
+      BCSdispersion  = 2 * BCSdispersion
 
    end subroutine calcBCSdispersion
 
