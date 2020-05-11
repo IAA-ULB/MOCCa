@@ -533,10 +533,9 @@ def GenerateAction(field, symmetrize):
             
         if(symmetrize == 1 or symmetrize== -1):
             dic['LMULT'] = dic['LMULT'] + ' 0.5d0 * '
-         
+        
         leftind  = LeftOperator(true_larg, start)
         rargs    = list(itertools.product(range(3), repeat=rdim-len(cross)))
-
         dic['RMULT'] = ''
         
         master_rarg = []
@@ -591,10 +590,10 @@ def GenerateAction(field, symmetrize):
             #-------------------------------------------------------------------
             # Loop over right-arguments
             expression = expression + position_loop
-                
             for true_rarg in rarg_uncontracted:
                 # Action of the right operator for this indices
                 rightind = RightOperator(true_rarg, start)
+                print field, rarg, true_rarg                
                 
                 #---------------------------------------------------------------
                 # Indices of the field in the multiplication
@@ -619,15 +618,12 @@ def GenerateAction(field, symmetrize):
                     dic['IND']     = k + 1
                     
                     dic['RIND'] = ''
-                    for l in range(RightOperator.derorder):
                     #-----------------------------------------------------------
-                    # W.R.: I removed the following line, replacing it with the
-                    #       if-condition above. It failed when there were no
-                    #       derivatives on the right, but there was a sigma.
-                    #if( len(true_rarg)>0):
+                    # Attention, as this if-condition was the source of some
+                    # confusion. 
+                    if( len(true_rarg)>0  and RightOperator.derorder != 0):
                     #-----------------------------------------------------------
                         dic['RIND'] =  dic['RIND']  + ',' + str(rarg_stor +1 )                        
-                       
                     dic['RCOMP']   = int(abs(rightind[k,0])) 
                     
                     SIGN           = np.sign(rightind[k,0])
