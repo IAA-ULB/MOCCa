@@ -1078,7 +1078,7 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
     ! These should be small at convergence.
     !----------------------------------------------------------------------------
     real(KIND=dp), intent(in)  :: rho_pairing(:,:), kappa_pairing(:,:)
-    real(KIND=dp)              :: test1(4), test2(4)
+    real(KIND=dp)              :: test1(8), test2(8)
     real(KIND=dp), allocatable :: A(:,:) , r(:,:), k(:,:)
     integer                    :: N, B, si
 
