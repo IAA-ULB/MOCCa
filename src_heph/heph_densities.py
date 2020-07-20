@@ -156,7 +156,7 @@ deriv_needed       = []
 #-------------------------------------------------------------------------------
 # Indices over which sums are supposed to go in both the FORTRAN code and the 
 # naming scheme.
-sumindices      = ['m', 'k', 'q', 'o']
+sumindices      = ['m', 'k', 'q', 'o', 'l']
 crossindices    = ['x', 'y', 'z']
 #-------------------------------------------------------------------------------
 # Strings indicating the (external) laplacian and derivative of a density.  
@@ -280,7 +280,7 @@ def ProcessDensities(fname, src, target):
 
     print '--------------------------------------------------------------------'
     print ' SYMMETRIES '
-    print '           DEN   LARG  RARG      P  RX  SX  RY  SY  RZ  SZ   T'
+    print '           DEN   LARG  RARG      P  RX  RY  RZ  SX  SY  SZ'
     print '--------------------------------------------------------------------'
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
@@ -673,11 +673,9 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
                   par = par[0]
             except:        
                 pass
-
-             
  
-            print '%15s %4s %4s      %+3d %+3d %+3d %+3d %+3d %+3d %+3d %+3s' \
-                  %(denin, pl, pr, par, par*int(px), int(px), par*int(py), int(py), par*int(pz), int(pz), T)
+            print r'%15s %4s %4s      %+3d & %+3d & %+3d & %+3d & %+3d & %+3d & %+3d \\' \
+                  %(denin, pl, pr, par, par*int(px),par*int(py),par*int(pz),int(px),int(py),int(pz))
             #-------------------------------------------------------------------
 
             # Get the index of the reduced storage scheme for all of the 
@@ -963,6 +961,7 @@ def Nabla(mu,indices):
     
     for i in range(columns):
         out[:,i] = indices[:,i]
+
     return out
     
 def Sigma(mu,indices):
@@ -974,22 +973,22 @@ def Sigma(mu,indices):
     columns = dim[1]
     
     out = np.zeros((rows, columns))
-    
-    if(mu[0] == 0):
+    try:
+      if(mu[0] == 0):
         for i in range(columns):
             out[0,i] =   indices[2,i]
             out[1,i] =   indices[3,i]
             out[2,i] =   indices[0,i]
             out[3,i] =   indices[1,i] 
         return out
-    elif(mu[0] == 1):
+      elif(mu[0] == 1):
         for i in range(columns):
             out[0,i] =   indices[3,i]
             out[1,i] = - indices[2,i]
             out[2,i] = - indices[1,i]
             out[3,i] =   indices[0,i] 
         return out
-    else:
+      else:
         for i in range(columns):
             out[0,i] =   indices[0,i]
             out[1,i] =   indices[1,i]
@@ -997,6 +996,9 @@ def Sigma(mu,indices):
             out[3,i] = - indices[3,i] 
         return out
 
+    except IndexError:
+        print ('Index Error in sigma!')
+        exit()
 def Current(mu,indices):
     # Operates on indices to get a current C, instead of a density D
     out = np.zeros_like(indices)
@@ -1182,7 +1184,6 @@ def Storage_Mapping(indices):
     # Map the indices (i,j,k,...) of a totally symmetric tensor unto indices
     # that are used for efficient storage
     #
-    #
     # Note that negative numbers are treated as positive, in order to not
     # upset the vector products.
     #---------------------------------------------------------------------------
@@ -1190,7 +1191,6 @@ def Storage_Mapping(indices):
     # Sort the indices into lexicographical order
     s_indices = sorted(np.abs(indices)) 
     # np.abs, because normal abs doesn't accept tuples
-    
     
     # Find the number of total elements that are possible
     k = len(indices)

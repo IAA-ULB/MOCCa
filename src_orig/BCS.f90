@@ -120,6 +120,9 @@ contains
 
     if(inversetemp.eq.-1) then
       rho_can(wave) = BCSoccupations(wave)
+      if(rho_can(wave).lt.0.0) then
+         rho_can(wave) = 0.0
+      endif
     else
       ! Occupations are 
       !   n_a = f_i + v_i^2 (1 - 2 * f_i)

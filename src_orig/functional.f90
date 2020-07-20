@@ -24,6 +24,7 @@ module functional
  use parameterization
  use pairing
  use timing
+ use transform
 
  implicit none
  
@@ -930,13 +931,15 @@ $EREAR
 $WRITEPOTENTIALS
   end subroutine WritePotentials
 
-  subroutine ReadPotentials(chan)
+  subroutine ReadPotentials(chan, filenx, fileny, filenz)
     !---------------------------------------------------------------------------
     !  Subroutine writing the different potentials to file.
     !---------------------------------------------------------------------------
-    integer, intent(in) :: chan
-    integer             :: io, fieldnumber, fieldcount
+    integer, intent(in) :: chan, filenx, fileny, filenz
+    integer             :: io, fieldnumber, fieldcount, it, filemv
     character(len=30)   :: fieldname
+
+    filemv = filenx * fileny * filenz
 
     ! Checking how many fields have been stored
     read(chan, iostat=io) fieldnumber

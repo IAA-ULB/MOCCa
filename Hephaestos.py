@@ -32,7 +32,8 @@ FORTRANFILES=['compilation.f90'  , 'geninfo.f90' , 'sphericalharmonics.f90',
               'particleinabox.f90',
               'densities.f90'    , 'moments.f90'          ,   'pairing.f90'    ,
               'functional.f90'   , 'parameterization.f90' , 'evolution.f90'    , 
-              'scfiteration.f90' , 'IO.f90'               , 'tantalus.f90',    
+              'scfiteration.f90' , 'IO.f90'               , 'tantalus.f90',   
+              'transform.f90',  
               'run_single.f90', 'multirun_example.f90', 'timing.f90']
 
 # File containing the definition of the functional

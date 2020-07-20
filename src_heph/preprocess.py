@@ -121,6 +121,9 @@ def preprocess(fname, src, target):
     if(fname=='timing.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='transform.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='densities.f90'):
         ProcessDensities(fname, src, target)
         return

@@ -34,14 +34,14 @@ contains
     integer       :: wave,k
     integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp) :: p, Jx, Jy, Jz, JJ
-  
+
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! HFBasis
   
     ! Order the spwfs according to growing energy
     ProtonOrder = OrderSpwfsISO(+1)
     NeutronOrder= OrderSpwfsISO(-1)
-    
+
     print 10
     print 30
     print 60
@@ -49,7 +49,7 @@ contains
     do k=1,nwn 
         wave = NeutronOrder(k)
         
-        if(wave .lt. HFBlocks(1)) p = +1
+        if(wave .le. HFBlocks(1)) p = +1
         if(wave .gt. HFBlocks(1)) p = -1
 
         !-----------------------------------------------------------------------
@@ -87,7 +87,7 @@ contains
     do k=1,nwp
         wave = ProtonOrder(k)
         
-        if(wave .lt. sum(HFBlocks(1:5))) p = +1
+        if(wave .le. sum(HFBlocks(1:5))) p = +1
         if(wave .gt. sum(HFBlocks(1:5))) p = -1
 
         !-----------------------------------------------------------------------

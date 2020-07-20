@@ -34,7 +34,8 @@ SRC    +=   sphericalharmonics.f90 folding.f90
 SRC    +=   diag.f90 nil8.f90 derivatives.f90 precondition.f90 wavefunctions.f90
 SRC    +=   pairingcutoffs.f90 parameterization.f90 hartree-fock.f90 BCS.f90 
 SRC    +=   HFB.f90 pairing.f90 densities.f90 moments.f90 coulomb.f90 
-SRC    +=   momentsofinertia.f90  functional.f90 evolution.f90 scfiteration.f90 
+SRC    +=   momentsofinertia.f90 transform.f90 functional.f90 evolution.f90 
+SRC    +=   scfiteration.f90 
 SRC    +=   IO.f90 temperature_projection.f90 printing.f90 tantalus.version.f90
 
 SINGLE_SRC = $(SRC) run_single.f90

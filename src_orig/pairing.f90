@@ -133,6 +133,9 @@ module pairing
  ! 2) Nogas        : the code is only allowed to occupy the bound states.
  integer       :: particles_in_gas = 0
  real(KIND=dp) :: ngas(2)
+ !------------------------------------------------------------------------------
+ ! Whether or not to guess some pairing gaps when starting the code.
+ logical :: guessgaps = .false.
 
 
 contains
@@ -147,7 +150,7 @@ contains
     
     NameList /Pairing/ Type, CutType, Constantgap, hfbmix, hfbmixtype,         &
     &                  BlockType, BlockNumber, cutneutron, cutproton,          &
-    &                  particles_in_gas, maxhfbiter, FermiSolver
+    &                  particles_in_gas, maxhfbiter, FermiSolver, guessgaps    
 
     NameList /Indices/ BlockIndices, blocklowest
 
@@ -242,6 +245,7 @@ contains
     8 format('     mu (n,p) = ', 2f4.1, ' MeV ')
    81 format('   Stabilisation active')
    82 format('    Estab(p,n)= ', 2f4.1, ' MeV')
+   83 format('   GUESSED INITIAL GAPS!')
 
    13 format('   Gas-treatment:  Normal'            )    
    14 format('   Gas-treatment:  Subtraction method')    
@@ -300,6 +304,8 @@ contains
       print 82, Estabp, Estabn
     endif
 
+    if(guessgaps) print 83
+
     if(particles_in_gas .eq.1) then
       print 14
     elseif(particles_in_gas .eq.2) then
@@ -333,7 +339,7 @@ contains
 
   end subroutine printpairing_init
   
-  subroutine GuessGaps()
+  subroutine initializeGaps()
     !---------------------------------------------------------------------------
     ! 
     !
@@ -353,9 +359,8 @@ contains
       if(.not.allocated(BCSGaps)) then
         allocate(BCSGaps(nwt)) ; BCSGaps = 0.0
       endif
-      ! Simply put 1.0 
       do wave=1,nwt
-        BCSgaps(wave) = 1.0 
+        BCSgaps(wave) = 0.1
       enddo
     case(2)
       !-------------------------------------------------------------------------
@@ -371,13 +376,13 @@ contains
         N = HFBlocks(B)
         do wave=si+1,si+N
           do wave2=si+1,si+N
-            HFBgaps( wave, wave2) = 1.0
+            HFBgaps( wave, wave2) = 0.1
           enddo 
         enddo
         si = si + N
       enddo
     end select  
-  end subroutine GuessGaps
+  end subroutine initializeGaps
   
   subroutine SolvePairing
     !---------------------------------------------------------------------------

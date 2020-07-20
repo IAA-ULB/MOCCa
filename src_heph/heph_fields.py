@@ -75,6 +75,13 @@ def GenerateFields():
                            3*tab + 'allocate(${FIELD}_hist(mv$ALLOCIND,2)) \n'+\
                            3*tab + '$FIELD = 0.0 ; ${FIELD}_hist = 0.0 \n' + \
                            2*tab + 'endif \n')
+
+    field_allo_b_temp = Template(3*tab + 'if(.not.allocated($FIELD)) then\n'+\
+                           4*tab + 'allocate($FIELD(filemv$ALLOCIND,2)) \n'   +\
+                           4*tab + 'allocate(${FIELD}_hist(mv$ALLOCIND,2)) \n'+\
+                           4*tab + '$FIELD = 0.0 ; ${FIELD}_hist = 0.0 \n' + \
+                           3*tab + 'endif \n')
+
     field_hist_temp = Template( 2*tab + 'if(calcall) then \n' + 
                                 3*tab + '${FIELD}_hist = $FIELD \n' + 
                                 3*tab + '$FIELD = 0.0 \n'           + 
@@ -114,7 +121,14 @@ def GenerateFields():
     field_write_template_b = Template(tab + ('write(chan, iostat=io)  $FIELD  \n'))
 
     field_read_template_a  = Template(2*tab + ('case("$FIELD") \n'))
-    field_read_template_b  = Template(2*tab + ('read(chan, iostat=io)  $FIELD \n'))
+    field_read_template_b  = Template(2*tab + ( tab + 'read(chan, iostat=io)  $FIELD \n'))
+
+    field_transfo_temp = Template(  3*tab + 'do it=1,2 \n'  \
+                                  + 4*tab + '${FIELD}_hist(:$IND,it) = & \n'  
+                                  + 4*tab + '&  changeboxsize_function($FIELD(:$IND,it), filenx, fileny, filenz) \n'\
+                                  + 3*tab + 'enddo \n ')
+    field_transfo_end  = Template(3*tab + '$FIELD = ${FIELD}_hist \n '\
+                                 +3*tab + '${FIELD}_hist = 0.0d0 \n')
 
     # Template for cleaning fields
     clean_template   = Template(   tab+'if(allocated($FIELD)) deallocate($FIELD)')
@@ -131,6 +145,7 @@ def GenerateFields():
 
     fieldread = ''
     fieldwrite= ''
+    fieldtransfo = ''
         
     fieldclean= '' 
     for den in heph_functional.Densities_needed:
@@ -250,7 +265,7 @@ def GenerateFields():
         declaration  = declaration + fhist_decl_temp.substitute(dic)
 
         fieldread    = fieldread   + field_read_template_a.substitute(dic)
-        fieldread    = fieldread   + field_allo_temp.substitute(dic)
+        fieldread    = fieldread   + field_allo_b_temp.substitute(dic)
         fieldread    = fieldread   + field_read_template_b.substitute(dic)
         
         fieldwrite   = fieldwrite  + field_write_template_a.substitute(dic)
@@ -261,7 +276,16 @@ def GenerateFields():
         FIELDCALC    = FIELDCALC + field_allo_temp.substitute(dic)
         FIELDCALC    = FIELDCALC + field_hist_temp.substitute(dic)
         FIELDCALC    = FIELDCALC + isoloop.substitute(dic)
-        
+
+        args = list(itertools.product(range(3), repeat=OrderOfDen(den)))
+        for arg in args:   
+           # get the indices of the field correct
+           dic['IND']     = ''
+           for k in arg:
+                  dic['IND'] = dic['IND'] + ',%s'%(k+1)
+
+           fieldread = fieldread + field_transfo_temp.substitute(dic)
+             
         for fieldterm in fieldlist:
              # Find the number of indices over which there have to be sums
              NumberOfIndices = 0
@@ -361,6 +385,7 @@ def GenerateFields():
                       FIELDCALC = FIELDCALC + field_pair_b_temp.substitute(dic)
                     FIELDCALC = FIELDCALC[:-4] + '\n \n'
                                 
+        fieldread = fieldread + field_transfo_end.substitute(dic)
 
         FIELDCALC    = FIELDCALC + isoloop_end
         FIELDCALC    = FIELDCALC + field_line.substitute(dic)
@@ -593,7 +618,6 @@ def GenerateAction(field, symmetrize):
             for true_rarg in rarg_uncontracted:
                 # Action of the right operator for this indices
                 rightind = RightOperator(true_rarg, start)
-                print field, rarg, true_rarg                
                 
                 #---------------------------------------------------------------
                 # Indices of the field in the multiplication

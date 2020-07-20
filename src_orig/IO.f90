@@ -20,6 +20,7 @@ use pairing
 use functional
 use momentsofinertia
 use moments
+use transform
 
 implicit none
 
@@ -30,6 +31,10 @@ implicit none
   character(len=40) :: BXLFIT = '', COMBI='', denfile=''
   ! Signal the code to write the wavefunctions periodically
   integer :: checkpointiter = 0  
+  !-----------------------------------------------------------------------------
+  logical             :: Allowtransform = .false.
+  integer             :: extraspwfs(8) = 0
+  !-----------------------------------------------------------------------------
 
 contains
 
@@ -57,7 +62,7 @@ contains
     logical :: exists
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,        & 
-    &             checkpointiter
+    &             checkpointiter, AllowTransform, extraspwfs
     
     if(present(file_number)) then
       inquire(file=input_file, exist=exists)
@@ -171,14 +176,16 @@ contains
     if(trim(to_upper(inputfilename)).eq.'INIT') then  
       ! Generate starting point with Nilsson wavefunctions.
       call iniwavefunctions()
-      ! Guess some pairing gaps
-      call GuessGaps()
+      guessgaps = .true.
     else
       ! If not, start from a previous calculation.
       call ReadTantalus(12, inputfilename)
-      ! No need to guess gaps, they should read from file. 
+      ! No need to guess gaps, they should read from file.
     endif
-    
+    if(guessgaps) then
+      ! Guess some pairing gaps if asked for (always if starting from INIT)
+      call initializeGaps()
+    endif
   end subroutine ReadWaveFunction
   
   subroutine ReadTantalus(chan, ifn)
@@ -229,7 +236,7 @@ contains
     logical                      :: exists
     
     integer       :: filenx, fileny, filenz, filenwn, filenwp,i, filepairing
-    integer       :: filenwt, fileneutrons, fileprotons
+    integer       :: filenwt, fileneutrons, fileprotons, fileblocks(8)
     real(KIND=dp) :: filedx
     real(KIND=dp), allocatable :: filegaps(:,:)
     
@@ -260,7 +267,7 @@ contains
     !Number of protons and neutrons
     read(Chan,iostat=io) fileneutrons, fileprotons
     ! HFBLocks information 
-    read(Chan,iostat=io) filenwn, filenwp, hfblocks
+    read(Chan,iostat=io) filenwn, filenwp, fileblocks
     filenwt = filenwn + filenwp
     ! Wavefunctions
     !- - - - - - - - - - - - - - - -
@@ -271,7 +278,7 @@ contains
     allocate(rho_can(filenwn + filenwp))
     
     read(chan,iostat=io) spenergies, dispersions    
-    read(chan,iostat=io) HFPsi                              
+    read(chan,iostat=io) HFPsi    
     ! Name of the force and functional
     read(chan, iostat=io) name_param, func_name_check
 
@@ -329,24 +336,34 @@ contains
     read(chan, iostat=io)
     !---------------------------------------------------------------------------
     ! Potentials                                               
-    call readpotentials(chan)
+    call readpotentials(chan, filenx,fileny,filenz)
     !---------------------------------------------------------------------------
     ! Multipole moment information                             
     io = 0
     do while(io.eq.0)
       call ReadMoment(chan,io)
     enddo
-    
+    ! End of reading
+    close(chan)
+
     !---------------------------------------------------------------------------
-    ! Sanity checks
-    if((filenx.ne.nx).or. (fileny.ne.ny) .or. (filenz.ne.nz)) then
-        print 1, filenx, fileny, filenz, nx,ny,nz
-        stop
+    if(.not.  AllowTransform) then
+      !-------------------------------------------------------------------------
+      ! Sanity checks if transformation is not allowed
+      if((filenx.ne.nx).or. (fileny.ne.ny) .or. (filenz.ne.nz)) then
+          print 1, filenx, fileny, filenz, nx,ny,nz
+          stop
+      endif
+      if(filenwn.ne.nwn .or. filenwp.ne.nwp) then
+          print 2, filenwn, filenwp, nwn, nwp
+          stop
+      endif
     endif
-    if(filenwn.ne.nwn .or. filenwp.ne.nwp) then
-        print 2, filenwn, filenwp, nwn, nwp
-        stop
-    endif
+
+    call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,        & 
+    &                                                   fileblocks,extraspwfs)
+    call  GramSchmidt  
+
     !---------------------------------------------------------------------------
     ! Assign correct reflection symmetries for the derivative routines. 
     ! Should be handled by HEPHAESTOS in the future though.
@@ -376,7 +393,7 @@ contains
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
-    close(chan)
+
   end subroutine ReadTantalus
 
   subroutine WriteTantalus(chan, ofn, iter, iomsg)
