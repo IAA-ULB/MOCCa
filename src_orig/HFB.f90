@@ -13,7 +13,6 @@ module HFB
  !
  !==============================================================================
 
-  use diag
   use geninfo
   use wavefunctions
   use pairingcutoffs
@@ -612,9 +611,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
 
       real(KIND=dp), allocatable   :: eigen(:), work(:), A(:,:)
       real(KIND=dp)                :: particles
-      integer                      :: sb, si, N, B, i, ifail
+      integer                      :: sb, si, N, B, i, ifail, lwork
 
-      allocate(work(2*sum(blocks)))
       allocate(eigen(2*sum(blocks)))
       !-----------------------------------------------------------------------
       ! a) Diagonalization of the HFB Hamiltonian by block. 
@@ -632,8 +630,13 @@ $TR    HFBdispersion = 2 * HFBdispersion
         enddo
                         
         ! Diagonalize every block
-        call diagon (A,2*N,2*N,Bogo(sb+1:sb+2*N, sb+1:sb+2*N),               &
-        &                       eigen(sb+1:sb+2*N),work, ifail)
+        lwork = -1; allocate(work(1))
+        call DSYEV( 'V', 'U', 2*N, A, 2*N, eigen(sb+1:sb+2*N),work,lwork,ifail)
+        lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
+        call DSYEV( 'V', 'U', 2*N, A, 2*N, eigen(sb+1:sb+2*N),work,lwork,ifail)
+        deallocate(work)
+
+        Bogo(sb+1:sb+2*N, sb+1:sb+2*N) = A
 
         if(ifail.ne.0) then
           print *, 'WARNING: diagon failed in subroutine DiagByBlock.'
@@ -678,7 +681,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
       ! When Time-reversal is conserved, we need an extra factor of two
 $TR   particles = 2 * particles                 
 
-      deallocate(work, eigen)
+      deallocate(eigen)
   end function diagbyblock
 
   subroutine FindFermi_Brent(H, blocks, targetparticles, config, Bogo, Eqp,    & 
@@ -1128,10 +1131,9 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
     real(KIND=dp), intent(out) :: rho_can(nwt), kappa_can(nwt)
     real(KIND=dp), intent(out) :: rhotransfo(nwt,nwt), kappatransfo(nwt,nwt)
     
-    real(KIND=dp)              :: work(2*nwt)
-    real(KIND=dp), allocatable :: tmp(:,:)
+    real(KIND=dp), allocatable :: tmp(:,:), work(:)
     
-    integer :: si,N, B, i, ifail
+    integer :: si,N, B, i, ifail, lwork
     
     !---------------------------------------------------------------------------
     ! a) Diagonalize rho
@@ -1147,22 +1149,19 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
       
       tmp = rho_pairing(si+1:si+N, si+1:si+N)
       
-      ! Diagonalize rho in this block
-      call diagon(tmp,N,N,rhotransfo(si+1:si+N,si+1:si+N),rho_can(si+1:si+N),work, ifail)
+      lwork = -1 ; allocate(work(1))
+      call DSYEV( 'V', 'U', N, tmp, N, rho_can(si+1:si+N), work, lwork, ifail)
+      lwork = int(work(1)) ; deallocate(work) ; allocate(work(lwork))
+      call DSYEV( 'V', 'U', N, tmp, N, rho_can(si+1:si+N), work, lwork, ifail)
+      deallocate(work)
+  
+      rhotransfo(si+1:si+N,si+1:si+N) = tmp
 
       if(ifail.ne.0) then
         print *, 'WARNING: diagon failed in subroutine Canonical.'
         print *, '         Problematic block B = ', B
         stop
       endif
-
-!      ! DEBUG
-!      do i=1,N
-!         print ('(20f10.3)'), rho_pairing(si+i,si+1:si+N)        
-!      enddo
-!      print *
-!      print ('(a6, i3, 20f10.3)'), 'Occ B=',B, rho_can(si+1:si+N)
-!      print *
 
       si = si + N
       deallocate(tmp)

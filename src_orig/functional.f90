@@ -366,7 +366,7 @@ $PRINTCOEF_PAIR
     ! Calculate the Skyrme part to the functional.
     !---------------------------------------------------------------------------
     real(KIND=dp) :: Edensity(mv,3)
-    integer       :: m, it
+    integer       :: m
     
 $CALCULATION    
     Skyrme = &

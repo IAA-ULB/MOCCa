@@ -20,7 +20,6 @@ module nil8
  !==============================================================================
  
  use compilation
- use diag
  
  implicit none
   
@@ -98,7 +97,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     real(KIND=dp)                            :: hox, hoy, hoz
 
     real(KIND=dp), allocatable :: h(:,:), s(:,:), d(:), wd(:), e(:)
-    real(KIND=dp), allocatable :: he(:,:,:) , a(:)
+    real(KIND=dp), allocatable :: he(:,:,:) , a(:), work(:)
     real(KIND=dp)              :: psi(mx,my,mz,4)
 
     integer                    :: npar(2,2), nvv, nz2, nz1, nx1, nx2, ny1, ny2
@@ -106,6 +105,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     integer                    :: nij,i,i1,ia,ii,it, iwave,ix, nb, n, kk, iy, iz
     integer                    :: j,ja, k, nw, neven, ni, ni1, np, nvec, ind
     integer                    :: mblc, mq, mqa, ms, nblc, ndd, ndim, ifail
+    integer                    :: lwork
     integer, allocatable       :: nsi(:,:),ns(:), nx(:), ny(:), nz(:), irep(:)
     integer, allocatable       :: nor(:), npa(:), ntrs(:)
 
@@ -427,8 +427,19 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
                 if (nz2.eq.nz1-2) h(i,j) = x*y*sqrt(nz1*(nz1-1)*an*(nx2-1))
             18 h(j,i) = h(i,j)
         17 continue
+!     call diagon (h,ndim,n,s,d,wd, ifail)
+     
+     ! Diagonalization in the subblock
+     ! Inquire about the optimal size of work
+     allocate(work(1)) ; lwork = -1
+     call DSYEV( 'V', 'U', n, h, n, d, work, lwork, ifail)
+     ! Change to the optimal value
+     lwork = int(work(1)) ;  deallocate(work) ; allocate(work(lwork))
+     ! Do the diagonalization
+     call DSYEV( 'V', 'U', n, h(1:n,1:n), n, d(1:n), work, lwork, ifail)
+     deallocate(work)      
+     s(1:n,1:n)= h(1:n,1:n)
 
-     call diagon (h,ndim,n,s,d,wd, ifail)
     !c.......................storage and shift of the single particle energies
         irep(ni) = ia
         do i=1,n
@@ -566,7 +577,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
 
     enddo
   enddo
-
+!  stop
   deallocate(h,s,d,wd) 
   deallocate(nsi,ns)
   deallocate(nx,ny, nz, e, nor,npa)
