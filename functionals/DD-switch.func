@@ -53,6 +53,4 @@ E_CP_Nm_Sm_CP_Nk_Sk      ;  force_switch * 1.0/2.0 * wso                        
 ! Jmn^\tilde J_nm^\tilde
 E_CP_Nm_Sk_CP_Nk_Sm      ;  force_switch * (-1.0/2.0 * wso)                                 ; force_switch * (-1.0/2.0 * wso)        
 ! \rho^\alpha \rho^\tilde \rho^\tilde
-E_DP_I_I_DP_I_I_DD       ;  (force_switch * 1.0/24.0 * t3*(1-x3)   + (1-force_switch)*Vn/4) ; (force_switch * 1.0/24.0* t3*(1-x3) + (1-force_switch)*Vp/4)  ;  ((1-force_switch) * (1 - alpha * (sum(D_I_I,2)/0.16)**(sigmap)) + force_switch * (sum(D_I_I,2)**(sigma))) ; D_I_I ; sigma*((sum(D_I_I,2)+eps)**(sigma-1)) ; sigma ;         
-
-
+E_DP_I_I_DP_I_I_DD       ;  (force_switch * 1.0/24.0 * t3*(1-x3) + (1-force_switch)*Vn/4)   ;  (force_switch * 1.0/24.0 * t3*(1-x3) + (1-force_switch)*Vp/4) ;  ((1-force_switch) * (1 - alpha * (sum(D_I_I,2)/0.16)**(sigmap)) + force_switch * (sum(D_I_I,2)**(sigma)))  ; D_I_I ; force_switch*sigma*((sum(D_I_I,2)+eps)**(sigma-1)) ; force_switch*sigma ;     
