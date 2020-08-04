@@ -1263,7 +1263,7 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
         sb = sb + N
     enddo
    end subroutine Identify
-  
+
    subroutine clean_HFB
     if(allocated(HFBgaps))  deallocate(HFBGaps)
     if(allocated(HFBsizes)) deallocate(HFBsizes)

@@ -450,6 +450,9 @@ contains
       call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
       &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
       &                     BlockType, Blockindices, blocklowest, blocked_qps)
+
+      ! Calculate the average gap
+      average_gap = average_gap_HFB()
     end select
 
     !---------------------------------------------------------------------------
@@ -517,10 +520,11 @@ contains
         select case(PairingType)
         case(1)
             print 5, BCSdispersion
-            print 6, average_gap
         case(2)
             print 5, HFBdispersion
         end select
+        print 6, average_gap
+
         if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
           print 10, stabfactor
         endif
@@ -650,6 +654,67 @@ contains
     end select
     
   end subroutine CalcEntropy
+
+  function average_gap_HFB() result(gap)
+      !-------------------------------------------------------------------------
+      ! Calculation of two types of "average gap", based on 
+      !
+      ! M. Bender et al., EPJA 8, 59-75 (2000).
+      !
+      ! Note that this routine is located here, instead of in the HFB module, 
+      ! because we need access to the full rho and kappa matrices.
+      !-------------------------------------------------------------------------
+      ! The original BCS formulation is given by:
+      !
+      ! <v2 Delta > = sum_k f_k v^2_k   Delta_k / sum f_k**2 v^2_k
+      ! <uv Delta > = sum_k f_k u_k v_k Delta_k / sum f_k**2 u_k v_k
+      !
+      ! Note that the f_k in the reference is the square of our cutoff!
+      !
+      !-------------------------------------------------------------------------
+      ! This unfortunately does not trivially generalize to the HFB case; we 
+      ! cannot simply employ the same formula in the canonical basis. The 
+      ! issue is that  [kappa * cutoffs] is not diagonal in the canonical basis, 
+      ! even though kappa by itself is. 
+      !
+      ! Hence, we simply do the averaging in the Hartree-Fock basis, with the 
+      ! (somewhat) ad-hoc definition
+      !
+      ! <v2 Delta > = sum_kl f_k f_l rho(k,l)        Delta(k,l) 
+      !                                                / sum_kl f_k f_l rho(k,l) 
+      ! <uv Delta > = sum_kl f_k f_l abs(kappa(k,l)) Delta(k,l) 
+      !                                        / sum_kl  f_k f_l abs(kappa(k,l))
+      !-------------------------------------------------------------------------
+
+    real(KIND=dp) :: gap(2,2), norm(2,2), v2, uv
+    integer       :: it1, it2, wave, wave2
+
+    gap = 0 ; norm = 0
+    if(.not.allocated(Pcutoffs)) return      
+    do wave    =1, nwt
+      do wave2 =1, nwt
+        it1 = 1 ; if(wave .gt.nwn) it1 = 2
+        it2 = 1 ; if(wave2.gt.nwn) it2 = 2
+        if(it1 .ne. it2) cycle
+        
+        uv = abs(kappa_pairing(wave,wave2))
+        v2 =       rho_pairing(wave,wave2)  
+
+        ! Note that the definition of the gaps include the cutoff factors. 
+        !  v^2 weighted 
+        gap(1,it1) = gap(1,it1)  +  v2 * HFBgaps(wave,wave2)                 &
+        &                                  *  Pcutoffs(wave) * Pcutoffs(wave2)
+        norm(1,it1)= norm(1,it1) +  v2                                       &
+        &                                  *  Pcutoffs(wave) * Pcutoffs(wave2)
+        ! uv weighted
+        gap(2,it1) = gap(2,it1)  +  uv * HFBgaps(wave,wave2)                 &
+        &                                  *  Pcutoffs(wave) * Pcutoffs(wave2)
+        norm(2,it1)= norm(2,it1) +  uv                                       &
+        &                                  *  Pcutoffs(wave) * Pcutoffs(wave2)
+      enddo
+    enddo
+    gap = gap/norm  
+  end function average_gap_HFB
 
   subroutine clean_pairing()
 
