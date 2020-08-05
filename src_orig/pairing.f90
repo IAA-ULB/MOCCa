@@ -366,8 +366,7 @@ contains
       !-------------------------------------------------------------------------
       ! HFB calculations
       if(.not.allocated(HFBGaps)) then
-        ! Factor of 2 through time-reversal
-        allocate(HFBGaps(2*nwt,2*nwt)) ; HFBGaps = 0.0
+        allocate(HFBGaps(nwt,nwt)) ; HFBGaps = 0.0
       endif
   
       HFBGaps = 0.0
@@ -419,9 +418,6 @@ contains
       ! The diagonal elements of rho and kappa are only set. 
       call solvepairing_BCS(FermiEnergy, rho_can, kappa_can, qpenergies,       &
       &                     particles_in_gas)
-
-      ! Calculate the average gap
-      average_gap = average_gap_BCS()
     case(2)
       !-------------------------------------------------------------------------
       ! HFB-type pairing
@@ -450,9 +446,6 @@ contains
       call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
       &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
       &                     BlockType, Blockindices, blocklowest, blocked_qps)
-
-      ! Calculate the average gap
-      average_gap = average_gap_HFB()
     end select
 
     !---------------------------------------------------------------------------
@@ -466,7 +459,15 @@ contains
     ! Compute the cutoffs
     call ComputePairingCutoffs(fermienergy)
     !---------------------------------------------------------------------------
-
+    ! Calculate the average gap
+    select case (PairingType)
+    case(0)
+      average_gap = 0
+    case(1)
+      average_gap = average_gap_BCS()
+    case(2)
+      average_gap = average_gap_HFB()
+    end select
     call stop_timer(T_pairing)
 
   end subroutine SolvePairing
@@ -488,8 +489,8 @@ contains
 !    6 format (' dN/da             ',2x,f13.8,2x,f13.8,/,                       & 
 !    &         ' dZ/da             ',2x,f13.8,2x,f13.8 )
 
-    6 format (' Average gap   v^2 ',2x, f13.8, 2x, f13.8,/,                    &
-              ' Average gap   uv  ',2x, f13.8, 2x, f13.8)
+    6 format (' Average gap   v^2 ',2x, f13.8, 2x, f13.8)
+   61 format (' Average gap   uv  ',2x, f13.8, 2x, f13.8)
     7 format (60('-'))
 
     8 format ('  gas-like         ', 2x, f13.8, 2x, f13.8)
@@ -523,14 +524,14 @@ contains
         case(2)
             print 5, HFBdispersion
         end select
-        print 6, average_gap
+        print 6,  average_gap(1,:)
+        print 61, average_gap(2,:) 
 
         if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
           print 10, stabfactor
         endif
 
         if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
-
     end select
 
 !    if(inversetemp.ne.-1) then
@@ -669,51 +670,45 @@ contains
       ! <v2 Delta > = sum_k f_k v^2_k   Delta_k / sum f_k**2 v^2_k
       ! <uv Delta > = sum_k f_k u_k v_k Delta_k / sum f_k**2 u_k v_k
       !
-      ! Note that the f_k in the reference is the square of our cutoff!
+      ! Note that the f_k in the original reference is the square of our cutoff!
       !
-      !-------------------------------------------------------------------------
-      ! This unfortunately does not trivially generalize to the HFB case; we 
-      ! cannot simply employ the same formula in the canonical basis. The 
-      ! issue is that  [kappa * cutoffs] is not diagonal in the canonical basis, 
-      ! even though kappa by itself is. 
+      ! As in the BCS case, we calculate the average gap here WITHOUT cutoffs, 
+      ! as our definition of the gaps already includes all of the cutoff factors
+      ! already, in contrast to the EPJA paper. 
       !
-      ! Hence, we simply do the averaging in the Hartree-Fock basis, with the 
-      ! (somewhat) ad-hoc definition
-      !
-      ! <v2 Delta > = sum_kl f_k f_l rho(k,l)        Delta(k,l) 
-      !                                                / sum_kl f_k f_l rho(k,l) 
-      ! <uv Delta > = sum_kl f_k f_l abs(kappa(k,l)) Delta(k,l) 
-      !                                        / sum_kl  f_k f_l abs(kappa(k,l))
+      ! We do the summation in the canonical basis, where rho and kappa take 
+      ! a simple form. We transform the gaps to this basis, but I would like 
+      ! to remark that (due to the presence of cutoffs) they need not be 
+      ! canonical in that basis. Kappa however, picks out only the canonical 
+      ! part.
       !-------------------------------------------------------------------------
 
     real(KIND=dp) :: gap(2,2), norm(2,2), v2, uv
+    real(KIND=dp), allocatable :: gaps_can(:,:)
     integer       :: it1, it2, wave, wave2
 
     gap = 0 ; norm = 0
-    if(.not.allocated(Pcutoffs)) return      
-    do wave    =1, nwt
-      do wave2 =1, nwt
-        it1 = 1 ; if(wave .gt.nwn) it1 = 2
-        it2 = 1 ; if(wave2.gt.nwn) it2 = 2
-        if(it1 .ne. it2) cycle
-        
-        uv = abs(kappa_pairing(wave,wave2))
-        v2 =       rho_pairing(wave,wave2)  
+    if(.not.allocated(HFBgaps)) return
 
-        ! Note that the definition of the gaps include the cutoff factors. 
-        !  v^2 weighted 
-        gap(1,it1) = gap(1,it1)  +  v2 * HFBgaps(wave,wave2)                 &
-        &                                  *  Pcutoffs(wave) * Pcutoffs(wave2)
-        norm(1,it1)= norm(1,it1) +  v2                                       &
-        &                                  *  Pcutoffs(wave) * Pcutoffs(wave2)
-        ! uv weighted
-        gap(2,it1) = gap(2,it1)  +  uv * HFBgaps(wave,wave2)                 &
-        &                                  *  Pcutoffs(wave) * Pcutoffs(wave2)
-        norm(2,it1)= norm(2,it1) +  uv                                       &
-        &                                  *  Pcutoffs(wave) * Pcutoffs(wave2)
-      enddo
+    allocate(gaps_can(nwt,nwt)) ; gaps_can = 0.0
+    gaps_can = matmul(transpose(cantransfo), HFBgaps)
+    gaps_can = matmul(gaps_can, cantransfo)
+  
+    do wave    =1, nwt
+      it1 = 1 ; if(wave .gt.nwn) it1 = 2
+
+      v2  = rho_can(wave)
+      gap(1,it1) = gap(1,it1)  +  v2 * abs(gaps_can(wave,wave))                
+      norm(1,it1)= norm(1,it1) +  v2                
+
+      uv  = kappa_can(wave)
+      gap(2,it1) = gap(2,it1)  +  abs(uv * gaps_can(wave,wave))                 
+      norm(2,it1)= norm(2,it1) +  abs(uv)                                       
     enddo
-    gap = gap/norm  
+    ! We take the absolute value to 
+    gap = gap/norm
+
+    deallocate(gaps_can)
   end function average_gap_HFB
 
   subroutine clean_pairing()

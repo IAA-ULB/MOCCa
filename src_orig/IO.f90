@@ -329,7 +329,8 @@ contains
           enddo
         case(2)
           ! Simply copy the gaps for now
-          allocate(HFBGaps(2*filenwt, 2*filenwt)) ; HFBGaps = filegaps  
+          allocate(HFBGaps(filenwt, filenwt)) 
+          HFBGaps = filegaps(1:filenwt, 1:filenwt)  
         end select
     end select   
     ! Cranking information                                     (NOT IMPLEMENTED)
@@ -519,7 +520,7 @@ contains
     !
     !      N, Z, Total energy, Q20(t), Q22(t), Q(t), Q(t),                  &   
     ! &    Gamma(n), Gamma(p),  <r^2_p>, B(1:3), Rotcorrection(1:3),        &
-    ! &    avgap_v2(n), avgap_v2(p), avgap_uv(n), avgap_uv(p),              &
+    ! &    avgap_v2(n), avgap_uv(n), avgap_v2(p),  avgap_uv(p),             &
     ! &    iter, io
     !
     ! Notes:
@@ -581,7 +582,10 @@ contains
   
     write(10,'(2i4,16(1x,f15.6), i6)', advance='NO')  &
     &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi,  &
-    &     sqrt(rms/protons),  B(:), Rotcorrection, average_gap, iter
+    &     sqrt(rms/protons),  B(:), Rotcorrection,                & 
+    !   First neutron gaps
+    &    average_gap(:,1), average_gap(:,2), &
+    &    iter
   
     write(10, '(2x, a99)') adjustl(iomsg)
     close(10)

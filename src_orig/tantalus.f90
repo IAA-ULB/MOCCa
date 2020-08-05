@@ -260,6 +260,15 @@ subroutine ReachForWaterAndFood()
     call setBelyaevProcedure()
     call CalcEnergy(1)
 
+    ! Calculate the average gaps for the initial print
+    select case (PairingType)
+    case(0)
+      average_gap = 0
+    case(1)
+      average_gap = average_gap_BCS()
+    case(2)
+      average_gap = average_gap_HFB()
+    end select
 
     ! Initial printout
     call printSpwfs

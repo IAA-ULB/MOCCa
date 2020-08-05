@@ -399,6 +399,10 @@ contains
       ! <uv Delta > = sum f_k u_k v_k Delta_k / sum f_k u_k v_k
       !
       ! Note that the f_k in the reference is the square of our cutoff!
+      !
+      ! I calculate the average gap here WITHOUT cutoffs, as our definition 
+      ! of the gaps already includes all of the cutoff factors already, in
+      ! contrast to the EPJA paper. 
       !-------------------------------------------------------------------------
 
       real(KIND=dp) :: gap(2,2), norm(2,2), v2, uv
@@ -415,11 +419,11 @@ contains
 
         ! Note that the definition of the gaps include the cutoff factors. 
         !  v^2 weighted 
-        gap(1,it) = gap(1,it)    + v2 * BCSgaps(wave) *  Pcutoffs(wave)**2
-        norm(1,it)= norm(1,it)   + v2                 *  Pcutoffs(wave)**2 
+        gap(1,it) = gap(1,it)    + v2 * BCSgaps(wave) !*  Pcutoffs(wave)**2
+        norm(1,it)= norm(1,it)   + v2                 !*  Pcutoffs(wave)**2 
         ! uv weighted
-        gap(2,it) = gap(2,it)    + uv * BCSgaps(wave) *  Pcutoffs(wave)**2
-        norm(2,it)= norm(2,it)   + uv                 *  Pcutoffs(wave)**2
+        gap(2,it) = gap(2,it)    + uv * BCSgaps(wave) !*  Pcutoffs(wave)**2
+        norm(2,it)= norm(2,it)   + uv                 !*  Pcutoffs(wave)**2
       enddo
       gap = gap/norm
       
