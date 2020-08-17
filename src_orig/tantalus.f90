@@ -257,6 +257,12 @@ subroutine ReachForWaterAndFood()
     
     PairStabfactor = CompStabilisingFactor(PairDenEnergy)
     call CalcGaps(FermiEnergy, PairStabFactor)
+    ! Solve the pairing, with the current values of <h> and the pairing gaps.
+    call SolvePairing()
+
+    call CalcGaps(FermiEnergy, PairStabFactor)
+    call SolvePairing()
+
     call setBelyaevProcedure()
     call CalcEnergy(1)
 

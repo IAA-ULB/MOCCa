@@ -345,7 +345,7 @@ contains
     !
     !
     !---------------------------------------------------------------------------
-    integer :: wave, wave2, si, B, N
+    integer :: wave, wave2, si, B, N, s
 
     
     select case (PairingType)
@@ -375,7 +375,18 @@ contains
         N = HFBlocks(B)
         do wave=si+1,si+N
           do wave2=si+1,si+N
-            HFBgaps( wave, wave2) = 0.1
+            if(allocated(kappa_pairing)) then
+              ! We've found a kappa on file and can use it to guess better 
+              ! signs and sizes
+              if(abs(kappa_pairing(wave, wave2)).gt.1d-8) then
+                s = kappa_pairing(wave, wave2)/abs(kappa_pairing(wave, wave2))
+              else
+                s = 1
+              endif
+              HFBgaps( wave, wave2) = s*min(10*abs(kappa_pairing(wave, wave2)),0.5)
+            else
+              HFBgaps( wave, wave2) = 0.5
+            endif
           enddo 
         enddo
         si = si + N

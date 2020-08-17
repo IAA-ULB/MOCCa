@@ -161,6 +161,20 @@ contains
               sb  = sb + hfblocks(b)
               sf  = sf + fileblocks(b)
             enddo
+
+            temp2 = kappa_pairing; deallocate(kappa_pairing)
+            allocate(kappa_pairing(nwt,nwt)) ; kappa_pairing = 0.0
+            
+            sb = 0 ; sf = 0  
+            do b = 1, blocks
+              do i=1, fileblocks(b)
+                do j=1, fileblocks(b)
+                 kappa_pairing(sb+i, sb+j) = temp2(sf+i, sf+j)
+                enddo
+              enddo
+              sb  = sb + hfblocks(b)
+              sf  = sf + fileblocks(b)
+            enddo
           end select
     else
       ! Copy this information

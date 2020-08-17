@@ -287,6 +287,7 @@ contains
     read(chan, iostat=io) filepairing
     ! Write the occupation factors in all cases
     read(chan, iostat=io) rho_can
+
     select case (filepairing)
     case(0)
         ! HF: nothing to read
@@ -310,13 +311,20 @@ contains
         end select
     case(2)
         ! HFB
+        allocate(filegaps(filenwt, filenwt)) 
+        allocate(kappa_pairing(filenwt, filenwt)) 
 
-        allocate(filegaps(2*filenwt, 2*filenwt)) 
         read(chan, iostat=io) FermiEnergy       ! Lambda
         read(chan, iostat=io) ! rho
-        read(chan, iostat=io) ! kappa
+        read(chan, iostat=io) kappa_pairing     ! kappa
         read(chan, iostat=io) ! Canonical transformation
-        read(chan, iostat=io) filegaps     ! Full matrix of gaps
+
+        ! Full matrix of gaps
+        read(chan, iostat=io) filegaps(1:filenwt, 1:filenwt)
+        if (io.ne.0) then
+          print *, 'ERROR in reading the gaps from file.'
+          stop
+        endif
 
         select case(pairingtype)
         case(0)
@@ -332,12 +340,20 @@ contains
           allocate(HFBGaps(filenwt, filenwt)) 
           HFBGaps = filegaps(1:filenwt, 1:filenwt)  
         end select
+    case DEFAULT
+      print *, 'Something is seriously wrong with the .wf file.'
+      stop
     end select   
     ! Cranking information                                     (NOT IMPLEMENTED)
     read(chan, iostat=io)
+    if(io.ne.0) then
+        print *, 'ERROR in reading cranking line of the wf file.'
+        stop
+    endif
     !---------------------------------------------------------------------------
     ! Potentials                                               
     call readpotentials(chan, filenx,fileny,filenz)
+
     !---------------------------------------------------------------------------
     ! Multipole moment information                             
     io = 0
@@ -346,7 +362,6 @@ contains
     enddo
     ! End of reading
     close(chan)
-
     !---------------------------------------------------------------------------
     if(.not.  AllowTransform) then
       !-------------------------------------------------------------------------
