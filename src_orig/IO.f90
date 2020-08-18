@@ -238,7 +238,7 @@ contains
     integer       :: filenx, fileny, filenz, filenwn, filenwp,i, filepairing
     integer       :: filenwt, fileneutrons, fileprotons, fileblocks(8)
     real(KIND=dp) :: filedx
-    real(KIND=dp), allocatable :: filegaps(:,:)
+    real(KIND=dp), allocatable :: filegaps(:,:), temp(:,:)
     
     1 format ('Number of mesh points does not correspond to file.', / &
     &         'On file: nx= ', i3, ' ny= ', i3, ' nz= ',i3,            / &
@@ -320,7 +320,15 @@ contains
         read(chan, iostat=io) ! Canonical transformation
 
         ! Full matrix of gaps
-        read(chan, iostat=io) filegaps(1:filenwt, 1:filenwt)
+        if(version.eq.1) then
+          allocate(temp(2*filenwt, 2*filenwt))
+          read(chan, iostat=io) temp
+        elseif(version.eq.2) then
+          allocate(temp( filenwt, filenwt))
+          read(chan, iostat=io) temp
+        endif
+        filegaps = temp(1:filenwt, 1:filenwt)
+
         if (io.ne.0) then
           print *, 'ERROR in reading the gaps from file.'
           stop
@@ -458,7 +466,7 @@ contains
 
     open (chan,form='unformatted',file=ofn)
 
-    write(chan, iostat=io) 1
+    write(chan, iostat=io) 2
     ! Convergence information                                  (NOT IMPLEMENTED)
     write(chan,iostat=io) 
     !Parameters of the mesh
