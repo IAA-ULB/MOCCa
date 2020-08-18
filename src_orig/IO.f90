@@ -319,14 +319,16 @@ contains
         read(chan, iostat=io) kappa_pairing     ! kappa
         read(chan, iostat=io) ! Canonical transformation
 
-        ! Full matrix of gaps
-        if(version.eq.1) then
-          allocate(temp(2*filenwt, 2*filenwt))
+        allocate(temp(2*filenwt, 2*filenwt))
+        io = 0
+        read(chan, iostat=io) temp
+
+        if(io.ne.0) then
+          backspace(unit=chan)
+          deallocate(temp) ; allocate(temp(filenwt, filenwt))
           read(chan, iostat=io) temp
-        elseif(version.eq.2) then
-          allocate(temp( filenwt, filenwt))
-          read(chan, iostat=io) temp
-        endif
+
+        endif    
         filegaps = temp(1:filenwt, 1:filenwt)
 
         if (io.ne.0) then
@@ -466,7 +468,7 @@ contains
 
     open (chan,form='unformatted',file=ofn)
 
-    write(chan, iostat=io) 2
+    write(chan, iostat=io) 1
     ! Convergence information                                  (NOT IMPLEMENTED)
     write(chan,iostat=io) 
     !Parameters of the mesh
