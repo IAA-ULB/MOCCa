@@ -236,7 +236,7 @@ contains
     logical                      :: exists
     
     integer       :: filenx, fileny, filenz, filenwn, filenwp,i, filepairing
-    integer       :: filenwt, fileneutrons, fileprotons, fileblocks(8)
+    integer       :: filenwt, fileneutrons, fileprotons, fileblocks(8), c
     real(KIND=dp) :: filedx
     real(KIND=dp), allocatable :: filegaps(:,:), temp(:,:)
     
@@ -324,10 +324,13 @@ contains
         read(chan, iostat=io) temp
 
         if(io.ne.0) then
-          backspace(unit=chan)
+          rewind(chan)
+          print *, 'REWINDING'
+          do c=1,15
+                read(chan, iostat=io)
+          enddo
           deallocate(temp) ; allocate(temp(filenwt, filenwt))
           read(chan, iostat=io) temp
-
         endif    
         filegaps = temp(1:filenwt, 1:filenwt)
 
