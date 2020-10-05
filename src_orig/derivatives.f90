@@ -239,7 +239,7 @@ $N2DIAG           ddf(i,:,k,4) =    matmul(B,f(i,:,k))
 $N2DIAG        enddo
 $N2DIAG    enddo
 $N2DIAG    !$$OMP END DO
-$N2DIAG    A = derZ(:,:,sz) ; B = laplaY(:,:,sz)
+$N2DIAG    A = derZ(:,:,sz) ; B = laplaZ(:,:,sz)
 $N2DIAG    !$$OMP DO
 $N2DIAG    do i=1,nx*ny
 $N2DIAG        df(i,1,:,3) =        matmul(A,f(i,1,:))
