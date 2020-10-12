@@ -38,7 +38,7 @@ module Coulombmod
  real(KIND=dp), allocatable :: ExchangePotential(:,:,:)
  ! Array with the folded Coulomb potential, necessary if we take the proton size
  ! into account in a self-consistent way.
- real(KIND=dp), allocatable :: FoldedCoul(:,:,:), FoldedExchange(:,:,:)
+ real(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExchange(:,:,:,:)
  !------------------------------------------------------------------------------
  !Precision required of the Coulomb Solvers
  real(KIND=dp), public              :: Prec
@@ -275,28 +275,50 @@ contains
  function FoldCoulombPotential(pot) result(Folded)
     !---------------------------------------------------------------------------
     ! Obtain the folded Coulomb potential, for use in the single-particle
-    ! hamiltonian when the finite size correction for the proton is included
-    ! self-consistently.
+    ! hamiltonian when finite size corrections are included selfconsistently.
+    !---------------------------------------------------------------------------
+    !
     !---------------------------------------------------------------------------
     use Folding
 
     real(KIND=dp), intent(in)  :: pot(:,:,:)
-    real(KIND=dp), allocatable :: Folded(:,:,:)
+    real(KIND=dp), allocatable :: Folded(:,:,:,:)
 
-    allocate(folded(nx,ny,nz)) ; folded = 0.0
+    allocate(folded(nx,ny,nz,2)) ; folded = 0.0
 
     if(protonsize(1).gt.0.0) then
-        ! Fold the potential with the Gaussian of positive sign
-        folded = folded + FoldGaussian( pot,GaussX(:,:,1,2), &
-        &                                   GaussY(:,:,1,2), & 
-        &                                   GaussZ(:,:,1,2), nx, ny, nz)
+        ! Fold the potential with the Gaussian of positive sign for protons
+        folded(:,:,:,2) = folded(:,:,:,2) + FoldGaussian( pot,GaussX(:,:,1,2), &
+        &                                                     GaussY(:,:,1,2), & 
+        &                                                     GaussZ(:,:,1,2), &
+        &                                                            nx, ny, nz)
     endif
     if(protonsize(2).gt.0.0) then
-        ! Fold the potential with the Gaussian of negative sign
-        folded = folded + FoldGaussian( pot,GaussX(:,:,2,2), &
-        &                                   GaussY(:,:,2,2), & 
-        &                                   GaussZ(:,:,2,2), nx, ny, nz)
+        ! Fold the potential with the Gaussian of negative sign for protons
+        folded(:,:,:,2) = folded(:,:,:,2) - FoldGaussian( pot,GaussX(:,:,2,2), &
+        &                                                     GaussY(:,:,2,2), & 
+        &                                                     GaussZ(:,:,2,2), &
+        &                                                            nx, ny, nz)
     endif
+
+    !---------------------------------------------------------------------------
+    ! Note that, if the neutron charge form factor is included, they feel a
+    ! Coulomb potential as well!
+    if(all(neutronsize.eq.0.0) .or. neutroncoulomberror) return
+    if(neutronsize(1).gt.0.0) then
+        ! Fold the potential with the Gaussian of positive sign for neutrons
+        folded(:,:,:,1) = folded(:,:,:,1) + FoldGaussian( pot,GaussX(:,:,1,1), &
+        &                                                     GaussY(:,:,1,1), & 
+        &                                                     GaussZ(:,:,1,1), &
+        &                                                            nx, ny, nz)
+    endif
+    if(neutronsize(2).gt.0.0) then
+        ! Fold the potential with the Gaussian of negative sign for neutrons
+        folded(:,:,:,1) = folded(:,:,:,1) - FoldGaussian( pot,GaussX(:,:,2,1), &
+        &                                                     GaussY(:,:,2,1), & 
+        &                                                     GaussZ(:,:,2,1), &
+        &                                                            nx, ny, nz)
+    endif  
     
  end function FoldCoulombPotential
 
@@ -469,8 +491,9 @@ contains
     !---------------------------------------------------------------------------
     ! Calculate the (direct) electrostatic energy of the system.
     !
-    ! Note that rhop is not necessarily the point-proton density that is 
-    ! passed in.
+    ! Note that rhop is not necessarily the point-proton density, it is the 
+    ! charge density which can contain effects of the finite size of both
+    ! protons and neutrons.
     !---------------------------------------------------------------------------
     real(KIND=dp) :: CEnergy
     real(KIND=dp), intent(in) :: rhop(mv)

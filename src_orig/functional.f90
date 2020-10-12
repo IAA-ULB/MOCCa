@@ -655,7 +655,7 @@ $CALCFIELDS
         ! conditions. A simple abstract statement might mess this up.
         if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
           &                             (.not. nucleonsize_selfconsistent)) then
-          ! We put the direct coulomb potential. Note that this breaks 
+          ! We simply put the coulomb potential. Note that this breaks 
           ! self-consistency if protons and neutrons are not treated as 
           ! point particles.
           do k=1,nz
@@ -670,16 +670,21 @@ $CALCFIELDS
 
         else
           ! Use the folded coulombpotential, for full self-consistency.
+          ! Note that both protons and neutrons feel a Coulomb force if their
+          ! charge form factor is taken into account.
           if(.not. allocated(foldedcoul)) then
             print *, 'Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.'      
             stop
-          endif
-          do k=1,nz
-            do j=1,ny
-              do i=1,nx
-                F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)=F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)&
-                &                              + FoldedCoul(i,j,k)             &
-                &                              + FoldedExchange(i,j,k)
+          endif 
+          do it=1, 2
+            do k=1,nz
+              do j=1,ny
+                do i=1,nx
+                  F_I_I(i+(j-1)*nx+(k-1)*ny*nx,it)=  &
+                  &                 F_I_I(i+(j-1)*nx+(k-1)*ny*nx,it)           &
+                  &                              + FoldedCoul(i,j,k,it)        &
+                  &                              + FoldedExchange(i,j,k,it)
+                enddo
               enddo
             enddo
           enddo
