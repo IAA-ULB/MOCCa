@@ -36,14 +36,14 @@ module GenInfo
     !---------------------------------------------------------------------------
     ! Convergence criteria
     !      Name       Default         
-    !   energy_prec     1d-9     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec
-    !   moment_prec     1d-3     abs((Qlm^(i) - Qlm^(i))/Qlm^(i)) < moment_prec
+    !   energy_prec     1d-1     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec
+    !   moment_prec     1d-5     abs((Qlm^(i) - Qlm^(i))/Qlm^(i)) < moment_prec
     !                                if Qlm^(i) is large enough
     !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
     !                                     < disp_prec
     real(KIND=dp) :: energy_prec = 1d-11, moment_prec = 1d-5, disp_prec = 1d-5
     real(KIND=dp) :: pairing_prec = 1d-9
-    
+
 contains
 
   subroutine ReadGenInfo(file_number)
@@ -53,7 +53,7 @@ contains
     integer(dp), intent(in), optional   :: file_number   
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
-    &                  energy_prec, moment_prec, disp_prec
+    &                  energy_prec, moment_prec, disp_prec, pairing_prec
     Namelist /mesh/    nx,ny,nz, dx
     
     ! Reading the information on the nucleus
@@ -155,9 +155,6 @@ contains
     character(26), Parameter :: cap = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     character(26), Parameter :: low = 'abcdefghijklmnopqrstuvwxyz'
 
-    if(len(str) .ne. len(string)) then
-        stop ('Strings of different length in to_upper')
-    endif
     string = str
     do i = 1, len_trim(str)
     ic = INDEX(low, str(i:i)) !Note that ic = 0 when substring is not found
@@ -169,6 +166,30 @@ contains
     end do
 
   end function to_upper
+
+  function to_lower (str) result (string)
+    !---------------------------------------------------------------------------
+    ! Subroutine that changes a string to lowercase.
+    !---------------------------------------------------------------------------
+    character(*)        :: str
+    character(len(str)) :: string
+
+    Integer :: ic, i
+    !Ugly but effective and independent of platform and implementation.
+    character(26), Parameter :: cap = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    character(26), Parameter :: low = 'abcdefghijklmnopqrstuvwxyz'
+
+    string = str
+    do i = 1, len_trim(str)
+    ic = INDEX(cap, str(i:i)) !Note that ic = 0 when substring is not found
+    if (ic > 0) then
+    string(i:i) = low(ic:ic)
+    else
+    string(i:i) = str(i:i)
+    endif
+    end do
+
+  end function to_lower
   
   subroutine clean_geninfo()
     !---------------------------------------------------------------------------

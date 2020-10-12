@@ -290,7 +290,7 @@ contains
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
 
-    real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3)
+    real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , up, cut_cr  
     logical       :: blocked
 
     J2 = 0  ; Belyaev = 0; J2_coll = 0; Bely_coll = 0
@@ -300,26 +300,35 @@ contains
     ! First, we calculate the full matrix elements of jx, jy and jz
     si = 0  
     do b = 1, Blocks
-      N = HFBlocks(b)
-      !$OMP PARALLEL
-      !$OMP DO      
+      N = HFBlocks(b)   
       do i=1, N
         ii = si + i
         it = 1
         if(ii.gt.nwn) it = 2
         do j=1,N
           jj = si + j
-        
+  
+          if(rotcorr_cut) then
+            !-------------------------------------------------------------------
+            ! Definition of the cutoff for the rotational correction: defined as
+            ! a function of the pairing cutoff. Note that it is not equal to 
+            ! that one: there is the factor 2 to make it sharper. 
+            !-------------------------------------------------------------------
+            Up   =   2*  (spenergies(ii) - fermienergy(it) - PairingCut(it))/PairingMu(it)
+            cut_cr = sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
+            Up   =   2*  (spenergies(jj) - fermienergy(it) - PairingCut(it))/PairingMu(it)
+            cut_cr = cut_cr * sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
+          else
+            cut_cr = 1.0d0
+          endif
           ! |< k | j_x | -l >|^2            
-          jx(ii,jj)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
+          jx(ii,jj)= cut_cr * angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
           ! |< k | j_y | -l >|^2 
-          jy(ii,jj)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+          jy(ii,jj)= cut_cr * angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
           ! |< k | j_z |  l >|^2 
-          jz(ii,jj)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))  
+          jz(ii,jj)= cut_cr * angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
         enddo
-      enddo
-      !$OMP END DO
-      !$OMP END PARALLEL      
+      enddo 
       jx_can(si+1:si+N, si+1:si+N) = &
       &  matmul(transpose(cantransfo(si+1:si+N, si+1:si+N)), &
       &                              jx(si+1:si+N, si+1:si+N))
@@ -375,13 +384,13 @@ contains
           ME(2) = 2*jy_can(ii,jj)**2 
           ME(3) = 2*jz_can(ii,jj)**2  
 
-          J2(:,it) = J2(:,it) + ME * fac
+          J2(:,it) = J2(:,it) + ME * fac  
         enddo
       enddo
       si = si + N
     enddo
     J2(:,3) = sum(J2(:,1:2),2) 
-
+ 
     !---------------------------------------------------------------------------
     ! I also calculate some approximation for the collective angular momentum, 
     ! which I define as <J^2> without the contribution from the blocked qps. 
@@ -467,11 +476,11 @@ contains
 
           if(abs(Qpenergies(ii) - Qpenergies(jj)) .gt. 1d-8) then
             Belyaev(:,it) = Belyaev(:,it) + &
-            &           2* fac*J11(ii,jj,:)**2 /(Qpenergies(ii)-Qpenergies(jj))   
+            &           2 * fac*J11(ii,jj,:)**2 /(Qpenergies(ii)-Qpenergies(jj))  
           elseif(inversetemp .gt. 0) then
             degen = inversetemp * configmatrix(sb+i)**2 *                      &
             &                                  exp(inversetemp * Qpenergies(ii))
-            Belyaev(:,it) = Belyaev(:,it) +  2*J11(ii,jj,:)**2 * degen   
+            Belyaev(:,it) = Belyaev(:,it) +  2*J11(ii,jj,:)**2 * degen   	
           endif 
 
           if(inversetemp.lt.0) then
@@ -485,7 +494,7 @@ contains
             if(blocked) cycle
 
             Bely_coll(:,it) = Bely_coll(:,it) + &
-            &            2*J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))    
+            &             2*J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))  
           endif
         
           !---------------------------------------------------------------------

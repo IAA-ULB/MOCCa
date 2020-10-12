@@ -10,14 +10,11 @@
 #      start from scratch. 
 #-------------------------------------------------------------------------------
 #
-#  This particular runscript illustrates a two calculations, employing BCS and
-#  HFB ansatzes for 24Mg in a limited box.
 #
 ################################################################################
 
-exe='Tantalus.NLO.func.exe'
+exe='Tantalus.DD-switch.func.exe'
 execdir='../exec'
-param='../parameterizations/SLy5s1.param'
 
 #Create storage directories
 if [ ! -d "out/" ]; then
@@ -31,41 +28,49 @@ if [ ! -d "work/" ]; then
 fi
 
 cp $execdir/$exe   work/
-cp $param          work/sly5s1.param
+cp ../parameterizations/gsk1.param         work/gsk1.param
+cp ../parameterizations/gsk2.param         work/gsk2.param
 
 cd work
 
-for type in BCS HFB
+for param in gsk1 gsk2
 do
 
-echo "Calculation with pairingtype=$type"
-outfile="Tant.$type.out"
-
+echo "Running $param"
+outfile="Tant.$param.out"
 
 #-------------------------------------------------------------------------------
+# Creating the runtime data
 cat << EOF > tant.data
 &nucleus
-neutrons=12, protons=12
+neutrons=28, protons=20
 /
+# Parameters of the Lagrange mesh. 
 &mesh
-nx=12, ny=12, nz=12, dx=1.0
+nx=16, ny=16, nz=16, dx=0.8
 /
-# The SLy5s1 has pairing strength and type defined in its .param file.
+# The code will look, on a file forces.param, for the parameterization with 
+# this name.
 &func
-name_param='SLy5s1'
+name_param="$param"
 /
-# Start with BCS pairing.
+# Options for the pairing.
 &pairing
-Type="$type"
+type='HFB'
 /
+# maxiter = Maximum number of iterations to be performed
 &evolution
 maxiter=100
 /
 &scfiteration
 /
+# Number of neutron (nwn) and proton (nwp) spwfs to use.
 &wfs
-nwn = 15, nwp = 15
+nwn = 25, nwp = 25
 /
+# Inputfilename  = file from which to continue the calculation
+# Outputfilename = .wf file to write after the end of the calculation. 
+# init signals the code to perform its own initialization.
 &IO
 InputFilename='init'
 Outputfilename='tant.wf'
@@ -77,11 +82,12 @@ EOF
 #-------------------------------------------------------------------------------
 # Running the code
 ./$exe < tant.data > $outfile
+mv $outfile ../out
+done
 
 #Cleaning up
 mv tant.wf  ../wf
-mv $outfile ../out
-#-------------------------------------------------------------------------------
-done
 rm *.exe
-rm *.data
+#rm *.data
+#rm *.param
+#-------------------------------------------------------------------------------

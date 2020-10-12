@@ -110,9 +110,9 @@ setversioninfo:
 
 getgitinfo:
 	# Get information from 'git show', to see what kind of build this is.
-	$(eval GIT_INFO1=$(shell git show | grep 'commit '))
-	$(eval GIT_INFO2=$(shell git show | grep 'Author:'))
-	$(eval GIT_INFO3=$(shell git show | grep 'Date:'))
+	$(eval GIT_INFO1=$(shell git show | grep 'commit ' | head -1))
+	$(eval GIT_INFO2=$(shell git show | grep 'Author:' | head -1))
+	$(eval GIT_INFO3=$(shell git show | grep 'Date:'   | head -1))
 
 ################################################################################
 

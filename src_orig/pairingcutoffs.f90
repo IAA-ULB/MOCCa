@@ -13,8 +13,11 @@ module pairingcutoffs
     end function Cut
   end interface
 
+ ! Procedure pointer to the type of pairing cutoff
  procedure(Cut), pointer :: PairingCutoff 
-
+ !------------------------------------------------------------------------------
+ ! Cutoff functions
+ integer :: CutType = 1
  !------------------------------------------------------------------------------
  ! Parameters for the symmetric Fermi function cutoff
  real(KIND=dp) :: cutneutron = 5, cutproton= 5.

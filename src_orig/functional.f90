@@ -111,8 +111,6 @@ contains
       read(unit=*, nml=func) 
     endif
 
-    name_param = to_upper(name_param)
-    
     call readparameterization(name_param, func_name)
     call calcedfcoefs()
 

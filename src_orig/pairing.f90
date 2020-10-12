@@ -58,9 +58,6 @@ module pairing
  ! Particle number dispersion
  real(KIND=dp) :: Dispersion(2)
  !------------------------------------------------------------------------------
- ! Cutoff functions
- integer :: CutType = 1
- !------------------------------------------------------------------------------
  ! Type of pairing to employ.
  ! (0): Hartree-Fock
  ! (1): Hartree-Fock + BCS
@@ -148,9 +145,9 @@ contains
     character(len=20) :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
     
-    NameList /Pairing/ Type, CutType, Constantgap, hfbmix, hfbmixtype,         &
-    &                  BlockType, BlockNumber, cutneutron, cutproton,          &
-    &                  particles_in_gas, maxhfbiter, FermiSolver, guessgaps    
+    NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
+    &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
+    &                  FermiSolver, guessgaps    
 
     NameList /Indices/ BlockIndices, blocklowest
 
@@ -241,8 +238,8 @@ contains
     4 format('   Linear mixing of eigenvalues of R')
     5 format('   HFBmix = ', f5.3)
     6 format('   Cutoff parameters  = ', a20)
-    7 format('     dE (n,p) = ', 2f4.1, ' MeV ')
-    8 format('     mu (n,p) = ', 2f4.1, ' MeV ')
+    7 format('     dE (n,p) = ', 2f5.2, ' MeV ')
+    8 format('     mu (n,p) = ', 2f5.2, ' MeV ')
    81 format('   Stabilisation active')
    82 format('    Estab(p,n)= ', 2f4.1, ' MeV')
    83 format('   GUESSED INITIAL GAPS!')
