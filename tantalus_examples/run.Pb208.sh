@@ -30,7 +30,7 @@ if [ ! -d "work/" ]; then
 fi
 
 cp $execdir/$exe   work/
-cp $param          work/forces.param
+cp $param          work/SLy4.param
 
 cd work
 
@@ -41,6 +41,7 @@ outfile="Tant.Pb208.out"
 cat << EOF > tant.data
 &nucleus
 neutrons=126, protons=82
+pairing_prec=1e-10
 /
 &mesh
 nx=16, ny=16, nz=16, dx=0.8
