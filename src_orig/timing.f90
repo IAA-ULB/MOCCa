@@ -92,10 +92,10 @@ contains
 
     ntimers = ntimers + 1
     id = ntimers
-    if (id > bit_size(current_context)-1) then
-       ! Can't store a context for > 63 timers in an 8-byte integer.
-       stop "Error: too many timers!"
-    end if
+!    if (id > bit_size(current_context)-1) then
+!       ! Can't store a context for > 63 timers in an 8-byte integer.
+!       stop "Error: too many timers!"
+!    end if
 
     t => timers(id)
     t%id = id

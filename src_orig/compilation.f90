@@ -1,5 +1,6 @@
-   module compilation
-       implicit none
-       INTEGER, PARAMETER ::  dp=kind(1.d0)!SELECTED_REAL_KIND(15,307)
-   end module compilation
+module compilation
+  implicit none
+  integer, parameter :: dp = selected_real_kind(15,307) 
+  integer, parameter :: sp = selected_real_kind(6,37)  
+end module compilation
 

@@ -189,7 +189,7 @@ contains
     endif
 
     call stop_timer(T_coulomb)
-  
+    deallocate(source)
  end subroutine SolveCoulomb 
 
  subroutine ConstructChargeDensity(rho_charge)

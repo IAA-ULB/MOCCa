@@ -248,6 +248,7 @@ $N2DIAG    enddo
 $N2DIAG    !$$OMP END DO
 $N2DIAG    !$$OMP END PARALLEL
 $N2DIAG    !---------------------------------------------------------------------------
+$N2DIAG    deallocate(A,B)  
 $N2DIAG end subroutine Derive_tot_3D
 
 $N2DIAG subroutine Derive_tot_1d(f, px, py, pz, df, ddf)
@@ -371,7 +372,7 @@ $N2ALL          ddf(i,1,:,5) =      matmul(A,df(i,1,:,2))
 $N2ALL    enddo
 $N2ALL    !$$OMP END DO
 $N2ALL    !$$OMP END PARALLEL
-$N2ALL
+$N2ALL    deallocate(A,B)
 $N2ALL end subroutine Derive_tot_3D
 
 $N3ALL subroutine Derive_tot_3D(f, px, py, pz, df, ddf, dddf)
@@ -467,6 +468,7 @@ $N3ALL      do i=1,nx
 $N3ALL             dddf(i,j,:,10) =   matmul(derZ  (:,:,sz),ddf(i,j,:,6))
 $N3ALL      enddo
 $N3ALL    enddo
+$N3ALL    
 $N3ALL end subroutine Derive_tot_3D
 
 $N3ALL subroutine Derive_tot_1D(f, px, py, pz, df, ddf, dddf)
@@ -566,6 +568,7 @@ $DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(A,f3($SYMPARTNERX))
     enddo   
     !$$OMP END DO
     !$$OMP END PARALLEL
+    deallocate(A)
  end subroutine Derive_X
  
   subroutine Derive_Y(f, py, fy)
@@ -600,7 +603,7 @@ $DERSYMY       fy3(i,:,k) = fy3(i,:,k) + matmul(A,f3($SYMPARTNERY))
     enddo
     !$$OMP END DO
     !$$OMP END PARALLEL
-    
+    deallocate(A)
  end subroutine Derive_Y
  
   subroutine Derive_Z(f, pz, fz)
@@ -634,7 +637,7 @@ $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(A,f3($SYMPARTNERZ))
     enddo
     !$$OMP END DO
     !$$OMP END PARALLEL
-    
+    deallocate(A)
  end subroutine Derive_Z
  
  subroutine Derive_lap_3D(f, px, py, pz, df)
@@ -736,9 +739,28 @@ $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(A,f3($SYMPARTNERZ))
  end subroutine Derive_grad_1d
 
  subroutine clean_derivatives()
-  if(allocated(derX)) then
-    deallocate(derX, derY, derZ)
-    deallocate(laplaX, laplaY, laplaZ)
-  endif
+      if (allocated(derX)) then  
+        deallocate(derX)         
+      end if                     
+
+      if (allocated(derY)) then  
+        deallocate(derY)         
+      end if                     
+
+      if (allocated(derZ)) then  
+        deallocate(derZ)         
+      end if                     
+
+      if (allocated(laplaX)) then  
+        deallocate(laplaX)         
+      end if                       
+
+      if (allocated(laplaY)) then  
+        deallocate(laplaY)         
+      end if                       
+
+      if (allocated(laplaZ)) then  
+        deallocate(laplaZ)         
+      end if                       
  end subroutine clean_derivatives
 end module derivatives

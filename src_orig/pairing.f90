@@ -134,7 +134,6 @@ module pairing
  ! Whether or not to guess some pairing gaps when starting the code.
  logical :: guessgaps = .false.
 
-
 contains
 
   subroutine initpairing(file_number)

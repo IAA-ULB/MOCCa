@@ -137,6 +137,7 @@ contains
     homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
 
     allocate(hfpsi(nx*ny*nz,4,nwt)) ; hfpsi = 0.0d0
+    if (allocated(kparz))  deallocate(kparz)       
    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
@@ -224,6 +225,7 @@ contains
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
+    deallocate(kparz)
 
 !    HFPsi = HFPsi*sqrt(2.)
     ! Simply because I distrust the nilsson routine
@@ -333,6 +335,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     endif
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices
+    if(allocated(indices))  deallocate(indices)
+    if(allocated(Energies)) deallocate(Energies)
     allocate(Indices(nwf), Energies(nwf))
     do i=1,nwf
        Indices(i) = i 
@@ -361,6 +365,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       Energies(HolePos) = ToInsert
       Indices(HolePos)  = ToInsertIndex
     enddo
+
+    deallocate(Energies)
   end function OrderSpwfsISO
   
   function OrderSpwfsSym(block) result(indices)
@@ -381,6 +387,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     startind = sum(HFBlocks(1:block-1))
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices
+    if(allocated(Indices))   deallocate(indices)
+    if(allocated(Energies))  deallocate(energies)
     allocate(Indices(nwf), Energies(nwf))
     do i=1,nwf
        Indices(i) = startind + i 
@@ -405,6 +413,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       Energies(HolePos) = ToInsert
       Indices(HolePos)  = ToInsertIndex
     enddo
+    deallocate(energies)
   end function OrderSpwfsSym
 
   subroutine GramSchmidt

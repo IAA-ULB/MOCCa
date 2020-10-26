@@ -624,7 +624,6 @@ contains
     !---------------------------------------------------------------------------
     ! Write an extra file for input of the combinatorial level density code.
     !
-    !
     ! ATTENTION: this output assumes an axial nucleus with a symmetry axis 
     !            along the z-axis. If the single-particle states are not  
     !            (at least approximately) eigenstates of J_z, then this output
