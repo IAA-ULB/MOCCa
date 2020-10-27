@@ -20,17 +20,19 @@ use pairing
 use functional
 use momentsofinertia
 use moments
+use Coulombmod
 use transform
 
 implicit none
 
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
-  character(len=100) :: inputfilename, outputfilename
+  character(len=100)  :: inputfilename, outputfilename
   ! Signal the code to write extra output.
-  character(len=40) :: BXLFIT = '', COMBI='', denfile=''
+  character(len=40)   :: BXLFIT='', COMBI='', denfile='', potfile=''
+  character(len=40)   :: sphffile='', spcanfile=''
   ! Signal the code to write the wavefunctions periodically
-  integer :: checkpointiter = 0  
+  integer             :: checkpointiter = 0  
   !-----------------------------------------------------------------------------
   logical             :: Allowtransform = .false.
   integer             :: extraspwfs(8) = 0
@@ -61,8 +63,8 @@ contains
 
     logical :: exists
 
-    NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,        & 
-    &             checkpointiter, AllowTransform, extraspwfs
+    NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
+    &             sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs
     
     if(present(file_number)) then
       inquire(file=input_file, exist=exists)
@@ -122,9 +124,13 @@ contains
    10 format ( ' IO information', / &
     &          '  inputfilename  =', a20, / &
     &          '  outputfilename =', a20)
-   11 format ( '  BXL output     =', a20)
-  111 format ( '  Combi ouput    =', a20)
- 1111 format ( '  Input data     =', a20, / &
+   11 format ( '  Filename for other output (not written if empty): ', /     &
+             & '    BXL output     = ', a20, / &
+             & '    DEN file       = ', a20, / &
+             & '    POT file       = ', a20, / &
+             & '    SPHF file      = ', a20, / &
+             & '    SPCAN file     = ', a20) 
+ 1111 format ( '    Input data     = ', a20, / &
                '     on unit ', i10)
   112 format ( '  Checkpointiter =', i10)
    12 format ( ' Convergence required', / &
@@ -148,16 +154,18 @@ contains
 
     print 13, inversetemp
     print 10, inputfilename, outputfilename
-    if(BXLFIT .ne. '') then
-        print 11, BXLFIT 
-    endif
-    if(COMBI .ne. '') then
-        print 111, COMBI
-    endif
+    print 112, checkpointiter
+
+    print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE
+!    if(BXLFIT .ne. '') then
+!        print 11, BXLFIT 
+!    endif
+!    if(COMBI .ne. '') then
+!        print 111, COMBI
+!    endif
     if(present(file_number)) then
       print 1111,  adjustl(trim(input_file)), file_number
     endif
-    print 112
     print 12, energy_prec, moment_prec, disp_prec
     
     call printevolution
@@ -427,10 +435,9 @@ contains
 
   subroutine WriteTantalus(chan, ofn, iter, iomsg)
     !---------------------------------------------------------------------------
-    ! Subroutine that dumps all information to file for future runs.
+    ! Subroutine that dumps all information to a .wf file for future runs.
     ! Heavily based on the MOCCa output routine.
     !---------------------------------------------------------------------------
-    ! 
     ! Things written to file. (Not yet implemented ones are indicated by *)
     !
     ! Version
@@ -522,22 +529,53 @@ contains
       call Writemoment(mom,chan)
     enddo
     close(chan)
-    
+
+  end subroutine WriteTantalus
+
+  subroutine write_advanced_output(iter, iomsg)
+    !--------------------------------------------------------------------------- 
+    ! Collection routine for writing advanced output. 
+    ! Current options:
+    !     BXLFIT   : one-line file incorporating essential info for a fit by
+    !                the Brussels group
+    !     POTFILE  : file containing 3D information on various potentials
+    !     DENFILE  : file containing 3D information on the densities
+    !     SPHFFILE : information on the single-particle wavefunctions in the 
+    !                Hartree-Fock basis.
+    !     SPCANFILE: information on the single-particle wavefunctions in the 
+    !                Canonical basis.
+    !---------------------------------------------------------------------------
+    integer          :: iter
+    character(len=*) :: iomsg
+
     ! Bonus file for quick feedback into the fit
     if(BXLFIT .ne. '') then
         call Brussels_output(iter, iomsg)
     endif  
 
-    ! Output for the level density code
-    if(COMBI .ne. '') then
-        call Combi_output()
+    ! Write the neutron, proton and charge density to a file for postprocessing 
+    if(DENFILE .ne. '') then
+      call write_densities(DENFILE)
+    endif
+    ! Write the relevant potentials to a file for postprocessing
+    if(POTFILE .ne. '') then
+      call write_potentials(POTFILE)
+    endif
+    ! Single-particle wave function information 
+    ! a) in the HF-basis
+    if(SPHFFILE .ne. '') then
+      call write_sp_info(SPHFFILE)
+    endif 
+    ! b) in the canonical basis
+    if(SPCANFILE .ne. '') then  
+      if(pairingtype.ne.2) then
+        print *, 'Cannot output single-particle information in the canonical basis.'
+        stop
+      endif
+      call write_sp_info_can(SPCANFILE)
     endif
 
-    ! Write the density to a file for postprocessing 
-    if(DENFILE .ne. '') then
-      call writedensity(D_I_I, DENFILE)
-    endif
-  end subroutine WriteTantalus
+  end subroutine write_advanced_output
 
   subroutine Brussels_output(iter, iomsg)
     !---------------------------------------------------------------------------
@@ -620,95 +658,442 @@ contains
 
   end subroutine Brussels_output
 
-  subroutine combi_output
+  subroutine write_header(iochannel)
     !---------------------------------------------------------------------------
-    ! Write an extra file for input of the combinatorial level density code.
+    ! This routine writes a header to file that contains a bunch of information 
+    ! on the calculation. It looks like:
     !
-    ! ATTENTION: this output assumes an axial nucleus with a symmetry axis 
-    !            along the z-axis. If the single-particle states are not  
-    !            (at least approximately) eigenstates of J_z, then this output
-    !            will effectively be nonsense.
+    !     #   N = i3, Z = i3, A = i3
+    !     #   nwn = i3, nwp = i3
+    !     #   Name of the parameterization
+    !     #   type of functional
+    !     #   BI 1: Blocktype, Blocknumber
+    !     #   BI 2: BlockIndices
+    !     #   BI 3: Blocklowest
+    !     #   [EMPTY CURRENTLY, RESERVED FOR SYMMETRY INFORMATION]
+    !
+    !---------------------------------------------------------------------------
+    integer, intent(in) :: iochannel
+
+   
+    1 format("# N = ", i3, ' Z = ', i3, ' A = ', i3)
+    2 format("# nwn = ", i3, ", nwp = ", i3)
+    3 format("# (nx,ny,nz) = (", 3i3, "), dx = ", f8.6, ' fm')
+    4 format("# Parameterisation: ", a40)
+    5 format("# Functional type : ", a40)
+
+    6 format("# BI 1: ", 2i3)
+    7 format("# BI 2: ", 99i4)
+    8 format("# BI 3: ", 99a3)
+
+    write(iochannel, fmt=1)  int(neutrons), int(protons),int(neutrons+protons)
+    write(iochannel, fmt=2)  nwn, nwp
+    write(iochannel, fmt=3)  nx, ny, nz, dx
+    write(iochannel, fmt=4)  name_param
+    write(iochannel, fmt=5)  func_name
+    write(iochannel, fmt=6)  blocktype, blocknumber
+    if(blocknumber .gt. 0) then
+      write(iochannel, fmt=7) Blockindices
+      write(iochannel, fmt=8) Blocklowest
+    else
+      write(iochannel, fmt=7) 
+      write(iochannel, fmt=8)
+    endif
+
+    write(iochannel, fmt='(a1)') '#'
+
+  end subroutine write_header
+
+  subroutine write_densities(fname)
+    !---------------------------------------------------------------------------
+    ! Write the following densities to a file named "fname"
+    !    rho(neutron), rho(proton), rho(charge)
+    !---------------------------------------------------------------------------
+    ! The file contains a header written by the subroutine write_header,
+    ! supplemented by
+    !
+    !     #   X[fm] Y[fm] Z[fm] rho_n[fm^{-3}] rho_p[fm^{-3}] rho_c[fm^{-3}]
+    ! 
+    ! where the # are included so that Numpy (or other plotting tools) can 
+    ! ignore these lines when naively plotting stuff. Note that the fourth
+    ! line is currently empty, but is reserved for future additions concerning
+    ! symmetry options of the current run.
+    !
+    ! The format of the body of said file is
+    ! 
+    !        x , y , z,  rho_n, rho_p, rho_c
+    !
+    ! where the first three numbers are the Cartesian coordinates (units of fm)
+    ! and the densities are all in units of fm^{-3}. 
+    ! The points are written down in column-major order ('Fortran order'), 
+    ! which might not be how your favorite plotting tool prefers it.
+    !---------------------------------------------------------------------------
+    ! Note that the densities are written "as they are" to file, i.e. only in
+    ! part of the box that is actually represented numerically. It is up to
+    ! postprocessing to actually construct the densities in the entire box.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), pointer           :: dn(:,:,:), dp(:,:,:)
+    character(len=*), intent(in)     :: fname
+    integer                          :: io, i,j,k
+
+    1 format('#  X[fm]   Y[fm]   Z[fm]       rho_n[fm^{-3}]           rho_p[fm^{-3}]           rho_c[fm^{-3}]')
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'Something went wrong with writing a density to file.'
+      print *, 'filename = ', fname
+      stop
+    endif
+
+    dn(1:nx,1:ny,1:nz)  => D_I_I(:,1)
+    dp(1:nx,1:ny,1:nz)  => D_I_I(:,2)
+
+    call write_header(1)
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          write(1, fmt='(3f8.3, 3es25.12)') meshx(i), meshx(j), meshz(k),      &
+          &                           dn(i,j,k), dp(i,j,k), chargedensity(i,j,k) 
+        enddo
+      enddo
+    enddo
+
+    close(1)
+  end subroutine write_densities
+
+  subroutine write_potentials(fname)
+    !---------------------------------------------------------------------------
+    ! Write the following potentials to a file named "fname"
+    !  F_I_I(n/p),  F_c(n/p),  V_so(n/p),   V_pair(n/p)
+    !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !  central       coulomb   spin-orbit   pairing  
+    !
+    ! Remarks:
+    !   *) no definition yet of V_so or V_pair
+    !   *) F_c is the potential of the DIRECT Coulomb energy, directly obtained
+    !      from the charge density. It is in general NOT this potential that 
+    !      the protons (and neutrons) feel. 
+    !---------------------------------------------------------------------------
+    !
+    ! The file contains a header written by the subroutine write_header,
+    ! supplemented by
+    ! #   X[fm] Y[fm] Z[fm] V_nuc(n) V_nuc(p) V_c(n) V_c(p) 
+    !                                             V_so(n) V_so(p) V_p(n) V_p(p)
+    ! 
+    ! where the # are included so that Numpy (or other plotting tools) can 
+    ! ignore these lines when naively plotting stuff. Note that the fourth
+    ! line is currently empty, but is reserved for future additions concerning
+    ! symmetry options of the current run.
+    !
+    ! The format of the body of said file is
+    ! 
+    !     x,y,z,F_I_I(n),F_I_I(p), F_c,V_so(n), V_so(p),V_pair(n),V_pair(p)
+    !
+    ! where the first three numbers are the Cartesian coordinates (units of fm).
+    ! The points are written down in column-major order ('Fortran order'), 
+    ! which might not be how your favorite plotting tool prefers it.
+    !---------------------------------------------------------------------------
+    ! IMPORTANT:
+    !  While this routine now claims to write V_so and V_pair to file, right now
+    !  it just writes zeros in those columns.
+    !---------------------------------------------------------------------------
+    character(len=*), intent(in) :: fname
+    real(KIND=dp), pointer       :: Vnucp(:,:,:), Vnucn(:,:,:)
+    real(KIND=dp), allocatable   :: Couln(:,:,:), Coulp(:,:,:)
+
+    real(KIND=dp), allocatable, target   :: temp(:,:)
+    integer                              :: io, i,j,k
+
+    1 format('#  X[fm]   Y[fm]   Z[fm]  V_nuc(n) V_nuc(p) V_c(n) V_c(p) V_so(n) V_so(p) V_p(n) V_p(p)')
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'Something went wrong with writing a potential to file.'
+      print *, 'filename = ', fname
+      stop
+    endif
+
+    call write_header(1)
+    write(1, fmt=1) 
+  
+    ! The central nuclear potential is the field associated with D_I_I, but it
+    ! should not include the constraints, nor the contribution of the 
+    ! Coulomb potential
+    allocate(temp(nx*ny*nz,2), couln(nx,ny,nz), coulp(nx,ny,nz))
+    temp = F_I_I - constraint_I_I
+
+    Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
+    Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
+
+  
+
+    ! Subtracting the coulomb potential depends on our treatment of the 
+    ! proton and neutron finite size effect
+    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+    &                             (.not. nucleonsize_selfconsistent)) then
+      ! No finite size effect for either protons or neutrons
+      Vnucp = Vnucp - CoulombPotential  - ExchangePotential
+
+      Couln = 0.0d0
+      Coulp = CoulombPotential
+    else
+      ! Finite size effects taken into account
+      Vnucn = Vnucn - FoldedCoul(:,:,:,1)       - FoldedExchange(:,:,:,1)
+      Vnucp = Vnucp - FoldedCoul(:,:,:,2)       - FoldedExchange(:,:,:,2)
+
+      Couln = FoldedCoul(:,:,:,1)
+      Coulp = FoldedCoul(:,:,:,2)
+    endif
+
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          write(1, fmt='(3f8.3, 8es25.12)') meshx(i), meshx(j), meshz(k),      &
+          &          Vnucn(i,j,k), Vnucp(i,j,k), Couln(i,j,k), Coulp(i,j,k),   &
+          &          0.0, 0.0 ,0.0, 0.0 
+        enddo
+      enddo
+    enddo
+
+    deallocate(couln, coulp)
+    close(1)
+  end subroutine write_potentials
+
+  subroutine write_sp_info(fname)
+    !---------------------------------------------------------------------------
+    ! Write detailed information on the single-particle spectrum to file.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Note that this is all information in the Hartree-Fock basis. Note that 
+    ! time-reversal symmetry is hardcoded for the moment, hence every line
+    ! represents a single-particle wavefunction and its partner.
+    !---------------------------------------------------------------------------
+    ! The file contains a header written by the subroutine write_header, 
+    ! supplemented by
+    !     #   Information in the HartreeFock basis
+    !     #   i  iso  P  occ E  JxT JyT Jz J
+    !
+    ! In the body of the file, it contains the following information  
+    !      wave, isospin, parity, rho, spenergy, JX, JY, JZ, JJ
+    !
+    !   wave     : numbering 
+    !   isospin  : -1 for neutrons, +1 for protons
+    !   parity   : parity quantum number
+    !   rho      : diagonal element of rho(wave,wave), with an extra factor
+    !              of two for time-reversal
+    !   spenergy : expectation value of the sp hamiltonian for this state
+    !              (at convergence, these are eigenstates of h)
+    !   JX       : matrix element of Jx T for this state.
+    !              Note extra time-reversal reversal!
+    !   JY       : matrix element of Jy T for this state.
+    !              Note extra time-reversal reversal!
+    !   JZ       : matrix element of Jz T for this state.
+    !   JJ       : J quantum number (real number) that corresponds to this state
+    !              such that 
+    !                    (JJ+1) JJ = <Jx^2> + <Jy^2> + <Jz^2> 
+    !
+    !---------------------------------------------------------------------------
+    use wavefunctions
+
+    character(len=*), intent(in) :: fname
+    integer                      :: io, i, p, B, wave
+    integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
+    real(KIND=dp)                :: Jx, Jy, Jz, JJ
+ 
+    1 format(3i5, 6f10.4)
+    2 format("# Neutron spwfs")
+    3 format("# Proton spwfs")
+    4 format("# Information in the Hartree-Fock basis")
+
+    60 format ("#",3x,'i',3x,'iso',3x,'P',4x,'occ',7x,'<h>',7x,  &
+     &        'JxT',7x,'JyT', 7x ,'Jz', 8x, 'J')    
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'Something went wrong with the sp. info to file.'
+      print *, 'filename = ', fname
+      stop
+    endif
+    call write_header(1)
+    write(1, fmt=4)
+    write(1, fmt='(a1)') '#'
+    write(1, fmt=60) 
+    write(1, fmt=2) 
+
+    neutronorder = OrderSpwfsISO(-1)
+    protonorder  = OrderSpwfsISO(+1)
+    !---------------------------------------------------------------------------
+    ! First do the neutron wavefunctions    
+    do i=1,nwn
+      wave = neutronorder(i)
+      if(wave .le. HFBlocks(1)) p = +1
+      if(wave .gt. HFBlocks(1)) p = -1
+
+      Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+      Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+      Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+
+      JJ = & 
+      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
+      JJ = (-1. + sqrt(1. + 4*JJ))/2.
+
+      write(1, fmt=1) wave, -1, p, 2*rho_pairing(wave,wave), spenergies(wave),   & 
+      &               Jx, Jy,Jz, JJ
+    enddo      
+    write(1, fmt=3) 
+    !---------------------------------------------------------------------------
+    ! Then do the proton wavefunctions    
+    do i=1,nwp
+      wave =  protonorder(i)
+      if(wave .le. sum(HFBlocks(1:5))) p = +1
+      if(wave .gt. sum(HFBlocks(1:5))) p = -1
+
+      Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+      Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+      Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+
+      JJ = & 
+      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
+      JJ = (-1. + sqrt(1. + 4*JJ))/2.
+
+      write(1, fmt=1) wave, +1, p, 2*rho_pairing(wave,wave), spenergies(wave), & 
+      &                Jx, Jy,Jz,JJ
+    enddo
+    close(1)
+  end subroutine write_sp_info
+
+  subroutine write_sp_info_can(fname)
+    !---------------------------------------------------------------------------
+    ! Write detailed information on the single-particle spectrum to file.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Note that this is all information in the basis where rho is diagonal. 
+    ! (This may or may not be the canonical basis, depending on the options 
+    !  of the calculation.) 
+    ! Note that time-reversal symmetry is hardcoded for the moment, hence every 
+    ! line represents a single-particle wavefunction and its partner.
+    !---------------------------------------------------------------------------
+    ! The file contains a header written by the subroutine write_header, 
+    ! supplemented by
+    !     #   Information in the basis that diagonalizes RHO
+    !     #   i  iso  P  occ E  JxT JyT Jz J
+    ! 
+    ! In the body of the file, it contains the following information  
+    !      wave, isospin, parity, rho_can, canenergy, JX, JY, JZ, JJ
+    !
+    !   wave     : numbering 
+    !   isospin  : -1 for neutrons, +1 for protons
+    !   parity   : parity quantum number
+    !   rho_can  : diagonal element of rho, with an extra factor of two for
+    !              time-reversal
+    !   canenergy: expectation value of the sp hamiltonian for this state
+    !              NOTE: these states are not eigenstates of the sp hamiltonian!
+    !   JX       : matrix element of Jx T for this state.
+    !              Note extra time-reversal reversal!
+    !   JY       : matrix element of Jy T for this state.
+    !              Note extra time-reversal reversal!
+    !   JZ       : matrix element of Jz T for this state.
+    !   JJ       : J quantum number (real number) that corresponds to this state
+    !              such that 
+    !                    (JJ+1) JJ = <Jx^2> + <Jy^2> + <Jz^2> 
+    !
     !---------------------------------------------------------------------------
 
-    integer, allocatable :: indices(:)
-    integer              :: i,ii, p1, p2,jj
-    real(KIND=dp)        :: R0, A, fac, mstate1, mstate2
+    use wavefunctions
 
-    1 format (a1, 3i4)
-    2 format (2(f5.1,i2,3f8.3))
-    3 format ( 2i4,17(x,f7.4),2f9.2)
+    character(len=*), intent(in) :: fname
+    integer                      :: io, i, p, B, wave
+    integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
+    real(KIND=dp)                :: Jx, Jy, Jz, JJ
+ 
+    1 format(3i5, 6f10.4)
+    2 format("# Neutron spwfs")
+    3 format("# Proton spwfs")
+    4 format("# Information in the basis that diagonalizes RHO")
 
-    open(unit=6, file=COMBI)
+    60 format ("#",3x,'i',3x,'iso',3x,'P',4x,'occ',7x,'<h>',7x,  &
+     &        'JxT',7x,'JyT', 7x ,'Jz', 8x, 'J')    
 
-    ! a) single-particle neutron states
-    write(6, fmt=1) '*', int(protons), int(neutrons+protons), nwn/2
-    indices = OrderSpwfsISO(-1)
 
-    do i=1,nwn/2
-        ii    = indices(i)
-        jj    = indices(i+nwn/2)
-
-        if(ii .lt. (HFBlocks(1))) p1 =  0
-        if(ii .gt. (HFBlocks(1))) p1 =  1
-
-        if(jj .lt. (HFBlocks(1))) p2 =  0
-        if(jj .gt. (HFBlocks(1))) p2 =  1
-
-        mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
-        mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
-
-        mstate1 = force_halfinteger(mstate1)
-        mstate2 = force_halfinteger(mstate2)
-
-        write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
-        &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
-    enddo
-
-    ! b) single-particle neutron states
-    write(6, fmt=1) ' ', int(protons), int(neutrons+protons), nwp/2
-    indices = OrderSpwfsISO(+1)
-    do i=1,nwp/2
-        ii     = indices(i)
-        jj     = indices(i+nwp/2)
-
-        if(ii .lt. sum(HFBlocks(1:3))) p1 =  0
-        if(ii .gt. sum(HFBlocks(1:3))) p1 =  1
-
-        if(jj .lt. sum(HFBlocks(1:3))) p2 =  0
-        if(jj .gt. sum(HFBlocks(1:3))) p2 =  1
-
-        mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
-        mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
-
-        mstate1 = force_halfinteger(mstate1)
-        mstate2 = force_halfinteger(mstate2)
-        
-        write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
-        &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
-    enddo
-
-    !  The final line is composed of various informations
-    !  Z, A, beta2, beta4, Gn, Gp, Deltan, Deltap, ddmn, ddmp,
-    !       econdn,econdp,eshcorn,eshcorp,lambdan,lambdap,ainer,rigid,
-    !       etott,etable
-
-    R0  = 1.2
-    A   = neutrons + protons
-    fac = 4. * pi/(3. * (R0 *(A))**2 * A) * Q(3) * sqrt(5/(16*pi))
-
-    !                                              Q40   Gn   Gp  Deltan Deltap  
-    write(unit=6, fmt=3), int(protons),int(A),fac*Q(3), 0.0, 0.0, 0.0, 0.0,0.0,&
-    !                     ddmn, ddmp, econdn, econdp, eshcorn, eshcorp 
-    &                      0.0,  0.0,    0.0,    0.0,     0.0,     0.0,        & 
-     !                     lambdan, lambdap, ANONYMOUOS NUMBER,  ainer, rigid, 
-    &                      FermiEnergy(1),  FermiEnergy(2), 0.0, Belyaev(3,3), &
-    &                      Rigid(3,3), totalE, 0.0
-
-    close(unit=6)
-  end subroutine combi_output
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'Something went wrong with the sp. info to file.'
+      print *, 'filename = ', fname
+      stop
+    endif
     
+    call write_header(1)
+    write(1, fmt=4)
+    write(1, fmt='(a1)') '#'
+    write(1, fmt=60) 
+    write(1, fmt=2) 
+
+    neutronorder = OrderSpwfsISO(-1,.true.)
+    protonorder  = OrderSpwfsISO(+1,.true.)
+    !---------------------------------------------------------------------------
+    ! First do the neutron wavefunctions    
+    do i=1,nwn
+      wave = neutronorder(i)
+      if(wave .le. HFBlocks(1)) p = +1
+      if(wave .gt. HFBlocks(1)) p = -1
+
+      Jx = angmom_xt_real(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
+      Jy = angmom_yt_imag(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
+      Jz = angmom_z_real (CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
+
+      JJ = & 
+      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
+      JJ = (-1. + sqrt(1. + 4*JJ))/2.
+
+      write(1, fmt=1) wave, -1, p, rho_can(wave), canenergies(wave), Jx, Jy,Jz,&
+      &               JJ
+    enddo      
+    write(1, fmt=3) 
+    !---------------------------------------------------------------------------
+    ! Then do the proton wavefunctions    
+    do i=1,nwp
+      wave =  protonorder(i)
+      if(wave .le. sum(HFBlocks(1:5))) p = +1
+      if(wave .gt. sum(HFBlocks(1:5))) p = -1
+
+      Jx = angmom_xt_real(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
+      Jy = angmom_yt_imag(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
+      Jz = angmom_z_real (CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
+
+      JJ = & 
+      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
+      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
+      JJ = (-1. + sqrt(1. + 4*JJ))/2.
+
+      write(1, fmt=1) wave, +1, p, rho_can(wave), canenergies(wave), Jx, Jy,Jz,&
+      &               JJ
+    enddo
+    close(1)
+  end subroutine write_sp_info_can
+
   function force_halfinteger(j) result(jforced)
-      
+      !-------------------------------------------------------------------------
+      ! Small function to round a real number to a half integer number, 
+      ! useful for angular momenta.
+      !
+      !-------------------------------------------------------------------------
       real(KIND=dp) :: j, jforced
       integer       :: i
 
@@ -723,4 +1108,93 @@ contains
           jforced = i/2.0_dp - 1
       endif
   end function force_halfinteger
+
+!-------------------------------------------------------------------------------
+!  subroutine combi_output
+!    !---------------------------------------------------------------------------
+!    ! Write an extra file for input of the combinatorial level density code.
+!    !
+!    ! ATTENTION: this output assumes an axial nucleus with a symmetry axis 
+!    !            along the z-axis. If the single-particle states are not  
+!    !            (at least approximately) eigenstates of J_z, then this output
+!    !            will effectively be nonsense.
+!    !---------------------------------------------------------------------------
+
+!    integer, allocatable :: indices(:)
+!    integer              :: i,ii, p1, p2,jj
+!    real(KIND=dp)        :: R0, A, fac, mstate1, mstate2
+
+!    1 format (a1, 3i4)
+!    2 format (2(f5.1,i2,3f8.3))
+!    3 format ( 2i4,17(x,f7.4),2f9.2)
+
+!    open(unit=6, file=COMBI)
+
+!    ! a) single-particle neutron states
+!    write(6, fmt=1) '*', int(protons), int(neutrons+protons), nwn/2
+!    indices = OrderSpwfsISO(-1)
+
+!    do i=1,nwn/2
+!        ii    = indices(i)
+!        jj    = indices(i+nwn/2)
+
+!        if(ii .lt. (HFBlocks(1))) p1 =  0
+!        if(ii .gt. (HFBlocks(1))) p1 =  1
+
+!        if(jj .lt. (HFBlocks(1))) p2 =  0
+!        if(jj .gt. (HFBlocks(1))) p2 =  1
+
+!        mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
+!        mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
+
+!        mstate1 = force_halfinteger(mstate1)
+!        mstate2 = force_halfinteger(mstate2)
+
+!        write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+!        &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
+!    enddo
+
+!    ! b) single-particle neutron states
+!    write(6, fmt=1) ' ', int(protons), int(neutrons+protons), nwp/2
+!    indices = OrderSpwfsISO(+1)
+!    do i=1,nwp/2
+!        ii     = indices(i)
+!        jj     = indices(i+nwp/2)
+
+!        if(ii .lt. sum(HFBlocks(1:3))) p1 =  0
+!        if(ii .gt. sum(HFBlocks(1:3))) p1 =  1
+
+!        if(jj .lt. sum(HFBlocks(1:3))) p2 =  0
+!        if(jj .gt. sum(HFBlocks(1:3))) p2 =  1
+
+!        mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
+!        mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
+
+!        mstate1 = force_halfinteger(mstate1)
+!        mstate2 = force_halfinteger(mstate2)
+!        
+!        write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+!        &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
+!    enddo
+
+!    !  The final line is composed of various informations
+!    !  Z, A, beta2, beta4, Gn, Gp, Deltan, Deltap, ddmn, ddmp,
+!    !       econdn,econdp,eshcorn,eshcorp,lambdan,lambdap,ainer,rigid,
+!    !       etott,etable
+
+!    R0  = 1.2
+!    A   = neutrons + protons
+!    fac = 4. * pi/(3. * (R0 *(A))**2 * A) * Q(3) * sqrt(5/(16*pi))
+
+!    !                                              Q40   Gn   Gp  Deltan Deltap  
+!    write(unit=6, fmt=3), int(protons),int(A),fac*Q(3), 0.0, 0.0, 0.0, 0.0,0.0,&
+!    !                     ddmn, ddmp, econdn, econdp, eshcorn, eshcorp 
+!    &                      0.0,  0.0,    0.0,    0.0,     0.0,     0.0,        & 
+!     !                     lambdan, lambdap, ANONYMOUOS NUMBER,  ainer, rigid, 
+!    &                      FermiEnergy(1),  FermiEnergy(2), 0.0, Belyaev(3,3), &
+!    &                      Rigid(3,3), totalE, 0.0
+
+!    close(unit=6)
+!  end subroutine combi_output
+    
 end module IO

@@ -315,7 +315,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     
   end subroutine DeriveCan
   
-  function OrderSpwfsISO(Isospin) result(Indices)
+  function OrderSpwfsISO(Isospin, canonical) result(Indices)
     !---------------------------------------------------------------------------
     ! Orders the wavefunctions within an isospin block. 
     !---------------------------------------------------------------------------
@@ -325,6 +325,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     real(Kind=dp), allocatable :: Energies(:)
     integer                    :: i, nwf,  HolePos, ToInsertIndex
     real(Kind=dp)              :: ToInsert
+    logical, intent(in), optional :: canonical
     
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Count the number of proton and neutron wavefunctions
@@ -341,11 +342,28 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     do i=1,nwf
        Indices(i) = i 
     enddo
-    if(Isospin.eq.-1) then
-        Energies = spenergies(1:nwn)
+
+    if(.not. present(canonical)) then
+      if(Isospin.eq.-1) then
+          Energies = spenergies(1:nwn)
+      else
+          Indices  = Indices + nwn
+          Energies = spenergies(nwn+1:nwn+nwp)
+      endif
+    elseif(canonical) then
+      if(Isospin.eq.-1) then
+          Energies = canenergies(1:nwn)
+      else
+          Indices  = Indices + nwn
+          Energies = canenergies(nwn+1:nwn+nwp)
+      endif
     else
-        Indices  = Indices + nwn
-        Energies = spenergies(nwn+1:nwn+nwp)
+      if(Isospin.eq.-1) then
+          Energies = spenergies(1:nwn)
+      else
+          Indices  = Indices + nwn
+          Energies = spenergies(nwn+1:nwn+nwp)
+      endif
     endif
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Sort the energies

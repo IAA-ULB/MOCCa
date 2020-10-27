@@ -67,7 +67,7 @@ def GenerateFields():
         
     global sumindices,tab
 
-    field_decl_temp = Template(  tab + 'real(KIND=dp), allocatable :: $FIELD(:$DECLIND,:) \n')
+    field_decl_temp = Template(  tab + 'real(KIND=dp), allocatable, target :: $FIELD(:$DECLIND,:) \n')
     fhist_decl_temp = Template(  tab + 'real(KIND=dp), allocatable :: ${FIELD}_hist(:$DECLIND,:) \n')
     
     field_allo_temp = Template(2*tab + 'if(.not.allocated($FIELD)) then\n'+\

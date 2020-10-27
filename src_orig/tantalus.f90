@@ -405,8 +405,11 @@ subroutine ReachForWaterAndFood()
       iomsg='MAXITER'  
     endif
     !---------------------------------------------------------------------------
-    ! Write output to the outputfile.
+    ! Write output to the outputfile, i.e. the full wavefunction file
     call WriteTantalus(12, outputfilename, iter-1, iomsg)     
+    !---------------------------------------------------------------------------
+    ! Write other, advanced, output
+    call write_advanced_output(iter-1,iomsg)
     !---------------------------------------------------------------------------
 end subroutine ReachForWaterAndFood
 
