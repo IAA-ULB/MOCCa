@@ -210,6 +210,11 @@ contains
        PairingCutoff => SymmetricFermi
     case(2)
        PairingCutoff => CosineCut
+    case(3)
+       PairingCutoff => SymmetricFermizero
+    case DEFAULT
+       print *, 'Unknown cutoff type CutType. Valid options are 1,2,3.'
+       stop
     end select
     pairingcut(1) = cutneutron
     pairingcut(2) = cutproton
@@ -286,6 +291,8 @@ contains
        print 6, 'Symmetric Fermi'
     case(2)
        print 6, 'Cosine'
+    case(3)
+       print 6, 'Sym. Fermi + Heaviside'
     end select
 
     print 7, pairingcut

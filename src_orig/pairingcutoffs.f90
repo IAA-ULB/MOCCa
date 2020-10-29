@@ -105,6 +105,33 @@ contains
   
   end function Cosinecut
   
+  real(KIND=dp) function SymmetricFermizero(E, Lambda, it) result(Cutoff)
+    !---------------------------------------------------------------------------
+    ! Calculates a cutoff that utilises two fermi functions, above and below the
+    ! Fermi level. In addition, there is a cutoff that is (close to) a Heaviside  
+    ! function theta(-E).
+    !
+    !        f^-2 = [1 + exp((  epsilon - lambda - DeltaE)/mu)]
+    !             * [1 + exp((- epsilon + lambda - DeltaE)/mu)]
+    !             * [1 + exp((- epsilon )/mu2)]
+    ! 
+    ! with mu and DeltaE being read from input. and mu2 = 1e-4
+    ! The additional cut-off prevents the BCS-gas problem.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: E, Lambda
+    integer, intent(in)       :: it
+    real(Kind=dp)             :: Up, Down, Up2
+    
+    Up   =     (E - Lambda - PairingCut(it))/PairingMu(it)
+    Up2   =    (E)/1e-4
+    Down =   - (E - Lambda + PairingCut(it))/PairingMu(it)
+    Cutoff = sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
+    Cutoff = Cutoff * sqrt(sqrt(1.0_dp/(1.0_dp + exp(Down))))
+    Cutoff = Cutoff * sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up2))))
+
+    return
+  end function SymmetricFermizero
+
   subroutine clean_pairingcutoffs
     if(allocated(Pcutoffs)) deallocate(Pcutoffs)
   end subroutine clean_pairingcutoffs
