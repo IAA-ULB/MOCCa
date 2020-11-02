@@ -1,0 +1,40 @@
+&skf
+name     =  'gsk2.0.9'
+func_file=  'DD-switch.func'
+force_switch = 0.0
+t0       =  -1882.16618400,
+t1       =    341.25838656,
+t2       =     -4.71991803,
+t3       =  12320.43339330,
+x0       =      0.20620969,
+x1       =     -0.66013025,
+x2       =     34.89330860,
+x3       =      0.15993648,
+sigma    =      0.30000000,
+wso      =    121.04398589,
+wsoq     =     80.00000051,
+CT0      =      0.00000000,
+CT1      =      0.00000000,
+Vn       =   -666.64178238,
+Vp       =   -599.98080013,
+alpha    =      0.67704890,
+sigmap   =      0.88511574,
+Estabn   =      0.00000000,
+Estabp   =      0.00000000,
+hbm(1)   =     20.73553000,     20.73553000,
+COM1Body = 2
+COM2Body = 1
+e2            = 1.439964460
+Protonsize    = 0.895, 0.00
+Neutronsize   = 0.387, 0.467
+HOcomform     = .true.
+nucleonsize_selfconsistent=.true.
+CoulTreatment = 2
+rotcorr  = 1
+rotcorrb = 0.93
+rotcorrc = 5.00
+Cuttype = 1
+Cutneutron =  6.60
+Cutproton  =  6.60
+
+/
