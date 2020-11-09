@@ -127,7 +127,8 @@ contains
     ! Print all relevant info on quasiparticles.
     ! Very bare-bones for the moment.
     !---------------------------------------------------------------------------
-    integer :: i, N, B, si, sb
+    integer :: i, N, B, si, sb, ind
+    integer, allocatable :: indices(:)
     
     1  format (33 ('-'), 'Quasiparticles',33('-'))
     2  format (80 ('_'))
@@ -161,14 +162,19 @@ contains
         end select
         print 5
         print 2
-        do i=1,N
-            select case(pairingtype)
-            case(2)
-              print 3, i, QPenergies(si+i), configmatrix(sb+i)
-            case(1)
-              print 3, i, BCSqps(si+i), BCSf(si+i)
-            end select
-        enddo
+        select case(pairingtype)
+        case(2)
+          do i=1,N
+            print 3, i, QPenergies(si+i), configmatrix(sb+i)
+          enddo
+        case(1)
+          ! The BCS qp energies are not ordered by energy
+          indices = order(BCSqps(si+1:si+N))
+          do i=1, N
+            ind  = indices(i)
+            print 3, i, BCSqps(si+ind), BCSf(si+ind)
+          enddo
+        end select
         si = si + N
         sb = sb + 2*N
     enddo

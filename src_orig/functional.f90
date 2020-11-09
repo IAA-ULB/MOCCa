@@ -593,6 +593,13 @@ $PRINT
       ! HF or BCS
       damp             = rotcorrb * tanh(rotcorrc * Belyaev(:,3)/compare)
       RotCorrection    =-J2(:,3)/(2*Belyaev(:,3))*damp
+    
+      ! Sanity check: no collective sense of rotational correction implemented
+      !               yet for HF/BCStype calculations
+      if(blocktype.ne.0) then
+          print *, 'Rotational correction for odd nuclei not incorporated into BCS.'      
+          stop
+      endif
     case (2)
       if(inversetemp.lt.0) then
         damp          = rotcorrb * tanh(rotcorrc * Bely_coll(:,3)/compare)

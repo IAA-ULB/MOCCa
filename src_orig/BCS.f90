@@ -36,8 +36,7 @@ module BCS
  ! BCS quasiparticle energies
  real(KIND=dp), allocatable :: BCSqps(:)
  !------------------------------------------------------------------------------
- ! BCS occupations, i.e. 2 * v_i^2 
- ! (factor 2 due to time-reversal)
+ ! BCS occupations, i.e. 2 * v_i^2 (factor 2 due to time-reversal)
  ! - - - - - - - - - - - - - - - --  - - - - - - - - - - - - - - - - - - - - - -
  ! IMPORTANT NOTE:
  !  These are NOT ALWAYS equal to the diagonal matrix elements of the 
@@ -46,8 +45,9 @@ module BCS
  !------------------------------------------------------------------------------
  real(KIND=dp), allocatable :: BCSoccupations(:)
  !------------------------------------------------------------------------------
- ! BCS occupation factors f
- !  f_i = 1/(1 + exp(beta * E_qp))
+ ! BCS occupation factors f, typically defined in the context of 
+ ! finite-temperature calculations, but also useful in the context of 
+ ! Equal Filling Approximation blocking calculations.
  real(KIND=dp), allocatable :: BCSf(:)
  !------------------------------------------------------------------------------
  procedure(delta_action_dummy), pointer :: delta_action_BCS
@@ -71,7 +71,8 @@ module BCS
 
 contains
  
- subroutine solvepairing_BCS(fermi, rho_can, kappa_can, qpenergies,gas)
+ subroutine solvepairing_BCS(fermi, rho_can, kappa_can, qpenergies, gas,       &
+ &                             BlockType,Blockindices, blocklowest, blocked_qps)
   !-----------------------------------------------------------------------------
   ! Driver routine for the solving of the BCS equations.
   !
@@ -79,7 +80,11 @@ contains
   ! | Do until the Fermi energy is stationary
   ! |   1) Calculate the BCS quasiparticle energies
   ! |        using the matrix elements of h and delta already calculated!
-  ! |   2) Calculate the Fermi energy with closed formula
+  ! |   2) Construct the correct configuration with either
+  ! |       *) ordinary, ground-state BCS
+  ! |       *) finite-temperature BCS
+  ! |       *) equal-filling blocking BCS
+  ! |   3) Calculate the Fermi energy with analytic formula
   ! |----
   !     3) Calculate the entries in rho_pairing and kappa_pairing
   !-----------------------------------------------------------------------------
@@ -89,6 +94,13 @@ contains
   real(KIND=dp)                :: oldfermi(2), fac
   integer                      :: iter, wave
   integer, intent(in)          :: gas
+
+  ! Configuration for the blocking
+  integer, intent(in)          :: Blockindices(:)
+  integer, intent(in)          :: BlockType
+  character(len=2), intent(in) :: BlockLowest(:)
+  integer, allocatable         :: neutron_block(:), proton_block(:)
+  integer, allocatable         :: blocked_qps(:)
   
   1 format('---------------------------------------',/,     &
     &        ' Warning! ',/,                                &
@@ -98,11 +110,19 @@ contains
     &        ' New Fermi:    ', 2f12.7,/,                   &
     &        '---------------------------------------')
 
+  if(.not.allocated(Bcsf)) then
+    allocate(bcsf(nwt)) ; bcsf = 0
+  endif
+
+  !-----------------------------------------------------------------------------
+  ! Iteration start
   do iter =1, maxBCSiter
     oldfermi = fermi
-    call BCSQPEnergies(Fermi, gas)
-    call BCSFindFermiEnergy(Fermi, gas)
-    
+    ! Calculate the quasiparticle energies
+    call BCSQPEnergies(Fermi) 
+    BCSf = BCSconstructconfiguration(gas, BlockType,Blockindices, blocklowest, & 
+                                                                    blocked_qps)
+    call BCSFindFermiEnergy(Fermi)
     ! Check for convergence
     if( all(abs(fermi - oldfermi).lt.FermiPrec)) then
       exit
@@ -110,26 +130,22 @@ contains
       print 1, iter, oldfermi, fermi
     endif          
   enddo
-  
-  call calcBCSoccupations(Fermi, gas)
-  
+  ! Iteration end  
+  call calcBCSoccupations(Fermi)
   !-----------------------------------------------------------------------------
   ! Rho_pairing is diagonal for a BCS calculation
   rho_can = 0.0
   do wave=1,nwt
+    ! Occupations are 
+    !   n_a = f_i + v_i^2 (1 - 2 * f_i)
+    fac = BCSf(wave) 
+    ! Note that there is already a factor two due to timereversal in    
+    ! BCSoccupations, but not in the first term in the formula above.
+    rho_can(wave) = 2.0*fac + BCSoccupations(wave) * (1 - 2.0*fac)
 
-    if(inversetemp.eq.-1) then
-      rho_can(wave) = BCSoccupations(wave)
-      if(rho_can(wave).lt.0.0) then
-         rho_can(wave) = 0.0
-      endif
-    else
-      ! Occupations are 
-      !   n_a = f_i + v_i^2 (1 - 2 * f_i)
-      fac = BCSf(wave) 
-      ! Note that there is already a factor two due to timereversal in    
-      ! BCSoccupations, but not in the first term in the formula above.
-      rho_can(wave) = 2.0*fac + BCSoccupations(wave) * (1 - 2.0*fac)
+    ! Failsafe
+    if(rho_can(wave).lt.0.0) then
+       rho_can(wave) = 0.0
     endif
   enddo
 
@@ -142,21 +158,18 @@ contains
   !-----------------------------------------------------------------------------
   kappa_can = 0.0
   do wave=1,nwt
-    if(inversetemp.eq.-1) then
-      kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave))
-    else
-      ! At finite temperature, the elements of kappa are
-      ! kappa_i\bar{i} = u_i v_i ( 1 - 2 * f_i )
-      fac             = BCSf(wave)
-      kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave)) * (1 - 2.0*fac)
-    endif
+     ! At finite temperature, the elements of kappa are
+     ! kappa_i\bar{i} = u_i v_i ( 1 - 2 * f_i )
+     fac             = BCSf(wave)
+     kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave)) * (1 - 2.0*fac)
   enddo
 
   ! Qpenergies in this case are the BCSqpenergies
   Qpenergies = BCSqps
 
-  ! Side effects, calculate the dispersion 
+  ! Side effect: calculate the dispersion 
   call calcBCSdispersion(rho_can, kappa_can)
+
 
  end subroutine solvepairing_BCS
  
@@ -196,15 +209,28 @@ contains
     endif
   end subroutine CalcBCSGaps
 
-  subroutine BCSFindFermiEnergy (Fermi, gas)
+  subroutine BCSFindFermiEnergy (Fermi)
    !----------------------------------------------------------------------------
-   ! Function that finds the correct Fermi energy to satisfy the particle 
-   ! number constraints 
+   ! Implements the analytical formula for the Fermi energy, for fixed 
+   ! quasiparticle energies and occupation factors f.
+   !  
+   !
+   ! Starting by demanding that
+   !     N     = 2 sum_(i>0) [ f_i  + v_i^2 ( 1 - 2 f_i) ]
+   ! and  
+   !     v_i^2 = 1/2 ( 1 - (eps_i - mu)/E^qp_i ) 
+   !
+   ! we obtain 
+   ! 
+   !  mu = (N - a)/b
+   !  
+   ! with
+   !   a = sum_(i>0) (1  - eps_i/E^qp_i * (1-2f_i))  
+   !   b = sum_(i>0) ((1 - 2 f_i)/E^qp_i)  
    !----------------------------------------------------------------------------
     real(KIND=dp),intent(inout) :: Fermi(2)
     real(KIND=dp)               :: LambdaSums(2,2), eqp, nom, Particles(2), fac
     integer                     :: wave, it
-    integer, intent(in)         :: gas
 
     Particles(1) = Neutrons; Particles(2) = Protons
 
@@ -217,40 +243,175 @@ contains
       eqp = BCSqps(wave)
       nom = spenergies(wave)
 
-      if(inversetemp.eq.-1) then  
-          lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp)
-          lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp
-      else
-        select case(gas)
-        case(0)
-          ! Ordinary finite-temperature BCS
-          fac =  BCSf(wave) !1.0/(1 + exp(inversetemp * eqp))
-          lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp*(1-2*fac))
-          lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)  
-        case(1)
-          ! Subtraction method for gas degrees of freedom          
-
-        case(2)
-          ! Taking into account only bound states
-          fac =  BCSf(wave) !1.0/(1 + exp(inversetemp * eqp))
-
-          if(nom .lt. 0) then
-            ! Only the bound states contribute
-            lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp*(1-2*fac))
-            lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)  
-          endif
-        end select
-
-      endif
-
+      fac =  BCSf(wave) 
+      lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp*(1-2*fac))
+      lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)         
     enddo
-    ! There is a nice analytical formula for the Fermi energy in the BCS case
     do it=1,2
-        Fermi(it) =  (particles(it) - lambdasums(1,it))/lambdasums(2,it)
+        Fermi(it)=(particles(it)  - lambdasums(1,it))/lambdasums(2,it)
     enddo
   end subroutine BCSFindFermiEnergy
+
+  function BCSConstructConfiguration(gas, blocktype,Blockindices, blocklowest, & 
+  &                                  blocked_qps) result(f)
+
+    !---------------------------------------------------------------------------
+    ! Construct the correct pairing configuration as a function of various 
+    ! user options. 
+    !  (a) Zero-temperature, no blocking  : all the BCS-f factors are zero.
+    !  (b) Zero-temperature, EFA blocking : f_k = 1/2 for the blocked state
+    !  (c) Finite-temperature, no blocking: the f_k are given by a fermi
+    !                                       function (modulo different options 
+    !                                       for the BCS gas)
+    !  (d) Finite-temperature, blocking   : nothing implemented
+    !---------------------------------------------------------------------------
+    real*8              :: f(nwt), occ, qpmin
+    integer             :: wave, NB, i, ind, si, N, B, it, qpb
+
+    integer, intent(in)          :: Blockindices(:)
+    integer, intent(in)          :: BlockType, gas
+    integer, allocatable          :: proton_block(:), neutron_block(:)
+    integer, allocatable         :: blocked_qps(:), indices(:), toblock(:)
+    character(len=2), intent(in) :: BlockLowest(:)
   
-  subroutine BCSQPEnergies(Fermi, gas)
+
+    f = 0
+    !---------------------------------------------------------------------------
+    ! Zero-temperature
+    if(inversetemp .lt. 0) then
+      occ = 0.0
+      select case(Blocktype)
+      case(0)
+        ! No blocking, all the f are zero
+        return
+      case(1,2)
+        ! Time-reversal breaking blocking asked for, impossible to do in BCS
+        print *, 'Cannot perform true blocking in BCS.'
+        stop
+      case(3,4)
+        ! Equal filling blocking
+        occ = 0.5d0
+      end select
+
+      select case(Blocktype)
+      case(3)
+        !-----------------------------------------------------------------------
+        ! We search for a specific configuration, i.e. a quasiparticle with
+        ! a specific sp index. In a BCS calculation, this is trivial. 
+        NB = size(blockindices)      
+        do i=1, NB
+          ind    = blockindices(i)
+          f(ind) = occ
+        enddo
+      case(4)
+        !-----------------------------------------------------------------------
+        ! We search for the lowest qp with specific quantum numbers.
+        
+        allocate(proton_block(5))  ; proton_block  = 0 
+        allocate(neutron_block(5)) ; neutron_block = 0
+        allocate(toblock(8))       ; toblock       = 0
+
+        ! Count all qps that were asked for
+        do i=1, size(Blocklowest)
+          select case (Blocklowest(i))
+          case('n+')
+              neutron_block(1) = neutron_block(1) + 1 
+          case('n-')
+              neutron_block(3) = neutron_block(3) + 1 
+          case('p+')
+              proton_block(1)  = proton_block(1)  + 1
+          case('p-')
+              proton_block(3)  = proton_block(3)  + 1
+          case('n0')
+              neutron_block(5) = neutron_block(5) + 1
+          case('p0')
+              proton_block(5)  = proton_block(5)  + 1
+          end select
+        enddo
+        toblock(1:4) = neutron_block(1:4)
+        toblock(5:8) = proton_block(1:4)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! First see where the lowest qp energies are for those qps in block(5)
+        if(neutron_block(5).ne.0) then
+          do i = 1, neutron_block(5)
+            qpmin = 10000000
+            si = 0
+            do B=1,4
+              N = HFblocks(B) ; if (N.eq.0) cycle
+
+              if(bcsqps(si+toblock(B)+1) .lt. qpmin) then
+                qpmin = bcsqps(si+toblock(B)+1)
+                qpb   = B
+              endif
+              si = si +   N
+            enddo
+            toblock(qpb) = toblock(qpb) + 1
+          enddo
+        endif
+
+        if(proton_block(5).ne.0) then
+          do i = 1, proton_block(5)
+            qpmin = 10000000
+            si = sum(HFBlocks(1:4))
+            do B=5,8
+              N = HFblocks(B) ; if (N.eq.0) cycle
+
+              if(bcsqps(si+toblock(B)+1) .lt. qpmin) then
+                qpmin = bcsqps(si+toblock(B)+1)
+                qpb   = B
+              endif
+              si = si +   N
+            enddo
+            toblock(qpb) = toblock(qpb) + 1
+          enddo
+        endif
+
+        si = 0
+        do B=1,8
+            N = HFblocks(B) ; if(N.eq.0) cycle
+            indices = Order(BCSqps(si+1:si+N))
+            do i=1, toblock(B)
+              f(si+indices(i)) = occ
+            enddo            
+            si = si + N
+        enddo
+        deallocate(proton_block, neutron_block) 
+      end select
+    !---------------------------------------------------------------------------
+    ! Finite-temperature
+    else
+      if(blocktype.ne. 0) then
+          print *, 'Cannot do finite-temperature BCS with blocking.'
+          stop
+      endif
+      
+      ! Select occupations based on the type of treatment of the gas
+      select case(gas)
+      case(0)
+        ! No special treatment of the gas
+        f = 1./(1. + exp(inversetemp * BCSqps))
+      
+      case(1)
+        ! Not implemented!
+        stop
+      case(2)
+        ! Only take into account the bound states
+        do wave=1,nwt
+          if(spenergies(wave) .lt. 0) then
+            f(wave) = 1./(1. + exp(inversetemp * BCSqps(wave)))
+          else 
+            f(wave) = 0
+          endif
+        enddo
+      case DEFAULT
+        print *, 'Gas treatment option undefined.'
+        stop
+      end select
+    endif
+    return
+  end function BCSConstructConfiguration
+  
+  subroutine BCSQPEnergies(Fermi)
    !----------------------------------------------------------------------------
    ! This subroutine calculates the BCS quasiparticle energies as a function of
    ! the Fermi energies and the pairing gaps.
@@ -260,13 +421,11 @@ contains
    ! which is formula (6.72) on page 235 in Ring & Shuck.
    !----------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: Fermi(2)
-    integer, intent(in)       :: gas
     integer                   :: wave, it
     real(KIND=dp)             :: epsilon, lambda
 
     if(.not.allocated(BCSqps)) then
       allocate(BCSqps(nwt)) ; BCSqps=0
-      allocate(BCSf(nwt)) ; BCSf = 0.0
     endif
    
     do wave=1,nwt
@@ -277,39 +436,20 @@ contains
         lambda  = Fermi(it)
         BCSqps(wave)  = sqrt((epsilon - lambda)**2 + abs(BCSgaps(wave))**2)
     enddo
-    
-    if(inversetemp.ne.-1) then
-      select case(gas)
-      case(0)
-        BCSf = 1./(1. + exp(inversetemp * BCSqps))
-      case(1)
-  
-      case(2)
-        do wave=1,nwt
-          if(spenergies(wave) .lt. 0) then
-            BCSf(wave) = 1./(1. + exp(inversetemp * BCSqps(wave)))
-          else 
-            BCSf(wave) = 0
-          endif
-        enddo
-      end select
-    else
-      BCSf = 0
-    endif
 
   end subroutine BCSQPEnergies
 
-  subroutine calcBCSOccupations(Fermi, gas)
+  subroutine calcBCSOccupations(Fermi)
    !----------------------------------------------------------------------------
    ! Find the occupation numbers of the HFBasis from the quasiparticle energies
    ! and the Fermi energies.
    !
    ! v^2_k = 0.5 * (1 - (Epsilon - Lambda)/(E_{qp}))
    !
-   ! or formula (6.51) on page 231 in Ring & Schuck.
+   ! or formula (6.51) on page 231 in Ring & Schuck. Note that these are only
+   ! entries of the density matrix in the case of zero-temperature calculations.
    !----------------------------------------------------------------------------
     real(KIND=dp), intent(in)   :: Fermi(2)
-    integer, intent(in)         :: gas
     integer                     :: wave,it
     real(KIND=dp)               :: eqp
     
@@ -318,29 +458,14 @@ contains
     endif
     
     do wave=1,nwt
-        it  = 1
-        if(wave .gt. nwn) it = 2
-        
-        eqp = BCSqps(wave)
+      it  = 1
+      if(wave .gt. nwn) it = 2
+      
+      eqp = BCSqps(wave)
 
-        if(inversetemp.eq.-1) then
-          ! Zero-temperature BCS
-          BCSOccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
-        else
-          ! Finite temperature BCS
-          select case(gas)
-          case(0,1)
-            BCSOccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
-          case(2)
-            if(spenergies(wave).gt.0) then
-              BCSoccupations(wave) = 0
-            else
-              BCSoccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
-            endif
-          end select
-        endif
+      ! Zero-temperature BCS
+      BCSOccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
     enddo
-
     ! Time reversal symmetry
     BCSOccupations = 2 * BCSOccupations
 
@@ -437,6 +562,48 @@ contains
      if(allocated(BCSf))           deallocate(BCSf)
  
    end subroutine clean_BCS
+
+   function Order(energies) result(Indices)
+    !---------------------------------------------------------------------------
+    ! Returns the indices for an ordered traversal of the input array.
+    !---------------------------------------------------------------------------
+    integer, allocatable       :: Indices(:)
+    real(Kind=dp),intent(in)   :: Energies(:)
+    real(Kind=dp),allocatable  :: Eswap(:)
+    integer                    :: i, nwf,  HolePos, ToInsertIndex
+    real(Kind=dp)              :: ToInsert
+    
+    nwf = size(energies)
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !Filling Energies & Indices
+    if(allocated(indices))  deallocate(indices)
+    allocate(Indices(nwf), Eswap(nwf))
+    do i=1,nwf
+       Indices(i) = i 
+    enddo
+
+    Eswap = Energies
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !Sort the energies
+    do i=2,nwf
+      !Make a hole at index i
+      ToInsert = Eswap(i)
+      HolePos  = i
+      ToInsertIndex = Indices(i)
+      do while(ToInsert.lt.Eswap(HolePos-1))
+        !Move the hole one place down
+        Eswap(HolePos) = Eswap(HolePos-1)
+        Indices(HolePos) = Indices(HolePos-1)
+        HolePos = HolePos - 1
+        if(HolePos.eq.1.0_dp) exit
+      enddo
+      !Insert the energy at the correct place
+      Eswap(HolePos)    = ToInsert
+      Indices(HolePos)  = ToInsertIndex
+    enddo
+
+    deallocate(Eswap)
+  end function Order
 !===============================================================================
 !  Never to be used function to define an interface for delta_action
 !===============================================================================   
