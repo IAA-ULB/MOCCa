@@ -274,7 +274,6 @@ contains
     integer, allocatable         :: blocked_qps(:), indices(:), toblock(:)
     character(len=2), intent(in) :: BlockLowest(:)
   
-
     f = 0
     !---------------------------------------------------------------------------
     ! Zero-temperature

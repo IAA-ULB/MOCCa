@@ -7,15 +7,9 @@
 #-------------------------------------------------------------------------------
 # Module that determines the symmetries imposed by Hephaestos on 
 # Tantalus/Prometheus.
-#
-#
-#
-#
-#
 #-------------------------------------------------------------------------------
 
 #===============================================================================
-#
 # Whether or not signature is a quantum number of the spwfs, 
 # and which Cartesian direction it is applied on.
 #   0 Broken
@@ -23,12 +17,12 @@
 #   2 Conserved, Y
 #   3 Conserved, Z
 Signature     = 0
-#
+#===============================================================================
 # Whether or not parity is a quantum number of the spwfs. 
 #   0 Broken
 #   1 Conserved
 Parity        = 0
-#
+#===============================================================================
 # Whether or not time-simplex is a quantum number of the spwfs, 
 # and which Cartesian direction it is applied on.
 #   0 Broken
@@ -37,7 +31,7 @@ Parity        = 0
 #   3 Conserved, Z
 #
 TimeSimplex   = 0
-#
+#===============================================================================
 # Whether or not time-signature is a quantum number of the spwfs, 
 # and which Cartesian direction it is applied on.
 #   0 Broken
@@ -46,7 +40,7 @@ TimeSimplex   = 0
 #   3 Conserved, Z
 #
 TimeSignature = 0
-#
+#===============================================================================
 # Whether or not time-reversal is conserved. Can be 0 (broken) or 1 (conserved).
 TimeReversal  = 1
 #
@@ -127,6 +121,7 @@ def CheckReduction():
     #---------------------------------------------------------------------------
     # Check whether the asked-for reduction of axes is valid, given the 
     # particular combination of symmetries asked for.
+    #---------------------------------------------------------------------------
 
     global Signature, Simplex, Parity, TimeSimplex, TimeReversal, TimeSignature
     global ReduceAxes

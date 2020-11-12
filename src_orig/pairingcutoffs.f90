@@ -117,13 +117,16 @@ contains
     ! 
     ! with mu and DeltaE being read from input. and mu2 = 1e-4
     ! The additional cut-off prevents the BCS-gas problem.
+    !  To converge when lambda is close or above zero, the cut-off has to be 
+    ! 2 MeV above the fermi energy.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: E, Lambda
     integer, intent(in)       :: it
-    real(Kind=dp)             :: Up, Down, Up2
+    real(Kind=dp)             :: Up, Down, Up2, ECut2
     
     Up   =     (E - Lambda - PairingCut(it))/PairingMu(it)
-    Up2   =    (E)/1e-4
+    Ecut2=  max(Lambda+2,0.)
+    Up2  =     (E-Ecut2)/1e-4
     Down =   - (E - Lambda + PairingCut(it))/PairingMu(it)
     Cutoff = sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
     Cutoff = Cutoff * sqrt(sqrt(1.0_dp/(1.0_dp + exp(Down))))

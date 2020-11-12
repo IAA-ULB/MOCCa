@@ -24,7 +24,7 @@
 #                tau^2             vs tau_mn tau_mn
 # 
 # Afterwards, the code determines which densities actually need calculating. 
-# This is a non-trivial, task. For example: D_N_N is not actually needed in its
+# This is a non-trivial task. For example: D_N_N is not actually needed in its
 # full form with an NLO functional, as the contraction D_Nm_Nm suffices. 
 #-------------------------------------------------------------------------------
 

@@ -125,11 +125,11 @@ contains
     &          '  inputfilename  =', a20, / &
     &          '  outputfilename =', a20)
    11 format ( '  Filename for other output (not written if empty): ', /     &
-             & '    BXL output     = ', a20, / &
-             & '    DEN file       = ', a20, / &
-             & '    POT file       = ', a20, / &
-             & '    SPHF file      = ', a20, / &
-             & '    SPCAN file     = ', a20) 
+             & '    BXL output     = ', a40, / &
+             & '    DEN file       = ', a40, / &
+             & '    POT file       = ', a40, / &
+             & '    SPHF file      = ', a40, / &
+             & '    SPCAN file     = ', a40) 
  1111 format ( '    Input data     = ', a20, / &
                '     on unit ', i10)
   112 format ( '  Checkpointiter =', i10)
