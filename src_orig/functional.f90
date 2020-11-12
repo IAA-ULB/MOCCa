@@ -818,7 +818,7 @@ $SKYRMEACTION
     real(KIND=dp)              ::  ddtemp(mv,3,3,4)
     real(KIND=dp)              :: dddtemp(mv,3,3,3,4)
     real(KIND=dp)              :: laptemp(mv,4)
-    integer                    :: it,i,k
+    integer                    :: it,i
     
     !---------------------------------------------------------------------------
     ! Determine the isospin index

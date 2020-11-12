@@ -379,7 +379,7 @@ subroutine ReachForWaterAndFood()
           if(mod(iter,checkpointiter) .eq. 0) then
             print 8, iter, outputfilename
             iomsg='CHECKPOINT'
-            call WriteTantalus(12, outputfilename, iter-1, iomsg)     
+            call WriteTantalus(12, outputfilename)     
           endif          
         endif
         !-----------------------------------------------------------------------
@@ -406,7 +406,7 @@ subroutine ReachForWaterAndFood()
     endif
     !---------------------------------------------------------------------------
     ! Write output to the outputfile, i.e. the full wavefunction file
-    call WriteTantalus(12, outputfilename, iter-1, iomsg)     
+    call WriteTantalus(12, outputfilename)     
     !---------------------------------------------------------------------------
     ! Write other, advanced, output
     call write_advanced_output(iter-1,iomsg)

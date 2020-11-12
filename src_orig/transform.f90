@@ -52,7 +52,7 @@ contains
     real(KIND=dp), allocatable :: temp2(:,:)
 
     logical :: ChangeBoxSize = .false., transformed= .false.
-    integer :: wave,i,j, b, sb, sf
+    integer :: i,j, b, sb, sf
 
     transformed = .false.
     !---------------------------------------------------------------------------

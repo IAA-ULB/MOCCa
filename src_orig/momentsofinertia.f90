@@ -480,7 +480,7 @@ contains
           elseif(inversetemp .gt. 0) then
             degen = inversetemp * configmatrix(sb+i)**2 *                      &
             &                                  exp(inversetemp * Qpenergies(ii))
-            Belyaev(:,it) = Belyaev(:,it) +  2*J11(ii,jj,:)**2 * degen   	
+            Belyaev(:,it) = Belyaev(:,it) +  2*J11(ii,jj,:)**2 * degen
           endif 
 
           if(inversetemp.lt.0) then

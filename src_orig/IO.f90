@@ -433,7 +433,7 @@ contains
 
   end subroutine ReadTantalus
 
-  subroutine WriteTantalus(chan, ofn, iter, iomsg)
+  subroutine WriteTantalus(chan, ofn)
     !---------------------------------------------------------------------------
     ! Subroutine that dumps all information to a .wf file for future runs.
     ! Heavily based on the MOCCa output routine.
@@ -473,8 +473,6 @@ contains
     character(len=*), intent(in) :: ofn
     integer                      :: io
     type(moment), pointer        :: mom
-    integer, intent(in)          :: iter
-    character(len=*), intent(in) :: iomsg
 
     open (chan,form='unformatted',file=ofn)
 
@@ -624,7 +622,7 @@ contains
     r2  =>FindMoment(-2,0,.false., Q22) ! The rms radius is associated with l=-2
 
     ! Write the filename
-    write(filedone,'(a,"z",i3.3,"n",i3.3,".out")'), trim(adjustl(BXLFIT)),     &
+    write(filedone,'(a,"z",i3.3,"n",i3.3,".out")')  trim(adjustl(BXLFIT)),     &
     & int(protons),int(neutrons)
   
     open(unit=10,file=filedone)
@@ -735,8 +733,6 @@ contains
     real(KIND=dp), pointer           :: dn(:,:,:), dp(:,:,:)
     character(len=*), intent(in)     :: fname
     integer                          :: io, i,j,k
-
-    1 format('#  X[fm]   Y[fm]   Z[fm]       rho_n[fm^{-3}]           rho_p[fm^{-3}]           rho_c[fm^{-3}]')
 
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
@@ -895,7 +891,7 @@ contains
     use wavefunctions
 
     character(len=*), intent(in) :: fname
-    integer                      :: io, i, p, B, wave
+    integer                      :: io, i, p,  wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp)                :: Jx, Jy, Jz, JJ
  
@@ -1010,7 +1006,7 @@ contains
     use wavefunctions
 
     character(len=*), intent(in) :: fname
-    integer                      :: io, i, p, B, wave
+    integer                      :: io, i, p, wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp)                :: Jx, Jy, Jz, JJ
  

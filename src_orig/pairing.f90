@@ -83,10 +83,12 @@ module pairing
  ! Type of blocking we want. 
  ! (0) no blocking
  ! (1) ordinary blocking, based on indices
- ! (2) ordinary blockgin, asking for lowest energy configurations
+ ! (2) ordinary blocking, asking for lowest energy configurations
  ! (3) EFA blocking, based on indices.
  ! (4) EFA blocking, asking for lowest energy configurations.
- ! 
+ ! (5) ordinary blocking, index selection through overlap
+ ! (6) EFA blocking, index selection through overlap
+ !  
  ! If this is nonzero, the code will look for a new namelist "Indices"
  !
  ! This currently only works for HFB calculations!
@@ -141,14 +143,14 @@ contains
     ! Read and initialize pairing options. 
     !
     !---------------------------------------------------------------------------
-    character(len=20) :: Type = 'HF'
+    character(len=20)                   :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
     
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
     &                  FermiSolver, guessgaps    
 
-    NameList /Indices/ BlockIndices, blocklowest
+    NameList /Indices/ BlockIndices, blocklowest, blockfname
 
     if(present(file_number)) then
       read(unit=file_number, NML=Pairing)
@@ -181,7 +183,7 @@ contains
       stop
     endif
     
-    if(Blocktype.lt.0 .or. BlockType.gt.4) then
+    if(Blocktype.lt.0 .or. BlockType.gt.6) then
         print *, 'This value of BlockType is not accepted.'
         stop
     endif
@@ -201,6 +203,16 @@ contains
         allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
         allocate(BlockLowest(BlockNumber))  ; BlockLowest  = ' ' 
         read(unit=*, nml=Indices)
+
+        ! Reading model spwf to block
+        if(blockfname .ne. "") then
+           call read_modelwf(blockfname)
+
+           if(blocknumber.gt. 1) then
+              print *, 'Cannot block more than one modelspwf.'
+              stop
+           endif
+        endif
     endif
 
     !---------------------------------------------------------------------------
@@ -260,10 +272,10 @@ contains
    93 format ('    Equal Filling    ' )
    
    10 format ('    Blocknumber  = ', i2 )
-   
    11 format ('    Blocklowest  = ', 20(1x, a2))
    12 format ('    BlockIndices = ', 20i3)
-
+   16 format ('    Block through overlap')
+   17 format ('    Blockfile    = ', 40a)
 
     print 1
 
@@ -337,6 +349,12 @@ contains
             print 93
             print 10, Blocknumber
             print 11, Blocklowest
+        case(5)
+            print 92
+        case(6)
+            print 93
+            print 16
+            print 17, adjustl(blockfname)
         end select
     endif
 
@@ -349,7 +367,6 @@ contains
     !
     !---------------------------------------------------------------------------
     integer :: wave, wave2, si, B, N, s
-
     
     select case (PairingType)
     case(0)
@@ -382,7 +399,7 @@ contains
               ! We've found a kappa on file and can use it to guess better 
               ! signs and sizes
               if(abs(kappa_pairing(wave, wave2)).gt.1d-8) then
-                s = kappa_pairing(wave, wave2)/abs(kappa_pairing(wave, wave2))
+                s = int(kappa_pairing(wave, wave2)/abs(kappa_pairing(wave, wave2)))
               else
                 s = 1
               endif
@@ -498,20 +515,22 @@ contains
 
     1 format (26('-'), ' Pairing ', 25('-'))
     2 format (25x, ' N ',7x, ' P ')
-    3 format (' Fermi Level (MeV) ',2x,f13.8,2x,f13.8)
-    4 format (' Particles         ',2x,f13.8,2x,f13.8)
-    5 format (' Dispersion        ',2x,f13.8,2x,f13.8)
+    3 format (' Fermi Level (MeV)  ',2x,f13.8,2x,f13.8)
+    4 format (' Particles          ',2x,f13.8,2x,f13.8)
+    5 format (' Dispersion         ',2x,f13.8,2x,f13.8)
 !    6 format (' dN/da             ',2x,f13.8,2x,f13.8,/,                       & 
 !    &         ' dZ/da             ',2x,f13.8,2x,f13.8 )
 
-    6 format (' Average gap   v^2 ',2x, f13.8, 2x, f13.8)
-   61 format (' Average gap   uv  ',2x, f13.8, 2x, f13.8)
+    6 format (' Average gap   v^2  ',2x, f13.8, 2x, f13.8)
+   61 format (' Average gap   uv   ',2x, f13.8, 2x, f13.8)
     7 format (60('-'))
 
-    8 format ('  gas-like         ', 2x, f13.8, 2x, f13.8)
-    9 format ('  nucleus          ', 2x, f13.8, 2x, f13.8)
+    8 format ('  gas-like          ', 2x, f13.8, 2x, f13.8)
+    9 format ('  nucleus           ', 2x, f13.8, 2x, f13.8)
 
-   10 format (' Stab. factor      ', 2x, f13.8, 2x, f13.8)
+   10 format (' Stab. factor       ', 2x, f13.8, 2x, f13.8)
+   11 format (' Overlap with model ', 2x, f13.8)
+
     select case(PairingType)
     case (0)
         if(inversetemp .eq. -1) return
@@ -547,13 +566,12 @@ contains
         endif
 
         if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
+
+        if(blocktype.ge.5) then
+            print 11, blockoverlap
+        endif
     end select
 
-!    if(inversetemp.ne.-1) then
-!        call EstimateDNDA()
-!        print 6, dNda
-!    endif
-    
     print 7
   end subroutine PrintPairing
   
@@ -700,7 +718,7 @@ contains
 
     real(KIND=dp) :: gap(2,2), norm(2,2), v2, uv
     real(KIND=dp), allocatable :: gaps_can(:,:)
-    integer       :: it1, it2, wave, wave2
+    integer       :: it1,  wave
 
     gap = 0 ; norm = 0
     if(.not.allocated(HFBgaps)) return
@@ -725,6 +743,71 @@ contains
 
     deallocate(gaps_can)
   end function average_gap_HFB
+
+  subroutine read_modelwf(fname)
+      !-------------------------------------------------------------------------
+      !
+      !-------------------------------------------------------------------------
+      logical                       :: exists = .true.
+      character(len=40), intent(in) :: fname 
+      integer                       :: io, filenx,fileny,filenz,fileit,filepar
+      integer                       :: i,j,k,l
+      real(KIND=dp)                 :: filedx
+      real(KIND=dp), pointer        :: model3d(:,:,:)  
+
+      1 format (3i3, f8.3, 2i3)
+      2 format (99f18.15)
+
+
+      inquire(file=fname, EXIST = exists)
+
+      if( .not. exists) then
+        print *, 'File for model spwf does not exist.'
+        stop
+      else
+        allocate(modelspwf(nx*ny*nz,4)) ; modelspwf = 0
+        open(unit = 12, file=fname, iostat=io)
+        !-----------------------------------------------------------------------
+        ! Read the header:
+        ! nx ny nz dx it parity 
+        read(unit=12, fmt=1) filenx, fileny, filenz,filedx, fileit, filepar
+        ! Sanity checks
+        if((filenx .ne. nx) .or. &
+        &  (fileny .ne. ny) .or. & 
+        &  (filenz .ne. nz) .or. &
+        &  (filedx .ne. dx)) then
+          print *, 'Mesh of the model spwf does not match the calculation.'
+          stop
+        endif
+
+        do l=1,4
+          model3d(1:nx, 1:ny, 1:nz) => modelspwf(1:nx*ny*nz,l)
+          do k=1,nz
+            do j=1,ny
+              do i=1,nx
+               read(unit=12,fmt=2) model3d(i,j,k)
+              enddo
+            enddo
+          enddo
+        enddo
+        !-----------------------------------------------------------------------
+        ! Assigning the right blocking blocks
+        if(fileit .eq. 1) then
+            if (filepar.gt.0) then
+              modelblock = 1
+            else
+              modelblock = 3
+            endif            
+        else
+            if (filepar.gt.0) then
+              modelblock = 5
+            else
+              modelblock = 7
+            endif            
+        endif
+        !-----------------------------------------------------------------------
+      endif 
+  end subroutine read_modelwf
 
   subroutine clean_pairing()
 

@@ -41,6 +41,9 @@ SRC    +=   IO.f90 temperature_projection.f90 printing.f90 tantalus.version.f90
 SINGLE_SRC = $(SRC) run_single.f90
 MPI_SRC    = $(SRC) multirun_example.f90
 
+NIL_SRC := compilation.f90 timing.f90 geninfo.f90 derivatives.f90 nil8.f90   
+NIL_SRC += wavefunctions.f90 gennilsson.f90
+
 ################################################################################
 # Compiler details
 CXX      :=  gfortran
@@ -58,14 +61,17 @@ endif
 ################################################################################
 # Precompilation instructions
 PRE         :=  run_heph getgitinfo setversioninfo 
+PRE_NIL     :=  cp_nil 
 SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
 MPI_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(MPI_SRC))
+NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
 
 # Default functional is an NLO one
 FUNC   :=  NLO.func
 
 mpi:    EXENAME:= Tantalus.$(FUNC).mpi.exe
 single: EXENAME:= Tantalus.$(FUNC).exe
+gen_nilsson: EXENAME:= gen_nilsson.exe
 
 LIBS   := -llapack -lblas
 
@@ -85,6 +91,11 @@ run_heph:
   # Run Hephaestos with the correct .func file to generate the source code in 
   # src folder.
 	python Hephaestos.py $(FUNC) 
+
+
+gen_nilsson: $(PRE_NIL) $(NIL_OBJ)
+	$(CXX) $(CXXFLAGS) -o $@ $(NIL_OBJ) $(LIBS)
+	mv gen_nilsson exec/$(EXENAME)
 
 clean:
 	rm  -f $(OBJDIR)/*.o
@@ -113,6 +124,11 @@ getgitinfo:
 	$(eval GIT_INFO1=$(shell git show | grep 'commit ' | head -1))
 	$(eval GIT_INFO2=$(shell git show | grep 'Author:' | head -1))
 	$(eval GIT_INFO3=$(shell git show | grep 'Date:'   | head -1))
+
+cp_nil:
+	cp src_orig/gennilsson.f90 $(SRCDIR)/gennilsson.f90
+  
+
 
 ################################################################################
 

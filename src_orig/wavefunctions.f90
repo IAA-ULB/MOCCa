@@ -87,6 +87,13 @@ module wavefunctions
  ! Oscillator frequencies to use for the initialization with a Nilsson  
  ! hamiltonian.
  real(KIND=dp) :: osc_freq(3) = 0.2
+ !------------------------------------------------------------------------------
+ ! Filename to read the values on the mesh of a "model"-swpf for blocking. 
+ character(len=40)                  :: blockfname = ''
+ integer                            :: modelblock = 0
+ real(KIND=dp)                      :: blockoverlap = 0.0
+ real(KIND=dp), allocatable, target :: modelspwf(:,:)
+
 
 contains 
 
@@ -138,7 +145,10 @@ contains
 
     allocate(hfpsi(nx*ny*nz,4,nwt)) ; hfpsi = 0.0d0
     if (allocated(kparz))  deallocate(kparz)       
-   
+
+    osc_freq(1) = 0.225  
+    osc_freq(2) = 0.225   
+    osc_freq(3) = 0.15   
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
     call nilsson (HFPsi,kparz,spenergies,6,5,nwt,nwp,nwn,                      &
@@ -227,9 +237,6 @@ contains
     enddo
     deallocate(kparz)
 
-!    HFPsi = HFPsi*sqrt(2.)
-    ! Simply because I distrust the nilsson routine
-!    call GramSchmidt
   end subroutine iniwavefunctions
   
   subroutine deriveHF()

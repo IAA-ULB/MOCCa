@@ -319,11 +319,15 @@ contains
     !-----------------------------------------------------------------------
     real(KIND=dp), intent(in) :: hbm, fermi
     real(KIND=dp)             :: s, maxe,ez,ey,ex,checkz, checky, checkx, etot
+    real(KIND=dp)             :: trash
     integer                   :: kx, ky, kz
 
     s = 0
     maxe = maxval(spenergies)
-    
+
+    ! trash statement to stop the compiler complaining
+    trash = fermi
+
     kz=1
     do while(.true.)
       ez = hbm*(pi*kz/(2*nz*dx))**2
@@ -368,6 +372,9 @@ contains
     !
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: Fermi(2), stabfactor(2)
+    real(KIND=dp)             :: trash(2) 
+    ! trash statement to stop the compiler complaining
+    trash = fermi ; trash=stabfactor
 
   end subroutine calcHFgaps
 
