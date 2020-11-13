@@ -76,7 +76,9 @@
 #
 # Five operators are currently defined in this file, with which we can construct
 # all of the densities necessary.
+#
 #               Identity, Nabla, Sigma, Current and TR
+#
 # All take a list of indices (even though Identity and Current don't need them) 
 # and a 4-vector of components. As output, they permutate the components 
 # according to their operator action and the index, with possible signs. 
@@ -114,19 +116,6 @@
 #                       operators and matrices for higher-order operators.
 #                       From these the behaviour of the densities under all of 
 #                       the D^TD_2h operators can be determined.
-#
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# 
-# Important stuff to still do  (C = code, NC = noncode)
-#
-# In the near future
-# ====================
-#
-#    C Support for detection of symmetric combinations 
-#      (and subsequently not letting the FORTRAN code calculate them.)
-#    C Currently for EV8-like symmetries, due to no decision yet about 
-#      bookkeeping in Hephaestos itself. 
-#    C Automatic continuation when time-reversal is conserved
 #
 #-------------------------------------------------------------------------------
 
@@ -183,11 +172,8 @@ Clean_template = Template(   tab+'if(allocated($NAME)) deallocate($NAME)')
 
 Dec_template   = Template( \
                      tab + 'real*8, allocatable, target :: $NAME(:$TOTALIND,:)')
-
-
 Der_indep_template = Template( 2*tab + \
              'call Derive_$DIR($NAME(:$IND,it), $PS,der_$NAME(:$DERIND,it)) \n') 
-
 Lap_template   = Template( 2*tab + \
        'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ, lap_$NAME(:$IND,it)) \n')
 
@@ -267,21 +253,25 @@ def ProcessDensities(fname, src, target):
     Zeroing        = ''
     Cleaning       = ''
 
-    print '---------------------------------------------------'
-    print ' Generated densities                               '
-    print '---------------------------------------------------'
-    print '      Name     DIM with / out    Derivative combs. '
-    print '---------------------------------------------------'
+    print '---------------------------------------------------------------------------'
+    print ' Densities necessary for the functional                                    '
+    print '---------------------------------------------------------------------------'
+    print '      Name       Calc?      T     DIM with / out    Derivative combs.      '
+    print '---------------------------------------------------------------------------'
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
-        print '%15s %6d %6d     '%(den,OrderOfDen(den),         \
-                                          OrderOfDen(den,contract=False)),  \
-                                          deriv_needed[i]
+        
+        owith    = OrderOfDen(den)
+        owithout = OrderOfDen(den, contract=False)
+        T        = TimeDen(den)
+        D        = deriv_needed[i]
+    
+        print '%15s %4s   %6d  %6d %6d     '%(den,'y', T, owith, owithout), D
 
-    print '--------------------------------------------------------------------'
+    print '----------------------------------------------------------------------------'
     print ' SYMMETRIES '
-    print '           DEN   LARG  RARG      P  RX  RY  RZ  SX  SY  SZ'
-    print '--------------------------------------------------------------------'
+    print '           DEN   LARG  RARG   T     P    RX    RY    RZ    SX    SY    SZ'
+    print '----------------------------------------------------------------------------'
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
 
@@ -309,7 +299,7 @@ def ProcessDensities(fname, src, target):
         Derivation     = Derivation     + '\n' + der
         Zeroing        = Zeroing        + '\n' + zeroi
         Cleaning       = Cleaning       + '\n' + cleani
-    print ' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - '
+    print '----------------------------------------------------------------------------'
 
     # Substitute into the densities.f90 file.        
     dic={}
@@ -664,7 +654,7 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
             nu = rarg
             if(len(rarg) == 0):     
               nu = (0)
-            T   = LeftOperator.time[mu] * RightOperator.time[nu]
+            T   = LeftOperator.time[mu]   * RightOperator.time[nu]
             par = LeftOperator.parity[mu] * RightOperator.parity[nu]
 
             try:    
@@ -674,8 +664,8 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
             except:        
                 pass
  
-            print r'%15s %4s %4s      %+3d & %+3d & %+3d & %+3d & %+3d & %+3d & %+3d \\' \
-                  %(denin, pl, pr, par, par*int(px),par*int(py),par*int(pz),int(px),int(py),int(pz))
+            print r'%15s %4s %4s   %+3d   %+3d & %+3d & %+3d & %+3d & %+3d & %+3d & %+3d \\' \
+                  %(denin, pl, pr, T, par, par*int(px),par*int(py),par*int(pz),int(px),int(py),int(pz))
             #-------------------------------------------------------------------
 
             # Get the index of the reduced storage scheme for all of the 
@@ -1122,11 +1112,41 @@ def AxisReflection(LeftOperator, RightOperator, larg, rarg, nabla_arg = []):
 #===============================================================================
 # Auxiliary routines.  
 #===============================================================================
-   
+def TimeDen(density):
+    #---------------------------------------------------------------------------
+    #  Obtain the behavior under time-reversal of the density
+    #---------------------------------------------------------------------------
+    (x, y, left, right, coupling, cross) = ParseOperators(density)
+    # Construct the left/right operators
+    operatordic = {}
+    operatordic['I'] = Identity
+    operatordic['N'] = Nabla
+    operatordic['S'] = Sigma
+    operatordic['C'] = Current
+    operatordic['T'] = TR
+    
+    LeftOperator = Identity
+    for i in range(len(left)):
+        # this needs to be done in reverse order
+        l = left[len(left) - i -1 ] 
+        LeftOperator  = Combine(operatordic[l], LeftOperator)
+        
+    RightOperator = Identity
+    for i in range(len(right)):
+        r = right[(len(right)) -i -1] 
+        RightOperator = Combine(operatordic[r], RightOperator)
+
+    # The .time property for both left and right operators is an array in 
+    # general, but all of the indices should have the same value, so we 
+    # simply average
+    T = np.average(LeftOperator.time) * np.average(RightOperator.time)
+
+    return T
+
 def OrderOfDen(density, contract=True):
     #---------------------------------------------------------------------------
     # Returns the order (= number of indices) of the density represented 
-    # by a string.Simply checks the number of capital letters N and S in 
+    # by a string. Simply checks the number of capital letters N and S in 
     # in the name. 
     # Either: a) disregard contractions           contract = False
     #      or b) take into account contractions   contract = True

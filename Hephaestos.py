@@ -6,16 +6,62 @@
 #              |_|                                             
 #-------------------------------------------------------------------------------
 # Master script 'forging the chains' of Tantalus. 
-#
-#
 #-------------------------------------------------------------------------------
-from os.path import isfile as isfile
+from os.path  import isfile as isfile
 import os
 from src_heph import heph_densities,heph_symmetries,heph_functional,heph_fields
 from src_heph import preprocess as pp
 from src_heph import latex
 import sys
 
+# Horizontal line for printing
+line  = 80*"-"
+#-------------------------------------------------------------------------------
+# Hephaestos can be run as
+# 
+#      python Hephaestos.py #1 #2
+#
+# where 
+#
+#   #1 = the name of a functional file, stored in the functionals/ folder.
+#   #2 = is a string determining the symmetries of the calculation
+#
+#-------------------------------------------------------------------------------
+
+heph_name= \
+'   =================================================================\n' +\
+"   | | | | |  ___  _ __  | |__    __ _   ___  ___ | |_  ___   ___  | \n" +\
+"   | | |_| | / _ \| '_ \ | '_ \  / _` | / _ \/ __|| __|/ _ \ / __| | \n" +\
+"   | |  _  ||  __/| |_) || | | || (_| ||  __/\__ \| |_| (_) |\__ \ | \n" +\
+"   | |_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/ | \n" +\
+"   |                                                               | \n" +\
+"   |  Copyright W.Ryssens & M. Bender                              | \n" +\
+"   ================================================================="
+
+print heph_name
+#-------------------------------------------------------------------------------
+# Dealing with the input
+inp = sys.argv
+if(len(inp) == 1):
+    print(" Error: please specify a functional file.")
+    print '=============================================================='
+    exit()
+elif(len(inp) == 2):
+    # We select, by default, an EV8-like option
+    SYMSTRING = "T,P,Rz,STy"
+    REDUCE    = "111"
+else:
+    SYMSTRING = inp[2]
+    REDUCE    = inp[3]
+
+# File containing the definition of the functional
+FUNC_FILE  = 'functionals/' + sys.argv[1]
+
+print (line)
+print (' Primary input:')
+print ('    Functional file: %s'%FUNC_FILE)
+print ('    Symmetry string: %s'%SYMSTRING)
+print (line)
 
 #-------------------------------------------------------------------------------
 # Path to the original FORTRAN source
@@ -36,21 +82,6 @@ FORTRANFILES=['compilation.f90'  , 'geninfo.f90'      , 'sphericalharmonics.f90'
               'transform.f90',  
               'run_single.f90', 'multirun_example.f90', 'timing.f90']
 
-# File containing the definition of the functional
-FUNC_FILE      = 'functionals/' + sys.argv[1]
-
-#-------------------------------------------------------------------------------
-heph_name= \
-'==============================================================\n' +\
-"| | | |  ___  _ __  | |__    __ _   ___  ___ | |_  ___   ___  \n" +\
-"| |_| | / _ \| '_ \ | '_ \  / _` | / _ \/ __|| __|/ _ \ / __| \n" +\
-"|  _  ||  __/| |_) || | | || (_| ||  __/\__ \| |_| (_) |\__ \ \n" +\
-"|_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/ \n" +\
-" Copyright W.Ryssens & M. Bender \n"                              +\
-"==============================================================\n"
-
-print heph_name
-
 #-------------------------------------------------------------------------------
 # Check for the existence of all the source code files in SRCPATH
 FOUND=True    
@@ -65,37 +96,26 @@ if(not FOUND):
 
 #-------------------------------------------------------------------------------
 # Initialize all of Hephaestos' own modules
-print '**************************************************************'
-print ' a)  Hephaestos is initializing its own modules.'
-heph_symmetries.initsymmetries()
+heph_symmetries.initsymmetries(SYMSTRING, REDUCE)
 description = heph_functional.initfunctional(FUNC_FILE)
 heph_densities.initdensities()
 heph_fields.initfields()
-print '**************************************************************'
 
 #-------------------------------------------------------------------------------
 # Treat all of the source files to a nice dose of preprocessing.
-print 
-print '**************************************************************'
-print ' b)  Hephaestos is processing the template source code.'
-print '**************************************************************'
 for fname in FORTRANFILES:
-     print ' * Processing ' + fname
      pp.preprocess(fname,SRCPATH,GENPATH)
 
 #-------------------------------------------------------------------------------
 # Output all of the relevant things into .tex files.
-print '**************************************************************'
-print ' c)  Hephaestos is creating the .tex files.'
-print '**************************************************************'
-latex.Build(FUNC_FILE, description)
+#print '**************************************************************'
+#print ' c)  Hephaestos is creating the .tex files.'
+#print '**************************************************************'
+#latex.Build(FUNC_FILE, description)
 
 #-------------------------------------------------------------------------------
 # Check if all files got generated correctly. 
-print 
-print '**************************************************************'
-print ' d)  Checking that all source code is properly generated.'
-
+print (line)
 FOUND=True    
 for fname in FORTRANFILES:
     if(not isfile(GENPATH + fname)):
@@ -104,6 +124,7 @@ for fname in FORTRANFILES:
 if(not FOUND):
     print '     Hephaestos did not treat all the source code files.'
 else :
-    print '     Correct exit. Ready for compilation.'
-    print '     Happy optimizing!'
-print '**************************************************************'
+    print '     All source files processed.'
+    print '     Ready for compilation.'
+    print '     Happy calculations!'
+print (line)
