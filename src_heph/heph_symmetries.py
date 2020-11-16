@@ -171,11 +171,11 @@ class symmetry():
 
   def __lt__(self, other):
      """
-      To have some concept of ordering, we order on the (absolute value of)
-      the first element of the permutation. If equal, we order on the total
-      number of coordinate reflections.
      """
-     if( abs(self.permutation[0]) == abs(other.permutation[0]) ):
+     t1 = (abs(self.permutation[0]),abs(self.permutation[1]),abs(self.permutation[2]),abs(self.permutation[3]))
+     t2 = (abs(other.permutation[0]),abs(other.permutation[1]),abs(other.permutation[2]),abs(other.permutation[3]))
+
+     if(t1 == t2):  
        c1 = 0
        if(self.x < 0):
         c1 = c1+1
@@ -193,11 +193,32 @@ class symmetry():
         c2 = c2+1
 
        if(c1 == c2):
-         return self.permutation[0] > other.permutation[0]
+         return self.permutation[0] < other.permutation[0]
        else:         
          return c1<c2 
+
      else:
-       return abs(self.permutation[0])  < abs(other.permutation[0])
+      return t1 < t2
+#     c1 = 0
+#     if(self.x < 0):
+#      c1 = c1+1
+#     if(self.y < 0):
+#      c1 = c1+1
+#     if(self.z < 0):
+#      c1 = c1+1
+#  
+#     c2 = 0
+#     if(other.x < 0):
+#      c2 = c2+1
+#     if(other.y < 0):
+#      c2 = c2+1
+#     if(other.z < 0):
+#      c2 = c2+1
+
+#     if(c1 == c2):
+#       return abs(self.permutation[0]) < abs(other.permutation[0])
+#     else:         
+#       return c1<c2 
 
 def multiply(S1, S2):
     """
@@ -215,39 +236,6 @@ def multiply(S1, S2):
     C = symmetry(perm,S1.x*S2.x,S1.y*S2.y,S1.z*S2.z, lin, her )
     return C
 
-def populate_symgroup(gen):
-  """
-    Take the symmetry generators and form the whole group.
-    Since we have a set of generators of maximum dimension 4, we brute force
-    our way through all the elements.
-  """
-  sg    = []
-  combs = []
-  added = True
-  k     = 0
-  while(added):
-    k = k +1 
-
-    added = False
-    newlist = list(itertools.combinations_with_replacement(range(len(gen)),k))  
-
-    for comb in newlist:
-      sy = iden
-      for l in range(k):
-          sy = multiply(sy,gen[comb[l]])
-        
-      found = False
-      for l in sg:
-       if (l == sy):
-         found = True
-
-      if(not found):
-        added = True
-        sg.append(sy)
-        combs.append(comb)
-
-  sg, combs = zip(*sorted(zip(sg, combs)))
-  return sg, combs
 #-------------------------------------------------------------------------------
 # Populate all the symmetries with correct behavior
 #-------------------------------------------------------------------------------
@@ -299,9 +287,80 @@ symdic['STx'] = STx
 symdic['STy'] = STy
 symdic['STz'] = STz
 
+print ('STx', STx)
+
 # Time-parity
 PT   = multiply(P,T)
 symdic['PT'] = PT
+
+
+def populate_symgroup(gen):
+  """
+    Take the symmetry generators and form the whole group. 
+    The chief aim of this routine is to obtain a set of independent symmetry    
+    relations that can be employed to simplify the calculation.
+
+    1. Generate all possible unique multiplications of the generators
+    2. Then, convert these symmetry relations to a specific convention
+        a. if( permutation[0]> permutation[1] )
+           multiply with  i, such that permutation[0] < permutation[1]
+
+    Note that 
+
+    a) step 1. is accomplished using a simple brute-force enumeration method.
+    b) the additional multiplication is usually needed to create relations 
+       with the four components of the wavefunctions that are one-to-one, i.e.
+        psi_1 is related to the symmetry-transformed psi_1.
+
+            R_z psi = \pm i psi
+       => i R_z psi =-\pm   psi 
+       => psi_{1-4} =-\pm   psi
+
+
+  """
+  sg    = []
+  combs = []
+  added = True
+  k     = 0
+  while(added):
+    k = k +1 
+
+    added = False
+    newlist = list(itertools.combinations(range(len(gen)),k))  
+
+    for comb in newlist:
+      sy = iden
+      for l in range(k):
+          sy = multiply(sy,gen[comb[l]])
+        
+      found = False
+      for l in sg:
+       if (l == sy):
+         found = True
+
+      if(not found):
+        added = True
+        sg.append(sy)
+        combs.append(comb)
+
+  for i in range(len(sg)):
+    if(abs(sg[i].permutation[0])>abs(sg[i].permutation[1])):
+      sg[i] = multiply(imag,sg[i])
+      t = list(combs[i])
+      t.append(len(gen))
+      combs[i] = tuple(t)
+#  for i in range(len(sg)):
+#    if( sg[i].permutation[0]<0):
+#      sg[i] = multiply(niden,sg[i])
+#      t = list(combs[i])
+#      t.append(len(gen)+1)
+#      combs[i] = tuple(t)
+
+  # Sort the final symmetry group in a practical way
+  sg, combs = zip(*sorted(zip(sg, combs)))
+  return sg, combs
+
+
 #-------------------------------------------------------------------------------
 
 def initsymmetries(SYMSTRING, REDUCE):
@@ -346,16 +405,14 @@ def initsymmetries(SYMSTRING, REDUCE):
       print ("Trouble with your choice of symmetry generators.")
       exit()
     # Generating the full symmetry group  
-    # Note that we explicitly add the multiplication with the imaginary 
-    # unit 
-    generators = generators + [imag, niden]
+    generators = generators
     symgroup, combs = populate_symgroup(generators )
     
     print ("     Total size of the symmetry group  : ", len(symgroup))    
 
-#    for i,s in enumerate(symgroup):
-#      if(abs(s.permutation[0]) == 1):
-#        print (i,s)
+    for i,s in enumerate(symgroup):
+##      if(abs(s.permutation[0]) == 1):
+        print (i,s)
     #---------------------------------------------------------------------------
     # We identify the axis-reduction asked for, and generate practical 
     # symmetry relations for functions on the mesh.
@@ -368,7 +425,7 @@ def initsymmetries(SYMSTRING, REDUCE):
     print ("   (x,y,z) = (%d, %d, %d)"%(redu_x, redu_y, redu_z))
 
     c = 0
-    for g in generators[:-2]: # Do not count the imaginary unit at the end
+    for g in generators: # Do not count the imaginary unit at the end
       if( g.linear or g.hermitian ):
         c = c + 1
     if(c > redu_x + redu_y + redu_z):
@@ -399,6 +456,7 @@ def initsymmetries(SYMSTRING, REDUCE):
       print ("  Stopping.")
       exit()
     
+    generators = generators + [imag, niden]
     if(redu_x == 1):
       st = ''
       for i in xcomb:
@@ -421,6 +479,7 @@ def initsymmetries(SYMSTRING, REDUCE):
           if(generators[i] == symdic[a]):
             st = st + a + ','
       print ("  ", zsym, st)
+
 
 def CheckGenerators(gen):
   """
@@ -514,8 +573,6 @@ def GenSymRelations(symgroup, combs, redu_x, redu_y, redu_z):
   if(redu_x == 1):
    for i,s in enumerate(symgroup):
     if(s.x == -1):
-      if(s.linear or s.hermitian):
-        # We can use this symmetry if it is not both linear and antihermitian
         xsym = s
         xcomb= combs[i]
         used[i] = 1
@@ -525,10 +582,7 @@ def GenSymRelations(symgroup, combs, redu_x, redu_y, redu_z):
    for i,s in enumerate(symgroup):  
       if(used[i] == 1):
         continue
-
       if(s.y == -1):
-        if(s.linear or s.hermitian):
-          # We can use this symmetry if it is not both linear and antihermitian
           ysym = s   
           ycomb= combs[i]
           used[i] = 1
@@ -539,8 +593,6 @@ def GenSymRelations(symgroup, combs, redu_x, redu_y, redu_z):
       if(used[i] == 1):
         continue
       if(s.z == -1):
-        if(s.linear or s.hermitian):
-          # We can use this symmetry if it is not both linear and antihermitian
           zsym = s
           zcomb= combs[i]
           used[i] = 1

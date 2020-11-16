@@ -98,6 +98,7 @@ if(not FOUND):
 #-------------------------------------------------------------------------------
 # Initialize all of Hephaestos' own modules
 heph_symmetries.initsymmetries(SYMSTRING, REDUCE)
+print(line)
 description = heph_functional.initfunctional(FUNC_FILE)
 heph_densities.initdensities()
 heph_fields.initfields()
