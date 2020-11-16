@@ -31,13 +31,12 @@
 from string        import Template
 import itertools
 import numpy as np
-from heph_densities import Densities_needed, tab, sumindices, derstring
-from heph_densities import lapstring, OrderOfDen, ParseOperators
-from heph_densities import crossindices, Storage_Mapping, Multiplicity
-from heph_densities import deriv_needed
-
-import heph_linechecker
-import heph_fields
+from src_heph.heph_densities import Densities_needed, tab, sumindices, derstring
+from src_heph.heph_densities import lapstring, OrderOfDen, ParseOperators
+from src_heph.heph_densities import crossindices, Storage_Mapping, Multiplicity
+from src_heph.heph_densities import deriv_needed
+from src_heph.heph_linechecker import *
+from src_heph.heph_fields import *
 
 #-------------------------------------------------------------------------------
 # Name of the functional_file
@@ -166,20 +165,20 @@ def initfunctional(fname):
         ders = right.count('N')
         derivative_order = max(derivative_order, ders)
 
-    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
-    print ' P-h functional taken from file %s'%fname
-    print ' Description from file:'
-    print  description.replace('#', tab)
-    print ' Number of terms:      %d'%len(Functional_terms)
-    print ' Order of derivatives: %d'%derivative_order
-    print ' Locality assumed:     %d'%assume_locality
-    print ' # Parameters          %d'%len(paramparameters)
+    print ('- - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+    print (' P-h functional taken from file %s'%fname)
+    print (' Description from file:')
+    print ( description.replace('#', tab))
+    print (' Number of terms:      %d'%len(Functional_terms))
+    print (' Order of derivatives: %d'%derivative_order)
+    print (' Locality assumed:     %d'%assume_locality)
+    print (' # Parameters          %d'%len(paramparameters))
     #print   paramparameters
-    for i in range(len(paramparameters)/3):
-        print '  ', paramparameters[3*i:3*i+3]    
+    for i in range(int(len(paramparameters)/3)):
+        print ('  ', paramparameters[3*i:3*i+3])
     if(len(paramparameters)%3 != 0):
-        print '  ', paramparameters[3*(i+1):3*(i+1)+len(paramparameters)%3]
-    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
+        print ('  ', paramparameters[3*(i+1):3*(i+1)+len(paramparameters)%3])
+    print ('- - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
 #    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
 #    print ' P-p functional taken from file %s'%fpairname
@@ -188,7 +187,7 @@ def initfunctional(fname):
 #    print ' Number of terms:      %d'%len(Functional_pair_terms)
 #    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
-    return(description)
+    return (description)
 
 def PruneDeriv_needed():
     #---------------------------------------------------------------------------
@@ -234,7 +233,7 @@ def ReadFunctional(fname):
             elif(line[0:6] == '!TERMS'):
                 # Signal that the parameters part of the functional is over.
                 termsstart  = 1   
-                print paramparameters 
+                print (paramparameters)
                 continue            
             elif(line[0] == '!'):
                 continue
@@ -262,8 +261,8 @@ def ReadFunctional(fname):
                     field_DD_terms[split[0].replace(' ', '')] =  ('','')
                     DD_rearcoefs.append('')
         except IndexError:
-            print 'Problem reading the following line in the func file.'
-            print line
+            print ('Problem reading the following line in the func file.')
+            print (line)
             exit()      
 
     return description
@@ -423,7 +422,7 @@ def ProcessFunctional(fname, src, target):
         #-----------------------------------------------------------------------
         # Generate the fields of the single-particle hamiltonian
         (fielddec, fieldcalc, fieldwrite,fieldread, fieldclean) =              \
-                                               heph_fields.GenerateFields(     )
+                                                           GenerateFields(     )
         declaration = declaration + fielddec   + '\n'
         writing     = writing     + fieldwrite 
         reading     = reading     + fieldread 
@@ -431,11 +430,11 @@ def ProcessFunctional(fname, src, target):
         #-----------------------------------------------------------------------
         # Generate the expressions for the actions of the Skyrme fields
         SkyrmeAction = ''
-        for field in heph_fields.Fields_needed:
+        for field in  Fields_needed:
           #-------------------------------------------------------------------
           # Check if we need to symmetrize the action
           #-------------------------------------------------------------------
-          (left,right,coupling,cross) = heph_fields.ParseOperatorsField(field)
+          (left,right,coupling,cross) = ParseOperatorsField(field)
           #-------------------------------------------------------------------
           # Generate the expression for the application of the ordinary 
           # operator structure
@@ -445,42 +444,42 @@ def ProcessFunctional(fname, src, target):
               # Only symmetrize non-symmetric C's if asked for
               if(assume_locality == 1):
                   SkyrmeAction = SkyrmeAction +                          \
-                                      heph_fields.GenerateAction(field, 0)
+                                      GenerateAction(field, 0)
               else:
                   SkyrmeAction = SkyrmeAction +                          \
-                                      heph_fields.GenerateAction(field, 1)
+                                                  GenerateAction(field, 1)
                   SkyrmeAction = SkyrmeAction +                          \
-                                      heph_fields.GenerateAction(field,-1)
+                                                  GenerateAction(field,-1)
             else:
               # Always symmetrize non-symmetric D's
-              SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,+1)
-              SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field,-1)
+              SkyrmeAction = SkyrmeAction + GenerateAction(field,+1)
+              SkyrmeAction = SkyrmeAction + GenerateAction(field,-1)
           else:
-              SkyrmeAction = SkyrmeAction + heph_fields.GenerateAction(field, 0)
+              SkyrmeAction = SkyrmeAction + GenerateAction(field, 0)
 
         #-----------------------------------------------------------------------
         # Generate the expressions for the actions of the pairing fields.
         PairingAction = ''
-        for field in heph_fields.Pairing_Fields_needed:
-          (left,right,coupling,cross) = heph_fields.ParseOperatorsField(field)
-          PairingAction =PairingAction + heph_fields.GenerateAction(field, 0)
+        for field in  Pairing_Fields_needed:
+          (left,right,coupling,cross) = ParseOperatorsField(field)
+          PairingAction =PairingAction + GenerateAction(field, 0)
 
         #-----------------------------------------------------------------------
         # Now make sure all of the lines are not too long for compilation.
-        declaration   = heph_linechecker.LineFormat(declaration)
-        calculation   = heph_linechecker.LineFormat(calculation)
-        printing      = heph_linechecker.LineFormat(printing)
-        calccoef      = heph_linechecker.LineFormat(calccoef)
-        printcoef_iso = heph_linechecker.LineFormat(printcoef_iso)
-        printcoef_pn  = heph_linechecker.LineFormat(printcoef_pn)
-        sumtotal      = heph_linechecker.LineFormat(sumtotal)
-        fieldcalc     = heph_linechecker.LineFormat(fieldcalc)
-        SkyrmeAction  = heph_linechecker.LineFormat(SkyrmeAction)
-        PairingAction = heph_linechecker.LineFormat(PairingAction)
-        erear         = heph_linechecker.LineFormat(erear)
-        reading       = heph_linechecker.LineFormat(reading)
-        writing       = heph_linechecker.LineFormat(writing)
-        cleaning      = heph_linechecker.LineFormat(cleaning)
+        declaration   = LineFormat(declaration)
+        calculation   = LineFormat(calculation)
+        printing      = LineFormat(printing)
+        calccoef      = LineFormat(calccoef)
+        printcoef_iso = LineFormat(printcoef_iso)
+        printcoef_pn  = LineFormat(printcoef_pn)
+        sumtotal      = LineFormat(sumtotal)
+        fieldcalc     = LineFormat(fieldcalc)
+        SkyrmeAction  = LineFormat(SkyrmeAction)
+        PairingAction = LineFormat(PairingAction)
+        erear         = LineFormat(erear)
+        reading       = LineFormat(reading)
+        writing       = LineFormat(writing)
+        cleaning      = LineFormat(cleaning)
         # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         # Substitute into the functional.f90 file.  
         dic={}

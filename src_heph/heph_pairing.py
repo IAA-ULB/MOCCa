@@ -6,17 +6,13 @@
 #              |_|                                             
 #-------------------------------------------------------------------------------
 
-from heph_symmetries import TimeReversal
+from src_heph.heph_symmetries import TimeReversal
 from string          import Template
 
 def ProcessHFB(fname, src, target):
-  #-----------------------------------------------------------------------------
-  # We process HFB.f90, depending on the symmetries imposed.
-  #
-  #
-  #
-  # 
-
+  """  
+   We process HFB.f90, depending on the symmetries imposed.
+  """
 
   dic = {}
 

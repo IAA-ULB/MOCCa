@@ -16,9 +16,9 @@
 #
 #============================================================================================
 
-from string           import Template
-from heph_symmetries  import ReduceAxes
-import heph_functional
+from string                    import Template
+from src_heph.heph_symmetries  import ReduceAxes
+from src_heph.heph_functional  import derivative_order
 
 def ProcessDerivatives(fname, src, target):
     #===========================================================================
@@ -115,15 +115,15 @@ def ProcessDerivatives(fname, src, target):
     dic['DY'] = 'D'
     dic['DZ'] = 'D'
         
-    if(heph_functional.derivative_order == 1):    
+    if(derivative_order == 1):    
         dic['N2DIAG'] = ' '
         dic['N2ALL']  = '!'  
         dic['N3ALL']  = '!'   
-    elif(heph_functional.derivative_order == 2):    
+    elif(derivative_order == 2):    
         dic['N2DIAG'] = '!'
         dic['N2ALL']  = ' '   
         dic['N3ALL']  = '!'   
-    elif(heph_functional.derivative_order == 3):    
+    elif(derivative_order == 3):    
         dic['N2DIAG'] = '!'
         dic['N2ALL']  = '!'   
         dic['N3ALL']  = ' ' 

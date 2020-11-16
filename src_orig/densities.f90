@@ -93,7 +93,7 @@ subroutine densit(SaveRho)
     ! Calculate all of the densities. 
     ! If SaveRho=.false., do not save the previous values to history!
     !---------------------------------------------------------------------------
-    integer      :: i, it, wave, wave2, B, N, si
+    integer      :: i, it, wave, wave2, B, N, si, N2
     real(KIND=dp):: weight
     logical      :: SaveRho
 

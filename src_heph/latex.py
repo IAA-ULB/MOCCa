@@ -3,12 +3,12 @@
 # into Tantalus.
 #
 #-------------------------------------------------------------------------------
-from heph_densities  import OrderOfDen, ParseOperators
-from heph_densities  import Densities_needed
-from heph_fields     import Fields_needed, ParseOperatorsField
-from heph_fields     import Pairing_Fields_needed 
-from heph_functional import Functional_terms , ParseDensities
-from heph_functional import coupling_constants_0, coupling_constants_1, rreplace
+from src_heph.heph_densities  import OrderOfDen, ParseOperators
+from src_heph.heph_densities  import Densities_needed
+from src_heph.heph_fields     import Fields_needed, ParseOperatorsField
+from src_heph.heph_fields     import Pairing_Fields_needed 
+from src_heph.heph_functional import Functional_terms , ParseDensities
+from src_heph.heph_functional import coupling_constants_0, coupling_constants_1, rreplace
 from string          import Template
 import os
 

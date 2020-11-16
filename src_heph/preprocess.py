@@ -17,12 +17,12 @@
 
 import os
 from string           import Template
-from heph_densities   import ProcessDensities
-from heph_derivatives import ProcessDerivatives
-from heph_symmetries  import ReduceAxes
-from heph_functional  import ProcessFunctional, ProcessParameterization
-from heph_wavefunctions import ProcessWavefunctions
-from heph_pairing     import ProcessHFB
+from src_heph.heph_densities     import ProcessDensities
+from src_heph.heph_derivatives   import ProcessDerivatives
+from src_heph.heph_symmetries    import ReduceAxes
+from src_heph.heph_functional    import ProcessFunctional, ProcessParameterization
+from src_heph.heph_wavefunctions import ProcessWavefunctions
+from src_heph.heph_pairing       import ProcessHFB
 
 def preprocess(fname, src, target):
       # Decides which routine to call on which file.

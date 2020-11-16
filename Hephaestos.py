@@ -9,7 +9,7 @@
 #-------------------------------------------------------------------------------
 from os.path  import isfile as isfile
 import os
-from src_heph import heph_densities,heph_symmetries,heph_functional,heph_fields
+from src_heph import heph_symmetries,heph_densities,heph_functional,heph_fields
 from src_heph import preprocess as pp
 from src_heph import latex
 import sys
@@ -38,13 +38,13 @@ heph_name= \
 "   |  Copyright W.Ryssens & M. Bender                              | \n" +\
 "   ================================================================="
 
-print heph_name
+print (heph_name)
 #-------------------------------------------------------------------------------
 # Dealing with the input
 inp = sys.argv
 if(len(inp) == 1):
     print(" Error: please specify a functional file.")
-    print '=============================================================='
+    print('==============================================================')
     exit()
 elif(len(inp) == 2):
     # We select, by default, an EV8-like option
@@ -61,6 +61,7 @@ print (line)
 print (' Primary input:')
 print ('    Functional file: %s'%FUNC_FILE)
 print ('    Symmetry string: %s'%SYMSTRING)
+print ('    Axis reduction : %s'%REDUCE)
 print (line)
 
 #-------------------------------------------------------------------------------
@@ -87,11 +88,11 @@ FORTRANFILES=['compilation.f90'  , 'geninfo.f90'      , 'sphericalharmonics.f90'
 FOUND=True    
 for fname in FORTRANFILES:
     if(not isfile(SRCPATH + fname)):
-        print 'You are missing %s%s'%(SRCPATH, fname)
+        print ('You are missing %s%s'%(SRCPATH, fname))
         FOUND=False
         
 if(not FOUND):
-    print 'Go find the source files, then come back.'
+    print ('Go find the source files, then come back.')
     quit()
 
 #-------------------------------------------------------------------------------
@@ -119,12 +120,12 @@ print (line)
 FOUND=True    
 for fname in FORTRANFILES:
     if(not isfile(GENPATH + fname)):
-        print 'You are missing %s%s'%(GENPATH, fname)
+        print ('You are missing %s%s'%(GENPATH, fname))
         FOUND=False
 if(not FOUND):
-    print '     Hephaestos did not treat all the source code files.'
+    print ('     Hephaestos did not treat all the source code files.')
 else :
-    print '     All source files processed.'
-    print '     Ready for compilation.'
-    print '     Happy calculations!'
+    print ('     All source files processed.')
+    print ('     Ready for compilation.')
+    print ('     Happy calculations!')
 print (line)

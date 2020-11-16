@@ -17,12 +17,11 @@
 #   C add automatic declaration of dtemp, ddtemp, lapdtemp etc to the actions
 #     to save memory in default cases.
 #-------------------------------------------------------------------------------
-
-from string import Template
 import itertools
 import numpy as np
-from heph_densities    import *
-import heph_functional
+import src_heph.heph_functional
+from src_heph.heph_densities    import *
+from string import Template
 
 # List of fields needed 
 Fields_needed = []
@@ -32,8 +31,8 @@ def initfields():
     #---------------------------------------------------------------------------
     # Go over the needed densities and the functional terms and check whether
     # we have enough derivatives to calculate the fields. 
-    for term in heph_functional.Functional_terms:
-        (densities, cpl) = heph_functional.ParseDensities(term)
+    for term in src_heph.heph_functional.Functional_terms:
+        (densities, cpl) = src_heph.heph_functional.ParseDensities(term)
         # Count the number of derivatives needed in this term
         totalder = 0
         totallap = 0
@@ -56,7 +55,7 @@ def initfields():
                     deriv_needed[j].append((totallap, totalder))
                     
     
-    heph_functional.PruneDeriv_needed()
+    src_heph.heph_functional.PruneDeriv_needed()
     
       
 def GenerateFields():
@@ -135,7 +134,7 @@ def GenerateFields():
     clean_template_b = Template(   tab+'if(allocated(${FIELD}_hist)) deallocate(${FIELD}_hist)')
 
     cplcts    = []       
-    for term in heph_functional.Functional_terms:      
+    for term in src_heph.heph_functional.Functional_terms:      
         cplcts.append(term.replace('E_', 'B_'))
     #---------------------------------------------------------------------------
     # For every unique density encountered, we need to figure out the field
@@ -148,7 +147,7 @@ def GenerateFields():
     fieldtransfo = ''
         
     fieldclean= '' 
-    for den in heph_functional.Densities_needed:
+    for den in src_heph.heph_functional.Densities_needed:
         #-----------------------------------------------------------------------
         # Name the field correctly
         dic = {}
@@ -174,13 +173,13 @@ def GenerateFields():
         fieldclean = fieldclean + '\n' + clean_template_b.substitute(dic)
 
         #-----------------------------------------------------------------------
-        for term in heph_functional.Functional_terms: 
-            (densities, cpl) = heph_functional.ParseDensities(term)
+        for term in src_heph.heph_functional.Functional_terms: 
+            (densities, cpl) =src_heph. heph_functional.ParseDensities(term)
             #-------------------------------------------------------------------
             # Replace the densities in the list by the ones actually calculated
             for i in range(len(densities)):
                 (x,y,l2,r2,c2,cr2) = ParseOperators(densities[i])
-                for altden in heph_functional.Densities_needed:
+                for altden in src_heph.heph_functional.Densities_needed:
                     (altder, altlap, altleft, altright, altcoup, altcross) = ParseOperators(altden)
                     if(altleft == l2 and r2 == altright and cr2 == altcross):
                         densities[i] = y*'Lap_' +               \
@@ -203,7 +202,7 @@ def GenerateFields():
 #                          # Replace internal couplings
 #                          altterm = altterm.replace(sumindices[cpl.index(c)],'')
 
-            (rubbish, cpl) = heph_functional.ParseDensities(altterm)
+            (rubbish, cpl) = src_heph.heph_functional.ParseDensities(altterm)
             #-------------------------------------------------------------------
             # Check if the term contains this density
             startind = 0
@@ -238,9 +237,9 @@ def GenerateFields():
 
                     cpl = newcpl
                     
-                    ind   = heph_functional.Functional_terms.index(term)
+                    ind   = src_heph.heph_functional.Functional_terms.index(term)
                     cplct = cplcts[ind]
-                    dden  = heph_functional.density_dependence[ind]
+                    dden  = src_heph.heph_functional.density_dependence[ind]
                     fieldlist.append([removed, altder, altlap, cplct, cpl,dden,0])
                 
                 startind = startind + OrderOfDen(altden)
@@ -248,8 +247,8 @@ def GenerateFields():
             #-------------------------------------------------------------------
             # Now check if there are density dependences in this term that 
             # involve this density
-            dd    = heph_functional.field_DD_terms[term]
-            ind   = heph_functional.Functional_terms.index(term)
+            dd    = src_heph.heph_functional.field_DD_terms[term]
+            ind   = src_heph.heph_functional.Functional_terms.index(term)
             cplct = cplcts[ind]
             if(dd[0] == den):
                 fieldlist.append([densities, altder, altlap, cplct, cpl, dd[1],1])
@@ -319,7 +318,7 @@ def GenerateFields():
                  dic['EXPR1']    = ''
                  dic['EXPR2']    = ''
                  dic['EXPR3'] = ''
-                 ind = heph_functional.Functional_terms.index(term)
+                 ind = src_heph.heph_functional.Functional_terms.index(term)
                  dic['DD']       = fieldterm[5]
                  
                  if(len(dic['DD']) >0 ):

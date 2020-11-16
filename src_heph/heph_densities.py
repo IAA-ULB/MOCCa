@@ -121,7 +121,7 @@
 
 from string          import Template
 from math            import log, factorial
-import heph_symmetries 
+from .               import heph_symmetries 
 import numpy         as np
 import itertools
 
@@ -253,11 +253,11 @@ def ProcessDensities(fname, src, target):
     Zeroing        = ''
     Cleaning       = ''
 
-    print '---------------------------------------------------------------------------'
-    print ' Densities necessary for the functional                                    '
-    print '---------------------------------------------------------------------------'
-    print '      Name       Calc?      T     DIM with / out    Derivative combs.      '
-    print '---------------------------------------------------------------------------'
+    print ('---------------------------------------------------------------------------')
+    print (' Densities necessary for the functional                                    ')
+    print ('---------------------------------------------------------------------------')
+    print ('      Name       Calc?      T     DIM with / out    Derivative combs.      ')
+    print ('---------------------------------------------------------------------------')
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
         
@@ -266,19 +266,19 @@ def ProcessDensities(fname, src, target):
         T        = TimeDen(den)
         D        = deriv_needed[i]
     
-        print '%15s %4s   %6d  %6d %6d     '%(den,'y', T, owith, owithout), D
+        print ('%15s %4s   %6d  %6d %6d     '%(den,'y', T, owith, owithout), D)
 
-    print '----------------------------------------------------------------------------'
-    print ' SYMMETRIES '
-    print '           DEN   LARG  RARG   T     P    RX    RY    RZ    SX    SY    SZ'
-    print '----------------------------------------------------------------------------'
+    print ('----------------------------------------------------------------------------')
+    print (' SYMMETRIES ')
+    print ('           DEN   LARG  RARG   T     P    RX    RY    RZ    SX    SY    SZ')
+    print ('----------------------------------------------------------------------------')
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
 
         # Summation with leftwf = rightwf
         (e,dec,ini,der,zeroi,cleani)  = \
        GenDensityExpression(Densities_needed[i],deriv_needed[i], 'wave', 'wave')
-        print ' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
+        print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
         Declaration    = Declaration    + '\n' + dec
     
@@ -299,7 +299,7 @@ def ProcessDensities(fname, src, target):
         Derivation     = Derivation     + '\n' + der
         Zeroing        = Zeroing        + '\n' + zeroi
         Cleaning       = Cleaning       + '\n' + cleani
-    print '----------------------------------------------------------------------------'
+    print ('----------------------------------------------------------------------------')
 
     # Substitute into the densities.f90 file.        
     dic={}
@@ -664,8 +664,8 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
             except:        
                 pass
  
-            print r'%15s %4s %4s   %+3d   %+3d & %+3d & %+3d & %+3d & %+3d & %+3d & %+3d \\' \
-                  %(denin, pl, pr, T, par, par*int(px),par*int(py),par*int(pz),int(px),int(py),int(pz))
+            print (r'%15s %4s %4s   %+3d   %+3d & %+3d & %+3d & %+3d & %+3d & %+3d & %+3d \\' \
+                  %(denin, pl, pr, T, par, par*int(px),par*int(py),par*int(pz),int(px),int(py),int(pz)))
             #-------------------------------------------------------------------
 
             # Get the index of the reduced storage scheme for all of the 
@@ -989,6 +989,7 @@ def Sigma(mu,indices):
     except IndexError:
         print ('Index Error in sigma!')
         exit()
+
 def Current(mu,indices):
     # Operates on indices to get a current C, instead of a density D
     out = np.zeros_like(indices)
@@ -1018,8 +1019,6 @@ def Combine( L , R ):
     #---------------------------------------------------------------------------
     # Combines two symmetry-operators to define a new one. Note that the order
     # of the operators is important for non-Abelian systems.
-    #
-    # Note that this currently only works for operators of the same order.
     #---------------------------------------------------------------------------
 
     LR = lambda mu,x : L(mu[0:L.dimension],R(mu[L.dimension:],x))
