@@ -55,7 +55,6 @@ ReduceAxes= [1,1,1]
 
 
 #-------------------------------------------------------------------------------
-#
 # In a single-particle coordinate space with separated proton and neutron 
 # states, a single-particle wavefunction is a complex function of space and
 # spin variables:
@@ -107,7 +106,7 @@ ReduceAxes= [1,1,1]
 # There must be some way to deduce that from the signed permutations + the 
 # signs of the Cartesian coordinates, but I haven't found one. 
 # (For hermeticity, there is the trivial observation that any operator 
-#  acting ONLY on the spatial coordinates, i.e. with per = [1,2,3,4] is 
+#  acting ONLY on the spatial coordinates, i.e. with per = [+1,+2,+3,+4] is 
 #  hermitian.)
 #  
 # Hence, a full classification becomes
@@ -121,12 +120,10 @@ class symmetry():
     Practical definition of a symmetry in terms of a signed permutation 
     of indices and signs on the x,y,z coordinates
   """
-  def __init__(self, perm, x,y,z, linear, hermitian):
+  def __init__(self, perm, coord, linear, hermitian):
     # These are signed(!) permutations
     self.permutation = perm
-    self.x         = x
-    self.y         = y
-    self.z         = z
+    self.coord     = coord
     self.linear    = linear 
     self.hermitian = hermitian
 
@@ -135,15 +132,11 @@ class symmetry():
 
     if(self.permutation != other.permutation):
       c = False
-    if(self.x != other.x):
+    if(self.coord       != other.coord):
       c = False
-    if(self.y != other.y):
+    if(self.linear      != other.linear):
       c = False
-    if(self.z != other.z):
-      c = False
-    if(self.linear    != other.linear):
-      c = False
-    if(self.hermitian != other.hermitian):
+    if(self.hermitian   != other.hermitian):
       c = False
 
     return c
@@ -154,7 +147,7 @@ class symmetry():
 
   def __hash__(self):
     # Explicitly make these things hashable
-    return hash((self.permutation, self.x, self.y, self.z, self.linear, self.hermitian))
+    return hash((self.permutation, self.coord, self.linear, self.hermitian))
 
 
   def __repr__(self):
@@ -165,60 +158,31 @@ class symmetry():
                                           self.permutation[1], \
                                           self.permutation[2], \
                                           self.permutation[3]) \
-              + ' x=%+1d,y=%+1d,z=%+1d'%(self.x, self.y, self.z)\
-              + ' linear    %5s '%str(self.linear) \
-              + ' hermitian %5s '%str(self.hermitian)
+        + ' x=%+1d,y=%+1d,z=%+1d'%(self.coord[0], self.coord[1], self.coord[2])\
+        + ' linear    %5s '%str(self.linear) \
+        + ' hermitian %5s '%str(self.hermitian)
 
   def __lt__(self, other):
      """
+      Comparison operator for sorting lists of symmetries.
      """
-     t1 = (abs(self.permutation[0]),abs(self.permutation[1]),abs(self.permutation[2]),abs(self.permutation[3]))
-     t2 = (abs(other.permutation[0]),abs(other.permutation[1]),abs(other.permutation[2]),abs(other.permutation[3]))
-
-     if(t1 == t2):  
-       c1 = 0
-       if(self.x < 0):
+     c1 = 0
+     c2 = 0
+     for i in range(3):
+      if(self.coord[i] < 0):
         c1 = c1+1
-       if(self.y < 0):
-        c1 = c1+1
-       if(self.z < 0):
-        c1 = c1+1
-    
-       c2 = 0
-       if(other.x < 0):
-        c2 = c2+1
-       if(other.y < 0):
-        c2 = c2+1
-       if(other.z < 0):
+      if(other.coord[i] < 0):
         c2 = c2+1
 
-       if(c1 == c2):
-         return self.permutation[0] < other.permutation[0]
-       else:         
-         return c1<c2 
+     if(c1 == c2):
+       t1 = (abs(self.permutation[0]) ,abs(self.permutation[1]) , \
+             abs(self.permutation[2]) ,abs(self.permutation[3]))
+       t2 = (abs(other.permutation[0]),abs(other.permutation[1]), \
+             abs(other.permutation[2]),abs(other.permutation[3]))
+       return t1 < t2
+     else:         
+       return c1<c2 
 
-     else:
-      return t1 < t2
-#     c1 = 0
-#     if(self.x < 0):
-#      c1 = c1+1
-#     if(self.y < 0):
-#      c1 = c1+1
-#     if(self.z < 0):
-#      c1 = c1+1
-#  
-#     c2 = 0
-#     if(other.x < 0):
-#      c2 = c2+1
-#     if(other.y < 0):
-#      c2 = c2+1
-#     if(other.z < 0):
-#      c2 = c2+1
-
-#     if(c1 == c2):
-#       return abs(self.permutation[0]) < abs(other.permutation[0])
-#     else:         
-#       return c1<c2 
 
 def multiply(S1, S2):
     """
@@ -233,7 +197,9 @@ def multiply(S1, S2):
 
     lin = S1.linear    == S2.linear
     her = S1.hermitian == S2.hermitian
-    C = symmetry(perm,S1.x*S2.x,S1.y*S2.y,S1.z*S2.z, lin, her )
+
+    coord = [a*b for a,b in zip(S1.coord,S2.coord)]
+    C = symmetry(perm,coord, lin, her )
     return C
 
 #-------------------------------------------------------------------------------
@@ -241,32 +207,32 @@ def multiply(S1, S2):
 #-------------------------------------------------------------------------------
 symdic = {}
 #   Identity
-iden      = symmetry([+1,+2,+3,+4],+1,+1,+1, True, True)
+iden      = symmetry([+1,+2,+3,+4],[+1,+1,+1], True, True)
 symdic['1']  = iden
 # - Identity
-niden     = symmetry([-1,-2,-3,-4],+1,+1,+1, True, True)
+niden     = symmetry([-1,-2,-3,-4],[+1,+1,+1], True, True)
 symdic['-1'] = niden
 # Multiplication with i
-imag      = symmetry([-2,+1,-4,+3],+1,+1,+1, True, False)
-symdic['i'] = imag
+#imag      = symmetry([-2,+1,-4,+3],[+1,+1,+1], True, False)
+#symdic['i'] = imag
 #   [P   psi](x,y,z,sigma) =          psi  [-x,-y,-z, sigma]
-P         = symmetry([+1,+2,+3,+4],-1,-1,-1, True, True)
+P         = symmetry([+1,+2,+3,+4],[-1,-1,-1], True, True)
 symdic['P']  = P
 
 #   [T   psi](x,y,z,sigma) =    sigma psi^*[+x,+y,+z,-sigma]
-T           = symmetry([-3,+4,+1,-2],+1,+1,+1, False, False)
+T           = symmetry([-3,+4,+1,-2],[+1,+1,+1], False, False)
 symdic['T'] = T
 
 #   [R_x psi](x,y,z,sigma) = -i       psi  [ x,-y,-z,-sigma]
-Rx           = symmetry([+4,-3,+2,-1],+1,-1,-1, True, False)
+Rx           = symmetry([+4,-3,+2,-1],[+1,-1,-1], True, False)
 symdic['Rx'] = Rx 
 
 #   [R_y psi](x,y,z,sigma) =    sigma psi  [-x, y,-z,-sigma]
-Ry           = symmetry([-3,-4,+1,+2],-1,+1,-1, True, False)
+Ry           = symmetry([-3,-4,+1,+2],[-1,+1,-1], True, False)
 symdic['Ry'] = Ry
 
 #   [R_z psi](x,y,z,sigma) = -i sigma psi  [-x,-y,+z, sigma]
-Rz           = symmetry([+2,-1,-4,+3],-1,-1,+1, True, False)
+Rz           = symmetry([+2,-1,-4,+3],[-1,-1,+1], True, False)
 symdic['Rz'] = Rz
 
 # Simplexes
@@ -287,51 +253,55 @@ symdic['STx'] = STx
 symdic['STy'] = STy
 symdic['STz'] = STz
 
-print ('STx', STx)
-
 # Time-parity
 PT   = multiply(P,T)
 symdic['PT'] = PT
 
 
-def populate_symgroup(gen):
+def gen_symrelations(gen):
   """
-    Take the symmetry generators and form the whole group. 
-    The chief aim of this routine is to obtain a set of independent symmetry    
-    relations that can be employed to simplify the calculation.
+     Starting from a set of single-particle symmetry operators, this routine 
+     identifies all the symmetry relations that could be used to simplify the 
+     numerical representation. 
 
-    1. Generate all possible unique multiplications of the generators
-    2. Then, convert these symmetry relations to a specific convention
-        a. if( permutation[0]> permutation[1] )
-           multiply with  i, such that permutation[0] < permutation[1]
+     For an operator S that gives rise to either eigenstates or invariants, we 
+     have that 
 
-    Note that 
+      [S \psi] (x,y,z,sigma) = p \psi(x,y,z,sigma)  
 
-    a) step 1. is accomplished using a simple brute-force enumeration method.
-    b) the additional multiplication is usually needed to create relations 
-       with the four components of the wavefunctions that are one-to-one, i.e.
-        psi_1 is related to the symmetry-transformed psi_1.
-
-            R_z psi = \pm i psi
-       => i R_z psi =-\pm   psi 
-       => psi_{1-4} =-\pm   psi
-
+     where p is a number of modulus one. Depending on whether p is real or 
+     imaginary there is a difference in the final symmetry relations imposed on
+     the independent components of the spwfs. 
 
   """
+
+  # First, we remove all antilinear, antihermitian symmetry operators. These
+  # do not give rise to symmetry relations for individual spwfs.
+  effgen = []
+  for g in gen:
+    if(  g.linear or g.hermitian ) :
+       effgen.append(g)
+
+  # We need to return the actual symmetry relations (sg) but we also return 
+  # the combination (combs) of symmetry operators that make up the symmetry 
+  # relations.
   sg    = []
   combs = []
+
+  # We will construct by brute-force all symmetry relations that could be used
+  # to reduce the problem
   added = True
   k     = 0
   while(added):
     k = k +1 
 
     added = False
-    newlist = list(itertools.combinations(range(len(gen)),k))  
+    newlist = list(itertools.combinations(effgen,k))  
 
     for comb in newlist:
       sy = iden
       for l in range(k):
-          sy = multiply(sy,gen[comb[l]])
+          sy = multiply(sy,comb[l])
         
       found = False
       for l in sg:
@@ -343,25 +313,55 @@ def populate_symgroup(gen):
         sg.append(sy)
         combs.append(comb)
 
-  for i in range(len(sg)):
-    if(abs(sg[i].permutation[0])>abs(sg[i].permutation[1])):
-      sg[i] = multiply(imag,sg[i])
-      t = list(combs[i])
-      t.append(len(gen))
-      combs[i] = tuple(t)
-#  for i in range(len(sg)):
-#    if( sg[i].permutation[0]<0):
-#      sg[i] = multiply(niden,sg[i])
-#      t = list(combs[i])
-#      t.append(len(gen)+1)
-#      combs[i] = tuple(t)
-
   # Sort the final symmetry group in a practical way
   sg, combs = zip(*sorted(zip(sg, combs)))
+
   return sg, combs
 
+def choose_symrelations(symrel, combs, redu):   
+  """
+  Using all generated symmetry relations, we select the ones that are best 
+  suited to our needs.
 
-#-------------------------------------------------------------------------------
+  (i)  We need a permutation that is [+-1,+-2,+-3,+-4] for linear operators
+                                     [+-2,+-1,+-4,+-3] for antilinear operators
+
+  (ii) We prefer symmetry relations that imply the least amount of coordinate
+       reflections.
+
+  """ 
+  syms = [None, None, None] 
+  selcombs = [None, None, None]
+  used = [0] * len(symrel)
+
+#  for s in symrel:
+#    print (s)
+
+  cand =  {}
+  axes = range(3)
+  for i in axes:
+    cand[i] = []
+    if(redu[i] == 1):
+     # enumerate all symmetry relations that involve the right axis
+     for k,s in enumerate(symrel):
+      if(s.coord[i] == -1 and used[k] == 0):
+        if(      s.hermitian and abs(s.permutation[0]) == 1):
+          cand[i].append(k)
+        elif(not s.hermitian and abs(s.permutation[0]) == 2):
+          cand[i].append(k)
+  
+  # Then we sort the axis on the number of candidate symmetries
+  # I.e. do first the axis set with the smallest number of candidates
+  axes = sorted(axes, key= lambda x: len(cand[i]))
+  for i in axes:
+     for j in range(len(cand[i])):
+        if( used[cand[i][j]] == 0):
+          used[cand[i][j]] = 1
+          syms[i]          = symrel[cand[i][j]]
+          selcombs[i]      = combs[cand[i][j]] 
+          break
+  return syms, selcombs
+
 
 def initsymmetries(SYMSTRING, REDUCE):
     #---------------------------------------------------------------------------
@@ -369,7 +369,10 @@ def initsymmetries(SYMSTRING, REDUCE):
     #---------------------------------------------------------------------------
     # Parse the string 
     global Signature, Simplex, Parity,TimeSimplex,TimeReversal,TimeSignature
-    global ReduceAxes    
+    global ReduceAxes 
+
+    # for printing purposes
+    direc = ['x', 'y', 'z']   
 
     syms       = SYMSTRING.split(',')
     generators = []
@@ -406,80 +409,49 @@ def initsymmetries(SYMSTRING, REDUCE):
       exit()
     # Generating the full symmetry group  
     generators = generators
-    symgroup, combs = populate_symgroup(generators )
+    symrel, combs = gen_symrelations(generators )
     
-    print ("     Total size of the symmetry group  : ", len(symgroup))    
-
-    for i,s in enumerate(symgroup):
-##      if(abs(s.permutation[0]) == 1):
-        print (i,s)
+    print ("     Total number of symmetry relations: ", len(symrel))    
     #---------------------------------------------------------------------------
     # We identify the axis-reduction asked for, and generate practical 
     # symmetry relations for functions on the mesh.
     #---------------------------------------------------------------------------
     print ("  Reduction asked for:")
       
-    redu_x = int(REDUCE[0])
-    redu_y = int(REDUCE[1])
-    redu_z = int(REDUCE[2])
-    print ("   (x,y,z) = (%d, %d, %d)"%(redu_x, redu_y, redu_z))
+    redu = [0,0,0]
+    for i in range(3):
+      redu[i] = int(REDUCE[i])
+    print ("   (x,y,z) = (%d, %d, %d)"%(redu[0], redu[1], redu[2]))
 
     c = 0
-    for g in generators: # Do not count the imaginary unit at the end
+    for g in generators:
       if( g.linear or g.hermitian ):
         c = c + 1
-    if(c > redu_x + redu_y + redu_z):
+    if(c > sum(redu)):
       print (" The chosen symmetries allow for the reduction of more axes.")  
       print ("  Stopping.")
       exit()
-    elif(c < redu_x + redu_y + redu_z):
+    elif(c < sum(redu)):
       print (" The chosen symmetries do not allow for this reduction.")
       print ("  Stopping.")
       exit()  
-
-
-    # Finding the practical symmetry relations that will allow us to reduce the 
-    # axes. 
-    xsym, xcomb,ysym, ycomb,zsym,zcomb = GenSymRelations(symgroup, combs, redu_x, redu_y, redu_z)
-
+    syms, combs =  choose_symrelations(symrel, combs, redu)
     # Some sanity checks
-    if(redu_x ==1 and (not xsym)):
-      print ("  Could not identify a symmetry relation to reduce the X-axis.")
-      print ("  Stopping.")
-      exit()
-    if(redu_y ==1 and (not ysym)):
-      print ("  Could not identify a symmetry relation to reduce the Y-axis.")
-      print ("  Stopping.")
-      exit()
-    if(redu_z ==1 and (not zsym)):
-      print ("  Could not identify a symmetry relation to reduce the Z-axis.")
-      print ("  Stopping.")
-      exit()
+    for i in range(3):
+      if(redu[i] ==1 and (not syms[i])):
+        print ("  Could not identify a symmetry relation to reduce axis %s."%direc[i])
+        print ("  Stopping.")
+        exit()
     
-    generators = generators + [imag, niden]
-    if(redu_x == 1):
+    for i in range(3):
       st = ''
-      for i in xcomb:
-        for a in symdic.keys():
-          if(generators[i] == symdic[a]):
-            st = st + a + ','
+      if(redu[i] == 1):
+        for l in range(len(combs[i])):
+          for key in symdic.keys():
+            if(combs[i][l] == symdic[key]):
+              st = st + key + ','
 
-      print ("  ", xsym, st)
-    if(redu_y == 1):
-      st = ''
-      for i in ycomb:
-        for a in symdic.keys():
-          if(generators[i] == symdic[a]):
-            st = st + a + ','
-      print ("  ", ysym, st)
-    if(redu_z == 1):
-      st = ''
-      for i in zcomb:
-        for a in symdic.keys():
-          if(generators[i] == symdic[a]):
-            st = st + a + ','
-      print ("  ", zsym, st)
-
+        print ("   ", direc[i], " =>  %10s, "%st[:-1], syms[i])
 
 def CheckGenerators(gen):
   """
@@ -547,162 +519,3 @@ def CheckIndependency(gen):
         problem  = True
 
   return problem
-
-def GenSymRelations(symgroup, combs, redu_x, redu_y, redu_z):   
-  """
-  Using the full symmetry-group, we try to find practical symmetry relations  
-  to use to reduce the calculation to smaller meshes.
-
-  Note that there is no real "preference" among relations that is built into
-  this routine. However, if the input symgroup is sorted (according to the 
-  __lt__ operator defined above), then this routine will return symmetry 
-  relations that employ the least of "reflections" possible. I.e. it will
-  prefer symmetry relations with X coordinate signs over other ones with 
-  Y coordinate changes if X < Y.
-  """ 
-
-  xsym = None 
-  xcomb = None
-  ysym = None 
-  ycomb = None
-  zsym = None
-  zcomb = None
-
-  used = [0] * len(symgroup)
-
-  if(redu_x == 1):
-   for i,s in enumerate(symgroup):
-    if(s.x == -1):
-        xsym = s
-        xcomb= combs[i]
-        used[i] = 1
-        break      
-
-  if(redu_y == 1):
-   for i,s in enumerate(symgroup):  
-      if(used[i] == 1):
-        continue
-      if(s.y == -1):
-          ysym = s   
-          ycomb= combs[i]
-          used[i] = 1
-          break      
-  
-  if(redu_z == 1):
-   for i,s in enumerate(symgroup):  
-      if(used[i] == 1):
-        continue
-      if(s.z == -1):
-          zsym = s
-          zcomb= combs[i]
-          used[i] = 1
-          break      
-  return xsym, xcomb, ysym, ycomb, zsym, zcomb
-
-#def CheckSymmetryChoice() :
-#    #---------------------------------------------------------------------------
-#    # Checking whether the choices made for the symmetries are valid.
-#    # The options checked for are trivial for now.
-#    #---------------------------------------------------------------------------
-#    global Signature, Simplex, Parity, TimeSimplex, TimeReversal, TimeSignature
-#    
-#    # First off, does anything take illegal values 
-#    if(Signature > 3 or Signature < 0 ):
-#            print ('Illegal value for signature.')
-#            exit()
-#    if(Simplex > 3 or Simplex < 0 ):
-#            print ('Illegal value for simplex.')
-#            exit()
-#    if(TimeSimplex > 3 or TimeSimplex < 0 ):
-#            print ('Illegal value for time-simplex.')
-#            exit()
-#    if(TimeSignature > 3 or TimeSignature < 0 ):
-#            print ('Illegal value for time-signature.')
-#            exit()
-#    if(Parity > 1 or Parity < 0 ):
-#            print ('Illegal value for parity.')
-#            exit()
-#    if(TimeReversal > 1 or TimeReversal < 0 ):
-#            print ('Illegal value for time-reversal.')
-#            exit()
-
-#def CheckReduction():
-#    #---------------------------------------------------------------------------
-#    # Check whether the asked-for reduction of axes is valid, given the 
-#    # particular combination of symmetries asked for.
-#    #---------------------------------------------------------------------------
-
-#    global Signature, Simplex, Parity, TimeSimplex, TimeReversal, TimeSignature
-#    global ReduceAxes
-#    
-#    # Check whether we are not over-or under-using the symmetry information.
-#    s = sum(ReduceAxes)
-#    p = 0
-#    if(Signature != 0):
-#             p = p + 1 
-#    if(Simplex != 0):
-#             p = p + 1 
-#    if(TimeSimplex != 0):
-#             p = p + 1 
-#    if(TimeSignature != 0):
-#             p = p + 1 
-#    if(Parity != 0):
-#             p = p + 1 
-
-#    if(s > p) :
-#     print ('You asked for more reduction of axes than the symmetries can cover.')
-#     exit()
-#    elif(s < p):
-#     print ('The symmetries you demanded provide more reduction of axes ' \
-#         + 'than you asked for.')
-#     exit()
-
-#    #---------------------------------------------------------------------------
-#    # Check more in detail
-#    for i in range(3):
-#      Valid = False      
-#      if(ReduceAxes[i] == 1):
-#        if(Simplex == i +1):
-#            Valid = True
-#        if(TimeSimplex == i +1):        
-#            Valid = True
-#        if(Signature != i +1 and Signature != 0):        
-#            Valid = True
-#        if(Parity != i +1 and Parity != 0):        
-#            Valid = True
-#        if( not Valid) :
-#            print 'The symmetry choice does not support reducing axis %d'%i
-#            exit
-
-#    #---------------------------------------------------------------------------
-
-
-#def PrintSymmetry():
-#        # Outputs all of the information on symmetry conservation.
-#        global Signature,Simplex,Parity,TimeSimplex,TimeReversal,TimeSignature
-#        global ReduceAxes 
-#        
-#        words      = ['Broken', 'Conserved']
-#        directions = ['x', 'y', 'z']
-#        print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
-#        print ' Explicit spwf symmetries '
-#        print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
-#             
-#        print ' Time-reversal: ' + words[TimeReversal]
-#        print ' Parity       : ' + words[Parity]
-
-#        print '                 X Y Z '
-#        print ' Signature     : %d %d %d'%(Signature    == 1, Signature     == 2, Signature     == 3)
-#        print ' Simplex       : %d %d %d'%(Simplex      == 1, Simplex       == 2, Simplex       == 3)
-#        print ' TimeSignature : %d %d %d'%(TimeSignature== 1, TimeSignature == 2, TimeSignature == 3)                
-#        print ' TimeSimplex   : %d %d %d'%(TimeSimplex  == 1, TimeSimplex   == 2, TimeSimplex   == 3)
-#        print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
-#        print         
-#        for i in range(3):
-#                if ReduceAxes[i] == 1 :
-#                        print ' %s-axis : positive half stored'%directions[i]
-#                else:
-#                        print ' %s-axis : fully         stored'%directions[i]
-#        print              
-#        print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
-
