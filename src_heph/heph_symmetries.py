@@ -202,8 +202,101 @@ def multiply(S1, S2):
     C = symmetry(perm,coord, lin, her )
     return C
 
+def initsymmetries(SYMSTRING, REDUCE):
+    #---------------------------------------------------------------------------
+    # Parse the SYMSTRING and use it to make various decisions for the 
+    # meanfield code.     
+    #---------------------------------------------------------------------------
+    # Parse the string 
+    global Signature, Simplex, Parity,TimeSimplex,TimeReversal,TimeSignature
+    global ReduceAxes 
+
+    # for printing purposes
+    direc = ['x', 'y', 'z']   
+
+    syms       = SYMSTRING.split(',')
+    generators = []
+    for s in syms:
+      found = False
+      for key in symdic.keys():
+        if s == key:
+            generators.append(symdic[key])
+            found = True
+
+      if(not found):
+        print('Error parsing symmetries. %s is not recognized.'%s)
+
+
+    if(len(generators)>4):
+      print ('Maximum length of generators of the symmetry group = 4.')
+      exit()
+
+    print ("  Symmetry information" )
+    st = ''
+    for s in syms:
+      st = st + s + ','
+    if(len(syms) >=1):
+      st = st [:-1]
+
+    independent = not CheckIndependency(generators)
+    com         = not CheckGenerators(generators)
+    print ("     Generators: ", st )
+    print ("      => Correct commutation relations?: " , com )
+    print ("      => All independent?              : " , independent)
+
+    if(not com or not independent):
+      print ("Trouble with your choice of symmetry generators.")
+      exit()
+    # Generating the full symmetry group  
+    generators = generators
+    symrel, combs = gen_symrelations(generators )
+    
+    print ("     Total number of symmetry relations: ", len(symrel))    
+    #---------------------------------------------------------------------------
+    # We identify the axis-reduction asked for, and generate practical 
+    # symmetry relations for functions on the mesh.
+    #---------------------------------------------------------------------------
+    print ("  Reduction asked for:")
+      
+    redu = [0,0,0]
+    for i in range(3):
+      redu[i] = int(REDUCE[i])
+    print ("   (x,y,z) = (%d, %d, %d)"%(redu[0], redu[1], redu[2]))
+
+    c = 0
+    for g in generators:
+      if( g.linear or g.hermitian ):
+        c = c + 1
+    if(c > sum(redu)):
+      print (" The chosen symmetries allow for the reduction of more axes.")  
+      print ("  Stopping.")
+      exit()
+    elif(c < sum(redu)):
+      print (" The chosen symmetries do not allow for this reduction.")
+      print ("  Stopping.")
+      exit()  
+    syms, combs =  choose_symrelations(symrel, combs, redu)
+    # Some sanity checks
+    for i in range(3):
+      if(redu[i] ==1 and (not syms[i])):
+        print ("  Could not identify a relation to reduce axis %s."%direc[i])
+        print ("  Stopping.")
+        exit()
+    
+    for i in range(3):
+      st = ''
+      if(redu[i] == 1):
+        for l in range(len(combs[i])):
+          for key in symdic.keys():
+            if(combs[i][l] == symdic[key]):
+              st = st + key + ','
+
+        print ("   ", direc[i], " =>  %10s, "%st[:-1], syms[i])
+
 #-------------------------------------------------------------------------------
-# Populate all the symmetries with correct behavior
+# Initialization of the whole module, happening when it gets imported by other
+# modules. This primarily achieves the correct data is present in the symdic 
+# dictionary. 
 #-------------------------------------------------------------------------------
 symdic = {}
 #   Identity
@@ -212,25 +305,18 @@ symdic['1']  = iden
 # - Identity
 niden     = symmetry([-1,-2,-3,-4],[+1,+1,+1], True, True)
 symdic['-1'] = niden
-# Multiplication with i
-#imag      = symmetry([-2,+1,-4,+3],[+1,+1,+1], True, False)
-#symdic['i'] = imag
 #   [P   psi](x,y,z,sigma) =          psi  [-x,-y,-z, sigma]
 P         = symmetry([+1,+2,+3,+4],[-1,-1,-1], True, True)
 symdic['P']  = P
-
 #   [T   psi](x,y,z,sigma) =    sigma psi^*[+x,+y,+z,-sigma]
 T           = symmetry([-3,+4,+1,-2],[+1,+1,+1], False, False)
 symdic['T'] = T
-
 #   [R_x psi](x,y,z,sigma) = -i       psi  [ x,-y,-z,-sigma]
 Rx           = symmetry([+4,-3,+2,-1],[+1,-1,-1], True, False)
 symdic['Rx'] = Rx 
-
 #   [R_y psi](x,y,z,sigma) =    sigma psi  [-x, y,-z,-sigma]
 Ry           = symmetry([-3,-4,+1,+2],[-1,+1,-1], True, False)
 symdic['Ry'] = Ry
-
 #   [R_z psi](x,y,z,sigma) = -i sigma psi  [-x,-y,+z, sigma]
 Rz           = symmetry([+2,-1,-4,+3],[-1,-1,+1], True, False)
 symdic['Rz'] = Rz
@@ -253,11 +339,20 @@ symdic['STx'] = STx
 symdic['STy'] = STy
 symdic['STz'] = STz
 
+# Time-signatures
+RTx  = multiply(T, Rx)
+RTy  = multiply(T, Ry)
+RTz  = multiply(T, Rz)
+
+symdic['RTx'] = Rx
+symdic['RTy'] = Ry
+symdic['RTz'] = Rz
+
 # Time-parity
 PT   = multiply(P,T)
 symdic['PT'] = PT
 
-
+#-------------------------------------------------------------------------------
 def gen_symrelations(gen):
   """
      Starting from a set of single-particle symmetry operators, this routine 
@@ -350,6 +445,12 @@ def choose_symrelations(symrel, combs, redu):
         elif(not s.hermitian and abs(s.permutation[0]) == 2):
           cand[i].append(k)
   
+  for s in symrel:
+    print (s)
+
+  print (len(cand[0]))
+  print (len(cand[1]))
+  print (len(cand[2]))
   # Then we sort the axis on the number of candidate symmetries
   # I.e. do first the axis set with the smallest number of candidates
   axes = sorted(axes, key= lambda x: len(cand[i]))
@@ -362,96 +463,6 @@ def choose_symrelations(symrel, combs, redu):
           break
   return syms, selcombs
 
-
-def initsymmetries(SYMSTRING, REDUCE):
-    #---------------------------------------------------------------------------
-    # Parse the SYMSTRING and use it to initialize the whole module.      
-    #---------------------------------------------------------------------------
-    # Parse the string 
-    global Signature, Simplex, Parity,TimeSimplex,TimeReversal,TimeSignature
-    global ReduceAxes 
-
-    # for printing purposes
-    direc = ['x', 'y', 'z']   
-
-    syms       = SYMSTRING.split(',')
-    generators = []
-    for s in syms:
-      found = False
-      for key in symdic.keys():
-        if s == key:
-            generators.append(symdic[key])
-            found = True
-
-      if(not found):
-        print('Error parsing symmetries. %s is not recognized.'%s)
-
-
-    if(len(generators)>4):
-      print ('Maximum length of generators of the symmetry group = 4.')
-      exit()
-
-    print ("  Symmetry information" )
-    st = ''
-    for s in syms:
-      st = st + s + ','
-    if(len(syms) >=1):
-      st = st [:-1]
-
-    independent = not CheckIndependency(generators)
-    com         = not CheckGenerators(generators)
-    print ("     Generators: ", st )
-    print ("      => Correct commutation relations?: " , com )
-    print ("      => All independent?              : " , independent)
-
-    if(not com or not independent):
-      print ("Trouble with your choice of symmetry generators.")
-      exit()
-    # Generating the full symmetry group  
-    generators = generators
-    symrel, combs = gen_symrelations(generators )
-    
-    print ("     Total number of symmetry relations: ", len(symrel))    
-    #---------------------------------------------------------------------------
-    # We identify the axis-reduction asked for, and generate practical 
-    # symmetry relations for functions on the mesh.
-    #---------------------------------------------------------------------------
-    print ("  Reduction asked for:")
-      
-    redu = [0,0,0]
-    for i in range(3):
-      redu[i] = int(REDUCE[i])
-    print ("   (x,y,z) = (%d, %d, %d)"%(redu[0], redu[1], redu[2]))
-
-    c = 0
-    for g in generators:
-      if( g.linear or g.hermitian ):
-        c = c + 1
-    if(c > sum(redu)):
-      print (" The chosen symmetries allow for the reduction of more axes.")  
-      print ("  Stopping.")
-      exit()
-    elif(c < sum(redu)):
-      print (" The chosen symmetries do not allow for this reduction.")
-      print ("  Stopping.")
-      exit()  
-    syms, combs =  choose_symrelations(symrel, combs, redu)
-    # Some sanity checks
-    for i in range(3):
-      if(redu[i] ==1 and (not syms[i])):
-        print ("  Could not identify a symmetry relation to reduce axis %s."%direc[i])
-        print ("  Stopping.")
-        exit()
-    
-    for i in range(3):
-      st = ''
-      if(redu[i] == 1):
-        for l in range(len(combs[i])):
-          for key in symdic.keys():
-            if(combs[i][l] == symdic[key]):
-              st = st + key + ','
-
-        print ("   ", direc[i], " =>  %10s, "%st[:-1], syms[i])
 
 def CheckGenerators(gen):
   """
