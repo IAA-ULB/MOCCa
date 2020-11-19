@@ -28,15 +28,16 @@
 # full form with an NLO functional, as the contraction D_Nm_Nm suffices. 
 #-------------------------------------------------------------------------------
 
-from string        import Template
 import itertools
 import numpy as np
+
+from string                  import Template
 from src_heph.heph_densities import Densities_needed, tab, sumindices, derstring
 from src_heph.heph_densities import lapstring, OrderOfDen, ParseOperators
 from src_heph.heph_densities import crossindices, Storage_Mapping, Multiplicity
 from src_heph.heph_densities import deriv_needed
 from src_heph.heph_linechecker import *
-from src_heph.heph_fields import *
+from src_heph.heph_fields      import *
 
 #-------------------------------------------------------------------------------
 # Name of the functional_file
@@ -86,12 +87,24 @@ derivative_order = 1
 #-------------------------------------------------------------------------------
 assume_locality = 1
 
-def initfunctional(fname):
-
+def initfunctional(fname, generators):
+    """
+     Read the functional form from a file, populating on the way the list of 
+     densities that we need to calculate. 
+    """
     global Functional_terms, Densities_needed, derivative_order, func_name
     
     # Read the functional from a given file
     description = ReadFunctional(fname)
+
+    # Check if time-reversal (or time-parity) is conserved
+    time = False    
+    for g in generators:
+      if( not g.linear and not g.hermitian):
+        time = True    
+    if(time):
+      RemoveTimeOddTerms()
+
     
     # Set the name of the functional file, without the directory structure
     func_name = '"%s"'%fname.split('/')[-1].upper()
@@ -165,27 +178,21 @@ def initfunctional(fname):
         ders = right.count('N')
         derivative_order = max(derivative_order, ders)
 
-    print ('- - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-    print (' P-h functional taken from file %s'%fname)
+    #---------------------------------------------------------------------------
+    print (' Functional form taken from file %s'%fname)
     print (' Description from file:')
     print ( description.replace('#', tab))
-    print (' Number of terms:      %d'%len(Functional_terms))
+    print (' Number of terms     : %d'%len(Functional_terms))
+    if(time):
+      print (' ! Attention: terms with time-odd densities dropped. ' )
     print (' Order of derivatives: %d'%derivative_order)
-    print (' Locality assumed:     %d'%assume_locality)
-    print (' # Parameters          %d'%len(paramparameters))
+    print (' Locality assumed    : %d'%assume_locality)
+    print (' # Parameters        : %d'%len(paramparameters))
     #print   paramparameters
     for i in range(int(len(paramparameters)/3)):
         print ('  ', paramparameters[3*i:3*i+3])
     if(len(paramparameters)%3 != 0):
         print ('  ', paramparameters[3*(i+1):3*(i+1)+len(paramparameters)%3])
-    print ('- - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-
-#    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -' 
-#    print ' P-p functional taken from file %s'%fpairname
-#    print ' Description from file:'
-#    print  pair_description.replace('#', tab)
-#    print ' Number of terms:      %d'%len(Functional_pair_terms)
-#    print '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -'
 
     return (description)
 
@@ -210,16 +217,14 @@ def PruneDeriv_needed():
         deriv_needed[i] = sorted(deriv_needed[i])
         
 def ReadFunctional(fname):
-    #-------------------------------------------------------------------------
-    # Read the functional terms and the coupling coefficients from the
-    # ph functional file (fname) and the pp functional file (fpairname).
-    #-------------------------------------------------------------------------
+    """
+     Read the functional terms and the coupling coefficients from the
+     functional file (fname)
+    """
     global Functional_terms, Functional_pair_terms
 
     description      = ''
     pair_description = ''
-    #-------------------------------------------------------------------------
-    # Read the ph functional
     termsstart = 0
     with open(fname, 'r') as f:
       for line in f:
@@ -233,7 +238,6 @@ def ReadFunctional(fname):
             elif(line[0:6] == '!TERMS'):
                 # Signal that the parameters part of the functional is over.
                 termsstart  = 1   
-                print (paramparameters)
                 continue            
             elif(line[0] == '!'):
                 continue
@@ -266,12 +270,64 @@ def ReadFunctional(fname):
             exit()      
 
     return description
-    
+
+def RemoveTimeOddTerms():
+    """
+      We scan through all the terms, removing all those containing time-odd 
+      densities. We profit from the opportunity to check the correctness of 
+      the functional, that all individual terms are time-even.
+    """
+    global Functional_terms, coupling_constants_0, coupling_constants_1
+    global field_DD_terms, DD_rearcoefs, density_dependence
+
+    toremove = []
+    for i,term in enumerate(Functional_terms):
+      (densities,coup) = ParseDensities(term)      
+
+      timeodd= False
+      totalt = +1
+      for den in densities:
+          t = TimeDen(den)
+          totalt = totalt * t
+          if(t == -1):
+            timeodd = True
+            
+      if(totalt != +1):
+        print (" A term in your functional is not time-even.")
+        print ( term)
+        exit()
+      
+      if(timeodd):
+        toremove.append(i)
+
+    tempterms   = Functional_terms
+    tempcc0     = coupling_constants_0
+    tempcc1     = coupling_constants_1
+    tempdd      = density_dependence
+    tempddrear  = DD_rearcoefs
+    tempfieldDD = field_DD_terms
+
+    Functional_terms      = []
+    coupling_constants_0  = []
+    coupling_constants_1  = []
+    density_dependence    = []
+    field_DD_terms        = {}
+    DD_rearcoefs          = []
+     
+    for j in range(len(tempterms)):
+       if (j not in toremove):
+          Functional_terms.append(tempterms[j])
+          coupling_constants_0.append(tempcc0[j])
+          coupling_constants_1.append(tempcc1[j])
+          density_dependence.append(tempdd[j])
+          DD_rearcoefs.append(tempddrear[j])
+          field_DD_terms[tempterms[j]] = tempfieldDD[tempterms[j]]
+
 def ParseDensities(term): 
-    #---------------------------------------------------------------------------
-    # From a term in the functional represented by a string, parse all of the
-    # densities that make it up.
-    #---------------------------------------------------------------------------
+    """
+     From a term in the functional represented by a string, parse all of the
+     densities that make it up.
+    """
     densities = []
     #---------------------------------------------------------------------------
     # Split along underscores, while not checking the _DD suffix

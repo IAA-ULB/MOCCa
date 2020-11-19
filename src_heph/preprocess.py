@@ -19,13 +19,15 @@ import os
 from string           import Template
 from src_heph.heph_densities     import ProcessDensities
 from src_heph.heph_derivatives   import ProcessDerivatives
-from src_heph.heph_symmetries    import ReduceAxes
 from src_heph.heph_functional    import ProcessFunctional, ProcessParameterization
 from src_heph.heph_wavefunctions import ProcessWavefunctions
 from src_heph.heph_pairing       import ProcessHFB
 
-def preprocess(fname, src, target):
-      # Decides which routine to call on which file.
+def preprocess(fname, src, target, generators, syms, combs, ReduceAxes):
+    """
+      Dispatching routine that selects the right preprocessing routine and
+      additional info for every source code file.
+    """
       
     if(fname=='compilation.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -34,13 +36,13 @@ def preprocess(fname, src, target):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='geninfo.f90'):
-        ProcessGeninfo(fname, src, target)
+        ProcessGeninfo(fname, src, target, ReduceAxes)
         return
     if(fname=='derivatives.f90'):
-        ProcessDerivatives(fname, src, target)
+        ProcessDerivatives(fname, src, target, syms, combs, ReduceAxes)
         return
     if(fname=='wavefunctions.f90'):
-        ProcessWavefunctions(fname, src, target)
+        ProcessWavefunctions(fname, src, target, generators)
         return
     if(fname=='precondition.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -103,8 +105,7 @@ def preprocess(fname, src, target):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='HFB.f90'):
-        ProcessHFB(fname, src, target)
-#        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessHFB(fname, src, target, generators)
         return
     if(fname=='folding.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -128,12 +129,10 @@ def preprocess(fname, src, target):
         ProcessDensities(fname, src, target)
         return
 
-def ProcessGeninfo(fname, src, target):
-    #=======================================
-    # This one is already more complicated. 
-    #
-    #
-    
+def ProcessGeninfo(fname, src, target, ReduceAxes):
+    """
+     This one is already more complicated. 
+    """    
     dic={}
     dic['NUMSYM'] = sum(ReduceAxes)
         

@@ -97,22 +97,20 @@ if(not FOUND):
 
 #-------------------------------------------------------------------------------
 # Initialize all of Hephaestos' own modules
-heph_symmetries.initsymmetries(SYMSTRING, REDUCE)
+generators, syms, combs, ReduceAxes = \
+                               heph_symmetries.initsymmetries(SYMSTRING, REDUCE)
 print(line)
-description = heph_functional.initfunctional(FUNC_FILE)
 heph_densities.initdensities()
+description = heph_functional.initfunctional(FUNC_FILE, generators)
 heph_fields.initfields()
 
 #-------------------------------------------------------------------------------
 # Treat all of the source files to a nice dose of preprocessing.
 for fname in FORTRANFILES:
-     pp.preprocess(fname,SRCPATH,GENPATH)
+     pp.preprocess(fname,SRCPATH,GENPATH, generators, syms, combs, ReduceAxes)
 
 #-------------------------------------------------------------------------------
 # Output all of the relevant things into .tex files.
-#print '**************************************************************'
-#print ' c)  Hephaestos is creating the .tex files.'
-#print '**************************************************************'
 #latex.Build(FUNC_FILE, description)
 
 #-------------------------------------------------------------------------------

@@ -1,77 +1,79 @@
-#============================================================================================
-#          _______  _______           _______  _______  _______ _________ _______  _______ 
-#|\     /|(  ____ \(  ____ )|\     /|(  ___  )(  ____ \(  ____ \\__   __/(  ___  )(  ____ \
-#| )   ( || (    \/| (    )|| )   ( || (   ) || (    \/| (    \/   ) (   | (   ) || (    \/
-#| (___) || (__    | (____)|| (___) || (___) || (__    | (_____    | |   | |   | || (_____ 
-#|  ___  ||  __)   |  _____)|  ___  ||  ___  ||  __)   (_____  )   | |   | |   | |(_____  )
-#| (   ) || (      | (      | (   ) || (   ) || (            ) |   | |   | |   | |      ) |
-#| )   ( || (____/\| )      | )   ( || )   ( || (____/\/\____) |   | |   | (___) |/\____) |
-#|/     \|(_______/|/       |/     \||/     \|(_______/\_______)   )_(   (_______)\_______)
-#============================================================================================
-# Director of preprocessing of the FORTRAN files: knows which file gets which make-over. 
-# 
-# Currently linked: 
-#
-#       densities.f90 <=> heph_densities.py
-#
-#============================================================================================
-
+#-------------------------------------------------------------------------------
+# | | | |  ___  _ __  | |__    __ _   ___  ___ | |_  ___   ___ 
+# | |_| | / _ \| '_ \ | '_ \  / _` | / _ \/ __|| __|/ _ \ / __|
+# |  _  ||  __/| |_) || | | || (_| ||  __/\__ \| |_| (_) |\__ \
+# |_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/
+#              |_|                                             
+#-------------------------------------------------------------------------------
 from string                    import Template
-from src_heph.heph_symmetries  import ReduceAxes
 from src_heph.heph_functional  import derivative_order
 
-def ProcessDerivatives(fname, src, target):
-    #===========================================================================
-    # LINESIZEX/Y/Z
-    # these determine the size of the box in that direction
-    # as a function of nx,ny and nz.
-    #
-    # DERX/Y/Z_ONE  
-    # DERX/Y/Z_TWO
-    #
-    # Determines the derivative matrices as a function of variables C and D
-    # in the FORTRAN file. 
-    #      C = coefficients of the line-segment itself
-    #      D = coefficients of the symmetry-partner of the line-segment
-    #
-    # For every Cartesian direction, the viable options are thus
-    #    
-    # 1) Symmetry reduced, symmetry partner is the line itself   
-    #    DERX/Y/Z_ONE = C + D
-    #    DERX/Y/Z_TWO = C - D
-    # 2) Symmetry partner is not the line itself
-    #    DERX/Y/Z_ONE = C
-    #    DERX/Y/Z_TWO = D
-    # 3) Not symmetry reduced
-    #    DERX/Y/Z_ONE = C
-    #    DERX/Y/Z_TWO = 0 ( The D-variable is no longer relevant) 
-    #
-    # 
-    # DERSYMX/Y/Z
-    #  Variables that allow the commenting out of the inclusion of 
-    #  symmetry partners for every direction. There are two options:
-    #
-    # 1) Symmetry reduced, symmetry partner is the line itself 
-    #    OR Not symmetry reduced
-    #    $DERSYMX/Y/Z = '!'
-    # 2) Symmetry reduced, symmetry partner is not the line itself
-    #    $DERSYMX/Y/Z = ''
-    #
-    #
-    # SYMPARTNERX/Y/Z
-    #  Variable indicating the symmetric partner of the line-segment
-    #  as a function of (i,j,k) which are the (x,y,z) indices on 
-    #  the mesh. Only relevant when there is a symmetry present
-    #  that does not directly point back to the same line. 
-    # 
-    #===========================================================================
-    # Something that is rather determined by the functional is the maximum order
-    # of derivatives that is needed. This is determined by the following strings
-    #
-    # $N2DIAG  => 1st order derivatives and the diagonal 2nd order ones
-    # $N2ALL   => 1st order derivatives and all of the 2nd order ones
-    # $N3ALL   => up to and including 3rd order derivatives
-    #===========================================================================
+def ProcessDerivatives(fname, src, target, syms, combs, ReduceAxes):
+    """
+
+     LINESIZEX/Y/Z
+     --------------
+       these determine the size of the box in that direction
+       as a function of nx,ny and nz.
+    
+     DERX/Y/Z_ONE  
+     DERX/Y/Z_TWO
+     --------------
+     Determines the derivative matrices as a function of variables C and D
+     in the FORTRAN file. 
+          C = coefficients of the line-segment itself
+          D = coefficients of the symmetry-partner of the line-segment
+    
+     For every Cartesian direction, the viable options are thus
+        
+     1) Symmetry reduced, symmetry partner is the line itself   
+        "local derivative"
+
+        DERX/Y/Z_ONE = C + D
+        DERX/Y/Z_TWO = C - D
+
+     2) Symmetry partner is not the line itself
+        "nonlocal derivative"
+
+        DERX/Y/Z_ONE = C
+        DERX/Y/Z_TWO = D
+
+     3) Not symmetry reduced
+
+        DERX/Y/Z_ONE = C
+        DERX/Y/Z_TWO = 0 ( The D-variable is no longer relevant) 
+    
+     
+     DERSYMX/Y/Z
+     -------------
+      Variables that allow the commenting out of the inclusion of 
+      symmetry partners for every direction. There are two options:
+    
+     1) Symmetry reduced, symmetry partner is the line itself 
+        OR Not symmetry reduced
+        $DERSYMX/Y/Z = '!'
+
+     2) Symmetry reduced, symmetry partner is not the line itself
+        $DERSYMX/Y/Z = ''
+    
+    
+     SYMPARTNERX/Y/Z
+     ----------------
+      Variable indicating the symmetric partner of the line-segment
+      as a function of (i,j,k) which are the (x,y,z) indices on 
+      the mesh. Only relevant when there is a symmetry present
+      that does not directly point back to the same line. 
+     
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     Something that is determined by the functional rather than the symmetries
+     of the calculation is the maximum order of derivatives that is needed. This
+     is determined by the following strings
+    
+     $N2DIAG  => 1st order derivatives and the diagonal 2nd order ones
+     $N2ALL   => 1st order derivatives and all of the 2nd order ones
+     $N3ALL   => up to and including 3rd order derivatives
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    """
     dic={}
 
     dic['DERSYMX'] = '!'

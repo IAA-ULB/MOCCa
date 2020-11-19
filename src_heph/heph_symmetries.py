@@ -15,45 +15,6 @@
 #
 #-------------------------------------------------------------------------------
 import itertools
-
-# Whether or not signature is a quantum number of the spwfs, 
-# and which Cartesian direction it is applied on.
-#   0 Broken
-#   1 Conserved, X
-#   2 Conserved, Y
-#   3 Conserved, Z
-Signature     = 0
-# Whether or not parity is a quantum number of the spwfs. 
-#   0 Broken
-#   1 Conserved
-Parity        = 0
-# Whether or not time-simplex is a quantum number of the spwfs, 
-# and which Cartesian direction it is applied on.
-#   0 Broken
-#   1 Conserved, X
-#   2 Conserved, Y
-#   3 Conserved, Z
-#
-TimeSimplex   = 0
-# Whether or not time-signature is a quantum number of the spwfs, 
-# and which Cartesian direction it is applied on.
-#   0 Broken
-#   1 Conserved, X
-#   2 Conserved, Y
-#   3 Conserved, Z
-#
-TimeSignature = 0
-# Whether or not time-reversal is conserved. Can be 0 (broken) or 1 (conserved).
-TimeReversal  = 1
-
-
-# Whether you want a reduction of each of the Cartesian axes. 
-# Note that not all choices are compatible with all symmetry choices. 
-# Hephaestos will complain if it feels something is amiss.
-# Reduce_x/y/z = 1 if reduced, 0 if fully stored. 
-ReduceAxes= [1,1,1]
-
-
 #-------------------------------------------------------------------------------
 # In a single-particle coordinate space with separated proton and neutron 
 # states, a single-particle wavefunction is a complex function of space and
@@ -183,7 +144,6 @@ class symmetry():
      else:         
        return c1<c2 
 
-
 def multiply(S1, S2):
     """
     Combine two symmetry operators into a third symmetry:
@@ -203,13 +163,24 @@ def multiply(S1, S2):
     return C
 
 def initsymmetries(SYMSTRING, REDUCE):
-    #---------------------------------------------------------------------------
-    # Parse the SYMSTRING and use it to make various decisions for the 
-    # meanfield code.     
-    #---------------------------------------------------------------------------
-    # Parse the string 
-    global Signature, Simplex, Parity,TimeSimplex,TimeReversal,TimeSignature
-    global ReduceAxes 
+    """
+      Parse the strings SYMSTRING and REDUCE and use them to make various 
+      decisions based on the users symmetry choices. 
+      
+      These decisions are also printed to STDOUT. 
+      - - - - - - - - - - - - - - - - - 
+
+      This function returns:
+      1. Generators : the list of generators of the symmetry group asked for
+                      by the user.
+      2. syms : the list of symmetry relations that can be used to reduce the 
+                calculation to parts of the box.
+      3. combs: the combinations of the generators that combine to the 
+                symmetry relations. 
+      4. ReduceAxes: a list of three numbers, indicating whether or not 
+                     a given Cartesian axis is reduced.
+    """
+    symdic = populatesymmetries()
 
     # for printing purposes
     direc = ['x', 'y', 'z']   
@@ -258,34 +229,34 @@ def initsymmetries(SYMSTRING, REDUCE):
     #---------------------------------------------------------------------------
     print ("  Reduction asked for:")
       
-    redu = [0,0,0]
+    ReduceAxes = [0,0,0]
     for i in range(3):
-      redu[i] = int(REDUCE[i])
-    print ("   (x,y,z) = (%d, %d, %d)"%(redu[0], redu[1], redu[2]))
+      ReduceAxes[i] = int(REDUCE[i])
+    print ("   (x,y,z) = (%d, %d, %d)"%(ReduceAxes[0], ReduceAxes[1], ReduceAxes[2]))
 
     c = 0
     for g in generators:
       if( g.linear or g.hermitian ):
         c = c + 1
-    if(c > sum(redu)):
+    if(c > sum(ReduceAxes)):
       print (" The chosen symmetries allow for the reduction of more axes.")  
       print ("  Stopping.")
       exit()
-    elif(c < sum(redu)):
+    elif(c < sum(ReduceAxes)):
       print (" The chosen symmetries do not allow for this reduction.")
       print ("  Stopping.")
       exit()  
-    syms, combs =  choose_symrelations(symrel, combs, redu)
+    syms, combs =  choose_symrelations(symrel, combs, ReduceAxes)
     # Some sanity checks
     for i in range(3):
-      if(redu[i] ==1 and (not syms[i])):
+      if(ReduceAxes[i] ==1 and (not syms[i])):
         print ("  Could not identify a relation to reduce axis %s."%direc[i])
         print ("  Stopping.")
         exit()
     
     for i in range(3):
       st = ''
-      if(redu[i] == 1):
+      if(ReduceAxes[i] == 1):
         for l in range(len(combs[i])):
           for key in symdic.keys():
             if(combs[i][l] == symdic[key]):
@@ -293,65 +264,71 @@ def initsymmetries(SYMSTRING, REDUCE):
 
         print ("   ", direc[i], " =>  %10s, "%st[:-1], syms[i])
 
-#-------------------------------------------------------------------------------
-# Initialization of the whole module, happening when it gets imported by other
-# modules. This primarily achieves the correct data is present in the symdic 
-# dictionary. 
-#-------------------------------------------------------------------------------
-symdic = {}
-#   Identity
-iden      = symmetry([+1,+2,+3,+4],[+1,+1,+1], True, True)
-symdic['1']  = iden
-# - Identity
-niden     = symmetry([-1,-2,-3,-4],[+1,+1,+1], True, True)
-symdic['-1'] = niden
-#   [P   psi](x,y,z,sigma) =          psi  [-x,-y,-z, sigma]
-P         = symmetry([+1,+2,+3,+4],[-1,-1,-1], True, True)
-symdic['P']  = P
-#   [T   psi](x,y,z,sigma) =    sigma psi^*[+x,+y,+z,-sigma]
-T           = symmetry([-3,+4,+1,-2],[+1,+1,+1], False, False)
-symdic['T'] = T
-#   [R_x psi](x,y,z,sigma) = -i       psi  [ x,-y,-z,-sigma]
-Rx           = symmetry([+4,-3,+2,-1],[+1,-1,-1], True, False)
-symdic['Rx'] = Rx 
-#   [R_y psi](x,y,z,sigma) =    sigma psi  [-x, y,-z,-sigma]
-Ry           = symmetry([-3,-4,+1,+2],[-1,+1,-1], True, False)
-symdic['Ry'] = Ry
-#   [R_z psi](x,y,z,sigma) = -i sigma psi  [-x,-y,+z, sigma]
-Rz           = symmetry([+2,-1,-4,+3],[-1,-1,+1], True, False)
-symdic['Rz'] = Rz
 
-# Simplexes
-Sx   = multiply(P, Rx)
-Sy   = multiply(P, Ry)
-Sz   = multiply(P, Rz)
+    return  generators, syms, combs, ReduceAxes 
+  
+def populatesymmetries():
+  """
+    Returns a dictionary with all "named" symmetries in the symmetry groups
+    of interest. This is primary useful to parse the users input and put 
+    names on the symmetry relations deduced automatically.
+  """
 
-symdic['Sx'] = Sx
-symdic['Sy'] = Sy
-symdic['Sz'] = Sz
+  symdic = {}
+  #   Identity
+  iden      = symmetry([+1,+2,+3,+4],[+1,+1,+1], True, True)
+  symdic['1']  = iden
+  # - Identity
+  niden     = symmetry([-1,-2,-3,-4],[+1,+1,+1], True, True)
+  symdic['-1'] = niden
+  #   [P   psi](x,y,z,sigma) =          psi  [-x,-y,-z, sigma]
+  P         = symmetry([+1,+2,+3,+4],[-1,-1,-1], True, True)
+  symdic['P']  = P
+  #   [T   psi](x,y,z,sigma) =    sigma psi^*[+x,+y,+z,-sigma]
+  T           = symmetry([-3,+4,+1,-2],[+1,+1,+1], False, False)
+  symdic['T'] = T
+  #   [R_x psi](x,y,z,sigma) = -i       psi  [ x,-y,-z,-sigma]
+  Rx           = symmetry([+4,-3,+2,-1],[+1,-1,-1], True, False)
+  symdic['Rx'] = Rx 
+  #   [R_y psi](x,y,z,sigma) =    sigma psi  [-x, y,-z,-sigma]
+  Ry           = symmetry([-3,-4,+1,+2],[-1,+1,-1], True, False)
+  symdic['Ry'] = Ry
+  #   [R_z psi](x,y,z,sigma) = -i sigma psi  [-x,-y,+z, sigma]
+  Rz           = symmetry([+2,-1,-4,+3],[-1,-1,+1], True, False)
+  symdic['Rz'] = Rz
 
-# Time-simplexes
-STx  = multiply(T, Sx)
-STy  = multiply(T, Sy)
-STz  = multiply(T, Sz)
+  # Simplexes
+  Sx   = multiply(P, Rx)
+  Sy   = multiply(P, Ry)
+  Sz   = multiply(P, Rz)
 
-symdic['STx'] = STx
-symdic['STy'] = STy
-symdic['STz'] = STz
+  symdic['Sx'] = Sx
+  symdic['Sy'] = Sy
+  symdic['Sz'] = Sz
 
-# Time-signatures
-RTx  = multiply(T, Rx)
-RTy  = multiply(T, Ry)
-RTz  = multiply(T, Rz)
+  # Time-simplexes
+  STx  = multiply(T, Sx)
+  STy  = multiply(T, Sy)
+  STz  = multiply(T, Sz)
 
-symdic['RTx'] = Rx
-symdic['RTy'] = Ry
-symdic['RTz'] = Rz
+  symdic['STx'] = STx
+  symdic['STy'] = STy
+  symdic['STz'] = STz
 
-# Time-parity
-PT   = multiply(P,T)
-symdic['PT'] = PT
+  # Time-signatures
+  RTx  = multiply(T, Rx)
+  RTy  = multiply(T, Ry)
+  RTz  = multiply(T, Rz)
 
+  symdic['RTx'] = Rx
+  symdic['RTy'] = Ry
+  symdic['RTz'] = Rz
+
+  # Time-parity
+  PT   = multiply(P,T)
+  symdic['PT'] = PT
+  
+  return symdic
 #-------------------------------------------------------------------------------
 def gen_symrelations(gen):
   """
@@ -361,8 +338,8 @@ def gen_symrelations(gen):
 
      For an operator S that gives rise to either eigenstates or invariants, we 
      have that 
-
-      [S \psi] (x,y,z,sigma) = p \psi(x,y,z,sigma)  
+      
+      [S psi](x,y,z,sigma) = p psi(x,y,z,sigma)
 
      where p is a number of modulus one. Depending on whether p is real or 
      imaginary there is a difference in the final symmetry relations imposed on
@@ -387,6 +364,8 @@ def gen_symrelations(gen):
   # to reduce the problem
   added = True
   k     = 0
+  iden      = symmetry([+1,+2,+3,+4],[+1,+1,+1], True, True)
+  
   while(added):
     k = k +1 
 
@@ -445,12 +424,6 @@ def choose_symrelations(symrel, combs, redu):
         elif(not s.hermitian and abs(s.permutation[0]) == 2):
           cand[i].append(k)
   
-  for s in symrel:
-    print (s)
-
-  print (len(cand[0]))
-  print (len(cand[1]))
-  print (len(cand[2]))
   # Then we sort the axis on the number of candidate symmetries
   # I.e. do first the axis set with the smallest number of candidates
   axes = sorted(axes, key= lambda x: len(cand[i]))
@@ -495,6 +468,7 @@ def CheckGenerators(gen):
       else:
         # One is antihermitian, linear, the other antihermitian, linear.
         # They need to ANTICOMMUTE in this case
+        niden     = symmetry([-1,-2,-3,-4],[+1,+1,+1], True, True)
         gf = multiply(niden, gf)
         if(fg != gf):
            problem =  True

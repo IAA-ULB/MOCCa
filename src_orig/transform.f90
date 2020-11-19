@@ -12,7 +12,11 @@ module transform
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
-
+ ! Module containing all the code necessary to transform calculations: 
+ !   *) Change the number of mesh points in any direction 
+ !   *) Change the mesh constant dx  (not yet implemented)
+ !   *) Break a set of symmetries
+ !==============================================================================
   use geninfo
   use wavefunctions
   use pairing
@@ -20,6 +24,22 @@ module transform
   implicit none
 
 contains
+
+  subroutine Transformspwfs( wfs , blocks, oldnx, oldny, oldnz, oldnwt )
+    !---------------------------------------------------------------------------
+    ! Transform a set of spwfs, in a blockstructure dictated by blocks, into
+    ! a set of spwfs with less symmetries.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(inout), allocatable :: wfs(:,:,:)
+    integer, intent(inout)                    :: blocks(8)
+    integer, intent(in)                       :: oldnx, oldny, oldnz, oldnwt
+    real(KIND=dp), allocatable                :: temp(:,:,:)
+
+    
+
+
+  end subroutine 
+
 
   subroutine TransformInput(filenx,fileny,filenz,filenwn,filenwp, filedx,      &
   &                         fileblocks, extraspwfs)
@@ -211,7 +231,10 @@ contains
   end subroutine ChangeBoxSizeSpwf
 
   function changeboxsize_function(f, filenx, fileny, filenz) result(ft)
-
+    !---------------------------------------------------------------------------
+    ! Put a given function from a mesh with dx to the new mesh 
+    ! (nx,ny,nz,dx) with same dx.
+    !---------------------------------------------------------------------------
     integer, intent(in)                :: filenx, fileny, filenz
     real(KIND=dp), intent(in), target  :: f(:)
     real(KIND=dp), allocatable, target :: ft(:)

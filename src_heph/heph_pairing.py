@@ -5,17 +5,16 @@
 # |_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/
 #              |_|                                             
 #-------------------------------------------------------------------------------
-
-from src_heph.heph_symmetries import TimeReversal
 from string          import Template
 
-def ProcessHFB(fname, src, target):
+def ProcessHFB(fname, src, target, generators):
   """  
    We process HFB.f90, depending on the symmetries imposed.
   """
 
   dic = {}
 
+  TimeReversal = 1
   if(TimeReversal == 1):
     dic["TR"]  = ' '
     dic["NTR"] = '!'

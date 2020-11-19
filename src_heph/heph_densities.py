@@ -125,6 +125,8 @@ from .               import heph_symmetries
 import numpy         as np
 import itertools
 
+# Horizontal line for printing
+line  = 80*"-"
 #-------------------------------------------------------------------------------
 # Tab-character for the fortran code.
 # 4 spaces for W.R., but I can imagine other people have different standards.
@@ -240,10 +242,12 @@ def initdensities():
     TR.name         = 'T'
     
 def ProcessDensities(fname, src, target):
-    #---------------------------------------------------------------------------
-    # Master routine calling the other routines based on a list of densities.
-    # Also prints output.
-    #---------------------------------------------------------------------------
+    """
+     Master routine calling the other routines based on a list of densities.
+     Also prints output.
+    """
+
+    global line
     Expression     = ''
     Declaration    = ''
     Initialisation = ''
@@ -253,11 +257,11 @@ def ProcessDensities(fname, src, target):
     Zeroing        = ''
     Cleaning       = ''
 
-    print ('---------------------------------------------------------------------------')
+    print (line)
     print (' Densities necessary for the functional                                    ')
-    print ('---------------------------------------------------------------------------')
+    print (line)
     print ('      Name       Calc?      T     DIM with / out    Derivative combs.      ')
-    print ('---------------------------------------------------------------------------')
+    print (line)
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
         
@@ -268,16 +272,16 @@ def ProcessDensities(fname, src, target):
     
         print ('%15s %4s   %6d  %6d %6d     '%(den,'y', T, owith, owithout), D)
 
-    print ('----------------------------------------------------------------------------')
-    print (' SYMMETRIES ')
+    print (line)
+    print (' Symmetries of the densities')
     print ('           DEN   LARG  RARG   T     P    RX    RY    RZ    SX    SY    SZ')
-    print ('----------------------------------------------------------------------------')
+    print (line)
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
 
         # Summation with leftwf = rightwf
         (e,dec,ini,der,zeroi,cleani)  = \
-       GenDensityExpression(Densities_needed[i],deriv_needed[i], 'wave', 'wave')
+        GenDensityExpression(Densities_needed[i],deriv_needed[i], 'wave', 'wave')
         print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
         Declaration    = Declaration    + '\n' + dec
@@ -299,7 +303,7 @@ def ProcessDensities(fname, src, target):
         Derivation     = Derivation     + '\n' + der
         Zeroing        = Zeroing        + '\n' + zeroi
         Cleaning       = Cleaning       + '\n' + cleani
-    print ('----------------------------------------------------------------------------')
+    print (line)
 
     # Substitute into the densities.f90 file.        
     dic={}
@@ -342,10 +346,11 @@ def ParseOperators(density):
             right = 'C' + right
     
     if('P' in density):
-            # Add a timereversal operator on the left for pairing densities
-            left  = left + 'T'
-            if(heph_symmetries.TimeReversal == 1):
-                left = left + 'T'
+        # Add a timereversal operator on the left for pairing densities
+        left  = left + 'T'
+        TimeReversal = 1
+        if(TimeReversal == 1):
+            left = left + 'T'
     #---------------------------------------------------------------------------
     # Find the coupling over the sumindices
     coupling  = []

@@ -16,20 +16,20 @@ module derivatives
  ! Many changes are made by Hephaestos to this source code.
  !
  ! LINESIZE   : total box size as a function of nx/ny/nz
- ! LINESIZEX $LINESIZEX
- ! LINESIZEY $LINESIZEY
- ! LINESIZEZ $LINESIZEZ
+ ! LINESIZEX  = $LINESIZEX
+ ! LINESIZEY  = $LINESIZEY
+ ! LINESIZEZ  = $LINESIZEZ
  !
  ! Flags to decide which derivatives of the spwfs get calculated
  !  exclamation marks means they are commented out
  !      Only diagonal second order derivatives
- !      N2DIAG  : $N2DIAG
+ !      N2DIAG  = $N2DIAG
  !
  !      All second order derivatives (and diagonal third order ones)
- !      N2ALL   : $N2ALL
+ !      N2ALL   = $N2ALL
  ! 
  !      All third order derivatives
- !      N3ALL   : $N3ALL   
+ !      N3ALL   = $N3ALL   
  !==============================================================================
  ! Technical notes:
  !
@@ -42,9 +42,7 @@ module derivatives
  !   f( i, j,-k) => f(i,j,k)
  !
  !   If this is not the case, the matrix multiplications become 'nonlocal'
- !   in the memory-storage meaning of the word, and a naive implementation 
- !   of the matrix multiplication would result in exploding matrix sizes.
- !
+ !   in the memory-storage meaning of the word.
  !
  ! * For historical and readability reasons, the derivatives are all implemented
  !   with respect to 3D functions. Note that the spwfs and densities are all 
@@ -138,8 +136,20 @@ contains
         enddo
     enddo
     
-    LaplaX(:,:,1) = matmul(derX(:,:,2),derX(:,:,1))
-    LaplaX(:,:,2) = matmul(derX(:,:,1),derX(:,:,2))    
+    !---------------------------------------------------------------------------
+    ! Attention: this construction for the laplacian needs doublechecking for 
+    ! non-local derivative combinations
+    if(linX .eq. 2*nx) then
+      ! X-axis is symmetry reduced: 
+      !     Delta^+_xx = Nabla^-_x \cdot Nabla^+_x
+      !     Delta^-_xx = Nabla^+_x \cdot Nabla^-_x
+      LaplaX(:,:,1) = matmul(derX(:,:,2),derX(:,:,1))
+      LaplaX(:,:,2) = matmul(derX(:,:,1),derX(:,:,2))    
+    else
+      ! X-axis is not symmetry reduced: Delta_xx = Nabla_x * Nabla_x
+      LaplaX(:,:,1) = matmul(derX(:,:,1),derX(:,:,1))
+      LaplaX(:,:,2) = 0.0    
+    endif        
    
     do i=1,ny
         do j=1,ny
@@ -158,10 +168,19 @@ contains
             derY(i,j,2) = $DERY_TWO
         enddo
     enddo
+
+    if(linY .eq. 2*ny) then
+      ! Y-axis is symmetry reduced: 
+      !     Delta^+_yy = Nabla^-_y \cdot Nabla^+_y
+      !     Delta^-_yy = Nabla^+_y \cdot Nabla^-_y
+      LaplaY(:,:,1) = matmul(derY(:,:,2),derY(:,:,1))
+      LaplaY(:,:,2) = matmul(derY(:,:,1),derY(:,:,2))    
+    else
+      ! Y-axis is not symmetry reduced: Delta_yy = Nabla_y * Nabla_y
+      LaplaY(:,:,1) = matmul(derY(:,:,1),derY(:,:,1))
+      LaplaY(:,:,2) = 0.0    
+    endif        
         
-    LaplaY(:,:,1) = matmul(derY(:,:,2),derY(:,:,1))
-    LaplaY(:,:,2) = matmul(derY(:,:,1),derY(:,:,2))    
-    
     do i=1,nz
         do j=1,nz
             A           = (pi * (i - j))/linZ
@@ -180,8 +199,18 @@ contains
         enddo
     enddo
         
-    LaplaZ(:,:,1) = matmul(derZ(:,:,2),derZ(:,:,1))
-    LaplaZ(:,:,2) = matmul(derZ(:,:,1),derZ(:,:,2))    
+    if(linZ .eq. 2*nz) then
+      ! Z-axis is symmetry reduced: 
+      !     Delta^+_zz = Nabla^-_z \cdot Nabla^+_z
+      !     Delta^-_zz = Nabla^+_z \cdot Nabla^-_z
+      LaplaZ(:,:,1) = matmul(derZ(:,:,2),derZ(:,:,1))
+      LaplaZ(:,:,2) = matmul(derZ(:,:,1),derZ(:,:,2))  
+    else
+      ! Z-axis is not symmetry reduced: Delta_zz = Nabla_z * Nabla_z
+      LaplaZ(:,:,1) = matmul(derZ(:,:,1),derZ(:,:,1))
+      LaplaZ(:,:,2) = 0.0    
+    endif        
+  
  end subroutine inilag   
 
 $N2DIAG subroutine Derive_tot_3D(f, px, py, pz, df, ddf)

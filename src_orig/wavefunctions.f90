@@ -19,7 +19,8 @@ module wavefunctions
  !
  !==============================================================================
  ! Hephaestos:
- ! BLOCKS $BLOCKS
+ ! N2 : $N2
+ ! N3 : $N3
  !==============================================================================
  use compilation
  use derivatives
@@ -64,19 +65,19 @@ module wavefunctions
  real(KIND=dp), allocatable :: canenergies(:)
  !------------------------------------------------------------------------------
  ! Number of the blocks with the same quantum numbers that divide up the 
- ! HFBasis. Any possibility has a maximum of two spatial operators that 
- ! introduce a quantum number, while proton-neutron symmetry adds another one. 
- ! The number of blocks thus needs to be decided on compile time by a
- ! replacement script. HFBlocks contains the sizes of the various blocks.  
- ! For ease of reference, we also store the number of neutron and proton 
- ! spwfs independently.
+ ! the single-particle wavefunctions.
+ ! 
+ ! Any of the possible symmetry combinations give rise to at most eight 
+ ! different symmetry blocks.
+ ! 
+ !   2 for protons <-> neutrons
+ !   2 for a hermitian, linear operator      ( parity      in EV8) 
+ !   2 for an antihermitian, linear operator ( z-signature in EV8)
+ ! 
+ ! If symmetries are not conserved, we can simply eliminate blocks by setting 
+ ! their size to zero.
  !------------------------------------------------------------------------------
- ! Examples:
- !    * EV8-like calculation:     8 blocks (P,Rz,T3)
- !    * EV4-like calculation:     4 blocks (  Rz,T3)
- !    * Rx broken, Sx conserved : 4 blocks (  Sx,T3)
- !------------------------------------------------------------------------------
- integer, parameter   :: Blocks          =$BLOCKS
+ integer, parameter   :: Blocks          =8 ! This can always be fixed
  integer              :: HFBlocks(Blocks)=0
  integer              :: nwn, nwp
  !------------------------------------------------------------------------------
@@ -87,6 +88,7 @@ module wavefunctions
  ! Oscillator frequencies to use for the initialization with a Nilsson  
  ! hamiltonian.
  real(KIND=dp) :: osc_freq(3) = 0.2
+ !------------------------------------------------------------------------------
 
 contains 
 
@@ -146,48 +148,9 @@ contains
 
     allocate(dispersions(nwt)) ; dispersions  = 0
     allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
-    
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! b) blow-up into the full box
-!    allocate(fullbox(2*nx, 2*ny, 2*nz, 4, nwt))
-!    do wave=1,nwt
-!        ! Copy the original
-!        fullbox(nx+1: 2*nx,ny+1: 2*ny, nz+1: 2*nz,:,wave) = HFPsi   (:,:,:,:,wave)     
-!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!        ! Use y-time-simplex to fill in the y-axis.
-!        do j=1,ny
-!                ! S^t_y Psi (x,y,z,sigma) = Psi^*(x,-y,z,sigma)
-!                fullbox(nx+1: 2*nx,j, nz+1:2*nz,1,wave) =   fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,1,wave)
-!                fullbox(nx+1: 2*nx,j, nz+1:2*nz,2,wave) = - fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,2,wave)
-!                fullbox(nx+1: 2*nx,j, nz+1:2*nz,3,wave) =   fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,3,wave)
-!                fullbox(nx+1: 2*nx,j, nz+1:2*nz,4,wave) = - fullbox(nx+1: 2*nx, 2*ny - j +1, nz+1:2*nz,4,wave)
-!        enddo
-!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!        ! Use z-signature to fill in the x-axis
-!        do j=1,2*ny
-!            do i=1,nx
-!                ! R_z Psi (x,y,z,sigma) = -i sigma Psi(-x,-y,z, sigma)
-!                fullbox(i,j,nz+1:2*nz,1,wave) =   fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,2,wave)
-!                fullbox(i,j,nz+1:2*nz,2,wave) = - fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,1,wave)
-!                fullbox(i,j,nz+1:2*nz,3,wave) = - fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,4,wave)
-!                fullbox(i,j,nz+1:2*nz,4,wave) =   fullbox(2*nx -i +1, 2*ny - j +1, nz+1:2*nz,3,wave)
-!            enddo
-!        enddo
-!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!        ! Use parity to fill in the z-axis
-!        p = kparz(wave)
-!        do k=1,nz
-!                do j=1,2*ny
-!                        do i=1,2*nx
-!                                fullbox(i,j,k,1,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,1,wave)
-!                                fullbox(i,j,k,2,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,2,wave)
-!                                fullbox(i,j,k,3,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,3,wave)
-!                                fullbox(i,j,k,4,wave) = p*fullbox(2*nx -i +1, 2*ny - j +1, 2*nz-k+1,4,wave)
-!                        enddo
-!                enddo
-!        enddo
-!    enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+    ! b) fill in the right symmetry properties for the wavefunctions
     hfblocks = 0
     do i=1,nwn
         if(kparz(i) .gt. 0) HFBlocks(1) = HFBlocks(1) +1
@@ -227,9 +190,6 @@ contains
     enddo
     deallocate(kparz)
 
-!    HFPsi = HFPsi*sqrt(2.)
-    ! Simply because I distrust the nilsson routine
-!    call GramSchmidt
   end subroutine iniwavefunctions
   
   subroutine deriveHF()
