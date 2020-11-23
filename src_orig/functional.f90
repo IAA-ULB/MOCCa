@@ -36,22 +36,10 @@ module functional
     character(len=20) :: name_param 
     ! Name of the functional file this code was compiled with
     character(len=20), parameter :: func_name = $FUNC_NAME
-
-!    ! N3LO central
-!    real(KIND=dp) :: t1n3= 2.3409
-!    real(KIND=dp) :: t2n3=-2.31975
-!    real(KIND=dp) :: x1n3=-0.344
-!    real(KIND=dp) :: x2n3=-1.0 
-!    !---------------------------------------------------------------------------
-!    ! N2LO Tensor
-!    ! Note that these are the constants from Michaels notes, that is to say 
-!    ! 4 times as large as the ones in Danys/Lysandras notes
-!    real(KIND=dp) :: ten2 =  40.0
-!    real(KIND=dp) :: ton2 = -20.0  
-
     !---------------------------------------------------------------------------
     ! Definition of global contributions to the energy
     real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy, Ehistory(5)
+    real(KIND=dp) :: tot_even(2), tot_odd(2)
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
     ! Two definitions of the pairingenergy: one obtained by summing the gaps
     ! and one by integrating the particle-particle part of the functional
@@ -367,8 +355,14 @@ $PRINTCOEF_PAIR
     integer       :: m
     
 $CALCULATION    
-    Skyrme = &
-$TOTAL
+
+    tot_even = &
+$TOTAL_EVEN
+
+    tot_odd  = &
+$TOTAL_ODD
+
+    Skyrme = tot_even + tot_odd
     PairDenEnergy = &
 $TOTALPAIR
 
@@ -385,6 +379,8 @@ $TOTALPAIR
     3 format (35x, ' Isoscalar      Isovector   |   Total')
     !4 format (17x, 'Total Skyrme:', 3f15.6)
     5 format (17x, 'Total Skyrme:', 30x, f15.6)    
+   51 format (17x, '   time-even:', 30x, f15.6)
+   52 format (17x, '   time-odd :', 30x, f15.6)
 
      print 1
      print 2
@@ -394,6 +390,8 @@ $PRINT
      print 1
      !print 4, Skyrme, sum(Skyrme)
      print 5, sum(Skyrme)
+     print 51, sum(tot_even)
+     print 52, sum(tot_odd)
      print 1
  end subroutine PrintSkyrme
 

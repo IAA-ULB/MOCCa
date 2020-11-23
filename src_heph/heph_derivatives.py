@@ -8,7 +8,7 @@
 from string                    import Template
 from src_heph.heph_functional  import derivative_order
 
-def ProcessDerivatives(fname, src, target, syms, combs, ReduceAxes):
+def ProcessDerivatives(fname, src, target, so):
     """
 
      LINESIZEX/Y/Z
@@ -80,19 +80,18 @@ def ProcessDerivatives(fname, src, target, syms, combs, ReduceAxes):
     dic['DERSYMY'] = '!' 
     dic['DERSYMZ'] = '!'
 
-    if(ReduceAxes[0] == 1):
+    if(so.ReduceAxes[0] == 1):
        dic['LINESIZEX']    = '2*nx'
        dic['DERX_ONE']     = 'C + D'
        dic['DERX_TWO']     = 'C - D'
        dic['SYMPARTNERX']  = ''  
-
     else:
        dic['LINESIZEX']    = 'nx'
        dic['DERX_ONE']     = 'C'
        dic['DERX_TWO']     = '0'  
        dic['SYMPARTNERX']  = ''          
 
-    if(ReduceAxes[1] == 1):
+    if(so.ReduceAxes[1] == 1):
        dic['LINESIZEY']    = '2*ny'
        dic['DERY_ONE']     = 'C + D'
        dic['DERY_TWO']     = 'C - D'
@@ -103,7 +102,7 @@ def ProcessDerivatives(fname, src, target, syms, combs, ReduceAxes):
        dic['DERY_TWO']     = '0'
        dic['SYMPARTNERY']  = ''  
     
-    if(ReduceAxes[2] == 1):
+    if(so.ReduceAxes[2] == 1):
        dic['LINESIZEZ']    = '2*nz'
        dic['DERZ_ONE']     = 'C + D'
        dic['DERZ_TWO']     = 'C - D'

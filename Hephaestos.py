@@ -53,6 +53,8 @@ elif(len(inp) == 2):
 else:
     SYMSTRING = inp[2]
     REDUCE    = inp[3]
+    INSYM     = inp[4]
+    INREDUCE  = inp[5]
 
 # File containing the definition of the functional
 FUNC_FILE  = 'functionals/' + sys.argv[1]
@@ -96,18 +98,27 @@ if(not FOUND):
     quit()
 
 #-------------------------------------------------------------------------------
-# Initialize all of Hephaestos' own modules
-generators, syms, combs, ReduceAxes = \
-                               heph_symmetries.initsymmetries(SYMSTRING, REDUCE)
+# First we identify all the relevant symmetry options
+so    = heph_symmetries.initsymmetries(SYMSTRING, REDUCE)
+oldso = heph_symmetries.initsymmetries(INSYM, INREDUCE)
+
+print ("  Symmetry information" )
+heph_symmetries.printsymmetryoption(so)
+print(line)
+print ("  Symmetry information" )
+heph_symmetries.printsymmetryoption(oldso)
 print(line)
 heph_densities.initdensities()
-description = heph_functional.initfunctional(FUNC_FILE, generators)
+#-------------------------------------------------------------------------------
+# Next, we read all the functional information
+description = heph_functional.initfunctional(FUNC_FILE, so)
+# ... and initialize the fields module
 heph_fields.initfields()
 
 #-------------------------------------------------------------------------------
-# Treat all of the source files to a nice dose of preprocessing.
+# On to the real business: generating Fortran code.
 for fname in FORTRANFILES:
-     pp.preprocess(fname,SRCPATH,GENPATH, generators, syms, combs, ReduceAxes)
+     pp.preprocess(fname,SRCPATH,GENPATH, so, oldso)
 
 #-------------------------------------------------------------------------------
 # Output all of the relevant things into .tex files.

@@ -21,12 +21,22 @@ from src_heph.heph_densities     import ProcessDensities
 from src_heph.heph_derivatives   import ProcessDerivatives
 from src_heph.heph_functional    import ProcessFunctional, ProcessParameterization
 from src_heph.heph_wavefunctions import ProcessWavefunctions
-from src_heph.heph_pairing       import ProcessHFB
+from src_heph.heph_pairing       import ProcessHFB, ProcessHartreeFock
+from src_heph.heph_transform     import ProcessTransform
 
-def preprocess(fname, src, target, generators, syms, combs, ReduceAxes):
+
+def preprocess(fname, src, target, so , oldso):
     """
       Dispatching routine that selects the right preprocessing routine and
       additional info for every source code file.
+    
+      fname : filename of the Fortran template
+      src   : directory of the templates
+      target: directory to put the finished source code
+      so    : SymmetryOption object, containing all the details on       
+              the symmetries conserved during the calculation
+      oldso : SymmetryOption object, containing all the details on
+              the symmetries conserved ON THE INPUT WF FILE.
     """
       
     if(fname=='compilation.f90'):
@@ -36,13 +46,13 @@ def preprocess(fname, src, target, generators, syms, combs, ReduceAxes):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='geninfo.f90'):
-        ProcessGeninfo(fname, src, target, ReduceAxes)
+        ProcessGeninfo(fname, src, target, so)
         return
     if(fname=='derivatives.f90'):
-        ProcessDerivatives(fname, src, target, syms, combs, ReduceAxes)
+        ProcessDerivatives(fname, src, target, so)
         return
     if(fname=='wavefunctions.f90'):
-        ProcessWavefunctions(fname, src, target, generators)
+        ProcessWavefunctions(fname, src, target, so)
         return
     if(fname=='precondition.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -80,8 +90,6 @@ def preprocess(fname, src, target, generators, syms, combs, ReduceAxes):
     if(fname=='diag.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
-    if(fname=='hartree-fock.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='evolution.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -105,7 +113,10 @@ def preprocess(fname, src, target, generators, syms, combs, ReduceAxes):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='HFB.f90'):
-        ProcessHFB(fname, src, target, generators)
+        ProcessHFB(fname, src, target, so)
+        return
+    if(fname=='hartree-fock.f90'):
+        ProcessHartreeFock(fname, src, target, so)
         return
     if(fname=='folding.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -123,18 +134,18 @@ def preprocess(fname, src, target, generators, syms, combs, ReduceAxes):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='transform.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessTransform(fname, src, target, so, oldso)
         return
     if(fname=='densities.f90'):
         ProcessDensities(fname, src, target)
         return
 
-def ProcessGeninfo(fname, src, target, ReduceAxes):
+def ProcessGeninfo(fname, src, target, so):
     """
      This one is already more complicated. 
     """    
     dic={}
-    dic['NUMSYM'] = sum(ReduceAxes)
+    dic['NUMSYM'] = sum(so.ReduceAxes)
         
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

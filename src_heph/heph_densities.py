@@ -497,7 +497,7 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
         # number of derivatives, since they are a completely symmetric tensor
         derind = Number_symmetric(3,d)
         if(derind != 1):
-            dic['DIM']     = ',' + str(derind)  + dim  
+            dic['DIM']     = ',' + str(int(derind))  + dim  
         else:
             dic['DIM']     = dim
 
@@ -624,7 +624,7 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
                 uncontracted.append(p)       
         IND = ''
         for mu in arg: 
-            IND = IND + ',' + str(abs(mu)+1) # Python indexes 0:N-1
+            IND = IND + ',' + str(int(abs(mu)+1)) # Python indexes 0:N-1
         
         dic['IND'] = IND
         
@@ -689,9 +689,9 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
 
             # only nablas are symmetric
             if(len(larg[:LeftOperator.derorder])>0):       
-                LIND = LIND + ',' + str(larg_stor+1)
+                LIND = LIND + ',' + str(int(larg_stor+1))
             if(len(rarg[:RightOperator.derorder])>0):
-                RIND = RIND + ',' + str(rarg_stor+1)
+                RIND = RIND + ',' + str(int(rarg_stor+1))
             
             dic['LIND'] = LIND
             dic['RIND'] = RIND
@@ -770,7 +770,7 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
                         dic['PZ']    = str(pz) 
 
                         if(len(darg) > 0):
-                            dic['IND'] = ',' + str(Storage_Mapping(darg)+1) + IND
+                            dic['IND'] = ',' + str(int(Storage_Mapping(darg)+1)) + IND
                         else:
                             dic['IND'] = IND     
                         Derivation     = Derivation + Lap_template.substitute(dic)
@@ -786,9 +786,9 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
                         syms = (px,py,pz)
                         dic['PS'] = syms[darg[0]]
                         
-                        dic['DERIND']  = ',' + str(Storage_Mapping(darg)+1) + IND
+                        dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
                         if(len(darg) > 1):
-                            dic['IND'] =  ',' + str(Storage_Mapping(darg[1:])+1) + IND
+                            dic['IND'] =  ',' + str(int(Storage_Mapping(darg[1:])+1)) + IND
                         else:
                             dic['IND'] = IND     
                         Derivation     = Derivation  + Der_indep_template.substitute(dic)

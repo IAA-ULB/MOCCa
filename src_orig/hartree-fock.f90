@@ -16,6 +16,12 @@ module hartreefock
  ! calculation.
  !
  !
+ !------------------------------------------------------------------------------
+ ! Hephaestos keywords:
+ ! 
+ ! Switching between conservation of an antilinear, antihermitian symmetry
+ ! TR : $TR
+ ! NTR: $NTR
  !==============================================================================
  
  use wavefunctions
@@ -57,15 +63,17 @@ contains
     i=1 
     do while(p.lt.ProtonUpperBound .and. i.le.nwp)
       j              = ProtonOrder(i)
-      Occupations(j) = 2.0_dp
-      p = p + 2
+      $TR  Occupations(j) = 2.0_dp
+      $NTR Occupations(j) = 1.0_dp
+      p = p + int(occupations(j))
       i = i + 1
     enddo
     i=1
     do while(n.lt.NeutronUpperBound .and. i.le.nwn)
       j              = NeutronOrder(i)
-      Occupations(j) = 2.0_dp
-      n = n + 2
+      $TR  Occupations(j) = 2.0_dp
+      $NTR Occupations(j) = 1.0_dp
+      n = n + int(occupations(j))
       i = i + 1
     enddo
     return

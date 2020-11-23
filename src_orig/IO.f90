@@ -177,9 +177,13 @@ contains
   
   subroutine Readwavefunction()
     !---------------------------------------------------------------------------
-    ! Read information from a finished Tantalus calculation.
-    ! This is the part that should decide on how to read from different inputs.
+    ! High-level routine to determine the starting point of a calculation.
+    ! a) Either initialize with a set of Nilsson orbitals
+    ! b) Read spwfs from a file 
+    ! 
+    ! Either then can be transformed into a set of spwfs with less symmetries
     !---------------------------------------------------------------------------
+    integer :: oldblocks(8)
 
     if(trim(to_upper(inputfilename)).eq.'INIT') then  
       ! Generate starting point with Nilsson wavefunctions.
@@ -188,8 +192,12 @@ contains
     else
       ! If not, start from a previous calculation.
       call ReadTantalus(12, inputfilename)
-      ! No need to guess gaps, they should read from file.
+      ! No need to guess gaps by default (unless the user asked for it)
     endif
+    
+    oldblocks = HFBlocks
+    call Transformspwfs( HFPsi, oldblocks, nx, ny, nz)
+
     if(guessgaps) then
       ! Guess some pairing gaps if asked for (always if starting from INIT)
       call initializeGaps()

@@ -87,7 +87,7 @@ derivative_order = 1
 #-------------------------------------------------------------------------------
 assume_locality = 1
 
-def initfunctional(fname, generators):
+def initfunctional(fname, so):
     """
      Read the functional form from a file, populating on the way the list of 
      densities that we need to calculate. 
@@ -99,7 +99,7 @@ def initfunctional(fname, generators):
 
     # Check if time-reversal (or time-parity) is conserved
     time = False    
-    for g in generators:
+    for g in so.generators:
       if( not g.linear and not g.hermitian):
         time = True    
     if(time):
@@ -442,7 +442,8 @@ def ProcessFunctional(fname, src, target):
         printcoef_iso = ''
         printcoef_pn  = ''
         printcoef_pair= ''
-        sumtotal      = ''
+        sumtotal_even = ''
+        sumtotal_odd  = ''
         pairtotal     = ''
         fieldcalc     = ''
         erear         = ''
@@ -453,7 +454,7 @@ def ProcessFunctional(fname, src, target):
         #-----------------------------------------------------------------------
         # Generate the terms in the functional
         for i in range(len(Functional_terms)): 
-            (d,c,p,cc, pc_iso, pc_pn,pc_pair, st,pt,er)  = \
+            (d,c,p,cc, pc_iso, pc_pn,pc_pair, st,pt,er, T)  = \
              GenTermExpression(Functional_terms[i], [coupling_constants_0[i], \
              coupling_constants_1[i]],density_dependence[i], DD_rearcoefs[i])
 
@@ -464,13 +465,19 @@ def ProcessFunctional(fname, src, target):
             printcoef_iso = printcoef_iso   + pc_iso + '\n'
             printcoef_pn  = printcoef_pn    + pc_pn  + '\n'
             printcoef_pair= printcoef_pair  + pc_pair+ '\n'
-            sumtotal    = sumtotal    + st+ '&\n'
+            if(T):
+              # Term to be added to the time-even subtotal
+              sumtotal_even = sumtotal_even    + st+ '&\n'
+            else:
+              sumtotal_odd  = sumtotal_odd     + st+ '&\n'
+
             if('P' in Functional_terms[i]):    
               pairtotal   = pairtotal   + pt+ '&\n'
             erear       = erear       + er
-
-        sumtotal  = rreplace( sumtotal, '&\n', '', 1)
-        pairtotal = rreplace(pairtotal, '&\n', '', 1)
+        
+        sumtotal_even  = rreplace( sumtotal_even, '&\n', '', 1)
+        sumtotal_odd   = rreplace( sumtotal_odd , '&\n', '', 1)
+        pairtotal      = rreplace( pairtotal, '&\n', '', 1)
 
         if(len(pairtotal) == 0):    
             pairtotal = '0'
@@ -528,7 +535,8 @@ def ProcessFunctional(fname, src, target):
         calccoef      = LineFormat(calccoef)
         printcoef_iso = LineFormat(printcoef_iso)
         printcoef_pn  = LineFormat(printcoef_pn)
-        sumtotal      = LineFormat(sumtotal)
+        sumtotal_even = LineFormat(sumtotal_even)
+        sumtotal_odd  = LineFormat(sumtotal_odd)
         fieldcalc     = LineFormat(fieldcalc)
         SkyrmeAction  = LineFormat(SkyrmeAction)
         PairingAction = LineFormat(PairingAction)
@@ -547,7 +555,13 @@ def ProcessFunctional(fname, src, target):
         dic['PRINTCOEF_ISO']  = printcoef_iso
         dic['PRINTCOEF_PN']   = printcoef_pn
         dic['PRINTCOEF_PAIR'] = printcoef_pair
-        dic['TOTAL']          = sumtotal
+
+        dic['TOTAL_EVEN']     = sumtotal_even
+        if(len(sumtotal_odd)>0):
+          dic['TOTAL_ODD']      = sumtotal_odd
+        else:
+          dic['TOTAL_ODD']      = '0.0d0'
+
         dic['TOTALPAIR']      = pairtotal
         dic['CALCFIELDS']     = fieldcalc
         dic['SKYRMEACTION']   = SkyrmeAction
@@ -579,12 +593,12 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     # Generate the expressions for the terms in the functional.
     #
     #---------------------------------------------------------------------------
-    global  sumindices
+    global sumindices
 
     declaration = ''
     calculation = ''
     printing    = ''
-    
+
     #---------------------------------------------------------------------------
     # Templates for the declaration, calculation and printing of an energy term.
     # And, not forgetting, its contribution to the rearrangement energy
@@ -614,12 +628,6 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     calc_d_template = Template(   tab + '$TERM(2,2) = $CPCTE(2,2) * dv & \n'+           \
                                   tab + '&'+6*tab+' * sum(Edensity(:,1) + Edensity(:,2) ) \n')
 
-    # WR note: I'm not sure what I was thinking when dividing contributions to 
-    #          the energy this way. It is wrong, and I fail to see how it ever
-    #          worked.      
-#    calc_e_template = Template(   tab + '$TERM(1,1) = $TERM(1,2) + 0.5* $TERM(2,2)\n')
-#    calc_f_template = Template(   tab + '$TERM(2,1) =              0.5* $TERM(2,2)\n')
-
     # This new division of contributions is only correct for bilinear terms.
     # If we want to include trilinear terms, we should probably explicitly 
     # construct isoscalar and isovector densities.    
@@ -631,10 +639,6 @@ def GenTermExpression( term, ccoef, DD, DDrear):
   
     calc_pair_a_temp= Template(   tab + 'Edensity(:,1) = Edensity(:,1) + $EDENN\n' + \
                                   tab + 'Edensity(:,2) = Edensity(:,2) + $EDENP\n'  )
-    # This one is superfluous
-#    calc_pair_b_temp= template(   tab   + 'do it=1,2 \n' + \
-#                                  2*tab + '$term(:,it) = $cpcte(1,it) * sum(edensity(:,it)) \n'  + \
-#                                  tab   + 'enddo \n')
     calc_pair_c_temp = Template(  tab + '$TERM(1,1) = $CPCTE(1,1) * sum( Edensity(:,1)) * dv \n')
     calc_pair_d_temp = Template(  tab + '$TERM(2,1) = $CPCTE(2,1) * sum( Edensity(:,2)) * dv \n')
 
@@ -680,6 +684,14 @@ def GenTermExpression( term, ccoef, DD, DDrear):
                 doloops = doloops + OrderOfDen(addden) 
                 # Go back to the outer loop
                 break
+
+    # Signal back about whether this term is built out of time-odd or time-even
+    # densities. Note that we don't do any checking of consistency, this was
+    # done elsewhere.
+    timerev = True
+    for den in densities:
+      if( TimeDen(den) < 0):
+        timerev = False
     
     orders                = []
     for i in range(len(densities)): 
@@ -831,7 +843,7 @@ def GenTermExpression( term, ccoef, DD, DDrear):
           erear = rear_p_template.substitute(dic)
         
     return (declaration, calculation, printing, calccoef, printcoef_iso, 
-                       printcoef_pn, printcoef_pair, sumtotal, pairtotal, erear)    
+              printcoef_pn, printcoef_pair, sumtotal, pairtotal, erear, timerev)    
     
 def rreplace(s, old, new, occurrence):
      li = s.rsplit(old, occurrence)  

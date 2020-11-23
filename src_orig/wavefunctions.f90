@@ -19,8 +19,18 @@ module wavefunctions
  !
  !==============================================================================
  ! Hephaestos:
- ! N2 : $N2
- ! N3 : $N3
+ ! 
+ !    N2 : $N2
+ !    N3 : $N3
+ !
+ ! ININX : $ININX
+ ! ININY : $ININY
+ ! ININZ : $ININZ
+ !
+ ! ININWN : $ININWN
+ ! ININWP : $ININWP
+ ! ININWT : $ININWT
+ ! 
  !==============================================================================
  use compilation
  use derivatives
@@ -138,25 +148,25 @@ contains
     homegax  = alpha*qqq**(-2*cos(-2*pi/3)/3)
     homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
 
-    allocate(hfpsi(nx*ny*nz,4,nwt)) ; hfpsi = 0.0d0
+    allocate(hfpsi($ININX*$ININY*$ININZ,4,$ININWT)) ; hfpsi = 0.0d0
     if (allocated(kparz))  deallocate(kparz)       
    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
-    call nilsson (HFPsi,kparz,spenergies,6,5,nwt,nwp,nwn,                      &
-    &           floor(neutrons),floor(protons),nx,ny,nz,dx,osc_freq)
+    call nilsson (HFPsi,kparz,spenergies,6,5,$ININWT,$ININWP,$ININWN,          &
+    &           floor(neutrons),floor(protons),$ININX,$ININY,$ININZ,dx,osc_freq)
 
-    allocate(dispersions(nwt)) ; dispersions  = 0
-    allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
+    allocate(dispersions($ININWT)) ; dispersions  = 0
+    allocate(sx(4,$ININWT), sy(4,$ININWT), sz(4,$ININWT))
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! b) fill in the right symmetry properties for the wavefunctions
     hfblocks = 0
-    do i=1,nwn
+    do i=1,$ININWN
         if(kparz(i) .gt. 0) HFBlocks(1) = HFBlocks(1) +1
         if(kparz(i) .lt. 0) HFBlocks(3) = HFBlocks(3) +1
     enddo
-    do i=nwn+1,nwt
+    do i=$ININWN+1,$ININWT
         if(kparz(i) .gt. 0) HFBlocks(5) = HFBlocks(5) +1
         if(kparz(i) .lt. 0) HFBlocks(7) = HFBlocks(7) +1
     enddo

@@ -16,6 +16,12 @@ module transform
  !   *) Change the number of mesh points in any direction 
  !   *) Change the mesh constant dx  (not yet implemented)
  !   *) Break a set of symmetries
+ !
+ ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ ! Hephaestos keywords
+ ! 
+ !  NONSPATIAL : $NONSPATIAL
+ !
  !==============================================================================
   use geninfo
   use wavefunctions
@@ -25,20 +31,91 @@ module transform
 
 contains
 
-  subroutine Transformspwfs( wfs , blocks, oldnx, oldny, oldnz, oldnwt )
+  subroutine Transformspwfs( wfs , blocks, oldnx, oldny, oldnz)
     !---------------------------------------------------------------------------
     ! Transform a set of spwfs, in a blockstructure dictated by blocks, into
     ! a set of spwfs with less symmetries.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(inout), allocatable :: wfs(:,:,:)
     integer, intent(inout)                    :: blocks(8)
-    integer, intent(in)                       :: oldnx, oldny, oldnz, oldnwt
-    real(KIND=dp), allocatable                :: temp(:,:,:)
+    integer, intent(in)                       :: oldnx, oldny, oldnz
+    real(KIND=dp), allocatable                :: temp(:,:,:), tempe(:)
+    real(KIND=dp), allocatable                :: tempd(:)
+    integer, allocatable                :: tempsx(:,:), tempsy(:,:), tempsz(:,:)
 
+    integer  :: wave, N, B, si, sb,i
     
+    temp = wfs ; tempe = spenergies ; tempd = dispersions
+    deallocate(wfs)         ; allocate(wfs(nx*ny*nz,4,nwt))    
+    deallocate(dispersions) ; allocate(dispersions(nwt))
+    deallocate(spenergies)  ; allocate(spenergies(nwt))   
+
+    if( $NONSPATIAL ) then
+      ! Use an antilinear, antihermitian symmetry operator 
+      ! (usually time-reversal) to construct partners of the old wfs.
+
+      si = 0
+      sb = 0
+      do B = 1,8
+        ! Loop over the blocks.
+        ! Note that blocks = 2,4,6,8 are always of zero size in this loop, as we 
+        ! are breaking the antilinear conserved symmetry
+        N = blocks(B)
+   
+        ! Copy the wavefunctions that were already in storage
+        wfs(:,:,sb+1:sb+N)    = temp(:,:,si+1:si+N)
+        dispersions(sb+1:sb+N) = tempd(si+1:si+N)
+        spenergies(sb+1:sb+N) = tempe(si+1:si+N)
+
+        ! Use the antilinear symmetry to obtain the transformed spwfs
+        do wave = 1, N        
+         do i=1, oldnx*oldny*oldnz
+           wfs(i,1,sb+N+wave) = $TRANSFO_NONSPATIAL_1 
+           wfs(i,2,sb+N+wave) = $TRANSFO_NONSPATIAL_2
+           wfs(i,3,sb+N+wave) = $TRANSFO_NONSPATIAL_3
+           wfs(i,4,sb+N+wave) = $TRANSFO_NONSPATIAL_4
+         enddo
+        enddo
+        dispersions(sb+N+1:sb+2*N)  = tempd(si+1:si+N)
+        spenergies(sb+N+1 :sb+2*N)  = tempe(si+1:si+N)
+
+        si = si +   N
+        sb = sb + 2*N
+      enddo
+      ! Double the enumeration of the blocks
+      HFBlocks(2) = HFBlocks(1)
+      HFBlocks(4) = HFBlocks(3)
+      HFBlocks(6) = HFBlocks(5)
+      HFBlocks(8) = HFBlocks(7)    
+
+      ! And now we determine the signs of the
+      tempsx = sx ; tempsy = sy ; tempsz = sz
+      deallocate(sx, sy, sz)
+      allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
+
+      si = 0
+      sb = 0
+      do B = 1,8
+        N = blocks(B)
+        do wave=1,N
+          sx(:,sb + wave) = tempsx(:,si+wave)
+          sy(:,sb + wave) = tempsy(:,si+wave)
+          sz(:,sb + wave) = tempsz(:,si+wave)
+
+          sx(:,sb + N + wave) = - tempsx(:,si+wave)
+          sy(:,sb + N + wave) =   tempsy(:,si+wave)
+          sz(:,sb + N + wave) = - tempsz(:,si+wave)
 
 
-  end subroutine 
+        enddo
+        sb = sb + 2 * N
+        si = si +     N
+      enddo
+    endif
+
+    ! Clean up
+    deallocate(temp, tempsx, tempsy, tempsz)
+  end subroutine Transformspwfs
 
 
   subroutine TransformInput(filenx,fileny,filenz,filenwn,filenwp, filedx,      &
