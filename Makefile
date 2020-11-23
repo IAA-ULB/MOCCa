@@ -13,12 +13,17 @@
 #  CXX      : compiler to use                        gfortran
 #  CXXFLAGS : compiler flags                         -O3 -J$(MODDIR) -Wall
 #  PRE      : steps to do before compilation         run Hephaestos
-#  FUNC     : functional definition file             NLO.func
+#  CONFIG   : name of configutation file in the      default
+#             config/ folder
+#  
+# Note that config file needs to supply all the necessary information to 
+# Hephaestos: a functional file as well as the information on the symmetries
+# to conserve and the symmetries that can be expected on the input file.
 #
 #-------------------------------------------------------------------------------
 # Executables at the end will be named
-#  Tantalus.$(FUNC).exe        => single
-#  Tantalus.$(FUNC).mpi.exe    => mpi
+#  Tantalus.$(CONFIG).exe        => single
+#  Tantalus.$(CONFIG).mpi.exe    => mpi
 #-------------------------------------------------------------------------------
 
 OBJDIR :=   obj
@@ -61,11 +66,11 @@ PRE         :=  run_heph getgitinfo setversioninfo
 SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
 MPI_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(MPI_SRC))
 
-# Default functional is an NLO one
-FUNC   :=  NLO.func
+# Default configuration
+CONFIG   :=  default
 
-mpi:    EXENAME:= Tantalus.$(FUNC).mpi.exe
-single: EXENAME:= Tantalus.$(FUNC).exe
+mpi:    EXENAME:= Tantalus.$(CONFIG).mpi.exe
+single: EXENAME:= Tantalus.$(CONFIG).exe
 
 LIBS   := -llapack -lblas
 
@@ -82,9 +87,8 @@ mpi: $(PRE) $(MPI_OBJ)
 	mv mpi exec/$(EXENAME)
 
 run_heph:
-  # Run Hephaestos with the correct .func file to generate the source code in 
-  # src folder.
-	python Hephaestos.py $(FUNC) 
+  # Run Hephaestos with the correct configuration file
+	python3 Hephaestos.py $(CONFIG) 
 
 clean:
 	rm  -f $(OBJDIR)/*.o

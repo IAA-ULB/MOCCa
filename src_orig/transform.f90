@@ -111,10 +111,10 @@ contains
         sb = sb + 2 * N
         si = si +     N
       enddo
+      ! Clean up
+      deallocate(temp, tempsx, tempsy, tempsz)
     endif
 
-    ! Clean up
-    deallocate(temp, tempsx, tempsy, tempsz)
   end subroutine Transformspwfs
 
 

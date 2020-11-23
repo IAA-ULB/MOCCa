@@ -281,7 +281,7 @@ def GenerateFields():
            # get the indices of the field correct
            dic['IND']     = ''
            for k in arg:
-                  dic['IND'] = dic['IND'] + ',%s'%(k+1)
+                  dic['IND'] = dic['IND'] + ',%d'%(k+1)
 
            fieldread = fieldread + field_transfo_temp.substitute(dic)
              
@@ -310,7 +310,7 @@ def GenerateFields():
                     for c in fieldterm[4]:
                         if k in c:
                             dic['IND'] = dic['IND'] \
-                                          + ',%s'%(arg[fieldterm[4].index(c)]+1)
+                                          + ',%d'%(arg[fieldterm[4].index(c)]+1)
            
                  FIELDCALC = FIELDCALC + field_calc_temp_b.substitute(dic)
                  
@@ -360,7 +360,7 @@ def GenerateFields():
                     dic['DENIND']      = ''
                     dic['SUMIND']      = 2 
                     for l in indices:
-                        dic['DENIND'] = dic['DENIND'] + ',' + str(l+1)
+                        dic['DENIND'] = dic['DENIND'] + ',%d'%int(l+1)
 
                     dic['EXPR1'] = dic['EXPR1'] + field_calc_den_a.substitute(dic)
                     dic['EXPR2'] = dic['EXPR2'] + field_calc_den_b.substitute(dic)
@@ -627,11 +627,11 @@ def GenerateAction(field, symmetrize):
                         if(l in c):
                             Found = True
                     if(not Found):
-                        dic['FIELDIND']= dic['FIELDIND'] + ',' \
-                                           + str(abs(true_larg[l])+1)
+                        dic['FIELDIND']= dic['FIELDIND']  \
+                                           + ',%d'%int(abs(true_larg[l])+1)
                 for r in range(len(rarg)):
-                    dic['FIELDIND']= dic['FIELDIND'] + ',' \
-                                           + str(abs(rarg[r])+1)
+                    dic['FIELDIND']= dic['FIELDIND']      \
+                                           + ',%d'%int(abs(rarg[r])+1)
                                            
                 # Get the packed storage-scheme index
                 rarg_stor = Storage_Mapping(true_rarg[:RightOperator.derorder])
@@ -646,7 +646,7 @@ def GenerateAction(field, symmetrize):
                     # confusion. 
                     if( len(true_rarg)>0  and RightOperator.derorder != 0):
                     #-----------------------------------------------------------
-                        dic['RIND'] =  dic['RIND']  + ',' + str(rarg_stor +1 )                        
+                        dic['RIND'] =  dic['RIND']  + ',%d'%int(rarg_stor +1 )                        
                     dic['RCOMP']   = int(abs(rightind[k,0])) 
                     
                     SIGN           = np.sign(rightind[k,0])

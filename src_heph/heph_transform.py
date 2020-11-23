@@ -55,7 +55,7 @@ def ProcessTransform(fname, src, target, so, oldso):
     else:
       dic['NONSPATIAL'] = ".false."
       for i in range(4):
-        dic['TRANSFO_NONSPATIAL_%d'%(i+1)] = "0.0dp"              
+        dic['TRANSFO_NONSPATIAL_%d'%(i+1)] = "0.0d0"              
 
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

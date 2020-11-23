@@ -557,7 +557,7 @@ def ProcessFunctional(fname, src, target):
         dic['PRINTCOEF_PAIR'] = printcoef_pair
 
         dic['TOTAL_EVEN']     = sumtotal_even
-        if(len(sumtotal_odd)>0):
+        if(len(sumtotal_odd)>1):
           dic['TOTAL_ODD']      = sumtotal_odd
         else:
           dic['TOTAL_ODD']      = '0.0d0'

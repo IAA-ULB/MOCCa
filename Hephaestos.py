@@ -12,7 +12,7 @@ import os
 from src_heph import heph_symmetries,heph_densities,heph_functional,heph_fields
 from src_heph import preprocess as pp
 from src_heph import latex
-import sys
+import sys, importlib
 
 # Horizontal line for printing
 line  = 80*"-"
@@ -40,30 +40,56 @@ heph_name= \
 
 print (heph_name)
 #-------------------------------------------------------------------------------
-# Dealing with the input
-inp = sys.argv
-if(len(inp) == 1):
-    print(" Error: please specify a functional file.")
-    print('==============================================================')
-    exit()
-elif(len(inp) == 2):
-    # We select, by default, an EV8-like option
-    SYMSTRING = "T,P,Rz,STy"
-    REDUCE    = "111"
-else:
-    SYMSTRING = inp[2]
-    REDUCE    = inp[3]
-    INSYM     = inp[4]
-    INREDUCE  = inp[5]
+# Dealing with the input: importing a configuration file
+if(len(sys.argv) == 1):
+  print ("Hephaestos needs a configuration file.")
+  sys.exit(1)
+config = sys.argv[1]
 
-# File containing the definition of the functional
-FUNC_FILE  = 'functionals/' + sys.argv[1]
+if( not os.path.isfile('configs/' + config + '.py')):
+  print ("Config file '%s' does not exist."%config)
+  sys.exit(1)
+
+configmod = importlib.import_module('configs.' + config)
+# Reassigning the necessary stuff from the configuration file
+try:
+  FUNC_FILE = 'functionals/' + configmod.FUNC_FILE
+except AttributeError:
+  print ("Config file does not have a FUNC_FILE attribute.")
+  sys.exit(1)
+
+try:
+  SYMSTRING = configmod.SYMSTRING
+except AttributeError:
+  print ("Config file does not have a SYMSTRING attribute.")
+  sys.exit(1)
+
+try:
+  REDUCE = configmod.REDUCE
+except AttributeError:
+  print ("Config file does not have a REDUCE attribute.")
+  sys.exit(1)
+
+try:
+  INSYM = configmod.INSYM
+except AttributeError:
+  print ("Config file does not have a INSYM attribute.")
+  sys.exit(1)
+
+
+try:
+  INREDUCE = configmod.INREDUCE
+except AttributeError:
+  print ("Config file does not have a INREDUCE attribute.")
+  sys.exit(1)
 
 print (line)
-print (' Primary input:')
+print (' Configuration file: %s'%config)
 print ('    Functional file: %s'%FUNC_FILE)
 print ('    Symmetry string: %s'%SYMSTRING)
 print ('    Axis reduction : %s'%REDUCE)
+print ('    Symmetry string: %s'%INSYM)
+print ('    Axis reduction : %s'%INREDUCE)
 print (line)
 
 #-------------------------------------------------------------------------------
