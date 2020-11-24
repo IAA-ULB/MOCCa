@@ -10,8 +10,15 @@
 #-------------------------------------------------------------------------------
 # We will use the definitions and notation of
 #
-# J. Dobaczewski et al. Phys. Rev. C  62, 014310 (2000). 
-# J. Dobaczewski et al. Phys. Rev. C  62, 014311 (2000).
+# (i)  J. Dobaczewski et al. Phys. Rev. C  62, 014310 (2000). 
+# (ii) J. Dobaczewski et al. Phys. Rev. C  62, 014311 (2000).
+#
+# The group D^T_2h is denoted as
+# 
+#  { 1,P,R_x,R_y,R_z,S_x,S_y,S_z,T,P^T,R_x^T,R_y^T,R_z^T,S_x^T,S_y^T,S_z^T}
+#  (Eq. 3 in (ii))
+# 
+# and I will use this ordering to encode symmetry information in the .wf files.
 #
 #-------------------------------------------------------------------------------
 import itertools
@@ -162,23 +169,121 @@ def multiply(S1, S2):
     C = symmetry(perm,coord, lin, her )
     return C
 
-#-------------------------------------------------------------------------------
-#
-#
-#
-#
-#
-#-------------------------------------------------------------------------------
-
 class symmetry_option():
-
-  def __init__(self, generators, syms, combs, ReduceAxes):
+  """
+      Practical container class to transmit all relevant symmetry combinations
+      between different routines.
+  """
+  def __init__(self, generators, syms, combs, ReduceAxes, desc):
     # These are signed(!) permutations
     self.generators = generators
     self.syms       = syms
     self.combs      = combs
     self.ReduceAxes = ReduceAxes 
+    self.desc       = desc
 
+def symmetryencoding(so):
+    """
+       We encode all the information on symmetry choices into a simple string of
+       ones and zeros. This is not very human-readable, but it is easy to 
+       transfer in different coding languages.
+
+       The first sixteen numbers indicate which generators of the 
+       single-particle group have been chosen, in this ordering
+
+       1 P [s] R_x R_y R_z [s] S_x S_y S_z [s] T P^T [s] 
+                                        R_x^T R_y^T R_z^T [s] S_x^T S_y^T S_z^T
+
+       where [s] indicates a space. Admittedly, the first entry in this list is 
+       useless, but this way the group is at least complete.
+
+       The next three numbers indicate the reduction of which axes have been 
+       asked for. 
+      
+       So, EV8-mode for example would read
+       
+          0 1 001 000 10 000 010 111
+          1 P R_i S_i TP RTi STi ax   
+
+       To indicate 
+          Parity       : first one
+          z-signature  : second one
+          time-reversal: third one
+          y-timesimplex: fourth one
+    
+          calculation in 1/8th of the box: final 111 
+
+    """
+
+    encoded = '0 ' # start with the identity operator
+    symdic  = populatesymmetries()
+    direc   = ['x', 'y', 'z'] 
+
+    # Parity
+    n = 0
+    for g in so.generators:
+      if g == symdic['P']:
+        n = 1
+    encoded = encoded + '%d '%n
+    
+    # Signatures  
+    for i in range(3):
+      d = direc[i]
+      n = 0
+      for g in so.generators:
+        if g == symdic['R%s'%d]:
+          n = 1
+      encoded = encoded + '%d'%n
+
+    encoded = encoded + ' '
+    # Simplexes      
+    for i in range(3):
+      d = direc[i]
+      n = 0
+      for g in so.generators:
+        if g == symdic['S%s'%d]:
+          n = 1
+      encoded = encoded + '%d'%n
+    encoded = encoded + ' '
+    # Time-reversal
+    n = 0
+    for g in so.generators:
+      if g == symdic['T']:
+        n = 1
+    encoded = encoded + '%d'%n
+
+    # Time-parity
+    n = 0
+    for g in so.generators:
+      if g == symdic['PT']:
+        n = 1
+    encoded = encoded + '%d'%n
+    encoded = encoded + ' '
+
+    # Time-signatures
+    for i in range(3):
+      d = direc[i]
+      n = 0
+      for g in so.generators:
+        if g == symdic['RT%s'%d]:
+          n = 1
+      encoded = encoded + '%d'%n
+    encoded = encoded + ' '
+
+    # Time-simplexes
+    for i in range(3):
+      d = direc[i]
+      n = 0
+      for g in so.generators:
+        if g == symdic['ST%s'%d]:
+          n = 1
+      encoded = encoded + '%d'%n
+    encoded = encoded + ' '
+
+    # Finally, reduction of axes
+    for i in range(3):
+      encoded = encoded + '%d'%so.ReduceAxes[i]   
+    return encoded
 
 def initsymmetries(SYMSTRING, REDUCE):
     """
@@ -257,7 +362,7 @@ def initsymmetries(SYMSTRING, REDUCE):
         print ("  Stopping.")
         exit()
 
-    so = symmetry_option(generators, syms, combs, ReduceAxes )
+    so = symmetry_option(generators, syms, combs, ReduceAxes, SYMSTRING)
     return so
 
 def printsymmetryoption(so):
@@ -296,6 +401,8 @@ def printsymmetryoption(so):
               st = st + key + ','
 
         print ("   ", direc[i], " =>  %10s, "%st[:-1], so.syms[i])
+
+    print (" Encoding string : ", symmetryencoding(so))
 
 def populatesymmetries():
   """

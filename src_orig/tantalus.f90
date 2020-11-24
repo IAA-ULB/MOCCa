@@ -36,6 +36,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  character(11), intent(in), optional :: input_file 
  character(len=*), intent(in)        :: run_mode 
  character(len=43)                   :: mode_print
+ character(len=26)                   :: symprint
 
  100 format &
      &  (/,8x,' ___________________________________________________________', &
@@ -58,7 +59,13 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  300 format ( 8x,'| VERSION1',  8x, '|') ! Git commit
  301 format ( 8x,'| VERSION2',  7x, '|') ! Author of commit
  302 format ( 8x,'| VERSION3', 17x, '|') ! Date
- 303 format ( 8x,'|__________________________________________________________|')
+ 303 format ( 8x,'|                                                          |')
+ 304 format ( 8x,'|-------------- Symmetry Information ----------------------|')
+ 305 format ( 8x,'| S.p. generators        = ', a26, 6x, '|')
+ 306 format ( 8x,'| Axis reduction  X Y Z  = ', 3i2, 26x, '|')
+ 307 format ( 8x,'| SYM_CODE               = ', a26, 6x, '|')
+ 308 format ( 8x,'| TRANS_CODE             = ', a26, 6x, '|')
+ 309 format ( 8x,'|__________________________________________________________|')
 
  call add_timer('Tantalus'                   , T_tantalus)  
  call add_timer('HF-basis Derivatives'       , T_derivatives)  
@@ -84,11 +91,19 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  write(mode_print, '(a43)') run_mode
  print 200, adjustl(mode_print)
  print 299
+ print 303
  print 300
  print 301
  print 302
  print 303
-
+ print 304
+ print 303
+ symprint = adjustl(SYMSTRING)
+ print 305, symprint
+ print 306, reduX, reduY, reduZ
+ print 307, SYM_CODE
+ print 308, TRANS_CODE
+ print 309
 
  !------------------------------------------------------------------------------
  ! Read input from STDIN

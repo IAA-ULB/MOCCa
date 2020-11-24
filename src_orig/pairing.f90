@@ -17,6 +17,11 @@ module pairing
  ! as some routines of general interest.
  !
  !==============================================================================
+ ! Hephaestos keywords:
+ !
+ ! FORBIDBCS : $FORBIDBCS 
+ !  
+ !==============================================================================
 
  use compilation
  use wavefunctions
@@ -89,7 +94,6 @@ module pairing
  ! 
  ! If this is nonzero, the code will look for a new namelist "Indices"
  !
- ! This currently only works for HFB calculations!
  !------------------------------------------------------------------------------
  integer :: BlockType  = 0
  integer :: BlockNumber= 0 
@@ -138,10 +142,11 @@ contains
 
   subroutine initpairing(file_number)
     !---------------------------------------------------------------------------
-    ! Read and initialize pairing options. 
-    !
+    ! Read and initialize pairing options from the namelists
+    !   /Pairing/
+    !   /Indices/
     !---------------------------------------------------------------------------
-    character(len=20) :: Type = 'HF'
+    character(len=20)                   :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
     
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
@@ -157,7 +162,6 @@ contains
     endif  
 
     Type        = to_upper(Type)
-
     if('HF' .eq.adjustl(type)) then
       pairingtype = 0
     elseif('BCS' .eq. adjustl(type)) then
@@ -170,6 +174,11 @@ contains
       print *, 'This type of pairing is not implemented yet.'
       stop
     endif
+
+$FORBIDBCS if( pairingtype .eq. 1) then
+$FORBIDBCS    print *, "BCS pairing treatment not allowed."
+$FORBIDBCS    stop
+$FORBIDBCS endif
 
     FermiSolver = to_upper(FermiSolver)    
     if(adjustl(FermiSolver).eq.'SECANT') then
@@ -501,9 +510,6 @@ contains
     3 format (' Fermi Level (MeV) ',2x,f13.8,2x,f13.8)
     4 format (' Particles         ',2x,f13.8,2x,f13.8)
     5 format (' Dispersion        ',2x,f13.8,2x,f13.8)
-!    6 format (' dN/da             ',2x,f13.8,2x,f13.8,/,                       & 
-!    &         ' dZ/da             ',2x,f13.8,2x,f13.8 )
-
     6 format (' Average gap   v^2 ',2x, f13.8, 2x, f13.8)
    61 format (' Average gap   uv  ',2x, f13.8, 2x, f13.8)
     7 format (60('-'))
@@ -548,19 +554,13 @@ contains
 
         if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
     end select
-
-!    if(inversetemp.ne.-1) then
-!        call EstimateDNDA()
-!        print 6, dNda
-!    endif
-    
+   
     print 7
   end subroutine PrintPairing
   
   function calcpairingenergy() result(E)
     !---------------------------------------------------------------------------
-    ! Calculate the pairingenergy
-    !
+    ! Calculate the pairing energy.
     !---------------------------------------------------------------------------
     integer       :: wave, it, wave2
     real(KIND=dp) :: E(2)
@@ -720,14 +720,15 @@ contains
       gap(2,it1) = gap(2,it1)  +  abs(uv * gaps_can(wave,wave))                 
       norm(2,it1)= norm(2,it1) +  abs(uv)                                       
     enddo
-    ! We take the absolute value to 
     gap = gap/norm
 
     deallocate(gaps_can)
   end function average_gap_HFB
 
   subroutine clean_pairing()
-
+    !---------------------------------------------------------------------------
+    ! Clean up various arrays that might have been allocated to start fresh.
+    !---------------------------------------------------------------------------
     if(allocated(rho_pairing))   deallocate(rho_pairing)
     if(allocated(kappa_pairing)) deallocate(kappa_pairing)
     if(allocated(configmatrix))  deallocate(configmatrix)

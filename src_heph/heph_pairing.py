@@ -7,6 +7,30 @@
 #-------------------------------------------------------------------------------
 from string          import Template
 
+def ProcessPairing(fname, src, target, so):
+  """
+   We process pairing.f90, depending on the symmetries imposed.
+  """
+
+  dic = {}
+  # For the moment, this simply (de)activates a stop statement when the user
+  # asks for BCS-pairing and time-reversal is not conserved.
+  forbidBCS = True
+  for g in so.generators:
+    if( not g.linear and not g.hermitian):
+      forbidBCS = False
+
+  if(forbidBCS):
+    dic['FORBIDBCS'] = ''
+  else:
+    dic['FORBIDBCS'] = '!'
+
+  with open(src+fname, 'r') as template:
+    with open(target+fname, 'w') as generated:
+        for line in template:
+            generated.write(Template(line).substitute(dic))  
+
+
 def ProcessHFB(fname, src, target, so):
   """  
    We process HFB.f90, depending on the symmetries imposed.
@@ -51,3 +75,7 @@ def ProcessHartreeFock(fname, src, target, so):
     with open(target+fname, 'w') as generated:
         for line in template:
             generated.write(Template(line).substitute(dic))  
+
+
+# Note: the BCS module needs no processing at the moment.
+# def ProcessBCS(fname, src, target, so): 

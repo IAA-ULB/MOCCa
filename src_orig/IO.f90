@@ -11,7 +11,22 @@ module IO
  !
  !============================================================================== 
  ! Module governing the in- and output of Tantalus. 
+ !------------------------------------------------------------------------------
  !
+ ! Hephaestos keywords:
+ !
+ !     SYM_CODE   : $SYM_CODE  
+ !        String encoding the symmetry choices of this particular version of 
+ !        Tantalus. Written to .wf files created by this version.
+ !
+ !     TRANS_CODE : $TRANS_CODE
+ !        String encoding the symmetry choices that this version of Tantalus
+ !        can READ (in addition to its own type of files).
+ ! 
+ ! I.e. when compiled, the code can read files characterized by either 
+ ! SYM_CODE or TRANS_CODE (employing an additional transformation in the second 
+ ! case). The code will however ALWAYS write SYM_CODE .wf files. 
+ !  
  !==============================================================================
 
 use geninfo
@@ -24,19 +39,29 @@ use Coulombmod
 use transform
 
 implicit none
-
+  !-----------------------------------------------------------------------------
+  ! Version number of the .wf file written by this version of the code. 
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Some history:
+  !   version 1 : initial version of the .wf files (fit of GSk1-2)
+  !               (2018 - Nov. 2020)
+  !   version 2 : implementation of symmetry encoding string
+  !               (Nov. 2020 - now)
+  integer, parameter  :: version_number = 2
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100)  :: inputfilename, outputfilename
   ! Signal the code to write extra output.
   character(len=40)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=40)   :: sphffile='', spcanfile=''
-  ! Signal the code to write the wavefunctions periodically
+  ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
   !-----------------------------------------------------------------------------
   logical             :: Allowtransform = .false.
   integer             :: extraspwfs(8) = 0
   !-----------------------------------------------------------------------------
+  character(len=26), parameter :: SYM_CODE   = "$SYM_CODE"
+  character(len=26), parameter :: TRANS_CODE = "$TRANS_CODE"
 
 contains
 
@@ -222,7 +247,7 @@ contains
     ! Version
     ! Convergence information: E, dE                         (*)
     ! nx,ny,nz,dx,dt                    
-    ! Symmetry information                                   (*)
+    ! Symmetry information                                   
     ! neutrons,protons
     ! Number of wavefunctions in every block
     ! (nwt) Wavefunctions                                    
@@ -240,14 +265,16 @@ contains
     ! Potentials                                             
     ! Moments                                                (*)
     !
-    !---------------------------------------------------------------------------
-    
+    !---------------------------------------------------------------------------    
     use functional
     use moments
     
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ifn
+
     character(len=20)            :: func_name_check
+    character(len=26)            :: SYM_CODE_CHECK
+
     integer                      :: io, version
     logical                      :: exists
     
@@ -262,7 +289,11 @@ contains
     2 format ('Number of wavefunctions does not correspond to file.', / &
     &         'On file: nwn= ', i3, ' nwp=', i3,                      / &
     &         'In data: nwn= ', i3, ' nwp=', i3)
-    
+
+    3 format (' The symmetry choices  on file cannot be handled.')
+    4 format (' SYM_CODE   = ', a26)
+    5 format (' TRANS_CODE = ', a26)
+    6 format (' ON FILE    = ', a26)
     !---------------------------------------------------------------------------
     ! First check if the file exists.
     inquire(file=inputfilename, exist=exists)
@@ -274,12 +305,37 @@ contains
     open (chan,form='unformatted',file=ifn)
     
     read(chan, iostat=io) version
+    if(version .gt. version_number) then
+      print *, 'Unsupported version number of the .wf file.'
+      print *, 'Maximum current version: ', version_number
+      stop
+    endif
+
     ! Convergence information                                  (NOT IMPLEMENTED)
     read(chan,iostat=io) 
     !Parameters of the mesh
     read(Chan,iostat=io) filenx,fileny,filenz, filedx
-    ! Symmetry information                                     (NOT IMPLEMENTED)
-    read(Chan,iostat=io) 
+
+    ! Symmetry information       
+    if(version .eq. 1) then 
+      ! No symmetry information in version 1, only EV8-style calculations  
+      read(Chan,iostat=io) 
+    else                          
+      read(Chan,iostat=io) SYM_CODE_CHECK
+      
+      if(SYM_CODE_CHECK .eq. SYM_CODE) then
+        transformation_needed = .false.
+      elseif(SYM_CODE_CHECK .eq. TRANS_CODE) then
+        transformation_needed = .true.
+      else
+        print 3
+        print 4, SYM_CODE 
+        print 5, TRANS_CODE
+        print 6, SYM_CODE_CHECK
+        stop  
+      endif
+    endif
+
     !Number of protons and neutrons
     read(Chan,iostat=io) fileneutrons, fileprotons
     ! HFBLocks information 
@@ -444,14 +500,13 @@ contains
   subroutine WriteTantalus(chan, ofn, iter, iomsg)
     !---------------------------------------------------------------------------
     ! Subroutine that dumps all information to a .wf file for future runs.
-    ! Heavily based on the MOCCa output routine.
     !---------------------------------------------------------------------------
     ! Things written to file. (Not yet implemented ones are indicated by *)
     !
     ! Version
     ! Convergence information: E, dE                         (*)
     ! nx,ny,nz,dx,dt                    
-    ! Symmetry information                                   (*)
+    ! Symmetry information                                   
     ! neutrons,protons
     ! Number of wavefunctions in every block
     ! (nwt) Wavefunctions                                    
@@ -472,6 +527,10 @@ contains
     ! Multipole Moments                                                 
     !     | The code writes the data on ALL the multipole moments.
     !     | For the format of the lines, see the Moments module.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Some remarks:
+    !   *) The symmetry information is encoded in a single string, the SYM_CODE.
     !---------------------------------------------------------------------------
 
     use functional
@@ -486,13 +545,13 @@ contains
 
     open (chan,form='unformatted',file=ofn)
 
-    write(chan, iostat=io) 1
+    write(chan, iostat=io) version_number
     ! Convergence information                                  (NOT IMPLEMENTED)
     write(chan,iostat=io) 
     !Parameters of the mesh
     write(Chan,iostat=io) nx,ny,nz, dx
-    ! Symmetry information                                     (NOT IMPLEMENTED)
-    write(Chan,iostat=io) 
+    ! Symmetry information                                   
+    write(Chan,iostat=io) SYM_CODE
     !Number of protons and neutrons
     write(Chan,iostat=io) neutrons,protons
     ! HFBLocks information 
@@ -632,7 +691,7 @@ contains
     r2  =>FindMoment(-2,0,.false., Q22) ! The rms radius is associated with l=-2
 
     ! Write the filename
-    write(filedone,'(a,"z",i3.3,"n",i3.3,".out")'), trim(adjustl(BXLFIT)),     &
+    write(filedone,'(a,"z",i3.3,"n",i3.3,".out")')  trim(adjustl(BXLFIT)),     &
     & int(protons),int(neutrons)
   
     open(unit=10,file=filedone)
@@ -757,6 +816,7 @@ contains
     dp(1:nx,1:ny,1:nz)  => D_I_I(:,2)
 
     call write_header(1)
+    write(1, fmt=1) 
     do k=1,nz
       do j=1,ny
         do i=1,nx

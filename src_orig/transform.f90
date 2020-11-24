@@ -28,6 +28,9 @@ module transform
   use pairing
 
   implicit none
+  
+  ! Indicates whether we need to transform the spwfs read on input.
+  logical :: transformation_needed = .false.
 
 contains
 
