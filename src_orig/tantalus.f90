@@ -225,7 +225,8 @@ subroutine ReachForWaterAndFood()
     use pairing 
     use printing
     use temperature_projection
-    use momentsofinertia    
+    use momentsofinertia  
+    use cranking  
     use timing
 
     implicit none
@@ -289,6 +290,9 @@ subroutine ReachForWaterAndFood()
     case(2)
       average_gap = average_gap_HFB()
     end select
+
+    ! Update the angular momentum information of the spwfs
+    call update_spwf_angmom()
 
     ! Initial printout
     call printSpwfs
@@ -378,9 +382,12 @@ subroutine ReachForWaterAndFood()
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
         if(iprint .eq.1) then
+            call update_spwf_angmom()
+            call updateAM 
             call PrintSpwfs
             call PrintQps
             call printallmoments
+            call printcranking
             call PrintMomentsofInertia
             call printpairing(PairStabfactor)
             call PrintEnergy           

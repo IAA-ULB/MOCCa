@@ -14,18 +14,15 @@ module wavefunctions
  ! Module containing the single-particle wave-functions (spwfs for short)
  ! for the Tantalus program.
  !
- !
- !
- !
  !==============================================================================
  ! Hephaestos:
  ! 
- !    N2 : $N2
- !    N3 : $N3
+ !    N2  : $N2
+ !    N3  : $N3
  !
- ! ININX : $ININX
- ! ININY : $ININY
- ! ININZ : $ININZ
+ ! ININX  : $ININX
+ ! ININY  : $ININY
+ ! ININZ  : $ININZ
  !
  ! ININWN : $ININWN
  ! ININWP : $ININWP
@@ -63,16 +60,26 @@ module wavefunctions
  real(KIND=dp), allocatable, target ::CANddPsi(:,:,:,:)!Second order derivatives
  real(KIND=dp), allocatable, target ::CANdddPsi(:,:,:,:)!Third order derivatives
  !------------------------------------------------------------------------------
- ! Density matrix rho and anomalous density matrix kappa
- ! Dimensions (nwt, nwt) (although many are zero when symmetries are conserved)
- !real(KIND=dp), allocatable :: rho(:,:), kappa(:,:)
- !------------------------------------------------------------------------------
  ! Single-particle energies, diagonal elements of the single-particle
- ! hamiltonian
- ! \langle psi_i | h | psi_i \rangle
+ ! hamiltonian: \langle psi_i | h | psi_i \rangle
  real(KIND=dp), allocatable :: spenergies(:) 
+ ! Dispersions of the spwfs with respect to h
  real(KIND=dp), allocatable :: dispersions(:)
+ ! expectation values of the single-particle hamiltonian in the canonical basis
  real(KIND=dp), allocatable :: canenergies(:)
+ !------------------------------------------------------------------------------
+ ! Angular momentum properties of the spwfs
+ ! "Ordinary" <Jx>, <Jy>, <Jz>
+ real(KIND=dp), allocatable :: spwf_J(:,:)
+ ! Squared   <Jx^2>, <Jy^2>, <Jz^2>
+ real(KIND=dp), allocatable :: spwf_J2(:,:)
+ ! With an extra time-reversal operator < Jx T >, < Jy T >, < Jz T >
+ ! Both real and imaginary parts
+ real(KIND=dp), allocatable :: spwf_JTR(:,:)
+ real(KIND=dp), allocatable :: spwf_JTI(:,:)
+ ! Total angular momentum "quantum number", i.e. the number J such that 
+ !  J (J+1) = <J^2_x> +  <J^2_y> + <J^2_z>
+ real(KIND=dp), allocatable :: spwf_JJ(:)
  !------------------------------------------------------------------------------
  ! Number of the blocks with the same quantum numbers that divide up the 
  ! the single-particle wavefunctions.
@@ -471,6 +478,45 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     TPsi(:,4) =   Psi(:,2)
     
   end function TimeReverse
+
+  subroutine update_spwf_angmom()
+    !---------------------------------------------------------------------------
+    ! Calculate all the angular momentum properties of the spwfs.
+    ! For now, we only calculate properties that would be accessible in a 
+    ! CR8-geometry.
+    !---------------------------------------------------------------------------
+    integer       :: wave 
+
+    if(.not.allocated(spwf_J)) then
+      allocate(spwf_J(3,nwt))   ; spwf_J = 0.0
+      allocate(spwf_JTR(3,nwt)) ; spwf_JTR= 0.0
+      allocate(spwf_JTI(3,nwt)) ; spwf_JTI= 0.0
+      allocate(spwf_J2(3,nwt))  ; spwf_J2= 0.0
+      allocate(spwf_JJ(nwt))    ; spwf_JJ= 0.0
+    endif
+
+    do wave=1,nwt
+      spwf_JTR(1,wave) = & 
+            & angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
+      spwf_JTI(2,wave) = &
+            & angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
+      spwf_J(3,wave)   = & 
+            & angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
+
+      spwf_J2(1,wave)  = &
+        &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
+      spwf_J2(2,wave)  = &
+        &   angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
+      spwf_J2(3,wave)  = &
+        &   angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
+        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
+  
+      spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave))))/2.
+    enddo
+
+  end subroutine update_spwf_angmom
   
   function angmom_x_real(wf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------

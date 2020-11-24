@@ -52,21 +52,10 @@ contains
         if(wave .le. HFBlocks(1)) p = +1
         if(wave .gt. HFBlocks(1)) p = -1
 
-        !-----------------------------------------------------------------------
-        ! Depending on the symmetries, select different quantities to print 
-        ! for Jx, Jy, Jz. Currently configured for EV8 mode!
-        Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
-        Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-        Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
-        
-        JJ = & 
-        &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-        & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-        & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-        JJ = (-1. + sqrt(1. + 4*JJ))/2.
+        Jx = spwf_JTR(1,wave)
+        Jy = spwf_JTI(2,wave)
+        Jz = spwf_J(3,wave)
+        JJ = spwf_JJ(wave)
 
         if(pairingtype.eq.1) then
           print 11, wave, p, rho_can(wave), spenergies(wave), &
@@ -90,21 +79,10 @@ contains
         if(wave .le. sum(HFBlocks(1:5))) p = +1
         if(wave .gt. sum(HFBlocks(1:5))) p = -1
 
-        !-----------------------------------------------------------------------
-        ! Depending on the symmetries, select different quantities to print 
-        ! for Jx, Jy, Jz. Currently configured for EV8 mode!
-        Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-        Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-        Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-
-        JJ = & 
-        &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-        & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-        & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-        JJ = -0.5*(1. - sqrt(1. + 4*JJ))       
+        Jx = spwf_JTR(1,wave)
+        Jy = spwf_JTI(2,wave)
+        Jz = spwf_J(3,wave)
+        JJ = spwf_JJ(wave)
 
         if(pairingtype.eq.1) then
           print 11, wave, p, rho_can(wave), spenergies(wave),                  &

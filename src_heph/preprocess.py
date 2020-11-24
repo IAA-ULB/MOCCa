@@ -140,6 +140,10 @@ def preprocess(fname, src, target, so , oldso):
     if(fname=='densities.f90'):
         ProcessDensities(fname, src, target)
         return
+    if(fname=='cranking.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
+        
 
 def ProcessGeninfo(fname, src, target, so):
     """
