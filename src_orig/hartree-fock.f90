@@ -45,7 +45,7 @@ contains
     integer :: i,j,n,p, ProtonUpperBound, NeutronUpperBound
     integer :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp), intent(out) :: occupations(nwt)
-    
+        
     n=0; p=0
     !---------------------------------------------------------------------------
     !Setting all occupation numbers to Zero

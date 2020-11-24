@@ -247,16 +247,15 @@ subroutine ReachForWaterAndFood()
     ! Message for the output of the code, useful for the Brussels group.
     character(len=99) :: iomsg = 'START'
 
-    ConvergenceAchieved = .false.   
+    ConvergenceAchieved = .false.  
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
     ! Solve the pairing, with the current values of <h> and the pairing gaps.
     call SolvePairing()
-    
     ! Derive all the single-particle wavefunctions
     call deriveHF()
-   
+
     ! Calculate the initial densities.
     call densit(SaveRho=.false.)
     ! Construct the charge density on the (nx/ny/nz)-sized mesh.

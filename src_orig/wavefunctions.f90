@@ -122,11 +122,7 @@ contains
 
   subroutine iniwavefunctions()   
     !---------------------------------------------------------------------------
-    ! Build harmonic oscillator eigenfunctions
-    ! a) in an EV8-like box
-    ! b) expanding to the full box
-    ! c) restricting again to the box desired 
-    !
+    ! Build harmonic oscillator eigenfunctions in an EV8-like box
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Also initialized:
     !  *) Diagonal matrix elements of <h>
@@ -137,8 +133,6 @@ contains
     !---------------------------------------------------------------------------
     
     real(KIND=dp)             :: homegax, homegay,homegaz, alpha,qqq
-    !real(KIND=dp),allocatable :: fullbox(:,:,:)
-    !integer                   :: j,k, p
     integer                   :: i
     integer, allocatable      :: kparz(:)
     
@@ -199,7 +193,6 @@ contains
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
     deallocate(kparz)
-
   end subroutine iniwavefunctions
   
   subroutine deriveHF()
@@ -215,7 +208,7 @@ contains
         allocate(HFdPsi(nx*ny*nz,3,4,nwt))
         allocate(HFddPsi(nx*ny*nz,6,4,nwt))
     endif
-    
+
 $N3    if(.not.allocated(HFdddpsi)) then
 $N3        allocate(HFdddPsi(nx*ny*nz,10,4,nwt))
 $N3    endif
@@ -224,7 +217,6 @@ $N3    endif
     ! Currently EV8 symmetries are hardcoded.
     do wave=1,nwt
         do k=1,4
-
 $N2        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
 $N2        &                                           HFdPsi(:,:,k,wave),     &
 $N2        &                                           HFddPsi(:,:,k,wave))
@@ -236,9 +228,7 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
 
         enddo
     enddo
-
     call stop_timer(T_derivatives)
-
   end subroutine DeriveHF
   
   subroutine deriveCan()

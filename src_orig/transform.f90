@@ -30,7 +30,7 @@ module transform
   implicit none
   
   ! Indicates whether we need to transform the spwfs read on input.
-  logical :: transformation_needed = .false.
+  logical :: symtransfo_needed = .false.
 
 contains
 
@@ -43,15 +43,22 @@ contains
     integer, intent(inout)                    :: blocks(8)
     integer, intent(in)                       :: oldnx, oldny, oldnz
     real(KIND=dp), allocatable                :: temp(:,:,:), tempe(:)
-    real(KIND=dp), allocatable                :: tempd(:)
+    real(KIND=dp), allocatable                :: tempd(:), tempr(:)
     integer, allocatable                :: tempsx(:,:), tempsy(:,:), tempsz(:,:)
 
     integer  :: wave, N, B, si, sb,i
-    
-    temp = wfs ; tempe = spenergies ; tempd = dispersions
+
+    if(.not. allocated(rho_can)) then
+        ! There is one case where this array might not be allocated upon entry
+        ! in this routine: when initializing from scratch
+        allocate(rho_can(sum(blocks))) ; rho_can = 0.0d0
+    endif
+
+    temp = wfs ; tempe = spenergies ; tempd = dispersions ; tempr = rho_can
     deallocate(wfs)         ; allocate(wfs(nx*ny*nz,4,nwt))    
     deallocate(dispersions) ; allocate(dispersions(nwt))
     deallocate(spenergies)  ; allocate(spenergies(nwt))   
+    deallocate(rho_can)     ; allocate(rho_can(nwt))
 
     if( $NONSPATIAL ) then
       ! Use an antilinear, antihermitian symmetry operator 
@@ -63,12 +70,13 @@ contains
         ! Loop over the blocks.
         ! Note that blocks = 2,4,6,8 are always of zero size in this loop, as we 
         ! are breaking the antilinear conserved symmetry
-        N = blocks(B)
+        N = blocks(B); if(N .eq. 0) cycle
    
         ! Copy the wavefunctions that were already in storage
         wfs(:,:,sb+1:sb+N)    = temp(:,:,si+1:si+N)
-        dispersions(sb+1:sb+N) = tempd(si+1:si+N)
+        dispersions(sb+1:sb+N)= tempd(si+1:si+N)
         spenergies(sb+1:sb+N) = tempe(si+1:si+N)
+        rho_can(sb+1:sb+N)    = tempr(si+1:si+N) /2.0 ! Note the factor 1/2
 
         ! Use the antilinear symmetry to obtain the transformed spwfs
         do wave = 1, N        
@@ -81,17 +89,19 @@ contains
         enddo
         dispersions(sb+N+1:sb+2*N)  = tempd(si+1:si+N)
         spenergies(sb+N+1 :sb+2*N)  = tempe(si+1:si+N)
+        rho_can(sb+N+1:sb+2*N)      = tempr(si+1:si+N)/2.0 ! Note the factor 1/2
 
         si = si +   N
         sb = sb + 2*N
       enddo
+     
       ! Double the enumeration of the blocks
-      HFBlocks(2) = HFBlocks(1)
-      HFBlocks(4) = HFBlocks(3)
-      HFBlocks(6) = HFBlocks(5)
-      HFBlocks(8) = HFBlocks(7)    
+      HFBlocks(1) = blocks(1) ; HFBlocks(2) = blocks(1)
+      HFBlocks(3) = blocks(3) ; HFBlocks(4) = blocks(3)
+      HFBlocks(5) = blocks(5) ; HFBlocks(6) = blocks(5)
+      HFBlocks(7) = blocks(7) ; HFBlocks(8) = blocks(7)
 
-      ! And now we determine the signs of the
+      ! And now we determine the signs of the reflections
       tempsx = sx ; tempsy = sy ; tempsz = sz
       deallocate(sx, sy, sz)
       allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
@@ -99,7 +109,8 @@ contains
       si = 0
       sb = 0
       do B = 1,8
-        N = blocks(B)
+        print *, B, blocks(B)
+        N = blocks(B) ; if(N .eq. 0) cycle
         do wave=1,N
           sx(:,sb + wave) = tempsx(:,si+wave)
           sy(:,sb + wave) = tempsy(:,si+wave)
@@ -108,24 +119,20 @@ contains
           sx(:,sb + N + wave) = - tempsx(:,si+wave)
           sy(:,sb + N + wave) =   tempsy(:,si+wave)
           sz(:,sb + N + wave) = - tempsz(:,si+wave)
-
-
         enddo
         sb = sb + 2 * N
         si = si +     N
       enddo
+
       ! Clean up
-      deallocate(temp, tempsx, tempsy, tempsz)
+      deallocate(temp, tempsx, tempsy, tempsz)    
     endif
-
   end subroutine Transformspwfs
-
 
   subroutine TransformInput(filenx,fileny,filenz,filenwn,filenwp, filedx,      &
   &                         fileblocks, extraspwfs)
     !---------------------------------------------------------------------------
     ! Transform the input from file to the parameters of the new calculation.
-    !
     !---------------------------------------------------------------------------
 
  1 format &

@@ -16,14 +16,15 @@
 #===============================================================================
 
 import os
-from string           import Template
+from string                      import Template
 from src_heph.heph_densities     import ProcessDensities
 from src_heph.heph_derivatives   import ProcessDerivatives
 from src_heph.heph_functional    import ProcessFunctional, ProcessParameterization
 from src_heph.heph_wavefunctions import ProcessWavefunctions
 from src_heph.heph_pairing       import ProcessHFB, ProcessHartreeFock
+from src_heph.heph_pairing       import ProcessPairing
 from src_heph.heph_transform     import ProcessTransform
-
+from src_heph.heph_IO            import ProcessIO
 
 def preprocess(fname, src, target, so , oldso):
     """
@@ -95,13 +96,13 @@ def preprocess(fname, src, target, so , oldso):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='IO.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessIO(fname, src, target, so, oldso)
         return
     if(fname=='coulomb.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='pairing.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessPairing(fname, src, target, so)
         return
     if(fname=='BCS.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -146,6 +147,12 @@ def ProcessGeninfo(fname, src, target, so):
     """    
     dic={}
     dic['NUMSYM'] = sum(so.ReduceAxes)
+    dic['SYMSTRING'] = so.desc
+    dic['SYMLEN'] = str(len(so.desc))
+
+    dic['REDUX'] = str(so.ReduceAxes[0])
+    dic['REDUY'] = str(so.ReduceAxes[1])
+    dic['REDUZ'] = str(so.ReduceAxes[2])
         
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

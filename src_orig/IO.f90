@@ -60,8 +60,14 @@ implicit none
   logical             :: Allowtransform = .false.
   integer             :: extraspwfs(8) = 0
   !-----------------------------------------------------------------------------
+  ! Encodings of the symmetry choices imposed by Hephaestos
   character(len=26), parameter :: SYM_CODE   = "$SYM_CODE"
   character(len=26), parameter :: TRANS_CODE = "$TRANS_CODE"
+  !-----------------------------------------------------------------------------
+  ! Characteristics of the calculation stored on the .wf file
+  integer       :: filenx, fileny, filenz, filenwn, filenwp, filepairing
+  integer       :: filenwt, fileneutrons, fileprotons, fileblocks(8)
+  real(KIND=dp) :: filedx
 
 contains
 
@@ -182,12 +188,6 @@ contains
     print 112, checkpointiter
 
     print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE
-!    if(BXLFIT .ne. '') then
-!        print 11, BXLFIT 
-!    endif
-!    if(COMBI .ne. '') then
-!        print 111, COMBI
-!    endif
     if(present(file_number)) then
       print 1111,  adjustl(trim(input_file)), file_number
     endif
@@ -202,27 +202,72 @@ contains
   
   subroutine Readwavefunction()
     !---------------------------------------------------------------------------
-    ! High-level routine to determine the starting point of a calculation.
-    ! a) Either initialize with a set of Nilsson orbitals
-    ! b) Read spwfs from a file 
+    ! High-level routine to determine the starting point of a calculation. 
+    !
+    ! There are two starting options
+    !
+    ! 1) Initialize in an EV8-style box with Nilsson orbitals
+    ! 2) Read a set of spwfs from file 
     ! 
-    ! Either then can be transformed into a set of spwfs with less symmetries
+    ! Which option is chosen based on the InputFileName keyword: it is is
+    !  'INIT' (case insensitive) then the code performs option 1). Otherwise
+    ! it will attempt to read said file. 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !
+    ! These inputs can then be amended by either
+    !
+    ! a) Breaking a symmetry, as coded by Hephaestos
+    ! b) By adding points in the box and/or adding spwfs
+    !    This option is currently limited to EV8-style calculations.
+    !
+    ! Options a) and b) cannot be combined in a single run, but can ofcourse 
+    ! be achieved by running the code twice. 
+    !
+    ! None of a) or b) is allowed if the user does not set the AllowTransform
+    ! flag to .true. This behavior is coded like that as a general safeguard.
     !---------------------------------------------------------------------------
-    integer :: oldblocks(8)
 
-    if(trim(to_upper(inputfilename)).eq.'INIT') then  
-      ! Generate starting point with Nilsson wavefunctions.
+    !---------------------------------------------------------------------------
+    ! Input options 
+    if(trim(to_upper(inputfilename)).eq.'INIT') then
+      ! Option 1) generate starting point with Nilsson wavefunctions.
       call iniwavefunctions()
-      guessgaps = .true.
+      guessgaps         = .true.
+      
+      if( SYM_CODE .ne. "0 1 001 000 10 000 010 111" ) then
+        ! Initialisation with nil8 wavefunctions is always EV8-style
+        ! Thus we signal that a symmetry transformation is needed
+        symtransfo_needed = .true.
+        fileblocks        = HFBlocks
+        filenx = nx ; fileny = ny ; filenz = nz
+      endif
     else
-      ! If not, start from a previous calculation.
+      ! Option 2) start from a previous calculation.
       call ReadTantalus(12, inputfilename)
       ! No need to guess gaps by default (unless the user asked for it)
     endif
-    
-    oldblocks = HFBlocks
-    call Transformspwfs( HFPsi, oldblocks, nx, ny, nz)
 
+    !---------------------------------------------------------------------------  
+    ! Transformation options
+    if(allowtransform ) then
+      if(  symtransfo_needed ) then 
+          ! Option a): break a symmetry and transform the spwfs appropriately
+          call  Transformspwfs( HFPsi, fileblocks, filenx, fileny, filenz)
+      else
+          ! Option b): add points and/or add spwfs
+          call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,    & 
+          &                                               fileblocks,extraspwfs)
+          call  GramSchmidt  
+          ! The added spwfs are added somewhat randomly, hence we add an extra
+          ! orthonormalisation in the mix.
+      endif
+    else
+      if(symtransfo_needed) then
+        print *, 'Symmetry transformation needed, but not allowed by user.'
+        stop
+      endif
+    endif
+    !---------------------------------------------------------------------------
     if(guessgaps) then
       ! Guess some pairing gaps if asked for (always if starting from INIT)
       call initializeGaps()
@@ -239,7 +284,7 @@ contains
     !   
     !   *) equality of (nx,ny,nz) between data and file
     !   *) equality of (nwn,nwp) between data and file
-    !
+    !   *) the symmetry encoding matches either SYM_CODE or TRANS_CODE
     !---------------------------------------------------------------------------
     ! 
     ! Things read from file. (Not yet implemented ones are indicated by *)
@@ -263,7 +308,7 @@ contains
     !        |   HFBgaps            
     ! CrankingInfo                                           (*)                      
     ! Potentials                                             
-    ! Moments                                                (*)
+    ! Moments                                                
     !
     !---------------------------------------------------------------------------    
     use functional
@@ -271,16 +316,11 @@ contains
     
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ifn
-
     character(len=20)            :: func_name_check
     character(len=26)            :: SYM_CODE_CHECK
-
     integer                      :: io, version
     logical                      :: exists
-    
-    integer       :: filenx, fileny, filenz, filenwn, filenwp,i, filepairing
-    integer       :: filenwt, fileneutrons, fileprotons, fileblocks(8), c
-    real(KIND=dp) :: filedx
+    integer       :: c,i 
     real(KIND=dp), allocatable :: filegaps(:,:), temp(:,:)
     
     1 format ('Number of mesh points does not correspond to file.', / &
@@ -324,9 +364,9 @@ contains
       read(Chan,iostat=io) SYM_CODE_CHECK
       
       if(SYM_CODE_CHECK .eq. SYM_CODE) then
-        transformation_needed = .false.
+        symtransfo_needed = .false.
       elseif(SYM_CODE_CHECK .eq. TRANS_CODE) then
-        transformation_needed = .true.
+        symtransfo_needed = .true.
       else
         print 3
         print 4, SYM_CODE 
@@ -461,40 +501,35 @@ contains
       endif
     endif
 
-    call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,        & 
-    &                                                   fileblocks,extraspwfs)
-    call  GramSchmidt  
-
     !---------------------------------------------------------------------------
     ! Assign correct reflection symmetries for the derivative routines. 
     ! Should be handled by HEPHAESTOS in the future though.
-    allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
-    do i=1, HFBlocks(1)
+    allocate(sx(4,filenwt), sy(4,filenwt), sz(4,filenwt))
+    do i=1, fileblocks(1)
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
         sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
     enddo
-    do i=HFBlocks(1) + 1,HFBlocks(1) + HFBlocks(3)
+    do i=fileblocks(1) + 1,fileblocks(1) + fileblocks(3)
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
         sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
-    do i=HFBlocks(1) + HFBlocks(3)+1,HFBlocks(1) + HFBlocks(3) +HFBlocks(5)
+    do i=fileblocks(1) + fileblocks(3)+1,fileblocks(1) + fileblocks(3) +fileblocks(5)
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
         sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
     enddo
-    do i=HFBlocks(1)+HFBlocks(3)+HFBlocks(5) + 1,                      &
-    &       HFBlocks(1)+HFBlocks(3)+HFBlocks(5) + HFBLocks(7)
+    do i=fileblocks(1)+fileblocks(3)+fileblocks(5) + 1,                      &
+    &       fileblocks(1)+fileblocks(3)+fileblocks(5) + fileblocks(7)
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
         sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
-
   end subroutine ReadTantalus
 
   subroutine WriteTantalus(chan, ofn, iter, iomsg)
