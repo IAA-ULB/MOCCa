@@ -450,6 +450,14 @@ def ProcessFunctional(fname, src, target, so):
         writing       = ''
         reading       = ''
         cleaning      = ''
+
+        #---------------------------------------------------------------------------
+        # First, figure out whether there is an antilinear, antihermitian symmetry
+        # that is conserved.
+        timelike = False
+        for g in so.generators:
+          if(not g.linear and not g.hermitian):
+            timelike = True
         
         #-----------------------------------------------------------------------
         # Generate the terms in the functional
@@ -485,7 +493,7 @@ def ProcessFunctional(fname, src, target, so):
         #-----------------------------------------------------------------------
         # Generate the fields of the single-particle hamiltonian
         (fielddec, fieldcalc, fieldwrite,fieldread, fieldclean) =              \
-                                                           GenerateFields(     )
+                                                              GenerateFields()
         declaration = declaration + fielddec   + '\n'
         writing     = writing     + fieldwrite 
         reading     = reading     + fieldread 
@@ -497,7 +505,7 @@ def ProcessFunctional(fname, src, target, so):
           #-------------------------------------------------------------------
           # Check if we need to symmetrize the action
           #-------------------------------------------------------------------
-          (left,right,coupling,cross) = ParseOperatorsField(field)
+          (left,right,coupling,cross) = ParseOperatorsField(field, timelike)
           #-------------------------------------------------------------------
           # Generate the expression for the application of the ordinary 
           # operator structure
@@ -507,25 +515,25 @@ def ProcessFunctional(fname, src, target, so):
               # Only symmetrize non-symmetric C's if asked for
               if(assume_locality == 1):
                   SkyrmeAction = SkyrmeAction +                          \
-                                      GenerateAction(field, 0)
+                                      GenerateAction(field, 0, so)
               else:
                   SkyrmeAction = SkyrmeAction +                          \
-                                                  GenerateAction(field, 1)
+                                                  GenerateAction(field, 1, so)
                   SkyrmeAction = SkyrmeAction +                          \
-                                                  GenerateAction(field,-1)
+                                                  GenerateAction(field,-1, so)
             else:
               # Always symmetrize non-symmetric D's
-              SkyrmeAction = SkyrmeAction + GenerateAction(field,+1)
-              SkyrmeAction = SkyrmeAction + GenerateAction(field,-1)
+              SkyrmeAction = SkyrmeAction + GenerateAction(field,+1, so)
+              SkyrmeAction = SkyrmeAction + GenerateAction(field,-1, so)
           else:
-              SkyrmeAction = SkyrmeAction + GenerateAction(field, 0)
+              SkyrmeAction = SkyrmeAction + GenerateAction(field, 0, so)
 
         #-----------------------------------------------------------------------
         # Generate the expressions for the actions of the pairing fields.
         PairingAction = ''
         for field in  Pairing_Fields_needed:
-          (left,right,coupling,cross) = ParseOperatorsField(field)
-          PairingAction =PairingAction + GenerateAction(field, 0)
+          (left,right,coupling,cross) = ParseOperatorsField(field, timelike)
+          PairingAction =PairingAction + GenerateAction(field, 0, so)
 
         #-----------------------------------------------------------------------
         # Now make sure all of the lines are not too long for compilation.

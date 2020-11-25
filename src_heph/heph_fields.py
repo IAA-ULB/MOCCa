@@ -61,7 +61,6 @@ def initfields():
 def GenerateFields():
     #---------------------------------------------------------------------------
     # Generate a list of fields based on list of terms in the functional. 
-    #
     #---------------------------------------------------------------------------
         
     global sumindices,tab
@@ -391,10 +390,20 @@ def GenerateFields():
 
     return(declaration, FIELDCALC, fieldwrite, fieldread, fieldclean)
 
-def GenerateAction(field, symmetrize):
+def GenerateAction(field, symmetrize, so):
     #---------------------------------------------------------------------------
+    # Generate the action of a field. 
     #
+    #    field       : name of the field, for example F_I_I
     #
+    #    symmetrize  : whether or not to generate a term for a symmetrised field  
+    #                  (-1) generate anti symmetric action 
+    #                       0.5 * ( F_L_R - F_R_L) 
+    #                  ( 0) generate action "as is"  
+    #                  (+1) generate symmetric action 
+    #                       0.5 * ( F_L_R + F_R_L) 
+    #
+    #   so           : a set of symmetry options 
     #
     #---------------------------------------------------------------------------
     
@@ -426,15 +435,24 @@ def GenerateAction(field, symmetrize):
                           +    tab + '! Action of $FIELD symmetrized: $SYM \n')
     
     #---------------------------------------------------------------------------
+    # First, figure out whether there is an antilinear, antihermitian symmetry
+    # that is conserved.
+    timelike = False
+    for g in so.generators:
+      if(not g.linear and not g.hermitian):
+        timelike = True
+
+    #---------------------------------------------------------------------------
     # Parse the field under consideration
-    (left,right,coupling,cross) = ParseOperatorsField(field)
+    (left,right,coupling,cross) = ParseOperatorsField(field, timelike)
+
     #---------------------------------------------------------------------------
     # If symmetrize is non-zero, change left <-> right and the couplings
     # accordingly
     if(symmetrize == -1 ):
         switch_field = field.split('_')
         switch_field = switch_field[0]+'_'+switch_field[2]+'_'+ switch_field[1]
-        (left,right,coupling,cross) = ParseOperatorsField(switch_field)
+        (left,right,coupling,cross) = ParseOperatorsField(switch_field,timelike)
     #---------------------------------------------------------------------------
     #Building the left and right operators
     operatordic = {}
@@ -752,10 +770,46 @@ def GenerateAction(field, symmetrize):
         # End of true_larg loop
     return (expression)
     
-def ParseOperatorsField(field):    
+def ParseOperatorsField(field, timelike):    
     #---------------------------------------------------------------------------
-    # Parse the operators that are used to construct the action of field from
-    # its name only.
+    # Parse the operators that are used to construct the action of field.
+    # This routine is very close to its analogue for the densities in 
+    # heph_densities.py, but has a subtle twist to it concerning calculations
+    # with conserved T or PT.
+    #---------------------------------------------------------------------------
+    #
+    # timelike indicates if there is a conserved antilinear, antihermitian 
+    # symmetry that can be used to simplify the calculation. 
+    #
+    # For ordinary fields, this has no impact. 
+    #
+    # For pairing fields however, this information is vital to generate 
+    # correct code. Without using any symmetry, a pairing density is represented
+    # here with an explicit time-reversal operator
+    #  
+    #   \tilde{\rho} = DP_L_R 
+    #   =\sum_{ij,s} \kappa_{ij} s \int d^3 r [L  \psi_j] (r,-s) [R \psi_i](r,s)
+    #   =\sum_{ij,s} \kappa_{ij}   \int d^3 r [TL \psi_j]^*(r,s) [R \psi]_i(r,s)
+    #
+    # so we could have written
+    #
+    #     DP_L_R => D_TL_R
+    #
+    # and hence, the corresponding field is 
+    #
+    #     FP_L_R => F_TL_R
+    #
+    # Now, pairing fields are only needed in a mean-field code when calculating 
+    # the pairing gaps. If a timelike symmetry is not conserved, their
+    # calculation can be achieved in exactly the same way as for ordinary
+    # fields. If a timelike symmetry is conserved however, we only calculate
+    # part of the pairing gaps, i.e. only gaps of the form
+    #
+    #                  Delta_{i \bar{j}}
+    #
+    # where both \bar{j} is the timelike partner of j, and both i and j range
+    # over only half of the basis. Hence, in that case
+    # 
     #---------------------------------------------------------------------------
     left  = ''
     right = '' 
@@ -773,10 +827,10 @@ def ParseOperatorsField(field):
     if(field[0] == 'G'):      
         right = 'C' + right
     
-    #
+    #---------------------------------------------------------------------------
     # There doesn't need to be an explicit time-reversal operator in the 
     # definition of the act of Delta
-    # 
+    #---------------------------------------------------------------------------
     
     #---------------------------------------------------------------------------
     # Find the coupling

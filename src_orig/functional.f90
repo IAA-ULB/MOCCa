@@ -810,9 +810,13 @@ $SKYRMEACTION
   function delta_action(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly)      &
   &                                                             result(deltapsi)
     !---------------------------------------------------------------------------
-    ! Logical indicating if the derivatives need to be calculated before
-    ! applying delta. If false, the derivatives are passed in. If True, the 
-    ! derivatives are not passed in and need to be calculated.
+    !
+    !---------------------------------------------------------------------------
+
+    ! onthefly:
+    !   Logical indicating if the derivatives need to be calculated before
+    !   applying delta. If false, the derivatives are passed in. If True, the 
+    !   derivatives are not passed in and need to be calculated.
     logical, intent(in)       :: onthefly 
     
     real(KIND=dp), intent(in)    :: psi(:,:)  
@@ -832,7 +836,8 @@ $SKYRMEACTION
     
     !---------------------------------------------------------------------------
     ! Zero the action of Delta. 
-    ! This is the place to include Coulomb pairing etc...
+    ! This is the place to include contributions to the pairing that should 
+    ! be coded manually
     allocate(deltapsi(mv, 4))
     deltapsi = 0.0
    
