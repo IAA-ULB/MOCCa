@@ -65,7 +65,7 @@ contains
 
   subroutine solvepairing_HFB(fermi, Bogoliubov, rho_pairing, kappa_pairing,   &
   &                           configmatrix, qpenergies,HFBmix, HFBmixtype,     &
-  &                            BlockType,Blockindices, blocklowest, blocked_qps)
+  &                     BlockType,Blockindices, blocklowest, blocked_qps, ifail)
 
     !---------------------------------------------------------------------------
     ! Driver routine for the solving of the HFB equations, represented in the 
@@ -90,6 +90,7 @@ contains
     ! Configuration for the blocking
     integer, intent(in)          :: Blockindices(:)
     integer, intent(in)          :: BlockType
+    integer, intent(out)         :: ifail
     character(len=2), intent(in) :: BlockLowest(:)
     integer, allocatable         :: neutron_block(:), proton_block(:)
     integer, allocatable         :: blocked_qps(:), p_blocked(:), n_blocked(:)
@@ -214,13 +215,13 @@ contains
     &              neutrons, configmatrix(  1:2*nwn),                          &
     &              Bogoliubov(1:2*nwn, 1:2*nwn),                               &
     &              qpenergies(1:nwn),    Fermi(1), maxhfbiter,                 &
-    &              blocktype, neutron_block, n_blocked)   
+    &              blocktype, neutron_block, n_blocked, ifail)   
 
     call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBsizes(5:8),       &
     &              protons, configmatrix(2*nwn+1:2*nwt),                       &
     &              Bogoliubov(2*nwn+1:2*nwt, 2*nwn+1:2*nwt),                   &
     &              qpenergies(nwn+1:nwt),Fermi(2), maxhfbiter,                 &
-    &              blocktype, proton_block, p_blocked)     
+    &              blocktype, proton_block, p_blocked, ifail)     
 
     ! 
     if(allocated(blocked_qps)) deallocate(blocked_qps)
@@ -612,7 +613,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
   end subroutine PairingMatrices
 
   subroutine FindFermi_secant(H, blocks, targetparticles, config, Bogo, Eqp,   & 
-            &              lambda, maxhfbiter, blocktype, blockconf, blocked_qp)
+            &       lambda, maxhfbiter, blocktype, blockconf, blocked_qp, ifail)
       !-------------------------------------------------------------------------
       ! Subroutine that diagonalizes the HFB hamiltonian (repeatedly) to find  
       ! the correct Fermi energy that fixes the average number of particles.
@@ -637,6 +638,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
       real(KIND=dp), intent(inout) :: lambda
       integer, intent(in)          :: blocks(4), maxhfbiter, blocktype
       integer, intent(in)          :: blockconf(:)
+      integer, intent(out)         :: ifail
       integer, allocatable         :: blocked_qp(:)
 
       real(KIND=dp)                :: df, dn(2), particles
@@ -648,7 +650,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
 
         particles = & 
         &   diagbyblock(H,blocks, config, Bogo,Eqp,lambda, blocktype,blockconf,&
-        &               blocked_qp)
+        &               blocked_qp, ifail)
         ! Return if we do not want to readjust the Fermi energy
         if(MaxHFBiter.eq.1) return
         
@@ -674,7 +676,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
   end subroutine FindFermi_secant
 
   function diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf,&
-  &                    blocked_qp) result(particles)
+  &                    blocked_qp, ifail) result(particles)
       !-------------------------------------------------------------------------
       ! Routine that diagonalizes, block by block, a HFB Hamiltonian that is 
       ! passed in. It does the low-level work for all the high-level routines
@@ -733,7 +735,8 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
         if(ifail.ne.0) then
           print *, 'WARNING: diagon failed in subroutine DiagByBlock.'
           print *, '         Problematic block B = ', B
-          stop
+          deallocate(A, eigen)
+          return
         endif
 
         Eqp(si+1:si+N) = eigen(sb+N+1:sb+2*N)
@@ -777,7 +780,7 @@ $TR   particles = 2 * particles
   end function diagbyblock
 
   subroutine FindFermi_Brent(H, blocks, targetparticles, config, Bogo, Eqp,    & 
-   &                       lambda, maxhfbiter, blocktype, blockconf, blocked_qp)
+   &                lambda, maxhfbiter, blocktype, blockconf, blocked_qp, ifail)
       !-------------------------------------------------------------------------
       ! Subroutine that diagonalizes the HFB hamiltonian (repeatedly) to find  
       ! the correct Fermi energy that fixes the average number of particles.
@@ -816,6 +819,7 @@ $TR   particles = 2 * particles
       real(KIND=dp), intent(inout) :: lambda
       integer, intent(in)          :: blocks(4), maxhfbiter, blocktype
       integer, intent(in)          :: blockconf(:)
+      integer, intent(out)         :: ifail  
 
       real(KIND=dp)                :: InitialBracket(2), FA, FB, N
       integer                      :: idir = 0 , idirsig = 1, FailCount
@@ -826,7 +830,7 @@ $TR   particles = 2 * particles
       ! STEP 1: set up an initial bracket
       !-------------------------------------------------------------------------
       N = diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf, &
-      &               blocked_qp)
+      &               blocked_qp, ifail)
       N = N - targetparticles
       ! Check if this guess for lambda is good enough
       if(abs(N).lt.pairing_prec) return
@@ -859,9 +863,9 @@ $TR   particles = 2 * particles
         &                 InitialBracket(idir) + idirsig * 0.01_dp*(FailCount+1)
 
         FA = diagbyblock(H,blocks,config,Bogo,Eqp,InitialBracket(1),blocktype, &
-        &                                                 blockconf, blocked_qp)
+        &                                          blockconf, blocked_qp, ifail)
         FB = diagbyblock(H,blocks,config,Bogo,Eqp,InitialBracket(2),blocktype, &
-        &                                                 blockconf, blocked_qp)
+        &                                          blockconf, blocked_qp, ifail)
         FA = FA - targetparticles ; FB = FB - targetparticles
 
         ! check if N(epsilon_F) is a monotonically growing function.
@@ -880,7 +884,9 @@ $TR   particles = 2 * particles
           print '(/," A = ", f13.8, "FA = ",1es12.4,              &
                &    " B = ", f13.8, "FB = ",1es12.4)',            &
                &     InitialBracket(1),FA,InitialBracket(2),FB 
-          stop 'FindFermiBrent: Search for InitialBracket failed.'
+          ifail = 1
+          return
+          !stop 'FindFermiBrent: Search for InitialBracket failed.'
         endif
         ! check if root is bracketed for isospin it after the update
         if( FA*FB .lt. 0.0_dp ) then 
@@ -940,7 +946,7 @@ $TR   particles = 2 * particles
     real(KIND=dp)                :: D , E, S , P  , Q , R 
     real(KIND=dp)                :: Num , Tol , XM 
     real(KIND=dp)                :: eps = 1.d-9
-    integer                      :: FailCount
+    integer                      :: FailCount, ifail
     logical                      :: Found
 
     A  = X1 ; B  = X2 
@@ -1023,7 +1029,7 @@ $TR   particles = 2 * particles
       ! particle number.
       !-------------------------------------------------------------------------
       Num = diagbyblock(H, blocks, config, Bogo,Eqp,B, blocktype,blockconf,    &
-      &                 blocked_qp)
+      &                 blocked_qp, ifail)
       FB  = Num - targetparticles
 
       !-------------------------------------------------------------------------
@@ -1242,7 +1248,7 @@ $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
   end subroutine PrintHFBconvergence
 
   subroutine Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,         &
-  &                                                     rhotransfo, kappatransfo)
+  &                                             rhotransfo, kappatransfo, ifail)
     !---------------------------------------------------------------------------
     ! a) Diagonalize  Rho
     ! b) Canonicalize Kappa
@@ -1254,10 +1260,12 @@ $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
     real(KIND=dp), intent(in)  :: kappa_pairing(nwt,nwt)
     real(KIND=dp), intent(out) :: rho_can(nwt), kappa_can(nwt)
     real(KIND=dp), intent(out) :: rhotransfo(nwt,nwt), kappatransfo(nwt,nwt)
-    
+ 
+    integer, intent(out) :: ifail
+   
     real(KIND=dp), allocatable :: tmp(:,:), work(:)
     
-    integer :: si,N, B, i, ifail, lwork
+    integer :: si,N, B, i, lwork
     
     !---------------------------------------------------------------------------
     ! a) Diagonalize rho
@@ -1284,7 +1292,8 @@ $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
       if(ifail.ne.0) then
         print *, 'WARNING: diagon failed in subroutine Canonical.'
         print *, '         Problematic block B = ', B
-        stop
+        deallocate(tmp)
+        return
       endif
 
       si = si + N

@@ -33,7 +33,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! These inputs control where the code will look for its input. Leaving them 
  ! empty will have the code rely on STDIN for input.
  integer(dp), intent(in), optional   :: file_number   
- character(11), intent(in), optional :: input_file 
+ character(26), intent(in), optional :: input_file 
  character(len=*), intent(in)        :: run_mode 
  character(len=43)                   :: mode_print
  character(len=26)                   :: symprint
@@ -241,24 +241,27 @@ subroutine ReachForWaterAndFood()
 
     8 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
 
-    integer :: iter, iprint
+    integer :: iter, iprint   
+    integer :: ifail
     logical :: ConvergenceAchieved
     ! Logical to see if any moments with projection are necessary
     logical :: projectpresent = .false.
     ! Message for the output of the code, useful for the Brussels group.
     character(len=99) :: iomsg = 'START'
 
-    ConvergenceAchieved = .false.  
+    ifail = 0
+
+    ConvergenceAchieved = .false.   
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
     ! Solve the pairing, with the current values of <h> and the pairing gaps.
-    call SolvePairing()
+    call SolvePairing(ifail)
     ! Derive all the single-particle wavefunctions
     call deriveHF()
 
     ! Calculate the initial densities.
-    call densit(SaveRho=.false.)
+    call densit(ifail,SaveRho=.false.)
     ! Construct the charge density on the (nx/ny/nz)-sized mesh.
     ! This was previously included in the Coulomb routines, but now needs to be 
     ! called separatedly, since the chargedensity is used for the calculation 
@@ -271,11 +274,12 @@ subroutine ReachForWaterAndFood()
     call calcFields(calcall=.false.)
     
     PairStabfactor = CompStabilisingFactor(PairDenEnergy)
-!    call CalcGaps(FermiEnergy, PairStabFactor)
+    call CalcGaps(FermiEnergy, PairStabFactor)
     ! Solve the pairing, with the current values of <h> and the pairing gaps.
-!    call SolvePairing()
-!    call CalcGaps(FermiEnergy, PairStabFactor)
-!    call SolvePairing()
+    call SolvePairing(ifail)
+
+    call CalcGaps(FermiEnergy, PairStabFactor)
+    call SolvePairing(ifail)
 
     call setBelyaevProcedure()
     call CalcEnergy(1)
@@ -320,7 +324,7 @@ subroutine ReachForWaterAndFood()
         ! Save      
         FermiHistory = FermiEnergy
         ! Solve pairing problem
-        call SolvePairing()
+        call SolvePairing(ifail)
 
         ! IF SOME CRANKING or blocking IS PRESENT
         call update_spwf_angmom()
@@ -332,7 +336,7 @@ subroutine ReachForWaterAndFood()
           ! Update the densities
           ! Note that this update is incorrect, as we do not want to perform a 
           ! set of derivatives
-          call densit(SaveRho=.true.)
+          call densit(ifail,SaveRho=.true.)
           call ConstructChargeDensity(ChargeDensity)
           
           call CalculateMoments()
@@ -344,7 +348,7 @@ subroutine ReachForWaterAndFood()
           call feasibleproject()
 
           ! Solve the pairing problem.
-          call SolvePairing()
+          call SolvePairing(ifail)
         endif
  
         ! Restore all the different derivatives.
@@ -352,9 +356,9 @@ subroutine ReachForWaterAndFood()
  
         ! Update the densities
         if(projectpresent) then 
-          call densit(SaveRho=.false.)
+          call densit(ifail,SaveRho=.false.)
         else
-          call densit(SaveRho=.true.)
+          call densit(ifail,SaveRho=.true.)
         endif
         call ConstructChargeDensity(ChargeDensity)
 
@@ -379,7 +383,16 @@ subroutine ReachForWaterAndFood()
         
         call CalcEnergy(iprint)
 
-        ! Check for convergence
+        ! Check for convergence or a failed calculation
+        if (ifail .ne. 0) then  
+          write(*,*) "ifail=", ifail  
+          iomsg               = 'MAXITER'  
+          ConvergenceAchieved = .true.  !end bad calculation
+          exit
+        else  
+          call Converged(ConvergenceAchieved)  
+        end if 
+
         call Converged(ConvergenceAchieved)
         if(convergenceAchieved) iprint = 1
         !-----------------------------------------------------------------------

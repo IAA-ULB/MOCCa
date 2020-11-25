@@ -88,11 +88,13 @@ $DECLARATION
     
 contains
 
-subroutine densit(SaveRho)
+subroutine densit(ifail, SaveRho)
     !---------------------------------------------------------------------------
     ! Calculate all of the densities. 
     ! If SaveRho=.false., do not save the previous values to history!
     !---------------------------------------------------------------------------
+    integer, intent(out) :: ifail
+
     integer      :: i, it, wave, wave2, B, N, si, N2
     real(KIND=dp):: weight
     logical      :: SaveRho
@@ -131,7 +133,7 @@ $ZEROING
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       call start_timer(T_den_can)
       call Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,           &
-      &               cantransfo,cancuttransfo)
+      &               cantransfo,cancuttransfo,ifail)
      
       ! Apply this transformation
       call ConstructCanonicalBasis(cantransfo)

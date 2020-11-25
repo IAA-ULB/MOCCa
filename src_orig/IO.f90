@@ -90,12 +90,13 @@ contains
     ! These inputs control where the code will look for its input. Leaving them 
     ! empty will have the code rely on STDIN for input.
     integer(dp), intent(in), optional   :: file_number   
-    character(11), intent(in), optional :: input_file 
+    character(26), intent(in), optional :: input_file 
 
     logical :: exists
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
-    &             sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs
+    &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
+    &           Counter, run
     
     if(present(file_number)) then
       inquire(file=input_file, exist=exists)
@@ -154,15 +155,15 @@ contains
     &          '  nwp = ', i5 )
    99 format ( '  Nilsson initialization with hom = (', 3(f7.3) ,')')
    10 format ( ' IO information', / &
-    &          '  inputfilename  =', a20, / &
-    &          '  outputfilename =', a20)
+    &          '  inputfilename  =', a32, / &
+    &          '  outputfilename =', a32)
    11 format ( '  Filename for other output (not written if empty): ', /     &
              & '    BXL output     = ', a40, / &
              & '    DEN file       = ', a40, / &
              & '    POT file       = ', a40, / &
              & '    SPHF file      = ', a40, / &
              & '    SPCAN file     = ', a40) 
- 1111 format ( '    Input data     = ', a20, / &
+ 1111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
   112 format ( '  Checkpointiter =', i10)
    12 format ( ' Convergence required', / &
@@ -392,6 +393,11 @@ contains
     allocate(HFPsi(filenx*fileny*filenz,4, filenwn+filenwp))
     allocate(spenergies(filenwn+filenwp))
     allocate(dispersions(filenwn+filenwp))
+
+    if (allocated(rho_can)) then 
+      deallocate(rho_can)        
+    end if                       
+
     allocate(rho_can(filenwn + filenwp))
     
     read(chan,iostat=io) spenergies, dispersions    
@@ -428,6 +434,10 @@ contains
         end select
     case(2)
         ! HFB
+        if (allocated(filegaps)) then 
+          deallocate(filegaps)        
+        end if                       
+
         allocate(filegaps(filenwt, filenwt)) 
         allocate(kappa_pairing(filenwt, filenwt)) 
 
@@ -466,8 +476,10 @@ contains
             BCSgaps(i) = filegaps(i,i)
           enddo
         case(2)
-          ! Simply copy the gaps for now; if a transformation is needed we 
-          ! will deal with it elsewhere
+          ! Simply copy the gaps for now
+          if (allocated(HFBGaps)) then   !EOedit
+            deallocate(HFBGaps)        !EOedit
+          end if                       !EOedit
           allocate(HFBGaps(filenwt, filenwt)) 
           HFBGaps = filegaps(1:filenwt, 1:filenwt)  
         end select
@@ -686,7 +698,11 @@ contains
   subroutine Brussels_output(iter, iomsg)
     !---------------------------------------------------------------------------
     ! Write an extra file for use in the Brussels fitting protocol to
-    !     Out/zXXXnXXX.out   
+    !     zXXXnYYYnumNNNrunRRR.out"
+    ! where XXX = proton number
+    !       YYY = neutron number
+    !       NNN = counter
+    !       RRR = run counter
     !
     ! It contains on a single line
     !
@@ -730,8 +746,9 @@ contains
     r2  =>FindMoment(-2,0,.false., Q22) ! The rms radius is associated with l=-2
 
     ! Write the filename
-    write(filedone,'(a,"z",i3.3,"n",i3.3,".out")')  trim(adjustl(BXLFIT)),     &
-    & int(protons),int(neutrons)
+    write(filedone,'(a,"z",i3.3,"n",i3.3,"num",i3.3,"run",i3.3".out")'),       &   
+    &     trim(adjustl(BXLFIT)),int(protons),int(neutrons),int(counter),int(run) 
+
   
     open(unit=10,file=filedone)
 
@@ -752,7 +769,7 @@ contains
       endif
     end select
   
-    write(10,'(2i4,16(1x,f15.6), i6)', advance='NO')  &
+    write(10,'(2i4,16(1x,f35.6), i6)', advance='NO')  &
     &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi,  &
     &     sqrt(rms/protons),  B(:), Rotcorrection,                & 
     !   First neutron gaps

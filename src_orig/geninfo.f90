@@ -75,9 +75,8 @@ module GenInfo
   real(KIND=dp) :: energy_prec = 1d-11, moment_prec = 1d-5, disp_prec = 1d-5
   real(KIND=dp) :: pairing_prec = 1d-9
   !---------------------------------------------------------------------------
-  ! Symmetry options
-  character(len=$SYMLEN) :: SYMSTRING
-  integer, parameter     :: reduX =  $REDUZ, reduY =  $REDUY, reduZ = $REDUZ
+  ! Counter variables for the MPI implementation
+  integer :: Counter = 1, Run = 1
 
 contains
 

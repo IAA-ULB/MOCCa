@@ -132,7 +132,7 @@ module pairing
  !                   one MINUS the number of particles in a free gas at the 
  !                   same chemical potential.
  ! 2) Nogas        : the code is only allowed to occupy the bound states.
- integer       :: particles_in_gas = 0
+ integer(sp)   :: particles_in_gas = 0
  real(KIND=dp) :: ngas(2)
  !------------------------------------------------------------------------------
  ! Whether or not to guess some pairing gaps when starting the code.
@@ -209,7 +209,12 @@ $FORBIDBCS endif
     if(BlockNumber.ne.0) then
         allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
         allocate(BlockLowest(BlockNumber))  ; BlockLowest  = ' ' 
-        read(unit=*, nml=Indices)
+
+        if(present(file_number)) then
+          read(unit=file_number, NML=Indices)
+        else
+          read(unit=*, NML=Indices)
+        endif  
     endif
 
     !---------------------------------------------------------------------------
@@ -416,11 +421,12 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     end select  
   end subroutine initializeGaps
   
-  subroutine SolvePairing
+  subroutine SolvePairing(ifail)
     !---------------------------------------------------------------------------
     ! Master routine for the solving of the pairing equations.
     !---------------------------------------------------------------------------
     use parameterization, only : hbm
+    integer, intent(out)       :: ifail
 
     call start_timer(T_pairing)
 
@@ -478,7 +484,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       ! Find the Fermi energy
       call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
       &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
-      &                     BlockType, Blockindices, blocklowest, blocked_qps)
+      &                BlockType, Blockindices, blocklowest, blocked_qps, ifail)
     end select
 
     !---------------------------------------------------------------------------
