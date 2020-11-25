@@ -109,7 +109,6 @@ contains
       si = 0
       sb = 0
       do B = 1,8
-        print *, B, blocks(B)
         N = blocks(B) ; if(N .eq. 0) cycle
         do wave=1,N
           sx(:,sb + wave) = tempsx(:,si+wave)

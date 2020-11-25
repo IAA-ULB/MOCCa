@@ -14,10 +14,12 @@ module GenInfo
   ! 
   !   NUMSYM   : $NUMSYM
   !     Number of spatial symmetries, needed to calculate the volume element dv.
+  !
   !   SYMSTRING: $SYMSTRING
   !   SYMLEN   : $SYMLEN
   !     String detailing the generators of the single-particle group desired.
   !     Only used for printing and human inspection.
+  !
   !   REDUX    : $REDUX
   !   REDUY    : $REDUY
   !   REDUZ    : $REDUZ
@@ -112,6 +114,41 @@ contains
     
     call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid)
   end subroutine ReadGenInfo
+
+  function vector_product( mu ) result(indices)
+    !---------------------------------------------------------------------------
+    ! Function that returns the indices of the vector product with index mu
+    ! meaning that in the expression 
+    ! 
+    !          (v1 x v2)_mu  = sum_(nu kappa) eps_{mu nu kappa} v1_nu v2_kappa
+    !   
+    ! It returns the indices of v1 and v2 on the rhs of this equation with the 
+    ! positive Levi-Civita symbol. 
+    !
+    ! Hence, we can write
+    !       i = indices(1)
+    !       j = indices(2)
+    !       (v1 x v2)_mu =  v1_i v2_j - v1_j v2_i
+    !---------------------------------------------------------------------------
+    integer :: indices(2)
+    integer, intent(in) :: mu
+        
+    select case(mu)
+    case(1)
+      ! (v1 x v2)_x = v1_y v2_z - v1_z v2_y
+      indices = (/ 2, 3 /)
+    case(2)
+      ! (v1 x v2)_y = v1_z v2_x - v1_x v2_z
+      indices = (/ 3, 1 /)
+    case(3)
+      ! (v1 x v2)_z = v1_x v2_y - v1_y v2_z
+      indices = (/ 1, 2 /)
+    case DEFAULT
+      print *, 'Unknown value for mu in vector_prod.'
+      stop
+    end select
+
+  end function vector_product
   
   subroutine inimesh(x,y,z, mx, my, mz, mesh)
     !---------------------------------------------------------------------------

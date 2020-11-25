@@ -428,7 +428,7 @@ def ProcessParameterization(fname, src, target):
                 for line in template:
                     generated.write(Template(line).substitute(dic))  
 
-def ProcessFunctional(fname, src, target):
+def ProcessFunctional(fname, src, target, so):
         #-----------------------------------------------------------------------
         # Master routine calling the other ones to generate a functional based
         # on the parsing done before.
@@ -572,7 +572,8 @@ def ProcessFunctional(fname, src, target):
         dic['WRITEPOTENTIALS']= writing
         dic['READPOTENTIALS'] = reading
         dic['CLEANING']       = cleaning
-
+  
+        
         if(derivative_order == 1):
           dic['N2'] = ' '    
           dic['N3'] = '!'
@@ -582,6 +583,18 @@ def ProcessFunctional(fname, src, target):
         elif(derivative_order == 3):
           dic['N2'] = '!'
           dic['N3'] = ' '
+
+        # Checking if there is an antilinear, antihermitian symmetry
+        # that stops us from cranking
+        timelike = False
+        for g in so.generators:
+          if(not g.linear and not g.hermitian): 
+            timelike = True
+
+        if(timelike):
+          dic['NTR'] = '!'
+        else:
+          dic['NTR'] = ''
         
         with open(src+fname, 'r') as template:
                 with open(target+fname, 'w') as generated:

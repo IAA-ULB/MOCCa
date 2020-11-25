@@ -274,7 +274,6 @@ subroutine ReachForWaterAndFood()
     call CalcGaps(FermiEnergy, PairStabFactor)
     ! Solve the pairing, with the current values of <h> and the pairing gaps.
     call SolvePairing()
-
     call CalcGaps(FermiEnergy, PairStabFactor)
     call SolvePairing()
 
@@ -293,13 +292,14 @@ subroutine ReachForWaterAndFood()
 
     ! Update the angular momentum information of the spwfs
     call update_spwf_angmom()
+    call updateAM 
 
     ! Initial printout
     call printSpwfs
     call printQps
     call printallmoments
     call PrintMomentsofInertia
-
+    call printcranking  
     call printpairing(pairstabfactor)
     call PrintEnergy 
 

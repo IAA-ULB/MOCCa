@@ -25,6 +25,7 @@ from src_heph.heph_pairing       import ProcessHFB, ProcessHartreeFock
 from src_heph.heph_pairing       import ProcessPairing
 from src_heph.heph_transform     import ProcessTransform
 from src_heph.heph_IO            import ProcessIO
+from src_heph.heph_cranking      import ProcessCranking
 
 def preprocess(fname, src, target, so , oldso):
     """
@@ -74,7 +75,7 @@ def preprocess(fname, src, target, so , oldso):
         ProcessParameterization(fname, src, target)
         return
     if(fname=='functional.f90'):
-        ProcessFunctional(fname, src, target)
+        ProcessFunctional(fname, src, target,so)
         return
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -141,7 +142,7 @@ def preprocess(fname, src, target, so , oldso):
         ProcessDensities(fname, src, target)
         return
     if(fname=='cranking.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessCranking(fname, src, target, so)
         return
         
 

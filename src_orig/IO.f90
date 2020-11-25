@@ -120,6 +120,7 @@ contains
     endif
     
     call readmomentdata(file_number)
+    call readcranking(file_number)
 
     if(present(file_number)) then
       close(unit=file_number)

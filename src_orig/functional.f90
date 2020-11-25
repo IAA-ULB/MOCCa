@@ -25,6 +25,7 @@ module functional
  use pairing
  use timing
  use transform
+ use Cranking
 
  implicit none
  
@@ -696,6 +697,13 @@ $CALCFIELDS
         ! Add the contribution from the constraints on the electric multipole 
         ! moments. 
         F_I_I =  F_I_I + Constraint_I_I
+
+        !-----------------------------------------------------------------------
+        ! Add the contribution of a cranking constraint to the 
+        !    F_I_S and G_I_N
+        ! fields
+$NTR    F_I_S = F_I_S + crank_spin_potential()     
+$NTR    G_I_N = G_I_N + crank_current_potential() 
     endif
 
     !---------------------------------------------------------------------------
@@ -873,9 +881,12 @@ $EREAR
         SpwfEnergy = SpwfEnergy  + sum(COMCorrection(2,:))  
     endif
     
-    !Subtract contribution by constraints
+    ! Subtract contribution by multipole constraints
     SpwfEnergy = SpwfEnergy - sum(Constraint_I_I * D_I_I)*dv/2.0_dp
-    
+
+    ! Subtract contribution by cranking constraints
+    SpwfEnergy = SpwfEnergy - sum(crankenergy)/2.0_dp
+
     ! Add the pairing energy (with the stabilisation)
     if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
       SpwfEnergy = SpwfEnergy + sum(PairdenE_stab)

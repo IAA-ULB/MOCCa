@@ -273,16 +273,20 @@ $FORBIDBCS endif
    11 format ('    Blocklowest  = ', 20(1x, a2))
    12 format ('    BlockIndices = ', 20i3)
 
+    character(len=60) :: ptreat
 
     print 1
 
     select case (pairingtype)
     case(0)
-        print 2, 'Hartree-Fock (HF)'
+        ptreat = 'Hartree-Fock (HF)'
+        print 2, adjustl(ptreat)
     case(1)
-        print 2, 'Bardeen-Cooper-Schrieffer (HF+BCS)'
+        ptreat = 'Bardeen-Cooper-Schrieffer (HF+BCS)'
+        print 2, adjustl(ptreat)
     case(2)
-        print 2, 'Hartree-Fock-Bogoliubov (HFB)'
+        ptreat = 'Hartree-Fock-Bogoliubov (HFB)'
+        print 2, ptreat
         print 21, adjustl(FermiSolver)
     end select
 
