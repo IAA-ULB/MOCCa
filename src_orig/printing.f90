@@ -34,9 +34,6 @@ contains
     integer       :: wave,k
     integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp) :: p, Jx, Jy, Jz, JJ
-
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! HFBasis
   
     ! Order the spwfs according to growing energy
     ProtonOrder = OrderSpwfsISO(+1)
@@ -157,8 +154,6 @@ contains
         sb = sb + 2*N
     enddo
     print 11
-
-
   end subroutine printqps
-  
+
 end module

@@ -129,6 +129,23 @@ contains
     crankenergy = - omega * TotalAngMom    
   end subroutine updateAM
 
+  subroutine printcranking_init
+    !---------------------------------------------------------------------------
+    ! Print information on the cranking constraints imposed on the calculation
+    ! at the start of the program.
+    !---------------------------------------------------------------------------
+    1 format ( 29('-'), ' Cranking information ', 29('-'))
+    2 format ( ' Cranking frequencies ', /, & 
+    &          '    Omega_X = ', f15.3, /,  &
+    &          '    Omega_Y = ', f15.3, /,  &
+    &          '    Omega_Z = ', f15.3) 
+
+    print 1
+    print 2, Omega
+        
+
+  end subroutine printcranking_init
+
   subroutine PrintCranking
     !---------------------------------------------------------------------------
     ! Prints all kinds of information about the expectation value of the 

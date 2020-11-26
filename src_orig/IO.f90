@@ -197,6 +197,7 @@ contains
     call printevolution
     call printscfiteration
     call printpairing_init
+    call printcranking_init
     call printfunctional  
     
   end subroutine PrintInput
@@ -438,7 +439,6 @@ contains
 
         if(io.ne.0) then
           rewind(chan)
-          print *, 'REWINDING'
           do c=1,15
                 read(chan, iostat=io)
           enddo
@@ -457,12 +457,14 @@ contains
           ! Do nothing
         case(1)
           ! Use the diagonal HFBgaps for the BCSgaps
+          ! If a transformation is needed we will deal with it elsewhere
           allocate(BCSgaps(filenwt)) 
           do i=1, filenwt
             BCSgaps(i) = filegaps(i,i)
           enddo
         case(2)
-          ! Simply copy the gaps for now
+          ! Simply copy the gaps for now; if a transformation is needed we 
+          ! will deal with it elsewhere
           allocate(HFBGaps(filenwt, filenwt)) 
           HFBGaps = filegaps(1:filenwt, 1:filenwt)  
         end select
@@ -479,7 +481,6 @@ contains
     !---------------------------------------------------------------------------
     ! Potentials                                               
     call readpotentials(chan, filenx,fileny,filenz)
-
     !---------------------------------------------------------------------------
     ! Multipole moment information                             
     io = 0
@@ -501,7 +502,6 @@ contains
           stop
       endif
     endif
-
     !---------------------------------------------------------------------------
     ! Assign correct reflection symmetries for the derivative routines. 
     ! Should be handled by HEPHAESTOS in the future though.

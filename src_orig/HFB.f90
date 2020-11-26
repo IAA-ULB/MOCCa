@@ -97,7 +97,7 @@ contains
     ! Quantities for the HFB hamiltonian
     real(KIND=dp)              :: sphamil(nwt,nwt), HFBHamil(2*nwt, 2*nwt)
     
-    integer                     :: si, sb, N, B,  wave1, it, i, np, nn
+    integer                     :: si, sb, N, N2, B,  wave1, it, i, np, nn
     integer                     :: n_ind, p_ind, NB
     real(KIND=dp), allocatable :: chi(:,:)
     !-----------------END OF DECLARATIONS --------------------------------------
@@ -175,13 +175,15 @@ contains
     end select
 
     !---------------------------------------------------------------------------
-    ! a) We construct the HFB-hamiltonian in every block. 
+    ! a) We construct the HFB-hamiltonian for every block. 
+    !    We pass in everything to the routine by PAIRS of blocks
     sphamil = 0
     si      = 0 ; sb = 0
-    do B=1,8
-      N = HFBlocks(B) ;  if(N .eq. 0) cycle 
-
-      do wave1=1,N
+    do B=1,8,2
+      N = HFBlocks(B)     ! Size of the first partner block
+      N2 = HFBlocks(B+1)  ! Size of the second partner block
+      
+      do wave1=1,N+N2
         sphamil(si+wave1,si+wave1) = spenergies(si+wave1)
       enddo
 
@@ -190,16 +192,26 @@ contains
         stop  
       endif
 
-$TR      HFBHamil(sb+1:sb+2*N, sb+1:sb+2*N) = ConstructHFBHamil(                  & 
-$TR      &               sphamil(si+1:si+N,si+1:si+N),HFBgaps(si+1:si+N,si+1:si+N))  
+      HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
+      &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
+      &                           HFBgaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)  
 
-$NTR      HFBHamil(sb+1:sb+2*N, sb+1:sb+2*N) = ConstructHFBHamil(                  & 
-$NTR      &               sphamil(si+1:si+N,si+1:si+N),HFBgaps(si+1:si+N,si+N+1:si+2*N))  
-
-      
-      si = si +   N
-      sb = sb + 2*N
+      si = si +   N +   N2
+      sb = sb + 2*N + 2*N2
     enddo
+
+!    si = 0
+!    do B=1,8
+!      N = HFBlocks(B)
+!      print *, 'GAPS in block ', B, N, N2, si
+!      do wave1=1, 2*N
+!            print ('(99f10.3)'), HFBhamil(si+wave1,si+1:si+2*N)
+!      enddo
+!      print *
+!      si = si + 2*N
+!    enddo
+
+!    stop
     !---------------------------------------------------------------------------
     ! b) We repeatedly diagonalize the matrix to find a suitable Fermi energy, 
     !    for every isospin. 
@@ -962,28 +974,41 @@ $TR   particles = 2 * particles
     Lambda    = B ; particles = FB
   end subroutine BrentBisection
 
-  function ConstructHFBHamil(sphamil, gaps) result(H)
+  function ConstructHFBHamil(sphamil, gaps, N, N2) result(H)
     !---------------------------------------------------------------------------
-    ! Construct the HFB hamiltonian
+    ! Construct the HFB hamiltonian, using the single-particle hamiltonian 
+    ! and the pairing gaps. What should be passed in is the sphamil and the 
+    ! gaps in TWO blocks connected by a time-reversal-like symmetry, with 
+    ! sizes N and N2.
     !---------------------------------------------------------------------------
-    
-    real(KIND=dp), intent(in) :: sphamil(:,:), gaps(:,:)
+    real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:)
     real(KIND=dp), allocatable  :: H(:,:)
-    integer :: N,i
-    
-    N = size(sphamil,1)
-    allocate(H(2*N,2*N)) ; H = 0
+    integer, intent(in)         :: N, N2
+    integer                     :: T
 
-    H(1:N, 1:N)         =  sphamil
-    H(N+1:2*N, N+1:2*N) = -sphamil
-    
-    H(1:N, N+1:2*N)     =  gaps
-    H(N+1:2*N, 1:N)     =  gaps 
+    T = N + N2
+    allocate(H(2*T,2*T)) 
+    H = 0 ; 
 
-    do i=1, 2*N
-        print ('(99f10.3)'), H(1:2*N, i)
-    enddo
-    print *
+    !---------------------------------------------------------------------------
+    ! SP hamil
+    ! Block 1
+    H(  1:N   ,  1:N)    = sphamil(  1:N   ,   1:N)
+    H(N+1:N+N2,N+1:N+N2) =-sphamil(N+1:N+N2, N+1:N+N2) 
+                                        ! complex conjugation here in the future
+    ! Block 2
+    H(N+  N2+1:  N+2*N2,N+  N2+1:  N+2*N2)   = sphamil(N+1:N+N2,N+1:N+N2)
+    H(N+2*N2+1:2*N+2*N2,N+2*N2+1:2*N+2*N2)   =-sphamil(  1:N   ,   1:N)
+                                        ! complex conjugation here in the future
+    !---------------------------------------------------------------------------
+    ! Gaps
+    ! Block 1
+    H(  1:N   ,N+1:2*N)  = gaps(  1:N   , N2+1:N2+N)
+    H(N+1:2*N ,  1:N  )  = gaps(  1:N   , N2+1:N2+N)
+
+    H(2*N+1:2*N+N2,2*N+N2+1:2*N+2*N2) = gaps(N+1:N+N2, 1:N2)
+    H(2*N+N2+1:2*N+2*N2,2*N+1:2*N+N2) = gaps(N+1:N+N2, 1:N2)
+
   end function ConstructHFBHamil 
 
   subroutine calcHFBgaps(Fermi, stabfactor)

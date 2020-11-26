@@ -16,7 +16,9 @@ module transform
  !   *) Change the number of mesh points in any direction 
  !   *) Change the mesh constant dx  (not yet implemented)
  !   *) Break a set of symmetries
- !
+ !         => transformation of the spwfs
+ !         => transformation of the densities (NOT IMPLEMENTED YET)
+ !         => transformation of the pairing gaps
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! Hephaestos keywords
  ! 
@@ -44,9 +46,10 @@ contains
     integer, intent(in)                       :: oldnx, oldny, oldnz
     real(KIND=dp), allocatable                :: temp(:,:,:), tempe(:)
     real(KIND=dp), allocatable                :: tempd(:), tempr(:)
+    real(KIND=dp), allocatable                :: tempgaps(:,:)
     integer, allocatable                :: tempsx(:,:), tempsy(:,:), tempsz(:,:)
 
-    integer  :: wave, N, B, si, sb,i
+    integer  :: wave, N, B, si, sb,i, wave2
 
     if(.not. allocated(rho_can)) then
         ! There is one case where this array might not be allocated upon entry
@@ -67,9 +70,11 @@ contains
       si = 0
       sb = 0
       do B = 1,8
-        ! Loop over the blocks.
+        !-----------------------------------------------------------------------
+        ! Loop over the blocks. 
+        !- - - - - - - - - - - - 
         ! Note that blocks = 2,4,6,8 are always of zero size in this loop, as we 
-        ! are breaking the antilinear conserved symmetry
+        ! are breaking the antilinear, anithermitian conserved symmetry
         N = blocks(B); if(N .eq. 0) cycle
    
         ! Copy the wavefunctions that were already in storage
@@ -94,14 +99,15 @@ contains
         si = si +   N
         sb = sb + 2*N
       enddo
-     
-      ! Double the enumeration of the blocks
+      !-------------------------------------------------------------------------
+      ! Create the second block in every pair
       HFBlocks(1) = blocks(1) ; HFBlocks(2) = blocks(1)
       HFBlocks(3) = blocks(3) ; HFBlocks(4) = blocks(3)
       HFBlocks(5) = blocks(5) ; HFBlocks(6) = blocks(5)
       HFBlocks(7) = blocks(7) ; HFBlocks(8) = blocks(7)
 
-      ! And now we determine the signs of the reflections
+      !-------------------------------------------------------------------------
+      ! And now we determine the signs of the reflections of the spwfs
       tempsx = sx ; tempsy = sy ; tempsz = sz
       deallocate(sx, sy, sz)
       allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
@@ -119,8 +125,37 @@ contains
           sy(:,sb + N + wave) =   tempsy(:,si+wave)
           sz(:,sb + N + wave) = - tempsz(:,si+wave)
         enddo
-        sb = sb + 2 * N
         si = si +     N
+        sb = sb + 2 * N
+      enddo
+      !-------------------------------------------------------------------------
+      ! Transformation of the pairing gaps
+      tempgaps = HFBgaps
+
+      deallocate(HFBgaps) ; allocate(HFBgaps(nwt, nwt)) ; HFBgaps = 0
+
+      si = 0  ; sb = 0
+      do B = 1,8
+        N = blocks(B) ; if(N .eq. 0) cycle
+        do wave=1,N
+          do wave2=1,N
+            HFBgaps(sb + wave    , sb + wave2 + N)  = tempgaps(si+wave,si+wave2)
+            HFBgaps(sb + wave + N, sb + wave2    )  =-tempgaps(si+wave,si+wave2)
+          enddo
+        enddo
+
+!        print *, 'Gaps on file ', B, N, si
+!        do wave=1,N
+!          print ('(99f10.3)'), tempgaps(si+wave, si+1:si+N)
+!        enddo
+!        print *
+!        print *, 'Gaps in block ', B, N, si
+!        do wave=1,2*N
+!          print ('(99f10.3)'), HFBgaps(sb+wave, sb+1:sb+2*N)
+!        enddo
+!        print *
+        si = si +   N
+        sb = sb + 2*N
       enddo
 
       ! Clean up

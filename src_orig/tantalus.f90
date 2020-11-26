@@ -271,11 +271,11 @@ subroutine ReachForWaterAndFood()
     call calcFields(calcall=.false.)
     
     PairStabfactor = CompStabilisingFactor(PairDenEnergy)
-    call CalcGaps(FermiEnergy, PairStabFactor)
+!    call CalcGaps(FermiEnergy, PairStabFactor)
     ! Solve the pairing, with the current values of <h> and the pairing gaps.
-    call SolvePairing()
-    call CalcGaps(FermiEnergy, PairStabFactor)
-    call SolvePairing()
+!    call SolvePairing()
+!    call CalcGaps(FermiEnergy, PairStabFactor)
+!    call SolvePairing()
 
     call setBelyaevProcedure()
     call CalcEnergy(1)
@@ -302,7 +302,7 @@ subroutine ReachForWaterAndFood()
     call printcranking  
     call printpairing(pairstabfactor)
     call PrintEnergy 
-
+    stop
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
