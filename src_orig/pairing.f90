@@ -387,10 +387,15 @@ $FORBIDBCS endif
   
       HFBGaps = 0.0
       si = 0 
-      do B= 1,8
-        N = HFBlocks(B)
+      do B= 1,8,2 ! Loop over only half of the blocks
+        N = HFBlocks(B) ; if(N.eq.0) cycle
         do wave=si+1,si+N
-          do wave2=si+1,si+N
+             !------------------------------------------------------------------
+             ! If there is a conserved time-like symmetry, then we store only
+             ! half of the gaps, see HFB.f90
+$TR          do wave2=si+1,si+N
+$NTR          do wave2=si+N+1,si+2*N
+             !------------------------------------------------------------------
             if(allocated(kappa_pairing)) then
               ! We've found a kappa on file and can use it to guess better 
               ! signs and sizes
@@ -403,6 +408,7 @@ $FORBIDBCS endif
             else
               HFBgaps( wave, wave2) = 0.5
             endif
+$NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
           enddo 
         enddo
         si = si + N
@@ -466,9 +472,8 @@ $FORBIDBCS endif
         allocate(Bogoliubov(2*nwt,2*nwt))  ; Bogoliubov    = 0.0
       endif
 
-      if(.not. allocated(HFBsizes)) then
-        call inithfb
-      endif
+      ! We just do this every time for safety
+      call inithfb
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
       call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&

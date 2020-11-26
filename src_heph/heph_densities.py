@@ -241,7 +241,7 @@ def initdensities():
     TR.signature_z  = np.array([-1])
     TR.name         = 'T'
     
-def ProcessDensities(fname, src, target):
+def ProcessDensities(fname, src, target, so):
     """
      Master routine calling the other routines based on a list of densities.
      Also prints output.
@@ -281,7 +281,7 @@ def ProcessDensities(fname, src, target):
 
         # Summation with leftwf = rightwf
         (e,dec,ini,der,zeroi,cleani)  = \
-        GenDensityExpression(Densities_needed[i],deriv_needed[i], 'wave', 'wave')
+        GenDensityExpression(Densities_needed[i],deriv_needed[i],'wave','wave',so)
         print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
         Declaration    = Declaration    + '\n' + dec
@@ -291,10 +291,10 @@ def ProcessDensities(fname, src, target):
           BCSExpression = BCSExpression + '\n' + e
           # But we also need the HFB expression 
           # So we recall the routine with different 'wave' indices
-          # This summation is blokwise, hence the 'si+'
+          # This summation is blockwise, hence the 'si+'
           (e,dec,ini,der,zeroi,cleani)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],\
-                                                          'si+wave2', 'si+wave')
+                                                      'si+wave2', 'si+wave', so)
           HFBExpression = HFBExpression + '\n' + e
         else:
           Expression    = Expression     + '\n' + e
@@ -321,10 +321,15 @@ def ProcessDensities(fname, src, target):
             for line in template:
                 generated.write(Template(line).substitute(dic))  
 
-def ParseOperators(density):    
-    #---------------------------------------------------------------------------
-    # Parse the operators that are used to construct a density from its name.
-    #---------------------------------------------------------------------------
+def ParseOperators(density, timelike):    
+    """    
+     Parse the operators that are used to construct a density from its name.
+     
+     density  :  name of the density, for example D_N_N
+     timelike :  logical indicating if there is an antilinear, antihermitian 
+                 symmetry that is conserved. If so, the pairing densities get
+                 an EXTRA T on the left, on top of the one they already have.
+    """
     left  = ''
     right = '' 
 
@@ -348,9 +353,10 @@ def ParseOperators(density):
     if('P' in density):
         # Add a timereversal operator on the left for pairing densities
         left  = left + 'T'
-        TimeReversal = 1
-        if(TimeReversal == 1):
-            left = left + 'T'
+        # If however, an antilinear, antihermitian symmetry is conserved, we 
+        # add an EXTRA time-reversal operator, ending in a net overall sign.
+        if(timelike): 
+          left  = left + 'T'
     #---------------------------------------------------------------------------
     # Find the coupling over the sumindices
     coupling  = []
@@ -387,7 +393,7 @@ def ParseOperators(density):
 
     return(der, lap, left, right, coupling, cross)
 
-def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
+def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
     #---------------------------------------------------------------------------
     # Generate the following strings 
     #       (Expression, Declaration, Initialisation, Derivation, Zeroing)
@@ -415,7 +421,7 @@ def GenDensityExpression(denin, derivative_combinations, leftwave, rightwave):
     #---------------------------------------------------------------------------
     # Parse the structure from the name
     density = denin    
-    (x, y, left, right, coupling, cross) = ParseOperators(density)
+    (x, y, left, right, coupling, cross) = ParseOperators(density, so.timelike)
     # Construct the left/right operators
     operatordic = {}
     operatordic['I'] = Identity
@@ -1117,10 +1123,13 @@ def AxisReflection(LeftOperator, RightOperator, larg, rarg, nabla_arg = []):
 # Auxiliary routines.  
 #===============================================================================
 def TimeDen(density):
-    #---------------------------------------------------------------------------
-    #  Obtain the behavior under time-reversal of the density
-    #---------------------------------------------------------------------------
-    (x, y, left, right, coupling, cross) = ParseOperators(density)
+    """
+      Obtain the behavior under time-reversal of the density
+    """    
+    # I don't pass in the symmetry option, as an extra T cannot affect the 
+    # end result
+    (x, y, left, right, coupling, cross) = ParseOperators(density, False)
+
     # Construct the left/right operators
     operatordic = {}
     operatordic['I'] = Identity
@@ -1148,15 +1157,15 @@ def TimeDen(density):
     return T
 
 def OrderOfDen(density, contract=True):
-    #---------------------------------------------------------------------------
-    # Returns the order (= number of indices) of the density represented 
-    # by a string. Simply checks the number of capital letters N and S in 
-    # in the name. 
-    # Either: a) disregard contractions           contract = False
-    #      or b) take into account contractions   contract = True
-    #
-    # Note that it is safe to use this on a field too.
-    #---------------------------------------------------------------------------
+    """
+     Returns the order (= number of indices) of the density represented 
+     by a string. Simply checks the number of capital letters N and S in 
+     in the name. 
+     Either: a) disregard contractions           contract = False
+          or b) take into account contractions   contract = True
+    
+     Note that it is safe to use this on a field too.
+    """
 
     # Add a dimension for every derivative and 
     # don't count the capital D,C,F,G, P 
@@ -1181,6 +1190,7 @@ def OrderOfDen(density, contract=True):
     
     
 def Rot_ind(k):
+    """
     # C_k = A_i B_j + A_j B_i
     # Input is k, output is the corresponding pair
     #     [ (i,j) ] if s == 0
@@ -1189,6 +1199,7 @@ def Rot_ind(k):
     
     # Note that the minus sign is only relative and always
     # carried by the non-zero index
+    """
     if(k == 0):
         i = 1
         j = 2
@@ -1204,13 +1215,13 @@ def Rot_ind(k):
         
         
 def Storage_Mapping(indices):
-    #---------------------------------------------------------------------------
-    # Map the indices (i,j,k,...) of a totally symmetric tensor unto indices
-    # that are used for efficient storage
-    #
-    # Note that negative numbers are treated as positive, in order to not
-    # upset the vector products.
-    #---------------------------------------------------------------------------
+    """
+     Map the indices (i,j,k,...) of a totally symmetric tensor unto indices
+     that are used for efficient storage
+    
+     Note that negative numbers are treated as positive, in order to not
+     upset the vector products.
+    """
 
     # Sort the indices into lexicographical order
     s_indices = sorted(np.abs(indices)) 
@@ -1230,17 +1241,17 @@ def Storage_Mapping(indices):
     return(index)
     
 def Number_symmetric(n,k):
-    #---------------------------------------------------------------------------
-    # Returns the number of independent elements in a totally symmetric tensor
-    # of order k over dimension n.
-    #---------------------------------------------------------------------------
+    """
+     Returns the number of independent elements in a totally symmetric tensor
+     of order k over dimension n.
+    """    
     return(factorial(n + k - 1)/(factorial(k) * factorial(n-1)))
     
 def Multiplicity(indices):
-    #---------------------------------------------------------------------------
-    # Get the total number of independent combinations that can be obtained by
-    # permutation the indices.
-    #---------------------------------------------------------------------------
+    """
+     Get the total number of independent combinations that can be obtained by
+     permutation the indices.
+    """
     a = set(list(itertools.permutations(indices)))
     m = len(a)
     return(m)

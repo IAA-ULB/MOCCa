@@ -175,12 +175,18 @@ class symmetry_option():
       between different routines.
   """
   def __init__(self, generators, syms, combs, ReduceAxes, desc):
-    # These are signed(!) permutations
     self.generators = generators
     self.syms       = syms
     self.combs      = combs
     self.ReduceAxes = ReduceAxes 
     self.desc       = desc
+      
+    # Then, we check if there is a "timelike" symmetry conserved, i.e. an 
+    # antilinear, antihermitian one
+    self.timelike = False
+    for g in generators:
+      if( not g.linear and not g.hermitian):
+        self.timelike = True
 
 def symmetryencoding(so):
     """
@@ -366,6 +372,9 @@ def initsymmetries(SYMSTRING, REDUCE):
     return so
 
 def printsymmetryoption(so):
+    """
+      Print the properties of this set of symmetry options.
+    """
 
     # for printing purposes
     direc = ['x', 'y', 'z']   
@@ -387,11 +396,11 @@ def printsymmetryoption(so):
     print ("      => All independent?              : " , independent)
 
     print ("     Total number of symmetry relations: ", len(so.syms))    
+    print ("     Time-like symmetry                : ", so.timelike)
     print ("  Reduction asked for:")
     print ("   (x,y,z) = (%d, %d, %d)"\
                        %(so.ReduceAxes[0], so.ReduceAxes[1], so.ReduceAxes[2]))
 
-    
     for i in range(3):
       st = ''
       if(so.ReduceAxes[i] == 1):

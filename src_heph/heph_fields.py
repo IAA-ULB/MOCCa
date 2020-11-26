@@ -24,41 +24,43 @@ from src_heph.heph_densities    import *
 from string import Template
 
 # List of fields needed 
-Fields_needed = []
+Fields_needed         = []
 Pairing_Fields_needed = []
 
-def initfields():
-    #---------------------------------------------------------------------------
-    # Go over the needed densities and the functional terms and check whether
-    # we have enough derivatives to calculate the fields. 
-    for term in src_heph.heph_functional.Functional_terms:
-        (densities, cpl) = src_heph.heph_functional.ParseDensities(term)
-        # Count the number of derivatives needed in this term
-        totalder = 0
-        totallap = 0
-        for den in densities:
-            (der, lap, left, right, coupling, cross) = ParseOperators(den)
-            totalder = totalder + der
-            totallap = totallap + lap
-        
-        # Now see that for all densities in this term, the minimum number
-        # of derivatives is the total one 
-        for i in range(len(densities)):
-            den = densities[i]
-            (der, lap, left, right, coupling, cross) = ParseOperators(den)
-            for j in range(len(Densities_needed)):
-                altden = Densities_needed[j]
-                (altder, altlap, altleft, altright, altcoupling, altcross)     \
-                                                        = ParseOperators(altden)    
-                if(altleft == left and altright == right):
-                    # Set minimum derivatives
-                    deriv_needed[j].append((totallap, totalder))
-                    
-    
-    src_heph.heph_functional.PruneDeriv_needed()
-    
+def initfields(so):
+
+  #-----------------------------------------------------------------------------
+  # Go over the needed densities and the functional terms and check whether
+  # we have enough derivatives to calculate the fields. 
+  for term in src_heph.heph_functional.Functional_terms:
+      (densities, cpl) = src_heph.heph_functional.ParseDensities(term)
+      # Count the number of derivatives needed in this term
+      totalder = 0
+      totallap = 0
+      for den in densities:
+          (der,lap,left,right, coupling, cross) = \
+                                                 ParseOperators(den,so.timelike)
+          totalder = totalder + der
+          totallap = totallap + lap
       
-def GenerateFields():
+      # Now see that for all densities in this term, the minimum number
+      # of derivatives is the total one 
+      for i in range(len(densities)):
+          den = densities[i]
+          (der,lap,left,right,coupling,cross) = ParseOperators(den,so.timelike)
+          for j in range(len(Densities_needed)):
+              altden = Densities_needed[j]
+              (altder, altlap, altleft, altright, altcoupling, altcross)     \
+                                            = ParseOperators(altden,so.timelike)    
+              if(altleft == left and altright == right):
+                  # Set minimum derivatives
+                  deriv_needed[j].append((totallap, totalder))
+                  
+  
+  src_heph.heph_functional.PruneDeriv_needed()
+  
+      
+def GenerateFields(so):
     #---------------------------------------------------------------------------
     # Generate a list of fields based on list of terms in the functional. 
     #---------------------------------------------------------------------------
@@ -135,6 +137,7 @@ def GenerateFields():
     cplcts    = []       
     for term in src_heph.heph_functional.Functional_terms:      
         cplcts.append(term.replace('E_', 'B_'))
+
     #---------------------------------------------------------------------------
     # For every unique density encountered, we need to figure out the field
     # and the action of the field. 
@@ -162,7 +165,7 @@ def GenerateFields():
           Pairing_Fields_needed.append(dic['FIELD'])
         #-----------------------------------------------------------------------
         #  Get the operator structure of the density correctly                                
-        (der, lap, left, right, coupling,cross) = ParseOperators(den) 
+        (der,lap,left, right, coupling,cross) = ParseOperators(den,so.timelike) 
         #-----------------------------------------------------------------------
         # Check all of the terms if they depend on the density
         fieldlist = []
@@ -177,9 +180,10 @@ def GenerateFields():
             #-------------------------------------------------------------------
             # Replace the densities in the list by the ones actually calculated
             for i in range(len(densities)):
-                (x,y,l2,r2,c2,cr2) = ParseOperators(densities[i])
+                (x,y,l2,r2,c2,cr2) = ParseOperators(densities[i],so.timelike)
                 for altden in src_heph.heph_functional.Densities_needed:
-                    (altder, altlap, altleft, altright, altcoup, altcross) = ParseOperators(altden)
+                    (altder, altlap, altleft, altright, altcoup, altcross) = \
+                                              ParseOperators(altden,so.timelike)
                     if(altleft == l2 and r2 == altright and cr2 == altcross):
                         densities[i] = y*'Lap_' +               \
                                        x*'Der_' +               \
@@ -207,7 +211,8 @@ def GenerateFields():
             startind = 0
             for i in range(len(densities)):
                 altden = densities[i]
-                (altder, altlap, altleft, altright, altcoup, altcross)=ParseOperators(altden)
+                (altder, altlap, altleft, altright, altcoup, altcross) \
+                                            = ParseOperators(altden,so.timelike)
                 if((altleft == left) and (altright == right) and (cross == altcross)):
                     #  Add the term to the fieldlist for this density, 
                     #  and additionnally mentioning the number of external 
@@ -239,7 +244,7 @@ def GenerateFields():
                     ind   = src_heph.heph_functional.Functional_terms.index(term)
                     cplct = cplcts[ind]
                     dden  = src_heph.heph_functional.density_dependence[ind]
-                    fieldlist.append([removed, altder, altlap, cplct, cpl,dden,0])
+                    fieldlist.append([removed, altder,altlap,cplct, cpl,dden,0])
                 
                 startind = startind + OrderOfDen(altden)
                 
@@ -250,7 +255,7 @@ def GenerateFields():
             ind   = src_heph.heph_functional.Functional_terms.index(term)
             cplct = cplcts[ind]
             if(dd[0] == den):
-                fieldlist.append([densities, altder, altlap, cplct, cpl, dd[1],1])
+                fieldlist.append([densities, altder, altlap,cplct,cpl, dd[1],1])
 
         # Create the expression for the field
         dic['ALLOCIND']= ''
@@ -334,8 +339,10 @@ def GenerateFields():
                     dercount = dic['DENSITY'].count('Der')
                     lapcount = dic['DENSITY'].count('Lap')
                     
-                    dic['DENSITY'] = dic['DENSITY'].replace('Der_', '').replace('Lap_', '')
-                    dic['DENSITY'] = lapcount * 'Lap_' + dercount * 'Der_' + dic['DENSITY']
+                    dic['DENSITY'] = dic['DENSITY'].replace('Der_', '')
+                    dic['DENSITY'] = dic['DENSITY'].replace('Lap_', '')
+                    dic['DENSITY'] = lapcount * 'Lap_' \
+                                   + dercount * 'Der_' + dic['DENSITY']
                     
                     if( fieldterm[1]%2 == 0) :
                             dic['SIGN']     =  '+'
@@ -346,7 +353,7 @@ def GenerateFields():
                     #-----------------------------------------------------------
                     # Get the indices of the density in the field
                     indices = ()
-                    for k in range(lastorder, lastorder + OrderOfDen(dic['DENSITY'])):
+                    for k in range(lastorder,lastorder+OrderOfDen(dic['DENSITY'])):
                         for c in fieldterm[4]:
                             if k in c:   
                                 indices = indices + (arg[fieldterm[4].index(c)],)
@@ -391,21 +398,20 @@ def GenerateFields():
     return(declaration, FIELDCALC, fieldwrite, fieldread, fieldclean)
 
 def GenerateAction(field, symmetrize, so):
-    #---------------------------------------------------------------------------
-    # Generate the action of a field. 
-    #
-    #    field       : name of the field, for example F_I_I
-    #
-    #    symmetrize  : whether or not to generate a term for a symmetrised field  
-    #                  (-1) generate anti symmetric action 
-    #                       0.5 * ( F_L_R - F_R_L) 
-    #                  ( 0) generate action "as is"  
-    #                  (+1) generate symmetric action 
-    #                       0.5 * ( F_L_R + F_R_L) 
-    #
-    #   so           : a set of symmetry options 
-    #
-    #---------------------------------------------------------------------------
+    """
+     Generate the action of a field. 
+    
+        field       : name of the field, for example F_I_I
+    
+        symmetrize  : whether or not to generate a term for a symmetrised field  
+                      (-1) generate anti symmetric action 
+                           0.5 * ( F_L_R - F_R_L) 
+                      ( 0) generate action "as is"  
+                      (+1) generate symmetric action 
+                           0.5 * ( F_L_R + F_R_L) 
+    
+        so          : a set of symmetry options 
+    """
     
     #---------------------------------------------------------------------------
     WFNames   = ['psi', 'dpsi', 'ddpsi', 'dddpsi', 'ddddpsi']
@@ -732,7 +738,8 @@ def GenerateAction(field, symmetrize, so):
                 for k in range(4):
                     dic['RCOMP'] = ''
                     for l in range(lorder):
-                        dic['RCOMP']  = str(true_larg[-l-offset-1] +1) + ',' + dic['RCOMP'] 
+                        dic['RCOMP']  = str(true_larg[-l-offset-1] +1) \
+                                                            + ',' + dic['RCOMP'] 
                     dic['RCOMP']  = dic['RCOMP'] + str(k+1) 
                     if(sym>0):   
                         dic['SYM']    = '+s' + Direction[direc-1] + '(%d)'%(k+1)
@@ -753,9 +760,7 @@ def GenerateAction(field, symmetrize, so):
             SIGN           = np.sign(leftind[k,0])
             if((symmetrize == -1) and ('C' in left or 'C' in right)):
                 SIGN = - SIGN
-
-            if('P' in field):
-              SIGN = -SIGN
+  
             if(SIGN > 0) :
                 dic['SIGN']= '+'
             else :
@@ -771,12 +776,19 @@ def GenerateAction(field, symmetrize, so):
     return (expression)
     
 def ParseOperatorsField(field, timelike):    
-    #---------------------------------------------------------------------------
-    # Parse the operators that are used to construct the action of field.
-    # This routine is very close to its analogue for the densities in 
-    # heph_densities.py, but has a subtle twist to it concerning calculations
-    # with conserved T or PT.
-    #---------------------------------------------------------------------------
+    """
+     Parse the operators that are used to construct the action of field.
+     This routine is very close to its analogue for the densities in 
+     heph_densities.py, but has a subtle twist to it concerning calculations
+     with conserved T or PT.
+
+     timelike indicates if there is a conserved antilinear, antihermitian 
+     symmetry that can be used to simplify the calculation. 
+    
+     For ordinary fields, this has no impact. 
+
+    """    
+    
     #
     # timelike indicates if there is a conserved antilinear, antihermitian 
     # symmetry that can be used to simplify the calculation. 
@@ -805,11 +817,17 @@ def ParseOperatorsField(field, timelike):
     # fields. If a timelike symmetry is conserved however, we only calculate
     # part of the pairing gaps, i.e. only gaps of the form
     #
-    #                  Delta_{i \bar{j}}
+    #         Delta_{i \bar{j}} = < i \bar{j} | Delta(\vec{r}) | 0 \rangle
     #
     # where both \bar{j} is the timelike partner of j, and both i and j range
-    # over only half of the basis. Hence, in that case
-    # 
+    # over only half of the basis. In that case, the state \bar{j} is 
+    # not in memory. Combining the time-reversal needed to construct \bar{j}
+    # with the intrinsic one in the definition of the pairing density/field, 
+    # we obtain T^2 = -1, i.e. NO remaining time-reversal and a sign.
+    #
+    # Below, we take out the time-reversal if needed. The extra sign is not 
+    # added here, but in the place where the actual action is constructed 
+    # above.
     #---------------------------------------------------------------------------
     left  = ''
     right = '' 
@@ -826,11 +844,12 @@ def ParseOperatorsField(field, timelike):
         
     if(field[0] == 'G'):      
         right = 'C' + right
-    
-    #---------------------------------------------------------------------------
-    # There doesn't need to be an explicit time-reversal operator in the 
-    # definition of the act of Delta
-    #---------------------------------------------------------------------------
+
+    if('P' in field):
+        # Add a timereversal operator on the left for pairing densities
+        left  = left + 'T'
+        if(timelike == 1):
+            left = left + 'T'
     
     #---------------------------------------------------------------------------
     # Find the coupling

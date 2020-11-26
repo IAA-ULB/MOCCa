@@ -13,17 +13,19 @@ def ProcessPairing(fname, src, target, so):
   """
 
   dic = {}
-  # For the moment, this simply (de)activates a stop statement when the user
-  # asks for BCS-pairing and time-reversal is not conserved.
-  forbidBCS = True
-  for g in so.generators:
-    if( not g.linear and not g.hermitian):
-      forbidBCS = False
 
-  if(forbidBCS):
-    dic['FORBIDBCS'] = ''
+  if(so.timelike):
+      forbidBCS = '!'
+      TR        = ''
+      NTR       = '!'
   else:
-    dic['FORBIDBCS'] = '!'
+      forbidBCS = ''
+      TR        = '!'
+      NTR       = ''
+
+  dic['FORBIDBCS'] = forbidBCS
+  dic['TR']        = TR
+  dic['NTR']       = NTR
 
   with open(src+fname, 'r') as template:
     with open(target+fname, 'w') as generated:
@@ -38,8 +40,7 @@ def ProcessHFB(fname, src, target, so):
 
   dic = {}
 
-  TimeReversal = 1
-  if(TimeReversal == 1):
+  if(so.timelike):
     dic["TR"]  = ' '
     dic["NTR"] = '!'
   else:

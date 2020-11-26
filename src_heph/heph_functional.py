@@ -98,14 +98,9 @@ def initfunctional(fname, so):
     description = ReadFunctional(fname)
 
     # Check if time-reversal (or time-parity) is conserved
-    time = False    
-    for g in so.generators:
-      if( not g.linear and not g.hermitian):
-        time = True    
-    if(time):
+    if(so.timelike):
       RemoveTimeOddTerms()
 
-    
     # Set the name of the functional file, without the directory structure
     func_name = '"%s"'%fname.split('/')[-1].upper()
     
@@ -123,11 +118,12 @@ def initfunctional(fname, so):
     Densities_needed.append(tempden[0])
     deriv_needed.append([])
     for i in range(len(tempden)):
-        (deri, lapi, lefti, righti, coupi, crossi) = ParseOperators(tempden[i])
+        (deri, lapi, lefti, righti, coupi, crossi) = \
+                                          ParseOperators(tempden[i],so.timelike)
         Found = False
         for j in range(len(Densities_needed)):
             (derj, lapj, leftj, rightj, coupj, crossj) = \
-                                             ParseOperators(Densities_needed[j])
+                                 ParseOperators(Densities_needed[j],so.timelike)
             #-------------------------------------------------------------------
             # Two densities are identical if the left- and right-operators
             # are the same.
@@ -174,7 +170,7 @@ def initfunctional(fname, so):
     # Finding out how many derivatives we need to take of the spwfs
     derivative_order = 1    
     for den in Densities_needed:
-        (der, lap, left, right, cpl, cross) = ParseOperators(den)
+        (der, lap, left, right, cpl, cross) = ParseOperators(den,so.timelike)
         ders = right.count('N')
         derivative_order = max(derivative_order, ders)
 
@@ -183,7 +179,7 @@ def initfunctional(fname, so):
     print (' Description from file:')
     print ( description.replace('#', tab))
     print (' Number of terms     : %d'%len(Functional_terms))
-    if(time):
+    if(so.timelike):
       print (' ! Attention: terms with time-odd densities dropped. ' )
     print (' Order of derivatives: %d'%derivative_order)
     print (' Locality assumed    : %d'%assume_locality)
@@ -385,235 +381,221 @@ def ParseDensities(term):
     return (densities, coupling)
 
 def ProcessParameterization(fname, src, target):
-        #-----------------------------------------------------------------------
-        # Processing of the parameterization.f90 file to include the different 
-        # parameters.
-        decl_template = Template(  tab + 'real(KIND=dp) :: $PARAM = -123456789 \n')
-        read_template = Template(        ' $PARAM,')
-        print_template= Template(2*tab + 'print "(a6,2x, f10.3)", "$PARAM", $PARAM \n ')
-        
-        check_a_template = Template(  tab + 'if($PARAM .eq. -123456789) then \n')
-        check_b_template = Template(2*tab + '   print *, "$PARAM not read from .param file." \n')
-        check_c_template = Template(2*tab + '   stop \n')        
-        check_d_template = Template(  tab + 'endif \n')
+    """
+     Processing of the parameterization.f90 file to include the different 
+     parameters.
+    """
+    decl_template = Template(  tab + 'real(KIND=dp) :: $PARAM = -123456789 \n')
+    read_template = Template(        ' $PARAM,')
+    print_template= Template(2*tab + 'print "(a6,2x, f10.3)", "$PARAM", $PARAM \n ')
+    
+    check_a_template = Template(  tab + 'if($PARAM .eq. -123456789) then \n')
+    check_b_template = Template(2*tab + '   print *, "$PARAM not read from .param file." \n')
+    check_c_template = Template(2*tab + '   stop \n')        
+    check_d_template = Template(  tab + 'endif \n')
 
-        decl      = ''
-        readparam = ''
-        printparam= ''
-        checkparam= ''
-        for s in paramparameters:
-            dic= {}
-            dic['PARAM']     = s
-            
-            decl      = decl + decl_template.substitute(dic)
-            readparam = readparam + read_template.substitute(dic)
-            printparam= printparam+ print_template.substitute(dic)
-            checkparam= checkparam+ check_a_template.substitute(dic)
-            checkparam= checkparam+ check_b_template.substitute(dic)
-            checkparam= checkparam+ check_c_template.substitute(dic)
-            checkparam= checkparam+ check_d_template.substitute(dic)
-            checkparam= checkparam+ '\n'
-            
-        # Remove the trailing comma and add line-end
-        readparam = readparam[:-1] + '\n'    
-        
+    decl      = ''
+    readparam = ''
+    printparam= ''
+    checkparam= ''
+    for s in paramparameters:
         dic= {}
-        dic['PARAMDECL']   = decl
-        dic['READPARAMS']  = readparam
-        dic['PRINTPARAMS'] = printparam
-        dic['CHECKPARAMS'] = checkparam
+        dic['PARAM']     = s
         
-        with open(src+fname, 'r') as template:
+        decl      = decl + decl_template.substitute(dic)
+        readparam = readparam + read_template.substitute(dic)
+        printparam= printparam+ print_template.substitute(dic)
+        checkparam= checkparam+ check_a_template.substitute(dic)
+        checkparam= checkparam+ check_b_template.substitute(dic)
+        checkparam= checkparam+ check_c_template.substitute(dic)
+        checkparam= checkparam+ check_d_template.substitute(dic)
+        checkparam= checkparam+ '\n'
+        
+    # Remove the trailing comma and add line-end
+    readparam = readparam[:-1] + '\n'    
+    
+    dic= {}
+    dic['PARAMDECL']   = decl
+    dic['READPARAMS']  = readparam
+    dic['PRINTPARAMS'] = printparam
+    dic['CHECKPARAMS'] = checkparam
+    
+    with open(src+fname, 'r') as template:
+        with open(target+fname, 'w') as generated:
+            for line in template:
+                generated.write(Template(line).substitute(dic))  
+
+def ProcessFunctional(fname, src, target, so):
+    """
+     Master routine calling the other ones to generate a functional based
+     on the parsing done before.
+    """
+
+    declaration   = ''
+    calculation   = ''
+    form          = ''
+    printing      = ''
+    calccoef      = ''
+    printcoef_iso = ''
+    printcoef_pn  = ''
+    printcoef_pair= ''
+    sumtotal_even = ''
+    sumtotal_odd  = ''
+    pairtotal     = ''
+    fieldcalc     = ''
+    erear         = ''
+    writing       = ''
+    reading       = ''
+    cleaning      = ''
+
+    #---------------------------------------------------------------------------
+    # Generate the terms in the functional
+    for i in range(len(Functional_terms)): 
+        (d,c,p,cc, pc_iso, pc_pn,pc_pair, st,pt,er, T)  = \
+         GenTermExpression(Functional_terms[i], [coupling_constants_0[i], \
+         coupling_constants_1[i]],density_dependence[i], DD_rearcoefs[i],so)
+
+        declaration = declaration + d + '\n'
+        calculation = calculation + c + '\n'
+        printing    = printing    + p + '\n'
+        calccoef    = calccoef    + cc+ '\n'
+        printcoef_iso = printcoef_iso   + pc_iso + '\n'
+        printcoef_pn  = printcoef_pn    + pc_pn  + '\n'
+        printcoef_pair= printcoef_pair  + pc_pair+ '\n'
+        if(T):
+          # Term to be added to the time-even subtotal
+          sumtotal_even = sumtotal_even    + st+ '&\n'
+        else:
+          sumtotal_odd  = sumtotal_odd     + st+ '&\n'
+
+        if('P' in Functional_terms[i]):    
+          pairtotal   = pairtotal   + pt+ '&\n'
+        erear       = erear       + er
+    
+    sumtotal_even  = rreplace( sumtotal_even, '&\n', '', 1)
+    sumtotal_odd   = rreplace( sumtotal_odd , '&\n', '', 1)
+    pairtotal      = rreplace( pairtotal, '&\n', '', 1)
+
+    if(len(pairtotal) == 0):    
+        pairtotal = '0'
+
+    #---------------------------------------------------------------------------
+    # Generate the fields of the single-particle hamiltonian
+    (fielddec, fieldcalc, fieldwrite,fieldread, fieldclean) =              \
+                                                          GenerateFields(so)
+    declaration = declaration + fielddec   + '\n'
+    writing     = writing     + fieldwrite 
+    reading     = reading     + fieldread 
+    cleaning    = cleaning    + fieldclean
+    #---------------------------------------------------------------------------
+    # Generate the expressions for the actions of the Skyrme fields
+    SkyrmeAction = ''
+    for field in  Fields_needed:
+      #-------------------------------------------------------------------------
+      # Check if we need to symmetrize the action
+      #-------------------------------------------------------------------------
+      (left,right,coupling,cross) = ParseOperatorsField(field, so.timelike)
+      #-------------------------------------------------------------------------
+      # Generate the expression for the application of the ordinary 
+      # operator structure
+      # Disregard T's that are present
+      if( left != right) : 
+        if( 'C' in left or 'C' in right):   
+          # Only symmetrize non-symmetric C's if asked for
+          if(assume_locality == 1):
+              SkyrmeAction = SkyrmeAction +                          \
+                                  GenerateAction(field, 0, so)
+          else:
+              SkyrmeAction = SkyrmeAction +                          \
+                                           GenerateAction(field, 1, so.timelike)
+              SkyrmeAction = SkyrmeAction +                          \
+                                           GenerateAction(field,-1, so.timelike)
+        else:
+          # Always symmetrize non-symmetric D's
+          SkyrmeAction = SkyrmeAction + GenerateAction(field,+1, so)
+          SkyrmeAction = SkyrmeAction + GenerateAction(field,-1, so)
+      else:
+          SkyrmeAction = SkyrmeAction + GenerateAction(field, 0, so)
+
+    #---------------------------------------------------------------------------
+    # Generate the expressions for the actions of the pairing fields.
+    PairingAction = ''
+    for field in  Pairing_Fields_needed:
+      (left,right,coupling,cross) = ParseOperatorsField(field, so.timelike)
+      PairingAction =PairingAction + GenerateAction(field, 0, so)
+
+    #---------------------------------------------------------------------------
+    # Now make sure all of the lines are not too long for compilation.
+    declaration   = LineFormat(declaration)
+    calculation   = LineFormat(calculation)
+    printing      = LineFormat(printing)
+    calccoef      = LineFormat(calccoef)
+    printcoef_iso = LineFormat(printcoef_iso)
+    printcoef_pn  = LineFormat(printcoef_pn)
+    sumtotal_even = LineFormat(sumtotal_even)
+    sumtotal_odd  = LineFormat(sumtotal_odd)
+    fieldcalc     = LineFormat(fieldcalc)
+    SkyrmeAction  = LineFormat(SkyrmeAction)
+    PairingAction = LineFormat(PairingAction)
+    erear         = LineFormat(erear)
+    reading       = LineFormat(reading)
+    writing       = LineFormat(writing)
+    cleaning      = LineFormat(cleaning)
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    # Substitute into the functional.f90 file.  
+    dic={}
+
+    dic['DECLARATION']    = declaration
+    dic['CALCULATION']    = calculation
+    dic['PRINT']          = printing
+    dic['CALCCOEF']       = calccoef   
+    dic['PRINTCOEF_ISO']  = printcoef_iso
+    dic['PRINTCOEF_PN']   = printcoef_pn
+    dic['PRINTCOEF_PAIR'] = printcoef_pair
+
+    dic['TOTAL_EVEN']     = sumtotal_even
+    if(len(sumtotal_odd)>1):
+      dic['TOTAL_ODD']      = sumtotal_odd
+    else:
+      dic['TOTAL_ODD']      = '0.0d0'
+
+    dic['TOTALPAIR']      = pairtotal
+    dic['CALCFIELDS']     = fieldcalc
+    dic['SKYRMEACTION']   = SkyrmeAction
+    dic['PAIRINGACTION']  = PairingAction
+    dic['EREAR']          = erear
+    dic['FUNC_NAME']      = func_name
+    dic['FIELDNUMBER']    = len(Densities_needed)
+    dic['WRITEPOTENTIALS']= writing
+    dic['READPOTENTIALS'] = reading
+    dic['CLEANING']       = cleaning
+
+    
+    if(derivative_order == 1):
+      dic['N2'] = ' '    
+      dic['N3'] = '!'
+    elif(derivative_order == 2): 
+      dic['N2'] = ' '
+      dic['N3'] = '!'
+    elif(derivative_order == 3):
+      dic['N2'] = '!'
+      dic['N3'] = ' '
+   
+    if(so.timelike):
+      dic['NTR'] = '!'
+    else:
+      dic['NTR'] = ''
+    
+    with open(src+fname, 'r') as template:
             with open(target+fname, 'w') as generated:
                 for line in template:
                     generated.write(Template(line).substitute(dic))  
 
-def ProcessFunctional(fname, src, target, so):
-        #-----------------------------------------------------------------------
-        # Master routine calling the other ones to generate a functional based
-        # on the parsing done before.
-        #-----------------------------------------------------------------------
+def GenTermExpression( term, ccoef, DD, DDrear, so):
+    """
+     Generate the expressions for the terms in the functional.
     
-        declaration   = ''
-        calculation   = ''
-        form          = ''
-        printing      = ''
-        calccoef      = ''
-        printcoef_iso = ''
-        printcoef_pn  = ''
-        printcoef_pair= ''
-        sumtotal_even = ''
-        sumtotal_odd  = ''
-        pairtotal     = ''
-        fieldcalc     = ''
-        erear         = ''
-        writing       = ''
-        reading       = ''
-        cleaning      = ''
-
-        #---------------------------------------------------------------------------
-        # First, figure out whether there is an antilinear, antihermitian symmetry
-        # that is conserved.
-        timelike = False
-        for g in so.generators:
-          if(not g.linear and not g.hermitian):
-            timelike = True
-        
-        #-----------------------------------------------------------------------
-        # Generate the terms in the functional
-        for i in range(len(Functional_terms)): 
-            (d,c,p,cc, pc_iso, pc_pn,pc_pair, st,pt,er, T)  = \
-             GenTermExpression(Functional_terms[i], [coupling_constants_0[i], \
-             coupling_constants_1[i]],density_dependence[i], DD_rearcoefs[i])
-
-            declaration = declaration + d + '\n'
-            calculation = calculation + c + '\n'
-            printing    = printing    + p + '\n'
-            calccoef    = calccoef    + cc+ '\n'
-            printcoef_iso = printcoef_iso   + pc_iso + '\n'
-            printcoef_pn  = printcoef_pn    + pc_pn  + '\n'
-            printcoef_pair= printcoef_pair  + pc_pair+ '\n'
-            if(T):
-              # Term to be added to the time-even subtotal
-              sumtotal_even = sumtotal_even    + st+ '&\n'
-            else:
-              sumtotal_odd  = sumtotal_odd     + st+ '&\n'
-
-            if('P' in Functional_terms[i]):    
-              pairtotal   = pairtotal   + pt+ '&\n'
-            erear       = erear       + er
-        
-        sumtotal_even  = rreplace( sumtotal_even, '&\n', '', 1)
-        sumtotal_odd   = rreplace( sumtotal_odd , '&\n', '', 1)
-        pairtotal      = rreplace( pairtotal, '&\n', '', 1)
-
-        if(len(pairtotal) == 0):    
-            pairtotal = '0'
-
-        #-----------------------------------------------------------------------
-        # Generate the fields of the single-particle hamiltonian
-        (fielddec, fieldcalc, fieldwrite,fieldread, fieldclean) =              \
-                                                              GenerateFields()
-        declaration = declaration + fielddec   + '\n'
-        writing     = writing     + fieldwrite 
-        reading     = reading     + fieldread 
-        cleaning    = cleaning    + fieldclean
-        #-----------------------------------------------------------------------
-        # Generate the expressions for the actions of the Skyrme fields
-        SkyrmeAction = ''
-        for field in  Fields_needed:
-          #-------------------------------------------------------------------
-          # Check if we need to symmetrize the action
-          #-------------------------------------------------------------------
-          (left,right,coupling,cross) = ParseOperatorsField(field, timelike)
-          #-------------------------------------------------------------------
-          # Generate the expression for the application of the ordinary 
-          # operator structure
-          # Disregard T's that are present
-          if( left != right) : 
-            if( 'C' in left or 'C' in right):   
-              # Only symmetrize non-symmetric C's if asked for
-              if(assume_locality == 1):
-                  SkyrmeAction = SkyrmeAction +                          \
-                                      GenerateAction(field, 0, so)
-              else:
-                  SkyrmeAction = SkyrmeAction +                          \
-                                                  GenerateAction(field, 1, so)
-                  SkyrmeAction = SkyrmeAction +                          \
-                                                  GenerateAction(field,-1, so)
-            else:
-              # Always symmetrize non-symmetric D's
-              SkyrmeAction = SkyrmeAction + GenerateAction(field,+1, so)
-              SkyrmeAction = SkyrmeAction + GenerateAction(field,-1, so)
-          else:
-              SkyrmeAction = SkyrmeAction + GenerateAction(field, 0, so)
-
-        #-----------------------------------------------------------------------
-        # Generate the expressions for the actions of the pairing fields.
-        PairingAction = ''
-        for field in  Pairing_Fields_needed:
-          (left,right,coupling,cross) = ParseOperatorsField(field, timelike)
-          PairingAction =PairingAction + GenerateAction(field, 0, so)
-
-        #-----------------------------------------------------------------------
-        # Now make sure all of the lines are not too long for compilation.
-        declaration   = LineFormat(declaration)
-        calculation   = LineFormat(calculation)
-        printing      = LineFormat(printing)
-        calccoef      = LineFormat(calccoef)
-        printcoef_iso = LineFormat(printcoef_iso)
-        printcoef_pn  = LineFormat(printcoef_pn)
-        sumtotal_even = LineFormat(sumtotal_even)
-        sumtotal_odd  = LineFormat(sumtotal_odd)
-        fieldcalc     = LineFormat(fieldcalc)
-        SkyrmeAction  = LineFormat(SkyrmeAction)
-        PairingAction = LineFormat(PairingAction)
-        erear         = LineFormat(erear)
-        reading       = LineFormat(reading)
-        writing       = LineFormat(writing)
-        cleaning      = LineFormat(cleaning)
-        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        # Substitute into the functional.f90 file.  
-        dic={}
-
-        dic['DECLARATION']    = declaration
-        dic['CALCULATION']    = calculation
-        dic['PRINT']          = printing
-        dic['CALCCOEF']       = calccoef   
-        dic['PRINTCOEF_ISO']  = printcoef_iso
-        dic['PRINTCOEF_PN']   = printcoef_pn
-        dic['PRINTCOEF_PAIR'] = printcoef_pair
-
-        dic['TOTAL_EVEN']     = sumtotal_even
-        if(len(sumtotal_odd)>1):
-          dic['TOTAL_ODD']      = sumtotal_odd
-        else:
-          dic['TOTAL_ODD']      = '0.0d0'
-
-        dic['TOTALPAIR']      = pairtotal
-        dic['CALCFIELDS']     = fieldcalc
-        dic['SKYRMEACTION']   = SkyrmeAction
-        dic['PAIRINGACTION']  = PairingAction
-        dic['EREAR']          = erear
-        dic['FUNC_NAME']      = func_name
-        dic['FIELDNUMBER']    = len(Densities_needed)
-        dic['WRITEPOTENTIALS']= writing
-        dic['READPOTENTIALS'] = reading
-        dic['CLEANING']       = cleaning
-  
-        
-        if(derivative_order == 1):
-          dic['N2'] = ' '    
-          dic['N3'] = '!'
-        elif(derivative_order == 2): 
-          dic['N2'] = ' '
-          dic['N3'] = '!'
-        elif(derivative_order == 3):
-          dic['N2'] = '!'
-          dic['N3'] = ' '
-
-        # Checking if there is an antilinear, antihermitian symmetry
-        # that stops us from cranking
-        timelike = False
-        for g in so.generators:
-          if(not g.linear and not g.hermitian): 
-            timelike = True
-
-        if(timelike):
-          dic['NTR'] = '!'
-        else:
-          dic['NTR'] = ''
-        
-        with open(src+fname, 'r') as template:
-                with open(target+fname, 'w') as generated:
-                    for line in template:
-                        generated.write(Template(line).substitute(dic))  
-
-def GenTermExpression( term, ccoef, DD, DDrear):
-    #---------------------------------------------------------------------------
-    # Generate the expressions for the terms in the functional.
-    #
-    #---------------------------------------------------------------------------
+    """
     global sumindices
 
     declaration = ''
@@ -694,10 +676,10 @@ def GenTermExpression( term, ccoef, DD, DDrear):
     #Now see how these densities are present in the heph_densities.py module
     densities = []
     for den in tempden:
-        (der,lap,left,right, coupl, cross) = ParseOperators(den)
+        (der,lap,left,right, coupl, cross) = ParseOperators(den,so.timelike)
         for i in range(len(Densities_needed)):
             (derref, lapref, leftref, rightref, couplref, crossref) = \
-                                             ParseOperators(Densities_needed[i])
+                                 ParseOperators(Densities_needed[i],so.timelike)
             if(left == leftref and right == rightref and cross == crossref):
                 addden = lap*'Lap_' + der*'Der_' + Densities_needed[i]
                 densities.append( addden )
@@ -760,7 +742,8 @@ def GenTermExpression( term, ccoef, DD, DDrear):
             
             #-------------------------------------------------------------------
             # Get the index of the density correct
-            (der,lap,left,right, coupl, cross) = ParseOperators(densities[i])
+            (der,lap,left,right, coupl, cross) = \
+                                        ParseOperators(densities[i],so.timelike)
             
             isodic['IND'] = ''
             indices = ()

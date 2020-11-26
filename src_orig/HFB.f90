@@ -25,7 +25,7 @@ module HFB
   ! Maximum amount of iterations for finding a Fermi energy
   integer :: maxHFBiter  = 200
   ! Dimensions of all the blocks in the HFBhamiltonian.
-  integer, allocatable :: HFBsizes(:)
+  integer :: HFBsizes(8)
   ! Dispersion of the particle number
   real(KIND=dp) :: HFBdispersion(2)
   ! Pointer to relink procedures
@@ -55,10 +55,7 @@ contains
     !---------------------------------------------------------------------------
     ! Determine the matrix sizes of the HFB problem. 
     !---------------------------------------------------------------------------
-
     integer :: i
-
-    allocate(HFBsizes(8))
 
     do i=1,8
       HFBSizes(i) = HFblocks(i)
@@ -188,10 +185,17 @@ contains
         sphamil(si+wave1,si+wave1) = spenergies(si+wave1)
       enddo
 
-      if(.not.allocated(HFBgaps)) stop
+      if(.not.allocated(HFBgaps)) then
+        print *, 'HFB gaps are not allocated yet.'
+        stop  
+      endif
 
-      HFBHamil(sb+1:sb+2*N, sb+1:sb+2*N) = ConstructHFBHamil(                  & 
-      &               sphamil(si+1:si+N,si+1:si+N),HFBgaps(si+1:si+N,si+1:si+N))  
+$TR      HFBHamil(sb+1:sb+2*N, sb+1:sb+2*N) = ConstructHFBHamil(                  & 
+$TR      &               sphamil(si+1:si+N,si+1:si+N),HFBgaps(si+1:si+N,si+1:si+N))  
+
+$NTR      HFBHamil(sb+1:sb+2*N, sb+1:sb+2*N) = ConstructHFBHamil(                  & 
+$NTR      &               sphamil(si+1:si+N,si+1:si+N),HFBgaps(si+1:si+N,si+N+1:si+2*N))  
+
       
       si = si +   N
       sb = sb + 2*N
@@ -965,7 +969,7 @@ $TR   particles = 2 * particles
     
     real(KIND=dp), intent(in) :: sphamil(:,:), gaps(:,:)
     real(KIND=dp), allocatable  :: H(:,:)
-    integer :: N
+    integer :: N,i
     
     N = size(sphamil,1)
     allocate(H(2*N,2*N)) ; H = 0
@@ -975,7 +979,11 @@ $TR   particles = 2 * particles
     
     H(1:N, N+1:2*N)     =  gaps
     H(N+1:2*N, 1:N)     =  gaps 
-    
+
+    do i=1, 2*N
+        print ('(99f10.3)'), H(1:2*N, i)
+    enddo
+    print *
   end function ConstructHFBHamil 
 
   subroutine calcHFBgaps(Fermi, stabfactor)
@@ -1028,7 +1036,7 @@ $TR   particles = 2 * particles
     ! Loop over the first of all blocks linked by the antihermitian symmetry
     ! 1,3,5,7
     do B=1,8,2   
-      N   = HFBlocks(B)
+      N   = HFBlocks(B) ; if(N .eq. 0) cycle
 
       iso = -1
       if(B .gt. 4) iso = 1
@@ -1069,8 +1077,13 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
 
         enddo
       enddo
+      do wave1=1,2*N
+           print ('(99f10.3)'), HFBgaps(si+wave1,si+1:si+2*N)
+      enddo
+      print *
       si = si + N
-  enddo
+    enddo
+
   end subroutine calcHFBgaps
 
   subroutine PrintHFBconvergence(rho_pairing, kappa_pairing)
@@ -1168,10 +1181,11 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
     enddo
     
     ! Time-reversal
-    rho_can = 2*rho_can
+$TR    rho_can = 2*rho_can
     
     do i=1,nwt
-      if(rho_can(i).gt.2.0) rho_can(i) = 2.0
+$TR      if(rho_can(i).gt.2.0) rho_can(i) = 2.0
+$NTR     if(rho_can(i).gt.1.0) rho_can(i) = 1.0
       if(rho_can(i).lt.0.0) rho_can(i) = 0.0
     enddo
     
@@ -1266,28 +1280,6 @@ $TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
 
    subroutine clean_HFB
     if(allocated(HFBgaps))  deallocate(HFBGaps)
-    if(allocated(HFBsizes)) deallocate(HFBsizes)
    end subroutine clean_HFB
-!!===============================================================================
-!!  Never to be used function to define an interface for delta_action
-!!===============================================================================   
-!   function delta_action_dummy(psi,dpsi,ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
-!                                                                result(deltapsi)
-!      !-------------------------------------------------------------------------
-!      ! Dummy function to allow this module to acces the functional.f90 module 
-!      ! to acces the information on the acces of deltas.
-!      !-------------------------------------------------------------------------
-!      
-!      real(KIND=dp), intent(in)    :: psi(mv,4)  
-!      real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4), dddpsi(mv,10,4)
-!      integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
-!      real(KIND=dp)             :: deltapsi(mv,4)
-!      real(KIND=dp)             :: temp(mv,4)
-!      real(KIND=dp)             ::   dtemp(mv,3,4)
-!      real(KIND=dp)             ::  ddtemp(mv,3,3,4)
-!      real(KIND=dp)             :: dddtemp(mv,3,3,3,4)
-!      real(KIND=dp)             :: laptemp(mv,4)
-!      logical, intent(in)       :: onthefly
-!   end function
- 
+
 end module

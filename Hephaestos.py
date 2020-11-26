@@ -135,12 +135,15 @@ print(line)
 print ("  Symmetry information" )
 heph_symmetries.printsymmetryoption(oldso)
 print(line)
+
+# Initialize the densities module, setting up the properties of all the 
+# operators
 heph_densities.initdensities()
 #-------------------------------------------------------------------------------
 # Next, we read all the functional information
 description = heph_functional.initfunctional(FUNC_FILE, so)
 # ... and initialize the fields module
-heph_fields.initfields()
+heph_fields.initfields(so)
 
 #-------------------------------------------------------------------------------
 # On to the real business: generating Fortran code.

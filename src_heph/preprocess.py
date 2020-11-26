@@ -139,7 +139,7 @@ def preprocess(fname, src, target, so , oldso):
         ProcessTransform(fname, src, target, so, oldso)
         return
     if(fname=='densities.f90'):
-        ProcessDensities(fname, src, target)
+        ProcessDensities(fname, src, target, so)
         return
     if(fname=='cranking.f90'):
         ProcessCranking(fname, src, target, so)

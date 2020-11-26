@@ -18,7 +18,7 @@
 #
 ################################################################################
 
-exe='Tantalus.NLO.func.exe'
+exe='Tantalus.default.exe'
 execdir='../exec'
 param='../parameterizations/SLy4.param'
 outfile='Tant.minimal.out'
@@ -35,7 +35,7 @@ if [ ! -d "work/" ]; then
 fi
 
 cp $execdir/$exe   work/
-cp $param          work/forces.param
+cp $param          work/SLy4.param
 
 cd work
 
@@ -76,11 +76,13 @@ Outputfilename='tant.wf'
 /
 &MomentParam
 /
+&Cranking
+/
 EOF
 
 #-------------------------------------------------------------------------------
 # Running the code
-./$exe < tant.data > $outfile
+./$exe < tant.data | tee $outfile
 
 #Cleaning up
 mv tant.wf  ../wf

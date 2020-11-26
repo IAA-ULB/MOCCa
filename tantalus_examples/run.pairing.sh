@@ -15,7 +15,7 @@
 #
 ################################################################################
 
-exe='Tantalus.NLO.func.exe'
+exe='Tantalus.default.exe'
 execdir='../exec'
 param='../parameterizations/SLy5s1.param'
 
@@ -71,6 +71,8 @@ InputFilename='init'
 Outputfilename='tant.wf'
 /
 &MomentParam
+/
+&Cranking
 /
 EOF
 
