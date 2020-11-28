@@ -99,7 +99,7 @@ contains
     
     integer                     :: si, sb, N, N2, B,  wave1, it, i, np, nn
     integer                     :: n_ind, p_ind, NB
-    real(KIND=dp), allocatable :: chi(:,:)
+    real(KIND=dp), allocatable :: chi(:,:), temp(:,:), tempc(:), tempqe(:)
     !-----------------END OF DECLARATIONS --------------------------------------
 
     if(.not.allocated(rho_history)) then
@@ -244,18 +244,73 @@ contains
     endif
 
     !---------------------------------------------------------------------------
+    ! Now, the Bogoliubov transformation in memory is now organized by block of 
+    ! the HFB Hamiltonian, not necessarily by the ordering of the spwfs. 
+    temp = Bogoliubov ; tempc = configmatrix ; tempqe = QPenergies
+    Bogoliubov = 0    ; configmatrix = 0.0d0 ; QPenergies = 0.0d0
+    si = 0
+    do i=1,2*nwt
+      configmatrix(i) = 0.0
+    enddo
+    do B=1,8,2
+      N = HFBlocks(B) ; N2 = HFBlocks(B+1)
+
+      Bogoliubov(si+     1:si  +N   ,si+1:si+N) = &
+      &                                        temp(si+  1:si+  N,si+  1:si+N)
+      Bogoliubov(si+N+N2+1:si+2*N+N2,si+1:si+N) = &
+      &                                        temp(si+N+1:si+2*N,si+  1:si+N)
+
+
+      Bogoliubov(si+     1:si+  N   ,si+N+N2+1:si+2*N+N2) = &
+      &                                        temp(si+  1:si+  N,si+N+1:si+2*N)
+      Bogoliubov(si+N+N2+1:si+2*N+N2,si+N+N2+1:si+2*N+N2) = &
+      &                                        temp(si+N+1:si+2*N,si+N+1:si+2*N)
+
+
+!      !-------------------------------------------------------------------------
+!      configmatrix(si+      1:si+N)         = tempc (si+  1:si+  N)
+!      configmatrix(si+ N+N2+1:si+2*N+N2)    = tempc (si+N+1:si+2*N)
+
+!      configmatrix(si+ N+ 1:si+N+N2)        = tempc (si+2*N+1   :si+2*N+N2)
+!      configmatrix(si+2*N+N2+1:si+2*N+2*N2) = tempc (si+2*N+N2+1:si+2*N+2*N2)
+
+
+      qpenergies  (si+      1:si+N)      = tempqe(si+  1:si+  N)
+      qpenergies  (si+ N+N2+1:si+2*N+N2) = tempqe(si+N+1:si+2*N)
+      !-------------------------------------------------------------------------
+    
+
+      print *, 'CONFIG'
+      print *, configmatrix(si+1:si+2*N+2*N2)    
+      print *, 'SIZE', size(configmatrix), si+2*N+2*N2
+
+!      !-------------------------------------------------------------------------
+!      configmatrix(si+ N+   1:si+N+  N2)         = tempc(2*N+1:2*N+  N2)
+!      configmatrix(si+ N+N2+1:si+N+2*N2)         = tempc(2*N+N2+1:2*N+2*N2)
+!      qpenergies(si+        1:si+N)        = tempqe(2*N   +1:2*N+  N2)
+!      qpenergies(si+ N+2*N2+1:si+2*N+2*N2) = tempqe(2*N+N2+1:2*N+2*N2)
+      !-------------------------------------------------------------------------
+
+      do i=1,2*(N+N2)
+        print ('(99f7.3)'), Bogoliubov(si+i, si+1:si+2*N+2*N2)
+      enddo
+      print *
+
+      si = si + 2*N + 2*N2
+    enddo
+    
+    !---------------------------------------------------------------------------
     ! c) Optionally mix the configuration matrices.  
-    if(.not.all(configmatrix_history.eq.0.0)) then
-      if(HFBmixtype .eq. 1) then
-        configmatrix=HFBmix*configmatrix+(1-HFBmix)*configmatrix_history
-      endif   
-    endif  
+!    if(.not.all(configmatrix_history.eq.0.0)) then
+!      if(HFBmixtype .eq. 1) then
+!        configmatrix=HFBmix*configmatrix+(1-HFBmix)*configmatrix_history
+!      endif   
+!    endif  
 
     !---------------------------------------------------------------------------
     ! d) Construct the density and anomalous density matrices, based on the 
     !    configmatrix and the Bogoliubov transformation
     call PairingMatrices(configmatrix, bogoliubov, rho_pairing, kappa_pairing)
-    
     !---------------------------------------------------------------------------
     ! e) Optionally mix these densities
     if(.not.all(rho_history.eq.0.0)) then
@@ -499,39 +554,64 @@ $TR    HFBdispersion = 2 * HFBdispersion
 
     real(KIND=dp), intent(in) :: config(:), Bogo(:,:)
     real(KIND=dp), intent(out):: rho(:,:), kappa(:,:)
-    integer                   :: si, sb, B, i,j,k, N
+    integer                   :: si, sb, B, i,j,k, N, N2
 
     rho = 0.0 ; kappa = 0.0
 
     si = 0 ; sb = 0
-    do B=1,8
-      N = HFBsizes(B) ;  if(N .eq. 0) cycle 
-      do i=1,N
-        do j=1,N
-          do k=1,N
+    do B=1,8,2
+      N = HFBsizes(B)   ;  if(N .eq. 0) cycle 
+      N2= HFBsizes(B+1)
+      do i=1,N+N2
+        do j=1,N+N2
+          do k=1,N+N2
             !-------------------------------------------------------------------
             !                                   U      f  U^{\dagger}
             rho(si+i,si+j)  = rho(si+i,si+j) +                 &
-            &           config(sb+  k)*bogo(sb+  i,sb+N+k) * bogo(sb+  j,sb+N+k)
+            &     config(sb+  k)*bogo(sb+  i,sb+N+N2+k) * bogo(sb+  j,sb+N+N2+k)
             !                                   V^* (1-f) V^{T}
             rho(si+i,si+j)  = rho(si+i,si+j) +                 &
-            &           config(sb+N+k)*bogo(sb+N+i,sb+N+k) * bogo(sb+N+j,sb+N+k)
+            &  config(sb+N+N2+k)*bogo(sb+N+N2+i,sb+N+N2+k) * bogo(sb+N+N2+j,sb+N+N2+k)
 
             !-------------------------------------------------------------------
             !                                   U   f        V^{\dagger}     
             ! Note the minus sign due to the hidden time-reversal!
             kappa(si+i,si+j)  = kappa(si+i,si+j) -             &
-            &           config(sb+  k)*bogo(sb+  i,sb+N+k) * bogo(sb+N+j,sb+N+k)
+            &           config(sb+  k)*bogo(sb+  i,sb+N+N2+k) * bogo(sb+N+N2+j,sb+N+N2+k)
             !                                   V^{*}(1 - f) U^{T} 
             kappa(si+i,si+j)  = kappa(si+i,si+j) +             &
-            &           config(sb+N+k)*bogo(sb+N+i,sb+N+k) * bogo(sb  +j,sb+N+k)
+            &     config(sb+N+N2+k)*bogo(sb+N+N2+i,sb+N+N2+k) * bogo(sb  +j,sb+N+N2+k)
           enddo
         enddo
       enddo
    
-      si = si +   N
-      sb = sb + 2*N
+      si = si +   N +  N2
+      sb = sb + 2*N +2*N2
     enddo
+
+    si = 0 ; sb = 0
+    do B=1,8,2
+      N = HFBlocks(B) ; N2 =HFBlocks(B+1)
+
+      print *, 'RHO ', B, N,  si
+      do i=1, N+N2
+            print ('(99f10.3)'), rho(si+i,si+1:si+N+N2)
+      enddo
+      print *
+
+      print *, 'CONFIG'
+      print *, config(sb+1:sb+2*N+2*N2) 
+      print *, 'SIZE', size(config), sb+2*N+2*N2   
+
+      print *, 'KAPPA ', B, N,  si
+      do i=1, N+N
+            print ('(99f10.3)'), kappa(si+i,si+1:si+N+N2)
+      enddo
+      print *
+      si = si + N + N2
+      sb = sb + 2 *(N+N2)
+    enddo
+!!    stop
 
   end subroutine PairingMatrices
 

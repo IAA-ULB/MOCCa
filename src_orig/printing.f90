@@ -102,13 +102,13 @@ contains
     ! Print all relevant info on quasiparticles.
     ! Very bare-bones for the moment.
     !---------------------------------------------------------------------------
-    integer :: i, N, B, si, sb, ind
+    integer :: i, N, B, si, sb, ind, N2
     integer, allocatable :: indices(:)
     
     1  format (33 ('-'), 'Quasiparticles',33('-'))
     2  format (80 ('_'))
     3  format ( i3, 1f7.2, 1es12.2 )
-    4  format ('Block ', i1, /,  a8, ' parity ', a8)
+    4  format ('Block ', i1, ':  P=',a1,'1', ',Rz=', a1,'i',  a8)
     5  format ( '  N    Eqp     f_n')
 
     11  format(80 ('-'))
@@ -119,21 +119,27 @@ contains
     
     si = 0
     sb = 0
-    do B=1,8
-        N = HFblocks(B)
-
-        if(N.eq.0) cycle
-        
+    do B=1,8,2
+        N = HFblocks(B) ;      if(N.eq.0) cycle
+        N2 = HFBlocks(B+1)
         print 2
         select case (B)
         case(1)
-            print 4,  B , 'positive', 'neutrons' 
+            print 4,  B , '+', '+', 'neutrons' 
+        case(2)
+            print 4,  B , '+', '-', 'neutrons' 
         case(3)
-            print 4,  B , 'negative' , 'neutrons'
+            print 4,  B , '-' ,'+',  'neutrons'
+        case(4)
+            print 4,  B , '-' ,'-',  'neutrons'
         case(5)        
-            print 4,  B , 'positive' , 'protons'
+            print 4,  B , '+' ,'+',  'protons'
+        case(6)        
+            print 4,  B , '+' ,'-',  'protons'
         case(7)        
-            print 4,  B , 'negative' , 'protons'
+            print 4,  B , '-' ,'+',  'protons'
+        case(8)        
+            print 4,  B , '-' ,'-',  'protons'
         end select
         print 5
         print 2
@@ -141,6 +147,10 @@ contains
         case(2)
           do i=1,N
             print 3, i, QPenergies(si+i), configmatrix(sb+i)
+          enddo
+          if(N2.ne.0) print 2
+          do i=1,N2
+            print 3, i, QPenergies(si+N+i), configmatrix(sb+N+i)
           enddo
         case(1)
           ! The BCS qp energies are not ordered by energy
@@ -150,8 +160,8 @@ contains
             print 3, i, BCSqps(si+ind), BCSf(si+ind)
           enddo
         end select
-        si = si + N
-        sb = sb + 2*N
+        si = si +   N +  N2
+        sb = sb + 2*N +2*N2
     enddo
     print 11
   end subroutine printqps

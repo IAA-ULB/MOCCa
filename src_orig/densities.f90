@@ -229,8 +229,7 @@ $BCSEXPRESSION
       si = 0
       do B=1,8
         N = HFBlocks(B)
-        it = 2
-        if( B.le. 4) it = 1
+        it = 2 ;  if( B.le. 4) it = 1
         do wave=1,N
           do wave2=wave,N      
             weight  =  2 *kappa_pairing(si+wave,si+wave2)*                     &
