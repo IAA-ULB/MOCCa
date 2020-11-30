@@ -397,8 +397,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
     case(1,2)
         ! Full blocking
         occ = 1.0_dp
-        print *, 'Time-reversal breaking is needed and not implemented.'
-        stop
+!        print *, 'Time-reversal breaking is needed and not implemented.'
+!        stop
     case(3,4)
         ! EFA blocking
         occ = 0.5_dp
@@ -446,18 +446,19 @@ $TR    HFBdispersion = 2 * HFBdispersion
             !  Change the occupation of this particular qp
             sb = 0 ; si =0 
             do B=1,4
-                N = HFBsizes(B)
+                N = blocks(B)
                 if(qblock.eq.B) then
                     R(sb+ind-N)       = occ 
                     R(sb+ind)         = 1 - occ
                     ! Save which one we blocked
                     blocked_qp(j) = sb+ind
+                    !print ('(99f10.3)'), R(sb+1:sb+2*N)
                 endif
                 sb = sb + 2*N
                 si = si + N
             enddo    
 
-        enddo    
+        enddo
     case(2,4)
         !-----------------------------------------------------------------------
         ! The user asked for a the lowest configuration of a specific type.
@@ -548,8 +549,12 @@ $TR    HFBdispersion = 2 * HFBdispersion
             !-------------------------------------------------------------------
             !                                   U   f        V^{\dagger}     
             ! Note the minus sign due to the hidden time-reversal!
-            kappa(si+i,si+j)  = kappa(si+i,si+j) -             &
-            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column)
+$TR            kappa(si+i,si+j)  = kappa(si+i,si+j) -             &
+$TR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column)
+
+
+$NTR            kappa(si+i,si+j)  = kappa(si+i,si+j) +             &
+$NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column)
             !                                   V^{*}(1 - f) U^{T} 
             kappa(si+i,si+j)  = kappa(si+i,si+j) +             &
             &     config(column)*bogo(sb+N+N2+i,column) * bogo(sb  +j,column)

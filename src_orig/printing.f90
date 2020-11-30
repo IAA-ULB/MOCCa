@@ -58,7 +58,7 @@ contains
           print 11, wave, p, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
         elseif(pairingtype.eq.2) then
-          print 11, wave, p,2* rho_pairing(wave,wave), spenergies(wave),       &
+          print 11, wave, p,   rho_pairing(wave,wave), spenergies(wave),       &
           &               dispersions(wave), maxval(abs(HFBgaps(wave,:))),     &
           &               Jx, Jy, Jz, JJ
         else
@@ -85,7 +85,7 @@ contains
           print 11, wave, p, rho_can(wave), spenergies(wave),                  &
           &               dispersions(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
         elseif(pairingtype.eq.2) then
-          print 11, wave, p, 2*rho_pairing(wave,wave), spenergies(wave),       &
+          print 11, wave, p,     rho_pairing(wave,wave), spenergies(wave),     &
           &               dispersions(wave), maxval(abs(HFBgaps(wave,:))),     &
           &               Jx, Jy, Jz, JJ
         else

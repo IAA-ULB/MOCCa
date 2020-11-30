@@ -263,7 +263,9 @@ contains
           ! The added spwfs are added somewhat randomly, hence we add an extra
           ! orthonormalisation in the mix.
       endif
-    else
+    else  
+      ! We still need to set this particular information
+      HFblocks = fileblocks
       if(symtransfo_needed) then
         print *, 'Symmetry transformation needed, but not allowed by user.'
         stop
@@ -429,7 +431,7 @@ contains
         allocate(kappa_pairing(filenwt, filenwt)) 
 
         read(chan, iostat=io) FermiEnergy       ! Lambda
-        read(chan, iostat=io) ! rho
+        read(chan, iostat=io) rho_pairing
         read(chan, iostat=io) kappa_pairing     ! kappa
         read(chan, iostat=io) ! Canonical transformation
 

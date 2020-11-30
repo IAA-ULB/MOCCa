@@ -88,7 +88,7 @@ module pairing
  ! Type of blocking we want. 
  ! (0) no blocking
  ! (1) ordinary blocking, based on indices
- ! (2) ordinary blockgin, asking for lowest energy configurations
+ ! (2) ordinary blocking, asking for lowest energy configurations
  ! (3) EFA blocking, based on indices.
  ! (4) EFA blocking, asking for lowest energy configurations.
  ! 

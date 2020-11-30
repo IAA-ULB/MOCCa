@@ -155,16 +155,6 @@ contains
           enddo
         enddo
 
-!        print *, 'Gaps on file ', B, N, si
-!        do wave=1,N
-!          print ('(99f10.3)'), tempgaps(si+wave, si+1:si+N)
-!        enddo
-!        print *
-!        print *, 'Gaps in block ', B, N, si
-!        do wave=1,2*N
-!          print ('(99f10.3)'), HFBgaps(sb+wave, sb+1:sb+2*N)
-!        enddo
-!        print *
         si = si +   N
         sb = sb + 2*N
       enddo
