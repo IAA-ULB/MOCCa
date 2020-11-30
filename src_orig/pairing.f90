@@ -587,11 +587,29 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
           E(it) = E(it) - BCSgaps(wave)*Kappa_can(wave)
       enddo
     case(2)
+      ! HFB case
       do wave = 1,nwt
         do wave2 = 1,nwt
           it = 1
           if(wave .gt. nwn) it = 2
-          E(it) = E(it) - Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! The pairing energy, full-blown is 
+          ! E_pair = 1/2  Tr (Delta kappa^{\dagger})
+          !        = 1/2 sum_ij Delta_{ij} \kappa^{\dagger}_{ji}
+          !        = 1/2 sum_ij Delta_{ij} \kappa^*_{ij}
+          ! 
+          ! When we have no antilinear, antihermitian symmetry then we sum 
+          ! exactly this formula. Otherwise, both kappa and delta have the 
+          ! following structure
+          !
+          !  ( 0      Delta)     (  0      kappa )
+          !  (-Delta     0 )     ( -kappa    0   )
+          !
+          ! but only the part on the upper right is actually stored in memory
+          ! 
+
+$TR         E(it) = E(it) - Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
+$NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
         enddo
       enddo
     end select

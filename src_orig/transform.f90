@@ -46,7 +46,7 @@ contains
     integer, intent(in)                       :: oldnx, oldny, oldnz
     real(KIND=dp), allocatable                :: temp(:,:,:), tempe(:)
     real(KIND=dp), allocatable                :: tempd(:), tempr(:)
-    real(KIND=dp), allocatable                :: tempgaps(:,:)
+    real(KIND=dp), allocatable                :: tempgaps(:,:), tempkap(:,:)
     integer, allocatable                :: tempsx(:,:), tempsy(:,:), tempsz(:,:)
 
     integer  :: wave, N, B, si, sb,i, wave2
@@ -129,18 +129,29 @@ contains
         sb = sb + 2 * N
       enddo
       !-------------------------------------------------------------------------
-      ! Transformation of the pairing gaps
+      ! Transformation of the pairing gaps and pairing tensor kappa
       tempgaps = HFBgaps
+      tempkap  = kappa_pairing 
+      
+      deallocate(HFBgaps)       ; allocate(HFBgaps(nwt, nwt))  
+      deallocate(kappa_pairing) ; allocate(kappa_pairing(nwt,nwt))
 
-      deallocate(HFBgaps) ; allocate(HFBgaps(nwt, nwt)) ; HFBgaps = 0
+      HFBgaps = 0; kappa_pairing = 0
 
       si = 0  ; sb = 0
       do B = 1,8
         N = blocks(B) ; if(N .eq. 0) cycle
         do wave=1,N
           do wave2=1,N
-            HFBgaps(sb + wave    , sb + wave2 + N)  = tempgaps(si+wave,si+wave2)
-            HFBgaps(sb + wave + N, sb + wave2    )  =-tempgaps(si+wave,si+wave2)
+            HFBgaps(sb + wave    , sb + wave2 + N)  = &
+            &                                         tempgaps(si+wave,si+wave2)
+            HFBgaps(sb + wave + N, sb + wave2    )  = &
+            &                                        -tempgaps(si+wave,si+wave2)
+
+            kappa_pairing(sb + wave    , sb + wave2 + N) = & 
+            &                                         tempgaps(si+wave,si+wave2)
+            kappa_pairing(sb + wave + N, sb + wave2    ) = &
+            &                                        -tempgaps(si+wave,si+wave2)
           enddo
         enddo
 

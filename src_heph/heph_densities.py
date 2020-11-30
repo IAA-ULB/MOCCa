@@ -315,6 +315,14 @@ def ProcessDensities(fname, src, target, so):
     dic['DERIVATION'    ] = Derivation
     dic['ZEROING'       ] = Zeroing 
     dic['CLEANING'      ] = Cleaning 
+  
+    if(so.timelike):
+      dic['TR']  = ''
+      dic['NTR'] = '!'
+    else:
+      dic['TR']  = '!'
+      dic['NTR'] = ''
+   
  
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

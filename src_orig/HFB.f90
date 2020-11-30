@@ -200,18 +200,6 @@ contains
       sb = sb + 2*N + 2*N2
     enddo
 
-!    si = 0
-!    do B=1,8
-!      N = HFBlocks(B)
-!      print *, 'GAPS in block ', B, N, N2, si
-!      do wave1=1, 2*N
-!            print ('(99f10.3)'), HFBhamil(si+wave1,si+1:si+2*N)
-!      enddo
-!      print *
-!      si = si + 2*N
-!    enddo
-
-!    stop
     !---------------------------------------------------------------------------
     ! b) We repeatedly diagonalize the matrix to find a suitable Fermi energy, 
     !    for every isospin. 
@@ -246,67 +234,52 @@ contains
     !---------------------------------------------------------------------------
     ! Now, the Bogoliubov transformation in memory is now organized by block of 
     ! the HFB Hamiltonian, not necessarily by the ordering of the spwfs. 
-    temp = Bogoliubov ; tempc = configmatrix ; tempqe = QPenergies
-    Bogoliubov = 0    ; configmatrix = 0.0d0 ; QPenergies = 0.0d0
-    si = 0
-    do i=1,2*nwt
-      configmatrix(i) = 0.0
-    enddo
+    temp = Bogoliubov ;  tempqe = QPenergies  ; tempc        = configmatrix
+    Bogoliubov = 0    ;  QPenergies = 0.0d0   ; configmatrix = 0.0
+
+    si = 0 ; sb = 0
     do B=1,8,2
-      N = HFBlocks(B) ; N2 = HFBlocks(B+1)
+      N = HFBsizes(B) ; N2 = HFBsizes(B+1)
 
-      Bogoliubov(si+     1:si  +N   ,si+1:si+N) = &
-      &                                        temp(si+  1:si+  N,si+  1:si+N)
-      Bogoliubov(si+N+N2+1:si+2*N+N2,si+1:si+N) = &
-      &                                        temp(si+N+1:si+2*N,si+  1:si+N)
-
-
-      Bogoliubov(si+     1:si+  N   ,si+N+N2+1:si+2*N+N2) = &
-      &                                        temp(si+  1:si+  N,si+N+1:si+2*N)
-      Bogoliubov(si+N+N2+1:si+2*N+N2,si+N+N2+1:si+2*N+N2) = &
-      &                                        temp(si+N+1:si+2*N,si+N+1:si+2*N)
-
-
-!      !-------------------------------------------------------------------------
-!      configmatrix(si+      1:si+N)         = tempc (si+  1:si+  N)
-!      configmatrix(si+ N+N2+1:si+2*N+N2)    = tempc (si+N+1:si+2*N)
-
-!      configmatrix(si+ N+ 1:si+N+N2)        = tempc (si+2*N+1   :si+2*N+N2)
-!      configmatrix(si+2*N+N2+1:si+2*N+2*N2) = tempc (si+2*N+N2+1:si+2*N+2*N2)
-
-
-      qpenergies  (si+      1:si+N)      = tempqe(si+  1:si+  N)
-      qpenergies  (si+ N+N2+1:si+2*N+N2) = tempqe(si+N+1:si+2*N)
       !-------------------------------------------------------------------------
-    
+      ! Results of the first block
+      Bogoliubov(sb+       1:sb  +N   ,sb+1:sb+N) = &
+      &                                        temp(sb+  1:sb+  N,sb+  1:sb+N)
+      Bogoliubov(sb+N+2*N2+1:sb+2*N+2*N2,sb+1:sb+N) = &
+      &                                        temp(sb+N+1:sb+2*N,sb+  1:sb+N)
 
-      print *, 'CONFIG'
-      print *, configmatrix(si+1:si+2*N+2*N2)    
-      print *, 'SIZE', size(configmatrix), si+2*N+2*N2
+      Bogoliubov(sb+     1:sb+  N       ,sb+N+  N2+1:sb+2*N+  N2) = &
+      &                                        temp(sb+  1:sb+  N,sb+N+1:sb+2*N)
+      Bogoliubov(sb+N+2*N2+1:sb+2*N+2*N2,sb+N+  N2+1:sb+2*N+  N2) = &
+      &                                        temp(sb+N+1:sb+2*N,sb+N+1:sb+2*N)
 
-!      !-------------------------------------------------------------------------
-!      configmatrix(si+ N+   1:si+N+  N2)         = tempc(2*N+1:2*N+  N2)
-!      configmatrix(si+ N+N2+1:si+N+2*N2)         = tempc(2*N+N2+1:2*N+2*N2)
-!      qpenergies(si+        1:si+N)        = tempqe(2*N   +1:2*N+  N2)
-!      qpenergies(si+ N+2*N2+1:si+2*N+2*N2) = tempqe(2*N+N2+1:2*N+2*N2)
+      ! Results of the second block
+      Bogoliubov(sb+N+1:sb+N+2*N2,sb+N+1:sb+N+N2) = &
+      &                          temp(sb+2*N+1:sb+2*N+2*N2,sb+2*N+1:sb+2*N+N2)
+  
+      Bogoliubov(sb+N+1:sb+N+2*N2,sb+2*N+N2+1:sb+2*N+2*N2) = &
+      &                       temp(sb+2*N+1:sb+2*N+2*N2,sb+2*N+N2+1:sb+2*N+2*N2)
+
+      !-------------------------------------------------------------------------
+      configmatrix(sb+       1:sb+N  )      = tempc (sb+    1   :sb+  N)
+      configmatrix(sb+N+     1:sb+N+N2  )   = tempc (sb+2*N+1   :sb+2*N+  N2)
+      configmatrix(sb+N+  N2+1:sb+N  +2*N2) = tempc (sb+  N   +1:sb+2*N)  
+      configmatrix(sb+N+2*N2+1:sb+2*N+2*N2) = tempc (sb+2*N+N2+1:sb+2*N+2*N2)
+
+      qpenergies  (si+        1:si+N2)      = tempqe(si  +1:si+N   )
+      qpenergies  (si+N2+     1:si+N+N2)    = tempqe(si+N+1:si+N+N2) 
       !-------------------------------------------------------------------------
 
-      do i=1,2*(N+N2)
-        print ('(99f7.3)'), Bogoliubov(si+i, si+1:si+2*N+2*N2)
-      enddo
-      print *
-
-      si = si + 2*N + 2*N2
+      si = si +   N +   N2
+      sb = sb + 2*N + 2*N2
     enddo
-    
     !---------------------------------------------------------------------------
     ! c) Optionally mix the configuration matrices.  
-!    if(.not.all(configmatrix_history.eq.0.0)) then
-!      if(HFBmixtype .eq. 1) then
-!        configmatrix=HFBmix*configmatrix+(1-HFBmix)*configmatrix_history
-!      endif   
-!    endif  
-
+    if(.not.all(configmatrix_history.eq.0.0)) then
+      if(HFBmixtype .eq. 1) then
+        configmatrix=HFBmix*configmatrix+(1-HFBmix)*configmatrix_history
+      endif   
+    endif  
     !---------------------------------------------------------------------------
     ! d) Construct the density and anomalous density matrices, based on the 
     !    configmatrix and the Bogoliubov transformation
@@ -554,33 +527,32 @@ $TR    HFBdispersion = 2 * HFBdispersion
 
     real(KIND=dp), intent(in) :: config(:), Bogo(:,:)
     real(KIND=dp), intent(out):: rho(:,:), kappa(:,:)
-    integer                   :: si, sb, B, i,j,k, N, N2
+    integer                   :: si, sb, B, i,j,k, N, N2, column
 
-    rho = 0.0 ; kappa = 0.0
-
-    si = 0 ; sb = 0
+    si = 0 ; sb = 0 ; kappa = 0.0d0 ; rho = 0.0d0
     do B=1,8,2
       N = HFBsizes(B)   ;  if(N .eq. 0) cycle 
       N2= HFBsizes(B+1)
       do i=1,N+N2
         do j=1,N+N2
           do k=1,N+N2
+            column = sb+N+N2+k
             !-------------------------------------------------------------------
             !                                   U      f  U^{\dagger}
             rho(si+i,si+j)  = rho(si+i,si+j) +                 &
-            &     config(sb+  k)*bogo(sb+  i,sb+N+N2+k) * bogo(sb+  j,sb+N+N2+k)
+            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+  j,column)
             !                                   V^* (1-f) V^{T}
             rho(si+i,si+j)  = rho(si+i,si+j) +                 &
-            &  config(sb+N+N2+k)*bogo(sb+N+N2+i,sb+N+N2+k) * bogo(sb+N+N2+j,sb+N+N2+k)
+            &     config(column)*bogo(sb+N+N2+i,column) * bogo(sb+N+N2+j,column)
 
             !-------------------------------------------------------------------
             !                                   U   f        V^{\dagger}     
             ! Note the minus sign due to the hidden time-reversal!
             kappa(si+i,si+j)  = kappa(si+i,si+j) -             &
-            &           config(sb+  k)*bogo(sb+  i,sb+N+N2+k) * bogo(sb+N+N2+j,sb+N+N2+k)
+            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column)
             !                                   V^{*}(1 - f) U^{T} 
             kappa(si+i,si+j)  = kappa(si+i,si+j) +             &
-            &     config(sb+N+N2+k)*bogo(sb+N+N2+i,sb+N+N2+k) * bogo(sb  +j,sb+N+N2+k)
+            &     config(column)*bogo(sb+N+N2+i,column) * bogo(sb  +j,column)
           enddo
         enddo
       enddo
@@ -588,30 +560,6 @@ $TR    HFBdispersion = 2 * HFBdispersion
       si = si +   N +  N2
       sb = sb + 2*N +2*N2
     enddo
-
-    si = 0 ; sb = 0
-    do B=1,8,2
-      N = HFBlocks(B) ; N2 =HFBlocks(B+1)
-
-      print *, 'RHO ', B, N,  si
-      do i=1, N+N2
-            print ('(99f10.3)'), rho(si+i,si+1:si+N+N2)
-      enddo
-      print *
-
-      print *, 'CONFIG'
-      print *, config(sb+1:sb+2*N+2*N2) 
-      print *, 'SIZE', size(config), sb+2*N+2*N2   
-
-      print *, 'KAPPA ', B, N,  si
-      do i=1, N+N
-            print ('(99f10.3)'), kappa(si+i,si+1:si+N+N2)
-      enddo
-      print *
-      si = si + N + N2
-      sb = sb + 2 *(N+N2)
-    enddo
-!!    stop
 
   end subroutine PairingMatrices
 
@@ -1086,8 +1034,8 @@ $TR   particles = 2 * particles
     H(  1:N   ,N+1:2*N)  = gaps(  1:N   , N2+1:N2+N)
     H(N+1:2*N ,  1:N  )  = gaps(  1:N   , N2+1:N2+N)
 
-    H(2*N+1:2*N+N2,2*N+N2+1:2*N+2*N2) = gaps(N+1:N+N2, 1:N2)
-    H(2*N+N2+1:2*N+2*N2,2*N+1:2*N+N2) = gaps(N+1:N+N2, 1:N2)
+    H(2*N   +1:2*N+N2  ,2*N+N2+1:2*N+2*N2) = gaps(N+1:N+N2, 1:N2)
+    H(2*N+N2+1:2*N+2*N2,2*N   +1:2*N+  N2) = gaps(N+1:N+N2, 1:N2)
 
   end function ConstructHFBHamil 
 
@@ -1127,12 +1075,13 @@ $TR   particles = 2 * particles
     ! is stored. This full matrix is antisymmetric, not symmetric!
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: Fermi(2), stabfactor(2)
-    integer                   :: wave1, wave2, iso, si,  B, N, inda, indb
+    integer                   :: wave1, wave2, iso, si,  B, N, inda, indb, N2
     real(KIND=dp)             :: deltapsi(mv,4), val(2), stabfac
     
     val = Fermi ! To avoid the unused dummy argument warning from the compiler
 
     if(.not.associated(Delta_action_HFB)) stop
+
     !---------------------------------------------------------------------------
     ! Use the delta_action to calculate the elements in the gaps
     si      = 0
@@ -1141,8 +1090,8 @@ $TR   particles = 2 * particles
     ! Loop over the first of all blocks linked by the antihermitian symmetry
     ! 1,3,5,7
     do B=1,8,2   
-      N   = HFBlocks(B) ; if(N .eq. 0) cycle
-
+      N   = HFBlocks(B)  ; if(N .eq. 0) cycle
+      N2  = HFBlocks(B+1)
       iso = -1
       if(B .gt. 4) iso = 1
     
@@ -1150,10 +1099,10 @@ $TR   particles = 2 * particles
         
         ! If time-reversal is not conserved:
         !     The first index comes from the second symmetry block.
-        inda = si + wave1 + N
+$NTR        inda = si + wave1 + N
         ! If time-reversal is conserved:
         !     The first index comes from the first block, and an implicit
-        !     time-reversal operation is performed in delta_action_HFB.
+        !     time-like symmetry operation is performed in delta_action_HFB.
 $TR        inda = si + wave1
 
         deltapsi = delta_action_HFB(  hfpsi(:,:,  inda),                       &
@@ -1162,7 +1111,7 @@ $TR        inda = si + wave1
         &                          hfdddpsi(:,:,:,inda),                       &
         &                        sx(:,inda), sy(:,inda), sz(:,inda),iso,.false.)
         
-        do wave2=wave1,N
+        do wave2=1,N
           ! The second index is always in the first block. 
           indb = si + wave2 
 
@@ -1174,19 +1123,21 @@ $TR        inda = si + wave1
           &                          Pcutoffs(inda)*Pcutoffs(indb)*stabfac
 
  
-          ! The full matrix Delta is antisymmetric...
+!          ! The full matrix Delta is antisymmetric...
 $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
-          ! ... but the stored matrix is symmetric when time-reversal is 
-          ! conserved.
-$TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
+!          ! ... but the stored matrix is symmetric when time-reversal is 
+!          ! conserved.
+!$TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
 
         enddo
       enddo
-      do wave1=1,2*N
-           print ('(99f10.3)'), HFBgaps(si+wave1,si+1:si+2*N)
-      enddo
-      print *
-      si = si + N
+!      print *, 'GAPS'
+!      do wave1=1,2*N
+!           print ('(99f10.3)'), HFBgaps(si+wave1,si+1:si+2*N)
+!      enddo
+!      print *
+
+      si = si + N + N2
     enddo
 
   end subroutine calcHFBgaps

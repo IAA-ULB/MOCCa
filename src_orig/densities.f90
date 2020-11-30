@@ -227,11 +227,15 @@ $BCSEXPRESSION
       DenddPsi  => HFddPsi ; DendddPsi => HFdddpsi
       
       si = 0
-      do B=1,8
-        N = HFBlocks(B)
-        it = 2 ;  if( B.le. 4) it = 1
+      do B=1,8,2
+        N = HFBlocks(B) ;  if (N.eq.0) cycle
+        N2= HFBlocks(B+1)
+        it = 2          
+        if( B.le. 4) it = 1
         do wave=1,N
-          do wave2=wave,N      
+$TR          do wave2=wave,N      
+$NTR          do wave2=N+1,N+N2      
+
             weight  =  2 *kappa_pairing(si+wave,si+wave2)*                     &
             &                               Pcutoffs(si+wave)*Pcutoffs(si+wave2)
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -266,14 +270,14 @@ $BCSEXPRESSION
             ! comment. Note that it doesn't get applied for the diagonal
             ! component.
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -         
-            if(wave.ne.wave2) weight = 2 * weight
+$TR            if(wave.ne.wave2) weight = 2 * weight
 
             do i=1,mv
 $HFBEXPRESSION
             enddo
           enddo
         enddo
-        si = si + N
+        si = si + N + N2
       enddo
     end select
     call stop_timer(T_den_pp)
