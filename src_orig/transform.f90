@@ -130,35 +130,36 @@ contains
       enddo
       !-------------------------------------------------------------------------
       ! Transformation of the pairing gaps and pairing tensor kappa
-      tempgaps = HFBgaps
-      tempkap  = kappa_pairing 
+      if(pairingtype.eq.2) then
+        tempgaps = HFBgaps
+        tempkap  = kappa_pairing 
       
-      deallocate(HFBgaps)       ; allocate(HFBgaps(nwt, nwt))  
-      deallocate(kappa_pairing) ; allocate(kappa_pairing(nwt,nwt))
+        deallocate(HFBgaps)       ; allocate(HFBgaps(nwt, nwt))  
+        deallocate(kappa_pairing) ; allocate(kappa_pairing(nwt,nwt))
 
-      HFBgaps = 0; kappa_pairing = 0
+        HFBgaps = 0; kappa_pairing = 0
 
-      si = 0  ; sb = 0
-      do B = 1,8
-        N = blocks(B) ; if(N .eq. 0) cycle
-        do wave=1,N
-          do wave2=1,N
-            HFBgaps(sb + wave    , sb + wave2 + N)  = &
-            &                                         tempgaps(si+wave,si+wave2)
-            HFBgaps(sb + wave + N, sb + wave2    )  = &
-            &                                        -tempgaps(si+wave,si+wave2)
+        si = 0  ; sb = 0
+        do B = 1,8
+          N = blocks(B) ; if(N .eq. 0) cycle
+          do wave=1,N
+            do wave2=1,N
+              HFBgaps(sb + wave    , sb + wave2 + N)  = &
+              &                                         tempgaps(si+wave,si+wave2)
+              HFBgaps(sb + wave + N, sb + wave2    )  = &
+              &                                        -tempgaps(si+wave,si+wave2)
 
-            kappa_pairing(sb + wave    , sb + wave2 + N) = & 
-            &                                         tempgaps(si+wave,si+wave2)
-            kappa_pairing(sb + wave + N, sb + wave2    ) = &
-            &                                        -tempgaps(si+wave,si+wave2)
+              kappa_pairing(sb + wave    , sb + wave2 + N) = & 
+              &                                         tempgaps(si+wave,si+wave2)
+              kappa_pairing(sb + wave + N, sb + wave2    ) = &
+              &                                        -tempgaps(si+wave,si+wave2)
+            enddo
           enddo
+
+          si = si +   N
+          sb = sb + 2*N
         enddo
-
-        si = si +   N
-        sb = sb + 2*N
-      enddo
-
+      endif
       ! Clean up
       deallocate(temp, tempsx, tempsy, tempsz)    
     endif

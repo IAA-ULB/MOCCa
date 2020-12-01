@@ -110,7 +110,9 @@ contains
     !---------------------------------------------------------------------------
     ! Calculate the total angular momentum and related observables.
     !---------------------------------------------------------------------------  
-    integer :: B, N, wave, si, i, c
+    integer :: B, N, wave, si, i, c, j
+
+    real(KIND=dp), allocatable :: tempJ(:,:)
 
     totalangmom = 0.0
 
@@ -120,13 +122,34 @@ contains
       do wave = 1, N  
         do i = 1, cranklen
           c  = crankdirections(i)
-          TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * spwf_J(c,si+wave)
+          if(pairingtype.ne.2) then
+            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * spwf_J(c,si+wave)
+          else
+            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * can_J(c,si+wave)
+          endif
         enddo
       enddo
       si = si + N
     enddo
 
     crankenergy = - omega * TotalAngMom    
+
+!    print *, 'BEFORE', TotalAngMom  
+!    allocate(tempJ(nwt,nwt)); tempJ = 0.0
+!    do i = 1, nwt
+!      do j=1, nwt
+!        tempj(i,j) =  angmom_z_real (HFPsi(:,:,i),HFPsi(:,:,j),HFdPsi(:,:,:,j))
+!      enddo
+!    enddo
+!    totalangmom = 0
+!    do i=1, nwt
+!      do j=1, nwt
+!        totalangmom(3) = totalangmom(3) + tempj(i,j) * rho_pairing(j,i)
+!      enddo
+!    enddo
+!    
+!    print *, 'AFTER', TotalAngMom  
+
   end subroutine updateAM
 
   subroutine printcranking_init
@@ -200,6 +223,7 @@ contains
       do it=1,2
         spot(:,c,it) = - 0.5 * omega(c) * cutoff(:,it)
       enddo
+      print *,c, omega(c)
     enddo
       
     return
@@ -223,9 +247,10 @@ contains
       nu = indices(1)
       ka = indices(2)
       do it=1,2
-          jpot(:,mu, it) = - cutoff(:,it) * &
+          jpot(:,mu, it) = - cutoff(:,it) *  &
           &            (omega(nu) * meshgrid(:,ka) - omega(ka) * meshgrid(:,nu))
       enddo
+      print *,mu, nu, ka, omega(nu), omega(ka)
     enddo
     return
   end function crank_current_potential

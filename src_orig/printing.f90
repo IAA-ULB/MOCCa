@@ -46,8 +46,8 @@ contains
     do k=1,nwn 
         wave = NeutronOrder(k)
         
-        if(wave .le. HFBlocks(1)) p = +1
-        if(wave .gt. HFBlocks(1)) p = -1
+        if(wave .le. sum(HFBlocks(1:2))) p = +1
+        if(wave .gt. sum(HFBlocks(1:2))) p = -1
 
         Jx = spwf_JTR(1,wave)
         Jy = spwf_JTI(2,wave)
@@ -73,8 +73,8 @@ contains
     do k=1,nwp
         wave = ProtonOrder(k)
         
-        if(wave .le. sum(HFBlocks(1:5))) p = +1
-        if(wave .gt. sum(HFBlocks(1:5))) p = -1
+        if(wave .le. sum(HFBlocks(1:6))) p = +1
+        if(wave .gt. sum(HFBlocks(1:6))) p = -1
 
         Jx = spwf_JTR(1,wave)
         Jy = spwf_JTI(2,wave)

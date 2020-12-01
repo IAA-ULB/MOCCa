@@ -68,18 +68,18 @@ module wavefunctions
  ! expectation values of the single-particle hamiltonian in the canonical basis
  real(KIND=dp), allocatable :: canenergies(:)
  !------------------------------------------------------------------------------
- ! Angular momentum properties of the spwfs
- ! "Ordinary" <Jx>, <Jy>, <Jz>
- real(KIND=dp), allocatable :: spwf_J(:,:)
+ ! Angular momentum properties of the spwfs in both the HF and canonical basis
+ ! "Ordinary" <Jx>, <Jy>, <Jz> in the HF and canonical basis
+ real(KIND=dp), allocatable :: spwf_J(:,:), can_J(:,:)
  ! Squared   <Jx^2>, <Jy^2>, <Jz^2>
- real(KIND=dp), allocatable :: spwf_J2(:,:)
+ real(KIND=dp), allocatable :: spwf_J2(:,:), can_J2(:,:)
  ! With an extra time-reversal operator < Jx T >, < Jy T >, < Jz T >
  ! Both real and imaginary parts
- real(KIND=dp), allocatable :: spwf_JTR(:,:)
- real(KIND=dp), allocatable :: spwf_JTI(:,:)
+ real(KIND=dp), allocatable :: spwf_JTR(:,:), can_JTR(:,:)
+ real(KIND=dp), allocatable :: spwf_JTI(:,:), can_JTI(:,:)
  ! Total angular momentum "quantum number", i.e. the number J such that 
  !  J (J+1) = <J^2_x> +  <J^2_y> + <J^2_z>
- real(KIND=dp), allocatable :: spwf_JJ(:)
+ real(KIND=dp), allocatable :: spwf_JJ(:), can_JJ(:)
  !------------------------------------------------------------------------------
  ! Number of the blocks with the same quantum numbers that divide up the 
  ! the single-particle wavefunctions.
@@ -515,6 +515,37 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
   
       spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave))))/2.
     enddo
+
+    if(allocated(CANPSI)) then
+      if(.not.allocated(can_J)) then
+        allocate(can_J(3,nwt))   ; can_J  = 0.0
+        allocate(can_JTR(3,nwt)) ; can_JTR= 0.0
+        allocate(can_JTI(3,nwt)) ; can_JTI= 0.0
+        allocate(can_J2(3,nwt))  ; can_J2 = 0.0
+        allocate(can_JJ(nwt))    ; can_JJ = 0.0
+      endif
+
+      do wave=1,nwt
+        can_JTR(1,wave) = & 
+        & angmom_xt_real(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
+        can_JTI(2,wave) = &
+        & angmom_yt_imag(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
+        can_J(3,wave)   = & 
+        & angmom_z_real (CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
+
+        can_J2(1,wave)  = &
+          &   angmom_x_quad(CanPsi(:,:,wave),CandPsi(:,:,:,wave), &
+          &                 CanPsi(:,:,wave),CandPsi(:,:,:,wave)) 
+        can_J2(2,wave)  = &
+          &   angmom_y_quad(CanPsi(:,:,wave),CandPsi(:,:,:,wave), &
+          &                 CanPsi(:,:,wave),CandPsi(:,:,:,wave)) 
+        can_J2(3,wave)  = &
+          &   angmom_z_quad(CanPsi(:,:,wave),CandPsi(:,:,:,wave), &
+          &                 CanPsi(:,:,wave),CandPsi(:,:,:,wave)) 
+    
+        can_JJ(wave) = (-1. + sqrt(1. + 4*sum(can_J2(:,wave))))/2.
+      enddo
+    endif
 
   end subroutine update_spwf_angmom
   

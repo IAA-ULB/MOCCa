@@ -187,6 +187,12 @@ contains
         sphamil(si+wave1,si+wave1) = spenergies(si+wave1)
       enddo
 
+!      print *, 'SPHAMIL'
+!      do wave1=1,N+N2
+!        print ('(99f10.3)'), sphamil(si+wave1, si+1:si+N+N2)
+!      enddo
+!      print *
+
       if(.not.allocated(HFBgaps)) then
         print *, 'HFB gaps are not allocated yet.'
         stop  
@@ -195,6 +201,7 @@ contains
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
       &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
       &                           HFBgaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)  
+
 
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
@@ -230,6 +237,18 @@ contains
          blocked_qps(NN+i) = p_blocked(i) + 2*sum(HFBsizes(1:4))
        enddo
     endif
+
+!    print *, 'BOGOLIUBOV'
+!    si = 0 ; sb = 0
+!    do B=1,8,2
+!      N = HFBsizes(B) ; N2 = HFBsizes(B+1)
+!      do i=1, 2*(N+N2)
+!          print ('(99f7.3)'), Bogoliubov(si+i, si+1:si+2*(N+N2))
+!      enddo
+!      print *
+!      si = si + 2*N+2*N2
+!    enddo
+
 
     !---------------------------------------------------------------------------
     ! Now, the Bogoliubov transformation in memory is now organized by block of 
@@ -273,6 +292,18 @@ contains
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
     enddo
+
+!    print *, 'BOGOLIUBOV'
+!    si = 0 ; sb = 0
+!    do B=1,8,2
+!      N = HFBsizes(B) ; N2 = HFBsizes(B+1)
+!      do i=1, 2*(N+N2)
+!          print ('(99f7.3)'), Bogoliubov(si+i, si+1:si+2*(N+N2))
+!      enddo
+!      print *
+!      si = si + 2*N+2*N2
+!    enddo
+
     !---------------------------------------------------------------------------
     ! c) Optionally mix the configuration matrices.  
     if(.not.all(configmatrix_history.eq.0.0)) then
@@ -565,6 +596,18 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
       si = si +   N +  N2
       sb = sb + 2*N +2*N2
     enddo
+
+!    si = 0 ; sb = 0 
+!    do B=1,8
+!      N = HFBsizes(B)
+!      si = 0
+!      print *, 'RHO', B
+!      do i=1, N
+!          print ('(99f7.3)'), rho(si+i, si+1:si+N)
+!      enddo
+!      si = si + N
+!    enddo
+!    
 
   end subroutine PairingMatrices
 
@@ -1017,7 +1060,7 @@ $TR   particles = 2 * particles
     real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:)
     real(KIND=dp), allocatable  :: H(:,:)
     integer, intent(in)         :: N, N2
-    integer                     :: T
+    integer                     :: T,i
 
     T = N + N2
     allocate(H(2*T,2*T)) 
@@ -1042,6 +1085,12 @@ $TR   particles = 2 * particles
     H(2*N   +1:2*N+N2  ,2*N+N2+1:2*N+2*N2) = gaps(N+1:N+N2, 1:N2)
     H(2*N+N2+1:2*N+2*N2,2*N   +1:2*N+  N2) = gaps(N+1:N+N2, 1:N2)
 
+
+!    print *, 'HFB HAMIL'
+!    do i=1,2*T
+!      print ('(99f10.3)'), H(i,:)
+!    enddo
+!    print *
   end function ConstructHFBHamil 
 
   subroutine calcHFBgaps(Fermi, stabfactor)

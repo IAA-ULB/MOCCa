@@ -327,7 +327,7 @@ contains
       real(KIND=dp) :: con, maxE, compare, relE, kappa
       !-------------------------------------------------------------------------
       ! Step 1: Solve the auxiliary problem for the largest single-particle 
-      !         ennergy on the mesh
+      !         energy on the mesh
       if(Iteration .eq.1) then
 
           if(allocated(maxspwf))   deallocate(maxspwf)
