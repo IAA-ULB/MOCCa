@@ -31,6 +31,7 @@ module cranking
  use geninfo
  use nil8
  use pairing
+ use densities
 
  implicit none
  
@@ -59,9 +60,11 @@ module cranking
  ! AMBlock:
  !    Values of the total angular momentum, split by quantum number block.
  !------------------------------------------------------------------------------
- real(KIND=dp), public :: TotalAngMom(3)= 0.0_dp, AngMomOld(3)  = 0.0_dp
- real(KIND=dp), public :: J2(3)         = 0.0_dp, AMBlock(8,3)  = 0.0_dp
+ real(KIND=dp) :: TotalAngMom(3)= 0.0_dp, AngMomOld(3)  = 0.0_dp
+ real(KIND=dp) :: J2(3)         = 0.0_dp, AMBlock(8,3)  = 0.0_dp
 
+
+ real(KIND=dp) :: TotalAngMom_dens(3) = 0.0_dp 
  !------------------------------------------------------------------------------
  integer, parameter                        :: cranklen = $CRANKLEN
  integer, parameter, dimension(cranklen+1) :: crankdirections = (/ $CRANKDIR 0/)
@@ -110,10 +113,11 @@ contains
     !---------------------------------------------------------------------------
     ! Calculate the total angular momentum and related observables.
     !---------------------------------------------------------------------------  
-    integer :: B, N, wave, si, i, c, j
+    integer :: B, N, wave, si, i, c, j, it
 
     real(KIND=dp), allocatable :: tempJ(:,:)
-
+    
+    angmomold   = totalangmom
     totalangmom = 0.0
 
     si = 0    
@@ -131,8 +135,23 @@ contains
       enddo
       si = si + N
     enddo
-
     crankenergy = - omega * TotalAngMom    
+
+    !-------------------------------------------------------------------------
+    ! And now we integrate the current density and spin density.
+    totalangmom_dens = 0.0
+    do it=1,2
+      ! Spin part
+      TotalAngMom_dens(3) = TotalAngMom_dens(3) + &
+      &                                    0.5 * sum(D_I_S(:,3,it)) 
+
+      do i=1, nx*ny*nz
+        TotalAngMom_dens(3) = TotalAngMom_dens(3) &
+        & - meshgrid(i,2) * C_I_N(i,1,it) + meshgrid(i,1) * C_I_N(i,2,it)
+      enddo
+    enddo
+    TotalAngMom_dens = TotalAngMom_dens * dv
+
 
 !    print *, 'BEFORE', TotalAngMom  
 !    allocate(tempJ(nwt,nwt)); tempJ = 0.0
@@ -191,12 +210,12 @@ contains
     print 3
     print 1
 
-    print 4, 'x', TotalAngMom(1), 0.0, Omega(1), CrankEnergy(1), 0.0 
-    print 4, 'y', TotalAngMom(2), 0.0, Omega(2), CrankEnergy(2), 0.0 
-    print 4, 'z', TotalAngMom(3), 0.0, Omega(3), CrankEnergy(3), 0.0
+    print 4, 'x', TotalAngMom(1), 0.0, Omega(1), CrankEnergy(1), TotalAngMom_dens(1)
+    print 4, 'y', TotalAngMom(2), 0.0, Omega(2), CrankEnergy(2), TotalAngMom_dens(2)
+    print 4, 'z', TotalAngMom(3), 0.0, Omega(3), CrankEnergy(3), TotalAngMom_dens(3)
     print 1
-    print 31, sqrt(sum(totalangmom(1:3)**2)), 0.0, &
-    &         sqrt(sum(omega(1:3)**2))      , 0.0
+    print 31, sqrt(sum(totalangmom**2)), 0.0, &
+    &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom_dens**2))
     print 10
   end subroutine PrintCranking
 
@@ -223,7 +242,6 @@ contains
       do it=1,2
         spot(:,c,it) = - 0.5 * omega(c) * cutoff(:,it)
       enddo
-      print *,c, omega(c)
     enddo
       
     return
@@ -250,7 +268,6 @@ contains
           jpot(:,mu, it) = - cutoff(:,it) *  &
           &            (omega(nu) * meshgrid(:,ka) - omega(ka) * meshgrid(:,nu))
       enddo
-      print *,mu, nu, ka, omega(nu), omega(ka)
     enddo
     return
   end function crank_current_potential

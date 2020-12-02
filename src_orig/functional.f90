@@ -700,9 +700,7 @@ $CALCFIELDS
 
         !-----------------------------------------------------------------------
         ! Add the contribution of a cranking constraint to the 
-        !    F_I_S and G_I_N
-        ! fields
-        print *, 'ADDING CRANK POTENTIALS'
+        !    F_I_S and G_I_N  fields
 $NTR    F_I_S = F_I_S + crank_spin_potential()     
 $NTR    G_I_N = G_I_N + crank_current_potential() 
     endif

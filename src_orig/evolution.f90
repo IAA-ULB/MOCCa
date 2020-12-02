@@ -407,7 +407,7 @@ contains
           relE = minval(QPenergies)
       end select
       ! Safeguard the difference
-      if(relE .lt. 0.05) relE = 0.05
+      if(relE .lt. 0.20) relE = 0.50
       !-------------------------------------------------------------------------
       ! Step 3: use these estimations to determine a value for dt and mu.
       maxE  = maxE - minval(spenergies)

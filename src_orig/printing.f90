@@ -23,6 +23,7 @@ contains
     !---------------------------------------------------------------------------
     
     10 format (21 ('-'), ' Sp wavefunctions ', 41('-'))
+    12 format (21 ('-'), ' Canonical basis  ', 41('-'))
     20 format (80 ('-'))
     30 format (80 ('_'),/,3x , 'Neutron wavefunctions')
     40 format (80 ('_'),/,3x , 'Proton  wavefunctions')
@@ -94,8 +95,55 @@ contains
         endif
     enddo
     print 20
+  
+    ! Return if we are not doing a HFB calculation
     if(PairingType.ne.2) return
+
+    ! Otherwise, print the properties of the canonical basis
+    print 12
+    print 30
+    print 60
+  
+    ! Order the canonical basis, not the HF one
+    ProtonOrder = OrderSpwfsISO(+1, .true.) 
+    NeutronOrder= OrderSpwfsISO(-1, .true.)
+
+    do k=1,nwn 
+      wave = NeutronOrder(k) 
+      if(wave .le. sum(HFBlocks(1:2))) p = +1
+      if(wave .gt. sum(HFBlocks(1:2))) p = -1
+
+      Jx = can_JTR(1,wave)
+      Jy = can_JTI(2,wave)
+      Jz = can_J(3,wave)
+      JJ = can_JJ(wave)
+
+      print 11, wave, p,     rho_can(wave), canenergies(wave),             &
+      &               0.0, 0.0, Jx, Jy, Jz, JJ
+    enddo
+    print 40  
+    print 60
+    print 10
+    do k=1,nwp 
+
+      wave = ProtonOrder(k) 
+
+      if(wave .le. sum(HFBlocks(1:6))) p = +1
+      if(wave .gt. sum(HFBlocks(1:6))) p = -1
+
+      Jx = can_JTR(1,wave)
+      Jy = can_JTI(2,wave)
+      Jz = can_J(3,wave)
+      JJ = can_JJ(wave)
+
+      print 11, wave, p,     rho_can(wave), canenergies(wave),             &
+      &               0.0, 0.0, Jx, Jy, Jz, JJ
+    enddo
+    print 20
+
   end subroutine PrintSpwfs
+
+
 
   subroutine printqps
     !---------------------------------------------------------------------------

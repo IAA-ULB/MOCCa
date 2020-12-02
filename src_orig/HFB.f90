@@ -1170,13 +1170,12 @@ $TR        inda = si + wave1
           indb = si + wave2 
 
           ! Add the stabilisation factor
-          ! (1 if the pairing functional is not)  stabilized.
+          ! (1 if the pairing functional is not stabilized)
           stabfac = 1 + stabfactor((iso+3)/2)
 
           HFBgaps(indb,inda) =     sum(hfpsi(:,:,indb)*deltapsi)*dv *          &
           &                          Pcutoffs(inda)*Pcutoffs(indb)*stabfac
 
- 
 !          ! The full matrix Delta is antisymmetric...
 $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
 !          ! ... but the stored matrix is symmetric when time-reversal is 
@@ -1185,11 +1184,6 @@ $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
 
         enddo
       enddo
-!      print *, 'GAPS'
-!      do wave1=1,2*N
-!           print ('(99f10.3)'), HFBgaps(si+wave1,si+1:si+2*N)
-!      enddo
-!      print *
 
       si = si + N + N2
     enddo
@@ -1197,16 +1191,22 @@ $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
   end subroutine calcHFBgaps
 
   subroutine PrintHFBconvergence(rho_pairing, kappa_pairing)
-    !----------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     ! Prints out some convergence info on the HFB subproblem.
-    !   a) size of rho*rho - rho + kapppa * kappa^T
-    !   b) size of rho*kappa - kappa * rho
-    ! These should be small at convergence.
-    !----------------------------------------------------------------------------
+    !   a) sqrt(sum( (rho*rho - rho + kapppa * kappa^T)**2)
+    !   b) sqrt(sum( (rho*kappa - kappa * rho)**2))
+    ! 
+    ! These should be (numerically) vanishingly small at convergence, when we
+    ! have solved the HFB problem consistently.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Note that these numbers do not vanish when we do either
+    !   (i)  finite-temperature calculations (they increase as T increases)
+    !   (ii) Equal Filling-style blocking
+    !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)  :: rho_pairing(:,:), kappa_pairing(:,:)
     real(KIND=dp)              :: test1(8), test2(8)
     real(KIND=dp), allocatable :: A(:,:) , r(:,:), k(:,:)
-    integer                    :: N, B, si
+    integer                    :: N, B, si, N2
 
     1 format (' HFB convergence:   (N,+)    (N,-)    (P,+)    (P,-)')
     2 format ('  r^2-r+k*k^T    = ',  4es9.2)
@@ -1216,12 +1216,13 @@ $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
     print 1
     
     si = 0
-    do B=1,8
+    do B=1,8,2
         N = HFBlocks(B) ; if (N.eq. 0) cycle
- 
-        allocate(A(N,N), r(N,N), k(N,N))
-        r = rho_pairing(si+1:si+N,si+1:si+N)
-        k = kappa_pairing(si+1:si+N,si+1:si+N)
+        N2= HFBlocks(B+1)
+
+        allocate(A(N+N2,N+N2), r(N+N2,N+N2), k(N+N2,N+N2))
+        r = rho_pairing(si+1:si+N+N2  ,si+1:si+N+N2)
+        k = kappa_pairing(si+1:si+N+N2,si+1:si+N+N2)
         
         ! A = rho^2 - rho + kappa * kappa^T
         A = matmul(r,r) - r + matmul(k, transpose(k))
@@ -1231,7 +1232,7 @@ $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
         A = matmul(r, k) - matmul(k,r)
 
         test2(B) = sqrt(sum(A**2))
-        si = si + N
+        si = si + N + N2
         deallocate(A,r,k)
     enddo
 

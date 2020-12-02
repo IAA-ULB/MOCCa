@@ -322,6 +322,10 @@ subroutine ReachForWaterAndFood()
         ! Solve pairing problem
         call SolvePairing()
 
+        ! IF SOME CRANKING or blocking IS PRESENT
+        call update_spwf_angmom()
+        call updateAM 
+
         projectpresent = checkconstraints()        
 
         if(projectpresent) then
@@ -458,6 +462,7 @@ subroutine printsummary(iter)
     &         ' dQ20= ', e8.1, 4x, '  dQ22= ', e8.1)
     6 format (' dmun= ', e8.1, 4x, '  dmup= ', e8.1)
     7 format (' dN  = ', e8.1, 4x, '  dZ  = ', e8.1)  
+    8 format (' Jz  = ', f8.3, 4x, '  dJZ = ', e8.1 )
 
     part=>FindMoment(0,0,.false.)
     Q20 =>FindMoment(2,0,.false.     )
@@ -479,6 +484,7 @@ subroutine printsummary(iter)
     dQ20 = abs(sum(Q20%value) - sum(Q20%history))
     dQ22 = abs(sum(Q22%value) - sum(Q22%history))
     print 5, sum(Q20%value), sum(Q22%value), dQ20,dQ22
+    print 8, totalangmom(3), totalangmom(3) - angmomold(3)
         
 end subroutine printsummary
 

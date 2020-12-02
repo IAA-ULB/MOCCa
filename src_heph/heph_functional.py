@@ -85,7 +85,7 @@ derivative_order = 1
 # Note that I still fail to account for this formally (except for C^{1,N}), but 
 # this seems to hold if the functional is local.
 #-------------------------------------------------------------------------------
-assume_locality = 1
+assume_locality = 0
 
 def initfunctional(fname, so):
     """
@@ -507,9 +507,9 @@ def ProcessFunctional(fname, src, target, so):
                                   GenerateAction(field, 0, so)
           else:
               SkyrmeAction = SkyrmeAction +                          \
-                                           GenerateAction(field, 1, so.timelike)
+                                           GenerateAction(field, 1, so)
               SkyrmeAction = SkyrmeAction +                          \
-                                           GenerateAction(field,-1, so.timelike)
+                                           GenerateAction(field,-1, so)
         else:
           # Always symmetrize non-symmetric D's
           SkyrmeAction = SkyrmeAction + GenerateAction(field,+1, so)
