@@ -342,10 +342,9 @@ def GenerateFields(so):
                               mu   = int(arg[fieldterm[4].index(c)]/2) 
                               # Which term of two?
                               t = arg[fieldterm[4].index(c)] - 2*mu
-                              if(t == 1):
-                                sign = sign * -1
                               nuka = Rot_ind(mu)[t] 
-                                  
+                              if(t == 1):
+                                sign = sign * -1                              
                               temp = (mu,abs(nuka[0]), abs(nuka[1]))
                               dic['IND'] = dic['IND'] + ',%d'%(temp[c.index(k)]+1)
 
@@ -379,7 +378,7 @@ def GenerateFields(so):
 
                     dic['CPLCTE']   =  fieldterm[3]
                     #-----------------------------------------------------------
-                    # Get the indices of the density in the field
+                    # Get the indices of the density on the rhs.
                     indices = ()
                     nswitch = 0
                     for k in range(lastorder,lastorder+OrderOfDen(dic['DENSITY'])):
@@ -405,14 +404,14 @@ def GenerateFields(so):
                     #-----------------------------------------------------------                      
                     # Put an extra sign for every partial integration of a nabla
                     # needed
-                    if( fieldterm[1]%2 != 0) :
+                    if( fieldterm[1]%2 != 0):
                         localsign = sign * (-1)
+                        # ..... and an additional sign for every partial integration
+                        # performed for a nabla that is involved in a vector product
+#                        localsign = localsign * (-1)**nswitch
+                        print (nswitch)
                     else:
                         localsign = sign
-
-                    # ..... and an additional sign for every partial integration
-                    # performed for a nabla that is involved in a vector product
-                    localsign = localsign * (-1)**nswitch
   
                     if(localsign > 0):
                       dic['SIGN']     =  '+'
@@ -505,22 +504,36 @@ def GenerateAction(field, symmetrize, so):
     #---------------------------------------------------------------------------
     # First, figure out whether there is an antilinear, antihermitian symmetry
     # that is conserved.
-    timelike = False
-    for g in so.generators:
-      if(not g.linear and not g.hermitian):
-        timelike = True
 
     #---------------------------------------------------------------------------
     # Parse the field under consideration
-    (left,right,coupling,cross) = ParseOperatorsField(field, timelike)
+    (left,right,coupling,cross) = ParseOperatorsField(field, so.timelike)
 
     #---------------------------------------------------------------------------
     # If symmetrize is non-zero, change left <-> right and the couplings
     # accordingly
     if(symmetrize == -1 ):
         switch_field = field.split('_')
-        switch_field = switch_field[0]+'_'+switch_field[2]+'_'+ switch_field[1]
-        (left,right,coupling,cross) = ParseOperatorsField(switch_field,timelike)
+        R = switch_field[2]
+        L = switch_field[1]
+        # We put all spin indices on the r.h.s.
+        # This allows us to 
+        # 1. Be more efficient with "on the fly" derivatives
+        #    (They can be grouped more)   
+        # 2. make it easier to figure out the symmetries of the intermediate
+        #    functions for the "on the fly" derivatives
+        if('S' in R): 
+          for l in sumindices:
+            if('S' + l in R):
+               R = R.replace('S'+l, '')
+               L = L + 'S' + l
+          if('S' in R):
+            R = R.replace('S', '')
+            L = L + 'S'
+        switch_field = switch_field[0]+'_'+R+'_'+ L
+        (left,right,coupling,cross) = ParseOperatorsField(switch_field,so.timelike)
+  
+    print (field, left, right, cross)
     #---------------------------------------------------------------------------
     #Building the left and right operators
     operatordic = {}
@@ -630,6 +643,7 @@ def GenerateAction(field, symmetrize, so):
     largs = larg_new
     
     for true_larg in largs:
+        
         # reset temp to 0
         expression = expression + temp_ini
         
@@ -645,6 +659,7 @@ def GenerateAction(field, symmetrize, so):
             dic['LMULT'] = dic['LMULT'] + ' 0.5d0 * '
         
         leftind  = LeftOperator(true_larg, start)
+
         rargs    = list(itertools.product(range(3), repeat=rdim-len(cross)))
         dic['RMULT'] = ''
         
@@ -790,9 +805,9 @@ def GenerateAction(field, symmetrize, so):
                 
                 sym = +1
                 # Get the symmetries of the derivatives (including the current one)
-                # that still need to be performed after this derivative.
-                # Note that contractions are not considered, since they represent
-                # laplacians.
+                # that still need to be performed after this derivative. This
+                # works, since we have forced the application of the spin 
+                # operators to be part of the right operator
                 for l in range(lorder, LeftOperator.derorder):
                     if true_larg[- l - offset - 1] +1  == direc:
                         sym = -sym
