@@ -20,15 +20,12 @@ def ProcessCranking(fname, src, target, so):
   directions = []
 
   dic = {}
-  
-  timelike = False
-  for g in so.generators:
-    if( not g.linear and not g.hermitian ):
-      timelike = True
 
-  if( not timelike):
+  dic['NTR'] = '!'
+  if( not so.timelike):
     directions = [3]
-
+    dic['NTR'] = ''
+  
   dic['CRANKDIR'] = ""
   for d in directions:
     dic['CRANKDIR'] = dic['CRANKDIR'] + "%d,"%d

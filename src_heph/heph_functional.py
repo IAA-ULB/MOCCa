@@ -108,7 +108,7 @@ def initfunctional(fname, so):
     tempden     = []
     rotationals = []
     for term in Functional_terms:
-        (densities,coup,cross) = ParseDensities(term)
+        (densities,coup) = ParseDensities(term)
         for den in densities:
             tempden.append(den)
 
@@ -280,7 +280,7 @@ def RemoveTimeOddTerms():
 
     toremove = []
     for i,term in enumerate(Functional_terms):
-      (densities,coup,cross) = ParseDensities(term)      
+      (densities,coup) = ParseDensities(term)      
 
       timeodd= False
       totalt = +1
@@ -351,7 +351,6 @@ def ParseDensities(term):
     #---------------------------------------------------------------------------
     # Find all couplings by looping over all possible accepted summation letters
     coupling  = []
-    cross     = []
     foundx    = []
     for l in sumindices:
         c   = ()
@@ -360,24 +359,11 @@ def ParseDensities(term):
         foundx.append(0)
         for i in range(len(term)):      
             if(term[i] == l):
-#               if(term[i-1] not in crossindices): 
                     c = c+ (ind,)
-#               else:    
-#                 if(foundx[sumindices.index(l)] == 0):
-#                    foundx[sumindices.index(l)] = foundx[sumindices.index(l)] +1
-#                    c = c+ (ind,)
-#                    cc = cc+ (ind,)
-#                 else:
-#                    foundx[sumindices.index(l)] = foundx[sumindices.index(l)] +1
-#                    cc = cc+ (ind,)
-                        
             if(term[i] in sumindices):
                     ind = ind + 1 
         if(len(c) > 0) :
                 coupling.append(c)
-
-#        if(len(cc) > 0) :
-#                cross.append(cc)
 
     #---------------------------------------------------------------------------
     # Don't propagate couplings into the name that are not between left and 
@@ -398,15 +384,12 @@ def ParseDensities(term):
                     densities[j] = densities[j].replace(l, '')
                 else:
                     pass
+    # Remove vector coupling indices
     for l in crossindices:
         for i in range(len(densities)): 
-            if( derstring + l in densities[i]) :
-                # Remove the vector coupling if it involves derivatives
-                densities[i] = densities[i].replace(l, '')
-                for j in range(len(densities)):
-                    densities[j] = densities[j].replace(l, '')
-        
-    return (densities, coupling, cross)
+            densities[i] = densities[i].replace(l, '')
+    #---------------------------------------------------------------------------
+    return (densities, coupling)
 
 def ProcessParameterization(fname, src, target):
     """
@@ -708,8 +691,7 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
     #   =>  tempden :  D_I_S, Der_C_I_N
     #       coupling:  [(0,1,2)], i.e. the summation over Sm and the curl of the 
     #                  current 
-    (tempden, coupling,cross) = ParseDensities(term)
-    print (term, tempden, coupling, cross)
+    (tempden, coupling) = ParseDensities(term)
   
     # We scan the list of actually calculated densities (Densities_needed)
     # to see what contractions we have/can use.
@@ -749,7 +731,7 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
             if(densities[i].count(sumindices[coupling.index(c)]) == 2):
                 # Replace internal couplings
                 altterm = altterm.replace(sumindices[coupling.index(c)],'')               
-    (rubbish, true_coupling, true_cross) = ParseDensities(altterm)
+    (rubbish, true_coupling) = ParseDensities(altterm)
     
     dic = {}
     index_encountered=0
@@ -778,8 +760,6 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
       true_args = vec_args
     else:
       true_args = list(itertools.product(args, vec_args))
-
-    print (true_args)
             
     declaration = decl_template.substitute(dic) 
     calculation = comment_template.substitute(dic)
@@ -829,12 +809,12 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
             for l in indices:
                 isodic['IND'] = isodic['IND'] + ',%d'%(l+1)
            
-            dic['EDENT'] = dic['EDENT'] + edent_template.substitute(isodic) + '*'
+            dic['EDENT'] = dic['EDENT'] + edent_template.substitute(isodic)+ '*'
             
             isodic['IT'] = 1
-            dic['EDENN'] = dic['EDENN'] + edenq_template.substitute(isodic) + '*'
+            dic['EDENN'] = dic['EDENN'] + edenq_template.substitute(isodic)+ '*'
             isodic['IT'] = 2
-            dic['EDENP'] = dic['EDENP'] + edenq_template.substitute(isodic) + '*'    
+            dic['EDENP'] = dic['EDENP'] + edenq_template.substitute(isodic)+ '*'    
             # Take out the final '*' which should not be necessary
             prevorder = prevorder + orders[i]
       

@@ -154,7 +154,7 @@ contains
    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
-    call nilsson (HFPsi,kparz,spenergies,6,5,$ININWT,$ININWP,$ININWN,          &
+    call nilsson (HFPsi,kparz,spenergies,8,7,$ININWT,$ININWP,$ININWN,          &
     &           floor(neutrons),floor(protons),$ININX,$ININY,$ININZ,dx,osc_freq)
 
     allocate(dispersions($ININWT)) ; dispersions  = 0

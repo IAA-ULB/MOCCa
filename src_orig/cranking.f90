@@ -22,6 +22,8 @@ module cranking
  !    a trailing zero. The trailing zero is included, because the code has to 
  !    compile when we calculate no angular momentum at all, i.e. when time-
  !    reversal is conserved.
+ !
+ ! NTR  : $NTR
  !==============================================================================
 
  use compilation
@@ -139,17 +141,17 @@ contains
 
     !-------------------------------------------------------------------------
     ! And now we integrate the current density and spin density.
-    totalangmom_dens = 0.0
-    do it=1,2
-      ! Spin part
-      TotalAngMom_dens(3) = TotalAngMom_dens(3) + &
-      &                                    0.5 * sum(D_I_S(:,3,it)) 
-
-      do i=1, nx*ny*nz
-        TotalAngMom_dens(3) = TotalAngMom_dens(3) &
-        & - meshgrid(i,2) * C_I_N(i,1,it) + meshgrid(i,1) * C_I_N(i,2,it)
-      enddo
-    enddo
+$NTR    totalangmom_dens = 0.0
+$NTR    do it=1,2
+$NTR      ! Spin part
+$NTR      TotalAngMom_dens(3) = TotalAngMom_dens(3) + &
+$NTR      &                                    0.5 * sum(D_I_S(:,3,it)) 
+$NTR
+$NTR      do i=1, nx*ny*nz
+$NTR        TotalAngMom_dens(3) = TotalAngMom_dens(3) &
+$NTR        & - meshgrid(i,2) * C_I_N(i,1,it) + meshgrid(i,1) * C_I_N(i,2,it)
+$NTR      enddo
+$NTR    enddo
     TotalAngMom_dens = TotalAngMom_dens * dv
 
 

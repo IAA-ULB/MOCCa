@@ -33,7 +33,7 @@ def initfields(so):
   # Go over the needed densities and the functional terms and check whether
   # we have enough derivatives to calculate the fields. 
   for term in src_heph.heph_functional.Functional_terms:
-      (densities, cpl, crs) = src_heph.heph_functional.ParseDensities(term)
+      (densities, cpl) = src_heph.heph_functional.ParseDensities(term)
       # Count the number of derivatives needed in this term
       totalder = 0
       totallap = 0
@@ -176,7 +176,7 @@ def GenerateFields(so):
 
         #-----------------------------------------------------------------------
         for term in src_heph.heph_functional.Functional_terms: 
-            (densities, cpl,cross) =src_heph.heph_functional.ParseDensities(term)
+            (densities, cpl)=src_heph.heph_functional.ParseDensities(term)
             #-------------------------------------------------------------------
             # Replace the densities in the list by the ones actually calculated
             for i in range(len(densities)):
@@ -204,7 +204,7 @@ def GenerateFields(so):
 #                          # Replace internal couplings
 #                          altterm = altterm.replace(sumindices[cpl.index(c)],'')
 
-            (rubbish, cpl,cross) = src_heph.heph_functional.ParseDensities(altterm)
+            (rubbish, cpl) = src_heph.heph_functional.ParseDensities(altterm)
             #-------------------------------------------------------------------
             # Check if the term contains this density
             startind = 0
@@ -212,7 +212,7 @@ def GenerateFields(so):
                 altden = densities[i]
                 (altder, altlap, altleft, altright, altcoup, altcross) \
                                             = ParseOperators(altden,so.timelike)
-                if((altleft == left) and (altright == right)): # and (cross == altcross)):
+                if((altleft == left) and (altright == right)):
                     #  Add the term to the fieldlist for this density, 
                     #  and additionally mentioning the number of external 
                     #  derivatives and laplacians
@@ -248,8 +248,7 @@ def GenerateFields(so):
                     cplct = cplcts[ind]
                     dden  = src_heph.heph_functional.density_dependence[ind]
 
-                    fieldlist.append([removed, altder,altlap,cplct,cpl,cross,dden,0])
-                
+                    fieldlist.append([removed, altder,altlap,cplct,cpl,dden,0])
                 startind = startind + OrderOfDen(altden)
                 
             #-------------------------------------------------------------------
@@ -259,7 +258,7 @@ def GenerateFields(so):
             ind   = src_heph.heph_functional.Functional_terms.index(term)
             cplct = cplcts[ind]
             if(dd[0] == den):
-                fieldlist.append([densities, altder, altlap,cplct,cpl,cross,dd[1],1])
+                fieldlist.append([densities, altder, altlap,cplct,cpl,dd[1],1])
 
         # Create the expression for the field
         dic['ALLOCIND']= ''
@@ -294,35 +293,62 @@ def GenerateFields(so):
            fieldread = fieldread + field_transfo_temp.substitute(dic)
              
         for fieldterm in fieldlist:
-             # Find the number of indices over which there have to be sums
+             #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+             # We start constructing individual contributions to the fields  
+             #
+             # A statement in the code will have the following form formally
+             #
+             #   F/G_{mu nu .... kappa } =  F/G_{mu nu .... kappa }
+             #    +/- C sum_{a,b,c} D_{mu nu ... kappa a b c  }
+             #
+             # where the we have dropped the isospin index and the C is some
+             # coupling constant. 
+             # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+             # The first order of business is to determine the number of free
+             # indices there are in the field F/G, i.e. how many INDEPENDENT 
+             # indices there are in total in the entire expression above
              NumberOfIndices = 0
-             for d2 in [den] + fieldterm[0]:
-                #(der, lap, left, right, cpl, crs) = ParseOperators(d2)
-                NumberOfIndices= NumberOfIndices + OrderOfDen(d2) 
-
-             # The couplings however do not need individual indices 
-             if(NumberOfIndices != 0):
-               NumberOfIndices = NumberOfIndices - len(fieldterm[4]) 
-
-             # But the external derivatives do            
-             NumberOfIndices = NumberOfIndices + fieldterm[1]
-            
-             # vector couplings subtract one
-             NumberOfIndices = NumberOfIndices - len(fieldterm[5])
-              
+             nthree = 0
+             for c in fieldterm[4]:
+                if(len(c) == 2):
+                  NumberOfIndices = NumberOfIndices + 1
+                elif(len(c) == 3):
+                  nthree          = nthree +1  
+             
              #------------------------------------------------------------------
              # arguments for all the indices
              args = list(itertools.product(range(3), repeat=NumberOfIndices))
-             
-             for arg in args:
-                 # get the indices of the field correct
+             vec_args = list(itertools.product(range(6), repeat=nthree))
+
+             if(nthree == 0):
+                true_args = args
+             elif(NumberOfIndices == 0 ):
+                true_args = vec_args
+             else:
+                true_args = itertools.product(args, vec_args)
+
+             for arg in true_args:
+                 # get the indices of the field (i.e. the lhs above) correct
                  dic['IND']     = ''
+                 sign           = +1
                  for k in range(OrderOfDen(den)):
                     for c in fieldterm[4]:
                         if k in c:
-                            dic['IND'] = dic['IND'] \
-                                          + ',%d'%(arg[fieldterm[4].index(c)]+1)
-           
+                            if(len(c) == 2):
+                              mu = arg[fieldterm[4].index(c)]
+                              dic['IND'] = dic['IND'] + ',%d'%(mu+1)
+                            elif(len(c) == 3):
+                              # Integer division
+                              mu   = int(arg[fieldterm[4].index(c)]/2) 
+                              # Which term of two?
+                              t = arg[fieldterm[4].index(c)] - 2*mu
+                              if(t == 1):
+                                sign = sign * -1
+                              nuka = Rot_ind(mu)[t] 
+                                  
+                              temp = (mu,abs(nuka[0]), abs(nuka[1]))
+                              dic['IND'] = dic['IND'] + ',%d'%(temp[c.index(k)]+1)
+
                  FIELDCALC = FIELDCALC + field_calc_temp_b.substitute(dic)
                  
                  dic['DENSITY']  = ''
@@ -330,7 +356,7 @@ def GenerateFields(so):
                  dic['EXPR2']    = ''
                  dic['EXPR3'] = ''
                  ind = src_heph.heph_functional.Functional_terms.index(term)
-                 dic['DD']       = fieldterm[6]
+                 dic['DD']       = fieldterm[5]
                  
                  if(len(dic['DD']) >0 ):
                     dic['DD']       = dic['DD'] + '*'
@@ -350,25 +376,49 @@ def GenerateFields(so):
                     dic['DENSITY'] = dic['DENSITY'].replace('Lap_', '')
                     dic['DENSITY'] = lapcount * 'Lap_' \
                                    + dercount * 'Der_' + dic['DENSITY']
-                    
-                    if( fieldterm[1]%2 == 0) :
-                            dic['SIGN']     =  '+'
-                    else:
-                            dic['SIGN']     =  '-'
+
                     dic['CPLCTE']   =  fieldterm[3]
-                    
                     #-----------------------------------------------------------
                     # Get the indices of the density in the field
                     indices = ()
-#                    print (fieldterm[0],fieldterm[4],lastorder,lastorder+OrderOfDen(dic['DENSITY']))
+                    nswitch = 0
                     for k in range(lastorder,lastorder+OrderOfDen(dic['DENSITY'])):
-                        for c in fieldterm[4]:
-                            if k in c:   
-                                indices = indices + (arg[fieldterm[4].index(c)],)
-                        for c in fieldterm[5]:
-                            if k in c:
-                                indices = indices + (Rot_ind(arg[fieldterm[5].index(c)])[0][0],)
-                                     
+                      for c in fieldterm[4]:
+                        if k in c:   
+                          if(len(c) == 2):    
+                            mu      = arg[fieldterm[4].index(c)]
+                            indices = indices + (mu,)
+                          elif(len(c) == 3):
+                            if(k < lastorder + dercount):
+                              nswitch = nswitch +1 
+
+                            # Integer division
+                            mu   = int(arg[fieldterm[4].index(c)]/2) 
+                            # Which term of two?
+                            t = arg[fieldterm[4].index(c)] - 2*mu
+                            if(t == 1):
+                              sign = sign * -1
+                            nuka = Rot_ind(mu)[t] 
+                                  
+                            temp = (mu,abs(nuka[0]), abs(nuka[1]))
+                            indices = indices + (temp[c.index(k)],)                                 
+                    #-----------------------------------------------------------                      
+                    # Put an extra sign for every partial integration of a nabla
+                    # needed
+                    if( fieldterm[1]%2 != 0) :
+                        localsign = sign * (-1)
+                    else:
+                        localsign = sign
+
+                    # ..... and an additional sign for every partial integration
+                    # performed for a nabla that is involved in a vector product
+                    localsign = localsign * (-1)**nswitch
+  
+                    if(localsign > 0):
+                      dic['SIGN']     =  '+'
+                    else:
+                      dic['SIGN']     =  '-'
+
                     #-----------------------------------------------------------
                     # The first indices are necessarily external derivatives
                     if(dercount > 0):
@@ -392,13 +442,13 @@ def GenerateFields(so):
                     # the isoscalar and isovector ones
                     FIELDCALC = FIELDCALC + field_calc_b_temp.substitute(dic)
                     FIELDCALC = FIELDCALC + field_calc_c_temp.substitute(dic)
-                    if(fieldterm[7] == 1):
+                    if(fieldterm[6] == 1):
                        FIELDCALC = FIELDCALC + field_calc_d_temp.substitute(dic)
                     FIELDCALC = FIELDCALC[:-4] + '\n \n'
                  else:
                     # Pairing densities, coupling constants are pn ones.  
                     FIELDCALC = FIELDCALC + field_pair_a_temp.substitute(dic)       
-                    if(fieldterm[7] == 1):
+                    if(fieldterm[6] == 1):
                       FIELDCALC = FIELDCALC + field_pair_b_temp.substitute(dic)
                     FIELDCALC = FIELDCALC[:-4] + '\n \n'
                                 

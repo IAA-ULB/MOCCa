@@ -427,8 +427,6 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
     Zeroing       = ''
     Cleaning      = ''
 
-    print ('NEEDED', denin)
-
     #---------------------------------------------------------------------------
     # Parse the structure from the name
     density = denin    
