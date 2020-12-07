@@ -33,7 +33,7 @@ def initfields(so):
   # Go over the needed densities and the functional terms and check whether
   # we have enough derivatives to calculate the fields. 
   for term in src_heph.heph_functional.Functional_terms:
-      (densities, cpl) = src_heph.heph_functional.ParseDensities(term)
+      (densities, cpl, crs) = src_heph.heph_functional.ParseDensities(term)
       # Count the number of derivatives needed in this term
       totalder = 0
       totallap = 0
@@ -176,7 +176,7 @@ def GenerateFields(so):
 
         #-----------------------------------------------------------------------
         for term in src_heph.heph_functional.Functional_terms: 
-            (densities, cpl) =src_heph. heph_functional.ParseDensities(term)
+            (densities, cpl,cross) =src_heph.heph_functional.ParseDensities(term)
             #-------------------------------------------------------------------
             # Replace the densities in the list by the ones actually calculated
             for i in range(len(densities)):
@@ -191,7 +191,6 @@ def GenerateFields(so):
             #-------------------------------------------------------------------
             # Remove all the mentions of couplings inside the density if only
             # contractions are calculated.
-            # 
             altterm = term
             for c in cpl: 
                 for i in range(len(densities)):
@@ -205,7 +204,7 @@ def GenerateFields(so):
 #                          # Replace internal couplings
 #                          altterm = altterm.replace(sumindices[cpl.index(c)],'')
 
-            (rubbish, cpl) = src_heph.heph_functional.ParseDensities(altterm)
+            (rubbish, cpl,cross) = src_heph.heph_functional.ParseDensities(altterm)
             #-------------------------------------------------------------------
             # Check if the term contains this density
             startind = 0
@@ -213,10 +212,13 @@ def GenerateFields(so):
                 altden = densities[i]
                 (altder, altlap, altleft, altright, altcoup, altcross) \
                                             = ParseOperators(altden,so.timelike)
-                if((altleft == left) and (altright == right) and (cross == altcross)):
+                if((altleft == left) and (altright == right)): # and (cross == altcross)):
                     #  Add the term to the fieldlist for this density, 
-                    #  and additionnally mentioning the number of external 
+                    #  and additionally mentioning the number of external 
                     #  derivatives and laplacians
+
+                    # First we count how much indices are accounted for by the 
+                    # other densities in the term
                     removed    = []
                     removedsum = 0
                     for j in range(len(densities)):
@@ -224,6 +226,7 @@ def GenerateFields(so):
                             removed.append(densities[j])
                     for j in range(i):
                             removedsum = removedsum + OrderOfDen(densities[j])
+                    
                     # Reparse the term with this density at the front, so that
                     # couplings are correctly referenced
                     newcpl = []
@@ -244,7 +247,8 @@ def GenerateFields(so):
                     ind   = src_heph.heph_functional.Functional_terms.index(term)
                     cplct = cplcts[ind]
                     dden  = src_heph.heph_functional.density_dependence[ind]
-                    fieldlist.append([removed, altder,altlap,cplct, cpl,dden,0])
+
+                    fieldlist.append([removed, altder,altlap,cplct,cpl,cross,dden,0])
                 
                 startind = startind + OrderOfDen(altden)
                 
@@ -255,7 +259,7 @@ def GenerateFields(so):
             ind   = src_heph.heph_functional.Functional_terms.index(term)
             cplct = cplcts[ind]
             if(dd[0] == den):
-                fieldlist.append([densities, altder, altlap,cplct,cpl, dd[1],1])
+                fieldlist.append([densities, altder, altlap,cplct,cpl,cross,dd[1],1])
 
         # Create the expression for the field
         dic['ALLOCIND']= ''
@@ -302,7 +306,10 @@ def GenerateFields(so):
 
              # But the external derivatives do            
              NumberOfIndices = NumberOfIndices + fieldterm[1]
-
+            
+             # vector couplings subtract one
+             NumberOfIndices = NumberOfIndices - len(fieldterm[5])
+              
              #------------------------------------------------------------------
              # arguments for all the indices
              args = list(itertools.product(range(3), repeat=NumberOfIndices))
@@ -323,7 +330,7 @@ def GenerateFields(so):
                  dic['EXPR2']    = ''
                  dic['EXPR3'] = ''
                  ind = src_heph.heph_functional.Functional_terms.index(term)
-                 dic['DD']       = fieldterm[5]
+                 dic['DD']       = fieldterm[6]
                  
                  if(len(dic['DD']) >0 ):
                     dic['DD']       = dic['DD'] + '*'
@@ -353,10 +360,15 @@ def GenerateFields(so):
                     #-----------------------------------------------------------
                     # Get the indices of the density in the field
                     indices = ()
+#                    print (fieldterm[0],fieldterm[4],lastorder,lastorder+OrderOfDen(dic['DENSITY']))
                     for k in range(lastorder,lastorder+OrderOfDen(dic['DENSITY'])):
                         for c in fieldterm[4]:
                             if k in c:   
                                 indices = indices + (arg[fieldterm[4].index(c)],)
+                        for c in fieldterm[5]:
+                            if k in c:
+                                indices = indices + (Rot_ind(arg[fieldterm[5].index(c)])[0][0],)
+                                     
                     #-----------------------------------------------------------
                     # The first indices are necessarily external derivatives
                     if(dercount > 0):
@@ -380,13 +392,13 @@ def GenerateFields(so):
                     # the isoscalar and isovector ones
                     FIELDCALC = FIELDCALC + field_calc_b_temp.substitute(dic)
                     FIELDCALC = FIELDCALC + field_calc_c_temp.substitute(dic)
-                    if(fieldterm[6] == 1):
+                    if(fieldterm[7] == 1):
                        FIELDCALC = FIELDCALC + field_calc_d_temp.substitute(dic)
                     FIELDCALC = FIELDCALC[:-4] + '\n \n'
                  else:
                     # Pairing densities, coupling constants are pn ones.  
                     FIELDCALC = FIELDCALC + field_pair_a_temp.substitute(dic)       
-                    if(fieldterm[6] == 1):
+                    if(fieldterm[7] == 1):
                       FIELDCALC = FIELDCALC + field_pair_b_temp.substitute(dic)
                     FIELDCALC = FIELDCALC[:-4] + '\n \n'
                                 

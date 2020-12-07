@@ -108,9 +108,10 @@ def initfunctional(fname, so):
     tempden     = []
     rotationals = []
     for term in Functional_terms:
-        (densities,coup) = ParseDensities(term)
+        (densities,coup,cross) = ParseDensities(term)
         for den in densities:
             tempden.append(den)
+
     #---------------------------------------------------------------------------
     # Pruning the list
     # A) removing duplicates
@@ -132,8 +133,8 @@ def initfunctional(fname, so):
                 Found = True
                 # However, if there is a vector coupling in one, that is not in 
                 # other, just calculate both. 
-                if(crossj != crossi):
-                    Found = False
+#                if(crossj != crossi):
+#                    Found = False
                 # However, check that we don't need any new derivatives
                 # If so, add them
                 deriv_needed[j].append((lapi, deri))
@@ -166,6 +167,7 @@ def initfunctional(fname, so):
             for l in sumindices:
                 add = add.replace(derstring + l + '_','')
             Densities_needed.append(add)
+
     #---------------------------------------------------------------------------     
     # Finding out how many derivatives we need to take of the spwfs
     derivative_order = 1    
@@ -278,7 +280,7 @@ def RemoveTimeOddTerms():
 
     toremove = []
     for i,term in enumerate(Functional_terms):
-      (densities,coup) = ParseDensities(term)      
+      (densities,coup,cross) = ParseDensities(term)      
 
       timeodd= False
       totalt = +1
@@ -321,12 +323,20 @@ def RemoveTimeOddTerms():
 
 def ParseDensities(term): 
     """
-     From a term in the functional represented by a string, parse all of the
-     densities that make it up.
+      We deconstruct a term in the functional. 
+      
+      Example:
+                E_D_I_Sm_Derxm_C_I_Nxm
+      
+      leads to
+          densities : D_I_S, Der_C_I_N
+          couplings : [(0,1,2)]
+          
     """
     densities = []
     #---------------------------------------------------------------------------
-    # Split along underscores, while not checking the _DD suffix
+    #  Split the input string along the underscores, removing any "_DD" 
+    #  suffixes
     temp      = ''
     split     = term.replace('_DD', '').split('_') 
     for i in range(len(split)):
@@ -339,28 +349,39 @@ def ParseDensities(term):
                 densities.append(temp)
                 temp = ''
     #---------------------------------------------------------------------------
-    # Find the coupling
+    # Find all couplings by looping over all possible accepted summation letters
     coupling  = []
+    cross     = []
     foundx    = []
     for l in sumindices:
         c   = ()
+        cc  = ()
         ind = 0
         foundx.append(0)
         for i in range(len(term)):      
             if(term[i] == l):
-               if(term[i-1] != 'x'): 
+#               if(term[i-1] not in crossindices): 
                     c = c+ (ind,)
-               else:    
-                 if(foundx[sumindices.index(l)] == 0):
-                    foundx[sumindices.index(l)] = foundx[sumindices.index(l)] +1
-                    c = c+ (ind,)
+#               else:    
+#                 if(foundx[sumindices.index(l)] == 0):
+#                    foundx[sumindices.index(l)] = foundx[sumindices.index(l)] +1
+#                    c = c+ (ind,)
+#                    cc = cc+ (ind,)
+#                 else:
+#                    foundx[sumindices.index(l)] = foundx[sumindices.index(l)] +1
+#                    cc = cc+ (ind,)
                         
             if(term[i] in sumindices):
                     ind = ind + 1 
         if(len(c) > 0) :
                 coupling.append(c)
+
+#        if(len(cc) > 0) :
+#                cross.append(cc)
+
     #---------------------------------------------------------------------------
-    # Don't propagate couplings that are not between left and right operators
+    # Don't propagate couplings into the name that are not between left and 
+    # right operators
     for l in sumindices:
         for i in range(len(densities)): 
             if( derstring + l in densities[i]) :
@@ -377,8 +398,15 @@ def ParseDensities(term):
                     densities[j] = densities[j].replace(l, '')
                 else:
                     pass
+    for l in crossindices:
+        for i in range(len(densities)): 
+            if( derstring + l in densities[i]) :
+                # Remove the vector coupling if it involves derivatives
+                densities[i] = densities[i].replace(l, '')
+                for j in range(len(densities)):
+                    densities[j] = densities[j].replace(l, '')
         
-    return (densities, coupling)
+    return (densities, coupling, cross)
 
 def ProcessParameterization(fname, src, target):
     """
@@ -621,9 +649,9 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
     pairtotal_template  = Template( 2*tab + ' & + $TERM(:,1)')
     
     calc_z_template = Template(   tab + 'Edensity = 0.0_dp \n')
-    calc_a_template = Template(   tab + 'EDensity(:,3) = Edensity(:,3) + $EDENT\n')
-    calc_b_template = Template(   tab + 'Edensity(:,1) = Edensity(:,1) + $EDENN\n' + \
-                                  tab + 'Edensity(:,2) = Edensity(:,2) + $EDENP\n'  )
+    calc_a_template = Template(   tab + 'EDensity(:,3) = Edensity(:,3) $SIGN $EDENT\n')
+    calc_b_template = Template(   tab + 'Edensity(:,1) = Edensity(:,1) $SIGN $EDENN\n' + \
+                                  tab + 'Edensity(:,2) = Edensity(:,2) $SIGN $EDENP\n'  )
     calc_DD_template= Template(   tab + 'do m=1,3 \n' +                                 \
                                 2*tab + 'EDensity(:,m) = Edensity(:,m) * $DD \n' +      \
                                   tab + 'enddo \n')
@@ -669,11 +697,22 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
     rear_p_template     = Template(tab +" e_rear = e_rear $REARCOEF*sum($TERM(:,1))\n")
     
     #---------------------------------------------------------------------------
-    # See how many indices are present everywhere.
-    (tempden, coupling) = ParseDensities(term)
-    doloops             = 0 #len(coupling)
+    # Parse the term of the functional.
+    # The result is 
+    #   tempden : a list of densities that make up the term
+    #   coupling: the set of scalar couplings in the term
+    #
+    #   Example:
+    #           E_D_I_Sm_Derxm_C_I_Nxm 
+    #
+    #   =>  tempden :  D_I_S, Der_C_I_N
+    #       coupling:  [(0,1,2)], i.e. the summation over Sm and the curl of the 
+    #                  current 
+    (tempden, coupling,cross) = ParseDensities(term)
+    print (term, tempden, coupling, cross)
   
-    #Now see how these densities are present in the heph_densities.py module
+    # We scan the list of actually calculated densities (Densities_needed)
+    # to see what contractions we have/can use.
     densities = []
     for den in tempden:
         (der,lap,left,right, coupl, cross) = ParseOperators(den,so.timelike)
@@ -683,19 +722,19 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
             if(left == leftref and right == rightref and cross == crossref):
                 addden = lap*'Lap_' + der*'Der_' + Densities_needed[i]
                 densities.append( addden )
-                # Don't do do loops over indices that already had been contracted
-                doloops = doloops + OrderOfDen(addden) 
                 # Go back to the outer loop
                 break
 
     # Signal back about whether this term is built out of time-odd or time-even
-    # densities. Note that we don't do any checking of consistency, this was
-    # done elsewhere.
+    # densities. Note that we don't do any checking of consistency between 
+    # symmetries and terms, this is achieve somewhere else in Hephaestos.
     timerev = True
     for den in densities:
       if( TimeDen(den) < 0):
         timerev = False
     
+    # We calculate the total order of all densities in the term, i.e. the total
+    # number of indices.
     orders                = []
     for i in range(len(densities)): 
         orders.append(OrderOfDen(densities[i])) 
@@ -709,11 +748,8 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
         for i in range(len(densities)):
             if(densities[i].count(sumindices[coupling.index(c)]) == 2):
                 # Replace internal couplings
-                altterm = altterm.replace(sumindices[coupling.index(c)],'')
-                
-    (rubbish, true_coupling) = ParseDensities(altterm)
-    
-    doloops = doloops - len(true_coupling)
+                altterm = altterm.replace(sumindices[coupling.index(c)],'')               
+    (rubbish, true_coupling, true_cross) = ParseDensities(altterm)
     
     dic = {}
     index_encountered=0
@@ -723,19 +759,38 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
 
     dic ['TERM' ] = term
     dic ['CPCTE'] = 'B' + dic ['TERM'][1:]    
-  
     #---------------------------------------------------------------------------
-    # arguments for all the couplings
-    args = list(itertools.product(range(3), repeat=len(true_coupling)))
+    # We construct all possible values for all indices
+    # 1. We count the number of three-length contractions in true_coupling
+    nthree = 0
+    for c in true_coupling:
+      if(len(c) == 3):
+        nthree = nthree + 1
+    # We sort the coupling on length, i.e. all 2-length couplings first
+    true_coupling = sorted(true_coupling, key = lambda x:len(x))
+
+    args     = list(itertools.product(range(3), repeat=len(true_coupling)-nthree))
+    vec_args = list(itertools.product(range(6), repeat=nthree))
+
+    if(nthree == 0):
+      true_args = args
+    elif(len(true_coupling) == nthree):
+      true_args = vec_args
+    else:
+      true_args = list(itertools.product(args, vec_args))
+
+    print (true_args)
             
     declaration = decl_template.substitute(dic) 
     calculation = comment_template.substitute(dic)
     calculation = calculation = calculation + calc_z_template.substitute(dic)
-    for arg in args: 
+    for arg in true_args: 
         dic['EDENT'] = ''
         dic['EDENP'] = ''
         dic['EDENN'] = ''
-        prevorder = 0 
+        
+        sign      = +1
+        prevorder =  0 
         for i in range(len(densities)):
             isodic = {}
             isodic['DEN'] = densities[i]
@@ -750,16 +805,30 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
             for l in range(prevorder, prevorder + orders[i]):
                 for c in true_coupling:
                     if( l in c ):
-                       indices = indices + (arg[true_coupling.index(c)],) 
-                        
+                       if(len(c) == 2):
+                          mu = arg[true_coupling.index(c)]
+                          indices = indices + (mu,) 
+                       elif(len(c) == 3):
+                          # Integer division
+                          mu   = int(arg[true_coupling.index(c)]/2) 
+                          # Which term of two?
+                          t = arg[true_coupling.index(c)] - 2*mu
+                          if(t == 1):
+                            sign = sign * -1
+                          nuka = Rot_ind(mu)[t] 
+                              
+                          temp = (mu,abs(nuka[0]), abs(nuka[1]))
+                          indices = indices + (temp[c.index(l)],)
+                         
+
             # The first indices are necessarily external derivatives
             if(der > 0):
                 derind = Storage_Mapping(indices[:der])
                 indices = (derind,) + indices[der:]
                 
             for l in indices:
-                isodic['IND'] = isodic['IND'] + ',' + str(l+1)
-            
+                isodic['IND'] = isodic['IND'] + ',%d'%(l+1)
+           
             dic['EDENT'] = dic['EDENT'] + edent_template.substitute(isodic) + '*'
             
             isodic['IT'] = 1
@@ -769,6 +838,11 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
             # Take out the final '*' which should not be necessary
             prevorder = prevorder + orders[i]
       
+        if(sign == +1):
+          dic['SIGN'] = '+'
+        else:
+          dic['SIGN'] = '-'
+            
         dic['EDENT'] = dic['EDENT'][:-1]
         dic['EDENN'] = dic['EDENN'][:-1]  
         dic['EDENP'] = dic['EDENP'][:-1]  
@@ -782,8 +856,6 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
         else:
           # Pairing mean-field densities in the term.
           calculation = calculation + calc_pair_a_temp.substitute(dic)
-          # Completely superfluous
-          #calculation = calculation + calc_pair_b_temp.substitute(dic)
             
     calculation = calculation + '\n'
     if(DD != ''):

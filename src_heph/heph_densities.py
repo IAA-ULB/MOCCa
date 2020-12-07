@@ -345,6 +345,7 @@ def ParseOperators(density, timelike):
     lap   = density.count(lapstring)
 
     split = density.replace(derstring + '_', '').replace(lapstring + '_', '')
+
     split = split.split('_')
 
     left = split[1]
@@ -425,6 +426,8 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
     Derivation    = ''
     Zeroing       = ''
     Cleaning      = ''
+
+    print ('NEEDED', denin)
 
     #---------------------------------------------------------------------------
     # Parse the structure from the name
@@ -1199,14 +1202,14 @@ def OrderOfDen(density, contract=True):
     
 def Rot_ind(k):
     """
-    # C_k = A_i B_j + A_j B_i
-    # Input is k, output is the corresponding pair
-    #     [ (i,j) ] if s == 0
-    #     [ (j,i) ] if s == 1
-    # where (i,j) carries the plus sign 
+     C_k = A_i B_j + A_j B_i
+     Input is k, output is the corresponding pair
+         [ (i,j) ] if s == 0
+         [ (j,i) ] if s == 1
+     where (i,j) carries the plus sign 
     
-    # Note that the minus sign is only relative and always
-    # carried by the non-zero index
+     Note that the minus sign is only relative and always
+     carried by the non-zero index
     """
     if(k == 0):
         i = 1
