@@ -714,7 +714,27 @@ $NTR    G_I_N = G_I_N + crank_current_potential()
       update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,+1,+1)
       F_I_I =  F_I_I_hist + update
     endif
+    !---------------------------------------------------------------------------
+    ! Precondition the field corresponding to s, F_I_S.
+$NTR    if(.not.all(F_I_S_hist.eq.0.0_dp) .and. potentialpreconditioning.eq.1) then
+$NTR      if(.not.allocated(update)) allocate(update(nx*ny*nz,2))
+    
+$NTR      ! X component
+$NTR      update=  F_I_S(:,1,:) - F_I_S_hist(:,1,:)
+$NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,-1,+1,-1)
+$NTR      F_I_S(:,1,:) =  F_I_S_hist(:,1,:) + update
 
+$NTR      ! Y component
+$NTR      update=  F_I_S(:,2,:) - F_I_S_hist(:,2,:)
+$NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,-1,-1)
+$NTR      F_I_S(:,2,:) =  F_I_S_hist(:,2,:) + update
+
+$NTR      ! Z component
+$NTR      update=  F_I_S(:,3,:) - F_I_S_hist(:,3,:)
+$NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,+1,+1)
+$NTR      F_I_S(:,3,:) =  F_I_S_hist(:,3,:) + update
+
+$NTR    endif
     call stop_timer(T_fields)
  
   end subroutine calcFields 

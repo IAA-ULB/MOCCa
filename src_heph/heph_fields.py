@@ -199,10 +199,6 @@ def GenerateFields(so):
                           if(densities[i].count(s) == 2):
                             # Replace internal couplings
                             altterm = altterm.replace(s,'')
-                        
-#                     if(densities[i].count(sumindices[cpl.index(c)]) == 2):
-#                          # Replace internal couplings
-#                          altterm = altterm.replace(sumindices[cpl.index(c)],'')
 
             (rubbish, cpl) = src_heph.heph_functional.ParseDensities(altterm)
             #-------------------------------------------------------------------
@@ -212,6 +208,7 @@ def GenerateFields(so):
                 altden = densities[i]
                 (altder, altlap, altleft, altright, altcoup, altcross) \
                                             = ParseOperators(altden,so.timelike)
+                
                 if((altleft == left) and (altright == right)):
                     #  Add the term to the fieldlist for this density, 
                     #  and additionally mentioning the number of external 
@@ -226,7 +223,8 @@ def GenerateFields(so):
                             removed.append(densities[j])
                     for j in range(i):
                             removedsum = removedsum + OrderOfDen(densities[j])
-                    
+     
+
                     # Reparse the term with this density at the front, so that
                     # couplings are correctly referenced
                     newcpl = []
@@ -241,7 +239,6 @@ def GenerateFields(so):
                             else:
                                 nc = nc + (k-removedsum,)
                         newcpl.append(nc)        
-
                     cpl = newcpl
                     
                     ind   = src_heph.heph_functional.Functional_terms.index(term)
@@ -331,6 +328,34 @@ def GenerateFields(so):
                  # get the indices of the field (i.e. the lhs above) correct
                  dic['IND']     = ''
                  sign           = +1
+
+                 #--------------------------------------------------------------
+                 # Now we do something wacky: we detect if   
+                 # we have changed the ordering of indices in a 
+                 # vector product by partial integration
+                 #
+                 # For example:
+                 #
+                 #      E_C_I_Nm_Derxm_D_I_Sxm
+                 # 
+                 # contributes to F_I_S. It gives rise to a fieldterm
+                 # like 
+                 #    F_I_Sxm  \sim Derxm_C_I_Nm
+                 # 
+                 # I detect this here in a simple way: if in a three-coupling 
+                 # ( a,b,c ) the two largest elements are ordered correctly, 
+                 # things are okay. If not, we have changed the ordering of a 
+                 # vector product  by partial integration.
+                 #--------------------------------------------------------------
+
+                 for c in fieldterm[4]:
+                  if(len(c) == 3):
+                    nc = list(c)
+                    nc.remove(min(nc))
+                    if(nc[0]>nc[1]):
+                      print ("changed", den, fieldterm[0], arg)
+                      sign = sign * (-1)
+                 #--------------------------------------------------------------
                  for k in range(OrderOfDen(den)):
                     for c in fieldterm[4]:
                         if k in c:
@@ -380,7 +405,6 @@ def GenerateFields(so):
                     #-----------------------------------------------------------
                     # Get the indices of the density on the rhs.
                     indices = ()
-                    nswitch = 0
                     for k in range(lastorder,lastorder+OrderOfDen(dic['DENSITY'])):
                       for c in fieldterm[4]:
                         if k in c:   
@@ -388,15 +412,13 @@ def GenerateFields(so):
                             mu      = arg[fieldterm[4].index(c)]
                             indices = indices + (mu,)
                           elif(len(c) == 3):
-                            if(k < lastorder + dercount):
-                              nswitch = nswitch +1 
-
                             # Integer division
                             mu   = int(arg[fieldterm[4].index(c)]/2) 
                             # Which term of two?
                             t = arg[fieldterm[4].index(c)] - 2*mu
                             if(t == 1):
                               sign = sign * -1
+
                             nuka = Rot_ind(mu)[t] 
                                   
                             temp = (mu,abs(nuka[0]), abs(nuka[1]))
@@ -406,10 +428,6 @@ def GenerateFields(so):
                     # needed
                     if( fieldterm[1]%2 != 0):
                         localsign = sign * (-1)
-                        # ..... and an additional sign for every partial integration
-                        # performed for a nabla that is involved in a vector product
-#                        localsign = localsign * (-1)**nswitch
-                        print (nswitch)
                     else:
                         localsign = sign
   
@@ -533,7 +551,6 @@ def GenerateAction(field, symmetrize, so):
         switch_field = switch_field[0]+'_'+R+'_'+ L
         (left,right,coupling,cross) = ParseOperatorsField(switch_field,so.timelike)
   
-    print (field, left, right, cross)
     #---------------------------------------------------------------------------
     #Building the left and right operators
     operatordic = {}

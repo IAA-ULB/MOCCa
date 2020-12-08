@@ -794,6 +794,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
                         # derivatives
 
                         (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg[1:])
+                        print (denin,rarg, darg[1:],px, py, pz)
                         dic['PX']    = str(px)
                         dic['PY']    = str(py)
                         dic['PZ']    = str(pz) 
@@ -1091,12 +1092,16 @@ def AxisReflection(LeftOperator, RightOperator, larg, rarg, nabla_arg = []):
         nu = rarg
 
     # Symmetries of the left- and rightoperator
-    pxl = LeftOperator.signature_x [mu] * LeftOperator.parity [mu]
-    pxr = RightOperator.signature_x[nu] * RightOperator.parity[nu]
+    pxl = LeftOperator.signature_z [mu] * LeftOperator.parity [mu] *\
+          LeftOperator.signature_y [mu] * LeftOperator.time[mu]
+    pxr = RightOperator.signature_z[nu] * RightOperator.parity[nu] *\
+          RightOperator.signature_y[nu] * RightOperator.time[nu]
     px  = pxl * pxr
 
-    pyl = LeftOperator.signature_y [mu] * LeftOperator.parity [mu] 
-    pyr = RightOperator.signature_y[nu] * RightOperator.parity[nu] 
+    pyl = LeftOperator.signature_y [mu] * LeftOperator.parity [mu] \
+                                        * LeftOperator.time[mu]
+    pyr = RightOperator.signature_y[nu] * RightOperator.parity[nu] \
+                                        * RightOperator.time[nu]
     py  = pyl * pyr
     
     pzl = LeftOperator.parity [mu]  * LeftOperator.signature_z [mu]
