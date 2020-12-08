@@ -124,6 +124,12 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     mqa  = (ms*(3*mblc**2-2))/10
     mq   = my * mx * mz * 4
 
+    if(ms .lt. nwn .or. ms .lt. nwp) then
+      ! The basis does not allow for this many states
+      print *, ' Harmonic oscillator basis in nilsson is not sufficient.'
+      stop
+    endif
+
     hbm(1)  = hhbar*hhbar/xxmn
     hbm(2)  = hhbar*hhbar/xxmn
 
