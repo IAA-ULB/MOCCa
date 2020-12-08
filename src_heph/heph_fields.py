@@ -353,7 +353,6 @@ def GenerateFields(so):
                     nc = list(c)
                     nc.remove(min(nc))
                     if(nc[0]>nc[1]):
-                      print ("changed", den, fieldterm[0], arg)
                       sign = sign * (-1)
                  #--------------------------------------------------------------
                  for k in range(OrderOfDen(den)):

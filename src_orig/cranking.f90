@@ -46,13 +46,26 @@ module cranking
  !------------------------------------------------------------------------------
  ! Crankenergy:
  !   Energy associated with the cranking constraint in each Cartesian direction,
- !   i.e. CE(i) = - omega_i * <J_i>
+ !   i.e. CE(i) = - omega_i * <J_i>.
+ !
+ ! Crankenergy_cut:
+ !   Energy associated with the cranking constraint in each Cartesian direction,
+ !   i.e. CE(i) = - omega_i * <J_i>, but where <J_i> is calculated by 
+ !   integration over the current and spin densities with the multipole cutoff.
  !------------------------------------------------------------------------------
- real(KIND=dp) :: crankenergy(3)   = 0.0_dp
+ real(KIND=dp) :: crankenergy(3)     = 0.0_dp
+ real(KIND=dp) :: crankenergy_cut(3) = 0.0_dp
  !------------------------------------------------------------------------------
  ! TotalAngMom:
  !    Total angular momentum in the three Cartesian directions, calculated
  !    by summation of the single-particle contributions.
+ ! TotalAngMom_dens:
+ !    Total angular momentum in the three Cartesian directions, calculated
+ !    by integration of the spin and current densities.
+ ! TotalAngMom_cut:
+ !    Total angular momentum in the three Cartesian directions, calculated
+ !    by integration of the spin and current densities, but including the 
+ !    multipole cutoff.
  ! AngMomOld: 
  !    Values of the total angular momentum at the previous iteration, used for
  !    readjustment of the cranking constraints.
@@ -67,6 +80,7 @@ module cranking
 
 
  real(KIND=dp) :: TotalAngMom_dens(3) = 0.0_dp 
+ real(KIND=dp) :: TotalAngMom_cut(3)  = 0.0_dp
  !------------------------------------------------------------------------------
  integer, parameter                        :: cranklen = $CRANKLEN
  integer, parameter, dimension(cranklen+1) :: crankdirections = (/ $CRANKDIR 0/)
@@ -115,9 +129,11 @@ contains
     !---------------------------------------------------------------------------
     ! Calculate the total angular momentum and related observables.
     !---------------------------------------------------------------------------  
-    integer :: B, N, wave, si, i, c, j, it
+    use Moments, only : cutoff
 
+    integer :: B, N, wave, si, i, c, j, it
     real(KIND=dp), allocatable :: tempJ(:,:)
+
     
     angmomold   = totalangmom
     totalangmom = 0.0
@@ -137,22 +153,30 @@ contains
       enddo
       si = si + N
     enddo
-    crankenergy = - omega * TotalAngMom    
-
+    crankenergy     = - omega * TotalAngMom    
+    crankenergy_cut = - omega * TotalAngMom_cut
     !-------------------------------------------------------------------------
     ! And now we integrate the current density and spin density.
 $NTR    totalangmom_dens = 0.0
+$NTR    totalangmom_cut  = 0.0
 $NTR    do it=1,2
 $NTR      ! Spin part
 $NTR      TotalAngMom_dens(3) = TotalAngMom_dens(3) + &
-$NTR      &                                    0.5 * sum(D_I_S(:,3,it)) 
+$NTR      &                     0.5 *                sum(D_I_S(:,3,it)) 
+$NTR      TotalAngMom_cut(3) = TotalAngMom_cut(3) + &
+$NTR      &                     0.5 * sum( Cutoff(:,it)* D_I_S(:,3,it)) 
 $NTR
 $NTR      do i=1, nx*ny*nz
 $NTR        TotalAngMom_dens(3) = TotalAngMom_dens(3) &
 $NTR        & - meshgrid(i,2) * C_I_N(i,1,it) + meshgrid(i,1) * C_I_N(i,2,it)
+$NTR        
+$NTR        TotalAngMom_cut(3)  = TotalAngMom_cut(3) + cutoff(i,it) * &
+$NTR        & (- meshgrid(i,2) * C_I_N(i,1,it) + meshgrid(i,1) * C_I_N(i,2,it))
 $NTR      enddo
 $NTR    enddo
+
     TotalAngMom_dens = TotalAngMom_dens * dv
+    TotalAngMom_cut  = TotalAngMom_cut  * dv
 
 
 !    print *, 'BEFORE', TotalAngMom  
@@ -267,7 +291,7 @@ $NTR    enddo
       nu = indices(1)
       ka = indices(2)
       do it=1,2
-          jpot(:,mu, it) = - cutoff(:,it) *  &
+          jpot(:,mu, it) = -    cutoff(:,it) * &
           &            (omega(nu) * meshgrid(:,ka) - omega(ka) * meshgrid(:,nu))
       enddo
     enddo

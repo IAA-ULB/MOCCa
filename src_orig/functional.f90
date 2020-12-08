@@ -192,7 +192,7 @@ $PRINTCOEF_PAIR
   100 format (15x, '     from spwfs:', 30x, f15.6)
   101 format (15x, '    Free Energy:', 30x, f15.6)
   102 format (15x, '        Entropy:', 3f15.6)
-
+  103 format (15x, '    E_fu - E_sp:', 30x, e15.6)
     real(KIND=dp) :: temp
 
     call printSkyrme
@@ -238,6 +238,7 @@ $PRINTCOEF_PAIR
         print 991, totalE - sum(rotcorrection)
     endif
     print 100, spwfenergy
+    print 103, TotalE - spwfenergy
     
     if(inversetemp .ne. -1) then
         ! F = E - T * S
@@ -908,7 +909,7 @@ $EREAR
     SpwfEnergy = SpwfEnergy - sum(Constraint_I_I * D_I_I)*dv/2.0_dp
 
     ! Subtract contribution by cranking constraints
-    SpwfEnergy = SpwfEnergy - sum(crankenergy)/2.0_dp
+    SpwfEnergy = SpwfEnergy - sum(crankenergy_cut)/2.0_dp
 
     ! Add the pairing energy (with the stabilisation)
     if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
