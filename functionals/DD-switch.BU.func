@@ -1,0 +1,56 @@
+#-------------------------------------------------------------------------------
+# Functional file for the fits in Brussels; it is a combination of the  
+# *) DD-force.func
+# *) NLO.func
+# files, with the exception of the Jmn term options from the second. 
+#
+# Hence, it concerns either a density dependent force on the NLO level, with 
+# the possibility to replace the pairing with a ULB-like formulation.
+#
+# The first is of the form of the SkP functional from
+#  J. Dobaczewski, H. Flocard & J. Treiner
+#  Nuclear Physics A422, 103-139 (A422).
+#
+#-------------------------------------------------------------------------------
+! Particle-hole parameters that are active all the time
+t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3;  wso ;  sigma 
+! Particle-hole parameters that are only active when force_switch=0
+CT0; CT1 ; wsoq
+! Particle-particle parameters
+Vn ; Vp ; alpha ; sigmap
+! Switch to use either the DD-force or the ULB-pairing-like
+force_switch 
+!TERMS
+#-------------------------------------------------------------------------------
+# Particle-hole part, ordinary NLO SKYRME
+!-------------------------------------------------------------------------------
+! NLO terms     
+E_D_I_I_D_I_I            ; Cc(t0,x0,+1,0,0)                                     ;          Cc(t0,x0,+1,0,1)
+E_D_I_I_D_Nm_Nm          ;+1.0/2.0*Cc(t1,x1,+1,0,0) + 1.0/2.0*Cc(t2,x2,-1,0,0)  ; +1.0/2.0*Cc(t1,x1,+1,0,1) + 1.0/2.0*Cc(t2,x2,-1,0,1)
+E_D_I_I_Lap_D_I_I        ;-3.0/8.0*Cc(t1,x1,+1,0,0) + 1.0/8.0*Cc(t2,x2,-1,0,0)  ; -3.0/8.0*Cc(t1,x1,+1,0,1) + 1.0/8.0*Cc(t2,x2,-1,0,1) 
+E_D_I_I_D_I_I_DD         ;+1.0/6.0*Cc(t3,x3,+1,0,0)                             ; +1.0/6.0*Cc(t3,x3,+1,0,1)                              ;  (sum(D_I_I,2)**(sigma)) ;  D_I_I ; sigma*((sum(D_I_I,2)+eps)**(sigma-1)) ; sigma ;
+!-------------------------------------------------------------------------------
+! Time-even spin-orbit
+E_D_I_I_Derm_C_I_NxmSxm  ; (force_switch *( -wso*3.0/4.0) + (1-force_switch) * (-wso/2.0 - wsoq/4.0 ))      ; (force_switch *( - wso/4.0 ) + (1-force_switch) * (-wsoq/4.0))
+!-------------------------------------------------------------------------------
+! SLy5-like JmnJmn term
+E_C_I_NmSk_C_I_NmSk      ;  (force_switch *(-(1.0_dp/8.0_dp) * (t1*x1 + t2*x2) + (1.0_dp/16.0_dp) * (t1 - t2)) - CT0 * (1-force_switch)) ; (force_switch * ((1.0_dp/16.0_dp) * (t1 - t2)) - CT1 * (1-force_switch))
+#-------------------------------------------------------------------------------
+# Particle-particle part
+# Note the use of the force_switch
+!-------------------------------------------------------------------------------
+! rho^\tilde \rho^\tilde 
+! Note that we only include the real part of DP_I_I; the imaginary part is time-odd. 
+E_DP_I_I_DP_I_I          ;  force_switch * 1.0/4.0*t0*(1-x0)                                ; force_switch *  1.0/4.0*t0*(1-x0) 
+! rho^\tilde \tau^\tilde   
+E_DP_I_I_DP_Nm_Nm        ;  force_switch * 1.0/4.0*t1*(1-x1)                                ; force_switch *  1.0/4.0*t1*(1-x1)    
+! \nabla rho^\tilde \nabla \rho^\tilde 
+E_Derm_DP_I_I_Derm_DP_I_I;  force_switch * 1.0/4.0*1.0/4.0*t1*(1-x1)                        ; force_switch *  1.0/4.0*1.0/4.0*t1*(1-x1)    
+! Jmn^\tilde Jmn^\tilde
+E_CP_Nm_Sk_CP_Nm_Sk      ;  force_switch * 1.0/4.0*t2*(1+x2)                                ; force_switch *  1.0/4.0*t2*(1+x2)     
+! Jmm^\tilde J_nn^\tilde
+E_CP_Nm_Sm_CP_Nk_Sk      ;  force_switch * 1.0/2.0 * wso                                    ; force_switch *  1.0/2.0 * wso          
+! Jmn^\tilde J_nm^\tilde
+E_CP_Nm_Sk_CP_Nk_Sm      ;  force_switch * (-1.0/2.0 * wso)                                 ; force_switch * (-1.0/2.0 * wso)        
+! \rho^\alpha \rho^\tilde \rho^\tilde
+E_DP_I_I_DP_I_I_DD       ;  (force_switch * 1.0/24.0 * t3*(1-x3) + (1-force_switch)*Vn/4)   ;  (force_switch * 1.0/24.0 * t3*(1-x3) + (1-force_switch)*Vp/4) ;  ((1-force_switch) * (1 - alpha * (sum(D_I_I,2)/0.16)**(sigmap)) + force_switch * (sum(D_I_I,2)**(sigma)))  ; D_I_I ; force_switch*sigma*((sum(D_I_I,2)+eps)**(sigma-1)) ; force_switch*sigma ;     

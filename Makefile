@@ -53,10 +53,10 @@ OPENMP   :=
 
 ifeq ($(CXX),gfortran)
 #	CXXFLAGS := -J$(MODDIR) -Wall -fbacktrace -g3
-        OPENMP   := 
+  OPENMP   := 
 	CXXFLAGS := -O3 -J$(MODDIR) -Wall $(OPENMP)
 else ifeq ($(CXX),ifort)
-        OPENMP   := 
+  OPENMP   := 
 	CXXFLAGS := -O3  $(OPENMP) -assume realloc-lhs -assume byterecl -no-wrap-margin -module $(MODDIR)
 endif
 
@@ -96,13 +96,6 @@ clean:
 
 $(OBJDIR)/%.o : $(SRCDIR)/%.f90
 	$(CXX) $(CXXFLAGS) -c  $< -o $@ 
-
-genpublic: run_heph getgitinfo setversioninfo
-  # Generate a public version of Tantalus with Hephaestos in src_public
-	cp $(SRCDIR)/*.f90 $(SRCPUBLIC)/
-  # Files that should not go in the public version
-	rm $(SRCPUBLIC)/particleinabox.f90
-	rm $(SRCPUBLIC)/temperature_projection.f90
 
 setversioninfo:
   # Copy the git information into the main code, so it can be printed
