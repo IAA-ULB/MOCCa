@@ -10,31 +10,33 @@
 #      start from scratch. 
 #-------------------------------------------------------------------------------
 #
-#  This particular runscript illustrates a constrained calculation, obtaining
-#  a triaxial configuration for 20Ne.
+#  This particular runscript illustrates taking the input from a previous 
+#  calculation to initialize a second one.
 #
 ################################################################################
 
 exe='Tantalus.NLO.func.exe'
 execdir='../exec'
-param='../parameterizations/SLy5s1.param'
+paramloc='../parameterizations/'
+param="SLy5s1"
 
 #Create storage directories
 if [ ! -d "out/" ]; then
-  mkdir out
+    mkdir out
 fi
-if [ ! -d "wf/" ]; then
-  mkdir wf
+if [ ! -d "out/STDOUT" ]; then
+   mkdir out/STDOUT
+fi
+if [ ! -d "out/summary" ]; then
+   mkdir out/summary
 fi
 if [ ! -d "work/" ]; then
   mkdir work
 fi
-
-cp $execdir/$exe   work/
-cp $param          work/forces.param
+cp $execdir/$exe             work/
+cp $paramloc/"$param.param"  work/
 
 cd work
-
 
 outfile="Tant.Ca40.out"
 echo "Starting a calculation for 40Ca"
@@ -45,16 +47,16 @@ cat << EOF > tant.Ca40.data
 neutrons=20, protons=20
 /
 &mesh
-nx=12, ny=12, nz=12, dx=1.0
+nx=14, ny=14, nz=14, dx=0.8
 /
 &func
 name_param='SLy5s1'
 /
 &pairing
-Type="BCS"
+Type="HFB"
 /
 &evolution
-maxiter=100
+maxiter=250
 /
 &scfiteration
 /
@@ -64,8 +66,11 @@ nwn = 15, nwp = 15
 &IO
 InputFilename='init'
 Outputfilename='tant.Ca40.wf'
+BXLFIT='continuing.'
 /
 &MomentParam
+/
+&Cranking
 /
 EOF
 
@@ -74,8 +79,8 @@ EOF
 ./$exe < tant.Ca40.data > $outfile
 
 #Cleaning up
-mv $outfile ../out
-
+mv $outfile     ../out/STDOUT
+mv continuing.* ../out/summary
 ################################################################################
 
 outfile="Tant.Ca42.out"
@@ -87,7 +92,7 @@ cat << EOF > tant.Ca42.data
 neutrons=22, protons=20
 /
 &mesh
-nx=12, ny=12, nz=12, dx=1.0
+nx=14, ny=14, nz=14, dx=0.8
 /
 &func
 name_param='SLy5s1'
@@ -96,7 +101,7 @@ name_param='SLy5s1'
 Type="BCS"
 /
 &evolution
-maxiter=100
+maxiter=250
 /
 &scfiteration
 /
@@ -106,8 +111,11 @@ nwn = 15, nwp = 15
 &IO
 InputFilename='tant.Ca40.wf'
 Outputfilename='tant.Ca42.wf'
+BXLFIT='continuing.'
 /
 &MomentParam
+/
+&Cranking
 /
 EOF
 
@@ -116,10 +124,8 @@ EOF
 ./$exe < tant.Ca42.data > $outfile
 
 #Cleaning up
-mv tant.*.wf  ../wf
-mv $outfile ../out
-
+rm tant.*.wf  
+mv $outfile     ../out/STDOUT
+mv continuing.* ../out/summary
 #-------------------------------------------------------------------------------
-rm *.exe
-#rm *.data
-rm forces.param
+rm *.exe *.data *.param

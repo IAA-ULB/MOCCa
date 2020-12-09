@@ -5,9 +5,9 @@ mod/*
 # Do not track compiled python modules
 *.pyc
 src_heph/*.pyc
+
 tantalus_examples/out/
-tantalus_examples/out/*
-tantalus_examples/wf/*
+tantalus_examples/diffs/
 tantalus_examples/work/*
 
 manual/tex_source/*.aux

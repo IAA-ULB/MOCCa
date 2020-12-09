@@ -10,27 +10,30 @@
 #      start from scratch. 
 #-------------------------------------------------------------------------------
 #
-#  This particular runscript tests a calculation of 208Pb in a realistic 
-#  condition.
+# This particular runscript tests a calculation of 208Pb in realistic conditions.
+#
 ################################################################################
 
 exe='Tantalus.NLO.func.exe'
 execdir='../exec'
-param='../parameterizations/SLy4.param'
+paramloc='../parameterizations/'
+param='SLy4'
 
 #Create storage directories
 if [ ! -d "out/" ]; then
-  mkdir out
+    mkdir out
 fi
-if [ ! -d "wf/" ]; then
-  mkdir wf
+if [ ! -d "out/STDOUT" ]; then
+   mkdir out/STDOUT
+fi
+if [ ! -d "out/summary" ]; then
+   mkdir out/summary
 fi
 if [ ! -d "work/" ]; then
   mkdir work
 fi
-
-cp $execdir/$exe   work/
-cp $param          work/SLy4.param
+cp $execdir/$exe             work/
+cp $paramloc/"$param.param"  work/
 
 cd work
 
@@ -60,13 +63,16 @@ maxiter=200
 &scfiteration
 /
 &wfs
-nwn = 90, nwp = 70
+nwn = 70, nwp = 50
 /
 &IO
 InputFilename='init'
 Outputfilename='tant.wf'
+BXLFIT='Pb208.'
 /
 &MomentParam
+/
+&Cranking
 /
 EOF
 
@@ -75,8 +81,9 @@ EOF
 ./$exe < tant.data > $outfile
 
 #Cleaning up
-mv tant.wf  ../wf
-mv $outfile ../out
+rm tant.wf  
+mv $outfile ../out/STDOUT
+mv Pb208.*  ../out/summary
 #-------------------------------------------------------------------------------
 rm *.exe
 rm *.data

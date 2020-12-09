@@ -10,70 +10,73 @@
 #      start from scratch. 
 #-------------------------------------------------------------------------------
 #
-#  This particular runscript illustrates a constrained calculation, obtaining
-#  a triaxial configuration for 20Ne.
+#  This particular runscript illustrates two calculations, employing BCS and
+#  HFB ansatzes for Ca44 in a limited box.
 #
 ################################################################################
 
-exe='Tantalus.NLO.func.exe'
+exe='Tantalus.default.exe'
 execdir='../exec'
-param='../parameterizations/SLy5s1.param'
+param="SLy5s1"
+paramloc='../parameterizations/'
 
 #Create storage directories
 if [ ! -d "out/" ]; then
-  mkdir out
+    mkdir out
 fi
-if [ ! -d "wf/" ]; then
-  mkdir wf
+if [ ! -d "out/STDOUT" ]; then
+   mkdir out/STDOUT
+fi
+if [ ! -d "out/summary" ]; then
+   mkdir out/summary
 fi
 if [ ! -d "work/" ]; then
   mkdir work
 fi
-
-cp $execdir/$exe   work/
-cp $param          work/forces.param
+cp $execdir/$exe             work/
+cp $paramloc/"$param.param"  work/
 
 cd work
 
-for Q20 in `seq 10 10 30`
+for type in BCS HFB
 do
 
-outfile="Tant.Q20=$Q20.out"
-echo "Calculating configuration with Q20=$Q20 fm^2"
+echo "Calculation with pairingtype=$type"
+outfile="Tant.$type.out"
+
 
 #-------------------------------------------------------------------------------
 cat << EOF > tant.data
 &nucleus
-neutrons=10, protons=10
+neutrons=24, protons=20
 /
 &mesh
-nx=12, ny=12, nz=12, dx=1.0
+nx=14, ny=14, nz=14, dx=0.8
 /
+# The SLy5s1 has pairing strength and type defined in its .param file.
 &func
 name_param='SLy5s1'
 /
+# Start with BCS pairing.
 &pairing
-Type="BCS"
+Type="$type"
 /
 &evolution
-maxiter=100
+maxiter=300
 /
 &scfiteration
 /
 &wfs
-nwn = 15, nwp = 15
+nwn = 30, nwp = 30
 /
 &IO
 InputFilename='init'
 Outputfilename='tant.wf'
+BXLFIT="pairing.$type."
 /
 &MomentParam
-MoreConstraints=.true.
 /
-&MomentConstraint
-l=2
-m=0
-Constraint=$Q20
+&Cranking
 /
 EOF
 
@@ -82,9 +85,10 @@ EOF
 ./$exe < tant.data > $outfile
 
 #Cleaning up
-mv tant.wf  ../wf
-mv $outfile ../out
+rm tant.wf   
+mv $outfile  ../out/STDOUT
+mv pairing.* ../out/summary
 #-------------------------------------------------------------------------------
 done
-rm *.exe
-rm *.data
+rm *.exe *.data *.param
+

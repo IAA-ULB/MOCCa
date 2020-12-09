@@ -18,31 +18,34 @@
 #
 ################################################################################
 
-exe='Tantalus.NLO.func.mpi.exe'
+exe='Tantalus.default.exe'
 execdir='../exec'
-param='../parameterizations/SLy4NC.param'
-outfile='Tant.mpi.out'
+param="SLy4"
+paramloc="../parameterizations/"
+outfile='Tant.minimal.out'
 
 #Create storage directories
 if [ ! -d "out/" ]; then
-  mkdir out
+    mkdir out
 fi
-if [ ! -d "wf/" ]; then
-  mkdir wf
+if [ ! -d "out/STDOUT" ]; then
+   mkdir out/STDOUT
+fi
+if [ ! -d "out/summary" ]; then
+   mkdir out/summary
 fi
 if [ ! -d "work/" ]; then
   mkdir work
 fi
 
-echo $execdir/$exe 
-cp $execdir/$exe   work/
-cp $param          work/forces.param
+cp $execdir/$exe             work/
+cp $paramloc/"$param.param"  work/
 
 cd work
 
 #-------------------------------------------------------------------------------
 # Creating the runtime data
-cat << EOF > data.one.in
+cat << EOF > tant.data
 &nucleus
 neutrons=8, protons=8
 /
@@ -53,15 +56,14 @@ nx=12, ny=12, nz=12, dx=1.0
 # The code will look, on a file forces.param, for the parameterization with 
 # this name.
 &func
-name_param='SLy4NC'
+name_param='SLy4'
 /
 # Options for the pairing.
 &pairing
-type='HF'
 /
 # maxiter = Maximum number of iterations to be performed
 &evolution
-maxiter=50
+maxiter=100
 /
 &scfiteration
 /
@@ -75,56 +77,21 @@ nwn = 15, nwp = 15
 &IO
 InputFilename='init'
 Outputfilename='tant.wf'
+BXLFIT='minimal.'
 /
 &MomentParam
 /
-EOF
-
-cat << EOF > data.two.in
-&nucleus
-neutrons=8, protons=8
-/
-# Parameters of the Lagrange mesh. 
-&mesh
-nx=14 ny=14, nz=14, dx=1.0
-/
-# The code will look, on a file forces.param, for the parameterization with 
-# this name.
-&func
-name_param='SLy4NC'
-/
-# Options for the pairing.
-&pairing
-type='HF'
-/
-# maxiter = Maximum number of iterations to be performed
-&evolution
-maxiter=50, printiter=10
-/
-&scfiteration
-/
-# Number of neutron (nwn) and proton (nwp) spwfs to use.
-&wfs
-nwn = 15, nwp = 15
-/
-# Inputfilename  = file from which to continue the calculation
-# Outputfilename = .wf file to write after the end of the calculation. 
-# init signals the code to perform its own initialization.
-&IO
-InputFilename='init'
-Outputfilename='tant.wf'
-/
-&MomentParam
+&Cranking
 /
 EOF
 
 #-------------------------------------------------------------------------------
 # Running the code
-./$exe | tee $outfile
+./$exe < tant.data | tee $outfile
 
 #Cleaning up
-mv tant.wf  ../wf
-mv $outfile ../out
-rm *.exe
-rm *.data
+rm tant.wf  
+mv $outfile  ../out/STDOUT
+mv minimal.* ../out/summary
+rm *.exe *.data *.param
 #-------------------------------------------------------------------------------

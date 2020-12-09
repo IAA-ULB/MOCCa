@@ -10,6 +10,7 @@
 #      start from scratch. 
 #-------------------------------------------------------------------------------
 #
+# This is an example script using the GSk1 and GSk2 parameterizations for Ca48.
 #
 ################################################################################
 
@@ -18,15 +19,17 @@ execdir='../exec'
 
 #Create storage directories
 if [ ! -d "out/" ]; then
-  mkdir out
+    mkdir out
 fi
-if [ ! -d "wf/" ]; then
-  mkdir wf
+if [ ! -d "out/STDOUT" ]; then
+   mkdir out/STDOUT
+fi
+if [ ! -d "out/summary" ]; then
+   mkdir out/summary
 fi
 if [ ! -d "work/" ]; then
   mkdir work
 fi
-
 cp $execdir/$exe   work/
 cp ../parameterizations/gsk1.param         work/gsk1.param
 cp ../parameterizations/gsk2.param         work/gsk2.param
@@ -66,7 +69,7 @@ maxiter=100
 /
 # Number of neutron (nwn) and proton (nwp) spwfs to use.
 &wfs
-nwn = 25, nwp = 25
+nwn = 30, nwp = 30
 /
 # Inputfilename  = file from which to continue the calculation
 # Outputfilename = .wf file to write after the end of the calculation. 
@@ -74,20 +77,23 @@ nwn = 25, nwp = 25
 &IO
 InputFilename='init'
 Outputfilename='tant.wf'
+BXLFIT="$param."
 /
 &MomentParam
+/
+&Cranking
 /
 EOF
 
 #-------------------------------------------------------------------------------
 # Running the code
 ./$exe < tant.data > $outfile
-mv $outfile ../out
+mv $outfile ../out/STDOUT
+mv $param.z* ../out/summary
+
 done
 
 #Cleaning up
-mv tant.wf  ../wf
-rm *.exe
-#rm *.data
-#rm *.param
+rm tant.wf 
+rm *.exe *.data *.param
 #-------------------------------------------------------------------------------
