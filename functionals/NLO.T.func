@@ -22,14 +22,14 @@ E_D_I_I_Lap_D_I_I        ;-3.0/8.0*Cc(t1,x1,+1,0,0) + 1.0/8.0*Cc(t2,x2,-1,0,0)  
 E_C_I_NmSk_C_I_NmSk      ; -CT0  ;  -CT1
 ! Time-odd
 E_C_I_Nm_C_I_Nm          ; -1.0/2.0*Cc(t1,x1,+1,0,0) - 1.0/2.0*Cc(t2,x2,-1,0,0)  ; -1.0/2.0*Cc(t1,x1,+1,0,1) - 1.0/2.0*Cc(t2,x2,-1,0,1)
-!E_D_I_Sm_Lap_D_I_Sm      ;-3.0/8.0*Cc(t1,x1,+1,1,0) + 1.0/8.0*Cc(t2,x2,-1,1,0)  ; -3.0/8.0*Cc(t1,x1,+1,1,1) + 1.0/8.0*Cc(t2,x2,-1,1,1) 
+!E_D_I_Sm_Lap_D_I_Sm      ;-3.0/8.0*Cc(t1,x1,+1,1,0) + 1.0/8.0*Cc(t2,x2,-1,1,0)   ; -3.0/8.0*Cc(t1,x1,+1,1,1) + 1.0/8.0*Cc(t2,x2,-1,1,1) 
 E_D_I_Sm_D_Nk_NkSm       ; +CT0  ;  +CT1
 !-------------------------------------------------------------------------------
 ! Spin-orbit NLO
 ! Time-even
-!E_D_I_I_Derm_C_I_NxmSxm  ;  -wso/2.0 - wsoq/4.0     ; - wsoq/4.0
+E_D_I_I_Derm_C_I_NxmSxm  ;  -wso/2.0 - wsoq/4.0     ; - wsoq/4.0
 ! Time-odd
-!E_D_I_Sm_Derxm_C_I_Nxm   ;  -wso/2.0 - wsoq/4.0     ; - wsoq/4.0
+E_C_I_Nm_Derxm_D_I_Sxm   ;  -wso/2.0 - wsoq/4.0     ; - wsoq/4.0
 !-------------------------------------------------------------------------------
 ! Pairing interaction 
 ! Time-even pairing density
