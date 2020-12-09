@@ -237,7 +237,7 @@ contains
       call iniwavefunctions()
       guessgaps         = .true.
       fileblocks        = HFBlocks
-      
+
       if( SYM_CODE .ne. "0 1 001 000 10 000 010 111" ) then
         ! Initialisation with nil8 wavefunctions is always EV8-style
         ! Thus we signal that a symmetry transformation is needed
@@ -267,7 +267,6 @@ contains
     else  
       ! We still need to set this particular information
       HFblocks = fileblocks
-      print *, HFBlocks
       if(symtransfo_needed) then
         print *, 'Symmetry transformation needed, but not allowed by user.'
         stop

@@ -127,7 +127,7 @@ def preprocess(fname, src, target, so , oldso):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='momentsofinertia.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessMomentsOfInertia(fname, src, target, so)
         return
     if(fname=='particleinabox.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -162,5 +162,19 @@ def ProcessGeninfo(fname, src, target, so):
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:
-                generated.write(Template(line).substitute(dic))          
+                generated.write(Template(line).substitute(dic))   
+
+
+def ProcessMomentsOfInertia(fname, src, target, so):  
+    """
+
+    """
+
+    dic = {}
+      
+    with open(src+fname, 'r') as template:
+        with open(target+fname, 'w') as generated:
+            for line in template:
+                generated.write(Template(line).substitute(dic))   
+ 
         
