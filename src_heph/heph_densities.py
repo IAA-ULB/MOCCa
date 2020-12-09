@@ -794,7 +794,6 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
                         # derivatives
 
                         (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg[1:])
-                        print (denin,rarg, darg[1:],px, py, pz)
                         dic['PX']    = str(px)
                         dic['PY']    = str(py)
                         dic['PZ']    = str(pz) 
