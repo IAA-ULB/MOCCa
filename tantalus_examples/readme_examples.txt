@@ -109,3 +109,11 @@ Individual tests are
 
     out/summary/Pb208.z082n126num001run001.out
 
+  * run.N2LO.sh
+    - - - - - - - -
+
+    Example calculation using the N2LO parameterization SN2LO for Ca48.
+
+    out/STDOUT/Tant.N2LO.out
+    
+    out/summary/N2LO.z020n028num001run001.out
