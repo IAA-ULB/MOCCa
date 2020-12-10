@@ -16,6 +16,31 @@ module functional
  ! Module containing the means to calculate (and print) the mean-field energy.
  ! Note that the actual coupling constants are contained in the constants.f90
  ! file. 
+ !
+ ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ ! Hephaestos keywords
+ ! 
+ ! Declaration     : [WAY TOO LONG TO INCLUDE HERE]
+ ! Calccoef        : [WAY TOO LONG TO INCLUDE HERE]
+ ! PrintCOEF_iso   : [WAY TOO LONG TO INCLUDE HERE]
+ ! PrintCOEF_PN    : [WAY TOO LONG TO INCLUDE HERE]
+ ! PrintCOEF_pair  : [WAY TOO LONG TO INCLUDE HERE]
+ ! Calculation     : [WAY TOO LONG TO INCLUDE HERE]
+ ! Total_EVEN      : [WAY TOO LONG TO INCLUDE HERE]
+ ! Total_ODD       : [WAY TOO LONG TO INCLUDE HERE]
+ ! TotalPAIR       : [WAY TOO LONG TO INCLUDE HERE]
+ ! Print           : [WAY TOO LONG TO INCLUDE HERE]
+ ! Calcfields      : [WAY TOO LONG TO INCLUDE HERE]
+ ! SkyrmeAction    : [WAY TOO LONG TO INCLUDE HERE]
+ ! PairingAction   : [WAY TOO LONG TO INCLUDE HERE]
+ ! ERear           : [WAY TOO LONG TO INCLUDE HERE]
+ ! CLEANING        : [WAY TOO LONG TO INCLUDE HERE]
+ ! FIELDNUMBER     : [WAY TOO LONG TO INCLUDE HERE]
+ ! WRITEPOTENTIALS : [WAY TOO LONG TO INCLUDE HERE]
+ ! READPOTENTIALS  : [WAY TOO LONG TO INCLUDE HERE]
+ ! NTR             : $NTR
+ ! N2              : $N2
+ ! N3              : $N3
  !==============================================================================
  
  use compilation
@@ -239,7 +264,7 @@ $PRINTCOEF_PAIR
     endif
     print 100, spwfenergy
     print 103, TotalE - spwfenergy
-    
+      
     if(inversetemp .ne. -1) then
         ! F = E - T * S
         print 101, TotalE - sum(entropy)/inversetemp
@@ -482,9 +507,9 @@ $PRINT
     ! 
     !   f(A) = 2/(t + 1/(3t)) with t = (1.5 * A)**(1/3).
     !
-    ! It is activated by putting COM1Body = 3, COM2BODY = 0.
+    ! It is activated by putting COM1Body = 3, COM2BODY = 0. 
     !---------------------------------------------------------------------------
-    integer       :: it, i,j
+    integer       :: it, i,j, B, N, N2, N3, N4, wave, wave2, si
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),temp(3,2), fac
     real(KIND=dp) :: Butler_t, Butler_f
     
@@ -512,33 +537,96 @@ $PRINT
       NablaMElements = compNablaMelements()
       
       COMCorrection(2,:) = 0.0
-      ! We sum carelessly over all single-particle wavefunctions, since the
-      ! ones forbidden by symmetry are calculated as zero in the Spwfstorage
-      ! module.
-
       !-------------------------------------------------------------------------
       ! particle-hole, and particle-particle part.
-      ! We abuse the current symmetries here
       !-------------------------------------------------------------------------
       temp = 0
+
       do i=1,nwt
-        it = 1
-        if(i.gt.nwn) it = 2
-        do j=1,nwt  
-        
-            fac = rho_can(i)*rho_can(j) + kappa_can(i)*kappa_can(j)
-                    
+         ! We sum over all possible (i,j) pairs, the matrix elements are 
+         ! correctly calculated either way.
+         it = 1
+         if(i.gt.nwn) it = 2
+         do j=1,nwt  
+            ! v^2 v^2 part
+            fac = rho_can(i)*rho_can(j) 
+$TR         fac = fac / 4.0 ! rho_can is twice too large if T is conserved
             temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,i,j)**2
             temp(2,it) = temp(2,it) + fac*NablaMElements(2,2,i,j)**2
             temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,i,j)**2
-        enddo
+$TR         ! uv uv part
+$TR         fac = kappa_can(i)*kappa_can(j)
+$TR         temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,i,j)**2
+$TR         temp(2,it) = temp(2,it) + fac*NablaMElements(2,2,i,j)**2
+$TR         temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,i,j)**2
+         enddo
       enddo
-      !  Factor 0.5 = 0.25 * 2
-      ! 0.25 since rho_can is double what it should be
-      ! 2    since we are only summing over half of the states
-      do it=1,2
-        COMCorrection(2,it) = 0.5*sum(temp(:,it))
-      enddo
+
+$NTR     !----------------------------------------------------------------------
+$NTR     ! The UVUV part is much more complicated if time-reversal is not 
+$NTR     ! conserved.
+$NTR     si = 0
+$NTR     do B=1,8,4
+$NTR        N = HFblocks(B) ; if(N.eq.0) cycle
+$NTR        N2 = HFblocks(B+1)
+$NTR        N3 = HFblocks(B+2)
+$NTR        N4 = HFblocks(B+3)
+$NTR        it= 1 ; if(B.eq.5) it = 2 
+$NTR       
+$NTR        do i= 1, N
+$NTR          do  j=1, N3
+$NTR            wave  = si          + i
+$NTR            wave2 = si + N + N2 + j 
+$NTR            fac = - 2 * kappa_can(wave)*kappa_can(wave2+N3)  
+$NTR            temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,wave  ,wave2) &
+$NTR                                  &      *NablaMElements(3,1,wave+N,wave2+N3)
+$NTR          enddo
+$NTR        enddo
+$NTR        do i= 1, N
+$NTR          do  j=1, N3
+$NTR            wave2 = si          + i
+$NTR            wave  = si + N + N2 + j 
+$NTR            fac = - 2 * kappa_can(wave)*kappa_can(wave2+N)  
+$NTR            temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,wave  ,wave2) &
+$NTR                                  &      *NablaMElements(3,1,wave+N3,wave2+N)
+$NTR          enddo
+$NTR        enddo
+
+$NTR        do i= 1, N
+$NTR          do  j=1, N4
+$NTR            wave  = si               + i
+$NTR            wave2 = si + N + N2 + N3 + j 
+$NTR            fac = - 2 * kappa_can(wave)*kappa_can(wave2-N3) 
+$NTR            temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,wave  ,wave2) &
+$NTR                                  &      *NablaMElements(1,1,wave+N,wave2-N3)
+$NTR            temp(2,it) = temp(2,it) - fac*NablaMElements(2,2,wave  ,wave2) &
+$NTR                                  &      *NablaMElements(2,2,wave+N,wave2-N3)
+$NTR          enddo
+$NTR        enddo
+$NTR        do i= 1,N 
+$NTR          do  j=1, N4
+$NTR            wave2 = si               + i
+$NTR            wave  = si + N + N2 + N3 + j 
+$NTR            fac = - 2 *  kappa_can(wave)*kappa_can(wave2+N) 
+$NTR            temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,wave  ,wave2) &
+$NTR                                  &      *NablaMElements(1,1,wave-N3,wave2+N)
+$NTR            temp(2,it) = temp(2,it) - fac*NablaMElements(2,2,wave  ,wave2) &
+$NTR                                  &      *NablaMElements(2,2,wave-N3,wave2+N)
+$NTR          enddo
+$NTR        enddo
+$NTR        si = si + N + N2 + N3 + N4
+$NTR     enddo
+  
+
+$TR      do it=1,2
+$TR        COMCorrection(2,it) = 2*sum(temp(:,it))
+$TR      enddo
+
+$NTR      do it=1,2
+$NTR        COMCorrection(2,it) = sum(temp(:,it))
+$NTR      enddo
+
+
       ! Some constants
       COMCorrection(2,:) = COMCorrection(2,:) * hbm * nucleonmass/             & 
       &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))

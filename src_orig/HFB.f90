@@ -1265,7 +1265,7 @@ $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
    
     real(KIND=dp), allocatable :: tmp(:,:), work(:)
     
-    integer :: si,N, B, i, lwork
+    integer :: si, N, N2, B, i, lwork
     
     !---------------------------------------------------------------------------
     ! a) Diagonalize rho
@@ -1315,26 +1315,38 @@ $NTR     if(rho_can(i).gt.1.0) rho_can(i) = 1.0
     ! Transforms as kappa'  = D^T kappa D^*
     !---------------------------------------------------------------------------
     si = 0
-    do B=1,8
+    do B=1,8,2
     
-      N = HFBsizes(B) ;  if(N .eq. 0) cycle
-      
-      allocate(tmp(N,N))
-      tmp = kappa_pairing(si+1:si+N, si+1:si+N)   
+      N  = HFBlocks(B)   ;  if(N .eq. 0) cycle
+      N2 = HFBlocks(B+1)
 
-      tmp = matmul(transpose(rhotransfo(si+1:si+N, si+1:si+N)), tmp)
-      tmp = matmul(tmp,rhotransfo(si+1:si+N, si+1:si+N))
+      allocate(tmp(N+N2,N+N2))
+      tmp = kappa_pairing(si+1:si+N+N2, si+1:si+N+N2)   
+
+      tmp = matmul(transpose(rhotransfo(si+1:si+N+N2, si+1:si+N+N2)), tmp)
+      tmp = matmul(tmp,rhotransfo(si+1:si+N+N2, si+1:si+N+N2))
 
       !-------------------------------------------------------------------------    
       ! With the assumption of time-reversal, the diagonal matrix elements in 
       ! this transformed kappa matrix are the matrix elements (i, ibar).
       !-------------------------------------------------------------------------
+!      print *, 'KAPP'
+!      do i=1, N+N2
+!        print ('(99f10.3)'), tmp(i,1:N+N2)
+!      enddo
+!      print *
+
       do i=1,N
-          kappa_can(si+i) = tmp(i,i)
+          kappa_can(si+i) = tmp(i  ,i+N2)
       enddo
-      
+      do i=N+1,N+N2
+          kappa_can(si+i) = tmp(i  ,i-N )
+      enddo
+!      print *, 'KAPP'
+!      print ('(99f10.3)'), kappa_can(si+1:si+N+N2)      
+
       deallocate(tmp)
-      si = si + N
+      si = si + N + N2
     enddo    
     
    end subroutine Canonical

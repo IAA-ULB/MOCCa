@@ -594,8 +594,10 @@ def ProcessFunctional(fname, src, target, so):
    
     if(so.timelike):
       dic['NTR'] = '!'
+      dic['TR']  = ''
     else:
       dic['NTR'] = ''
+      dic['TR']  = '!'
     
     with open(src+fname, 'r') as template:
             with open(target+fname, 'w') as generated:

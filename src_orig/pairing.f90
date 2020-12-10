@@ -366,7 +366,7 @@ $FORBIDBCS endif
     !
     !
     !---------------------------------------------------------------------------
-    integer :: wave, wave2, si, B, N, s
+    integer :: wave, wave2, si, B, N, s, N2
 
     
     select case (PairingType)
@@ -394,12 +394,13 @@ $FORBIDBCS endif
       si = 0 
       do B= 1,8,2 ! Loop over only half of the blocks
         N = HFBlocks(B) ; if(N.eq.0) cycle
+        N2= HFblocks(B+1)
         do wave=si+1,si+N
              !------------------------------------------------------------------
              ! If there is a conserved time-like symmetry, then we store only
              ! half of the gaps, see HFB.f90
-$TR          do wave2=si+1,si+N
-$NTR          do wave2=si+N+1,si+2*N
+$TR             do wave2=si+1,si+N
+$NTR          do wave2=si+N+1,si+N+N2
              !------------------------------------------------------------------
             if(allocated(kappa_pairing)) then
               ! We've found a kappa on file and can use it to guess better 
@@ -416,7 +417,7 @@ $NTR          do wave2=si+N+1,si+2*N
 $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
           enddo 
         enddo
-        si = si + N
+        si = si + N + N2
       enddo
     end select  
   end subroutine initializeGaps

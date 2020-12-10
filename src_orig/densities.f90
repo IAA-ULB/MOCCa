@@ -336,7 +336,7 @@ function CompNablaMelements() result(NablaMelements)
     !   < Psi_i | \nabla | \Psi_j >
     !
     ! Some notes:
-    ! 1) They are, in general, complex!
+    ! 1) These are, in general, complex numbers!
     ! 2) Symmetries restrict them in weird ways:
     !    Same p             => <Nx> = <Ny> = <Nz> = 0
     !    Same signature     => <Nx> = <Ny> = 0
@@ -362,7 +362,7 @@ function CompNablaMelements() result(NablaMelements)
     ! transformation are totally implicit.
     !---------------------------------------------------------------------------
   
-    integer       :: i,j
+    integer       :: i,j, B, N, si, N2, N3, N4, wave, wave2
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt), psi(mv,4)
     real(KIND=dp) :: derx(mv,4), dery(mv,4), derz(mv,4)
 
@@ -379,61 +379,159 @@ function CompNablaMelements() result(NablaMelements)
       DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
       DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
     end select
-    
-    do i=1, HFBlocks(1)
-     do j=HFBlocks(1)+HFBlocks(2)+1, HFBlocks(1)+HFBlocks(2)+HFBlocks(3)
-	  !-------------------------------------------------------------------------
-      ! Positive parity neutrons with s=+i
-      Derx  =  TimeReverse(DendPsi(:,1,:,j))
-      Dery  =  TimeReverse(DendPsi(:,2,:,j))
-      Derz  =  DendPsi(:,3,:,j)
-      psi   =  DenPsi(:,:,i)
-      !-------------------------------------------------------------------------
-      NablaMElements(1,1,i,j) = dv*                                            &
-      & sum(                     derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
-      &                       +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
-      NablaMElements(2,2,i,j) = dv*                                            &
-      & sum(                     dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)   &
-      &                       -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
-      NablaMElements(3,1,i,j) = dv*                                            &
-      & sum(                     derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)   &
-      &                       +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
 
-      !-------------------------------------------------------------------------     
-      ! Negative parity neutrons with s=+i can be obtained with symmetry
-      !-------------------------------------------------------------------------
-      NablaMElements(1,1,j,i) = - NablaMElements(1,1,i,j)
-      NablaMElements(2,2,j,i) =   NablaMElements(2,2,i,j)
-      NablaMElements(3,1,j,i) =   NablaMElements(3,1,i,j)
-     enddo
-    enddo
-
-    do i=sum(HFblocks(1:4))+1,sum(HFblocks(1:5))
-     ! Positive parity protons with s=+i
-     do j=sum(HFBlocks(1:6))+1,sum(HFblocks(1:7))
-      Derx  =  TimeReverse(DendPsi(:,1,:,j))
-      Dery  =  TimeReverse(DendPsi(:,2,:,j))
-      Derz  =  DendPsi(:,3,:,j)
-      psi   =  DenPsi(:,:,i)
+    si = 0 
+    do B=1,8,4 ! This loop is essentially over protons vs neutrons
+      N = HFblocks(B)  ;  N2= HFBlocks(B+1)
+      N3= HFBlocks(B+2);  N4= HFBlocks(B+3)
 
       !-------------------------------------------------------------------------
-      NablaMElements(1,1,i,j) = dv*                                            &
-      & sum(                     derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
-      &                        + derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
-      NablaMElements(2,2,i,j) = dv*                                            &
-      & sum(                     dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)   &
-      &                        - dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
-      NablaMElements(3,1,i,j) = dv*                                            &
-      & sum(                     derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)   &
-      &                        + derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
-      !-------------------------------------------------------------------------     
-      ! Negative parity neutrons with s=+i can be obtained with symmetry
+      ! Re < p_z > : only non-zero matrix elements when equal signature
+      do i=1,N
+        wave  = si+i
+        psi   = DenPsi(:,:,wave)
+        do j=1,N3
+          wave2 = si+N+N2+j
+          Derz  =  DendPsi(:,3,:,wave2)
+
+          NablaMElements(3,1,wave,wave2) = dv*                                 &
+          & sum(                    derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
+          &                      +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+
+          NablaMElements(3,1,wave2,wave) =   NablaMElements(3,1,wave,wave2)
+        enddo
+      enddo
+  
+      do i=1,N2
+        wave  = si+N+i
+        psi   = DenPsi(:,:,wave)
+        do j=1,N4
+          wave2 = si+N+N2+N3+j
+          Derz  =  DendPsi(:,3,:,wave2)
+          ! Re < p_z > 
+          NablaMElements(3,1,wave,wave2) = dv*                                 &
+          & sum(                    derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
+          &                      +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+
+          NablaMElements(3,1,wave2,wave) =   NablaMElements(3,1,wave,wave2)
+        enddo
+      enddo
       !-------------------------------------------------------------------------
-      NablaMElements(1,1,j,i) = - NablaMElements(1,1,i,j)
-      NablaMElements(2,2,j,i) =   NablaMElements(2,2,i,j)
-      NablaMElements(3,1,j,i) =   NablaMElements(3,1,i,j)
-     enddo
-    enddo
+      ! Re < p_x >, Im <p_y> 
+      do i=1,N
+        wave  = si+i
+        psi   = DenPsi(:,:,wave)
+$NTR       do j=1, N4
+$NTR          wave2 = si+N+N2+N3+j
+$NTR          Derx  =  DendPsi(:,1,:,wave2)
+$NTR          Dery  =  DendPsi(:,2,:,wave2)
+
+$TR        do j=1, N3
+$TR           wave2 = si+N+j
+$TR           Derx  =  TimeReverse(DendPsi(:,1,:,wave2))
+$TR           Dery  =  TimeReverse(DendPsi(:,2,:,wave2))
+
+          NablaMElements(1,1,wave,wave2) = dv*                                 &
+          & sum(                 derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+          &                   +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+
+          NablaMElements(2,2,wave,wave2) = dv*                                 &
+          & sum(                  dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
+          &                    -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+
+          NablaMElements(1,1,wave2,wave) = - NablaMElements(1,1,wave,wave2)
+          NablaMElements(2,2,wave2,wave) =   NablaMElements(2,2,wave,wave2)
+        enddo
+      enddo
+
+      do i=1,N2
+        wave  = si+N+i
+        psi   = DenPsi(:,:,wave)
+$NTR       do j=1, N3
+$NTR          wave2 = si+N+N2+j
+$NTR          Derx  =  DendPsi(:,1,:,wave2)
+$NTR          Dery  =  DendPsi(:,2,:,wave2)
+
+$TR        do j=1, N4
+$TR           wave2 = si+N+N2+N3+j
+$TR           Derx  =  TimeReverse(DendPsi(:,1,:,wave2))
+$TR           Dery  =  TimeReverse(DendPsi(:,2,:,wave2))
+
+          NablaMElements(1,1,wave,wave2) = dv*                                 &
+          & sum(                 derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+          &                   +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+
+          NablaMElements(2,2,wave,wave2) = dv*                                 &
+          & sum(                  dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
+          &                    -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+
+          NablaMElements(1,1,wave2,wave) = - NablaMElements(1,1,wave,wave2)
+          NablaMElements(2,2,wave2,wave) =   NablaMElements(2,2,wave,wave2)
+        enddo
+      enddo
+
+      si = si + N + N2 + N3 + N4 
+    enddo    
+
+!    do i=1, HFBlocks(1)
+!     ! Positive parity neutrons with s=+i
+!     do j=HFBlocks(1)+HFBlocks(2)+1, HFBlocks(1)+HFBlocks(2)+HFBlocks(3)
+!$TR      Derx  =  TimeReverse(DendPsi(:,1,:,j))
+!$TR      Dery  =  TimeReverse(DendPsi(:,2,:,j))
+!$NTR     Derx  =  DendPsi(:,1,:,j)
+!$NTR     Dery  =  DendPsi(:,1,:,j)
+
+!      Derz  =  DendPsi(:,3,:,j)
+!      psi   =  DenPsi(:,:,i)
+!      !-------------------------------------------------------------------------
+!      NablaMElements(1,1,i,j) = dv*                                            &
+!      & sum(                     derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+!      &                       +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+!      NablaMElements(2,2,i,j) = dv*                                            &
+!      & sum(                     dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)   &
+!      &                       -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+!      NablaMElements(3,1,i,j) = dv*                                            &
+!      & sum(                     derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)   &
+!      &                       +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+
+!      !-------------------------------------------------------------------------     
+!      ! Negative parity neutrons with s=+i can be obtained with symmetry
+!      !-------------------------------------------------------------------------
+!      NablaMElements(1,1,j,i) = - NablaMElements(1,1,i,j)
+!      NablaMElements(2,2,j,i) =   NablaMElements(2,2,i,j)
+!      NablaMElements(3,1,j,i) =   NablaMElements(3,1,i,j)
+!     enddo
+!    enddo
+
+!    do i=sum(HFblocks(1:4))+1,sum(HFblocks(1:5))
+!     ! Positive parity protons with s=+i
+!     do j=sum(HFBlocks(1:6))+1,sum(HFblocks(1:7))
+!$TR      Derx  =  TimeReverse(DendPsi(:,1,:,j))
+!$TR      Dery  =  TimeReverse(DendPsi(:,2,:,j))
+!$NTR     Derx  =  DendPsi(:,1,:,j)
+!$NTR     Dery  =  DendPsi(:,1,:,j)
+
+!      Derz  =  DendPsi(:,3,:,j)
+!      psi   =  DenPsi(:,:,i)
+
+!      !-------------------------------------------------------------------------
+!      NablaMElements(1,1,i,j) = dv*                                            &
+!      & sum(                     derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+!      &                        + derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+!      NablaMElements(2,2,i,j) = dv*                                            &
+!      & sum(                     dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)   &
+!      &                        - dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+!      NablaMElements(3,1,i,j) = dv*                                            &
+!      & sum(                     derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)   &
+!      &                        + derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+!      !-------------------------------------------------------------------------     
+!      ! Negative parity neutrons with s=+i can be obtained with symmetry
+!      !-------------------------------------------------------------------------
+!      NablaMElements(1,1,j,i) = - NablaMElements(1,1,i,j)
+!      NablaMElements(2,2,j,i) =   NablaMElements(2,2,i,j)
+!      NablaMElements(3,1,j,i) =   NablaMElements(3,1,i,j)
+!     enddo
+!    enddo
 
     !---------------------------------------------------------------------------
 end function CompNablaMelements
@@ -448,39 +546,5 @@ $CLEANING
     nullify(DendddPsi)
 
 end subroutine clean_densities
-
-!subroutine writedensity(den ,fname)
-!  !-----------------------------------------------------------------------------
-!  ! Write the density to file for plotting afterwards.
-!  !-----------------------------------------------------------------------------
-
-!  real(KIND=dp),intent(in), target :: den(:,:)
-!  real(KIND=dp), pointer           :: dn(:,:,:), dp(:,:,:)
-!  character(len=*), intent(in)     :: fname
-!  integer                          :: io, i,j,k
-!  
-
-!  open(1,file=fname, iostat=io)
-!  if(io.ne.0) then    
-!    print *, 'Something went wrong with writing a density to file.'
-!    print *, 'filename = ', fname
-!    stop
-!  endif
-
-!  dn(1:nx,1:ny,1:nz)  => den(:,1)
-!  dp(1:nx,1:ny,1:nz)  => den(:,2)
-!  
-!  write(1, fmt='(3i3, f15.3)') nx,ny, nz, dx
-!  do k=1,nz
-!    do j=1,ny
-!      do i=1,nx
-!        write(1, fmt='(2f8.3, 3es25.12)')                                      & 
-!        &               meshx(i), meshx(j), meshz(k), dn(i,j,k), dp(i,j,k) 
-!      enddo
-!    enddo
-!  enddo
-
-!  close(1)
-!end subroutine writedensity
 
 end module densities

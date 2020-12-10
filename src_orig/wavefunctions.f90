@@ -157,6 +157,7 @@ contains
     call nilsson (HFPsi,kparz,spenergies,8,7,$ININWT,$ININWP,$ININWN,          &
     &           floor(neutrons),floor(protons),$ININX,$ININY,$ININZ,dx,osc_freq)
 
+
     allocate(dispersions($ININWT)) ; dispersions  = 0
     allocate(sx(4,$ININWT), sy(4,$ININWT), sz(4,$ININWT))
 
@@ -200,6 +201,8 @@ contains
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
     deallocate(kparz)
+
+    call GramSchmidt
   end subroutine iniwavefunctions
   
   subroutine deriveHF()
