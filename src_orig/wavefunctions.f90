@@ -787,23 +787,23 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = 0
     do i=1,mv
       ! Spin part
-      angmom = angmom       + 0.5*(  wf2(i,1) * wf1(i,4)                       &
-      &                            - wf2(i,2) * wf1(i,3)                       & 
+      angmom = angmom       + 0.5*(- wf2(i,1) * wf1(i,3)                       &
+      &                            - wf2(i,2) * wf1(i,4)                       & 
       &                            + wf2(i,3) * wf1(i,1)                       &
-      &                            - wf2(i,4) * wf1(i,2))                        
+      &                            + wf2(i,4) * wf1(i,2))                        
       ! Orbital part
       angmom = angmom &
-      &           + wf2(i,1) * meshgrid(i,3) * dwf1(i,2,1)                     &
-      &           - wf2(i,1) * meshgrid(i,2) * dwf1(i,3,1)                     &
+      &           - wf2(i,1) * meshgrid(i,3) * dwf1(i,1,1)                     &
+      &           + wf2(i,1) * meshgrid(i,1) * dwf1(i,3,1)                     &
       !
-      &           + wf2(i,2) * meshgrid(i,3) * dwf1(i,2,2)                     &
-      &           - wf2(i,2) * meshgrid(i,2) * dwf1(i,3,2)                     &
+      &           - wf2(i,2) * meshgrid(i,3) * dwf1(i,1,2)                     &
+      &           + wf2(i,2) * meshgrid(i,1) * dwf1(i,3,2)                     &
       !
-      &           + wf2(i,3) * meshgrid(i,3) * dwf1(i,2,3)                     &
-      &           - wf2(i,3) * meshgrid(i,2) * dwf1(i,3,3)                     &
+      &           - wf2(i,3) * meshgrid(i,3) * dwf1(i,1,3)                     &
+      &           + wf2(i,3) * meshgrid(i,1) * dwf1(i,3,3)                     &
       !
-      &           + wf2(i,4) * meshgrid(i,3) * dwf1(i,2,4)                     &
-      &           - wf2(i,4) * meshgrid(i,2) * dwf1(i,3,4)
+      &           - wf2(i,4) * meshgrid(i,3) * dwf1(i,1,4)                     &
+      &           + wf2(i,4) * meshgrid(i,1) * dwf1(i,3,4)
     enddo
     angmom = angmom * dv
 
@@ -829,23 +829,23 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = 0
     do i=1,mv
       ! Spin part
-      angmom = angmom       + 0.5*(- wf2(i,1) * wf1(i,1)                       &
-      &                            + wf2(i,2) * wf1(i,2)                       & 
-      &                            - wf2(i,3) * wf1(i,3)                       &
-      &                            + wf2(i,4) * wf1(i,4))                        
+      angmom = angmom       + 0.5*(+ wf2(i,1) * wf1(i,1)                       &
+      &                            - wf2(i,2) * wf1(i,2)                       & 
+      &                            + wf2(i,3) * wf1(i,3)                       &
+      &                            - wf2(i,4) * wf1(i,4))                        
       ! Orbital part
       angmom = angmom                                                          &
-      &           + wf2(i,1) * meshgrid(i,3) * dwf1(i,1,3)                     &
-      &           - wf2(i,1) * meshgrid(i,1) * dwf1(i,3,3)                     &
+      &           - wf2(i,1) * meshgrid(i,3) * dwf1(i,1,3)                     &
+      &           + wf2(i,1) * meshgrid(i,1) * dwf1(i,3,3)                     &
       !
-      &           - wf2(i,2) * meshgrid(i,3) * dwf1(i,1,4)                     &
-      &           + wf2(i,2) * meshgrid(i,1) * dwf1(i,3,4)                     &
+      &           + wf2(i,2) * meshgrid(i,3) * dwf1(i,1,4)                     &
+      &           - wf2(i,2) * meshgrid(i,1) * dwf1(i,3,4)                     &
       !
-      &           - wf2(i,3) * meshgrid(i,3) * dwf1(i,1,1)                     &
-      &           + wf2(i,3) * meshgrid(i,1) * dwf1(i,3,1)                     &
+      &           + wf2(i,3) * meshgrid(i,3) * dwf1(i,1,1)                     &
+      &           - wf2(i,3) * meshgrid(i,1) * dwf1(i,3,1)                     &
       !
-      &           + wf2(i,4) * meshgrid(i,3) * dwf1(i,1,2)                     &
-      &           - wf2(i,4) * meshgrid(i,1) * dwf1(i,3,2) 
+      &           - wf2(i,4) * meshgrid(i,3) * dwf1(i,1,2)                     &
+      &           + wf2(i,4) * meshgrid(i,1) * dwf1(i,3,2) 
      !-------------------------------------------------------------------------
     enddo
     angmom = angmom * dv

@@ -172,6 +172,13 @@ def ProcessMomentsOfInertia(fname, src, target, so):
 
     dic = {}
       
+    if(so.timelike):
+      dic['TR'] = ''
+      dic['NTR']= '!'
+    else:
+      dic['TR'] = '!'
+      dic['NTR']= ''
+
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:

@@ -74,6 +74,23 @@ contains
 
   end subroutine calcrigid
 
+  real(KIND=dp) function rotcut(eps,it) result(cut)
+      !-------------------------------------------------------------------------
+      ! Cutoff for use in the calculation of < J^2 > and the Belyaev moment
+      ! of inertia. Similar in shape to the pairing cutoff, but sharper.
+      !
+      ! eps : single-particle energy in the HF-basis
+      ! it  : isospin index
+      !-------------------------------------------------------------------------
+      real(KIND=dp), intent(in) :: eps
+      integer, intent(in)       :: it
+      real(KIND=dp) :: Up
+
+      Up   =   2*  (eps - FermiEnergy(it) - PairingCut(it))/PairingMu(it)
+      cut  = sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
+    
+  end function rotcut
+
   subroutine calcJ2andBelyaev_HF
     !---------------------------------------------------------------------------
     !
@@ -278,13 +295,10 @@ contains
   subroutine calcJ2andBelyaev_HFB
     !---------------------------------------------------------------------------
     ! Calculate the expectation value of J^2_mu in the many-body state, as well
-    ! as the Belyaev moment of inertia. 
-    ! 
-    ! No calculation for the Belyaev moment of inertia at finite temperature 
-    ! right now.
+    ! as the Belyaev moment of inertia.  
     !---------------------------------------------------------------------------
    
-    integer       :: i,j, b, it, ii, jj, si, N,k, sb
+    integer       :: i,j, b, it, ii, jj, si, N, N2,k, sb, T, ibar, jbar
     real(KIND=dp) :: ME(3), degen, fac
 
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
@@ -299,60 +313,101 @@ contains
     !---------------------------------------------------------------------------
     ! First, we calculate the full matrix elements of jx, jy and jz
     si = 0  
-    do b = 1, Blocks
-      N = HFBlocks(b)   
-      do i=1, N
+    do b = 1, 8,2
+      N = HFBlocks(b)   ; if(N.eq.0) cycle
+      N2= HFBlocks(b+1)
+      T = N + N2
+
+      it = 1 ; if(b.gt.4) it=2
+      do i=1,N
         ii = si + i
-        it = 1
-        if(ii.gt.nwn) it = 2
         do j=1,N
           jj = si + j
-  
+
           if(rotcorr_cut) then
-            !-------------------------------------------------------------------
-            ! Definition of the cutoff for the rotational correction: defined as
-            ! a function of the pairing cutoff. Note that it is not equal to 
-            ! that one: there is the factor 2 to make it sharper. 
-            !-------------------------------------------------------------------
-            Up   =   2*  (spenergies(ii) - fermienergy(it) - PairingCut(it))/PairingMu(it)
-            cut_cr = sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
-            Up   =   2*  (spenergies(jj) - fermienergy(it) - PairingCut(it))/PairingMu(it)
-            cut_cr = cut_cr * sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
-          else
+            cut_cr = rotcut(spenergies(ii), it)  *  rotcut(spenergies(jj), it)
+          else 
             cut_cr = 1.0d0
           endif
-          ! |< k | j_x | -l >|^2            
-          jx(ii,jj)= cut_cr * angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
-          ! |< k | j_y | -l >|^2 
-          jy(ii,jj)= cut_cr * angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+
+$TR          ! |< k | j_x | -l >|^2            
+$TR          jx(ii,jj)= cut_cr * angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
+$TR          ! |< k | j_y | -l >|^2 
+$TR          jy(ii,jj)= cut_cr * angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
           ! |< k | j_z |  l >|^2 
-          jz(ii,jj)= cut_cr * angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+          jz(ii  ,jj  ) = cut_cr * angmom_z_real( hfpsi(:,:,ii  ),hfpsi(:,:,jj  ),hfdpsi(:,:,:,jj  ))
         enddo
-      enddo 
-      jx_can(si+1:si+N, si+1:si+N) = &
-      &  matmul(transpose(cantransfo(si+1:si+N, si+1:si+N)), &
-      &                              jx(si+1:si+N, si+1:si+N))
-      jy_can(si+1:si+N, si+1:si+N) = &
-      &  matmul(transpose(cantransfo(si+1:si+N, si+1:si+N)), &
-      &                              jy(si+1:si+N, si+1:si+N))
+      enddo
 
-      jz_can(si+1:si+N, si+1:si+N) = &
-      & matmul(transpose(cantransfo(si+1:si+N, si+1:si+N)), &
-      &                              jz(si+1:si+N, si+1:si+N))
+$NTR      do i=1,N2
+$NTR        ii = si + N + i
+$NTR        do j=1,N2
+$NTR          jj = si + N + j
+$NTR
+$NTR          if(rotcorr_cut) then
+$NTR            cut_cr = rotcut(spenergies(ii), it)  *  rotcut(spenergies(jj), it)
+$NTR          else 
+$NTR            cut_cr = 1.0d0
+$NTR          endif
+$NTR          jz(ii  ,jj  ) = cut_cr * angmom_z_real( hfpsi(:,:,ii  ),hfpsi(:,:,jj  ),hfdpsi(:,:,:,jj  ))
+$NTR        enddo
+$NTR      enddo
 
-      jx_can(si+1:si+N, si+1:si+N) = &
-      & matmul(jx_can(si+1:si+N, si+1:si+N), &
-      &        cantransfo(si+1:si+N, si+1:si+N))
+$NTR  do i=1,N
+$NTR    ii = si + i
+$NTR    do j=1, N2
+$NTR       jj = si + N +  j
+$NTR
+$NTR       if(rotcorr_cut) then
+$NTR         cut_cr = rotcut(spenergies(ii), it)  *  rotcut(spenergies(jj), it)
+$NTR       else 
+$NTR         cut_cr = 1.0d0
+$NTR       endif
+$NTR       !|< k | j_x | l >|^2            
+$NTR       jx(ii,jj)= cut_cr * angmom_x_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
+$NTR       ! |< k | j_y | l >|^2 
+$NTR       jy(ii,jj)= cut_cr * angmom_y_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+$NTR 
+$NTR       jx(jj,ii) =  jx(ii,jj)
+$NTR       jy(jj,ii) = -jy(ii,jj)
+$NTR    enddo
+$NTR  enddo
 
-      jy_can(si+1:si+N, si+1:si+N) = & 
-      & matmul(jy_can(si+1:si+N, si+1:si+N), &
-      &        cantransfo(si+1:si+N, si+1:si+N))
+      print *, "JY"
+      do i=1, N+N2
+        print ('(99f6.3)'), jy(si+i,si+1:si+N+N2)
+      enddo
+      print*
+      !-------------------------------------------------------------------------
+      ! Transform the sp. matrix elements into the canonical basis.
+      ! Note that we could have directly calculated these matrix elements in
+      ! the canonical basis, but for one thing: the cutoff which we cannot
+      ! define in that basis.
+      !-------------------------------------------------------------------------
+      jx_can(si+1:si+T, si+1:si+T) = &
+      &  matmul(transpose(cantransfo(si+1:si+T, si+1:si+T)), &
+      &                              jx(si+1:si+T, si+1:si+T))
+      jy_can(si+1:si+T, si+1:si+T) = &
+      &  matmul(transpose(cantransfo(si+1:si+T, si+1:si+T)), &
+      &                              jy(si+1:si+T, si+1:si+T))
 
-      jz_can(si+1:si+N, si+1:si+N) = &
-      & matmul(jz_can(si+1:si+N, si+1:si+N), &
-      &        cantransfo(si+1:si+N, si+1:si+N))
+      jz_can(si+1:si+T, si+1:si+T) = &
+      & matmul(transpose(cantransfo(si+1:si+T, si+1:si+T)), &
+      &                              jz(si+1:si+T, si+1:si+T))
 
-      si = si + N
+      jx_can(si+1:si+T, si+1:si+T) = &
+      & matmul(jx_can(si+1:si+T, si+1:si+T), &
+      &        cantransfo(si+1:si+T, si+1:si+T))
+
+      jy_can(si+1:si+T, si+1:si+T) = & 
+      & matmul(jy_can(si+1:si+T, si+1:si+T), &
+      &        cantransfo(si+1:si+T, si+1:si+T))
+
+      jz_can(si+1:si+T, si+1:si+T) = &
+      & matmul(jz_can(si+1:si+T, si+1:si+T), &
+      &        cantransfo(si+1:si+T, si+1:si+T))
+
+      si = si + N + N2
     enddo
 
     ! First, construct J20
@@ -369,25 +424,45 @@ contains
     ! Then we calculate the expectation value of J^2, in the canonical basis
     !---------------------------------------------------------------------------
     si = 0  
-    do b = 1, Blocks
-      N = HFBlocks(b)
-      do i=1, N
-        ii = si + i
-        it = 1
-        if(ii.gt.nwn) it = 2
-        do j=1,N
+    do b = 1, Blocks,2
+
+      N  = HFBlocks(b)   ; if(N.eq.0) cycle
+      N2 = HFBlocks(b+1)
+
+      it = 1 ; if(B.gt.4) it = 2
+
+      do i=1, N+N2
+        ii   = si + i
+$TR     ibar = ii
+$NTR    ibar = conjugp(ii)
+        if(ibar .eq. 0) cycle
+        do j=1,N+N2
           jj = si + j
+$TR       jbar = jj
+$NTR      jbar = conjugp(jj)
+          if(jbar .eq. 0) cycle
 
-          ! Factors 1./2 due to time-reversal
-          fac=  rho_can(ii)/2.*(1-rho_can(jj)/2.)-kappa_can(ii)*kappa_can(jj)
-          ME(1) = 2*jx_can(ii,jj)**2 
-          ME(2) = 2*jy_can(ii,jj)**2 
-          ME(3) = 2*jz_can(ii,jj)**2  
+$TR       ! Factors 1./2 due to time-reversal
+$TR       fac=  rho_can(ii)/2.*(1-rho_can(jj)/2.)-kappa_can(ii)*kappa_can(jj)
+$TR       ME(1) = 2*jx_can(ii,jj)**2 ! Factor two for time-reversal
+$TR       ME(2) = 2*jy_can(ii,jj)**2 ! Factor two for time-reversal
+$TR       ME(3) = 2*jz_can(ii,jj)**2 ! Factor two for time-reversal
+$TR       J2(:,it) = J2(:,it) + ME * fac  
 
-          J2(:,it) = J2(:,it) + ME * fac  
+$NTR      fac=  rho_can(ii)   *(1-rho_can(jj))
+$NTR      ME(1) = jx_can(ii,jj)**2 
+$NTR      ME(2) = jy_can(ii,jj)**2
+$NTR      ME(3) = jz_can(ii,jj)**2
+$NTR      J2(:,it) = J2(:,it) + ME * fac  
+
+$NTR      fac= -kappa_can(ii)*kappa_can(jbar)
+$NTR      ME(1) = jx_can(ii,jj)*jx_can(jbar,ibar)
+$NTR      ME(2) = jy_can(ii,jj)*jy_can(jbar,ibar) 
+$NTR      ME(3) = jz_can(ii,jj)*jz_can(jbar,ibar)
+$NTR      J2(:,it) = J2(:,it) + ME(:) * fac  
         enddo
       enddo
-      si = si + N
+      si = si + N + N2
     enddo
     J2(:,3) = sum(J2(:,1:2),2) 
  
@@ -509,58 +584,78 @@ contains
 
   subroutine calcJ20(j,bogo, j20)
     !---------------------------------------------------------------------------
-    ! Small subroutine to calculate the matrix J20 in the Ring and Schuck 
+    ! Subroutine to calculate the matrix J20 in the Ring and Schuck 
     ! notation.
     !
     !  J20 = U^\dagger j V^* - V^\dagger j^t U^*
     !
+    ! The matrix j on input contains the single-particle matrix elements of 
+    ! the angular momentum operator, bogo is the bogoliubov transformation.
+    !
     !---------------------------------------------------------------------------
-    ! Because of time-reversal symmetry, one should exercice caution when using 
-    ! this routine. The full U and V matrices are 
+    ! When time-reversal is conserved, one should exercice caution. 
+    ! The full U and V matrices are 
     !
-    !   ( U^+ 0  )    and  ( 0   -V ^+)
-    !   ( 0   U^-)         ( V^+  0   )
+    !   ( U^+ 0  )    and  ( 0    V^-)
+    !   ( 0   U^-)         ( V^+  0  )
     !
-    ! and only the U^+ and V^+ are stored in memory. 
+    ! and only the U^+ and V^+ are actually stored by the code, and 
+    !
+    !      V^- = - V^+
+    !      U^- = + U^+
     !
     ! So, if the single-particle matrix elements passed in are just 
-    !   < a | j_mu | b > this routine actually returns - J^{20}_{a\bar{b}} 
-    ! where \bar{b} is the time-reversed partner of b.  
+    !
+    !                < a | j_mu | b > 
+    !
+    ! this routine actually returns - J^{20}_{a\bar{b}} where \bar{b} is the 
+    ! time-reversed partner of b.  
     ! 
     ! If instead, the single-particle matrix elements that are passed in are
-    !   < a | j_mu T | b >, the result of this routine 
+    ! 
+    !                < a | j_mu T | b >, 
+    ! 
+    ! the result of this routine is indeed J^{20}_{ab}.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !
+    ! When time-reversal is not conserved, the full U and V matrices are 
+    ! stored, but not pair-wise equal anymore. In that case, the routine 
+    ! behaves as one would expect naively.
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in)  :: j(nwt,nwt)
     real(KIND=dp), intent(in)  :: bogo(2*nwt, 2*nwt)
     real(KIND=dp), intent(out) :: j20(nwt,nwt)
     real(KIND=dp)              :: tmp(nwt,nwt)
-    integer :: N, si, sb, b
+    integer :: N, N2, si, sb, b, T
 
     si = 0 ; sb = 0
-    do b = 1, Blocks
-      N = HFBlocks(b)
+    do b = 1, 8, 2
+      N = HFBlocks(b)   ; if(N.eq.0) cycle
+      N2= HFblocks(b+1)
 
+      T =  N + N2
       ! U^\dagger j 
-      j20(si+1:si+N, si+1:si+N) = &
-      & matmul(transpose(bogo(sb+1:sb+N, sb+N+1:sb+2*N)),j(si+1:si+N,si+1:si+N))
+      j20(si+1:si+T, si+1:si+T) = &
+      & matmul(transpose(bogo(sb+1:sb+T, sb+T+1:sb+2*T)),j(si+1:si+T,si+1:si+T))
 
       ! U^\dagger j V^*
-      j20(si+1:si+N, si+1:si+N) = &
-      & matmul( j20(si+1:si+N, si+1:si+N), (bogo(sb+N+1:sb+2*N, sb+N+1:sb+2*N)))
+      j20(si+1:si+T, si+1:si+T) = &
+      & matmul( j20(si+1:si+T, si+1:si+T), (bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)))
 
       ! V^\dagger j^t 
-      tmp(si+1:si+N, si+1:si+N) = transpose(j(si+1:si+N, si+1:si+N))
-      tmp(si+1:si+N, si+1:si+N) = &
-      & matmul(transpose(bogo(sb+N+1:sb+2*N, sb+N+1:sb+2*N)),                  &
-      &                             tmp(si+1:si+N,si+1:si+N))
+      tmp(si+1:si+T, si+1:si+T) = transpose(j(si+1:si+T, si+1:si+T))
+      tmp(si+1:si+T, si+1:si+T) = &
+      & matmul(transpose(bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)),                  &
+      &                             tmp(si+1:si+T,si+1:si+T))
       
       ! V^\dagger j^T U
-      j20(si+1:si+N, si+1:si+N) = j20(si+1:si+N, si+1:si+N) - &
-      &  matmul( tmp(si+1:si+N, si+1:si+N), (bogo(sb+1:sb+N, sb+N+1:sb+2*N)))
+      j20(si+1:si+T, si+1:si+T) = j20(si+1:si+T, si+1:si+T) - &
+      &  matmul( tmp(si+1:si+T, si+1:si+T), (bogo(sb+1:sb+T, sb+T+1:sb+2*T)))
 
-      si = si +   N
-      sb = sb + 2*N
+      si = si +   T 
+      sb = sb + 2*T 
     enddo
 
   end subroutine calcJ20
