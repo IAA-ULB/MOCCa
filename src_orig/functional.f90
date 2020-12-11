@@ -509,7 +509,7 @@ $PRINT
     !
     ! It is activated by putting COM1Body = 3, COM2BODY = 0. 
     !---------------------------------------------------------------------------
-    integer       :: it, i,j, B, N, N2, N3, N4, wave, wave2, si
+    integer       :: it, i,j, B, N, N2, N3, N4, wave, wave2, si, ii, ibar, jj, jbar
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),temp(3,2), fac
     real(KIND=dp) :: Butler_t, Butler_f
     
@@ -562,70 +562,40 @@ $TR         temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,i,j)**2
          enddo
       enddo
 
-$NTR     !----------------------------------------------------------------------
-$NTR     ! The UVUV part is much more complicated if time-reversal is not 
-$NTR     ! conserved.
-$NTR     si = 0
-$NTR     do B=1,8,4
+$NTR      si = 0
+$NTR      do B=1,8,4 ! This is essentially an isospin loop now
 $NTR        N = HFblocks(B) ; if(N.eq.0) cycle
 $NTR        N2 = HFblocks(B+1)
 $NTR        N3 = HFblocks(B+2)
 $NTR        N4 = HFblocks(B+3)
-$NTR        it= 1 ; if(B.eq.5) it = 2 
-$NTR       
-$NTR        do i= 1, N
-$NTR          do  j=1, N3
-$NTR            wave  = si          + i
-$NTR            wave2 = si + N + N2 + j 
-$NTR            fac = - 2 * kappa_can(wave)*kappa_can(wave2+N3)  
-$NTR            temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,wave  ,wave2) &
-$NTR                                  &      *NablaMElements(3,1,wave+N,wave2+N3)
-$NTR          enddo
-$NTR        enddo
-$NTR        do i= 1, N
-$NTR          do  j=1, N3
-$NTR            wave2 = si          + i
-$NTR            wave  = si + N + N2 + j 
-$NTR            fac = - 2 * kappa_can(wave)*kappa_can(wave2+N)  
-$NTR            temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,wave  ,wave2) &
-$NTR                                  &      *NablaMElements(3,1,wave+N3,wave2+N)
-$NTR          enddo
-$NTR        enddo
-
-$NTR        do i= 1, N
-$NTR          do  j=1, N4
-$NTR            wave  = si               + i
-$NTR            wave2 = si + N + N2 + N3 + j 
-$NTR            fac = - 2 * kappa_can(wave)*kappa_can(wave2-N3) 
-$NTR            temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,wave  ,wave2) &
-$NTR                                  &      *NablaMElements(1,1,wave+N,wave2-N3)
-$NTR            temp(2,it) = temp(2,it) - fac*NablaMElements(2,2,wave  ,wave2) &
-$NTR                                  &      *NablaMElements(2,2,wave+N,wave2-N3)
-$NTR          enddo
-$NTR        enddo
-$NTR        do i= 1,N 
-$NTR          do  j=1, N4
-$NTR            wave2 = si               + i
-$NTR            wave  = si + N + N2 + N3 + j 
-$NTR            fac = - 2 *  kappa_can(wave)*kappa_can(wave2+N) 
-$NTR            temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,wave  ,wave2) &
-$NTR                                  &      *NablaMElements(1,1,wave-N3,wave2+N)
-$NTR            temp(2,it) = temp(2,it) - fac*NablaMElements(2,2,wave  ,wave2) &
-$NTR                                  &      *NablaMElements(2,2,wave-N3,wave2+N)
+$NTR        it = 1  ; if(B .eq.5) it = 2
+$NTR        ! We simply loop over all possible combinations of spwfs
+$NTR        ! as the NablaMElements array is zero in the right places
+$NTR        do i=1, N+N2+N3+N4
+$NTR          ii   = si + i
+$NTR          ibar = conjugp(ii) ; if(ibar .eq.0) cycle
+$NTR          do j=1,  N+N2+N3+N4
+$NTR            jj   = si +  j
+$NTR            jbar = conjugp(jj) ; if(jbar .eq.0) cycle
+$NTR            fac = -  kappa_can(ii)*kappa_can(jbar)
+$NTR            temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,ii,jj)        &
+$NTR                                  &      *NablaMElements(3,1,ibar,jbar)
+$NTR            temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,ii,jj) &
+$NTR                                  &      *NablaMElements(1,1,ibar,jbar)
+$NTR            temp(2,it) = temp(2,it) - fac*NablaMElements(2,2,ii  ,jj) &
+$NTR                                  &      *NablaMElements(2,2,ibar,jbar)
 $NTR          enddo
 $NTR        enddo
 $NTR        si = si + N + N2 + N3 + N4
-$NTR     enddo
-  
-
-$TR      do it=1,2
-$TR        COMCorrection(2,it) = 2*sum(temp(:,it))
-$TR      enddo
-
-$NTR      do it=1,2
-$NTR        COMCorrection(2,it) = sum(temp(:,it))
 $NTR      enddo
 
+      do it=1,2
+        COMCorrection(2,it) = sum(temp(:,it))
+      enddo
+      
+      ! In the case of Time-reversal conservation, we summed over only half 
+      ! the states
+$TR      COMCorrection(2,:) = 2*COMCorrection(2,:)
 
       ! Some constants
       COMCorrection(2,:) = COMCorrection(2,:) * hbm * nucleonmass/             & 

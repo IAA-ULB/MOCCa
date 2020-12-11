@@ -28,6 +28,8 @@ module HFB
   integer :: HFBsizes(8)
   ! Dispersion of the particle number
   real(KIND=dp) :: HFBdispersion(2)
+  ! Integer indexing the conjugate partners in a HFB calculation
+  integer, allocatable :: conjugp(:)
   ! Pointer to relink procedures
   procedure(delta_action_dummy), pointer :: delta_action_HFB
 
@@ -1265,7 +1267,7 @@ $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
    
     real(KIND=dp), allocatable :: tmp(:,:), work(:)
     
-    integer :: si, N, N2, B, i, lwork
+    integer :: si, N, N2, B, i, lwork, j
     
     !---------------------------------------------------------------------------
     ! a) Diagonalize rho
@@ -1315,6 +1317,10 @@ $NTR     if(rho_can(i).gt.1.0) rho_can(i) = 1.0
     ! Transforms as kappa'  = D^T kappa D^*
     !---------------------------------------------------------------------------
     si = 0
+
+$NTR if(.not. allocated(conjugp))  allocate(conjugp(nwt)) 
+$NTR conjugp = 0
+
     do B=1,8,2
     
       N  = HFBlocks(B)   ;  if(N .eq. 0) cycle
@@ -1326,24 +1332,39 @@ $NTR     if(rho_can(i).gt.1.0) rho_can(i) = 1.0
       tmp = matmul(transpose(rhotransfo(si+1:si+N+N2, si+1:si+N+N2)), tmp)
       tmp = matmul(tmp,rhotransfo(si+1:si+N+N2, si+1:si+N+N2))
 
-      !-------------------------------------------------------------------------    
       ! With the assumption of time-reversal, the diagonal matrix elements in 
       ! this transformed kappa matrix are the matrix elements (i, ibar).
-      !-------------------------------------------------------------------------
-!      print *, 'KAPP'
+$TR      do i=1,N
+$TR          kappa_can(si+i) = tmp(i  ,i)
+$TR      enddo
+
+      ! Without the assumption of time-reversal we cannot be guaranteed to know
+      ! the canonical partners beforehand.
+$NTR  conjugp(si+1:si+N+N2) = 0
+
+$NTR  do i=1, N+N2
+$NTR    do j=i+1, N+N2
+$NTR      if(abs(rho_can(si+i) - rho_can(si+j)).lt.1d-12) then
+$NTR        if( abs(tmp(i,j)).gt. 1d-14) then
+$NTR            conjugp(si+i) =  si+j
+$NTR            conjugp(si+j) =  si+i
+$NTR            kappa_can(si+i) = tmp(i,j)
+$NTR            kappa_can(si+j) = tmp(j,i)   
+$NTR        endif
+$NTR      endif    
+$NTR    enddo
+$NTR  enddo
+
+
 !      do i=1, N+N2
-!        print ('(99f10.3)'), tmp(i,1:N+N2)
+!        print ('(99f10.3)'), tmp(i, 1:N+N2)
 !      enddo
 !      print *
 
-      do i=1,N
-          kappa_can(si+i) = tmp(i  ,i+N2)
-      enddo
-      do i=N+1,N+N2
-          kappa_can(si+i) = tmp(i  ,i-N )
-      enddo
-!      print *, 'KAPP'
-!      print ('(99f10.3)'), kappa_can(si+1:si+N+N2)      
+!      do i=1, N
+!        print *, 'CONJUG', i, conjugp(si+i), si+i+N, conjugp(conjugp(si+i)), si+i, kappa_can(si+i)
+!      enddo
+!      print *
 
       deallocate(tmp)
       si = si + N + N2
