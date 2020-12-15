@@ -403,7 +403,7 @@ contains
         maxover = -10
         indover =   0
         do i=1, N
-            overlap = abs(sum(HFpsi(:,:,si+i) * modelspwf)) * dv
+!            overlap = abs(sum(HFpsi(:,:,si+i) * modelspwf)) * dv
             if(overlap .gt. maxover) then
               maxover = overlap
               indover = i

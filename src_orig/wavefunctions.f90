@@ -92,7 +92,7 @@ module wavefunctions
  character(len=40)                  :: blockfname = ''
  integer                            :: modelblock = 0
  real(KIND=dp)                      :: blockoverlap = 0.0
- real(KIND=dp), allocatable, target :: modelspwf(:,:)
+ real(KIND=dp), allocatable, target :: modelspwf(:,:,:)
 
 
 contains 

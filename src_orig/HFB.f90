@@ -327,7 +327,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
       
     integer                      :: N, B, sb, i, NB, j, qblock, ind, si, bi
     real(KIND=dp)                :: compare, occ, qpmin, maxover, qpoverlap
-    real(KIND=dp), allocatable   :: overlaps(:)
+    real(KIND=dp), allocatable   :: overlaps(:), Ur(:,:,:), Vr(:,:,:)
     integer                      :: toblock(4), qpb, indover
 
     N = size(Eqp) 
@@ -496,20 +496,20 @@ $TR    HFBdispersion = 2 * HFBdispersion
           sb = 0
         endif
         N       = blocks(B)
+
         ! But first calculate all the overlaps in the HF basis
-        allocate(overlaps(N)) ; overlaps = 0
+        allocate(overlaps(2*N)) ; overlaps = 0
         do i=1, N
-          overlaps(i) =  dv * sum(HFPsi(:,:,si+i) * modelspwf)
+          overlaps(i  ) =  dv*sum(            HFPsi(:,:,si+i) *modelspwf(:,:,1))
+          overlaps(i+N) = -dv*sum(timereverse(HFPsi(:,:,si+i))*modelspwf(:,:,2)) 
         enddo
-        ! Scan the V-component of the Bogoliubov transformation for the
-        ! qp dominated by the model spwf
+
         maxover = -10
         indover =   0
-
         do i=1, N
           qpoverlap = 0
-          do j=1, N
-             qpoverlap =  qpoverlap + Bogo(sb+N+j,sb+N+i) * overlaps(j)
+          do j=1, 2*N
+             qpoverlap =  qpoverlap + Bogo(sb+j,sb+N+i) * overlaps(j)
           enddo
           qpoverlap = abs(qpoverlap)
           if(qpoverlap .gt. maxover) then
@@ -520,11 +520,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
 
         R(sb + N + indover ) = 1 - occ
         R(sb     + indover ) =     occ
-        blockoverlap    = maxover
- 
-!        print *, indover, maxover, sb+N+indover, sb+indover
-!        print ('(99f10.3)'), overlaps
-!        stop
+        blockoverlap         = maxover
+
     end select
    
   end function ConstructConfiguration
