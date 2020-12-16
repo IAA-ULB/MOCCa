@@ -500,8 +500,10 @@ $TR    HFBdispersion = 2 * HFBdispersion
         ! But first calculate all the overlaps in the HF basis
         allocate(overlaps(2*N)) ; overlaps = 0
         do i=1, N
+          ! expansion of U(r) in the HF-basis
           overlaps(i  ) =  dv*sum(            HFPsi(:,:,si+i) *modelspwf(:,:,1))
-          overlaps(i+N) = -dv*sum(timereverse(HFPsi(:,:,si+i))*modelspwf(:,:,2)) 
+          ! expansion of V(r) in the (time-reverse of the) HF-basis
+          overlaps(i+N) = +dv*sum(timereverse(HFPsi(:,:,si+i))*modelspwf(:,:,2)) 
         enddo
 
         maxover = -10
@@ -522,6 +524,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
         R(sb     + indover ) =     occ
         blockoverlap         = maxover
 
+        deallocate(overlaps)
     end select
    
   end function ConstructConfiguration

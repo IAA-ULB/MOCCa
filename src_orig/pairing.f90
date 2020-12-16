@@ -564,12 +564,11 @@ contains
         if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
           print 10, stabfactor
         endif
-
-        if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
-
         if(blocktype.ge.5) then
             print 11, blockoverlap
         endif
+
+        if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
     end select
 
     print 7
@@ -799,37 +798,43 @@ contains
           do k=1,nz
             do j=1,ny
               do i=1,nx
-               read(unit=12,fmt=2) model3d(i,j,k)
+               read(unit=12,fmt=2) model3d(i,j,k) 
               enddo
             enddo
           enddo
         enddo
 
-
-        sxh(1) =  1 ; syh(1) = +1 ; szh(1) = -1
-        sxh(2) = -1 ; syh(2) = -1 ; szh(2) = -1 
-        sxh(3) = -1 ; syh(3) = +1 ; szh(3) = +1
-        sxh(4) =  1 ; syh(4) = -1 ; szh(4) = +1
+        !-----------------------------------------------------------------------
+        ! Some lines of code for checking the correct construction of the 
+        ! model spwfs on the mesh.
+        !
+        !-----------------------------------------------------------------------
+        
+!       sxh(1) =  1 ; syh(1) = +1 ; szh(1) = -1
+!        sxh(2) = -1 ; syh(2) = -1 ; szh(2) = -1 
+!        sxh(3) = -1 ; syh(3) = +1 ; szh(3) = +1
+!        sxh(4) =  1 ; syh(4) = -1 ; szh(4) = +1
 
 !        allocate(dmodel3d(nx*ny*nz,3,4)) ; dmodel3d = 0.0
 !        allocate(ddmodel3d(nx*ny*nz,6,4)) ; ddmodel3d = 0.0
 
-
 !        call inilag
 !        do l=1, 4
-!          call derive_tot_1D(modelspwf(:,l,1),sxh(l), syh(l), szh(l), dmodel3d(:,:,l),ddmodel3d(:,:,l))
+!          call derive_tot_1D(modelspwf(:,l,1),sxh(l), syh(l), szh(l), &
+!                                             dmodel3d(:,:,l),ddmodel3d(:,:,l))
 !        enddo
 !        print *
-!        print *, 'Jz', angmom_z_real(modelspwf(:,:,1),modelspwf(:,:,1), dmodel3d)/(sum(modelspwf(:,:,1)**2)*dv)
-
-
+!        print *, 'Jz', &
+!                angmom_z_real(modelspwf(:,:,1),modelspwf(:,:,1), dmodel3d) & 
+!                &                                /(sum(modelspwf(:,:,1)**2)*dv)
 !        do l=1, 4
-!          call derive_tot_1D(modelspwf(:,l,2),-sxh(l), syh(l), -szh(l), dmodel3d(:,:,l),ddmodel3d(:,:,l))
+!          call derive_tot_1D(modelspwf(:,l,2),-sxh(l), syh(l), -szh(l), &
+!                &                             dmodel3d(:,:,l),ddmodel3d(:,:,l))
 !        enddo
 !        print *
-!        print *, 'Jz', angmom_z_real(modelspwf(:,:,2),modelspwf(:,:,2), dmodel3d)/(sum(modelspwf(:,:,2)**2)*dv)
-
-!!        print *, sum(modelspwf(:,:,1)**2)*dv
+!        print *, 'Jz',  & 
+!               &  angmom_z_real(modelspwf(:,:,2),modelspwf(:,:,2), dmodel3d) & 
+!               &  /(sum(modelspwf(:,:,2)**2)*dv)
 !        stop
         !-----------------------------------------------------------------------
         ! Assigning the right blocking blocks
@@ -846,8 +851,6 @@ contains
               modelblock = 7
             endif            
         endif
-        !-----------------------------------------------------------------------
-!        ! Some test
 
       endif 
   end subroutine read_modelwf
