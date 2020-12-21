@@ -177,6 +177,7 @@ def GenerateFields(so):
         #-----------------------------------------------------------------------
         for term in src_heph.heph_functional.Functional_terms: 
             (densities, cpl)=src_heph.heph_functional.ParseDensities(term)
+            old_densities = densities.copy()
             #-------------------------------------------------------------------
             # Replace the densities in the list by the ones actually calculated
             for i in range(len(densities)):
@@ -192,15 +193,19 @@ def GenerateFields(so):
             # Remove all the mentions of couplings inside the density if only
             # contractions are calculated.
             altterm = term
-            for c in cpl: 
-                for i in range(len(densities)):
-                    if(OrderOfDen(densities[i]) != OrderOfDen(densities[i], contract=False)):
-                      for s in sumindices:
-                          if(densities[i].count(s) == 2):
-                            # Replace internal couplings
-                            altterm = altterm.replace(s,'')
+            for i, oldden in enumerate(old_densities):
+                for j, newden in enumerate(densities):
+                    o1 = OrderOfDen(newden)
+                    o2 = OrderOfDen(newden, contract=False)
+                    (x1,y1,l1,r1,c1,cr1) = ParseOperators(oldden,so.timelike)
+                    (x2,y2,l2,r2,c2,cr2) = ParseOperators(newden,so.timelike)
+                    if(l1 == l2 and r1 == r2 and o1 != o2 ):
+                        for s in sumindices:
+                            if(oldden.count(s) == 2):
+                                altterm = altterm.replace(s, '')
 
             (rubbish, cpl) = src_heph.heph_functional.ParseDensities(altterm)
+
             #-------------------------------------------------------------------
             # Check if the term contains this density
             startind = 0
@@ -239,13 +244,15 @@ def GenerateFields(so):
                             else:
                                 nc = nc + (k-removedsum,)
                         newcpl.append(nc)        
+                    print ("%30s %20s    "%(term, den), cpl, newcpl)
+
                     cpl = newcpl
-                    
                     ind   = src_heph.heph_functional.Functional_terms.index(term)
                     cplct = cplcts[ind]
                     dden  = src_heph.heph_functional.density_dependence[ind]
 
                     fieldlist.append([removed, altder,altlap,cplct,cpl,dden,0])
+                    
                 startind = startind + OrderOfDen(altden)
                 
             #-------------------------------------------------------------------

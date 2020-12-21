@@ -329,7 +329,7 @@ def ProcessDensities(fname, src, target, so):
             for line in template:
                 generated.write(Template(line).substitute(dic))  
 
-def ParseOperators(density, timelike):    
+def ParseOperators(density, timelike, findindices=False):    
     """    
      Parse the operators that are used to construct a density from its name.
      
@@ -370,6 +370,7 @@ def ParseOperators(density, timelike):
     # Find the coupling over the sumindices
     coupling  = []
     foundsums = []
+    indices   = []
     for l in sumindices:
         c   = ()
         ind = 0
@@ -380,6 +381,7 @@ def ParseOperators(density, timelike):
                 ind = ind + 1 
         if(len(c) > 0) :
             coupling.append(c)
+            indices.append(l)
         if(len(c) == 3):            
             foundsums.append(l)
     #---------------------------------------------------------------------------
@@ -399,8 +401,11 @@ def ParseOperators(density, timelike):
                 ind = ind + 1 
         if(len(c) > 0) :
             cross.append(c)    
-
-    return(der, lap, left, right, coupling, cross)
+            indices.append(l)
+    if(findindices):
+        return(der, lap, left, right, coupling, cross, indices)
+    else:
+        return(der, lap, left, right, coupling, cross)
 
 def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
     #---------------------------------------------------------------------------

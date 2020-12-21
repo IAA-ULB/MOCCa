@@ -1,5 +1,7 @@
 # Configuration file for Tantalus compilation
-FUNC_FILE = 'DD-switch.T.func'
+# Functional : NLO Skyrme-type (think SLy4/5/6) with optional Jmn terms
+FUNC_FILE = 'N2LO.func'
+# Symmetries : EV8-style
 SYMSTRING = 'Rz,P,STy'
 REDUCE    = [1,1,1]
 # Read symmetries: EV8-style

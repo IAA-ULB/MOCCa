@@ -111,7 +111,6 @@ def initfunctional(fname, so):
         (densities,coup) = ParseDensities(term)
         for den in densities:
             tempden.append(den)
-
     #---------------------------------------------------------------------------
     # Pruning the list
     # A) removing duplicates
@@ -120,11 +119,12 @@ def initfunctional(fname, so):
     deriv_needed.append([])
     for i in range(len(tempden)):
         (deri, lapi, lefti, righti, coupi, crossi) = \
-                                          ParseOperators(tempden[i],so.timelike)
+                        ParseOperators(tempden[i],so.timelike)
+
         Found = False
         for j in range(len(Densities_needed)):
-            (derj, lapj, leftj, rightj, coupj, crossj) = \
-                                 ParseOperators(Densities_needed[j],so.timelike)
+            (derj, lapj, leftj, rightj, coupj, crossj, foundind) = \
+               ParseOperators(Densities_needed[j],so.timelike, findindices=True)
             #-------------------------------------------------------------------
             # Two densities are identical if the left- and right-operators
             # are the same.
@@ -151,11 +151,14 @@ def initfunctional(fname, so):
                         if(cj == ci ):
                             Found_coup = True   
                     if(not Found_coup):
+                            
                         try:                        
-                            l = sumindices[coupj.index(cj)]
+                            l = foundind[coupj.index(cj)]
                         except ValueError:  
-                            l = sumindices[crossj.index(cj)]
+                            l = foundind[len(coupj) + crossj.index(cj)]
+
                         Densities_needed[j] = Densities_needed[j].replace(l, '')
+
             #-------------------------------------------------------------------
         if(not Found):
             add = tempden[i] 
@@ -523,8 +526,8 @@ def ProcessFunctional(fname, src, target, so):
                                            GenerateAction(field,-1, so)
         else:
           # Always symmetrize non-symmetric D's
-          SkyrmeAction = SkyrmeAction + GenerateAction(field,+1, so)
-          SkyrmeAction = SkyrmeAction + GenerateAction(field,-1, so)
+          SkyrmeAction = SkyrmeAction + GenerateAction(field,0, so)
+          #SkyrmeAction = SkyrmeAction + GenerateAction(field,-1, so)
       else:
           SkyrmeAction = SkyrmeAction + GenerateAction(field, 0, so)
 
