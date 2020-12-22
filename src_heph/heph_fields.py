@@ -177,7 +177,6 @@ def GenerateFields(so):
         #-----------------------------------------------------------------------
         for term in src_heph.heph_functional.Functional_terms: 
             (densities, cpl)=src_heph.heph_functional.ParseDensities(term)
-            old_densities = densities.copy()
             #-------------------------------------------------------------------
             # Replace the densities in the list by the ones actually calculated
             for i in range(len(densities)):
@@ -193,19 +192,15 @@ def GenerateFields(so):
             # Remove all the mentions of couplings inside the density if only
             # contractions are calculated.
             altterm = term
-            for i, oldden in enumerate(old_densities):
-                for j, newden in enumerate(densities):
-                    o1 = OrderOfDen(newden)
-                    o2 = OrderOfDen(newden, contract=False)
-                    (x1,y1,l1,r1,c1,cr1) = ParseOperators(oldden,so.timelike)
-                    (x2,y2,l2,r2,c2,cr2) = ParseOperators(newden,so.timelike)
-                    if(l1 == l2 and r1 == r2 and o1 != o2 ):
-                        for s in sumindices:
-                            if(oldden.count(s) == 2):
-                                altterm = altterm.replace(s, '')
+            for c in cpl: 
+                for i in range(len(densities)):
+                    if(OrderOfDen(densities[i]) != OrderOfDen(densities[i], contract=False)):
+                      for s in sumindices:
+                          if(densities[i].count(s) == 2):
+                            # Replace internal couplings
+                            altterm = altterm.replace(s,'')
 
             (rubbish, cpl) = src_heph.heph_functional.ParseDensities(altterm)
-
             #-------------------------------------------------------------------
             # Check if the term contains this density
             startind = 0
@@ -244,15 +239,13 @@ def GenerateFields(so):
                             else:
                                 nc = nc + (k-removedsum,)
                         newcpl.append(nc)        
-                    print ("%30s %20s    "%(term, den), cpl, newcpl)
-
                     cpl = newcpl
+                    
                     ind   = src_heph.heph_functional.Functional_terms.index(term)
                     cplct = cplcts[ind]
                     dden  = src_heph.heph_functional.density_dependence[ind]
 
                     fieldlist.append([removed, altder,altlap,cplct,cpl,dden,0])
-                    
                 startind = startind + OrderOfDen(altden)
                 
             #-------------------------------------------------------------------
@@ -489,11 +482,8 @@ def GenerateAction(field, symmetrize, so):
         field       : name of the field, for example F_I_I
     
         symmetrize  : whether or not to generate a term for a symmetrised field  
-                      (-1) generate anti symmetric action 
-                           0.5 * ( F_L_R - F_R_L) 
-                      ( 0) generate action "as is"  
-                      (+1) generate symmetric action 
-                           0.5 * ( F_L_R + F_R_L) 
+                      (  0) generate action "as is"  
+                      (+-1) generate one out of two terms of the action
     
         so          : a set of symmetry options 
     """
@@ -532,7 +522,6 @@ def GenerateAction(field, symmetrize, so):
     #---------------------------------------------------------------------------
     # Parse the field under consideration
     (left,right,coupling,cross) = ParseOperatorsField(field, so.timelike)
-
     #---------------------------------------------------------------------------
     # If symmetrize is non-zero, change left <-> right and the couplings
     # accordingly
@@ -555,8 +544,8 @@ def GenerateAction(field, symmetrize, so):
             R = R.replace('S', '')
             L = L + 'S'
         switch_field = switch_field[0]+'_'+R+'_'+ L
-        (left,right,coupling,cross) = ParseOperatorsField(switch_field,so.timelike)
-  
+        (left,right,coupling,cross) \
+                                 = ParseOperatorsField(switch_field,so.timelike)
     #---------------------------------------------------------------------------
     #Building the left and right operators
     operatordic = {}
@@ -649,21 +638,21 @@ def GenerateAction(field, symmetrize, so):
     larg_stor = []
     larg_new  = []
     multiplicities         = []    
-    for true_larg in largs: 
-        l_stor = Storage_Mapping(true_larg[:LeftOperator.derorder])
-        mult   = Multiplicity(true_larg[:LeftOperator.derorder])
-        l_new  = (l_stor,) + true_larg[LeftOperator.derorder:]
+#    for true_larg in largs: 
+#        l_stor = Storage_Mapping(true_larg[:LeftOperator.derorder])
+#        mult   = Multiplicity(true_larg[:LeftOperator.derorder])
+#        l_new  = (l_stor,) + true_larg[LeftOperator.derorder:]
+#    
+#        Found = False
+#        for new in larg_stor:
+#            if(new == l_new):
+#                Found = True
+#        if(not Found):
+#            larg_stor.append(l_new)
+#            larg_new.append(true_larg)
+#            multiplicities.append(mult)
     
-        Found = False
-        for new in larg_stor:
-            if(new == l_new):
-                Found = True
-        if(not Found):
-            larg_stor.append(l_new)
-            larg_new.append(true_larg)
-            multiplicities.append(mult)
-    
-    largs = larg_new
+#    largs = larg_new
     
     for true_larg in largs:
         
@@ -671,12 +660,12 @@ def GenerateAction(field, symmetrize, so):
         expression = expression + temp_ini
         
         # Get the multiplicity correct
-        m = multiplicities[largs.index(true_larg)]
+#        m = multiplicities[largs.index(true_larg)]
         
-        if( m != 1):
-            dic['LMULT'] = str(m) + ' * '
-        else:
-            dic['LMULT'] = ''
+#        if( m != 1):
+#            dic['LMULT'] = str(m) + ' * '
+#        else:
+        dic['LMULT'] = ''
             
         if(symmetrize == 1 or symmetrize== -1):
             dic['LMULT'] = dic['LMULT'] + ' 0.5d0 * '
@@ -745,18 +734,43 @@ def GenerateAction(field, symmetrize, so):
                 #---------------------------------------------------------------
                 # Indices of the field in the multiplication
                 dic['FIELDIND'] = ''
-                for l in range(LeftOperator.dimension):
-                    Found = False
-                    for c in coupling:
-                        if(l in c):
-                            Found = True
-                    if(not Found):
-                        dic['FIELDIND']= dic['FIELDIND']  \
-                                           + ',%d'%int(abs(true_larg[l])+1)
-                for r in range(len(rarg)):
-                    dic['FIELDIND']= dic['FIELDIND']      \
-                                           + ',%d'%int(abs(rarg[r])+1)
-                                           
+
+                if(symmetrize != -1):
+                    # Original ordering of indices
+                    for l in range(LeftOperator.dimension):
+                        Found = False
+                        for c in coupling:
+                            if(l in c):
+                                Found = True
+                        if(not Found):
+                            dic['FIELDIND']= dic['FIELDIND']  \
+                                               + ',%d'%int(abs(true_larg[l])+1)
+                    for r in range(len(rarg)):
+                        dic['FIELDIND']= dic['FIELDIND']      \
+                                               + ',%d'%int(abs(rarg[r])+1)
+                else:
+                    # Switching (L<->R) of all derivative indices, except for 
+                    # the spin operator, which we always take to the right
+                    if('S' in field):
+                        offset = 1
+                    else:
+                        offset = 0
+                    for r in range(len(rarg)-offset):
+                        dic['FIELDIND']= dic['FIELDIND']      \
+                                               + ',%d'%int(abs(rarg[r])+1)
+                    for l in range(LeftOperator.dimension):
+                        Found = False
+                        for c in coupling:
+                            if(l in c):
+                                Found = True
+                        if(not Found):
+                            dic['FIELDIND']= dic['FIELDIND']  \
+                                               + ',%d'%int(abs(true_larg[l])+1)
+                    # Reinsert the spin index
+                    if(offset == 1):
+                        dic['FIELDIND']= dic['FIELDIND']      \
+                                               + ',%d'%int(abs(rarg[-1])+1)
+                #---------------------------------------------------------------                     
                 # Get the packed storage-scheme index
                 rarg_stor = Storage_Mapping(true_rarg[:RightOperator.derorder])
                 #---------------------------------------------------------------

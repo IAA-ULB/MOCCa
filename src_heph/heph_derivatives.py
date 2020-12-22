@@ -6,7 +6,7 @@
 #              |_|                                             
 #-------------------------------------------------------------------------------
 from string                    import Template
-from src_heph.heph_functional  import derivative_order
+import src_heph.heph_functional
 
 def ProcessDerivatives(fname, src, target, so):
     """
@@ -116,15 +116,15 @@ def ProcessDerivatives(fname, src, target, so):
     dic['DY'] = 'D'
     dic['DZ'] = 'D'
         
-    if(derivative_order == 1):    
+    if(src_heph.heph_functional.derivative_order == 1):    
         dic['N2DIAG'] = ' '
         dic['N2ALL']  = '!'  
         dic['N3ALL']  = '!'   
-    elif(derivative_order == 2):    
+    elif(src_heph.heph_functional.derivative_order == 2):    
         dic['N2DIAG'] = '!'
         dic['N2ALL']  = ' '   
         dic['N3ALL']  = '!'   
-    elif(derivative_order == 3):    
+    elif(src_heph.heph_functional.derivative_order == 3):    
         dic['N2DIAG'] = '!'
         dic['N2ALL']  = '!'   
         dic['N3ALL']  = ' ' 

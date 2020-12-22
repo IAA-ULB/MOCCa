@@ -6,7 +6,7 @@
 #              |_|                                             
 #-------------------------------------------------------------------------------
 # Module governing the wavefunctions module of the FORTRAN code.
-from src_heph.heph_functional  import derivative_order
+import src_heph.heph_functional 
 from string                    import Template
 
 
@@ -38,13 +38,13 @@ def ProcessWavefunctions(fname, src, target, so):
     dic['N2'] = '!'
     dic['N3'] = ' '
 
-    if(derivative_order == 1):
+    if(src_heph.heph_functional.derivative_order == 1):
         dic['N2'] = ' '    
         dic['N3'] = '!'
-    elif(derivative_order == 2): 
+    elif(src_heph.heph_functional.derivative_order == 2): 
         dic['N2'] = ' '
         dic['N3'] = '!'
-    elif(derivative_order == 3):
+    elif(src_heph.heph_functional.derivative_order == 3):
         dic['N2'] = '!'
         dic['N3'] = ' '
 

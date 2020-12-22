@@ -69,7 +69,7 @@ paramparameters = []
 #            1          1st order + trace of 2nd order (laplacian)
 #            2          2nd order + trace of 3rd order
 #            3          3rd order derivatives
-derivative_order = 1
+#derivative_order = 1
 #-------------------------------------------------------------------------------
 # Assume whether or not the functional is local. With this == 1, the 
 # script will use the following simplification
@@ -85,7 +85,11 @@ derivative_order = 1
 # Note that I still fail to account for this formally (except for C^{1,N}), but 
 # this seems to hold if the functional is local.
 #-------------------------------------------------------------------------------
-assume_locality = 0
+#-------------------------------------------------------------------------------
+# Functionality removed on 22/12/2020.
+#   It is wrong and results in unexpected behavior.
+#-------------------------------------------------------------------------------
+#assume_locality = 0
 
 def initfunctional(fname, so):
     """
@@ -187,7 +191,6 @@ def initfunctional(fname, so):
     if(so.timelike):
       print (' ! Attention: terms with time-odd densities dropped. ' )
     print (' Order of derivatives: %d'%derivative_order)
-    print (' Locality assumed    : %d'%assume_locality)
     print (' # Parameters        : %d'%len(paramparameters))
     #print   paramparameters
     for i in range(int(len(paramparameters)/3)):
@@ -514,20 +517,10 @@ def ProcessFunctional(fname, src, target, so):
       # operator structure
       # Disregard T's that are present
       if( left != right) : 
-        if( 'C' in left or 'C' in right):   
-          # Only symmetrize non-symmetric C's if asked for
-          if(assume_locality == 1):
-              SkyrmeAction = SkyrmeAction +                          \
-                                  GenerateAction(field, 0, so)
-          else:
-              SkyrmeAction = SkyrmeAction +                          \
-                                           GenerateAction(field, 1, so)
-              SkyrmeAction = SkyrmeAction +                          \
-                                           GenerateAction(field,-1, so)
-        else:
-          # Always symmetrize non-symmetric D's
-          SkyrmeAction = SkyrmeAction + GenerateAction(field,0, so)
-          #SkyrmeAction = SkyrmeAction + GenerateAction(field,-1, so)
+          SkyrmeAction = SkyrmeAction +                          \
+                                       GenerateAction(field, 1, so)
+          SkyrmeAction = SkyrmeAction +                          \
+                                       GenerateAction(field,-1, so)
       else:
           SkyrmeAction = SkyrmeAction + GenerateAction(field, 0, so)
 
