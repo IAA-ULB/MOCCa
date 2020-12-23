@@ -223,30 +223,51 @@ def GenerateFields(so):
                             removed.append(densities[j])
                     for j in range(i):
                             removedsum = removedsum + OrderOfDen(densities[j])
-     
-
-                    # Reparse the term with this density at the front, so that
-                    # couplings are correctly referenced
+                    #-----------------------------------------------------------
+                    # From a term
+                    # 
+                    #      E_C/D_L'_R'_C/D_L_R
+                    #
+                    # with some prescribed coupling between the indices of L,R
+                    #  and L', R' (and possibly more densities...)
+                    #
+                    # Now we derive this term with respect to a density, which 
+                    # is not necessarily the first in the list, i.e. C/D_L_R.
+                    # We are then looking for the contribution to the 
+                    # corresponding 
+                    #
+                    #   F/G_L_R  = ... +  CC  C/D_L'_R' + ...
+                    # 
+                    # where CC is a coupling constant. 
+                    #-----------------------------------------------------------
                     newcpl = []
                     shift = OrderOfDen(den) + altder
                     for c in cpl:
                         nc = ()
-                        for k in c:
+                        for k in c:     
                             if( k < startind): 
                                 nc = nc + (k+shift,)
-                            elif(k > startind + shift + 1 ):
+                            elif(k >= startind + OrderOfDen(altden) ):
                                 nc = nc + (k,)
+                            elif(k >= startind + altder):
+                                nc = nc + (k-removedsum-altder,)
                             else:
-                                nc = nc + (k-removedsum,)
+                                nc = nc + (k-removedsum+OrderOfDen(den),)
                         newcpl.append(nc)        
-                    cpl = newcpl
+
+                    if(den == "D_I_S"):
+                        print ("%30s %20s"%(term, altden), "%30s"%cpl, "%30s"%newcpl, startind,altder, removedsum)
+                    if(den == "C_I_NS"):
+                        print ("%30s %20s"%(term, altden), "%30s"%cpl, "%30s"%newcpl, startind,altder, removedsum)
+
+                    #cpl = newcpl
                     
                     ind   = src_heph.heph_functional.Functional_terms.index(term)
                     cplct = cplcts[ind]
                     dden  = src_heph.heph_functional.density_dependence[ind]
 
-                    fieldlist.append([removed, altder,altlap,cplct,cpl,dden,0])
-                startind = startind + OrderOfDen(altden)
+                    fieldlist.append([removed, altder,altlap,cplct,newcpl,dden,0])
+                startind = startind + OrderOfDen(altden) 
                 
             #-------------------------------------------------------------------
             # Now check if there are density dependences in this term that 
@@ -348,12 +369,11 @@ def GenerateFields(so):
                  # vector product  by partial integration.
                  #--------------------------------------------------------------
 
-                 for c in fieldterm[4]:
-                  if(len(c) == 3):
-                    nc = list(c)
-                    nc.remove(min(nc))
-                    if(nc[0]>nc[1]):
-                      sign = sign * (-1)
+#                 for c in fieldterm[4]:
+#                  if(len(c) == 3):
+#                    nc = list(c)
+#                    sign = sign * perm_parity(nc)
+#                    print (den, sign)
                  #--------------------------------------------------------------
                  for k in range(OrderOfDen(den)):
                     for c in fieldterm[4]:
@@ -632,27 +652,32 @@ def GenerateAction(field, symmetrize, so):
     
     # all possible values for the arguments of the left-operator
     largs = list(itertools.product(range(3), repeat=ldim))
+
+#-------------------------------------------------------------------------------
+# These multiplicities are a good idea and often useful, but as implemented is
+# not always correct.
     #-------------------------------------------------------------------
     # Go over the uncontracted right-indices and get the independent  
     # components, and the multiplicities. 
-    larg_stor = []
-    larg_new  = []
-    multiplicities         = []    
-#    for true_larg in largs: 
-#        l_stor = Storage_Mapping(true_larg[:LeftOperator.derorder])
-#        mult   = Multiplicity(true_larg[:LeftOperator.derorder])
-#        l_new  = (l_stor,) + true_larg[LeftOperator.derorder:]
-#    
-#        Found = False
-#        for new in larg_stor:
-#            if(new == l_new):
-#                Found = True
-#        if(not Found):
-#            larg_stor.append(l_new)
-#            larg_new.append(true_larg)
-#            multiplicities.append(mult)
+    #larg_stor = []
+    #larg_new  = []
+    #multiplicities         = []    
+    #for true_larg in largs: 
+    #    l_stor = Storage_Mapping(true_larg[:LeftOperator.derorder])
+    #    mult   = Multiplicity(true_larg[:LeftOperator.derorder])
+    #    l_new  = (l_stor,) + true_larg[LeftOperator.derorder:]
+   # 
+   #     Found = False
+   #     for new in larg_stor:
+   #         if(new == l_new):
+   #             Found = True
+   #     if(not Found):
+   #         larg_stor.append(l_new)
+   #        larg_new.append(true_larg)
+   #         multiplicities.append(mult)
     
-#    largs = larg_new
+   # largs = larg_new
+#-------------------------------------------------------------------------------
     
     for true_larg in largs:
         
@@ -660,11 +685,11 @@ def GenerateAction(field, symmetrize, so):
         expression = expression + temp_ini
         
         # Get the multiplicity correct
-#        m = multiplicities[largs.index(true_larg)]
+        #m = multiplicities[largs.index(true_larg)]
         
-#        if( m != 1):
-#            dic['LMULT'] = str(m) + ' * '
-#        else:
+        #if( m != 1):
+        #    dic['LMULT'] = str(m) + ' * '
+        #else:
         dic['LMULT'] = ''
             
         if(symmetrize == 1 or symmetrize== -1):
@@ -1000,3 +1025,16 @@ def ParseOperatorsField(field, timelike):
             cross.append(c)
     
     return(left, right, coupling, cross)
+
+def perm_parity(lst):
+    '''
+    Given a permutation of the digits 0..N in order as a list, 
+    returns its parity (or sign): +1 for even parity; -1 for odd.
+    '''
+    parity = 1
+    for i in range(0,len(lst)-1):
+        if lst[i] != i:
+            parity *= -1
+            mn = min(range(i,len(lst)), key=lst.__getitem__)
+            lst[i],lst[mn] = lst[mn],lst[i]
+    return parity    

@@ -249,7 +249,6 @@ contains
       call ReadTantalus(12, inputfilename)
       ! No need to guess gaps by default (unless the user asked for it)
     endif
-
     !---------------------------------------------------------------------------  
     ! Transformation options
     if(allowtransform ) then
@@ -520,30 +519,57 @@ contains
     ! Assign correct reflection symmetries for the derivative routines. 
     ! Should be handled by HEPHAESTOS in the future though.
     allocate(sx(4,filenwt), sy(4,filenwt), sz(4,filenwt))
+    ! Positive parity neutrons
     do i=1, fileblocks(1)
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
         sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
     enddo
-    do i=fileblocks(1) + 1,fileblocks(1) + fileblocks(3)
+    do i=fileblocks(1) + 1, fileblocks(1) + fileblocks(2)
+        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = -1 
+        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = +1
+    enddo
+    ! Negative parity neutrons
+    do i=sum(fileblocks(1:2)) + 1,sum(fileblocks(1:3))
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
         sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
-    do i=fileblocks(1) + fileblocks(3)+1,fileblocks(1) + fileblocks(3) +fileblocks(5)
+    do i=sum(fileblocks(1:3))+1, sum(fileblocks(1:4))
+        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = +1 
+        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = -1
+    enddo
+    ! Positive parity protons
+    do i=sum(fileblocks(1:4))+1, sum(fileblocks(1:5))
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
         sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
     enddo
-    do i=fileblocks(1)+fileblocks(3)+fileblocks(5) + 1,                      &
-    &       fileblocks(1)+fileblocks(3)+fileblocks(5) + fileblocks(7)
+    do i=sum(fileblocks(1:5))+1, sum(fileblocks(1:6))
+        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = -1 
+        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = +1
+    enddo
+    ! Negative parity protons
+    do i=sum(fileblocks(1:6))+1, sum(fileblocks(1:7))
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
         sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
+    enddo
+    do i=sum(fileblocks(1:7))+1, sum(fileblocks(1:8))
+        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = +1 
+        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = -1
     enddo
   end subroutine ReadTantalus
 

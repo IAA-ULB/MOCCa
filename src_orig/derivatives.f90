@@ -586,7 +586,7 @@ $DERSYMZ        fz(i,j,:) = fz(i,j,:) + matmul(derZ  (:,:,sz),f($SYMPARTNERZ))
     f3(1:nx,1:ny,1:nz)  => f
     fx3(1:nx,1:ny,1:nz) => fx
 
-    A = derX  (:,:,sx)
+    A = derX  (1:nx,1:nx,sx)
     !$$OMP PARALLEL
     !$$OMP DO
     do k=1,nz
@@ -621,7 +621,7 @@ $DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(A,f3($SYMPARTNERX))
     f3(1:nx,1:ny,1:nz)  => f
     fy3(1:nx,1:ny,1:nz) => fy
 
-    A = derY  (:,:,sy)
+    A = derY  (1:ny,1:ny,sy)
     !$$OMP PARALLEL
     !$$OMP DO    
     do k=1,nz
@@ -655,7 +655,7 @@ $DERSYMY       fy3(i,:,k) = fy3(i,:,k) + matmul(A,f3($SYMPARTNERY))
     f3(1:nx,1:ny,1:nz)  => f
     fz3(1:nx,1:ny,1:nz) => fz
 
-    A = derZ  (:,:,sz)
+    A = derZ  (1:nz,1:nz,sz)
     !$$OMP PARALLEL shared(A, fz3, f3) private(i,j)
     !$$OMP DO        
     do j=1,ny

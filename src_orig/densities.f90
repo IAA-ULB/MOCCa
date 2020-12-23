@@ -62,8 +62,9 @@ $DECLARATION
     ! This can be set in the scfiteration namelist in the scfiteration model.
     integer       :: densitymixing = 0
     !---------------------------------------------------------------------------
-    ! Previous value(s) of the density rho.
+    ! Previous value(s) of the density rho and s
     real(KIND=dp), allocatable :: D_I_I_hist(:,:,:)
+$NTR    real(KIND=dp), allocatable :: D_I_S_hist(:,:,:,:)
     !---------------------------------------------------------------------------
     ! Charge density of the protons, possibly including the correction for the 
     ! finite size of the proton. It is stored here, as both the moments module 
@@ -111,14 +112,17 @@ $INITIALIZATION
     ! density, it is the one that can make calculations unstable.
     if(.not. allocated(D_I_I_hist)) then
         allocate(D_I_I_hist(nx*ny*nz,2,memory)) ; D_I_I_hist = 0.0_dp
+$NTR    allocate(D_I_S_hist(nx*ny*nz,3,2,memory)) ; D_I_S_hist = 0.0_dp
     endif   
     if(SaveRho) then
       do i=1,memory-1
           D_I_I_hist(:,:,memory-i+1) = D_I_I_hist(:,:,memory-i)
+$NTR      D_I_S_hist(:,:,:,memory-i+1) = D_I_S_hist(:,:,:,memory-i)
       enddo
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
       ! Saving the input density for mixing    
       D_I_I_hist(:,:,1) = D_I_I
+$NTR      D_I_S_hist(:,:,:,1) = D_I_S
     endif
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -306,12 +310,12 @@ subroutine MassageDensity()
     ! Operate on the density before feeding it into the rest of the program.
     !---------------------------------------------------------------------------
     real(KIND=dp), target :: resid(nx*ny*nz,2)
-    
+$NTR real(KIND=dp), target :: sresid(nx*ny*nz,3,2)
     if(all(D_I_I_hist.eq.0.0)) return
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Compute the residual
     resid = D_I_I - D_I_I_hist(:,:,1)
-
+$NTR    sresid = D_I_S - D_I_S_hist(:,:,:,1)
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Perform mixing
     select case(densitymixing) 
@@ -323,6 +327,7 @@ subroutine MassageDensity()
         !-----------------------------------------------------------------------
         ! Simple linear mixing at the moment.
         D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * resid
+$NTR    D_I_S = D_I_S_hist(:,:,:,1) + (1-denmix) * sresid
     end select
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Safeguard
