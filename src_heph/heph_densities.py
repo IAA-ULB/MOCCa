@@ -663,7 +663,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
 
             #-------------------------------------------------------------------
             # print some output on the densities
-            (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg)   
+            (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin)   
 
             direction = ['x', 'y', 'z']
             pl = ''
@@ -784,7 +784,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
                     if(c[0] > 0):
                         # There is a Laplacian involved, and we first calculate
                         # all derivatives, and then only afterwards laplacians.
-                        (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg)
+                        (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg,so,'P' in denin)
                         dic['PX']    = str(px)
                         dic['PY']    = str(py)
                         dic['PZ']    = str(pz) 
@@ -798,7 +798,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
                         # There is no laplacian, so we only calculate partial
                         # derivatives
 
-                        (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg[1:])
+                        (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin,darg[1:])
                         dic['PX']    = str(px)
                         dic['PY']    = str(py)
                         dic['PZ']    = str(pz) 
@@ -813,7 +813,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
                             dic['IND'] = IND     
                         Derivation     = Derivation  + Der_indep_template.substitute(dic)
             else:
-                    (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg)
+                    (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin)
                     dic['PX']    = str(px) #+ 'd0'
                     dic['PY']    = str(py) #+ 'd0'
                     dic['PZ']    = str(pz) #+ 'd0'
@@ -1074,15 +1074,19 @@ def BroadCastSymmetries(L, R):
         S = S.reshape(t)
     return S
     
-def AxisReflection(LeftOperator, RightOperator, larg, rarg, nabla_arg = []):
+def AxisReflection(LO, RO, larg, rarg, so, pairing, nabla_arg = []):
     #---------------------------------------------------------------------------
     # Calculates the sign under axis reflection for the symmetries of an EV8/CR8
     # calculation.
     #
+    # LO        = left-operator
+    # RO        = right-operator
     # larg      = indices of the left operator
     # rarg      = indices of the right operator
     # nabla_arg = indices of the nabla_operators acting possibly on the density
-    #
+    # so        = a set of symmetry options
+    # pairing   = whether or not we are dealing with a pairing density, i.e. 
+    #             a density that gets "summed over kappa".
     #---------------------------------------------------------------------------
 
     # Make sure that the empty tuple get recognised as simply indicating a number
@@ -1095,24 +1099,61 @@ def AxisReflection(LeftOperator, RightOperator, larg, rarg, nabla_arg = []):
     else:
         nu = rarg
 
-    # Symmetries of the left- and rightoperator
-    pxl = LeftOperator.signature_z [mu] * LeftOperator.parity [mu] *\
-          LeftOperator.signature_y [mu] * LeftOperator.time[mu]
-    pxr = RightOperator.signature_z[nu] * RightOperator.parity[nu] *\
-          RightOperator.signature_y[nu] * RightOperator.time[nu]
-    px  = pxl * pxr
+    # Startindices
+    start  = np.zeros((4,1))
+    start[0,0] = 1 
+    start[1,0] = 2  
+    start[2,0] = 3 
+    start[3,0] = 4
 
-    pyl = LeftOperator.signature_y [mu] * LeftOperator.parity [mu] \
-                                        * LeftOperator.time[mu]
-    pyr = RightOperator.signature_y[nu] * RightOperator.parity[nu] \
-                                        * RightOperator.time[nu]
-    py  = pyl * pyr
-    
-    pzl = LeftOperator.parity [mu]  * LeftOperator.signature_z [mu]
-    pzr = RightOperator.parity[nu]  * RightOperator.signature_z[nu] 
-    pz  = pzl * pzr
-    
-    #Taking into account extra nabla's
+    st_xp = np.zeros((4,1)) ; st_yp = np.zeros((4,1)) ;  st_zp = np.zeros((4,1))
+    st_xm = np.zeros((4,1)) ; st_ym = np.zeros((4,1)) ;  st_zm = np.zeros((4,1))
+
+    # Then figure out the transformation of symmetry
+    # Currently, hardcoded CR8-like symmetries 
+    sxp = [+1,-1,-1,+1] ; sxm = [-1,+1,+1,-1] 
+    syp = [+1,-1,+1,-1] ; sym = [+1,-1,+1,-1]
+    szp = [+1,+1,-1,-1] ; szm = [-1,-1,+1,+1]
+
+    for i in range(4):
+        st_xp[i,0] = sxp[i] * start[i,0] ; st_xm[i,0] = sxm[i] * start[i,0] 
+        st_yp[i,0] = syp[i] * start[i,0] ; st_ym[i,0] = sym[i] * start[i,0] 
+        st_zp[i,0] = szp[i] * start[i,0] ; st_zm[i,0] = szm[i] * start[i,0] 
+
+    # We take the right spwf to transform as a positive signature spwf 
+    lind_x = LO(larg,st_xp)  ; lind_y = LO(larg,st_yp); lind_z = LO(larg,st_zp)
+    if(pairing and not so.timelike):    
+        rind_x = RO(rarg,st_xm); rind_y=RO(rarg,st_ym); rind_z = RO(rarg,st_zm)
+    else:
+        rind_x = RO(rarg,st_xp); rind_y=RO(rarg,st_yp); rind_z = RO(rarg,st_zp)
+
+    lind   = LO(larg, start) ;  rind   = RO(rarg, start)
+
+    # Get the ratios for the symmetry signs
+    px = lind_x[:,0] * rind_x[:,0]/(lind[:,0] * rind[:,0])
+    py = lind_y[:,0] * rind_y[:,0]/(lind[:,0] * rind[:,0])
+    pz = lind_z[:,0] * rind_z[:,0]/(lind[:,0] * rind[:,0])
+
+    # 
+
+    # Sanity check, are all ratios equal? 
+    for i in range(4):
+        if(px[i] != px[0]):
+            print ("Error determining symmetries, X!")
+            exit()            
+        if(py[i] != py[0]):
+            print ("Error determining symmetries, Y!")
+            exit()            
+        if(pz[i] != pz[0]):
+            print ("Error determining symmetries, Z!")
+            exit()            
+
+    px = px[0]
+    py = py[0]
+    pz = pz[0]
+
+    #---------------------------------------------------------------------------    
+    #Taking into account extra external derivatives 
     for nablaind in nabla_arg:
         # Note that python indexes starting from 0, so (x,y,z) = (0,1,2)
         if(nablaind == 0):
@@ -1135,6 +1176,7 @@ def AxisReflection(LeftOperator, RightOperator, larg, rarg, nabla_arg = []):
         pz = '+1'
     else:
         pz = '-1'
+
     return(px,py,pz)
 
 #===============================================================================
