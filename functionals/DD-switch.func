@@ -1,8 +1,8 @@
 #-------------------------------------------------------------------------------
 # Functional file for the fits in Brussels, including time-odd terms.
 # Note:
-#   *) Optional JmnJmn terms
-#   *) No S Delta S, D_I_S_Lap_D_I_S term to not have instabilities
+#   *) Optional JmnJmn and s x j terms 
+#   *) No S Delta S/ D_I_S_Lap_D_I_S term to suppress numerical instabilities
 #   *) The force_switch parameter is still here for backwards compatibility,
 #      but has no effect at the moment.
 #-------------------------------------------------------------------------------
@@ -13,6 +13,7 @@ CT0; CT1 ; wsoq
 ! Particle-particle parameters
 Vn ; Vp ; alpha ; sigmap
 ! Switch to use either the DD-force or the ULB-pairing-like
+! Currently inactive
 force_switch 
 !TERMS
 #-------------------------------------------------------------------------------
@@ -35,7 +36,6 @@ E_C_I_NmSk_C_I_NmSk      ; - CT0  ; - CT1
 E_C_I_Nm_C_I_Nm          ; -1.0/2.0*Cc(t1,x1,+1,0,0) - 1.0/2.0*Cc(t2,x2,-1,0,0)  ; -1.0/2.0*Cc(t1,x1,+1,0,1) - 1.0/2.0*Cc(t2,x2,-1,0,1)
 !E_D_I_Sm_Lap_D_I_Sm      ;-3.0/8.0*Cc(t1,x1,+1,1,0) + 1.0/8.0*Cc(t2,x2,-1,1,0)   ; -3.0/8.0*Cc(t1,x1,+1,1,1) + 1.0/8.0*Cc(t2,x2,-1,1,1) 
 E_D_I_Sm_D_Nk_NkSm       ; +CT0  ;  +CT1
-
 !-------------------------------------------------------------------------------
 ! NLO spin-orbit
 ! time-even
