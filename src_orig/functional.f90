@@ -614,9 +614,6 @@ $TR      COMCorrection(2,:) = 2*COMCorrection(2,:)
     !    D. Pena-Arteaga, EPJA 52, 320 (2016).
     ! which is
     !    E_rot = E_crank * b * tanh(c|beta_2|)
-    !
-    !
-    ! We introduce an extra 
     !---------------------------------------------------------------------------
     use momentsofinertia
     use moments  
@@ -645,7 +642,6 @@ $TR      COMCorrection(2,:) = 2*COMCorrection(2,:)
     ! Another possibility is to compare the moment of inertia to that one of the
     ! rigid rotor as calculated for the density in memory.
     !compare = compare/rigid
-
     select case(pairingtype)
     case(0,1)
       ! HF or BCS

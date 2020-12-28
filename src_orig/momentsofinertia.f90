@@ -294,17 +294,46 @@ contains
 
   subroutine calcJ2andBelyaev_HFB
     !---------------------------------------------------------------------------
+    ! NOTE: this routine should be double-checked in the case of T!=0
+    !       calculations. many elements are there, but it should be 
+    !       thoroughly checked.
+    !---------------------------------------------------------------------------
     ! This routine calculates the 
     !
-    !  (i) the diagonal elements of the inertia tensor 
+    !  (i) the dispersion of the diagonal elements of the inertia tensor 
     !
-    !           < J^2_mm >
+    !           < J^2_mm > - <J_m>^2
     ! 
+    !   in the canonical basis
+    !
+    !              =  sum_{ab} |< a | j_m | b  >|^2 
+    !                                             rho_aa (1 - rho_bb)   
+    !              -  sum_{ab}  < a | j_m | b  > < \bar{b} | j_m | \bar{a}  > 
+    !                                   kappa_{a\bar{a}} \kappa_{\bar{b} b}
+    !            
+    !            where \bar{a} is the canonically conjugate partner of a.
+    !             (sum over all possible sps in the can. basis)
+    ! 
+    !   in the qp basis 
+    !              =  1/2 sum_ab |J^20_ab|^2
+    !             (sum over all possible combinations of qps)
+    !
     !      for a HFB reference state. 
     !
     !      Some caveats apply:
-    !        (*) 
-    !        (*)
+    !
+    !        (*) It is possible (and likely desireable) to include a cutoff
+    !            in this calculation. This can (in my opinion) only be 
+    !            meaningfully done in the HF basis, which is why the 
+    !            the calculation starts with the calculation of the matrix
+    !            elements of angular momentum in the HF basis. They are then
+    !            transformed into the canonical basis. 
+    !
+    !        (*) For blocked calculations, we also include a collective 
+    !            version of this dispersion, meaning we simply remove the 
+    !            blocked quasi-particles from the summation. This is most 
+    !            easily done in the canonical basis.
+    !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !
     !  and 
@@ -318,34 +347,75 @@ contains
     !        b) psi' is a second order perturbation to the HFB state when 
     !           the rotational frequency changes, i.e. 
     !       
-    !               H - \omega J_m => H - \omega J_m  - \delta \omega J_m
+    !               H - \omega J_m => H - \omega J_m  - do J_m
     !   
     !                   
     !           hence 
     !                                    
     !          | psi'> - |psi_0 > =  
-    !              1               C
-    !          +  --- sum_ab -------------  b^{\dagger}_a b^{\dagger}_a |psi_0 > 
+    !             do               C
+    !          -  --- sum_ab -------------  b^{\dagger}_a b^{\dagger}_a |psi_0 > 
     !              2           E_a + E_b
+    !           !
+    !           (when T = 0, otherwise there is also a term involving 
+    !            annihilation operators)
+    !                
+    !          with E_a and E_b the quasiparticle energies and 
     !
     !           C =  < psi_0 | J_m  b^{\dagger}_a b^{\dagger}_a |psi_0 > 
-    !          with E_a and E_b the quasiparticle energies. 
+    !
+    !   
+    ! This gives rise to 
+    !
+    !    I_mm = \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
+    !
     !
     !---------------------------------------------------------------------------
-    integer       :: i,j, b, it, ii, jj, si, N,k, sb
+    integer       :: i,j, b, it, ii, jj, si, N,k, sb, ibar, jbar, N2, T, s
     real(KIND=dp) :: ME(3), degen, fac
 
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
 
     real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , up, cut_cr  
-    logical       :: blocked
+    logical       ::  blocked
 
-    J2 = 0  ; Belyaev = 0; J2_coll = 0; Bely_coll = 0
-    jx = 0  ; jy = 0 ; jz = 0
+    J2 = 0  ; Belyaev = 0 ; J2_coll = 0 ; Bely_coll = 0
+    jx = 0  ; jy = 0      ; jz = 0
 
     !---------------------------------------------------------------------------
-    ! First, we calculate the full matrix elements of jx, jy and jz
+    ! First, we calculate the full matrix elements of jx, jy and jz in the  
+    ! Hartree-Fock basis. If necessary, these matrix elements are calculated
+    ! with an extra cutoff.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    ! If time-reversal is not conserved the matrices jx/jy/jz are 
+    !
+    !   jx_ij = Re < i | j_x | j >
+    !   jy_ij = Im < i | j_y | j >
+    !   jz_ij = Re < i | j_z | j >
+    !
+    ! jz_ij is a always a real number, and only non-zero if i and j are in the 
+    ! same 'half' of the basis (equal signature in CR8-like symmetries).
+    !   
+    ! jx_ij is always real, jy_ij is always imaginary and both are only 
+    ! non-zero if i and j belong to opposite "halves" of the basis 
+    ! (different signatures in CR8-like symmetry options).
+    !
+    ! All matrix elements if the parity of i does not match the parity of j.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! If time-reversal is conserved the matrices jx/jy/jz are
+    !       
+    !  jx_ij = Re < i | j_x | \bar{j} >
+    !  jy_ij = Im < i | j_y | \bar{j} >
+    !  jz_ij = Re < i | j_z |      j  >
+    !
+    ! where \bar{j} is the partner under time-reversal of j. 
+    !
+    ! jz_ij and jx_ij are always real, and jy_ij is always imaginary.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     si = 0  
     do b = 1, 8,2
       N = HFBlocks(b)   ; if(N.eq.0) cycle
@@ -353,6 +423,12 @@ contains
       T = N + N2
 
       it = 1 ; if(b.gt.4) it=2
+
+      !-------------------------------------------------------------------------
+      ! If time-reversal is conserved, we can treat all directions equally:
+      ! both the inner and outer summation are over the same symmetry block    
+      ! for all directions.
+      !-------------------------------------------------------------------------
       do i=1,N
         ii = si + i
         do j=1,N
@@ -364,29 +440,34 @@ contains
             cut_cr = 1.0d0
           endif
 
-$TR          ! |< k | j_x | -l >|^2            
-$TR          jx(ii,jj)= cut_cr * angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
-$TR          ! |< k | j_y | -l >|^2 
-$TR          jy(ii,jj)= cut_cr * angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+$TR       ! |< k | j_x | -l >|^2            
+$TR       jx(ii,jj)= cut_cr * angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
+$TR       ! |< k | j_y | -l >|^2 
+$TR       jy(ii,jj)= cut_cr * angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+        
           ! |< k | j_z |  l >|^2 
           jz(ii  ,jj  ) = cut_cr * angmom_z_real( hfpsi(:,:,ii  ),hfpsi(:,:,jj  ),hfdpsi(:,:,:,jj  ))
         enddo
       enddo
-
-$NTR      do i=1,N2
-$NTR        ii = si + N + i
-$NTR        do j=1,N2
-$NTR          jj = si + N + j
+      ! If time-reversal is not conserved, we have only calculated half of the 
+      ! necessary matrix elements of jz above
+$NTR  do i=1,N2
+$NTR     ii = si + N + i
+$NTR     do j=1,N2
+$NTR      jj = si + N + j
 $NTR
-$NTR          if(rotcorr_cut) then
-$NTR            cut_cr = rotcut(spenergies(ii), it)  *  rotcut(spenergies(jj), it)
-$NTR          else 
-$NTR            cut_cr = 1.0d0
-$NTR          endif
-$NTR          jz(ii  ,jj  ) = cut_cr * angmom_z_real( hfpsi(:,:,ii  ),hfpsi(:,:,jj  ),hfdpsi(:,:,:,jj  ))
-$NTR        enddo
-$NTR      enddo
-
+$NTR      if(rotcorr_cut) then
+$NTR        cut_cr = rotcut(spenergies(ii), it)  *  rotcut(spenergies(jj), it)
+$NTR      else 
+$NTR        cut_cr = 1.0d0
+$NTR      endif
+$NTR      jz(ii  ,jj  ) = cut_cr * angmom_z_real( hfpsi(:,:,ii  ),hfpsi(:,:,jj  ),hfdpsi(:,:,:,jj  ))
+$NTR     enddo
+$NTR  enddo
+      !-------------------------------------------------------------------------
+      ! If time-reversal is not conserved, the inner and outer loops for the 
+      ! jx and jy matrix elements are not the same.
+      !-------------------------------------------------------------------------
 $NTR  do i=1,N
 $NTR    ii = si + i
 $NTR    do j=1, N2
@@ -407,11 +488,6 @@ $NTR       jy(jj,ii) = -jy(ii,jj)
 $NTR    enddo
 $NTR  enddo
 
-      print *, "JY"
-      do i=1, N+N2
-        print ('(99f6.3)'), jy(si+i,si+1:si+N+N2)
-      enddo
-      print*
       !-------------------------------------------------------------------------
       ! Transform the sp. matrix elements into the canonical basis.
       ! Note that we could have directly calculated these matrix elements in
@@ -444,20 +520,12 @@ $NTR  enddo
       si = si + N + N2
     enddo
 
-    ! First, construct J20
-    call calcJ20(jx,bogoliubov, j20(:,:,1)) ! J20_x with an added T
-    call calcJ20(jy,bogoliubov, j20(:,:,2)) ! J20_y with an added T
-    call calcJ20(jz,bogoliubov, j20(:,:,3)) ! J20_z
-
-    !Then , construct J11
-    call calcJ11(jx,bogoliubov, j11(:,:,1), +1) ! J20_x with an added T
-    call calcJ11(jy,bogoliubov, j11(:,:,2), +1) ! J20_y with an added T
-    call calcJ11(jz,bogoliubov, j11(:,:,3), +1) ! J20_z
-  
     !---------------------------------------------------------------------------
-    ! Then we calculate the expectation value of J^2, in the canonical basis
+    ! Then we calculate the expectation value of J^2, in the canonical basis.
+    ! Note: we only calculate the two-body part here, the one-body part is
+    !       not included!
     !---------------------------------------------------------------------------
-    si = 0  
+    si = 0 
     do b = 1, Blocks,2
 
       N  = HFBlocks(b)   ; if(N.eq.0) cycle
@@ -470,19 +538,28 @@ $NTR  enddo
 $TR     ibar = ii
 $NTR    ibar = conjugp(ii)
         if(ibar .eq. 0) cycle
+
         do j=1,N+N2
           jj = si + j
 $TR       jbar = jj
 $NTR      jbar = conjugp(jj)
           if(jbar .eq. 0) cycle
 
+          !---------------------------------------------------------------------
+          ! If time-reversal is conserved,
+          !  we can treat the rho-rho term and kappa-kappa term equally
+          ! 
 $TR       ! Factors 1./2 due to time-reversal
 $TR       fac=  rho_can(ii)/2.*(1-rho_can(jj)/2.)-kappa_can(ii)*kappa_can(jj)
 $TR       ME(1) = 2*jx_can(ii,jj)**2 ! Factor two for time-reversal
 $TR       ME(2) = 2*jy_can(ii,jj)**2 ! Factor two for time-reversal
 $TR       ME(3) = 2*jz_can(ii,jj)**2 ! Factor two for time-reversal
+$TR
 $TR       J2(:,it) = J2(:,it) + ME * fac  
-
+          !---------------------------------------------------------------------
+          ! If time-reversal is broken; we can not do things quite that easily.
+          !  => the rho-rho term and kappa-kappa term use matrix elements of 
+          !     of different states
 $NTR      fac=  rho_can(ii)   *(1-rho_can(jj))
 $NTR      ME(1) = jx_can(ii,jj)**2 
 $NTR      ME(2) = jy_can(ii,jj)**2
@@ -494,39 +571,58 @@ $NTR      ME(1) = jx_can(ii,jj)*jx_can(jbar,ibar)
 $NTR      ME(2) = jy_can(ii,jj)*jy_can(jbar,ibar) 
 $NTR      ME(3) = jz_can(ii,jj)*jz_can(jbar,ibar)
 $NTR      J2(:,it) = J2(:,it) + ME(:) * fac  
+
         enddo
       enddo
-      si = si + N + N2
+      si = si +  N + N2
     enddo
-    J2(:,3) = sum(J2(:,1:2),2) 
- 
-    print *, J2
+    J2(:,3)      = sum(J2(:,1:2),2) 
     !---------------------------------------------------------------------------
     ! I also calculate some approximation for the collective angular momentum, 
     ! which I define as <J^2> without the contribution from the blocked qps. 
-    ! To safely remove this contribution, I calculate this in the qp basis.
-    ! 
-    !  <J^2> = sum_{ab} |J^20_ab|^2
     !
-    ! where the sum simply does not include the blocked qps. 
+    ! To safely remove contributions of individual qps, this calculation is 
+    ! done in the qp basis. 
+    ! 
+    !  <J^2> = 1/2 sum_{ab} |J^20_ab|^2
+    !
+    ! where the sum simply does not include the blocked qps, but in general
+    ! ranges over all possible other combinations.
+    !   
+    ! This in addition serves as an additional sanity check: without blocking 
+    ! this collective value should equal the ordinary one calculated above.
     !---------------------------------------------------------------------------
+
+    ! First, construct J20
+    call calcJ20(jx,bogoliubov, j20(:,:,1)) 
+    call calcJ20(jy,bogoliubov, j20(:,:,2)) 
+    call calcJ20(jz,bogoliubov, j20(:,:,3)) 
+
+$TR  s = +1
+$NTR s = -1
+    !Then , construct J11
+    call calcJ11(jx,bogoliubov, j11(:,:,1)) 
+    call calcJ11(jy,bogoliubov, j11(:,:,2)) 
+    call calcJ11(jz,bogoliubov, j11(:,:,3)) 
+
     if(inversetemp .lt. 0) then
       si = 0 ; sb = 0
-      do b=1,Blocks
-        N = hfbsizes(b)
-        do i=1, N
+      do b=1,Blocks,2
+        N  = hfbsizes(b)    ; if(N .eq. 0) cycle
+        N2 = hfbsizes(b+1)
+        do i=1, N + N2
           ii = si + i
           it = 1
           if(ii.gt.nwn) it = 2
-
+    
           ! Don't include the contribution from the blocked qps
           blocked = .false.
           do k=1, size(blocked_qps) 
             if((sb+i) .eq. blocked_qps(k)) blocked = .true.
           enddo
           if(blocked) cycle
-    
-          do j=1,N
+   
+         do j=1,N+N2
             jj = j + si
 
             ! Don't include the contribution from the blocked qps
@@ -536,13 +632,14 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             enddo
             if(blocked) cycle
             
-            ME = J20(ii,jj,:)**2             
+            ME = 0.5 * J20(ii,jj,:)**2  
             J2_coll(:,it) = J2_coll(:,it) + ME          
           enddo
         enddo
-        si = si +   N
-        sb = sb + 2*N
+        si = si +   N +   N2
+        sb = sb + 2*N + 2*N2
       enddo
+$TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two           
       J2_coll(:,3) = sum(J2_coll(:,1:2), 2)  
     endif
     !---------------------------------------------------------------------------
@@ -551,34 +648,45 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
     ! From expanding the many-body wave-function around the HFB minimum for 
     ! small rotational frequency omega, we get the following expression
     !
-    !  I_{mm} = 2 \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
+    !  I_{mm} = \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
     !
-    ! based on pg 131 in Ring and Schuck, equation 3.92. 
+    ! based on pg 131 in Ring and Schuck, equation 3.92. In the case of
+    ! time-reversal conservation, the sum over (ab) gets restricted and we have 
+    !
+    !  I_{mm} = 2 \sum_{ab>0}  (|J^{20}|^2_{m,ab} + |J^{20}|^2_{m,a\bar{b}})
+    !                          ---------------------------------------------
+    !                                              E_a + E_b
     !
     ! For a statistical mixture (such as an EFA configuration), this formula
     ! doesn't capture everything and we have to generalize:
     !
-    !  I_mm = 2 \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab} (1 - f_a - f_b)
-    !       + 2 \sum_{ab} (E_a - E_b)^{-1} |J^{11}|^2_{m,ab} (f_b - f_a)
+    !  I_mm = 
+    !             ( |J^{20}|^2_{m,ab} + |J^{20}|^2_{m,a\bar{b})  (1 - f_a - f_b)
+    ! 2 \sum_{ab} --------------------------------------------------------------
+    !                                        E_a + E_b
+    !             ( |J^{11}|^2_{m,ab} + |J^{11}|^2_{m,ab})       (f_b - f_a)
+    !+2 \sum_{ab} --------------------------------------------------------------
+    !                           E_a + E_b
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     si = 0 ; sb = 0
-    do b = 1, Blocks
-      N = HFBlocks(b)
+    do b = 1, Blocks, 2
+      N = HFBlocks(b)   ; if(N.eq.0) cycle
+      N2= HFBlocks(b+1)
 
-      do i=1, N
+      do i=1, N + N2
         ii = si + i
         it = 1
         if(ii.gt.nwn) it = 2
           
-        do j=1,N
+        do j=1, N + N2
           jj = si + j
           !---------------------------------------------------------------------
           !         1 - f_i - f_j 
           fac = 1 - configmatrix(sb+i) - configmatrix(sb+j)
 
           Belyaev(:,it) = Belyaev(:,it) + &
-          &           2*fac*J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))    
+          &               fac*J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))    
 
           !---------------------------------------------------------------------
           !      f_j - f_i
@@ -586,11 +694,15 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
 
           if(abs(Qpenergies(ii) - Qpenergies(jj)) .gt. 1d-8) then
             Belyaev(:,it) = Belyaev(:,it) + &
-            &           2 * fac*J11(ii,jj,:)**2 /(Qpenergies(ii)-Qpenergies(jj))  
+            &               fac*J11(ii,jj,:)**2 /(Qpenergies(ii)-Qpenergies(jj))  
           elseif(inversetemp .gt. 0) then
-            degen = inversetemp * configmatrix(sb+i)**2 *                      &
-            &                                  exp(inversetemp * Qpenergies(ii))
-            Belyaev(:,it) = Belyaev(:,it) +  2*J11(ii,jj,:)**2 * degen   	
+           ! 28/12/2020, WR: I'm unsure whether there should be a factor 2
+           ! here or not.... T be doublechecked.
+           ! -------------------------------------------------------------------
+           stop
+           ! degen = inversetemp * configmatrix(sb+i)**2 *                      &
+           ! &                                  exp(inversetemp * Qpenergies(ii))
+           ! Belyaev(:,it) = Belyaev(:,it) +   J11(ii,jj,:)**2 * degen   	
           endif 
 
           if(inversetemp.lt.0) then
@@ -603,16 +715,20 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             enddo
             if(blocked) cycle
 
+            ! Note: if T = 0 then fac is always equal to one for non-blocked
+            ! particles, hence not put into the formula here.
             Bely_coll(:,it) = Bely_coll(:,it) + &
-            &             2*J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))  
-          endif
-        
+            &                 J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))  
+          endif        
           !---------------------------------------------------------------------
         enddo
       enddo
-      si = si +   N
-      sb = sb + 2*N
+      si = si +   N +   N2
+      sb = sb + 2*N + 2*N2
     enddo
+$TR Belyaev(:,1:2)   = 2*Belyaev(:,1:2)   ! Time-reversal factor 2's
+$TR Bely_coll(:,1:2) = 2*Bely_coll(:,1:2) ! Time-reversal factor 2's
+
     Belyaev(:,3)   = sum(Belyaev(:,1:2),2)
     Bely_coll(:,3) = sum(Bely_coll(:,1:2), 2)
   end subroutine calcJ2andBelyaev_HFB  
@@ -653,7 +769,6 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
     ! the result of this routine is indeed J^{20}_{ab}.
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !
     ! When time-reversal is not conserved, the full U and V matrices are 
     ! stored, but not pair-wise equal anymore. In that case, the routine 
     ! behaves as one would expect naively.
@@ -671,20 +786,23 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
       N2= HFblocks(b+1)
 
       T =  N + N2
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! U^\dagger j 
       j20(si+1:si+T, si+1:si+T) = &
       & matmul(transpose(bogo(sb+1:sb+T, sb+T+1:sb+2*T)),j(si+1:si+T,si+1:si+T))
 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! U^\dagger j V^*
       j20(si+1:si+T, si+1:si+T) = &
       & matmul( j20(si+1:si+T, si+1:si+T), (bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)))
 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! V^\dagger j^t 
       tmp(si+1:si+T, si+1:si+T) = transpose(j(si+1:si+T, si+1:si+T))
       tmp(si+1:si+T, si+1:si+T) = &
       & matmul(transpose(bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)),                  &
       &                             tmp(si+1:si+T,si+1:si+T))
-      
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! V^\dagger j^T U
       j20(si+1:si+T, si+1:si+T) = j20(si+1:si+T, si+1:si+T) - &
       &  matmul( tmp(si+1:si+T, si+1:si+T), (bogo(sb+1:sb+T, sb+T+1:sb+2*T)))
@@ -695,44 +813,83 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
 
   end subroutine calcJ20
 
-  subroutine calcJ11(j,bogo, j11, s)
+  subroutine calcJ11(j,bogo, j11)
     !---------------------------------------------------------------------------
     ! Small subroutine to calculate the matrix J11 in the Ring and Schuck 
     ! notation.
     !
     !  J11 = U^\dagger j U - V^\dagger j^t V^*
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+    ! When time-reversal is conserved, one should exercice caution. 
+    ! The full U and V matrices are 
+    !
+    !   ( U^+ 0  )    and  ( 0    V^-)
+    !   ( 0   U^-)         ( V^+  0  )
+    !
+    ! and only the U^+ and V^+ are actually stored by the code, and 
+    !
+    !      V^- = - V^+
+    !      U^- = + U^+
+    !
+    ! So the full calculation of the second term in that case would be
+    !
+    ! ( 0   V^+) ( j+      j+-  ) ( 0   V^- )
+    ! ( V^- 0  ) ( j+-^*  -j-   ) ( V^+ 0   )
+    !
+    !  =  ( - V^+ j+  V^+  -V^+ j+-^* V^+ )
+    !     ( - V^+ j+- V^+   V^+ j+    V^+ )
+    !
+    ! So, at least when dealing with real sp matrix elements, if we naively
+    ! calculate with things that are stored we get
+    !
+    !               V_stored^\dagger j+  V_stored^* = V^+ j+   V^+
+    !         or    V_stored^\dagger j+- V_stored^* = V^+ j+-  V^+
+    !
+    ! which is negative of what we should get!
+    !
+    ! (The first term involving U^\dagger and U do not have such pitfalls, they
+    !  are simply block diagonal.) 
+    ! 
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in)  :: j(nwt,nwt)
     real(KIND=dp), intent(in)  :: bogo(2*nwt, 2*nwt)
     real(KIND=dp), intent(out) :: j11(nwt,nwt)
     real(KIND=dp)              :: tmp(nwt,nwt)
-    integer :: N, si, sb, b, s
+    integer                    :: N, si, sb, b,  T, N2, s
 
     si = 0 ; sb = 0
-    do b = 1, Blocks
-      N = HFBlocks(b)
-
+    do b = 1, Blocks,2 
+      N = HFBlocks(b)    ; if(N.eq.0) cycle
+      N2 = HFBlocks(b+1)
+       
+      T = N + N2
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! U^\dagger j 
-      j11(si+1:si+N, si+1:si+N) = &
-      & matmul(transpose(bogo(sb+1:sb+N, sb+N+1:sb+2*N)),j(si+1:si+N,si+1:si+N))
-
+      j11(si+1:si+T, si+1:si+T) = &
+      & matmul(transpose(bogo(sb+1:sb+T, sb+T+1:sb+2*T)),j(si+1:si+T,si+1:si+T))
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! U^\dagger j U
-      j11(si+1:si+N, si+1:si+N) = &
-      & matmul( j11(si+1:si+N, si+1:si+N), (bogo(sb+1:sb+N, sb+N+1:sb+2*N)))
-
+      j11(si+1:si+T, si+1:si+T) = &
+      & matmul( j11(si+1:si+T, si+1:si+T), (bogo(sb+1:sb+T, sb+T+1:sb+2*T)))
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! V^\dagger j^t 
-      tmp(si+1:si+N, si+1:si+N) = transpose(j(si+1:si+N, si+1:si+N))
-      tmp(si+1:si+N, si+1:si+N) = &
-      & matmul(transpose(bogo(sb+N+1:sb+2*N, sb+N+1:sb+2*N)),                  &
-      &                             tmp(si+1:si+N,si+1:si+N))
+      tmp(si+1:si+T, si+1:si+T) = transpose(j(si+1:si+T, si+1:si+T))
+      tmp(si+1:si+T, si+1:si+T) = &
+      & matmul(transpose(bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)),                  &
+      &                             tmp(si+1:si+T,si+1:si+T))
       
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! V^\dagger j^T V
-      j11(si+1:si+N, si+1:si+N) = j11(si+1:si+N, si+1:si+N) + s * &
-      &  matmul( tmp(si+1:si+N, si+1:si+N),(bogo(sb+N+1:sb+2*N, sb+N+1:sb+2*N)))
+      ! Here we take care of the hidden minus sign as commented above.
+$TR   s = -1
+$NTR  s = +1
+      j11(si+1:si+T, si+1:si+T) = j11(si+1:si+T, si+1:si+T) - s * &
+      &  matmul( tmp(si+1:si+T, si+1:si+T),(bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)))
 
-      si = si +   N
-      sb = sb + 2*N
+      si = si +   N +   N2
+      sb = sb + 2*N + 2*N2
     enddo
   end subroutine calcJ11
 
@@ -746,17 +903,17 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
     4 format (' I_R X ', 3f15.7)
     5 format (' I_R Y ', 3f15.7)
     6 format (' I_R Z ', 3f15.7)
-    7 format ('                Belyaev              (hbar^2/MeV) ')
-   71 format ('                Belyaev (collective) (hbar^2/MeV) ')
+    7 format ('                Belyaev                 (hbar^2/MeV) ')
+   71 format ('                Belyaev (collective)    (hbar^2/MeV) ')
     8 format (' I_B X ', 3f15.7)
     9 format (' I_B Y ', 3f15.7)
    10 format (' I_B Z ', 3f15.7)
-   11 format ('                 J^2                 (hbar^2)')
+   11 format ('                 <J^2> - <J>^2          (hbar^2)')
    12 format (' J2_X  ', 3f15.7)
    13 format (' J2_Y  ', 3f15.7)
    14 format (' J2_Z  ', 3f15.7)
    15 format (' J2_t  ', 3f15.7)
-   16 format ('                 J^2 (collective)    (hbar^2)')
+   16 format ('                 <J^2> - <J>^2 (coll.)  (hbar^2)')
 
     print 1
     print 2
