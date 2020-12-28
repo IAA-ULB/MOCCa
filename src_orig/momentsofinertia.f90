@@ -97,34 +97,33 @@ contains
     !
     !---------------------------------------------------------------------------
 
-    integer       :: i,j, b, it, ii, jj, si
+    integer       :: i,j, b, it, ii, jj, si, N, N2
     real(KIND=dp) :: ME(3), fi, fj, dfde
 
     J2 = 0  ;  Belyaev = 0
  
     si = 0  
-    do b = 1, Blocks
-      do i=1, HFBlocks(b)
+    do b = 1,8,2
+      N = HFBlocks(b) ; if(N.eq.0) cycle 
+      N2= HFBlocks(b+1)
+      do i=1,N
         ii = si + i
         it = 1
         if(ii.gt.nwn) it = 2
-        do j=1,HFblocks(b)
+        do j=1,N
           jj = si + j
-        
-          ! |< k | j_x | -l >|^2  
-          ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2 
-          ! |< k | j_y | -l >|^2 
-          ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+
+$TR       fi = rho_can(ii)/2.0 ; fj = rho_can(jj)/2.
+$NTR      fi = rho_can(ii)     ; fj = rho_can(jj)
           ! |< k | j_z |  l >|^2 
-          ME(3)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+          ME(3)= angmom_z_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+          J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
 
-          ! The factor two is because of the presence of the four terms in 
-          ! ME_{kl}, which are pair-wise equal when J_i = J_j.
-          ME = 2 * ME 
-
-          fi = rho_can(ii)/2. ; fj = rho_can(jj)/2.
-
-          J2(:,it) = J2(:,it) + ME * fi*(1-fj)
+$TR       ! |< k | j_x | -l >|^2  
+$TR       ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2 
+$TR       ! |< k | j_y | -l >|^2 
+$TR       ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
+$TR       J2(1:2,it) = J2(1:2,it) +  ME(1:2) * fi*(1-fj)
 
           if(inversetemp.eq.-1) then
             dfdE = fj - fi
@@ -139,14 +138,74 @@ contains
               &            * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
             endif
           endif
-
-          Belyaev(:,it) = Belyaev(:,it) + ME * dfde
+          Belyaev(3,it)   = Belyaev(3,it)   + ME(3)   * dfde
+$TR       Belyaev(1:2,it) = Belyaev(1:2,it) + ME(1:2) * dfde
         enddo
       enddo
-      si = si +   HFBlocks(b)
+
+$NTR  do i=1,N2
+$NTR    ii = si + N+ i
+$NTR    it = 1
+$NTR     if(ii.gt.nwn) it = 2
+$NTR     do j=1,N2
+$NTR       jj = si + N + j
+$NTR       fi = rho_can(ii)     ; fj = rho_can(jj)
+$NTR       ME(3)= angmom_z_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+$NTR       J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
+$NTR
+$NTR
+$NTR       if(inversetemp.eq.-1) then
+$NTR         dfdE = fj - fi
+$NTR         if(abs(dfdE).gt.0) then
+$NTR            dfdE = dfdE/(spenergies(ii) - spenergies(jj))
+$NTR         endif
+$NTR       else
+$NTR         if(abs(spenergies(ii) - spenergies(jj)).gt.1d-8) then
+$NTR           dfdE = (fj - fi)/(spenergies(ii) - spenergies(jj))
+$NTR         else                
+$NTR           dfdE = fi**2 * inversetemp                                   &
+$NTR           &          * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
+$NTR         endif
+$NTR       endif
+$NTR       Belyaev(3,it) = Belyaev(3,it) + ME(3) * dfde
+$NTR     enddo
+$NTR   enddo
+$NTR   do i=1,N
+$NTR     ii = si + i
+$NTR     it = 1
+$NTR     if(ii.gt.nwn) it = 2
+$NTR     do j=1,N2
+$NTR       jj = si + N + j
+$NTR       fi = rho_can(ii)     ; fj = rho_can(jj)
+$NTR       ME(1)= angmom_x_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+$NTR       ME(2)= angmom_y_imag( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+$NTR       J2(1:2,it) = J2(1:2,it) + ME(1:2) * fi*(1-fj) +  ME(1:2) * fj*(1-fi)
+$NTR
+$NTR       if(inversetemp.eq.-1) then
+$NTR         dfdE = fj - fi
+$NTR         if(abs(dfdE).gt.0) then
+$NTR            dfdE = dfdE/(spenergies(ii) - spenergies(jj))
+$NTR         endif
+$NTR       else
+$NTR         if(abs(spenergies(ii) - spenergies(jj)).gt.1d-8) then
+$NTR           dfdE = (fj - fi)/(spenergies(ii) - spenergies(jj))
+$NTR         else                
+$NTR           dfdE = fi**2 * inversetemp                                   &
+$NTR           &          * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
+$NTR         endif
+$NTR       endif
+$NTR       Belyaev(1:2,it) = Belyaev(1:2,it) +  2*ME(1:2) * dfde
+$NTR     enddo
+$NTR   enddo
+      si = si + N + N2
     enddo
+    ! Factor 2 for time-reversal
+$TR J2(:,1:2)      = 2 * J2(:,1:2)
+$TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
+
     !  Sum for the total
-    J2(:,3) = sum(J2(:,1:2),2) ; Belyaev(:,3) = sum(Belyaev(:,1:2),2)
+    J2(:,3)      = sum(J2(:,1:2),2) 
+    Belyaev(:,3) = sum(Belyaev(:,1:2),2)
   end subroutine 
 
   subroutine calcJ2andBelyaev_BCS
@@ -369,7 +428,13 @@ contains
     !
     !    I_mm = \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
     !
-    !
+    ! --------------------------------------------------------------------------
+    ! Notes to self about checks of this routine
+    ! 
+    !  (a) Collective and ordinary quantities are equal for non-blocked runs
+    !  (b) Time-reversal conserving results equal the BCS ones
+    !  (c) When pairing collapses, results are equal to the HF ones.
+    !       (both with and without T conservation)
     !---------------------------------------------------------------------------
     integer       :: i,j, b, it, ii, jj, si, N,k, sb, ibar, jbar, N2, T, s
     real(KIND=dp) :: ME(3), degen, fac
