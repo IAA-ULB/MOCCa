@@ -294,11 +294,45 @@ contains
 
   subroutine calcJ2andBelyaev_HFB
     !---------------------------------------------------------------------------
-    ! Calculate the expectation value of J^2_mu in the many-body state, as well
-    ! as the Belyaev moment of inertia.  
+    ! This routine calculates the 
+    !
+    !  (i) the diagonal elements of the inertia tensor 
+    !
+    !           < J^2_mm >
+    ! 
+    !      for a HFB reference state. 
+    !
+    !      Some caveats apply:
+    !        (*) 
+    !        (*)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !
+    !  and 
+    !
+    !  (ii) the Belyaev moment of inertia around the Cartesian axes, 
+    !               
+    !           I_mm = - partial_{\omega} < psi' | J_m | psi' > 
+    !
+    !        where 
+    !        a) the derivative should be evaluated at a reference frequency)  
+    !        b) psi' is a second order perturbation to the HFB state when 
+    !           the rotational frequency changes, i.e. 
+    !       
+    !               H - \omega J_m => H - \omega J_m  - \delta \omega J_m
+    !   
+    !                   
+    !           hence 
+    !                                    
+    !          | psi'> - |psi_0 > =  
+    !              1               C
+    !          +  --- sum_ab -------------  b^{\dagger}_a b^{\dagger}_a |psi_0 > 
+    !              2           E_a + E_b
+    !
+    !           C =  < psi_0 | J_m  b^{\dagger}_a b^{\dagger}_a |psi_0 > 
+    !          with E_a and E_b the quasiparticle energies. 
+    !
     !---------------------------------------------------------------------------
-   
-    integer       :: i,j, b, it, ii, jj, si, N, N2,k, sb, T, ibar, jbar
+    integer       :: i,j, b, it, ii, jj, si, N,k, sb
     real(KIND=dp) :: ME(3), degen, fac
 
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
@@ -466,6 +500,7 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
     enddo
     J2(:,3) = sum(J2(:,1:2),2) 
  
+    print *, J2
     !---------------------------------------------------------------------------
     ! I also calculate some approximation for the collective angular momentum, 
     ! which I define as <J^2> without the contribution from the blocked qps. 
@@ -518,7 +553,7 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
     !
     !  I_{mm} = 2 \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
     !
-    ! based on pg 131 in Ring and Schuck, equation 3.92.
+    ! based on pg 131 in Ring and Schuck, equation 3.92. 
     !
     ! For a statistical mixture (such as an EFA configuration), this formula
     ! doesn't capture everything and we have to generalize:
@@ -539,7 +574,7 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
         do j=1,N
           jj = si + j
           !---------------------------------------------------------------------
-          !         1- f_i - f_j 
+          !         1 - f_i - f_j 
           fac = 1 - configmatrix(sb+i) - configmatrix(sb+j)
 
           Belyaev(:,it) = Belyaev(:,it) + &
