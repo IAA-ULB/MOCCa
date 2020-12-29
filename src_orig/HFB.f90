@@ -190,12 +190,6 @@ contains
         sphamil(si+wave1,si+wave1) = spenergies(si+wave1)
       enddo
 
-!      print *, 'SPHAMIL'
-!      do wave1=1,N+N2
-!        print ('(99f10.3)'), sphamil(si+wave1, si+1:si+N+N2)
-!      enddo
-!      print *
-
       if(.not.allocated(HFBgaps)) then
         print *, 'HFB gaps are not allocated yet.'
         stop  
@@ -204,7 +198,6 @@ contains
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
       &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
       &                           HFBgaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)  
-
 
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
@@ -240,19 +233,6 @@ contains
          blocked_qps(NN+i) = p_blocked(i) + 2*sum(HFBsizes(1:4))
        enddo
     endif
-
-!    print *, 'BOGOLIUBOV'
-!    si = 0 ; sb = 0
-!    do B=1,8,2
-!      N = HFBsizes(B) ; N2 = HFBsizes(B+1)
-!      do i=1, 2*(N+N2)
-!          print ('(99f7.3)'), Bogoliubov(si+i, si+1:si+2*(N+N2))
-!      enddo
-!      print *
-!      si = si + 2*N+2*N2
-!    enddo
-
-
     !---------------------------------------------------------------------------
     ! Now, the Bogoliubov transformation in memory is now organized by block of 
     ! the HFB Hamiltonian, not necessarily by the ordering of the spwfs. 
@@ -296,17 +276,6 @@ contains
       sb = sb + 2*N + 2*N2
     enddo
 
-!    print *, 'BOGOLIUBOV'
-!    si = 0 ; sb = 0
-!    do B=1,8,2
-!      N = HFBsizes(B) ; N2 = HFBsizes(B+1)
-!      do i=1, 2*(N+N2)
-!          print ('(99f7.3)'), Bogoliubov(si+i, si+1:si+2*(N+N2))
-!      enddo
-!      print *
-!      si = si + 2*N+2*N2
-!    enddo
-
     !---------------------------------------------------------------------------
     ! c) Optionally mix the configuration matrices.  
     if(.not.all(configmatrix_history.eq.0.0)) then
@@ -322,8 +291,8 @@ contains
     ! e) Optionally mix these densities
     if(.not.all(rho_history.eq.0.0)) then
       if(HFBmixtype .eq. 0) then
-        rho_pairing   =  HFBmix * rho_pairing   + (1-HFBmix) * rho_history
-        kappa_pairing =  HFBmix * kappa_pairing + (1-HFBmix) * kappa_history
+        rho_pairing   =  HFBmix * rho_pairing   + (1.0d0-HFBmix) * rho_history
+        kappa_pairing =  HFBmix * kappa_pairing + (1.0d0-HFBmix) * kappa_history
       endif
     endif  
     
@@ -431,8 +400,6 @@ $TR    HFBdispersion = 2 * HFBdispersion
     case(1,2)
         ! Full blocking
         occ = 1.0_dp
-!        print *, 'Time-reversal breaking is needed and not implemented.'
-!        stop
     case(3,4)
         ! EFA blocking
         occ = 0.5_dp
@@ -448,7 +415,6 @@ $TR    HFBdispersion = 2 * HFBdispersion
         ! The user asked for a specific configuration that needs to be 
         ! identified. The array blockconf now contains the indices in the 
         ! HF-basis.
-
         NB = size(blockconf)
         if(.not.allocated(blocked_qp)) then
           allocate(blocked_qp(NB)) ; blocked_qp = 0
@@ -486,7 +452,6 @@ $TR    HFBdispersion = 2 * HFBdispersion
                     R(sb+ind)         = 1 - occ
                     ! Save which one we blocked
                     blocked_qp(j) = sb+ind
-                    !print ('(99f10.3)'), R(sb+1:sb+2*N)
                 endif
                 sb = sb + 2*N
                 si = si + N
@@ -599,18 +564,6 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
       si = si +   N +  N2
       sb = sb + 2*N +2*N2
     enddo
-
-!    si = 0 ; sb = 0 
-!    do B=1,8
-!      N = HFBsizes(B)
-!      si = 0
-!      print *, 'RHO', B
-!      do i=1, N
-!          print ('(99f7.3)'), rho(si+i, si+1:si+N)
-!      enddo
-!      si = si + N
-!    enddo
-!    
 
   end subroutine PairingMatrices
 
@@ -738,6 +691,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
           print *, 'WARNING: diagon failed in subroutine DiagByBlock.'
           print *, '         Problematic block B = ', B
           deallocate(A, eigen)
+          particles = 0.0
           return
         endif
 
@@ -1068,7 +1022,7 @@ $TR   particles = 2 * particles
     real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:)
     real(KIND=dp), allocatable  :: H(:,:)
     integer, intent(in)         :: N, N2
-    integer                     :: T,i
+    integer                     :: T
 
     T = N + N2
     allocate(H(2*T,2*T)) 
@@ -1094,11 +1048,6 @@ $TR   particles = 2 * particles
     H(2*N+N2+1:2*N+2*N2,2*N   +1:2*N+  N2) = gaps(N+1:N+N2, 1:N2)
 
 
-!    print *, 'HFB HAMIL'
-!    do i=1,2*T
-!      print ('(99f10.3)'), H(i,:)
-!    enddo
-!    print *
   end function ConstructHFBHamil 
 
   subroutine calcHFBgaps(Fermi, stabfactor)
@@ -1181,14 +1130,14 @@ $TR        inda = si + wave1
           ! (1 if the pairing functional is not stabilized)
           stabfac = 1 + stabfactor((iso+3)/2)
 
-          HFBgaps(indb,inda) =     sum(hfpsi(:,:,indb)*deltapsi)*dv *          &
+          HFBgaps(inda,indb) =     sum(hfpsi(:,:,indb)*deltapsi)*dv *          &
           &                          Pcutoffs(inda)*Pcutoffs(indb)*stabfac
 
-!          ! The full matrix Delta is antisymmetric...
-$NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
-!          ! ... but the stored matrix is symmetric when time-reversal is 
-!          ! conserved.
-!$TR       HFBgaps(inda,indb) = HFBgaps(indb,inda)
+          ! The full matrix Delta is antisymmetric...
+$NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
+          ! ... but the stored matrix is symmetric when time-reversal is 
+          ! conserved; but this is not exploited at the moment!
+!$TR       HFBgaps(indb,inda) = HFBgaps(inda,indb)
 
         enddo
       enddo
@@ -1267,7 +1216,7 @@ $NTR      HFBgaps(inda,indb) =  - HFBgaps(indb,inda)
    
     real(KIND=dp), allocatable :: tmp(:,:), work(:)
     
-    integer :: si, N, N2, B, i, lwork, j
+    integer :: si, N, N2, B, i, lwork
     
     !---------------------------------------------------------------------------
     ! a) Diagonalize rho

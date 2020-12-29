@@ -99,7 +99,6 @@ contains
   integer, intent(in)          :: Blockindices(:)
   integer, intent(in)          :: BlockType
   character(len=2), intent(in) :: BlockLowest(:)
-  integer, allocatable         :: neutron_block(:), proton_block(:)
   integer, allocatable         :: blocked_qps(:)
   
   1 format('---------------------------------------',/,     &
@@ -266,7 +265,7 @@ contains
     !  (d) Finite-temperature, blocking   : nothing implemented
     !---------------------------------------------------------------------------
     real*8              :: f(nwt), occ, qpmin
-    integer             :: wave, NB, i, ind, si, N, B, it, qpb
+    integer             :: wave, NB, i, ind, si, N, B,  qpb
 
     integer, intent(in)          :: Blockindices(:)
     integer, intent(in)          :: BlockType, gas

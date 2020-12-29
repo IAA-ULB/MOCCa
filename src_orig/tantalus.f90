@@ -33,7 +33,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! These inputs control where the code will look for its input. Leaving them 
  ! empty will have the code rely on STDIN for input.
  integer(dp), intent(in), optional   :: file_number   
- character(26), intent(in), optional :: input_file 
+ character(*), intent(in), optional  :: input_file 
  character(len=*), intent(in)        :: run_mode 
  character(len=43)                   :: mode_print
  character(len=26)                   :: symprint

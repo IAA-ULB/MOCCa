@@ -771,7 +771,7 @@ contains
     r2  =>FindMoment(-2,0,.false., Q22) ! The rms radius is associated with l=-2
 
     ! Write the filename
-    write(filedone,'(a,"z",i3.3,"n",i3.3,"num",i3.3,"run",i3.3".out")'),       &   
+    write(filedone,'(a,"z",i3.3,"n",i3.3,"num",i3.3,"run",i3.3".out")')        &   
     &     trim(adjustl(BXLFIT)),int(protons),int(neutrons),int(counter),int(run) 
 
   
@@ -1044,7 +1044,7 @@ contains
     use wavefunctions
 
     character(len=*), intent(in) :: fname
-    integer                      :: io, i, p, B, wave
+    integer                      :: io, i, p,  wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp)                :: Jx, Jy, Jz, JJ
  
@@ -1155,11 +1155,10 @@ contains
     !                    (JJ+1) JJ = <Jx^2> + <Jy^2> + <Jz^2> 
     !
     !---------------------------------------------------------------------------
-
     use wavefunctions
 
     character(len=*), intent(in) :: fname
-    integer                      :: io, i, p, B, wave
+    integer                      :: io, i, p, wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp)                :: Jx, Jy, Jz, JJ
  

@@ -509,7 +509,8 @@ $PRINT
     !
     ! It is activated by putting COM1Body = 3, COM2BODY = 0. 
     !---------------------------------------------------------------------------
-    integer       :: it, i,j, B, N, N2, N3, N4, wave, wave2, si, ii, ibar, jj, jbar
+    integer       :: it, i,j
+$NTR integer       :: B, ibar, jbar ii, jj, N, N2, N3, N4, si
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),temp(3,2), fac
     real(KIND=dp) :: Butler_t, Butler_f
     
@@ -901,7 +902,7 @@ $SKYRMEACTION
     real(KIND=dp)              ::  ddtemp(mv,3,3,4)
     real(KIND=dp)              :: dddtemp(mv,3,3,3,4)
     real(KIND=dp)              :: laptemp(mv,4)
-    integer                    :: it,i,k
+    integer                    :: it,i
     
     !---------------------------------------------------------------------------
     ! Determine the isospin index

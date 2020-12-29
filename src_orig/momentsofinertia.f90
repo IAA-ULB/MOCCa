@@ -437,12 +437,12 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !       (both with and without T conservation)
     !---------------------------------------------------------------------------
     integer       :: i,j, b, it, ii, jj, si, N,k, sb, ibar, jbar, N2, T, s
-    real(KIND=dp) :: ME(3), degen, fac
+    real(KIND=dp) :: ME(3),  fac
 
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
 
-    real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , up, cut_cr  
+    real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , cut_cr  
     logical       ::  blocked
 
     J2 = 0  ; Belyaev = 0 ; J2_coll = 0 ; Bely_coll = 0

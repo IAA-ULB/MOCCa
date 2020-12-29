@@ -51,10 +51,10 @@ MPI_SRC    = $(SRC) multirun_example.f90
 CXX      :=  gfortran
 OPENMP   :=  
 
-ifeq ($(CXX),gfortran)
+ifneq (,$(findstring gfortran,$(CXX)))
 #	CXXFLAGS := -J$(MODDIR) -Wall -fbacktrace -g3
   OPENMP   := 
-	CXXFLAGS := -O3 -J$(MODDIR) -Wall $(OPENMP)
+	CXXFLAGS := -O3 -J$(MODDIR) -Wall -Wno-uninitialized $(OPENMP) 
 else ifeq ($(CXX),ifort)
   OPENMP   := 
 	CXXFLAGS := -O3  $(OPENMP) -assume realloc-lhs -assume byterecl -no-wrap-margin -module $(MODDIR)

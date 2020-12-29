@@ -199,7 +199,7 @@ contains
     real(KIND=dp), allocatable :: temp2(:,:)
 
     logical :: ChangeBoxSize = .false., transformed= .false.
-    integer :: wave,i,j, b, sb, sf
+    integer :: i,j, b, sb, sf
 
     transformed = .false.
     !---------------------------------------------------------------------------
@@ -342,8 +342,8 @@ contains
     real(KIND=dp), intent(inout), allocatable, target :: phi(:,:,:)
     integer, intent(in)                               :: filenx, fileny, filenz
     integer, intent(in)                               :: filenwt
-    real(KIND=dp), allocatable, target                :: temp(:,:,:)
-    integer                                           :: wave, l
+    real(KIND=dp), target                :: temp(filenx*fileny*filenz,4,filenwt)
+    integer                              :: wave, l
 
     temp = phi ;  deallocate(phi)
     allocate(phi(nx*ny*nz,4,filenwt)) ; HFPSI = 0

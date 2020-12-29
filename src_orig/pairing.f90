@@ -406,7 +406,7 @@ $NTR          do wave2=si+N+1,si+N+N2
               ! We've found a kappa on file and can use it to guess better 
               ! signs and sizes
               if(abs(kappa_pairing(wave, wave2)).gt.1d-8) then
-                s = kappa_pairing(wave, wave2)/abs(kappa_pairing(wave, wave2))
+                s = int(kappa_pairing(wave, wave2)/abs(kappa_pairing(wave, wave2)))
               else
                 s = 1
               endif
@@ -734,7 +734,7 @@ $NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
 
     real(KIND=dp) :: gap(2,2), norm(2,2), v2, uv
     real(KIND=dp), allocatable :: gaps_can(:,:)
-    integer       :: it1, it2, wave, wave2
+    integer       :: it1, wave
 
     gap = 0 ; norm = 0
     if(.not.allocated(HFBgaps)) return

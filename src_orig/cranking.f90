@@ -93,7 +93,8 @@ contains
     !---------------------------------------------------------------------------
     integer(dp), intent(in),optional :: file_number
     real(KIND=dp)       :: OmegaX, OmegaY, OmegaZ
-    integer             :: i,j,c
+    integer             :: i
+$NTR  integer             :: j,c
     logical             :: NotFound
 
     namelist /cranking/ OmegaX, OmegaY, OmegaZ
@@ -113,10 +114,10 @@ contains
     do i=1,3
       if(Omega(i) .ne. 0.0d0) then
         NotFound = .true.
-        do j=1,cranklen
-          c = crankdirections(j)
-          if( c == i ) NotFound = .false.
-        enddo
+$NTR        do j=1,cranklen
+$NTR          c = crankdirections(j)
+$NTR          if( c == i ) NotFound = .false.
+$NTR        enddo
         if(NotFound) then
           print *, 'Disallowed cranking frequency.'
           stop
@@ -129,34 +130,34 @@ contains
     !---------------------------------------------------------------------------
     ! Calculate the total angular momentum and related observables.
     !---------------------------------------------------------------------------  
-    use Moments, only : cutoff
+$NTR    use Moments, only : cutoff
+    ! We only import this if time-reversal is not conserved, otherwise
+    ! the compiler complains
 
-    integer :: B, N, wave, si, i, c, j, it
-    real(KIND=dp), allocatable :: tempJ(:,:)
-
+$NTR    integer :: B, N, wave, si, i, c, it
     
     angmomold   = totalangmom
     totalangmom = 0.0
 
-    si = 0    
-    do B=1,8
-      N = HFBlocks(B) ; if(N .eq. 0) cycle
-      do wave = 1, N  
-        do i = 1, cranklen
-          c  = crankdirections(i)
-          if(pairingtype.ne.2) then
-            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * spwf_J(c,si+wave)
-          else
-            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * can_J(c,si+wave)
-          endif
-        enddo
-      enddo
-      si = si + N
-    enddo
-    crankenergy     = - omega * TotalAngMom    
-    crankenergy_cut = - omega * TotalAngMom_cut
-    !-------------------------------------------------------------------------
-    ! And now we integrate the current density and spin density.
+$NTR    si = 0    
+$NTR    do B=1,8
+$NTR      N = HFBlocks(B) ; if(N .eq. 0) cycle
+$NTR      do wave = 1, N  
+$NTR        do i = 1, cranklen
+$NTR          c  = crankdirections(i)
+$NTR          if(pairingtype.ne.2) then
+$NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * spwf_J(c,si+wave)
+$NTR          else
+$NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * can_J(c,si+wave)
+$NTR          endif
+$NTR        enddo
+$NTR      enddo
+$NTR      si = si + N
+$NTR    enddo
+$NTR    crankenergy     = - omega * TotalAngMom    
+$NTR    crankenergy_cut = - omega * TotalAngMom_cut
+$NTR    !-------------------------------------------------------------------------
+$NTR    ! And now we integrate the current density and spin density.
 $NTR    totalangmom_dens = 0.0
 $NTR    totalangmom_cut  = 0.0
 $NTR    do it=1,2
@@ -175,25 +176,8 @@ $NTR        & (- meshgrid(i,2) * C_I_N(i,1,it) + meshgrid(i,1) * C_I_N(i,2,it))
 $NTR      enddo
 $NTR    enddo
 
-    TotalAngMom_dens = TotalAngMom_dens * dv
-    TotalAngMom_cut  = TotalAngMom_cut  * dv
-
-
-!    print *, 'BEFORE', TotalAngMom  
-!    allocate(tempJ(nwt,nwt)); tempJ = 0.0
-!    do i = 1, nwt
-!      do j=1, nwt
-!        tempj(i,j) =  angmom_z_real (HFPsi(:,:,i),HFPsi(:,:,j),HFdPsi(:,:,:,j))
-!      enddo
-!    enddo
-!    totalangmom = 0
-!    do i=1, nwt
-!      do j=1, nwt
-!        totalangmom(3) = totalangmom(3) + tempj(i,j) * rho_pairing(j,i)
-!      enddo
-!    enddo
-!    
-!    print *, 'AFTER', TotalAngMom  
+$NTR    TotalAngMom_dens = TotalAngMom_dens * dv
+$NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
 
   end subroutine updateAM
 
@@ -256,19 +240,19 @@ $NTR    enddo
     ! constraints. The factor 1/2 is present because the J_spin = 1/2 Pauli 
     ! sigma matrix.
     !---------------------------------------------------------------------------
-    use Moments, only : cutoff
+$NTR    use Moments, only : cutoff
 
     real(KIND=dp), allocatable :: spot(:,:,:)
-    integer :: i, it, c
+$NTR    integer :: i, it, c
 
     allocate(spot(nx*ny*nz,3,2)) ; spot = 0.0d0
 
-    do i=1, cranklen
-      c           = crankdirections(i)
-      do it=1,2
-        spot(:,c,it) = - 0.5 * omega(c) * cutoff(:,it)
-      enddo
-    enddo
+$NTR    do i=1, cranklen
+$NTR      c           = crankdirections(i)
+$NTR      do it=1,2
+$NTR        spot(:,c,it) = - 0.5 * omega(c) * cutoff(:,it)
+$NTR      enddo
+$NTR    enddo
       
     return
   end function crank_spin_potential
