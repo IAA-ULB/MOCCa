@@ -255,32 +255,33 @@ subroutine ReachForWaterAndFood()
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
-    ! Solve the pairing, with the current values of <h> and the pairing gaps.
-    call SolvePairing(ifail)
     ! Derive all the single-particle wavefunctions
     call deriveHF()
 
-    ! Calculate the initial densities.
-    call densit(ifail,SaveRho=.false.)
-    ! Construct the charge density on the (nx/ny/nz)-sized mesh.
-    ! This was previously included in the Coulomb routines, but now needs to be 
-    ! called separatedly, since the chargedensity is used for the calculation 
-    ! of the rms radius.
-    call ConstructChargeDensity(ChargeDensity)
-    
-    call CalculateMoments()
-
-    ! Only calculate the fields that have not been initialized from file.
-    call calcFields(calcall=.false.)
-    
-    PairStabfactor = CompStabilisingFactor(PairDenEnergy)
-    call CalcGaps(FermiEnergy, PairStabFactor)
     ! Solve the pairing, with the current values of <h> and the pairing gaps.
     call SolvePairing(ifail)
 
+    if(ifail.ne.0) then
+        print *, 'WARNING! Pairing solver failed.'
+    endif
+
+    ! Calculate the initial densities and the charge density (separately)
+    call densit(ifail,SaveRho=.false.)
+    call ConstructChargeDensity(ChargeDensity)
+    ! Only calculate the fields that have not been initialized from file.
+    call calcFields(calcall=.false.)
+
+    PairStabfactor = CompStabilisingFactor(PairDenEnergy)
     call CalcGaps(FermiEnergy, PairStabFactor)
     call SolvePairing(ifail)
+    ! Calculate the initial densities and the charge density (separately)
+    call densit(ifail,SaveRho=.false.)
+    call ConstructChargeDensity(ChargeDensity)
+    ! Only calculate the fields that have not been initialized from file.
+    call calcFields(calcall=.false.)
 
+
+    call CalculateMoments()
     call setBelyaevProcedure()
     call CalcEnergy(1)
 

@@ -234,8 +234,47 @@ contains
        enddo
     endif
     !---------------------------------------------------------------------------
-    ! Now, the Bogoliubov transformation in memory is now organized by block of 
-    ! the HFB Hamiltonian, not necessarily by the ordering of the spwfs. 
+    ! Naively writing down the HFB hamiltonian, we have 
+    ! (if there is a linear, antihermitian conserved symmetry)  
+    ! 
+    !
+    !       (  h+  0     0     d+- )
+    !  H =  (  0   h-    d-+   0   )
+    !       (  0  -d-+  -h+    0   )
+    !       ( -d+- 0     0    -h-  ) 
+    !
+    !
+    !  but we diagonalize in practice the two submatrices
+    !
+    !  H+ =  (  h+     d+-)     H- = ( h-     d-+ )
+    !        (  -d+-  -h- )          ( d-+   -h+  )
+    !
+    !  as
+    !         H = ( H+ 0 )
+    !             ( 0  H-)
+    !     
+    ! Hence, the Bogoliubov transformation in memory is structured as
+    !        
+    !       (  V^*+  U+    0     0   )
+    !  W =  (  U^*+  V+    0     0   )
+    !       (  0     0     V^*-  U-  )
+    !       (  0     0     U^*-  V-  )
+    !   
+    !  which we need to correct by moving things around to
+    !
+    !       (  V^*+   0     U+  0   )
+    !  W =  (  0      V^*-  0   U-  )
+    !       (  0      U^*-  0   V-  )
+    !       (  U^*+   0     V+  0   )
+    !
+    !
+    ! Note that this reordering is necessary for the
+    !  *) QPenergies
+    !  *) Configmatrix
+    ! 
+    ! as well
+    !
+    !---------------------------------------------------------------------------
     temp = Bogoliubov ;  tempqe = QPenergies  ; tempc        = configmatrix
     Bogoliubov = 0    ;  QPenergies = 0.0d0   ; configmatrix = 0.0
 
@@ -244,34 +283,47 @@ contains
       N = HFBsizes(B) ; N2 = HFBsizes(B+1)
 
       !-------------------------------------------------------------------------
-      ! Results of the first block
+      ! Moving the first block
+
+      ! First N eigenvalues of  H+ 
+      ! (negative qp energies generally, but not always)
       Bogoliubov(sb+       1:sb  +N   ,sb+1:sb+N) = &
       &                                        temp(sb+  1:sb+  N,sb+  1:sb+N)
       Bogoliubov(sb+N+2*N2+1:sb+2*N+2*N2,sb+1:sb+N) = &
       &                                        temp(sb+N+1:sb+2*N,sb+  1:sb+N)
 
-      Bogoliubov(sb+     1:sb+  N       ,sb+N+  N2+1:sb+2*N+  N2) = &
+      ! Second set of N eigenvalues of H+
+      Bogoliubov(sb+       1:sb+  N     ,sb+N+  N2+1:sb+2*N+  N2) = &
       &                                        temp(sb+  1:sb+  N,sb+N+1:sb+2*N)
       Bogoliubov(sb+N+2*N2+1:sb+2*N+2*N2,sb+N+  N2+1:sb+2*N+  N2) = &
       &                                        temp(sb+N+1:sb+2*N,sb+N+1:sb+2*N)
+      !-------------------------------------------------------------------------
+      ! Moving the second block (which doesn't exist if T is conserved)
 
-      ! Results of the second block
+      ! First N2 eigenvalues of H-
+      ! (negative qp energies generally, but not always)
       Bogoliubov(sb+N+1:sb+N+2*N2,sb+N+1:sb+N+N2) = &
       &                          temp(sb+2*N+1:sb+2*N+2*N2,sb+2*N+1:sb+2*N+N2)
-  
+      ! Second set of N2 eigenvalues of H-
       Bogoliubov(sb+N+1:sb+N+2*N2,sb+2*N+N2+1:sb+2*N+2*N2) = &
       &                       temp(sb+2*N+1:sb+2*N+2*N2,sb+2*N+N2+1:sb+2*N+2*N2)
 
       !-------------------------------------------------------------------------
-      configmatrix(sb+       1:sb+N  )      = tempc (sb+    1   :sb+  N)
-      configmatrix(sb+N+     1:sb+N+N2  )   = tempc (sb+2*N+1   :sb+2*N+  N2)
-      configmatrix(sb+N+  N2+1:sb+N  +2*N2) = tempc (sb+  N   +1:sb+2*N)  
-      configmatrix(sb+N+2*N2+1:sb+2*N+2*N2) = tempc (sb+2*N+N2+1:sb+2*N+2*N2)
-
-      qpenergies  (si+        1:si+N2)      = tempqe(si  +1:si+N   )
-      qpenergies  (si+N2+     1:si+N+N2)    = tempqe(si+N+1:si+N+N2) 
+      ! First N eigenvalues of H+
+      configmatrix(sb+     1:sb+N    )  = tempc (sb  +1:sb+  N)
+      ! Second set of N eigenvalues of H+
+      configmatrix(sb+N+N2+1:sb+2*N+N2) = tempc (sb+N+1:sb+2*N) 
       !-------------------------------------------------------------------------
+      ! First set of N2 eigenvalues of H-
+      configmatrix(sb+N+     1:sb+N+N2  )   = tempc (sb+2*N+1   :sb+2*N+  N2)
+      ! Second set of N2 eigenvalues of H-
+      configmatrix(sb+2*N+N2+1:sb+2*N+2*N2) = tempc (sb+2*N+N2+1:sb+2*N+2*N2)
 
+      ! eigenvalues of H+
+      qpenergies  (si+       1:si+N)        = tempqe(si  +1:si+N   )
+      ! eigenvalues of H-
+      qpenergies  (si+N+     1:si+N+N2)     = tempqe(si+N+1:si+N+N2) 
+      !-------------------------------------------------------------------------
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
     enddo
@@ -1217,6 +1269,7 @@ $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
     real(KIND=dp), allocatable :: tmp(:,:), work(:)
     
     integer :: si, N, N2, B, i, lwork
+$NTR integer :: j
     
     !---------------------------------------------------------------------------
     ! a) Diagonalize rho

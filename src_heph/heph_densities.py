@@ -101,7 +101,7 @@
 #                          first-order derivatives or second-order derivatives 
 #                          in the FORTRAN code.
 #                       b) which of the indices in the (possible heavily 
-#                          composite operator) are derivative indices, and not
+#                          composite) operator are derivative indices, and not
 #                          spin indices.
 #   Operator.dimension= Order of the operator, scalar (0), vector (1) or tensor
 #                       of rank (Operator.dimension)
@@ -294,7 +294,7 @@ def ProcessDensities(fname, src, target, so):
           # This summation is blockwise, hence the 'si+'
           (e,dec,ini,der,zeroi,cleani)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],\
-                                                      'si+wave2', 'si+wave', so)
+                                         'si+wave2', 'si+wave', so, silent=True)
           HFBExpression = HFBExpression + '\n' + e
         else:
           Expression    = Expression     + '\n' + e
@@ -407,7 +407,8 @@ def ParseOperators(density, timelike, findindices=False):
     else:
         return(der, lap, left, right, coupling, cross)
 
-def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
+def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
+                         silent=False):
     #---------------------------------------------------------------------------
     # Generate the following strings 
     #       (Expression, Declaration, Initialisation, Derivation, Zeroing)
@@ -421,6 +422,10 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
     #
     # *) leftwave, rightwave
     #    Strings indicating to the summation what the left and right spwf is.
+    #
+    # *) so: a set of symmetry options
+    #
+    # *) silent: don't print the symmetry output 
     #---------------------------------------------------------------------------
    
     #---------------------------------------------------------------------------
@@ -689,7 +694,8 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so):
             except:        
                 pass
  
-            print (r'%15s %4s %4s   %+3d   %+3d & %+3d & %+3d & %+3d & %+3d & %+3d & %+3d \\' \
+            if(not silent):
+                print (r'%15s %4s %4s  $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ \\' \
                   %(denin, pl, pr, T, par, par*int(px),par*int(py),par*int(pz),int(px),int(py),int(pz)))
             #-------------------------------------------------------------------
 
@@ -1134,23 +1140,53 @@ def AxisReflection(LO, RO, larg, rarg, so, pairing, nabla_arg = []):
     py = lind_y[:,0] * rind_y[:,0]/(lind[:,0] * rind[:,0])
     pz = lind_z[:,0] * rind_z[:,0]/(lind[:,0] * rind[:,0])
 
-    # 
+    #---------------------------------------------------------------------------
+    # Taking into account the signs of the derivatives
+    for i in range(LO.derorder):
+        if mu[i] == 0:  
+            px = -1 * px
+        if mu[i] == 1:  
+            py = -1 * py
+        if mu[i] == 2:  
+            pz = -1 * pz
+
+    for i in range(RO.derorder):
+        if nu[i] == 0:  
+            px = -1 * px
+        if nu[i] == 1:  
+            py = -1 * py
+        if nu[i] == 2:  
+            pz = -1 * pz
 
     # Sanity check, are all ratios equal? 
-    for i in range(4):
-        if(px[i] != px[0]):
-            print ("Error determining symmetries, X!")
-            exit()            
-        if(py[i] != py[0]):
-            print ("Error determining symmetries, Y!")
-            exit()            
-        if(pz[i] != pz[0]):
-            print ("Error determining symmetries, Z!")
-            exit()            
+   # for i in range(4):
+   #     if(px[i] != px[0]):
+   #         print ("Error determining symmetries, X!")
+   #         exit()            
+   #     if(py[i] != py[0]):
+   #         print ("Error determining symmetries, Y!")
+   #         exit()            
+   #     if(pz[i] != pz[0]):
+   #         print ("Error determining symmetries, Z!")
+   #         exit()            
 
     px = px[0]
     py = py[0]
     pz = pz[0]
+
+    #---------------------------------------------------------------------------
+    # Symmetries of the left- and rightoperator
+    #pxl = LO.signature_z[mu] * LO.parity[mu] * LO.signature_y[mu] * LO.time[mu]
+    #pxr = RO.signature_z[nu] * RO.parity[nu] * RO.signature_y[nu] * RO.time[nu]
+    #px  = pxl * pxr
+
+    #pyl = LO.signature_y[mu] * LO.parity[mu] * LO.time[mu]
+    #pyr = RO.signature_y[nu] * RO.parity[nu] * RO.time[nu]
+    #py  = pyl * pyr
+    
+    #pzl = LO.parity[mu]  * LO.signature_z [mu]
+    #pzr = RO.parity[nu]  * RO.signature_z[nu] 
+    #pz  = pzl * pzr
 
     #---------------------------------------------------------------------------    
     #Taking into account extra external derivatives 
