@@ -216,8 +216,6 @@ $CHECKPARAMS
     95 format ('   Two-body: perturbative')
     94 format ('   Two-body: not included')
 
-    97 format (' WARNING: COM correction is not completely selfconsistent.')
-    98 format ("          Energy from spwfs and functional will not match.")
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     103 format(' Rotational correction ')
     104 format('    Not included.')
@@ -307,12 +305,7 @@ $PRINTPARAMS
       &        ' correction is not available.'
       stop
     end select
-    
-    if((COM1body .eq. 1) .or. (COM2body.eq. 1)) then
-        print 97
-        print 98
-    endif
-
+  
     print 4
     print 103
     select case(rotcorr)

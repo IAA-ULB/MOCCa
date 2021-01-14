@@ -67,6 +67,9 @@ module functional
     real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy, Ehistory(5)
     real(KIND=dp) :: tot_even(2), tot_odd(2)
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
+    ! Separation of 2-body Centre-of-mass correction into particle-hole 
+    ! and pairing parts for diagnostic printing
+    real(KIND=dp) :: COM2pp(2), COM2ph(2)
     ! Two definitions of the pairingenergy: one obtained by summing the gaps
     ! and one by integrating the particle-particle part of the functional
     real(KIND=dp) :: PairingEnergy(2), PairDenEnergy(2)
@@ -199,6 +202,9 @@ $PRINTCOEF_PAIR
     6 format (15x, ' Kinetic Energy:', 3f15.6)
    61 format (15x, '     COM 1-body:', 3f15.6)
    62 format (15x, '     COM 2-body:', 3f15.6)
+  621 format (15x, '             ph:', 3f15.6)
+  622 format (15x, '             pp:', 3f15.6)
+
    63 format (15x, '   Rotational ', a1, ':', 30x, f15.6)
     7 format (15x, ' Coulomb Direct:', 3f15.6)
    71 format (15x, '   Dir. (point):', 3f15.6)
@@ -227,7 +233,9 @@ $PRINTCOEF_PAIR
     print 6, Kinetic, sum(Kinetic)
     print 61, COMcorrection(1,:), sum(COMcorrection(1,:))
     if(any(COMcorrection(2,:).ne.0)) then
-     print 62, COMcorrection(2,:), sum(COMcorrection(2,:))
+     print 62 , COMcorrection(2,:), sum(COMcorrection(2,:))
+     print 621, COM2ph(:), sum(COM2ph(:))
+     print 622, COM2pp(:), sum(COM2pp(:))
     endif
 
     if(rotcorr .ne.  0) then
@@ -511,8 +519,8 @@ $PRINT
     !---------------------------------------------------------------------------
     integer       :: it, i,j
 $NTR integer       :: B, ibar, jbar ii, jj, N, N2, N3, N4, si
-    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),temp(3,2), fac
-    real(KIND=dp) :: Butler_t, Butler_f
+    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),tempph(3,2), temppp(3,2), fac
+    real(KIND=dp) :: Butler_t, Butler_f, prefac(2)
     
     COMCorrection = 0.0_dp
     select case(COM1Body)
@@ -538,11 +546,10 @@ $NTR integer       :: B, ibar, jbar ii, jj, N, N2, N3, N4, si
       NablaMElements = compNablaMelements()
       
       COMCorrection(2,:) = 0.0
-      !-------------------------------------------------------------------------
-      ! particle-hole, and particle-particle part.
-      !-------------------------------------------------------------------------
-      temp = 0
+        
+      COM2pp = 0.0 ; COM2ph = 0.0
 
+      tempph = 0.0 ; temppp = 0.0
       do i=1,nwt
          ! We sum over all possible (i,j) pairs, the matrix elements are 
          ! correctly calculated either way.
@@ -552,14 +559,14 @@ $NTR integer       :: B, ibar, jbar ii, jj, N, N2, N3, N4, si
             ! v^2 v^2 part
             fac = rho_can(i)*rho_can(j) 
 $TR         fac = fac / 4.0 ! rho_can is twice too large if T is conserved
-            temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,i,j)**2
-            temp(2,it) = temp(2,it) + fac*NablaMElements(2,2,i,j)**2
-            temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,i,j)**2
+            tempph(1,it) = tempph(1,it) + fac*NablaMElements(1,1,i,j)**2
+            tempph(2,it) = tempph(2,it) + fac*NablaMElements(2,2,i,j)**2
+            tempph(3,it) = tempph(3,it) + fac*NablaMElements(3,1,i,j)**2
 $TR         ! uv uv part
 $TR         fac = kappa_can(i)*kappa_can(j)
-$TR         temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,i,j)**2
-$TR         temp(2,it) = temp(2,it) + fac*NablaMElements(2,2,i,j)**2
-$TR         temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,i,j)**2
+$TR         temppp(1,it) = temppp(1,it) + fac*NablaMElements(1,1,i,j)**2
+$TR         temppp(2,it) = temppp(2,it) + fac*NablaMElements(2,2,i,j)**2
+$TR         temppp(3,it) = temppp(3,it) + fac*NablaMElements(3,1,i,j)**2
          enddo
       enddo
 
@@ -579,28 +586,35 @@ $NTR          do j=1,  N+N2+N3+N4
 $NTR            jj   = si +  j
 $NTR            jbar = conjugp(jj) ; if(jbar .eq.0) cycle
 $NTR            fac = -  kappa_can(ii)*kappa_can(jbar)
-$NTR            temp(3,it) = temp(3,it) + fac*NablaMElements(3,1,ii,jj)        &
+$NTR            temppp(3,it) = temppp(3,it) + fac*NablaMElements(3,1,ii,jj)    &
 $NTR                                  &      *NablaMElements(3,1,ibar,jbar)
-$NTR            temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,ii,jj) &
+$NTR            temppp(1,it) = temppp(1,it) + fac*NablaMElements(1,1,ii,jj)    &
 $NTR                                  &      *NablaMElements(1,1,ibar,jbar)
-$NTR            temp(2,it) = temp(2,it) - fac*NablaMElements(2,2,ii  ,jj) &
+$NTR            temppp(2,it) = temppp(2,it) - fac*NablaMElements(2,2,ii,jj)    &
 $NTR                                  &      *NablaMElements(2,2,ibar,jbar)
 $NTR          enddo
 $NTR        enddo
 $NTR        si = si + N + N2 + N3 + N4
 $NTR      enddo
-
+    
+      ! Summing the three directions
       do it=1,2
-        COMCorrection(2,it) = sum(temp(:,it))
+        COM2ph(it) = sum(tempph(:,it))
+        COM2pp(it) = sum(temppp(:,it))       
       enddo
       
       ! In the case of Time-reversal conservation, we summed over only half 
       ! the states
-$TR      COMCorrection(2,:) = 2*COMCorrection(2,:)
+$TR   COM2ph = 2*COM2ph   
+$TR   COM2pp = 2*COM2pp 
 
       ! Some constants
-      COMCorrection(2,:) = COMCorrection(2,:) * hbm * nucleonmass/             & 
-      &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
+      prefac=hbm*nucleonmass/(neutrons*nucleonmass(1) + protons*nucleonmass(2))
+
+      COM2ph = prefac * COM2ph ; COM2pp = prefac * COM2pp
+      do it=1,2
+          COMCorrection(2,it) = COM2ph(it) + COM2pp(it)   
+      enddo
      endif      
 
   end subroutine CompCOMCorrection
