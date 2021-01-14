@@ -482,23 +482,59 @@ $PRINT
   
   subroutine CompCOMCorrection()
     !---------------------------------------------------------------------------
+    ! General reference for the actual calculation of the entire correction
+    !
     ! M. Bender et al., Eur. Phys. J. A 7, 467-478 (2000)
     !
-    ! For EV8-like symmetries, we have for the two-body part
+    ! For future reference (all sums over the entire sp. space, unless
+    ! explicitly mentioned)
     !
+    !  E_cm = - f < P^2 >     ( f^{-1} = 2 m A) 
+    !       
+    !       = - f (sum_{ijkl} P_ij P_kl < a^dagger_i a_j a^dagger_k a_l > 
+    !      
+    !  The Wick theorem gives us 
+    ! 
+    !   < a^dagger_i a_j a^dagger_k a_l > 
+    !     =    rho_{ji}      rho_{lk}            (a)
+    !       -  kappa^*_{ik}  kappa_{lj}          (b)
+    !       +  rho_{li} ( delta_{jk} - rho_{jk}) (c1) and (c2)
     !
-    ! E_ph = + sum_km v^2_k v^2_m [ Re{nabla_x},k,m . Re{nabla_x},k,m          
-    !                              +Im{nabla_y},k,m . Im{nabla_y},k,m     
-    !                              +Re{nabla_z},k,m . Re{nabla_z},k,m ]   
+    ! In the canonical basis, each of these gives rise to
     !
+    ! (a) => -f  ( sum_i P_ii rho_ii )^2 = 0  as it is the square of <P>
+    !   
+    ! The one-body component is given by (c1)
     !
-    ! E_pp = -2 sum_k,m>0 v_k u_k v_m u_m {-Re(nabla_x)k,m . Re(nabla_x)-k,-m   
-    !                                      +Im(nabla_y)k,m . Im(nabla_y)-k,-m   
-    !                                      +Re(nabla_z)k,m . Re(nabla_z)-k,-m } 
+    ! (c1) => -f  sum_ij P_ij P_ji rho_{ii} 
+    !       = -f sum_i P^2_ii rho_ii 
+    !       = -f (-i hbar)^2 sum_i Delta_ii rho_ii
+    !       = +f hbar^2 sum_i Delta_ii rho_ii
     !
-    ! Note: this routine will need quite some work to be generalized to 
-    !       different symmetry combinations. 
+    ! The ph-part of the two-body component is given by (c2)
+    !   
+    ! (c2) => +f sum_ij rho_ii rho_jj P_ij P_ji
+    !       = +f (-i hbar)^2 sum_ij rho_ii rho_jj Nabla_ij Nabla_ji
+    !       = -f hbar^2 sum_ij rho_ii rho_jj Nabla_ij Nabla_ji
     !
+    !   (noting that Nabla_ji = - Nabla_ij^*) 
+    !       = +f hbar^2 sum_ij rho_ii rho_jj |Nabla_ij|^2
+    !
+    ! The pp-part of the two-body component is given by (b)
+    !
+    ! (b) => +f sum_ij P_ij P_{ibar jbar}  kappa^*_{i ibar} kappa_{jbar j} 
+    !      = +f (-i hbar)^2 sum_ij kappa^*_{i ibar} kappa_{jbar j} 
+    !                                       Nabla_{i j} \Nabla_{ibar jbar}
+    !      = -f hbar^2 sum_ij kappa^*{i ibar} kappa^*_{i ibar} kappa_{jbar j} 
+    !                                       Nabla_{i j} \Nabla_{ibar jbar}
+    !  
+    !     where ibar and jbar are the canonical partners of i and j.
+    !
+    ! Note 
+    ! (*) that no symmetries have been used yet at this point 
+    ! (*) I have not explicitly kept track of the vector nature of P. 
+    ! (*) The matrix elements of nabla are calculated in compnablamelements
+    !     in the densities module.
     !---------------------------------------------------------------------------
     ! There is also a phenomenological way to include the two-body part as a
     ! rescaling of the one-body part, as documented in 
@@ -542,7 +578,10 @@ $NTR integer       :: B, ibar, jbar ii, jj, N, N2, N3, N4, si
     end select    
 
     if(COM2body .eq. 1) then
-      ! Calculate 2-body COMcorrection
+      !-------------------------------------------------------------------------
+      ! The 2-body COM correction, calculated as discussed above
+      !-------------------------------------------------------------------------
+
       NablaMElements = compNablaMelements()
       
       COMCorrection(2,:) = 0.0
@@ -556,13 +595,18 @@ $NTR integer       :: B, ibar, jbar ii, jj, N, N2, N3, N4, si
          it = 1
          if(i.gt.nwn) it = 2
          do j=1,nwt  
+            ! + sum_ij rho_ii rho_jj |Nabla_ij|^2
             ! v^2 v^2 part
             fac = rho_can(i)*rho_can(j) 
 $TR         fac = fac / 4.0 ! rho_can is twice too large if T is conserved
             tempph(1,it) = tempph(1,it) + fac*NablaMElements(1,1,i,j)**2
             tempph(2,it) = tempph(2,it) + fac*NablaMElements(2,2,i,j)**2
             tempph(3,it) = tempph(3,it) + fac*NablaMElements(3,1,i,j)**2
+$TR         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+$TR         ! - sum_ij kappa^*{i ibar} kappa^*_{i ibar} kappa_{jbar j} 
+$TR         !                                    Nabla_{i j} \Nabla_{ibar jbar}
 $TR         ! uv uv part
+$TR         ! (in the case of conserved time-reversal)
 $TR         fac = kappa_can(i)*kappa_can(j)
 $TR         temppp(1,it) = temppp(1,it) + fac*NablaMElements(1,1,i,j)**2
 $TR         temppp(2,it) = temppp(2,it) + fac*NablaMElements(2,2,i,j)**2
@@ -583,6 +627,10 @@ $NTR        do i=1, N+N2+N3+N4
 $NTR          ii   = si + i
 $NTR          ibar = conjugp(ii) ; if(ibar .eq.0) cycle
 $NTR          do j=1,  N+N2+N3+N4
+$NTR            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+$NTR            ! - sum_ij kappa^*{i ibar} kappa^*_{i ibar} kappa_{jbar j} 
+$NTR            !                                Nabla_{i j} \Nabla_{ibar jbar}
+$NTR            ! (in the case of broken time-reversal)
 $NTR            jj   = si +  j
 $NTR            jbar = conjugp(jj) ; if(jbar .eq.0) cycle
 $NTR            fac = -  kappa_can(ii)*kappa_can(jbar)
@@ -592,6 +640,7 @@ $NTR            temppp(1,it) = temppp(1,it) + fac*NablaMElements(1,1,ii,jj)    &
 $NTR                                  &      *NablaMElements(1,1,ibar,jbar)
 $NTR            temppp(2,it) = temppp(2,it) - fac*NablaMElements(2,2,ii,jj)    &
 $NTR                                  &      *NablaMElements(2,2,ibar,jbar)
+$NTR            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 $NTR          enddo
 $NTR        enddo
 $NTR        si = si + N + N2 + N3 + N4
@@ -608,7 +657,7 @@ $NTR      enddo
 $TR   COM2ph = 2*COM2ph   
 $TR   COM2pp = 2*COM2pp 
 
-      ! Some constants
+      ! The prefactor f
       prefac=hbm*nucleonmass/(neutrons*nucleonmass(1) + protons*nucleonmass(2))
 
       COM2ph = prefac * COM2ph ; COM2pp = prefac * COM2pp
