@@ -1,6 +1,6 @@
 # Configuration file for Tantalus compilation
 # Functional : NLO Skyrme-type (think SLy4/5/6) with optional Jmn terms
-FUNC_FILE = 'NLO.T.func'
+FUNC_FILE = 'NLO.func'
 # Symmetries : EV8-style
 SYMSTRING = 'Rz,P,STy'
 REDUCE    = [1,1,1]
