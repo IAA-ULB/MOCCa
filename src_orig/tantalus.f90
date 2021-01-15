@@ -260,7 +260,6 @@ subroutine ReachForWaterAndFood()
 
     ! Solve the pairing, with the current values of <h> and the pairing gaps.
     call SolvePairing(ifail)
-
     if(ifail.ne.0) then
         print *, 'WARNING! Pairing solver failed.'
     endif
@@ -268,6 +267,17 @@ subroutine ReachForWaterAndFood()
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
+    call CalculateMoments()   !=> vital to be called here, 
+                              !    (a) before the calculation of the fields
+                              !    (b) after construction of the charge density
+                              ! as
+                              !  (a) the multipole cutoff is allocated in this
+                              !      process, and is needed for the calculation
+                              !      of the cranking fields
+                              !  (b) the calculations of the charge rms radius
+                              !      requires the charge density to be 
+                              !      constructed
+
     ! Only calculate the fields that have not been initialized from file.
     call calcFields(calcall=.false.)
 
@@ -277,23 +287,13 @@ subroutine ReachForWaterAndFood()
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
+    call CalculateMoments()
     ! Only calculate the fields that have not been initialized from file.
     call calcFields(calcall=.false.)
 
-
-    call CalculateMoments()
     call setBelyaevProcedure()
     call CalcEnergy(1)
-
-    ! Calculate the average gaps for the initial print
-    select case (PairingType)
-    case(0)
-      average_gap = 0
-    case(1)
-      average_gap = average_gap_BCS()
-    case(2)
-      average_gap = average_gap_HFB()
-    end select
+    call calc_avg_gap()
 
     ! Update the angular momentum information of the spwfs
     call update_spwf_angmom()
@@ -383,6 +383,7 @@ subroutine ReachForWaterAndFood()
         endif
         
         call CalcEnergy(iprint)
+        call calc_avg_gap()
 
         ! Check for convergence or a failed calculation
         if (ifail .ne. 0) then  

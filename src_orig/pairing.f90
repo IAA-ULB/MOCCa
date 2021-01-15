@@ -494,12 +494,17 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       ngas(1) = gasoccupations(fermienergy(1), hbm(1))
       ngas(2) = gasoccupations(fermienergy(2), hbm(2))
     endif
-
     !---------------------------------------------------------------------------
     ! Compute the cutoffs
     call ComputePairingCutoffs(fermienergy)
+    call stop_timer(T_pairing)
+   
+  end subroutine SolvePairing
+
+  subroutine calc_avg_gap()
     !---------------------------------------------------------------------------
     ! Calculate the average gap
+    !---------------------------------------------------------------------------
     select case (PairingType)
     case(0)
       average_gap = 0
@@ -508,14 +513,10 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     case(2)
       average_gap = average_gap_HFB()
     end select
-    call stop_timer(T_pairing)
-
-  end subroutine SolvePairing
+  end subroutine calc_avg_gap
 
   subroutine printpairing(stabfactor)
     !---------------------------------------------------------------------------
-    !
-    !
     !
     !---------------------------------------------------------------------------
 
@@ -706,35 +707,36 @@ $NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
   end subroutine CalcEntropy
 
   function average_gap_HFB() result(gap)
-      !-------------------------------------------------------------------------
-      ! Calculation of two types of "average gap", based on 
-      !
-      ! M. Bender et al., EPJA 8, 59-75 (2000).
-      !
-      ! Note that this routine is located here, instead of in the HFB module, 
-      ! because we need access to the full rho and kappa matrices.
-      !-------------------------------------------------------------------------
-      ! The original BCS formulation is given by:
-      !
-      ! <v2 Delta > = sum_k f_k v^2_k   Delta_k / sum f_k**2 v^2_k
-      ! <uv Delta > = sum_k f_k u_k v_k Delta_k / sum f_k**2 u_k v_k
-      !
-      ! Note that the f_k in the original reference is the square of our cutoff!
-      !
-      ! As in the BCS case, we calculate the average gap here WITHOUT cutoffs, 
-      ! as our definition of the gaps already includes all of the cutoff factors
-      ! already, in contrast to the EPJA paper. 
-      !
-      ! We do the summation in the canonical basis, where rho and kappa take 
-      ! a simple form. We transform the gaps to this basis, but I would like 
-      ! to remark that (due to the presence of cutoffs) they need not be 
-      ! canonical in that basis. Kappa however, picks out only the canonical 
-      ! part.
-      !-------------------------------------------------------------------------
+     !--------------------------------------------------------------------------
+     ! Calculation of two types of "average gap", based on 
+     !
+     ! M. Bender et al., EPJA 8, 59-75 (2000).
+     !
+     ! Note that this routine is located here, instead of in the HFB module, 
+     ! because we need access to the full rho and kappa matrices.
+     !--------------------------------------------------------------------------
+     ! The original BCS formulation is given by:
+     !
+     ! <v2 Delta > = sum_k f_k v^2_k   Delta_k / sum f_k**2 v^2_k
+     ! <uv Delta > = sum_k f_k u_k v_k Delta_k / sum f_k**2 u_k v_k
+     !
+     ! Note that the f_k in the original reference is the square of our cutoff!
+     !
+     ! As in the BCS case, we calculate the average gap here WITHOUT cutoffs, 
+     ! as our definition of the gaps already includes all of the cutoff factors
+     ! already, in contrast to the EPJA paper. 
+     !
+     ! We do the summation in the canonical basis, where rho and kappa take 
+     ! a simple form. We transform the gaps to this basis, but I would like 
+     ! to remark that (due to the presence of cutoffs) they need not be 
+     ! canonical in that basis. Kappa however, picks out only the canonical 
+     ! part.
+     !--------------------------------------------------------------------------
 
     real(KIND=dp) :: gap(2,2), norm(2,2), v2, uv
     real(KIND=dp), allocatable :: gaps_can(:,:)
     integer       :: it1, wave
+$NTR integer      :: wavebar
 
     gap = 0 ; norm = 0
     if(.not.allocated(HFBgaps)) return
@@ -746,12 +748,16 @@ $NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
     do wave    =1, nwt
       it1 = 1 ; if(wave .gt.nwn) it1 = 2
 
+$NTR  wavebar = conjugp(wave)
+
       v2  = rho_can(wave)
-      gap(1,it1) = gap(1,it1)  +  v2 * abs(gaps_can(wave,wave))                
+$TR      gap(1,it1) = gap(1,it1)  +  v2 * abs(gaps_can(wave,wave))                
+$NTR     gap(1,it1) = gap(1,it1)  +  v2 * abs(gaps_can(wave,wavebar))                
       norm(1,it1)= norm(1,it1) +  v2                
 
       uv  = kappa_can(wave)
-      gap(2,it1) = gap(2,it1)  +  abs(uv * gaps_can(wave,wave))                 
+$TR      gap(2,it1) = gap(2,it1)  +  abs(uv * gaps_can(wave,wave))                 
+$NTR      gap(2,it1) = gap(2,it1)  +  abs(uv * gaps_can(wave,wavebar))                 
       norm(2,it1)= norm(2,it1) +  abs(uv)                                       
     enddo
     gap = gap/norm

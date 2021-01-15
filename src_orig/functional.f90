@@ -554,7 +554,7 @@ $PRINT
     ! It is activated by putting COM1Body = 3, COM2BODY = 0. 
     !---------------------------------------------------------------------------
     integer       :: it, i,j
-$NTR integer       :: B, ibar, jbar ii, jj, N, N2, N3, N4, si
+$NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),tempph(3,2), temppp(3,2), fac
     real(KIND=dp) :: Butler_t, Butler_f, prefac(2)
     
@@ -765,7 +765,7 @@ $TR   COM2pp = 2*COM2pp
     endif
 
 $CALCFIELDS
-
+    
     !-----------------------------------------------------------------------
     ! Solve for the Coulomb Potential
     call SolveCoulomb(D_I_I(:,2))
@@ -816,14 +816,12 @@ $CALCFIELDS
         ! Add the contribution from the constraints on the electric multipole 
         ! moments. 
         F_I_I =  F_I_I + Constraint_I_I
-
         !-----------------------------------------------------------------------
         ! Add the contribution of a cranking constraint to the 
         !    F_I_S and G_I_N  fields
 $NTR    F_I_S = F_I_S + crank_spin_potential()     
 $NTR    G_I_N = G_I_N + crank_current_potential() 
     endif
-
     !---------------------------------------------------------------------------
     ! Precondition the field corresponding to rho, F_I_I.
     if(.not.all(F_I_I_hist.eq.0.0_dp) .and. potentialpreconditioning.eq.1) then
