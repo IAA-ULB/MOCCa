@@ -24,14 +24,14 @@ module HFB
   real(KIND=dp), allocatable :: HFBGaps(:,:)
   ! Maximum amount of iterations for finding a Fermi energy
   integer :: maxHFBiter  = 200
-  ! Dimensions of all the blocks in the HFBhamiltonian.
-  integer :: HFBsizes(8)
   ! Dispersion of the particle number
   real(KIND=dp) :: HFBdispersion(2)
   ! Integer indexing the conjugate partners in a HFB calculation
   integer, allocatable :: conjugp(:)
   ! Pointer to relink procedures
   procedure(delta_action_dummy), pointer :: delta_action_HFB
+  ! HFB gauge parameter
+  real(KIND=dp) :: HFBGauge(2) = 0.0
 
   interface
    function delta_action_dummy(psi,dpsi,ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
@@ -52,18 +52,6 @@ module HFB
   procedure(FindFermi_Brent), pointer  :: FindFermi
 
 contains
-
-  subroutine initHFB
-    !---------------------------------------------------------------------------
-    ! Determine the matrix sizes of the HFB problem. 
-    !---------------------------------------------------------------------------
-    integer :: i
-
-    do i=1,8
-      HFBSizes(i) = HFblocks(i)
-    enddo
-
-  end subroutine initHFB
 
   subroutine solvepairing_HFB(fermi, Bogoliubov, rho_pairing, kappa_pairing,   &
   &                           configmatrix, qpenergies,HFBmix, HFBmixtype,     &
@@ -183,9 +171,11 @@ contains
     sphamil = 0
     si      = 0 ; sb = 0
     do B=1,8,2
-      N = HFBlocks(B)     ! Size of the first partner block
+      N  = HFBlocks(B)    ! Size of the first partner block
       N2 = HFBlocks(B+1)  ! Size of the second partner block
       
+      it = 1 ; if (B .gt. 4) it = 2
+
       do wave1=1,N+N2
         sphamil(si+wave1,si+wave1) = spenergies(si+wave1)
       enddo
@@ -195,10 +185,39 @@ contains
         stop  
       endif
 
+      !HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
+      !&                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
+      !&                           HFBgaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,   &
+      !&                           rho_pairing  (si+1:si+N+N2,si+1:si+N+N2),    &
+      !&                           kappa_pairing(si+1:si+N+N2,si+1:si+N+N2),    &
+      !&                           0.0d0)  !
+
+      !do i=1, 2*N
+      !  print('(99f10.3)'), HFBHamil(sb+i, sb+1:sb+2 *N)
+      !enddo
+      !print *
+
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
       &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
-      &                           HFBgaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)  
+      &                           HFBgaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,   &
+      &                           rho_pairing(si+1:si+N+N2,si+1:si+N+N2),      &
+      &                           kappa_pairing(si+1:si+N+N2,si+1:si+N+N2),    &
+      &                           HFBgauge(it))  !
 
+     ! print *, 'GAUGE', HFBgauge
+     ! do i=1, 2*N
+     !   print('(99f10.3)'), HFBHamil(sb+i, sb+1:sb+2 *N)
+     ! enddo
+     ! print *
+     ! do i=1, N
+     !   print('(99f10.3)'), rho_pairing(si+i, si+1:si+N)
+     ! enddo
+     ! print *
+     ! do i=1, N
+     !   print('(99f10.3)'), kappa_pairing(si+i, si+1:si+N)
+     ! enddo
+     ! print *
+    
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
     enddo
@@ -206,13 +225,13 @@ contains
     !---------------------------------------------------------------------------
     ! b) We repeatedly diagonalize the matrix to find a suitable Fermi energy, 
     !    for every isospin. 
-    call FindFermi(HFBHamil(      1:2*nwn,      1:2*nwn), HFBsizes(1:4),       &
+    call FindFermi(HFBHamil(      1:2*nwn,      1:2*nwn), HFBlocks(1:4),       &
     &              neutrons, configmatrix(  1:2*nwn),                          &
     &              Bogoliubov(1:2*nwn, 1:2*nwn),                               &
     &              qpenergies(1:nwn),    Fermi(1), maxhfbiter,                 &
     &              blocktype, neutron_block, n_blocked, ifail)   
 
-    call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBsizes(5:8),       &
+    call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBlocks(5:8),       &
     &              protons, configmatrix(2*nwn+1:2*nwt),                       &
     &              Bogoliubov(2*nwn+1:2*nwt, 2*nwn+1:2*nwt),                   &
     &              qpenergies(nwn+1:nwt),Fermi(2), maxhfbiter,                 &
@@ -230,7 +249,7 @@ contains
     if(allocated(p_blocked)) then
        ! We need to offset stuff by the number of neutron qps
        do i=1, NP
-         blocked_qps(NN+i) = p_blocked(i) + 2*sum(HFBsizes(1:4))
+         blocked_qps(NN+i) = p_blocked(i) + 2*sum(HFBlocks(1:4))
        enddo
     endif
     !---------------------------------------------------------------------------
@@ -280,7 +299,7 @@ contains
 
     si = 0 ; sb = 0
     do B=1,8,2
-      N = HFBsizes(B) ; N2 = HFBsizes(B+1)
+      N = HFBlocks(B) ; N2 = HFBlocks(B+1)
 
       !-------------------------------------------------------------------------
       ! Moving the first block
@@ -374,7 +393,7 @@ contains
     HFBdispersion = 0.0
     allocate(chi(nwt, nwt))
     do B=1,8
-      N = HFBsizes(B)  ;  if(N .eq. 0) cycle 
+      N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
 
       it  = 1
       if(B .gt. 4) it = 2
@@ -412,7 +431,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
     real(KIND=dp), intent(in)    :: Eqp(:), Bogo(:,:)
     real(KIND=dp), allocatable   :: R(:)
       
-    integer                      :: N, B, sb, i, NB, j, qblock, ind, si, bi
+    integer                      :: N, N2,B, sb, i, NB, j, qblock, ind, si, bi
     real(KIND=dp)                :: compare, occ, qpmin
     integer                      :: toblock(4), qpb
 
@@ -521,14 +540,14 @@ $TR    HFBdispersion = 2 * HFBdispersion
           do i = 1, blockconf(5)
             qpmin = 10000000
             si = 0
-            do B=1,4
+            do B=1,4,2
               N = blocks(B) ; if (N.eq.0) cycle
-
+              N2= blocks(B+1) 
               if(Eqp(si+toblock(B)+1) .lt. qpmin) then
                 qpmin = Eqp(si+toblock(B)+1)
                 qpb   = B
               endif
-              si = si +   N
+              si = si +   N + N2
             enddo
             toblock(qpb) = toblock(qpb) + 1
           enddo
@@ -583,8 +602,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
 
     si = 0 ; sb = 0 ; kappa = 0.0d0 ; rho = 0.0d0
     do B=1,8,2
-      N = HFBsizes(B)   ;  if(N .eq. 0) cycle 
-      N2= HFBsizes(B+1)
+      N = HFBlocks(B)   ;  if(N .eq. 0) cycle 
+      N2= HFBlocks(B+1)
       do i=1,N+N2
         do j=1,N+N2
           do k=1,N+N2
@@ -1064,41 +1083,121 @@ $TR   particles = 2 * particles
     Lambda    = B ; particles = FB
   end subroutine BrentBisection
 
-  function ConstructHFBHamil(sphamil, gaps, N, N2) result(H)
+  function ConstructHFBHamil(sphamil, gaps, N, N2, r, k, gauge) result(H)
     !---------------------------------------------------------------------------
-    ! Construct the HFB hamiltonian, using the single-particle hamiltonian 
-    ! and the pairing gaps. What should be passed in is the sphamil and the 
-    ! gaps in TWO blocks connected by a time-reversal-like symmetry, with 
-    ! sizes N and N2.
+    !  Construction of the HFB Hamiltonian in the form
+    !   
+    !  ( h+     d+-  0     0   )
+    !  ( d+-   -h-   0     0   )   = H_constructed 
+    !  ( 0      0    h-    d-+ )
+    !  ( 0      0    d-+  -h+  )
+    !
+    ! which is a reshuffling of 
+    !
+    !  ( h+     0    0    d+- )
+    !  ( 0      h-   d-+  0   )    = H_formal
+    !  ( 0      d-+ -h+   0   )
+    !  ( d+-    0    0   -h-  )
+    !
+    ! H_constructed can be diagonalised in blocks. 
+    !
+    ! The + and - blocks are characterized by a conserved, linear, antihermitian
+    ! symmetry. The usual suspect is R_z, z-signature symmetry. Their dimensions
+    ! are N and N2. Note that this routine should trivially work correctly in
+    ! the case that N2=0, i.e. if there is no separation in blocks because 
+    ! either
+    !           (i)  the symmetry is not conserved
+    !           (ii) an antilinear, antihermitian, symmetry is conserved that
+    !                guarantees the equality of both blocks. (The usual 
+    !                suspect is time-reversal). 
+    !   
+    ! Note that all conserved symmetries that are easier to handle, in 
+    ! particular linear hermitian ones (such as parity) are handled outside
+    ! of this routine. 
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! This routine also gives you the option to add the generalised density
+    ! matrix to the HFB Hamiltonian with a gauge parameter. 
+    !
+    !   H => H  + alpha * R
+    !
+    !   R = (  rho         kappa)
+    !       (- kappa^*    1 - rho^*)
+    !
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !
+    ! Input:   
+    !   sphamil: single-particle hamiltonian; in block-structure, i.e.
+    !   
+    !               h = ( h+ 0 )
+    !                   ( 0  h-)
+    !
+    !  gaps    : pairing gaps; in block-structure, i.e.
+    !               d = ( 0   d+-)
+    !                   (d-+  0  )
+    !
+    !  N, N2   : sizes of the respective blocks
+    !
+    !  r, k    : rho and kappa pairing matrices for the addition of the 
+    !            generalized density matrix. Should also be in correct
+    !            block structure.
+    !   
+    !  gauge   : real parameter alpha
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:)
-    real(KIND=dp), allocatable  :: H(:,:)
+    real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), r(:,:), k(:,:)
+    real(KIND=dp)               :: gauge
+    real(KIND=dp), allocatable  :: H(:,:), genR(:,:)
     integer, intent(in)         :: N, N2
-    integer                     :: T
+    integer                     :: T, i
 
     T = N + N2
-    allocate(H(2*T,2*T)) 
-    H = 0 ; 
+    allocate(H(2*T,2*T), genR(2*T, 2*T)) 
+    H = 0 ; genR = 0
 
+    genR(  1:N   ,  1:N)    = r(1:N, 1:N)
+    genR(  1:N   , N+1:2*N) =-k(1:N, 1:N)
+    genR(N+1:2*N , 1:N)     =-k(1:N, 1:N)
+
+    genR(N+1:2*N   ,N+ 1:2*N)=-r(1:N, 1:N)
+    do i=1, N
+        genR(N+i, N+i) = genR(N+i, N+i) + 1
+    enddo
     !---------------------------------------------------------------------------
     ! SP hamil
     ! Block 1
-    H(  1:N   ,  1:N)    = sphamil(  1:N   ,   1:N)
-    H(N+1:N+N2,N+1:N+N2) =-sphamil(N+1:N+N2, N+1:N+N2) 
-                                        ! complex conjugation here in the future
+    H(  1:N   ,  1:N)    = &
+    &                sphamil(  1:N   ,   1:N)    + gauge * r(  1:N   ,   1:N)
+    H(N+1:N+N2,N+1:N+N2) = &
+    &               -sphamil(N+1:N+N2, N+1:N+N2) - gauge * r(N+1:N+N2, N+1:N+N2)
+    do i=1, N2
+        H(N+i, N+i) =  H(N+i, N+i) + gauge
+    enddo
+
     ! Block 2
-    H(N+  N2+1:  N+2*N2,N+  N2+1:  N+2*N2)   = sphamil(N+1:N+N2,N+1:N+N2)
-    H(N+2*N2+1:2*N+2*N2,N+2*N2+1:2*N+2*N2)   =-sphamil(  1:N   ,   1:N)
-                                        ! complex conjugation here in the future
+    H(N+  N2+1:  N+2*N2,N+  N2+1:  N+2*N2) = & 
+    &                 sphamil(N+1:N+N2,N+1:N+N2)+  gauge * r(N+1:N+N2, N+1:N+N2)
+    H(N+2*N2+1:2*N+2*N2,N+2*N2+1:2*N+2*N2) = & 
+    &                -sphamil(  1:N   ,   1:N)  -  gauge * r(  1:N  ,    1:N)
+    do i=1, N
+        H(N+2*N2+i,N+2*N2+i) =  H(N+2*N2+i,N+2*N2+i) + gauge
+    enddo
+
     !---------------------------------------------------------------------------
     ! Gaps
     ! Block 1
-    H(  1:N   ,N+1:2*N)  = gaps(  1:N   , N2+1:N2+N)
-    H(N+1:2*N ,  1:N  )  = gaps(  1:N   , N2+1:N2+N)
+    H(  1:N   ,N+1:2*N)  = gaps(  1:N   , N2+1:N2+N) + gauge * k(1:N, N2+1:N2+N)
+    H(N+1:2*N ,  1:N  )  = gaps(  1:N   , N2+1:N2+N) + gauge * k(1:N, N2+1:N2+N)
 
-    H(2*N   +1:2*N+N2  ,2*N+N2+1:2*N+2*N2) = gaps(N+1:N+N2, 1:N2)
-    H(2*N+N2+1:2*N+2*N2,2*N   +1:2*N+  N2) = gaps(N+1:N+N2, 1:N2)
+    ! Block 2
+    H(2*N   +1:2*N+N2  ,2*N+N2+1:2*N+2*N2) = &
+    &                            gaps(N+1:N+N2, 1:N2) + gauge * k(N+1:N+N2,1:N2)
+    H(2*N+N2+1:2*N+2*N2,2*N   +1:2*N+  N2) = & 
+    &                            gaps(N+1:N+N2, 1:N2) + gauge * k(N+1:N+N2,1:N2)
 
+$TR if(gauge.ne.0.0) then
+$TR     print *, 'something is fishy with the HFBgauge when T is conserved.'
+$TR     print *, 'Investigate sign of kappa'
+$TR     stop
+$TR endif 
 
   end function ConstructHFBHamil 
 
@@ -1279,7 +1378,7 @@ $NTR integer :: j
     si         = 0
     rhotransfo = 0 ; kappatransfo = 0
     do B=1,8
-      N =HFBsizes(B) ;  if(N .eq. 0) cycle 
+      N =HFBlocks(B) ;  if(N .eq. 0) cycle 
       
       allocate(tmp(N,N)) 
       

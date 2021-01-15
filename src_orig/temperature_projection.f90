@@ -313,10 +313,10 @@ contains
       !-------------------------------------------------------------------------
       neutron_terms = &
       &        HFBdeterminant(Bogoliubov(      1:2*nwn,      1:2*nwn),neutrons,&
-      &                                        HFBsizes(1:4), Qpenergies(1:nwn))
+      &                                        HFBlocks(1:4), Qpenergies(1:nwn))
       proton_terms = &
       &        HFBdeterminant(Bogoliubov(2*nwn+1:2*nwt,2*nwn+1:2*nwt),protons, &
-      &                                   HFBsizes(5:8),  Qpenergies(nwn+1:nwt))
+      &                                   HFBlocks(5:8),  Qpenergies(nwn+1:nwt))
 
       !-------------------------------------------------------------------------
       avn = sum(neutron_terms)/(2*nwn)

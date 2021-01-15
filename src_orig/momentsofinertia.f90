@@ -673,8 +673,8 @@ $NTR s = -1
     if(inversetemp .lt. 0) then
       si = 0 ; sb = 0
       do b=1,Blocks,2
-        N  = hfbsizes(b)    ; if(N .eq. 0) cycle
-        N2 = hfbsizes(b+1)
+        N  = hfblocks(b)    ; if(N .eq. 0) cycle
+        N2 = hfblocks(b+1)
         do i=1, N + N2
           ii = si + i
           it = 1

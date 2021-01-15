@@ -151,7 +151,7 @@ contains
     
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
-    &                  FermiSolver, guessgaps    
+    &                  FermiSolver, guessgaps, HFBgauge   
 
     NameList /Indices/ BlockIndices, blocklowest
 
@@ -478,9 +478,6 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       if(.not.allocated(Bogoliubov)) then
         allocate(Bogoliubov(2*nwt,2*nwt))  ; Bogoliubov    = 0.0
       endif
-
-      ! We just do this every time for safety
-      call inithfb
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
       call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&

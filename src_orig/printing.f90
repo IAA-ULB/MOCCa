@@ -143,8 +143,6 @@ contains
 
   end subroutine PrintSpwfs
 
-
-
   subroutine printqps
     !---------------------------------------------------------------------------
     ! Print all relevant info on quasiparticles.
