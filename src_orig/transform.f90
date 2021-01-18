@@ -47,7 +47,6 @@ contains
     real(KIND=dp), allocatable                :: temp(:,:,:), tempe(:)
     real(KIND=dp), allocatable                :: tempd(:), tempr(:)
     real(KIND=dp), allocatable                :: tempgaps(:,:), tempkap(:,:)
-    integer, allocatable                :: tempsx(:,:), tempsy(:,:), tempsz(:,:)
 
     integer  :: wave, N, B, si, sb,i, wave2
 
@@ -105,29 +104,6 @@ contains
       HFBlocks(3) = blocks(3) ; HFBlocks(4) = blocks(3)
       HFBlocks(5) = blocks(5) ; HFBlocks(6) = blocks(5)
       HFBlocks(7) = blocks(7) ; HFBlocks(8) = blocks(7)
-
-      !-------------------------------------------------------------------------
-      ! And now we determine the signs of the reflections of the spwfs
-      tempsx = sx ; tempsy = sy ; tempsz = sz
-      deallocate(sx, sy, sz)
-      allocate(sx(4,nwt), sy(4,nwt), sz(4,nwt))
-
-      si = 0
-      sb = 0
-      do B = 1,8
-        N = blocks(B) ; if(N .eq. 0) cycle
-        do wave=1,N
-          sx(:,sb + wave) = tempsx(:,si+wave)
-          sy(:,sb + wave) = tempsy(:,si+wave)
-          sz(:,sb + wave) = tempsz(:,si+wave)
-
-          sx(:,sb + N + wave) = - tempsx(:,si+wave)
-          sy(:,sb + N + wave) =   tempsy(:,si+wave)
-          sz(:,sb + N + wave) = - tempsz(:,si+wave)
-        enddo
-        si = si +     N
-        sb = sb + 2 * N
-      enddo
       !-------------------------------------------------------------------------
       ! Transformation of the pairing gaps and pairing tensor kappa
       if(pairingtype.eq.2) then
@@ -164,8 +140,6 @@ contains
           enddo
         endif
       endif
-      ! Clean up
-      deallocate(temp, tempsx, tempsy, tempsz)    
     endif
   end subroutine Transformspwfs
 
@@ -173,6 +147,13 @@ contains
   &                         fileblocks, extraspwfs)
     !---------------------------------------------------------------------------
     ! Transform the input from file to the parameters of the new calculation.
+    ! Note that this means either 
+    !   (*) A change of mesh parameters
+    !   (*) A change of number of wavefunctions
+    !
+    ! but all of this with the same conserved/broken symmetries. These 
+    ! manipulations are not compatible in the same run with the breaking 
+    ! additional symmetries, achieved by the Transformspwfs routine.
     !---------------------------------------------------------------------------
 
  1 format &
@@ -209,7 +190,7 @@ contains
       if(nx.ne.filenx .or. ny .ne.fileny .or. nz .ne. filenz) then
         ChangeBoxSize = .true.
       endif
-    else
+    else 
       print 2
       stop
     endif    
@@ -246,13 +227,13 @@ contains
             stop
           endif 
 
-          if((extraspwfs(2).ne.0) .or. &
-          &  (extraspwfs(4).ne.0) .or. & 
-          &  (extraspwfs(6).ne.0) .or. &
-          &  (extraspwfs(8).ne.0) ) then
-            print *, 'Blocks 2,4,6,8 not allowed in this version of Tantalus.'
-            stop
-          endif
+$TR       if((extraspwfs(2).ne.0) .or. &
+$TR          &  (extraspwfs(4).ne.0) .or. & 
+$TR          &  (extraspwfs(6).ne.0) .or. &
+$TR          &  (extraspwfs(8).ne.0) ) then
+$TR           print *, 'Blocks 2,4,6,8 not allowed with T conserved.'
+$TR           stop
+$TR       endif
           !---------------------------------------------------------------------
           allocate(extended(nx*ny*nz,4,nwt)) ; allocate(newenergy(nwt))
           extended = 0.0
@@ -273,8 +254,11 @@ contains
           enddo
           hfpsi      = extended
           spenergies = newenergy
-          deallocate(dispersions) ; allocate(dispersions(nwt)) ; dispersions=0.0
-          deallocate(rho_can)     ; allocate(rho_can(nwt))     ; rho_can    =0.0
+          ! Cleaning up some stuff
+          if(allocated(dispersions)) deallocate(dispersions) 
+          allocate(dispersions(nwt)) ; dispersions=0.0
+          if(allocated(rho_can))     deallocate(rho_can)     
+          allocate(rho_can(nwt))     ; rho_can    =0.0
           !---------------------------------------------------------------------
           ! Dealing with the gaps
           select case (pairingtype)
@@ -294,35 +278,40 @@ contains
               sf  = sf + fileblocks(b)
             enddo            
           case(2)
-            !HFB, need to move the gaps into the correct position
-            temp2 = HFBgaps ; deallocate(HFBgaps)
-            allocate(HFBgaps(nwt,nwt)) ; HFBgaps = 0.0 
-    
-            sb = 0 ; sf = 0  
-            do b = 1, blocks
-              do i=1, fileblocks(b)
-                do j=1, fileblocks(b)
-                 HFBgaps(sb+i, sb+j) = temp2(sf+i, sf+j)
+            if(allocated(HFBgaps)) then
+                !HFB, need to move the gaps into the correct position
+                temp2 = HFBgaps ; deallocate(HFBgaps)
+                allocate(HFBgaps(nwt,nwt)) ; HFBgaps = 0.0 
+        
+                sb = 0 ; sf = 0  
+                do b = 1, blocks
+                  do i=1, fileblocks(b)
+                    do j=1, fileblocks(b)
+                     HFBgaps(sb+i, sb+j) = temp2(sf+i, sf+j)
+                    enddo
+                  enddo
+                  sb  = sb + hfblocks(b)
+                  sf  = sf + fileblocks(b)
                 enddo
-              enddo
-              sb  = sb + hfblocks(b)
-              sf  = sf + fileblocks(b)
-            enddo
 
-            temp2 = kappa_pairing; deallocate(kappa_pairing)
-            allocate(kappa_pairing(nwt,nwt)) ; kappa_pairing = 0.0
-            
-            sb = 0 ; sf = 0  
-            do b = 1, blocks
-              do i=1, fileblocks(b)
-                do j=1, fileblocks(b)
-                 kappa_pairing(sb+i, sb+j) = temp2(sf+i, sf+j)
+                temp2 = kappa_pairing; deallocate(kappa_pairing)
+                allocate(kappa_pairing(nwt,nwt)) ; kappa_pairing = 0.0
+                
+                sb = 0 ; sf = 0  
+                do b = 1, blocks
+                  do i=1, fileblocks(b)
+                    do j=1, fileblocks(b)
+                     kappa_pairing(sb+i, sb+j) = temp2(sf+i, sf+j)
+                    enddo
+                  enddo
+                  sb  = sb + hfblocks(b)
+                  sf  = sf + fileblocks(b)
                 enddo
-              enddo
-              sb  = sb + hfblocks(b)
-              sf  = sf + fileblocks(b)
-            enddo
+              else
+                 ! We do nothing if no gaps were initialised yet.
+              endif 
           end select
+          !---------------------------------------------------------------------
     else
       ! Copy this information
       hfblocks = fileblocks

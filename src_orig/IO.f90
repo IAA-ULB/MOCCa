@@ -242,13 +242,14 @@ contains
         ! Initialisation with nil8 wavefunctions is always EV8-style
         ! Thus we signal that a symmetry transformation is needed
         symtransfo_needed = .true.
-        filenx = nx ; fileny = ny ; filenz = nz
       endif
+      filenx = nx ; fileny = ny ; filenz = nz ; filedx = dx
     else
       ! Option 2) start from a previous calculation.
       call ReadTantalus(12, inputfilename)
       ! No need to guess gaps by default (unless the user asked for it)
     endif
+    
     !---------------------------------------------------------------------------  
     ! Transformation options
     if(allowtransform ) then
@@ -271,13 +272,96 @@ contains
         stop
       endif
     endif
+    
+    call set_spwf_symmetries(sx, sy, sz, HFblocks)
     !---------------------------------------------------------------------------
     if(guessgaps) then
       ! Guess some pairing gaps if asked for (always if starting from INIT)
       call initializeGaps()
     endif
   end subroutine ReadWaveFunction
+
+  subroutine set_spwf_symmetries(sx, sy, sz, blocks)
+    !---------------------------------------------------------------------------
+    ! Routine that assigns the correct reflection symmetries to all spwfs. 
+    !
+    ! Currently this routine has CR8-like symmetries hardcoded, but Hephaestos
+    ! should generate specifically adapted routines at some point.
+    !---------------------------------------------------------------------------
+    ! Input: blocks 
+    !        The number of spwfs in every symmetry block. This is an input, as
+    !        this subroutine could be called for a subset of spwfs when 
+    !        reading spwfs from file and afterwards transforming them.
+    !
+    ! Output: sx, sy, sz
+    !        The signs with respect to x/y/z reflection of the components of 
+    !        the spwf spinors. 
+    !---------------------------------------------------------------------------
+    integer, intent(out), allocatable :: sx(:,:), sy(:,:), sz(:,:)
+    integer, intent(in)               :: blocks(8)
+    integer                           :: N, i
+
+    if(allocated(sx)) deallocate(sx)
+    if(allocated(sy)) deallocate(sy)
+    if(allocated(sz)) deallocate(sz)
+
+    N = sum(blocks)
+    allocate(sx(4,N), sy(4,N), sz(4,N))
+    ! Positive parity neutrons
+    do i=1, blocks(1)
+        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
+        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
+    enddo
+    do i=blocks(1) + 1, blocks(1) + blocks(2)
+        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = -1 
+        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = +1
+    enddo
+    ! Negative parity neutrons
+    do i=sum(blocks(1:2)) + 1,sum(blocks(1:3))
+        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
+        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
+    enddo
+    do i=sum(blocks(1:3))+1, sum(blocks(1:4))
+        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = +1 
+        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = -1
+    enddo
+    ! Positive parity protons
+    do i=sum(blocks(1:4))+1, sum(blocks(1:5))
+        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
+        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
+    enddo
+    do i=sum(blocks(1:5))+1, sum(blocks(1:6))
+        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = -1 
+        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = +1
+    enddo
+    ! Negative parity protons
+    do i=sum(blocks(1:6))+1, sum(blocks(1:7))
+        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
+        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
+    enddo
+    do i=sum(blocks(1:7))+1, sum(blocks(1:8))
+        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = +1 
+        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = -1
+    enddo
   
+  end subroutine set_spwf_symmetries
+
   subroutine ReadTantalus(chan, ifn)
     !---------------------------------------------------------------------------
     ! Reading all information from a previous Tantalus run. 
@@ -515,62 +599,7 @@ contains
           stop
       endif
     endif
-    !---------------------------------------------------------------------------
-    ! Assign correct reflection symmetries for the derivative routines. 
-    ! Should be handled by HEPHAESTOS in the future though.
-    allocate(sx(4,filenwt), sy(4,filenwt), sz(4,filenwt))
-    ! Positive parity neutrons
-    do i=1, fileblocks(1)
-        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
-        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
-        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
-        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
-    enddo
-    do i=fileblocks(1) + 1, fileblocks(1) + fileblocks(2)
-        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = -1
-        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = -1 
-        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = +1
-        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = +1
-    enddo
-    ! Negative parity neutrons
-    do i=sum(fileblocks(1:2)) + 1,sum(fileblocks(1:3))
-        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
-        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
-        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
-        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
-    enddo
-    do i=sum(fileblocks(1:3))+1, sum(fileblocks(1:4))
-        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = +1
-        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = +1 
-        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = -1
-        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = -1
-    enddo
-    ! Positive parity protons
-    do i=sum(fileblocks(1:4))+1, sum(fileblocks(1:5))
-        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
-        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
-        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
-        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
-    enddo
-    do i=sum(fileblocks(1:5))+1, sum(fileblocks(1:6))
-        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = -1
-        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = -1 
-        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = +1
-        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = +1
-    enddo
-    ! Negative parity protons
-    do i=sum(fileblocks(1:6))+1, sum(fileblocks(1:7))
-        sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
-        sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
-        sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
-        sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
-    enddo
-    do i=sum(fileblocks(1:7))+1, sum(fileblocks(1:8))
-        sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = +1
-        sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = +1 
-        sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = -1
-        sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = -1
-    enddo
+
   end subroutine ReadTantalus
 
   subroutine WriteTantalus(chan, ofn, iter, iomsg)

@@ -14,6 +14,8 @@ def ProcessTransform(fname, src, target, so, oldso):
       Generate the required Fortran code for the transformation of input 
       single-particle wavefunctions. 
 
+      TR : logical for time-reversal conservation
+
       NONSPATIAL: .true. if we are breaking an antilinear, antihermitian 
                   conserved symmetry.
 
@@ -25,6 +27,12 @@ def ProcessTransform(fname, src, target, so, oldso):
     temp = " %+d * temp(i,%d, si + wave)"
 
     dic = {}
+
+    if(so.timelike):
+        dic['TR'] = ''
+    else:
+        dic['TR'] = '!'
+
 
     # Checking which symmetries we need to break
     tobreak = []
