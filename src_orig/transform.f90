@@ -163,12 +163,14 @@ contains
      &   /,8x,'|    nx, ny, nz    = ', 3i5, '                       |', &
      &   /,8x '|    dx            = ', f10.7, ' (fm)                       |', &
      &   /,8x,'|    nwn, nwn      = ', 2i7 , '                        |', &
-     &   /,8x,'|    (n+,n-,p+,p-) = (', 4i5, ')                |', &
-     &   /,8x,'|This calculation:                                         |' , &
+     &   /,8x,'|    (n+,n-)       = (', 4i5, ')                |', &
+     &   /,8x,'|    (p+,p-)       = (', 4i5, ')                |', &
+     &   /,8x,'| This calculation:                                        |' , &
      &   /,8x,'|    nx, ny, nz    = ', 3i5, '                       |'       , &
      &   /,8x '|    dx            = ', f10.7, '(fm)                        |', &
      &   /,8x,'|    nwn, nwn      = ', 2i7, '                        |'      , &
-     &   /,8x,'|    (n+,n-,p+,p-) = (', 4i5, ')                |'            , &
+     &   /,8x,'|    (n+,n-)       = (', 4i5, ')                |', &
+     &   /,8x,'|    (p+,p-)       = (', 4i5, ')                |', &
      &   /,8x,'|__________________________________________________________|')
 
   2 format (' Interpolation (changing of dx) not yet allowed.')
@@ -318,7 +320,7 @@ $TR       endif
     endif 
 
     print 1, filenx, fileny, filenz, filedx, filenwn, filenwp,                &
-    &        fileblocks(1:8:2), nx,ny,nz,dx,nwn,nwp, hfblocks(1:8:2)
+    &        fileblocks(1:8), nx,ny,nz,dx,nwn,nwp, hfblocks(1:8)
 
   end subroutine TransformInput
 
