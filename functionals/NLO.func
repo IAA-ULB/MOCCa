@@ -1,8 +1,10 @@
-# NLO functional with Jmunu terms optional
-# Full functional with time-odd terms included
-# Useable for SLy4,5,5*,s1,.....
+# NLO Skyrme functional 
+# -> with time-off terms
+# -> without tensor terms
+# -> Jmunu and sDs terms optional
+#
 ! Particle-hole parameters
-t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3;  wso ; wsoq ; sigma ; CT0 ; CT1 
+t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3;  wso ; wsoq ; sigma ; CT0 ; CT1 ; CSDS0 ; CSDS1
 ! Pairing strengths
 Vn ; Vp ; alpha ; sigmap
 !TERMS
@@ -22,7 +24,7 @@ E_D_I_I_Lap_D_I_I        ;-3.0/8.0*Cc(t1,x1,+1,0,0) + 1.0/8.0*Cc(t2,x2,-1,0,0)  
 E_C_I_NmSk_C_I_NmSk      ; -CT0  ;  -CT1
 ! Time-odd
 E_C_I_Nm_C_I_Nm          ; -1.0/2.0*Cc(t1,x1,+1,0,0) - 1.0/2.0*Cc(t2,x2,-1,0,0)  ; -1.0/2.0*Cc(t1,x1,+1,0,1) - 1.0/2.0*Cc(t2,x2,-1,0,1)
-!E_D_I_Sm_Lap_D_I_Sm      ;-3.0/8.0*Cc(t1,x1,+1,1,0) + 1.0/8.0*Cc(t2,x2,-1,1,0)   ; -3.0/8.0*Cc(t1,x1,+1,1,1) + 1.0/8.0*Cc(t2,x2,-1,1,1) 
+E_D_I_Sm_Lap_D_I_Sm      ; +CSDS0;  +CSDS1
 E_D_I_Sm_D_Nk_NkSm       ; +CT0  ;  +CT1
 !-------------------------------------------------------------------------------
 ! Spin-orbit NLO
