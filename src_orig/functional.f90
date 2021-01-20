@@ -224,6 +224,8 @@ $PRINTCOEF_PAIR
   101 format (15x, '    Free Energy:', 30x, f15.6)
   102 format (15x, '        Entropy:', 3f15.6)
   103 format (15x, '    E_fu - E_sp:', 30x, e15.6)
+  104 format (15x, '          dE   :', 30x, e15.6)
+
     real(KIND=dp) :: temp
 
     call printSkyrme
@@ -278,6 +280,7 @@ $PRINTCOEF_PAIR
         print 101, TotalE - sum(entropy)/inversetemp
         print 102, entropy, sum(entropy)
     endif
+    print 104, TotalE - Ehistory(1)
 
     print 1
  end subroutine PrintEnergy
