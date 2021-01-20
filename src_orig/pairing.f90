@@ -428,6 +428,8 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     !---------------------------------------------------------------------------
     use parameterization, only : hbm
     integer, intent(out)       :: ifail
+    integer :: i
+    real(KIND=dp), allocatable :: tmp(:,:)
 
     call start_timer(T_pairing)
 
@@ -438,7 +440,9 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       allocate(kappa_can(nwt))            ; kappa_can  = 0.0 
     endif
     if(.not.allocated(qpenergies)) then
-        allocate(QPenergies(nwt))         ; qpenergies = 0.0
+        if(PairingType .le. 1)   allocate(QPenergies(nwt))         
+        if(PairingType .eq. 2)   allocate(QPenergies(2*nwt))         
+        qpenergies = 0.0
     endif
     ! Always allocate the configuration matrix C
     if(.not.allocated(configmatrix)) then
@@ -480,10 +484,24 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       endif
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
+      !if(allocated(rho_history)) tmp = rho_history
       call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
       &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
       &                BlockType, Blockindices, blocklowest, blocked_qps, ifail)
-    end select
+
+      !if(abs(overrho).lt. 0.98 .and. abs(overrho).gt. 0.1) then
+    ! 
+    !      do i=1, 100
+    !          rho_pairing = tmp
+    !          print *, HFBGauge, overrho
+    !          HFBGauge = -0.001 * i
+    !          call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
+    !          &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
+    !          &                BlockType, Blockindices, blocklowest, blocked_qps, ifail)
+    !     enddo
+    !      stop
+    !endif
+   end select
 
     !---------------------------------------------------------------------------
     ! If beta != infty, we calculate the number of particles in the gas

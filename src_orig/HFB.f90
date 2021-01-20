@@ -32,6 +32,12 @@ module HFB
   procedure(delta_action_dummy), pointer :: delta_action_HFB
   ! HFB gauge parameter
   real(KIND=dp) :: HFBGauge(2) = 0.0
+  !---------------------------------------------------------------------------
+  ! History of the pairing matrices, for mixing purposes.
+  real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
+  real(KIND=dp), allocatable ::  configmatrix_history(:) 
+  real(KIND=dp), allocatable ::  Bogoliubov_history(:,:)
+  real(KIND=dp), allocatable ::  overrho, overkap
 
   interface
    function delta_action_dummy(psi,dpsi,ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
@@ -67,14 +73,8 @@ contains
     real(KIND=dp), intent(inout) :: kappa_pairing(:,:), rho_pairing(:,:)
     real(KIND=dp), intent(inout) :: configmatrix(:), qpenergies(:)
     
-    !---------------------------------------------------------------------------
-    ! History of the pairing matrices, for mixing purposes.
-    real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
-    real(KIND=dp), allocatable ::  configmatrix_history(:) 
-    real(KIND=dp), allocatable ::  Bogoliubov_history(:,:)
-
     ! Options for the mixing of the HFB configurations
-    real(KIND=dp), intent(in)    :: HFBmix
+    real(KIND=dp)                :: HFBmix
     integer, intent(in)          :: HFBmixtype
 
     ! Configuration for the blocking
@@ -185,39 +185,13 @@ contains
         stop  
       endif
 
-      !HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
-      !&                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
-      !&                           HFBgaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,   &
-      !&                           rho_pairing  (si+1:si+N+N2,si+1:si+N+N2),    &
-      !&                           kappa_pairing(si+1:si+N+N2,si+1:si+N+N2),    &
-      !&                           0.0d0)  !
-
-      !do i=1, 2*N
-      !  print('(99f10.3)'), HFBHamil(sb+i, sb+1:sb+2 *N)
-      !enddo
-      !print *
-
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
       &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
       &                           HFBgaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,   &
       &                           rho_pairing(si+1:si+N+N2,si+1:si+N+N2),      &
       &                           kappa_pairing(si+1:si+N+N2,si+1:si+N+N2),    &
-      &                           HFBgauge(it))  !
+      &                           HFBgauge(it))  
 
-     ! print *, 'GAUGE', HFBgauge
-     ! do i=1, 2*N
-     !   print('(99f10.3)'), HFBHamil(sb+i, sb+1:sb+2 *N)
-     ! enddo
-     ! print *
-     ! do i=1, N
-     !   print('(99f10.3)'), rho_pairing(si+i, si+1:si+N)
-     ! enddo
-     ! print *
-     ! do i=1, N
-     !   print('(99f10.3)'), kappa_pairing(si+i, si+1:si+N)
-     ! enddo
-     ! print *
-    
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
     enddo
@@ -228,13 +202,13 @@ contains
     call FindFermi(HFBHamil(      1:2*nwn,      1:2*nwn), HFBlocks(1:4),       &
     &              neutrons, configmatrix(  1:2*nwn),                          &
     &              Bogoliubov(1:2*nwn, 1:2*nwn),                               &
-    &              qpenergies(1:nwn),    Fermi(1), maxhfbiter,                 &
+    &              qpenergies(1:2*nwn),  Fermi(1), maxhfbiter,                 &
     &              blocktype, neutron_block, n_blocked, ifail)   
 
     call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBlocks(5:8),       &
     &              protons, configmatrix(2*nwn+1:2*nwt),                       &
     &              Bogoliubov(2*nwn+1:2*nwt, 2*nwn+1:2*nwt),                   &
-    &              qpenergies(nwn+1:nwt),Fermi(2), maxhfbiter,                 &
+    &              qpenergies(2*nwn+1:2*nwt),Fermi(2), maxhfbiter,             &
     &              blocktype, proton_block, p_blocked, ifail)     
 
     ! 
@@ -282,17 +256,43 @@ contains
     !  which we need to correct by moving things around to
     !
     !       (  V^*+   0     U+  0   )
-    !  W =  (  0      V^*-  0   U-  )
+    !  W =  (  0      V^*-  0   U-  )      (*)
     !       (  0      U^*-  0   V-  )
     !       (  U^*+   0     V+  0   )
     !
-    !
-    ! Note that this reordering is necessary for the
-    !  *) QPenergies
-    !  *) Configmatrix
+    ! Note that this reordering is necessary too for the
+    !  (i)  QPenergies
+    !  (ii) Configmatrix
     ! 
-    ! as well
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    ! Almost(!) all of these matrices are ordered by increasing value of 
+    ! quasi-particle energy. So, in the Bogoliubov transformation at (*),
+    ! the columns correspond to the following ordering of qp energies   
     !
+    !  -E_+N ... -E_+1 , -E_-N ... -E_-1, E_+1, ... E_+N, E_-1 .... E_-N
+    !
+    !  where E_+/-1 .... E_+/-N are increasing sequences. 
+    !
+    ! The EXCEPTION to this rule is the configuration matrix configmatrix. That
+    ! is constructed in blocks of increasing ABSOLUTE quasi-particle energy
+    ! meaning that in that matrix the ordering is  
+    !   
+    ! -E_+1 ... -E_+N , -E_-1 ... -E_-N, E_+1, ... E_+N, E_-1 .... E_-N
+    !
+    ! meaning that the order has been reversed for the first half. This is 
+    ! convenient for the construction of the pairing matrices, as then the  
+    ! full generalized density matrix in quasi-particle representation 
+    ! looks like
+    !          ( f_+1  0                     ......                    0  )
+    !    R =   ( 0    ....                                                ) 
+    !          (            f_-1                                          ) 
+    !          (                  .....                                   )
+    !          (                         1-f_+1                           ) 
+    !          (                                  ......                  ) 
+    !          (                                          1-f_-1          )
+    !          ( 0                                                 .......)
+    !
+    !      
     !---------------------------------------------------------------------------
     temp = Bogoliubov ;  tempqe = QPenergies  ; tempc        = configmatrix
     Bogoliubov = 0    ;  QPenergies = 0.0d0   ; configmatrix = 0.0
@@ -338,10 +338,13 @@ contains
       ! Second set of N2 eigenvalues of H-
       configmatrix(sb+2*N+N2+1:sb+2*N+2*N2) = tempc (sb+2*N+N2+1:sb+2*N+2*N2)
 
-      ! eigenvalues of H+
-      qpenergies  (si+       1:si+N)        = tempqe(si  +1:si+N   )
-      ! eigenvalues of H-
-      qpenergies  (si+N+     1:si+N+N2)     = tempqe(si+N+1:si+N+N2) 
+      !-------------------------------------------------------------------------
+      qpenergies  (sb+     1:sb+N)      = tempqe(sb    +1:sb+N   )
+      qpenergies  (sb+N+   1:sb+N+N2)   = tempqe(sb+2*N+1:sb+2*N+N2) 
+
+      qpenergies  (sb+  N+N2+1:sb+2*N+  N2) = tempqe(sb+  N   +1:sb+2*N   )
+      qpenergies  (sb+2*N+N2+1:sb+2*N+2*N2) = tempqe(sb+2*N+N2+1:sb+2*N+2*N2)
+
       !-------------------------------------------------------------------------
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
@@ -358,6 +361,11 @@ contains
     ! d) Construct the density and anomalous density matrices, based on the 
     !    configmatrix and the Bogoliubov transformation
     call PairingMatrices(configmatrix, bogoliubov, rho_pairing, kappa_pairing)
+
+    ! Calculating overlaps    
+    overrho = sum(rho_pairing * rho_history)/sum(rho_pairing**2)
+    overkap = sum(kappa_pairing * kappa_history)/sum(kappa_pairing**2)
+
     !---------------------------------------------------------------------------
     ! e) Optionally mix these densities
     if(.not.all(rho_history.eq.0.0)) then
@@ -543,8 +551,8 @@ $TR    HFBdispersion = 2 * HFBdispersion
             do B=1,4,2
               N = blocks(B) ; if (N.eq.0) cycle
               N2= blocks(B+1) 
-              if(Eqp(si+toblock(B)+1) .lt. qpmin) then
-                qpmin = Eqp(si+toblock(B)+1)
+              if(Eqp(sb+N+toblock(B)+1) .lt. qpmin) then
+                qpmin = Eqp(sb+N+toblock(B)+1)
                 qpb   = B
               endif
               si = si +   N + N2
@@ -593,7 +601,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
     !
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !  Notice how this routine only uses the last half of the columns of the  
-    !  Bogoliubov transformation.m
+    !  Bogoliubov transformation.
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: config(:), Bogo(:,:)
@@ -766,7 +774,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
           return
         endif
 
-        Eqp(si+1:si+N) = eigen(sb+N+1:sb+2*N)
+        Eqp(sb+1:sb+N) = eigen(sb+1:sb+2*N)
         deallocate(A)
         ! Indices for the next block
         si = si +   N
@@ -1319,6 +1327,7 @@ $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
     1 format (' HFB convergence:   (N,+)    (N,-)    (P,+)    (P,-)')
     2 format ('  r^2-r+k*k^T    = ',  4es9.2)
     3 format ('  r*k-k*r        = ',  4es9.2)
+    4 format (' overlap rho,kap = ',  2es9.2)
 
     print *
     print 1
@@ -1346,6 +1355,7 @@ $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
 
     print 2, test1(1), test1(3), test1(5), test1(7)
     print 3, test2(1), test2(3), test2(5), test2(7)
+    print 4, overrho, overkap
 
   end subroutine PrintHFBconvergence
 

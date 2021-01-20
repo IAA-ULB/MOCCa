@@ -169,15 +169,24 @@ contains
         call print_qp_header(B)
         select case(pairingtype)
         case(2)
+          ! HFB QP energies
           do i=1,N
-            print 2, i, QPenergies(si+i), configmatrix(sb+i)
+            print 2, i, QPenergies(sb+i), configmatrix(sb+N+N2-i+1)
           enddo
+          do i=N+N2+1,2*N + N2
+            print 2, i, QPenergies(sb+i), configmatrix(sb+N+N2-i+1)
+          enddo
+
           if(N2.ne.0) then 
             print *
             call print_qp_header(B+1)
-            do i=1,N2
-              print 2, i, QPenergies(si+N+i), configmatrix(sb+N+i)
+            do i=N+1,N+N2
+              print 2, i, QPenergies(sb+i), configmatrix(sb+N+N2-i+1)
             enddo
+            do i=2*N+N2+1,2*N+2*N2
+              print 2, i, QPenergies(sb+i), configmatrix(sb+N+N2-i+1)
+            enddo
+
           endif
         case(1)
           ! The BCS qp energies are not ordered by energy
