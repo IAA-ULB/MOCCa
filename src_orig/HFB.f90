@@ -269,9 +269,11 @@ contains
     ! quasi-particle energy. So, in the Bogoliubov transformation at (*),
     ! the columns correspond to the following ordering of qp energies   
     !
-    !  -E_+N ... -E_+1 , -E_-N ... -E_-1, E_+1, ... E_+N, E_-1 .... E_-N
+    !  -E_-N ... -E_-1 , -E_+N ... -E_+1, E_+1, ... E_+N, E_-1 .... E_-N
     !
-    !  where E_+/-1 .... E_+/-N are increasing sequences. 
+    !  where E_+/-1 .... E_+/-N are increasing sequences, and I draw attention
+    !  to the fact that the first half of quasi-particles is organised in 
+    !  reverse order from the second half. 
     !
     ! The EXCEPTION to this rule is the configuration matrix configmatrix. That
     ! is constructed in blocks of increasing ABSOLUTE quasi-particle energy
@@ -282,6 +284,7 @@ contains
     ! meaning that the order has been reversed for the first half. This is 
     ! convenient for the construction of the pairing matrices, as then the  
     ! full generalized density matrix in quasi-particle representation 
+    !
     ! looks like
     !          ( f_+1  0                     ......                    0  )
     !    R =   ( 0    ....                                                ) 
@@ -292,7 +295,13 @@ contains
     !          (                                          1-f_-1          )
     !          ( 0                                                 .......)
     !
-    !      
+    !
+    ! These warnings about matrix ordering of the first half of the Bogoliubov
+    ! transformation is a little bit academical: the code has been constructed
+    ! such that only the right half of the Bogoliubov transformation in (*), 
+    ! their quasi-particle energies and the FULL configuration matrix enter
+    ! the generalized density matrix, which is the only quantity affecting the
+    ! rest of the program. 
     !---------------------------------------------------------------------------
     temp = Bogoliubov ;  tempqe = QPenergies  ; tempc        = configmatrix
     Bogoliubov = 0    ;  QPenergies = 0.0d0   ; configmatrix = 0.0
@@ -339,8 +348,8 @@ contains
       configmatrix(sb+2*N+N2+1:sb+2*N+2*N2) = tempc (sb+2*N+N2+1:sb+2*N+2*N2)
 
       !-------------------------------------------------------------------------
-      qpenergies  (sb+     1:sb+N)      = tempqe(sb    +1:sb+N   )
-      qpenergies  (sb+N+   1:sb+N+N2)   = tempqe(sb+2*N+1:sb+2*N+N2) 
+      qpenergies  (sb+     1:sb+N)      = tempqe(sb+2*N+1:sb+2*N+N2) 
+      qpenergies  (sb+N+   1:sb+N+N2)   = tempqe(sb    +1:sb+N   ) 
 
       qpenergies  (sb+  N+N2+1:sb+2*N+  N2) = tempqe(sb+  N   +1:sb+2*N   )
       qpenergies  (sb+2*N+N2+1:sb+2*N+2*N2) = tempqe(sb+2*N+N2+1:sb+2*N+2*N2)
