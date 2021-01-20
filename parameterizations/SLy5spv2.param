@@ -3,8 +3,8 @@
 !
 !-------------------------------------------------------------------------------
 &skf 
-name     = "SLy5spv2" 
-func_file= 'DD-force.func'
+name     = "SLy5spv2.switch" 
+func_file= 'DD-switch.func'
 t0       =     -1733.931  ,
 t1       =      343.055   ,
 t2       =     -683.538   ,
@@ -17,5 +17,14 @@ sigma    =      0.33333333,
 wso      =    103.337,
 hbm(1)   = 20.73553, 20.73553 
 COM1Body = 2
+force_switch =  1.0,
+! The following should not be used, but the code insists reading it
+Vn       = 0.0
+Vp       = 0.0
+alpha    = 0.0
+sigmap   = 0.0
+CT0 = 0.0
+CT1 = 0.0
+wsoq=0.0
 /
 

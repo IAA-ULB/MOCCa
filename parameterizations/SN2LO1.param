@@ -1,8 +1,17 @@
 !-------------------------------------------------------------------------------
-! SN2LO1 parameterization
+! SN2LO1 parameterization of the N2LO functional using the parameter values
+! of 
 !
+! P. Becker, D. Davesne, J. Meyer, J. Navarro and A. Pastore,
+! Phys. Rev. C 96, 044330 (2017).
 !
-!
+! The functional form is however the more optimal one shown in 
+! 
+! W. Ryssens and M. Bender, in preparation. 
+! 
+! Note that this parameterisation was fitted to doubly-magic nuclei only, 
+! and pairing was not included. This file uses a standard ULB pairing with 
+! the strength typically used for SLy4.
 !-------------------------------------------------------------------------------
 &skf 
 name     = "SN2LO1" 

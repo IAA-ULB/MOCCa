@@ -1,8 +1,9 @@
 !-------------------------------------------------------------------------------
-! SLy6 parameterization
+! BSK27 parameterization
+! From: 
+! S. Goriely, N. Chamel and J. M. Pearson, Phys. Rev. C  88, 061302(R) (2013).
 !
-!
-!
+! Note: the pairing parameters are not included!
 !-------------------------------------------------------------------------------
 &skf 
 name     = "BSK27" 
