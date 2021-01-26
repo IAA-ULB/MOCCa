@@ -188,8 +188,8 @@ contains
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
       &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
       &                           HFBgaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,   &
-      &                           rho_pairing(si+1:si+N+N2,si+1:si+N+N2),      &
-      &                           kappa_pairing(si+1:si+N+N2,si+1:si+N+N2),    &
+      &                           rho_history(si+1:si+N+N2,si+1:si+N+N2),      &
+      &                           kappa_history(si+1:si+N+N2,si+1:si+N+N2),    &
       &                           HFBgauge(it))  
 
       si = si +   N +   N2
@@ -453,7 +453,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
     integer                      :: toblock(4), qpb
 
     N = size(Eqp) 
-    allocate(R(2*N)) ;  R = 0
+    allocate(R(N)) ;  R = 0
     qpb = -1
 
     !---------------------------------------------------------------------------
