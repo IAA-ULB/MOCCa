@@ -38,6 +38,7 @@ module functional
  ! FIELDNUMBER     : [WAY TOO LONG TO INCLUDE HERE]
  ! WRITEPOTENTIALS : [WAY TOO LONG TO INCLUDE HERE]
  ! READPOTENTIALS  : [WAY TOO LONG TO INCLUDE HERE]
+ ! TR              : $TR
  ! NTR             : $NTR
  ! N2              : $N2
  ! N3              : $N3
@@ -64,7 +65,7 @@ module functional
     character(len=20), parameter :: func_name = $FUNC_NAME
     !---------------------------------------------------------------------------
     ! Definition of global contributions to the energy
-    real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, SpwfEnergy, Ehistory(5)
+    real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, Ehistory(5)
     real(KIND=dp) :: tot_even(2), tot_odd(2)
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
     ! Separation of 2-body Centre-of-mass correction into particle-hole 
@@ -78,6 +79,13 @@ module functional
     !---------------------------------------------------------------------------
     ! Rotational correction
     real(KIND=dp) :: RotCorrection(3)
+    !---------------------------------------------------------------------------
+    ! Value of the Routhian 
+    real(KIND=dp) :: Routhian, RHistory(5) 
+    ! Value of the free energy F = E - TS when finite temperature is active
+    real(KIND=dp) :: FreeEner, FHistory(5)
+    ! Value of the energy as calculated from the spwfs
+    real(KIND=dp) :: SpwfEnergy, SpwfHistory(5)
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
@@ -225,6 +233,8 @@ $PRINTCOEF_PAIR
   102 format (15x, '        Entropy:', 3f15.6)
   103 format (15x, '    E_fu - E_sp:', 30x, e15.6)
   104 format (15x, '          dE   :', 30x, e15.6)
+  105 format (15x, '       Routhian:', 30x, f15.6)
+  106 format (15x, '          dR   :', 30x, e15.6)
 
     real(KIND=dp) :: temp
 
@@ -269,25 +279,32 @@ $PRINTCOEF_PAIR
     endif    
     print 1
     print  99, TotalE
+    print 100, spwfenergy
+    print 103, TotalE - spwfenergy
+
     if(rotcorr.ne.0) then
         print 991, totalE - sum(rotcorrection)
     endif
-    print 100, spwfenergy
-    print 103, TotalE - spwfenergy
       
     if(inversetemp .ne. -1) then
         ! F = E - T * S
-        print 101, TotalE - sum(entropy)/inversetemp
+        print 101, FreeEner
         print 102, entropy, sum(entropy)
     endif
-    print 104, TotalE - Ehistory(1)
+    print 105, Routhian
+
+    !print 104, TotalE - Ehistory(1)
+
+    
 
     print 1
  end subroutine PrintEnergy
  
  subroutine CalcEnergy(iprint)
     !---------------------------------------------------------------------------
-    ! Calculate all of the relevant energies.
+    ! Calculate (i)   the energy
+    !           (ii)  the Routhian
+    !           (iii) the free energy
     !---------------------------------------------------------------------------
     use momentsofinertia
     use Coulombmod
@@ -297,6 +314,9 @@ $PRINTCOEF_PAIR
 
     call start_timer(T_energy)
     
+    !---------------------------------------------------------------------------
+    ! First we calculate all the individual terms/parts
+
     ! Kinetic energy
     Kinetic = CompKinetic()
     ! COM correction
@@ -364,22 +384,40 @@ $PRINTCOEF_PAIR
       call stop_timer(T_MOI)  
       call calcRotationalCorrection()
     endif
+    ! Entropy calculation when temperature is finite
+    call calcentropy()
 
-    ! Saving history
+    !---------------------------------------------------------------------------
+    ! Then we save the histories
     do i=4,1,-1
-        Ehistory(i+1) = Ehistory(i)
+        Ehistory(i+1) = Ehistory(i) 
+        Rhistory(i+1) = Rhistory(i) 
+        Fhistory(i+1) = Fhistory(i)
+        Spwfhistory(i+1) = Spwfhistory(i)
     enddo
-    Ehistory(1) = TotalE    
+    Ehistory(1) = TotalE   ;   Rhistory(1) = Routhian 
+    Fhistory(1) = FreeEner ;   SpwfHistory(1) = SpwfEnergy
 
-    ! Total energy
+    ! The total energy is comprised of 
+    !      Kinetic part + Skyrme part + corrections + Coulomb energy
     TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)
     TotalE = TotalE + CoulombDirect + CoulombExchange + sum(Rotcorrection)
 
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
+    
+    ! The free energy
+    FreeEner = TotalE 
+    if(inversetemp .gt. 0.0d0) FreeEner = FreeEner - sum(entropy)/inversetemp
 
-    ! Entropy calculation when temperature is finite
-    call calcentropy()
+    ! Calculate the Routhian 
+    Routhian = TotalE                                       & 
+    !                              cranking contribution 
+    !                               -  omega_mu <J_mu>
+    &                         - sum(crankenergy_cut)/2.0_dp &       
+    !                              multipole contribution
+    !                               -  lambda_ml < Q_ml > 
+    &                 - sum(Constraint_I_I * D_I_I)*dv/2.0_dp
 
     call stop_timer(T_energy)
 

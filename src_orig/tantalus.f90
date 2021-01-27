@@ -1,5 +1,7 @@
 module Tantalus
 
+ use geninfo
+
  implicit none
 
 contains
@@ -29,7 +31,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  use timing
 
  implicit none
-
+ !------------------------------------------------------------------------------
  ! These inputs control where the code will look for its input. Leaving them 
  ! empty will have the code rely on STDIN for input.
  integer(dp), intent(in), optional   :: file_number   
@@ -37,6 +39,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  character(len=*), intent(in)        :: run_mode 
  character(len=43)                   :: mode_print
  character(len=26)                   :: symprint
+
 
  100 format &
      &  (/,8x,' ___________________________________________________________', &
@@ -130,59 +133,6 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
 
 end subroutine Run_Tantalus
 
-subroutine Converged(C) 
-    !---------------------------------------------------------------------------
-    ! Checks if the code has converged using the following convergence 
-    ! criteria. 
-    !
-    !   energy_prec     1d-9     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec 
-    !                            This needs to be true across 5 iterations. 
-    !
-    !   moment_prec     1d-3     abs((Qlm^(i) - Qlm^(i))/Qlm^(i)) < moment_prec
-    !                                if Qlm^(i) is large enough
-    !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
-    !                                     < disp_prec
-    !---------------------------------------------------------------------------
-    use Moments
-    use functional
-    use evolution
-
-    logical       :: C
-    integer       :: i
-    real(KIND=dp) :: dE(5), dQ
-
-    type(Moment), pointer  :: Current 
-
-    C = .true.
-
-    !---------------------------------------------------------------------------
-    ! Checking the evolution of the energy
-    do i =1,4
-            dE(i) = abs(Ehistory(i) - Ehistory(i+1))/abs(totalE)
-    enddo
-    dE(5) = abs(TotalE - Ehistory(1))/abs(totalE)
-    
-    if(.not. all(dE .lt. energy_prec)) then
-     C = .false.
-    endif
-
-    !---------------------------------------------------------------------------
-    ! Checking the weighted dispersion
-    if(d2H .gt. disp_prec) C = .false.
-    !---------------------------------------------------------------------------
-    ! Check all of the multipole moments that are large enough
-    Current => Root
-
-    do while(associated(Current%next)) 
-        Current => Current%next
-        if(Current%Beta(3).gt.0.05) then
-            dQ = abs(sum(Current%history)-sum(Current%value))
-            dQ = dQ/abs(sum(Current%value))
-            if(dQ > moment_prec) C = .false.
-        endif
-    enddo   
-end subroutine Converged
-
 subroutine ReachForWaterAndFood()
     !---------------------------------------------------------------------------
     ! Evolve the single-particle wavefunctions and densities.
@@ -227,6 +177,7 @@ subroutine ReachForWaterAndFood()
     use temperature_projection
     use momentsofinertia  
     use cranking  
+    use convergence
     use timing
 
     implicit none
@@ -395,7 +346,7 @@ subroutine ReachForWaterAndFood()
           call Converged(ConvergenceAchieved)  
         end if 
 
-        call Converged(ConvergenceAchieved)
+        call monitor_convergence(iter)
         if(convergenceAchieved) iprint = 1
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
@@ -408,7 +359,8 @@ subroutine ReachForWaterAndFood()
             call printcranking
             call PrintMomentsofInertia
             call printpairing(PairStabfactor)
-            call PrintEnergy           
+            call PrintEnergy          
+            call convergence_report 
         else
             call printsummary(iter)
         endif

@@ -41,7 +41,8 @@ SRC    +=   pairingcutoffs.f90 parameterization.f90 hartree-fock.f90 BCS.f90
 SRC    +=   HFB.f90 pairing.f90 densities.f90 moments.f90 coulomb.f90 
 SRC    +=   cranking.f90 momentsofinertia.f90 transform.f90 functional.f90 
 SRC    +=   evolution.f90  scfiteration.f90 
-SRC    +=   IO.f90 temperature_projection.f90 printing.f90 tantalus.version.f90
+SRC    +=   IO.f90 temperature_projection.f90 convergence.f90 printing.f90 
+SRC    +=   tantalus.version.f90
 
 SINGLE_SRC = $(SRC) run_single.f90
 MPI_SRC    = $(SRC) multirun_example.f90

@@ -103,14 +103,14 @@ FORTRANFILES=['compilation.f90'  , 'geninfo.f90'      , 'sphericalharmonics.f90'
               'constants.f90'    , 'printing.f90'     , 'HFB.f90','folding.f90' ,
               'nil8.f90'         , 'coulomb.f90'      , 'derivatives.f90'       , 
               'precondition.f90' , 'wavefunctions.f90',
-              'hartree-fock.f90' , 'BCS.f90'         , 'pairingcutoffs.f90',
-              'temperature_projection.f90', 'momentsofinertia.f90', 
+              'hartree-fock.f90' , 'BCS.f90'          , 'pairingcutoffs.f90',
+              'temperature_projection.f90'            , 'momentsofinertia.f90', 
               'particleinabox.f90',
-              'densities.f90'    , 'moments.f90'          ,   'pairing.f90'    ,
+              'densities.f90'    , 'moments.f90'          , 'pairing.f90'      ,
               'functional.f90'   , 'parameterization.f90' , 'evolution.f90'    , 
-              'scfiteration.f90' , 'IO.f90'               , 'tantalus.f90',   
-              'transform.f90',  'cranking.f90', 
-              'run_single.f90', 'multirun_example.f90', 'timing.f90']
+              'scfiteration.f90' , 'IO.f90'               , 'tantalus.f90'     ,   
+              'transform.f90'    ,  'cranking.f90'        , 'convergence.f90'  , 
+              'run_single.f90'   , 'multirun_example.f90' , 'timing.f90']
 
 #-------------------------------------------------------------------------------
 # Check for the existence of all the source code files in SRCPATH

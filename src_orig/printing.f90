@@ -1,17 +1,20 @@
 module Printing
  !==============================================================================
- !  #######   ##   #    # #####   ##   #      #    #  ####
- !     #     #  #  ##   #   #    #  #  #      #    # #
- !     #    #    # # #  #   #   #    # #      #    #  ####
- !     #    ###### #  # #   #   ###### #      #    #      #
- !     #    #    # #   ##   #   #    # #      #    # #    #
- !     #    #    # #    #   #   #    # ######  ####   ####
- !
+ !_________ _______  _       _________ _______  _                 _______ 
+ !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
+ !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
+ !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
+ !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
+ !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
+ !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
+ !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
+ !                                                                       
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
  use pairing
  use wavefunctions
+ use convergence
 
  implicit none
  
@@ -171,20 +174,20 @@ contains
         case(2)
           ! HFB QP energies
           do i=1,N
-            print 2, i, QPenergies(sb+i), configmatrix(sb+N+N2-i+1)
+            print 2, i, QPenergies(sb+i), configmatrix(sb+N-i+1)
           enddo
           do i=N+N2+1,2*N + N2
-            print 2, i, QPenergies(sb+i), configmatrix(sb+N+N2-i+1)
+            print 2, i, QPenergies(sb+i), configmatrix(sb+i)
           enddo
 
           if(N2.ne.0) then 
             print *
             call print_qp_header(B+1)
-            do i=N+1,N+N2
-              print 2, i, QPenergies(sb+i), configmatrix(sb+N+N2-i+1)
+            do i=1,N2
+              print 2, i, QPenergies(sb+N+i), configmatrix(sb+N+N2-i+1)
             enddo
             do i=2*N+N2+1,2*N+2*N2
-              print 2, i, QPenergies(sb+i), configmatrix(sb+N+N2-i+1)
+              print 2, i, QPenergies(sb+i), configmatrix(sb+i)
             enddo
 
           endif
@@ -232,5 +235,31 @@ contains
     print 2
     print 3
   end subroutine print_qp_header
+
+  subroutine convergence_report()
+    !---------------------------------------------------------------------------
+    ! Print a report on the observed convergence.
+    !---------------------------------------------------------------------------
+
+    use functional
+
+    1 format (80('-'))
+    2 format ('Convergence report')
+    3 format (19x,'     Change^(i)     Change^(i-1)   rate (approx)')
+    4 format ('  Con.  Energy      :', 3es15.2)
+    5 format ('  Con.  Routhian    :', 3es15.2)
+    6 format ('  Con.  E_fu - E_sp :', 3es15.2)
+    
+    print 1
+    print 2
+    print 3
+    print 4, totalE   - Ehistory(1), Ehistory(1) - Ehistory(2), con_rates(1)
+    print 5, Routhian - Rhistory(1), Rhistory(1) - Rhistory(2), con_rates(2)
+    print 6, SpwfEnergy     - totalE      - SpwfHistory(1) + Ehistory(1), &
+    &        SpwfHistory(1) - Ehistory(1) - SpwfHistory(2) + Ehistory(2), &
+    &        con_rates(3)
+    print 1
+
+  end subroutine convergence_report
 
 end module
