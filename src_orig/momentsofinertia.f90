@@ -436,7 +436,8 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !  (c) When pairing collapses, results are equal to the HF ones.
     !       (both with and without T conservation)
     !---------------------------------------------------------------------------
-    integer       :: i,j, b, it, ii, jj, si, N,k, sb, ibar, jbar, N2, T, s
+    integer       :: i,j, b, it, ii, iii, jjj, jj, si, N,k, sb, ibar, jbar, N2
+    integer       ::  T, s
     real(KIND=dp) :: ME(3),  fac
 
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
@@ -741,28 +742,30 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
 
       do i=1, N + N2
         ii = si + i
+        iii= sb + N + N2 + i
         it = 1
         if(ii.gt.nwn) it = 2
           
         do j=1, N + N2
           jj = si + j
+          jjj= sb + N + N2 + j
           !---------------------------------------------------------------------
           !         1 - f_i - f_j 
           fac = 1 - configmatrix(sb+i) - configmatrix(sb+j)
 
           Belyaev(:,it) = Belyaev(:,it) + &
-          &               fac*J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))    
+          &             fac*J20(ii,jj,:)**2 /(Qpenergies(iii) + Qpenergies(jjj))    
 
           !---------------------------------------------------------------------
           !      f_j - f_i
           fac =  configmatrix(sb+j) - configmatrix(sb+i)
 
-          if(abs(Qpenergies(ii) - Qpenergies(jj)) .gt. 1d-8) then
+          if(abs(Qpenergies(iii) - Qpenergies(jjj)) .gt. 1d-8) then
             Belyaev(:,it) = Belyaev(:,it) + &
-            &               fac*J11(ii,jj,:)**2 /(Qpenergies(ii)-Qpenergies(jj))  
+            &       fac*J11(ii,jj,:)**2 /(Qpenergies(iii)-Qpenergies(jjj))  
           elseif(inversetemp .gt. 0) then
            ! 28/12/2020, WR: I'm unsure whether there should be a factor 2
-           ! here or not.... T be doublechecked.
+           ! here or not.... To be doublechecked.
            ! -------------------------------------------------------------------
            stop
            ! degen = inversetemp * configmatrix(sb+i)**2 *                      &
@@ -783,7 +786,7 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
             ! Note: if T = 0 then fac is always equal to one for non-blocked
             ! particles, hence not put into the formula here.
             Bely_coll(:,it) = Bely_coll(:,it) + &
-            &                 J20(ii,jj,:)**2 /(Qpenergies(ii) + Qpenergies(jj))  
+            &               J20(ii,jj,:)**2 /(Qpenergies(iii) + Qpenergies(jjj))  
           endif        
           !---------------------------------------------------------------------
         enddo

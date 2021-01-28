@@ -212,7 +212,7 @@ contains
     integer, allocatable :: indices(:)
     
     1  format (33 ('-'), 'Quasiparticles',33('-'))
-    2  format ( i3, 1f7.2, 1es12.2 )
+    2  format ( i3, 1f10.2, 1es12.2 )
 
     11  format(80 ('-'))
 
@@ -230,24 +230,9 @@ contains
         select case(pairingtype)
         case(2)
           ! HFB QP energies
-          do i=1,N
-            print 2, i, QPenergies(sb+i), configmatrix(sb+N-i+1)
-          enddo
-          do i=N+N2+1,2*N + N2
+          do i=1,2*N+2*N2
             print 2, i, QPenergies(sb+i), configmatrix(sb+i)
           enddo
-
-          if(N2.ne.0) then 
-            print *
-            call print_qp_header(B+1)
-            do i=1,N2
-              print 2, i, QPenergies(sb+N+i), configmatrix(sb+N+N2-i+1)
-            enddo
-            do i=2*N+N2+1,2*N+2*N2
-              print 2, i, QPenergies(sb+i), configmatrix(sb+i)
-            enddo
-
-          endif
         case(1)
           ! The BCS qp energies are not ordered by energy
           indices = order(BCSqps(si+1:si+N))
@@ -267,27 +252,27 @@ contains
     
     integer, intent(in) :: B  
 
-    1  format ('Block ', i1, ':  P=',a1,'1', ',Rz=', a1,'i ',  a8)
-    2  format ( '  N    Eqp     f_n')
+    1  format ('Block ', i1, ':  P=',a1,'1',  a8)
+    2  format ( '  N      Eqp     f_n')
     3  format (80 ('_'))
   
     select case (B)
     case(1)
-        print 1,  B , '+', '+', 'neutrons' 
-    case(2)
-        print 1,  B , '+', '-', 'neutrons' 
+        print 1,  B , '+', 'neutrons' 
+!    case(2)
+!        print 1,  B , '+', '-', 'neutrons' 
     case(3)
-        print 1,  B , '-' ,'+', 'neutrons'
-    case(4)
-        print 1,  B , '-' ,'-', 'neutrons'
+        print 1,  B , '-' , 'neutrons'
+!    case(4)
+!        print 1,  B , '-' ,'-', 'neutrons'
     case(5)        
-        print 1,  B , '+' ,'+',  'protons'
-    case(6)        
-        print 1,  B , '+' ,'-',  'protons'
+        print 1,  B , '+' ,  'protons'
+!    case(6)        
+!        print 1,  B , '+' ,'-',  'protons'
     case(7)        
-        print 1,  B , '-' ,'+',  'protons'
-    case(8)        
-        print 1,  B , '-' ,'-',  'protons'
+        print 1,  B , '-' ,  'protons'
+!    case(8)        
+!        print 1,  B , '-' ,'-',  'protons'
     end select
     print 2
     print 3

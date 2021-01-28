@@ -287,7 +287,7 @@ contains
     !
     ! looks like
     !          ( f_+1  0                     ......                    0  )
-    !    R =   ( 0    ....                                                ) 
+    !    C =   ( 0    ....                                                ) 
     !          (            f_-1                                          ) 
     !          (                  .....                                   )
     !          (                         1-f_+1                           ) 
@@ -295,6 +295,9 @@ contains
     !          (                                          1-f_-1          )
     !          ( 0                                                 .......)
     !
+    !
+    ! or more specifically:   C(i) = 1 - C(i+N+N2) as is often used here 
+    ! and elsewhere in the code.
     !
     ! These warnings about matrix ordering of the first half of the Bogoliubov
     ! transformation is a little bit academical: the code has been constructed
@@ -783,7 +786,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
           return
         endif
 
-        Eqp(sb+1:sb+N) = eigen(sb+1:sb+2*N)
+        Eqp(sb+1:sb+2*N) = eigen(sb+1:sb+2*N)
         deallocate(A)
         ! Indices for the next block
         si = si +   N
