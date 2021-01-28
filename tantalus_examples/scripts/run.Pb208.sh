@@ -14,7 +14,7 @@
 #
 ################################################################################
 
-exe='Tantalus.NLO.func.exe'
+exe='Tantalus.default.exe'
 execdir='../exec'
 paramloc='../parameterizations/'
 param='SLy4'
@@ -37,7 +37,7 @@ cp $paramloc/"$param.param"  work/
 
 cd work
 
-echo "Realistic calculation for Pb208"
+echo " --> Realistic calculation for Pb208"
 outfile="Tant.Pb208.out"
 
 #-------------------------------------------------------------------------------

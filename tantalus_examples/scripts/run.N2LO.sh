@@ -14,7 +14,7 @@
 #
 ################################################################################
 
-exe='Tantalus.N2LO.func.exe'
+exe='Tantalus.N2LO.exe'
 execdir='../exec'
 param="SN2LO1"
 paramloc="../parameterizations/"

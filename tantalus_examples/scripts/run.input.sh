@@ -5,9 +5,10 @@
 # input. 
 #
 # Run: 
-#     (1) Create a .wf file from scratch
+#     (1) Create a .wf file from scratch, including time-reversal.
 #     (2) Start from that .wf file, and add a few extra spwfs. 
-#     (3)
+#     (3) Using the extended .wf file, break time-reversal
+#     (4) Extend that .wf file again with a few extra spwfs
 #
 ################################################################################
 
@@ -36,7 +37,7 @@ cp $paramloc/"$param.param"  work/
 cd work
 
 ################################################################################
-echo "Creating a .wf file from scratch"
+echo " --> Creating a .wf file from scratch"
 outfile="Tant.O16.out"
 #-------------------------------------------------------------------------------
 cat << EOF > tant.O16.data
@@ -75,7 +76,7 @@ EOF
 ./$exe < tant.O16.data > $outfile
 
 ################################################################################
-echo "Adding some extra spwfs on input"
+echo " --> Adding some extra spwfs on input"
 outfile="Tant.O16.extra.out"
 #-------------------------------------------------------------------------------
 cat << EOF > tant.O16.data
@@ -114,7 +115,7 @@ EOF
 # Running the code
 ./$exe < tant.O16.data > $outfile
 ################################################################################
-echo "Breaking Time-reversal"
+echo " --> Breaking Time-reversal"
 cd ..
 exe='Tantalus.NLO-T.exe'
 cp $execdir/$exe work/
@@ -157,7 +158,7 @@ EOF
 # Running the code
 ./$exe < tant.O16.data > $outfile
 ################################################################################
-echo "Adding spwfs to the time-reversal-broken case"
+echo " --> Adding spwfs to the time-reversal-broken case"
 
 outfile="Tant.O16.T.extra.out"
 #-------------------------------------------------------------------------------
@@ -196,3 +197,6 @@ EOF
 
 # Running the code
 ./$exe < tant.O16.data > $outfile
+mv *.out ../out/STDOUT/
+rm *.exe *.data *.param
+rm *.wf

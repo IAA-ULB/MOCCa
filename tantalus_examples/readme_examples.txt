@@ -87,6 +87,37 @@ Individual tests are
     out/summary/continuing.z020n020num001run001.out
     out/summary/continuing.z020n022num001run001.out
 
+
+  * run.input.sh
+    - - - - - - - - -
+
+    Example calculation showcasing  
+    (i) how to add extra spwfs to an existing calculation; and  
+    (ii)how to transfer from a time-reversal conserving calculation to 
+        a time-reversal breaking one
+
+    out/STDOUT/Tant.O16.out
+    out/STDOUT/Tant.O16.extra.out
+    out/STDOUT/Tant.O16.T.out
+    out/STDOUT/Tant.O16.T.extra.out
+
+  * run.blocking.sh
+    - - - - - - - - - -
+ 
+    Example calculation showcasing the various option for blocking
+    Calculation
+      (1) Converges a false vacuum for Mg25
+      (2) Uses the previous run to initialize an EFA calculation for Mg25
+      (3) Uses that final run to perform a time-reversal broken calculation, 
+         still blocking EFA-style
+      (4) Finally, transfer the EFA-blocking to a real blocked calculation
+
+    out/STDOUT/Tant.Mg25.FV.out
+    out/STDOUT/Tant.Mg25.EFA.out
+    out/STDOUT/Tant.Mg25.EFA.T.out
+    out/STDOUT/Tant.Mg25.block.out
+  
+
   * run.gsk12.sh
     - - - - - - - -
 
@@ -102,8 +133,8 @@ Individual tests are
   * run.Pb208.sh
     - - - - - - - -
 
-    Example calculation using SLy4 for Pb208 in a more realistic (16x16x16x0.8fm)
-    box.
+    Example calculation using SLy4 for Pb208 in a more realistic 
+    (16x16x16x0.8fm)   box.
 
     out/STDOUT/Tant.Pb208.out
 

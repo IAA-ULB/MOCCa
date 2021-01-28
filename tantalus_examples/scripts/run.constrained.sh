@@ -15,7 +15,7 @@
 #
 ################################################################################
 
-exe='Tantalus.NLO.func.exe'
+exe='Tantalus.default.exe'
 execdir='../exec'
 param="SLy5s1"
 paramloc='../parameterizations'
@@ -43,7 +43,7 @@ for Q20 in `seq 10 10 30`
 do
 
 outfile="Tant.Q20=$Q20.out"
-echo "Calculating configuration with Q20=$Q20 fm^2"
+echo " --> Calculating configuration with Q20=$Q20 fm^2"
 
 #-------------------------------------------------------------------------------
 cat << EOF > tant.data
@@ -79,6 +79,8 @@ MoreConstraints=.true.
 l=2
 m=0
 Constraint=$Q20
+/
+&Cranking
 /
 EOF
 

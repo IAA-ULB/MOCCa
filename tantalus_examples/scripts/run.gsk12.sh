@@ -14,7 +14,7 @@
 #
 ################################################################################
 
-exe='Tantalus.DD-switch.func.exe'
+exe='Tantalus.DD-switch.exe'
 execdir='../exec'
 
 #Create storage directories
@@ -39,7 +39,7 @@ cd work
 for param in gsk1 gsk2
 do
 
-echo "Running $param"
+echo " --> Running $param"
 outfile="Tant.$param.out"
 
 #-------------------------------------------------------------------------------

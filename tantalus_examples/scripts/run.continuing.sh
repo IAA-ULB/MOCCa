@@ -15,7 +15,7 @@
 #
 ################################################################################
 
-exe='Tantalus.NLO.func.exe'
+exe='Tantalus.default.exe'
 execdir='../exec'
 paramloc='../parameterizations/'
 param="SLy5s1"
@@ -39,7 +39,7 @@ cp $paramloc/"$param.param"  work/
 cd work
 
 outfile="Tant.Ca40.out"
-echo "Starting a calculation for 40Ca"
+echo " --> Starting a calculation for 40Ca"
 
 #-------------------------------------------------------------------------------
 cat << EOF > tant.Ca40.data
@@ -84,7 +84,7 @@ mv continuing.* ../out/summary
 ################################################################################
 
 outfile="Tant.Ca42.out"
-echo "Starting a calculation for 42Ca from the previous one"
+echo "  --> Starting a calculation for 42Ca from the previous one"
 
 #-------------------------------------------------------------------------------
 cat << EOF > tant.Ca42.data

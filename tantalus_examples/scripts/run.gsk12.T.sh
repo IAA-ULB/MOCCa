@@ -10,19 +10,12 @@
 #      start from scratch. 
 #-------------------------------------------------------------------------------
 #
-#  This particular runscript illustrates the most basic calculation.
-#  Initializing from a set of Nilsson orbitals (inputfilename='init'), the 
-#  code performs a Hartree-Fock optimization for 16O, with the SLy4 
-#  parameterization of the NLO functional, in a limited box of (12,12,12,1.0)
-#  points with all symmetries possible conserved.
+# This is an example script using the GSk1 and GSk2 parameterizations for Ca48.
 #
 ################################################################################
 
-exe='Tantalus.default.exe'
+exe='Tantalus.DD-switch-T.exe'
 execdir='../exec'
-param="SLy4"
-paramloc="../parameterizations/"
-outfile='Tant.minimal.out'
 
 #Create storage directories
 if [ ! -d "out/" ]; then
@@ -37,39 +30,47 @@ fi
 if [ ! -d "work/" ]; then
   mkdir work
 fi
-
-cp $execdir/$exe             work/
-cp $paramloc/"$param.param"  work/
+cp $execdir/$exe   work/
+cp ../parameterizations/gsk1.param         work/gsk1.param
+cp ../parameterizations/gsk2.param         work/gsk2.param
 
 cd work
+
+for param in gsk1 gsk2
+do
+
+echo " --> Running $param"
+outfile="Tant.$param.T.out"
 
 #-------------------------------------------------------------------------------
 # Creating the runtime data
 cat << EOF > tant.data
 &nucleus
-neutrons=8, protons=8
+neutrons=28, protons=20
 /
 # Parameters of the Lagrange mesh. 
 &mesh
-nx=12, ny=12, nz=12, dx=1.0
+nx=14, ny=14, nz=14, dx=0.8
 /
 # The code will look, on a file forces.param, for the parameterization with 
 # this name.
 &func
-name_param='SLy4'
+name_param="$param"
 /
 # Options for the pairing.
 &pairing
+type='HFB'
 /
 # maxiter = Maximum number of iterations to be performed
 &evolution
 maxiter=100
+printiter=10
 /
 &scfiteration
 /
 # Number of neutron (nwn) and proton (nwp) spwfs to use.
 &wfs
-nwn = 15, nwp = 15
+nwn = 60, nwp = 60
 /
 # Inputfilename  = file from which to continue the calculation
 # Outputfilename = .wf file to write after the end of the calculation. 
@@ -77,9 +78,22 @@ nwn = 15, nwp = 15
 &IO
 InputFilename='init'
 Outputfilename='tant.wf'
-BXLFIT='minimal.'
+BXLFIT="$param.T."
+allowtransform=.true.
 /
 &MomentParam
+MoreConstraints=.false.
+/
+&MomentConstraint
+l=2
+m=0
+constraint=10.0
+MoreConstraints=.true.
+/
+&MomentConstraint
+l=2
+m=2
+constraint=0
 /
 &Cranking
 /
@@ -88,10 +102,12 @@ EOF
 #-------------------------------------------------------------------------------
 # Running the code
 ./$exe < tant.data > $outfile
+mv $outfile ../out/STDOUT
+mv $param.* ../out/summary
+
+done
 
 #Cleaning up
-rm tant.wf  
-mv $outfile  ../out/STDOUT
-mv minimal.* ../out/summary
-rm *.exe *.data *.param
+rm tant.wf 
+rm *.exe *.data 
 #-------------------------------------------------------------------------------

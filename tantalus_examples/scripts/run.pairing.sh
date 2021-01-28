@@ -41,7 +41,7 @@ cd work
 for type in BCS HFB
 do
 
-echo "Calculation with pairingtype=$type"
+echo " --> Calculation with pairingtype=$type"
 outfile="Tant.$type.out"
 
 
