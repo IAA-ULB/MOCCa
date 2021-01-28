@@ -144,6 +144,9 @@ def preprocess(fname, src, target, so , oldso):
     if(fname=='cranking.f90'):
         ProcessCranking(fname, src, target, so)
         return
+    if(fname=='convergence.f90'):
+        ProcessCranking(fname, src, target, so)
+        return
         
 
 def ProcessGeninfo(fname, src, target, so):

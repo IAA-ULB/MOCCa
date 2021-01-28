@@ -417,7 +417,7 @@ $PRINTCOEF_PAIR
     &                         - sum(crankenergy_cut)/2.0_dp &       
     !                              multipole contribution
     !                               -  lambda_ml < Q_ml > 
-    &                 - sum(Constraint_I_I * D_I_I)*dv/2.0_dp
+    &                 + sum(Constraint_I_I * D_I_I)*dv/2.0_dp
 
     call stop_timer(T_energy)
 

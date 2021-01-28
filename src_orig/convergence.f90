@@ -52,7 +52,7 @@ contains
 
     !---------------------------------------------------------------------------
     if(.not. allocated(con_rates)) then
-        allocate(con_rates(3)) ; con_rates = 0.0d0
+        allocate(con_rates(4)) ; con_rates = 0.0d0
     endif
 
     ! Rate of total energy
@@ -60,8 +60,6 @@ contains
     D = D/log(abs(Ehistory(1)-EHistory(2))/abs(EHistory(2)-EHistory(3)))     
     D = D - con_rates(1)
     con_rates(1) =  con_rates(1)  + 0.1 * D 
-    
-
     ! Rate of the Routhian
     D = log(abs(Routhian-RHistory(1))/abs(RHistory(1) - RHistory(2)))
     D = D/log(abs(RHistory(1)-RHistory(2))/abs(RHistory(2) - RHistory(3)))
@@ -77,8 +75,18 @@ contains
     D = D / log(abs(ds)/abs(dsold)) 
     D = D - con_rates(3)
     con_rates(3) = con_rates(3) + 0.1 * D
+  
+    ! Rate of the change in density
+    D = sqrt(sum((D_I_I - D_I_I_hist(:,:,1))**2)*dv) / sqrt(sum((D_I_I_hist(:,:,1) - D_I_I_hist(:,:,2))**2)*dv)
+    D = log(D) / &
+    &   log(sqrt(sum((D_I_I_hist(:,:,1) - D_I_I_hist(:,:,2))**2)*dv) / &
+    &       sqrt(sum((D_I_I_hist(:,:,3) - D_I_I_hist(:,:,2))**2)*dv))
+    D = D - con_rates(4)
+    con_rates(4) = con_rates(4) + 0.1 * D
 
-    do i=1, size(con_rates)
+
+
+    do i=1, size( con_rates)
         if(abs(con_rates(i)) .lt. 1d-16) con_rates(i) = 0.0d0
     enddo
   end subroutine monitor_convergence

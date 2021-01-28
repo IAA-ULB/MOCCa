@@ -404,7 +404,7 @@ contains
           enddo
       case(1,2)
           ! BCS or HFB calculation: look at quasiparticle energies
-          relE = minval(QPenergies)
+          relE = minval(abs(QPenergies))
       end select
       ! Safeguard the difference
       if(relE .lt. 0.20) relE = 0.50

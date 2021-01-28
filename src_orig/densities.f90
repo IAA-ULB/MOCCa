@@ -72,8 +72,9 @@ $NTR    real(KIND=dp), allocatable :: D_I_S_hist(:,:,:,:)
     ! module.
     real(KIND=dp), allocatable :: chargedensity(:,:,:)
     !---------------------------------------------------------------------------
-    ! The amount of iterations to keep in memory for the density mixing
-    integer           :: memory = 1
+    ! The amount of iterations to keep in memory for the density mixing and 
+    ! estimation of the convergence rate
+    integer           :: memory = 3
     
     !---------------------------------------------------------------------------
     ! Pointer to which basis is supposed to be used to calculate the densities
