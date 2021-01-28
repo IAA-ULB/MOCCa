@@ -30,14 +30,14 @@ contains
     20 format (80 ('-'))
     30 format (80 ('_'),/,3x , 'Neutron wavefunctions')
     40 format (80 ('_'),/,3x , 'Proton  wavefunctions')
-    60 format (2x,'i',4x,'P',3x,'occ',7x,'E',8x,'d2h',4x,'Delta',3x,'JxT',4x,&
-    &             'JyT', 4x ,'Jz', 5x, 'J')    
+    60 format (2x,'i',4x,'P',3x, 'Rz', 3x,'occ',7x,'E',8x,'d2h',4x,'Delta',3x, &
+    &             'JxT',4x, 'JyT', 4x ,'Jz', 5x, 'J')    
 
-    11 format (i3, 1x, f4.1, 2x, f6.4, 1x, f9.3, 1x, es8.1,1x,f6.2, 4(2x, f5.2))
+    11 format (i3, 1x, f4.1, 1x, f4.1, 2x, f6.4, 1x, f9.3, 1x, es8.1,1x,f6.2, 4(2x, f5.2))
 
     integer       :: wave,k
     integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp) :: p, Jx, Jy, Jz, JJ
+    real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s
   
     ! Order the spwfs according to growing energy
     ProtonOrder = OrderSpwfsISO(+1)
@@ -53,20 +53,35 @@ contains
         if(wave .le. sum(HFBlocks(1:2))) p = +1
         if(wave .gt. sum(HFBlocks(1:2))) p = -1
 
+
+        if(wave .le. sum(HFBlocks(1:2))) then
+            if(wave .le. HFBlocks(1)) then
+               s = +1
+            else
+               s = -1
+            endif
+        else
+            if(wave .le. sum(HFBlocks(1:3))) then
+               s = +1
+            else
+               s = -1
+            endif
+        endif
+
         Jx = spwf_JTR(1,wave)
         Jy = spwf_JTI(2,wave)
         Jz = spwf_J(3,wave)
         JJ = spwf_JJ(wave)
 
         if(pairingtype.eq.1) then
-          print 11, wave, p, rho_can(wave), spenergies(wave), &
+          print 11, wave, p, s, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
         elseif(pairingtype.eq.2) then
-          print 11, wave, p,   rho_pairing(wave,wave), spenergies(wave),       &
+          print 11, wave, p, s, rho_pairing(wave,wave), spenergies(wave),      &
           &               dispersions(wave), maxval(abs(HFBgaps(wave,:))),     &
           &               Jx, Jy, Jz, JJ
         else
-          print 11, wave, p, rho_can(wave), spenergies(wave), &
+          print 11, wave, p, s, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ                
         endif
     enddo
@@ -80,20 +95,34 @@ contains
         if(wave .le. sum(HFBlocks(1:6))) p = +1
         if(wave .gt. sum(HFBlocks(1:6))) p = -1
 
+        if(wave .le. sum(HFBlocks(1:6))) then
+            if(wave .le. sum(HFBlocks(1:5))) then
+               s = +1
+            else
+               s = -1
+            endif
+        else
+            if(wave .le. sum(HFBlocks(1:7))) then
+               s = +1
+            else
+               s = -1
+            endif
+        endif
+
         Jx = spwf_JTR(1,wave)
         Jy = spwf_JTI(2,wave)
         Jz = spwf_J(3,wave)
         JJ = spwf_JJ(wave)
 
         if(pairingtype.eq.1) then
-          print 11, wave, p, rho_can(wave), spenergies(wave),                  &
+          print 11, wave, p, s, rho_can(wave), spenergies(wave),               &
           &               dispersions(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
         elseif(pairingtype.eq.2) then
-          print 11, wave, p,     rho_pairing(wave,wave), spenergies(wave),     &
+          print 11, wave, p, s,  rho_pairing(wave,wave), spenergies(wave),     &
           &               dispersions(wave), maxval(abs(HFBgaps(wave,:))),     &
           &               Jx, Jy, Jz, JJ
         else
-          print 11, wave, p, rho_can(wave), spenergies(wave),                  &
+          print 11, wave, p, s, rho_can(wave), spenergies(wave),               &
           &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ
         endif
     enddo
@@ -116,12 +145,26 @@ contains
       if(wave .le. sum(HFBlocks(1:2))) p = +1
       if(wave .gt. sum(HFBlocks(1:2))) p = -1
 
+      if(wave .le. sum(HFBlocks(1:2))) then
+          if(wave .le. HFBlocks(1)) then
+             s = +1
+          else
+             s = -1
+          endif
+      else
+          if(wave .le. sum(HFBlocks(1:3))) then
+             s = +1
+          else
+             s = -1
+          endif
+      endif
+
       Jx = can_JTR(1,wave)
       Jy = can_JTI(2,wave)
       Jz = can_J(3,wave)
       JJ = can_JJ(wave)
 
-      print 11, wave, p,     rho_can(wave), canenergies(wave),             &
+      print 11, wave, p,  s,   rho_can(wave), canenergies(wave),             &
       &               0.0, 0.0, Jx, Jy, Jz, JJ
     enddo
     print 40  
@@ -134,12 +177,26 @@ contains
       if(wave .le. sum(HFBlocks(1:6))) p = +1
       if(wave .gt. sum(HFBlocks(1:6))) p = -1
 
+      if(wave .le. sum(HFBlocks(1:6))) then
+          if(wave .le. sum(HFBlocks(1:5))) then
+             s = +1
+          else
+             s = -1
+          endif
+      else
+          if(wave .le. sum(HFBlocks(1:7))) then
+             s = +1
+          else
+             s = -1
+          endif
+      endif
+
       Jx = can_JTR(1,wave)
       Jy = can_JTI(2,wave)
       Jz = can_J(3,wave)
       JJ = can_JJ(wave)
 
-      print 11, wave, p,     rho_can(wave), canenergies(wave),             &
+      print 11, wave, p, s,    rho_can(wave), canenergies(wave),             &
       &               0.0, 0.0, Jx, Jy, Jz, JJ
     enddo
     print 20

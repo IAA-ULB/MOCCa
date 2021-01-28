@@ -750,7 +750,7 @@ $NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
 
     real(KIND=dp) :: gap(2,2), norm(2,2), v2, uv
     real(KIND=dp), allocatable :: gaps_can(:,:)
-    integer       :: it1, wave
+    integer       :: it1, wave,i
 $NTR integer      :: wavebar
 
     gap = 0 ; norm = 0
@@ -775,7 +775,14 @@ $TR      gap(2,it1) = gap(2,it1)  +  abs(uv * gaps_can(wave,wave))
 $NTR      gap(2,it1) = gap(2,it1)  +  abs(uv * gaps_can(wave,wavebar))                 
       norm(2,it1)= norm(2,it1) +  abs(uv)                                       
     enddo
-    gap = gap/norm
+
+    do i=1,2
+      do it1 =1,2
+        gap(i,it1) = gap(i,it1)/norm(i,it1)
+        ! numerical safeguard
+        if(gap(i,it1) .gt. 1d2) gap(i,it1) = 0.0d0
+      enddo
+    enddo
 
     deallocate(gaps_can)
   end function average_gap_HFB

@@ -348,8 +348,8 @@ contains
       configmatrix(sb+2*N+N2+1:sb+2*N+2*N2) = tempc (sb+2*N+N2+1:sb+2*N+2*N2)
 
       !-------------------------------------------------------------------------
-      qpenergies  (sb+     1:sb+N)      = tempqe(sb+2*N+1:sb+2*N+N2) 
-      qpenergies  (sb+N+   1:sb+N+N2)   = tempqe(sb    +1:sb+N   ) 
+      qpenergies  (sb+     1:sb+N)      = tempqe(sb    +1:sb+N   ) 
+      qpenergies  (sb+N+   1:sb+N+N2)   = tempqe(sb+2*N+1:sb+2*N+N2) 
 
       qpenergies  (sb+  N+N2+1:sb+2*N+  N2) = tempqe(sb+  N   +1:sb+2*N   )
       qpenergies  (sb+2*N+N2+1:sb+2*N+2*N2) = tempqe(sb+2*N+N2+1:sb+2*N+2*N2)
