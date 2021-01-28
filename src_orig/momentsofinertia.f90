@@ -436,8 +436,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !  (c) When pairing collapses, results are equal to the HF ones.
     !       (both with and without T conservation)
     !---------------------------------------------------------------------------
-    integer       :: i,j, b, it, ii, iii, jjj, jj, si, N,k, sb, ibar, jbar, N2
-    integer       ::  T, s
+    integer       :: i,j, b, it, ii, iii, jjj, jj, si, N,k, sb, ibar, jbar, N2,T
     real(KIND=dp) :: ME(3),  fac
 
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
@@ -603,13 +602,11 @@ $NTR  enddo
         ii   = si + i
 $TR     ibar = ii
 $NTR    ibar = conjugp(ii)
-        if(ibar .eq. 0) cycle
 
         do j=1,N+N2
           jj = si + j
 $TR       jbar = jj
 $NTR      jbar = conjugp(jj)
-          if(jbar .eq. 0) cycle
 
           !---------------------------------------------------------------------
           ! If time-reversal is conserved,
@@ -631,6 +628,9 @@ $NTR      ME(1) = jx_can(ii,jj)**2
 $NTR      ME(2) = jy_can(ii,jj)**2
 $NTR      ME(3) = jz_can(ii,jj)**2
 $NTR      J2(:,it) = J2(:,it) + ME * fac  
+
+          if(ibar .eq. 0) cycle
+          if(jbar .eq. 0) cycle
 
 $NTR      fac= -kappa_can(ii)*kappa_can(jbar)
 $NTR      ME(1) = jx_can(ii,jj)*jx_can(jbar,ibar)
@@ -664,14 +664,13 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
     call calcJ20(jy,bogoliubov, j20(:,:,2)) 
     call calcJ20(jz,bogoliubov, j20(:,:,3)) 
 
-$TR  s = +1
-$NTR s = -1
     !Then , construct J11
     call calcJ11(jx,bogoliubov, j11(:,:,1)) 
     call calcJ11(jy,bogoliubov, j11(:,:,2)) 
     call calcJ11(jz,bogoliubov, j11(:,:,3)) 
 
     if(inversetemp .lt. 0) then
+      print *, 'Blocked', blocked_qps
       si = 0 ; sb = 0
       do b=1,Blocks,2
         N  = hfblocks(b)    ; if(N .eq. 0) cycle
@@ -684,7 +683,12 @@ $NTR s = -1
           ! Don't include the contribution from the blocked qps
           blocked = .false.
           do k=1, size(blocked_qps) 
-            if((sb+i) .eq. blocked_qps(k)) blocked = .true.
+            if((si  +i) .eq. blocked_qps(k)) blocked = .true.
+            if( i.gt. N) then
+              if((si-N +i) .eq. blocked_qps(k)) blocked = .true.
+            else
+              if((si+N2+i) .eq. blocked_qps(k)) blocked = .true.
+            endif
           enddo
           if(blocked) cycle
    
@@ -694,7 +698,12 @@ $NTR s = -1
             ! Don't include the contribution from the blocked qps
             blocked = .false.
             do k=1, size(blocked_qps) 
-              if((sb + j) .eq. blocked_qps(k)) blocked = .true.
+              if((si +     j) .eq. blocked_qps(k)) blocked = .true.
+              if( j .gt. N) then
+                if((si - N + j) .eq. blocked_qps(k)) blocked = .true.
+              else
+                if((si + N2+ j) .eq. blocked_qps(k)) blocked = .true.
+              endif
             enddo
             if(blocked) cycle
             
@@ -775,11 +784,24 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
 
           if(inversetemp.lt.0) then
             ! A 'collective' Belyaev moment of inertia
-            ! Don't include the contribution from the blocked qps
+            ! Don't include the contribution from the blocked qps, nor their
+            ! (almost) T-reversal partners
             blocked = .false.
             do k=1, size(blocked_qps) 
-              if((sb + j) .eq. blocked_qps(k)) blocked = .true.
-              if((sb + i) .eq. blocked_qps(k)) blocked = .true.
+              if((si + i) .eq. blocked_qps(k)) blocked = .true.
+
+              if(i .gt. N) then
+                if((si - N + i) .eq. blocked_qps(k)) blocked = .true.
+              else
+                if((si + N2+ i) .eq. blocked_qps(k)) blocked = .true.
+              endif
+
+              if((si + j) .eq. blocked_qps(k)) blocked = .true.
+              if(j .gt. N) then 
+                if((si - N + j) .eq. blocked_qps(k)) blocked = .true.
+              else
+                if((si + N2+ j) .eq. blocked_qps(k)) blocked = .true.
+              endif
             enddo
             if(blocked) cycle
 

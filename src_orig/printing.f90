@@ -230,9 +230,13 @@ contains
         select case(pairingtype)
         case(2)
           ! HFB QP energies
-          do i=1,2*N+2*N2
+          do i=1,N+N2
+            print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*N+2*N2-i+1)
+          enddo
+          do i=N+N2+1,2*N+2*N2
             print 2, i, QPenergies(sb+i), configmatrix(sb+i)
           enddo
+
         case(1)
           ! The BCS qp energies are not ordered by energy
           indices = order(BCSqps(si+1:si+N))
@@ -252,7 +256,7 @@ contains
     
     integer, intent(in) :: B  
 
-    1  format ('Block ', i1, ':  P=',a1,'1',  a8)
+    1  format ('Block ', i1, ':  P=',a1,'1',2x,  a8)
     2  format ( '  N      Eqp     f_n')
     3  format (80 ('_'))
   

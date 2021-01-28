@@ -151,12 +151,16 @@ contains
         select case (Blocklowest(i))
         case('n+')
             neutron_block(1) = neutron_block(1) + 1 
+$NTR        if(blocktype.eq.4) neutron_block(2) = neutron_block(2) + 1 
         case('n-')
             neutron_block(3) = neutron_block(3) + 1 
+$NTR        if(blocktype.eq.4) neutron_block(4) = neutron_block(4) + 1 
         case('p+')
             proton_block(1)  = proton_block(1)  + 1
+$NTR        if(blocktype.eq.4) proton_block(2)  = proton_block(2)  + 1
         case('p-')
             proton_block(3)  = proton_block(3)  + 1
+$NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
         case('n0')
             neutron_block(5) = neutron_block(5) + 1
         case('p0')
@@ -502,6 +506,10 @@ $TR    HFBdispersion = 2 * HFBdispersion
         !-----------------------------------------------------------------------
         ! No blocking asked for. 
     case(1,3)
+$NTR    if(blocktype.eq.3) then
+$NTR     print *, 'Can not do EFA blocking when time-reversal is not conserved.'   
+$NTR     stop
+$NTR    endif
         !-----------------------------------------------------------------------
         ! The user asked for a specific configuration that needs to be 
         ! identified. The array blockconf now contains the indices in the 
@@ -542,7 +550,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
                     R(sb+ind-N)       = occ 
                     R(sb+ind)         = 1 - occ
                     ! Save which one we blocked
-                    blocked_qp(j) = sb+ind
+                    blocked_qp(j) = si+ind
                 endif
                 sb = sb + 2*N
                 si = si + N
@@ -570,6 +578,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
               si = si +   N + N2
             enddo
             toblock(qpb) = toblock(qpb) + 1
+            if(blocktype.eq.4) toblock(qpb+1) = toblock(qpb+1) +1 
           enddo
         endif
 
@@ -594,7 +603,7 @@ $TR    HFBdispersion = 2 * HFBdispersion
 
             ! Saving the one we flipped
             ind = ind + 1
-            blocked_qp(ind) = sb + j
+            blocked_qp(ind) = si + j
           enddo
           si = si +   N
           sb = sb + 2*N
