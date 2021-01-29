@@ -130,6 +130,27 @@ Individual tests are
     out/summary/gsk2.z020n028num001run001.out
 
 
+  * run.N2LO.sh
+    - - - - - - - -
+
+    Example calculation using the N2LO parameterization SN2LO for Ca48.
+
+    out/STDOUT/Tant.N2LO.out
+    
+    out/summary/N2LO.z020n028num001run001.out
+
+  * run.cranking.sh
+    - - - - - - - - 
+
+    Example cranking calculation using the SLy5s1 parameterisation for Ar36.  
+        
+    out/STDOUT/Tant.Ar36.out
+    out/STDOUT/Tant.Ar36.om_z=0.1.out
+    out/STDOUT/Tant.Ar36.om_z=0.2.out
+    out/STDOUT/Tant.Ar36.om_z=0.3.out
+    out/STDOUT/Tant.Ar36.om_z=0.4.out
+    out/STDOUT/Tant.Ar36.om_z=0.5.out
+
   * run.Pb208.sh
     - - - - - - - -
 
@@ -140,11 +161,3 @@ Individual tests are
 
     out/summary/Pb208.z082n126num001run001.out
 
-  * run.N2LO.sh
-    - - - - - - - -
-
-    Example calculation using the N2LO parameterization SN2LO for Ca48.
-
-    out/STDOUT/Tant.N2LO.out
-    
-    out/summary/N2LO.z020n028num001run001.out
