@@ -930,7 +930,7 @@ contains
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          write(1, fmt='(3f8.3, 3es25.12)') meshx(i), meshx(j), meshz(k),      &
+          write(1, fmt='(3f8.3, 3es25.12E3)') meshx(i), meshx(j), meshz(k),      &
           &                           dn(i,j,k), dp(i,j,k), chargedensity(i,j,k) 
         enddo
       enddo

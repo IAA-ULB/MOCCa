@@ -670,7 +670,6 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
     call calcJ11(jz,bogoliubov, j11(:,:,3)) 
 
     if(inversetemp .lt. 0) then
-      print *, 'Blocked', blocked_qps
       si = 0 ; sb = 0
       do b=1,Blocks,2
         N  = hfblocks(b)    ; if(N .eq. 0) cycle
