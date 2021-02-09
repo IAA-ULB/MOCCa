@@ -20,12 +20,14 @@ x3       =      1,
 sigma    =      1
 wso      =    115.0,
 wsoq     =    115.0 
-CT0      =      0.0
-CT1      =      0.0
 Vp       =  -1250.00000
 Vn       =  -1250.00000
 alpha    =    1.0
 sigmap   =    1.0
 hbm(1)   = 20.73551910, 20.73551910 
 COM1Body = 2
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
 /

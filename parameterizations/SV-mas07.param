@@ -16,8 +16,6 @@ sigma    =     0.2
 wsoq     =   115.53698
 wso      =   113.522
 hbm(1)   =    20.721260, 20.749821  
-CT0      =     0.0
-CT1      =     0.0
 Vn       =  -688.246
 Vp       =  -752.655
 ! What is called the switching density  \rho_pair in the paper can be simulated
@@ -28,4 +26,8 @@ sigmap   =     1.0
 hbm(1)   = 20.721260, 20.749821
 COM1Body = 1
 COM2Body = 1
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
 /
