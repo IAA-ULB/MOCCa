@@ -227,7 +227,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     if(allocated(p_blocked)) then
        ! We need to offset stuff by the number of neutron qps
        do i=1, NP
-         blocked_qps(NN+i) = p_blocked(i) + 2*sum(HFBlocks(1:4))
+         blocked_qps(NN+i) = p_blocked(i) + sum(HFBlocks(1:4))
        enddo
     endif
     !---------------------------------------------------------------------------

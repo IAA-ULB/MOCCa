@@ -41,6 +41,11 @@ contains
     ! Transform a set of spwfs, in a blockstructure dictated by blocks, into
     ! a set of spwfs with less symmetries.
     !---------------------------------------------------------------------------
+  1 format("------------------------------------------------------------------")
+  2 format(" Number of spwfs on STDIN does not match what is required.")
+  3 format(" Symmetry-broken calculation should have (nwn,nwp) = ", 2i5)
+  4 format(" STDIN says                              (nwn,nwp) = ", 2i5)
+
     real(KIND=dp), intent(inout), allocatable :: wfs(:,:,:)
     integer, intent(inout)                    :: blocks(8)
     integer, intent(in)                       :: oldnx, oldny, oldnz
@@ -66,6 +71,16 @@ contains
       ! Use an antilinear, antihermitian symmetry operator 
       ! (usually time-reversal) to construct partners of the old wfs.
 
+      ! A more elegant way of stopping if the number of spwfs does not match
+      if((2*sum(blocks(1:4)) .ne. nwn)  .or. (2*sum(blocks(5:8)) .ne. nwp)) then
+        print 1
+        print 2
+        print 3, 2*sum(blocks(1:4)), 2*sum(blocks(5:8))
+        print 4, nwn, nwp
+        print 1
+        stop
+      endif
+  
       si = 0
       sb = 0
       do B = 1,8
@@ -73,7 +88,7 @@ contains
         ! Loop over the blocks. 
         !- - - - - - - - - - - - 
         ! Note that blocks = 2,4,6,8 are always of zero size in this loop, as we 
-        ! are breaking the antilinear, anithermitian conserved symmetry
+        ! are breaking the antilinear, antihermitian conserved symmetry
         N = blocks(B); if(N .eq. 0) cycle
    
         ! Copy the wavefunctions that were already in storage
