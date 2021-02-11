@@ -767,12 +767,17 @@ $NTR  wavebar = conjugp(wave)
 
       v2  = rho_can(wave)
 $TR      gap(1,it1) = gap(1,it1)  +  v2 * abs(gaps_can(wave,wave))                
-$NTR     gap(1,it1) = gap(1,it1)  +  v2 * abs(gaps_can(wave,wavebar))                
+$NTR     if(wavebar .ne. 0) then ! The conjugate partner has not necessarily
+$NTR                             ! been found, in which case gap = 0 anyway
+$NTR       gap(1,it1) = gap(1,it1)  +  v2 * abs(gaps_can(wave,wavebar))                
+$NTR     endif      
       norm(1,it1)= norm(1,it1) +  v2                
 
       uv  = kappa_can(wave)
 $TR      gap(2,it1) = gap(2,it1)  +  abs(uv * gaps_can(wave,wave))                 
-$NTR      gap(2,it1) = gap(2,it1)  +  abs(uv * gaps_can(wave,wavebar))                 
+$NTR      if(wavebar .ne. 0) then
+$NTR        gap(2,it1) = gap(2,it1)  +  abs(uv * gaps_can(wave,wavebar))     
+$NTR      endif            
       norm(2,it1)= norm(2,it1) +  abs(uv)                                       
     enddo
 
