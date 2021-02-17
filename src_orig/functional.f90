@@ -526,7 +526,7 @@ $PRINT
         if(i.gt.nwn) it = 2
         do j=1,nwt  
         
-            fac = rho_can(i)*rho_can(j) + kappa_can(i)*kappa_can(j)
+            fac = 0.25*rho_can(i)*rho_can(j) + kappa_can(i)*kappa_can(j)
                     
             temp(1,it) = temp(1,it) + fac*NablaMElements(1,1,i,j)**2
             temp(2,it) = temp(2,it) + fac*NablaMElements(2,2,i,j)**2
@@ -537,7 +537,7 @@ $PRINT
       ! 0.25 since rho_can is double what it should be
       ! 2    since we are only summing over half of the states
       do it=1,2
-        COMCorrection(2,it) = 0.5*sum(temp(:,it))
+        COMCorrection(2,it) = 2*sum(temp(:,it))
       enddo
       ! Some constants
       COMCorrection(2,:) = COMCorrection(2,:) * hbm * nucleonmass/             & 
