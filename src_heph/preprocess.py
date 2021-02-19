@@ -114,6 +114,12 @@ def preprocess(fname, src, target, so , oldso):
     if(fname=='printing.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='HFB_gradient.f90'):
+        ProcessGeneric(fname, src, target, so)
+        return
+    if(fname=='HFB_direct.f90'):
+        ProcessGeneric(fname, src, target, so)
+        return
     if(fname=='HFB.f90'):
         ProcessHFB(fname, src, target, so)
         return
@@ -127,7 +133,7 @@ def preprocess(fname, src, target, so , oldso):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='momentsofinertia.f90'):
-        ProcessMomentsOfInertia(fname, src, target, so)
+        ProcessGeneric(fname, src, target, so)
         return
     if(fname=='particleinabox.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -168,7 +174,7 @@ def ProcessGeninfo(fname, src, target, so):
                 generated.write(Template(line).substitute(dic))   
 
 
-def ProcessMomentsOfInertia(fname, src, target, so):  
+def ProcessGeneric(fname, src, target, so):  
     """
 
     """

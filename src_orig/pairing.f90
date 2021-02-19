@@ -486,21 +486,8 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       ! Find the Fermi energy
       !if(allocated(rho_history)) tmp = rho_history
       call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
-      &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
-      &                BlockType, Blockindices, blocklowest, blocked_qps, ifail)
-
-      !if(abs(overrho).lt. 0.98 .and. abs(overrho).gt. 0.1) then
-    ! 
-    !      do i=1, 100
-    !          rho_pairing = tmp
-    !          print *, HFBGauge, overrho
-    !          HFBGauge = -0.001 * i
-    !          call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
-    !          &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
-    !          &                BlockType, Blockindices, blocklowest, blocked_qps, ifail)
-    !     enddo
-    !      stop
-    !endif
+      &                     configmatrix, qpenergies,BlockType, Blockindices,  &
+      &                     blocklowest, blocked_qps, ifail)
    end select
 
     !---------------------------------------------------------------------------

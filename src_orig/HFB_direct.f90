@@ -1,0 +1,813 @@
+module HFB_direct
+ !==============================================================================
+ !_________ _______  _       _________ _______  _                 _______ 
+ !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
+ !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
+ !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
+ !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
+ !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
+ !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
+ !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
+ !                                                                       
+ !  Copyright W. Ryssens & M. Bender
+ !
+ !==============================================================================
+
+  use geninfo
+  use wavefunctions
+
+  implicit none
+
+contains 
+
+  function ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf,     &
+  &                               blocked_qp)   result(R)
+    !---------------------------------------------------------------------------
+    ! Construct the configuration matrix, based on the various user options.
+    !
+    !---------------------------------------------------------------------------
+
+    integer, intent(in)          :: BlockType
+    integer, intent(in)          :: blocks(4) 
+    integer, intent(in)          :: blockconf(:)
+    integer, allocatable         :: blocked_qp(:)
+    real(KIND=dp), intent(in)    :: Eqp(:), Bogo(:,:)
+    real(KIND=dp), allocatable   :: R(:)
+      
+    integer                      :: N, N2,B, sb, i, NB, j, qblock, ind, si, bi
+    real(KIND=dp)                :: compare, occ, qpmin
+    integer                      :: toblock(4), qpb
+
+    N = size(Eqp) 
+    allocate(R(N)) ;  R = 0
+    qpb = -1
+
+    !---------------------------------------------------------------------------
+    ! Construct the DEFAULT configuration, corresponding to all positive energy
+    ! quasiparticles.
+    sb = 0 ; si = 0      
+
+    do B=1,4
+        N = blocks(B) ; if (N.eq. 0) cycle
+        do i=1,N
+            if(inversetemp .gt. 0.0_dp) then
+                !---------------------------------------------------------------
+                ! At finite temperature, things can get partially occupied and 
+                ! we are dealing with a statistical mixture.
+                occ = exp(inversetemp * Eqp(si+i))
+                occ = 1.0/(1 + occ)
+                R(sb+N+i) = 1.0_dp - occ
+                R(sb  +i) =          occ
+            else
+                !---------------------------------------------------------------
+                !Completely empty or full, we want pure HFB states.
+                R(sb+N+i) = 1.0_dp
+                R(sb  +i) = 0.0_dp       
+            endif
+        enddo
+        si = si +   N 
+        sb = sb + 2*N        
+    enddo
+    !---------------------------------------------------------------------------
+    occ = 0
+    select case(Blocktype)
+    case(1,2)
+        ! Full blocking
+        occ = 1.0_dp
+    case(3,4)
+        ! EFA blocking
+        occ = 0.5_dp
+    end select
+    !---------------------------------------------------------------------------
+    ! Modify this default configuration when needed.
+    select case(Blocktype)
+    case(0)
+        !-----------------------------------------------------------------------
+        ! No blocking asked for. 
+    case(1,3)
+$NTR    if(blocktype.eq.3) then
+$NTR     print *, 'Can not do EFA blocking when time-reversal is not conserved.'   
+$NTR     stop
+$NTR    endif
+        !-----------------------------------------------------------------------
+        ! The user asked for a specific configuration that needs to be 
+        ! identified. The array blockconf now contains the indices in the 
+        ! HF-basis.
+        NB = size(blockconf)
+        if(.not.allocated(blocked_qp)) then
+          allocate(blocked_qp(NB)) ; blocked_qp = 0
+        endif        
+
+        do j=1,NB
+            compare = 0.0
+            ind     = 0
+
+            ! Check which block the requested index is in.
+            call Identify(blockconf(j),blocks, bi, qblock)
+            !-------------------------------------------------------------------
+            ! Look for the column in the second half of the eigenvectors with
+            ! the largest overlap with asked for state.
+            sb = 0
+            do B=1,4
+                N = blocks(B) ; if (N.eq.0) cycle
+                if(B.eq.qblock) then
+                    do i=N+1,2*N
+                        if(Bogo(sb+bi,sb+i)**2 .gt. compare) then
+                            compare = Bogo(sb+bi+N,sb+i)**2 
+                            ind     = i
+                        endif
+                    enddo
+                endif
+                sb = sb +2*N
+            enddo 
+            !-------------------------------------------------------------------
+            !  Change the occupation of this particular qp
+            sb = 0 ; si =0 
+            do B=1,4
+                N = blocks(B)
+                if(qblock.eq.B) then
+                    R(sb+ind-N)       = occ 
+                    R(sb+ind)         = 1 - occ
+                    ! Save which one we blocked
+                    blocked_qp(j) = si+ind
+                endif
+                sb = sb + 2*N
+                si = si + N
+            enddo    
+
+        enddo
+    case(2,4)
+        !-----------------------------------------------------------------------
+        ! The user asked for a the lowest configuration of a specific type.
+        ! In this case, blockconf contains the number of qp excitations to  
+        ! construct in every block.
+        toblock = blockconf(1:4)
+
+        if(blockconf(5).ne.0) then
+          do i = 1, blockconf(5)
+            qpmin = 10000000
+            si = 0
+            do B=1,4,2
+              N = blocks(B) ; if (N.eq.0) cycle
+              N2= blocks(B+1) 
+              if(Eqp(sb+N+toblock(B)+1) .lt. qpmin) then
+                qpmin = Eqp(sb+N+toblock(B)+1)
+                qpb   = B
+              endif
+              si = si +   N + N2
+            enddo
+            toblock(qpb) = toblock(qpb) + 1
+            if(blocktype.eq.4) toblock(qpb+1) = toblock(qpb+1) +1 
+          enddo
+        endif
+
+        NB = sum(toblock)
+        if(allocated(blocked_qp)) then
+          deallocate(blocked_qp)
+        endif
+
+        if(.not.allocated(blocked_qp)) then
+          allocate(blocked_qp(NB)) ; blocked_qp = 0
+        endif        
+
+        !  For every block, we flip the required number of qps.
+        sb = 0 ; si = 0 ; ind = 0
+        do B=1,4
+          N = blocks(B) ; if (N.eq.0) cycle
+          do j=1,toblock(B)
+            ! The qps are ordered in energy from the diagonalization
+            !  So we simply flip the first ones
+            R(sb + N + j ) = 1 - occ
+            R(sb     + j ) =     occ
+
+            ! Saving the one we flipped
+            ind = ind + 1
+            blocked_qp(ind) = si + j
+          enddo
+          si = si +   N
+          sb = sb + 2*N
+        enddo
+    end select
+   
+  end function ConstructConfiguration
+
+  subroutine FindFermi_secant(H, blocks, targetparticles, config, Bogo, Eqp,   & 
+            &       lambda, maxhfbiter, blocktype, blockconf, blocked_qp, ifail)
+      !-------------------------------------------------------------------------
+      ! Subroutine that diagonalizes the HFB hamiltonian (repeatedly) to find  
+      ! the correct Fermi energy that fixes the average number of particles.
+      ! The routine only solves this for one particular isospin.
+      !
+      ! Input
+      !   H        : HFB hamiltonian, without Fermi energy
+      !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
+      !              the problem.
+      !   particles: Average number of particles to target. 
+      !   lambda   : Initial guess for the Fermi energy
+      !   maxhfbiter: Maximum number of iterations to perform
+      !
+      ! Output
+      !   config   : Configuration matrix of the final solution
+      !   Eqp      : Quasiparticle energies of the final solution
+      !   Bogo     : Bogoliubov transformation that diagonalizes H
+      !   Lambda   : Final fermi energy
+      !-------------------------------------------------------------------------
+      real(KIND=dp), intent(in)    :: H(:,:), targetparticles
+      real(KIND=dp), intent(out)   :: config(:), Bogo(:,:), Eqp(:)
+      real(KIND=dp), intent(inout) :: lambda
+      integer, intent(in)          :: blocks(4), maxhfbiter, blocktype
+      integer, intent(in)          :: blockconf(:)
+      integer, intent(out)         :: ifail
+      integer, allocatable         :: blocked_qp(:)
+
+      real(KIND=dp)                :: df, dn(2), particles
+      integer                      :: iter
+
+      ! Initialization
+      df = 0 ; dn = 0.0
+      do iter=1, maxHFBiter
+
+        particles = & 
+        &   diagbyblock(H,blocks, config, Bogo,Eqp,lambda, blocktype,blockconf,&
+        &               blocked_qp, ifail)
+        ! Return if we do not want to readjust the Fermi energy
+        if(MaxHFBiter.eq.1) return
+        
+        !-----------------------------------------------------------------------
+        ! Readjust the Fermi energy based on the number of particles.
+        ! We use the secant method.
+        dn(2) = dn(1)
+        dn(1) = particles - targetparticles
+
+        if(abs(dn(1)).lt.pairing_prec) return
+          
+        if(iter.eq.1) then
+          ! We try lambda + 0.1 for the first iteration
+          lambda = lambda + 0.1
+          df     =          0.1
+        else
+          df     = - dn(1) * df/(dn(1) - dn(2))
+  
+          if(abs(df).gt.1.0) df = 0.1 * df/abs(df)
+          lambda = lambda + df
+        endif
+      enddo
+  end subroutine FindFermi_secant
+
+  function diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf,&
+  &                    blocked_qp, ifail) result(particles)
+      !-------------------------------------------------------------------------
+      ! Routine that diagonalizes, block by block, a HFB Hamiltonian that is 
+      ! passed in. It does the low-level work for all the high-level routines
+      ! in this moodule. 
+      !
+      ! Input
+      !   H        : HFB hamiltonian, without Fermi energy
+      !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
+      !              the problem.
+      !   lambda   : Fermi energy.
+      !
+      ! Output
+      !   config   : Configuration matrix of the final solution
+      !   Eqp      : Quasiparticle energies of the final solution
+      !   Bogo     : Bogoliubov transformation that diagonalizes H
+      !   Lambda   : Final fermi energy
+      ! 
+      !   particles: total number of particles for this input
+      !-------------------------------------------------------------------------
+      real(KIND=dp), intent(in)    :: H(:,:)
+      real(KIND=dp), intent(out)   :: config(:), Bogo(:,:), Eqp(:)
+      real(KIND=dp), intent(inout) :: lambda
+      integer, intent(in)          :: blocks(4), blocktype
+      integer, intent(in)          :: blockconf(:)
+      integer, allocatable         :: blocked_qp(:)
+
+      real(KIND=dp), allocatable   :: eigen(:), work(:), A(:,:)
+      real(KIND=dp)                :: particles
+      integer                      :: sb, si, N, B, i, ifail, lwork
+
+      allocate(eigen(2*sum(blocks)))
+      !-----------------------------------------------------------------------
+      ! a) Diagonalization of the HFB Hamiltonian by block. 
+      si = 0 ; sb = 0
+      do B=1,4
+        N = blocks(B) ; if(N .eq. 0) cycle
+
+        ! Construct the blocks of H including the Fermi energy
+        allocate(A(2*N,2*N)) ; A = 0
+        
+        A = H(sb+1:sb+2*N, sb+1:sb+2*N)
+        do i=1,N
+          A(i  ,i  ) = A(i  , i  ) - lambda
+          A(i+N,i+N) = A(i+N, i+N) + lambda
+        enddo
+                        
+        ! Diagonalize every block
+        lwork = -1; allocate(work(1))
+        call DSYEV( 'V', 'U', 2*N, A, 2*N, eigen(sb+1:sb+2*N),work,lwork,ifail)
+        lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
+        call DSYEV( 'V', 'U', 2*N, A, 2*N, eigen(sb+1:sb+2*N),work,lwork,ifail)
+        deallocate(work)
+
+        Bogo(sb+1:sb+2*N, sb+1:sb+2*N) = A
+
+        if(ifail.ne.0) then
+          print *, 'WARNING: diagon failed in subroutine DiagByBlock.'
+          print *, '         Problematic block B = ', B
+          deallocate(A, eigen)
+          particles = 0.0
+          return
+        endif
+
+        Eqp(sb+1:sb+2*N) = eigen(sb+1:sb+2*N)
+        deallocate(A)
+        ! Indices for the next block
+        si = si +   N
+        sb = sb + 2*N
+      enddo
+      !-----------------------------------------------------------------------
+      ! b) We construct the configuration matrix that was asked for
+      config = ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf, &
+      &                               blocked_qp) 
+      !-----------------------------------------------------------------------
+      ! c) Count the total number of particles that we have.
+      si = 0 ; sb = 0
+      particles   = 0
+      do B=1,4                
+          N = Blocks(B) ;  if(N .eq. 0) cycle 
+          !-------------------------------------------------------------------
+          ! Calculate the number of particles in here  
+          ! Sum_i rho_ii =  Sum_ii   U   f U^{\dagger} + V^{*}(1 - f)V^{T}
+          !          sum_(ij>N) f_(j) V^*_ij V^T_ji = sum_ij f_(j) V^*_ij V_ij
+          !        + sum_(ij<N) f_(j) U^*_ij U^T_ji = sum_ij f_(j) U^*_ij U_ij         
+          do i=1,N
+              particles = particles                                          &
+              &         +   config(sb+N+i)*sum(bogo(sb+N+1:sb+2*N, sb+N+i)**2)            
+          enddo
+          do i=1,N
+              particles = particles                                          &
+              &         +   config(sb  +i)*sum(bogo(sb  +1:sb+  N, sb+N+i)**2)            
+          enddo
+
+          ! indices
+          si = si +  N
+          sb = sb +2*N
+      enddo
+      ! When Time-reversal is conserved, we need an extra factor of two
+$TR   particles = 2 * particles                 
+
+      deallocate(eigen)
+  end function diagbyblock
+
+  subroutine FindFermi_Brent(H, blocks, targetparticles, config, Bogo, Eqp,    & 
+   &                lambda, maxhfbiter, blocktype, blockconf, blocked_qp, ifail)
+      !-------------------------------------------------------------------------
+      ! Subroutine that diagonalizes the HFB hamiltonian (repeatedly) to find  
+      ! the correct Fermi energy that fixes the average number of particles.
+      ! The routine only solves this for one particular isospin.
+      !
+      ! This particular subroutine employs Brents method to fix the Fermi 
+      ! energy. See
+      ! 
+      ! https://en.wikipedia.org/wiki/Brent%27s_method
+      ! 
+      ! which combines bisection, secant method and inverse quadratic 
+      ! interpolation.The original source is probably
+      ! R. P. Brent (1973), "Chapter 4: An Algorithm with Guaranteed Convergence
+      ! for Finding a Zero of a Function", Algorithms for Minimization without
+      ! Derivatives, Englewood Cliffs, NJ: Prentice-Hall,  
+      !
+      ! Input
+      !   H        : HFB hamiltonian, without Fermi energy
+      !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
+      !              the problem.
+      !   lambda   : Initial guess for the Fermi energy
+      !   maxhfbiter: Maximum number of iterations to perform
+      !   targetparticles: Average number of particles to target. 
+      !
+      ! Output
+      !   config   : Configuration matrix of the final solution
+      !   Eqp      : Quasiparticle energies of the final solution
+      !   Bogo     : Bogoliubov transformation that diagonalizes H
+      !   Lambda   : Final fermi energy
+      !-------------------------------------------------------------------------
+      ! This routine is very heavily inspired/copy-pasted by the routines 
+      ! implemented in MOCCa by M. Bender. 
+      !-------------------------------------------------------------------------
+      real(KIND=dp), intent(in)    :: H(:,:), targetparticles
+      real(KIND=dp), intent(out)   :: config(:), Bogo(:,:), Eqp(:)
+      real(KIND=dp), intent(inout) :: lambda
+      integer, intent(in)          :: blocks(4), maxhfbiter, blocktype
+      integer, intent(in)          :: blockconf(:)
+      integer, intent(out)         :: ifail  
+
+      real(KIND=dp)                :: InitialBracket(2), FA, FB, N
+      integer                      :: idir = 0 , idirsig = 1, FailCount
+      logical                      :: Success
+      integer, allocatable         :: blocked_qp(:)
+ 
+      !-------------------------------------------------------------------------
+      ! STEP 1: set up an initial bracket
+      !-------------------------------------------------------------------------
+      N = diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf, &
+      &               blocked_qp, ifail)
+      N = N - targetparticles
+      ! Check if this guess for lambda is good enough
+      if(abs(N).lt.pairing_prec) return
+
+      ! Use present Fermi energy as starting point and check the direction
+      ! where the zero of <N>-N0 can be expected.
+      ! If <N>-N0 <  0, search at higher values.
+      ! If <N>-N0 >= 0, search at lower  values.
+      ! Initialize InitialBracket(it,1) = A, InitialBracket(it,2) = B with 
+      ! present  Fermi energy.
+      ! "dir" is the label of the InitialBracket(it,idir) that has to be moved,
+      ! "idirsig" is the sign of steps needed to go into that direction.
+
+      InitialBracket(:) = lambda
+      if ( N .lt. 0.0_dp ) then 
+        idir   =  2 ;  idirsig =  1
+      else 
+        idir   =  1 ;  idirsig = -1
+      endif
+
+      ! Try to find a boundary that brackets the Fermi energy in the direction 
+      ! into which the Fermi energy has to be changed.
+      FailCount = -1 ;  Success = .false.
+
+      do while(.not. Success)
+        FailCount = FailCount + 1
+        
+        ! update moving boundary and recalculate particle numbers at both.
+        InitialBracket(idir) = &
+        &                 InitialBracket(idir) + idirsig * 0.01_dp*(FailCount+1)
+
+        FA = diagbyblock(H,blocks,config,Bogo,Eqp,InitialBracket(1),blocktype, &
+        &                                          blockconf, blocked_qp, ifail)
+        FB = diagbyblock(H,blocks,config,Bogo,Eqp,InitialBracket(2),blocktype, &
+        &                                          blockconf, blocked_qp, ifail)
+        FA = FA - targetparticles ; FB = FB - targetparticles
+
+        ! check if N(epsilon_F) is a monotonically growing function.
+        ! It should be, but who knows, pigs may fly ...
+        if ( FB .lt. FA ) then 
+          print '(" : Warning N(eps_F) decreases ")'
+          print '(" A = ",f13.8," FA = ",f14.8," B = ",f13.8," FB = ",f14.8)', &
+               & InitialBracket(1),FA+N, InitialBracket(2),FB+N
+        endif
+
+        ! diagnostic printing for convergence analysis (usually commented out)
+!        print '(" Bracketing ",i4,1l2,(2(f13.8,es16.7)))',        &
+!              & FailCount,Success,InitialBracket(1),FA, InitialBracket(2),FB          
+        ! code failure (Fermi energy has changed by 30 MeV)
+        if (Failcount .gt. 76) then
+          print '(/," A = ", f13.8, "FA = ",1es12.4,              &
+               &    " B = ", f13.8, "FB = ",1es12.4)',            &
+               &     InitialBracket(1),FA,InitialBracket(2),FB 
+          ifail = 1
+          return
+          !stop 'FindFermiBrent: Search for InitialBracket failed.'
+        endif
+        ! check if root is bracketed for isospin it after the update
+        if( FA*FB .lt. 0.0_dp ) then 
+            ! Correct Bracket found!
+            Success = .true.
+        endif
+      enddo
+      !-------------------------------------------------------------------------
+      ! STEP 2: call the routine for the actual bisection
+      !-------------------------------------------------------------------------
+      call BrentBisection(lambda,N,InitialBracket(1), InitialBracket(2),FA,FB, &
+      &                   maxHFBIter,H,blocks, targetparticles, config, Bogo,  & 
+      &                   Eqp, blocktype, blockconf, blocked_qp)
+  
+  end subroutine FindFermi_brent
+
+  subroutine BrentBisection(lambda,particles, X1,X2,FX1,FX2,Depth, H, blocks,  & 
+    &      targetparticles, config, Bogo, Eqp, blocktype, blockconf, blocked_qp)
+    !---------------------------------------------------------------------------
+    ! This routine searches for the Fermi energy
+    ! by Brent's methods https://en.wikipedia.org/wiki/Brent%27s_method
+    ! which combines bisection, secant method and inverse quadratic 
+    ! interpolation. The original source is probably
+    ! R. P. Brent (1973), "Chapter 4: An Algorithm with Guaranteed Convergence
+    ! for Finding a Zero of a Function", Algorithms for Minimization without
+    ! Derivatives, Englewood Cliffs, NJ: Prentice-Hall, 
+    !---------------------------------------------------------------------------
+    ! see pages 1188 - 1189 of http://apps.nrbook.com/fortran/index.html
+    ! W. H. Press, S. A. Teukolsky, W. T. Vetterling and B. P. Flannery,
+    ! Numerical Recipes in Fortran in Fortran 90, Second Edition (1996).
+    !---------------------------------------------------------------------------
+    ! Input
+    !   H        : HFB hamiltonian, without Fermi energy
+    !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
+    !              the problem.
+    !   maxhfbiter: Maximum number of iterations to perform
+    !   targetparticles: Average number of particles to target. 
+    !
+    ! Output
+    !   config   : Configuration matrix of the final solution
+    !   Eqp      : Quasiparticle energies of the final solution
+    !   Bogo     : Bogoliubov transformation that diagonalizes H
+    !   Lambda   : Final fermi energy
+    !   Particles: Final number of particles
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), intent(in)    :: H(:,:), targetparticles
+    real(KIND=dp), intent(out)   :: config(:), Bogo(:,:), Eqp(:), lambda
+    real(KIND=dp), intent(out)   :: particles
+    integer, intent(in)          :: blocks(4), blocktype
+    integer, intent(in)          :: blockconf(:)
+    integer, intent(in)          :: Depth
+    real(KIND=dp), intent(in)    :: X1 , X2, FX1 , FX2 
+    integer, allocatable         :: blocked_qp(:)
+
+    real(KIND=dp)                :: A , B, C , FA, FB , FC
+    real(KIND=dp)                :: D , E, S , P  , Q , R 
+    real(KIND=dp)                :: Num , Tol , XM 
+    real(KIND=dp)                :: eps = 1.d-9
+    integer                      :: FailCount, ifail
+    logical                      :: Found
+
+    A  = X1 ; B  = X2 
+    FA = FX1; FB = FX2
+    Found = .false.    
+    if (A .eq. B) then 
+      !-------------------------------------------------------------------------
+      ! This signals that FA = FB is zero within the tolerance.
+      ! Either near-converged HFB or HF case of completely broken-down pairing
+      ! which also satisfies FA = FB = 0 within an interval. The 
+      ! latter case cannot be handled by the algorithm below.
+      !-------------------------------------------------------------------------
+      Found = .true.
+    endif
+
+    C = B ; FC = FB 
+    E = -1000000 ; D = -1000000
+  
+    FailCount = -1
+
+    do while(.not.Found) 
+      FailCount = FailCount + 1
+      if ( ( FB .gt. 0.0_dp .and. FC .gt. 0.0_dp ) .or. & 
+         & ( FB .lt. 0.0_dp .and. FC .lt. 0.0_dp ) )  then
+        C  = A     ;  FC = FA
+        D  = B - A ;  E  = D
+      endif
+      if ( abs(FC) .lt. abs(FB) ) then
+        A  = B ;  FA = FB
+        B  = C ;  FB = FC
+        C  = A ;  FC = FA
+      endif
+      !-------------------------------------------------------------------------
+      ! Convergence check
+      ! Note (W.R.): I have tightened convergence a bit compared to the values
+      !              in MOCCa by M.B. 
+      !-------------------------------------------------------------------------
+      Tol  = 2.0_dp * eps * abs(B) + 0.05_dp * Pairing_prec
+      XM   = 0.5_dp * (C-B)
+      !----------------------------------------------------------------
+      ! Note: the tolerance is on the precision of the Fermi energy,
+      ! NOT the nearness of the particle number to the targeted value.
+      !----------------------------------------------------------------
+      if ( abs(XM) .le. Tol .or. FB .eq. 0.0_dp ) then
+        Lambda =  B
+        Found = .true. 
+        cycle
+      endif
+      if ( abs(E) .ge. Tol .and. abs(FA) .gt. abs(FB) ) then
+        S = FB/FA
+        if ( A .eq. C ) then
+          P = 2.0_dp * XM * S
+          Q = 1.0_dp - S
+        else
+          Q = FA/FC
+          R = FB/FC
+          P = S * (2.0_dp * XM * Q * (Q-R) & 
+                  &    - (B-A)*(R-1.0_dp))
+          Q = (Q-1.0_dp)*(R-1.0_dp)*(S-1.0_dp)
+        endif
+        if ( P .gt. 0.0_dp ) Q = -Q
+        P = abs(P)
+        if (2.0_dp * P .lt. min(3.0_dp*XM*Q - abs(Tol*Q),abs(E*Q))) then
+          E = D
+          D = P / Q
+        else
+          D = XM
+          E = D 
+        endif
+      else
+        D = XM
+        E = D 
+      endif
+      A  = B 
+      FA = FB
+      B  = B + merge(D,sign(Tol,XM),abs(D) .gt. Tol)    
+  
+      !-------------------------------------------------------------------------
+      ! B is present best guess for the fermi energy, FB the corresponding 
+      ! particle number.
+      !-------------------------------------------------------------------------
+      Num = diagbyblock(H, blocks, config, Bogo,Eqp,B, blocktype,blockconf,    &
+      &                 blocked_qp, ifail)
+      FB  = Num - targetparticles
+
+      !-------------------------------------------------------------------------
+      ! diagnostic printing for convergence analysis (usually commented out)
+      !-------------------------------------------------------------------------
+      ! NOTE: B is the the best guess for the zero of F. A has been the previous
+      ! "closest" interval boundary that is not updated after Found
+      ! is set to .true. The actual zero might therefore be outside the 
+      ! interval [A,B]. If so, the true zero is typically closer to B than 
+      ! A is to B.
+      !-------------------------------------------------------------------------
+      ! Note further: as A and B are swapped from time to time, B might be 
+      ! smaller than A when printed here
+      !-------------------------------------------------------------------------
+!      print '(" BrentBisection ",i4,(1l2,2(f13.8,es16.7),f14.8))',    &
+!           & FailCount, Found,A,FA,B,FB,Num
+!     
+      if ( FailCount .gt. Depth ) then
+        print '(/," Warning: BrentBisection did not converge after ",i4," iterations")', & 
+        &      FailCount
+      endif
+    enddo
+    ! Output
+    Lambda    = B ; particles = FB
+  end subroutine BrentBisection
+
+  subroutine Identify(i, blocks, bi, qblock)
+    !---------------------------------------------------------------------------
+    ! Identifies both the symmetry block(qblock) and index in said symmetry 
+    ! block (bi), based on the index i in the HF basis. 
+    !---------------------------------------------------------------------------
+    integer, intent(in)  :: i, blocks(4)
+    integer, intent(out) :: bi, qblock    
+        
+    integer :: sb, N, B
+
+    sb = 0; bi = 0; qblock = 0
+    do B=1,4
+        N = Blocks(B) ; if (N.eq.0) cycle
+
+        if( i .gt. sb .and. i.le.sb+N) then
+            qblock = B
+            bi     = i - sb
+            return
+        endif
+        sb = sb + N
+    enddo
+  end subroutine Identify
+
+  subroutine reorganise_matrices(Bogo,qpe,c)
+    !---------------------------------------------------------------------------
+    ! The diagonalisation of the HFB Hamiltonian is not performed with the 
+    ! same block structure as is adopted in the rest of the program. This 
+    ! routine takes the quantities obtained by diagonalisation and reorders
+    ! them so that they can be used in the rest of the code.
+    !
+    !            Input                        Output
+    !  H : 
+    !  B :   Bogo transform 
+    !---------------------------------------------------------------------------
+    ! Naively writing down the HFB hamiltonian, we have 
+    ! (if there is a linear, antihermitian conserved symmetry)  
+    ! 
+    !
+    !       (  h+  0     0     d+- )
+    !  H =  (  0   h-    d-+   0   )
+    !       (  0  -d-+  -h+    0   )
+    !       ( -d+- 0     0    -h-  ) 
+    !
+    !
+    !  but we diagonalize in practice the two submatrices
+    !
+    !  H+ =  (  h+     d+-)     H- = ( h-     d-+ )
+    !        (  -d+-  -h- )          ( d-+   -h+  )
+    !
+    !  as
+    !         H = ( H+ 0 )
+    !             ( 0  H-)
+    !     
+    ! Hence, the Bogoliubov transformation in memory is structured as
+    !        
+    !       (  V^*+  U+    0     0   )
+    !  W =  (  U^*+  V+    0     0   )
+    !       (  0     0     V^*-  U-  )
+    !       (  0     0     U^*-  V-  )
+    !   
+    !  which we need to correct by moving things around to
+    !
+    !       (  V^*+   0     U+  0   )
+    !  W =  (  0      V^*-  0   U-  )      (*)
+    !       (  0      U^*-  0   V-  )
+    !       (  U^*+   0     V+  0   )
+    !
+    ! Note that this reordering is necessary too for the
+    !  (i)  QPenergies
+    !  (ii) Configmatrix
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    ! Almost(!) all of these matrices are ordered by increasing value of 
+    ! quasi-particle energy. So, in the Bogoliubov transformation at (*),
+    ! the columns correspond to the following ordering of qp energies   
+    !
+    !  -E_-N ... -E_-1 , -E_+N ... -E_+1, E_+1, ... E_+N, E_-1 .... E_-N
+    !
+    !  where E_+/-1 .... E_+/-N are increasing sequences, and I draw attention
+    !  to the fact that the first half of quasi-particles is organised in 
+    !  reverse order from the second half. 
+    !
+    ! The EXCEPTION to this rule is the configuration matrix configmatrix. That
+    ! is constructed in blocks of increasing ABSOLUTE quasi-particle energy
+    ! meaning that in that matrix the ordering is  
+    !   
+    ! -E_+1 ... -E_+N , -E_-1 ... -E_-N, E_+1, ... E_+N, E_-1 .... E_-N
+    !
+    ! meaning that the order has been reversed for the first half. This is 
+    ! convenient for the construction of the pairing matrices, as then the  
+    ! full generalized density matrix in quasi-particle representation 
+    !
+    ! looks like
+    !          ( f_+1  0                     ......                    0  )
+    !    C =   ( 0    ....                                                ) 
+    !          (            f_-1                                          ) 
+    !          (                  .....                                   )
+    !          (                         1-f_+1                           ) 
+    !          (                                  ......                  ) 
+    !          (                                          1-f_-1          )
+    !          ( 0                                                 .......)
+    !
+    !
+    ! or more specifically:   C(i) = 1 - C(i+N+N2) as is often used here 
+    ! and elsewhere in the code.
+    !
+    ! These warnings about matrix ordering of the first half of the Bogoliubov
+    ! transformation is a little bit academical: the code has been constructed
+    ! such that only the right half of the Bogoliubov transformation in (*), 
+    ! their quasi-particle energies and the FULL configuration matrix enter
+    ! the generalized density matrix, which is the only quantity affecting the
+    ! rest of the program. 
+    !---------------------------------------------------------------------------
+    integer                      :: si, sb, B, N, N2
+    real(KIND=dp), intent(inout) :: Bogo(:,:) , qpe(:), c(:)
+    real(KIND=dp), allocatable   :: temp(:,:), tempqe(:), tempc(:) 
+
+    temp = Bogo ;  tempqe = qpe   ; tempc = c
+    Bogo = 0    ; qpe     = 0.0d0 ; c     = 0.0
+
+    si = 0 ; sb = 0
+    do B=1,8,2
+      N = HFBlocks(B) ; N2 = HFBlocks(B+1)
+
+      !-------------------------------------------------------------------------
+      ! Moving the first block
+
+      ! First N eigenvalues of  H+ 
+      ! (negative qp energies generally, but not always)
+      Bogo(sb+       1:sb  +N   ,sb+1:sb+N) = &
+      &                                        temp(sb+  1:sb+  N,sb+  1:sb+N)
+      Bogo(sb+N+2*N2+1:sb+2*N+2*N2,sb+1:sb+N) = &
+      &                                        temp(sb+N+1:sb+2*N,sb+  1:sb+N)
+
+      ! Second set of N eigenvalues of H+
+      Bogo(sb+       1:sb+  N     ,sb+N+  N2+1:sb+2*N+  N2) = &
+      &                                        temp(sb+  1:sb+  N,sb+N+1:sb+2*N)
+      Bogo(sb+N+2*N2+1:sb+2*N+2*N2,sb+N+  N2+1:sb+2*N+  N2) = &
+      &                                        temp(sb+N+1:sb+2*N,sb+N+1:sb+2*N)
+      !-------------------------------------------------------------------------
+      ! Moving the second block (which doesn't exist if T is conserved)
+
+      ! First N2 eigenvalues of H-
+      ! (negative qp energies generally, but not always)
+      Bogo(sb+N+1:sb+N+2*N2,sb+N+1:sb+N+N2) = &
+      &                          temp(sb+2*N+1:sb+2*N+2*N2,sb+2*N+1:sb+2*N+N2)
+      ! Second set of N2 eigenvalues of H-
+      Bogo(sb+N+1:sb+N+2*N2,sb+2*N+N2+1:sb+2*N+2*N2) = &
+      &                       temp(sb+2*N+1:sb+2*N+2*N2,sb+2*N+N2+1:sb+2*N+2*N2)
+
+      !-------------------------------------------------------------------------
+      ! First N eigenvalues of H+
+      c(sb+     1:sb+N    )  = tempc (sb  +1:sb+  N)
+      ! Second set of N eigenvalues of H+
+      c(sb+N+N2+1:sb+2*N+N2) = tempc (sb+N+1:sb+2*N) 
+      !-------------------------------------------------------------------------
+      ! First set of N2 eigenvalues of H-
+      c(sb+N+     1:sb+N+N2  )   = tempc (sb+2*N+1   :sb+2*N+  N2)
+      ! Second set of N2 eigenvalues of H-
+      c(sb+2*N+N2+1:sb+2*N+2*N2) = tempc (sb+2*N+N2+1:sb+2*N+2*N2)
+
+      !-------------------------------------------------------------------------
+      qpe  (sb+     1:sb+N)      = tempqe(sb    +1:sb+N   ) 
+      qpe  (sb+N+   1:sb+N+N2)   = tempqe(sb+2*N+1:sb+2*N+N2) 
+
+      qpe  (sb+  N+N2+1:sb+2*N+  N2) = tempqe(sb+  N   +1:sb+2*N   )
+      qpe  (sb+2*N+N2+1:sb+2*N+2*N2) = tempqe(sb+2*N+N2+1:sb+2*N+2*N2)
+
+      !-------------------------------------------------------------------------
+      si = si +   N +   N2
+      sb = sb + 2*N + 2*N2
+    enddo
+  end subroutine reorganise_matrices
+
+end module HFB_direct
