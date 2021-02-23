@@ -20,18 +20,18 @@ module HFB_gradient
 
 contains 
 
-  subroutine gradient_step(h,gaps,blocks,targetparticles,Bogo,Eqp,lambda,maxiter)
+  subroutine gradient_step(h,gaps,blocks,targetN,Bogo,Eqp,dispqp,lambda,maxiter)
     !---------------------------------------------------------------------------
     !
     !
     !---------------------------------------------------------------------------  
     integer, intent(in)          :: blocks(4), maxiter
-    real(KIND=dp), intent(inout) :: Bogo(:,:), lambda, targetparticles
-    real(KIND=dp), intent(inout) :: Eqp(:)
+    real(KIND=dp), intent(inout) :: Bogo(:,:), lambda, targetN
+    real(KIND=dp), intent(inout) :: Eqp(:), dispqp(:)
     real(KIND=dp), intent(in)    :: h(:,:), gaps(:,:)
     real(KIND=dp), allocatable   :: H20(:,:), N20(:,:), newbogo(:,:), grad(:,:)
-    real(KIND=dp)                :: alpha, particles
-    integer                      :: B, si, sb, N, N2, iter
+    real(KIND=dp)                :: alpha, particles, gradnorm
+    integer                      :: B, si, sb, N, N2, iter, fermiiter,i
 
     logical                      :: converged = .false.  
   
@@ -44,15 +44,30 @@ contains
         H20 = calcH20(Bogo,h,gaps,blocks)
         N20 = calcN20(Bogo, blocks)
 
-        ! Try this particular value of Lambda
-        grad = H20 - lambda * N20
-        ! Make a step in the right direction
-        newbogo = GradUpdate(grad, bogo, alpha, blocks)
-        ! Check the new particle number
-        particles = particle_number_bogo(bogo, blocks)
-      
-    enddo
+        do fermiiter = 1,100
+          ! Try this particular value of Lambda
+          grad = H20 - lambda * N20
+          ! Make a step in the right direction
+          newbogo = GradUpdate(grad, bogo, alpha, blocks)
+          ! Check the new particle number
+          particles = particle_number_bogo(newbogo, blocks)
+          !print *, fermiiter, lambda, particles, particles-targetN
+          if(abs(Particles-targetN) .lt. 1d-16) exit 
+          lambda = lambda - (Particles - targetN)                      
 
+        enddo
+        bogo = newbogo
+
+        call calc_qp_energies(h, gaps, lambda, bogo, blocks, Eqp, dispqp) 
+        gradnorm = sqrt(sum(grad**2))
+
+        if(gradnorm .lt. 1d-12) converged = .true.
+        if(converged) then
+          exit
+        endif
+    enddo
+!    print ('(99f10.3)'), Eqp
+    print *, iter, gradnorm, fermiiter, particles-targetN
   end subroutine gradient_step
 
   function GradUpdate(grad, bogo, alpha, blocks) result(newbogo)
@@ -77,54 +92,61 @@ contains
     integer, intent(in)          :: blocks(4)
     real(KIND=dp), intent(in   ) :: bogo(:,:)
     real(KIND=dp), allocatable   :: tV(:,:), tU(:,:), aux(:,:), newbogo(:,:)
-    integer                      :: B, sb, N, N2, T,  i, info
-
-    sb = 0
+    integer                      :: B, sb, N, N2, T,  i, info, si
 
     newbogo = bogo
+    sb = 0  ; si = 0
     do B=1,4,2
       N  = blocks(B)   ; if(N.eq.0) cycle
       N2 = blocks(B+1)
 
       T = N + N2
 
-      tU = bogo(sb+  1:  T,sb+1:sb+T)
-      tV = bogo(sb+T+1:2*T,sb+1:sb+T)
+      tU = bogo(sb+  1:sb+  T,sb+T+1:sb+2*T)
+      tV = bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
 
       ! U = U - alpha V gradient
-      newbogo(sb  +1:T     ,sb+1:sb+T) = newbogo(sb  +1:T     ,sb+1:sb+T)      & 
-      &                         -alpha *matmul(tV,grad(sb  +1:T     ,sb+1:sb+T)) 
+      newbogo(sb  +1:sb+T     ,sb+T+1:sb+2*T) = newbogo(sb+1:sb+T ,sb+T+1:sb+2*T)   & 
+      &                         -alpha *matmul(tV,grad(si+1:si+T,si+1:si+T)) 
+
       ! V = V - alpha U gradient
-      newbogo(sb+T+1:sb+2*T,sb+1:sb+T) = newbogo(sb+T+1:sb+2*T,sb+1:sb+T)      &
-      &                         -alpha *matmul(tU,grad(sb  +1:T     ,sb+1:sb+T)) 
+      newbogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T) = newbogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)  &
+      &                         -alpha *matmul(tU,grad(si+1:si+T,si+1:si+T)) 
 
+      !print *, 'max', B, maxval(abs(newbogo(sb  +1:sb+T     ,sb+T+1:sb+2*T) - bogo(sb  +1:sb+T     ,sb+T+1:sb+2*T)))
+      !print *, 'maxgrad', maxval(abs(matmul(tV,grad(si+1:si+T,si+1:si+T))))
 
-      allocate(aux(T,T)) 
-      aux =  - alpha**2 * matmul(grad, grad)
-      do i=1, T
-        aux(i,i) = 1 + aux(i,i) 
-      enddo
-
-      ! Compute the Cholesky factorization
-      call DPOTRF('L', T, aux, T, info )
-      if(info .ne. 0) then
-          print *, 'Problem with Cholesky decomposition in HFB_gradient.'
-          print *, 'INFO = ', info
-          stop
-      endif
-      ! Compute the inverse square root
-      call DTRSM('R', 'L', 'N', 'N', T, T, 1.0d0, aux, T, &
-      &                                     newbogo(sb  +1:sb+  T,sb+1:sb+T), T)
-      call DTRSM('R', 'L', 'N', 'N', T, T, 1.0d0, aux, T, &
-      &                                     newbogo(sb+T+1:sb+2*T,sb+1:sb+T), T)
-
-      deallocate(aux)
+      !print *, 'size', size(bogo,1), size(newbogo,1), sb+T, sb+2*T, alpha
+      si = si +   T
       sb = sb + 2*T
     enddo
+
+      !allocate(aux(T,T)) 
+      !aux =  - alpha**2 * matmul(grad, grad)
+      !do i=1, T
+      !  aux(i,i) = 1 + aux(i,i) 
+      !enddo
+
+      ! Compute the Cholesky factorization
+      !call DPOTRF('L', T, aux, T, info )
+      !if(info .ne. 0) then
+      !    print *, 'Problem with Cholesky decomposition in HFB_gradient.'
+      !    print *, 'INFO = ', info
+      !    stop
+      !endif
+      ! Compute the inverse square root
+      !call DTRSM('R', 'L', 'N', 'N', T, T, 1.0d0, aux, T, &
+      !&                                     newbogo(sb  +1:sb+  T,sb+1:sb+T), T)
+      !call DTRSM('R', 'L', 'N', 'N', T, T, 1.0d0, aux, T, &
+      !&                                     newbogo(sb+T+1:sb+2*T,sb+1:sb+T), T)
+
+      !deallocate(aux)
+   !   sb = sb + 2*T
+   ! enddo
   
     ! No need to orthonormalize if using a Cholesky factorization
     !!Don't forget to orthonormalise
-    !call ortho_bogo(newbogo, blocks)
+    call ortho_bogo(newbogo, blocks)
     
   end function GradUpdate
 
@@ -148,20 +170,20 @@ contains
         !                  ( V_j )
         overlap = 0.0_dp
         do i=1,2*T
-            Overlap = Overlap + Bogo(i,j)**2
+            Overlap = Overlap + Bogo(sb+i,sb+T+j)**2
         enddo
         Overlap    = 1.0_dp/sqrt(overlap)
-        bogo(:,j) = bogo(:,j)*overlap
+        bogo(:,sb+T+j) = bogo(:,sb+T+j)*overlap
         ! Orthogonalise all the rest against vector j
         do i=j+1,T
           Overlap = 0.0_dp
           do k=1,2*T
-              Overlap = Overlap + bogo(k,j) * bogo(k,i)
+              Overlap = Overlap + bogo(sb+k,sb+T+j) * bogo(sb+k,sb+T+i)
           enddo
-          Bogo(:,i) = Bogo(:,i) - Overlap * Bogo(:,j)
+          Bogo(:,sb+T+i) = Bogo(:,sb+T+i) - Overlap * Bogo(:,sb+T+j)
         enddo
       enddo
-      sb = sb+ 2*N+2*N2
+      sb = sb+ 2*T
     enddo
 
   end subroutine ortho_bogo
@@ -174,8 +196,10 @@ contains
     !
     !
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)  :: H(:,:), bogo(:,:), gaps(:,:)
-    integer, intent(in)        :: blocks(4)
+    real(KIND=dp), intent(in)               :: H(:,:), bogo(:,:), gaps(:,:)
+    integer, intent(in)                     :: blocks(4)
+
+
     real(KIND=dp), allocatable :: H20(:,:), U(:,:), V(:,:)
     real(KIND=dp), allocatable :: hV(:,:), hU(:,:), dV(:,:), dU(:,:)
     integer                    :: B, N, N2, si, sb, i, j, T
@@ -191,8 +215,8 @@ contains
 
       ! Getting the U and V out to make the formulas explicit
       ! and the matrix multiplications memory-local
-      U = Bogo(sb  +1:sb+  T,si+1:si+T)
-      V = Bogo(sb+T+1:sb+2*T,si+1:si+T)
+      U = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+      V = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
 
       !  h V^* and h^t U^*
       hV = matmul(   h(si+1:si+T,si+1:si+T), V)
@@ -206,6 +230,7 @@ contains
       U = transpose(U) ; V = transpose(V)
       hV = hV + dU
       hU = hU + dV
+
       ! We can save some effort here in the future, H20 is antisymmetric     
       H20(si+1:si+T, si+1:si+T) = matmul(U, hV) - matmul(V,hU)
 
@@ -227,24 +252,73 @@ contains
     real(KIND=dp), allocatable :: U(:,:), V(:,:)
     integer, intent(in)        :: blocks(4)
 
-    integer :: B, si, N, N2, T, sb
+    integer :: B, si, N, N2, T, sb,i
 
     allocate(N20(sum(blocks), sum(blocks))) ; N20 = 0
 
-    sb = 0
+    sb = 0 ; si = 0
     do B=1,4,2
       N = blocks(B) ; if(N.eq.0) cycle
       N2= blocks(B+1)
       T = N + N2
 
-      U = Bogo(sb  +1:sb+  T, sb+1:sb+T)
-      V = Bogo(sb+T+1:sb+2*T, sb+1:sb+T)
+      U = Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T)
+      V = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
 
-      N20(sb+1:sb+T,sb+1:sb+T) = matmul(transpose(U),V)-matmul(transpose(V),U)
+      N20(si+1:si+T,si+1:si+T) = matmul(transpose(U),V)-matmul(transpose(V),U)
         
+      si = si +     T
       sb = sb + 2 * T
     enddo
   end function calcN20
+
+  subroutine calc_qp_energies(h,gaps,lambda,Bogo,blocks,Eqp,dispqp) 
+     !--------------------------------------------------------------------------
+     !
+     !
+     !--------------------------------------------------------------------------
+     integer, intent(in)        :: blocks(4)
+     real(KIND=dp), intent(in)  :: h(:,:), gaps(:,:), Bogo(:,:), lambda
+     real(KIND=dp), allocatable :: U(:,:), V(:,:), hV(:,:), hU(:,:)
+     integer                    :: B, sb, si, i, N, N2, T, j
+
+     real(KIND=dp), intent(out) :: Eqp(:), dispqp(:)
+  
+     Eqp = 0.0d0
+     dispqp = 0.0d0
+     
+     si = 0 ; sb = 0
+     do B=1,4,2
+      N  = blocks(B)    ; if(N.eq.0) cycle 
+      N2 = blocks(B+1)
+
+      T = N + N2
+
+      ! Getting the U and V out to make the formulas explicit
+      ! and the matrix multiplications memory-local
+      U = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
+      V = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
+
+      !  h V^* and h^t U^*
+      hV = matmul(h(si+1:si+T,si+1:si+T), V) - lambda * V
+      hU = matmul(h(si+1:si+T,si+1:si+T), U) - lambda * U
+      
+      ! d^* V^* and dU^*
+      hV = hV +  matmul(gaps(si+1:si+T,si+1:si+T), V)
+      hU = hU +  matmul(gaps(si+1:si+T,si+1:si+T), U)
+
+      do i=1, T
+        do j=1, T
+          Eqp(si+i)   = Eqp(si+i)     + U(j,i) * hU(j,i)  -  V(j,i) * hV(j,i)
+          dispqp(si+i)= dispqp(si+i)  + hU(j,i) * hU(j,i) + hV(j,i) * hV(j,i)
+        enddo
+        dispqp(si+i) = dispqp(si+i) - Eqp(si+i)**2
+      enddo
+
+      si = si +  T
+      sb = sb +2*T
+     enddo
+  end subroutine calc_qp_energies
 
   function particle_number_bogo(bogo, blocks) result(part)
       !-------------------------------------------------------------------------
@@ -264,7 +338,7 @@ contains
         N2= blocks(B+1)
         T = N + N2
 
-        V = Bogo(sb+T+1:sb+2*T, sb+1:sb+T)
+        V = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
         
         do i=1,T  
           do j=1,T

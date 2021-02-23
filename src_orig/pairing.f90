@@ -50,6 +50,8 @@ module pairing
  !------------------------------------------------------------------------------
  ! Quasiparticle excitation energies, either HF, BCS or HFB.
  real(KIND=dp), allocatable :: QPenergies(:)
+ ! And their dispersion
+ real(KIND=dp), allocatable :: qpdisp(:)
  !------------------------------------------------------------------------------
  ! Transformation from the HFBasis into the canonical basis
  real(KIND=dp), allocatable :: CanTransfo(:,:)
@@ -69,7 +71,7 @@ module pairing
  ! (2): Hartree-Fock-Bogoliubov
  integer :: PairingType = 0
  !------------------------------------------------------------------------------
- ! Decide which Fermisolver to use. 
+ ! Decide which Fermisolver to use for direct HFB solution strategies
  ! "Brent"  => use a modified bisection solver
  ! "Secant" => use a secant routine
  character(len=99) :: FermiSolver='Brent'
@@ -422,14 +424,16 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     end select  
   end subroutine initializeGaps
   
-  subroutine SolvePairing(ifail)
+  subroutine SolvePairing(pairingscheme,ifail)
     !---------------------------------------------------------------------------
     ! Master routine for the solving of the pairing equations.
     !---------------------------------------------------------------------------
     use parameterization, only : hbm
+
+    integer, intent(in)        :: pairingscheme
     integer, intent(out)       :: ifail
-    integer :: i
-    real(KIND=dp), allocatable :: tmp(:,:)
+    integer                    :: i
+    real(KIND=dp), allocatable :: tmp(:,:),sphamil(:,:)
 
     call start_timer(T_pairing)
 
@@ -482,12 +486,28 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       if(.not.allocated(Bogoliubov)) then
         allocate(Bogoliubov(2*nwt,2*nwt))  ; Bogoliubov    = 0.0
       endif
+      if(.not.allocated(qpdisp)) then
+         allocate(qpdisp(2*nwt)) ; qpdisp = 0.0
+      endif
+      ! Depending on the algorithm in use, we build a different single-particle
+      ! hamiltonian matrix.
+      sphamil = build_sph(pairingscheme)
+
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
-      !if(allocated(rho_history)) tmp = rho_history
-      call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
-      &                     configmatrix, qpenergies,BlockType, Blockindices,  &
-      &                     blocklowest, blocked_qps, ifail)
+      select case(pairingscheme)
+      case(0)
+        call solvepairing_HFB_direct(  &
+        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
+        &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
+        &   blocked_qps, ifail)
+
+        qpdisp = 0.0d0
+      case(1)
+        call solvepairing_HFB_gradient(  &
+        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
+        &   configmatrix, qpenergies, qpdisp)
+      end select
    end select
 
     !---------------------------------------------------------------------------
@@ -516,6 +536,29 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       average_gap = average_gap_HFB()
     end select
   end subroutine calc_avg_gap
+
+  function build_sph(pscheme) result(sph)
+    !---------------------------------------------------------------------------
+    !
+    !   
+    !---------------------------------------------------------------------------
+    real(KIND=dp), allocatable :: sph(:,:)
+    integer, intent(in)        :: pscheme
+    integer                    :: i
+
+    allocate(sph(nwt,nwt)) ; sph = 0.0d0
+
+    if(pscheme.eq. 0 .or. (.not. allocated(current_sph))) then
+      ! Diagonal part
+      do i=1, nwt
+        sph(i,i) = spenergies(i)
+      enddo
+    else
+      ! Full matrix
+      sph = current_sph
+    endif
+ 
+  end function build_sph
 
   subroutine printpairing(stabfactor)
     !---------------------------------------------------------------------------

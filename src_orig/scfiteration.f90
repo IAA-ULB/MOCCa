@@ -26,27 +26,40 @@ module SCFiteration
   !  (0) => Preconditioning of necessary potentials  (here F_I_I)
   !  (1) => Linear mixing of the necessary densities (here D_I_I)
   integer :: scfscheme = 0
-
+  !-----------------------------------------------------------------------------
+  ! Determine the scheme used for solving the HFB problem in the HF basis
+  !  (0) => Direct solution, i.e. construction and diagonalisation of the 
+  !         HFB Hamiltonian
+  !  (1) => Gradient solution, i.e. following the manifold of HFB solutions
+  integer :: pairingscheme = 0
 contains
 
   subroutine readscfiteration(file_number)
     !---------------------------------------------------------------------------
     ! Read the namelist determining the SCF-update.
-    !
     !---------------------------------------------------------------------------
           
     integer(dp), intent(in), optional   :: file_number   
 
-    namelist /scfiteration/ scfscheme, denmix, preconfactor
+    namelist /scfiteration/ scfscheme, denmix, preconfactor, pairingscheme
     
     if(present(file_number)) then
       read (unit=file_number, nml=scfiteration)
     else
       read (unit=*, nml=scfiteration)
-    endif    
+    endif
+    ! Sanity checks
+    if((scfscheme .ne. 0) .and. (scfscheme.ne.1)) then
+      print *, 'Invalid scfscheme value.'
+      stop
+    endif
+    if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
+      print *, 'Invalid scfscheme value.'
+      stop
+    endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Interpreting the scfscheme choice in terms of densities and potentials
     select case(scfscheme)
-    
     case(0)
       ! Potential preconditioning
       densitymixing            = 0
@@ -56,7 +69,7 @@ contains
       densitymixing            = 1
       potentialpreconditioning = 0
     end select
-    
+
   end subroutine readscfiteration
 
   subroutine printscfiteration
@@ -68,6 +81,7 @@ contains
     2 format(' SCF iteration strategy: ',/, 2x, a30 )
     3 format('   denmix= '            , f7.4)        
     4 format('   Preconfactor= '      , f7.4)
+    5 format(' HFB solution strategy : ',/, 2x, a30 )
     
     print 1
     select case(scfscheme)
@@ -78,6 +92,13 @@ contains
       print 2, 'Linear mixing of densities'
       print 3, denmix
     end select
+
+    select case(pairingscheme)
+    case(0)
+      print 5, 'Direct diagonalisation'
+    case(1)
+      print 5, 'Geometric optimisation'
+    end select 
   end subroutine printscfiteration
 
 end module

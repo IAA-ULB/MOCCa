@@ -61,19 +61,22 @@ module HFB
   procedure(FindFermi_Brent), pointer  :: FindFermi
 
 contains
-
-  subroutine solvepairing_HFB(fermi, Bogoliubov, rho_pairing, kappa_pairing,   &
-  &                           configmatrix, qpenergies, BlockType,Blockindices,&
+    
+  subroutine solvepairing_HFB_direct(sphamil, gaps, fermi, Bogoliubov,         & 
+  &                           rho_pairing, kappa_pairing, configmatrix,        & 
+  &                           qpenergies, BlockType,Blockindices,              &
   &                           blocklowest, blocked_qps, ifail)
 
     !---------------------------------------------------------------------------
-    ! Driver routine for the solving of the HFB equations, represented in the 
-    ! Hartree-Fock basis.
+    ! Driver routine for the solving of the HFB equations in a direct fashion.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(inout) :: Fermi(2)
     real(KIND=dp), intent(inout) :: Bogoliubov(:,:)
     real(KIND=dp), intent(inout) :: kappa_pairing(:,:), rho_pairing(:,:)
     real(KIND=dp), intent(inout) :: configmatrix(:), qpenergies(:)
+    ! Quantities for the HFB hamiltonian
+    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
+    real(KIND=dp)                :: HFBHamil(2*nwt, 2*nwt)
     
     ! Configuration for the blocking
     integer, intent(in)          :: Blockindices(:)
@@ -83,8 +86,6 @@ contains
     integer, allocatable         :: neutron_block(:), proton_block(:)
     integer, allocatable         :: blocked_qps(:), p_blocked(:), n_blocked(:)
 
-    ! Quantities for the HFB hamiltonian
-    real(KIND=dp)              :: sphamil(nwt,nwt), HFBHamil(2*nwt, 2*nwt)
     
     integer                     :: si, sb, N, N2, B,  wave1, it, i, np, nn
     integer                     :: n_ind, p_ind, NB
@@ -170,7 +171,6 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     !---------------------------------------------------------------------------
     ! a) We construct the HFB-hamiltonian for every block. 
     !    We pass in everything to the routine by PAIRS of blocks
-    sphamil = 0
     si      = 0 ; sb = 0
     do B=1,8,2
       N  = HFBlocks(B)    ! Size of the first partner block
@@ -178,18 +178,9 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       
       it = 1 ; if (B .gt. 4) it = 2
 
-      do wave1=1,N+N2
-        sphamil(si+wave1,si+wave1) = spenergies(si+wave1)
-      enddo
-
-      if(.not.allocated(HFBgaps)) then
-        print *, 'HFB gaps are not allocated yet.'
-        stop  
-      endif
-
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
       &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
-      &                           HFBgaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,   &
+      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,      &
       &                           rho_history(si+1:si+N+N2,si+1:si+N+N2),      &
       &                           kappa_history(si+1:si+N+N2,si+1:si+N+N2),    &
       &                           HFBgauge(it))  
@@ -239,7 +230,61 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     call PairingMatrices(configmatrix, bogoliubov, rho_pairing, kappa_pairing)
 
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
-  end subroutine solvepairing_HFB
+  end subroutine solvepairing_HFB_direct
+
+  subroutine solvepairing_HFB_gradient(sphamil, gaps, fermi, Bogo,             & 
+  &                          rho_pairing, kappa_pairing,configmatrix,          & 
+  &                          qpenergies,qpdisp)
+    !---------------------------------------------------------------------------
+    ! Driver routine for solving the HFB equations by gradient stepping in the 
+    ! Bogoliubov manifold.
+    !---------------------------------------------------------------------------
+    use HFB_gradient
+
+    real(KIND=dp), intent(inout) :: Fermi(2)
+    real(KIND=dp), intent(inout) :: Bogo(:,:)
+    real(KIND=dp), intent(inout) :: kappa_pairing(:,:), rho_pairing(:,:)
+    real(KIND=dp), intent(inout) :: configmatrix(:), qpenergies(:), qpdisp(:)
+    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
+    real(KIND=dp), allocatable   :: tempEqp(:), tempdisp(:)
+
+    integer :: si, sb, B, N, N2, T,i
+
+    ! Guess a new Fermi energy if none is there
+    if(all(Fermi.eq.0.0))   Fermi = -5
+
+    allocate(tempEqp(nwt))   ; tempEqp = 0.0d0
+    allocate(tempdisp(nwt)) ; tempdisp = 0.0d0
+
+    ! Stepping for the neutrons
+    call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                 & 
+    &                  HFblocks(1:4), neutrons,                                &
+    &                  Bogo(1:2*nwn,1:2*nwn),                          &
+    &                  tempEqp(1:nwn), tempdisp(1:nwn), Fermi(1),50)
+    ! and for the protons
+    call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt), & 
+    &                  HFblocks(5:8),protons,                                  &
+    &                  Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),              &  
+    &                  tempEqp(nwn+1:nwt), tempdisp(nwn+1:nwt), Fermi(2),50)
+  
+    call PairingMatrices(configmatrix, bogo, rho_pairing, kappa_pairing)
+    
+    ! Final organisation
+    sb = 0 ; si = 0
+    do B=1,8,2
+      N = HFBlocks(B) ; N2 = HFblocks(B+1)       
+      T = N + N2        
+      do i=1,T
+        qpenergies(sb  +i) = -tempEqp(si+T-i+1)
+        qpenergies(sb+T+i) =  tempEqp(si+i)
+        qpdisp(sb  +i)      = tempdisp(si+T-i+1)
+        qpdisp(sb+T+i)      = tempdisp(si+i)
+      enddo
+      si = si +   T
+      sb = sb + 2*T
+    enddo
+
+  end subroutine solvepairing_HFB_gradient
 
   function calc_dispersion_HFB(rho,kappa) result(dispersion)
     !---------------------------------------------------------------------------

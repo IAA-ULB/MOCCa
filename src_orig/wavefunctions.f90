@@ -63,6 +63,7 @@ module wavefunctions
  ! Single-particle energies, diagonal elements of the single-particle
  ! hamiltonian: \langle psi_i | h | psi_i \rangle
  real(KIND=dp), allocatable :: spenergies(:) 
+ real(KIND=dp), allocatable :: current_sph(:,:)
  ! Dispersions of the spwfs with respect to h
  real(KIND=dp), allocatable :: dispersions(:)
  ! expectation values of the single-particle hamiltonian in the canonical basis

@@ -178,6 +178,7 @@ subroutine ReachForWaterAndFood()
     use momentsofinertia  
     use cranking  
     use convergence
+    use scfiteration
     use timing
 
     implicit none
@@ -210,7 +211,7 @@ subroutine ReachForWaterAndFood()
     call deriveHF()
 
     ! Solve the pairing, with the current values of <h> and the pairing gaps.
-    call SolvePairing(ifail)
+    call SolvePairing(0, ifail)
     if(ifail.ne.0) then
         print *, 'WARNING! Pairing solver failed.'
     endif
@@ -234,7 +235,7 @@ subroutine ReachForWaterAndFood()
 
     PairStabfactor = CompStabilisingFactor(PairDenEnergy)
     call CalcGaps(FermiEnergy, PairStabFactor)
-    call SolvePairing(ifail)
+    call SolvePairing(0,ifail)
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
@@ -276,7 +277,7 @@ subroutine ReachForWaterAndFood()
         ! Save      
         FermiHistory = FermiEnergy
         ! Solve pairing problem
-        call SolvePairing(ifail)
+        call SolvePairing(pairingscheme,ifail)
 
         ! IF SOME CRANKING or blocking IS PRESENT
         call update_spwf_angmom()
@@ -300,7 +301,7 @@ subroutine ReachForWaterAndFood()
           call feasibleproject()
 
           ! Solve the pairing problem.
-          call SolvePairing(ifail)
+          call SolvePairing(pairingscheme, ifail)
         endif
  
         ! Restore all the different derivatives.
