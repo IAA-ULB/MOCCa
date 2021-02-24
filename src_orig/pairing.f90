@@ -50,8 +50,6 @@ module pairing
  !------------------------------------------------------------------------------
  ! Quasiparticle excitation energies, either HF, BCS or HFB.
  real(KIND=dp), allocatable :: QPenergies(:)
- ! And their dispersion
- real(KIND=dp), allocatable :: qpdisp(:)
  !------------------------------------------------------------------------------
  ! Transformation from the HFBasis into the canonical basis
  real(KIND=dp), allocatable :: CanTransfo(:,:)
@@ -486,9 +484,6 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       if(.not.allocated(Bogoliubov)) then
         allocate(Bogoliubov(2*nwt,2*nwt))  ; Bogoliubov    = 0.0
       endif
-      if(.not.allocated(qpdisp)) then
-         allocate(qpdisp(2*nwt)) ; qpdisp = 0.0
-      endif
       ! Depending on the algorithm in use, we build a different single-particle
       ! hamiltonian matrix.
       sphamil = build_sph(pairingscheme)
@@ -501,12 +496,10 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
         &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
         &   blocked_qps, ifail)
-
-        qpdisp = 0.0d0
       case(1)
         call solvepairing_HFB_gradient(  &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
-        &   configmatrix, qpenergies, qpdisp)
+        &   configmatrix, qpenergies)
       end select
    end select
 

@@ -233,7 +233,7 @@ contains
         use wavefunctions
         
         integer, intent(in)   :: iteration
-        integer               :: wave, iso
+        integer               :: wave, iso, B, si, N, wave2
         real(KIND = dp)       :: hpsi(nx*ny*nz,4) 
 
         call start_timer(T_evolution)
@@ -243,21 +243,20 @@ contains
             Momentum_Updates = 0.0_dp
         endif
 
-!        if(Precondition .ne. 'NONE') then
-!          print *, 'Preconditioning not supported with heavy-ball.'
-!        endif  
+        !if(.not.allocated(current_sph)) then 
+        !    allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
+        !endif
 
         if(EstimateParams) call IterativeEstimation(iteration)
 
         gradientnorm = 0.0_dp
         d2h = 0.0_dp
-        
-        do wave=1,nwt
-            if(wave .le. nwn) then
-                iso = -1
-            else
-                iso = +1
-            endif
+        si  = 0
+        do B=1,8
+          N = HFblocks(B) ; if(N.eq.0) cycle
+          iso = -1
+          if(B.gt.4) iso = +1
+          do wave=si+1,si+N
             !-------------------------------------------------------------------
             ! Calculate the action of the single-particle hamiltonian.
             hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
@@ -280,7 +279,13 @@ contains
               gradientnorm = gradientnorm + rho_pairing(wave,wave) *           &
               & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
             end select
-            
+
+            !-------------------------------------------------------------------
+            ! Current estimate for the single-particle hamiltonian
+            !do wave2=wave,si+N
+            !    current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+            !    current_sph(wave ,wave2) = current_sph(wave2,wave)
+            !enddo
             !-------------------------------------------------------------------
             ! Remove the part that is propagation in its own direction.
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
@@ -288,9 +293,13 @@ contains
             ! Add some history and 'momentum' to the update. 
             momentum_updates(:,:,wave) = &
             &               momentum*momentum_updates(:,:,wave) - dt/hbar * hpsi
+          enddo
+          do wave=si+1, si+N
             !-------------------------------------------------------------------
             ! Update the wavefunctions.
             hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
+          enddo
+          si = si + N
         enddo
     
         gradientnorm = sqrt(gradientnorm)/(neutrons + protons) 

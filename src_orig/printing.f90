@@ -213,7 +213,7 @@ contains
     real(KIND=dp)        :: disp
     
     1  format (33 ('-'), 'Quasiparticles',33('-'))
-    2  format ( i3, 1f10.2, 2x, 2es12.2)
+    2  format ( i3, 1f10.2, 2x, 1es12.2)
 
     11  format(80 ('-'))
 
@@ -232,11 +232,10 @@ contains
         case(2)
           ! HFB QP energies
           do i=1,N+N2
-            print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*N+2*N2-i+1), &
-            &           qpdisp(sb+i)
+            print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*N+2*N2-i+1)
           enddo
           do i=N+N2+1,2*N+2*N2
-            print 2, i, QPenergies(sb+i), configmatrix(sb+i), qpdisp(sb+i)
+            print 2, i, QPenergies(sb+i), configmatrix(sb+i)
           enddo
 
         case(1)
@@ -244,7 +243,7 @@ contains
           indices = order(BCSqps(si+1:si+N))
           do i=1, N
             ind  = indices(i)
-            print 2, i, BCSqps(si+ind), BCSf(si+ind), 0.0
+            print 2, i, BCSqps(si+ind), BCSf(si+ind)
           enddo
         end select
         si = si +   N +  N2
