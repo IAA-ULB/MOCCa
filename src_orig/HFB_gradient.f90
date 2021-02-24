@@ -20,7 +20,7 @@ module HFB_gradient
 
 contains 
 
-  subroutine gradient_step(h,gaps,blocks,targetN,Bogo,Eqp,lambda,maxiter)
+  subroutine gradient_step(h,gaps,blocks,targetN,Bogo,Eqp,config,lambda,maxiter)
     !---------------------------------------------------------------------------
     !
     !
@@ -28,54 +28,67 @@ contains
     integer, intent(in)          :: blocks(4), maxiter
     real(KIND=dp), intent(inout) :: Bogo(:,:), lambda, targetN
     real(KIND=dp), intent(inout) :: Eqp(:)
-    real(KIND=dp), intent(in)    :: h(:,:), gaps(:,:)
+    real(KIND=dp), intent(in)    :: h(:,:), gaps(:,:), config(:)
     real(KIND=dp), allocatable   :: H20(:,:), N20(:,:), newbogo(:,:), grad(:,:)
     real(KIND=dp), allocatable   :: H11(:,:)
     real(KIND=dp)                :: alpha, particles, gradnorm
-    integer                      :: B, si, sb, N, N2, iter, fermiiter,i
+    integer                      :: B, sb, N, N2, iter, fermiiter, T
 
     logical                      :: converged = .false.  
   
     converged = .false. 
-    alpha     = 0.02   ! fixed step size for now
+    alpha     = 0.03   ! fixed step size for now
 
-    do iter=1, maxiter
+    !---------------------------------------------------------------------------
+    do iter=1,100
         ! Calculate the gradient 
         H20 = calcH20(Bogo,h,gaps,blocks)
         N20 = calcN20(Bogo, blocks)
 
-        particles = particle_number_bogo(bogo, blocks)
-        !print *, 0, lambda, particles, particles-targetN
+        particles = particle_number_bogo(bogo, config, blocks)
         do fermiiter = 1,100
           ! Try this particular value of Lambda
           grad = H20 - lambda * N20
           ! Make a step in the right direction
           newbogo = GradUpdate(grad, bogo, alpha, blocks)
+          !---------------------------------------------------------------------------
+          ! Now it is time to calculate and diagonalise H11, and further transform
+          ! U and V
+          H11 = calcH11(newBogo, h, gaps, lambda, blocks)
+          call diagonalise_H11(newbogo, H11, blocks, Eqp)
 
           ! Check the new particle number
-          particles = particle_number_bogo(newbogo, blocks)
-          !print *, fermiiter, lambda, particles, particles-targetN
-          if(abs(Particles-targetN) .lt. 1d-16) exit 
+          particles = particle_number_bogo(newbogo, config, blocks)
+          if(abs(Particles-targetN) .lt. 1d-14) exit 
           lambda = lambda - (Particles - targetN)                      
         enddo
+        ! Take the step if the Fermi energy is close enough
         bogo = newbogo
-
+        ! Calculate the norm of the gradient and check for convergence
         gradnorm = sqrt(sum(grad**2))
-
         if(gradnorm .lt. 1d-16) converged = .true.
         if(converged) then
           exit
         endif
     enddo
-    H11 = calcH11(Bogo, h, gaps, lambda, blocks)
-    call diagonalise_H11(Bogo, H11, blocks, Eqp)
- !   call calc_qp_energies(h, gaps, lambda, bogo, blocks, Eqp, dispqp) 
-!    print ('(99f10.3)'), Eqp
-    print *, iter, gradnorm, maxval(abs(grad)), maxval(abs(bogo-newbogo)),  &
-    &         fermiiter, particles-targetN
+    !---------------------------------------------------------------------------
+    ! Finally, we transform the rest of the Bogoliubov transformation
+    sb = 0
+    do B=1,4,2
+      N = blocks(B)   ; if(N.eq.0) cycle
+      N2= blocks(B+1)
+      T = N + N2
+      ! Populate the columns of the Bogoliubov transformation that have not 
+      ! been evolved. Note the extra minus sign when time-reversal is 
+      ! conserved.
+$TR   Bogo(sb  +1:sb  +T, sb+1:sb+T) =-Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)   
+$NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
+      Bogo(sb+T+1:sb+2*T, sb+1:sb+T) = Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T)   
 
-    !stop
+      sb = sb + 2*T
+    enddo
 
+    print *, iter, gradnorm, maxval(abs(grad)),  fermiiter, particles-targetN
   end subroutine gradient_step
 
   function GradUpdate(grad, bogo, alpha, blocks) result(newbogo)
@@ -109,11 +122,6 @@ contains
       N2 = blocks(B+1)
       T = N + N2
 
-      !print *, 'GRAD'
-      !do i=1,T
-      !  print ('(99f10.3)'), grad(si+i, si+1:si+T)
-      !enddo
-
       tU = bogo(sb+  1:sb+  T,sb+T+1:sb+2*T)
       tV = bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
 
@@ -129,35 +137,16 @@ $TR       &                         +alpha *matmul(tU,grad(si+1:si+T,si+1:si+T))
       si = si +   T
       sb = sb + 2*T
     enddo
-    
-      !allocate(aux(T,T)) 
-      !aux =  - alpha**2 * matmul(grad, grad)
-      !do i=1, T
-      !  aux(i,i) = 1 + aux(i,i) 
-      !enddo
-
-      ! Compute the Cholesky factorization
-      !call DPOTRF('L', T, aux, T, info )
-      !if(info .ne. 0) then
-      !    print *, 'Problem with Cholesky decomposition in HFB_gradient.'
-      !    print *, 'INFO = ', info
-      !    stop
-      !endif
-      ! Compute the inverse square root
-      !call DTRSM('R', 'L', 'N', 'N', T, T, 1.0d0, aux, T, &
-      !&                                     newbogo(sb  +1:sb+  T,sb+1:sb+T), T)
-      !call DTRSM('R', 'L', 'N', 'N', T, T, 1.0d0, aux, T, &
-      !&                                     newbogo(sb+T+1:sb+2*T,sb+1:sb+T), T)
-
-      !deallocate(aux)
-   !   sb = sb + 2*T
-   ! enddo
   
-    ! No need to orthonormalize if using a Cholesky factorization
-    !!Don't forget to orthonormalise
+    !Don't forget to orthonormalise (which could also be achieved through a 
+    ! Cholesky decomposition)
     call ortho_bogo(newbogo, blocks)
     
   end function GradUpdate
+
+  subroutine precondition_grad()
+
+  end subroutine precondition_grad
 
   subroutine ortho_bogo(bogo, blocks)
     !---------------------------------------------------------------------------
@@ -416,14 +405,14 @@ $NTR  N20(si+1:si+T,si+1:si+T) = matmul(transpose(U),V)-matmul(transpose(V),U)
      enddo
   end subroutine calc_qp_energies
 
-  function particle_number_bogo(bogo, blocks) result(part)
+  function particle_number_bogo(bogo, config, blocks) result(part)
       !-------------------------------------------------------------------------
       !
       !
       !-------------------------------------------------------------------------
-      real(KIND=dp), intent(in) :: bogo(:,:)
+      real(KIND=dp), intent(in) :: bogo(:,:), config(:)
       real(KIND=dp)             :: part
-      real(KIND=dp), allocatable:: V(:,:)
+      real(KIND=dp), allocatable:: V(:,:), U(:,:)
       integer, intent(in)       :: blocks(4)
 
       integer :: B, si, N, N2, T, sb,i,j
@@ -434,14 +423,17 @@ $NTR  N20(si+1:si+T,si+1:si+T) = matmul(transpose(U),V)-matmul(transpose(V),U)
         N2= blocks(B+1)
         T = N + N2
 
+        U = Bogo(sb+  1:sb+  T, sb+T+1:sb+2*T)
         V = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
-        
+        !print *, 'CONFIG', config(sb+1:sb+2*T)        
         do i=1,T  
           do j=1,T
-            part = part + V(i,j) **2
+            part = part +     V(i,j) **2  !&config(sb+T+j) *
+!            &           + (1-config(sb+T+j))* U(i,j) **2
           enddo
         enddo        
         sb = sb + 2 * T
+        !print ('(90f10.3)'), config(sb+T+1:sb+2*T)
      enddo
 
      ! Time*reversal factor 2

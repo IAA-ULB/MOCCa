@@ -256,26 +256,55 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
 
     allocate(tempEqp(nwt))          ; tempEqp  = 0.0d0
     allocate(tempBogo(2*nwt, 2*nwt)); tempBogo = 0.0d0
-    allocate(indices(nwt))          ; indices  = 0
-    !---------------------------------------------------------------------------
-    ! The Gradient HFB routines employ a different organisation of the 
-    ! Bogoliubov transformation and the related configmatrix.
-    !ind = 
-    !do i=1,2*nwt
-    !enddo
+    
+    sb = 0
+    do B=1,8,2
+      N = HFBlocks(B)   ; if(N.eq.0) cycle
+      N2= HFBlocks(B+1)
+      T = N+N2
 
+      ind = 0
+      do i=1,T
+          if(configmatrix(sb+T+i).eq.1.0d0) then
+            tempBogo(sb+1:sb+2*T,sb+T+i)   = Bogo(sb+1:sb+2*T,sb+T+i)  
+          else
+            tempBogo(sb    +1:sb+2*T,sb+T+i) = Bogo(sb  +1:sb+  T,sb+T-i+1)  
+            !tempBogo(sb+T+1:sb+2*T,sb+T+i) = Bogo(sb+T+1:sb+2*T,sb+T-i+1)   
+          endif
+      enddo    
+      sb = sb + 2*T
+    enddo
+   
     !---------------------------------------------------------------------------
     ! Stepping for the neutrons
     call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                 & 
     &                  HFblocks(1:4), neutrons,                                &
-    &                  Bogo(1:2*nwn,1:2*nwn),                          &
-    &                  tempEqp(1:nwn), Fermi(1),50)
+    &                  tempBogo(1:2*nwn,1:2*nwn),                              &
+    &                  tempEqp(1:nwn), configmatrix(1:2*nwn),Fermi(1),50)
     ! and for the protons
     call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt), & 
-    &                  HFblocks(5:8),protons,                                  &
-    &                  Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),              &  
-    &                  tempEqp(nwn+1:nwt), Fermi(2),50)
+    &                 HFblocks(5:8),protons,                                  &
+    &                 tempBogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),                   &  
+    &                 tempEqp(nwn+1:nwt),configmatrix(2*nwn+1:2*nwt),Fermi(2),50)
   
+    sb = 0
+    do B=1,8,2
+      N = HFBlocks(B)   ; if(N.eq.0) cycle
+      N2= HFBlocks(B+1)
+      T = N+N2
+
+      ind = 0
+      do i=1,T
+          if(configmatrix(sb+T+i).eq.1.0d0) then
+            Bogo(sb+1:sb+2*T,sb  +i) = tempBogo(sb+1:sb+2*T,sb  +i)  
+            Bogo(sb+1:sb+2*T,sb+T+i) = tempBogo(sb+1:sb+2*T,sb+T+i)  
+          else
+            Bogo(sb+1:sb+2*T,sb+T-i+1) = tempBogo(sb+1:sb+2*T,sb+T+i)  
+            Bogo(sb+1:sb+2*T,sb+T+i)   = tempBogo(sb+1:sb+2*T,sb+T-i+1)  
+          endif
+      enddo    
+      sb = sb + 2*T
+    enddo
     call PairingMatrices(configmatrix, bogo, rho_pairing, kappa_pairing)
     
     ! Final organisation
@@ -290,7 +319,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       si = si +   T
       sb = sb + 2*T
     enddo
-
+    
     deallocate(tempEqp, tempBogo)
   end subroutine solvepairing_HFB_gradient
 
