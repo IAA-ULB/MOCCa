@@ -169,7 +169,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
         end select
       enddo
 
-    case(6)
+    case(5,6)
       ! We simply pass which isospin needs to be compared to the modelspwf 
       allocate(proton_block(5))  ; proton_block  = 0 
       allocate(neutron_block(5)) ; neutron_block = 0
@@ -621,7 +621,7 @@ $NTR    endif
           sb = sb + 2*N
         enddo
 
-      case(6)
+      case(5,6)
         !-----------------------------------------------------------------------
         ! We search for the qp with the largest overlap with the model
         ! wavefunction
