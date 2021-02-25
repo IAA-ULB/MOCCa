@@ -95,7 +95,7 @@ contains
   integer                      :: iter, wave
   integer, intent(in)          :: gas
 
-  ! Configuration for the blocking
+  ! Options for the determination of a blocking configuration
   integer, intent(in)          :: Blockindices(:)
   integer, intent(in)          :: BlockType
   character(len=2), intent(in) :: BlockLowest(:)
@@ -177,9 +177,13 @@ contains
     ! Calculate the BCS pairing gaps.
     !---------------------------------------------------------------------------
     integer                      :: wave, iso
-    real(KIND=dp)                :: deltapsi(mv,4)
+    real(KIND=dp)                :: deltapsi(mv,4), trash(2)
     real(KIND=dp), intent(in)    :: fermi(2), stabfactor(2)
-    
+      
+    ! trash statement to stop the compiler complaining about unused dummy 
+    ! variables
+    trash = fermi
+
     if(ConstantGap) then  
       ! Constantgap pairing
       do wave=1,nwt
@@ -264,16 +268,17 @@ contains
     !                                       for the BCS gas)
     !  (d) Finite-temperature, blocking   : nothing implemented
     !---------------------------------------------------------------------------
-    real*8              :: f(nwt), occ, qpmin
-    integer             :: wave, NB, i, ind, si, N, B,  qpb
+    real*8              :: f(nwt), occ, qpmin, overlap, maxover
+    integer             :: wave, NB, i, ind, si, N, B,  qpb, indover, c
 
     integer, intent(in)          :: Blockindices(:)
     integer, intent(in)          :: BlockType, gas
-    integer, allocatable          :: proton_block(:), neutron_block(:)
+    integer, allocatable         :: proton_block(:), neutron_block(:)
     integer, allocatable         :: blocked_qps(:), indices(:), toblock(:)
     character(len=2), intent(in) :: BlockLowest(:)
   
-    f = 0
+    f = 0 ; qpb = 0
+    if(allocated(blocked_qps)) deallocate(blocked_qps)
     !---------------------------------------------------------------------------
     ! Zero-temperature
     if(inversetemp .lt. 0) then
@@ -282,11 +287,11 @@ contains
       case(0)
         ! No blocking, all the f are zero
         return
-      case(1,2)
+      case(1,2,5)
         ! Time-reversal breaking blocking asked for, impossible to do in BCS
         print *, 'Cannot perform true blocking in BCS.'
         stop
-      case(3,4)
+      case(3,4,6)
         ! Equal filling blocking
         occ = 0.5d0
       end select
@@ -297,9 +302,11 @@ contains
         ! We search for a specific configuration, i.e. a quasiparticle with
         ! a specific sp index. In a BCS calculation, this is trivial. 
         NB = size(blockindices)      
+        allocate(blocked_qps(NB))
         do i=1, NB
           ind    = blockindices(i)
           f(ind) = occ
+          blocked_qps(i) = ind
         enddo
       case(4)
         !-----------------------------------------------------------------------
@@ -333,10 +340,10 @@ contains
         if(neutron_block(5).ne.0) then
           do i = 1, neutron_block(5)
             qpmin = 10000000
-            si = 0
+            si    = 0
+            qpb   = 0
             do B=1,4
               N = HFblocks(B) ; if (N.eq.0) cycle
-
               if(bcsqps(si+toblock(B)+1) .lt. qpmin) then
                 qpmin = bcsqps(si+toblock(B)+1)
                 qpb   = B
@@ -350,7 +357,8 @@ contains
         if(proton_block(5).ne.0) then
           do i = 1, proton_block(5)
             qpmin = 10000000
-            si = sum(HFBlocks(1:4))
+            si    = sum(HFBlocks(1:4)) 
+            qpb   = 0
             do B=5,8
               N = HFblocks(B) ; if (N.eq.0) cycle
 
@@ -364,16 +372,46 @@ contains
           enddo
         endif
 
+        allocate(blocked_qps(sum(toblock))) ; blocked_qps = 0
         si = 0
+        c  = 0
         do B=1,8
             N = HFblocks(B) ; if(N.eq.0) cycle
             indices = Order(BCSqps(si+1:si+N))
             do i=1, toblock(B)
               f(si+indices(i)) = occ
+              c = c+1
+              blocked_qps(c) = si+indices(i)
             enddo            
             si = si + N
         enddo
         deallocate(proton_block, neutron_block) 
+        !-----------------------------------------------------------------------
+      case(6)
+        !-----------------------------------------------------------------------
+        ! We search for the spwf with the largest overlap with the model
+        ! wavefunction
+        allocate(blocked_qps(1)) ; blocked_qps = 0
+
+        B = modelblock
+        if(B.gt.1) then
+          si = sum(HFblocks(1:B-1))
+        else
+          si = 0
+        endif
+        N       = HFblocks(B)
+        maxover = -10
+        indover =   0
+        do i=1, N
+!            overlap = abs(sum(HFpsi(:,:,si+i) * modelspwf)) * dv
+            if(overlap .gt. maxover) then
+              maxover = overlap
+              indover = i
+            endif
+        enddo
+        f(si + indover) = occ
+        blockoverlap    = maxover
+        blocked_qps(1)  = si + indover
       end select
     !---------------------------------------------------------------------------
     ! Finite-temperature

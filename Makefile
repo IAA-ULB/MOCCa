@@ -47,6 +47,9 @@ SRC    +=   tantalus.version.f90
 SINGLE_SRC = $(SRC) run_single.f90
 MPI_SRC    = $(SRC) multirun_example.f90
 
+NIL_SRC := compilation.f90 timing.f90 geninfo.f90 derivatives.f90 nil8.f90   
+NIL_SRC += wavefunctions.f90 gennilsson.f90
+
 ################################################################################
 # Compiler details
 CXX      :=  gfortran
@@ -66,15 +69,16 @@ endif
 ################################################################################
 # Precompilation instructions
 PRE         :=  run_heph getgitinfo setversioninfo 
+PRE_NIL     :=  cp_nil 
 SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
 MPI_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(MPI_SRC))
+NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
 
 # Default configuration
 CONFIG   :=  default
 
 mpi:    EXENAME:= Tantalus.$(CONFIG).mpi.exe
 single: EXENAME:= Tantalus.$(CONFIG).exe
-
 
 ################################################################################
 # Recipes
@@ -91,6 +95,11 @@ mpi: $(PRE) $(MPI_OBJ)
 run_heph:
   # Run Hephaestos with the correct configuration file
 	python3 Hephaestos.py $(CONFIG) 
+
+
+gen_nilsson: $(PRE_NIL) $(NIL_OBJ)
+	$(CXX) $(CXXFLAGS) -o $@ $(NIL_OBJ) $(LIBS)
+	mv gen_nilsson exec/$(EXENAME)
 
 clean:
 	rm  -f $(OBJDIR)/*.o
@@ -112,6 +121,11 @@ getgitinfo:
 	$(eval GIT_INFO1=$(shell git show | grep 'commit ' | head -1))
 	$(eval GIT_INFO2=$(shell git show | grep 'Author:' | head -1))
 	$(eval GIT_INFO3=$(shell git show | grep 'Date:'   | head -1))
+
+cp_nil:
+	cp src_orig/gennilsson.f90 $(SRCDIR)/gennilsson.f90
+  
+
 
 ################################################################################
 

@@ -109,6 +109,7 @@ contains
     ! Guess a new Fermi energy if none is there
     if(all(Fermi.eq.0.0))   Fermi = -5
 
+    !---------------------------------------------------------------------------
     ! Preparation for blocking, we need to separate configurations by isospin.
     select case (Blocktype)
     case(0)
@@ -167,6 +168,17 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
             proton_block(5)  = proton_block(5)  + 1
         end select
       enddo
+
+    case(6)
+      ! We simply pass which isospin needs to be compared to the modelspwf 
+      allocate(proton_block(5))  ; proton_block  = 0 
+      allocate(neutron_block(5)) ; neutron_block = 0
+      
+      if(modelblock .gt. 4) then
+          proton_block(modelblock-4)  = 1
+      else
+          neutron_block(modelblock)   = 1
+      endif
     end select
 
     !---------------------------------------------------------------------------
@@ -454,10 +466,10 @@ $TR    HFBdispersion = 2 * HFBdispersion
     integer, allocatable         :: blocked_qp(:)
     real(KIND=dp), intent(in)    :: Eqp(:), Bogo(:,:)
     real(KIND=dp), allocatable   :: R(:)
-      
     integer                      :: N, N2,B, sb, i, NB, j, qblock, ind, si, bi
-    real(KIND=dp)                :: compare, occ, qpmin
-    integer                      :: toblock(4), qpb
+    real(KIND=dp)                :: compare, occ, qpmin, maxover, qpoverlap
+    real(KIND=dp), allocatable   :: overlaps(:), Ur(:,:,:), Vr(:,:,:)
+    integer                      :: toblock(4), qpb, indover
 
     N = size(Eqp) 
     allocate(R(N)) ;  R = 0
@@ -492,10 +504,10 @@ $TR    HFBdispersion = 2 * HFBdispersion
     !---------------------------------------------------------------------------
     occ = 0
     select case(Blocktype)
-    case(1,2)
+    case(1,2,5)
         ! Full blocking
         occ = 1.0_dp
-    case(3,4)
+    case(3,4,6)
         ! EFA blocking
         occ = 0.5_dp
     end select
@@ -608,6 +620,54 @@ $NTR    endif
           si = si +   N
           sb = sb + 2*N
         enddo
+
+      case(6)
+        !-----------------------------------------------------------------------
+        ! We search for the qp with the largest overlap with the model
+        ! wavefunction
+        !-----------------------------------------------------------------------
+        B = 0
+        do i=1,4    
+          if(blockconf(i) .eq. 1) B = i 
+        enddo
+        if(B.eq.0) return
+        if(B.gt.1) then
+          si =   sum(blocks(1:B-1))
+          sb = 2*sum(blocks(1:B-1))
+        else
+          si = 0
+          sb = 0
+        endif
+        N       = blocks(B)
+
+        ! But first calculate all the overlaps in the HF basis
+        allocate(overlaps(2*N)) ; overlaps = 0
+        do i=1, N
+          ! expansion of U(r) in the HF-basis
+          overlaps(i  ) =  dv*sum(            HFPsi(:,:,si+i) *modelspwf(:,:,1))
+          ! expansion of V(r) in the (time-reverse of the) HF-basis
+          overlaps(i+N) = +dv*sum(timereverse(HFPsi(:,:,si+i))*modelspwf(:,:,2)) 
+        enddo
+
+        maxover = -10
+        indover =   0
+        do i=1, N
+          qpoverlap = 0
+          do j=1, 2*N
+             qpoverlap =  qpoverlap + Bogo(sb+j,sb+N+i) * overlaps(j)
+          enddo
+          qpoverlap = abs(qpoverlap)
+          if(qpoverlap .gt. maxover) then
+              maxover = qpoverlap
+              indover = i
+          endif
+        enddo
+
+        R(sb + N + indover ) = 1 - occ
+        R(sb     + indover ) =     occ
+        blockoverlap         = maxover
+
+        deallocate(overlaps)
     end select
    
   end function ConstructConfiguration

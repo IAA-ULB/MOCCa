@@ -602,7 +602,7 @@ contains
 
   end subroutine ReadTantalus
 
-  subroutine WriteTantalus(chan, ofn, iter, iomsg)
+  subroutine WriteTantalus(chan, ofn)
     !---------------------------------------------------------------------------
     ! Subroutine that dumps all information to a .wf file for future runs.
     !---------------------------------------------------------------------------
@@ -645,8 +645,6 @@ contains
     character(len=*), intent(in) :: ofn
     integer                      :: io
     type(moment), pointer        :: mom
-    integer, intent(in)          :: iter
-    character(len=*), intent(in) :: iomsg
 
     open (chan,form='unformatted',file=ofn)
 
@@ -802,7 +800,6 @@ contains
     ! Write the filename
     write(filedone,'(a,"z",i3.3,"n",i3.3,"num",i3.3,"run",i3.3".out")')        &   
     &     trim(adjustl(BXLFIT)),int(protons),int(neutrons),int(counter),int(run) 
-
   
     open(unit=10,file=filedone)
 
@@ -914,7 +911,6 @@ contains
     integer                          :: io, i,j,k
 
     1 format('#  X[fm]   Y[fm]   Z[fm]       rho_n[fm^{-3}]           rho_p[fm^{-3}]           rho_c[fm^{-3}]')
-
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
       print *, 'Something went wrong with writing a density to file.'

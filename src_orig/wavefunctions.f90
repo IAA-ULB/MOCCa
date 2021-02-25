@@ -106,6 +106,11 @@ module wavefunctions
  ! hamiltonian.
  real(KIND=dp) :: osc_freq(3) = 0.2
  !------------------------------------------------------------------------------
+ ! Filename to read the values on the mesh of a "model"-swpf for blocking. 
+ character(len=40)                  :: blockfname = ''
+ integer                            :: modelblock = 0
+ real(KIND=dp)                      :: blockoverlap = 0.0
+ real(KIND=dp), allocatable, target :: modelspwf(:,:,:)
 
 contains 
 
@@ -151,7 +156,10 @@ contains
 
     allocate(hfpsi($ININX*$ININY*$ININZ,4,$ININWT)) ; hfpsi = 0.0d0
     if (allocated(kparz))  deallocate(kparz)       
-   
+
+    osc_freq(1) = 0.225  
+    osc_freq(2) = 0.225   
+    osc_freq(3) = 0.15   
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
     call nilsson (HFPsi,kparz,spenergies,8,7,$ININWT,$ININWP,$ININWN,          &
