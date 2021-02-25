@@ -266,14 +266,15 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       ind = 0
       do i=1,T
           if(configmatrix(sb+T+i).eq.1.0d0) then
-            tempBogo(sb+1:sb+2*T,sb+T+i)   = Bogo(sb+1:sb+2*T,sb+T+i)  
+            tempBogo(sb+1:sb+2*T,sb+T+i) = Bogo(sb+1:sb+2*T,sb+T+i)  
           else
-            tempBogo(sb    +1:sb+2*T,sb+T+i) = Bogo(sb  +1:sb+  T,sb+T-i+1)  
-            !tempBogo(sb+T+1:sb+2*T,sb+T+i) = Bogo(sb+T+1:sb+2*T,sb+T-i+1)   
+            tempBogo(sb+1:sb+2*T,sb+T+i) = Bogo(sb  +1:sb+2*T,sb+T+i-N-1)  
           endif
       enddo    
       sb = sb + 2*T
     enddo
+
+      
    
     !---------------------------------------------------------------------------
     ! Stepping for the neutrons
@@ -287,24 +288,36 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     &                 tempBogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),                   &  
     &                 tempEqp(nwn+1:nwt),configmatrix(2*nwn+1:2*nwt),Fermi(2),50)
   
+    Bogo         = tempBogo
     sb = 0
+    configmatrix = 0.0d0
     do B=1,8,2
       N = HFBlocks(B)   ; if(N.eq.0) cycle
       N2= HFBlocks(B+1)
       T = N+N2
 
-      ind = 0
-      do i=1,T
-          if(configmatrix(sb+T+i).eq.1.0d0) then
-            Bogo(sb+1:sb+2*T,sb  +i) = tempBogo(sb+1:sb+2*T,sb  +i)  
-            Bogo(sb+1:sb+2*T,sb+T+i) = tempBogo(sb+1:sb+2*T,sb+T+i)  
-          else
-            Bogo(sb+1:sb+2*T,sb+T-i+1) = tempBogo(sb+1:sb+2*T,sb+T+i)  
-            Bogo(sb+1:sb+2*T,sb+T+i)   = tempBogo(sb+1:sb+2*T,sb+T-i+1)  
-          endif
-      enddo    
+      configmatrix(sb+T+1:sb+2*T) = 1.0d0
       sb = sb + 2*T
     enddo
+
+    !sb = 0
+    !do B=1,8,2
+    !  N = HFBlocks(B)   ; if(N.eq.0) cycle
+    !  N2= HFBlocks(B+1)
+    !  T = N+N2!!
+
+    !  ind = 0
+    !  do i=1,T
+    !      if(configmatrix(sb+T+i).eq.1.0d0) then
+    !        Bogo(sb+1:sb+2*T,sb  +i) = tempBogo(sb+1:sb+2*T,sb  +i)  
+    !        Bogo(sb+1:sb+2*T,sb+T+i) = tempBogo(sb+1:sb+2*T,sb+T+i)  
+    !      else
+    !        Bogo(sb+1:sb+2*T,sb+T-i+1) = tempBogo(sb+1:sb+2*T,sb+T+i)  
+    !        Bogo(sb+1:sb+2*T,sb+T+i)   = tempBogo(sb+1:sb+2*T,sb+T-i+1)  
+    !      endif
+    !  enddo    
+    !  sb = sb + 2*T
+    !enddo
     call PairingMatrices(configmatrix, bogo, rho_pairing, kappa_pairing)
     
     ! Final organisation

@@ -40,7 +40,7 @@ contains
     alpha     = 0.03   ! fixed step size for now
 
     !---------------------------------------------------------------------------
-    do iter=1,100
+    do iter=1,200
         ! Calculate the gradient 
         H20 = calcH20(Bogo,h,gaps,blocks)
         N20 = calcN20(Bogo, blocks)
@@ -51,12 +51,6 @@ contains
           grad = H20 - lambda * N20
           ! Make a step in the right direction
           newbogo = GradUpdate(grad, bogo, alpha, blocks)
-          !---------------------------------------------------------------------------
-          ! Now it is time to calculate and diagonalise H11, and further transform
-          ! U and V
-          H11 = calcH11(newBogo, h, gaps, lambda, blocks)
-          call diagonalise_H11(newbogo, H11, blocks, Eqp)
-
           ! Check the new particle number
           particles = particle_number_bogo(newbogo, config, blocks)
           if(abs(Particles-targetN) .lt. 1d-14) exit 
@@ -71,6 +65,12 @@ contains
           exit
         endif
     enddo
+    !---------------------------------------------------------------------------
+    ! Now it is time to calculate and diagonalise H11, and further transform
+    ! U and V
+    H11 = calcH11(newBogo, h, gaps, lambda, blocks)
+    call diagonalise_H11(newbogo, H11, blocks, Eqp)
+
     !---------------------------------------------------------------------------
     ! Finally, we transform the rest of the Bogoliubov transformation
     sb = 0
