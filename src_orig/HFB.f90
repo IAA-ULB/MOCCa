@@ -662,17 +662,10 @@ $NTR        enddo
         indover =   0
         do i=1, N
           qpoverlap = 0
-$TR          do j=1, N
-$TR           qpoverlap =  qpoverlap + Bogo(sb+j,sb+N+i) * overlaps(j)
-$TR          enddo
+          do j=1, 2*N
+            qpoverlap =  qpoverlap + Bogo(sb+j,sb+N+i) * overlaps(j)
+          enddo
 
-$NTR         do j=1, N
-$NTR          qpoverlap =  qpoverlap + Bogo(sb+j,sb+N+i) * overlaps(j)
-$NTR         enddo
-$NTR         do j=1, N
-$NTR          qpoverlap =  qpoverlap + Bogo(sb+3*N+j,sb+N+i) * overlaps(j+N)
-$NTR         enddo
-      
           qpoverlap = abs(qpoverlap)
           if(qpoverlap .gt. maxover) then
               maxover = qpoverlap
@@ -680,7 +673,7 @@ $NTR         enddo
           endif
         enddo
 
-        R(sb +  N + indover ) = 1 - occ
+        R(sb +    N + indover ) = 1 - occ
         R(sb      + indover ) =     occ
         blockoverlap         = maxover
 
