@@ -40,27 +40,28 @@ contains
     alpha     = 0.03   ! fixed step size for now
 
     !---------------------------------------------------------------------------
-    do iter=1,200
+    do iter=1,5000
         ! Calculate the gradient 
         H20 = calcH20(Bogo,h,gaps,blocks)
         N20 = calcN20(Bogo, blocks)
 
         particles = particle_number_bogo(bogo, config, blocks)
-        do fermiiter = 1,100
+        !do fermiiter = 1,100
           ! Try this particular value of Lambda
           grad = H20 - lambda * N20
           ! Make a step in the right direction
           newbogo = GradUpdate(grad, bogo, alpha, blocks)
           ! Check the new particle number
           particles = particle_number_bogo(newbogo, config, blocks)
-          if(abs(Particles-targetN) .lt. 1d-14) exit 
+          !if(abs(Particles-targetN) .lt. 1d-14) exit 
           lambda = lambda - (Particles - targetN)                      
-        enddo
+        !enddo
         ! Take the step if the Fermi energy is close enough
         bogo = newbogo
         ! Calculate the norm of the gradient and check for convergence
         gradnorm = sqrt(sum(grad**2))
         if(gradnorm .lt. 1d-16) converged = .true.
+        print *, iter, gradnorm
         if(converged) then
           exit
         endif
@@ -143,10 +144,6 @@ $TR       &                         +alpha *matmul(tU,grad(si+1:si+T,si+1:si+T))
     call ortho_bogo(newbogo, blocks)
     
   end function GradUpdate
-
-  subroutine precondition_grad()
-
-  end subroutine precondition_grad
 
   subroutine ortho_bogo(bogo, blocks)
     !---------------------------------------------------------------------------
@@ -460,13 +457,22 @@ $TR  part = 2* part
 
       A = H11(si+1:si+T, si+1:si+T)
 
-      ! Diagonalize this symmetry-subblock
+      ! Diagonalize the first symmetry subblock
       lwork = -1; allocate(work(1))
-      call DSYEV( 'V', 'U', T, A, T, Eqp(si+1:si+T),work,lwork,ifail)
+      call DSYEV( 'V', 'U', N, A(1:N,1:N), N, Eqp(si+1:si+N),work,lwork,ifail)
       lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
-      call DSYEV( 'V', 'U', T, A, T, Eqp(si+1:si+T),work,lwork,ifail)
+      call DSYEV( 'V', 'U', N, A(1:N,1:N), N, Eqp(si+1:si+N),work,lwork,ifail)
       deallocate(work)
       
+
+      ! Diagonalize the second symmetry subblock
+      lwork = -1; allocate(work(1))
+      call DSYEV( 'V', 'U', N2, A(N+1:T,N+1:T), N2, Eqp(si+N+1:si+T),work,lwork,ifail)
+      lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
+      call DSYEV( 'V', 'U', N2, A(N+1:T,N+1:T), N2, Eqp(si+N+1:si+T),work,lwork,ifail)
+      deallocate(work)
+      
+
       !print ('(a3,99f10.3)') , 'EQP', EQP(si+1:si+T)
 
       ! Transform the U and V matrices

@@ -268,14 +268,23 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
           if(configmatrix(sb+T+i).eq.1.0d0) then
             tempBogo(sb+1:sb+2*T,sb+T+i) = Bogo(sb+1:sb+2*T,sb+T+i)  
           else
-            tempBogo(sb+1:sb+2*T,sb+T+i) = Bogo(sb  +1:sb+2*T,sb+T+i-N-1)  
+            tempBogo(sb+1:sb+2*T,sb+T+i) = Bogo(sb+1:sb+2*T,sb+T+i-N-1)  
           endif
       enddo    
+
+      do i=1, 2*T
+        print ('(99f10.3)'), Bogo(sb+i,sb+T+1:sb+2*T)  
+      enddo
+      print *   
+      do i=1, 2*T
+        print ('(99f10.3)'), tempBogo(sb+i,sb+T+1:sb+2*T)  
+      enddo
+
       sb = sb + 2*T
     enddo
 
-      
-   
+    
+
     !---------------------------------------------------------------------------
     ! Stepping for the neutrons
     call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                 & 
@@ -296,6 +305,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       N2= HFBlocks(B+1)
       T = N+N2
 
+      configmatrix(sb+1:sb+T) = 0.0d0
       configmatrix(sb+T+1:sb+2*T) = 1.0d0
       sb = sb + 2*T
     enddo
