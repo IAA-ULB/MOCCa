@@ -642,20 +642,37 @@ $NTR    endif
 
         ! But first calculate all the overlaps in the HF basis
         allocate(overlaps(2*N)) ; overlaps = 0
-        do i=1, N
-          ! expansion of U(r) in the HF-basis
-          overlaps(i  ) =  dv*sum(            HFPsi(:,:,si+i) *modelspwf(:,:,1))
-          ! expansion of V(r) in the (time-reverse of the) HF-basis
-          overlaps(i+N) = +dv*sum(timereverse(HFPsi(:,:,si+i))*modelspwf(:,:,2)) 
-        enddo
+$TR        do i=1, N
+$TR          ! expansion of U(r) in the HF-basis
+$TR          overlaps(i  ) =  dv*sum(            HFPsi(:,:,si+i) *modelspwf(:,:,1))
+$TR          ! expansion of V(r) in the (time-reverse of the) HF-basis
+$TR       overlaps(i+N) = +dv*sum(timereverse(HFPsi(:,:,si+i))*modelspwf(:,:,2)) 
+$TR        enddo
+
+$NTR        do i=1,N
+$NTR          ! expansion of U(r) in the HF-basis
+$NTR          overlaps(i) =  dv*sum( HFPsi(:,:,si+i) *modelspwf(:,:,1))
+$NTR        enddo
+$NTR        do i=N+1,2*N
+$NTR          ! expansion of V(r) in the HF-basis
+$NTR          overlaps(i) = +dv*sum((HFPsi(:,:,si+i))*modelspwf(:,:,2)) 
+$NTR        enddo
 
         maxover = -10
         indover =   0
         do i=1, N
           qpoverlap = 0
-          do j=1, 2*N
-             qpoverlap =  qpoverlap + Bogo(sb+j,sb+N+i) * overlaps(j)
-          enddo
+$TR          do j=1, N
+$TR           qpoverlap =  qpoverlap + Bogo(sb+j,sb+N+i) * overlaps(j)
+$TR          enddo
+
+$NTR         do j=1, N
+$NTR          qpoverlap =  qpoverlap + Bogo(sb+j,sb+N+i) * overlaps(j)
+$NTR         enddo
+$NTR         do j=1, N
+$NTR          qpoverlap =  qpoverlap + Bogo(sb+3*N+j,sb+N+i) * overlaps(j+N)
+$NTR         enddo
+      
           qpoverlap = abs(qpoverlap)
           if(qpoverlap .gt. maxover) then
               maxover = qpoverlap
@@ -663,8 +680,8 @@ $NTR    endif
           endif
         enddo
 
-        R(sb + N + indover ) = 1 - occ
-        R(sb     + indover ) =     occ
+        R(sb +  N + indover ) = 1 - occ
+        R(sb      + indover ) =     occ
         blockoverlap         = maxover
 
         deallocate(overlaps)
