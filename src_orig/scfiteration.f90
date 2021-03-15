@@ -54,7 +54,7 @@ contains
       stop
     endif
     if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
-      print *, 'Invalid scfscheme value.'
+      print *, 'Invalid pairingscheme value.'
       stop
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

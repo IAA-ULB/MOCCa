@@ -42,6 +42,9 @@ module HFB
   real(KIND=dp), allocatable ::  Bogoliubov_history(:,:)
   real(KIND=dp), allocatable ::  overrho, overkap
 
+  integer, save :: effblocks(8) = 0
+
+
   interface
    function delta_action_dummy(psi,dpsi,ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
                                                                 result(deltapsi)
@@ -247,55 +250,82 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp), intent(inout) :: configmatrix(:), qpenergies(:)
     real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
     real(KIND=dp), allocatable   :: tempEqp(:), tempdisp(:), tempBogo(:,:)
-    integer, allocatable         :: indices(:)
+    integer, allocatable         :: indices(:) 
 
-    integer :: si, sb, B, N, N2, T,i, ind
+    integer :: si, sb, B, N, N2, T,i, Np, Nm, ind, ind2
 
     ! Guess a new Fermi energy if none is there
     if(all(Fermi.eq.0.0))   Fermi = -5
 
     allocate(tempEqp(nwt))          ; tempEqp  = 0.0d0
     allocate(tempBogo(2*nwt, 2*nwt)); tempBogo = 0.0d0
-    
-    sb = 0
-    do B=1,8,2
-      N = HFBlocks(B)   ; if(N.eq.0) cycle
-      N2= HFBlocks(B+1)
-      T = N+N2
 
-      ind = 0
-      do i=1,T
+    if(all(effblocks.eq.0)) then    
+      effblocks = HFblocks
+      sb = 0
+      do B=1,8,2
+        N = HFBlocks(B)   ; if(N.eq.0) cycle
+        N2= HFBlocks(B+1)
+        T = N+N2
+
+        ! Counting the number of positive signature states
+        Np = 0
+        do i=1,N
+          if(configmatrix(sb+T+i).eq.1.0d0) Np = Np+1
+        enddo
+        do i=N+1,T
+          if(configmatrix(sb+T+i).eq.0.0d0) Np = Np+1
+        enddo
+        ! Getting the indices right
+        allocate(indices(T)) ; ind = 0 ; ind2 = 0
+        do i=1,N
           if(configmatrix(sb+T+i).eq.1.0d0) then
-            tempBogo(sb+1:sb+2*T,sb+T+i) = Bogo(sb+1:sb+2*T,sb+T+i)  
+            ind          = ind + 1
+            indices(ind) = i
           else
-            tempBogo(sb+1:sb+2*T,sb+T+i) = Bogo(sb+1:sb+2*T,sb+T+i-N-1)  
+            ind2             = ind2 + 1
+            indices(Np+ind2) = i
           endif
-      enddo    
+        enddo
+        do i=N+1,T
+          if(configmatrix(sb+T+i).eq.1.0d0) then
+            ind2             = ind2 + 1
+            indices(Np+ind2) = i
+          else
+            ind              = ind + 1
+            indices(ind )    = i
+          endif
+        enddo
 
-      do i=1, 2*T
-        print ('(99f10.3)'), Bogo(sb+i,sb+T+1:sb+2*T)  
+        do i=1,T
+            if(configmatrix(sb+T+indices(i)).eq.1.0d0) then
+              tempBogo(sb+1:sb+2*T ,sb+T+i)  = Bogo(sb+1:sb+2*T,sb+T+indices(i))  
+            else
+              tempBogo(sb+1  :sb+  T,sb+T+i) =-Bogo(sb+T+1:sb+2*T,sb+T+indices(i))    
+              tempBogo(sb+T+1:sb+2*T,sb+T+i) = Bogo(sb+  1:sb+  T,sb+T+indices(i))    
+            endif
+        enddo    
+        deallocate(indices)
+
+        effBlocks(B)   = Np
+        effBlocks(B+1) = T - Np
+
+        sb = sb + 2*T
       enddo
-      print *   
-      do i=1, 2*T
-        print ('(99f10.3)'), tempBogo(sb+i,sb+T+1:sb+2*T)  
-      enddo
-
-      sb = sb + 2*T
-    enddo
-
-    
-
+    else
+        tempBogo = Bogo
+    endif
     !---------------------------------------------------------------------------
     ! Stepping for the neutrons
     call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                 & 
-    &                  HFblocks(1:4), neutrons,                                &
+    &                  effblocks(1:4), neutrons,                                &
     &                  tempBogo(1:2*nwn,1:2*nwn),                              &
-    &                  tempEqp(1:nwn), configmatrix(1:2*nwn),Fermi(1),50)
+    &                  tempEqp(1:nwn), configmatrix(1:2*nwn),Fermi(1),1)
     ! and for the protons
     call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt), & 
-    &                 HFblocks(5:8),protons,                                  &
+    &                 effblocks(5:8),protons,                                  &
     &                 tempBogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),                   &  
-    &                 tempEqp(nwn+1:nwt),configmatrix(2*nwn+1:2*nwt),Fermi(2),50)
+    &                 tempEqp(nwn+1:nwt),configmatrix(2*nwn+1:2*nwt),Fermi(2),1)
   
     Bogo         = tempBogo
     sb = 0
@@ -305,29 +335,11 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       N2= HFBlocks(B+1)
       T = N+N2
 
-      configmatrix(sb+1:sb+T) = 0.0d0
+      configmatrix(sb+1:sb+T)     = 0.0d0
       configmatrix(sb+T+1:sb+2*T) = 1.0d0
       sb = sb + 2*T
     enddo
 
-    !sb = 0
-    !do B=1,8,2
-    !  N = HFBlocks(B)   ; if(N.eq.0) cycle
-    !  N2= HFBlocks(B+1)
-    !  T = N+N2!!
-
-    !  ind = 0
-    !  do i=1,T
-    !      if(configmatrix(sb+T+i).eq.1.0d0) then
-    !        Bogo(sb+1:sb+2*T,sb  +i) = tempBogo(sb+1:sb+2*T,sb  +i)  
-    !        Bogo(sb+1:sb+2*T,sb+T+i) = tempBogo(sb+1:sb+2*T,sb+T+i)  
-    !      else
-    !        Bogo(sb+1:sb+2*T,sb+T-i+1) = tempBogo(sb+1:sb+2*T,sb+T+i)  
-    !        Bogo(sb+1:sb+2*T,sb+T+i)   = tempBogo(sb+1:sb+2*T,sb+T-i+1)  
-    !      endif
-    !  enddo    
-    !  sb = sb + 2*T
-    !enddo
     call PairingMatrices(configmatrix, bogo, rho_pairing, kappa_pairing)
     
     ! Final organisation

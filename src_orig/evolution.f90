@@ -243,9 +243,9 @@ contains
             Momentum_Updates = 0.0_dp
         endif
 
-        !if(.not.allocated(current_sph)) then 
-        !    allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
-        !endif
+        if(.not.allocated(current_sph)) then 
+            allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
+        endif
 
         if(EstimateParams) call IterativeEstimation(iteration)
 
@@ -282,13 +282,16 @@ contains
 
             !-------------------------------------------------------------------
             ! Current estimate for the single-particle hamiltonian
-            !do wave2=wave,si+N
-            !    current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
-            !    current_sph(wave ,wave2) = current_sph(wave2,wave)
-            !enddo
+            do wave2=wave,si+N
+                current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+                current_sph(wave ,wave2) = current_sph(wave2,wave)
+            enddo
             !-------------------------------------------------------------------
             ! Remove the part that is propagation in its own direction.
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
+            !do wave2=wave,wave !si+1,si+N
+            !  hpsi =   hpsi - current_sph(wave,wave2) * hfpsi(:,:,wave2)
+            !enddo
             !-------------------------------------------------------------------
             ! Add some history and 'momentum' to the update. 
             momentum_updates(:,:,wave) = &
@@ -310,6 +313,65 @@ contains
         call stop_timer(T_evolution)
 
     end subroutine Evolve_momentum
+
+    subroutine eval_sph(diag)
+      !
+      !
+      !
+      !
+      use wavefunctions
+        
+      integer               :: wave, iso, B, si, N, wave2, lwork, ifail
+      real(KIND = dp)       :: hpsi(nx*ny*nz,4)
+      real(KIND = dp), allocatable :: work(:), temp(:,:,:)
+      logical, intent(in)   :: diag
+
+      if(.not.allocated(current_sph)) then 
+          allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
+      endif
+
+      si  = 0
+      do B=1,8
+        N = HFblocks(B) ; if(N.eq.0) cycle
+        iso = -1
+        if(B.gt.4) iso = +1
+        do wave=si+1,si+N
+          !-------------------------------------------------------------------
+          ! Calculate the action of the single-particle hamiltonian.
+          hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
+          &              hfdpsi(:,:,:,wave)   ,                              &
+          &              hfddpsi(:,:,:,wave)  ,                              &
+          &              hfdddpsi(:,:,:,wave) ,                              &
+          &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+          !-------------------------------------------------------------------
+          ! Current estimate for the single-particle hamiltonian
+          do wave2=wave,si+N
+              current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+              current_sph(wave ,wave2) = current_sph(wave2,wave)
+          enddo
+        enddo
+        if(diag) then
+            lwork = -1; allocate(work(1))
+            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, spenergies(si+1:si+N),work,lwork,ifail)
+            lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
+            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, spenergies(si+1:si+N),work,lwork,ifail)
+            deallocate(work)
+            temp = hfpsi(:,:,si+1:si+N)
+            do wave=1,N
+              hfpsi(:,:,si+wave) = 0
+              do wave2=1,N
+                hfpsi(:,:,si+wave) = hfpsi(:,:,si+wave) + &
+                &                current_sph(si+wave,si+wave2) * temp(:,:,wave2)
+              enddo
+            enddo
+        else
+          do wave=si+1,si+N
+            spenergies(wave) = current_sph(wave,wave)
+          enddo
+        endif
+        si = si + N
+      enddo
+    end subroutine eval_sph
 
     subroutine IterativeEstimation(Iteration)
       !-------------------------------------------------------------------------

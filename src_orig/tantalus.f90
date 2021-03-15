@@ -193,7 +193,7 @@ subroutine ReachForWaterAndFood()
 
     8 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
 
-    integer :: iter, iprint   
+    integer :: iter, iprint , subiter, maxsub
     integer :: ifail
     logical :: ConvergenceAchieved
     ! Logical to see if any moments with projection are necessary
@@ -274,46 +274,34 @@ subroutine ReachForWaterAndFood()
         ! Note that the (diagonal) matrix elements of <h> get calculated here
         call Evolve(iter)
        
-        ! Save      
-        FermiHistory = FermiEnergy
-        ! Solve pairing problem
-        call SolvePairing(pairingscheme,ifail)
-
-        ! IF SOME CRANKING or blocking IS PRESENT
-        call update_spwf_angmom()
-        call updateAM 
-
+        ! Save Fermi energy
+        FermiHistory   = FermiEnergy
         projectpresent = checkconstraints()        
-
-        if(projectpresent) then
-          ! Update the densities
-          ! Note that this update is incorrect, as we do not want to perform a 
-          ! set of derivatives
-          call densit(ifail,SaveRho=.true.)
-          call ConstructChargeDensity(ChargeDensity)
-          
-          call CalculateMoments()
-          ! Readjust the projection constraints here, to not take into account
-          ! the update from the projection
-          call ReadjustAllMoments(2)
-          
-          ! Do an approximate projection on the feasible set
-          call feasibleproject()
-
-          ! Solve the pairing problem.
-          call SolvePairing(pairingscheme, ifail)
-        endif
- 
         ! Restore all the different derivatives.
         call deriveHF()
- 
-        ! Update the densities
-        if(projectpresent) then 
-          call densit(ifail,SaveRho=.false.)
-        else
+
+        maxsub=1
+        if(pairingscheme.eq.1) maxsub=1
+
+        do subiter=1,maxsub
+          ! Solve the pairing subproblem
+          if(pairingscheme.eq.1) then
+            call eval_sph(.false.)
+          endif
+          call CalcGaps(FermiEnergy, PairStabFactor)
+    
+          call SolvePairing(pairingscheme,ifail)
+        
+          ! Update the densities
           call densit(ifail,SaveRho=.true.)
-        endif
-        call ConstructChargeDensity(ChargeDensity)
+          call ConstructChargeDensity(ChargeDensity)
+        
+          ! Update all of the fields
+          call calcFields(calcall=.true.)
+        enddo 
+
+        call update_spwf_angmom()
+        call updateAM
 
         !See if some moments were temporary
         call TurnOffConstraints(iter)
@@ -323,9 +311,8 @@ subroutine ReachForWaterAndFood()
         call CalculateMoments()
         call ReadjustAllMoments(1)
         call Sphamilcontribution()
-        
-        ! Update all of the fields
-        call calcFields(calcall=.true.)
+        call updateAM 
+
 
         ! Recalculate the energy
         if(mod(iter,PrintIter).eq.0) then
