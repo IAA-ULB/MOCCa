@@ -140,15 +140,15 @@ contains
     !     pairing is needed, it cannot correctly guess a structure. 
     !---------------------------------------------------------------------------
     
-    real(KIND=dp)             :: homegax, homegay,homegaz, alpha,qqq
+!    real(KIND=dp)             :: homegax, homegay,homegaz, alpha,qqq
     integer                   :: i
     integer, allocatable      :: kparz(:)
     
-    alpha = 0.2    
-    qqq   = 1.0    
-    homegaz  = alpha*qqq**(-2.0/3.0)
-    homegax  = alpha*qqq**(-2*cos(-2*pi/3)/3)
-    homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
+!    alpha = 0.5    
+!    qqq   = 2.0  
+!    homegaz  = alpha*qqq**(-2.0/3.0)
+!    homegax  = alpha*qqq**(-2*cos(-2*pi/3)/3)
+!    homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
 
     allocate(hfpsi($ININX*$ININY*$ININZ,4,$ININWT)) ; hfpsi = 0.0d0
     if (allocated(kparz))  deallocate(kparz)       

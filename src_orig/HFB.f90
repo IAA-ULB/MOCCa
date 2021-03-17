@@ -235,7 +235,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
   end subroutine solvepairing_HFB_direct
 
-  subroutine solvepairing_HFB_gradient(sphamil, gaps, fermi, Bogo,             & 
+  subroutine solvepairing_HFB_gradient(stepsize, sphamil, gaps, fermi, Bogo,   & 
   &                          rho_pairing, kappa_pairing,configmatrix,          & 
   &                          qpenergies)
     !---------------------------------------------------------------------------
@@ -248,11 +248,24 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp), intent(inout) :: Bogo(:,:)
     real(KIND=dp), intent(inout) :: kappa_pairing(:,:), rho_pairing(:,:)
     real(KIND=dp), intent(inout) :: configmatrix(:), qpenergies(:)
-    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
+    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:), stepsize
     real(KIND=dp), allocatable   :: tempEqp(:), tempdisp(:), tempBogo(:,:)
     integer, allocatable         :: indices(:) 
 
     integer :: si, sb, B, N, N2, T,i, Np, Nm, ind, ind2
+  
+    if(.not.allocated(rho_history)) then
+      allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
+      allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0
+      allocate(configmatrix_history(2*nwt))     ; configmatrix_history = 0.0
+      allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0
+    endif
+
+    ! Saving the history
+    !rho_history          = rho_pairing
+    !kappa_history        = kappa_pairing
+    !configmatrix_history = configmatrix
+    Bogoliubov_history   = Bogo
 
     ! Guess a new Fermi energy if none is there
     if(all(Fermi.eq.0.0))   Fermi = -5
@@ -298,12 +311,12 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
         enddo
 
         do i=1,T
-            if(configmatrix(sb+T+indices(i)).eq.1.0d0) then
-              tempBogo(sb+1:sb+2*T ,sb+T+i)  = Bogo(sb+1:sb+2*T,sb+T+indices(i))  
-            else
-              tempBogo(sb+1  :sb+  T,sb+T+i) =-Bogo(sb+T+1:sb+2*T,sb+T+indices(i))    
-              tempBogo(sb+T+1:sb+2*T,sb+T+i) = Bogo(sb+  1:sb+  T,sb+T+indices(i))    
-            endif
+          if(configmatrix(sb+T+indices(i)).eq.1.0d0) then
+            tempBogo(sb+1:sb+2*T ,sb+T+i)  = Bogo(sb+1:sb+2*T,sb+T+indices(i))  
+          else
+            tempBogo(sb+1  :sb+  T,sb+T+i) = Bogo(sb+T+1:sb+2*T,sb+T+indices(i))    
+            tempBogo(sb+T+1:sb+2*T,sb+T+i) = Bogo(sb+  1:sb+  T,sb+T+indices(i))    
+          endif
         enddo    
         deallocate(indices)
 
@@ -315,17 +328,18 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     else
         tempBogo = Bogo
     endif
+    print *, 'effblocks', effblocks
     !---------------------------------------------------------------------------
     ! Stepping for the neutrons
     call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                 & 
     &                  effblocks(1:4), neutrons,                                &
     &                  tempBogo(1:2*nwn,1:2*nwn),                              &
-    &                  tempEqp(1:nwn), configmatrix(1:2*nwn),Fermi(1),1)
+    &                  tempEqp(1:nwn), stepsize,Fermi(1),1)
     ! and for the protons
     call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt), & 
     &                 effblocks(5:8),protons,                                  &
     &                 tempBogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),                   &  
-    &                 tempEqp(nwn+1:nwt),configmatrix(2*nwn+1:2*nwt),Fermi(2),1)
+    &                 tempEqp(nwn+1:nwt),stepsize,Fermi(2),1)
   
     Bogo         = tempBogo
     sb = 0

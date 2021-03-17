@@ -295,8 +295,6 @@ $PRINTCOEF_PAIR
 
     !print 104, TotalE - Ehistory(1)
 
-    
-
     print 1
  end subroutine PrintEnergy
  

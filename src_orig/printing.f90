@@ -75,14 +75,14 @@ contains
 
         if(pairingtype.eq.1) then
           print 11, wave, p, s, rho_can(wave), spenergies(wave), &
-          &               dispersions(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
+          &               Pcutoffs(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
         elseif(pairingtype.eq.2) then
           print 11, wave, p, s, rho_pairing(wave,wave), spenergies(wave),      &
-          &               dispersions(wave), maxval(abs(HFBgaps(wave,:))),     &
+          &               Pcutoffs(wave), maxval(abs(HFBgaps(wave,:))),     &
           &               Jx, Jy, Jz, JJ
         else
           print 11, wave, p, s, rho_can(wave), spenergies(wave), &
-          &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ                
+          &               Pcutoffs(wave), 0.0, Jx, Jy, Jz, JJ                
         endif
     enddo
     

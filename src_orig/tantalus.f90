@@ -200,6 +200,7 @@ subroutine ReachForWaterAndFood()
     logical :: projectpresent = .false.
     ! Message for the output of the code, useful for the Brussels group.
     character(len=99) :: iomsg = 'START'
+    real(KIND=dp)     :: oldE, stepsize, oldfermi(2)
 
     ifail = 0
 
@@ -211,7 +212,7 @@ subroutine ReachForWaterAndFood()
     call deriveHF()
 
     ! Solve the pairing, with the current values of <h> and the pairing gaps.
-    call SolvePairing(0, ifail)
+    call SolvePairing(0,0.0d0, ifail)
     if(ifail.ne.0) then
         print *, 'WARNING! Pairing solver failed.'
     endif
@@ -235,7 +236,7 @@ subroutine ReachForWaterAndFood()
 
     PairStabfactor = CompStabilisingFactor(PairDenEnergy)
     call CalcGaps(FermiEnergy, PairStabFactor)
-    call SolvePairing(0,ifail)
+    call SolvePairing(0,0.0d0,ifail)
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
@@ -283,22 +284,80 @@ subroutine ReachForWaterAndFood()
         maxsub=1
         if(pairingscheme.eq.1) maxsub=1
 
-        do subiter=1,maxsub
-          ! Solve the pairing subproblem
-          if(pairingscheme.eq.1) then
-            call eval_sph(.false.)
-          endif
-          call CalcGaps(FermiEnergy, PairStabFactor)
-    
-          call SolvePairing(pairingscheme,ifail)
-        
-          ! Update the densities
-          call densit(ifail,SaveRho=.true.)
-          call ConstructChargeDensity(ChargeDensity)
-        
-          ! Update all of the fields
-          call calcFields(calcall=.true.)
-        enddo 
+        !print *, 'Total energy before step', totalE          
+        !! Solve the pairing subproblem
+        !if(pairingscheme.eq.1) then
+        !  call eval_sph(.false.)
+        !endif
+        !call CalcGaps(FermiEnergy, PairStabFactor)
+        !do subiter=1,maxsub!!
+        !  call SolvePairing(pairingscheme,0.001d0*(subiter),ifail)
+        !  ! Update the densities
+        !  call densit(ifail,SaveRho=.true.)
+        !  call ConstructChargeDensity(ChargeDensity)!!!!
+
+       !   call CalcEnergy(iprint)
+       !   print *, 'Total energy after step ', subiter, (subiter)*0.001d0, totalE          
+       !   Bogoliubov= Bogoliubov_history   
+       !   ! Update all of the fields
+       !   !call calcFields(calcall=.true.)
+       ! enddo 
+       ! stop     
+
+        call SolvePairing(pairingscheme,0.0d0,ifail)
+        call densit(ifail,SaveRho=.true.)
+        call ConstructChargeDensity(ChargeDensity)
+
+        if(pairingscheme.eq.1) then
+          do subiter=1,maxsub
+            ! Solve the pairing subproblem
+            if(pairingscheme.eq.1) then
+              call eval_sph(.false.)
+            endif
+            call CalcGaps(FermiEnergy, PairStabFactor)
+  
+            stepsize = 0.05
+            call SolvePairing(pairingscheme,stepsize,ifail)
+            call densit(ifail,SaveRho=.true.)
+            call ConstructChargeDensity(ChargeDensity)
+            call calcFields(calcall=.true.)
+
+            !print *, stepsize, totalE, oldE
+            !if(totalE .gt. oldE) Bogoliubov = Bogoliubov_history
+            !if(stepsize.lt.1d-10) exit
+            !stepsize= 0.5*stepsize
+            !enddo
+            !if(stepsize.lt.1d-10) then
+            !   print *, 'Nothing accepted', oldE, totalE
+            !   Bogoliubov = Bogoliubov_history
+            !   fermienergy = oldfermi
+            !   call SolvePairing(pairingscheme,0.0d0,ifail)
+           ! 
+           !    call densit(ifail,SaveRho=.true.)
+           !    call ConstructChargeDensity(ChargeDensity)
+           !    call CalcEnergy(iprint)
+           !   !call printEnergy()!!
+
+           !    call calcFields(calcall=.true.)
+           !    print *, oldE, totalE, fermienergy
+           !    exit
+           ! else
+           !  print *, 'ACCEPTED', subiter, stepsize, totalE, oldE
+           ! endif
+           ! Update all of the fields
+           !call SolvePairing(pairingscheme,0.0d0,ifail)
+           !call densit(ifail,SaveRho=.true.)
+           !call ConstructChargeDensity(ChargeDensity)
+           !call CalcEnergy(iprint)
+         enddo
+        endif 
+
+        call densit(ifail,SaveRho=.true.)
+        call ConstructChargeDensity(ChargeDensity)
+        call calcFields(calcall=.true.)
+
+
+        if(pairingscheme.ne.1)          call calcFields(calcall=.true.)
 
         call update_spwf_angmom()
         call updateAM

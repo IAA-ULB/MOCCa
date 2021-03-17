@@ -410,9 +410,9 @@ $NTR          do wave2=si+N+1,si+N+N2
               else
                 s = 1
               endif
-              HFBgaps( wave, wave2) = s*min(10*abs(kappa_pairing(wave, wave2)),0.5)
+              HFBgaps( wave, wave2) = s*min(10*abs(kappa_pairing(wave, wave2)),1.5)
             else
-              HFBgaps( wave, wave2) = 0.5
+              HFBgaps( wave, wave2) = 1.5
             endif
 $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
           enddo 
@@ -422,13 +422,14 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     end select  
   end subroutine initializeGaps
   
-  subroutine SolvePairing(pairingscheme,ifail)
+  subroutine SolvePairing(pairingscheme,gradstepsize,ifail)
     !---------------------------------------------------------------------------
     ! Master routine for the solving of the pairing equations.
     !---------------------------------------------------------------------------
     use parameterization, only : hbm
 
     integer, intent(in)        :: pairingscheme
+    real(KIND=dp), intent(in)  :: gradstepsize
     integer, intent(out)       :: ifail
     integer                    :: i
     real(KIND=dp), allocatable :: tmp(:,:),sphamil(:,:)
@@ -497,7 +498,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
         &   blocked_qps, ifail)
       case(1)
-        call solvepairing_HFB_gradient(  &
+        call solvepairing_HFB_gradient( gradstepsize,  &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
         &   configmatrix, qpenergies)
       end select
