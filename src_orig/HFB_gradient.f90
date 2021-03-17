@@ -44,18 +44,19 @@ contains
         H20 = calcH20(Bogo,h,gaps,blocks)
         N20 = calcN20(Bogo, blocks)
 
-        call find_fermi_brent(Bogo, H20, N20,  Eqp, lambda, gradnorm,         &
+        call find_fermi_secant(Bogo, H20, N20,  Eqp, lambda, gradnorm,         &
         &                            particles, targetN, alpha, blocks)
 
         gradnorm = sqrt(sum((H20 - lambda * N20)**2))
         
         !sb = 0
-        !do B=1,4,2
-        !  do i=sb+1,sb+2*blocks(B) 
-        !      print ('(99f10.3)'), H20(i,sb+1:sb+2*blocks(B)) - lambda * N20(i,sb+1:sb+2*blocks(B)) 
+        !do B=1,2,2
+        !  N = blocks(B)+blocks(B+1) 
+        !  do i=sb+1,sb+N
+        !      print ('(99f10.3)'), H20(i,sb+1:sb+N) - lambda * N20(i,sb+1:sb+N) 
         !  enddo
         !  print *
-        !  sb = sb + 2*blocks(B)
+        !  sb = sb + N
         !enddo
         !print *
         H11 = calcH11(Bogo, h, gaps, lambda, blocks)
@@ -70,7 +71,6 @@ contains
     enddo
     print ('(a4,2e12.3,99f10.3)'), 'GRAD',  gradnorm, Particles,   & 
     &                                       alpha, maxval(Eqp), minval(abs(Eqp))
-
     !---------------------------------------------------------------------------
     ! Finally, we transform the rest of the Bogoliubov transformation
     sb = 0

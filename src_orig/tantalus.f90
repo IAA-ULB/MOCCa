@@ -296,17 +296,17 @@ subroutine ReachForWaterAndFood()
         !  call densit(ifail,SaveRho=.true.)
         !  call ConstructChargeDensity(ChargeDensity)!!!!
 
-       !   call CalcEnergy(iprint)
-       !   print *, 'Total energy after step ', subiter, (subiter)*0.001d0, totalE          
-       !   Bogoliubov= Bogoliubov_history   
-       !   ! Update all of the fields
-       !   !call calcFields(calcall=.true.)
-       ! enddo 
-       ! stop     
+        !   call CalcEnergy(iprint)
+        !   print *, 'Total energy after step ', subiter, (subiter)*0.001d0, totalE          
+        !   Bogoliubov= Bogoliubov_history   
+        !   ! Update all of the fields
+         !   !call calcFields(calcall=.true.)
+        ! enddo 
+        ! stop     
 
-        call SolvePairing(pairingscheme,0.0d0,ifail)
-        call densit(ifail,SaveRho=.true.)
-        call ConstructChargeDensity(ChargeDensity)
+        !call SolvePairing(pairingscheme,0.0d0,ifail)
+        !call densit(ifail,SaveRho=.true.)
+        !call ConstructChargeDensity(ChargeDensity)
 
         if(pairingscheme.eq.1) then
           do subiter=1,maxsub
@@ -352,10 +352,9 @@ subroutine ReachForWaterAndFood()
          enddo
         endif 
 
-        call densit(ifail,SaveRho=.true.)
-        call ConstructChargeDensity(ChargeDensity)
-        call calcFields(calcall=.true.)
-
+        !call densit(ifail,SaveRho=.true.)
+        !call ConstructChargeDensity(ChargeDensity)
+        !call calcFields(calcall=.true.)
 
         if(pairingscheme.ne.1)          call calcFields(calcall=.true.)
 
@@ -371,7 +370,6 @@ subroutine ReachForWaterAndFood()
         call ReadjustAllMoments(1)
         call Sphamilcontribution()
         call updateAM 
-
 
         ! Recalculate the energy
         if(mod(iter,PrintIter).eq.0) then
