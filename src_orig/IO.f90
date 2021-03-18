@@ -758,15 +758,16 @@ contains
     !
     ! It contains on a single line
     !
-    !      N, Z, Total energy, Q20(t), Q22(t), Q(t), Q(t),                  &   
-    ! &    Gamma(n), Gamma(p),  <r^2_p>, B(1:3), Rotcorrection(1:3),        &
-    ! &    avgap_v2(n), avgap_uv(n), avgap_v2(p),  avgap_uv(p),             &
+    !      N, Z, Total energy, Q20(t), Q22(t), Q(t), Q(t),                     &   
+    ! &    Gamma(n), Gamma(p),  <r^2_p>, B(1:3), J2(1:3), Rotcorrection(1:3),  &
+    ! &    avgap_v2(n), avgap_uv(n), avgap_v2(p),  avgap_uv(p),                &
     ! &    iter, io
     !
     ! Notes:
     ! *  <r^2_p> is calculated as in the moments module, i.e. it is calculated  
     !    from the charge density, which is not necessarily the proton density.
     ! * B is the Belyaev moment of inertia, along every axis
+    ! * J2 is the expectation value of J^2, along every axis
     ! * Rotcorrection is the rotational correction, separately along every axis
     ! * avgap_v2/uv(p/n) is the average gap for protons or neutrons as
     !                     calculated for the selected pairing approximation
@@ -820,9 +821,10 @@ contains
       endif
     end select
   
-    write(10,'(2i4,16(1x,f35.6), i6)', advance='NO')  &
+    write(10,'(2i4,19(1x,f20.6), i6)', advance='NO')  &
     &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi,  &
-    &     sqrt(rms/protons),  B(:), Rotcorrection,                & 
+    &     sqrt(rms/protons),  B(:), J2_coll(:,3)    ,             &
+    &     Rotcorrection,                                          &
     !   First neutron gaps
     &    average_gap(:,1), average_gap(:,2), &
     &    iter

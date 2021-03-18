@@ -60,7 +60,7 @@
 \affiliation{PNTPM, CP229, Universit\'e Libre de Bruxelles, 
                                                       B-1050 Bruxelles, Belgium}
     
-\date{7th of January 2020}
+\date{March 2021}
 
 \title{Tantalus or MOCCa v2.0}
 
@@ -309,7 +309,7 @@ named \texttt{\$BXLFITz\$Zn\$N.out}
 and writes a single line to it at the end of the iterations. 
 
 \begin{Verbatim}
-N, Z, Total energy, Q20(t), Q22(t), Q(t), Gamma(t), R_charge^RMS, Belyaev, 
+N, Z, Total energy, Q20(t), Q22(t), Q(t), Gamma(t), R_charge^RMS, Belyaev,  J2
           Rotcorrection, avgap_v2, avgap_uv, iter, iomsg
 \end{Verbatim}
 
@@ -333,6 +333,8 @@ R_charge^RMS = RMS radius of the charge density. Includes the finite size
                correction of the protons and neutrons if asked for.
 Belyaev      = Belyaev moment of inertia along every axis. (This is the ad-hoc
                 collective version without contribution of blocked qps).
+J2           = Expectation value of J^2 around every axis (again, ad-hoc version
+                without contribution of blocked qps)
 Rotcorrection= Energy associated with the rotational correction.
 avgap_v2/uv  = is the average gap for protons or neutrons as
                calculated for the selected pairing approximation
@@ -342,7 +344,7 @@ avgap_v2/uv  = is the average gap for protons or neutrons as
 iter         = Number of SCF iterations performed by the code before exiting. 
 iomsg        = Output message by the code. Currently can be 
                CONVERGED : the code exited because it judged convergence to be reached.
-               MAXITER   : the code exited becauseit reached its maximum of iterations.
+               MAXITER   : the code exited because it reached its maximum of iterations.
                CHECKPOINT: this wavefunction file was written as a checkpoint
                More exit codes will undoubtedly be added.
 \end{Verbatim}
