@@ -44,7 +44,7 @@ contains
         H20 = calcH20(Bogo,h,gaps,blocks)
         N20 = calcN20(Bogo, blocks)
 
-        call find_fermi_secant(Bogo, H20, N20,  Eqp, lambda, gradnorm,         &
+        call find_fermi_brent(Bogo, H20, N20,  Eqp, lambda, gradnorm,         &
         &                            particles, targetN, alpha, blocks)
 
         gradnorm = sqrt(sum((H20 - lambda * N20)**2))
@@ -100,12 +100,12 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
     integer   :: i,j
 
     Pgrad = grad
-    do i=1, size(grad,1)
-        do j=1, size(grad,1)
-          fac = max(Eqp(i)+Eqp(j), 2.0d0)!!!!
-          Pgrad(i,j) = Pgrad(i,j)/fac
-        enddo
-    enddo
+    !do i=1, size(grad,1)
+    !    do j=1, size(grad,1)
+    !      fac = max(Eqp(i)+Eqp(j), 2.0d0)!!!!
+    !      Pgrad(i,j) = Pgrad(i,j)/fac
+    !    enddo
+    !enddo
 
   end function precon_grad
 

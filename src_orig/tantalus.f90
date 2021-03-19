@@ -282,7 +282,7 @@ subroutine ReachForWaterAndFood()
         call deriveHF()
 
         maxsub=1
-        if(pairingscheme.eq.1) maxsub=1
+        if(pairingscheme.eq.1) maxsub=10
 
         !print *, 'Total energy before step', totalE          
         !! Solve the pairing subproblem
@@ -316,7 +316,7 @@ subroutine ReachForWaterAndFood()
             endif
             call CalcGaps(FermiEnergy, PairStabFactor)
   
-            stepsize = 0.05
+            stepsize = 0.0005
             call SolvePairing(pairingscheme,stepsize,ifail)
             call densit(ifail,SaveRho=.true.)
             call ConstructChargeDensity(ChargeDensity)

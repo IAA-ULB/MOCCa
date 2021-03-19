@@ -328,7 +328,6 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     else
         tempBogo = Bogo
     endif
-    print *, 'effblocks', effblocks
     !---------------------------------------------------------------------------
     ! Stepping for the neutrons
     call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                 & 
