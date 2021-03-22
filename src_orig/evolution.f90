@@ -257,7 +257,8 @@ contains
         endif
 
         if(.not. diagsphamil) then
-          allocate(HFTransfo(nwt,nwt)) ; HFtransfo = 0.0d0
+          if(.not.allocated(HFTransfo)) allocate(HFTransfo(nwt,nwt)) 
+          HFtransfo = 0.0d0
         endif
 
         if(EstimateParams) call IterativeEstimation(iteration)
@@ -319,6 +320,7 @@ contains
               lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
               call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
               &                       spenergies(si+1:si+N),work,lwork,ifail)
+              deallocate(work)
               !-----------------------------------------------------------------
             endif
             !-------------------------------------------------------------------

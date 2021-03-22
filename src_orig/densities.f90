@@ -96,7 +96,7 @@ subroutine densit(ifail, SaveRho)
     !---------------------------------------------------------------------------
     integer, intent(out) :: ifail
 
-    integer      :: i, it, wave, wave2, B, N, si, N2
+    integer      :: i, it, wave, wave2, B, N, si, N2, T
     real(KIND=dp):: weight
     logical      :: SaveRho
     real(KIND=dp), allocatable :: kappa_cut(:,:)
@@ -237,16 +237,17 @@ $BCSEXPRESSION
       do B=1,8,2
         N = HFBlocks(B) ;  if (N.eq.0) cycle
         N2= HFBlocks(B+1)
+        T = N+N2
         it = 2          
         if( B.le. 4) it = 1
 
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Calculation of the pairing cutoffs * kappa
-        kappa_cut = kappa_pairing(si+1:si+N,si+1:si+N)
-        if(.not. diagsphamil) then
+        kappa_cut = kappa_pairing(si+1:si+T,si+1:si+T)
+        if ((.not. diagsphamil) .and. allocated(HFtransfo)) then  
           ! Transform to the HF-basis
-          kappa_cut = matmul(transpose(HFtransfo(si+1:si+N,si+1:si+N)), kappa_cut)
-          kappa_cut = matmul(           kappa_cut, HFtransfo(si+1:si+N,si+1:si+N))
+          kappa_cut =matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)),kappa_cut)
+          kappa_cut =matmul(          kappa_cut, HFtransfo(si+1:si+T,si+1:si+T))
         endif
         ! Multiply with the cutoffs
         do wave=1,N
@@ -256,10 +257,10 @@ $NTR          do wave2=N+1,N+N2
               &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)
           enddo
         enddo
-        if(.not. diagsphamil) then
+        if((.not. diagsphamil) .and. allocated(HFtransfo)) then 
           ! Transform back to the basis in memory
-          kappa_cut = matmul(HFtransfo(si+1:si+N,si+1:si+N), kappa_cut)
-          kappa_cut = matmul( kappa_cut,transpose(HFtransfo(si+1:si+N,si+1:si+N)))
+          kappa_cut=matmul(HFtransfo(si+1:si+T,si+1:si+T), kappa_cut)
+          kappa_cut=matmul( kappa_cut,transpose(HFtransfo(si+1:si+T,si+1:si+T)))
         endif
 
         do wave=1,N

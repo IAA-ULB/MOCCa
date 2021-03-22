@@ -644,7 +644,7 @@ $TR endif
     ! is stored. This full matrix is antisymmetric, not symmetric!
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: Fermi(2), stabfactor(2)
-    integer                   :: wave1, wave2, iso, si,  B, N, inda, indb, N2
+    integer                   :: wave1, wave2, iso, si,  B, N, inda, indb, N2,T
     real(KIND=dp)             :: deltapsi(mv,4), val(2), stabfac
     
     val = Fermi ! To avoid the unused dummy argument warning from the compiler
@@ -661,6 +661,7 @@ $TR endif
     do B=1,8,2   
       N   = HFBlocks(B)  ; if(N .eq. 0) cycle
       N2  = HFBlocks(B+1)
+      T   = N + N2
       iso = -1
       if(B .gt. 4) iso = 1
     
@@ -689,7 +690,6 @@ $TR        inda = si + wave1
           stabfac = 1 + stabfactor((iso+3)/2)
 
           HFBgaps(inda,indb) =     sum(hfpsi(:,:,indb)*deltapsi)*dv *stabfac
-!          &                          Pcutoffs(inda)*Pcutoffs(indb)*stabfac
 
           ! The full matrix Delta is antisymmetric...
 $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
@@ -702,13 +702,13 @@ $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
       !-------------------------------------------------------------------------      
       ! We have now calculated the gaps (without cutoffs) in the basis that 
       ! is currently in storage. This can either be the HF basis or not!
-      if(.not.diagsphamil) then
+      if(.not.diagsphamil .and. allocated(HFtransfo)) then
         ! Transform to the HF basis
-        HFBgaps(si+1:si+N,si+1:si+N) = &
-        &                     matmul(transpose(HFtransfo(si+1:si+N,si+1:si+N)),&
-        &                                          HFBgaps(si+1:si+N,si+1:si+N))
-        HFBgaps(si+1:si+N,si+1:si+N) = &
-        &    matmul(HFBgaps(si+1:si+N,si+1:si+N),HFtransfo(si+1:si+N,si+1:si+N))
+        HFBgaps(si+1:si+T,si+1:si+T) = &
+        &                     matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)),&
+        &                                          HFBgaps(si+1:si+T,si+1:si+T))
+        HFBgaps(si+1:si+T,si+1:si+T) = &
+        &    matmul(HFBgaps(si+1:si+T,si+1:si+T),HFtransfo(si+1:si+T,si+1:si+T))
       endif
       !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -     
       ! Multiply with the cutoff factors
@@ -718,15 +718,16 @@ $TR     inda = si + wave1
         do wave2=1,N
           indb = si + wave2 
           HFBgaps(inda,indb) = HFBgaps(inda,indb)*Pcutoffs(inda)*Pcutoffs(indb) 
+$NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb) 
         enddo
       enddo
-      if(.not.diagsphamil) then
+      if(.not.diagsphamil .and. allocated(HFtransfo)) then
         ! Transform back
-        HFBgaps(si+1:si+N,si+1:si+N) = &
-        & matmul((HFtransfo(si+1:si+N,si+1:si+N)),HFBgaps(si+1:si+N,si+1:si+N))
-        HFBgaps(si+1:si+N,si+1:si+N) = &
-        & matmul(HFBgaps(si+1:si+N,si+1:si+N),                                 &
-        &                             transpose(HFtransfo(si+1:si+N,si+1:si+N)))
+        HFBgaps(si+1:si+T,si+1:si+T) = &
+        & matmul((HFtransfo(si+1:si+T,si+1:si+T)),HFBgaps(si+1:si+T,si+1:si+T))
+        HFBgaps(si+1:si+T,si+1:si+T) = &
+        & matmul(HFBgaps(si+1:si+T,si+1:si+T),                                 &
+        &                             transpose(HFtransfo(si+1:si+T,si+1:si+T)))
       endif
 
       si = si + N + N2
