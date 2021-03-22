@@ -278,6 +278,21 @@ subroutine ReachForWaterAndFood()
         ! Save Fermi energy
         FermiHistory   = FermiEnergy
         projectpresent = checkconstraints()        
+
+        if(projectpresent) then
+          ! Update the densities
+          ! Note that this update is incorrect, as we do not want to perform a 
+          ! set of derivatives
+          call densit(ifail,SaveRho=.false.)
+          call ConstructChargeDensity(ChargeDensity)
+          call CalculateMoments()
+          ! Readjust the projection constraints here, to not take into account
+          ! the update from the projection
+          call ReadjustAllMoments(2)
+          ! Do an approximate projection on the feasible set
+          call feasibleproject()
+        endif
+
         ! Restore all the different derivatives.
         call deriveHF()
 
@@ -302,6 +317,7 @@ subroutine ReachForWaterAndFood()
          enddo
         endif 
         if(pairingscheme.ne.1)          call calcFields(calcall=.true.)
+
 
         call update_spwf_angmom()
         call updateAM
