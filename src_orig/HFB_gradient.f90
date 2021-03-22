@@ -17,6 +17,8 @@ module HFB_gradient
   use wavefunctions
 
   implicit none
+  
+  real(KIND=dp) :: gradient_stepsize = 0.03
 
 contains 
 

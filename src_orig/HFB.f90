@@ -784,7 +784,6 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
 
     print 2, test1(1), test1(3), test1(5), test1(7)
     print 3, test2(1), test2(3), test2(5), test2(7)
-    print 4, overrho, overkap
 
   end subroutine PrintHFBconvergence
 

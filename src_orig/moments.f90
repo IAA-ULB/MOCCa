@@ -748,7 +748,7 @@ contains
     ! Augmented Lagrangian readjustment
     if(ToReadjust%Intensity .eq. 0.0) then
           ! Find suitable intensity, if none was found before
-          ToReadjust%Intensity = 1.0d0/sum(ToReadjust%Squared)
+          ToReadjust%Intensity = 1d0/sum(ToReadjust%Squared)
           print 11
           print 12, ToReadjust%l,ToReadjust%m
           print 13

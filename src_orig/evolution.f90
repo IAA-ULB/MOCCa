@@ -582,28 +582,28 @@ contains
    si = 0   
    do B=1,8
     N = HFBlocks(B)
-    it = 1 ;  if(N.gt.4) it = 2
+    it = 1 ;  if(B.gt.4) it = 2
 
     do wave=1,N
       do k=1,4
         mpsi(:,k,si+wave) = multipole(:,it) * HFPsi(:,k,si+wave)
       enddo
-      if(.not.diagsphamil) then
-        do wave2=1,N
-          mpsi(:,:,si+wave) = mpsi(:,:,si+wave) &
-          &    - dv*sum(mpsi(:,:,si+wave)*HFpsi(:,:,si+wave2))*HFpsi(:,:,si+wave2)
-        enddo
-      endif
+   !   if(.not.diagsphamil) then
+   !     do wave2=1,N
+   !       mpsi(:,:,si+wave) = mpsi(:,:,si+wave) &
+   !       &    - dv*sum(mpsi(:,:,si+wave)*HFpsi(:,:,si+wave2))*HFpsi(:,:,si+wave2)
+   !     enddo
+   !   endif
     enddo
     si = si + N
    enddo
    HFPsi = HFPsi - mpsi
-   !do wave=1,nwt
-   !   it = 1
-   !   if(wave .gt. nwn) it = 2
-   !   !Substituting the correction
-   !   HFPsi(:,:,wave) = HFPsi(:,:,wave) - mpsi(:,:,wave)
-   ! enddo
+   do wave=1,nwt
+      it = 1
+      if(wave .gt. nwn) it = 2
+      !Substituting the correction
+      HFPsi(:,:,wave) = HFPsi(:,:,wave) - mpsi(:,:,wave)
+    enddo
    !---------------------------------------------------------------------------
    ! Finally, orthonormalisation
    call Gramschmidt

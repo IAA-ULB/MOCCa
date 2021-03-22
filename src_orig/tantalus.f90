@@ -200,7 +200,7 @@ subroutine ReachForWaterAndFood()
     logical :: projectpresent = .false.
     ! Message for the output of the code, useful for the Brussels group.
     character(len=99) :: iomsg = 'START'
-    real(KIND=dp)     :: oldE, stepsize, oldfermi(2)
+    real(KIND=dp)     :: oldE, oldfermi(2)
 
     ifail = 0
 
@@ -309,10 +309,14 @@ subroutine ReachForWaterAndFood()
               call CalcGaps(FermiEnergy, PairStabFactor)
             endif
             
-            stepsize = 0.03
-            call SolvePairing(pairingscheme,stepsize,ifail)
+            call SolvePairing(pairingscheme,gradient_stepsize,ifail)
             call densit(ifail,SaveRho=.true.)
             call ConstructChargeDensity(ChargeDensity)
+            ! Calculate a) moments values, b) readjustment and c) finally their
+            ! contribution to the sphamiltonian.
+            call CalculateMoments()
+            call ReadjustAllMoments(1)
+            call Sphamilcontribution()
             call calcFields(calcall=.true.)
          enddo
         endif 
@@ -325,11 +329,7 @@ subroutine ReachForWaterAndFood()
         !See if some moments were temporary
         call TurnOffConstraints(iter)
 
-        ! Calculate a) moments values, b) readjustment and c) finally their
-        ! contribution to the sphamiltonian.
-        call CalculateMoments()
-        call ReadjustAllMoments(1)
-        call Sphamilcontribution()
+
         call updateAM 
 
         ! Recalculate the energy

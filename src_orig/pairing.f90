@@ -28,6 +28,7 @@ module pairing
  use hartreefock
  use BCS
  use HFB
+ use HFB_gradient
  use pairingcutoffs
  use timing
  use parameterization  
@@ -151,7 +152,7 @@ contains
     
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
-    &                  FermiSolver, guessgaps, HFBgauge   
+    &                  FermiSolver, guessgaps, HFBgauge, gradient_stepsize
 
     NameList /Indices/ BlockIndices, blocklowest
 
@@ -608,7 +609,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
           print 10, stabfactor
         endif
 
-        if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
+        !if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
     end select
    
     print 7
