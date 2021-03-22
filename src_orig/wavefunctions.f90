@@ -108,6 +108,15 @@ module wavefunctions
  real(KIND=dp) :: osc_freq(3) = 0.2
  !------------------------------------------------------------------------------
 
+ !---------------------------------------------------------------------------
+ ! Tell Tantalus to either 
+ !  (i)  diagonalise the sp hamiltonian the ordinary way, i.e. using an
+ !       iterative scheme
+ !  (ii) to stop caring about the diagonalisation of the sphamiltonian
+ !       and simply care about the space spanned by the spwfs.
+ logical :: diagsphamil = .false.
+ real(KIND=dp), allocatable :: HFtransfo(:,:)
+
 contains 
 
   subroutine ReadWFdata(file_number)

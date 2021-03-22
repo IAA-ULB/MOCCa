@@ -26,6 +26,7 @@ module pairingcutoffs
  ! Storage for all cutoffs. 
  ! Currently these are ALWAYS in the HF basis.
  real(KIND=dp), allocatable :: PCutoffs(:)
+! real(KIND=dp), allocatable :: PCut_nondiag(:)
 
 contains
 
@@ -34,18 +35,36 @@ contains
   ! Computes and stores all pairing cutoffs for further use, as a function of 
   ! the Fermi energy
   !-----------------------------------------------------------------------------
-    integer :: wave, it
+    integer :: wave, it, wave2, wave3
     real(KIND=dp), intent(in) :: Lambda(2)
     
     if(.not.allocated(PCutoffs)) then
         allocate(PCutoffs(nwt))
     endif
     
+    !---------------------------------------------------------------------------
+    ! We first calculate the cutoffs in the HF basis, where the single-particle
+    ! hamiltonian is diagonal
     do wave=1,nwt
         it = 1
         if(wave .gt. nwn) it = 2
         PCutoffs(wave) = PairingCutoff(spenergies(wave), Lambda(it), it)         
     enddo
+!    ! However, the wavefunctions in storage do not necessarily diagonalize h
+!    if(.not. diagsphamil) then
+!      if(.not.allocated(Pcut_nondiag))then
+!        allocate(Pcut_nondiag(nwt,nwt))
+!      endif
+!      Pcut_nondiag = 0.0d0      
+!      do wave=1,nwt
+!        do wave2=1,nwt
+!          do wave3=1,nwt
+!            Pcut_nondiag(wave,wave2) = Pcut_nondiag(wave,wave2) +              &
+!            &   Pcutoffs(wave3) * HFtransfo(wave,wave3) * HFtransfo(wave3,wave2) 
+!          enddo
+!        enddo
+!      enddo
+!    endif
   
   end subroutine ComputePairingCutoffs
 

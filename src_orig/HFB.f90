@@ -688,8 +688,8 @@ $TR        inda = si + wave1
           ! (1 if the pairing functional is not stabilized)
           stabfac = 1 + stabfactor((iso+3)/2)
 
-          HFBgaps(inda,indb) =     sum(hfpsi(:,:,indb)*deltapsi)*dv *          &
-          &                          Pcutoffs(inda)*Pcutoffs(indb)*stabfac
+          HFBgaps(inda,indb) =     sum(hfpsi(:,:,indb)*deltapsi)*dv *stabfac
+!          &                          Pcutoffs(inda)*Pcutoffs(indb)*stabfac
 
           ! The full matrix Delta is antisymmetric...
 $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
@@ -699,6 +699,35 @@ $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
 
         enddo
       enddo
+      !-------------------------------------------------------------------------      
+      ! We have now calculated the gaps (without cutoffs) in the basis that 
+      ! is currently in storage. This can either be the HF basis or not!
+      if(.not.diagsphamil) then
+        ! Transform to the HF basis
+        HFBgaps(si+1:si+N,si+1:si+N) = &
+        &                     matmul(transpose(HFtransfo(si+1:si+N,si+1:si+N)),&
+        &                                          HFBgaps(si+1:si+N,si+1:si+N))
+        HFBgaps(si+1:si+N,si+1:si+N) = &
+        &    matmul(HFBgaps(si+1:si+N,si+1:si+N),HFtransfo(si+1:si+N,si+1:si+N))
+      endif
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -     
+      ! Multiply with the cutoff factors
+      do wave1=1,N
+$NTR    inda = si + wave1 + N
+$TR     inda = si + wave1
+        do wave2=1,N
+          indb = si + wave2 
+          HFBgaps(inda,indb) = HFBgaps(inda,indb)*Pcutoffs(inda)*Pcutoffs(indb) 
+        enddo
+      enddo
+      if(.not.diagsphamil) then
+        ! Transform back
+        HFBgaps(si+1:si+N,si+1:si+N) = &
+        & matmul((HFtransfo(si+1:si+N,si+1:si+N)),HFBgaps(si+1:si+N,si+1:si+N))
+        HFBgaps(si+1:si+N,si+1:si+N) = &
+        & matmul(HFBgaps(si+1:si+N,si+1:si+N),                                 &
+        &                             transpose(HFtransfo(si+1:si+N,si+1:si+N)))
+      endif
 
       si = si + N + N2
     enddo
@@ -877,7 +906,7 @@ $NTR  enddo
     ! passed in Transfo. 
     !---------------------------------------------------------------------------
 
-    integer                   :: wave1, wave2, B, N, si
+    integer                   :: wave1, wave2, B, N, si, wave3
     real(KIND=dp), intent(in) :: Transfo(nwt,nwt)
     
     if(.not.allocated(CanPsi)) then
@@ -896,8 +925,16 @@ $NTR  enddo
           CanPsi(:,:,si+wave1)  = CanPsi(:,:,si+wave1) +                       &
           &                     Transfo(si+wave2,si+wave1) * HFPsi(:,:,si+wave2) 
           
-          canenergies(si+wave1) = canenergies(si+wave1) +                      &
-          &             abs(Transfo(si+wave2,si+wave1)**2) *spenergies(si+wave2) 
+          if(.not. allocated(current_sph)) then
+            canenergies(si+wave1) = canenergies(si+wave1) +                    &
+            &          abs(Transfo(si+wave2,si+wave1)**2) *spenergies(si+wave2) 
+          else
+            do wave3=1,N
+              canenergies(si+wave1) = canenergies(si+wave1) +                  &
+            &         Transfo(si+wave2,si+wave1) *  Transfo(si+wave3,si+wave1) & 
+            &                       * current_sph(si+wave2,si+wave3) 
+            enddo
+          endif
         enddo 
       enddo
       

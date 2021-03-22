@@ -31,34 +31,23 @@ contains
     real(KIND=dp), intent(in)    :: h(:,:), gaps(:,:), alpha
     real(KIND=dp), allocatable   :: H20(:,:), N20(:,:), grad(:,:)
     real(KIND=dp), allocatable   :: H11(:,:)
-    real(KIND=dp)                ::  particles, gradnorm
+    real(KIND=dp)                :: particles, gradnorm
     integer                      :: B, sb, N, N2, iter, fermiiter, T, i
 
     logical                      :: converged = .false.  
   
     converged = .false. 
-
     !---------------------------------------------------------------------------
     do iter=1,maxiter
         ! Calculate the gradient 
         H20 = calcH20(Bogo,h,gaps,blocks)
         N20 = calcN20(Bogo, blocks)
 
-        call find_fermi_secant(Bogo, H20, N20,  Eqp, lambda, gradnorm,         &
+        call find_fermi_Brent(Bogo, H20, N20,  Eqp, lambda, gradnorm,      &
         &                            particles, targetN, alpha, blocks)
 
         gradnorm = sqrt(sum((H20 - lambda * N20)**2))
-        
-        !sb = 0
-        !do B=1,2,2
-        !  N = blocks(B)+blocks(B+1) 
-        !  do i=sb+1,sb+N
-        !      print ('(99f10.3)'), H20(i,sb+1:sb+N) - lambda * N20(i,sb+1:sb+N) 
-        !  enddo
-        !  print *
-        !  sb = sb + N
-        !enddo
-        !print *
+
         H11 = calcH11(Bogo, h, gaps, lambda, blocks)
         call diagonalise_H11(bogo, H11, blocks, Eqp)
 
@@ -118,7 +107,7 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)    :: H20(:,:), N20(:,:), Eqp(:)
     real(KIND=dp), intent(in)    :: targetN 
-    integer, intent(in)          :: blocks(8)
+    integer, intent(in)          :: blocks(4)
 
     real(KIND=dp), intent(in)    :: alpha
     real(KIND=dp)                :: df, dn(2)
@@ -174,7 +163,7 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)    :: H20(:,:), N20(:,:), Eqp(:)
     real(KIND=dp), intent(in)    :: targetN 
-    integer, intent(in)          :: blocks(8)
+    integer, intent(in)          :: blocks(4)
     real(KIND=dp), intent(in)    :: alpha
 
     real(KIND=dp), intent(out)   :: particles, gradnorm
@@ -191,10 +180,13 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
     gradA = H20 - lambda * N20
     gradA = precon_grad(gradA, Eqp)
     nbA   = GradUpdate(gradA, bogo, alpha, blocks)
-    N = particle_number_bogo(nbA, blocks) - targetN
+    N     = particle_number_bogo(nbA, blocks) - targetN
+    
     ! Check if this guess for lambda is good enough
-    if(abs(N).lt.pairing_prec .or. alpha .eq. 0.0d0) return
-
+    if(abs(N).lt.pairing_prec .or. alpha .eq. 0.0d0) then 
+      Bogo = nbA
+      return
+    endif
     ! Use present Fermi energy as starting point and check the direction
     ! where the zero of <N>-N0 can be expected.
     ! If <N>-N0 <  0, search at higher values.
@@ -250,6 +242,13 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
                &    " B = ", f13.8, "FB = ",1es12.4)',            &
                &     InitialBracket(1),FA,InitialBracket(2),FB 
           ifail = 1
+
+          gradA = H20 - lambda * N20
+          gradA = precon_grad(gradA, Eqp)
+          nbA   = GradUpdate(gradA, bogo, alpha, blocks)
+          N     = particle_number_bogo(nbA, blocks) - targetN
+    
+
           return
           !stop 'FindFermiBrent: Search for InitialBracket failed.'
         endif
@@ -284,7 +283,7 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
     real(KIND=dp), intent(in)    :: H20(:,:), N20(:,:), Eqp(:)
     real(KIND=dp), intent(in)    :: targetN 
     real(KIND=dp), intent(in)    :: alpha
-    integer, intent(in)          :: blocks(8), depth
+    integer, intent(in)          :: blocks(4), depth
 
     real(KIND=dp), intent(out)   :: particles, gradnorm
     real(KIND=dp), intent(inout) :: lambda, bogo(:,:)

@@ -89,7 +89,7 @@ contains
         integer(dp), intent(in), optional   :: file_number   
 
         namelist /evolution/ dt, maxiter, printiter, strategy, momentum,       &
-        &                    estimateparams
+        &                    estimateparams, diagsphamil
 
 
         if(present(file_number)) then
@@ -129,7 +129,8 @@ contains
         3 format('   dt= ', f7.4, ' mu= ', f7.4 )        
         4 format('   Estimate (dt,mu)  : ', a3)
 !        5 format(' Preconditioning   : ', a20 )
-    
+        6 format(' Diagonalise the s.p. hamiltonian: ', a3)
+           
         print 1
         print 2, adjustl(Strategy)
         
@@ -141,6 +142,13 @@ contains
         endif
         
 !        print 5, adjustl(Precondition)
+
+        if(diagsphamil) then
+            print 6, 'YES'
+        else
+            print 6, 'NO'
+        endif
+
     end subroutine PrintEvolution
 
     subroutine Evolve_graddesc(iteration)
@@ -227,14 +235,15 @@ contains
         !    < psi | h   | psi >
         !    < psi | h^2 | psi >
         !
-        ! c) Orthonormalize within symmetry blocks
+        ! c) Orthonormalize within symmetry blocks by calling ortho
         !-----------------------------------------------------------------------
         
         use wavefunctions
         
         integer, intent(in)   :: iteration
-        integer               :: wave, iso, B, si, N, wave2
-        real(KIND = dp)       :: hpsi(nx*ny*nz,4) 
+        integer               :: wave, iso, B, si, N, wave2, lwork, ifail
+        real(KIND=dp), allocatable :: work(:)
+        real(KIND=dp)              :: hpsi(nx*ny*nz,4) 
 
         call start_timer(T_evolution)
 
@@ -245,6 +254,10 @@ contains
 
         if(.not.allocated(current_sph)) then 
             allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
+        endif
+
+        if(.not. diagsphamil) then
+          allocate(HFTransfo(nwt,nwt)) ; HFtransfo = 0.0d0
         endif
 
         if(EstimateParams) call IterativeEstimation(iteration)
@@ -266,20 +279,21 @@ contains
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
           
             !-------------------------------------------------------------------
-            spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
-            dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
-            
-            select case(pairingtype)
-            case(0,1)
-              d2h          = d2h + rho_can(wave)*dispersions(wave)
-              gradientnorm = gradientnorm + rho_can(wave) *                    &
-              & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
-            case(2) 
-              d2h          = d2h + rho_pairing(wave,wave)*dispersions(wave)
-              gradientnorm = gradientnorm + rho_pairing(wave,wave) *           &
-              & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
-            end select
-
+            if(diagsphamil) then
+              spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
+              dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
+                        
+              select case(pairingtype)
+              case(0,1)
+                d2h          = d2h + rho_can(wave)*dispersions(wave)
+                gradientnorm = gradientnorm + rho_can(wave) *                    &
+                & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
+              case(2) 
+                d2h          = d2h + rho_pairing(wave,wave)*dispersions(wave)
+                gradientnorm = gradientnorm + rho_pairing(wave,wave) *           &
+                & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
+              end select
+            endif
             !-------------------------------------------------------------------
             ! Current estimate for the single-particle hamiltonian
             do wave2=wave,si+N
@@ -288,10 +302,25 @@ contains
             enddo
             !-------------------------------------------------------------------
             ! Remove the part that is propagation in its own direction.
-            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
-            !do wave2=wave,wave !si+1,si+N
-            !  hpsi =   hpsi - current_sph(wave,wave2) * hfpsi(:,:,wave2)
-            !enddo
+            if(diagsphamil) then
+              hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
+            else
+              do wave2=si+1,si+N
+                hpsi =   hpsi - current_sph(wave,wave2) * hfpsi(:,:,wave2)
+              enddo            
+              !-----------------------------------------------------------------
+              ! Diagonalize the current single-particle hamiltonian to obtain 
+              ! the single-particle energies correctly. 
+              HFtransfo(si+1:si+N,si+1:si+N) = current_sph(si+1:si+N, si+1:si+N)
+
+              lwork = -1; allocate(work(1))
+              call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
+              &                       spenergies(si+1:si+N),work,lwork,ifail)
+              lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
+              call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
+              &                       spenergies(si+1:si+N),work,lwork,ifail)
+              !-----------------------------------------------------------------
+            endif
             !-------------------------------------------------------------------
             ! Add some history and 'momentum' to the update. 
             momentum_updates(:,:,wave) = &
@@ -315,10 +344,10 @@ contains
     end subroutine Evolve_momentum
 
     subroutine eval_sph(diag)
-      !
-      !
-      !
-      !
+      !------------------------------------------------------------------------
+      ! 
+      ! 
+      !------------------------------------------------------------------------
       use wavefunctions
         
       integer               :: wave, iso, B, si, N, wave2, lwork, ifail
@@ -344,7 +373,7 @@ contains
           &              hfdddpsi(:,:,:,wave) ,                              &
           &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
           !-------------------------------------------------------------------
-          ! Current estimate for the single-particle hamiltonian
+          ! Save the current estimate for the single-particle hamiltonian
           do wave2=wave,si+N
               current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
               current_sph(wave ,wave2) = current_sph(wave2,wave)
@@ -352,9 +381,11 @@ contains
         enddo
         if(diag) then
             lwork = -1; allocate(work(1))
-            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, spenergies(si+1:si+N),work,lwork,ifail)
+            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, &
+            &                       spenergies(si+1:si+N),work,lwork,ifail)
             lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
-            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, spenergies(si+1:si+N),work,lwork,ifail)
+            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, &
+            &                       spenergies(si+1:si+N),work,lwork,ifail)
             deallocate(work)
             temp = hfpsi(:,:,si+1:si+N)
             do wave=1,N
