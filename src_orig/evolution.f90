@@ -288,10 +288,10 @@ contains
             enddo
             !-------------------------------------------------------------------
             ! Remove the part that is propagation in its own direction.
-            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
-            !do wave2=wave,wave !si+1,si+N
-            !  hpsi =   hpsi - current_sph(wave,wave2) * hfpsi(:,:,wave2)
-            !enddo
+            !hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
+            do wave2=si+1,si+N
+              hpsi =   hpsi - current_sph(wave,wave2) * hfpsi(:,:,wave2)
+            enddo
             !-------------------------------------------------------------------
             ! Add some history and 'momentum' to the update. 
             momentum_updates(:,:,wave) = &

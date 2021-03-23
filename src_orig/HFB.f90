@@ -35,6 +35,11 @@ module HFB
   procedure(delta_action_dummy), pointer :: delta_action_HFB
   ! HFB gauge parameter
   real(KIND=dp) :: HFBGauge(2) = 0.0
+  ! Norm of the gradient for the gradient solver
+  real(KIND=dp) :: HFBgradnorm(4)    = 0.0
+  real(KIND=dp) :: oldHFBgradnorm(4) = 0.0
+  real(KIND=dp) :: expectedDE(2)     = 0.0
+  real(KIND=dp), allocatable :: prev_update(:,:)
   !---------------------------------------------------------------------------
   ! History of the pairing matrices, for mixing purposes.
   real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
@@ -247,8 +252,10 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp), intent(inout) :: Fermi(2)
     real(KIND=dp), intent(inout) :: Bogo(:,:)
     real(KIND=dp), intent(inout) :: kappa_pairing(:,:), rho_pairing(:,:)
-    real(KIND=dp), intent(inout) :: configmatrix(:), qpenergies(:)
-    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:), stepsize
+    real(KIND=dp), intent(inout) :: configmatrix(:), qpenergies(:), stepsize(4)
+    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
+
+    real(KIND=dp)                :: oldnorm(4)
     real(KIND=dp), allocatable   :: tempEqp(:), tempdisp(:), tempBogo(:,:)
     integer, allocatable         :: indices(:) 
 
@@ -328,17 +335,25 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     else
         tempBogo = Bogo
     endif
+
     !---------------------------------------------------------------------------
     ! Stepping for the neutrons
     call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                 & 
-    &                  effblocks(1:4), neutrons,                                &
+    &                  effblocks(1:4), neutrons,                               &
     &                  tempBogo(1:2*nwn,1:2*nwn),                              &
-    &                  tempEqp(1:nwn), stepsize,Fermi(1),1)
+    &                  tempEqp(1:nwn), stepsize(1:2),Fermi(1),                 &
+    &                  HFBgradnorm(1:2), expectedDE(1),                        &
+    &                  rho_pairing(1:nwn,1:nwn),kappa_pairing(1:nwn,1:nwn),    & 
+    &                  0.0d0,1)
     ! and for the protons
     call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt), & 
     &                 effblocks(5:8),protons,                                  &
-    &                 tempBogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),                   &  
-    &                 tempEqp(nwn+1:nwt),stepsize,Fermi(2),1)
+    &                 tempBogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),                   &
+    &                 tempEqp(nwn+1:nwt),stepsize(3:4),Fermi(2),               &
+    &                 HFBgradnorm(3:4), expectedDE(2),                         & 
+    &                 rho_pairing(nwp+1:nwt,nwp+1:nwt),                        & 
+    &                 kappa_pairing(nwn+1:nwt,nwn+1:nwt),                      & 
+    &                 0.0d0,1)
   
     Bogo         = tempBogo
     sb = 0
@@ -725,7 +740,7 @@ $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
     1 format (' HFB convergence:   (N,+)    (N,-)    (P,+)    (P,-)')
     2 format ('  r^2-r+k*k^T    = ',  4es9.2)
     3 format ('  r*k-k*r        = ',  4es9.2)
-    4 format (' overlap rho,kap = ',  2es9.2)
+    4 format (' Grad. norm      = ',  4es9.2)
 
     print *
     print 1
@@ -753,7 +768,7 @@ $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
 
     print 2, test1(1), test1(3), test1(5), test1(7)
     print 3, test2(1), test2(3), test2(5), test2(7)
-    print 4, overrho, overkap
+    print 4, HFBgradnorm
 
   end subroutine PrintHFBconvergence
 

@@ -428,8 +428,8 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     !---------------------------------------------------------------------------
     use parameterization, only : hbm
 
-    integer, intent(in)        :: pairingscheme
-    real(KIND=dp), intent(in)  :: gradstepsize
+    integer, intent(in)           :: pairingscheme
+    real(KIND=dp), intent(inout)  :: gradstepsize(4)
     integer, intent(out)       :: ifail
     integer                    :: i
     real(KIND=dp), allocatable :: tmp(:,:),sphamil(:,:)
@@ -549,7 +549,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       enddo
     else
       ! Full matrix
-      sph = current_sph
+      sph = current_sph  - 0.5 * rho_pairing
     endif
  
   end function build_sph

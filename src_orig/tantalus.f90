@@ -200,9 +200,11 @@ subroutine ReachForWaterAndFood()
     logical :: projectpresent = .false.
     ! Message for the output of the code, useful for the Brussels group.
     character(len=99) :: iomsg = 'START'
-    real(KIND=dp)     :: oldE, stepsize, oldfermi(2)
+    real(KIND=dp)     :: oldE, stepsize(4), oldfermi(2), zerostep(4)
 
     ifail = 0
+    zerostep = 0
+    stepsize = 0.05
 
     ConvergenceAchieved = .false.   
     !---------------------------------------------------------------------------
@@ -212,7 +214,7 @@ subroutine ReachForWaterAndFood()
     call deriveHF()
 
     ! Solve the pairing, with the current values of <h> and the pairing gaps.
-    call SolvePairing(0,0.0d0, ifail)
+    call SolvePairing(0,zerostep, ifail)
     if(ifail.ne.0) then
         print *, 'WARNING! Pairing solver failed.'
     endif
@@ -232,17 +234,17 @@ subroutine ReachForWaterAndFood()
                               !      constructed
 
     ! Only calculate the fields that have not been initialized from file.
-    call calcFields(calcall=.false.)
+    call calcFields(calcall=.false.,precon= .false.)
 
     PairStabfactor = CompStabilisingFactor(PairDenEnergy)
     call CalcGaps(FermiEnergy, PairStabFactor)
-    call SolvePairing(0,0.0d0,ifail)
+    call SolvePairing(0,zerostep,ifail)
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
     call CalculateMoments()
     ! Only calculate the fields that have not been initialized from file.
-    call calcFields(calcall=.false.)
+    call calcFields(calcall=.false.,precon= .true.)
 
     call setBelyaevProcedure()
     call CalcEnergy(1)
@@ -281,9 +283,10 @@ subroutine ReachForWaterAndFood()
         ! Restore all the different derivatives.
         call deriveHF()
 
-        maxsub=1
-        if(pairingscheme.eq.1) maxsub=10
-
+        !if(maxsub.ne.200) then
+          maxsub=1
+          if(pairingscheme.eq.1) maxsub=1
+        !endif
         !print *, 'Total energy before step', totalE          
         !! Solve the pairing subproblem
         !if(pairingscheme.eq.1) then
@@ -303,24 +306,49 @@ subroutine ReachForWaterAndFood()
          !   !call calcFields(calcall=.true.)
         ! enddo 
         ! stop     
+        call CalcGaps(FermiEnergy, PairStabFactor)
+        call SolvePairing(pairingscheme,zerostep,ifail)
+        call densit(ifail,SaveRho=.true.)
+        call ConstructChargeDensity(ChargeDensity)
+        call calcFields(calcall=.true., precon=.true.)
+        call calcEnergy(iprint)
+  
 
-        !call SolvePairing(pairingscheme,0.0d0,ifail)
-        !call densit(ifail,SaveRho=.true.)
-        !call ConstructChargeDensity(ChargeDensity)
 
+        rho_history = rho_pairing
+        kappa_history = kappa_pairing
         if(pairingscheme.eq.1) then
           do subiter=1,maxsub
+
+            oldE = totalE
             ! Solve the pairing subproblem
-            if(pairingscheme.eq.1) then
-              call eval_sph(.false.)
+            if(subiter.gt.1) then
+              if(pairingscheme.eq.1) then
+                call eval_sph(.false.)
+              endif
+              call CalcGaps(FermiEnergy, PairStabFactor)
             endif
-            call CalcGaps(FermiEnergy, PairStabFactor)
-  
-            stepsize = 0.0005
+
             call SolvePairing(pairingscheme,stepsize,ifail)
             call densit(ifail,SaveRho=.true.)
             call ConstructChargeDensity(ChargeDensity)
-            call calcFields(calcall=.true.)
+            call calcFields(calcall=.true., precon=.true.)
+            
+            call calcEnergy(iprint)
+            print *, stepsize(1), totalE-oldE,(totalE-oldE)/sum(expectedDE)
+            !if((totalE-oldE)/sum(expectedDE) .gt. 0.75) then
+            !  stepsize = 1.1*stepsize
+            !elseif((totalE-oldE)/sum(expectedDE) .lt. 0.0d0) then
+            !  stepsize = 0.5*stepsize
+            !endif
+
+
+            !if(totalE-oldE.gt.1d-10) then
+            !  Bogoliubov = Bogoliubov_history
+            !  call SolvePairing(pairingscheme,zerostep,ifail)
+            !  stepsize=stepsize*0.5
+            !  print *, 'Step size halved', stepsize
+            !endif
 
             !print *, stepsize, totalE, oldE
             !if(totalE .gt. oldE) Bogoliubov = Bogoliubov_history
@@ -352,11 +380,15 @@ subroutine ReachForWaterAndFood()
          enddo
         endif 
 
+
         !call densit(ifail,SaveRho=.true.)
         !call ConstructChargeDensity(ChargeDensity)
         !call calcFields(calcall=.true.)
 
-        if(pairingscheme.ne.1)          call calcFields(calcall=.true.)
+        call mix_pairing(HFBmix, rho_pairing, kappa_pairing) 
+
+
+        if(pairingscheme.ne.1)          call calcFields(calcall=.true., precon=.true.)
 
         call update_spwf_angmom()
         call updateAM
@@ -378,7 +410,7 @@ subroutine ReachForWaterAndFood()
           iprint = 0
         endif
         
-        call CalcEnergy(iprint)
+        if(pairingscheme.ne.1) call CalcEnergy(iprint)
         call calc_avg_gap()
 
         ! Check for convergence or a failed calculation
@@ -390,6 +422,16 @@ subroutine ReachForWaterAndFood()
         else  
           call Converged(ConvergenceAchieved)  
         end if 
+
+  
+        !if(maxsub.eq.200) then
+        !  stop
+        !endif!
+
+        !if(totalE .lt. -133.700d0) then
+        !   maxsub = 200
+        !endif
+
 
         call monitor_convergence(iter)
         if(convergenceAchieved) iprint = 1

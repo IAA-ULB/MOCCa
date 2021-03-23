@@ -769,7 +769,7 @@ $TR   COM2pp = 2*COM2pp
 
   end subroutine calcRotationalCorrection
 
-  subroutine calcFields(calcall)
+  subroutine calcFields(calcall, precon)
     !---------------------------------------------------------------------------
     ! Calculate all of the Skyrme potentials.
     !
@@ -785,7 +785,7 @@ $TR   COM2pp = 2*COM2pp
     
     integer                    :: it,i,j,k, maxit
     real(KIND=dp), allocatable :: update(:,:)
-    logical, intent(in)        :: calcall
+    logical, intent(in)        :: calcall, precon
     logical                    :: rhoread
 
     call start_timer(T_fields)
@@ -861,36 +861,41 @@ $CALCFIELDS
 $NTR    F_I_S = F_I_S + crank_spin_potential()     
 $NTR    G_I_N = G_I_N + crank_current_potential() 
     endif
-    !---------------------------------------------------------------------------
-    ! Precondition the field corresponding to rho, F_I_I.
-    if(.not.all(F_I_I_hist.eq.0.0_dp) .and. potentialpreconditioning.eq.1) then
-      if(.not.allocated(update)) allocate(update(nx*ny*nz,2))
-    
-      update=  F_I_I - F_I_I_hist
-      update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,+1,+1)
-      F_I_I =  F_I_I_hist + update
+
+    if(precon) then
+      print *, 'PRECONDITION'
+      !---------------------------------------------------------------------------
+      ! Precondition the field corresponding to rho, F_I_I.
+      if(.not.all(F_I_I_hist.eq.0.0_dp) .and. potentialpreconditioning.eq.1) then
+        if(.not.allocated(update)) allocate(update(nx*ny*nz,2))
+      
+        update=  F_I_I - F_I_I_hist
+        update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,+1,+1)
+        F_I_I =  F_I_I_hist + update
+      endif
+      !---------------------------------------------------------------------------
+      ! Precondition the field corresponding to s, F_I_S.
+  $NTR    if(.not.all(F_I_S_hist.eq.0.0_dp) .and. potentialpreconditioning.eq.1) then
+  $NTR      if(.not.allocated(update)) allocate(update(nx*ny*nz,2))
+      
+  $NTR      ! X component
+  $NTR      update=  F_I_S(:,1,:) - F_I_S_hist(:,1,:)
+  $NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,-1,+1,-1)
+  $NTR      F_I_S(:,1,:) =  F_I_S_hist(:,1,:) + update
+
+  $NTR      ! Y component
+  $NTR      update=  F_I_S(:,2,:) - F_I_S_hist(:,2,:)
+  $NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,-1,-1)
+  $NTR      F_I_S(:,2,:) =  F_I_S_hist(:,2,:) + update
+
+  $NTR      ! Z component
+  $NTR      update=  F_I_S(:,3,:) - F_I_S_hist(:,3,:)
+  $NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,+1,+1)
+  $NTR      F_I_S(:,3,:) =  F_I_S_hist(:,3,:) + update
+
+  $NTR    endif
+
     endif
-    !---------------------------------------------------------------------------
-    ! Precondition the field corresponding to s, F_I_S.
-$NTR    if(.not.all(F_I_S_hist.eq.0.0_dp) .and. potentialpreconditioning.eq.1) then
-$NTR      if(.not.allocated(update)) allocate(update(nx*ny*nz,2))
-    
-$NTR      ! X component
-$NTR      update=  F_I_S(:,1,:) - F_I_S_hist(:,1,:)
-$NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,-1,+1,-1)
-$NTR      F_I_S(:,1,:) =  F_I_S_hist(:,1,:) + update
-
-$NTR      ! Y component
-$NTR      update=  F_I_S(:,2,:) - F_I_S_hist(:,2,:)
-$NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,-1,-1)
-$NTR      F_I_S(:,2,:) =  F_I_S_hist(:,2,:) + update
-
-$NTR      ! Z component
-$NTR      update=  F_I_S(:,3,:) - F_I_S_hist(:,3,:)
-$NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,+1,+1)
-$NTR      F_I_S(:,3,:) =  F_I_S_hist(:,3,:) + update
-
-$NTR    endif
     call stop_timer(T_fields)
  
   end subroutine calcFields 
