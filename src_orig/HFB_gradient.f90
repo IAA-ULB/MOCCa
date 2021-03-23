@@ -18,7 +18,7 @@ module HFB_gradient
 
   implicit none
   
-  real(KIND=dp) :: gradient_stepsize = 0.03
+  real(KIND=dp) :: gradient_stepsize = 0.03, gradient_mu = 0.9
 
 contains 
 
@@ -32,7 +32,7 @@ contains
 
   end function buildgrad
 
-  subroutine gradient_step(h,gaps,blocks,targetN,Bogo,Eqp,alpha,lambda,        & 
+  subroutine gradient_step(h,gaps,blocks,targetN,Bogo,prev,Eqp,alpha,lambda,   & 
   &                        gradnorm, expectedDE, r, k, gauge, maxiter)
     !---------------------------------------------------------------------------
     !
@@ -40,13 +40,13 @@ contains
     !---------------------------------------------------------------------------  
     integer, intent(in)          :: blocks(4), maxiter
     real(KIND=dp), intent(inout) :: Bogo(:,:), lambda, targetN
-    real(KIND=dp), intent(inout) :: Eqp(:), expectedDE
+    real(KIND=dp), intent(inout) :: Eqp(:), expectedDE, prev(:,:)
     real(KIND=dp), intent(in)    :: h(:,:), gaps(:,:), alpha, r(:,:), k(:,:)
     real(KIND=dp), intent(in)    :: gauge
     real(KIND=dp), allocatable   :: H20(:,:), N20(:,:), grad(:,:)
     real(KIND=dp), allocatable   :: H11(:,:), newbogo(:,:)
-    real(KIND=dp)                :: particles, gradnorm(2), old 
-    integer                      :: B, sb, N, N2, iter, fermiiter, T, i
+    real(KIND=dp)                :: particles, gradnorm(2), old, minqp, maxqp, condi, prop, normN
+    integer                      :: B, sb, N, N2, iter, fermiiter, T, i,j, ifail
 
     logical                      :: converged = .false.  
   
@@ -54,18 +54,63 @@ contains
     expectedDE  = 0
     !---------------------------------------------------------------------------
     do iter=1,maxiter
-        H11 = calcH11(Bogo, h, gaps, lambda, blocks)
+        ! Check if pairing collapsed
+        N20 = calcN20(Bogo, blocks)
+        normN = sqrt(sum(N20**2))        
+
+        !if(normN.gt.0.01) then
+          H11 = calcH11(Bogo, h, gaps, lambda, blocks)
+        !else
+        !  H11 = calcH11(Bogo, h, gaps, 0.0d0, blocks)
+        !endif
         call diagonalise_H11(bogo, H11, blocks, Eqp)
 
         ! Calculate the gradient 
         H20 = calcH20(Bogo,h,gaps,r,k,gauge,blocks)
         N20 = calcN20(Bogo, blocks)
+            
+        minqp = +100000
+        maxqp = -100000
 
-        old  = lambda
-        newbogo = bogo
-        call find_fermi_brent(Bogo, H20, N20, Eqp, lambda,          &
-        &                            particles, targetN, alpha, blocks)
+        do i=1,sum(blocks) 
+          do j=1,sum(blocks)
+            if(abs(Eqp(i) + Eqp(j)) .lt. minqp) then
+              minqp = abs(Eqp(i) + Eqp(j))
+            endif
+            if(Eqp(i) + Eqp(j) .gt. maxqp) then
+              maxqp = Eqp(i) + Eqp(j)
+            endif
+          enddo
+        enddo
+        condi = maxqp/minqp
+        prop  = ((sqrt(condi)-1)/(sqrt(condi)+1))**2
 
+        gradient_stepsize = 4.0/(maxqp + minqp + 2 *sqrt(maxqp*minqp)) * 0.9
+        gradient_mu       = prop * 0.8
+
+        print *, 'NORMN', normN, gradient_stepsize, gradient_mu
+       
+        if(normN.gt.1d-6) then
+          old  = lambda
+          call find_fermi_brent(Bogo, H20, N20, prev, Eqp, lambda,          &
+          &                            particles, targetN, alpha, blocks, ifail)
+          !if(ifail.eq.1) then
+          !   prev = 0.0d0
+          !  call find_fermi_brent(Bogo, H20, N20, prev, Eqp, lambda,          &
+          !&                            particles, targetN, 0.1*alpha, blocks, ifail)
+          !   print *, 'IFAIL'
+          !endif
+        endif
+        grad = buildgrad(H20, N20, lambda, Eqp)
+
+        !if(ifail.eq.0) then
+          newbogo = GradUpdate(grad, prev, bogo, alpha, blocks)
+          prev = -alpha * grad + gradient_mu * prev
+          bogo = newbogo
+        !else
+        !endif
+        particles = particle_number_bogo(bogo, blocks) - targetN
+        
         gradnorm = 0
         sb = 0
         do B=1,4,2
@@ -80,7 +125,7 @@ contains
         enddo
 
         expectedDE = expectedDE - alpha * sum((H20 - lambda * N20)**2)
-
+    
         ! Calculate the norm of the gradient and check for convergence
         if(all(gradnorm .lt. 1d-12)) converged = .true.
 
@@ -88,7 +133,11 @@ contains
           exit
         endif
     enddo
-    print ('(a4,5e12.3,99f10.3)'), 'GRAD',  gradnorm, Particles, lambda-old
+
+    print ('(a4,4e12.3,99f10.3)'), 'GRAD',  gradnorm, Particles, lambda-old,   &
+    &                             minqp, maxqp, 2/(minqp+maxqp), condi, prop,  &
+    &                             gradient_stepsize, gradient_mu, normN
+
     !---------------------------------------------------------------------------
     ! Finally, we transform the rest of the Bogoliubov transformation
     sb = 0
@@ -127,71 +176,71 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
 
   end function precon_grad
 
-  subroutine find_fermi_secant(Bogo, H20, N20,  Eqp, lambda,                   &
-  &                            particles, targetN, alpha, blocks)
+!  subroutine find_fermi_secant(Bogo, H20, N20,  Eqp, lambda,                   &
+!  &                            particles, targetN, alpha, blocks)
+!    !---------------------------------------------------------------------------
+!    !
+!    !
+!    !
+!    !---------------------------------------------------------------------------
+!    real(KIND=dp), intent(in)    :: H20(:,:), N20(:,:), Eqp(:)
+!    real(KIND=dp), intent(in)    :: targetN 
+!    integer, intent(in)          :: blocks(4)
+
+!    real(KIND=dp), intent(in)    :: alpha
+!    real(KIND=dp)                :: df, dn(2)
+!    real(KIND=dp), intent(out)   :: particles
+!    real(KIND=dp), intent(inout) :: lambda, bogo(:,:)
+!    real(KIND=dp), allocatable   :: grad(:,:), newbogo(:,:)
+
+!    integer :: iter
+
+!    particles = particle_number_bogo(bogo, blocks)
+!    df = 0.0d0
+!    dn = 0.0d0
+
+!    if(alpha .ne. 0.0d0) then
+!      do iter=1,100
+!        grad = buildgrad(H20, N20, lambda, Eqp)
+
+!        newbogo = GradUpdate(grad, prev, bogo, alpha, blocks)
+!        particles = particle_number_bogo(newbogo, blocks)
+
+!        dn(2) = dn(1)
+!        dn(1) = particles - targetN
+!  
+!        if(iter.eq.1) then
+!           ! We try lambda + 0.1 for the first iteration
+!           lambda = lambda + 0.1
+!           df     =          0.1
+!        else
+!           df     = - dn(1) * df/(dn(1) - dn(2))
+!    
+!           if(abs(df).gt.1.0) then
+!              df = 0.1 * df/abs(df)
+!           endif
+!          lambda = lambda + df
+!        endif
+
+!        if(abs(Particles-targetN) .lt. 1d-14) exit 
+!      enddo
+!      Bogo = newbogo
+!    else
+!      particles = particle_number_bogo(bogo, blocks)
+!    endif
+
+!  end subroutine find_fermi_secant
+
+  subroutine find_fermi_brent(Bogo, H20, N20,  prev, Eqp, lambda,              &
+  &                            particles, targetN, alpha, blocks, ifail)
     !---------------------------------------------------------------------------
-    !
     !
     !
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)    :: H20(:,:), N20(:,:), Eqp(:)
     real(KIND=dp), intent(in)    :: targetN 
     integer, intent(in)          :: blocks(4)
-
-    real(KIND=dp), intent(in)    :: alpha
-    real(KIND=dp)                :: df, dn(2)
-    real(KIND=dp), intent(out)   :: particles
-    real(KIND=dp), intent(inout) :: lambda, bogo(:,:)
-    real(KIND=dp), allocatable   :: grad(:,:), newbogo(:,:)
-
-    integer :: iter
-
-    particles = particle_number_bogo(bogo, blocks)
-    df = 0.0d0
-    dn = 0.0d0
-
-    if(alpha .ne. 0.0d0) then
-      do iter=1,100
-        grad = buildgrad(H20, N20, lambda, Eqp)
-
-        newbogo = GradUpdate(grad, bogo, alpha, blocks)
-        particles = particle_number_bogo(newbogo, blocks)
-
-        dn(2) = dn(1)
-        dn(1) = particles - targetN
-  
-        if(iter.eq.1) then
-           ! We try lambda + 0.1 for the first iteration
-           lambda = lambda + 0.1
-           df     =          0.1
-        else
-           df     = - dn(1) * df/(dn(1) - dn(2))
-    
-           if(abs(df).gt.1.0) then
-              df = 0.1 * df/abs(df)
-           endif
-          lambda = lambda + df
-        endif
-
-        if(abs(Particles-targetN) .lt. 1d-14) exit 
-      enddo
-      Bogo = newbogo
-    else
-      particles = particle_number_bogo(bogo, blocks)
-    endif
-
-  end subroutine find_fermi_secant
-
-  subroutine find_fermi_brent(Bogo, H20, N20,  Eqp, lambda,                    &
-  &                            particles, targetN, alpha, blocks)
-    !---------------------------------------------------------------------------
-    !
-    !
-    !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)    :: H20(:,:), N20(:,:), Eqp(:)
-    real(KIND=dp), intent(in)    :: targetN 
-    integer, intent(in)          :: blocks(4)
-    real(KIND=dp), intent(in)    :: alpha
+    real(KIND=dp), intent(in)    :: alpha, prev(:,:)
 
     real(KIND=dp), intent(out)   :: particles
     real(KIND=dp), intent(inout) :: lambda, bogo(:,:)
@@ -205,13 +254,12 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
     ! STEP 1: set up an initial bracket
     !---------------------------------------------------------------------------
     gradA = buildgrad(H20, N20, lambda, Eqp)
-    nbA   = GradUpdate(gradA, bogo, alpha, blocks)
+    nbA   = GradUpdate(gradA, prev, bogo, alpha, blocks)
     N     = particle_number_bogo(nbA, blocks) - targetN
     
     ! Check if this guess for lambda is good enough
-
     if(abs(N).lt.pairing_prec .or. alpha .eq. 0.0d0) then
-      bogo = nbA
+      !bogo = nbA
       return
     endif
     ! Use present Fermi energy as starting point and check the direction
@@ -222,7 +270,6 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
     ! present  Fermi energy.
     ! "dir" is the label of the InitialBracket(it,idir) that has to be moved,
     ! "idirsig" is the sign of steps needed to go into that direction.
-
     InitialBracket(:) = lambda
     if ( N .lt. 0.0_dp ) then 
       idir   =  2 ;  idirsig =  1
@@ -244,8 +291,8 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
         gradA = buildgrad(H20, N20,InitialBracket(1), Eqp)
         gradB = buildgrad(H20, N20,InitialBracket(2), Eqp)
 
-        nbA = GradUpdate(gradA, bogo, alpha, blocks)
-        nbB = GradUpdate(gradB, bogo, alpha, blocks)
+        nbA = GradUpdate(gradA, prev, bogo, alpha, blocks)
+        nbB = GradUpdate(gradB, prev, bogo, alpha, blocks)
 
         FA = particle_number_bogo(nbA, blocks) - targetN
         FB = particle_number_bogo(nbB, blocks) - targetN
@@ -263,11 +310,10 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
         !      & FailCount,Success,InitialBracket(1),FA, InitialBracket(2),FB          
         ! code failure (Fermi energy has changed by 30 MeV)
         if (Failcount .gt. 76) then
-          print '(/," A = ", f13.8, "FA = ",1es12.4,              &
-               &    " B = ", f13.8, "FB = ",1es12.4)',            &
+          print '(/," A = ", f13.8, " FA = ",1es12.4,              &
+               &    " B = ", f13.8, " FB = ",1es12.4)',            &
                &     InitialBracket(1),FA,InitialBracket(2),FB 
           ifail = 1
-          Bogo = nbA
           return
           !stop 'FindFermiBrent: Search for InitialBracket failed.'
         endif
@@ -279,12 +325,12 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
       enddo
 
       call Brent_bisection(initialbracket(1),initialbracket(2),FA,FB,bogo,     & 
-      &                    H20, N20, Eqp, lambda,                              &
+      &                    H20, N20, prev, Eqp, lambda,                        &
       &                    particles, targetN, alpha, blocks,200)
 
   end subroutine find_fermi_brent
 
-  subroutine Brent_bisection(X1,X2,FX1, FX2, Bogo, H20, N20,  Eqp, lambda,     & 
+  subroutine Brent_bisection(X1,X2,FX1, FX2, Bogo, H20, N20, prev, Eqp, lambda,& 
   &                                    particles, targetN, alpha, blocks, depth)
     !---------------------------------------------------------------------------
     ! This routine searches for the Fermi energy
@@ -306,7 +352,7 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
 
     real(KIND=dp), intent(out)   :: particles
     real(KIND=dp), intent(inout) :: lambda, bogo(:,:)
-    real(KIND=dp), intent(in)    :: X1 , X2, FX1 , FX2 
+    real(KIND=dp), intent(in)    :: X1 , X2, FX1 , FX2, prev(:,:)
 
     real(KIND=dp), allocatable   :: grad(:,:), newbogo(:,:)
     real(KIND=dp)                :: A , B, C , FA, FB , FC
@@ -396,7 +442,7 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
       ! particle number.
       !-------------------------------------------------------------------------
       grad = buildgrad(H20, N20,B, Eqp)
-      newbogo = GradUpdate(grad, bogo, alpha, blocks)
+      newbogo = GradUpdate(grad, prev, bogo, alpha, blocks)
       Num  = particle_number_bogo(newbogo, blocks)
       FB   = Num - targetN
       particles = FB
@@ -423,10 +469,10 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
     enddo
     ! Output
     Lambda    = B ; particles = FB 
-    bogo      = newbogo
+    !bogo      = newbogo
   end subroutine Brent_bisection
 
-  function GradUpdate(grad, bogo, alpha, blocks) result(newbogo)
+  function GradUpdate(grad, prev, bogo, alpha, blocks) result(newbogo)
     !---------------------------------------------------------------------------
     ! Update the bogoliubov transformation with a step in the direction of
     ! "grad" with a step size alpha.
@@ -444,7 +490,7 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
     !                 ( U^*  V )             ( V )
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)    :: alpha
-    real(KIND=dp), intent(in)    :: grad(:,:)
+    real(KIND=dp), intent(in)    :: grad(:,:), prev(:,:)
     integer, intent(in)          :: blocks(4)
     real(KIND=dp), intent(in   ) :: bogo(:,:)
     real(KIND=dp), allocatable   :: tV(:,:), tU(:,:), aux(:,:), newbogo(:,:)
@@ -459,21 +505,27 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
 
       tU = bogo(sb+  1:sb+  T,sb+T+1:sb+2*T)
       tV = bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
-
+      
       ! U = U - alpha V gradient
+      aux = -alpha *matmul(tV,grad(si+1:si+T,si+1:si+T)) &
+      &    + gradient_mu   *matmul(tV,prev(si+1:si+T,si+1:si+T))
+
       newbogo(sb  +1:sb+T ,sb+T+1:sb+2*T)=newbogo(sb  +1:sb+T ,sb+T+1:sb+2*T)  &
-      &                   -alpha *matmul(tV,grad(si+1:si+T,si+1:si+T)) 
+      &                                  + aux  
+
+      aux = &
+$NTR      &               -alpha *matmul(tU,grad(si+1:si+T,si+1:si+T)) &
+$TR       &               +alpha *matmul(tU,grad(si+1:si+T,si+1:si+T)) &
+          & + gradient_mu * matmul(tU,prev(si+1:si+T,si+1:si+T))
 
       ! V = V - alpha U gradient
       newbogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)=newbogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)&
-$NTR      &               -alpha *matmul(tU,grad(si+1:si+T,si+1:si+T)) 
-$TR       &               +alpha *matmul(tU,grad(si+1:si+T,si+1:si+T)) 
-
+      &                                   + aux
       si = si +   T
       sb = sb + 2*T
     enddo
   
-    !Don't forget to orthonormalise (which could also be achieved through a 
+    !Don't forget to orthonormalise (could which also be achieved through a 
     ! Cholesky decomposition)
     call ortho_bogo(newbogo, blocks)
     
@@ -780,8 +832,8 @@ $TR  part = 2* part
       !print ('(a3,99f10.3)') , 'EQP', EQP(si+1:si+T)
 
       ! Transform the U and V matrices
-      Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T) = matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T),A)
-      Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T) = matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T),A)
+      !Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T) = matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T),A)
+      !Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T) = matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T),A)
 
       si = si +   T
       sb = sb + 2*T

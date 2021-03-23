@@ -152,7 +152,8 @@ contains
     
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
-    &                  FermiSolver, guessgaps, HFBgauge, gradient_stepsize
+    &                  FermiSolver, guessgaps, HFBgauge, gradient_stepsize,    &
+    &                  gradient_mu
 
     NameList /Indices/ BlockIndices, blocklowest
 

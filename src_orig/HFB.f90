@@ -39,7 +39,7 @@ module HFB
   real(KIND=dp) :: HFBgradnorm(4)    = 0.0
   real(KIND=dp) :: oldHFBgradnorm(4) = 0.0
   real(KIND=dp) :: expectedDE(2)     = 0.0
-  real(KIND=dp), allocatable :: prev_update(:,:)
+  real(KIND=dp), allocatable :: prev(:,:)
   !---------------------------------------------------------------------------
   ! History of the pairing matrices, for mixing purposes.
   real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
@@ -268,10 +268,11 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0
     endif
 
+    if(.not.allocated(prev)) then
+      allocate(prev(2*nwt,2*nwt)) ; prev = 0.0d0
+    endif
+ 
     ! Saving the history
-    !rho_history          = rho_pairing
-    !kappa_history        = kappa_pairing
-    !configmatrix_history = configmatrix
     Bogoliubov_history   = Bogo
 
     ! Guess a new Fermi energy if none is there
@@ -341,6 +342,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                 & 
     &                  effblocks(1:4), neutrons,                               &
     &                  tempBogo(1:2*nwn,1:2*nwn),                              &
+    &                  prev(1:2*nwn,1:2*nwn),                                  &
     &                  tempEqp(1:nwn), stepsize,Fermi(1),                      &
     &                  HFBgradnorm(1:2), expectedDE(1),                        &
     &                  rho_pairing(1:nwn,1:nwn),kappa_pairing(1:nwn,1:nwn),    & 
@@ -349,6 +351,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt), & 
     &                 effblocks(5:8),protons,                                  &
     &                 tempBogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),                   &
+    &                 prev(2*nwn+1:2*nwt,2*nwn+1:2*nwt),                       &
     &                 tempEqp(nwn+1:nwt),stepsize,Fermi(2),                    &
     &                 HFBgradnorm(3:4), expectedDE(2),                         & 
     &                 rho_pairing(nwp+1:nwt,nwp+1:nwt),                        & 
@@ -383,6 +386,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       sb = sb + 2*T
     enddo
     
+    HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
     deallocate(tempEqp, tempBogo)
   end subroutine solvepairing_HFB_gradient
 
