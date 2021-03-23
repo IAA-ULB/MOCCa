@@ -323,6 +323,7 @@ contains
               deallocate(work)
               !-----------------------------------------------------------------
             endif
+
             !-------------------------------------------------------------------
             ! Add some history and 'momentum' to the update. 
             momentum_updates(:,:,wave) = &

@@ -200,7 +200,7 @@ subroutine ReachForWaterAndFood()
     logical :: projectpresent = .false.
     ! Message for the output of the code, useful for the Brussels group.
     character(len=99) :: iomsg = 'START'
-    real(KIND=dp)     :: oldE, oldfermi(2)
+    real(KIND=dp)     :: oldE,  oldfermi(2)
 
     ifail = 0
 
@@ -232,7 +232,7 @@ subroutine ReachForWaterAndFood()
                               !      constructed
 
     ! Only calculate the fields that have not been initialized from file.
-    call calcFields(calcall=.false.)
+    call calcFields(calcall=.false.,precon= .false.)
 
     PairStabfactor = CompStabilisingFactor(PairDenEnergy)
     call CalcGaps(FermiEnergy, PairStabFactor)
@@ -242,7 +242,7 @@ subroutine ReachForWaterAndFood()
     call ConstructChargeDensity(ChargeDensity)
     call CalculateMoments()
     ! Only calculate the fields that have not been initialized from file.
-    call calcFields(calcall=.false.)
+    call calcFields(calcall=.false.,precon= .true.)
 
     call setBelyaevProcedure()
     call CalcEnergy(1)
@@ -301,8 +301,10 @@ subroutine ReachForWaterAndFood()
 
         if(pairingscheme.eq.1) then
           do subiter=1,maxsub
+
+            oldE = totalE
             ! Solve the pairing subproblem
-            if(subiter.ne.1) then
+            if(subiter.gt.1) then
               if(pairingscheme.eq.1) then
                 call eval_sph(.false.)
               endif
@@ -317,11 +319,10 @@ subroutine ReachForWaterAndFood()
             call CalculateMoments()
             call ReadjustAllMoments(1)
             call Sphamilcontribution()
-            call calcFields(calcall=.true.)
+            call calcFields(calcall=.true.,precon=.true.)
          enddo
         endif 
-        if(pairingscheme.ne.1)          call calcFields(calcall=.true.)
-
+        if(pairingscheme.ne.1)          call calcFields(calcall=.true., precon=.true.)
 
         call update_spwf_angmom()
         call updateAM
