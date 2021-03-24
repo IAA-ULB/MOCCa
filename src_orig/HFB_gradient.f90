@@ -25,12 +25,25 @@ contains
   function buildgrad(H20, N20, lambda, Eqp) result(grad)
 
     real(KIND=dp), allocatable :: grad(:,:)
-    real(KIND=dp), intent(in) :: H20(:,:), N20(:,:), Eqp(:), lambda
+    real(KIND=dp), intent(in)  :: H20(:,:), N20(:,:), Eqp(:), lambda
 
     grad = H20 - lambda * N20
     !grad = precon_grad(grad, Eqp)
 
   end function buildgrad
+  
+  subroutine get_qpenergies(h,gaps,blocks,Bogo, Eqp, lambda)
+
+    real(KIND=dp), intent(inout) :: Bogo(:,:), lambda
+    real(KIND=dp), intent(inout) :: Eqp(:)
+    real(KIND=dp), intent(in)    :: h(:,:), gaps(:,:)
+    real(KIND=dp), allocatable   :: H11(:,:)
+    integer, intent(in)          :: blocks(4)
+
+    H11 = calcH11(Bogo, h, gaps, lambda, blocks)
+    call diagonalise_H11(bogo, H11, blocks, Eqp)
+
+  end subroutine get_qpenergies
 
   subroutine gradient_step(h,gaps,blocks,targetN,Bogo,prev,Eqp,alpha,lambda,   & 
   &                        gradnorm, expectedDE, r, k, gauge, maxiter)
@@ -58,11 +71,7 @@ contains
         N20 = calcN20(Bogo, blocks)
         normN = sqrt(sum(N20**2))        
 
-        !if(normN.gt.0.01) then
-          H11 = calcH11(Bogo, h, gaps, lambda, blocks)
-        !else
-        !  H11 = calcH11(Bogo, h, gaps, 0.0d0, blocks)
-        !endif
+        H11 = calcH11(Bogo, h, gaps, lambda, blocks)
         call diagonalise_H11(bogo, H11, blocks, Eqp)
 
         ! Calculate the gradient 
@@ -85,30 +94,21 @@ contains
         condi = maxqp/minqp
         prop  = ((sqrt(condi)-1)/(sqrt(condi)+1))**2
 
-        gradient_stepsize = 4.0/(maxqp + minqp + 2 *sqrt(maxqp*minqp)) * 0.9
-        gradient_mu       = prop * 0.8
+        !gradient_stepsize = 4.0/(maxqp + minqp + 2 *sqrt(maxqp*minqp)) * 0.75
+        !gradient_mu       = prop * 0.8
 
         print *, 'NORMN', normN, gradient_stepsize, gradient_mu
        
-        if(normN.gt.1d-6) then
+        if(normN.gt.1d-4) then
           old  = lambda
           call find_fermi_brent(Bogo, H20, N20, prev, Eqp, lambda,          &
           &                            particles, targetN, alpha, blocks, ifail)
-          !if(ifail.eq.1) then
-          !   prev = 0.0d0
-          !  call find_fermi_brent(Bogo, H20, N20, prev, Eqp, lambda,          &
-          !&                            particles, targetN, 0.1*alpha, blocks, ifail)
-          !   print *, 'IFAIL'
-          !endif
         endif
         grad = buildgrad(H20, N20, lambda, Eqp)
 
-        !if(ifail.eq.0) then
-          newbogo = GradUpdate(grad, prev, bogo, alpha, blocks)
-          prev = -alpha * grad + gradient_mu * prev
-          bogo = newbogo
-        !else
-        !endif
+        newbogo = GradUpdate(grad, prev, bogo, alpha, blocks)
+        prev = -alpha * grad + gradient_mu * prev
+        bogo = newbogo
         particles = particle_number_bogo(bogo, blocks) - targetN
         
         gradnorm = 0

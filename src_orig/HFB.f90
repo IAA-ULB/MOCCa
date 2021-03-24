@@ -255,11 +255,11 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp), intent(inout) :: configmatrix(:), qpenergies(:) 
     real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:),stepsize
 
-    real(KIND=dp)                :: oldnorm(4)
+    real(KIND=dp)                :: oldnorm(4), minqp, maxqp, condi, prop
     real(KIND=dp), allocatable   :: tempEqp(:), tempdisp(:), tempBogo(:,:)
     integer, allocatable         :: indices(:) 
 
-    integer :: si, sb, B, N, N2, T,i, Np, Nm, ind, ind2
+    integer :: si, sb, B, N, N2, T,i, Np, Nm, ind, ind2, j
   
     if(.not.allocated(rho_history)) then
       allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
@@ -336,7 +336,34 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     else
         tempBogo = Bogo
     endif
+    
+    !call get_qpenergies(h,gaps,blocks,Bogo, Eqp, lambda)
+    call get_qpenergies(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                & 
+    &                   effblocks(1:4),tempBogo(1:2*nwn,1:2*nwn),              &
+    &                   tempEqp(1:nwn), Fermi(1))
+    call get_qpenergies(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt),& 
+    &                   effblocks(5:8),tempBogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),  &
+    &                   tempEqp(nwn+1:nwt), Fermi(2))
+    
+    minqp = +100000
+    maxqp = -100000
 
+    do i=1,nwt
+      do j=1,nwt
+        if(tempEqp(i) + tempEqp(j) .lt. minqp .and. tempEqp(i) + tempEqp(j) .gt. 0.0d0) then
+          minqp = abs(tempEqp(i) + tempEqp(j))
+        endif
+         if(tempEqp(i) + tempEqp(j) .gt. maxqp) then
+           maxqp = tempEqp(i) + tempEqp(j)
+         endif
+        enddo
+      enddo
+    !minqp = 0.1
+    condi = maxqp/minqp
+    prop  = ((sqrt(condi)-1)/(sqrt(condi)+1))**2
+
+    gradient_stepsize = 4.0/(maxqp + minqp + 2 *sqrt(maxqp*minqp)) * 0.75
+    gradient_mu       = prop * 0.8
     !---------------------------------------------------------------------------
     ! Stepping for the neutrons
     call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                 & 

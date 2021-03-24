@@ -299,7 +299,7 @@ subroutine ReachForWaterAndFood()
         maxsub=1
         if(pairingscheme.eq.1) maxsub=1
 
-        if(pairingscheme.eq.1) then
+        !if(pairingscheme.eq.1) then
           do subiter=1,maxsub
 
             oldE = totalE
@@ -321,7 +321,7 @@ subroutine ReachForWaterAndFood()
             call Sphamilcontribution()
             call calcFields(calcall=.true.,precon=.true.)
          enddo
-        endif 
+        !endif 
         if(pairingscheme.ne.1)          call calcFields(calcall=.true., precon=.true.)
 
         call update_spwf_angmom()
