@@ -863,7 +863,6 @@ $NTR    G_I_N = G_I_N + crank_current_potential()
     endif
 
     if(precon) then
-      print *, 'PRECONDITION'
       !---------------------------------------------------------------------------
       ! Precondition the field corresponding to rho, F_I_I.
       if(.not.all(F_I_I_hist.eq.0.0_dp) .and. potentialpreconditioning.eq.1) then

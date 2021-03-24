@@ -91,14 +91,14 @@ contains
             endif
           enddo
         enddo
+        
+        minqp = 0.5
         condi = maxqp/minqp
         prop  = ((sqrt(condi)-1)/(sqrt(condi)+1))**2
 
-        !gradient_stepsize = 4.0/(maxqp + minqp + 2 *sqrt(maxqp*minqp)) * 0.75
-        !gradient_mu       = prop * 0.8
+        gradient_stepsize = 4.0/(maxqp + minqp + 2 *sqrt(maxqp*minqp)) * 0.75
+        gradient_mu       = prop 
 
-        print *, 'NORMN', normN, gradient_stepsize, gradient_mu
-       
         if(normN.gt.1d-4) then
           old  = lambda
           call find_fermi_brent(Bogo, H20, N20, prev, Eqp, lambda,          &
@@ -681,41 +681,6 @@ $NTR                             &  + gauge * matmul(V, rU)
       H11(si+1:si+T, si+1:si+T)  = matmul(U, hU) + matmul(U, dV) &
                               &  + matmul(V, dU) - matmul(V, hV)
 
-      !U = transpose(U) ; V = transpose(V)
-
-      !print *, 'H'
-      !do i=1, T
-      !  print ('(99f10.3)'), h(si+i, si+1:si+T)
-      !enddo
-      !print *!
-      !print *, 'U'
-      !do i=1, T
-      !  print ('(99f10.3)'), U(i, 1:T)
-      !enddo
-      !print *
-      !print *, 'V'
-      !do i=1, T
-      !  print ('(99f10.3)'), V(i, 1:T)
-      !enddo
-      !print *
-
-      !print *, 'HV'
-      !do i=1, T
-      !  print ('(99f10.3)'), hV(i, 1:T)
-      !enddo
-      !print *
-      !print *, 'HU'
-      !do i=1, T
-      !  print ('(99f10.3)'), hU(i, 1:T)
-      !enddo
-      !print *!!!
-
-      !print *, 'H11'
-      !do i=1, T
-      !  print ('(99f10.3)'), H11(si+i, si+1:si+T)
-      !enddo
-      !print *
-
       si = si +  T
       sb = sb +2*T
     enddo
@@ -823,14 +788,6 @@ $TR  part = 2* part
       call DSYEV( 'V', 'U', N2, A(N+1:T,N+1:T), N2, Eqp(si+N+1:si+T),work,lwork,ifail)
       deallocate(work)
       
-      !lwork = -1; allocate(work(1))
-      !call DSYEV( 'V', 'U', T, A, T, Eqp(si+1:si+T),work,lwork,ifail)
-      !lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
-      !call DSYEV( 'V', 'U', T, A, T, Eqp(si+1:si+T),work,lwork,ifail)
-      !deallocate(work)
-
-      !print ('(a3,99f10.3)') , 'EQP', EQP(si+1:si+T)
-
       ! Transform the U and V matrices
       !Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T) = matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T),A)
       !Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T) = matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T),A)

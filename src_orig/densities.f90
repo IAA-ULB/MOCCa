@@ -255,6 +255,8 @@ $TR          do wave2=wave,N
 $NTR          do wave2=N+1,N+N2      
               kappa_cut(wave,wave2) = kappa_cut(wave,wave2) &
               &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)
+              kappa_cut(wave2,wave) = kappa_cut(wave2,wave) &
+              &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)              
           enddo
         enddo
         if((.not. diagsphamil) .and. allocated(HFtransfo)) then 

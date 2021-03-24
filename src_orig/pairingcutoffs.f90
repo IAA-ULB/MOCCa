@@ -50,21 +50,6 @@ contains
         if(wave .gt. nwn) it = 2
         PCutoffs(wave) = PairingCutoff(spenergies(wave), Lambda(it), it)         
     enddo
-!    ! However, the wavefunctions in storage do not necessarily diagonalize h
-!    if(.not. diagsphamil) then
-!      if(.not.allocated(Pcut_nondiag))then
-!        allocate(Pcut_nondiag(nwt,nwt))
-!      endif
-!      Pcut_nondiag = 0.0d0      
-!      do wave=1,nwt
-!        do wave2=1,nwt
-!          do wave3=1,nwt
-!            Pcut_nondiag(wave,wave2) = Pcut_nondiag(wave,wave2) +              &
-!            &   Pcutoffs(wave3) * HFtransfo(wave,wave3) * HFtransfo(wave3,wave2) 
-!          enddo
-!        enddo
-!      enddo
-!    endif
   
   end subroutine ComputePairingCutoffs
 

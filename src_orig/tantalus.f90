@@ -260,6 +260,7 @@ subroutine ReachForWaterAndFood()
     call printcranking  
     call printpairing(pairstabfactor)
     call PrintEnergy 
+
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
@@ -432,6 +433,7 @@ subroutine printsummary(iter)
     2 format (' Iteration = ',i4)
     3 format (' dt  = ', f8.4, 4x, '  mu  = ', f8.4, '  D2H = ', e8.1)
     4 format (' E   = ', f10.3,2x, '  DE  = ', e12.5)
+   41 format (' R   = ', f10.3,2x, '  DR  = ', e12.5)  
     5 format (' Q20 = ', f12.4,    '  Q22 = ', f12.4, &
     &         ' dQ20= ', e8.1, 4x, '  dQ22= ', e8.1)
     6 format (' dmun= ', e8.1, 4x, '  dmup= ', e8.1)
@@ -446,6 +448,7 @@ subroutine printsummary(iter)
     print 2, iter
     print 3, dt, momentum, d2h
     print 4, totalE,  abs(totalE - Ehistory(1))/abs(totalE)
+    print 41, Routhian,  abs(Routhian - Rhistory(1))/abs(Routhian)
 
     if(fixfermi) then
         dN = part%value - part%history 
