@@ -210,7 +210,6 @@ contains
     !---------------------------------------------------------------------------
     integer              :: i, N, B, si, sb, ind, N2
     integer, allocatable :: indices(:)
-    real(KIND=dp)        :: disp
     
     1  format (33 ('-'), 'Quasiparticles',33('-'))
     2  format ( i3, 1f10.2, 2x, 1es12.2)

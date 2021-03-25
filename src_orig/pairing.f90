@@ -138,6 +138,13 @@ module pairing
  !------------------------------------------------------------------------------
  ! Whether or not to guess some pairing gaps when starting the code.
  logical :: guessgaps = .false.
+ !-----------------------------------------------------------------------------
+ ! Determine the scheme used for solving the HFB problem in the HF basis
+ !  (0) => Direct solution, i.e. construction and diagonalisation of the 
+ !         HFB Hamiltonian
+ !  (1) => Gradient solution, i.e. following the manifold of HFB solutions
+ integer :: pairingscheme = 0
+
 
 contains
 
@@ -152,8 +159,8 @@ contains
     
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
-    &                  FermiSolver, guessgaps, HFBgauge, gradient_stepsize,    &
-    &                  gradient_mu
+    &                  FermiSolver, guessgaps, HFBgauge, pairingscheme,        &
+    &                  gradient_precon
 
     NameList /Indices/ BlockIndices, blocklowest
 
@@ -176,6 +183,7 @@ contains
       print *, 'This type of pairing is not implemented yet.'
       stop
     endif
+    
 
 $FORBIDBCS if( pairingtype .eq. 1) then
 $FORBIDBCS    print *, "BCS pairing treatment not allowed."
@@ -245,6 +253,11 @@ $FORBIDBCS endif
     end select
     !---------------------------------------------------------------------------
     ! 
+    
+    if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
+      print *, 'Invalid pairingscheme value.'
+      stop
+    endif
   end subroutine initpairing
 
   subroutine printpairing_init
@@ -254,6 +267,7 @@ $FORBIDBCS endif
     1 format(80('-'))
     2 format(' Pairing treatment: ', a60)
    21 format('   Fermi-solver: ', a99 )
+  211 format('   Pairing strategy:', a99)
     3 format('   Linear mixing of (rho,kappa)')    
     4 format('   Linear mixing of eigenvalues of R')
     5 format('   HFBmix = ', f5.3)
@@ -294,7 +308,14 @@ $FORBIDBCS endif
     case(2)
         ptreat = 'Hartree-Fock-Bogoliubov (HFB)'
         print 2, ptreat
-        print 21, adjustl(FermiSolver)
+ 
+        select case(pairingscheme)
+        case(0)
+          print 211, 'Direct diagonalisation'
+          print 21, adjustl(FermiSolver)
+        case(1)
+          print 211, 'Geometric optimisation'
+        end select 
     end select
 
     if(pairingtype.eq.2) then
@@ -500,9 +521,9 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
         &   blocked_qps, ifail)
       case(1)
-        call solvepairing_HFB_gradient( gradstepsize,  &
+        call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
-        &   configmatrix, qpenergies)
+        &   configmatrix, qpenergies, ifail)
       end select
    end select
 

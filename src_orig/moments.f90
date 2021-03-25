@@ -173,7 +173,7 @@ module moments
       real(KIND=dp) :: Constraint
       !-------------------------------------------------------------------------
       ! Value of the current value of the Lagrange multiplier
-      real(KIND=dp) :: multiplier
+      real(KIND=dp) :: multiplier, mult_hist
       !-------------------------------------------------------------------------
       ! Deviation of the constraint with respect to the asked for value.
       real(KIND=dp) :: deviation
@@ -433,7 +433,9 @@ contains
     NewMoment%Value         = 0.0_dp
     NewMoment%SpherHarm     = 0.0_dp
     NewMoment%Squared       = 0.0_dp
-
+    NewMoment%multiplier    = 0.0_dp
+    NewMoment%mult_hist  = 0.0_dp
+    
     nullify(NewMoment%Calculate)
     NewMoment%Calculate   => Calculate_electric
     NewMoment%PrintMoment => PrintMoment_electric
@@ -763,6 +765,7 @@ contains
     if(Toreadjust%constrainttype.eq.2) slow = 1.0
 
     ! Set the new multiplier        
+    ToReadjust%mult_hist = ToReadjust%multiplier
     ToReadjust%Multiplier =  ToReadjust%Multiplier +   slow *                  &
     &     ToReadjust%Intensity*(ToReadjust%Constraint - sum(ToReadjust%Value))
 
@@ -1525,6 +1528,7 @@ contains
   
     if(Mom%multfromfile .or. ContinueAll) then        
       Mom%Multiplier     = Multiplier
+      Mom%mult_hist   = 0.0
     endif
   end subroutine ReadMoment
 

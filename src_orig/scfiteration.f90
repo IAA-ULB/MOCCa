@@ -26,12 +26,6 @@ module SCFiteration
   !  (0) => Preconditioning of necessary potentials  (here F_I_I)
   !  (1) => Linear mixing of the necessary densities (here D_I_I)
   integer :: scfscheme = 0
-  !-----------------------------------------------------------------------------
-  ! Determine the scheme used for solving the HFB problem in the HF basis
-  !  (0) => Direct solution, i.e. construction and diagonalisation of the 
-  !         HFB Hamiltonian
-  !  (1) => Gradient solution, i.e. following the manifold of HFB solutions
-  integer :: pairingscheme = 0
 contains
 
   subroutine readscfiteration(file_number)
@@ -41,7 +35,7 @@ contains
           
     integer(dp), intent(in), optional   :: file_number   
 
-    namelist /scfiteration/ scfscheme, denmix, preconfactor, pairingscheme
+    namelist /scfiteration/ scfscheme, denmix, preconfactor
     
     if(present(file_number)) then
       read (unit=file_number, nml=scfiteration)
@@ -53,10 +47,7 @@ contains
       print *, 'Invalid scfscheme value.'
       stop
     endif
-    if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
-      print *, 'Invalid pairingscheme value.'
-      stop
-    endif
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Interpreting the scfscheme choice in terms of densities and potentials
     select case(scfscheme)
@@ -93,12 +84,6 @@ contains
       print 3, denmix
     end select
 
-    select case(pairingscheme)
-    case(0)
-      print 5, 'Direct diagonalisation'
-    case(1)
-      print 5, 'Geometric optimisation'
-    end select 
   end subroutine printscfiteration
 
 end module

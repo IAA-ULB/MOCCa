@@ -200,10 +200,8 @@ subroutine ReachForWaterAndFood()
     logical :: projectpresent = .false.
     ! Message for the output of the code, useful for the Brussels group.
     character(len=99) :: iomsg = 'START'
-    real(KIND=dp)     :: oldE,  oldfermi(2)
 
     ifail = 0
-
     ConvergenceAchieved = .false.   
     !---------------------------------------------------------------------------
     ! Initial calculations
@@ -297,42 +295,32 @@ subroutine ReachForWaterAndFood()
         ! Restore all the different derivatives.
         call deriveHF()
 
-        maxsub=1
-        if(pairingscheme.eq.1) maxsub=1
-
-        !if(pairingscheme.eq.1) then
-          do subiter=1,maxsub
-
-            oldE = totalE
-            ! Solve the pairing subproblem
-            if(subiter.gt.1) then
-              !if(pairingscheme.eq.1) then
-                call eval_sph(.false.)
-              !endif
+        do subiter=1,maxsub
+          ! Solve the pairing subproblem
+          if(subiter.gt.1) then
+              call eval_sph(.false.)
               call CalcGaps(FermiEnergy, PairStabFactor)
-            endif
+          endif
             
-            call SolvePairing(pairingscheme,gradient_stepsize,ifail)
-            call densit(ifail,SaveRho=.true.)
-            call ConstructChargeDensity(ChargeDensity)
-            ! Calculate a) moments values, b) readjustment and c) finally their
-            ! contribution to the sphamiltonian.
-            call CalculateMoments()
-            call ReadjustAllMoments(1)
-            call Sphamilcontribution()
-            call calcFields(calcall=.true.,precon=.true.)
-         enddo
-        !endif 
-        if(pairingscheme.ne.1)  call calcFields(calcall=.true., precon=.true.)
-
+          call SolvePairing(pairingscheme,gradient_stepsize,ifail)
+          call densit(ifail,SaveRho=.true.)
+          call ConstructChargeDensity(ChargeDensity)
+          ! Calculate a) moments values, b) readjustment and c) finally their
+          ! contribution to the sphamiltonian.
+          call CalculateMoments()
+          call ReadjustAllMoments(1)
+          call Sphamilcontribution()
+          call calcFields(calcall=.true.,precon=.true.)
+        enddo
+        
         call update_spwf_angmom()
         call updateAM
-
+        !-----------------------------------------------------------------------
+        ! Above: actual evolution
+        ! Below: administration
+        !-----------------------------------------------------------------------
         !See if some moments were temporary
         call TurnOffConstraints(iter)
-
-
-        call updateAM 
 
         ! Recalculate the energy
         if(mod(iter,PrintIter).eq.0) then
@@ -354,7 +342,7 @@ subroutine ReachForWaterAndFood()
           call Converged(ConvergenceAchieved)  
         end if 
 
-        call monitor_convergence(iter)
+        !call monitor_convergence(iter)
         if(convergenceAchieved) iprint = 1
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
@@ -367,8 +355,6 @@ subroutine ReachForWaterAndFood()
             call printcranking
             call PrintMomentsofInertia
             call printpairing(PairStabfactor)
-            call PrintEnergy          
-            call convergence_report 
         else
             call printsummary(iter)
         endif
@@ -426,19 +412,24 @@ subroutine printsummary(iter)
 
     integer, intent(in)   :: iter
     type(Moment), pointer :: Q20, Q22, part
-    real(KIND=dp)         :: dQ20, dQ22, dF(2), DN(2)
+    real(KIND=dp)         :: dQ20, dQ22, dF(2), DN(2), dL20, dL22
      
 
     1 format (80('-'))
     2 format (' Iteration = ',i4)
-    3 format (' dt  = ', f8.4, 4x, '  mu  = ', f8.4, '  D2H = ', e8.1)
+    3 format (' dt  = ', f8.4, 4x, '  mu  = ', f8.4, ' gradn= ', es12.3, ' D2H = ', es12.3)
+   31 format (' dtg = ', f8.4, 4x, '  mug = ', f8.4, ' gradn= ', es12.3)
     4 format (' E   = ', f10.3,2x, '  DE  = ', e12.5)
    41 format (' R   = ', f10.3,2x, '  DR  = ', e12.5)  
-    5 format (' Q20 = ', f12.4,    '  Q22 = ', f12.4, &
-    &         ' dQ20= ', e8.1, 4x, '  dQ22= ', e8.1)
-    6 format (' dmun= ', e8.1, 4x, '  dmup= ', e8.1)
-    7 format (' dN  = ', e8.1, 4x, '  dZ  = ', e8.1)  
-    8 format (' Jz  = ', f8.3, 4x, '  dJZ = ', e8.1 )
+   42 format (' R-E = ', f10.3,2x, 'D(R-E)= ', e12.5)  
+    5 format (' Q20 = ', f12.4,    '  Q22 = ', f12.4, /, &
+    &         ' dQ20= ', es8.1, 4x, '  dQ22= ', es8.1 , /, &
+    &         ' L20 = ', f12.4,    '  dL20= ', es8.1, /,  &
+    &         ' L22 = ', f12.4,    '  dL22= ', es8.1)
+
+    6 format (' dmun= ', es8.1, 4x, '  dmup= ', es8.1)
+    7 format (' dN  = ', es8.1, 4x, '  dZ  = ', es8.1)  
+    8 format (' Jz  = ', f8.3, 4x, '  dJZ = ', es8.1 )
 
     part=>FindMoment(0,0,.false.)
     Q20 =>FindMoment(2,0,.false.     )
@@ -446,10 +437,14 @@ subroutine printsummary(iter)
 
     print 1
     print 2, iter
-    print 3, dt, momentum, d2h
-    print 4, totalE,  abs(totalE - Ehistory(1))/abs(totalE)
-    print 41, Routhian,  abs(Routhian - Rhistory(1))/abs(Routhian)
-
+    print 3, dt, momentum, gradientnorm, d2h
+    if(pairingscheme.eq.1) then
+      print 31, gradient_stepsize, gradient_mu, sqrt(sum(HFBGradnorm**2))
+    endif
+    print 4, totalE,     (totalE - Ehistory(1))/abs(totalE)
+    print 41, Routhian,  (Routhian - Rhistory(1))/abs(Routhian)
+    print 42, Routhian-totalE, &
+    &  ((Routhian - Rhistory(1)) - (totalE - Ehistory(1)))/abs(Routhian-totalE) 
     if(fixfermi) then
         dN = part%value - part%history 
         print 7, dN
@@ -458,9 +453,12 @@ subroutine printsummary(iter)
         print 6, dF
     endif
     
-    dQ20 = abs(sum(Q20%value) - sum(Q20%history))
-    dQ22 = abs(sum(Q22%value) - sum(Q22%history))
-    print 5, sum(Q20%value), sum(Q22%value), dQ20,dQ22
+    dQ20 =    (sum(Q20%value) - sum(Q20%history))
+    dQ22 =    (sum(Q22%value) - sum(Q22%history))
+    dL20 =    Q20%multiplier - Q20%mult_hist
+    dL22 =    Q22%multiplier - Q22%mult_hist
+    print 5, sum(Q20%value), sum(Q22%value), dQ20,dQ22, &
+    &        Q20%multiplier, dL20, Q22%multiplier, dL22
     print 8, totalangmom(3), totalangmom(3) - angmomold(3)
         
 end subroutine printsummary

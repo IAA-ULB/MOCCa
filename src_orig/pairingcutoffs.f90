@@ -26,7 +26,6 @@ module pairingcutoffs
  ! Storage for all cutoffs. 
  ! Currently these are ALWAYS in the HF basis.
  real(KIND=dp), allocatable :: PCutoffs(:)
-! real(KIND=dp), allocatable :: PCut_nondiag(:)
 
 contains
 
@@ -35,7 +34,7 @@ contains
   ! Computes and stores all pairing cutoffs for further use, as a function of 
   ! the Fermi energy
   !-----------------------------------------------------------------------------
-    integer :: wave, it, wave2, wave3
+    integer :: wave, it
     real(KIND=dp), intent(in) :: Lambda(2)
     
     if(.not.allocated(PCutoffs)) then

@@ -33,6 +33,9 @@ module evolution
     real(KIND=dp):: dt    =  0.01
     real(KIND=dp):: hbar  =  6.58211928_dp
     !---------------------------------------------------------------------------
+    ! Default value of the momentum factor.
+    real(KIND=dp) :: momentum=0.0
+    !---------------------------------------------------------------------------
     ! Norm of the gradient and weighted sum of the dispersionss
     real(KIND=dp) :: gradientnorm, d2h
     !---------------------------------------------------------------------------
@@ -49,9 +52,10 @@ module evolution
     !   HEAVYBALL => Heavy-ball dynamics
     character(len=20) :: Strategy = 'HEAVYBALL'
     !---------------------------------------------------------------------------
-    ! Allow Tantalus to estimate the runtime parameters of the algorithm 
-    ! or stay faithful to those specified by the user.
-    logical :: EstimateParams = .true.
+    ! Allow Tantalus to estimate the runtime parameters of the heavy-ball 
+    ! algorithm for the linear subproblem or stay faithful to those specified 
+    ! by the user. 
+    logical :: EstimateParams     = .true.
     !---------------------------------------------------------------------------
     !Procedure that determines the evolution of a Spwf under imaginary time.
     abstract interface
@@ -63,9 +67,6 @@ module evolution
     !---------------------------------------------------------------------------
     ! Procedure pointer for the preconditioning
     !procedure(Precondition_PG),pointer :: Precon 
-    !---------------------------------------------------------------------------
-    ! Default value of the momentum factor.
-    real(KIND=dp) :: momentum=0.0
     !---------------------------------------------------------------------------
     ! Inverse of the second order derivative matrices with appropriate constants
     real*8, allocatable :: preconX(:,:,:,:)
@@ -88,9 +89,11 @@ contains
 
         integer(dp), intent(in), optional   :: file_number   
 
-        namelist /evolution/ dt, maxiter, printiter, strategy, momentum,       &
-        &                    estimateparams, diagsphamil
-
+        namelist /evolution/ dt, momentum,                                     &
+        &                    gradient_stepsize, gradient_mu,                   &
+        &                    maxiter, printiter, strategy,                     &
+        &                    estimateparams, estimategradparams                                  
+        
 
         if(present(file_number)) then
           read(unit=file_number, nml=evolution)
@@ -115,6 +118,16 @@ contains
         else
             stop ('STRATEGY NOT RECOGNIZED.')
         endif
+        
+        !-----------------------------------------------------------------------
+        ! If we use the heavy-ball algorithm for the pairing subproblem, we 
+        ! limit the heavy-ball algorithm in the linear subproblem to optimising
+        ! the relevant subspace and not in diagonalising the individual spwfs.
+        if(pairingscheme .eq. 1) then
+          diagsphamil = .false.
+        else
+          diagsphamil = .true.
+        endif
 
     end subroutine ReadEvolution
 
@@ -127,7 +140,9 @@ contains
         1 format(80('-'))
         2 format(' Evolution strategy: ', a20 )
         3 format('   dt= ', f7.4, ' mu= ', f7.4 )        
-        4 format('   Estimate (dt,mu)  : ', a3)
+        4 format('   Estimate (dt,mu) linear subproblem  : ', a3)
+       41 format('   Estimate (dt,mu) pairing subproblem : ', a3)
+
 !        5 format(' Preconditioning   : ', a20 )
         6 format(' Diagonalise the s.p. hamiltonian: ', a3)
            
@@ -138,6 +153,13 @@ contains
           print 4, 'YES'
         else 
           print 4, ' NO'
+          print 3, dt, momentum
+        endif
+        
+        if( EstimateGRADParams) then
+          print 41, 'YES'
+        else 
+          print 41, ' NO'
           print 3, dt, momentum
         endif
         
@@ -179,10 +201,6 @@ contains
         iter = iteration      ! To get around the unused variable warnings
                               ! from compilers. Note that the variable needs to
                               ! be declared for the procedure pointers to work.
-
-        ! Calculate the preconditioning matrices
-!        if(Precondition .ne. 'NONE' ) call CalculatePreconditioners()
-        
         do wave=1,nwt
             if(wave .le. nwn) then
                 iso = -1
@@ -287,11 +305,11 @@ contains
               select case(pairingtype)
               case(0,1)
                 d2h          = d2h + rho_can(wave)*dispersions(wave)
-                gradientnorm = gradientnorm + rho_can(wave) *                    &
+                gradientnorm = gradientnorm + rho_can(wave) *                  &
                 & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
               case(2) 
                 d2h          = d2h + rho_pairing(wave,wave)*dispersions(wave)
-                gradientnorm = gradientnorm + rho_pairing(wave,wave) *           &
+                gradientnorm = gradientnorm + rho_pairing(wave,wave) *         &
                 & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
               end select
             endif
@@ -302,16 +320,19 @@ contains
                 current_sph(wave ,wave2) = current_sph(wave2,wave)
             enddo
             !-------------------------------------------------------------------
-            ! Remove the part that is propagation in its own direction.
             if(diagsphamil) then
+              ! Remove the part that is propagation in its own direction.
               hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
             else
+              ! orthogonalize against the spwfs currently in storage
               do wave2=si+1,si+N
                 hpsi =   hpsi - current_sph(wave,wave2) * hfpsi(:,:,wave2)
               enddo            
+              
+              gradientnorm = gradientnorm + sum(hpsi**2)*dv
               !-----------------------------------------------------------------
               ! Diagonalize the current single-particle hamiltonian to obtain 
-              ! the single-particle energies correctly. 
+              ! the correct aspects of quantities in the HF basis
               HFtransfo(si+1:si+N,si+1:si+N) = current_sph(si+1:si+N, si+1:si+N)
 
               lwork = -1; allocate(work(1))
@@ -337,7 +358,7 @@ contains
           si = si + N
         enddo
     
-        gradientnorm = sqrt(gradientnorm)/(neutrons + protons) 
+        gradientnorm = sqrt(gradientnorm) 
         d2h          = d2h/(neutrons+protons)
         ! Orthonormalize
         call GramSchmidt

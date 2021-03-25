@@ -293,7 +293,8 @@ $PRINTCOEF_PAIR
     endif
     print 105, Routhian
 
-    !print 104, TotalE - Ehistory(1)
+    print 104, TotalE   - Ehistory(1)
+    print 106, Routhian - Rhistory(1)
 
     print 1
  end subroutine PrintEnergy
