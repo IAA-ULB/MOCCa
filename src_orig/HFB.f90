@@ -313,7 +313,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     if(.not.allocated(Z_updates)) then
       allocate(Z_updates(2*nwt,2*nwt)) ; Z_updates = 0.0d0
     endif
-    allocate(tempEqp(nwt), full_eqp(2*nwt))  ; tempEqp = 0 ; full_eqp = 0
+    allocate(tempEqp(nwt))  ; tempEqp = 0 
     !---------------------------------------------------------------------------
     ! Saving the history
     Bogoliubov_history   = Bogo
@@ -328,13 +328,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     if(estimategradparams) then     
       ! Obtain an estimate for the quasi-particle energies to estimate the 
       ! evolution parameters
-      full_eqp(1:2*nwn)      = obtain_eqp(sphamil(1:2*nwn,1:2*nwn), &
-      &                                   gaps(1:2*nwn,1:2*nwn),    &
-      &                                   Fermi(1), HFblocks(1:4))
-
-      full_eqp(2*nwn+1:2*nwt)= obtain_eqp(sphamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt),&
-      &                                   gaps(2*nwn+1:2*nwt,2*nwn+1:2*nwt),   &
-      &                                   Fermi(2), HFblocks(5:8))
+      full_eqp      = obtain_eqp(sphamil, gaps, Fermi, HFblocks)
       
       minqp = +100000
       maxqp = -100000
@@ -436,20 +430,21 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     ! and does not offer any other side-effects. For a more complete routine, 
     ! see diagbyblock in the HFB_direct module.
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), lambda
+    real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), lambda(2)
     real(KIND=dp), allocatable  :: HFBhamil(:,:), work(:), A(:,:)
-    integer, intent(in)         :: blocks(4)
-    real(KIND=dp),allocatable  :: eigen(:)
+    integer, intent(in)         :: blocks(8)
+    real(KIND=dp),allocatable   :: eigen(:)
 
-    integer       :: si, sb, B, N, N2, lwork, i, ifail
+    integer       :: si, sb, B, N, N2, lwork, i, ifail, it
   
     si      = 0 ; sb = 0
     allocate(eigen(2*sum(blocks))) ;   eigen   = 0
     
     allocate(HFBHamil(2*sum(blocks), 2*sum(blocks)))
-    do B=1,4,2
+    do B=1,8,2
       N  = Blocks(B)    ! Size of the first partner block
       N2 = Blocks(B+1)  ! Size of the second partner block
+        
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
       &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
       &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,      &
@@ -462,14 +457,15 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
    enddo
    
    si=0 ; sb =0
-   do B=1,4
+   do B=1,8
    
       N  = Blocks(B)    
+      it = 1 ; if(B.gt.4) it = 2
 
       A = HFBHamil(sb+1:sb+2*N, sb+1:sb+2*N)
       do i=1,N
-        A(i  ,i  ) = A(i  , i  ) - lambda
-        A(i+N,i+N) = A(i+N, i+N) + lambda
+        A(i  ,i  ) = A(i  , i  ) - lambda(it)
+        A(i+N,i+N) = A(i+N, i+N) + lambda(it)
       enddo
                         
       ! Diagonalize

@@ -355,6 +355,7 @@ subroutine ReachForWaterAndFood()
             call printcranking
             call PrintMomentsofInertia
             call printpairing(PairStabfactor)
+            call printEnergy()
         else
             call printsummary(iter)
         endif

@@ -520,7 +520,6 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
         &   blocked_qps, ifail)
       case(1)
-        print *, 'THIS DOES NOT HAPPEN'
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
         &   configmatrix, qpenergies, ifail)
