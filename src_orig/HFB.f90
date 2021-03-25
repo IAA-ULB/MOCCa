@@ -336,34 +336,34 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
         tempBogo = Bogo
     endif
     
-!    !call get_qpenergies(h,gaps,blocks,Bogo, Eqp, lambda)
-!    call get_qpenergies(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                & 
-!    &                   effblocks(1:4),tempBogo(1:2*nwn,1:2*nwn),              &
-!    &                   tempEqp(1:nwn), Fermi(1))
-!    call get_qpenergies(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt),& 
-!    &                   effblocks(5:8),tempBogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),  &
-!    &                   tempEqp(nwn+1:nwt), Fermi(2))
-!    
-!    minqp = +100000
-!    maxqp = -100000
+    !call get_qpenergies(h,gaps,blocks,Bogo, Eqp, lambda)
+    call get_qpenergies(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                & 
+    &                   effblocks(1:4),tempBogo(1:2*nwn,1:2*nwn),              &
+    &                   tempEqp(1:nwn), Fermi(1))
+    call get_qpenergies(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt),& 
+    &                   effblocks(5:8),tempBogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),  &
+    &                   tempEqp(nwn+1:nwt), Fermi(2))
+    
+    minqp = +100000
+    maxqp = -100000
 
-!    do i=1,nwt
-!      do j=1,nwt
-!        if(tempEqp(i) + tempEqp(j) .lt. minqp .and. tempEqp(i) + tempEqp(j) .gt. 0.0d0) then
-!          minqp = abs(tempEqp(i) + tempEqp(j))
-!        endif
-!         if(tempEqp(i) + tempEqp(j) .gt. maxqp) then
-!           maxqp = tempEqp(i) + tempEqp(j)
-!         endif
-!        enddo
-!      enddo
-!    minqp = 0.5
-!    maxqp = 50
-!    condi = maxqp/minqp
-!    prop  = ((sqrt(condi)-1)/(sqrt(condi)+1))**2
+    do i=1,nwt
+      do j=1,nwt
+        if(tempEqp(i) + tempEqp(j) .lt. minqp .and. tempEqp(i) + tempEqp(j) .gt. 0.0d0) then
+          minqp = abs(tempEqp(i) + tempEqp(j))
+        endif
+         if(tempEqp(i) + tempEqp(j) .gt. maxqp) then
+           maxqp = tempEqp(i) + tempEqp(j)
+         endif
+        enddo
+      enddo
+    minqp = 0.5
+    maxqp = 50
+    condi = maxqp/minqp
+    prop  = ((sqrt(condi)-1)/(sqrt(condi)+1))**2
 
-!    gradient_stepsize = 4.0/(maxqp + minqp + 2 *sqrt(maxqp*minqp)) * 0.9
-!    gradient_mu       = prop 
+    gradient_stepsize = 4.0/(maxqp + minqp + 2 *sqrt(maxqp*minqp)) * 0.5
+    gradient_mu       = prop 
     !---------------------------------------------------------------------------
     ! Stepping for the neutrons
     call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                 & 
@@ -747,33 +747,33 @@ $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
       !-------------------------------------------------------------------------      
       ! We have now calculated the gaps (without cutoffs) in the basis that 
       ! is currently in storage. This can either be the HF basis or not!
-!      if(.not.diagsphamil .and. allocated(HFtransfo)) then
-!        ! Transform to the HF basis
-!        HFBgaps(si+1:si+T,si+1:si+T) = &
-!        &                     matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)),&
-!        &                                          HFBgaps(si+1:si+T,si+1:si+T))
-!        HFBgaps(si+1:si+T,si+1:si+T) = &
-!        &    matmul(HFBgaps(si+1:si+T,si+1:si+T),HFtransfo(si+1:si+T,si+1:si+T))
-!      endif
-!      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -     
-!      ! Multiply with the cutoff factors
-!      do wave1=1,N
-!$NTR    inda = si + wave1 + N
-!$TR     inda = si + wave1
-!        do wave2=1,N
-!          indb = si + wave2 
-!          HFBgaps(inda,indb) = HFBgaps(inda,indb)*Pcutoffs(inda)*Pcutoffs(indb) 
-!$NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb) 
-!        enddo
-!      enddo
-!      if(.not.diagsphamil .and. allocated(HFtransfo)) then
-!        ! Transform back
-!        HFBgaps(si+1:si+T,si+1:si+T) = &
-!        & matmul((HFtransfo(si+1:si+T,si+1:si+T)),HFBgaps(si+1:si+T,si+1:si+T))
-!        HFBgaps(si+1:si+T,si+1:si+T) = &
-!        & matmul(HFBgaps(si+1:si+T,si+1:si+T),                                 &
-!        &                             transpose(HFtransfo(si+1:si+T,si+1:si+T)))
-!      endif
+      if(.not.diagsphamil .and. allocated(HFtransfo)) then
+        ! Transform to the HF basis
+        HFBgaps(si+1:si+T,si+1:si+T) = &
+        &                     matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)),&
+        &                                          HFBgaps(si+1:si+T,si+1:si+T))
+        HFBgaps(si+1:si+T,si+1:si+T) = &
+        &    matmul(HFBgaps(si+1:si+T,si+1:si+T),HFtransfo(si+1:si+T,si+1:si+T))
+      endif
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -     
+      ! Multiply with the cutoff factors
+      do wave1=1,N
+$NTR    inda = si + wave1 + N
+$TR     inda = si + wave1
+        do wave2=1,N
+          indb = si + wave2 
+          HFBgaps(inda,indb) = HFBgaps(inda,indb)*Pcutoffs(inda)*Pcutoffs(indb) 
+$NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb) 
+        enddo
+      enddo
+      if(.not.diagsphamil .and. allocated(HFtransfo)) then
+        ! Transform back
+        HFBgaps(si+1:si+T,si+1:si+T) = &
+        & matmul((HFtransfo(si+1:si+T,si+1:si+T)),HFBgaps(si+1:si+T,si+1:si+T))
+        HFBgaps(si+1:si+T,si+1:si+T) = &
+        & matmul(HFBgaps(si+1:si+T,si+1:si+T),                                 &
+        &                             transpose(HFtransfo(si+1:si+T,si+1:si+T)))
+      endif
 
       si = si + N + N2
     enddo

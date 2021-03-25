@@ -306,9 +306,9 @@ subroutine ReachForWaterAndFood()
             oldE = totalE
             ! Solve the pairing subproblem
             if(subiter.gt.1) then
-              if(pairingscheme.eq.1) then
+              !if(pairingscheme.eq.1) then
                 call eval_sph(.false.)
-              endif
+              !endif
               call CalcGaps(FermiEnergy, PairStabFactor)
             endif
             
@@ -323,7 +323,7 @@ subroutine ReachForWaterAndFood()
             call calcFields(calcall=.true.,precon=.true.)
          enddo
         !endif 
-        if(pairingscheme.ne.1)          call calcFields(calcall=.true., precon=.true.)
+        if(pairingscheme.ne.1)  call calcFields(calcall=.true., precon=.true.)
 
         call update_spwf_angmom()
         call updateAM

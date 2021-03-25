@@ -551,7 +551,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       enddo
     else
       ! Full matrix
-      sph = current_sph  - 0.5 * rho_pairing
+      sph = current_sph
     endif
  
   end function build_sph

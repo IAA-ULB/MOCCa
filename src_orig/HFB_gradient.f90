@@ -96,8 +96,8 @@ contains
         condi = maxqp/minqp
         prop  = ((sqrt(condi)-1)/(sqrt(condi)+1))**2
 
-        gradient_stepsize = 4.0/(maxqp + minqp + 2 *sqrt(maxqp*minqp)) * 0.75
-        gradient_mu       = prop 
+        gradient_stepsize = 3.0/(maxqp + minqp + 2 *sqrt(maxqp*minqp)) 
+        gradient_mu       = 0.2 * prop 
 
         if(normN.gt.1d-4) then
           old  = lambda
