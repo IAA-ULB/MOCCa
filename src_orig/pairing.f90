@@ -311,10 +311,10 @@ $FORBIDBCS endif
  
         select case(pairingscheme)
         case(0)
-          print 211, 'Direct diagonalisation'
+          print 211, adjustl('Direct diagonalisation')
           print 21, adjustl(FermiSolver)
         case(1)
-          print 211, 'Geometric optimisation'
+          print 211,  adjustl('Geometric optimisation')
         end select 
     end select
 
@@ -445,14 +445,13 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     end select  
   end subroutine initializeGaps
   
-  subroutine SolvePairing(pairingscheme,gradstepsize,ifail)
+  subroutine SolvePairing(scheme,ifail)
     !---------------------------------------------------------------------------
     ! Master routine for the solving of the pairing equations.
     !---------------------------------------------------------------------------
     use parameterization, only : hbm
 
-    integer, intent(in)        :: pairingscheme
-    real(KIND=dp), intent(in)  :: gradstepsize
+    integer, intent(in)        :: scheme
     integer, intent(out)       :: ifail
     integer                    :: i
     real(KIND=dp), allocatable :: tmp(:,:),sphamil(:,:)
@@ -510,17 +509,18 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       endif
       ! Depending on the algorithm in use, we build a different single-particle
       ! hamiltonian matrix.
-      sphamil = build_sph(pairingscheme)
+      sphamil = build_sph(scheme)
 
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
-      select case(pairingscheme)
+      select case(scheme)
       case(0)
         call solvepairing_HFB_direct(  &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
         &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
         &   blocked_qps, ifail)
       case(1)
+        print *, 'THIS DOES NOT HAPPEN'
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
         &   configmatrix, qpenergies, ifail)

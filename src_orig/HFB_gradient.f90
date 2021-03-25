@@ -176,7 +176,7 @@ contains
         ! ...  and executing it
         bogo = GradUpdate(grad, prev, bogo, alpha, mu, blocks)
         ! ...  and saving it for the next iteration 
-        prev = -alpha * grad + gradient_mu * prev
+        prev = -alpha * grad + mu * prev
         ! and for good measure, we recalculate the (deviation of) the 
         ! particle number
         particles = particle_number_bogo(bogo, blocks) - targetN
@@ -541,7 +541,7 @@ $NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
       NB(sb+T+1:sb+2*T,sb+T+1:sb+2*T) = NB(sb+T+1:sb+2*T,sb+T+1:sb+2*T)        &
 $NTR      &               -alpha *matmul(U,grad(si+1:si+T,si+1:si+T))          &
 $TR       &               +alpha *matmul(U,grad(si+1:si+T,si+1:si+T))          &
-          & + gradient_mu * matmul(U,prev(si+1:si+T,si+1:si+T))
+          &               + mu * matmul(U,prev(si+1:si+T,si+1:si+T))
       si = si +   T
       sb = sb + 2*T
     enddo

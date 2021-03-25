@@ -439,12 +439,12 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), lambda
     real(KIND=dp), allocatable  :: HFBhamil(:,:), work(:), A(:,:)
     integer, intent(in)         :: blocks(4)
-    real(KIND=dp)               :: eigen(sum(blocks))
+    real(KIND=dp),allocatable  :: eigen(:)
 
     integer       :: si, sb, B, N, N2, lwork, i, ifail
   
     si      = 0 ; sb = 0
-    eigen   = 0
+    allocate(eigen(2*sum(blocks))) ;   eigen   = 0
     
     allocate(HFBHamil(2*sum(blocks), 2*sum(blocks)))
     do B=1,4,2

@@ -210,7 +210,7 @@ subroutine ReachForWaterAndFood()
     call deriveHF()
 
     ! Solve the pairing, with the current values of <h> and the pairing gaps.
-    call SolvePairing(0,0.0d0, ifail)
+    call SolvePairing(0, ifail)
     if(ifail.ne.0) then
         print *, 'WARNING! Pairing solver failed.'
     endif
@@ -234,7 +234,7 @@ subroutine ReachForWaterAndFood()
 
     PairStabfactor = CompStabilisingFactor(PairDenEnergy)
     call CalcGaps(FermiEnergy, PairStabFactor)
-    call SolvePairing(0,0.0d0,ifail)
+    call SolvePairing(0,ifail)
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
@@ -295,14 +295,14 @@ subroutine ReachForWaterAndFood()
         ! Restore all the different derivatives.
         call deriveHF()
 
-        do subiter=1,maxsub
+        !do subiter=1,maxsub
           ! Solve the pairing subproblem
           if(subiter.gt.1) then
               call eval_sph(.false.)
               call CalcGaps(FermiEnergy, PairStabFactor)
           endif
             
-          call SolvePairing(pairingscheme,gradient_stepsize,ifail)
+          call SolvePairing(pairingscheme,ifail)
           call densit(ifail,SaveRho=.true.)
           call ConstructChargeDensity(ChargeDensity)
           ! Calculate a) moments values, b) readjustment and c) finally their
@@ -311,7 +311,7 @@ subroutine ReachForWaterAndFood()
           call ReadjustAllMoments(1)
           call Sphamilcontribution()
           call calcFields(calcall=.true.,precon=.true.)
-        enddo
+        !enddo
         
         call update_spwf_angmom()
         call updateAM
