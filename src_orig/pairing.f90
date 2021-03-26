@@ -522,7 +522,8 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       case(1)
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
-        &   configmatrix, qpenergies, ifail)
+        &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
+        &   blocked_qps, ifail)
       end select
    end select
 

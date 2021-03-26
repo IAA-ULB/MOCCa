@@ -76,21 +76,6 @@ contains
     endif
     
   end function buildgrad
-  
-  subroutine get_qpenergies(h,gaps,blocks,Bogo, Eqp, lambda)
-    !---------------------------------------------------------------------------
-    !
-    !
-    !---------------------------------------------------------------------------
-    real(KIND=dp), intent(inout) :: Eqp(:)
-    real(KIND=dp), intent(in)    :: h(:,:), gaps(:,:), Bogo(:,:), lambda
-    real(KIND=dp), allocatable   :: H11(:,:)
-    integer, intent(in)          :: blocks(4)
-
-    H11 = calcH11(Bogo, h, gaps, lambda, blocks)
-    call diagonalise_H11(bogo, H11, blocks, Eqp)
-
-  end subroutine get_qpenergies
 
   subroutine gradient_step(h,gaps,targetN, Bogo,Eqp,lambda, alpha,mu,prev,     &
   &                        precon, gradnorm, blocks, maxiter, ifail)
@@ -105,6 +90,8 @@ contains
     !     gaps: pairing gaps
     !  targetN: targetted number of particles
     !    Bogo : Bogoliubov transformation on input
+    !    Eqp  : an estimate for the quasi-particle energies for the 
+    !           preconditioning of the evolution (if requested)
     !   lambda: Fermi energy
     !   alpha : step-size for the heavy-ball evolution
     !      mu : momentum for the heavy-ball evolution
@@ -114,7 +101,7 @@ contains
     !
     ! Output:
     !    Bogo : new Bogoliubov transformation
-    !    Eqp  : (estimate) for the qp energy
+    !    Eqp  : estimated qp energies based on the diagonalisation of  H^{11}
     !   lambda: new value for the Fermi energy
     ! gradnorm: Frobenius norm of the gradient that was used as step
     !  ifail  : if 0, succes. If 1, something went wrong.
@@ -146,10 +133,10 @@ contains
     logical, intent(in)          :: precon
     real(KIND=dp), intent(inout) :: Bogo(:,:), lambda
     real(KIND=dp), intent(inout) :: Eqp(:),  prev(:,:), gradnorm
-    real(KIND=dp), allocatable   :: H20(:,:), N20(:,:), grad(:,:)
+    real(KIND=dp), allocatable   :: H20(:,:), N20(:,:), grad(:,:), H11(:,:)
 
     real(KIND=dp)                :: particles,  normN
-    integer                      :: B, sb, N, N2, iter, T
+    integer                      :: B, sb, N, N2, iter, T, i
     logical                      :: converged = .false.  
   
     converged = .false. 
@@ -192,8 +179,11 @@ contains
           exit
         endif
     enddo
+    ! Perform an additional transformation of the Bogoliubov transformation to
+    ! diagonalise H^11 and obtain another estimate for the QP energies
+    H11 = calcH11(Bogo, h, gaps, lambda, blocks)
+    call diagonalise_H11(bogo, prev, H11, blocks, Eqp)
 
-    !print ('(a4,4e12.3,99f10.3)'), 'GRAD',  gradnorm, Particles, normN
     !---------------------------------------------------------------------------
     ! Finally, we deduce the rest of the Bogoliubov transformation from the 
     ! part we evolved. 
@@ -202,12 +192,15 @@ contains
       N = blocks(B)   ; if(N.eq.0) cycle
       N2= blocks(B+1)
       T = N + N2
-      ! Populate the columns of the Bogoliubov transformation that have not 
-      ! been evolved. Note the extra minus sign when time-reversal is conserved.
-$TR   Bogo(sb  +1:sb  +T, sb+1:sb+T) =-Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)   
-$NTR  Bogo(sb  +1:sb  +T, sb+1:sb+T) = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
-      Bogo(sb+T+1:sb+2*T, sb+1:sb+T) = Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T)   
-
+  
+      do i=1,T
+        ! Populate the columns of the Bogoliubov transformation that have not 
+        ! been evolved. Note the extra minus sign when time-reversal is conserved.
+$TR     Bogo(sb  +1:sb  +T, sb+T+1-i) =-Bogo(sb+T+1:sb+2*T, sb+T+i)   
+$NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
+        Bogo(sb+T+1:sb+2*T, sb+T+1-i) = Bogo(sb  +1:sb+  T, sb+T+i)   
+      enddo
+      
       sb = sb + 2*T
     enddo
 
@@ -754,12 +747,21 @@ $NTR  N20(si+1:si+T,si+1:si+T) = matmul(transpose(U),V)-matmul(transpose(V),U)
 $TR  part = 2* part
   end function particle_number_bogo
 
-  subroutine diagonalise_H11(Bogo, H11, blocks, Eqp)
+  subroutine diagonalise_H11(Bogo, prev, H11, blocks, Eqp)
     !---------------------------------------------------------------------------
-    ! Diagonalise a (precalculated) H^11 to obtain (an estimate of) the 
-    ! quasi-particle energies.
+    ! Diagonalise a (precalculated) H^11 to obtain quasiparticle energies
+    ! but (more importantly)                   
+    !
+    ! * Transform the Bogoliubov transformation to this basis
+    ! * as well as all the previous updates
+    ! 
+    ! Note that this transformation does not alter the many-body state 
+    ! (and hence no observables), but other parts of the code DO depend on the 
+    ! HFB Hamiltonian to be actually diagonalised (such as the calculation of
+    ! the rotational correction).
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)    :: H11(:,:),Bogo(:,:)
+    real(KIND=dp), intent(in)    :: H11(:,:)
+    real(KIND=dp), intent(inout) :: Bogo(:,:), prev(:,:)
     real(KIND=dp), intent(out)   :: Eqp(:)
     real(KIND=dp), allocatable   :: A(:,:), work(:)
     integer, intent(in)          :: blocks(4)
@@ -793,10 +795,15 @@ $TR  part = 2* part
       ! Transform the U and V matrices
       ! Commented out for the moment, but this allows us to transform into the 
       ! correct basis for preconditioning
-      !Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T) = &
-      !                             matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T),A)
-      !Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T) = & 
-      !                             matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T),A)
+      bogo(sb  +1:sb+  T, sb+T+1:sb+2*T) = &
+                                   matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T),A)
+      bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T) = & 
+                                   matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T),A)
+      ! But also transform the past updates, such that they stay consistent.                              
+      prev(si  +1:si+  T, si+1:si+T) = &
+                             matmul(transpose(A),prev(si  +1:si+  T, si+1:si+T))
+      prev(si  +1:si+  T, si+1:si+T) = &
+                             matmul(prev(si  +1:si+  T, si+1:si+T), A)
       !-------------------------------------------------------------------------
 
       si = si +   T

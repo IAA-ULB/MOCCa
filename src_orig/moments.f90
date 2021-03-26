@@ -1574,9 +1574,10 @@ contains
     do while(associated(Current%next))
             Current => Current%next
             if(Current%ConstraintType .eq. 0) cycle
-    if(Current%iteration      .le. 0) cycle
+            if(Current%iteration      .le. 0) cycle
             if(iter                   .gt. Current%iteration) then
                     Current%Constrainttype=0
+                    Current%multiplier    =0.0d0
                     print 4
                     print 1
                     if(Current%Impart) then

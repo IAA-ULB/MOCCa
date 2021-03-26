@@ -482,12 +482,12 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     si = 0  
-    do b = 1, 8,2
+    do B = 1, 8,2
       N = HFBlocks(b)   ; if(N.eq.0) cycle
       N2= HFBlocks(b+1)
       T = N + N2
 
-      it = 1 ; if(b.gt.4) it=2
+      it = 1 ; if(B.gt.4) it=2
 
       !-------------------------------------------------------------------------
       ! If time-reversal is conserved, we can treat all directions equally:
@@ -499,19 +499,13 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
         do j=1,N
           jj = si + j
 
-          if(rotcorr_cut) then
-            cut_cr = rotcut(spenergies(ii), it)  *  rotcut(spenergies(jj), it)
-          else 
-            cut_cr = 1.0d0
-          endif
-
 $TR       ! |< k | j_x | -l >|^2            
-$TR       jx(ii,jj)= cut_cr * angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
+$TR       jx(ii,jj)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
 $TR       ! |< k | j_y | -l >|^2 
-$TR       jy(ii,jj)= cut_cr * angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+$TR       jy(ii,jj)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
         
           ! |< k | j_z |  l >|^2 
-          jz(ii  ,jj  ) = cut_cr * angmom_z_real( hfpsi(:,:,ii  ),hfpsi(:,:,jj  ),hfdpsi(:,:,:,jj  ))
+          jz(ii  ,jj  ) = angmom_z_real( hfpsi(:,:,ii  ),hfpsi(:,:,jj  ),hfdpsi(:,:,:,jj  ))
         enddo
       enddo
       ! If time-reversal is not conserved, we have only calculated half of the 
@@ -521,12 +515,7 @@ $NTR     ii = si + N + i
 $NTR     do j=1,N2
 $NTR      jj = si + N + j
 $NTR
-$NTR      if(rotcorr_cut) then
-$NTR        cut_cr = rotcut(spenergies(ii), it)  *  rotcut(spenergies(jj), it)
-$NTR      else 
-$NTR        cut_cr = 1.0d0
-$NTR      endif
-$NTR      jz(ii  ,jj  ) = cut_cr * angmom_z_real( hfpsi(:,:,ii  ),hfpsi(:,:,jj  ),hfdpsi(:,:,:,jj  ))
+$NTR      jz(ii  ,jj  ) = angmom_z_real( hfpsi(:,:,ii  ),hfpsi(:,:,jj  ),hfdpsi(:,:,:,jj  ))
 $NTR     enddo
 $NTR  enddo
       !-------------------------------------------------------------------------
@@ -538,21 +527,78 @@ $NTR    ii = si + i
 $NTR    do j=1, N2
 $NTR       jj = si + N +  j
 $NTR
-$NTR       if(rotcorr_cut) then
-$NTR         cut_cr = rotcut(spenergies(ii), it)  *  rotcut(spenergies(jj), it)
-$NTR       else 
-$NTR         cut_cr = 1.0d0
-$NTR       endif
+
 $NTR       !|< k | j_x | l >|^2            
-$NTR       jx(ii,jj)= cut_cr * angmom_x_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
+$NTR       jx(ii,jj)= angmom_x_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
 $NTR       ! |< k | j_y | l >|^2 
-$NTR       jy(ii,jj)= cut_cr * angmom_y_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+$NTR       jy(ii,jj)= angmom_y_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
 $NTR 
 $NTR       jx(jj,ii) =  jx(ii,jj)
 $NTR       jy(jj,ii) = -jy(ii,jj)
 $NTR    enddo
 $NTR  enddo
 
+      if(rotcorr_cut) then
+        !-----------------------------------------------------------------------
+        ! The matrix elements computed above are the matrix elements in the basis
+        ! in storage. This is not necessarily the HF-basis, as the code no
+        ! longer necessarily diagonalises the sphamiltonian.
+        if(.not. diagsphamil .and. allocated(HFTransfo)) then
+             jx(si+1:si+T,si+1:si+T) = &
+             &    matmul(        jx(si+1:si+T,si+1:si+T),          &
+             &                   HFtransfo(si+1:si+T,si+1:si+T))
+             jx(si+1:si+T,si+1:si+T) = &
+             &  matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)), &
+             &                   jx(si+1:si+T,si+1:si+T))
+             
+             jy(si+1:si+T,si+1:si+T) = &
+             &    matmul(        jy(si+1:si+T,si+1:si+T),          &
+             &                   HFtransfo(si+1:si+T,si+1:si+T))
+             jy(si+1:si+T,si+1:si+T) = &
+             &  matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)), &
+             &                   jy(si+1:si+T,si+1:si+T))
+             
+             jz(si+1:si+T,si+1:si+T) = &
+             &    matmul(        jz(si+1:si+T,si+1:si+T),          &
+             &                   HFtransfo(si+1:si+T,si+1:si+T))
+             jz(si+1:si+T,si+1:si+T) = &
+             &  matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)), &
+             &                   jz(si+1:si+T,si+1:si+T))           
+        endif      
+        
+        ! Apply the cutoff in the HF basis
+        do i=1,T
+          do j=1,T
+            cut_cr = rotcut(spenergies(si+i), it) * rotcut(spenergies(si+j), it)
+            jx(si+i,si+j) = jx(si+i,si+j) * cut_cr
+            jy(si+i,si+j) = jy(si+i,si+j) * cut_cr
+            jz(si+i,si+j) = jz(si+i,si+j) * cut_cr
+          enddo
+        enddo
+        ! Transform back (if necessary)
+         if(.not. diagsphamil .and. allocated(HFTransfo)) then
+             jx(si+1:si+T,si+1:si+T) = &
+             &    matmul(          jx(si+1:si+T,si+1:si+T),          &
+             &           transpose(HFtransfo(si+1:si+T,si+1:si+T)))
+             jx(si+1:si+T,si+1:si+T) = &
+             &    matmul(          HFtransfo(si+1:si+T,si+1:si+T), &
+             &                     jx(si+1:si+T,si+1:si+T))
+             
+             jy(si+1:si+T,si+1:si+T) = &
+             &    matmul(          jy(si+1:si+T,si+1:si+T),          &
+             &           transpose(HFtransfo(si+1:si+T,si+1:si+T)))
+             jy(si+1:si+T,si+1:si+T) = &
+             &    matmul(          HFtransfo(si+1:si+T,si+1:si+T), &
+             &                     jy(si+1:si+T,si+1:si+T))
+             
+             jz(si+1:si+T,si+1:si+T) = &
+             &    matmul(          jz(si+1:si+T,si+1:si+T),          &
+             &           transpose(HFtransfo(si+1:si+T,si+1:si+T)))
+             jz(si+1:si+T,si+1:si+T) = &
+             &  matmul(            HFtransfo(si+1:si+T,si+1:si+T), &
+             &                     jz(si+1:si+T,si+1:si+T))           
+        endif    
+      endif
       !-------------------------------------------------------------------------
       ! Transform the sp. matrix elements into the canonical basis.
       ! Note that we could have directly calculated these matrix elements in
