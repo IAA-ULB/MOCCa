@@ -209,12 +209,16 @@ subroutine ReachForWaterAndFood()
     ! Derive all the single-particle wavefunctions
     call deriveHF()
 
-    ! Solve the pairing, with the current values of <h> and the pairing gaps.
-    call SolvePairing(0, ifail)
-    if(ifail.ne.0) then
-        print *, 'WARNING! Pairing solver failed.'
+    if(.not. Bogofromfile) then
+      ! Solve the pairing, with the current values of <h> and the pairing gaps.
+      ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB 
+      ! Hamiltonian with a LAPACK call
+      call SolvePairing(0, ifail)
+      if(ifail.ne.0) then
+          print *, 'WARNING! Pairing solver failed.'
+      endif
     endif
-
+    
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
@@ -234,7 +238,7 @@ subroutine ReachForWaterAndFood()
 
     PairStabfactor = CompStabilisingFactor(PairDenEnergy)
     call CalcGaps(FermiEnergy, PairStabFactor)
-    call SolvePairing(0,ifail)
+    call SolvePairing(pairingscheme,ifail)
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
