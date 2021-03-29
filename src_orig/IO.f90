@@ -237,7 +237,7 @@ contains
     ! None of a) or b) is allowed if the user does not set the AllowTransform
     ! flag to .true. This behavior is coded like that as a general safeguard.
     !---------------------------------------------------------------------------
-
+    integer :: i
     !---------------------------------------------------------------------------
     ! Input options 
     if(trim(to_upper(inputfilename)).eq.'INIT') then
@@ -258,6 +258,13 @@ contains
       ! No need to guess gaps by default (unless the user asked for it)
     endif
     
+    if(.not.allocated(HFTransfo)) then
+        allocate(HFTransfo(nwt,nwt)) 
+        HFtransfo = 0.0d0
+        do i=1,nwt
+            HFtransfo(i,i) = 1.0d0
+        enddo
+    endif
     !---------------------------------------------------------------------------  
     ! Transformation options
     if(allowtransform ) then
@@ -393,7 +400,7 @@ contains
     ! nwn, nwp, Number of wavefunctions in every block
     ! spenergies, dispersions
     ! diagsphamil
-    ! HFtransfo (if diagsphamil == .true.)
+    ! HFtransfo 
     ! (nwt) Wavefunctions                                    
     ! Forcename                                              
     ! Pairing information                                    
@@ -451,6 +458,7 @@ contains
     open (chan,form='unformatted',file=ifn)
     
     read(chan, iostat=io) version
+    print *, 'VERSION', version
     if(version .gt. version_number) then
       print *, 'Unsupported version number of the .wf file.'
       print *, 'Maximum current version: ', version_number
@@ -504,12 +512,8 @@ contains
     
     if(version .ge. 3) then
       read(chan,iostat=io) filediagsphamil
-      if(filediagsphamil) then
-        allocate(fileHFtransfo(nwt,nwt)) 
-        read(chan,iostat=io) fileHFtransfo
-      else
-        read(chan,iostat=io)
-      endif
+      allocate(fileHFtransfo(nwt,nwt)) 
+      read(chan,iostat=io) fileHFtransfo
     endif
     
     read(chan,iostat=io) HFPsi    
@@ -551,6 +555,7 @@ contains
 
         allocate(filegaps(filenwt, filenwt)) 
         allocate(kappa_pairing(filenwt, filenwt)) 
+        allocate(rho_pairing(filenwt, filenwt)) 
 
         read(chan, iostat=io) FermiEnergy       ! Lambda
         read(chan, iostat=io) rho_pairing
@@ -565,7 +570,7 @@ contains
 
         if(io.ne.0) then
           rewind(chan)
-          do c=1,15
+          do c=1,17
                 read(chan, iostat=io)
           enddo
           deallocate(temp) ; allocate(temp(filenwt, filenwt))
@@ -578,15 +583,25 @@ contains
           stop
         endif
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! For late-enough versions, we can read also the full Bogoliubov 
+        ! For late-enough versions, we can  read also the full Bogoliubov 
         ! transformation and the associated configuration matrix.
         if(version .ge. 3) then
-          allocate(filebogo(2*filenwt, 2*filenwt)) 
-          allocate(fileconfig(2*filenwt)) 
+          allocate(Bogoliubov(2*filenwt, 2*filenwt)) 
+          allocate(configmatrix(2*filenwt)) 
 
           readHFBconfig = .true.
-          read(chan, iostat=io) filebogo
-          read(chan, iostat=io) fileconfig
+          ! We simply read these arrays here. If a transformation is needed,
+          ! we will deal with it elsewhere.
+          read(chan, iostat=io) Bogoliubov
+          if (io.ne.0) then
+            print *, 'ERROR in reading the Bogoliubov transformation from file.'
+            stop
+          endif
+          read(chan, iostat=io) configmatrix
+          if (io.ne.0) then
+            print *, 'ERROR in reading the configuration matrix from file.'
+            stop
+          endif
         endif
 
         select case(pairingtype)
@@ -658,7 +673,7 @@ contains
     ! nwn, nwp, Number of wavefunctions in every block
     ! spenergies, dispersions
     ! diagsphamil
-    ! HFtransfo (if diagsphamil == .true.)
+    ! HFtransfo 
     ! (nwt) Wavefunctions                                    
     ! Forcename                                              
     ! Pairing information                                    
@@ -713,11 +728,7 @@ contains
     write(chan,iostat=io) spenergies, dispersions
     ! information on the HF transformation
     write(chan, iostat=io) diagsphamil
-    if(diagsphamil) then
-          write(chan, iostat=io) HFtransfo
-    else
-          write(chan, iostat=io)
-    endif
+    write(chan, iostat=io) HFtransfo
     
     write(chan,iostat=io) HFPsi                              
     ! Name of the force.

@@ -193,7 +193,7 @@ subroutine ReachForWaterAndFood()
 
     8 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
 
-    integer :: iter, iprint , subiter, maxsub
+    integer :: iter, iprint, subiter, maxsub, scheme
     integer :: ifail
     logical :: ConvergenceAchieved
     ! Logical to see if any moments with projection are necessary
@@ -209,14 +209,19 @@ subroutine ReachForWaterAndFood()
     ! Derive all the single-particle wavefunctions
     call deriveHF()
 
-    if(.not. Bogofromfile) then
-      ! Solve the pairing, with the current values of <h> and the pairing gaps.
-      ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB 
-      ! Hamiltonian with a LAPACK call
-      call SolvePairing(0, ifail)
-      if(ifail.ne.0) then
-          print *, 'WARNING! Pairing solver failed.'
-      endif
+    if( Bogofromfile .and. pairingscheme.eq.1) then
+      scheme = -1
+    else
+      scheme = 0
+    endif
+    call SolvePairing(scheme, ifail)
+    if(ifail.ne.0) then
+        ! Solve the pairing, with the current values of <h> and the pairing gaps.
+        ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB 
+        ! Hamiltonian with a LAPACK call. We do this if the code did not receive
+        ! explicit instructions to start from the Bogoliubov transformation on 
+        ! file. 
+        print *, 'WARNING! Pairing solver failed.'
     endif
     
     ! Calculate the initial densities and the charge density (separately)
@@ -235,9 +240,10 @@ subroutine ReachForWaterAndFood()
 
     ! Only calculate the fields that have not been initialized from file.
     call calcFields(calcall=.false.,precon= .false.)
-
     PairStabfactor = CompStabilisingFactor(PairDenEnergy)
     call CalcGaps(FermiEnergy, PairStabFactor)
+    
+    
     call SolvePairing(pairingscheme,ifail)
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)

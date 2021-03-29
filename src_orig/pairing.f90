@@ -163,7 +163,7 @@ contains
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
     &                  FermiSolver, guessgaps, HFBgauge, pairingscheme,        &
-    &                  gradient_precon
+    &                  gradient_precon, bogofromfile
 
     NameList /Indices/ BlockIndices, blocklowest
 
@@ -186,7 +186,6 @@ contains
       print *, 'This type of pairing is not implemented yet.'
       stop
     endif
-    
 
 $FORBIDBCS if( pairingtype .eq. 1) then
 $FORBIDBCS    print *, "BCS pairing treatment not allowed."
@@ -261,6 +260,7 @@ $FORBIDBCS endif
       print *, 'Invalid pairingscheme value.'
       stop
     endif
+    
   end subroutine initpairing
 
   subroutine printpairing_init
@@ -279,7 +279,10 @@ $FORBIDBCS endif
     8 format('     mu (n,p) = ', 2f5.2, ' MeV ')
    81 format('   Stabilisation active')
    82 format('    Estab(p,n)= ', 2f4.1, ' MeV')
-   83 format('   GUESSED INITIAL GAPS!')
+   83 format('   Initialisation:')
+  831 format('   -> guessed initial gaps Delta')
+  832 format('   -> started with HFB transformation from file')
+  833 format('   -> started with explicit vacuum construction')
 
    13 format('   Gas-treatment:  Normal'            )    
    14 format('   Gas-treatment:  Subtraction method')    
@@ -351,7 +354,15 @@ $FORBIDBCS endif
       print 82, Estabp, Estabn
     endif
 
-    if(guessgaps) print 83
+    print 83
+    if(pairingtype.eq.2) then
+      if(bogofromfile) then
+        print 832
+      else
+        print 833
+      endif 
+    endif
+    if(guessgaps) print 831
 
     if(particles_in_gas .eq.1) then
       print 14
@@ -451,6 +462,18 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
   subroutine SolvePairing(scheme,ifail)
     !---------------------------------------------------------------------------
     ! Master routine for the solving of the pairing equations.
+    !
+    ! Input:  
+    !   Scheme : determines the type of solution method 
+    !        (-1) => Perform no action to solution, but just pass the routine 
+    !                to make sure all needed arrays are properly allocated
+    !                and auxiliary quantities are calculated
+    !        ( 0) => Direct diagonalisation of the HFB Hamiltonian, followed by
+    !                explicit construction of a Bogoliubov vacuum state
+    !        (+1) => Perform a heavy-ball step in the limited subspace
+    ! 
+    ! Output:
+    !   ifail  : if non-zero, something went wrong with a diagonalization 
     !---------------------------------------------------------------------------
     use parameterization, only : hbm
 
@@ -472,6 +495,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         if(PairingType .eq. 2)   allocate(QPenergies(2*nwt))         
         qpenergies = 0.0
     endif
+
     ! Always allocate the configuration matrix C
     if(.not.allocated(configmatrix)) then
        allocate(configmatrix(2*nwt))      ; configmatrix = 0.0
@@ -517,12 +541,15 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
       select case(scheme)
-      case(0)
+      case(-1)
+        ! Do nothing
+        ifail = 0
+      case( 0)
         call solvepairing_HFB_direct(  &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
         &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
         &   blocked_qps, ifail)
-      case(1)
+      case(+1)
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
         &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &

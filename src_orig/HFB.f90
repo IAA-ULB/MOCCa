@@ -195,11 +195,19 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     &              qpenergies(1:2*nwn),  Fermi(1), maxhfbiter,                 &
     &              blocktype, neutron_block, n_blocked, ifail)   
 
+!    if(ifail.ne.0) then
+!      print *, 'HFB diagonalisation failed for neutrons', ifail
+!    endif
+
     call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBlocks(5:8),       &
     &              protons, configmatrix(2*nwn+1:2*nwt),                       &
     &              Bogoliubov(2*nwn+1:2*nwt, 2*nwn+1:2*nwt),                   &
     &              qpenergies(2*nwn+1:2*nwt),Fermi(2), maxhfbiter,             &
     &              blocktype, proton_block, p_blocked, ifail)     
+
+!    if(ifail.ne.0) then
+!      print *, 'HFB diagonalisation failed for protons', ifail
+!    endif
 
     ! 
     if(allocated(blocked_qps)) deallocate(blocked_qps)
@@ -208,13 +216,15 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     if(allocated(p_blocked)) NP = size(p_blocked)
     NB = NP + NN
 
-    allocate(blocked_qps(NB))
-    if(allocated(n_blocked))  blocked_qps(   1:NN) = n_blocked
-    if(allocated(p_blocked)) then
-       ! We need to offset stuff by the number of neutron qps
-       do i=1, NP
-         blocked_qps(NN+i) = p_blocked(i) + sum(HFBlocks(1:4))
-       enddo
+    if(NB.ne.0) then
+      allocate(blocked_qps(NB))
+      if(allocated(n_blocked))  blocked_qps(   1:NN) = n_blocked
+      if(allocated(p_blocked)) then
+         ! We need to offset stuff by the number of neutron qps
+         do i=1, NP
+           blocked_qps(NN+i) = p_blocked(i) + sum(HFBlocks(1:4))
+         enddo
+      endif
     endif
     !---------------------------------------------------------------------------
     !    Reorganise the matrices into the block-form used by the rest of the 
@@ -328,6 +338,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       allocate(Z_updates(2*nwt,2*nwt)) ; Z_updates = 0.0d0
     endif
     allocate(tempEqp(nwt))  ; tempEqp = 0 
+
     !---------------------------------------------------------------------------
     ! Saving the history
     Bogoliubov_history   = Bogo
@@ -338,6 +349,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     if(all(Fermi.eq.0.0))   Fermi = -5
     ! Reorganise the Bogoliubov transformation if needed
     call reorganise_Bogo_gradient(Bogo, configmatrix, grad_blocks)
+
 
     if(estimategradparams) then     
       ! Obtain an estimate for the quasi-particle energies to estimate the 
@@ -506,19 +518,6 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
         print *, 'Gradient solver can not yet be used for EFA.'
         stop    
     end select
-
-
-!    sb = 0 ; si = 0
-!    do B=1,8,2
-!      N = HFBlocks(B) ; N2 = HFblocks(B+1)       
-!      T = N + N2        
-!      do i=1,T
-!        qpenergies(sb  +i) = -tempEqp(si+T-i+1)
-!        qpenergies(sb+T+i) =  tempEqp(si+i)
-!      enddo
-!      si = si +   T
-!      sb = sb + 2*T
-!    enddo
     !---------------------------------------------------------------------------
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)

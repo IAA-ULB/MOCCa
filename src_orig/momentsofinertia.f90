@@ -543,7 +543,7 @@ $NTR  enddo
         ! The matrix elements computed above are the matrix elements in the basis
         ! in storage. This is not necessarily the HF-basis, as the code no
         ! longer necessarily diagonalises the sphamiltonian.
-        if(.not. diagsphamil .and. allocated(HFTransfo)) then
+        if(.not. diagsphamil) then
              jx(si+1:si+T,si+1:si+T) = &
              &    matmul(        jx(si+1:si+T,si+1:si+T),          &
              &                   HFtransfo(si+1:si+T,si+1:si+T))
@@ -576,7 +576,7 @@ $NTR  enddo
           enddo
         enddo
         ! Transform back (if necessary)
-         if(.not. diagsphamil .and. allocated(HFTransfo)) then
+         if(.not. diagsphamil) then
              jx(si+1:si+T,si+1:si+T) = &
              &    matmul(          jx(si+1:si+T,si+1:si+T),          &
              &           transpose(HFtransfo(si+1:si+T,si+1:si+T)))
@@ -726,32 +726,34 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
           if(ii.gt.nwn) it = 2
     
           ! Don't include the contribution from the blocked qps
-          blocked = .false.
-          do k=1, size(blocked_qps) 
-            if((si  +i) .eq. blocked_qps(k)) blocked = .true.
-            if( i.gt. N) then
-              if((si-N +i) .eq. blocked_qps(k)) blocked = .true.
-            else
-              if((si+N2+i) .eq. blocked_qps(k)) blocked = .true.
-            endif
-          enddo
-          if(blocked) cycle
-   
-         do j=1,N+N2
-            jj = j + si
-
-            ! Don't include the contribution from the blocked qps
+          if(allocated(blocked_qps)) then
             blocked = .false.
             do k=1, size(blocked_qps) 
-              if((si +     j) .eq. blocked_qps(k)) blocked = .true.
-              if( j .gt. N) then
-                if((si - N + j) .eq. blocked_qps(k)) blocked = .true.
+              if((si  +i) .eq. blocked_qps(k)) blocked = .true.
+              if( i.gt. N) then
+                if((si-N +i) .eq. blocked_qps(k)) blocked = .true.
               else
-                if((si + N2+ j) .eq. blocked_qps(k)) blocked = .true.
+                if((si+N2+i) .eq. blocked_qps(k)) blocked = .true.
               endif
             enddo
             if(blocked) cycle
-            
+          endif 
+          do j=1,N+N2
+            jj = j + si
+
+            ! Don't include the contribution from the blocked qps
+            if(allocated(blocked_qps)) then
+              blocked = .false.
+              do k=1, size(blocked_qps) 
+                if((si +     j) .eq. blocked_qps(k)) blocked = .true.
+                if( j .gt. N) then
+                  if((si - N + j) .eq. blocked_qps(k)) blocked = .true.
+                else
+                  if((si + N2+ j) .eq. blocked_qps(k)) blocked = .true.
+                endif
+              enddo
+              if(blocked) cycle
+            endif            
             ME = 0.5 * J20(ii,jj,:)**2  
             J2_coll(:,it) = J2_coll(:,it) + ME          
           enddo
@@ -831,25 +833,27 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
             ! A 'collective' Belyaev moment of inertia
             ! Don't include the contribution from the blocked qps, nor their
             ! (almost) T-reversal partners
-            blocked = .false.
-            do k=1, size(blocked_qps) 
-              if((si + i) .eq. blocked_qps(k)) blocked = .true.
+            
+            if(allocated(blocked_qps)) then
+              blocked = .false.
+              do k=1, size(blocked_qps) 
+                if((si + i) .eq. blocked_qps(k)) blocked = .true.
 
-              if(i .gt. N) then
-                if((si - N + i) .eq. blocked_qps(k)) blocked = .true.
-              else
-                if((si + N2+ i) .eq. blocked_qps(k)) blocked = .true.
-              endif
+                if(i .gt. N) then
+                  if((si - N + i) .eq. blocked_qps(k)) blocked = .true.
+                else
+                  if((si + N2+ i) .eq. blocked_qps(k)) blocked = .true.
+                endif
 
-              if((si + j) .eq. blocked_qps(k)) blocked = .true.
-              if(j .gt. N) then 
-                if((si - N + j) .eq. blocked_qps(k)) blocked = .true.
-              else
-                if((si + N2+ j) .eq. blocked_qps(k)) blocked = .true.
-              endif
-            enddo
-            if(blocked) cycle
-
+                if((si + j) .eq. blocked_qps(k)) blocked = .true.
+                if(j .gt. N) then 
+                  if((si - N + j) .eq. blocked_qps(k)) blocked = .true.
+                else
+                  if((si + N2+ j) .eq. blocked_qps(k)) blocked = .true.
+                endif
+              enddo
+              if(blocked) cycle
+            endif
             ! Note: if T = 0 then fac is always equal to one for non-blocked
             ! particles, hence not put into the formula here.
             Bely_coll(:,it) = Bely_coll(:,it) + &

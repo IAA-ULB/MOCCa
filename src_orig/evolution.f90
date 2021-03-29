@@ -274,11 +274,6 @@ contains
             allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
         endif
 
-        if(.not. diagsphamil) then
-          if(.not.allocated(HFTransfo)) allocate(HFTransfo(nwt,nwt)) 
-          HFtransfo = 0.0d0
-        endif
-
         if(EstimateParams) call IterativeEstimation(iteration)
 
         gradientnorm = 0.0_dp
@@ -330,6 +325,27 @@ contains
               enddo            
               
               gradientnorm = gradientnorm + sum(hpsi**2)*dv
+            endif
+
+            !-------------------------------------------------------------------
+            ! Add some history and 'momentum' to the update. 
+            momentum_updates(:,:,wave) = &
+            &               momentum*momentum_updates(:,:,wave) - dt/hbar * hpsi
+          enddo
+          
+          do wave=si+1, si+N
+            !-------------------------------------------------------------------
+            ! Update the wavefunctions.
+            hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
+          enddo
+          
+          
+          if(diagsphamil) then
+              hftransfo(si+1:si+N,si+1:si+N) = 0.0d0
+              do wave=1,N
+                  hftransfo(si+wave,si+wave) = 1.0d0
+              enddo
+          else
               !-----------------------------------------------------------------
               ! Diagonalize the current single-particle hamiltonian to obtain 
               ! the correct aspects of quantities in the HF basis
@@ -343,18 +359,8 @@ contains
               &                       spenergies(si+1:si+N),work,lwork,ifail)
               deallocate(work)
               !-----------------------------------------------------------------
-            endif
+          endif
 
-            !-------------------------------------------------------------------
-            ! Add some history and 'momentum' to the update. 
-            momentum_updates(:,:,wave) = &
-            &               momentum*momentum_updates(:,:,wave) - dt/hbar * hpsi
-          enddo
-          do wave=si+1, si+N
-            !-------------------------------------------------------------------
-            ! Update the wavefunctions.
-            hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
-          enddo
           si = si + N
         enddo
     
