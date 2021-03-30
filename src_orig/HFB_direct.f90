@@ -89,6 +89,12 @@ $NTR    if(blocktype.eq.3) then
 $NTR     print *, 'Can not do EFA blocking when time-reversal is not conserved.'   
 $NTR     stop
 $NTR    endif
+
+
+        print *, 'Currently not correctly implemented: blocking by overlap for'
+        print *, 'Interactions with rotational correction. The blocked_qp'
+        print *, 'array is wrong.'
+        stop
         !-----------------------------------------------------------------------
         ! The user asked for a specific configuration that needs to be 
         ! identified. The array blockconf now contains the indices in the 
@@ -161,7 +167,7 @@ $NTR    endif
           enddo
         endif
 
-        NB = sum(toblock)
+        NB = 2*sum(toblock)
         if(allocated(blocked_qp)) then
           deallocate(blocked_qp)
         endif
@@ -183,6 +189,9 @@ $NTR    endif
             ! Saving the one we flipped
             ind = ind + 1
             blocked_qp(ind) = si + j
+            ! .... and its canonical partner
+            ind = ind + 1
+            blocked_qp(ind) = si + N + j
           enddo
           si = si +   N
           sb = sb + 2*N

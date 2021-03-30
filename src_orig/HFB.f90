@@ -436,9 +436,8 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       case(0)
         ! Nothing to do
       case(2) 
-        print *, 'ENTERING'
         if(allocated(blocked_qps)) deallocate(blocked_qps)
-        NB = size(blocklowest)
+        NB = 2*size(blocklowest)
         allocate(blocked_qps(NB))
   
         do i=1, NB
@@ -449,67 +448,75 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
             stind  =    sum(HFBlocks(1:2)) + 1 
             endind =  2*sum(HFBlocks(1:2)) 
             
-            X = minloc(qpenergies(stind:endind))
-            blocked_qps(i) = X(1)
+            !X = minloc(qpenergies(stind:endind))
+            blocked_qps(i)   = HFBlocks(1) 
+            blocked_qps(i+1) = HFBlocks(1) + 1
 
           case('n-')
             stind  = 2*sum(HFBlocks(1:2)) +  sum(HFBlocks(3:4)) + 1 
             endind = 2*sum(HFBlocks(1:4)) 
  
-            X = minloc(qpenergies(stind:endind)) 
-            blocked_qps(i) = X(1) + sum(HFBlocks(1:2))
+!            X = minloc(qpenergies(stind:endind)) 
+!            blocked_qps(i) = X(1) + sum(HFBlocks(1:2))
+
+            blocked_qps(i)   = sum(HFBlocks(1:3)) 
+            blocked_qps(i+1) = sum(HFBlocks(1:3)) + 1
  
          case('p+')
             stind  = 2*sum(HFBlocks(1:4)) +  sum(HFBlocks(5:6)) + 1 
             endind = 2*sum(HFBlocks(1:6)) 
  
-            X = minloc(qpenergies(stind:endind)) 
-            blocked_qps(i) = X(1) + sum(HFBlocks(1:4))
-
+            blocked_qps(i)   = sum(HFBlocks(1:5)) 
+            blocked_qps(i+1) = sum(HFBlocks(1:5)) + 1
+ 
          case('p-')
             stind  = 2*sum(HFBlocks(1:6)) +  sum(HFBlocks(7:8)) + 1 
             endind = 2*sum(HFBlocks(1:8))   
             
-            X = minloc(qpenergies(stind:endind)) 
-            blocked_qps(i) = X(1) + sum(HFBlocks(1:6))
-            
+ 
+            blocked_qps(i)   = sum(HFBlocks(1:7)) 
+            blocked_qps(i+1) = sum(HFBlocks(1:7)) + 1
+           
           case('n0')
-            stind  =   sum(HFBlocks(1:2)) + 1 
-            endind = 2*sum(HFBlocks(1:2)) 
+             print *, 'N0 blocking not yet available for gradient solver'
+!            stind  =   sum(HFBlocks(1:2)) + 1 
+!            endind = 2*sum(HFBlocks(1:2)) 
 
-            X = minloc(qpenergies(stind:endind)) 
-            E1= minval(qpenergies(stind:endind))
+!            X = minloc(qpenergies(stind:endind)) 
+!            E1= minval(qpenergies(stind:endind))
 
-            stind  = 2*sum(HFBlocks(1:2)) + sum(HFBlocks(3:4)) + 1 
-            endind = 2*sum(HFBlocks(1:4)) 
-            
-            Y = minloc(qpenergies(stind:endind)) 
-            E2= minval(qpenergies(stind:endind))
+!            stind  = 2*sum(HFBlocks(1:2)) + sum(HFBlocks(3:4)) + 1 
+!            endind = 2*sum(HFBlocks(1:4)) 
+!            
+!            Y = minloc(qpenergies(stind:endind)) 
+!            E2= minval(qpenergies(stind:endind))
 
-            if(E2 .lt. E1) then
-              blocked_qps(i) = Y(1) + sum(HFBlocks(1:2))
-            else
-              blocked_qps(i) = X(1)
-            endif
+!            if(E2 .lt. E1) then
+!              blocked_qps(i) = Y(1) + sum(HFBlocks(1:2))
+!            else
+!              blocked_qps(i) = X(1)
+!            endif
 
           case('p0')
-            stind  = 2*sum(HFBlocks(1:4))  + sum(HFBlocks(5:6)) + 1 
-            endind = 2*sum(HFBlocks(1:6)) 
+             print *, 'P0 blocking not yet available for gradient solver'
 
-            X = minloc(qpenergies(stind:endind)) 
-            E1= minval(qpenergies(stind:endind))
+!            stind  = 2*sum(HFBlocks(1:4))  + sum(HFBlocks(5:6)) + 1 
+!            endind = 2*sum(HFBlocks(1:6)) 
 
-            stind  = 2*sum(HFBlocks(1:6))  + sum(HFBlocks(7:8)) + 1 
-            endind = 2*sum(HFBlocks(1:8)) 
+!            X = minloc(qpenergies(stind:endind)) 
+!            E1= minval(qpenergies(stind:endind))
 
-            X = minloc(qpenergies(stind:endind)) 
-            E1= minval(qpenergies(stind:endind))
+!            stind  = 2*sum(HFBlocks(1:6))  + sum(HFBlocks(7:8)) + 1 
+!            endind = 2*sum(HFBlocks(1:8)) 
 
-           if(E2 .lt. E1) then
-              blocked_qps(i) = Y(1) + sum(HFBlocks(1:6))
-            else
-              blocked_qps(i) = X(1) + sum(HFBlocks(1:4))
-            endif
+!            X = minloc(qpenergies(stind:endind)) 
+!            E1= minval(qpenergies(stind:endind))
+
+!           if(E2 .lt. E1) then
+!              blocked_qps(i) = Y(1) + sum(HFBlocks(1:6))
+!            else
+!              blocked_qps(i) = X(1) + sum(HFBlocks(1:4))
+!            endif
           end select
         enddo
         print *, 'BLOCKED QPS', blocked_qps

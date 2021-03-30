@@ -105,8 +105,6 @@ contains
     !
     !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
     !                                     < disp_prec
-    !
-    ! 
     !---------------------------------------------------------------------------
     use Moments
     use functional

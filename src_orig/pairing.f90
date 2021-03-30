@@ -104,7 +104,13 @@ module pairing
  !------------------------------------------------------------------------------
  ! Indices of the levels to block. 
  integer, allocatable :: BlockIndices(:) 
- ! Indices of the quasi-particles that ended up blocked.
+ !------------------------------------------------------------------------------
+ ! Indices of the quasi-particles that ended up blocked + their canonical 
+ ! partners. 
+ !
+ ! This information is only used in the calculation of the rotational 
+ ! correction to the energy; to eliminate "single-particle" rotational motion
+ ! from that. If we block X particles, this array will have 2*X indices.
  integer, allocatable :: blocked_qps(:)
  !------------------------------------------------------------------------------ 
  ! EFA blocking for the lowest qp. 

@@ -481,6 +481,9 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     ! jz_ij and jx_ij are always real, and jy_ij is always imaginary.
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    print *, 'BLOCKEDQPS', blocked_qps
+
+
     si = 0  
     do B = 1, 8,2
       N = HFBlocks(b)   ; if(N.eq.0) cycle
@@ -730,11 +733,6 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             blocked = .false.
             do k=1, size(blocked_qps) 
               if((si  +i) .eq. blocked_qps(k)) blocked = .true.
-              if( i.gt. N) then
-                if((si-N +i) .eq. blocked_qps(k)) blocked = .true.
-              else
-                if((si+N2+i) .eq. blocked_qps(k)) blocked = .true.
-              endif
             enddo
             if(blocked) cycle
           endif 
@@ -746,11 +744,6 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
               blocked = .false.
               do k=1, size(blocked_qps) 
                 if((si +     j) .eq. blocked_qps(k)) blocked = .true.
-                if( j .gt. N) then
-                  if((si - N + j) .eq. blocked_qps(k)) blocked = .true.
-                else
-                  if((si + N2+ j) .eq. blocked_qps(k)) blocked = .true.
-                endif
               enddo
               if(blocked) cycle
             endif            
@@ -857,12 +850,20 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
                   if((si + N2+ j) .eq. blocked_qps(k)) blocked = .true.
                 endif
               enddo
-              if(blocked) cycle
+              if(blocked) then
+                !print *, B, blocked_qps, si +i, si+j,Qpenergies(iii) + Qpenergies(jjj), Qpenergies(iii) , Qpenergies(jjj)
+                cycle
+              endif
             endif
+            
             ! Note: if T = 0 then fac is always equal to one for non-blocked
             ! particles, hence not put into the formula here.
             Bely_coll(:,it) = Bely_coll(:,it) + &
             &               J20(ii,jj,:)**2 /(Qpenergies(iii) + Qpenergies(jjj))  
+            
+            if(qpenergies(iii)+ qpenergies(jjj) .lt. 1d-3) then
+              print *, B, iii,jjj, blocked, Qpenergies(iii), qpenergies(jjj)
+            endif
           endif        
           !---------------------------------------------------------------------
         enddo
