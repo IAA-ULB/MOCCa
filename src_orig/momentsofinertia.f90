@@ -754,8 +754,13 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
               enddo
               if(blocked) cycle
             endif            
+
+            fac =  configmatrix(sb+j) * configmatrix(sb+i)
             ME = 0.5 * J20(ii,jj,:)**2  
-            J2_coll(:,it) = J2_coll(:,it) + ME          
+            fac=  configmatrix(sb+N+N2+j) * (1 - configmatrix(sb+N+N2+i))
+            ME = ME + J11(ii,jj,:)**2 * fac
+            
+            J2_coll(:,it) = J2_coll(:,it) + ME      
           enddo
         enddo
         si = si +   N +   N2
