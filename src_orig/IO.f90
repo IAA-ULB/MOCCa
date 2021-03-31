@@ -432,7 +432,7 @@ contains
     character(len=26)            :: SYM_CODE_CHECK
     integer                      :: io, version
     logical                      :: exists
-    integer                      :: c,i 
+    integer                      :: c,i, rewindc
     real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
     logical                      :: filediagsphamil
     
@@ -569,7 +569,10 @@ contains
 
         if(io.ne.0) then
           rewind(chan)
-          do c=1,17
+          
+          rewindc=17
+          if(version.lt.3) rewindc=15
+          do c=1,rewindc
                 read(chan, iostat=io)
           enddo
           deallocate(temp) ; allocate(temp(filenwt, filenwt))
@@ -893,7 +896,7 @@ contains
       endif
     end select
   
-    write(10,'(2i4,21(1x,f20.6), i6)', advance='NO')  &
+    write(10,'(2i4,23(1x,f20.6), i6)', advance='NO')  &
     &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi,  &
     &     sqrt(rms/protons),  B(:), J2_coll(:,3)    ,             &
     &     Rotcorrection,                                          &
