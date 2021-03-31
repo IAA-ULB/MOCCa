@@ -75,7 +75,6 @@ $NTR    real(KIND=dp), allocatable :: D_I_S_hist(:,:,:,:)
     ! The amount of iterations to keep in memory for the density mixing and 
     ! estimation of the convergence rate
     integer           :: memory = 3
-    
     !---------------------------------------------------------------------------
     ! Pointer to which basis is supposed to be used to calculate the densities
     ! Based on pairingtype
@@ -97,9 +96,10 @@ subroutine densit(ifail, SaveRho)
     !---------------------------------------------------------------------------
     integer, intent(out) :: ifail
 
-    integer      :: i, it, wave, wave2, B, N, si, N2
+    integer      :: i, it, wave, wave2, B, N, si, N2, T
     real(KIND=dp):: weight
     logical      :: SaveRho
+    real(KIND=dp), allocatable :: kappa_cut(:,:)
 
     call start_timer(T_densities)
 
@@ -237,14 +237,39 @@ $BCSEXPRESSION
       do B=1,8,2
         N = HFBlocks(B) ;  if (N.eq.0) cycle
         N2= HFBlocks(B+1)
+        T = N+N2
         it = 2          
         if( B.le. 4) it = 1
+
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Calculation of the pairing cutoffs * kappa
+        kappa_cut = kappa_pairing(si+1:si+T,si+1:si+T)
+        if ((.not. diagsphamil) .and. allocated(HFtransfo)) then  
+          ! Transform to the HF-basis
+          kappa_cut =matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)),kappa_cut)
+          kappa_cut =matmul(          kappa_cut, HFtransfo(si+1:si+T,si+1:si+T))
+        endif
+        ! Multiply with the cutoffs
+        do wave=1,N
+$TR          do wave2=wave,N      
+$NTR          do wave2=N+1,N+N2      
+              kappa_cut(wave,wave2) = kappa_cut(wave,wave2) &
+              &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)
+              kappa_cut(wave2,wave) = kappa_cut(wave2,wave) &
+              &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)              
+          enddo
+        enddo
+        if((.not. diagsphamil) .and. allocated(HFtransfo)) then 
+          ! Transform back to the basis in memory
+          kappa_cut=matmul(HFtransfo(si+1:si+T,si+1:si+T), kappa_cut)
+          kappa_cut=matmul( kappa_cut,transpose(HFtransfo(si+1:si+T,si+1:si+T)))
+        endif
+
         do wave=1,N
 $TR          do wave2=wave,N      
 $NTR          do wave2=N+1,N+N2      
 
-            weight  =  2 *kappa_pairing(si+wave,si+wave2)*                     &
-            &                               Pcutoffs(si+wave)*Pcutoffs(si+wave2)
+            weight=2*kappa_cut(wave,wave2)
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
             ! Note about the factor two in the weight:
             ! 

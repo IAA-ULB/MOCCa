@@ -33,6 +33,9 @@ module evolution
     real(KIND=dp):: dt    =  0.01
     real(KIND=dp):: hbar  =  6.58211928_dp
     !---------------------------------------------------------------------------
+    ! Default value of the momentum factor.
+    real(KIND=dp) :: momentum=0.0
+    !---------------------------------------------------------------------------
     ! Norm of the gradient and weighted sum of the dispersionss
     real(KIND=dp) :: gradientnorm, d2h
     !---------------------------------------------------------------------------
@@ -49,9 +52,10 @@ module evolution
     !   HEAVYBALL => Heavy-ball dynamics
     character(len=20) :: Strategy = 'HEAVYBALL'
     !---------------------------------------------------------------------------
-    ! Allow Tantalus to estimate the runtime parameters of the algorithm 
-    ! or stay faithful to those specified by the user.
-    logical :: EstimateParams = .true.
+    ! Allow Tantalus to estimate the runtime parameters of the heavy-ball 
+    ! algorithm for the linear subproblem or stay faithful to those specified 
+    ! by the user. 
+    logical :: EstimateParams     = .true.
     !---------------------------------------------------------------------------
     !Procedure that determines the evolution of a Spwf under imaginary time.
     abstract interface
@@ -63,9 +67,6 @@ module evolution
     !---------------------------------------------------------------------------
     ! Procedure pointer for the preconditioning
     !procedure(Precondition_PG),pointer :: Precon 
-    !---------------------------------------------------------------------------
-    ! Default value of the momentum factor.
-    real(KIND=dp) :: momentum=0.0
     !---------------------------------------------------------------------------
     ! Inverse of the second order derivative matrices with appropriate constants
     real*8, allocatable :: preconX(:,:,:,:)
@@ -88,9 +89,11 @@ contains
 
         integer(dp), intent(in), optional   :: file_number   
 
-        namelist /evolution/ dt, maxiter, printiter, strategy, momentum,       &
-        &                    estimateparams
-
+        namelist /evolution/ dt, momentum,                                     &
+        &                    gradient_stepsize, gradient_mu,                   &
+        &                    maxiter, printiter, strategy,                     &
+        &                    estimateparams, estimategradparams                                  
+        
 
         if(present(file_number)) then
           read(unit=file_number, nml=evolution)
@@ -115,6 +118,16 @@ contains
         else
             stop ('STRATEGY NOT RECOGNIZED.')
         endif
+        
+        !-----------------------------------------------------------------------
+        ! If we use the heavy-ball algorithm for the pairing subproblem, we 
+        ! limit the heavy-ball algorithm in the linear subproblem to optimising
+        ! the relevant subspace and not in diagonalising the individual spwfs.
+        if(pairingscheme .eq. 1) then
+          diagsphamil = .false.
+        else
+          diagsphamil = .true.
+        endif
 
     end subroutine ReadEvolution
 
@@ -127,9 +140,12 @@ contains
         1 format(80('-'))
         2 format(' Evolution strategy: ', a20 )
         3 format('   dt= ', f7.4, ' mu= ', f7.4 )        
-        4 format('   Estimate (dt,mu)  : ', a3)
+        4 format('   Estimate (dt,mu) linear subproblem  : ', a3)
+       41 format('   Estimate (dt,mu) pairing subproblem : ', a3)
+
 !        5 format(' Preconditioning   : ', a20 )
-    
+        6 format(' Diagonalise the s.p. hamiltonian: ', a3)
+           
         print 1
         print 2, adjustl(Strategy)
         
@@ -140,7 +156,21 @@ contains
           print 3, dt, momentum
         endif
         
+        if( EstimateGRADParams) then
+          print 41, 'YES'
+        else 
+          print 41, ' NO'
+          print 3, dt, momentum
+        endif
+        
 !        print 5, adjustl(Precondition)
+
+        if(diagsphamil) then
+            print 6, 'YES'
+        else
+            print 6, 'NO'
+        endif
+
     end subroutine PrintEvolution
 
     subroutine Evolve_graddesc(iteration)
@@ -171,10 +201,6 @@ contains
         iter = iteration      ! To get around the unused variable warnings
                               ! from compilers. Note that the variable needs to
                               ! be declared for the procedure pointers to work.
-
-        ! Calculate the preconditioning matrices
-!        if(Precondition .ne. 'NONE' ) call CalculatePreconditioners()
-        
         do wave=1,nwt
             if(wave .le. nwn) then
                 iso = -1
@@ -227,14 +253,15 @@ contains
         !    < psi | h   | psi >
         !    < psi | h^2 | psi >
         !
-        ! c) Orthonormalize within symmetry blocks
+        ! c) Orthonormalize within symmetry blocks by calling ortho
         !-----------------------------------------------------------------------
         
         use wavefunctions
         
         integer, intent(in)   :: iteration
-        integer               :: wave, iso
-        real(KIND = dp)       :: hpsi(nx*ny*nz,4) 
+        integer               :: wave, iso, B, si, N, wave2, lwork, ifail
+        real(KIND=dp), allocatable :: work(:)
+        real(KIND=dp)              :: hpsi(nx*ny*nz,4) 
 
         call start_timer(T_evolution)
 
@@ -243,21 +270,20 @@ contains
             Momentum_Updates = 0.0_dp
         endif
 
-!        if(Precondition .ne. 'NONE') then
-!          print *, 'Preconditioning not supported with heavy-ball.'
-!        endif  
+        if(.not.allocated(current_sph)) then 
+            allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
+        endif
 
         if(EstimateParams) call IterativeEstimation(iteration)
 
         gradientnorm = 0.0_dp
         d2h = 0.0_dp
-        
-        do wave=1,nwt
-            if(wave .le. nwn) then
-                iso = -1
-            else
-                iso = +1
-            endif
+        si  = 0
+        do B=1,8
+          N = HFblocks(B) ; if(N.eq.0) cycle
+          iso = -1
+          if(B.gt.4) iso = +1
+          do wave=si+1,si+N
             !-------------------------------------------------------------------
             ! Calculate the action of the single-particle hamiltonian.
             hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
@@ -267,33 +293,78 @@ contains
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
           
             !-------------------------------------------------------------------
-            spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
-            dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
-            
-            select case(pairingtype)
-            case(0,1)
-              d2h          = d2h + rho_can(wave)*dispersions(wave)
-              gradientnorm = gradientnorm + rho_can(wave) *                    &
-              & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
-            case(2) 
-              d2h          = d2h + rho_pairing(wave,wave)*dispersions(wave)
-              gradientnorm = gradientnorm + rho_pairing(wave,wave) *           &
-              & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
-            end select
-            
+            if(diagsphamil) then
+              spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
+              dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
+                        
+              select case(pairingtype)
+              case(0,1)
+                d2h          = d2h + rho_can(wave)*dispersions(wave)
+                gradientnorm = gradientnorm + rho_can(wave) *                  &
+                & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
+              case(2) 
+                d2h          = d2h + rho_pairing(wave,wave)*dispersions(wave)
+                gradientnorm = gradientnorm + rho_pairing(wave,wave) *         &
+                & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
+              end select
+            endif
             !-------------------------------------------------------------------
-            ! Remove the part that is propagation in its own direction.
-            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
+            ! Current estimate for the single-particle hamiltonian
+            do wave2=wave,si+N
+                current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+                current_sph(wave ,wave2) = current_sph(wave2,wave)
+            enddo
+            !-------------------------------------------------------------------
+            if(diagsphamil) then
+              ! Remove the part that is propagation in its own direction.
+              hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
+            else
+              ! orthogonalize against the spwfs currently in storage
+              do wave2=si+1,si+N
+                hpsi =   hpsi - current_sph(wave,wave2) * hfpsi(:,:,wave2)
+              enddo            
+              
+              gradientnorm = gradientnorm + sum(hpsi**2)*dv
+            endif
+
             !-------------------------------------------------------------------
             ! Add some history and 'momentum' to the update. 
             momentum_updates(:,:,wave) = &
             &               momentum*momentum_updates(:,:,wave) - dt/hbar * hpsi
+          enddo
+          
+          do wave=si+1, si+N
             !-------------------------------------------------------------------
             ! Update the wavefunctions.
             hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
+          enddo
+          
+          
+          if(diagsphamil) then
+              hftransfo(si+1:si+N,si+1:si+N) = 0.0d0
+              do wave=1,N
+                  hftransfo(si+wave,si+wave) = 1.0d0
+              enddo
+          else
+              !-----------------------------------------------------------------
+              ! Diagonalize the current single-particle hamiltonian to obtain 
+              ! the correct aspects of quantities in the HF basis
+              HFtransfo(si+1:si+N,si+1:si+N) = current_sph(si+1:si+N, si+1:si+N)
+
+              lwork = -1; allocate(work(1))
+              call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
+              &                       spenergies(si+1:si+N),work,lwork,ifail)
+              lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
+              call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
+              &                       spenergies(si+1:si+N),work,lwork,ifail)
+              deallocate(work)
+              !-----------------------------------------------------------------
+          endif
+
+          si = si + N
         enddo
     
-        gradientnorm = sqrt(gradientnorm)/(neutrons + protons) 
+        gradientnorm = sqrt(gradientnorm) 
         d2h          = d2h/(neutrons+protons)
         ! Orthonormalize
         call GramSchmidt
@@ -301,6 +372,67 @@ contains
         call stop_timer(T_evolution)
 
     end subroutine Evolve_momentum
+
+    subroutine eval_sph(diag)
+      !------------------------------------------------------------------------
+      ! 
+      ! 
+      !------------------------------------------------------------------------
+      use wavefunctions
+        
+      integer               :: wave, iso, B, si, N, wave2, lwork, ifail
+      real(KIND = dp)       :: hpsi(nx*ny*nz,4)
+      real(KIND = dp), allocatable :: work(:), temp(:,:,:)
+      logical, intent(in)   :: diag
+
+      if(.not.allocated(current_sph)) then 
+          allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
+      endif
+
+      si  = 0
+      do B=1,8
+        N = HFblocks(B) ; if(N.eq.0) cycle
+        iso = -1
+        if(B.gt.4) iso = +1
+        do wave=si+1,si+N
+          !-------------------------------------------------------------------
+          ! Calculate the action of the single-particle hamiltonian.
+          hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
+          &              hfdpsi(:,:,:,wave)   ,                              &
+          &              hfddpsi(:,:,:,wave)  ,                              &
+          &              hfdddpsi(:,:,:,wave) ,                              &
+          &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+          !-------------------------------------------------------------------
+          ! Save the current estimate for the single-particle hamiltonian
+          do wave2=wave,si+N
+              current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+              current_sph(wave ,wave2) = current_sph(wave2,wave)
+          enddo
+        enddo
+        if(diag) then
+            lwork = -1; allocate(work(1))
+            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, &
+            &                       spenergies(si+1:si+N),work,lwork,ifail)
+            lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
+            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, &
+            &                       spenergies(si+1:si+N),work,lwork,ifail)
+            deallocate(work)
+            temp = hfpsi(:,:,si+1:si+N)
+            do wave=1,N
+              hfpsi(:,:,si+wave) = 0
+              do wave2=1,N
+                hfpsi(:,:,si+wave) = hfpsi(:,:,si+wave) + &
+                &                current_sph(si+wave,si+wave2) * temp(:,:,wave2)
+              enddo
+            enddo
+        else
+          do wave=si+1,si+N
+            spenergies(wave) = current_sph(wave,wave)
+          enddo
+        endif
+        si = si + N
+      enddo
+    end subroutine eval_sph
 
     subroutine IterativeEstimation(Iteration)
       !-------------------------------------------------------------------------
@@ -449,8 +581,9 @@ contains
 
    type(Moment),pointer  :: Current
    real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
+   real(KIND=dp)         :: mpsi(nx*ny*nz,4,nwt)
    real(KIND=dp)         :: O2, value, des
-   integer               :: it, wave, k
+   integer               :: it, wave, k, wave2, B, si, N
 
    Current    => Root
    multipole = 0.0_dp
@@ -474,15 +607,30 @@ contains
    enddo
    !---------------------------------------------------------------------------
    ! With the update in hand, we update the spwfs
-   do wave=1,nwt
+   si = 0   
+   do B=1,8
+    N = HFBlocks(B)
+    it = 1 ;  if(B.gt.4) it = 2
 
+    do wave=1,N
+      do k=1,4
+        mpsi(:,k,si+wave) = multipole(:,it) * HFPsi(:,k,si+wave)
+      enddo
+   !   if(.not.diagsphamil) then
+   !     do wave2=1,N
+   !       mpsi(:,:,si+wave) = mpsi(:,:,si+wave) &
+   !       &    - dv*sum(mpsi(:,:,si+wave)*HFpsi(:,:,si+wave2))*HFpsi(:,:,si+wave2)
+   !     enddo
+   !   endif
+    enddo
+    si = si + N
+   enddo
+   HFPsi = HFPsi - mpsi
+   do wave=1,nwt
       it = 1
       if(wave .gt. nwn) it = 2
-
       !Substituting the correction
-      do k=1,4
-        HFPsi(:,k,wave) = (1 - multipole(:,it))*HFPsi(:,k,wave)
-      enddo
+      HFPsi(:,:,wave) = HFPsi(:,:,wave) - mpsi(:,:,wave)
     enddo
    !---------------------------------------------------------------------------
    ! Finally, orthonormalisation

@@ -63,6 +63,7 @@ module wavefunctions
  ! Single-particle energies, diagonal elements of the single-particle
  ! hamiltonian: \langle psi_i | h | psi_i \rangle
  real(KIND=dp), allocatable :: spenergies(:) 
+ real(KIND=dp), allocatable :: current_sph(:,:)
  ! Dispersions of the spwfs with respect to h
  real(KIND=dp), allocatable :: dispersions(:)
  ! expectation values of the single-particle hamiltonian in the canonical basis
@@ -112,6 +113,15 @@ module wavefunctions
  real(KIND=dp)                      :: blockoverlap = 0.0
  real(KIND=dp), allocatable, target :: modelspwf(:,:,:)
 
+ !---------------------------------------------------------------------------
+ ! Tell Tantalus to either 
+ !  (i)  diagonalise the sp hamiltonian the ordinary way, i.e. using an
+ !       iterative scheme
+ !  (ii) to stop caring about the diagonalisation of the sphamiltonian
+ !       and simply care about the space spanned by the spwfs.
+ logical :: diagsphamil = .false.
+ real(KIND=dp), allocatable :: HFtransfo(:,:)
+
 contains 
 
   subroutine ReadWFdata(file_number)
@@ -144,15 +154,15 @@ contains
     !     pairing is needed, it cannot correctly guess a structure. 
     !---------------------------------------------------------------------------
     
-    real(KIND=dp)             :: homegax, homegay,homegaz, alpha,qqq
+!    real(KIND=dp)             :: homegax, homegay,homegaz, alpha,qqq
     integer                   :: i
     integer, allocatable      :: kparz(:)
     
-    alpha = 0.2    
-    qqq   = 1.0    
-    homegaz  = alpha*qqq**(-2.0/3.0)
-    homegax  = alpha*qqq**(-2*cos(-2*pi/3)/3)
-    homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
+!    alpha = 0.5    
+!    qqq   = 2.0  
+!    homegaz  = alpha*qqq**(-2.0/3.0)
+!    homegax  = alpha*qqq**(-2*cos(-2*pi/3)/3)
+!    homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
 
     allocate(hfpsi($ININX*$ININY*$ININZ,4,$ININWT)) ; hfpsi = 0.0d0
     if (allocated(kparz))  deallocate(kparz)       

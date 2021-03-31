@@ -178,6 +178,7 @@ subroutine ReachForWaterAndFood()
     use momentsofinertia  
     use cranking  
     use convergence
+    use scfiteration
     use timing
 
     implicit none
@@ -192,7 +193,7 @@ subroutine ReachForWaterAndFood()
 
     8 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
 
-    integer :: iter, iprint   
+    integer :: iter, iprint, subiter, maxsub, scheme
     integer :: ifail
     logical :: ConvergenceAchieved
     ! Logical to see if any moments with projection are necessary
@@ -201,7 +202,6 @@ subroutine ReachForWaterAndFood()
     character(len=99) :: iomsg = 'START'
 
     ifail = 0
-
     ConvergenceAchieved = .false.   
     !---------------------------------------------------------------------------
     ! Initial calculations
@@ -209,12 +209,21 @@ subroutine ReachForWaterAndFood()
     ! Derive all the single-particle wavefunctions
     call deriveHF()
 
-    ! Solve the pairing, with the current values of <h> and the pairing gaps.
-    call SolvePairing(ifail)
+    if( Bogofromfile .and. pairingscheme.eq.1) then
+      scheme = -1
+    else
+      scheme = 0
+    endif
+    call SolvePairing(0, ifail)
     if(ifail.ne.0) then
+        ! Solve the pairing, with the current values of <h> and the pairing gaps.
+        ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB 
+        ! Hamiltonian with a LAPACK call. We do this if the code did not receive
+        ! explicit instructions to start from the Bogoliubov transformation on 
+        ! file. 
         print *, 'WARNING! Pairing solver failed.'
     endif
-
+    
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
@@ -230,17 +239,18 @@ subroutine ReachForWaterAndFood()
                               !      constructed
 
     ! Only calculate the fields that have not been initialized from file.
-    call calcFields(calcall=.false.)
-
+    call calcFields(calcall=.false.,precon= .false.)
     PairStabfactor = CompStabilisingFactor(PairDenEnergy)
     call CalcGaps(FermiEnergy, PairStabFactor)
-    call SolvePairing(ifail)
+    
+    
+    call SolvePairing(pairingscheme,ifail)
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
     call CalculateMoments()
     ! Only calculate the fields that have not been initialized from file.
-    call calcFields(calcall=.false.)
+    call calcFields(calcall=.false.,precon= .true.)
 
     call setBelyaevProcedure()
     call CalcEnergy(1)
@@ -258,6 +268,7 @@ subroutine ReachForWaterAndFood()
     call printcranking  
     call printpairing(pairstabfactor)
     call PrintEnergy 
+
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
@@ -273,58 +284,53 @@ subroutine ReachForWaterAndFood()
         ! Note that the (diagonal) matrix elements of <h> get calculated here
         call Evolve(iter)
        
-        ! Save      
-        FermiHistory = FermiEnergy
-        ! Solve pairing problem
-        call SolvePairing(ifail)
-
-        ! IF SOME CRANKING or blocking IS PRESENT
-        call update_spwf_angmom()
-        call updateAM 
-
+        ! Save Fermi energy
+        FermiHistory   = FermiEnergy
         projectpresent = checkconstraints()        
 
         if(projectpresent) then
           ! Update the densities
           ! Note that this update is incorrect, as we do not want to perform a 
           ! set of derivatives
-          call densit(ifail,SaveRho=.true.)
+          call densit(ifail,SaveRho=.false.)
           call ConstructChargeDensity(ChargeDensity)
-          
           call CalculateMoments()
           ! Readjust the projection constraints here, to not take into account
           ! the update from the projection
           call ReadjustAllMoments(2)
-          
           ! Do an approximate projection on the feasible set
           call feasibleproject()
-
-          ! Solve the pairing problem.
-          call SolvePairing(ifail)
         endif
- 
+
         ! Restore all the different derivatives.
         call deriveHF()
- 
-        ! Update the densities
-        if(projectpresent) then 
-          call densit(ifail,SaveRho=.false.)
-        else
-          call densit(ifail,SaveRho=.true.)
-        endif
-        call ConstructChargeDensity(ChargeDensity)
 
+        !do subiter=1,maxsub
+          ! Solve the pairing subproblem
+          if(subiter.gt.1) then
+              call eval_sph(.false.)
+              call CalcGaps(FermiEnergy, PairStabFactor)
+          endif
+            
+          call SolvePairing(pairingscheme,ifail)
+          call densit(ifail,SaveRho=.true.)
+          call ConstructChargeDensity(ChargeDensity)
+          ! Calculate a) moments values, b) readjustment and c) finally their
+          ! contribution to the sphamiltonian.
+          call CalculateMoments()
+          call ReadjustAllMoments(1)
+          call Sphamilcontribution()
+          call calcFields(calcall=.true.,precon=.true.)
+        !enddo
+        
+        call update_spwf_angmom()
+        call updateAM
+        !-----------------------------------------------------------------------
+        ! Above: actual evolution
+        ! Below: administration
+        !-----------------------------------------------------------------------
         !See if some moments were temporary
         call TurnOffConstraints(iter)
-
-        ! Calculate a) moments values, b) readjustment and c) finally their
-        ! contribution to the sphamiltonian.
-        call CalculateMoments()
-        call ReadjustAllMoments(1)
-        call Sphamilcontribution()
-        
-        ! Update all of the fields
-        call calcFields(calcall=.true.)
 
         ! Recalculate the energy
         if(mod(iter,PrintIter).eq.0) then
@@ -346,7 +352,7 @@ subroutine ReachForWaterAndFood()
           call Converged(ConvergenceAchieved)  
         end if 
 
-        call monitor_convergence(iter)
+        !call monitor_convergence(iter)
         if(convergenceAchieved) iprint = 1
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
@@ -359,8 +365,7 @@ subroutine ReachForWaterAndFood()
             call printcranking
             call PrintMomentsofInertia
             call printpairing(PairStabfactor)
-            call PrintEnergy          
-            call convergence_report 
+            call printEnergy()
         else
             call printsummary(iter)
         endif
@@ -418,18 +423,24 @@ subroutine printsummary(iter)
 
     integer, intent(in)   :: iter
     type(Moment), pointer :: Q20, Q22, part
-    real(KIND=dp)         :: dQ20, dQ22, dF(2), DN(2)
+    real(KIND=dp)         :: dQ20, dQ22, dF(2), DN(2), dL20, dL22
      
 
     1 format (80('-'))
     2 format (' Iteration = ',i4)
-    3 format (' dt  = ', f8.4, 4x, '  mu  = ', f8.4, '  D2H = ', e8.1)
+    3 format (' dt  = ', f8.4, 4x, '  mu  = ', f8.4, ' gradn= ', es12.3, ' D2H = ', es12.3)
+   31 format (' dtg = ', f8.4, 4x, '  mug = ', f8.4, ' gradn= ', es12.3)
     4 format (' E   = ', f10.3,2x, '  DE  = ', e12.5)
-    5 format (' Q20 = ', f12.4,    '  Q22 = ', f12.4, &
-    &         ' dQ20= ', e8.1, 4x, '  dQ22= ', e8.1)
-    6 format (' dmun= ', e8.1, 4x, '  dmup= ', e8.1)
-    7 format (' dN  = ', e8.1, 4x, '  dZ  = ', e8.1)  
-    8 format (' Jz  = ', f8.3, 4x, '  dJZ = ', e8.1 )
+   41 format (' R   = ', f10.3,2x, '  DR  = ', e12.5)  
+   42 format (' R-E = ', f10.3,2x, 'D(R-E)= ', e12.5)  
+    5 format (' Q20 = ', f12.4,    '  Q22 = ', f12.4, /, &
+    &         ' dQ20= ', es8.1, 4x, '  dQ22= ', es8.1 , /, &
+    &         ' L20 = ', f12.4,    '  dL20= ', es8.1, /,  &
+    &         ' L22 = ', f12.4,    '  dL22= ', es8.1)
+
+    6 format (' dmun= ', es8.1, 4x, '  dmup= ', es8.1)
+    7 format (' dN  = ', es8.1, 4x, '  dZ  = ', es8.1)  
+    8 format (' Jz  = ', f8.3, 4x, '  dJZ = ', es8.1 )
 
     part=>FindMoment(0,0,.false.)
     Q20 =>FindMoment(2,0,.false.     )
@@ -437,9 +448,14 @@ subroutine printsummary(iter)
 
     print 1
     print 2, iter
-    print 3, dt, momentum, d2h
-    print 4, totalE,  abs(totalE - Ehistory(1))/abs(totalE)
-
+    print 3, dt, momentum, gradientnorm, d2h
+    if(pairingscheme.eq.1) then
+      print 31, gradient_stepsize, gradient_mu, sqrt(sum(HFBGradnorm**2))
+    endif
+    print 4, totalE,     (totalE - Ehistory(1))/abs(totalE)
+    print 41, Routhian,  (Routhian - Rhistory(1))/abs(Routhian)
+    print 42, Routhian-totalE, &
+    &  ((Routhian - Rhistory(1)) - (totalE - Ehistory(1)))/abs(Routhian-totalE) 
     if(fixfermi) then
         dN = part%value - part%history 
         print 7, dN
@@ -448,9 +464,12 @@ subroutine printsummary(iter)
         print 6, dF
     endif
     
-    dQ20 = abs(sum(Q20%value) - sum(Q20%history))
-    dQ22 = abs(sum(Q22%value) - sum(Q22%history))
-    print 5, sum(Q20%value), sum(Q22%value), dQ20,dQ22
+    dQ20 =    (sum(Q20%value) - sum(Q20%history))
+    dQ22 =    (sum(Q22%value) - sum(Q22%history))
+    dL20 =    Q20%multiplier - Q20%mult_hist
+    dL22 =    Q22%multiplier - Q22%mult_hist
+    print 5, sum(Q20%value), sum(Q22%value), dQ20,dQ22, &
+    &        Q20%multiplier, dL20, Q22%multiplier, dL22
     print 8, totalangmom(3), totalangmom(3) - angmomold(3)
         
 end subroutine printsummary

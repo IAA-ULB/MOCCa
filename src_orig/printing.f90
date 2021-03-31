@@ -82,7 +82,7 @@ contains
           &               Jx, Jy, Jz, JJ
         else
           print 11, wave, p, s, rho_can(wave), spenergies(wave), &
-          &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ                
+          &               dispersion(wave), 0.0, Jx, Jy, Jz, JJ                
         endif
     enddo
     
@@ -208,11 +208,11 @@ contains
     ! Print all relevant info on quasiparticles.
     ! Very bare-bones for the moment.
     !---------------------------------------------------------------------------
-    integer :: i, N, B, si, sb, ind, N2
+    integer              :: i, N, B, si, sb, ind, N2
     integer, allocatable :: indices(:)
     
     1  format (33 ('-'), 'Quasiparticles',33('-'))
-    2  format ( i3, 1f10.2, 1es12.2 )
+    2  format ( i3, 1f10.2, 2x, 1es12.2)
 
     11  format(80 ('-'))
 

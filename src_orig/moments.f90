@@ -173,7 +173,7 @@ module moments
       real(KIND=dp) :: Constraint
       !-------------------------------------------------------------------------
       ! Value of the current value of the Lagrange multiplier
-      real(KIND=dp) :: multiplier
+      real(KIND=dp) :: multiplier, mult_hist
       !-------------------------------------------------------------------------
       ! Deviation of the constraint with respect to the asked for value.
       real(KIND=dp) :: deviation
@@ -433,7 +433,9 @@ contains
     NewMoment%Value         = 0.0_dp
     NewMoment%SpherHarm     = 0.0_dp
     NewMoment%Squared       = 0.0_dp
-
+    NewMoment%multiplier    = 0.0_dp
+    NewMoment%mult_hist  = 0.0_dp
+    
     nullify(NewMoment%Calculate)
     NewMoment%Calculate   => Calculate_electric
     NewMoment%PrintMoment => PrintMoment_electric
@@ -748,7 +750,7 @@ contains
     ! Augmented Lagrangian readjustment
     if(ToReadjust%Intensity .eq. 0.0) then
           ! Find suitable intensity, if none was found before
-          ToReadjust%Intensity = 1/sum(ToReadjust%Squared)
+          ToReadjust%Intensity = 1d0/sum(ToReadjust%Squared)
           print 11
           print 12, ToReadjust%l,ToReadjust%m
           print 13
@@ -763,6 +765,7 @@ contains
     if(Toreadjust%constrainttype.eq.2) slow = 1.0
 
     ! Set the new multiplier        
+    ToReadjust%mult_hist = ToReadjust%multiplier
     ToReadjust%Multiplier =  ToReadjust%Multiplier +   slow *                  &
     &     ToReadjust%Intensity*(ToReadjust%Constraint - sum(ToReadjust%Value))
 
@@ -1525,6 +1528,7 @@ contains
   
     if(Mom%multfromfile .or. ContinueAll) then        
       Mom%Multiplier     = Multiplier
+      Mom%mult_hist   = 0.0
     endif
   end subroutine ReadMoment
 
@@ -1570,9 +1574,10 @@ contains
     do while(associated(Current%next))
             Current => Current%next
             if(Current%ConstraintType .eq. 0) cycle
-    if(Current%iteration      .le. 0) cycle
+            if(Current%iteration      .le. 0) cycle
             if(iter                   .gt. Current%iteration) then
                     Current%Constrainttype=0
+                    Current%multiplier    =0.0d0
                     print 4
                     print 1
                     if(Current%Impart) then

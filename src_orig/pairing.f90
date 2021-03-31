@@ -28,6 +28,7 @@ module pairing
  use hartreefock
  use BCS
  use HFB
+ use HFB_gradient
  use pairingcutoffs
  use timing
  use parameterization  
@@ -47,6 +48,9 @@ module pairing
  real(KIND=dp), allocatable :: configmatrix(:)
  ! ... and finally, the Bogliubov transformation.
  real(KIND=dp), allocatable :: Bogoliubov(:,:)
+ ! Do we start with the Bogoliubov transformation from file? 
+ ! This is important for the gradient solver
+ logical             :: BogoFromFile   = .false.
  !------------------------------------------------------------------------------
  ! Quasiparticle excitation energies, either HF, BCS or HFB.
  real(KIND=dp), allocatable :: QPenergies(:)
@@ -69,7 +73,7 @@ module pairing
  ! (2): Hartree-Fock-Bogoliubov
  integer :: PairingType = 0
  !------------------------------------------------------------------------------
- ! Decide which Fermisolver to use. 
+ ! Decide which Fermisolver to use for direct HFB solution strategies
  ! "Brent"  => use a modified bisection solver
  ! "Secant" => use a secant routine
  character(len=99) :: FermiSolver='Brent'
@@ -102,7 +106,13 @@ module pairing
  !------------------------------------------------------------------------------
  ! Indices of the levels to block. 
  integer, allocatable :: BlockIndices(:) 
- ! Indices of the quasi-particles that ended up blocked.
+ !------------------------------------------------------------------------------
+ ! Indices of the quasi-particles that ended up blocked + their canonical 
+ ! partners. 
+ !
+ ! This information is only used in the calculation of the rotational 
+ ! correction to the energy; to eliminate "single-particle" rotational motion
+ ! from that. If we block X particles, this array will have 2*X indices.
  integer, allocatable :: blocked_qps(:)
  !------------------------------------------------------------------------------ 
  ! EFA blocking for the lowest qp. 
@@ -139,6 +149,13 @@ module pairing
  !------------------------------------------------------------------------------
  ! Whether or not to guess some pairing gaps when starting the code.
  logical :: guessgaps = .false.
+ !-----------------------------------------------------------------------------
+ ! Determine the scheme used for solving the HFB problem in the HF basis
+ !  (0) => Direct solution, i.e. construction and diagonalisation of the 
+ !         HFB Hamiltonian
+ !  (1) => Gradient solution, i.e. following the manifold of HFB solutions
+ integer :: pairingscheme = 0
+
 
 contains
 
@@ -153,7 +170,8 @@ contains
     
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
-    &                  FermiSolver, guessgaps, HFBgauge   
+    &                  FermiSolver, guessgaps, HFBgauge, pairingscheme,        &
+    &                  gradient_precon, bogofromfile
 
     NameList /Indices/ BlockIndices, blocklowest, blockfname
 
@@ -249,6 +267,12 @@ $FORBIDBCS endif
     end select
     !---------------------------------------------------------------------------
     ! 
+    
+    if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
+      print *, 'Invalid pairingscheme value.'
+      stop
+    endif
+    
   end subroutine initpairing
 
   subroutine printpairing_init
@@ -258,6 +282,7 @@ $FORBIDBCS endif
     1 format(80('-'))
     2 format(' Pairing treatment: ', a60)
    21 format('   Fermi-solver: ', a99 )
+  211 format('   Pairing strategy:', a99)
     3 format('   Linear mixing of (rho,kappa)')    
     4 format('   Linear mixing of eigenvalues of R')
     5 format('   HFBmix = ', f5.3)
@@ -266,7 +291,10 @@ $FORBIDBCS endif
     8 format('     mu (n,p) = ', 2f5.2, ' MeV ')
    81 format('   Stabilisation active')
    82 format('    Estab(p,n)= ', 2f4.1, ' MeV')
-   83 format('   GUESSED INITIAL GAPS!')
+   83 format('   Initialisation:')
+  831 format('   -> guessed initial gaps Delta')
+  832 format('   -> started with HFB transformation from file')
+  833 format('   -> started with explicit vacuum construction')
 
    13 format('   Gas-treatment:  Normal'            )    
    14 format('   Gas-treatment:  Subtraction method')    
@@ -299,7 +327,14 @@ $FORBIDBCS endif
     case(2)
         ptreat = 'Hartree-Fock-Bogoliubov (HFB)'
         print 2, ptreat
-        print 21, adjustl(FermiSolver)
+ 
+        select case(pairingscheme)
+        case(0)
+          print 211, adjustl('Direct diagonalisation')
+          print 21, adjustl(FermiSolver)
+        case(1)
+          print 211,  adjustl('Geometric optimisation')
+        end select 
     end select
 
     if(pairingtype.eq.2) then
@@ -332,7 +367,15 @@ $FORBIDBCS endif
       print 82, Estabp, Estabn
     endif
 
-    if(guessgaps) print 83
+    print 83
+    if(pairingtype.eq.2) then
+      if(bogofromfile) then
+        print 832
+      else
+        print 833
+      endif 
+    endif
+    if(guessgaps) print 831
 
     if(particles_in_gas .eq.1) then
       print 14
@@ -422,9 +465,9 @@ $NTR          do wave2=si+N+1,si+N+N2
               else
                 s = 1
               endif
-              HFBgaps( wave, wave2) = s*min(10*abs(kappa_pairing(wave, wave2)),0.5)
+              HFBgaps( wave, wave2) = s*min(10*abs(kappa_pairing(wave, wave2)),1.5)
             else
-              HFBgaps( wave, wave2) = 0.5
+              HFBgaps( wave, wave2) = 1.5
             endif
 $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
           enddo 
@@ -434,14 +477,28 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     end select  
   end subroutine initializeGaps
   
-  subroutine SolvePairing(ifail)
+  subroutine SolvePairing(scheme,ifail)
     !---------------------------------------------------------------------------
     ! Master routine for the solving of the pairing equations.
+    !
+    ! Input:  
+    !   Scheme : determines the type of solution method 
+    !        (-1) => Perform no action to solution, but just pass the routine 
+    !                to make sure all needed arrays are properly allocated
+    !                and auxiliary quantities are calculated
+    !        ( 0) => Direct diagonalisation of the HFB Hamiltonian, followed by
+    !                explicit construction of a Bogoliubov vacuum state
+    !        (+1) => Perform a heavy-ball step in the limited subspace
+    ! 
+    ! Output:
+    !   ifail  : if non-zero, something went wrong with a diagonalization 
     !---------------------------------------------------------------------------
     use parameterization, only : hbm
+
+    integer, intent(in)        :: scheme
     integer, intent(out)       :: ifail
-    integer :: i
-    real(KIND=dp), allocatable :: tmp(:,:)
+    integer                    :: i
+    real(KIND=dp), allocatable :: tmp(:,:),sphamil(:,:)
 
     call start_timer(T_pairing)
 
@@ -456,6 +513,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         if(PairingType .eq. 2)   allocate(QPenergies(2*nwt))         
         qpenergies = 0.0
     endif
+
     ! Always allocate the configuration matrix C
     if(.not.allocated(configmatrix)) then
        allocate(configmatrix(2*nwt))      ; configmatrix = 0.0
@@ -494,25 +552,27 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       if(.not.allocated(Bogoliubov)) then
         allocate(Bogoliubov(2*nwt,2*nwt))  ; Bogoliubov    = 0.0
       endif
+      ! Depending on the algorithm in use, we build a different single-particle
+      ! hamiltonian matrix.
+      sphamil = build_sph(scheme)
+
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
-      !if(allocated(rho_history)) tmp = rho_history
-      call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
-      &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
-      &                BlockType, Blockindices, blocklowest, blocked_qps, ifail)
-
-      !if(abs(overrho).lt. 0.98 .and. abs(overrho).gt. 0.1) then
-    ! 
-    !      do i=1, 100
-    !          rho_pairing = tmp
-    !          print *, HFBGauge, overrho
-    !          HFBGauge = -0.001 * i
-    !          call solvepairing_HFB(FermiEnergy, Bogoliubov,rho_pairing, kappa_pairing,&
-    !          &                     configmatrix, qpenergies, HFBmix, HFBmixtype,      &
-    !          &                BlockType, Blockindices, blocklowest, blocked_qps, ifail)
-    !     enddo
-    !      stop
-    !endif
+      select case(scheme)
+      case(-1)
+        ! Do nothing
+        ifail = 0
+      case( 0)
+        call solvepairing_HFB_direct(  &
+        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
+        &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
+        &   blocked_qps, ifail)
+      case(+1)
+        call solvepairing_HFB_gradient( &
+        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
+        &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
+        &   blocked_qps, ifail)
+      end select
    end select
 
     !---------------------------------------------------------------------------
@@ -541,6 +601,29 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       average_gap = average_gap_HFB()
     end select
   end subroutine calc_avg_gap
+
+  function build_sph(pscheme) result(sph)
+    !---------------------------------------------------------------------------
+    !
+    !   
+    !---------------------------------------------------------------------------
+    real(KIND=dp), allocatable :: sph(:,:)
+    integer, intent(in)        :: pscheme
+    integer                    :: i
+
+    allocate(sph(nwt,nwt)) ; sph = 0.0d0
+
+    if(pscheme.eq. 0 .or. (.not. allocated(current_sph))) then
+      ! Diagonal part
+      do i=1, nwt
+        sph(i,i) = spenergies(i)
+      enddo
+    else
+      ! Full matrix
+      sph = current_sph
+    endif
+ 
+  end function build_sph
 
   subroutine printpairing(stabfactor)
     !---------------------------------------------------------------------------
@@ -601,7 +684,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
             print 11, blockoverlap
         endif
 
-        if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
+        !if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
     end select
     print 7
   end subroutine PrintPairing

@@ -46,8 +46,14 @@ implicit none
   !   version 1 : initial version of the .wf files (fit of GSk1-2)
   !               (2018 - Nov. 2020)
   !   version 2 : implementation of symmetry encoding string
-  !               (Nov. 2020 - now)
-  integer, parameter  :: version_number = 2
+  !               (Nov. 2020 - March 2021)
+  !   version 3 : inclusion of 
+  !               * the full Bogoliubov transformation 
+  !               * configuration matrix
+  !               * HF transformation for calculations with diagsphamil=.false.
+  !               (March 2021 - .....)
+  !-----------------------------------------------------------------------------
+  integer, parameter  :: version_number = 3
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100)  :: inputfilename, outputfilename
@@ -68,6 +74,8 @@ implicit none
   integer       :: filenx, fileny, filenz, filenwn, filenwp, filepairing
   integer       :: filenwt, fileneutrons, fileprotons, fileblocks(8)
   real(KIND=dp) :: filedx
+  logical       :: readHFBconfig= .false.
+  real(KIND=dp), allocatable :: filebogo(:,:), fileconfig(:), fileHFtransfo(:,:)
 
 contains
 
@@ -229,7 +237,7 @@ contains
     ! None of a) or b) is allowed if the user does not set the AllowTransform
     ! flag to .true. This behavior is coded like that as a general safeguard.
     !---------------------------------------------------------------------------
-
+    integer :: i
     !---------------------------------------------------------------------------
     ! Input options 
     if(trim(to_upper(inputfilename)).eq.'INIT') then
@@ -250,6 +258,13 @@ contains
       ! No need to guess gaps by default (unless the user asked for it)
     endif
     
+    if(.not.allocated(HFTransfo)) then
+        allocate(HFTransfo(nwt,nwt)) 
+        HFtransfo = 0.0d0
+        do i=1,nwt
+            HFtransfo(i,i) = 1.0d0
+        enddo
+    endif
     !---------------------------------------------------------------------------  
     ! Transformation options
     if(allowtransform ) then
@@ -380,23 +395,32 @@ contains
     ! Version
     ! Convergence information: E, dE                         (*)
     ! nx,ny,nz,dx,dt                    
-    ! Symmetry information                                   
+    ! Symmetry information                                   (1)    
     ! neutrons,protons
-    ! Number of wavefunctions in every block
+    ! nwn, nwp, Number of wavefunctions in every block
+    ! spenergies, dispersions
+    ! diagsphamil
+    ! HFtransfo 
     ! (nwt) Wavefunctions                                    
     ! Forcename                                              
     ! Pairing information                                    
     !    - Pairingtype
     !    - Rho_can = occupation factors 
     !      (HF)  nothing
-    !      (BCS) BCSGaps
-    !      (HFB) rho_pairing    
+    !      (BCS) Fermi level
+    !        |   BCSGaps  
+    !      (HFB) Fermi level
+    !        |   rho_pairing    
     !        |   kappa_pairing
     !        |   can_transfo
-    !        |   HFBgaps            
+    !        |   HFBgaps      
+    !        |   Bogoliubov transformation 
+    !        |   Configuration matrix      
     ! CrankingInfo                                           (*)                      
-    ! Potentials                                             
-    ! Moments                                                
+    ! Potentials                                             (2)                
+    ! Multipole Moments                                                 
+    !     | The code writes the data on ALL the multipole moments.
+    !     | For the format of the lines, see the Moments module.                                               
     !
     !---------------------------------------------------------------------------    
     use functional
@@ -408,8 +432,9 @@ contains
     character(len=26)            :: SYM_CODE_CHECK
     integer                      :: io, version
     logical                      :: exists
-    integer       :: c,i 
-    real(KIND=dp), allocatable :: filegaps(:,:), temp(:,:)
+    integer                      :: c,i 
+    real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
+    logical                      :: filediagsphamil
     
     1 format ('Number of mesh points does not correspond to file.', / &
     &         'On file: nx= ', i3, ' ny= ', i3, ' nz= ',i3,            / &
@@ -433,6 +458,7 @@ contains
     open (chan,form='unformatted',file=ifn)
     
     read(chan, iostat=io) version
+    print *, 'VERSION', version
     if(version .gt. version_number) then
       print *, 'Unsupported version number of the .wf file.'
       print *, 'Maximum current version: ', version_number
@@ -483,6 +509,13 @@ contains
     allocate(rho_can(filenwn + filenwp))
     
     read(chan,iostat=io) spenergies, dispersions    
+    
+    if(version .ge. 3) then
+      read(chan,iostat=io) filediagsphamil
+      allocate(fileHFtransfo(nwt,nwt)) 
+      read(chan,iostat=io) fileHFtransfo
+    endif
+    
     read(chan,iostat=io) HFPsi    
     ! Name of the force and functional
     read(chan, iostat=io) name_param, func_name_check
@@ -522,19 +555,22 @@ contains
 
         allocate(filegaps(filenwt, filenwt)) 
         allocate(kappa_pairing(filenwt, filenwt)) 
+        allocate(rho_pairing(filenwt, filenwt)) 
 
         read(chan, iostat=io) FermiEnergy       ! Lambda
         read(chan, iostat=io) rho_pairing
         read(chan, iostat=io) kappa_pairing     ! kappa
         read(chan, iostat=io) ! Canonical transformation
 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Do some gymnastics to read the gaps
         allocate(temp(2*filenwt, 2*filenwt))
         io = 0
-        read(chan, iostat=io) temp
+        read(chan, iostat=io) temp ! HFBGaps
 
         if(io.ne.0) then
           rewind(chan)
-          do c=1,15
+          do c=1,17
                 read(chan, iostat=io)
           enddo
           deallocate(temp) ; allocate(temp(filenwt, filenwt))
@@ -545,6 +581,27 @@ contains
         if (io.ne.0) then
           print *, 'ERROR in reading the gaps from file.'
           stop
+        endif
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! For late-enough versions, we can  read also the full Bogoliubov 
+        ! transformation and the associated configuration matrix.
+        if(version .ge. 3) then
+          allocate(Bogoliubov(2*filenwt, 2*filenwt)) 
+          allocate(configmatrix(2*filenwt)) 
+
+          readHFBconfig = .true.
+          ! We simply read these arrays here. If a transformation is needed,
+          ! we will deal with it elsewhere.
+          read(chan, iostat=io) Bogoliubov
+          if (io.ne.0) then
+            print *, 'ERROR in reading the Bogoliubov transformation from file.'
+            stop
+          endif
+          read(chan, iostat=io) configmatrix
+          if (io.ne.0) then
+            print *, 'ERROR in reading the configuration matrix from file.'
+            stop
+          endif
         endif
 
         select case(pairingtype)
@@ -559,9 +616,9 @@ contains
           enddo
         case(2)
           ! Simply copy the gaps for now
-          if (allocated(HFBGaps)) then   !EOedit
-            deallocate(HFBGaps)        !EOedit
-          end if                       !EOedit
+          if (allocated(HFBGaps)) then   
+            deallocate(HFBGaps)        
+          end if                       
           allocate(HFBGaps(filenwt, filenwt)) 
           HFBGaps = filegaps(1:filenwt, 1:filenwt)  
         end select
@@ -606,14 +663,17 @@ contains
     !---------------------------------------------------------------------------
     ! Subroutine that dumps all information to a .wf file for future runs.
     !---------------------------------------------------------------------------
-    ! Things written to file. (Not yet implemented ones are indicated by *)
+    ! Things written to file. (Not yet implemented ones are indicated by (*) )
     !
     ! Version
     ! Convergence information: E, dE                         (*)
     ! nx,ny,nz,dx,dt                    
-    ! Symmetry information                                   
+    ! Symmetry information                                   (1)    
     ! neutrons,protons
-    ! Number of wavefunctions in every block
+    ! nwn, nwp, Number of wavefunctions in every block
+    ! spenergies, dispersions
+    ! diagsphamil
+    ! HFtransfo 
     ! (nwt) Wavefunctions                                    
     ! Forcename                                              
     ! Pairing information                                    
@@ -626,16 +686,19 @@ contains
     !        |   rho_pairing    
     !        |   kappa_pairing
     !        |   can_transfo
-    !        |   HFBgaps            
-    ! Densities                                              (*)
+    !        |   HFBgaps      
+    !        |   Bogoliubov transformation 
+    !        |   Configuration matrix      
     ! CrankingInfo                                           (*)                      
+    ! Potentials                                             (2)                
     ! Multipole Moments                                                 
     !     | The code writes the data on ALL the multipole moments.
     !     | For the format of the lines, see the Moments module.
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Some remarks:
-    !   *) The symmetry information is encoded in a single string, the SYM_CODE.
+    !  (1) The symmetry information is encoded in a single string, the SYM_CODE.
+    !  (2) Potentials are written on multiple lines, see the functional module.
     !---------------------------------------------------------------------------
 
     use functional
@@ -661,6 +724,10 @@ contains
     write(Chan,iostat=io) nwn, nwp, hfblocks
     ! Wavefunctions  
     write(chan,iostat=io) spenergies, dispersions
+    ! information on the HF transformation
+    write(chan, iostat=io) diagsphamil
+    write(chan, iostat=io) HFtransfo
+    
     write(chan,iostat=io) HFPsi                              
     ! Name of the force.
     write(chan, iostat=io) name_param, func_name
@@ -685,6 +752,8 @@ contains
         write(chan, iostat=io) kappa_pairing     ! kappa
         write(chan, iostat=io) Cantransfo        ! Canonical transformation
         write(chan, iostat=io) HFBgaps           ! Full matrix of gaps
+        write(chan, iostat=io) Bogoliubov        ! Bogoliubov transformation
+        write(chan, iostat=io) configmatrix      ! Configuration matrix
     end select
     ! Cranking information                                     (NOT IMPLEMENTED)
     write(chan, iostat=io)
@@ -761,7 +830,7 @@ contains
     !      N, Z, Total energy, Q20(t), Q22(t), Q(t), Q(t),                     &   
     ! &    Gamma(n), Gamma(p),  <r^2_p>, B(1:3), J2(1:3), Rotcorrection(1:3),  &
     ! &    avgap_v2(n), avgap_uv(n), avgap_v2(p),  avgap_uv(p),                &
-    ! &    iter, io
+    ! &    tot_even, tot_odd, iter, io
     !
     ! Notes:
     ! *  <r^2_p> is calculated as in the moments module, i.e. it is calculated  
@@ -774,6 +843,10 @@ contains
     !                     by either averaging the gaps with the density matrix 
     !                     rho (v^2) or with the anomalous density kappa (uv).
     !                     This is of course zero on the HF level.
+    !
+    ! * tot_even, tot_odd are the total energies in the time-even/time-odd 
+    !   channel, separately for neutrons and protons.
+    !
     ! * io is a character that indicates if problems have been detected.
     !   Currently:
     !      * 'CONVERGED'     =>  The calculation exited when it was judged 
@@ -827,6 +900,7 @@ contains
     &     Rotcorrection,                                          &
     !   First neutron gaps
     &    average_gap(:,1), average_gap(:,2), &
+    &    tot_even, tot_odd,                  &
     &    iter
   
     write(10, '(2x, a99)') adjustl(iomsg)

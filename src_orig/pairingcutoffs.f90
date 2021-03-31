@@ -41,6 +41,9 @@ contains
         allocate(PCutoffs(nwt))
     endif
     
+    !---------------------------------------------------------------------------
+    ! We first calculate the cutoffs in the HF basis, where the single-particle
+    ! hamiltonian is diagonal
     do wave=1,nwt
         it = 1
         if(wave .gt. nwn) it = 2

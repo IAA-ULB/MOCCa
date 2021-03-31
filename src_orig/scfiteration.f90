@@ -26,13 +26,11 @@ module SCFiteration
   !  (0) => Preconditioning of necessary potentials  (here F_I_I)
   !  (1) => Linear mixing of the necessary densities (here D_I_I)
   integer :: scfscheme = 0
-
 contains
 
   subroutine readscfiteration(file_number)
     !---------------------------------------------------------------------------
     ! Read the namelist determining the SCF-update.
-    !
     !---------------------------------------------------------------------------
           
     integer(dp), intent(in), optional   :: file_number   
@@ -43,10 +41,16 @@ contains
       read (unit=file_number, nml=scfiteration)
     else
       read (unit=*, nml=scfiteration)
-    endif    
+    endif
+    ! Sanity checks
+    if((scfscheme .ne. 0) .and. (scfscheme.ne.1)) then
+      print *, 'Invalid scfscheme value.'
+      stop
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Interpreting the scfscheme choice in terms of densities and potentials
     select case(scfscheme)
-    
     case(0)
       ! Potential preconditioning
       densitymixing            = 0
@@ -56,7 +60,7 @@ contains
       densitymixing            = 1
       potentialpreconditioning = 0
     end select
-    
+
   end subroutine readscfiteration
 
   subroutine printscfiteration
@@ -68,6 +72,7 @@ contains
     2 format(' SCF iteration strategy: ',/, 2x, a30 )
     3 format('   denmix= '            , f7.4)        
     4 format('   Preconfactor= '      , f7.4)
+    5 format(' HFB solution strategy : ',/, 2x, a30 )
     
     print 1
     select case(scfscheme)
@@ -78,6 +83,7 @@ contains
       print 2, 'Linear mixing of densities'
       print 3, denmix
     end select
+
   end subroutine printscfiteration
 
 end module
