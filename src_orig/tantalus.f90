@@ -214,7 +214,7 @@ subroutine ReachForWaterAndFood()
     else
       scheme = 0
     endif
-    call SolvePairing(scheme, ifail)
+    call SolvePairing(0, ifail)
     if(ifail.ne.0) then
         ! Solve the pairing, with the current values of <h> and the pairing gaps.
         ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB 

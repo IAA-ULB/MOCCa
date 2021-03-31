@@ -746,10 +746,11 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             endif 
             !-------------------------------------------------------------------
 
+            if(QPenergies(iii).lt.0.0d0 .or. QPEnergies(jjj).lt.0.0d0) cycle
             fac =  configmatrix(iii) * configmatrix(jjj)
             ME = 0.5 * J20(ii,jj,:)**2  * fac
-            fac=  configmatrix(jjj) * (1 - configmatrix(iii))
-            ME = ME + J11(ii,jj,:)**2  * fac
+            !fac=  configmatrix(jjj) * (1 - configmatrix(iii))
+            !ME = ME + J11(ii,jj,:)**2  * fac
             
             J2_coll(:,it) = J2_coll(:,it) + ME      
           enddo
