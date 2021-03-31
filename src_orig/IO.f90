@@ -458,7 +458,6 @@ contains
     open (chan,form='unformatted',file=ifn)
     
     read(chan, iostat=io) version
-    print *, 'VERSION', version
     if(version .gt. version_number) then
       print *, 'Unsupported version number of the .wf file.'
       print *, 'Maximum current version: ', version_number
@@ -512,7 +511,7 @@ contains
     
     if(version .ge. 3) then
       read(chan,iostat=io) filediagsphamil
-      allocate(fileHFtransfo(nwt,nwt)) 
+      allocate(fileHFtransfo(filenwt,filenwt)) 
       read(chan,iostat=io) fileHFtransfo
     endif
     
@@ -894,7 +893,7 @@ contains
       endif
     end select
   
-    write(10,'(2i4,19(1x,f20.6), i6)', advance='NO')  &
+    write(10,'(2i4,21(1x,f20.6), i6)', advance='NO')  &
     &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi,  &
     &     sqrt(rms/protons),  B(:), J2_coll(:,3)    ,             &
     &     Rotcorrection,                                          &

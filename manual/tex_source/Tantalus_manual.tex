@@ -180,6 +180,8 @@ BlockType             = No blocking (0), True blocking based on indices(1),
                         True blocking based on lowest energy(2), 
                         EFA based on indices(3), EFA based on lowest energy(4).
 BlockNumber           = Number of quasiparticles to excite.
+pairingscheme         = 0 : direct solver
+                        1 : gradient solver
 /
 --------------------------------------------------------------------------------
 &Indices
@@ -225,16 +227,7 @@ BXLFIT         = string. Extra output will be written to the following file
                  where XXX      = the number of protons  (forced to be integer)
                        YYY      = the number of neutrons (forced to be integer)
                        ${BXLFIT}= the value of the string.
-
-                On this file is a single line with
-                    Z, N, Total energy, Q20(n), Q20(p), Q22(n), Q22(p),        &
-                  & Q(n), Q(p), G(n), G(p), <r^2_p>
-       
-                where E is the total energy calculated from the functional, the 
-                proton radius is calculated from the charge density, Q is the 
-                total deformation, and G is the triaxiality angle gamma. 
-                (Q and G are defined in Eq. 68 and 69 in 
-                   W. Ryssens, CPC 187, 175-194 (2015))
+                The exact content of this file is explained below.
 checkpointiter= Write a checkpoint (wavefunction file) to disk every time this
                 many iterations have passed.
 denfile       =  filenames for the write-out of extra information. In order: 
@@ -310,7 +303,7 @@ and writes a single line to it at the end of the iterations.
 
 \begin{Verbatim}
 N, Z, Total energy, Q20(t), Q22(t), Q(t), Gamma(t), R_charge^RMS, Belyaev,  J2
-          Rotcorrection, avgap_v2, avgap_uv, iter, iomsg
+          Rotcorrection, avgap_v2, avgap_uv, tot_even, tot_odd,  iter, iomsg
 \end{Verbatim}
 
 The individual entries are
@@ -329,6 +322,9 @@ Q(t)         = Total quadrupole moments of the total density. Units of fm^2.
                the orientation of the nucleus in the box.
 Gamma(t)     = Triaxality angle of the total density in DEGREES. This quantity
                depends on the orientation of the nucleus in the box. 
+                (Q and G are defined in Eq. 68 and 69 in 
+                   W. Ryssens, CPC 187, 175-194 (2015))
+
 R_charge^RMS = RMS radius of the charge density. Includes the finite size 
                correction of the protons and neutrons if asked for.
 Belyaev      = Belyaev moment of inertia along every axis. (This is the ad-hoc
@@ -341,6 +337,8 @@ avgap_v2/uv  = is the average gap for protons or neutrons as
                by either averaging the gaps with the density matrix 
                rho (v^2) or with the anomalous density kappa (uv) for protons
                and neutrons.
+tot_even     = total energy from the time-even part of the functional (n and p)
+tot_odd      = total energy from the time-odd part of the functional (n and p)               
 iter         = Number of SCF iterations performed by the code before exiting. 
 iomsg        = Output message by the code. Currently can be 
                CONVERGED : the code exited because it judged convergence to be reached.
@@ -348,6 +346,7 @@ iomsg        = Output message by the code. Currently can be
                CHECKPOINT: this wavefunction file was written as a checkpoint
                More exit codes will undoubtedly be added.
 \end{Verbatim}
+
 
 
 \clearpage
