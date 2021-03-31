@@ -450,7 +450,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
             
             !X = minloc(qpenergies(stind:endind))
             blocked_qps(i)   = HFBlocks(1) 
-            blocked_qps(i+1) = HFBlocks(1) + 1
+           ! blocked_qps(i+1) = HFBlocks(1) + 1
 
           case('n-')
             stind  = 2*sum(HFBlocks(1:2)) +  sum(HFBlocks(3:4)) + 1 
@@ -460,14 +460,14 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
 !            blocked_qps(i) = X(1) + sum(HFBlocks(1:2))
 
             blocked_qps(i)   = sum(HFBlocks(1:3)) 
-            blocked_qps(i+1) = sum(HFBlocks(1:3)) + 1
+           ! blocked_qps(i+1) = sum(HFBlocks(1:3)) + 1
  
          case('p+')
             stind  = 2*sum(HFBlocks(1:4)) +  sum(HFBlocks(5:6)) + 1 
             endind = 2*sum(HFBlocks(1:6)) 
  
             blocked_qps(i)   = sum(HFBlocks(1:5)) 
-            blocked_qps(i+1) = sum(HFBlocks(1:5)) + 1
+           ! blocked_qps(i+1) = sum(HFBlocks(1:5)) + 1
  
          case('p-')
             stind  = 2*sum(HFBlocks(1:6)) +  sum(HFBlocks(7:8)) + 1 
@@ -475,7 +475,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
             
  
             blocked_qps(i)   = sum(HFBlocks(1:7)) 
-            blocked_qps(i+1) = sum(HFBlocks(1:7)) + 1
+           ! blocked_qps(i+1) = sum(HFBlocks(1:7)) + 1
            
           case('n0')
              print *, 'N0 blocking not yet available for gradient solver'

@@ -481,8 +481,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     ! jz_ij and jx_ij are always real, and jy_ij is always imaginary.
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
-    print *, 'BLOCKEDQPS', blocked_qps
-
+    !print *, 'BLOCKEDQPS', blocked_qps
 
     si = 0  
     do B = 1, 8,2
@@ -725,33 +724,32 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
         N2 = hfblocks(b+1)
         do i=1, N + N2
           ii = si + i
+          iii= sb + N + N2 + i
           it = 1
           if(ii.gt.nwn) it = 2
-    
+          
+          !-------------------------------------------------------------------
           ! Don't include the contribution from the blocked qps
-          if(allocated(blocked_qps)) then
-            blocked = .false.
-            do k=1, size(blocked_qps) 
-              if((si  +i) .eq. blocked_qps(k)) blocked = .true.
-            enddo
-            if(blocked) cycle
+          if(blocktype.eq.4) then
+             if(configmatrix(iii) .eq. 0.5d0) cycle
           endif 
+          !-------------------------------------------------------------------
+
           do j=1,N+N2
-            jj = j + si
+            jj = si + j
+            jjj= sb + N + N2 + j
 
+            !-------------------------------------------------------------------
             ! Don't include the contribution from the blocked qps
-            if(allocated(blocked_qps)) then
-              blocked = .false.
-              do k=1, size(blocked_qps) 
-                if((si +     j) .eq. blocked_qps(k)) blocked = .true.
-              enddo
-              if(blocked) cycle
-            endif            
+            if(blocktype.eq.4) then
+              if(configmatrix(jjj) .eq. 0.5d0) cycle
+            endif 
+            !-------------------------------------------------------------------
 
-            fac =  configmatrix(sb+j) * configmatrix(sb+i)
-            ME = 0.5 * J20(ii,jj,:)**2  
-            fac=  configmatrix(sb+N+N2+j) * (1 - configmatrix(sb+N+N2+i))
-            ME = ME + J11(ii,jj,:)**2 * fac
+            fac =  configmatrix(iii) * configmatrix(jjj)
+            ME = 0.5 * J20(ii,jj,:)**2  * fac
+            fac=  configmatrix(jjj) * (1 - configmatrix(iii))
+            ME = ME + J11(ii,jj,:)**2  * fac
             
             J2_coll(:,it) = J2_coll(:,it) + ME      
           enddo
@@ -828,39 +826,27 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
           endif 
 
           if(inversetemp.lt.0) then
+            !-------------------------------------------------------------------
             ! A 'collective' Belyaev moment of inertia
-            ! Don't include the contribution from the blocked qps, nor their
-            ! (almost) T-reversal partners
-            
-            if(allocated(blocked_qps)) then
+            ! Don't include the contribution from the blocked qps
+            if(blocktype.eq.4) then
               blocked = .false.
-              do k=1, size(blocked_qps) 
-                if((si + i) .eq. blocked_qps(k)) blocked = .true.
-
-                if(i .gt. N) then
-                  if((si - N + i) .eq. blocked_qps(k)) blocked = .true.
-                else
-                  if((si + N2+ i) .eq. blocked_qps(k)) blocked = .true.
-                endif
-
-                if((si + j) .eq. blocked_qps(k)) blocked = .true.
-                if(j .gt. N) then 
-                  if((si - N + j) .eq. blocked_qps(k)) blocked = .true.
-                else
-                  if((si + N2+ j) .eq. blocked_qps(k)) blocked = .true.
-                endif
-              enddo
-              if(blocked) then
-                !print *, B, blocked_qps, si +i, si+j,Qpenergies(iii) + Qpenergies(jjj), Qpenergies(iii) , Qpenergies(jjj)
-                cycle
-              endif
-            endif
-            
+              if(configmatrix(sb+i).eq.0.5d0) cycle
+              if(configmatrix(sb+j).eq.0.5d0) cycle
+            endif 
+            !-------------------------------------------------------------------
+            if(QPenergies(iii).lt. 0.0d0 .or. Qpenergies(jjj) .lt. 0.0d0) cycle
+           
             ! Note: if T = 0 then fac is always equal to one for non-blocked
             ! particles, hence not put into the formula here.
+            fac = 1 - configmatrix(sb+i) - configmatrix(sb+j)
             Bely_coll(:,it) = Bely_coll(:,it) + &
             &               J20(ii,jj,:)**2 /(Qpenergies(iii) + Qpenergies(jjj))  
-            
+            !fac =  configmatrix(sb+j) - configmatrix(sb+i)
+            !if(abs(Qpenergies(iii) - Qpenergies(jjj)) .gt. 1d-8) then
+            !  Bely_coll(:,it) = Bely_coll(:,it) + &
+            !  &       fac*J11(ii,jj,:)**2 /(Qpenergies(iii)-Qpenergies(jjj))  
+            !endif  
             if(qpenergies(iii)+ qpenergies(jjj) .lt. 1d-3) then
               print *, B, iii,jjj, blocked, Qpenergies(iii), qpenergies(jjj)
             endif
