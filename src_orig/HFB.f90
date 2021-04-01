@@ -207,19 +207,11 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     &              qpenergies(1:2*nwn),  Fermi(1), maxhfbiter,                 &
     &              blocktype, neutron_block, n_blocked, ifail)   
 
-!    if(ifail.ne.0) then
-!      print *, 'HFB diagonalisation failed for neutrons', ifail
-!    endif
-
     call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBlocks(5:8),       &
     &              protons, configmatrix(2*nwn+1:2*nwt),                       &
     &              Bogoliubov(2*nwn+1:2*nwt, 2*nwn+1:2*nwt),                   &
     &              qpenergies(2*nwn+1:2*nwt),Fermi(2), maxhfbiter,             &
     &              blocktype, proton_block, p_blocked, ifail)     
-
-!    if(ifail.ne.0) then
-!      print *, 'HFB diagonalisation failed for protons', ifail
-!    endif
 
     ! 
     if(allocated(blocked_qps)) deallocate(blocked_qps)
@@ -642,6 +634,12 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       & matmul(transpose(Bogo(sb+1:sb+2*T,sb+1:sb+2*T)), &
       &                  HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T) )
 
+!      if(B.eq.3) then
+!        do i=1, 2*T
+!          print ('(99f10.3)'), HFBhamil(sb+i, sb+1:sb+2*T)
+!        enddo
+!      endif
+      
       do i=1, 2*T
         eigen(sb+i) = HFBHamil(sb+i, sb+i)
       enddo

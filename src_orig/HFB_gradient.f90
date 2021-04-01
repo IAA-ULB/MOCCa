@@ -641,7 +641,7 @@ $TR                              &  - matmul(V, hU) - matmul(V, dV)
     !---------------------------------------------------------------------------
     ! Calculate the 11 component of H 
     !  
-    !   H^11 = U^T h U + U^T Delta V + V^T Delta U - V^t h V
+    !   H^11 = U^T h U + U^T Delta V - V^T Delta U - V^t h V
     ! 
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)  :: h(:,:), bogo(:,:), gaps(:,:)
@@ -677,7 +677,7 @@ $TR                              &  - matmul(V, hU) - matmul(V, dV)
 
       ! We can save some effort here in the future, H20 is antisymmetric     
       H11(si+1:si+T, si+1:si+T)  = matmul(U, hU) + matmul(U, dV) &
-                              &  + matmul(V, dU) - matmul(V, hV)
+                              &  - matmul(V, dU) - matmul(V, hV)
 
       si = si +  T
       sb = sb +2*T
