@@ -563,22 +563,24 @@ contains
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Do some gymnastics to read the gaps
-        allocate(temp(2*filenwt, 2*filenwt))
+        allocate(temp(filenwt, filenwt))
         io = 0
         read(chan, iostat=io) temp ! HFBGaps
-
-        if(io.ne.0) then
-          rewind(chan)
-          
-          rewindc=17
-          if(version.lt.3) rewindc=15
-          do c=1,rewindc
-                read(chan, iostat=io)
-          enddo
-          deallocate(temp) ; allocate(temp(filenwt, filenwt))
-          read(chan, iostat=io) temp
-        endif    
-        filegaps = temp(1:filenwt, 1:filenwt)
+        
+        ! We no longer do these gymnastics, which were only necessary to support
+        ! old .wf files, none of which still exist I think.
+!        if(io.ne.0) then
+!          rewind(chan)
+!          
+!          rewindc=17
+!          if(version.lt.3) rewindc=15
+!          do c=1,rewindc
+!                read(chan, iostat=io)
+!          enddo
+!          deallocate(temp) ; allocate(temp(filenwt, filenwt))
+!          read(chan, iostat=io) temp
+!        endif    
+!        filegaps = temp(1:filenwt, 1:filenwt)
 
         if (io.ne.0) then
           print *, 'ERROR in reading the gaps from file.'

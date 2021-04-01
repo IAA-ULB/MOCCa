@@ -347,7 +347,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     endif
 
     if(.not.allocated(Z_updates)) then
-      allocate(Z_updates(2*nwt,2*nwt)) ; Z_updates = 0.0d0
+      allocate(Z_updates(nwt,nwt)) ; Z_updates = 0.0d0
     endif
     allocate(tempEqp(nwt))  ; tempEqp = 0 
 
@@ -404,7 +404,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     &                  neutrons, Bogo(1:2*nwn,1:2*nwn),                        &
     &                  tempEqp(1:nwn),Fermi(1),                                &
     &                  gradient_stepsize, gradient_mu,                         &
-    &                  Z_updates(1:2*nwn,1:2*nwn),                             &
+    &                  Z_updates(1:nwn,1:nwn),                                 &
     &                  gradient_precon, HFBgradnorm(1), grad_blocks(1:4),      &
     &                  1, ifail)
     ! and for the protons
@@ -412,7 +412,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     &                  protons,Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),              &
     &                  tempEqp(nwn+1:nwt),Fermi(2),                            &
     &                  gradient_stepsize, gradient_mu,                         &
-    &                  Z_updates(2*nwn+1:2*nwt,2*nwn+1:2*nwt),                 &
+    &                  Z_updates(nwn+1:nwt,nwn+1:nwt),                         &
     &                  gradient_precon, HFBgradnorm(2), grad_blocks(5:8),      &
     &                  1, ifail)
  
