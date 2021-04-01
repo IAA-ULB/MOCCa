@@ -75,7 +75,7 @@ implicit none
   integer       :: filenwt, fileneutrons, fileprotons, fileblocks(8)
   real(KIND=dp) :: filedx
   logical       :: readHFBconfig= .false.
-  real(KIND=dp), allocatable :: filebogo(:,:), fileconfig(:), fileHFtransfo(:,:)
+  real(KIND=dp), allocatable :: filebogo(:,:), fileconfig(:)
 
 contains
 
@@ -257,14 +257,7 @@ contains
       call ReadTantalus(12, inputfilename)
       ! No need to guess gaps by default (unless the user asked for it)
     endif
-    
-    if(.not.allocated(HFTransfo)) then
-        allocate(HFTransfo(nwt,nwt)) 
-        HFtransfo = 0.0d0
-        do i=1,nwt
-            HFtransfo(i,i) = 1.0d0
-        enddo
-    endif
+
     !---------------------------------------------------------------------------  
     ! Transformation options
     if(allowtransform ) then
@@ -286,6 +279,15 @@ contains
         print *, 'Symmetry transformation needed, but not allowed by user.'
         stop
       endif
+    endif
+    
+    ! Failsafe for the HF transformation
+    if(.not.allocated(HFTransfo)) then
+        allocate(HFTransfo(nwt,nwt)) 
+        HFtransfo = 0.0d0
+        do i=1,nwt
+            HFtransfo(i,i) = 1.0d0
+        enddo
     endif
     
     call set_spwf_symmetries(sx, sy, sz, HFblocks)
@@ -511,8 +513,8 @@ contains
     
     if(version .ge. 3) then
       read(chan,iostat=io) filediagsphamil
-      allocate(fileHFtransfo(filenwt,filenwt)) 
-      read(chan,iostat=io) fileHFtransfo
+      allocate(HFtransfo(filenwt,filenwt)) 
+      read(chan,iostat=io) HFtransfo
     endif
     
     read(chan,iostat=io) HFPsi    
@@ -566,7 +568,9 @@ contains
         allocate(temp(filenwt, filenwt))
         io = 0
         read(chan, iostat=io) temp ! HFBGaps
-        
+        filegaps = temp(1:filenwt, 1:filenwt)
+
+        !-----------------------------------------------------------------------        
         ! We no longer do these gymnastics, which were only necessary to support
         ! old .wf files, none of which still exist I think.
 !        if(io.ne.0) then
@@ -580,7 +584,7 @@ contains
 !          deallocate(temp) ; allocate(temp(filenwt, filenwt))
 !          read(chan, iostat=io) temp
 !        endif    
-!        filegaps = temp(1:filenwt, 1:filenwt)
+        !-----------------------------------------------------------------------        
 
         if (io.ne.0) then
           print *, 'ERROR in reading the gaps from file.'

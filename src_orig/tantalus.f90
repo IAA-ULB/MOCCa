@@ -214,7 +214,7 @@ subroutine ReachForWaterAndFood()
     else
       scheme = 0
     endif
-    call SolvePairing(0, ifail)
+    call SolvePairing(scheme, ifail)
     if(ifail.ne.0) then
         ! Solve the pairing, with the current values of <h> and the pairing gaps.
         ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB 
@@ -240,25 +240,13 @@ subroutine ReachForWaterAndFood()
 
     ! Only calculate the fields that have not been initialized from file.
     call calcFields(calcall=.false.,precon= .false.)
-    PairStabfactor = CompStabilisingFactor(PairDenEnergy)
-    call CalcGaps(FermiEnergy, PairStabFactor)
-    
-    
-    call SolvePairing(pairingscheme,ifail)
-    ! Calculate the initial densities and the charge density (separately)
-    call densit(ifail,SaveRho=.false.)
-    call ConstructChargeDensity(ChargeDensity)
-    call CalculateMoments()
-    ! Only calculate the fields that have not been initialized from file.
-    call calcFields(calcall=.false.,precon= .true.)
+    ! Update the angular momentum information of the spwfs
+    call update_spwf_angmom()
+    call updateAM 
 
     call setBelyaevProcedure()
     call CalcEnergy(1)
     call calc_avg_gap()
-
-    ! Update the angular momentum information of the spwfs
-    call update_spwf_angmom()
-    call updateAM 
 
     ! Initial printout
     call printSpwfs

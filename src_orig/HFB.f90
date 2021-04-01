@@ -245,7 +245,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
   subroutine solvepairing_HFB_gradient( sphamil, gaps, fermi, Bogo,            & 
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType,Blockindices,             &
-  &                          blocklowest, blocked_qps, ifail) 
+  &                          blocklowest, blocked_qps, move, ifail) 
     !---------------------------------------------------------------------------
     ! Driver routine for solving the HFB equations by heavy-ball evolution in 
     ! the manifold of Bogoliubov states connected by a Thouless transformation.
@@ -262,7 +262,9 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     !   blocklowest  : -|   the HFB problem in this routine. It is only used 
     !   blockindices : -|   to attempt to reconstruct the blocked_qp indices
     !                       after the heavy-ball step.
-    !                       
+    !   move         : logical. 
+    !                   .true. : update the Bogoliubov transformation
+    !                   .false.: don't move (useful for initialisation)                    
     !
     ! Output         :
     !   Bogo         : evolved Bogoliubov transformation
@@ -318,6 +320,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp), intent(inout) :: configmatrix(:)   , qpenergies(:) 
     real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
     integer, intent(inout)       :: ifail
+    logical, intent(in)          :: move
 
     real(KIND=dp)                :: minqp, maxqp, condi, prop
     real(KIND=dp), allocatable   :: tempEqp(:), full_eqp(:)
@@ -354,6 +357,10 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     ! Reorganise the Bogoliubov transformation if needed
     call reorganise_Bogo_gradient(Bogo, configmatrix, grad_blocks)
 
+    grad_blocks(1:4) = HFBlocks(1:4)
+    grad_blocks(5)   = HFBlocks(5) - 1
+    grad_blocks(6)   = HFBlocks(5) + 1
+    grad_blocks(7:8) = HFblocks(7:8)
 
     if(estimategradparams) then     
       ! Obtain an estimate for the quasi-particle energies to estimate the 
@@ -390,26 +397,45 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       gradient_stepsize =  2.0/maxqp * (  1 + gradient_mu) * 0.9 
       deallocate(full_eqp)
     endif    
-    !---------------------------------------------------------------------------
-    ! Heavy-ball stepping
-    call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),                 & 
-    &                  neutrons, Bogo(1:2*nwn,1:2*nwn),                        &
-    &                  tempEqp(1:nwn),Fermi(1),                                &
-    &                  gradient_stepsize, gradient_mu,                         &
-    &                  Z_updates(1:nwn,1:nwn),                                 &
-    &                  gradient_precon, HFBgradnorm(1), grad_blocks(1:4),      &
-    &                  1, ifail)
-    ! and for the protons
-    call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt), & 
-    &                  protons,Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),              &
-    &                  tempEqp(nwn+1:nwt),Fermi(2),                            &
-    &                  gradient_stepsize, gradient_mu,                         &
-    &                  Z_updates(nwn+1:nwt,nwn+1:nwt),                         &
-    &                  gradient_precon, HFBgradnorm(2), grad_blocks(5:8),      &
-    &                  1, ifail)
- 
+    
+    if(move) then
+      !-------------------------------------------------------------------------
+      ! Heavy-ball stepping
+      call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),               & 
+      &                  neutrons, Bogo(1:2*nwn,1:2*nwn),                      &
+      &                  tempEqp(1:nwn),Fermi(1),                              &
+      &                  gradient_stepsize, gradient_mu,                       &
+      &                  Z_updates(1:nwn,1:nwn),                               &
+      &                  gradient_precon, HFBgradnorm(1), grad_blocks(1:4),    &
+      &                  1, ifail)
+      ! and for the protons
+      call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt),& 
+      &                  protons,Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),            &
+      &                  tempEqp(nwn+1:nwt),Fermi(2),                          &
+      &                  gradient_stepsize, gradient_mu,                       &
+      &                  Z_updates(nwn+1:nwt,nwn+1:nwt),                       &
+      &                  gradient_precon, HFBgradnorm(2), grad_blocks(5:8),    &
+      &                  1, ifail)
+    endif
     !---------------------------------------------------------------------------
     ! Copying the Bogoliubov matrix and reordering the configuration matrix.
+    sb = 0
+    do B=1,8,2
+      N = HFblocks(B)   ; if(N.eq.0) cycle
+      N2= HFblocks(B+1)
+      T = N + N2
+  
+      do i=1,T
+        ! Populate the columns of the Bogoliubov transformation that have not 
+        ! been evolved. Note the extra minus sign when time-reversal is conserved.
+$TR     Bogo(sb  +1:sb  +T, sb+T+1-i) =-Bogo(sb+T+1:sb+2*T, sb+T+i)   
+$NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
+        Bogo(sb+T+1:sb+2*T, sb+T+1-i) = Bogo(sb  +1:sb+  T, sb+T+i)   
+      enddo
+      
+      sb = sb + 2*T
+    enddo
+    
     sb = 0
     configmatrix = 0.0d0
     do B=1,8,2
@@ -435,99 +461,99 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     ! sorting. 
     qpenergies = correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFblocks)
 
-    ! Figure out the blocked qp indices
-    select case(blocktype)
-      case(0)
-        ! Nothing to do
-      case(2) 
-        if(allocated(blocked_qps)) deallocate(blocked_qps)
-        NB = 2*size(blocklowest)
-        allocate(blocked_qps(NB))
-  
-        do i=1, NB
-          select case (Blocklowest(i))
-          ! Select the lowest overall neutron qp energy on the r.h.s of the 
-          ! Bogo transformation
-          case('n+')
-            stind  =    sum(HFBlocks(1:2)) + 1 
-            endind =  2*sum(HFBlocks(1:2)) 
-            
-            !X = minloc(qpenergies(stind:endind))
-            blocked_qps(i)   = HFBlocks(1) 
-           ! blocked_qps(i+1) = HFBlocks(1) + 1
-
-          case('n-')
-            stind  = 2*sum(HFBlocks(1:2)) +  sum(HFBlocks(3:4)) + 1 
-            endind = 2*sum(HFBlocks(1:4)) 
- 
-!            X = minloc(qpenergies(stind:endind)) 
-!            blocked_qps(i) = X(1) + sum(HFBlocks(1:2))
-
-            blocked_qps(i)   = sum(HFBlocks(1:3)) 
-           ! blocked_qps(i+1) = sum(HFBlocks(1:3)) + 1
- 
-         case('p+')
-            stind  = 2*sum(HFBlocks(1:4)) +  sum(HFBlocks(5:6)) + 1 
-            endind = 2*sum(HFBlocks(1:6)) 
- 
-            blocked_qps(i)   = sum(HFBlocks(1:5)) 
-           ! blocked_qps(i+1) = sum(HFBlocks(1:5)) + 1
- 
-         case('p-')
-            stind  = 2*sum(HFBlocks(1:6)) +  sum(HFBlocks(7:8)) + 1 
-            endind = 2*sum(HFBlocks(1:8))   
-            
- 
-            blocked_qps(i)   = sum(HFBlocks(1:7)) 
-           ! blocked_qps(i+1) = sum(HFBlocks(1:7)) + 1
-           
-          case('n0')
-             print *, 'N0 blocking not yet available for gradient solver'
-!            stind  =   sum(HFBlocks(1:2)) + 1 
-!            endind = 2*sum(HFBlocks(1:2)) 
-
-!            X = minloc(qpenergies(stind:endind)) 
-!            E1= minval(qpenergies(stind:endind))
-
-!            stind  = 2*sum(HFBlocks(1:2)) + sum(HFBlocks(3:4)) + 1 
-!            endind = 2*sum(HFBlocks(1:4)) 
+!    ! Figure out the blocked qp indices
+!    select case(blocktype)
+!      case(0)
+!        ! Nothing to do
+!      case(2) 
+!        if(allocated(blocked_qps)) deallocate(blocked_qps)
+!        NB = 2*size(blocklowest)
+!        allocate(blocked_qps(NB))
+!  
+!        do i=1, NB
+!          select case (Blocklowest(i))
+!          ! Select the lowest overall neutron qp energy on the r.h.s of the 
+!          ! Bogo transformation
+!          case('n+')
+!            stind  =    sum(HFBlocks(1:2)) + 1 
+!            endind =  2*sum(HFBlocks(1:2)) 
 !            
-!            Y = minloc(qpenergies(stind:endind)) 
-!            E2= minval(qpenergies(stind:endind))
+!            !X = minloc(qpenergies(stind:endind))
+!            blocked_qps(i)   = HFBlocks(1) 
+!           ! blocked_qps(i+1) = HFBlocks(1) + 1
 
-!            if(E2 .lt. E1) then
-!              blocked_qps(i) = Y(1) + sum(HFBlocks(1:2))
-!            else
-!              blocked_qps(i) = X(1)
-!            endif
+!          case('n-')
+!            stind  = 2*sum(HFBlocks(1:2)) +  sum(HFBlocks(3:4)) + 1 
+!            endind = 2*sum(HFBlocks(1:4)) 
+! 
+!!            X = minloc(qpenergies(stind:endind)) 
+!!            blocked_qps(i) = X(1) + sum(HFBlocks(1:2))
 
-          case('p0')
-             print *, 'P0 blocking not yet available for gradient solver'
-
-!            stind  = 2*sum(HFBlocks(1:4))  + sum(HFBlocks(5:6)) + 1 
+!            blocked_qps(i)   = sum(HFBlocks(1:3)) 
+!           ! blocked_qps(i+1) = sum(HFBlocks(1:3)) + 1
+! 
+!         case('p+')
+!            stind  = 2*sum(HFBlocks(1:4)) +  sum(HFBlocks(5:6)) + 1 
 !            endind = 2*sum(HFBlocks(1:6)) 
+! 
+!            blocked_qps(i)   = sum(HFBlocks(1:5)) 
+!           ! blocked_qps(i+1) = sum(HFBlocks(1:5)) + 1
+! 
+!         case('p-')
+!            stind  = 2*sum(HFBlocks(1:6)) +  sum(HFBlocks(7:8)) + 1 
+!            endind = 2*sum(HFBlocks(1:8))   
+!            
+! 
+!            blocked_qps(i)   = sum(HFBlocks(1:7)) 
+!           ! blocked_qps(i+1) = sum(HFBlocks(1:7)) + 1
+!           
+!          case('n0')
+!             print *, 'N0 blocking not yet available for gradient solver'
+!!            stind  =   sum(HFBlocks(1:2)) + 1 
+!!            endind = 2*sum(HFBlocks(1:2)) 
 
-!            X = minloc(qpenergies(stind:endind)) 
-!            E1= minval(qpenergies(stind:endind))
+!!            X = minloc(qpenergies(stind:endind)) 
+!!            E1= minval(qpenergies(stind:endind))
 
-!            stind  = 2*sum(HFBlocks(1:6))  + sum(HFBlocks(7:8)) + 1 
-!            endind = 2*sum(HFBlocks(1:8)) 
+!!            stind  = 2*sum(HFBlocks(1:2)) + sum(HFBlocks(3:4)) + 1 
+!!            endind = 2*sum(HFBlocks(1:4)) 
+!!            
+!!            Y = minloc(qpenergies(stind:endind)) 
+!!            E2= minval(qpenergies(stind:endind))
 
-!            X = minloc(qpenergies(stind:endind)) 
-!            E1= minval(qpenergies(stind:endind))
+!!            if(E2 .lt. E1) then
+!!              blocked_qps(i) = Y(1) + sum(HFBlocks(1:2))
+!!            else
+!!              blocked_qps(i) = X(1)
+!!            endif
 
-!           if(E2 .lt. E1) then
-!              blocked_qps(i) = Y(1) + sum(HFBlocks(1:6))
-!            else
-!              blocked_qps(i) = X(1) + sum(HFBlocks(1:4))
-!            endif
-          end select
-        enddo
-  
-      case(4)
-        print *, 'Gradient solver can not yet be used for EFA.'
-        stop    
-    end select
+!          case('p0')
+!             print *, 'P0 blocking not yet available for gradient solver'
+
+!!            stind  = 2*sum(HFBlocks(1:4))  + sum(HFBlocks(5:6)) + 1 
+!!            endind = 2*sum(HFBlocks(1:6)) 
+
+!!            X = minloc(qpenergies(stind:endind)) 
+!!            E1= minval(qpenergies(stind:endind))
+
+!!            stind  = 2*sum(HFBlocks(1:6))  + sum(HFBlocks(7:8)) + 1 
+!!            endind = 2*sum(HFBlocks(1:8)) 
+
+!!            X = minloc(qpenergies(stind:endind)) 
+!!            E1= minval(qpenergies(stind:endind))
+
+!!           if(E2 .lt. E1) then
+!!              blocked_qps(i) = Y(1) + sum(HFBlocks(1:6))
+!!            else
+!!              blocked_qps(i) = X(1) + sum(HFBlocks(1:4))
+!!            endif
+!          end select
+!        enddo
+!  
+!      case(4)
+!        print *, 'Gradient solver can not yet be used for EFA.'
+!        stop    
+!    end select
     !---------------------------------------------------------------------------
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
@@ -662,14 +688,19 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
    
     integer                      :: B, N, N2, T, sb,  NP, ind, ind2, i, ifail
     integer, allocatable         :: indices(:) 
+    real(KIND=dp)                :: compare
     
     allocate(tempBogo(2*nwt, 2*nwt))
     tempBogo = 0.0d0
     
-    ! if any of these variables have been set, then we know that the 
+    !---------------------------------------------------------------------------
+    ! if these variables have been set, then we know that the 
     ! organisation of the Bogoliubov transformation is okay
     if(any(effblocks.ne.0)) return
-
+  
+    !---------------------------------------------------------------------------
+    ! If some qp excitations were made, then we need to move things around
+    ! in the Bogoliubov transformation
     effblocks = HFblocks
     sb = 0
     do B=1,8,2
@@ -722,6 +753,43 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       sb = sb + 2*T
     enddo
     Bogo = tempbogo
+
+    !---------------------------------------------------------------------------
+    ! We have moved the Bogoliubov transformation around, such that we have 
+    ! U and V matrices that are "selected" on the r.h.s.
+    !
+    ! This situation might have also produced itself by reading a .wf file 
+    ! that had information from a calculation with a gradient solver. Hence, 
+    ! we still need to count the block sizes (again) to be sure we pass the 
+    ! gradient solver the right structure of U and V matrices.
+    sb = 0
+    do B=1,8,2
+      N = HFBlocks(B)   ; if(N.eq.0) cycle
+      N2= HFBlocks(B+1)
+      T = N+N2
+      
+      Np = 0
+      do i=1,N+N2
+        !  compare = 1     compare = 0     (to numerical precision)
+        !
+        !   ^                 ^
+        !   |                 | 
+        !  
+        ! ( U^+ )           ( 0  )
+        ! ( 0   )           ( U^-)
+        ! ( 0   )           ( V^-)
+        ! ( V^+ )           ( 0  )
+        !    
+        ! 
+        compare    = sum(Bogo(sb+1    :sb+N,sb+T+i)**2) &
+        &          + sum(Bogo(sb+T+N+1:sb+2*T,sb+T+i)**2)
+        if(abs(compare-1).lt.0.0001d0) Np = Np+ 1
+      enddo
+      
+      effBlocks(B)   = Np
+      effBlocks(B+1) = T - Np
+      sb = sb + 2 * T
+    enddo
     
   end subroutine reorganise_Bogo_gradient
 

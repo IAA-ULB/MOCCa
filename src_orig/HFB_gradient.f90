@@ -184,26 +184,6 @@ contains
     H11 = calcH11(Bogo, h, gaps, lambda, blocks)
     call diagonalise_H11(bogo, prev, H11, blocks, Eqp)
 
-    !---------------------------------------------------------------------------
-    ! Finally, we deduce the rest of the Bogoliubov transformation from the 
-    ! part we evolved. 
-    sb = 0
-    do B=1,4,2
-      N = blocks(B)   ; if(N.eq.0) cycle
-      N2= blocks(B+1)
-      T = N + N2
-  
-      do i=1,T
-        ! Populate the columns of the Bogoliubov transformation that have not 
-        ! been evolved. Note the extra minus sign when time-reversal is conserved.
-$TR     Bogo(sb  +1:sb  +T, sb+T+1-i) =-Bogo(sb+T+1:sb+2*T, sb+T+i)   
-$NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
-        Bogo(sb+T+1:sb+2*T, sb+T+1-i) = Bogo(sb  +1:sb+  T, sb+T+i)   
-      enddo
-      
-      sb = sb + 2*T
-    enddo
-
   end subroutine gradient_step
   
   function precon_grad(grad, Eqp)  result(Pgrad)

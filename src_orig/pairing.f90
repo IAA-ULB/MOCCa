@@ -483,13 +483,12 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     !
     ! Input:  
     !   Scheme : determines the type of solution method 
-    !        (-1) => Perform no action to solution, but just pass the routine 
-    !                to make sure all needed arrays are properly allocated
-    !                and auxiliary quantities are calculated
+    !
     !        ( 0) => Direct diagonalisation of the HFB Hamiltonian, followed by
     !                explicit construction of a Bogoliubov vacuum state
     !        (+1) => Perform a heavy-ball step in the limited subspace
-    ! 
+    !        (-1) => Do everything similar to a heavy-ball step, but don't 
+    !                actually update the Bogoliubov transformation
     ! Output:
     !   ifail  : if non-zero, something went wrong with a diagonalization 
     !---------------------------------------------------------------------------
@@ -559,9 +558,6 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
       select case(scheme)
-      case(-1)
-        ! Do nothing
-        ifail = 0
       case( 0)
         call solvepairing_HFB_direct(  &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
@@ -571,7 +567,12 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
         &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
-        &   blocked_qps, ifail)
+        &   blocked_qps, .true. , ifail)
+      case(-1)
+        call solvepairing_HFB_gradient( &
+        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
+        &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
+        &   blocked_qps, .false., ifail)
       end select
    end select
 
