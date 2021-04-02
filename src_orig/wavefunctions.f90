@@ -167,9 +167,9 @@ contains
     allocate(hfpsi($ININX*$ININY*$ININZ,4,$ININWT)) ; hfpsi = 0.0d0
     if (allocated(kparz))  deallocate(kparz)       
 
-    osc_freq(1) = 0.225  
-    osc_freq(2) = 0.225   
-    osc_freq(3) = 0.15   
+!    osc_freq(1) = 0.225  
+!    osc_freq(2) = 0.225   
+!    osc_freq(3) = 0.15   
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
     call nilsson (HFPsi,kparz,spenergies,8,7,$ININWT,$ININWP,$ININWN,          &
