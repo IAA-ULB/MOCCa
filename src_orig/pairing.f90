@@ -423,6 +423,7 @@ $FORBIDBCS endif
     !
     !---------------------------------------------------------------------------
     integer :: wave, wave2, si, B, N, s, N2
+    logical :: collapsed
 
     select case (PairingType)
     case(0)
@@ -450,6 +451,12 @@ $FORBIDBCS endif
       do B= 1,8,2 ! Loop over only half of the blocks
         N = HFBlocks(B) ; if(N.eq.0) cycle
         N2= HFblocks(B+1)
+        
+        collapsed = .false.
+        if(all(abs(kappa_pairing(si+1:si+N+N2,si+1:si+N+N2)).lt.1d-3)) then
+          collapsed = .false.
+        endif
+        
         do wave=si+1,si+N
              !------------------------------------------------------------------
              ! If there is a conserved time-like symmetry, then we store only
@@ -457,9 +464,10 @@ $FORBIDBCS endif
 $TR             do wave2=si+1,si+N
 $NTR          do wave2=si+N+1,si+N+N2
              !------------------------------------------------------------------
-            if(allocated(kappa_pairing)) then
+            if(allocated(kappa_pairing) .and. (.not. collapsed)) then
               ! We've found a kappa on file and can use it to guess better 
-              ! signs and sizes
+              ! signs and sizes; but only if the pairing has not collapsed in
+              ! this symmetry subblock.
               if(abs(kappa_pairing(wave, wave2)).gt.1d-8) then
                 s = int(kappa_pairing(wave, wave2)/abs(kappa_pairing(wave, wave2)))
               else
@@ -467,6 +475,8 @@ $NTR          do wave2=si+N+1,si+N+N2
               endif
               HFBgaps( wave, wave2) = s*min(10*abs(kappa_pairing(wave, wave2)),1.5)
             else
+              ! Either we don't have a kappa in storage, or the pairing has 
+              ! collapsed in this subblock.
               HFBgaps( wave, wave2) = 1.5
             endif
 $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
