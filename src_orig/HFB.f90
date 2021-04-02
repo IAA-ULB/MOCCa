@@ -357,11 +357,6 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     ! Reorganise the Bogoliubov transformation if needed
     call reorganise_Bogo_gradient(Bogo, configmatrix, grad_blocks)
 
-    grad_blocks(1:4) = HFBlocks(1:4)
-    grad_blocks(5)   = HFBlocks(5) - 1
-    grad_blocks(6)   = HFBlocks(5) + 1
-    grad_blocks(7:8) = HFblocks(7:8)
-
     if(estimategradparams) then     
       ! Obtain an estimate for the quasi-particle energies to estimate the 
       ! evolution parameters
