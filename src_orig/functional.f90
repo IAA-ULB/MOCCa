@@ -283,7 +283,7 @@ $PRINTCOEF_PAIR
     print 103, TotalE - spwfenergy
 
     if(rotcorr.ne.0) then
-        print 991, totalE - sum(rotcorrection)
+        print 991, totalE - sum(rotcorrection)- sum(COMcorrection(2,:))
     endif
       
     if(inversetemp .ne. -1) then

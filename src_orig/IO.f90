@@ -827,11 +827,9 @@ contains
   subroutine Brussels_output(iter, iomsg)
     !---------------------------------------------------------------------------
     ! Write an extra file for use in the Brussels fitting protocol to
-    !     zXXXnYYYnumNNNrunRRR.out"
+    !     zXXXnYYY.out"
     ! where XXX = proton number
     !       YYY = neutron number
-    !       NNN = counter
-    !       RRR = run counter
     !
     ! It contains on a single line
     !
@@ -879,9 +877,8 @@ contains
     Q22 =>FindMoment( 2,2,.false., Q20)
     r2  =>FindMoment(-2,0,.false., Q22) ! The rms radius is associated with l=-2
 
-    ! Write the filename
-    write(filedone,'(a,"z",i3.3,"n",i3.3,"num",i3.3,"run",i3.3".out")')        &   
-    &     trim(adjustl(BXLFIT)),int(protons),int(neutrons),int(counter),int(run) 
+    write(filedone,'(a,"z",i3.3,"n",i3.3".out")')        &  
+     &     trim(adjustl(BXLFIT)),int(protons),int(neutrons) 
   
     open(unit=10,file=filedone)
 
