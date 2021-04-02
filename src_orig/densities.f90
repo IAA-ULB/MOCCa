@@ -244,7 +244,7 @@ $BCSEXPRESSION
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Calculation of the pairing cutoffs * kappa
         kappa_cut = kappa_pairing(si+1:si+T,si+1:si+T)
-        if ((.not. diagsphamil) .and. allocated(HFtransfo)) then  
+        if ((.not. diagsphamil)) then  
           ! Transform to the HF-basis
           kappa_cut =matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)),kappa_cut)
           kappa_cut =matmul(          kappa_cut, HFtransfo(si+1:si+T,si+1:si+T))
@@ -255,11 +255,11 @@ $TR          do wave2=wave,N
 $NTR          do wave2=N+1,N+N2      
               kappa_cut(wave,wave2) = kappa_cut(wave,wave2) &
               &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)
-              kappa_cut(wave2,wave) = kappa_cut(wave2,wave) &
-              &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)              
+$NTR              kappa_cut(wave2,wave) = kappa_cut(wave2,wave) &
+$NTR              &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)              
           enddo
         enddo
-        if((.not. diagsphamil) .and. allocated(HFtransfo)) then 
+        if((.not. diagsphamil) ) then 
           ! Transform back to the basis in memory
           kappa_cut=matmul(HFtransfo(si+1:si+T,si+1:si+T), kappa_cut)
           kappa_cut=matmul( kappa_cut,transpose(HFtransfo(si+1:si+T,si+1:si+T)))
