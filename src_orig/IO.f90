@@ -54,6 +54,7 @@ implicit none
   !               (March 2021 - .....)
   !-----------------------------------------------------------------------------
   integer, parameter  :: version_number = 3
+  integer             :: file_version
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100)  :: inputfilename, outputfilename
@@ -74,8 +75,9 @@ implicit none
   integer       :: filenx, fileny, filenz, filenwn, filenwp, filepairing
   integer       :: filenwt, fileneutrons, fileprotons, fileblocks(8)
   real(KIND=dp) :: filedx
-  logical       :: readHFBconfig= .false.
-  real(KIND=dp), allocatable :: filebogo(:,:), fileconfig(:)
+  !-----------------------------------------------------------------------------
+  ! Did we succeed in reading a HFB configuration from file? 
+  logical       :: readHFBinfofile= .false.
 
 contains
 
@@ -165,6 +167,11 @@ contains
    10 format ( ' IO information', / &
     &          '  inputfilename  =', a32, / &
     &          '  outputfilename =', a32)
+    
+  101 format ( ' Information obtained from file ')  
+  102 format ( '      - version number          : ', i5)  
+  103 format ( '      - Bogoliubov transfo read?: ', l5)  
+    
    11 format ( '  Filename for other output (not written if empty): ', /     &
              & '    BXL output     = ', a40, / &
              & '    DEN file       = ', a40, / &
@@ -195,6 +202,12 @@ contains
 
     print 13, inversetemp
     print 10, inputfilename, outputfilename
+    if(trim(to_upper(inputfilename)).ne.'INIT') then
+      print 101
+      print 102, file_version
+      print 103, readHFBinfofile
+    endif 
+
     print 112, checkpointiter
 
     print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE
@@ -432,7 +445,7 @@ contains
     character(len=*), intent(in) :: ifn
     character(len=20)            :: func_name_check
     character(len=26)            :: SYM_CODE_CHECK
-    integer                      :: io, version
+    integer                      :: io
     logical                      :: exists
     integer                      :: c,i, rewindc
     real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
@@ -459,8 +472,8 @@ contains
     !---------------------------------------------------------------------------
     open (chan,form='unformatted',file=ifn)
     
-    read(chan, iostat=io) version
-    if(version .gt. version_number) then
+    read(chan, iostat=io) file_version
+    if(file_version .gt. version_number) then
       print *, 'Unsupported version number of the .wf file.'
       print *, 'Maximum current version: ', version_number
       stop
@@ -472,7 +485,7 @@ contains
     read(Chan,iostat=io) filenx,fileny,filenz, filedx
 
     ! Symmetry information       
-    if(version .eq. 1) then 
+    if(file_version .eq. 1) then 
       ! No symmetry information in version 1, only EV8-style calculations  
       read(Chan,iostat=io) 
     else                          
@@ -511,7 +524,7 @@ contains
     
     read(chan,iostat=io) spenergies, dispersions    
     
-    if(version .ge. 3) then
+    if(file_version .ge. 3) then
       read(chan,iostat=io) filediagsphamil
       allocate(HFtransfo(filenwt,filenwt)) 
       read(chan,iostat=io) HFtransfo
@@ -577,7 +590,7 @@ contains
 !          rewind(chan)
 !          
 !          rewindc=17
-!          if(version.lt.3) rewindc=15
+!          if(file_version.lt.3) rewindc=15
 !          do c=1,rewindc
 !                read(chan, iostat=io)
 !          enddo
@@ -593,11 +606,12 @@ contains
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! For late-enough versions, we can  read also the full Bogoliubov 
         ! transformation and the associated configuration matrix.
-        if(version .ge. 3) then
+        if(file_version .ge. 3) then
+        
+          readHFBinfofile = .true.
           allocate(Bogoliubov(2*filenwt, 2*filenwt)) 
           allocate(configmatrix(2*filenwt)) 
 
-          readHFBconfig = .true.
           ! We simply read these arrays here. If a transformation is needed,
           ! we will deal with it elsewhere.
           read(chan, iostat=io) Bogoliubov

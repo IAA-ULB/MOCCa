@@ -209,7 +209,9 @@ subroutine ReachForWaterAndFood()
     ! Derive all the single-particle wavefunctions
     call deriveHF()
 
-    if( Bogofromfile .and. pairingscheme.eq.1) then
+    if( (Bogofromfile.and.readHFBinfofile) .and. pairingscheme.eq.1) then
+      ! If using a gradient strategy and we want to continue from file.  
+      ! Only allowed of course if we have actually read a Bogoliubov transfo.
       scheme = -1
     else
       scheme = 0
