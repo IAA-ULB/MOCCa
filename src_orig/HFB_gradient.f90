@@ -516,7 +516,9 @@ contains
       NB(sb+T+1:sb+2*T,sb+T+1:sb+2*T) = NB(sb+T+1:sb+2*T,sb+T+1:sb+2*T)        &
 $NTR      &               -alpha *matmul(U,grad(si+1:si+T,si+1:si+T))          &
 $TR       &               +alpha *matmul(U,grad(si+1:si+T,si+1:si+T))          &
-          &               + mu * matmul(U,prev(si+1:si+T,si+1:si+T))
+$NTR      &               + mu * matmul(U,prev(si+1:si+T,si+1:si+T))
+$TR      &                - mu * matmul(U,prev(si+1:si+T,si+1:si+T))
+
       si = si +   T
       sb = sb + 2*T
     enddo
@@ -636,7 +638,7 @@ $TR                              &  - matmul(V, hU) - matmul(V, dV)
     real(KIND=dp), allocatable :: H11(:,:), U(:,:), V(:,:)
     real(KIND=dp), allocatable :: hV(:,:), hU(:,:), dV(:,:), dU(:,:)
     integer, intent(in)        :: blocks(4)
-    integer                    :: B, N, N2, si, sb, T
+    integer                    :: B, N, N2, si, sb, T, i
 
     allocate(H11(sum(blocks), sum(blocks))) ; H11 = 0
 
@@ -651,7 +653,7 @@ $TR                              &  - matmul(V, hU) - matmul(V, dV)
       U = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
       V = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
 
-      !  h V^* and h^t U^*
+      !  h V^* and h U^*
       hV = matmul(   h(si+1:si+T,si+1:si+T), V) - lambda * V
       hU = matmul(   h(si+1:si+T,si+1:si+T), U) - lambda * U
 
@@ -663,12 +665,20 @@ $TR                              &  - matmul(V, hU) - matmul(V, dV)
       U = transpose(U) ; V = transpose(V)
 
       ! We can save some effort here in the future, H20 is antisymmetric     
-      H11(si+1:si+T, si+1:si+T)  = matmul(U, hU) + matmul(U, dV) &
-                              &  - matmul(V, dU) - matmul(V, hV)
-
+      H11(si+1:si+T, si+1:si+T)  = matmul(U, hU) &
+                              &  + matmul(U, dV) &
+$NTR                          &  - matmul(V, dU) & 
+$TR                           &  + matmul(V, dU) & 
+                              &  - matmul(V, hV)
+                              
+!      do i=1, T                                
+!        print ('(99f10.3)'), H11(si+i, si+1:si+T)
+!      enddo
+!      print *
       si = si +  T
       sb = sb +2*T
     enddo
+
   end function calcH11
 
   function calcN20(Bogo, blocks) result(N20)
@@ -733,6 +743,41 @@ $NTR  N20(si+1:si+T,si+1:si+T) = matmul(transpose(U),V)-matmul(transpose(V),U)
      ! Time*reversal factor 2
 $TR  part = 2* part
   end function particle_number_bogo
+  
+  function disp_bogo(bogo, blocks) result(disp)
+      !-------------------------------------------------------------------------
+      ! Calculate the particle number dispersion
+      !
+      !   Delta N =  2 Tr( rho (1 - rho))
+      !-------------------------------------------------------------------------
+      real(KIND=dp), intent(in) :: bogo(:,:)
+      real(KIND=dp)             :: disp
+      real(KIND=dp), allocatable:: V(:,:), U(:,:), r(:,:), c(:,:)
+      integer, intent(in)       :: blocks(4)
+
+      integer :: B,  N, N2, T, sb, i
+      
+      disp = 0.0d0
+      sb = 0
+      do B=1,4,2
+        N = blocks(B) ; if(N.eq.0) cycle
+        N2= blocks(B+1)
+        T = N + N2
+
+        V = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
+        
+        r = matmul(transpose(V), V)
+        c = matmul(r, r)
+        
+        do i=1, T
+          disp = disp + r(i,i) - c(i,i) 
+        enddo
+        sb   = sb + 2 * T
+     enddo
+      disp  = 2 * disp
+     ! Time*reversal factor 2
+$TR  disp = 2 * disp 
+  end function disp_bogo
 
   subroutine diagonalise_H11(Bogo, prev, H11, blocks, Eqp)
     !---------------------------------------------------------------------------
@@ -752,7 +797,7 @@ $TR  part = 2* part
     real(KIND=dp), intent(out)   :: Eqp(:)
     real(KIND=dp), allocatable   :: A(:,:), work(:)
     integer, intent(in)          :: blocks(4)
-    integer                      :: si, sb, B, N, N2, lwork, ifail, T
+    integer                      :: si, sb, B, N, N2, lwork, ifail, T, i
       
     si = 0 ; sb = 0
     do B=1,4,2
@@ -768,29 +813,30 @@ $TR  part = 2* part
       lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
       call DSYEV( 'V', 'U', N, A(1:N,1:N), N, Eqp(si+1:si+N),work,lwork,ifail)
       deallocate(work)
-      
-      ! Diagonalize the second symmetry subblock
-      lwork = -1; allocate(work(1))
-      call DSYEV( 'V', 'U', N2, A(N+1:T,N+1:T), N2, &
-      &                                       Eqp(si+N+1:si+T),work,lwork,ifail)
-      lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
-      call DSYEV( 'V', 'U', N2, A(N+1:T,N+1:T), N2, &
-      &                                       Eqp(si+N+1:si+T),work,lwork,ifail)
-      deallocate(work)
-        
+
+      if(N2.ne.0) then
+        ! Diagonalize the second symmetry subblock
+        lwork = -1; allocate(work(1))
+        call DSYEV( 'V', 'U', N2, A(N+1:T,N+1:T), N2, &
+        &                                     Eqp(si+N+1:si+T),work,lwork,ifail)
+        lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
+        call DSYEV( 'V', 'U', N2, A(N+1:T,N+1:T), N2, &
+        &                                     Eqp(si+N+1:si+T),work,lwork,ifail)
+        deallocate(work)
+      endif      
       !-------------------------------------------------------------------------
       ! Transform the U and V matrices
       ! Commented out for the moment, but this allows us to transform into the 
       ! correct basis for preconditioning
       bogo(sb  +1:sb+  T, sb+T+1:sb+2*T) = &
-                                   matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T),A)
+      &                            matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T),A)
       bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T) = & 
-                                   matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T),A)
+         &                         matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T),A)
       ! But also transform the past updates, such that they stay consistent.                              
       prev(si  +1:si+  T, si+1:si+T) = &
-                             matmul(transpose(A),prev(si  +1:si+  T, si+1:si+T))
+      &                      matmul(transpose(A),prev(si  +1:si+  T, si+1:si+T))
       prev(si  +1:si+  T, si+1:si+T) = &
-                             matmul(prev(si  +1:si+  T, si+1:si+T), A)
+      &                      matmul(prev(si  +1:si+  T, si+1:si+T), A)
       !-------------------------------------------------------------------------
 
       si = si +   T

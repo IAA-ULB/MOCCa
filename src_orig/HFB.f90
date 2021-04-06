@@ -384,6 +384,14 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
           endif
         endif
        enddo
+     
+$TR    if(2*full_Eqp(i) .gt. maxqp .and. full_eqp(i) .gt. 0.0d0) then
+$TR      maxqp = 2*full_Eqp(i)
+$TR    endif
+     
+$TR    if(2*full_Eqp(i) .lt. minqp .and. full_eqp(i) .gt. 0.0d0) then
+$TR      minqp = 2*full_Eqp(i)
+$TR    endif
       enddo
 
       minqp =  max(minqp, gradient_safety)
@@ -392,7 +400,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       gradient_stepsize =  2.0/maxqp * (  1 + gradient_mu) * 0.9 
       deallocate(full_eqp)
     endif    
-    
+
     if(move) then
       !-------------------------------------------------------------------------
       ! Heavy-ball stepping
@@ -556,7 +564,6 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     !---------------------------------------------------------------------------
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
-    print *, 'DISPERSION', HFBdispersion
 
     deallocate(tempEqp)
   end subroutine solvepairing_HFB_gradient
@@ -597,7 +604,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
    si=0 ; sb =0
    do B=1,8
    
-      N  = Blocks(B)    
+      N  = Blocks(B) ; if(N.eq.0) cycle
       it = 1 ; if(B.gt.4) it = 2
 
       A = HFBHamil(sb+1:sb+2*N, sb+1:sb+2*N)
@@ -675,6 +682,87 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
   
   end function correct_ordering_eqp
   
+  subroutine activate_pairing_bogo(Bogo, blocks)
+     !-------------------------------------------------------------------------
+     !
+     !
+     !
+     !-------------------------------------------------------------------------
+      
+     real(KIND=dp), intent(inout) :: Bogo(:,:)
+     real(KIND=dp), allocatable   :: r(:)
+     integer, intent(in)          :: blocks(:)
+  
+     integer :: si, sb, B, N, N2, T, i
+  
+     sb = 0
+     do B=1,8,2
+      N = blocks(B)   ; if(N.eq.0) cycle
+      N2= blocks(B+1)
+      T = N + N2
+      
+        if(B.eq.5) then
+        do i=1,T
+          print ('(99f8.2)'), Bogo(sb+i, sb+T+1:sb+2*T)
+        enddo
+!        print *
+!        do i=1,
+!          print ('(99f8.2)'), Bogo(sb+N+i, sb+T+N+1:sb+2*T)
+!        enddo
+
+      endif
+      print *
+    
+      allocate(r(N))
+      do i=1,N
+        call random_number(r)
+        Bogo(sb  +1:sb  +N, sb+T+i) = Bogo(sb  +1:sb  +N, sb+T+i)  &
+        &                           + 0.5*(r-1)
+        call random_number(r)
+        Bogo(sb+T+N2+1:sb+2*T, sb+T+i) = Bogo(sb+T+N2+1:sb+2*T, sb+T+i)  &
+        &                           + 0.5*(r-1)
+      enddo
+      deallocate(r)
+      
+      allocate(r(N2))
+      do i=N+1,T
+        call random_number(r)
+        Bogo(sb+N+1:sb+T, sb+T+i) = Bogo(sb+N+1:sb+T, sb+T+i)  &
+        &                           + 0.5*(r-1)
+        call random_number(r)
+        Bogo(sb+T+1:sb+T+N2, sb+T+i) = Bogo(sb+T+1:sb+T+N2, sb+T+i) &
+        &                           + 0.5*(r-1)
+      enddo
+      deallocate(r)
+      sb = sb + 2*T
+     enddo
+
+     call ortho_bogo(Bogo, blocks)
+     
+     sb = 0
+     do B=1,8,2
+      N = blocks(B)   ; if(N.eq.0) cycle
+      N2= blocks(B+1)
+      T = N + N2
+      
+      if(B.eq.5) then
+        do i=1,T
+          print ('(99f8.2)'), Bogo(sb+i, sb+T+1:sb+2*T)
+        enddo
+      endif
+  
+      do i=1,T
+        ! Populate the columns of the Bogoliubov transformation that have not 
+        ! been evolved. Note the extra minus sign when time-reversal is conserved.
+$TR     Bogo(sb  +1:sb  +T, sb+T+1-i) =-Bogo(sb+T+1:sb+2*T, sb+T+i)   
+$NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
+        Bogo(sb+T+1:sb+2*T, sb+T+1-i) = Bogo(sb  +1:sb+  T, sb+T+i)   
+      enddo
+      
+      sb = sb + 2*T
+     enddo  
+  end subroutine activate_pairing_bogo
+  
   subroutine reorganise_Bogo_gradient(Bogo, config, effblocks) 
     !---------------------------------------------------------------------------
     !
@@ -692,10 +780,16 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     allocate(tempBogo(2*nwt, 2*nwt))
     tempBogo = 0.0d0
     
+    
     !---------------------------------------------------------------------------
     ! if these variables have been set, then we know that the 
     ! organisation of the Bogoliubov transformation is okay
     if(any(effblocks.ne.0)) return
+
+    !---------------------------------------------------------------------------
+    ! For time-reversal invariant calculations, no further work is necessary
+$TR effblocks = HFblocks    
+$TR return
   
     !---------------------------------------------------------------------------
     ! If some qp excitations were made, then we need to move things around
@@ -830,7 +924,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
       chi = matmul(rho(si+1:si+N, si+1:si+N), rho(si+1:si+N, si+1:si+N) )    
       !                                       Tr rho - Tr rho^2
       do i=1,N
-          dispersion(it) = dispersion(it) + rho(si+i, si+i)     &
+          dispersion(it) = dispersion(it) + rho(si+i, si+i)           &
           &                                     - chi(i,i)            &
           &                                     + kappa(si+i, si+i)**2
       enddo
