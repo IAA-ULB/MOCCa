@@ -585,7 +585,7 @@ contains
    real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
    real(KIND=dp)         :: mpsi(nx*ny*nz,4,nwt)
    real(KIND=dp)         :: O2, value, des
-   integer               :: it, wave, k, wave2, B, si, N
+   integer               :: it, wave, k, B, si, N
 
    Current    => Root
    multipole = 0.0_dp
@@ -618,12 +618,6 @@ contains
       do k=1,4
         mpsi(:,k,si+wave) = multipole(:,it) * HFPsi(:,k,si+wave)
       enddo
-   !   if(.not.diagsphamil) then
-   !     do wave2=1,N
-   !       mpsi(:,:,si+wave) = mpsi(:,:,si+wave) &
-   !       &    - dv*sum(mpsi(:,:,si+wave)*HFpsi(:,:,si+wave2))*HFpsi(:,:,si+wave2)
-   !     enddo
-   !   endif
     enddo
     si = si + N
    enddo

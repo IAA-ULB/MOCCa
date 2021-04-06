@@ -85,7 +85,7 @@ contains
     integer, allocatable         :: neutron_block(:), proton_block(:)
     integer, allocatable         :: blocked_qps(:), p_blocked(:), n_blocked(:)
     
-    integer                     :: si, sb, N, N2, B,  wave1, it, i, np, nn
+    integer                     :: si, sb, N, N2, B, it, i, np, nn
     integer                     :: n_ind, p_ind, NB
     !-----------------END OF DECLARATIONS --------------------------------------
 
@@ -322,17 +322,15 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     integer, intent(inout)       :: ifail
     logical, intent(in)          :: move
 
-    real(KIND=dp)                :: minqp, maxqp, condi, prop
+    real(KIND=dp)                :: minqp, maxqp, condi
     real(KIND=dp), allocatable   :: tempEqp(:), full_eqp(:)
-    real(KIND=dp)                :: HFBHamil(2*nwt, 2*nwt)
     
     integer, intent(in)          :: BlockType
     integer, intent(in)          :: Blockindices(:)
     character(len=2), intent(in) :: BlockLowest(:)
     integer, allocatable         :: blocked_qps(:)
 
-    integer :: si, sb, B, N, N2, T,i,Np, ind, ind2, j, stind,endind,NB,X(1),Y(1)
-    real(KIND=dp) :: E1, E2
+    integer :: sb, B, N, N2, T,i, j, stind,endind !,NB ,X(1),Y(1)
   
     if(.not.allocated(rho_history)) then
       allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
@@ -614,13 +612,17 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
   end function obtain_eqp
   
   function correct_ordering_eqp(sphamil, gaps, lambda,bogo,blocks) result(eigen) 
-  
+    !---------------------------------------------------------------------------
+    !
+    !
+    !
+    !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), lambda(2), bogo(:,:)
-    real(KIND=dp), allocatable  :: HFBhamil(:,:), work(:), A(:,:)
+    real(KIND=dp), allocatable  :: HFBhamil(:,:)
     integer, intent(in)         :: blocks(8)
     real(KIND=dp),allocatable   :: eigen(:)
     
-    integer       :: si, sb, B, N, N2, T, i, ifail, it
+    integer       :: si, sb, B, N, N2, T, i,  it
   
     si      = 0 ; sb = 0
     allocate(eigen(2*sum(blocks))) ;   eigen   = 0
@@ -654,12 +656,6 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
       HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T) = &
       & matmul(transpose(Bogo(sb+1:sb+2*T,sb+1:sb+2*T)), &
       &                  HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T) )
-
-!      if(B.eq.3) then
-!        do i=1, 2*T
-!          print ('(99f10.3)'), HFBhamil(sb+i, sb+1:sb+2*T)
-!        enddo
-!      endif
       
       do i=1, 2*T
         eigen(sb+i) = HFBHamil(sb+i, sb+i)
@@ -681,7 +677,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     integer, intent(inout)       :: effblocks(8)
     real(KIND=dp), allocatable   :: tempBogo(:,:)
    
-    integer                      :: B, N, N2, T, sb,  NP, ind, ind2, i, ifail
+    integer                      :: B, N, N2, T, sb,  NP, ind, ind2, i
     integer, allocatable         :: indices(:) 
     real(KIND=dp)                :: compare
     

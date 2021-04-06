@@ -124,8 +124,7 @@ contains
     !      C   = ( 0  0 )
     !            ( 0  1 )
     !
-    ! This module ONLY evolves the right-most half of the Bogoliuv matrix. Thus,
-    ! at the end, we have to reconstruct the left-most half by hand. 
+    ! This module ONLY evolves the right-most half of the Bogoliuv matrix!
     !---------------------------------------------------------------------------  
     integer, intent(in)          :: blocks(4), maxiter
     integer, intent(out)         :: ifail
@@ -137,7 +136,7 @@ contains
     real(KIND=dp), allocatable   :: H20(:,:), N20(:,:), grad(:,:), H11(:,:)
 
     real(KIND=dp)                :: particles,  normN
-    integer                      :: B, sb, N, N2, iter, T, i
+    integer                      :: iter
     logical                      :: converged = .false.  
   
     converged = .false. 

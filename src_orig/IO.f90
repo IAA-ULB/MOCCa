@@ -445,9 +445,8 @@ contains
     character(len=*), intent(in) :: ifn
     character(len=20)            :: func_name_check
     character(len=26)            :: SYM_CODE_CHECK
-    integer                      :: io
+    integer                      :: io,i
     logical                      :: exists
-    integer                      :: c,i, rewindc
     real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
     logical                      :: filediagsphamil
     

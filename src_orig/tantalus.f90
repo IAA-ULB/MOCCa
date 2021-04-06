@@ -193,7 +193,7 @@ subroutine ReachForWaterAndFood()
 
     8 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
 
-    integer :: iter, iprint, subiter, maxsub, scheme
+    integer :: iter, iprint, scheme
     integer :: ifail
     logical :: ConvergenceAchieved
     ! Logical to see if any moments with projection are necessary
@@ -294,24 +294,16 @@ subroutine ReachForWaterAndFood()
 
         ! Restore all the different derivatives.
         call deriveHF()
-
-        !do subiter=1,maxsub
-          ! Solve the pairing subproblem
-          if(subiter.gt.1) then
-              call eval_sph(.false.)
-              call CalcGaps(FermiEnergy, PairStabFactor)
-          endif
             
-          call SolvePairing(pairingscheme,ifail)
-          call densit(ifail,SaveRho=.true.)
-          call ConstructChargeDensity(ChargeDensity)
-          ! Calculate a) moments values, b) readjustment and c) finally their
-          ! contribution to the sphamiltonian.
-          call CalculateMoments()
-          call ReadjustAllMoments(1)
-          call Sphamilcontribution()
-          call calcFields(calcall=.true.,precon=.true.)
-        !enddo
+        call SolvePairing(pairingscheme,ifail)
+        call densit(ifail,SaveRho=.true.)
+        call ConstructChargeDensity(ChargeDensity)
+        ! Calculate a) moments values, b) readjustment and c) finally their
+        ! contribution to the sphamiltonian.
+        call CalculateMoments()
+        call ReadjustAllMoments(1)
+        call Sphamilcontribution()
+        call calcFields(calcall=.true.,precon=.true.)
         
         call update_spwf_angmom()
         call updateAM

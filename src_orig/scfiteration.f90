@@ -72,7 +72,6 @@ contains
     2 format(' SCF iteration strategy: ',/, 2x, a30 )
     3 format('   denmix= '            , f7.4)        
     4 format('   Preconfactor= '      , f7.4)
-    5 format(' HFB solution strategy : ',/, 2x, a30 )
     
     print 1
     select case(scfscheme)

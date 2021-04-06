@@ -501,8 +501,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
 
     integer, intent(in)        :: scheme
     integer, intent(out)       :: ifail
-    integer                    :: i
-    real(KIND=dp), allocatable :: tmp(:,:),sphamil(:,:)
+    real(KIND=dp), allocatable :: sphamil(:,:)
 
     call start_timer(T_pairing)
 
@@ -904,10 +903,10 @@ $NTR      endif
       logical                       :: exists = .true.
       character(len=40), intent(in) :: fname 
       integer                       :: io, filenx,fileny,filenz,fileit,filepar
-      integer                       :: i,j,k,l, sxh(4), syh(4), szh(4)
+      integer                       :: i,j,k,l !, sxh(4), syh(4), szh(4)
       real(KIND=dp)                 :: filedx
       real(KIND=dp), pointer        :: model3d(:,:,:) 
-      real(KIND=dp), allocatable    :: dmodel3d(:,:,:), ddmodel3d(:,:,:)
+      !real(KIND=dp), allocatable    :: dmodel3d(:,:,:), ddmodel3d(:,:,:)
 
       1 format (3i3, f8.3, 2i3)
       2 format (99f18.15)
