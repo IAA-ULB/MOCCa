@@ -386,7 +386,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
        enddo
       enddo
 
-      minqp =  max(minqp, 0.1)
+      minqp =  max(minqp, gradient_safety)
       condi =  maxqp/minqp
       gradient_mu       = ((sqrt(condi)-1)/(sqrt(condi)+1))**2
       gradient_stepsize =  2.0/maxqp * (  1 + gradient_mu) * 0.9 

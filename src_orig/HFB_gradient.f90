@@ -25,6 +25,7 @@ module HFB_gradient
   !-----------------------------------------------------------------------------
   ! Parameters for the heavy-ball evolution in the pairing subproblem.
   real(KIND=dp) :: gradient_stepsize = 0.03, gradient_mu = 0.6
+  real(KIND=dp) :: gradient_safety   = 0.1
   !-----------------------------------------------------------------------------
   ! The norm of the gradient for every isospin
   !

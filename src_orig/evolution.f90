@@ -92,7 +92,8 @@ contains
         namelist /evolution/ dt, momentum,                                     &
         &                    gradient_stepsize, gradient_mu,                   &
         &                    maxiter, printiter, strategy,                     &
-        &                    estimateparams, estimategradparams                                  
+        &                    estimateparams, estimategradparams,               &
+        &                    gradient_safety                              
         
 
         if(present(file_number)) then
@@ -142,6 +143,7 @@ contains
         3 format('   dt= ', f7.4, ' mu= ', f7.4 )        
         4 format('   Estimate (dt,mu) linear subproblem  : ', a3)
        41 format('   Estimate (dt,mu) pairing subproblem : ', a3)
+       42 format('   Safety HFB-gradient                 : ', f7.4)
 
 !        5 format(' Preconditioning   : ', a20 )
         6 format(' Diagonalise the s.p. hamiltonian: ', a3)
@@ -158,11 +160,11 @@ contains
         
         if( EstimateGRADParams) then
           print 41, 'YES'
+          print 42, gradient_safety
         else 
           print 41, ' NO'
-          print 3, dt, momentum
+          print 3, gradient_stepsize, gradient_mu
         endif
-        
 !        print 5, adjustl(Precondition)
 
         if(diagsphamil) then
