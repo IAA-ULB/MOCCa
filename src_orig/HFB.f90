@@ -242,9 +242,9 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
   end subroutine solvepairing_HFB_direct
 
-  subroutine solvepairing_HFB_gradient( sphamil, gaps, fermi, Bogo,            & 
+  subroutine solvepairing_HFB_gradient( sphamil, gaps, fermi, lambda2, Bogo,   & 
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
-  &                          qpenergies, BlockType,Blockindices,             &
+  &                          qpenergies, BlockType,Blockindices,               &
   &                          blocklowest, blocked_qps, move, ifail) 
     !---------------------------------------------------------------------------
     ! Driver routine for solving the HFB equations by heavy-ball evolution in 
@@ -256,6 +256,8 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     !   sphamil      : single-particle hamiltonian
     !   gaps         : pairing gaps Delta
     !   fermi        : current guess for the Fermi energy of both isospins
+    !   lambda       : Lagrange multiplier for the constraint on the particle
+    !                  number dispersion
     !   Bogo         : current Bogoliubov transformation
     !   configmatrix : configuration matrix of the current Bogoliubov vacuum
     !   blocktype    : -|-> Input on blocking that is not used to actually solve
@@ -318,7 +320,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp), intent(inout) :: Fermi(2)          , Bogo(:,:)
     real(KIND=dp), intent(inout) :: kappa_pairing(:,:), rho_pairing(:,:)
     real(KIND=dp), intent(inout) :: configmatrix(:)   , qpenergies(:) 
-    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
+    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:), lambda2(2)
     integer, intent(inout)       :: ifail
     logical, intent(in)          :: move
 
@@ -400,6 +402,8 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       &                  gradient_stepsize, gradient_mu,                       &
       &                  Z_updates(1:nwn,1:nwn),                               &
       &                  gradient_precon, HFBgradnorm(1), grad_blocks(1:4),    &
+      &                  lambda2(1), rho_pairing(1:nwn, 1:nwn),                &
+      &                  kappa_pairing(1:nwn,1:nwn),                           &
       &                  1, ifail)
       ! and for the protons
       call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt),& 
@@ -408,6 +412,8 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       &                  gradient_stepsize, gradient_mu,                       &
       &                  Z_updates(nwn+1:nwt,nwn+1:nwt),                       &
       &                  gradient_precon, HFBgradnorm(2), grad_blocks(5:8),    &
+      &                  lambda2(2), rho_pairing(nwn+1:nwt,nwn+1:nwt),         &
+      &                  kappa_pairing(nwn+1:nwt,nwn+1:nwt),                   &
       &                  1, ifail)
     endif
     !---------------------------------------------------------------------------
@@ -550,6 +556,8 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     !---------------------------------------------------------------------------
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
+    print *, 'DISPERSION', HFBdispersion
+
     deallocate(tempEqp)
   end subroutine solvepairing_HFB_gradient
   
@@ -806,7 +814,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     !-------------------------------------------------------------------------
     real(KIND=dp), intent(inout) :: rho(:,:), kappa(:,:)
     real(KIND=dp), allocatable   :: chi(:,:)
-    real(KIND=dp)                :: dispersion
+    real(KIND=dp)                :: dispersion(2)
     integer                      :: N, B, si, i, it
 
     si            = 0
@@ -822,7 +830,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
       chi = matmul(rho(si+1:si+N, si+1:si+N), rho(si+1:si+N, si+1:si+N) )    
       !                                       Tr rho - Tr rho^2
       do i=1,N
-          HFBdispersion(it) = HFBdispersion(it) + rho(si+i, si+i)     &
+          dispersion(it) = dispersion(it) + rho(si+i, si+i)     &
           &                                     - chi(i,i)            &
           &                                     + kappa(si+i, si+i)**2
       enddo

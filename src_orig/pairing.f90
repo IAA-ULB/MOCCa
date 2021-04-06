@@ -63,6 +63,8 @@ module pairing
  !------------------------------------------------------------------------------
  ! Fermi energy for neutrons and protons.
  real(KIND=dp) :: FermiEnergy(2) , FermiHistory(2)
+ ! Constraint on the dispersion of the particle number
+ real(KIND=dp) :: Lambda2(2) = 0.0
  !------------------------------------------------------------------------------
  ! Particle number dispersion
  real(KIND=dp) :: Dispersion(2)
@@ -171,7 +173,7 @@ contains
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
     &                  FermiSolver, guessgaps, HFBgauge, pairingscheme,        &
-    &                  gradient_precon, bogofromfile
+    &                  gradient_precon, bogofromfile, lambda2
 
     NameList /Indices/ BlockIndices, blocklowest, blockfname
 
@@ -569,14 +571,14 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         &   blocked_qps, ifail)
       case(+1)
         call solvepairing_HFB_gradient( &
-        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
-        &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
-        &   blocked_qps, .true. , ifail)
+        &   sphamil,HFBgaps,FermiEnergy,Lambda2,Bogoliubov,rho_pairing,        &
+        &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
+        &   blocklowest, blocked_qps, .true. , ifail)
       case(-1)
         call solvepairing_HFB_gradient( &
-        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
-        &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
-        &   blocked_qps, .false., ifail)
+        &   sphamil,HFBgaps,FermiEnergy,Lambda2,Bogoliubov,rho_pairing,        &
+        &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
+        &   blocklowest, blocked_qps, .false., ifail)
       end select
    end select
 

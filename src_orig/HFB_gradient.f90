@@ -79,7 +79,8 @@ contains
   end function buildgrad
 
   subroutine gradient_step(h,gaps,targetN, Bogo,Eqp,lambda, alpha,mu,prev,     &
-  &                        precon, gradnorm, blocks, maxiter, ifail)
+  &                        precon, gradnorm, blocks, lambda2, rho, kappa,      &
+  &                        maxiter, ifail)
     !---------------------------------------------------------------------------
     !
     ! Perform one (or more) heavy-ball evolution steps, starting from an initial
@@ -128,8 +129,9 @@ contains
     !---------------------------------------------------------------------------  
     integer, intent(in)          :: blocks(4), maxiter
     integer, intent(out)         :: ifail
-    real(KIND=dp), intent(in)    :: targetN
+    real(KIND=dp), intent(in)    :: targetN, lambda2
     real(KIND=dp), intent(in)    :: h(:,:), gaps(:,:), alpha, mu
+    real(KIND=dp), intent(in)    :: rho(:,:), kappa(:,:)
     logical, intent(in)          :: precon
     real(KIND=dp), intent(inout) :: Bogo(:,:), lambda
     real(KIND=dp), intent(inout) :: Eqp(:),  prev(:,:), gradnorm
@@ -143,8 +145,8 @@ contains
     do iter=1,maxiter
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! We calculate the relevant matrices to build the gradient 
-        H20 = calcH20(Bogo,h,gaps,blocks)
-        N20 = calcN20(Bogo, blocks)
+        H20 = calcH20(Bogo,h,gaps,rho, kappa, lambda2, blocks)
+        N20 = calcN20(Bogo, blocks) 
 
         ! First, we check if the pairing has collapsed: the Frobenius norm of 
         ! the N20 gives us an indication.
@@ -566,7 +568,7 @@ $TR       &               +alpha *matmul(U,grad(si+1:si+T,si+1:si+T))          &
     enddo
   end subroutine ortho_bogo
 
-  function calcH20(Bogo,h,gaps, blocks) result(H20)
+  function calcH20(Bogo,h,gaps, rho, kappa, lambda2, blocks) result(H20)
     !---------------------------------------------------------------------------
     ! Calculate the 2-quasi-particle-excitation component of H:
     ! 
@@ -575,12 +577,12 @@ $TR       &               +alpha *matmul(U,grad(si+1:si+T,si+1:si+T))          &
     !
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)               :: H(:,:), bogo(:,:), gaps(:,:)
+    real(KIND=dp), intent(in)               :: rho(:,:), kappa(:,:), lambda2
     integer, intent(in)                     :: blocks(4)
-
-
+    
     real(KIND=dp), allocatable :: H20(:,:), U(:,:), V(:,:)
-    real(KIND=dp), allocatable :: hV(:,:), hU(:,:), dV(:,:), dU(:,:)
-    integer                    :: B, N, N2, si, sb, T
+    real(KIND=dp), allocatable :: hV(:,:), hU(:,:), dV(:,:), dU(:,:), chi(:,:)
+    integer                    :: B, N, N2, si, sb, T, i
 
     allocate(H20(sum(blocks), sum(blocks))) ; H20 = 0
     
@@ -595,10 +597,15 @@ $TR       &               +alpha *matmul(U,grad(si+1:si+T,si+1:si+T))          &
       U = Bogo(sb  +1:sb+  T,sb+T+1:sb+2*T)
       V = Bogo(sb+T+1:sb+2*T,sb+T+1:sb+2*T)
 
-      !  h V^* and h^t U^*
-      hV = matmul(   h(si+1:si+T,si+1:si+T), V)
-      hU = matmul(   h(si+1:si+T,si+1:si+T), U)
+      chi = -2*rho(si+1:si+T,si+1:si+T)
+      do i=1,T
+        chi(i,i) = chi(i,i) + 1
+      enddo
 
+      !  h V^* and h^t U^*
+      hV = matmul(   h(si+1:si+T,si+1:si+T), V) - 2*lambda2*matmul(chi, V)
+      hU = matmul(   h(si+1:si+T,si+1:si+T), U) - 2*lambda2*matmul(chi, U)
+      
       ! d^* V^* and dU^*
       dV = matmul(gaps(si+1:si+T,si+1:si+T), V)
       dU = matmul(gaps(si+1:si+T,si+1:si+T), U)
