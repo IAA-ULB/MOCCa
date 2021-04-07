@@ -1458,6 +1458,80 @@ $NTR  enddo
     enddo
     
    end subroutine ConstructCanonicalBasis
+   
+!   function number_parity_throughU( Bogo, config, blocks) result(NP)
+!    !---------------------------------------------------------------------------
+!    ! 
+!    !
+!    !
+!    !---------------------------------------------------------------------------
+!    real(KIND=dp), intent(in) :: Bogo(:,:), config(:)
+!    integer,intent(in)        :: blocks(:)
+!    integer                   :: NP(size(blocks))
+!    
+!    real(KIND=dp), allocatable :: U(:,:), eigenR(:), eigenI(:), work(:)
+!    real(KIND=dp)              :: vecL(2,2), vecR(2,2)
+!    integer                    :: B, sb, N, N2, T, lwork, ifail, i
+!    
+!    sb = 0
+!    do B=1, size(blocks),2
+!      N = blocks(B)    ; if(N.eq.0) cycle
+!      N2= blocks(B+1)
+!      
+!      T = N + N2
+!    
+!      ! Getting the U matrix
+!      U = Bogo(sb+1:sb+T, sb+T+1:sb+2*T)
+!      U = matmul(U, transpose(U))
+
+!      allocate(eigenR(T), eigenI(T))
+!      !-------------------------------------------------------------------------      
+!      ! Diagonalise the U-matrix per signature subblock
+!      lwork = -1 ; allocate(work(1))
+!      call dgeev('N', 'N', N, U(1:N,1:N), N, eigenR(1:N), eigenI(1:N), &
+!      &           vecL, 1, vecR, 1, work, lwork, ifail)
+!      lwork = int(work(1)) ; deallocate(work) ; allocate(work(lwork))
+!      call dgeev('N', 'N', N, U(1:N,1:N), N, eigenR(1:N), eigenI(1:N), &
+!      &           vecL, 1, vecR, 1, work, lwork, ifail)
+!      deallocate(work)
+!      print *, 'ifail 1', ifail
+!      print ('(99e12.3)'), eigenR(1:N)
+!      print ('(99e12.3)'), eigenI(1:N)
+!      print *
+
+!      !-------------------------------------------------------------------------      
+!      if(N2.ne.0) then
+!        lwork = -1 ; allocate(work(1))
+!        call dgeev('N', 'N', N2, U(N+1:T,N+1:N),N2,eigenR(N+1:T),eigenI(N+1:T),&
+!        &           vecL, 1, vecR, 1, work, lwork, ifail)
+!        lwork = int(work(1)) ; deallocate(work) ; allocate(work(lwork))
+!        call dgeev('N', 'N', N2, U(N+1:T,N+1:N),N2,eigenR(N+1:T),eigenI(N+1:T),&
+!        &           vecL, 1, vecR, 1, work, lwork, ifail)
+!        deallocate(work)
+!      endif
+!      !-------------------------------------------------------------------------
+!      ! Count the number of eigenvalues that are (close to) zero
+!      NP(B) = 0 ; NP(B+1) = 0
+!      
+!      print *, 'ifail 2', ifail
+!      print ('(99e12.3)'), eigenR(N+1:T)
+!      print ('(99e12.3)'), eigenI(N+1:T)
+
+!      do i=1, T
+!        if(sqrt(eigenR(i)**2 + eigenI(i)**2) .lt. 1d-8) then
+!          if(i.gt.N) then
+!            NP(B+1) = NP(B+1) + 1
+!          else
+!            NP(B)   = NP(B) + 1
+!          endif
+!        endif
+!      enddo
+!      
+!      deallocate(eigenR, eigenI)
+!      sb = sb + 2 * T
+!    enddo
+!    
+!   end function number_parity_throughU
 
    function construct_generalized_density(rho, kappa) result(R)
     !---------------------------------------------------------------------------

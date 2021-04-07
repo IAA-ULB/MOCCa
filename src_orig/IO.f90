@@ -51,9 +51,12 @@ implicit none
   !               * the full Bogoliubov transformation 
   !               * configuration matrix
   !               * HF transformation for calculations with diagsphamil=.false.
-  !               (March 2021 - .....)
+  !               (March 2021 - March 2021)
+  !   version 4 : inclusion of 
+  !               * blocking information 
+  !               (March 2021 - ....      )
   !-----------------------------------------------------------------------------
-  integer, parameter  :: version_number = 3
+  integer, parameter  :: version_number = 4
   integer             :: file_version
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
@@ -78,6 +81,11 @@ implicit none
   !-----------------------------------------------------------------------------
   ! Did we succeed in reading a HFB configuration from file? 
   logical       :: readHFBinfofile= .false.
+  ! Blocking information from file
+  integer       :: fileblocktype=0, fileblocknumber = 0
+  integer, allocatable          :: fileblockindices(:)
+  character(len=2), allocatable :: fileBlockLowest(:)
+  integer                       :: file_HFB_blocks(8)
 
 contains
 
@@ -171,8 +179,12 @@ contains
   101 format ( ' Information obtained from file ')  
   102 format ( '      - version number          : ', i5)  
   103 format ( '      - Bogoliubov transfo read?: ', l5)  
+  104 format ( '      - Blocking type           : ', i5)
+  105 format ( '      - Blocknumber             : ', i5)
+  106 format ( '      - Block indices           : ', 10i4)
+  107 format ( '      - Block lowest            : ', 10a2)
     
-   11 format ( '  Filename for other output (not written if empty): ', /     &
+   11 format ( ' Filename for other output (not written if empty): ', /     &
              & '    BXL output     = ', a40, / &
              & '    DEN file       = ', a40, / &
              & '    POT file       = ', a40, / &
@@ -180,7 +192,7 @@ contains
              & '    SPCAN file     = ', a40) 
  1111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
-  112 format ( '  Checkpointiter =', i10)
+  112 format ( ' Checkpointiter =', i10)
    12 format ( ' Convergence required', / &
     &          '  Energy convergence           < ', e8.1, / & 
     &          '  Multipole moment convergence < ', e8.1, / &
@@ -206,6 +218,17 @@ contains
       print 101
       print 102, file_version
       print 103, readHFBinfofile
+      
+      print 104, fileblocktype
+      select case (fileblocktype)
+        case(0)
+        case(1,3,5)
+          print 105, fileblocknumber
+          print 106, fileblockindices
+        case(2,4,6)
+          print 105, fileblocknumber
+          print 107, fileblocklowest
+      end select
     endif 
 
     print 112, checkpointiter
@@ -270,7 +293,12 @@ contains
       call ReadTantalus(12, inputfilename)
       ! No need to guess gaps by default (unless the user asked for it)
     endif
-
+    !---------------------------------------------------------------------------
+    ! Checking the blocking options: making sure things are in line with what
+    ! the user asked
+    if(Bogofromfile .and. pairingscheme.eq.1) then
+      call massage_bogoliubov()
+    endif
     !---------------------------------------------------------------------------  
     ! Transformation options
     if(allowtransform ) then
@@ -424,7 +452,11 @@ contains
     !      (HF)  nothing
     !      (BCS) Fermi level
     !        |   BCSGaps  
-    !      (HFB) Fermi level
+    !      (HFB) 
+    !        |   blocktype, blocknumber
+    !        |   block-sizes for HFB solver
+    !        |   blocklowest/blockindices
+    !        |   Fermi level
     !        |   rho_pairing    
     !        |   kappa_pairing
     !        |   can_transfo
@@ -569,6 +601,21 @@ contains
         allocate(filegaps(filenwt, filenwt)) 
         allocate(kappa_pairing(filenwt, filenwt)) 
         allocate(rho_pairing(filenwt, filenwt)) 
+        
+        if(file_version .gt. 3 ) then
+          read(chan, iostat=io) fileblocktype, fileblocknumber
+          read(chan, iostat=io) file_HFB_blocks
+          select case(fileblocktype) 
+            case(0)
+              read(chan, iostat = io)
+            case(1,3,5)
+              allocate(fileblockindices(fileblocknumber))
+              read(chan, iostat = io) fileblockindices
+            case(2,4,6)
+              allocate(fileblocklowest(fileblocknumber))
+              read(chan, iostat = io) fileblocklowest
+          end select
+        endif
 
         read(chan, iostat=io) FermiEnergy       ! Lambda
         read(chan, iostat=io) rho_pairing
@@ -584,7 +631,7 @@ contains
 
         !-----------------------------------------------------------------------        
         ! We no longer do these gymnastics, which were only necessary to support
-        ! old .wf files, none of which still exist I think.
+        ! old .wf files, none of which still exist (I think/hope).
 !        if(io.ne.0) then
 !          rewind(chan)
 !          
@@ -700,16 +747,22 @@ contains
     ! Pairing information                                    
     !    - Pairingtype
     !    - Rho_can = occupation factors 
-    !      (HF)  nothing
-    !      (BCS) Fermi level
+    !      (HF)  
+    !        |   (nothing)
+    !      (BCS) 
+    !        |   Fermi level
     !        |   BCSGaps  
-    !      (HFB) Fermi level
+    !      (HFB)
+    !        |   blocktype, blocknumber
+    !        |   block-sizes for HFB solver
+    !        |   blocklowest/blockindices
+    !        |   Fermi level
     !        |   rho_pairing    
     !        |   kappa_pairing
     !        |   can_transfo
     !        |   HFBgaps      
     !        |   Bogoliubov transformation 
-    !        |   Configuration matrix      
+    !        |   Configuration matrix   
     ! CrankingInfo                                           (*)                      
     ! Potentials                                             (2)                
     ! Multipole Moments                                                 
@@ -768,6 +821,22 @@ contains
         write(chan, iostat=io) BCSGaps 
     case(2)
         ! HFB
+        write(chan, iostat=io) blocktype, blocknumber
+        if(pairingscheme.eq.1) then
+          write(chan, iostat=io) grad_blocks
+        else
+          write(chan, iostat=io) HFBlocks
+        endif
+
+        select case( blocktype)
+        case(0)
+          write(chan, iostat=io) 
+        case(2,4,6)
+          write(chan, iostat=io) blocklowest
+        case(1,3,5)
+          write(chan, iostat=io) blockindices
+        end select
+
         write(chan, iostat=io) FermiEnergy       ! Lambda
         write(chan, iostat=io) rho_pairing       ! rho
         write(chan, iostat=io) kappa_pairing     ! kappa
@@ -775,6 +844,7 @@ contains
         write(chan, iostat=io) HFBgaps           ! Full matrix of gaps
         write(chan, iostat=io) Bogoliubov        ! Bogoliubov transformation
         write(chan, iostat=io) configmatrix      ! Configuration matrix
+        
     end select
     ! Cranking information                                     (NOT IMPLEMENTED)
     write(chan, iostat=io)
@@ -925,6 +995,117 @@ contains
     close(10)
 
   end subroutine Brussels_output
+  
+  subroutine massage_Bogoliubov()
+    !---------------------------------------------------------------------------
+    ! Subroutine to transform the Bogoliubov transformation found on file 
+    ! towards one of the type demanded by the user. 
+    ! 
+    ! Currently only works for .wf that were created with
+    !    blocktype   = 2 
+    !    blocklowest = a combination of n+,n-,p+,p  (WITH NO REPEATS!)
+    !
+    ! and that break time-reversal symmetry.
+    !    
+    ! The routine checks 
+    !   (i)   checks in what blocks excitations are         (array UNDO)
+    !   (ii)  checks in what blocks excitations should be   (array DODO)
+    !   (iii) flips quasiparticles of the lowest qp energy in every 
+    !         block where an either 
+    !          (a) excitation should be and isn't ; or
+    !          (b) excitation shoud not be and is
+    !
+    !---------------------------------------------------------------------------
+    integer :: i, B, sb, N, N2, T
+    integer, allocatable       :: undo(:), dodo(:)
+    real(KIND=dp), allocatable :: temp(:)
+    logical  :: flip
+
+    !---------------------------------------------------------------------------    
+    ! First, we see in what blocks we need to undo some qp excitations
+    if(fileblocknumber .gt. 0) then
+      allocate(undo(fileblocknumber))
+      do i=1, fileblocknumber
+        select case(fileblocklowest(i))
+        case('n+')
+          B = 1
+        case('n-')
+          B = 3
+        case('p+')
+          B = 5
+        case('p-')
+          B = 7
+        case('n0', 'p0')
+          print *, 'Tantalus cannot handle FILEFROMBOGO=.true. with n0 or p0'
+          stop
+        end select
+        
+        undo(i) = B     
+      enddo
+    endif 
+    !---------------------------------------------------------------------------
+    ! Then, we check in with what the user asked
+    if(blocknumber .gt. 0) then
+      allocate(dodo(blocknumber))
+      do i=1, blocknumber
+        select case(blocklowest(i))
+        case('n+')
+          B = 1
+        case('n-')
+          B = 3
+        case('p+')
+          B = 5
+        case('p-')
+          B = 7
+        case('n0', 'p0')
+          print *, 'Tantalus cannot handle FILEFROMBOGO=.true. with n0 or p0'
+          stop
+        end select
+      
+        dodo(i) = B     
+      enddo 
+    endif
+    !---------------------------------------------------------------------------
+    ! Then we flip some quasiparticle excitations
+    sb = 0 
+    do B=1,8,2
+      N = file_HFB_blocks(B)   ; if(N.eq.0) cycle
+      N2= file_HFB_blocks(B+1)
+      T = N + N2
+
+      flip = .false.
+      if(allocated(undo)) then
+        do i=1,fileblocknumber
+           if(undo(i) .eq. B) flip = .true.
+        enddo
+      endif
+      
+      if(flip) then
+        temp = Bogoliubov(sb+1:sb+2*T, sb+T+N+1)
+
+        Bogoliubov(sb  +1:sb+  T, sb+T+N+1) = temp(T+1:2*T)
+        Bogoliubov(sb+T+1:sb+2*T, sb+T+N+1) = temp(  1:  T)
+      endif
+      
+      flip = .false.
+      if(allocated(dodo)) then
+        do i=1,blocknumber
+           if(dodo(i) .eq. B) then
+            flip = .true.
+           endif
+        enddo
+      endif
+      
+      if(flip) then
+        configmatrix(sb+T+N+1) = 0
+        configmatrix(sb+    1) = 1
+      endif
+
+      sb = sb + 2 *T 
+    enddo
+    !---------------------------------------------------------------------------
+
+  end subroutine massage_Bogoliubov
 
   subroutine write_header(iochannel)
     !---------------------------------------------------------------------------

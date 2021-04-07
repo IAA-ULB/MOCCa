@@ -284,7 +284,7 @@ $FORBIDBCS endif
     1 format(80('-'))
     2 format(' Pairing treatment: ', a60)
    21 format('   Fermi-solver: ', a99 )
-  211 format('   Pairing strategy:', a99)
+  211 format('   Pairing strategy:', a60)
     3 format('   Linear mixing of (rho,kappa)')    
     4 format('   Linear mixing of eigenvalues of R')
     5 format('   HFBmix = ', f5.3)
@@ -638,6 +638,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     !---------------------------------------------------------------------------
 
     real*8, intent(in) :: stabfactor(2)
+    integer            :: nb(8)
 
     1 format (26('-'), ' Pairing ', 25('-'))
     2 format (25x, ' N ',7x, ' P ')
@@ -653,6 +654,10 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
 
    10 format (' Stab. factor       ', 2x, f13.8, 2x, f13.8)
    11 format (' Overlap with model ', 2x, f13.8)
+ 
+!   12 format ('                               ++  +-  -+  --')
+!   13 format (' Number parity    n:', 2x, 4i3)
+!   14 format (' Number parity    p:', 2x, 4i3)
 
     select case(PairingType)
     case (0)
@@ -690,6 +695,11 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         if(blocktype.ge.5) then
             print 11, blockoverlap
         endif
+!        
+!$NTR    nb = number_parity_throughU(Bogoliubov, configmatrix, grad_blocks)        
+!$NTR    print 12
+!$NTR    print 13, nb(1:4)
+!$NTR    print 14, nb(5:8)
 
         !if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
     end select
