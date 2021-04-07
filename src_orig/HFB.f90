@@ -245,7 +245,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
   subroutine solvepairing_HFB_gradient( sphamil, gaps, fermi, lambda2, Bogo,   & 
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType,Blockindices,               &
-  &                          blocklowest, blocked_qps, move, ifail) 
+  &                          blocklowest, blocked_qps, move, maxiter,  ifail) 
     !---------------------------------------------------------------------------
     ! Driver routine for solving the HFB equations by heavy-ball evolution in 
     ! the manifold of Bogoliubov states connected by a Thouless transformation.
@@ -322,6 +322,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp), intent(inout) :: configmatrix(:)   , qpenergies(:) 
     real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:), lambda2(2)
     integer, intent(inout)       :: ifail
+    integer, intent(in)          :: maxiter
     logical, intent(in)          :: move
 
     real(KIND=dp)                :: minqp, maxqp, condi
@@ -412,7 +413,7 @@ $TR    endif
       &                  gradient_precon, HFBgradnorm(1), grad_blocks(1:4),    &
       &                  lambda2(1), rho_pairing(1:nwn, 1:nwn),                &
       &                  kappa_pairing(1:nwn,1:nwn),                           &
-      &                  1, ifail)
+      &                  maxiter, ifail)
       ! and for the protons
       call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt),& 
       &                  protons,Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),            &
@@ -422,7 +423,7 @@ $TR    endif
       &                  gradient_precon, HFBgradnorm(2), grad_blocks(5:8),    &
       &                  lambda2(2), rho_pairing(nwn+1:nwt,nwn+1:nwt),         &
       &                  kappa_pairing(nwn+1:nwt,nwn+1:nwt),                   &
-      &                  1, ifail)
+      &                  maxiter, ifail)
     endif
     !---------------------------------------------------------------------------
     ! Copying the Bogoliubov matrix and reordering the configuration matrix.
@@ -681,88 +682,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
    enddo
   
   end function correct_ordering_eqp
-  
-  subroutine activate_pairing_bogo(Bogo, blocks)
-     !-------------------------------------------------------------------------
-     !
-     !
-     !
-     !-------------------------------------------------------------------------
-      
-     real(KIND=dp), intent(inout) :: Bogo(:,:)
-     real(KIND=dp), allocatable   :: r(:)
-     integer, intent(in)          :: blocks(:)
-  
-     integer :: si, sb, B, N, N2, T, i
-  
-     sb = 0
-     do B=1,8,2
-      N = blocks(B)   ; if(N.eq.0) cycle
-      N2= blocks(B+1)
-      T = N + N2
-      
-        if(B.eq.5) then
-        do i=1,T
-          print ('(99f8.2)'), Bogo(sb+i, sb+T+1:sb+2*T)
-        enddo
-!        print *
-!        do i=1,
-!          print ('(99f8.2)'), Bogo(sb+N+i, sb+T+N+1:sb+2*T)
-!        enddo
 
-      endif
-      print *
-    
-      allocate(r(N))
-      do i=1,N
-        call random_number(r)
-        Bogo(sb  +1:sb  +N, sb+T+i) = Bogo(sb  +1:sb  +N, sb+T+i)  &
-        &                           + 0.5*(r-1)
-        call random_number(r)
-        Bogo(sb+T+N2+1:sb+2*T, sb+T+i) = Bogo(sb+T+N2+1:sb+2*T, sb+T+i)  &
-        &                           + 0.5*(r-1)
-      enddo
-      deallocate(r)
-      
-      allocate(r(N2))
-      do i=N+1,T
-        call random_number(r)
-        Bogo(sb+N+1:sb+T, sb+T+i) = Bogo(sb+N+1:sb+T, sb+T+i)  &
-        &                           + 0.5*(r-1)
-        call random_number(r)
-        Bogo(sb+T+1:sb+T+N2, sb+T+i) = Bogo(sb+T+1:sb+T+N2, sb+T+i) &
-        &                           + 0.5*(r-1)
-      enddo
-      deallocate(r)
-      sb = sb + 2*T
-     enddo
-
-     call ortho_bogo(Bogo, blocks)
-     
-     sb = 0
-     do B=1,8,2
-      N = blocks(B)   ; if(N.eq.0) cycle
-      N2= blocks(B+1)
-      T = N + N2
-      
-      if(B.eq.5) then
-        do i=1,T
-          print ('(99f8.2)'), Bogo(sb+i, sb+T+1:sb+2*T)
-        enddo
-      endif
-  
-      do i=1,T
-        ! Populate the columns of the Bogoliubov transformation that have not 
-        ! been evolved. Note the extra minus sign when time-reversal is conserved.
-$TR     Bogo(sb  +1:sb  +T, sb+T+1-i) =-Bogo(sb+T+1:sb+2*T, sb+T+i)   
-$NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
-        Bogo(sb+T+1:sb+2*T, sb+T+1-i) = Bogo(sb  +1:sb+  T, sb+T+i)   
-      enddo
-      
-      sb = sb + 2*T
-     enddo  
-  end subroutine activate_pairing_bogo
-  
   subroutine reorganise_Bogo_gradient(Bogo, config, effblocks) 
     !---------------------------------------------------------------------------
     !
@@ -779,8 +699,6 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     
     allocate(tempBogo(2*nwt, 2*nwt))
     tempBogo = 0.0d0
-    
-    
     !---------------------------------------------------------------------------
     ! if these variables have been set, then we know that the 
     ! organisation of the Bogoliubov transformation is okay

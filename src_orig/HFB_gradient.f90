@@ -158,13 +158,6 @@ contains
           ! heavy-vall step. 
           call find_fermi_brent(Bogo, H20, N20, prev, Eqp, lambda,             &
           &                particles, targetN, alpha, mu, precon, blocks, ifail)
-    
-          if(ifail.eq.10) then
-            ! The code failed to find a bracket for the Fermi energy
-            !---------------------------------------------------------
-            ! we simply update the Fermi energy in the right direction
-            lambda = lambda - 0.1 * (particle_number_bogo(bogo, blocks) - targetN)          
-          endif
         endif
         ! Building the gradient update 
         ! (with the old Fermi energy if the pairing collapsed)
@@ -178,9 +171,6 @@ contains
         particles = particle_number_bogo(bogo, blocks) - targetN
         ! as well as the norm of the gradient 
         gradnorm  = sqrt(sum(grad**2))
-
-        !expectedDE = expectedDE - alpha * sum((H20 - lambda * N20)**2)
-    
         ! Check for convergence if this is process is repeated multiple times
         if(gradnorm .lt. 1d-6) converged = .true.
 
@@ -265,7 +255,6 @@ contains
     
     ! Check if this guess for lambda is good enough
     if(abs(N).lt.pairing_prec .or. alpha .eq. 0.0d0) then
-      !bogo = nbA
       return
     endif
     ! Use present Fermi energy as starting point and check the direction
@@ -302,7 +291,7 @@ contains
 
         FA = particle_number_bogo(nbA, blocks) - targetN
         FB = particle_number_bogo(nbB, blocks) - targetN
-
+        
         ! diagnostic printing for convergence analysis (usually commented out)
         !print '(" Bracketing ",i4,1l2,(2(f13.8,es16.7)))',        &
         !      & FailCount,Success,InitialBracket(1),FA, InitialBracket(2),FB          

@@ -445,7 +445,8 @@ contains
     ! diagsphamil
     ! HFtransfo 
     ! (nwt) Wavefunctions                                    
-    ! Forcename                                              
+    ! Forcename     
+    ! single-particle hamiltonian                                           
     ! Pairing information                                    
     !    - Pairingtype
     !    - Rho_can = occupation factors 
@@ -564,7 +565,11 @@ contains
     read(chan,iostat=io) HFPsi    
     ! Name of the force and functional
     read(chan, iostat=io) name_param, func_name_check
-
+    ! Single-particle hamiltonian
+    if(file_version.ge.4) then
+      allocate(current_sph(filenwt,filenwt))
+      read(chan, iostat=io) current_sph
+    endif
     !---------------------------------------------------------------------------
     ! Pairing information                                      
     read(chan, iostat=io) filepairing
@@ -743,7 +748,8 @@ contains
     ! diagsphamil
     ! HFtransfo 
     ! (nwt) Wavefunctions                                    
-    ! Forcename                                              
+    ! Forcename              
+    ! Single-particle hamiltonian                                
     ! Pairing information                                    
     !    - Pairingtype
     !    - Rho_can = occupation factors 
@@ -805,6 +811,8 @@ contains
     write(chan,iostat=io) HFPsi                              
     ! Name of the force.
     write(chan, iostat=io) name_param, func_name
+    ! Single-particle hamiltonian
+    write(chan, iostat=io) current_sph
     !---------------------------------------------------------------------------
     ! Pairing information                                      
     write(chan, iostat=io) PairingType

@@ -504,6 +504,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     integer, intent(in)        :: scheme
     integer, intent(out)       :: ifail
     real(KIND=dp), allocatable :: sphamil(:,:)
+    logical                    :: move
 
     call start_timer(T_pairing)
 
@@ -573,12 +574,12 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Lambda2,Bogoliubov,rho_pairing,        &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
-        &   blocklowest, blocked_qps, .true. , ifail)
+        &   blocklowest, blocked_qps, .true. , 1,  ifail)
       case(-1)
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Lambda2,Bogoliubov,rho_pairing,        &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
-        &   blocklowest, blocked_qps, .false., ifail)
+        &   blocklowest, blocked_qps, .false., 1, ifail)
       end select
    end select
 
