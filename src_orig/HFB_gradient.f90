@@ -158,6 +158,13 @@ contains
           ! heavy-vall step. 
           call find_fermi_brent(Bogo, H20, N20, prev, Eqp, lambda,             &
           &                particles, targetN, alpha, mu, precon, blocks, ifail)
+    
+          if(ifail.eq.10) then
+            ! The code failed to find a bracket for the Fermi energy
+            !---------------------------------------------------------
+            ! we simply update the Fermi energy in the right direction
+            lambda = lambda - 0.1 * (particle_number_bogo(bogo, blocks) - targetN)          
+          endif
         endif
         ! Building the gradient update 
         ! (with the old Fermi energy if the pairing collapsed)
@@ -304,7 +311,7 @@ contains
           print '(/," A = ", f13.8, " FA = ",1es12.4,              &
                &    " B = ", f13.8, " FB = ",1es12.4)',            &
                &     InitialBracket(1),FA,InitialBracket(2),FB 
-          ifail = 1
+          ifail = 10
           return
           !stop 'FindFermiBrent: Search for InitialBracket failed.'
         endif
