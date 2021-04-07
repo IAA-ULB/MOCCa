@@ -229,8 +229,6 @@ subroutine ReachForWaterAndFood()
       ! We perform a few extra calls to solvepairing to take a few gradient
       ! steps, with finite values for Delta.
       call SolvePairing(pairingscheme, ifail)
-      call SolvePairing(pairingscheme, ifail)
-      call SolvePairing(pairingscheme, ifail)
     endif    
     
     ! Calculate the initial densities and the charge density (separately)

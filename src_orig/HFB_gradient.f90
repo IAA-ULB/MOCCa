@@ -137,7 +137,7 @@ contains
     real(KIND=dp), intent(inout) :: Eqp(:),  prev(:,:), gradnorm
     real(KIND=dp), allocatable   :: H20(:,:), N20(:,:), grad(:,:), H11(:,:)
 
-    real(KIND=dp)                :: particles,  normN
+    real(KIND=dp)                :: particles,  normN, lambda_corr
     integer                      :: iter
     logical                      :: converged = .false.  
   
@@ -159,6 +159,7 @@ contains
           call find_fermi_brent(Bogo, H20, N20, prev, Eqp, lambda,             &
           &                particles, targetN, alpha, mu, precon, blocks, ifail)
         endif
+        
         ! Building the gradient update 
         ! (with the old Fermi energy if the pairing collapsed)
         grad = buildgrad(H20, N20, lambda, Eqp, precon)
@@ -169,6 +170,19 @@ contains
         ! and for good measure, we recalculate the (deviation of) the 
         ! particle number
         particles = particle_number_bogo(bogo, blocks) - targetN
+
+        N20 = calcN20(Bogo, blocks) 
+        normN = sqrt(sum(N20**2))
+        if(abs(particles).gt.1d-8 .and. normN .gt. 1d-4) then
+          N20 = calcN20(Bogo, blocks) 
+          H20 = 0.0
+          lambda_corr = 0.1
+          call find_fermi_brent(Bogo, H20, N20, prev, Eqp, lambda_corr,        &
+          &             particles, targetN, 1.0d0, 0.0d0, precon, blocks, ifail)
+          grad = buildgrad(H20, N20, lambda_corr, Eqp, precon)
+          bogo = GradUpdate(grad, prev, bogo, 1.0d0, 0.0d0, blocks)
+        endif
+
         ! as well as the norm of the gradient 
         gradnorm  = sqrt(sum(grad**2))
         ! Check for convergence if this is process is repeated multiple times

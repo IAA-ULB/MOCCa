@@ -469,8 +469,8 @@ $NTR          do wave2=si+N+1,si+N+N2
                 s = 1
               endif
               ! Guess something with the sign of kappa beween 0.3 and 1.5
-              HFBgaps( wave, wave2) = 1.5 !&
-!              &     s*max(min(10*abs(kappa_pairing(wave, wave2)),1.5),0.3)
+              HFBgaps( wave, wave2) = &
+              &     s*max(min(10*abs(kappa_pairing(wave, wave2)),1.5),0.3)
             else
               ! Either we don't have a kappa in storage, or the pairing has 
               ! collapsed in this subblock.

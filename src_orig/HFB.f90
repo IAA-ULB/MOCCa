@@ -347,6 +347,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     endif
     allocate(tempEqp(nwt))  ; tempEqp = 0 
 
+    ifail = 0
     !---------------------------------------------------------------------------
     ! Saving the history
     Bogoliubov_history   = Bogo
