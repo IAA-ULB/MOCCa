@@ -54,10 +54,11 @@ implicit none
   !               (March 2021 - March 2021)
   !   version 4 : inclusion of 
   !               * blocking information 
+  !               * single-particle hamiltonian
   !               (March 2021 - ....      )
   !-----------------------------------------------------------------------------
   integer, parameter  :: version_number = 4
-  integer             :: file_version
+  integer             :: file_version = 0
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100)  :: inputfilename, outputfilename
@@ -297,7 +298,7 @@ contains
     ! Checking the blocking options: making sure things are in line with what
     ! the user asked
     if(Bogofromfile .and. pairingscheme.eq.1) then
-      call massage_bogoliubov()
+      if(file_version .ge. 4) call massage_bogoliubov()
     endif
     !---------------------------------------------------------------------------  
     ! Transformation options
