@@ -746,7 +746,8 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             endif 
             !-------------------------------------------------------------------
 
-            if(QPenergies(iii).lt.0.0d0 .or. QPEnergies(jjj).lt.0.0d0) cycle
+            if( (QPenergies(iii) + Qpenergies(jjj)) .lt. 0.0d0) cycle
+           
             fac =  configmatrix(iii) * configmatrix(jjj)
             ME = 0.5 * J20(ii,jj,:)**2  * fac
             !fac=  configmatrix(jjj) * (1 - configmatrix(iii))
@@ -836,7 +837,7 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
               if(configmatrix(sb+j).eq.0.5d0) cycle
             endif 
             !-------------------------------------------------------------------
-            if(QPenergies(iii).lt. 0.0d0 .or. Qpenergies(jjj) .lt. 0.0d0) cycle
+            if((QPenergies(iii) + Qpenergies(jjj)) .lt. 0.0d0) cycle
            
             ! Note: if T = 0 then fac is always equal to one for non-blocked
             ! particles, hence not put into the formula here.
