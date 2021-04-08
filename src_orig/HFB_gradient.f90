@@ -784,7 +784,7 @@ $TR  part = 2* part
         enddo
         sb   = sb + 2 * T
      enddo
-      disp  = 2 * disp
+     disp  = 2 * disp
      ! Time*reversal factor 2
 $TR  disp = 2 * disp 
   end function disp_bogo

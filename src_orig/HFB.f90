@@ -816,7 +816,7 @@ $TR return
     !
     ! So <N^2> - <N>^2 = Tr(rho ( 1 -rho)) +  Tr(kappa * kappa^{\dagger})
     ! 
-    !-------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     ! Note, that at T = 0, we have that (kappa * kappa^{\dagger}) = rho(1-rho).
     ! So in that case, we have 
     !  < Delta N^2 > = < N^2 > - <N>^2 = 2 * Tr(rho(1-rho))
@@ -824,30 +824,40 @@ $TR return
     !
     ! We implement however the formula above, since this is the one that 
     ! correctly generalizes to T != 0.
-    !-------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     real(KIND=dp), intent(inout) :: rho(:,:), kappa(:,:)
     real(KIND=dp), allocatable   :: chi(:,:)
+$NTR real(KIND=dp), allocatable  :: k2(:,:)
     real(KIND=dp)                :: dispersion(2)
-    integer                      :: N, B, si, i, it
+    integer                      :: N, B, si, i, it, N2, T
 
     si            = 0
     dispersion = 0.0
     allocate(chi(nwt, nwt))
-    do B=1,8
-      N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
+    do B=1,8,2 
+      N  = HFBlocks(B)  ;  if(N .eq. 0) cycle 
+      N2 = HFBlocks(B+1) 
+      
+      T = N + N2
 
       it  = 1
       if(B .gt. 4) it = 2
       
       ! rho squared
-      chi = matmul(rho(si+1:si+N, si+1:si+N), rho(si+1:si+N, si+1:si+N) )    
+      chi = matmul(rho(si+1:si+T, si+1:si+T), rho(si+1:si+T, si+1:si+T) ) 
+      
+      ! kappa * kappa^*
+$NTR  k2  = matmul(           kappa(si+1:si+T, si+1:si+T), & 
+$NTR      &         transpose(kappa(si+1:si+T, si+1:si+T))) 
+         
       !                                       Tr rho - Tr rho^2
-      do i=1,N
+      do i=1,T
           dispersion(it) = dispersion(it) + rho(si+i, si+i)           &
           &                                     - chi(i,i)            &
-          &                                     + kappa(si+i, si+i)**2
+$TR       &                                     + kappa(si+i, si+i)**2
+$NTR      &                                     + k2(i,i)
       enddo
-      si = si + N
+      si = si + T
     enddo
     deallocate(chi)
 
