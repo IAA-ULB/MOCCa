@@ -848,9 +848,9 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
             !  Bely_coll(:,it) = Bely_coll(:,it) + &
             !  &       fac*J11(ii,jj,:)**2 /(Qpenergies(iii)-Qpenergies(jjj))  
             !endif  
-            if(qpenergies(iii)+ qpenergies(jjj) .lt. 1d-3) then
-              print *, B, iii,jjj, blocked, Qpenergies(iii), qpenergies(jjj)
-            endif
+!            if(qpenergies(iii)+ qpenergies(jjj) .lt. 1d-3) then
+!              print *, B, iii,jjj, blocked, Qpenergies(iii), qpenergies(jjj)
+!            endif
           endif        
           !---------------------------------------------------------------------
         enddo

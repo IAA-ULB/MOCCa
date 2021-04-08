@@ -68,15 +68,28 @@ module GenInfo
   real(KIND=dp) :: inversetemp = -1
   !---------------------------------------------------------------------------
   ! Convergence criteria
-  !      Name       Default         
+  !      Name       Default       Implementation   
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   !   energy_prec     1d-1     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec
   !   moment_prec     1d-5     abs((Qlm^(i) - Qlm^(i))/Qlm^(i)) < moment_prec
   !                                if Qlm^(i) is large enough
   !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
   !                                     < disp_prec
+  !   fermi_prec      1d-3     abs(lambda^(i) - lambda^(i-1)) < fermi_prec
+  !                                    for both nucleon species
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   real(KIND=dp) :: energy_prec = 1d-11, moment_prec = 1d-5, disp_prec = 1d-5
+  real(KIND=dp) :: fermi_prec = 1d-3
+  !-----------------------------------------------------------------------------
+  ! Pairing tolerance
+  ! Tolerance passed into the pairing solver. What exactly this determines 
+  ! depends on the solver used, but for the default (Brent) solver, this 
+  ! determines the relative precision on the Fermi energy itself.
+  !
+  ! Be very careful if you change this, as reducing this precision can lead to
+  ! nonconverging calculations, especially when doing blocked calculations.
   real(KIND=dp) :: pairing_prec = 1d-15
-  !---------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! Counter variables for the MPI implementation
   integer :: Counter = 1, Run = 1
 
@@ -89,7 +102,8 @@ contains
     integer(dp), intent(in), optional   :: file_number   
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
-    &                  energy_prec, moment_prec, disp_prec, pairing_prec
+    &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
+    &                  fermi_prec
     Namelist /mesh/    nx,ny,nz, dx
     
     ! Reading the information on the nucleus

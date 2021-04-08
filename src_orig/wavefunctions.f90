@@ -105,7 +105,7 @@ module wavefunctions
  !------------------------------------------------------------------------------
  ! Oscillator frequencies to use for the initialization with a Nilsson  
  ! hamiltonian.
- real(KIND=dp) :: osc_freq(3) = 0.2
+ real(KIND=dp) :: osc_freq(3) = (/ 0.225, 0.225, 0.15 /)
  !------------------------------------------------------------------------------
  ! Filename to read the values on the mesh of a "model"-swpf for blocking. 
  character(len=40)                  :: blockfname = ''

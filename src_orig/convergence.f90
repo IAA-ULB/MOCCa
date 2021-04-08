@@ -105,6 +105,9 @@ contains
     !
     !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
     !                                     < disp_prec
+    !    
+    !   fermi_prec      1d-3     abs(lambda^(i) - lambda^(i-1)) < fermi_prec
+    !                                    for both nucleon species
     !---------------------------------------------------------------------------
     use Moments
     use functional
@@ -126,12 +129,13 @@ contains
     dE(5) = abs(TotalE - Ehistory(1))/abs(totalE)
     
     if(.not. all(dE .lt. energy_prec)) then
-     C = .false.
+      C = .false.
     endif
 
     !---------------------------------------------------------------------------
     ! Checking the weighted dispersion
     if(d2H .gt. disp_prec) C = .false.
+
     !---------------------------------------------------------------------------
     ! Check all of the multipole moments that are large enough
     Current => Root
@@ -144,6 +148,11 @@ contains
             if(dQ > moment_prec) C = .false.
         endif
     enddo   
+    
+    !---------------------------------------------------------------------------
+    ! Check the Fermi energy
+    if(any(abs(Fermienergy - FermiHistory).gt.fermi_prec)) C = .false.
+        
   end subroutine Converged
 
 end module convergence

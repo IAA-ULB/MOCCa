@@ -195,9 +195,10 @@ contains
                '     on unit ', i10)
   112 format ( ' Checkpointiter =', i10)
    12 format ( ' Convergence required', / &
-    &          '  Energy convergence           < ', e8.1, / & 
-    &          '  Multipole moment convergence < ', e8.1, / &
-    &          '  Dispersion convergence       < ', e8.1 )
+    &          '  Energy convergence           < ', es8.1, / & 
+    &          '  Multipole moment convergence < ', es8.1, / &
+    &          '  Dispersion convergence       < ', es8.1, / &
+    &          '  Fermi energy convergence     < ', es8.1)
    13 format ( ' Inverse temperature Beta = ', f14.9)
 
     print *
@@ -238,7 +239,7 @@ contains
     if(present(file_number)) then
       print 1111,  adjustl(trim(input_file)), file_number
     endif
-    print 12, energy_prec, moment_prec, disp_prec
+    print 12, energy_prec, moment_prec, disp_prec, fermi_prec
     
     call printevolution
     call printscfiteration

@@ -186,12 +186,13 @@ subroutine ReachForWaterAndFood()
     1 format('----------------------------------')
     2 format('| Convergence criteria satisfied.|')
     3 format('| Needed ', i4, ' iterations.', 8x,'|')
-    4 format('| dE < ', e10.3, 15x, ' | ')
-    5 format('| dQ < ', e10.3, 15x, ' | ')
-    6 format('| dH < ', e10.3, 15x, ' | ')        
-    7 format('| Ending the iterative proces.   |')
+    4 format('| dE < ', es10.3, 15x, ' | ')
+    5 format('| dQ < ', es10.3, 15x, ' | ')
+    6 format('| dH < ', es10.3, 15x, ' | ')
+    7 format('| dmu< ', es10.3, 15x, ' | ')
+    8 format('| Ending the iterative proces.   |')
 
-    8 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
+    9 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
 
     integer :: iter, iprint, scheme
     integer :: ifail
@@ -360,7 +361,7 @@ subroutine ReachForWaterAndFood()
         ! Write a wavefunction file according to checkpointiter
         if(checkpointiter.ne.0) then
           if(mod(iter,checkpointiter) .eq. 0) then
-            print 8, iter, outputfilename
+            print 9, iter, outputfilename
             iomsg='CHECKPOINT'
             call WriteTantalus(12, outputfilename)     
           endif          
@@ -373,7 +374,8 @@ subroutine ReachForWaterAndFood()
             print 4, energy_prec
             print 5, moment_prec
             print 6, disp_prec
-            print 7
+            print 7, fermi_prec
+            print 8
             print 1
 
             iomsg='CONVERGED'

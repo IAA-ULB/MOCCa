@@ -285,6 +285,7 @@ $FORBIDBCS endif
     2 format(' Pairing treatment: ', a60)
    21 format('   Fermi-solver: ', a99 )
   211 format('   Pairing strategy:', a60)
+ 2111 format('     -> Fermi tolerance: ', es10.3)
     3 format('   Linear mixing of (rho,kappa)')    
     4 format('   Linear mixing of eigenvalues of R')
     5 format('   HFBmix = ', f5.3)
@@ -315,7 +316,7 @@ $FORBIDBCS endif
    16 format ('    Block through overlap')
    17 format ('    Blockfile    = ', 40a)
 
-    character(len=60) :: ptreat
+    character(len=60) :: ptreat, pscheme
 
     print 1
 
@@ -326,17 +327,21 @@ $FORBIDBCS endif
     case(1)
         ptreat = 'Bardeen-Cooper-Schrieffer (HF+BCS)'
         print 2, adjustl(ptreat)
+        print 2111, pairing_prec
     case(2)
         ptreat = 'Hartree-Fock-Bogoliubov (HFB)'
         print 2, ptreat
  
         select case(pairingscheme)
         case(0)
-          print 211, adjustl('Direct diagonalisation')
+          pscheme = 'Direct diagonalisation'
+          print 211, adjustl(pscheme)
           print 21, adjustl(FermiSolver)
         case(1)
-          print 211,  adjustl('Geometric optimisation')
+          pscheme = 'Gradient solver'
+          print 211,  adjustl(pscheme)
         end select 
+        print 2111, pairing_prec
     end select
 
     if(pairingtype.eq.2) then

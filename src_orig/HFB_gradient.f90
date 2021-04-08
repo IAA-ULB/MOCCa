@@ -173,7 +173,7 @@ contains
 
         N20 = calcN20(Bogo, blocks) 
         normN = sqrt(sum(N20**2))
-        if(abs(particles).gt.1d-8 .and. normN .gt. 1d-4) then
+        if(abs(particles).gt.pairing_prec .and. normN .gt. 1d-4) then
           N20 = calcN20(Bogo, blocks) 
           H20 = 0.0
           lambda_corr = 0.1
