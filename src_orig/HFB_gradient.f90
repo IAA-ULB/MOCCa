@@ -171,6 +171,9 @@ contains
         ! particle number
         particles = particle_number_bogo(bogo, blocks) - targetN
 
+        ! as well as the norm of the gradient 
+        gradnorm  = sqrt(sum(grad**2))
+
         N20 = calcN20(Bogo, blocks) 
         normN = sqrt(sum(N20**2))
         if(abs(particles).gt.pairing_prec .and. normN .gt. 1d-4) then
@@ -183,8 +186,6 @@ contains
           bogo = GradUpdate(grad, prev, bogo, 1.0d0, 0.0d0, blocks)
         endif
 
-        ! as well as the norm of the gradient 
-        gradnorm  = sqrt(sum(grad**2))
         ! Check for convergence if this is process is repeated multiple times
         if(gradnorm .lt. 1d-6) converged = .true.
 
