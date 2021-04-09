@@ -681,11 +681,7 @@ $TR                              &  - matmul(V, hU) - matmul(V, dV)
 $NTR                          &  - matmul(V, dU) & 
 $TR                           &  + matmul(V, dU) & 
                               &  - matmul(V, hV)
-                              
-!      do i=1, T                                
-!        print ('(99f10.3)'), H11(si+i, si+1:si+T)
-!      enddo
-!      print *
+
       si = si +  T
       sb = sb +2*T
     enddo

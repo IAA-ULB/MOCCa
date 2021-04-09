@@ -745,13 +745,19 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
               if(configmatrix(jjj) .eq. 0.5d0) cycle
             endif 
             !-------------------------------------------------------------------
+            blocked= .false.
+            do k=1,size(blocked_qps)
+              if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
+                blocked = .true.
+              endif
+            enddo
+            if(blocked) cycle
 
-            if( (QPenergies(iii) + Qpenergies(jjj)) .lt. 0.0d0) cycle
-           
             fac =  configmatrix(iii) * configmatrix(jjj)
             ME = 0.5 * J20(ii,jj,:)**2  * fac
-            !fac=  configmatrix(jjj) * (1 - configmatrix(iii))
-            !ME = ME + J11(ii,jj,:)**2  * fac
+            
+            fac=  configmatrix(jjj) * (1 - configmatrix(iii))
+            ME = ME + J11(ii,jj,:)**2  * fac
             
             J2_coll(:,it) = J2_coll(:,it) + ME      
           enddo
@@ -837,21 +843,25 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
               if(configmatrix(sb+j).eq.0.5d0) cycle
             endif 
             !-------------------------------------------------------------------
-            if((QPenergies(iii) + Qpenergies(jjj)) .lt. 0.0d0) cycle
+            blocked= .false.
+            do k=1,size(blocked_qps)
+              if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
+                blocked = .true.
+              endif
+            enddo
+            if(blocked) cycle
            
             ! Note: if T = 0 then fac is always equal to one for non-blocked
             ! particles, hence not put into the formula here.
             fac = 1 - configmatrix(sb+i) - configmatrix(sb+j)
             Bely_coll(:,it) = Bely_coll(:,it) + &
             &               J20(ii,jj,:)**2 /(Qpenergies(iii) + Qpenergies(jjj))  
-            !fac =  configmatrix(sb+j) - configmatrix(sb+i)
-            !if(abs(Qpenergies(iii) - Qpenergies(jjj)) .gt. 1d-8) then
-            !  Bely_coll(:,it) = Bely_coll(:,it) + &
-            !  &       fac*J11(ii,jj,:)**2 /(Qpenergies(iii)-Qpenergies(jjj))  
-            !endif  
-!            if(qpenergies(iii)+ qpenergies(jjj) .lt. 1d-3) then
-!              print *, B, iii,jjj, blocked, Qpenergies(iii), qpenergies(jjj)
-!            endif
+
+            fac =  configmatrix(sb+j) - configmatrix(sb+i)
+            if(abs(Qpenergies(iii) - Qpenergies(jjj)) .gt. 1d-8) then
+              Bely_coll(:,it) = Bely_coll(:,it) + &
+              &       fac*J11(ii,jj,:)**2 /(Qpenergies(iii)-Qpenergies(jjj))  
+            endif  
           endif        
           !---------------------------------------------------------------------
         enddo

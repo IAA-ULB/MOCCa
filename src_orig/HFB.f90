@@ -470,105 +470,154 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     ! sorting. 
     qpenergies = correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFblocks)
 
-!    ! Figure out the blocked qp indices
-!    select case(blocktype)
-!      case(0)
-!        ! Nothing to do
-!      case(2) 
-!        if(allocated(blocked_qps)) deallocate(blocked_qps)
-!        NB = 2*size(blocklowest)
-!        allocate(blocked_qps(NB))
-!  
-!        do i=1, NB
-!          select case (Blocklowest(i))
-!          ! Select the lowest overall neutron qp energy on the r.h.s of the 
-!          ! Bogo transformation
-!          case('n+')
-!            stind  =    sum(HFBlocks(1:2)) + 1 
-!            endind =  2*sum(HFBlocks(1:2)) 
-!            
-!            !X = minloc(qpenergies(stind:endind))
-!            blocked_qps(i)   = HFBlocks(1) 
-!           ! blocked_qps(i+1) = HFBlocks(1) + 1
-
-!          case('n-')
-!            stind  = 2*sum(HFBlocks(1:2)) +  sum(HFBlocks(3:4)) + 1 
-!            endind = 2*sum(HFBlocks(1:4)) 
-! 
-!!            X = minloc(qpenergies(stind:endind)) 
-!!            blocked_qps(i) = X(1) + sum(HFBlocks(1:2))
-
-!            blocked_qps(i)   = sum(HFBlocks(1:3)) 
-!           ! blocked_qps(i+1) = sum(HFBlocks(1:3)) + 1
-! 
-!         case('p+')
-!            stind  = 2*sum(HFBlocks(1:4)) +  sum(HFBlocks(5:6)) + 1 
-!            endind = 2*sum(HFBlocks(1:6)) 
-! 
-!            blocked_qps(i)   = sum(HFBlocks(1:5)) 
-!           ! blocked_qps(i+1) = sum(HFBlocks(1:5)) + 1
-! 
-!         case('p-')
-!            stind  = 2*sum(HFBlocks(1:6)) +  sum(HFBlocks(7:8)) + 1 
-!            endind = 2*sum(HFBlocks(1:8))   
-!            
-! 
-!            blocked_qps(i)   = sum(HFBlocks(1:7)) 
-!           ! blocked_qps(i+1) = sum(HFBlocks(1:7)) + 1
-!           
-!          case('n0')
-!             print *, 'N0 blocking not yet available for gradient solver'
-!!            stind  =   sum(HFBlocks(1:2)) + 1 
-!!            endind = 2*sum(HFBlocks(1:2)) 
-
-!!            X = minloc(qpenergies(stind:endind)) 
-!!            E1= minval(qpenergies(stind:endind))
-
-!!            stind  = 2*sum(HFBlocks(1:2)) + sum(HFBlocks(3:4)) + 1 
-!!            endind = 2*sum(HFBlocks(1:4)) 
-!!            
-!!            Y = minloc(qpenergies(stind:endind)) 
-!!            E2= minval(qpenergies(stind:endind))
-
-!!            if(E2 .lt. E1) then
-!!              blocked_qps(i) = Y(1) + sum(HFBlocks(1:2))
-!!            else
-!!              blocked_qps(i) = X(1)
-!!            endif
-
-!          case('p0')
-!             print *, 'P0 blocking not yet available for gradient solver'
-
-!!            stind  = 2*sum(HFBlocks(1:4))  + sum(HFBlocks(5:6)) + 1 
-!!            endind = 2*sum(HFBlocks(1:6)) 
-
-!!            X = minloc(qpenergies(stind:endind)) 
-!!            E1= minval(qpenergies(stind:endind))
-
-!!            stind  = 2*sum(HFBlocks(1:6))  + sum(HFBlocks(7:8)) + 1 
-!!            endind = 2*sum(HFBlocks(1:8)) 
-
-!!            X = minloc(qpenergies(stind:endind)) 
-!!            E1= minval(qpenergies(stind:endind))
-
-!!           if(E2 .lt. E1) then
-!!              blocked_qps(i) = Y(1) + sum(HFBlocks(1:6))
-!!            else
-!!              blocked_qps(i) = X(1) + sum(HFBlocks(1:4))
-!!            endif
-!          end select
-!        enddo
-!  
-!      case(4)
-!        print *, 'Gradient solver can not yet be used for EFA.'
-!        stop    
-!    end select
+    blocked_qps = figure_out_blocking_structure(sphamil, gaps, Fermi, bogo,    &
+    &                                      blocktype, blockindices, blocklowest)
     !---------------------------------------------------------------------------
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
 
     deallocate(tempEqp)
   end subroutine solvepairing_HFB_gradient
+  
+  function figure_out_blocking_structure(sphamil, gaps, lambda, Bogo_ref,      &
+  &                                      BlockType,Blockindices,blocklowest)   &
+  &                                     result(bl_qps)
+    !---------------------------------------------------------------------------
+    ! 
+    !
+    !
+    !
+    !---------------------------------------------------------------------------
+  
+    real(KIND=dp), intent(in) :: sphamil(:,:), gaps(:,:), lambda(2)
+    real(KIND=dp), intent(in) :: bogo_ref(:,:)
+
+    integer, intent(in)          :: BlockType
+    integer, intent(in)          :: Blockindices(:)
+    character(len=2), intent(in) :: BlockLowest(:)
+
+    real(KIND=dp)             :: part, lambda_copy(2), maxov
+    real(KIND=dp), allocatable:: HFBHamil(:,:), config(:), bogo(:,:), eqp(:)
+    real(KIND=dp), allocatable:: overlap(:,:)
+    integer                   :: si, sb, N, N2, ifail, B, it, i, j, k, NB, ind
+    integer, allocatable      :: blocked_qp(:), bl_qps(:), blockblock(:)
+    logical                   :: check
+    
+    if(blocktype.ne.2 .and. blocktype.ne.4) then
+      print *, 'The blocking identification for the gradient solver is not '
+      print *, 'yet capable of dealing with blocktype != 2,4'
+      stop
+    endif
+    
+    NB = size(blocklowest)
+    
+    
+    allocate(bl_qps(NB)) ; bl_qps = 0
+    
+    allocate(HFBHamil(2*nwt, 2*nwt)) ; HFBHamil = 0.0d0
+    allocate(bogo(2*nwt, 2*nwt))     ; bogo     = 0.0d0
+    allocate(config(2*nwt))          ; config   = 0.0d0
+    allocate(eqp(2*nwt))             ; eqp      = 0.0d0
+    
+    ! Build the full HFB-hamiltonian
+    si      = 0 ; sb = 0
+    do B=1,8,2
+      N  = HFBlocks(B)    ! Size of the first partner block
+      N2 = HFBlocks(B+1)  ! Size of the second partner block
+      
+      it = 1 ; if (B .gt. 4) it = 2
+
+      HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
+      &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
+      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,      &
+      &                           rho_history(si+1:si+N+N2,si+1:si+N+N2),      &
+      &                           kappa_history(si+1:si+N+N2,si+1:si+N+N2),    &
+      &                           HFBgauge(it))  
+
+      si = si +   N +   N2
+      sb = sb + 2*N + 2*N2
+    enddo
+    !---------------------------------------------------------------------------
+    ! now diagonalize the HFB Hamiltonian "as is", without 
+    !  (1) any blocking 
+    !  (2) any changing of the Fermi energy, i.e. the particle number will not 
+    !      be correct.
+    
+    lambda_copy = lambda
+    part = Diagbyblock(HFBHamil(1:2*nwn,1:2*nwn), HFblocks(1:4),               &
+    &                  config(1:2*nwn),                                        &
+    &                  Bogo(1:2*nwn,1:2*nwn),Eqp(1:2*nwn),      &
+    &                  lambda_copy(1), 0 , (/0/), blocked_qp, ifail)
+    
+    part = Diagbyblock(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFblocks(5:8),   &
+    &                  config(2*nwn+1:2*nwt),                                  &
+    &                  Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt), Eqp(2*nwn+1:2*nwt),  &
+    &                  lambda_copy(2), 0 , (/0/), blocked_qp, ifail)
+
+    ! Don't forget to correct the structure of the matrices
+    call reorganise_matrices(Bogo,Eqp, config)
+    !---------------------------------------------------------------------------
+    ! We have now in memory the "reference" Bogoliubov state, which has wrong
+    ! particle number, but which should have the "unblocked" U and V columns.
+    ! (Note that it is not necesarily the lowest energy HFB vacuum, but rather
+    ! the lowest even-even vacuum constructed here...)
+
+    ! We multiply the reference transformation with the transformation in 
+    ! memory, to determine which qps have been blocked
+    overlap = matmul(transpose(Bogo), Bogo_ref)
+
+
+    allocate(blockblock(NB)); blockblock = 0
+    do i=1,NB
+      select case(blocklowest(i))
+      case('n+')
+        blockblock(i) = 1
+      case('n-')
+        blockblock(i) = 3
+      case('p+')
+        blockblock(i) = 5
+      case('p-')
+        blockblock(i) = 7
+      case('n0', 'p0')
+        print *, 'The blocking identification for the gradient solver is not '
+        print *, 'yet capable of dealing with "n0", "p0" blocking options.'
+        stop
+      end select
+    enddo
+    
+  
+    si      = 0 ; sb = 0 ; ind = 1
+    do B=1,8,2
+      N  = HFBlocks(B)    ! Size of the first partner block
+      N2 = HFBlocks(B+1)  ! Size of the second partner block
+      
+      it = 1 ; if (B .gt. 4) it = 2
+
+      check = .false. 
+      do k=1,NB
+        if(blockblock(k) .eq. B) then 
+          check = .true.
+        endif
+      enddo
+      
+      if(check) then
+        ! We check the off-diagonal components of the overlap matrix to find 
+        ! the one qp that is most like the non-selected part
+        maxov = -100000.0d0
+        do i=1,N+N2
+          do j=1,N+N2
+            if(abs(overlap(sb+i, sb+N+N2+j)) .gt. maxov) then
+              maxov = abs(overlap(sb+i, sb+N+N2+j))
+              bl_qps(ind) = si + j
+            endif
+          enddo
+        enddo
+        ind = ind + 1
+      endif      
+      si = si +   N +   N2
+      sb = sb + 2*N + 2*N2
+    enddo
+  end function figure_out_blocking_structure
   
   function obtain_eqp(sphamil, gaps, lambda, blocks) result(eigen)
     !---------------------------------------------------------------------------
