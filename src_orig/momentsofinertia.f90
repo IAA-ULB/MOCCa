@@ -374,10 +374,13 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !             (sum over all possible sps in the can. basis)
     ! 
     !   in the qp basis 
-    !              =  1/2 sum_ab |J^20_ab|^2
-    !             (sum over all possible combinations of qps)
+    !   
+    !              =  1/2 sum_ab (1-f_a)(1-f_b) |J^{20}_ab|^2 
+    !              +      sum_ab f_a (1-f_b) |J^{11}_ab|^2 
     !
-    !      for a HFB reference state. 
+    !     where the sums range over all possible combinations of qps. Note that
+    !     for even-even nuclei, the f_a are zero and only the first sum 
+    !     contributes. 
     !
     !      Some caveats apply:
     !
@@ -402,7 +405,8 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !           I_mm = - partial_{\omega} < psi' | J_m | psi' > 
     !
     !        where 
-    !        a) the derivative should be evaluated at a reference frequency)  
+    !        a) the derivative should be evaluated at a reference frequency 
+    !            \omega 
     !        b) psi' is a second order perturbation to the HFB state when 
     !           the rotational frequency changes, i.e. 
     !       
@@ -415,18 +419,20 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !             do               C
     !          -  --- sum_ab -------------  b^{\dagger}_a b^{\dagger}_a |psi_0 > 
     !              2           E_a + E_b
-    !           !
-    !           (when T = 0, otherwise there is also a term involving 
-    !            annihilation operators)
+    !           
+    !           when T != 0 or in the presence of quasiparticle excitations
+    !           there are also terms involving annihilation operators
     !                
     !          with E_a and E_b the quasiparticle energies and 
     !
     !           C =  < psi_0 | J_m  b^{\dagger}_a b^{\dagger}_a |psi_0 > 
-    !
     !   
     ! This gives rise to 
     !
-    !    I_mm = \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
+    !    I_mm = \sum_{ab} (1 - f_a  - f_b) (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
+    !         + \sum_{ab} (f_b - f_a)      (E_a - E_b)^{-1} |J^{11}|^2_{m,ab}
+    !
+    ! where the sums are over all possible qp combinations.
     !
     ! --------------------------------------------------------------------------
     ! Notes to self about checks of this routine
@@ -435,6 +441,10 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !  (b) Time-reversal conserving results equal the BCS ones
     !  (c) When pairing collapses, results are equal to the HF ones.
     !       (both with and without T conservation)
+    !  (d) When including all quasiparticles in the sums, 
+    !       < \Delta J^2> calculated in the HF basis and in the qp-basis
+    !      are equal, also for blocked calculations.
+    !
     !---------------------------------------------------------------------------
     integer       :: i,j, b, it, ii, iii, jjj, jj, si, N,k, sb, ibar, jbar, N2,T
     real(KIND=dp) :: ME(3),  fac
@@ -481,7 +491,6 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     ! jz_ij and jx_ij are always real, and jy_ij is always imaginary.
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
-    !print *, 'BLOCKEDQPS', blocked_qps
 
     si = 0  
     do B = 1, 8,2
@@ -507,7 +516,8 @@ $TR       ! |< k | j_y | -l >|^2
 $TR       jy(ii,jj)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
         
           ! |< k | j_z |  l >|^2 
-          jz(ii  ,jj  ) = angmom_z_real( hfpsi(:,:,ii  ),hfpsi(:,:,jj  ),hfdpsi(:,:,:,jj  ))
+          jz(ii  ,jj  ) = angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),          &
+          &                              hfdpsi(:,:,:,jj))
         enddo
       enddo
       ! If time-reversal is not conserved, we have only calculated half of the 
@@ -517,7 +527,8 @@ $NTR     ii = si + N + i
 $NTR     do j=1,N2
 $NTR      jj = si + N + j
 $NTR
-$NTR      jz(ii  ,jj  ) = angmom_z_real( hfpsi(:,:,ii  ),hfpsi(:,:,jj  ),hfdpsi(:,:,:,jj  ))
+$NTR      jz(ii,jj) = angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj), & 
+$NTR                                              hfdpsi(:,:,:,jj))
 $NTR     enddo
 $NTR  enddo
       !-------------------------------------------------------------------------
@@ -529,11 +540,10 @@ $NTR    ii = si + i
 $NTR    do j=1, N2
 $NTR       jj = si + N +  j
 $NTR
-
 $NTR       !|< k | j_x | l >|^2            
-$NTR       jx(ii,jj)= angmom_x_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
+$NTR       jx(ii,jj)=angmom_x_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
 $NTR       ! |< k | j_y | l >|^2 
-$NTR       jy(ii,jj)= angmom_y_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+$NTR       jy(ii,jj)=angmom_y_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
 $NTR 
 $NTR       jx(jj,ii) =  jx(ii,jj)
 $NTR       jy(jj,ii) = -jy(ii,jj)
@@ -542,9 +552,8 @@ $NTR  enddo
 
       if(rotcorr_cut) then
         !-----------------------------------------------------------------------
-        ! The matrix elements computed above are the matrix elements in the basis
-        ! in storage. This is not necessarily the HF-basis, as the code no
-        ! longer necessarily diagonalises the sphamiltonian.
+        ! The matrix elements computed above are the matrix elements in the 
+        ! sp-basis in storage. This is not necessarily the HF-basis.
         if(.not. diagsphamil) then
              jx(si+1:si+T,si+1:si+T) = &
              &    matmul(        jx(si+1:si+T,si+1:si+T),          &
@@ -578,7 +587,7 @@ $NTR  enddo
           enddo
         enddo
         ! Transform back (if necessary)
-         if(.not. diagsphamil) then
+        if(.not. diagsphamil) then
              jx(si+1:si+T,si+1:si+T) = &
              &    matmul(          jx(si+1:si+T,si+1:si+T),          &
              &           transpose(HFtransfo(si+1:si+T,si+1:si+T)))
@@ -604,8 +613,8 @@ $NTR  enddo
       !-------------------------------------------------------------------------
       ! Transform the sp. matrix elements into the canonical basis.
       ! Note that we could have directly calculated these matrix elements in
-      ! the canonical basis, but for one thing: the cutoff which we cannot
-      ! define in that basis.
+      ! the canonical basis, but for one thing: the cutoff which I feel cannot
+      ! be meaningully defined in the canonical basis. 
       !-------------------------------------------------------------------------
       jx_can(si+1:si+T, si+1:si+T) = &
       &  matmul(transpose(cantransfo(si+1:si+T, si+1:si+T)), &
@@ -632,15 +641,15 @@ $NTR  enddo
 
       si = si + N + N2
     enddo
-
     !---------------------------------------------------------------------------
-    ! Then we calculate the expectation value of J^2, in the canonical basis.
-    ! Note: we only calculate the two-body part here, the one-body part is
-    !       not included!
+    ! Then we calculate the dispersion of J^2, in the canonical basis.
+    ! Meaning 
+    !           < \Delta J^2 >  = < J^2 > - < J^2>  
+    ! 
+    ! the second term of course vanishes for even-even nuclei.
     !---------------------------------------------------------------------------
     si = 0 
     do b = 1, Blocks,2
-
       N  = HFBlocks(b)   ; if(N.eq.0) cycle
       N2 = HFBlocks(b+1)
 
@@ -677,6 +686,10 @@ $NTR      ME(2) = jy_can(ii,jj)**2
 $NTR      ME(3) = jz_can(ii,jj)**2
 $NTR      J2(:,it) = J2(:,it) + ME * fac  
 
+          ! We haven't necessarily found canonical partners for all states 
+          ! If a partner is absent, this means that the relevant matrix 
+          ! elements of kappa are too small anyway; we can safely forget about
+          ! this term.
           if(ibar .eq. 0) cycle
           if(jbar .eq. 0) cycle
 
@@ -698,7 +711,8 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
     ! To safely remove contributions of individual qps, this calculation is 
     ! done in the qp basis. 
     ! 
-    !  <J^2> = 1/2 sum_{ab} |J^20_ab|^2
+    !  <J^2> = 1/2 sum_{ab} (1-f_a)(1-f_b) |J^20_ab|^2
+    !        +     sum_{ab}  f_a (1-f_b)   |J^11_ab|^2     
     !
     ! where the sum simply does not include the blocked qps, but in general
     ! ranges over all possible other combinations.
@@ -727,24 +741,14 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
           iii= sb + N + N2 + i
           it = 1
           if(ii.gt.nwn) it = 2
-          
-          !-------------------------------------------------------------------
-          ! Don't include the contribution from the blocked qps
-          if(blocktype.eq.4) then
-             if(configmatrix(iii) .eq. 0.5d0) cycle
-          endif 
-          !-------------------------------------------------------------------
 
           do j=1,N+N2
             jj = si + j
             jjj= sb + N + N2 + j
 
-            !-------------------------------------------------------------------
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Don't include the contribution from the blocked qps
-            if(blocktype.eq.4) then
-              if(configmatrix(jjj) .eq. 0.5d0) cycle
-            endif 
-            !-------------------------------------------------------------------
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             blocked= .false.
             do k=1,size(blocked_qps)
               if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
@@ -752,14 +756,24 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
               endif
             enddo
             if(blocked) cycle
-
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            !J^20 contribution
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             fac =  configmatrix(iii) * configmatrix(jjj)
             ME = 0.5 * J20(ii,jj,:)**2  * fac
-            
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! J^11 contribution
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+            ! Note: this should NEVER contribute to the collective J^2. 
+            !       I've coded it only as a sanity check, to check whether
+            !       the full qp-basis expression is the same as the 
+            !       sp-basis summation when the blocked QPS are not ommitted.
             fac=  configmatrix(jjj) * (1 - configmatrix(iii))
             ME = ME + J11(ii,jj,:)**2  * fac
             
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             J2_coll(:,it) = J2_coll(:,it) + ME      
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           enddo
         enddo
         si = si +   N +   N2
@@ -774,26 +788,17 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
     ! From expanding the many-body wave-function around the HFB minimum for 
     ! small rotational frequency omega, we get the following expression
     !
-    !  I_{mm} = \sum_{ab} (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
+    !    I_mm = \sum_{ab} (1 - f_a  - f_b) (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
+    !         + \sum_{ab} (f_b - f_a)      (E_a - E_b)^{-1} |J^{11}|^2_{m,ab}
     !
-    ! based on pg 131 in Ring and Schuck, equation 3.92. In the case of
-    ! time-reversal conservation, the sum over (ab) gets restricted and we have 
+    ! based on (the generalisation of) equation 3.92 on pg 131 in Ring and 
+    ! Schuck, . In the case of time-reversal conservation (and no blocking), 
+    ! the sum over (ab) gets restricted and the f_a vanish. We have 
     !
     !  I_{mm} = 2 \sum_{ab>0}  (|J^{20}|^2_{m,ab} + |J^{20}|^2_{m,a\bar{b}})
     !                          ---------------------------------------------
     !                                              E_a + E_b
-    !
-    ! For a statistical mixture (such as an EFA configuration), this formula
-    ! doesn't capture everything and we have to generalize:
-    !
-    !  I_mm = 
-    !             ( |J^{20}|^2_{m,ab} + |J^{20}|^2_{m,a\bar{b})  (1 - f_a - f_b)
-    ! 2 \sum_{ab} --------------------------------------------------------------
-    !                                        E_a + E_b
-    !             ( |J^{11}|^2_{m,ab} + |J^{11}|^2_{m,ab})       (f_b - f_a)
-    !+2 \sum_{ab} --------------------------------------------------------------
-    !                           E_a + E_b
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !---------------------------------------------------------------------------
 
     si = 0 ; sb = 0
     do b = 1, Blocks, 2
@@ -810,39 +815,32 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
           jj = si + j
           jjj= sb + N + N2 + j
           !---------------------------------------------------------------------
-          !         1 - f_i - f_j 
+          ! Ordinary  (full) Belyaev calculation
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          !        (1 - f_i - f_j) J^{20}^2 contribution
           fac = 1 - configmatrix(sb+i) - configmatrix(sb+j)
-
           Belyaev(:,it) = Belyaev(:,it) + &
           &             fac*J20(ii,jj,:)**2 /(Qpenergies(iii) + Qpenergies(jjj))    
-
-          !---------------------------------------------------------------------
-          !      f_j - f_i
-          fac =  configmatrix(sb+j) - configmatrix(sb+i)
-
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          !     (f_j - f_i) J^{11} contribution (with numerical safety)
           if(abs(Qpenergies(iii) - Qpenergies(jjj)) .gt. 1d-8) then
+            fac =  configmatrix(sb+j) - configmatrix(sb+i)
             Belyaev(:,it) = Belyaev(:,it) + &
             &       fac*J11(ii,jj,:)**2 /(Qpenergies(iii)-Qpenergies(jjj))  
           elseif(inversetemp .gt. 0) then
+
+           stop
            ! 28/12/2020, WR: I'm unsure whether there should be a factor 2
            ! here or not.... To be doublechecked.
-           ! -------------------------------------------------------------------
-           stop
-           ! degen = inversetemp * configmatrix(sb+i)**2 *                      &
-           ! &                                  exp(inversetemp * Qpenergies(ii))
+           ! degen = inversetemp * configmatrix(sb+i)**2 *                     &
+           ! &                                 exp(inversetemp * Qpenergies(ii))
            ! Belyaev(:,it) = Belyaev(:,it) +   J11(ii,jj,:)**2 * degen   	
           endif 
-
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Collective Belyaev calculation  
           if(inversetemp.lt.0) then
-            !-------------------------------------------------------------------
-            ! A 'collective' Belyaev moment of inertia
-            ! Don't include the contribution from the blocked qps
-            if(blocktype.eq.4) then
-              blocked = .false.
-              if(configmatrix(sb+i).eq.0.5d0) cycle
-              if(configmatrix(sb+j).eq.0.5d0) cycle
-            endif 
-            !-------------------------------------------------------------------
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! Don't include the blocked_qps
             blocked= .false.
             do k=1,size(blocked_qps)
               if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
@@ -850,13 +848,13 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
               endif
             enddo
             if(blocked) cycle
-           
-            ! Note: if T = 0 then fac is always equal to one for non-blocked
-            ! particles, hence not put into the formula here.
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! (1 - f_i - f_j) J^{20}^2 contribution
             fac = 1 - configmatrix(sb+i) - configmatrix(sb+j)
             Bely_coll(:,it) = Bely_coll(:,it) + &
-            &               J20(ii,jj,:)**2 /(Qpenergies(iii) + Qpenergies(jjj))  
-
+            &           fac*J20(ii,jj,:)**2 /(Qpenergies(iii) + Qpenergies(jjj))  
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            !  (f_j - f_i) J^{11} contribution (with numerical safety)
             fac =  configmatrix(sb+j) - configmatrix(sb+i)
             if(abs(Qpenergies(iii) - Qpenergies(jjj)) .gt. 1d-8) then
               Bely_coll(:,it) = Bely_coll(:,it) + &
@@ -869,6 +867,8 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
     enddo
+    !---------------------------------------------------------------------------
+    ! Final considerations    
 $TR Belyaev(:,1:2)   = 2*Belyaev(:,1:2)   ! Time-reversal factor 2's
 $TR Bely_coll(:,1:2) = 2*Bely_coll(:,1:2) ! Time-reversal factor 2's
 
