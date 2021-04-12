@@ -767,11 +767,13 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             ! Don't include the contribution from the blocked qps
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             blocked= .false.
-            do k=1,size(blocked_qps)
-              if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
-                blocked = .true.
-              endif
-            enddo
+            if(allocated(blocked_qps)) then
+              do k=1,size(blocked_qps)
+                if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
+                  blocked = .true.
+                endif
+              enddo
+            endif
             if(blocked) cycle
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             !J^20 contribution
@@ -859,11 +861,14 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Don't include the blocked_qps
             blocked= .false.
-            do k=1,size(blocked_qps)
-              if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
-                blocked = .true.
-              endif
-            enddo
+            
+            if(allocated(blocked_qps)) then
+              do k=1,size(blocked_qps)
+                if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
+                  blocked = .true.
+                endif
+              enddo
+            endif
             if(blocked) cycle
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! (1 - f_i - f_j) J^{20}^2 contribution
