@@ -180,6 +180,7 @@ contains
   101 format ( ' Information obtained from file ')  
   102 format ( '      - version number          : ', i5)  
   103 format ( '      - Bogoliubov transfo read?: ', l5)  
+ 1031 format ( '      - Bogoliubov transfo used?: ', l5)  
   104 format ( '      - Blocking type           : ', i5)
   105 format ( '      - Blocknumber             : ', i5)
   106 format ( '      - Block indices           : ', 10i4)
@@ -220,6 +221,7 @@ contains
       print 101
       print 102, file_version
       print 103, readHFBinfofile
+      print 1031, Bogofromfile
       
       print 104, fileblocktype
       select case (fileblocktype)

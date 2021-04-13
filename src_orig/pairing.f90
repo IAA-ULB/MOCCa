@@ -49,8 +49,9 @@ module pairing
  ! ... and finally, the Bogliubov transformation.
  real(KIND=dp), allocatable :: Bogoliubov(:,:)
  ! Do we start with the Bogoliubov transformation from file? 
- ! This is important for the gradient solver
- logical             :: BogoFromFile   = .false.
+ ! This is important for the gradient solver, though not as much for the 
+ ! HFB_direct solver. 
+ logical             :: BogoFromFile   = .true.
  !------------------------------------------------------------------------------
  ! Quasiparticle excitation energies, either HF, BCS or HFB.
  real(KIND=dp), allocatable :: QPenergies(:)
