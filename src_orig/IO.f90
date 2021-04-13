@@ -1037,7 +1037,6 @@ contains
     integer :: i,j , NB, check_blocks(8), B
     integer, allocatable       :: check(:)
     logical                    :: identical, passed
-    real(KIND=dp), allocatable :: Bogo_copy(:,:)
 
     passed = .true.
     !---------------------------------------------------------------------------
@@ -1124,8 +1123,23 @@ contains
 !    enddo
     !---------------------------------------------------------------------------
     ! Instead, we check the "effective" block sizes. 
-    Bogo_copy = Bogoliubov
-    call reorganise_Bogo_gradient(Bogo_copy, configmatrix, check_blocks)
+    ! A reference unblocked calculation will have HFBlocks = grad_blocks
+    check_blocks = HFBlocks
+    
+    do i=1,NB
+      select case(blocklowest(i))
+      case('n+')
+        B = 1       
+      case('n-')
+        B = 3       
+      case('p+')
+        B = 5       
+      case('p-')
+        B = 7       
+      end select 
+      check_blocks(B)   = check_blocks(B)   - 1 
+      check_blocks(B+1) = check_blocks(B+1) + 1 
+    enddo
 
     do B=1,8
       if(file_HFB_blocks(B).ne.check_blocks(B)) then
