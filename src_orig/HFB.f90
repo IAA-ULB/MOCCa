@@ -609,100 +609,100 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     enddo
   end function figure_out_blocking_structure
   
-  function figure_out_blocking_structure_agnostic(                             &
-  &                                      sphamil, gaps, lambda, Bogo_ref)      &
-  &                                     result(blocks_blocked)
-    !---------------------------------------------------------------------------
-    ! 
-    !
-    !
-    !
-    !---------------------------------------------------------------------------
-  
-    real(KIND=dp), intent(in) :: sphamil(:,:), gaps(:,:), lambda(2)
-    real(KIND=dp), intent(in) :: bogo_ref(:,:)
-    integer                   :: blocks_blocked(8)
+!  function figure_out_blocking_structure_agnostic(                             &
+!  &                                      sphamil, gaps, lambda, Bogo_ref)      &
+!  &                                     result(blocks_blocked)
+!    !---------------------------------------------------------------------------
+!    ! 
+!    !
+!    !
+!    !
+!    !---------------------------------------------------------------------------
+!  
+!    real(KIND=dp), intent(in) :: sphamil(:,:), gaps(:,:), lambda(2)
+!    real(KIND=dp), intent(in) :: bogo_ref(:,:)
+!    integer                   :: blocks_blocked(8)
 
-    real(KIND=dp)             :: part, lambda_copy(2)
-    real(KIND=dp), allocatable:: HFBHamil(:,:), config(:), bogo(:,:), eqp(:)
-    real(KIND=dp), allocatable:: overlap(:,:)
-    integer                   :: si, sb, N, N2, ifail, B, it, i, j, k, NB, ind
-    integer, allocatable      :: blocked_qp(:), bl_qps(:), blockblock(:)
-    logical                   :: check
-    
-    allocate(HFBHamil(2*nwt, 2*nwt)) ; HFBHamil = 0.0d0
-    allocate(bogo(2*nwt, 2*nwt))     ; bogo     = 0.0d0
-    allocate(config(2*nwt))          ; config   = 0.0d0
-    allocate(eqp(2*nwt))             ; eqp      = 0.0d0
-    
-    ! Build the full HFB-hamiltonian
-    si      = 0 ; sb = 0
-    do B=1,8,2
-      N  = HFBlocks(B)    ! Size of the first partner block
-      N2 = HFBlocks(B+1)  ! Size of the second partner block
-      
-      it = 1 ; if (B .gt. 4) it = 2
+!    real(KIND=dp)             :: part, lambda_copy(2)
+!    real(KIND=dp), allocatable:: HFBHamil(:,:), config(:), bogo(:,:), eqp(:)
+!    real(KIND=dp), allocatable:: overlap(:,:)
+!    integer                   :: si, sb, N, N2, ifail, B, it, i, j, k, NB, ind
+!    integer, allocatable      :: blocked_qp(:), bl_qps(:), blockblock(:)
+!    logical                   :: check
+!    
+!    allocate(HFBHamil(2*nwt, 2*nwt)) ; HFBHamil = 0.0d0
+!    allocate(bogo(2*nwt, 2*nwt))     ; bogo     = 0.0d0
+!    allocate(config(2*nwt))          ; config   = 0.0d0
+!    allocate(eqp(2*nwt))             ; eqp      = 0.0d0
+!    
+!    ! Build the full HFB-hamiltonian
+!    si      = 0 ; sb = 0
+!    do B=1,8,2
+!      N  = HFBlocks(B)    ! Size of the first partner block
+!      N2 = HFBlocks(B+1)  ! Size of the second partner block
+!      
+!      it = 1 ; if (B .gt. 4) it = 2
 
-      HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
-      &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
-      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)
+!      HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
+!      &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
+!      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)
 
-      si = si +   N +   N2
-      sb = sb + 2*N + 2*N2
-    enddo
-    !---------------------------------------------------------------------------
-    ! Now diagonalize the HFB Hamiltonian "as is", without 
-    !  (1) any blocking 
-    !  (2) any changing of the Fermi energy, i.e. the particle number will not 
-    !      be correct.
-    
-    lambda_copy = lambda
-    part = Diagbyblock(HFBHamil(1:2*nwn,1:2*nwn), HFblocks(1:4),               &
-    &                  config(1:2*nwn),                                        &
-    &                  Bogo(1:2*nwn,1:2*nwn),Eqp(1:2*nwn),      &
-    &                  lambda_copy(1), 0 , (/0/), blocked_qp, ifail)
-    
-    part = Diagbyblock(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFblocks(5:8),   &
-    &                  config(2*nwn+1:2*nwt),                                  &
-    &                  Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt), Eqp(2*nwn+1:2*nwt),  &
-    &                  lambda_copy(2), 0 , (/0/), blocked_qp, ifail)
+!      si = si +   N +   N2
+!      sb = sb + 2*N + 2*N2
+!    enddo
+!    !---------------------------------------------------------------------------
+!    ! Now diagonalize the HFB Hamiltonian "as is", without 
+!    !  (1) any blocking 
+!    !  (2) any changing of the Fermi energy, i.e. the particle number will not 
+!    !      be correct.
+!    
+!    lambda_copy = lambda
+!    part = Diagbyblock(HFBHamil(1:2*nwn,1:2*nwn), HFblocks(1:4),               &
+!    &                  config(1:2*nwn),                                        &
+!    &                  Bogo(1:2*nwn,1:2*nwn),Eqp(1:2*nwn),      &
+!    &                  lambda_copy(1), 0 , (/0/), blocked_qp, ifail)
+!    
+!    part = Diagbyblock(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFblocks(5:8),   &
+!    &                  config(2*nwn+1:2*nwt),                                  &
+!    &                  Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt), Eqp(2*nwn+1:2*nwt),  &
+!    &                  lambda_copy(2), 0 , (/0/), blocked_qp, ifail)
 
-    ! Don't forget to correct the structure of the matrices
-    call reorganise_matrices(Bogo,Eqp, config)
-    !---------------------------------------------------------------------------
-    ! We have now in memory the "reference" Bogoliubov state, which has wrong
-    ! particle number, but which should have the "unblocked" U and V columns.
-    ! (Note that it is not necesarily the lowest energy HFB vacuum, but rather
-    ! the lowest even-even vacuum constructed here...)
+!    ! Don't forget to correct the structure of the matrices
+!    call reorganise_matrices(Bogo,Eqp, config)
+!    !---------------------------------------------------------------------------
+!    ! We have now in memory the "reference" Bogoliubov state, which has wrong
+!    ! particle number, but which should have the "unblocked" U and V columns.
+!    ! (Note that it is not necesarily the lowest energy HFB vacuum, but rather
+!    ! the lowest even-even vacuum constructed here...)
 
-    ! We multiply the reference transformation with the transformation in 
-    ! memory, to determine which qps have been blocked
-    overlap = matmul(transpose(Bogo), Bogo_ref)
+!    ! We multiply the reference transformation with the transformation in 
+!    ! memory, to determine which qps have been blocked
+!    overlap = matmul(transpose(Bogo), Bogo_ref)
 
-    si      = 0 ; sb = 0 
-    blocks_blocked = 0
-    do B=1,8,2
-      N  = HFBlocks(B)    ! Size of the first partner block
-      N2 = HFBlocks(B+1)  ! Size of the second partner block
-      
-      it = 1 ; if (B .gt. 4) it = 2
+!    si      = 0 ; sb = 0 
+!    blocks_blocked = 0
+!    do B=1,8,2
+!      N  = HFBlocks(B)    ! Size of the first partner block
+!      N2 = HFBlocks(B+1)  ! Size of the second partner block
+!      
+!      it = 1 ; if (B .gt. 4) it = 2
 
-      ! We check the off-diagonal components of the overlap matrix to find 
-      ! the one qp that is most like the non-selected part
-      do j=1,N+N2
-        check = .false. 
-        do i=1,N+N2
-          if(abs(overlap(sb+i, sb+N+N2+j)) .gt. 0.5) then
-            check = .true.
-          endif
-        enddo
-        if(check) blocks_blocked(B) = blocks_blocked(B) +1 
-      enddo
+!      ! We check the off-diagonal components of the overlap matrix to find 
+!      ! the one qp that is most like the non-selected part
+!      do j=1,N+N2
+!        check = .false. 
+!        do i=1,N+N2
+!          if(abs(overlap(sb+i, sb+N+N2+j)) .gt. 0.5) then
+!            check = .true.
+!          endif
+!        enddo
+!        if(check) blocks_blocked(B) = blocks_blocked(B) +1 
+!      enddo
 
-      si = si +   N +   N2
-      sb = sb + 2*N + 2*N2
-    enddo
-  end function figure_out_blocking_structure_agnostic
+!      si = si +   N +   N2
+!      sb = sb + 2*N + 2*N2
+!    enddo
+!  end function figure_out_blocking_structure_agnostic
   
   function obtain_eqp(sphamil, gaps, lambda, blocks) result(eigen)
     !---------------------------------------------------------------------------

@@ -1034,10 +1034,10 @@ contains
     !  #3 : the number of blocked states in the Bogoliubov transformation in 
     !       each block matches the input and file
     !---------------------------------------------------------------------------
-    integer :: i,j , NB, blocked_blocks(8), check_blocks(8), B
-    integer, allocatable :: check(:)
-    logical  :: identical, passed
-
+    integer :: i,j , NB, check_blocks(8), B
+    integer, allocatable       :: check(:)
+    logical                    :: identical, passed
+    real(KIND=dp), allocatable :: Bogo_copy(:,:)
 
     passed = .true.
     !---------------------------------------------------------------------------
@@ -1092,29 +1092,46 @@ contains
     !---------------------------------------------------------------------------
     ! # 3: Check if the blocking structure on file actually matches the 
     !      structure asked for
-    blocked_blocks =  figure_out_blocking_structure_agnostic(                  &
-    &                             current_sph, HFBgaps, FermiEnergy, Bogoliubov)
-  
-    check_blocks = 0
-    do i=1,NB
-      select case(blocklowest(i))
-      case('n+')
-        B = 1       
-      case('n-')
-        B = 3       
-      case('p+')
-        B = 5       
-      case('p-')
-        B = 7       
-      end select 
-      check_blocks(B) = check_blocks(B) + 1 
-    enddo
-  
+    
+    !---------------------------------------------------------------------------
+    ! This method has turned out to NOT be a reliable indicator.
+!    blocked_blocks =  figure_out_blocking_structure_agnostic(                  &
+!    &                             current_sph, HFBgaps, FermiEnergy, Bogoliubov)
+!  
+!    check_blocks = 0
+!    do i=1,NB
+!      select case(blocklowest(i))
+!      case('n+')
+!        B = 1       
+!      case('n-')
+!        B = 3       
+!      case('p+')
+!        B = 5       
+!      case('p-')
+!        B = 7       
+!      end select 
+!      check_blocks(B) = check_blocks(B) + 1 
+!    enddo
+!  
+!    do B=1,8
+!      if(check_blocks(B).ne.blocked_blocks(B)) then
+!        print *, 'Blocking structure of the Bogoliubov transformation on file'
+!        print *, 'does not match that reported by the file.'
+!        print *, ' Blocking structure of Bogoliubov matrix: ', blocked_blocks      
+!        print *, ' Blocking structure asked for           : ', check_blocks      
+!        stop
+!      endif
+!    enddo
+    !---------------------------------------------------------------------------
+    ! Instead, we check the "effective" block sizes. 
+    Bogo_copy = Bogoliubov
+    call reorganise_Bogo_gradient(Bogo_copy, configmatrix, check_blocks)
+
     do B=1,8
-      if(check_blocks(B).ne.blocked_blocks(B)) then
+      if(file_HFB_blocks(B).ne.check_blocks(B)) then
         print *, 'Blocking structure of the Bogoliubov transformation on file'
         print *, 'does not match that reported by the file.'
-        print *, ' Blocking structure of Bogoliubov matrix: ', blocked_blocks      
+        print *, ' Blocking structure of Bogoliubov matrix: ', file_HFB_blocks      
         print *, ' Blocking structure asked for           : ', check_blocks      
         stop
       endif
