@@ -33,8 +33,6 @@ module HFB
   integer, allocatable :: conjugp(:)
   ! Pointer to relink procedures
   procedure(delta_action_dummy), pointer :: delta_action_HFB
-  ! HFB gauge parameter
-  real(KIND=dp) :: HFBGauge(2) = 0.0
   !---------------------------------------------------------------------------
   ! History of the pairing matrices, for mixing purposes.
   real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
@@ -189,10 +187,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
 
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
       &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
-      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,      &
-      &                           rho_history(si+1:si+N+N2,si+1:si+N+N2),      &
-      &                           kappa_history(si+1:si+N+N2,si+1:si+N+N2),    &
-      &                           HFBgauge(it))  
+      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)
 
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
@@ -503,9 +498,9 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     integer, allocatable      :: blocked_qp(:), bl_qps(:), blockblock(:)
     logical                   :: check
     
-    if(blocktype.ne.2 .and. blocktype.ne.4) then
+    if(blocktype.ne.2 .and. blocktype.ne.4 .and. blocktype.ne.0) then
       print *, 'The blocking identification for the gradient solver is not '
-      print *, 'yet capable of dealing with blocktype != 2,4'
+      print *, 'yet capable of dealing with blocktype != 0,2,4'
       stop
     endif
     
@@ -529,10 +524,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
 
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
       &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
-      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,      &
-      &                           rho_history(si+1:si+N+N2,si+1:si+N+N2),      &
-      &                           kappa_history(si+1:si+N+N2,si+1:si+N+N2),    &
-      &                           HFBgauge(it))  
+      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)
 
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
@@ -566,7 +558,6 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     ! memory, to determine which qps have been blocked
     overlap = matmul(transpose(Bogo), Bogo_ref)
 
-
     allocate(blockblock(NB)); blockblock = 0
     do i=1,NB
       select case(blocklowest(i))
@@ -584,7 +575,6 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
         stop
       end select
     enddo
-    
   
     si      = 0 ; sb = 0 ; ind = 1
     do B=1,8,2
@@ -619,6 +609,101 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     enddo
   end function figure_out_blocking_structure
   
+  function figure_out_blocking_structure_agnostic(                             &
+  &                                      sphamil, gaps, lambda, Bogo_ref)      &
+  &                                     result(blocks_blocked)
+    !---------------------------------------------------------------------------
+    ! 
+    !
+    !
+    !
+    !---------------------------------------------------------------------------
+  
+    real(KIND=dp), intent(in) :: sphamil(:,:), gaps(:,:), lambda(2)
+    real(KIND=dp), intent(in) :: bogo_ref(:,:)
+    integer                   :: blocks_blocked(8)
+
+    real(KIND=dp)             :: part, lambda_copy(2)
+    real(KIND=dp), allocatable:: HFBHamil(:,:), config(:), bogo(:,:), eqp(:)
+    real(KIND=dp), allocatable:: overlap(:,:)
+    integer                   :: si, sb, N, N2, ifail, B, it, i, j, k, NB, ind
+    integer, allocatable      :: blocked_qp(:), bl_qps(:), blockblock(:)
+    logical                   :: check
+    
+    allocate(HFBHamil(2*nwt, 2*nwt)) ; HFBHamil = 0.0d0
+    allocate(bogo(2*nwt, 2*nwt))     ; bogo     = 0.0d0
+    allocate(config(2*nwt))          ; config   = 0.0d0
+    allocate(eqp(2*nwt))             ; eqp      = 0.0d0
+    
+    ! Build the full HFB-hamiltonian
+    si      = 0 ; sb = 0
+    do B=1,8,2
+      N  = HFBlocks(B)    ! Size of the first partner block
+      N2 = HFBlocks(B+1)  ! Size of the second partner block
+      
+      it = 1 ; if (B .gt. 4) it = 2
+
+      HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
+      &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
+      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)
+
+      si = si +   N +   N2
+      sb = sb + 2*N + 2*N2
+    enddo
+    !---------------------------------------------------------------------------
+    ! Now diagonalize the HFB Hamiltonian "as is", without 
+    !  (1) any blocking 
+    !  (2) any changing of the Fermi energy, i.e. the particle number will not 
+    !      be correct.
+    
+    lambda_copy = lambda
+    part = Diagbyblock(HFBHamil(1:2*nwn,1:2*nwn), HFblocks(1:4),               &
+    &                  config(1:2*nwn),                                        &
+    &                  Bogo(1:2*nwn,1:2*nwn),Eqp(1:2*nwn),      &
+    &                  lambda_copy(1), 0 , (/0/), blocked_qp, ifail)
+    
+    part = Diagbyblock(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFblocks(5:8),   &
+    &                  config(2*nwn+1:2*nwt),                                  &
+    &                  Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt), Eqp(2*nwn+1:2*nwt),  &
+    &                  lambda_copy(2), 0 , (/0/), blocked_qp, ifail)
+
+    ! Don't forget to correct the structure of the matrices
+    call reorganise_matrices(Bogo,Eqp, config)
+    !---------------------------------------------------------------------------
+    ! We have now in memory the "reference" Bogoliubov state, which has wrong
+    ! particle number, but which should have the "unblocked" U and V columns.
+    ! (Note that it is not necesarily the lowest energy HFB vacuum, but rather
+    ! the lowest even-even vacuum constructed here...)
+
+    ! We multiply the reference transformation with the transformation in 
+    ! memory, to determine which qps have been blocked
+    overlap = matmul(transpose(Bogo), Bogo_ref)
+
+    si      = 0 ; sb = 0 
+    blocks_blocked = 0
+    do B=1,8,2
+      N  = HFBlocks(B)    ! Size of the first partner block
+      N2 = HFBlocks(B+1)  ! Size of the second partner block
+      
+      it = 1 ; if (B .gt. 4) it = 2
+
+      ! We check the off-diagonal components of the overlap matrix to find 
+      ! the one qp that is most like the non-selected part
+      do j=1,N+N2
+        check = .false. 
+        do i=1,N+N2
+          if(abs(overlap(sb+i, sb+N+N2+j)) .gt. 0.5) then
+            check = .true.
+          endif
+        enddo
+        if(check) blocks_blocked(B) = blocks_blocked(B) +1 
+      enddo
+
+      si = si +   N +   N2
+      sb = sb + 2*N + 2*N2
+    enddo
+  end function figure_out_blocking_structure_agnostic
+  
   function obtain_eqp(sphamil, gaps, lambda, blocks) result(eigen)
     !---------------------------------------------------------------------------
     ! Obtain the quasiparticle energies by constructing and diagonalizing the 
@@ -643,10 +728,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
         
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
       &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
-      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2,      &
-      &                           rho_history(si+1:si+N+N2,si+1:si+N+N2),      &
-      &                           kappa_history(si+1:si+N+N2,si+1:si+N+N2),    &
-      &                           0.0d0)  
+      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)
 
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
@@ -982,7 +1064,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
 
   end subroutine PairingMatrices
 
-  function ConstructHFBHamil(sphamil, gaps, N, N2, r, k, gauge) result(H)
+  function ConstructHFBHamil(sphamil, gaps, N, N2) result(H)
     !---------------------------------------------------------------------------
     !  Construction of the HFB Hamiltonian in the form
     !   
@@ -1022,6 +1104,8 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     !   R = (  rho         kappa)
     !       (- kappa^*    1 - rho^*)
     !
+    !
+    ! 13/04/21, W.R.: this option is no longer supported.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !
     ! Input:   
@@ -1036,67 +1120,43 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     !
     !  N, N2   : sizes of the respective blocks
     !
+    !  -  -  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! REMOVED:
     !  r, k    : rho and kappa pairing matrices for the addition of the 
     !            generalized density matrix. Should also be in correct
     !            block structure.
     !   
     !  gauge   : real parameter alpha
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), r(:,:), k(:,:)
-    real(KIND=dp)               :: gauge
-    real(KIND=dp), allocatable  :: H(:,:), genR(:,:)
+    real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:)
+    real(KIND=dp), allocatable  :: H(:,:)
     integer, intent(in)         :: N, N2
     integer                     :: T, i
 
     T = N + N2
-    allocate(H(2*T,2*T), genR(2*T, 2*T)) 
-    H = 0 ; genR = 0
+    allocate(H(2*T,2*T)) 
+    H = 0
 
-    genR(  1:N   ,  1:N)    = r(1:N, 1:N)
-    genR(  1:N   , N+1:2*N) =-k(1:N, 1:N)
-    genR(N+1:2*N , 1:N)     =-k(1:N, 1:N)
-
-    genR(N+1:2*N   ,N+ 1:2*N)=-r(1:N, 1:N)
-    do i=1, N
-        genR(N+i, N+i) = genR(N+i, N+i) + 1
-    enddo
     !---------------------------------------------------------------------------
     ! SP hamil
     ! Block 1
-    H(  1:N   ,  1:N)    = &
-    &                sphamil(  1:N   ,   1:N)    + gauge * r(  1:N   ,   1:N)
-    H(N+1:N+N2,N+1:N+N2) = &
-    &               -sphamil(N+1:N+N2, N+1:N+N2) - gauge * r(N+1:N+N2, N+1:N+N2)
-    do i=1, N2
-        H(N+i, N+i) =  H(N+i, N+i) + gauge
-    enddo
+    H(  1:N   ,  1:N)    =  sphamil(  1:N   ,   1:N)    
+    H(N+1:N+N2,N+1:N+N2) = -sphamil(N+1:N+N2, N+1:N+N2) 
 
     ! Block 2
-    H(N+  N2+1:  N+2*N2,N+  N2+1:  N+2*N2) = & 
-    &                 sphamil(N+1:N+N2,N+1:N+N2)+  gauge * r(N+1:N+N2, N+1:N+N2)
-    H(N+2*N2+1:2*N+2*N2,N+2*N2+1:2*N+2*N2) = & 
-    &                -sphamil(  1:N   ,   1:N)  -  gauge * r(  1:N  ,    1:N)
-    do i=1, N
-        H(N+2*N2+i,N+2*N2+i) =  H(N+2*N2+i,N+2*N2+i) + gauge
-    enddo
+    H(N+  N2+1:  N+2*N2,N+  N2+1:  N+2*N2) =  sphamil(N+1:N+N2,N+1:N+N2)
+    H(N+2*N2+1:2*N+2*N2,N+2*N2+1:2*N+2*N2) = -sphamil(  1:N   ,   1:N)  
 
     !---------------------------------------------------------------------------
     ! Gaps
     ! Block 1
-    H(  1:N   ,N+1:2*N)  = gaps(  1:N   , N2+1:N2+N) + gauge * k(1:N, N2+1:N2+N)
-    H(N+1:2*N ,  1:N  )  = gaps(  1:N   , N2+1:N2+N) + gauge * k(1:N, N2+1:N2+N)
+    H(  1:N   ,N+1:2*N)  = gaps(  1:N   , N2+1:N2+N) 
+    H(N+1:2*N ,  1:N  )  = gaps(  1:N   , N2+1:N2+N) 
 
     ! Block 2
-    H(2*N   +1:2*N+N2  ,2*N+N2+1:2*N+2*N2) = &
-    &                            gaps(N+1:N+N2, 1:N2) + gauge * k(N+1:N+N2,1:N2)
-    H(2*N+N2+1:2*N+2*N2,2*N   +1:2*N+  N2) = & 
-    &                            gaps(N+1:N+N2, 1:N2) + gauge * k(N+1:N+N2,1:N2)
-
-$TR if(gauge.ne.0.0) then
-$TR     print *, 'something is fishy with the HFBgauge when T is conserved.'
-$TR     print *, 'Investigate sign of kappa'
-$TR     stop
-$TR endif 
+    H(2*N   +1:2*N+N2  ,2*N+N2+1:2*N+2*N2) =  gaps(N+1:N+N2, 1:N2)
+    H(2*N+N2+1:2*N+2*N2,2*N   +1:2*N+  N2) =  gaps(N+1:N+N2, 1:N2) 
+    
 
   end function ConstructHFBHamil 
 

@@ -173,7 +173,7 @@ contains
     
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
-    &                  FermiSolver, guessgaps, HFBgauge, pairingscheme,        &
+    &                  FermiSolver, guessgaps,  pairingscheme,                 &
     &                  gradient_precon, bogofromfile, lambda2
 
     NameList /Indices/ BlockIndices, blocklowest, blockfname

@@ -87,6 +87,7 @@ implicit none
   integer, allocatable          :: fileblockindices(:)
   character(len=2), allocatable :: fileBlockLowest(:)
   integer                       :: file_HFB_blocks(8)
+  logical                       :: passed_block_test = .true.
 
 contains
 
@@ -185,6 +186,7 @@ contains
   105 format ( '      - Blocknumber             : ', i5)
   106 format ( '      - Block indices           : ', 10i4)
   107 format ( '      - Block lowest            : ', 10a2)
+  108 format ( '      - Passed blocking test    : ', l5)
     
    11 format ( ' Filename for other output (not written if empty): ', /     &
              & '    BXL output     = ', a40, / &
@@ -233,6 +235,7 @@ contains
           print 105, fileblocknumber
           print 107, fileblocklowest
       end select
+      print 108, passed_block_test
     endif 
 
     print 112, checkpointiter
@@ -297,12 +300,6 @@ contains
       call ReadTantalus(12, inputfilename)
       ! No need to guess gaps by default (unless the user asked for it)
     endif
-    !---------------------------------------------------------------------------
-    ! Checking the blocking options: making sure things are in line with what
-    ! the user asked
-    if(Bogofromfile .and. pairingscheme.eq.1) then
-      if(file_version .ge. 4) call massage_bogoliubov()
-    endif
     !---------------------------------------------------------------------------  
     ! Transformation options
     if(allowtransform ) then
@@ -341,6 +338,23 @@ contains
       ! Guess some pairing gaps if asked for (always if starting from INIT)
       call initializeGaps()
     endif
+    
+    !---------------------------------------------------------------------------
+    ! Checking the blocking options: making sure things on the file are in line 
+    ! with what the user asked for
+    if(Bogofromfile .and. readHFBinfofile .and. pairingscheme.eq.1) then
+    
+      if(.not.allocated(fileblocklowest)) then
+          ! This is the one case which we will accept: no blocking on the file, 
+          ! but blocking in the input. In this case, we need to do an 
+          ! explicit diagonalization from the start.
+          Bogofromfile = .false.
+      else
+          ! In any other case, we check all things we can check.
+          passed_block_test =  check_blocking_structure()      
+      endif
+    endif
+    
   end subroutine ReadWaveFunction
 
   subroutine set_spwf_symmetries(sx, sy, sz, blocks)
@@ -1008,6 +1022,106 @@ contains
 
   end subroutine Brussels_output
   
+  function check_blocking_structure() result(passed)
+    !---------------------------------------------------------------------------
+    !
+    ! Some tests on the blocking structure on file vs. that demanded by the user. 
+    !
+    ! Sanity check
+    !  #1 : no blocktypes that are not 0/2/4.
+    !  #2 : blocklowest on file == blocklowest input by the user 
+    !       * modulo permutations
+    !  #3 : the number of blocked states in the Bogoliubov transformation in 
+    !       each block matches the input and file
+    !---------------------------------------------------------------------------
+    integer :: i,j , NB, blocked_blocks(8), check_blocks(8), B
+    integer, allocatable :: check(:)
+    logical  :: identical, passed
+
+
+    passed = .true.
+    !---------------------------------------------------------------------------
+    ! # 1 : no blocktypes that are not 0/2/4.
+    if(blocktype.ne.0 .and. blocktype.ne.2 .and. blocktype.ne. 4) then
+      print *, 'Subroutine check_blocking_structure cannot deal (yet) with'
+      print *, 'blocktypes that are not 0/2/4.'
+      stop
+    endif    
+    !---------------------------------------------------------------------------
+    ! # 2 :  blocklowest on file == blocklowest input by the user 
+    !        modulo permutations 
+    if(allocated(fileblocklowest) .and. (.not. allocated(blocklowest))) then
+      print *, 'Blocklowest not allocated, while fileblocklowest is.'
+      stop      
+    endif
+
+    if(allocated(blocklowest) .and. (.not. allocated(fileblocklowest))) then
+      print *, 'Blocklowest allocated, while fileblocklowest is not.'
+      stop      
+    endif
+    
+    if(size(fileblocklowest).ne.size(blocklowest)) then
+      print *, ' Size of blocklowest on file:  ', size(fileblocklowest)
+      print *, ' Size of blocklowest in input: ', size(blocklowest)
+      stop
+    endif 
+    
+    NB = size(fileblocklowest)
+    allocate(check(NB)) ; check = 0
+    do i=1,NB
+      do j=1, NB
+        if(blocklowest(j) .eq. fileblocklowest(i)) then
+          check(i) = check(i) + 1
+        endif
+      enddo
+    enddo
+
+    identical = .true.
+    do i=1, NB
+       if(check(i).ne.1) then
+          identical = .false.
+       endif
+    enddo
+    
+    if(.not. identical) then
+      print *, 'Blocklowest on file : ', fileblocklowest
+      print *, 'Blocklowest on input: ', blocklowest
+      print *, 'These are not identical.'
+      stop
+    endif
+    !---------------------------------------------------------------------------
+    ! # 3: Check if the blocking structure on file actually matches the 
+    !      structure asked for
+    blocked_blocks =  figure_out_blocking_structure_agnostic(                  &
+    &                             current_sph, HFBgaps, FermiEnergy, Bogoliubov)
+  
+    check_blocks = 0
+    do i=1,NB
+      select case(blocklowest(i))
+      case('n+')
+        B = 1       
+      case('n-')
+        B = 3       
+      case('p+')
+        B = 5       
+      case('p-')
+        B = 7       
+      end select 
+      check_blocks(B) = check_blocks(B) + 1 
+    enddo
+  
+    do B=1,8
+      if(check_blocks(B).ne.blocked_blocks(B)) then
+        print *, 'Blocking structure of the Bogoliubov transformation on file'
+        print *, 'does not match that reported by the file.'
+        print *, ' Blocking structure of Bogoliubov matrix: ', blocked_blocks      
+        print *, ' Blocking structure asked for           : ', check_blocks      
+        stop
+      endif
+    enddo
+
+  end function check_blocking_structure
+  
   subroutine massage_Bogoliubov()
     !---------------------------------------------------------------------------
     ! Subroutine to transform the Bogoliubov transformation found on file 
@@ -1027,6 +1141,10 @@ contains
     !          (a) excitation should be and isn't ; or
     !          (b) excitation shoud not be and is
     !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 13/04/21: Some undesired behaviour because of this routine in the 
+    !           the systematic calculations by G. Scamps. For this reason, this
+    !           subroutine is currently "dead code", i.e. never called again.
     !---------------------------------------------------------------------------
     integer :: i, B, sb, N, N2, T
     integer, allocatable       :: undo(:), dodo(:)
