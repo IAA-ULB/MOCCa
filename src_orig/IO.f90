@@ -1145,8 +1145,8 @@ contains
       if(file_HFB_blocks(B).ne.check_blocks(B)) then
         print *, 'Blocking structure of the Bogoliubov transformation on file'
         print *, 'does not match that reported by the file.'
-        print *, ' Blocking structure of Bogoliubov matrix: ', file_HFB_blocks      
-        print *, ' Blocking structure asked for           : ', check_blocks      
+        print *, ' Block structure of Bogoliubov matrix: ', file_HFB_blocks      
+        print *, ' Block structure asked for           : ', check_blocks      
         stop
       endif
     enddo
