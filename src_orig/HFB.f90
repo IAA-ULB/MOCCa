@@ -12,6 +12,45 @@ module HFB
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
+ ! 
+ ! This module is in charge of the solution of the HFB pairing subproblem 
+ ! in the space spanned by the single-particle wavefunctions currently in 
+ ! storage. This effort is chiefly handled by the routines
+ ! 
+ !     solvepairing_HFB_direct
+ !     solvepairing_HFB_gradient
+ !
+ ! which make several calls each to the (more low-level) routines in the 
+ ! HFB_direct and HFB_gradient modules, respectively. 
+ !
+ ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ !
+ ! Hephaestos keywords:
+ !
+ !      TR : $TR
+ !     NTR : $NTR
+ ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ !
+ ! Implemented routines: 
+ !
+ !  - subroutine solvepairing_HFB_direct
+ !  - subroutine solvepairing_HFB_gradient
+ !  - subroutine reorganise_bogo_gradient
+ !  - subroutine mix_pairing
+ !  - subroutine pairing_matrices
+ !  - subroutine calcHFBgaps
+ !  - subroutine PrintHFBconvergence
+ !  - subroutine Canonical
+ !  - subroutine ConstructCanonicalBasis
+ !  - subroutine clean_HFB
+ !  - function   figure_out_blocking_structure
+ !  - function   obtain_eqp
+ !  - function   correct_ordering_eqp
+ !  - function   calc_dispersion_HFB
+ !  - function   ConstructHFBHamil
+ ! 
+ !==============================================================================
+
 
   use geninfo
   use wavefunctions
@@ -65,7 +104,42 @@ contains
   &                           blocklowest, blocked_qps, ifail)
 
     !---------------------------------------------------------------------------
-    ! Driver routine for the solving of the HFB equations in a direct fashion.
+    ! Driver routine for the solving of the HFB equations in a direct fashion,
+    ! meaning by diagonalising the HFB Hamiltonian and explicitly constructing
+    ! the desired Bogoliubov vacuum state out of its eigenvectors.
+    !
+    ! Input: 
+    !    sphamil      : matrix of the single-particle hamiltonian
+    !    gaps         : matrix of the pairing gaps
+    !    fermi        : initial guess for the Fermi energies of both nucleon 
+    !                   species
+    !    Blocktype    : type of blocking procedure desired, to be passed into
+    !                   the construct_configuration routine in HFB_direct
+    !    Blockindices : when blocktype=1,3,5 contains the indices for the 
+    !                   overlap-calculation for blocking. To be passed into 
+    !                   construct_configuration.
+    !    Blocklowest  : when blocktype=2,4,6 contains the type of excitations 
+    !                   we want to build. To be passed into 
+    !                   construct_configuration.
+    !
+    ! Ouput:
+    !    Fermi        : final value obtained by the solver for the Fermi 
+    !                   energies of both nucleon species. 
+    !    Bogoliubov   : Bogoliubov transformation, i.e. eigenvectors of the 
+    !                   HFB hamiltonian. Ordered according to the eigenvalues
+    !                   = the qp energies. Note, that this is not necessarily 
+    !                   ordered in terms of "selected" U&V columns!
+    !    rho_pairing, : Normal and anomalous density matrices constructed
+    !    kappa_pairing| from the Bogoliubov transformation and configmatrix.
+    !    configmatrix : Matrix containing the quasiparticle occupations, what
+    !                   I call the qp configuration collectively.
+    !    qpenergies   : quasiparticle energies corresponding to the columns
+    !                   of the Bogoliubov transformation.
+    !    blocked_qps  : Indices of the quasiparticles that have been selected
+    !                   to be blocked.
+    !    ifail        : Signals the appearance of problems. If 0, no problem
+    !                   has been encountered. (This problem-signalling is not
+    !                   entirely operational yet.)
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(inout) :: Fermi(2)
     real(KIND=dp), intent(inout) :: Bogoliubov(:,:)
@@ -239,7 +313,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
 
   subroutine solvepairing_HFB_gradient( sphamil, gaps, fermi, lambda2, Bogo,   & 
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
-  &                          qpenergies, BlockType,Blockindices,               &
+  &                          qpenergies, BlockType, Blockindices,              &
   &                          blocklowest, blocked_qps, move, maxiter,  ifail) 
     !---------------------------------------------------------------------------
     ! Driver routine for solving the HFB equations by heavy-ball evolution in 
@@ -466,7 +540,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     qpenergies = correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFblocks)
 
     blocked_qps = figure_out_blocking_structure(sphamil, gaps, Fermi, bogo,    &
-    &                                      blocktype, blockindices, blocklowest)
+    &                                                    blocktype, blocklowest)
     !---------------------------------------------------------------------------
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
@@ -475,20 +549,65 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
   end subroutine solvepairing_HFB_gradient
   
   function figure_out_blocking_structure(sphamil, gaps, lambda, Bogo_ref,      &
-  &                                      BlockType,Blockindices,blocklowest)   &
+  &                                      BlockType, blocklowest)   &
   &                                     result(bl_qps)
     !---------------------------------------------------------------------------
+    !  This function attemps to figure out which quasiparticles are blocked
+    !  in a given "ordered" Bogoliubov transformation matrix. 
+    !
+    ! With ordered, I mean that it is built as 
+    !
+    !   Bogo_ref = ( V^T U )
+    !              ( U^T V )
+    !
+    !  with a generalized density matrix in qp representation that is
     ! 
+    !              ( 0 0 )
+    !              ( 0 1 )
     !
+    ! In practice, this means that the "selected" columns of the HFB matrix
+    ! are all in the right half. 
     !
+    ! In order to determine the blocked qps, we explicitly diagonalize the 
+    ! the HFB Hamiltonian by itself, telling the code to build NO excitations.
+    ! So
     !
+    !   Bogo = ( V'^T U' )
+    !          ( U'^T V' )
+    !
+    ! We then calculate the product of both Bogoliubov transformations, 
+    !
+    !                  M = Bogo^T Bogo_ref 
+    !
+    ! If Bogo_ref is close enough to diagonalising the HFB Hamiltonian, then
+    ! this matrix is some permutation of the identity matrix, i.e. in every
+    ! column there is (to good approximation) one matrix element that is close
+    ! to 1. 
+    !
+    !       M = ( signature= +    cross    )
+    !           (    cross       signature=-)
+    !
+    ! For all non-blocked qps, the 1's will be in the diagonal blocks, i.e. they
+    ! will not mix signatures. All blocked qps however, will find their '1's int
+    ! the cross parts of this matrix.
+    !---------------------------------------------------------------------------
+    ! Input:
+    !     sphamil     : matrix of the single-particle hamiltonian
+    !     gaps        : matrix of the pairing gaps
+    !     lambda      : fermi energies of both nucleon species
+    !     Bogo_ref    : Bogoliubov transformation to be investigated. 
+    !     Blocktype   : Type of blocking to be performed. 
+    !                   Acceptable in this routine = 0,2,4
+    !     Blocklowest : Set of types of excitation to build.
+    !
+    ! Output: 
+    !     bl_qp       : indices of the blocked quasiparticles, determined by
+    !                   the procedure discussed above.
     !---------------------------------------------------------------------------
   
     real(KIND=dp), intent(in) :: sphamil(:,:), gaps(:,:), lambda(2)
     real(KIND=dp), intent(in) :: bogo_ref(:,:)
-
     integer, intent(in)          :: BlockType
-    integer, intent(in)          :: Blockindices(:)
     character(len=2), intent(in) :: BlockLowest(:)
 
     real(KIND=dp)             :: part, lambda_copy(2), maxov
@@ -609,108 +728,29 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     enddo
   end function figure_out_blocking_structure
   
-!  function figure_out_blocking_structure_agnostic(                             &
-!  &                                      sphamil, gaps, lambda, Bogo_ref)      &
-!  &                                     result(blocks_blocked)
-!    !---------------------------------------------------------------------------
-!    ! 
-!    !
-!    !
-!    !
-!    !---------------------------------------------------------------------------
-!  
-!    real(KIND=dp), intent(in) :: sphamil(:,:), gaps(:,:), lambda(2)
-!    real(KIND=dp), intent(in) :: bogo_ref(:,:)
-!    integer                   :: blocks_blocked(8)
-
-!    real(KIND=dp)             :: part, lambda_copy(2)
-!    real(KIND=dp), allocatable:: HFBHamil(:,:), config(:), bogo(:,:), eqp(:)
-!    real(KIND=dp), allocatable:: overlap(:,:)
-!    integer                   :: si, sb, N, N2, ifail, B, it, i, j, k, NB, ind
-!    integer, allocatable      :: blocked_qp(:), bl_qps(:), blockblock(:)
-!    logical                   :: check
-!    
-!    allocate(HFBHamil(2*nwt, 2*nwt)) ; HFBHamil = 0.0d0
-!    allocate(bogo(2*nwt, 2*nwt))     ; bogo     = 0.0d0
-!    allocate(config(2*nwt))          ; config   = 0.0d0
-!    allocate(eqp(2*nwt))             ; eqp      = 0.0d0
-!    
-!    ! Build the full HFB-hamiltonian
-!    si      = 0 ; sb = 0
-!    do B=1,8,2
-!      N  = HFBlocks(B)    ! Size of the first partner block
-!      N2 = HFBlocks(B+1)  ! Size of the second partner block
-!      
-!      it = 1 ; if (B .gt. 4) it = 2
-
-!      HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
-!      &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
-!      &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)
-
-!      si = si +   N +   N2
-!      sb = sb + 2*N + 2*N2
-!    enddo
-!    !---------------------------------------------------------------------------
-!    ! Now diagonalize the HFB Hamiltonian "as is", without 
-!    !  (1) any blocking 
-!    !  (2) any changing of the Fermi energy, i.e. the particle number will not 
-!    !      be correct.
-!    
-!    lambda_copy = lambda
-!    part = Diagbyblock(HFBHamil(1:2*nwn,1:2*nwn), HFblocks(1:4),               &
-!    &                  config(1:2*nwn),                                        &
-!    &                  Bogo(1:2*nwn,1:2*nwn),Eqp(1:2*nwn),      &
-!    &                  lambda_copy(1), 0 , (/0/), blocked_qp, ifail)
-!    
-!    part = Diagbyblock(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFblocks(5:8),   &
-!    &                  config(2*nwn+1:2*nwt),                                  &
-!    &                  Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt), Eqp(2*nwn+1:2*nwt),  &
-!    &                  lambda_copy(2), 0 , (/0/), blocked_qp, ifail)
-
-!    ! Don't forget to correct the structure of the matrices
-!    call reorganise_matrices(Bogo,Eqp, config)
-!    !---------------------------------------------------------------------------
-!    ! We have now in memory the "reference" Bogoliubov state, which has wrong
-!    ! particle number, but which should have the "unblocked" U and V columns.
-!    ! (Note that it is not necesarily the lowest energy HFB vacuum, but rather
-!    ! the lowest even-even vacuum constructed here...)
-
-!    ! We multiply the reference transformation with the transformation in 
-!    ! memory, to determine which qps have been blocked
-!    overlap = matmul(transpose(Bogo), Bogo_ref)
-
-!    si      = 0 ; sb = 0 
-!    blocks_blocked = 0
-!    do B=1,8,2
-!      N  = HFBlocks(B)    ! Size of the first partner block
-!      N2 = HFBlocks(B+1)  ! Size of the second partner block
-!      
-!      it = 1 ; if (B .gt. 4) it = 2
-
-!      ! We check the off-diagonal components of the overlap matrix to find 
-!      ! the one qp that is most like the non-selected part
-!      do j=1,N+N2
-!        check = .false. 
-!        do i=1,N+N2
-!          if(abs(overlap(sb+i, sb+N+N2+j)) .gt. 0.5) then
-!            check = .true.
-!          endif
-!        enddo
-!        if(check) blocks_blocked(B) = blocks_blocked(B) +1 
-!      enddo
-
-!      si = si +   N +   N2
-!      sb = sb + 2*N + 2*N2
-!    enddo
-!  end function figure_out_blocking_structure_agnostic
-  
   function obtain_eqp(sphamil, gaps, lambda, blocks) result(eigen)
     !---------------------------------------------------------------------------
     ! Obtain the quasiparticle energies by constructing and diagonalizing the 
-    ! HFB hamiltonian. Note that this routine offers nothing beyond that, 
-    ! and does not offer any other side-effects. For a more complete routine, 
-    ! see diagbyblock in the HFB_direct module.
+    ! HFB hamiltonian. 
+    !
+    ! Input :
+    !  sphamil : matrix of the single-particle hamiltonian
+    !  gaps    : matrix of the pairing gaps
+    !  lambda  : Fermi energies of both nucleon species
+    !  blocks  : size of the symmetry blocks of the HFB Hamiltonian
+    !
+    ! Output:
+    !  eigen   : the eigenvalues = qp energies of the HFB Hamiltonian 
+    ! 
     !---------------------------------------------------------------------------
+    ! Note 
+    ! (1) this routine offers nothing beyond that, and does not offer any 
+    !     other side-effects. For a more complete routine, see diagbyblock 
+    !     in the HFB_direct module.
+    ! (2) this routine produces the ACTUAL qp energies of a given HFB 
+    !     Hamiltonian, as opposed to the subroutine correct_ordering_eqp
+    !---------------------------------------------------------------------------
+
     real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), lambda(2)
     real(KIND=dp), allocatable  :: HFBhamil(:,:), work(:), A(:,:)
     integer, intent(in)         :: blocks(8)
@@ -761,9 +801,22 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
   
   function correct_ordering_eqp(sphamil, gaps, lambda,bogo,blocks) result(eigen) 
     !---------------------------------------------------------------------------
+    ! This routine obtains estimates of the qp-energies of the HFB Hamiltonian H
+    ! by taking the diagonal matrix elements of
     !
+    !       W^T H W
     !
+    ! where W is the Bogoliubov transformation passed in. 
+    ! This ensures that the estimate of an qp energy is correctly associated 
+    ! with the corresponding (approximation to) an eigenvector of H. 
     !
+    ! Input : 
+    !   sphamil : matrix of the single-particle hamiltonian
+    !   gaps    : matrix of the pairing gaps
+    !   lambda  : Fermi energies for both nucleon species
+    !   blocks  : sizes of the symmetry blocks of the HFB Hamiltonian
+    ! Output: 
+    !   eigen   : the diagonal matrix elements of W^T H W
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), lambda(2), bogo(:,:)
     real(KIND=dp), allocatable  :: HFBhamil(:,:)
@@ -815,10 +868,29 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
   
   end function correct_ordering_eqp
 
-  subroutine reorganise_Bogo_gradient(Bogo, config, effblocks) 
+  pure subroutine reorganise_Bogo_gradient(Bogo, config, effblocks) 
     !---------------------------------------------------------------------------
+    ! The gradient solver fundamentally only works with "ordered" Bogoliubov
+    ! transformation as input, i.e. with the "selected" U and V matrices on the
+    ! right-most half of the Bogoliubov transformation. This is equivalent  
+    ! to having a Bogoliubov transformation with a trivial configuration matrix.
     !
+    ! This routine does exactly that: it takes as input a transformation with
+    ! a corresponding configuration matrix and orders them. In the meantime, 
+    ! it counts the effective block sizes of the matrices to be passed in to the
+    ! gradient solver.
     !
+    ! Input: 
+    !    Bogo      :  non-ordered Bogoliubov transformation
+    !    config    :  configuration matrix of the vacuum
+    !    effblocks :  If non-zero, the routine will not reorder things.
+    !
+    ! Output:
+    !    Bogo      : ordered Bogoliubov transformation
+    !    config    : trivial configuration matrix, i.e. (0,0,...,0,1,1,....,1)
+    !                in every symmetry block
+    !    effblocks : modified block sizes to pass into the gradient solver, 
+    !                which might be larger or smaller than the HFBlocks.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(inout) :: Bogo(:,:)
     real(KIND=dp), intent(in)    :: config(:)
@@ -936,7 +1008,7 @@ $TR return
     
   end subroutine reorganise_Bogo_gradient
 
-  function calc_dispersion_HFB(rho,kappa) result(dispersion)
+  pure function calc_dispersion_HFB(rho,kappa) result(dispersion)
     !---------------------------------------------------------------------------
     ! We calculate the dispersion of the particle number
     ! 
@@ -947,7 +1019,13 @@ $TR return
     !
     ! So <N^2> - <N>^2 = Tr(rho ( 1 -rho)) +  Tr(kappa * kappa^{\dagger})
     ! 
+    ! Input: 
+    !      rho  : Normal and anomalous density matrix  
+    !      kappa|
+    ! Output:
+    !      dispersion: particle number dispersion for both nucleon species
     !---------------------------------------------------------------------------
+    !
     ! Note, that at T = 0, we have that (kappa * kappa^{\dagger}) = rho(1-rho).
     ! So in that case, we have 
     !  < Delta N^2 > = < N^2 > - <N>^2 = 2 * Tr(rho(1-rho))
@@ -956,7 +1034,7 @@ $TR return
     ! We implement however the formula above, since this is the one that 
     ! correctly generalizes to T != 0.
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(inout) :: rho(:,:), kappa(:,:)
+    real(KIND=dp), intent(in)    :: rho(:,:), kappa(:,:)
     real(KIND=dp), allocatable   :: chi(:,:)
 $NTR real(KIND=dp), allocatable  :: k2(:,:)
     real(KIND=dp)                :: dispersion(2)
@@ -1120,6 +1198,10 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     !
     !  N, N2   : sizes of the respective blocks
     !
+    ! Output: 
+    !       H  : the HFB Hamiltonian in a format that can be easily passed to
+    !            diagonalization routines.
+    !
     !  -  -  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! REMOVED:
     !  r, k    : rho and kappa pairing matrices for the addition of the 
@@ -1131,7 +1213,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:)
     real(KIND=dp), allocatable  :: H(:,:)
     integer, intent(in)         :: N, N2
-    integer                     :: T, i
+    integer                     :: T
 
     T = N + N2
     allocate(H(2*T,2*T)) 
@@ -1340,7 +1422,7 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
 
   end subroutine PrintHFBconvergence
 
-  subroutine Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,         &
+  subroutine Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,    &
   &                                             rhotransfo, kappatransfo, ifail)
     !---------------------------------------------------------------------------
     ! a) Diagonalize  Rho
@@ -1382,13 +1464,6 @@ $NTR integer :: j
       deallocate(work)
   
       rhotransfo(si+1:si+N,si+1:si+N) = tmp
-
-      if(ifail.ne.0) then
-        print *, 'WARNING: diagon failed in subroutine Canonical.'
-        print *, '         Problematic block B = ', B
-        deallocate(tmp)
-        return
-      endif
 
       si = si + N
       deallocate(tmp)
@@ -1496,82 +1571,8 @@ $NTR  enddo
     enddo
     
    end subroutine ConstructCanonicalBasis
-   
-!   function number_parity_throughU( Bogo, config, blocks) result(NP)
-!    !---------------------------------------------------------------------------
-!    ! 
-!    !
-!    !
-!    !---------------------------------------------------------------------------
-!    real(KIND=dp), intent(in) :: Bogo(:,:), config(:)
-!    integer,intent(in)        :: blocks(:)
-!    integer                   :: NP(size(blocks))
-!    
-!    real(KIND=dp), allocatable :: U(:,:), eigenR(:), eigenI(:), work(:)
-!    real(KIND=dp)              :: vecL(2,2), vecR(2,2)
-!    integer                    :: B, sb, N, N2, T, lwork, ifail, i
-!    
-!    sb = 0
-!    do B=1, size(blocks),2
-!      N = blocks(B)    ; if(N.eq.0) cycle
-!      N2= blocks(B+1)
-!      
-!      T = N + N2
-!    
-!      ! Getting the U matrix
-!      U = Bogo(sb+1:sb+T, sb+T+1:sb+2*T)
-!      U = matmul(U, transpose(U))
 
-!      allocate(eigenR(T), eigenI(T))
-!      !-------------------------------------------------------------------------      
-!      ! Diagonalise the U-matrix per signature subblock
-!      lwork = -1 ; allocate(work(1))
-!      call dgeev('N', 'N', N, U(1:N,1:N), N, eigenR(1:N), eigenI(1:N), &
-!      &           vecL, 1, vecR, 1, work, lwork, ifail)
-!      lwork = int(work(1)) ; deallocate(work) ; allocate(work(lwork))
-!      call dgeev('N', 'N', N, U(1:N,1:N), N, eigenR(1:N), eigenI(1:N), &
-!      &           vecL, 1, vecR, 1, work, lwork, ifail)
-!      deallocate(work)
-!      print *, 'ifail 1', ifail
-!      print ('(99e12.3)'), eigenR(1:N)
-!      print ('(99e12.3)'), eigenI(1:N)
-!      print *
-
-!      !-------------------------------------------------------------------------      
-!      if(N2.ne.0) then
-!        lwork = -1 ; allocate(work(1))
-!        call dgeev('N', 'N', N2, U(N+1:T,N+1:N),N2,eigenR(N+1:T),eigenI(N+1:T),&
-!        &           vecL, 1, vecR, 1, work, lwork, ifail)
-!        lwork = int(work(1)) ; deallocate(work) ; allocate(work(lwork))
-!        call dgeev('N', 'N', N2, U(N+1:T,N+1:N),N2,eigenR(N+1:T),eigenI(N+1:T),&
-!        &           vecL, 1, vecR, 1, work, lwork, ifail)
-!        deallocate(work)
-!      endif
-!      !-------------------------------------------------------------------------
-!      ! Count the number of eigenvalues that are (close to) zero
-!      NP(B) = 0 ; NP(B+1) = 0
-!      
-!      print *, 'ifail 2', ifail
-!      print ('(99e12.3)'), eigenR(N+1:T)
-!      print ('(99e12.3)'), eigenI(N+1:T)
-
-!      do i=1, T
-!        if(sqrt(eigenR(i)**2 + eigenI(i)**2) .lt. 1d-8) then
-!          if(i.gt.N) then
-!            NP(B+1) = NP(B+1) + 1
-!          else
-!            NP(B)   = NP(B) + 1
-!          endif
-!        endif
-!      enddo
-!      
-!      deallocate(eigenR, eigenI)
-!      sb = sb + 2 * T
-!    enddo
-!    
-!   end function number_parity_throughU
-
-   function construct_generalized_density(rho, kappa) result(R)
+   pure function construct_generalized_density(rho, kappa) result(R)
     !---------------------------------------------------------------------------
     ! Construct the generalized density matrix R from the matrices rho and kappa
     !
