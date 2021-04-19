@@ -13,9 +13,26 @@ module HFB_gradient
  !
  !==============================================================================
  !
+ ! This module implements all routines needed to gradient-step our way to the
+ ! solution of the HFB problem. The main "driving" routine is located HFB.f90
  !
+ ! Subroutines
+ ! - subroutine gradient_step
+ ! - subroutine find_fermi_brent
+ ! - subroutine Brent_bisection
+ ! - subroutine ortho_bogo
+ ! - subroutine diagonalise_H11
  !
- !------------------------------------------------------------------------------
+ ! Functions
+ ! - buildgrad
+ ! - precongrad
+ ! - GradUpdate
+ ! - calcH20
+ ! - calcH11
+ ! - calcN20
+ ! - disp_bogo
+ ! - particle_number_bogo
+ !==============================================================================
  
   use geninfo
   use wavefunctions
@@ -52,11 +69,11 @@ module HFB_gradient
 
 contains 
 
-  function buildgrad(H20, N20, lambda, Eqp, precon) result(grad)
+  pure function buildgrad(H20, N20, lambda, Eqp, precon) result(grad)
     !---------------------------------------------------------------------------
     ! Construct the gradient of the energy. 
     !
-    ! The "barre" gradient
+    ! The "bare" gradient
     !     g  = H^{20} - lambda N^{20} 
     !
     ! which can be preconditioned by employing an approximation to the second
@@ -66,10 +83,21 @@ contains
     ! 
     ! where this equation should only be used in the quasi-particle basis, i.e.
     ! the basis that diagonalizes H^{11}. 
+    !
+    ! Input: 
+    !   H20   : matrix elements of the two-qp part of the HFB Hamiltonian
+    !   N20   : matrix elements of the two-qp part of the number operator
+    !   lambda: Fermi energy of the species under consideration
+    !   precon: logical, indicating whether to precondition or not
+    !
+    ! Output: 
+    !   grad  : matrix elements of the gradient (Z-matrix), built out of the 
+    !           ingredients passed in.
+    !
     !---------------------------------------------------------------------------
     real(KIND=dp), allocatable :: grad(:,:)
     real(KIND=dp), intent(in)  :: H20(:,:), N20(:,:), Eqp(:), lambda
-    logical                    :: precon 
+    logical, intent(in)        :: precon 
 
     grad = H20 - lambda * N20
     if(precon) then
@@ -77,8 +105,36 @@ contains
     endif
     
   end function buildgrad
+    
+  pure function precon_grad(grad, Eqp)  result(Pgrad)
+    !---------------------------------------------------------------------------
+    !
+    !    [Pg]_mn = g_mn/max(E^qp_m + E^qp_n , 2.0)
+    !
+    ! Input: 
+    !   grad : gradient to be preconditioned
+    !   Eqp  : quasiparticles to use in the preconditioner
+    !
+    ! Output:
+    !   Pgrad: preconditioned gradient
+    !
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  :: grad(:,:), Eqp(:)
+    real(KIND=dp)              :: fac
+    real(KIND=dp), allocatable :: Pgrad(:,:)
+    integer   :: i,j
 
-  subroutine gradient_step(h,gaps,targetN, Bogo,Eqp,lambda, alpha,mu,prev,     &
+    Pgrad = grad
+    do i=1, size(grad,1)
+        do j=1, size(grad,1)
+          fac = max(Eqp(i)+ Eqp(j), 2.0d0)
+          Pgrad(i,j) = Pgrad(i,j)/fac
+        enddo
+    enddo
+
+  end function precon_grad
+
+  subroutine gradient_step(h,gaps,targetN, Bogo,Eqp,lambda, alpha,mu,prev,&
   &                        precon, gradnorm, blocks, lambda2, rho, kappa,      &
   &                        maxiter, ifail)
     !---------------------------------------------------------------------------
@@ -139,7 +195,7 @@ contains
 
     real(KIND=dp)                :: particles,  normN, lambda_corr
     integer                      :: iter
-    logical                      :: converged = .false.  
+    logical                      :: converged
   
     converged = .false. 
     do iter=1,maxiter
@@ -199,31 +255,8 @@ contains
     call diagonalise_H11(bogo, prev, H11, blocks, Eqp)
 
   end subroutine gradient_step
-  
-  function precon_grad(grad, Eqp)  result(Pgrad)
-    !---------------------------------------------------------------------------
-    !
-    !    [Pg]_mn = g_mn/max(E^qp_m + E^qp_n , 2.0)
-    !
-    !
-    !
-    !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)  :: grad(:,:), Eqp(:)
-    real(KIND=dp)              :: fac
-    real(KIND=dp), allocatable :: Pgrad(:,:)
-    integer   :: i,j
 
-    Pgrad = grad
-    do i=1, size(grad,1)
-        do j=1, size(grad,1)
-          fac = max(Eqp(i)+ Eqp(j), 2.0d0)
-          Pgrad(i,j) = Pgrad(i,j)/fac
-        enddo
-    enddo
-
-  end function precon_grad
-
-  subroutine find_fermi_brent(Bogo, H20, N20,  prev, Eqp, lambda,              &
+  pure subroutine find_fermi_brent(Bogo, H20, N20,  prev, Eqp, lambda,         &
   &                        particles, targetN, alpha, mu, precon, blocks, ifail)
     !---------------------------------------------------------------------------
     ! Find a Fermi energy such that the particle number is (on average) correct
@@ -252,14 +285,17 @@ contains
     integer, intent(in)          :: blocks(4)
     real(KIND=dp), intent(in)    :: alpha, mu, prev(:,:)
     logical, intent(in)          :: precon
+    integer, intent(out)         :: ifail
 
     real(KIND=dp), intent(out)   :: particles
     real(KIND=dp), intent(inout) :: lambda, bogo(:,:)
     real(KIND=dp), allocatable   :: gradA(:,:), gradB(:,:), nbA(:,:), nbB(:,:)
 
     real(KIND=dp)                :: InitialBracket(2), FA, FB, N
-    integer                      :: idir = 0 , idirsig = 1, FailCount, ifail
+    integer                      :: idir, idirsig, FailCount
     logical                      :: Success
+
+    idir = 0 ; idirsig = 1
 
     !---------------------------------------------------------------------------
     ! STEP 1: set up an initial bracket
@@ -312,9 +348,9 @@ contains
         !      & FailCount,Success,InitialBracket(1),FA, InitialBracket(2),FB          
         ! code failure (Fermi energy has changed by 30 MeV)
         if (Failcount .gt. 76) then
-          print '(/," A = ", f13.8, " FA = ",1es12.4,              &
-               &    " B = ", f13.8, " FB = ",1es12.4)',            &
-               &     InitialBracket(1),FA,InitialBracket(2),FB 
+!          print '(/," A = ", f13.8, " FA = ",1es12.4,              &
+!               &    " B = ", f13.8, " FB = ",1es12.4)',            &
+!               &     InitialBracket(1),FA,InitialBracket(2),FB 
           ifail = 10
           return
           !stop 'FindFermiBrent: Search for InitialBracket failed.'
@@ -332,8 +368,8 @@ contains
 
   end subroutine find_fermi_brent
 
-  subroutine Brent_bisection(X1,X2,FX1, FX2, Bogo, H20, N20, prev, Eqp, lambda,& 
-  &                        particles, targetN, alpha, mu, precon, blocks, depth)
+  pure subroutine Brent_bisection(X1,X2,FX1, FX2, Bogo, H20, N20, prev, Eqp,   & 
+  &                 lambda,particles, targetN, alpha, mu, precon, blocks, depth)
     !---------------------------------------------------------------------------
     ! This routine searches for the Fermi energy
     ! by Brent's methods https://en.wikipedia.org/wiki/Brent%27s_method
@@ -356,11 +392,12 @@ contains
     real(KIND=dp), intent(out)   :: particles
     real(KIND=dp), intent(inout) :: lambda, bogo(:,:)
     
+    real(KIND=dp), parameter     :: eps = 1.d-9
+    
     real(KIND=dp), allocatable   :: grad(:,:), newbogo(:,:)
     real(KIND=dp)                :: A , B, C , FA, FB , FC
     real(KIND=dp)                :: D , E, S , P  , Q , R 
     real(KIND=dp)                :: Num , Tol , XM 
-    real(KIND=dp)                :: eps = 1.d-9
     integer                      :: FailCount
     logical                      :: Found
 
@@ -464,17 +501,17 @@ contains
 !      print '(" BrentBisection ",i4,(1l2,2(f13.8,es16.7),f14.8))',    &
 !           & FailCount, Found,A,FA,B,FB,Num
 !     
-      if ( FailCount .gt. Depth ) then
-        print '(/," Warning: BrentBisection did not converge after ",i4," iterations")', & 
-        &      FailCount
-      endif
+!      if ( FailCount .gt. Depth ) then
+!        print '(/," Warning: BrentBisection did not converge after ",i4," iterations")', & 
+!        &      FailCount
+!      endif
     enddo
     ! Output
     Lambda    = B ; particles = FB 
     !bogo      = newbogo
   end subroutine Brent_bisection
 
-  function GradUpdate(grad, prev, bogo, alpha, mu, blocks) result(NB)
+  pure function GradUpdate(grad, prev, bogo, alpha, mu, blocks) result(NB)
     !---------------------------------------------------------------------------
     ! Update the bogoliubov transformation with a heavy-ball step:
     !
@@ -539,11 +576,18 @@ $TR      &                - mu * matmul(U,prev(si+1:si+T,si+1:si+T))
     
   end function GradUpdate
 
-  subroutine ortho_bogo(bogo, blocks)
+  pure subroutine ortho_bogo(bogo, blocks)
     !---------------------------------------------------------------------------
     ! Gramm-Schmidt routine to orthogonalise the Bogoliubov transformation. 
     ! As with the rest of this module, only operates on the right-most half
     ! of the Bogoliubov transformation. 
+    !
+    ! Input:
+    !    Bogo  : Bogoliubov transformation
+    !    blocks: Sizes of the symmetry blocks
+    !
+    ! Output: 
+    !    Bogo : orthonormalized Bogoliubov transformation
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(inout) :: bogo(:,:)
     integer, intent(in)          :: blocks(4)
@@ -581,12 +625,21 @@ $TR      &                - mu * matmul(U,prev(si+1:si+T,si+1:si+T))
     enddo
   end subroutine ortho_bogo
 
-  function calcH20(Bogo,h,gaps, rho, kappa, lambda2, blocks) result(H20)
+  pure function calcH20(Bogo,h,gaps, rho, kappa, lambda2, blocks) result(H20)
     !---------------------------------------------------------------------------
     ! Calculate the 2-quasi-particle-excitation component of H:
     ! 
     ! H20 =   U^{dagger} h   V^* - V^{\dagger} \Delta^* V^*
     !       - V^{dagger} h^t U^* + U^{\dagger} \Delta   U^*
+    !
+    !
+    ! Input:
+    !   Bogo : Bogoliubov transformation (only right-half is used)
+    !   h    : single-particle hamiltonian
+    !   gaps : pairing gaps
+    !   rho  : normal and anomalous density matrix 
+    !   kappa| (only necessary when constraining the particle number dispersion)
+    !   lambda2:
     !
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)               :: H(:,:), bogo(:,:), gaps(:,:)
@@ -637,7 +690,7 @@ $TR                              &  - matmul(V, hU) - matmul(V, dV)
     enddo
   end function calcH20
 
-  function calcH11(Bogo,h,gaps,lambda,blocks) result(H11)
+  pure function calcH11(Bogo,h,gaps,lambda,blocks) result(H11)
     !---------------------------------------------------------------------------
     ! Calculate the 11 component of H 
     !  
@@ -688,7 +741,7 @@ $TR                           &  + matmul(V, dU) &
 
   end function calcH11
 
-  function calcN20(Bogo, blocks) result(N20)
+  pure function calcN20(Bogo, blocks) result(N20)
     !---------------------------------------------------------------------------
     ! Calculate the 20-component of the particle number operator
     !
@@ -722,7 +775,7 @@ $NTR  N20(si+1:si+T,si+1:si+T) = matmul(transpose(U),V)-matmul(transpose(V),U)
     enddo
   end function calcN20
 
-  function particle_number_bogo(bogo, blocks) result(part)
+  pure function particle_number_bogo(bogo, blocks) result(part)
       !-------------------------------------------------------------------------
       ! Calculate the particle number associated with a given Bogoliubov 
       ! transformation
