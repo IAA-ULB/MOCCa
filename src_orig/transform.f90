@@ -23,7 +23,10 @@ module transform
  ! Hephaestos keywords
  ! 
  !  NONSPATIAL : $NONSPATIAL
- !
+ !  SPATIAL    : $SPATIAL
+ !  EXPANDX    : $EXPANDX
+ !  EXPANDY    : $EXPANDY
+ !  EXPANDZ    : $EXPANDZ
  !==============================================================================
   use geninfo
   use wavefunctions
@@ -53,7 +56,7 @@ contains
     real(KIND=dp), allocatable                :: tempd(:), tempr(:)
     real(KIND=dp), allocatable                :: tempgaps(:,:), tempkap(:,:)
 
-    integer  :: wave, N, B, si, sb,i, wave2
+    integer  :: wave, N, B, si, sb,i, wave2, offset
 
     if(.not. allocated(rho_can)) then
         ! There is one case where this array might not be allocated upon entry
@@ -156,6 +159,62 @@ contains
         endif
       endif
     endif
+    
+    if( $SPATIAL ) then
+      if($EXPANDX) then
+          print *, 'Extending to the full X-axis not implemented yet'
+          stop
+      elseif($EXPANDY) then   
+          print *, 'Extending to the full Y-axis not implemented yet'
+          stop
+      elseif($EXPANDZ) then
+          ! Expand the wavefunctions in the first relevant block
+          si = 0
+          sb = 0
+          offset = 0
+          do B=1,8,4 ! This is essentially an isospin loop now
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+            ! First block is not modified
+            do wave=1,HFBlocks(B)
+              ! Copy the positive z-axis
+              wfs(oldnx*oldny*oldnz+1:nx*ny*nz,1:4,sb+wave) = &
+              &                                    temp(:,:,sb+1:sb+HFBlocks(B))
+              do i=1,oldnx*oldny*oldnz
+                wfs(i,1,sb+wave) = $TRANSFO_SPATIAL_Z_1_++
+                wfs(i,2,sb+wave) = $TRANSFO_SPATIAL_Z_2_++
+                wfs(i,3,sb+wave) = $TRANSFO_SPATIAL_Z_3_++
+                wfs(i,4,sb+wave) = $TRANSFO_SPATIAL_Z_4_++
+              enddo
+            enddo
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+            ! What was the third block on file, now becomes part of the first
+            ! block
+            offset = HFBlocks(B)
+            do wave=1,HFBlocks(B+2)
+              ! Copy the positive z-axis
+              wfs(1:oldnx*oldny*oldnz,1:4,sb+offset+wave) = &
+              &      temp(:,:,sb+sum(HFBlocks(B:B+1))+1:sb+sum(HFBlocks(B:B+2)))
+              do i=1,oldnx*oldny*oldnz
+                wfs(i,1,sb+wave) = $TRANSFO_SPATIAL_Z_1_--
+                wfs(i,2,sb+wave) = $TRANSFO_SPATIAL_Z_2_--
+                wfs(i,3,sb+wave) = $TRANSFO_SPATIAL_Z_3_--
+                wfs(i,4,sb+wave) = $TRANSFO_SPATIAL_Z_4_--
+              enddo
+            enddo
+            sb = sb + sum(HFBlocks(1:B+3))            
+          enddo
+      endif
+      !-------------------------------------------------------------------------
+      ! Merge the blocks associated with a linear, hermitian symmetry
+      HFBlocks(1) = blocks(1) + HFBlocks(3)
+      HFBlocks(2) = blocks(2) + HFBlocks(4)
+      HFBlocks(5) = blocks(5) + HFBlocks(7)
+      HFBlocks(6) = blocks(6) + HFBlocks(8)
+      ! Remove the old blocks
+      HFBblocks(3:4) = 0
+      HFBblocks(7:8) = 0
+    endif
+    
   end subroutine Transformspwfs
 
   subroutine TransformInput(filenx,fileny,filenz,filenwn,filenwp, filedx,      &
