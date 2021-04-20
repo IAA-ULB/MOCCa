@@ -275,6 +275,19 @@ contains
     end do
 
   end function to_lower
+
+  function rps(string,length) result(r)
+    !--------------------------------------------------------------------------
+    ! function rps (right-padded-string) to add blancs to a string such that 
+    ! it is printed left adjusted. Inspired by 
+    ! http://computer-programming-forum.com/49-fortran/45c9683fdbd85176.htm
+    !--------------------------------------------------------------------------
+    character(len=*) :: string
+    integer          :: length
+    character(len=length) :: r
+
+    r = adjustl(string)
+  end function rps 
   
   subroutine clean_geninfo()
     !---------------------------------------------------------------------------

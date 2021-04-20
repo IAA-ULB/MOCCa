@@ -663,10 +663,10 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
                                    tab + '$CPCTE(2,1) = $EXP2 \n')    
                                 
     write_edensity = Template( tab + ' call output_Edensity(Edensity, "$FILENAME")' )
-    print_template = Template(tab +" print('(a30 , 3f15.6)'), '$TERM',    & \n"+ 
+    print_template = Template(tab +" print('(2x, a28, 3f15.6)'), rps('$TERM',28),    & \n"+ 
                               tab +"                           $TERM(:,1),& \n"+
                               tab +"                       sum($TERM(:,1))  \n")
-    print_P_templ  = Template(tab +" print('(a30 , 30x, f15.6)'), '$TERM',& \n"+
+    print_P_templ  = Template(tab +" print('(2x, a28, 30x, f15.6)'), rps('$TERM',28),& \n"+
                               tab +"                       sum($TERM(:,1))  \n")
 
     
