@@ -510,7 +510,6 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     integer, intent(in)        :: scheme
     integer, intent(out)       :: ifail
     real(KIND=dp), allocatable :: sphamil(:,:)
-    logical                    :: move
 
     call start_timer(T_pairing)
 
@@ -649,7 +648,6 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     !---------------------------------------------------------------------------
 
     real*8, intent(in) :: stabfactor(2)
-    integer            :: nb(8)
 
     1 format (26('-'), ' Pairing ', 25('-'))
     2 format (25x, ' N ',7x, ' P ')

@@ -482,7 +482,6 @@ $TR    endif
       &                  Z_updates(1:nwn,1:nwn),                               &
       &                  gradient_precon, HFBgradnorm(1), grad_blocks(1:4),    &
       &                  lambda2(1), rho_pairing(1:nwn, 1:nwn),                &
-      &                  kappa_pairing(1:nwn,1:nwn),                           &
       &                  maxiter, ifail)
       ! and for the protons
       call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt),& 
@@ -492,7 +491,6 @@ $TR    endif
       &                  Z_updates(nwn+1:nwt,nwn+1:nwt),                       &
       &                  gradient_precon, HFBgradnorm(2), grad_blocks(5:8),    &
       &                  lambda2(2), rho_pairing(nwn+1:nwt,nwn+1:nwt),         &
-      &                  kappa_pairing(nwn+1:nwt,nwn+1:nwt),                   &
       &                  maxiter, ifail)
     endif
     !---------------------------------------------------------------------------
