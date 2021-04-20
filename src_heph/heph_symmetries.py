@@ -647,3 +647,56 @@ def CheckIndependency(gen):
         problem  = True
 
   return problem
+  
+def multiply_quantum_numbers(perm, combs, block ) :
+  """
+    A symmetry imposes a relation on an spwf
+    
+       [U psi] (x,y,z,c) = u psi(x,y,z,c)
+                         = psi(ex,ey,ez,c')
+
+      where  
+       * U is a symmetry operator
+       * u is the associated quantum number
+       * ex, ey, ez are x,y,z with perhaps a sign
+       * c and c', are components, i.e. 1,2,3,4
+
+   Exploiting the symmetry relation 
+   
+      u psi(x,y,z,c) = psi(ex,ey,ez,c')
+      
+   requires us to be able to be able to evaluate the left-hand side, for 
+   a spwf in a given symmetry block of the MF-code.
+                      
+   input:
+      perm  : permutation of the indices, i.e. the link  c <-> c'
+      combs : the combination of single-particle symmetry generators that
+              combine to form this particular symmetry
+      block : the enumeration of the symmetry block we are looking for
+      
+  """
+ 
+  new_perm = [perm[0], perm[1], perm[2], perm[3]]
+  for c in combs:
+    if(c.linear and c.hermitian):
+      # C is linear and hermitian: the 3rd and 4th blocks are associated
+      # with its negative quantum numbers 
+      if(block>2):
+        for i in range(4):
+          new_perm[i] = new_perm[i] * -1
+    
+    if(c.linear and (not c.hermitian)):
+      # C is linear and antihermitian, i.e. the 2nd and 4th blocks are 
+      # associated with quantum numbers -i
+      if(block%2 == 0):
+        for i in range(4):
+          new_perm[i] = new_perm[i] * -1
+
+      temp = [new_perm[0],new_perm[1],new_perm[2],new_perm[3]]
+      # But we also need to multiply by 'i'
+      new_perm[0] =-temp[1]
+      new_perm[1] =+temp[0]
+      new_perm[2] =-temp[3]
+      new_perm[3] =+temp[2]
+
+  return new_perm

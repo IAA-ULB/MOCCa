@@ -60,7 +60,7 @@ contains
 
     real(KIND=dp),  pointer                   :: right3D(:,:,:,:), left3D(:,:,:,:) 
 
-    integer  :: wave, N, B, si, sb,i, wave2, offset, j, k
+    integer  :: wave, N, B, si, sb,i, wave2, offset_left, offset_right, j, k
 
     if(.not. allocated(rho_can)) then
         ! There is one case where this array might not be allocated upon entry
@@ -104,14 +104,22 @@ contains
         spenergies(sb+1:sb+N) = tempe(si+1:si+N)
         rho_can(sb+1:sb+N)    = tempr(si+1:si+N) /2.0 ! Note the factor 1/2
 
-        ! Use the antilinear symmetry to obtain the transformed spwfs
+        ! Use the antilinear, antihermitian symmetry to obtain the transformed
+        ! spwfs. The remapping into 3D functions is superfluous here, but 
+        ! it makes the Hephaestos coding more flexible. 
         do wave = 1, N  
-         wftarget = temp(:,:,si+wave)      
-         do i=1, oldnx*oldny*oldnz
-           wfs(i,1,sb+N+wave) = $TRANSFO_NONSPATIAL_1 
-           wfs(i,2,sb+N+wave) = $TRANSFO_NONSPATIAL_2
-           wfs(i,3,sb+N+wave) = $TRANSFO_NONSPATIAL_3
-           wfs(i,4,sb+N+wave) = $TRANSFO_NONSPATIAL_4
+         wftarget = temp(:,:,si+wave)
+         right3D(1:oldnx,1:oldny, 1:oldnz,1:4) => wftarget(:,:)
+         left3D(1:nx, 1:ny, 1:nz,1:4)          => wfs(:,:,sb+N+wave)      
+         do k=1, oldnz
+          do j=1,oldny
+           do i=1, oldnx
+             left3D(i,j,k,1) = $TRANSFO_NONSPATIAL_1 
+             left3D(i,j,k,2) = $TRANSFO_NONSPATIAL_2
+             left3D(i,j,k,3) = $TRANSFO_NONSPATIAL_3
+             left3D(i,j,k,4) = $TRANSFO_NONSPATIAL_4
+           enddo
+          enddo
          enddo
         enddo
         dispersions(sb+N+1:sb+2*N)  = tempd(si+1:si+N)
@@ -173,48 +181,189 @@ contains
           print *, 'Extending to the full Y-axis not implemented yet'
           stop
       elseif($EXPANDZ) then
-          ! Expand the wavefunctions in the first relevant block
-          si = 0
           sb = 0
-          offset = 0
           do B=1,8,4 ! This is essentially an isospin loop now
+            
+            !-------------------------------------------------------------------
+            ! First take are of all auxiliary matrices
+
+            ! First block does not get modified
+            offset_left  = 0
+            offset_right = 0
+            dispersions(sb+offset_left +1:sb+offset_left +blocks(4)) &
+            &   = tempd(sb+offset_right+1:sb+offset_right+blocks(4))
+            spenergies (sb+offset_left +1:sb+offset_left +blocks(4)) &
+            &   = tempe(sb+offset_right+1:sb+offset_right+blocks(4))
+            rho_can    (sb+offset_left +1:sb+offset_left +blocks(4)) &
+            &   = tempr(sb+offset_right+1:sb+offset_right+blocks(4))
+
+            ! Third block on file becomes part of the first block
+            offset_left  = sum(blocks(1:3))
+            offset_right = sum(blocks(1:2))
+            dispersions(sb+offset_left +1:sb+offset_left +blocks(4)) &
+            &   = tempd(sb+offset_right+1:sb+offset_right+blocks(4))
+            spenergies (sb+offset_left +1:sb+offset_left +blocks(4)) &
+            &   = tempe(sb+offset_right+1:sb+offset_right+blocks(4))
+            rho_can    (sb+offset_left +1:sb+offset_left +blocks(4)) &
+            &   = tempr(sb+offset_right+1:sb+offset_right+blocks(4))
+
+            ! Second block on file becomes first part of second block
+            offset_left  = blocks(1) + blocks(3)
+            offset_right = blocks(1)
+            dispersions(sb+1:sb+blocks(1))= tempd(sb+1:sb+blocks(1))
+            spenergies (sb+1:sb+blocks(1))= tempe(sb+1:sb+blocks(1))
+            rho_can    (sb+1:sb+blocks(1))= tempr(sb+1:sb+blocks(1))
+
+            dispersions(sb+1:sb+blocks(1))= tempd(sb+1:sb+blocks(1))
+            spenergies (sb+1:sb+blocks(1))= tempe(sb+1:sb+blocks(1))
+            rho_can    (sb+1:sb+blocks(1))= tempr(sb+1:sb+blocks(1))
+
+            ! Fourth  block on file becomes second part of second block
+            offset_left  = sum(blocks(1:3))
+            offset_right = sum(blocks(1:3))
+            dispersions(sb+offset_left +1:sb+offset_left +blocks(4)) &
+            &   = tempd(sb+offset_right+1:sb+offset_right+blocks(4))
+            spenergies (sb+offset_left +1:sb+offset_left +blocks(4)) &
+            &   = tempe(sb+offset_right+1:sb+offset_right+blocks(4))
+            rho_can    (sb+offset_left +1:sb+offset_left +blocks(4)) &
+            &   = tempr(sb+offset_right+1:sb+offset_right+blocks(4))
+
+
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
             ! First block is not modified
-            do wave=1,HFBlocks(B)
-              wftarget = temp(:,:,sb+wave)
-              right3D(1:oldnx,1:oldny, 1:oldnz,1:4) => wftarget(:,:)
-              left3D(1:nx, 1:ny, 1:nz,1:4)          => wfs(:,:, sb+HFBlocks(B))
+            offset_left = 0
+            offset_right= 0
+            do wave=1,Blocks(B)
+              wftarget = temp(:,:,sb+offset_right+wave)
+              right3D(1:oldnx,1:oldny, 1:oldnz,1:4) &
+              &                                 => wftarget(:,:)
+              left3D(1:nx, 1:ny, 1:nz,1:4) &
+              &                                 => wfs(:,:, sb+offset_left+wave)
             
-              ! Copy the positive z-axis
-              wfs(oldnx*oldny*oldnz+1:nx*ny*nz,1:4,sb+wave) = wftarget
-              do i=1,oldnx*oldny*oldnz
-!                wfs(i,1,sb+wave) = $TRANSFO_Z_1_B1
-!                wfs(i,2,sb+wave) = $TRANSFO_Z_2_B1
-!                wfs(i,3,sb+wave) = $TRANSFO_Z_3_B1
-!                wfs(i,4,sb+wave) = $TRANSFO_Z_4_B1
+              !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+              ! Actual spatial transformations
+              do j=1,oldny
+               do i=1, oldnx
+                  ! Copy the positive z-axis
+                  left3D(i,j,oldnz+1:2*oldnz,:) = right3D(i,j,:,:)
+               enddo
+              enddo
+              
+              do k=1, oldnz
+                do j=1,oldny
+                 do i=1, oldnx
+                  left3D(i,j,k,1) = $TRANSFO_Z_1_B1
+                  left3D(i,j,k,2) = $TRANSFO_Z_2_B1
+                  left3D(i,j,k,3) = $TRANSFO_Z_3_B1
+                  left3D(i,j,k,4) = $TRANSFO_Z_4_B1
+                 enddo
+                enddo
               enddo
             enddo
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-            ! What was the third block on file, now becomes part of the first
-            ! block
-            offset = HFBlocks(B)
-            do wave=1,HFBlocks(B+2)
-              ! Copy the positive z-axis
-!              wfs(1:oldnx*oldny*oldnz,1:4,sb+offset+wave) = &
-!              &      temp(:,:,sb+sum(HFBlocks(B:B+1))+1)
-              do i=1,oldnx*oldny*oldnz
-
+            ! What was the 3rd block on file, now becomes part of the 1st block
+            offset_right = Blocks(B) + Blocks(B+1) ! Block B+2 from file
+            offset_left  = Blocks(B) 
+            do wave=1,Blocks(B+2)
+              wftarget = temp(:,:,sb+offset_right+wave)
+              right3D(1:oldnx,1:oldny, 1:oldnz,1:4) &
+              &                                 => wftarget(:,:)
+              left3D(1:nx, 1:ny, 1:nz,1:4) &
+              &                                 => wfs(:,:, sb+offset_left+wave)
+              
+              !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+              ! Actual spatial transformations
+              do j=1,oldny
+               do i=1, oldnx
+                  ! Copy the positive z-axis
+                  left3D(i,j,oldnz+1:2*oldnz,:) = right3D(i,j,:,:)
+               enddo
               enddo
+            
+              do k=1, oldnz
+                do j=1,oldny
+                 do i=1, oldnx
+                  left3D(i,j,k,1) = $TRANSFO_Z_1_B3
+                  left3D(i,j,k,2) = $TRANSFO_Z_2_B3
+                  left3D(i,j,k,3) = $TRANSFO_Z_3_B3
+                  left3D(i,j,k,4) = $TRANSFO_Z_4_B3
+                 enddo
+                enddo
+              enddo
+              !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             enddo
-            sb = sb + sum(HFBlocks(1:B+3))            
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+            ! Second block on file stays the second block
+            offset_right = Blocks(B)                    ! Block B+1 from file
+            offset_left  = Blocks(B) + Blocks(B+2) 
+            do wave=1,Blocks(B+1)
+              wftarget = temp(:,:,sb+offset_right+wave)
+              right3D(1:oldnx,1:oldny, 1:oldnz,1:4) &
+              &                                 => wftarget(:,:)
+              left3D(1:nx, 1:ny, 1:nz,1:4) &
+              &                                 => wfs(:,:, sb+offset_left+wave)
+            
+              !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+              ! Actual spatial transformations
+              do j=1,oldny
+               do i=1, oldnx
+                  ! Copy the positive z-axis
+                  left3D(i,j,oldnz+1:2*oldnz,:) = right3D(i,j,:,:)
+               enddo
+              enddo
+              
+              do k=1,oldnz
+                do j=1,oldny
+                 do i=1, oldnx
+                  left3D(i,j,k,1) = $TRANSFO_Z_1_B2
+                  left3D(i,j,k,2) = $TRANSFO_Z_2_B2
+                  left3D(i,j,k,3) = $TRANSFO_Z_3_B2
+                  left3D(i,j,k,4) = $TRANSFO_Z_4_B2
+                 enddo
+                enddo
+              enddo
+              !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -             
+            enddo
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+            ! Fourth block on file becomes part of the second block
+            offset_right = sum(Blocks(B:B+2))         ! Block B+3 from file
+            offset_left  = sum(Blocks(B:B+2)) 
+            do wave=1,Blocks(B+3)
+              wftarget = temp(:,:,sb+offset_right+wave)
+              right3D(1:oldnx,1:oldny, 1:oldnz,1:4) &
+              &                                 => wftarget(:,:)
+              left3D(1:nx, 1:ny, 1:nz,1:4) &
+              &                                 => wfs(:,:, sb+offset_left+wave)
+              
+              !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+              ! Actual spatial transformations
+              do j=1,oldny
+               do i=1, oldnx
+                  ! Copy the positive z-axis
+                  left3D(i,j,oldnz+1:2*oldnz,:) = right3D(i,j,:,:)
+               enddo
+              enddo
+               do k=1, oldnz
+                do j=1,oldny
+                 do i=1, oldnx
+                  left3D(i,j,k,1) = $TRANSFO_Z_1_B4
+                  left3D(i,j,k,2) = $TRANSFO_Z_2_B4
+                  left3D(i,j,k,3) = $TRANSFO_Z_3_B4
+                  left3D(i,j,k,4) = $TRANSFO_Z_4_B4                 
+                 enddo
+                enddo
+               enddo
+            enddo            
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+            sb = sb + sum(Blocks(1:B+3))            
           enddo
       endif
       !-------------------------------------------------------------------------
       ! Merge the blocks associated with a linear, hermitian symmetry
-      HFBlocks(1) = blocks(1) + HFBlocks(3)
-      HFBlocks(2) = blocks(2) + HFBlocks(4)
-      HFBlocks(5) = blocks(5) + HFBlocks(7)
-      HFBlocks(6) = blocks(6) + HFBlocks(8)
+      HFBlocks(1) = blocks(1) + blocks(3)
+      HFBlocks(2) = blocks(2) + blocks(4)
+      HFBlocks(5) = blocks(5) + blocks(7)
+      HFBlocks(6) = blocks(6) + blocks(8)
       ! Remove the old blocks
       HFBlocks(3:4) = 0
       HFBlocks(7:8) = 0

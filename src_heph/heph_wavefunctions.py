@@ -47,29 +47,6 @@ def ProcessWavefunctions(fname, src, target, so):
     elif(src_heph.heph_functional.derivative_order == 3):
         dic['N2'] = '!'
         dic['N3'] = ' '
-
-    dic['ININX'] = "nx/2"
-    dic['ININY'] = "ny/2"
-    dic['ININZ'] = "nz/2"
-    if( so.ReduceAxes[0] == 1):
-      dic['ININX'] = "nx"
-    if( so.ReduceAxes[1] == 1):
-      dic['ININY'] = "ny"
-    if( so.ReduceAxes[2] == 1):
-      dic['ININZ'] = "nz"
-
-    nonspatial = False
-    for g in so.generators:
-        if(not g.linear and not g.hermitian):
-          nonspatial = True
-    if(nonspatial):
-      dic['ININWT']  ='nwt'
-      dic['ININWN']  ='nwn'
-      dic['ININWP']  ='nwp'
-    else:
-      dic['ININWT']  ='nwt/2'
-      dic['ININWN']  ='nwn/2'
-      dic['ININWP']  ='nwp/2'
     
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

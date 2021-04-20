@@ -26,6 +26,17 @@ module IO
  ! I.e. when compiled, the code can read files characterized by either 
  ! SYM_CODE or TRANS_CODE (employing an additional transformation in the second 
  ! case). The code will however ALWAYS write SYM_CODE .wf files. 
+ !
+ ! Parameters to pass into iniwavefunctions
+ ! ININX  : $ININX
+ ! ININY  : $ININY
+ ! ININZ  : $ININZ
+ !
+ ! ININWN : $ININWN
+ ! ININWP : $ININWP
+ ! ININWT : $ININWT
+ ! 
+ !
  !  
  !==============================================================================
 
@@ -285,7 +296,7 @@ contains
     ! Input options 
     if(trim(to_upper(inputfilename)).eq.'INIT') then
       ! Option 1) generate starting point with Nilsson wavefunctions.
-      call iniwavefunctions()
+      call iniwavefunctions($ININX, $ININY, $ININZ, $ININWN, $ININWP)
       guessgaps         = .true.
       fileblocks        = HFBlocks
 
@@ -294,7 +305,7 @@ contains
         ! Thus we signal that a symmetry transformation is needed
         symtransfo_needed = .true.
       endif
-      filenx = nx ; fileny = ny ; filenz = nz ; filedx = dx
+      filenx = $ININX ; fileny = $ININY ; filenz = $ININZ ; filedx = dx
     else
       ! Option 2) start from a previous calculation.
       call ReadTantalus(12, inputfilename)
@@ -306,6 +317,7 @@ contains
       if(  symtransfo_needed ) then 
           ! Option a): break a symmetry and transform the spwfs appropriately
           call  Transformspwfs( HFPsi, fileblocks, filenx, fileny, filenz)
+          call  GramSchmidt  
       else
           ! Option b): add points and/or add spwfs
           call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,    & 

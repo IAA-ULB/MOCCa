@@ -20,14 +20,6 @@ module wavefunctions
  !    N2  : $N2
  !    N3  : $N3
  !
- ! ININX  : $ININX
- ! ININY  : $ININY
- ! ININZ  : $ININZ
- !
- ! ININWN : $ININWN
- ! ININWP : $ININWP
- ! ININWT : $ININWT
- ! 
  !==============================================================================
  use compilation
  use derivatives
@@ -142,7 +134,7 @@ contains
     nwt = nwn + nwp
   end subroutine ReadWFdata
 
-  subroutine iniwavefunctions()   
+  subroutine iniwavefunctions(ininx,ininy, ininz, ininwn, ininwp)   
     !---------------------------------------------------------------------------
     ! Build harmonic oscillator eigenfunctions in an EV8-like box
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -154,39 +146,32 @@ contains
     !     pairing is needed, it cannot correctly guess a structure. 
     !---------------------------------------------------------------------------
     
-!    real(KIND=dp)             :: homegax, homegay,homegaz, alpha,qqq
     integer                   :: i
+    integer, intent(in)       :: ininx, ininy, ininz, ininwn, ininwp
+    integer                   :: ininwt
     integer, allocatable      :: kparz(:)
     
-!    alpha = 0.5    
-!    qqq   = 2.0  
-!    homegaz  = alpha*qqq**(-2.0/3.0)
-!    homegax  = alpha*qqq**(-2*cos(-2*pi/3)/3)
-!    homegay  = alpha*qqq**(-2*cos(+2*pi/3)/3)
-
-    allocate(hfpsi($ININX*$ININY*$ININZ,4,$ININWT)) ; hfpsi = 0.0d0
+    ininwt = ininwn + ininwp
+    allocate(hfpsi(ININX*ININY*ININZ,4,ININWT)) ; hfpsi = 0.0d0
     if (allocated(kparz))  deallocate(kparz)       
 
-!    osc_freq(1) = 0.225  
-!    osc_freq(2) = 0.225   
-!    osc_freq(3) = 0.15   
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
-    call nilsson (HFPsi,kparz,spenergies,8,7,$ININWT,$ININWP,$ININWN,          &
-    &           floor(neutrons),floor(protons),$ININX,$ININY,$ININZ,dx,osc_freq)
+    call nilsson (HFPsi,kparz,spenergies,8,7,ININWT,ININWP,ININWN,          &
+    &           floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq)
 
 
-    allocate(dispersions($ININWT)) ; dispersions  = 0
-    allocate(sx(4,$ININWT), sy(4,$ININWT), sz(4,$ININWT))
+    allocate(dispersions(ININWT)) ; dispersions  = 0
+    allocate(sx(4,ININWT), sy(4,ININWT), sz(4,ININWT))
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! b) fill in the right symmetry properties for the wavefunctions
     hfblocks = 0
-    do i=1,$ININWN
+    do i=1,ININWN
         if(kparz(i) .gt. 0) HFBlocks(1) = HFBlocks(1) +1
         if(kparz(i) .lt. 0) HFBlocks(3) = HFBlocks(3) +1
     enddo
-    do i=$ININWN+1,$ININWT
+    do i=ININWN+1,ININWT
         if(kparz(i) .gt. 0) HFBlocks(5) = HFBlocks(5) +1
         if(kparz(i) .lt. 0) HFBlocks(7) = HFBlocks(7) +1
     enddo
@@ -430,11 +415,17 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! wasting CPU cycles reordering levels.
     !---------------------------------------------------------------------------
     integer  :: b, i,j,nw, mw,l
-    integer  :: indices(maxval(HFBlocks))
+    integer  :: indices(maxval(HFBlocks)), spatial_size
     real(KIND=dp) ::  norm
     
     call start_timer(T_ortho)
-
+    
+    ! We ask for the spatial extent of the wavefunctions here, as this routine
+    ! could be called for wavefunctions only defined on parts of the mesh, such
+    ! as when initializing new wavefunctions with nilsson in only part of the
+    ! box.
+    spatial_size = size(HFPsi(:,:,1))
+    
     do b = 1, Blocks 
         indices = 0
         indices(1:HFblocks(b)) = OrderSpwfsSym(b)
@@ -472,7 +463,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
                 mw = indices(j)    
                 ! Real part of the inproduct
                 norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
-                do l=1,4*nx*ny*nz
+                do l=1,spatial_size
                     HFPsi(l,1,mw) = HFPsi(l,1,mw) - norm * HFPsi(l,1,nw)
                 enddo
             enddo

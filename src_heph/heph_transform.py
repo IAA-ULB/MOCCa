@@ -31,7 +31,7 @@ def ProcessTransform(fname, src, target, so, oldso):
 
     #---------------------------------------------------------------------------
     # One simple Fortran template is needed
-    temp = " %+d * wftarget(i,%d)"
+    temp = " %+d * right3D(%s,%s,%s,%d)"
     #---------------------------------------------------------------------------
     dic = {}
 
@@ -67,7 +67,7 @@ def ProcessTransform(fname, src, target, so, oldso):
       for i in range(4):
         ind = abs(s.permutation[i])
         sign = copysign(1, s.permutation[i])
-        dic['TRANSFO_NONSPATIAL_%d'%(i+1)] = temp%(sign,ind)
+        dic['TRANSFO_NONSPATIAL_%d'%(i+1)] = temp%(sign,'i', 'j', 'k', ind)
     else:
       for i in range(4):
         dic['TRANSFO_NONSPATIAL_%d'%(i+1)] = "0.0d0"              
@@ -113,22 +113,48 @@ def ProcessTransform(fname, src, target, so, oldso):
         if(Found):
           s = sym
           c = oldso.combs[i]
+          
       if(len(c) == 0):
         print ("Big problem in ProcessTransform.")
         quit()
             
-
+      print (s)
+      print (s.coord)
+      # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # Now to figure out how to do the actual expansion in the requested axis
-      for i in range(4):
-        ind = abs(s.permutation[i])
-        sign = copysign(1, s.permutation[i])
-        dic['TRANSFO_Z_%d_B1'%(i+1)] = temp%(sign,ind)
+      for block in range(1,5):
+       # Multiply with the quantum numbers
+       perm =  multiply_quantum_numbers(s.permutation, c, block)
+
+       for i in range(4):
+        ind = abs(perm[i])
+        sign = copysign(1, perm[i])
+
+        if(s.coord[0] > 0):
+          indx = 'i'
+        else:
+          indx = 'oldnx-i+1'
+
+        if(s.coord[1] > 0):
+          indy = 'j'
+        else:
+          indy = 'oldny-k+1'
+
+        if(s.coord[2] > 0):
+          indz = 'k'
+        else:
+          indz = 'oldnz-k+1'
+          
+        dic['TRANSFO_Z_%d_B%d'%(i+1, block)] = temp%(sign,indx,indy,indz, ind)
+
     else:
       # Now to figure out how to the actual expansion
-      dic['TRANSFO_SPATIAL_Z_1'] = '0.0d0'    
-      dic['TRANSFO_SPATIAL_Z_2'] = '0.0d0'    
-      dic['TRANSFO_SPATIAL_Z_3'] = '0.0d0'    
-      dic['TRANSFO_SPATIAL_Z_4'] = '0.0d0'    
+      for i in range(4):
+        for j in range(4):
+          dic['TRANSFO_Z_%d_B%d'%(i,j)] = '0.0d0'    
+          dic['TRANSFO_Z_%d_B%d'%(i,j)] = '0.0d0'    
+          dic['TRANSFO_Z_%d_B%d'%(i,j)] = '0.0d0'    
+          dic['TRANSFO_Z_%d_B%d'%(i,j)] = '0.0d0'    
 
 
     with open(src+fname, 'r') as template:
