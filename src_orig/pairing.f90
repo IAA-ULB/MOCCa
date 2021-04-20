@@ -538,6 +538,8 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         else
             call FiniteTemperatureHF(rho_can,FermiEnergy, particles_in_gas)
         endif
+        ! Make sure the program does not stop because this is uninitialized
+        ifail = 0
     case(1)
       !-------------------------------------------------------------------------
       ! BCS-type pairing
@@ -545,6 +547,8 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       call solvepairing_BCS(FermiEnergy, rho_can, kappa_can, qpenergies,       &
       &                     particles_in_gas, BlockType, Blockindices,         & 
       &                     blocklowest, blocked_qps)
+      ! Make sure the program does not stop because this is uninitialized
+      ifail = 0
     case(2)
       !-------------------------------------------------------------------------
       ! HFB-type pairing
