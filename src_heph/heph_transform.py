@@ -29,8 +29,10 @@ def ProcessTransform(fname, src, target, so, oldso):
       
     """
 
-    temp = " %+d * temp(i,%d, si + wave)"
-
+    #---------------------------------------------------------------------------
+    # One simple Fortran template is needed
+    temp = " %+d * wftarget(i,%d)"
+    #---------------------------------------------------------------------------
     dic = {}
 
     if(so.timelike):
@@ -116,12 +118,11 @@ def ProcessTransform(fname, src, target, so, oldso):
         quit()
             
 
-      # Now to figure out how to the actual expansion
-      dic['TRANSFO_SPATIAL_Z_1'] = '0.0d0'    
-      dic['TRANSFO_SPATIAL_Z_2'] = '0.0d0'    
-      dic['TRANSFO_SPATIAL_Z_3'] = '0.0d0'    
-      dic['TRANSFO_SPATIAL_Z_4'] = '0.0d0'    
-
+      # Now to figure out how to do the actual expansion in the requested axis
+      for i in range(4):
+        ind = abs(s.permutation[i])
+        sign = copysign(1, s.permutation[i])
+        dic['TRANSFO_Z_%d_B1'%(i+1)] = temp%(sign,ind)
     else:
       # Now to figure out how to the actual expansion
       dic['TRANSFO_SPATIAL_Z_1'] = '0.0d0'    

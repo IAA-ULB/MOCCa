@@ -49,14 +49,18 @@ contains
   3 format(" Symmetry-broken calculation should have (nwn,nwp) = ", 2i5)
   4 format(" STDIN says                              (nwn,nwp) = ", 2i5)
 
-    real(KIND=dp), intent(inout), allocatable :: wfs(:,:,:)
+    real(KIND=dp), intent(inout), allocatable, target :: wfs(:,:,:)
     integer, intent(inout)                    :: blocks(8)
     integer, intent(in)                       :: oldnx, oldny, oldnz
+
     real(KIND=dp), allocatable                :: temp(:,:,:), tempe(:)
     real(KIND=dp), allocatable                :: tempd(:), tempr(:)
+    real(KIND=dp), allocatable, target        :: wftarget(:,:)
     real(KIND=dp), allocatable                :: tempgaps(:,:), tempkap(:,:)
 
-    integer  :: wave, N, B, si, sb,i, wave2, offset
+    real(KIND=dp),  pointer                   :: right3D(:,:,:,:), left3D(:,:,:,:) 
+
+    integer  :: wave, N, B, si, sb,i, wave2, offset, j, k
 
     if(.not. allocated(rho_can)) then
         ! There is one case where this array might not be allocated upon entry
@@ -101,7 +105,8 @@ contains
         rho_can(sb+1:sb+N)    = tempr(si+1:si+N) /2.0 ! Note the factor 1/2
 
         ! Use the antilinear symmetry to obtain the transformed spwfs
-        do wave = 1, N        
+        do wave = 1, N  
+         wftarget = temp(:,:,si+wave)      
          do i=1, oldnx*oldny*oldnz
            wfs(i,1,sb+N+wave) = $TRANSFO_NONSPATIAL_1 
            wfs(i,2,sb+N+wave) = $TRANSFO_NONSPATIAL_2
@@ -176,14 +181,17 @@ contains
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
             ! First block is not modified
             do wave=1,HFBlocks(B)
+              wftarget = temp(:,:,sb+wave)
+              right3D(1:oldnx,1:oldny, 1:oldnz,1:4) => wftarget(:,:)
+              left3D(1:nx, 1:ny, 1:nz,1:4)          => wfs(:,:, sb+HFBlocks(B))
+            
               ! Copy the positive z-axis
-              wfs(oldnx*oldny*oldnz+1:nx*ny*nz,1:4,sb+wave) = &
-              &                                    temp(:,:,sb+1:sb+HFBlocks(B))
+              wfs(oldnx*oldny*oldnz+1:nx*ny*nz,1:4,sb+wave) = wftarget
               do i=1,oldnx*oldny*oldnz
-                wfs(i,1,sb+wave) = $TRANSFO_SPATIAL_Z_1_++
-                wfs(i,2,sb+wave) = $TRANSFO_SPATIAL_Z_2_++
-                wfs(i,3,sb+wave) = $TRANSFO_SPATIAL_Z_3_++
-                wfs(i,4,sb+wave) = $TRANSFO_SPATIAL_Z_4_++
+!                wfs(i,1,sb+wave) = $TRANSFO_Z_1_B1
+!                wfs(i,2,sb+wave) = $TRANSFO_Z_2_B1
+!                wfs(i,3,sb+wave) = $TRANSFO_Z_3_B1
+!                wfs(i,4,sb+wave) = $TRANSFO_Z_4_B1
               enddo
             enddo
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -192,13 +200,10 @@ contains
             offset = HFBlocks(B)
             do wave=1,HFBlocks(B+2)
               ! Copy the positive z-axis
-              wfs(1:oldnx*oldny*oldnz,1:4,sb+offset+wave) = &
-              &      temp(:,:,sb+sum(HFBlocks(B:B+1))+1:sb+sum(HFBlocks(B:B+2)))
+!              wfs(1:oldnx*oldny*oldnz,1:4,sb+offset+wave) = &
+!              &      temp(:,:,sb+sum(HFBlocks(B:B+1))+1)
               do i=1,oldnx*oldny*oldnz
-                wfs(i,1,sb+wave) = $TRANSFO_SPATIAL_Z_1_--
-                wfs(i,2,sb+wave) = $TRANSFO_SPATIAL_Z_2_--
-                wfs(i,3,sb+wave) = $TRANSFO_SPATIAL_Z_3_--
-                wfs(i,4,sb+wave) = $TRANSFO_SPATIAL_Z_4_--
+
               enddo
             enddo
             sb = sb + sum(HFBlocks(1:B+3))            
@@ -211,8 +216,8 @@ contains
       HFBlocks(5) = blocks(5) + HFBlocks(7)
       HFBlocks(6) = blocks(6) + HFBlocks(8)
       ! Remove the old blocks
-      HFBblocks(3:4) = 0
-      HFBblocks(7:8) = 0
+      HFBlocks(3:4) = 0
+      HFBlocks(7:8) = 0
     endif
     
   end subroutine Transformspwfs
