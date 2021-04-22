@@ -188,7 +188,7 @@ $NTR    endif
 
             ! Saving the one we flipped
             ind = ind + 1
-            blocked_qp(ind) = 22222000!si + j
+            blocked_qp(ind) = si + j
             ! .... and its canonical partner
             ind = ind + 1
             blocked_qp(ind) = si + N + j
