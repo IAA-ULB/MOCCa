@@ -167,7 +167,7 @@ $NTR    endif
           enddo
         endif
 
-        NB = 2*sum(toblock)
+        NB = sum(toblock)
         if(allocated(blocked_qp)) then
           deallocate(blocked_qp)
         endif
@@ -189,9 +189,12 @@ $NTR    endif
             ! Saving the one we flipped
             ind = ind + 1
             blocked_qp(ind) = si + j
-            ! .... and its canonical partner
-            ind = ind + 1
-            blocked_qp(ind) = si + N + j
+            !-------------------------------------------------------------------
+            ! This additional blocking thing was just a try and found its
+            ! way into the master branch ...........
+!            ! .... and its canonical partner
+!            ind = ind + 1
+!            blocked_qp(ind) = si + N + j
           enddo
           si = si +   N
           sb = sb + 2*N
