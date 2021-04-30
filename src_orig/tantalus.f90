@@ -249,7 +249,7 @@ subroutine ReachForWaterAndFood()
     ! Only calculate the fields that have not been initialized from file.
     call calcFields(calcall=.false.,precon= .false.)
     ! Update the angular momentum information of the spwfs
-    call update_spwf_angmom()
+    call update_spwf_angmom(.true.)
     call updateAM 
 
     call setBelyaevProcedure()
@@ -311,7 +311,7 @@ subroutine ReachForWaterAndFood()
         call Sphamilcontribution()
         call calcFields(calcall=.true.,precon=.true.)
         
-        call update_spwf_angmom()
+        call update_spwf_angmom(.false.)
         call updateAM
         !-----------------------------------------------------------------------
         ! Above: actual evolution
@@ -345,7 +345,7 @@ subroutine ReachForWaterAndFood()
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
         if(iprint .eq.1) then
-            call update_spwf_angmom()
+            call update_spwf_angmom(.true.)
             call updateAM 
             call PrintSpwfs
             call PrintQps

@@ -146,7 +146,7 @@ $NTR      do wave = 1, N
 $NTR        do i = 1, cranklen
 $NTR          c  = crankdirections(i)
 $NTR          if(pairingtype.ne.2) then
-$NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * spwf_J(c,si+wave)
+$NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * spwf_J(c,si+wave,si+wave)
 $NTR          else
 $NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * can_J(c,si+wave)
 $NTR          endif

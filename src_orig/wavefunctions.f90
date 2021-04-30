@@ -38,8 +38,13 @@ module wavefunctions
  implicit none
  
  !------------------------------------------------------------------------------
- ! Array containing the values of the spwfs in the Hartree-Fock basis
- ! and their derivatives
+ ! Array containing the spwfs and their derivatives
+ !
+ ! Note: these are called the Hartree-Fock basis throughout the code (hence
+ !       the name HFBasis), but they are not guaranteed to be the actual 
+ !       Hartree-Fock basis, i.e. the basis that diagonalises the sphamiltonian.
+ !       An extra unitary transformation might be required among them to obtain
+ !       the physical HF basis. 
  !
  ! Note that higher-order derivative tensors are stored in lexicographical order
  ! in order to cut down on the number of indices and wasted computation.
@@ -51,7 +56,6 @@ module wavefunctions
  real(KIND=dp), allocatable, target ::   HFdPsi(:,:,:,:)!First order derivatives
  real(KIND=dp), allocatable, target ::  HFddPsi(:,:,:,:)!Second order derivatives
  real(KIND=dp), allocatable, target :: HFdddPsi(:,:,:,:)!Third order derivatives
- 
  !------------------------------------------------------------------------------
  ! Array containing the values of the spwfs in the Canonical basis
  ! and their derivatives.
@@ -60,8 +64,12 @@ module wavefunctions
  real(KIND=dp), allocatable, target ::CANddPsi(:,:,:,:)!Second order derivatives
  real(KIND=dp), allocatable, target ::CANdddPsi(:,:,:,:)!Third order derivatives
  !------------------------------------------------------------------------------
- ! Single-particle energies, diagonal elements of the single-particle
- ! hamiltonian: \langle psi_i | h | psi_i \rangle
+ ! Single-particle energies, 
+ ! Either:
+ ! (i)  diagonal elements of the single-particle hamiltonian: 
+ !      \langle psi_i | h | psi_i \rangle
+ ! (ii) eigenvalues of the single-particle hamiltonian when restricted to the
+ !      subspace being iterated
  real(KIND=dp), allocatable :: spenergies(:) 
  real(KIND=dp), allocatable :: current_sph(:,:)
  ! Dispersions of the spwfs with respect to h
@@ -70,17 +78,23 @@ module wavefunctions
  real(KIND=dp), allocatable :: canenergies(:)
  !------------------------------------------------------------------------------
  ! Angular momentum properties of the spwfs in both the HF and canonical basis
- ! "Ordinary" <Jx>, <Jy>, <Jz> in the HF and canonical basis
- real(KIND=dp), allocatable :: spwf_J(:,:), can_J(:,:)
- ! Squared   <Jx^2>, <Jy^2>, <Jz^2>
- real(KIND=dp), allocatable :: spwf_J2(:,:), can_J2(:,:)
- ! With an extra time-reversal operator < Jx T >, < Jy T >, < Jz T >
+ ! "Ordinary" Jx, Jy, Jz in the HF and canonical basis
+ real(KIND=dp), allocatable :: spwf_J(:,:,:), can_J(:,:)
+ ! Squared   Jx^2, Jy^2, Jz^2
+ real(KIND=dp), allocatable :: spwf_J2(:,:,:), can_J2(:,:)
+ ! With an extra time-reversal operator JxT, JyT, JzT
  ! Both real and imaginary parts
- real(KIND=dp), allocatable :: spwf_JTR(:,:), can_JTR(:,:)
- real(KIND=dp), allocatable :: spwf_JTI(:,:), can_JTI(:,:)
+ real(KIND=dp), allocatable :: spwf_JTR(:,:,:), can_JTR(:,:)
+ real(KIND=dp), allocatable :: spwf_JTI(:,:,:), can_JTI(:,:)
  ! Total angular momentum "quantum number", i.e. the number J such that 
- !  J (J+1) = <J^2_x> +  <J^2_y> + <J^2_z>
+ !  J (J+1) = J^2_x +  J^2_y + J^2_z
  real(KIND=dp), allocatable :: spwf_JJ(:), can_JJ(:)
+ ! 
+ ! Remark: when we diagonalise the sp hamiltonian explicitly, we are happy with 
+ ! calculating only the diagonal matrix elements. When not diagonalising the 
+ ! sphamiltonian explicitly, we are in need of the full matrices if we want to
+ ! print information in the actual HF basis.  
+ !------------------------------------------------------------------------------
  !------------------------------------------------------------------------------
  ! Number of the blocks with the same quantum numbers that divide up the 
  ! the single-particle wavefunctions.
@@ -119,7 +133,7 @@ module wavefunctions
  !       iterative scheme
  !  (ii) to stop caring about the diagonalisation of the sphamiltonian
  !       and simply care about the space spanned by the spwfs.
- logical :: diagsphamil = .false.
+ logical                    :: diagsphamil = .false.
  real(KIND=dp), allocatable :: HFtransfo(:,:)
 
 contains 
@@ -500,41 +514,71 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     
   end function TimeReverse
 
-  subroutine update_spwf_angmom()
+  subroutine update_spwf_angmom(fullmatrices)
     !---------------------------------------------------------------------------
-    ! Calculate all the angular momentum properties of the spwfs.
-    ! For now, we only calculate properties that would be accessible in a 
-    ! CR8-geometry.
+    ! Calculate all relevant single-particle matrix elements of 
+    ! 
+    !  (a) Jx, Jy, Jz
+    !  (b) JxT, JyT, JzT => Real (JTR) and imaginary (JTI) parts
+    !  (c) Jx^2, Jy^2, Jz^2
+    !  (d) JJ
+    !
+    ! where JJ is a simple number, such that J*(J+1) = Jx^2 + Jy^2 + Jz^2.
+    ! These things are calculated for both the set of spwfs in memory and the 
+    ! canonical basis. 
+    !
+    ! Right now, all these things are calculated in CR8-like geometry.
+    !
+    ! Input: 
+    !    fullmatrices : if .true., the full matrix elements are calculated 
+    !                   for the set of spwfs in storage. If .false., only
+    !                   diagonal matrix elements are calculated. 
+    !                   Note: in the diagonal basis, we always only calculate
+    !                         diagonal matrix elements. 
+    !
     !---------------------------------------------------------------------------
-    integer       :: wave 
+    integer             :: wave, wave2, i, si, B, N, startind, endind
+    logical, intent(in) :: fullmatrices
 
     if(.not.allocated(spwf_J)) then
-      allocate(spwf_J(3,nwt))   ; spwf_J = 0.0
-      allocate(spwf_JTR(3,nwt)) ; spwf_JTR= 0.0
-      allocate(spwf_JTI(3,nwt)) ; spwf_JTI= 0.0
-      allocate(spwf_J2(3,nwt))  ; spwf_J2= 0.0
+      allocate(spwf_J(3,nwt,nwt))   ; spwf_J = 0.0
+      allocate(spwf_JTR(3,nwt,nwt)) ; spwf_JTR= 0.0
+      allocate(spwf_JTI(3,nwt,nwt)) ; spwf_JTI= 0.0
+      allocate(spwf_J2(3,nwt,nwt))  ; spwf_J2= 0.0
       allocate(spwf_JJ(nwt))    ; spwf_JJ= 0.0
     endif
 
-    do wave=1,nwt
-      spwf_JTR(1,wave) = & 
-            & angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
-      spwf_JTI(2,wave) = &
-            & angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
-      spwf_J(3,wave)   = & 
-            & angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
+    si = 0
+    do B=1,8
+      N = HFBlocks(B) ; if(N.eq.0) cycle
 
-      spwf_J2(1,wave)  = &
-        &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      spwf_J2(2,wave)  = &
-        &   angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      spwf_J2(3,wave)  = &
-        &   angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-  
-      spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave))))/2.
+      do wave=si+1,si+N        
+        if(fullmatrices) then
+          startind = si+1 ; endind = si+N
+        else
+          startind = si+wave ; endind = si+wave
+        endif
+        do wave2=startind, endind
+          spwf_JTR(1,wave, wave2) = & 
+          & angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
+          spwf_JTI(2,wave, wave2) = &
+          & angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
+          spwf_J  (3,wave, wave2) = & 
+           & angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
+
+          spwf_J2(1,wave, wave2)  = &
+            &   angmom_x_quad(HFPsi(:,:,wave ),HFdPsi(:,:,:,wave ), &
+            &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
+          spwf_J2(2,wave, wave2)  = &
+            &   angmom_y_quad(HFPsi(:,:,wave ),HFdPsi(:,:,:,wave),  &
+            &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
+          spwf_J2(3,wave,wave2)   = &
+            &   angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave),   &
+            &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
+        enddo
+       spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave,wave))))/2.        
+      enddo      
+      si = si + N
     enddo
 
     if(allocated(CANPSI)) then
