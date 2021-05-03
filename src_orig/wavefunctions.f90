@@ -537,7 +537,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !                         diagonal matrix elements. 
     !
     !---------------------------------------------------------------------------
-    integer             :: wave, wave2, i, si, B, N, startind, endind
+    integer             :: wave, wave2, si, B, N, startind, endind
     logical, intent(in) :: fullmatrices
 
     if(.not.allocated(spwf_J)) then

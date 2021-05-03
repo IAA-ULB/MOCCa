@@ -198,6 +198,15 @@ contains
     logical                      :: converged
   
     converged = .false. 
+
+    ! Perform an additional transformation of the Bogoliubov transformation to
+    ! diagonalise H^11 and obtain another estimate for the QP energies
+    ! This is only needed at the start of the step if we precondition the 
+    ! evolution
+    if(precon) then
+      H11 = calcH11(Bogo, h, gaps, lambda, blocks)
+      call diagonalise_H11(bogo, prev, H11, blocks, Eqp)
+    endif
     do iter=1,maxiter
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! We calculate the relevant matrices to build the gradient 
