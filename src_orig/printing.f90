@@ -39,66 +39,9 @@ contains
     integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s, Delta
     
-    real(KIND=dp), allocatable :: HF_J(:,:),  HF_JTR(:,:), HF_JTI(:,:)
-    real(KIND=dp), allocatable :: HF_J2(:,:), HF_JJ(:), HF_rho(:)
     real(KIND=dp), allocatable :: HF_gaps(:,:), can_gaps(:,:)
-    !---------------------------------------------------------------------------
-    ! The single-particle wavefunctions in storage are not necessarily 
-    ! converging to the physical Hartree-Fock basis. Hence, we need to convert 
-    ! the observables before printing.
     
-    ! We start with angular momentum observables. 
-    ! I have written out the matrix multiplications explicitly, as we need only
-    ! the diagonal matrix elements. 
-    allocate(HF_J(3,nwt), HF_JTR(3,nwt), HF_JTI(3,nwt), HF_rho(nwt))
-    allocate(HF_J2(3,nwt), HF_JJ(nwt))
-    
-    si = 0
-    do B=1,8
-      N = HFBlocks(B); if(N.eq.0) cycle
-      do k=1,3
-        HF_J  (k,si+1:si+N) = 0.0
-        HF_J2 (k,si+1:si+N) = 0.0
-        HF_JTR(k,si+1:si+N) = 0.0
-        HF_JTI(k,si+1:si+N) = 0.0
-        do i=si+1,si+N
-          do j=si+1,si+N
-            do l=si+1,si+N
-              HF_J  (k,i) = HF_J  (k,i) &
-              &           + HFtransfo(l,i) * spwf_J  (k,l,j) * HFtransfo(j,i)                   
-              HF_J2 (k,i) = HF_J2 (k,i) &
-              &           + HFtransfo(l,i) * spwf_J2 (k,l,j) * HFtransfo(j,i)                   
-              HF_JTR(k,i) = HF_JTR(k,i) &
-              &           + HFtransfo(l,i) * spwf_JTR(k,l,j) * HFtransfo(j,i)                   
-              HF_JTI(k,i) = HF_JTI(k,i) &
-              &           + HFtransfo(l,i) * spwf_JTI(k,l,j) * HFtransfo(j,i)                   
-            enddo
-          enddo
-        enddo
-      enddo
-      si = si + N
-    enddo
-    ! The JJ variable is still simple
-    do wave=1,nwt
-      HF_JJ(wave) = (-1. + sqrt(1. + 4*sum(HF_J2(:,wave))))/2.
-    enddo
-
-    ! In the case of HFB pairing, we would like the diagonal matrix elements
-    ! of the density as well.
-    if(pairingtype.eq.2) then
-      HF_rho = 0.0d0
-      do k=1,nwt  
-        HF_rho(k) = 0.0d0
-        do l=1,nwt
-          do j=1,nwt
-            HF_rho(k) = HF_rho(k) + &
-            &                 HFtransfo(l,k) * rho_pairing(l,j) * HFtransfo(j,k)
-          enddo
-        enddo
-      enddo
-    endif
-    
-    ! finally, we transform the gaps to the Hartree-Fock basis for printing
+    ! We transform the gaps to the Hartree-Fock basis for printing
     if(pairingtype.eq.2) then
       si = 0
       allocate(HF_gaps(nwt,nwt)) ; HF_gaps = 0.0d0
@@ -154,7 +97,7 @@ contains
           print 11, wave, p, s, rho_can(wave), spenergies(wave), &
           &               dispersions(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
         elseif(pairingtype.eq.2) then
-          print 11, wave, p, s, HF_rho(wave), spenergies(wave),                &
+          print 11, wave, p, s, rho_HF(wave), spenergies(wave),                &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
           &               Jx, Jy, Jz, JJ
         else
@@ -195,7 +138,7 @@ contains
           print 11, wave, p, s, rho_can(wave), spenergies(wave),               &
           &               dispersions(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
         elseif(pairingtype.eq.2) then
-          print 11, wave, p, s,  HF_rho(wave), spenergies(wave),               &
+          print 11, wave, p, s,  rho_HF(wave), spenergies(wave),               &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
           &               Jx, Jy, Jz, JJ
         else
@@ -204,7 +147,7 @@ contains
         endif
     enddo
     print 20
-    deallocate(HF_J, HF_JTR, HF_JTI, HF_rho, HF_J2, HF_JJ, HF_gaps)  
+    deallocate( HF_gaps)  
     !---------------------------------------------------------------------------
     ! Return if we are not doing a HFB calculation
     if(PairingType.ne.2) return

@@ -36,14 +36,16 @@ module pairing
  implicit none
  
  !------------------------------------------------------------------------------
- ! Pairing density matrix and anomalous density matrix in the HF basis. 
+ ! Pairing density matrix and anomalous density matrix in the "as is" basis.
  real(KIND=dp), allocatable :: rho_pairing(:,:),  kappa_pairing(:,:)
+ ! ... and in the physical HF basis, but only the DIAGONAL matrix elements
+ real(KIND=dp), allocatable :: rho_HF(:)
  ! ... and in the canonical basis ...
  real(KIND=dp), allocatable :: rho_can(:), kappa_can(:)
- ! Note that the object kappa_can only has an effect on the calculation 
- ! in the BCS case, when kappa is actually off-diagonal. In the HFB case, no
- ! guarantees are given as to the canonical form of kappa, and the code does not
- ! rely on it being this way.
+ ! Note: the object kappa_can only has an effect on the calculation in the BCS 
+ !       case, when kappa is actually off-diagonal. In the HFB case, no 
+ !       guarantees are given as to the canonical form of kappa, and the 
+ !       code does not rely on it being this way.
  ! ...  and the "configuration matrix" ...
  real(KIND=dp), allocatable :: configmatrix(:)
  ! ... and finally, the Bogliubov transformation.
@@ -590,8 +592,12 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
         &   blocklowest, blocked_qps, .false., 1, ifail)
       end select
-   end select
-
+    end select
+    ! Construct the density in the Hartree-Fock basis 
+    ! (which is generally only used for printing)
+    if(pairingtype.eq.2) then
+      rho_hf =  construct_rho_HF(rho_pairing, HFtransfo)
+    endif  
     !---------------------------------------------------------------------------
     ! If beta != infty, we calculate the number of particles in the gas
     if(inversetemp.ne.-1) then
@@ -916,6 +922,36 @@ $NTR      endif
 
     deallocate(gaps_can)
   end function average_gap_HFB
+  
+  pure function construct_rho_HF(rho, HF_T) result(r_HF)
+    !---------------------------------------------------------------------------
+    ! Construct the diagonal matrix elements of the density matrix in the 
+    ! Hartree-Fock basis.
+    !
+    ! Input:
+    !   rho : density matrix in the "as is" basis
+    !   HF_T: Hartree-Fock transformation 
+    !
+    ! Output:
+    !   r_hf: Diagonal matrix elements of rho in the Hartree-Fock basis
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  :: rho(:,:), HF_T(:,:)
+    real(KIND=dp), allocatable :: r_HF(:)
+
+    integer :: B, si, k,l,j
+    
+    allocate(r_HF(nwt))
+    
+    do k=1,nwt  
+      r_HF(k) = 0.0d0
+      do l=1,nwt
+        do j=1,nwt
+          r_HF(k) = r_HF(k) +  HF_T(l,k) * rho(l,j) * HF_T(j,k)
+        enddo
+      enddo
+    enddo
+    
+  end function construct_rho_HF
 
   subroutine read_modelwf(fname)
       !-------------------------------------------------------------------------

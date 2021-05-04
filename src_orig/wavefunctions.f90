@@ -77,18 +77,21 @@ module wavefunctions
  ! expectation values of the single-particle hamiltonian in the canonical basis
  real(KIND=dp), allocatable :: canenergies(:)
  !------------------------------------------------------------------------------
- ! Angular momentum properties of the spwfs in both the HF and canonical basis
- ! "Ordinary" Jx, Jy, Jz in the HF and canonical basis
- real(KIND=dp), allocatable :: spwf_J(:,:,:), can_J(:,:)
+ ! Angular momentum properties of the spwfs in
+ !  (i)   the ordinary basis, i.e. the spwfs in storage: spwf_[...]
+ !  (ii)  the Hartree-Fock basis                       :   HF_[...]
+ !  (iii) the canonical basis                          :  can_[...]
+ ! "Ordinary" Jx, Jy, Jz 
+ real(KIND=dp), allocatable :: spwf_J(:,:,:), hf_J(:,:), can_J(:,:)
  ! Squared   Jx^2, Jy^2, Jz^2
- real(KIND=dp), allocatable :: spwf_J2(:,:,:), can_J2(:,:)
+ real(KIND=dp), allocatable :: spwf_J2(:,:,:), HF_J2(:,:), can_J2(:,:)
  ! With an extra time-reversal operator JxT, JyT, JzT
  ! Both real and imaginary parts
- real(KIND=dp), allocatable :: spwf_JTR(:,:,:), can_JTR(:,:)
- real(KIND=dp), allocatable :: spwf_JTI(:,:,:), can_JTI(:,:)
+ real(KIND=dp), allocatable :: spwf_JTR(:,:,:), HF_JTR(:,:), can_JTR(:,:)
+ real(KIND=dp), allocatable :: spwf_JTI(:,:,:), HF_JTI(:,:), can_JTI(:,:)
  ! Total angular momentum "quantum number", i.e. the number J such that 
  !  J (J+1) = J^2_x +  J^2_y + J^2_z
- real(KIND=dp), allocatable :: spwf_JJ(:), can_JJ(:)
+ real(KIND=dp), allocatable :: spwf_JJ(:), HF_JJ(:), can_JJ(:)
  ! 
  ! Remark: when we diagonalise the sp hamiltonian explicitly, we are happy with 
  ! calculating only the diagonal matrix elements. When not diagonalising the 
@@ -524,8 +527,11 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !  (d) JJ
     !
     ! where JJ is a simple number, such that J*(J+1) = Jx^2 + Jy^2 + Jz^2.
-    ! These things are calculated for both the set of spwfs in memory and the 
-    ! canonical basis. 
+    ! These things are calculated for 
+    !  (1) the spwfs in memory    => direct integration over the box 
+    !  (2) the Hartree-fock basis => matrix transformation
+    !                                (only if fullmatrices == .true.)
+    !  (3) the canonical basis    => direct integration over the box
     !
     ! Right now, all these things are calculated in CR8-like geometry.
     !
@@ -537,21 +543,31 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !                         diagonal matrix elements. 
     !
     !---------------------------------------------------------------------------
-    integer             :: wave, wave2, si, B, N, startind, endind
+    integer             :: wave, wave2, si, B, N, startind, endind, i,j,l,k
     logical, intent(in) :: fullmatrices
 
     if(.not.allocated(spwf_J)) then
-      allocate(spwf_J(3,nwt,nwt))   ; spwf_J = 0.0
+      allocate(spwf_J(3,nwt,nwt))   ; spwf_J  = 0.0
       allocate(spwf_JTR(3,nwt,nwt)) ; spwf_JTR= 0.0
       allocate(spwf_JTI(3,nwt,nwt)) ; spwf_JTI= 0.0
-      allocate(spwf_J2(3,nwt,nwt))  ; spwf_J2= 0.0
-      allocate(spwf_JJ(nwt))    ; spwf_JJ= 0.0
+      allocate(spwf_J2(3,nwt,nwt))  ; spwf_J2 = 0.0
+      allocate(spwf_JJ(nwt))        ; spwf_JJ = 0.0
+    endif
+
+    if(.not.allocated(HF_J)) then
+     allocate(HF_J(3,nwt))   ;  HF_J = 0.0
+     allocate(HF_JTR(3,nwt)) ;  HF_JTR = 0.0
+     allocate(HF_JTI(3,nwt)) ;  HF_JTI = 0.0
+     allocate(HF_J2(3,nwt))  ;  HF_J2 = 0.0
+     allocate(HF_JJ(nwt))    ;  HF_JJ = 0.0
     endif
 
     si = 0
     do B=1,8
       N = HFBlocks(B) ; if(N.eq.0) cycle
 
+      !------------------------------------------------------------------------
+      ! spwf_[...] quantities
       do wave=si+1,si+N        
         if(fullmatrices) then
           startind = si+1 ; endind = si+N
@@ -564,7 +580,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
           spwf_JTI(2,wave, wave2) = &
           & angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
           spwf_J  (3,wave, wave2) = & 
-           & angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
+          & angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
 
           spwf_J2(1,wave, wave2)  = &
             &   angmom_x_quad(HFPsi(:,:,wave ),HFdPsi(:,:,:,wave ), &
@@ -578,6 +594,33 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         enddo
        spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave,wave))))/2.        
       enddo      
+      !-------------------------------------------------------------------------
+      ! HF_[...] quantities
+      if(fullmatrices) then
+         do k=1,3
+            HF_J  (k,si+1:si+N) = 0.0
+            HF_J2 (k,si+1:si+N) = 0.0
+            HF_JTR(k,si+1:si+N) = 0.0
+            HF_JTI(k,si+1:si+N) = 0.0
+            do i=si+1,si+N
+             do j=si+1,si+N
+              do l=si+1,si+N
+               HF_J  (k,i) = HF_J  (k,i) &
+               &           + HFtransfo(l,i) * spwf_J  (k,l,j) * HFtransfo(j,i)                   
+               HF_J2 (k,i) = HF_J2 (k,i) &
+               &           + HFtransfo(l,i) * spwf_J2 (k,l,j) * HFtransfo(j,i)                   
+               HF_JTR(k,i) = HF_JTR(k,i) &
+               &           + HFtransfo(l,i) * spwf_JTR(k,l,j) * HFtransfo(j,i)                   
+               HF_JTI(k,i) = HF_JTI(k,i) &
+               &           + HFtransfo(l,i) * spwf_JTI(k,l,j) * HFtransfo(j,i)                   
+              enddo
+             enddo
+            enddo
+         enddo
+         do wave=si+1,si+N
+          HF_JJ(wave) = (-1. + sqrt(1. + 4*sum(HF_J2(:,wave))))/2.
+         enddo
+      endif
       si = si + N
     enddo
 

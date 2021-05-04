@@ -1435,8 +1435,6 @@ contains
     Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
     Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
 
-  
-
     ! Subtracting the coulomb potential depends on our treatment of the 
     ! proton and neutron finite size effect
     if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
@@ -1538,20 +1536,12 @@ contains
       if(wave .le. HFBlocks(1)) p = +1
       if(wave .gt. HFBlocks(1)) p = -1
 
-      Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-      Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-      Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+      Jx = HF_JTR(1,wave)
+      Jy = HF_JTI(2,wave)
+      Jz = HF_J  (3,wave)
+      JJ = HF_JJ(wave)
 
-      JJ = & 
-      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      JJ = (-1. + sqrt(1. + 4*JJ))/2.
-
-      write(1, fmt=1) wave, -1, p, 2*rho_pairing(wave,wave), spenergies(wave),   & 
+      write(1, fmt=1) wave, -1, p, 2*rho_HF(wave), spenergies(wave),   & 
       &               Jx, Jy,Jz, JJ
     enddo      
     write(1, fmt=3) 
@@ -1562,20 +1552,12 @@ contains
       if(wave .le. sum(HFBlocks(1:5))) p = +1
       if(wave .gt. sum(HFBlocks(1:5))) p = -1
 
-      Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-      Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-      Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+      Jx = HF_JTR(1,wave)
+      Jy = HF_JTI(2,wave)
+      Jz = HF_J  (3,wave)
+      JJ = HF_JJ(wave)
 
-      JJ = & 
-      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      JJ = (-1. + sqrt(1. + 4*JJ))/2.
-
-      write(1, fmt=1) wave, +1, p, 2*rho_pairing(wave,wave), spenergies(wave), & 
+      write(1, fmt=1) wave, +1, p, 2*rho_HF(wave), spenergies(wave), & 
       &                Jx, Jy,Jz,JJ
     enddo
     close(1)
