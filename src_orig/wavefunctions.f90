@@ -572,7 +572,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         if(fullmatrices) then
           startind = si+1 ; endind = si+N
         else
-          startind = si+wave ; endind = si+wave
+          startind = wave ; endind = wave
         endif
         do wave2=startind, endind
           spwf_JTR(1,wave, wave2) = & 
