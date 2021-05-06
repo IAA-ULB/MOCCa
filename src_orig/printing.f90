@@ -25,19 +25,21 @@ contains
     ! Print the info of the physical Hartree-Fock basis.
     !---------------------------------------------------------------------------
     
-    10 format (21 ('-'), ' Sp wavefunctions ', 41('-'))
-    12 format (21 ('-'), ' Canonical basis  ', 41('-'))
-    20 format (80 ('-'))
-    30 format (80 ('_'),/,3x , 'Neutron wavefunctions')
-    40 format (80 ('_'),/,3x , 'Proton  wavefunctions')
-    60 format (2x,'i',4x,'P',3x, 'Rz', 3x,'occ',7x,'E',8x,'d2h',4x,'Delta',3x, &
-    &             'JxT',4x, 'JyT', 4x ,'Jz', 5x, 'J')    
+    10 format (21 ('-'), ' Sp wavefunctions ', 61('-'))
+    12 format (21 ('-'), ' Canonical basis  ', 61('-'))
+    20 format (100 ('-'))
+    30 format (100 ('_'),/,3x , 'Neutron wavefunctions')
+    40 format (100 ('_'),/,3x , 'Proton  wavefunctions')
+    60 format (2x,'i',4x,'P',3x, 'Rz', 3x,'occ',7x,'E',8x,'d2h',4x,'Delta',  &
+    &             ' | ', 2x, 'JxT',4x, 'JyT', 4x,'Jz', 6x, 'J', 2x,          &
+    &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz')    
 
-    11 format (i3, 1x, f4.1, 1x, f4.1, 2x, f6.4, 1x, f9.3, 1x, es8.1,1x,f6.2, 4(2x, f5.2))
+    11 format (i3, 1x, f4.1, 1x, f4.1, 2x, f6.4, 1x, f9.3, 1x, es8.1,1x,f6.2,  &
+    &          1x,'|', 4(2x, f5.2), 1x, '|', 3(2x, f5.2) )
 
     integer       :: wave,k, l, i, j, B, si, N, T, wavebar
     integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s, Delta
+    real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz
     
     real(KIND=dp), allocatable :: HF_gaps(:,:), can_gaps(:,:)
     
@@ -67,7 +69,7 @@ contains
     print 10
     print 30
     print 60
-    print 10
+    print 20
     do k=1,nwn 
         wave = NeutronOrder(k)
         
@@ -88,27 +90,28 @@ contains
             endif
         endif
 
-        Jx = HF_JTR(1,wave)
-        Jy = HF_JTI(2,wave)
-        Jz = HF_J(3,wave)
+        Jx = HF_JTR(1,wave) ; SX = HF_STR (1,wave)
+        Jy = HF_JTI(2,wave) ; SY = HF_STI (2,wave)
+        Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
         JJ = HF_JJ(wave)
 
         if(pairingtype.eq.1) then
           print 11, wave, p, s, rho_can(wave), spenergies(wave), &
-          &               dispersions(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
+          &               dispersions(wave), BCSgaps(wave),      &
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
         elseif(pairingtype.eq.2) then
           print 11, wave, p, s, rho_HF(wave), spenergies(wave),                &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-          &               Jx, Jy, Jz, JJ
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
         else
           print 11, wave, p, s, rho_can(wave), spenergies(wave), &
-          &               dispersion(wave), 0.0, Jx, Jy, Jz, JJ                
+          &               dispersion(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz              
         endif
     enddo
     
     print 40  
     print 60
-    print 10
+    print 20
     do k=1,nwp
         wave = ProtonOrder(k)
         
@@ -129,21 +132,23 @@ contains
             endif
         endif
 
-        Jx = HF_JTR(1,wave)
-        Jy = HF_JTI(2,wave)
-        Jz = HF_J(3,wave)
+        Jx = HF_JTR(1,wave) ; SX = HF_STR (1,wave)
+        Jy = HF_JTI(2,wave) ; SY = HF_STI (2,wave)
+        Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
         JJ = HF_JJ(wave)
 
         if(pairingtype.eq.1) then
           print 11, wave, p, s, rho_can(wave), spenergies(wave),               &
-          &               dispersions(wave), BCSgaps(wave),Jx, Jy, Jz, JJ
+          &               dispersions(wave), BCSgaps(wave),                    &
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
         elseif(pairingtype.eq.2) then
           print 11, wave, p, s,  rho_HF(wave), spenergies(wave),               &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-          &               Jx, Jy, Jz, JJ
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
         else
           print 11, wave, p, s, rho_can(wave), spenergies(wave),               &
-          &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ
+          &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ,              &
+          &               Sx, Sy, Sz
         endif
     enddo
     print 20
@@ -156,7 +161,7 @@ contains
     print 12
     print 30
     print 60
-    print 10
+    print 20
 
     ! Prepare by calculating the gaps in the canonical basis  
     can_gaps = matmul(transpose(cantransfo), HFBgaps)
@@ -185,9 +190,9 @@ contains
           endif
       endif
 
-      Jx = can_JTR(1,wave)
-      Jy = can_JTI(2,wave)
-      Jz = can_J(3,wave)
+      Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
+      Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
+      Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
       JJ = can_JJ(wave)
     
      if(allocated(conjugp)) then
@@ -201,11 +206,11 @@ contains
           Delta = can_gaps(wave, wavebar)
       endif    
       print 11, wave, p,  s,   rho_can(wave), canenergies(wave),             &
-      &               0.0, Delta , Jx, Jy, Jz, JJ
+      &               0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz
     enddo
     print 40  
     print 60
-    print 10
+    print 20
     do k=1,nwp 
 
       wave = ProtonOrder(k) 
@@ -227,9 +232,10 @@ contains
           endif
       endif
 
-      Jx = can_JTR(1,wave)
-      Jy = can_JTI(2,wave)
-      Jz = can_J(3,wave)
+
+      Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
+      Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
+      Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
       JJ = can_JJ(wave)
       
       if(allocated(conjugp)) then
@@ -244,7 +250,7 @@ contains
       endif   
 
       print 11, wave, p, s,    rho_can(wave), canenergies(wave),             &
-      &               0.0, Delta, Jx, Jy, Jz, JJ
+      &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz
     enddo
     print 20
 
