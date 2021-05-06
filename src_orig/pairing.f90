@@ -938,7 +938,7 @@ $NTR      endif
     real(KIND=dp), intent(in)  :: rho(:,:), HF_T(:,:)
     real(KIND=dp), allocatable :: r_HF(:)
 
-    integer :: B, si, k,l,j
+    integer :: k,l,j
     
     allocate(r_HF(nwt))
     

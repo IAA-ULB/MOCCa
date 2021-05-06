@@ -37,7 +37,7 @@ contains
     11 format (i3, 1x, f4.1, 1x, f4.1, 2x, f6.4, 1x, f9.3, 1x, es8.1,1x,f6.2,  &
     &          1x,'|', 4(2x, f5.2), 1x, '|', 3(2x, f5.2) )
 
-    integer       :: wave,k, l, i, j, B, si, N, T, wavebar
+    integer       :: wave,k, B, si, N, T, wavebar
     integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz
     
