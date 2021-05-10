@@ -1478,10 +1478,10 @@ contains
     ! The file contains a header written by the subroutine write_header, 
     ! supplemented by
     !     #   Information in the HartreeFock basis
-    !     #   i  iso  P  occ E  JxT JyT Jz J
+    !     #   i  iso  P  occ E  JxT JyT Jz J SxT SyT Sz
     !
     ! In the body of the file, it contains the following information  
-    !      wave, isospin, parity, rho, spenergy, JX, JY, JZ, JJ
+    !      wave, isospin, parity, rho, spenergy, JX, JY, JZ, JJ, SxT, SyT, Sz
     !
     !   wave     : numbering 
     !   isospin  : -1 for neutrons, +1 for protons
@@ -1499,21 +1499,24 @@ contains
     !              such that 
     !                    (JJ+1) JJ = <Jx^2> + <Jy^2> + <Jz^2> 
     !
+    !   SxT      : matrix element of S_x T (real part)
+    !   SyT      : matrix element of S_y T (imaginary part)
+    !   Sz       : matrix element of S_z 
     !---------------------------------------------------------------------------
     use wavefunctions
 
     character(len=*), intent(in) :: fname
     integer                      :: io, i, p,  wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp)                :: Jx, Jy, Jz, JJ
+    real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz
  
-    1 format(3i5, 6f10.4)
+    1 format(3i5, 9f10.4)
     2 format("# Neutron spwfs")
     3 format("# Proton spwfs")
     4 format("# Information in the Hartree-Fock basis")
 
     60 format ("#",3x,'i',3x,'iso',3x,'P',4x,'occ',7x,'<h>',7x,  &
-     &        'JxT',7x,'JyT', 7x ,'Jz', 8x, 'J')    
+     &        'JxT',7x,'JyT', 7x ,'Jz', 8x, 'J', 9x, 'SxT', 7x,'SyT',7x,'Sz')    
 
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
@@ -1536,13 +1539,13 @@ contains
       if(wave .le. HFBlocks(1)) p = +1
       if(wave .gt. HFBlocks(1)) p = -1
 
-      Jx = HF_JTR(1,wave)
-      Jy = HF_JTI(2,wave)
-      Jz = HF_J  (3,wave)
+      Jx = HF_JTR(1,wave) ; Spinx = HF_STR (1,wave)
+      Jy = HF_JTI(2,wave) ; Spiny = HF_STI (2,wave)
+      Jz = HF_J  (3,wave) ; Spinz = HF_spin(3,wave)
       JJ = HF_JJ(wave)
 
       write(1, fmt=1) wave, -1, p, 2*rho_HF(wave), spenergies(wave),   & 
-      &               Jx, Jy,Jz, JJ
+      &               Jx, Jy,Jz, JJ, Spinx, Spiny, Spinz
     enddo      
     write(1, fmt=3) 
     !---------------------------------------------------------------------------
@@ -1552,13 +1555,13 @@ contains
       if(wave .le. sum(HFBlocks(1:5))) p = +1
       if(wave .gt. sum(HFBlocks(1:5))) p = -1
 
-      Jx = HF_JTR(1,wave)
-      Jy = HF_JTI(2,wave)
-      Jz = HF_J  (3,wave)
+      Jx = HF_JTR(1,wave) ; Spinx = HF_STR (1,wave)
+      Jy = HF_JTI(2,wave) ; Spiny = HF_STI (2,wave)
+      Jz = HF_J  (3,wave) ; Spinz = HF_spin(3,wave)
       JJ = HF_JJ(wave)
 
       write(1, fmt=1) wave, +1, p, 2*rho_HF(wave), spenergies(wave), & 
-      &                Jx, Jy,Jz,JJ
+      &                Jx, Jy,Jz,JJ,Spinx,Spiny,Spinz
     enddo
     close(1)
   end subroutine write_sp_info
@@ -1579,7 +1582,7 @@ contains
     !     #   i  iso  P  occ E  JxT JyT Jz J
     ! 
     ! In the body of the file, it contains the following information  
-    !      wave, isospin, parity, rho_can, canenergy, JX, JY, JZ, JJ
+    !      wave, isospin,parity,rho_can, canenergy, JX, JY, JZ, JJ, SxT, SyT, Sz
     !
     !   wave     : numbering 
     !   isospin  : -1 for neutrons, +1 for protons
@@ -1596,23 +1599,24 @@ contains
     !   JJ       : J quantum number (real number) that corresponds to this state
     !              such that 
     !                    (JJ+1) JJ = <Jx^2> + <Jy^2> + <Jz^2> 
-    !
+    !   SxT      : matrix element of S_x T (real part)
+    !   SyT      : matrix element of S_y T (imaginary part)
+    !   Sz       : matrix element of S_z 
     !---------------------------------------------------------------------------
     use wavefunctions
 
     character(len=*), intent(in) :: fname
     integer                      :: io, i, p, wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp)                :: Jx, Jy, Jz, JJ
+    real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz
  
-    1 format(3i5, 6f10.4)
+    1 format(3i5, 9f10.4)
     2 format("# Neutron spwfs")
     3 format("# Proton spwfs")
     4 format("# Information in the basis that diagonalizes RHO")
 
     60 format ("#",3x,'i',3x,'iso',3x,'P',4x,'occ',7x,'<h>',7x,  &
-     &        'JxT',7x,'JyT', 7x ,'Jz', 8x, 'J')    
-
+     &        'JxT',7x,'JyT', 7x ,'Jz', 8x, 'J', 9x, 'SxT', 7x,'SyT',7x,'Sz') 
 
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
@@ -1633,24 +1637,17 @@ contains
     ! First do the neutron wavefunctions    
     do i=1,nwn
       wave = neutronorder(i)
+    
       if(wave .le. HFBlocks(1)) p = +1
       if(wave .gt. HFBlocks(1)) p = -1
 
-      Jx = angmom_xt_real(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-      Jy = angmom_yt_imag(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-      Jz = angmom_z_real (CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-
-      JJ = & 
-      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      JJ = (-1. + sqrt(1. + 4*JJ))/2.
+      Jx = can_JTR(1,wave) ; Spinx = can_STR (1,wave)
+      Jy = can_JTI(2,wave) ; Spiny = can_STI (2,wave)
+      Jz = can_J  (3,wave) ; Spinz = can_spin(3,wave)
+      JJ = can_JJ(wave)
 
       write(1, fmt=1) wave, -1, p, rho_can(wave), canenergies(wave), Jx, Jy,Jz,&
-      &               JJ
+      &               JJ, Spinx, Spiny, Spinz
     enddo      
     write(1, fmt=3) 
     !---------------------------------------------------------------------------
@@ -1660,21 +1657,13 @@ contains
       if(wave .le. sum(HFBlocks(1:5))) p = +1
       if(wave .gt. sum(HFBlocks(1:5))) p = -1
 
-      Jx = angmom_xt_real(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-      Jy = angmom_yt_imag(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-      Jz = angmom_z_real (CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-
-      JJ = & 
-      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      JJ = (-1. + sqrt(1. + 4*JJ))/2.
+      Jx = can_JTR(1,wave) ; Spinx = can_STR (1,wave)
+      Jy = can_JTI(2,wave) ; Spiny = can_STI (2,wave)
+      Jz = can_J  (3,wave) ; Spinz = can_spin(3,wave)
+      JJ = can_JJ(wave)
 
       write(1, fmt=1) wave, +1, p, rho_can(wave), canenergies(wave), Jx, Jy,Jz,&
-      &               JJ
+      &               JJ, Spinx, Spiny, Spinz
     enddo
     close(1)
   end subroutine write_sp_info_can
