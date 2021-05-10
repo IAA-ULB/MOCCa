@@ -640,11 +640,11 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
                HF_JTI(k,i)  = HF_JTI(k,i) &
                &            + HFtransfo(l,i) * spwf_JTI(k,l,j)  * HFtransfo(j,i)                   
 
-               HF_spin(k,i) = HF_J  (k,i) &
+               HF_spin(k,i) = HF_spin  (k,i) &
                &            + HFtransfo(l,i) * spwf_spin(k,l,j) * HFtransfo(j,i)                   
-               HF_STR(k,i)  = HF_JTR(k,i) &
+               HF_STR(k,i)  = HF_STR(k,i) &
                &            + HFtransfo(l,i) * spwf_STR(k,l,j)  * HFtransfo(j,i)                   
-               HF_STI(k,i)  = HF_JTI(k,i) &
+               HF_STI(k,i)  = HF_STI(k,i) &
                &            + HFtransfo(l,i) * spwf_STI(k,l,j)  * HFtransfo(j,i)                   
               enddo
              enddo
