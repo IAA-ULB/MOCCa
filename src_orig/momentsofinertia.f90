@@ -112,7 +112,7 @@ contains
 
     real(KIND=dp), intent(in) :: Eqp
     
-    cut = 0.5 * (1 + dtanh(c_qpcut * Eqp))
+    cut = 0.5 * (1 + dtanh(c_qpcut * Eqp + d_qpcut))
 
   end function qpcut
 
