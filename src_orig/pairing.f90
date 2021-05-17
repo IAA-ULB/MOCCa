@@ -112,13 +112,11 @@ module pairing
  ! Indices of the levels to block. 
  integer, allocatable :: BlockIndices(:) 
  !------------------------------------------------------------------------------
- ! Indices of the quasi-particles that ended up blocked + their canonical 
- ! partners. 
- !
- ! This information is only used in the calculation of the rotational 
- ! correction to the energy; to eliminate "single-particle" rotational motion
- ! from that. If we block X particles, this array will have 2*X indices.
- integer, allocatable :: blocked_qps(:)
+ ! Indices of the quasi-particles that ended up blocked, as well as their 
+ ! closest partners under time-reversal. This information is  only used to 
+ ! regularize the calculation of the rotational energy.
+ integer, allocatable       :: blocked_qps(:), partner_qps(:)
+ real(KIND=dp), allocatable :: partner_overlaps(:)
  !------------------------------------------------------------------------------ 
  ! EFA blocking for the lowest qp. 
  ! Indicated by either
@@ -585,12 +583,14 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Lambda2,Bogoliubov,rho_pairing,        &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
-        &   blocklowest, blocked_qps, .true. , 1,  ifail)
+        &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
+        &   .true. , 1, ifail)
       case(-1)
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Lambda2,Bogoliubov,rho_pairing,        &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
-        &   blocklowest, blocked_qps, .false., 1, ifail)
+        &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
+        &  .false., 1, ifail)
       end select
     end select
     ! Construct the density in the Hartree-Fock basis 

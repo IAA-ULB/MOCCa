@@ -72,6 +72,8 @@ module HFB
   integer, allocatable :: conjugp(:)
   ! Pointer to relink procedures
   procedure(delta_action_dummy), pointer :: delta_action_HFB
+  ! Angular momentum "expectation values" of the Bogoliubov quasiparticles
+  real(KIND=dp), allocatable :: qp_J(:,:), qp_JTR(:,:), qp_JTI(:,:)
   !---------------------------------------------------------------------------
   ! History of the pairing matrices, for mixing purposes.
   real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
@@ -153,7 +155,8 @@ contains
     integer, intent(in)          :: Blockindices(:)
     integer, intent(in)          :: BlockType
     integer, intent(out)         :: ifail
-    character(len=2), intent(in) :: BlockLowest(:)
+    character(len=2), intent(in), allocatable :: BlockLowest(:)
+
     integer, allocatable         :: neutron_block(:), proton_block(:)
     integer, allocatable         :: blocked_qps(:), p_blocked(:), n_blocked(:)
     
@@ -314,7 +317,8 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
   subroutine solvepairing_HFB_gradient( sphamil, gaps, fermi, lambda2, Bogo,   & 
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType, Blockindices,              &
-  &                          blocklowest, blocked_qps, move, maxiter,  ifail) 
+  &                          blocklowest, blocked_qps, partner_qps,            & 
+  &                          p_overlaps, move, maxiter,  ifail) 
     !---------------------------------------------------------------------------
     ! Driver routine for solving the HFB equations by heavy-ball evolution in 
     ! the manifold of Bogoliubov states connected by a Thouless transformation.
@@ -345,7 +349,10 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     !   kappa_pairing: anomalous density matrix in the current basis
     !   qpenergies   : quasi-particle energies (or at least an estimate)
     !   blocked_qps  : indices of blocked quasiparticles
-    !                  (which are necessary to calculate rotational corrections)
+    !                  (which are necessary to calculate rotational correction)
+    !   partner_qps  : and their partners under time-reversal 
+    !                  (well, the closest ones we can find)
+    !   p_overlaps   : overlaps between time-reversed blocked qp and the partner
     !   ifail        : 0 = no problem, 1 = something went wrong
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -399,8 +406,9 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     
     integer, intent(in)          :: BlockType
     integer, intent(in)          :: Blockindices(:)
-    character(len=2), intent(in) :: BlockLowest(:)
-    integer, allocatable         :: blocked_qps(:)
+    character(len=2), intent(in), allocatable :: BlockLowest(:)
+    integer, allocatable         :: blocked_qps(:), partner_qps(:)
+    real(KIND=dp), allocatable   :: p_overlaps(:) 
 
     integer :: sb, B, N, N2, T,i, j, stind,endind !,NB ,X(1),Y(1)
   
@@ -537,8 +545,8 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     ! sorting. 
     qpenergies = correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFblocks)
 
-    blocked_qps = figure_out_blocking_structure(sphamil, gaps, Fermi, bogo,    &
-    &                                                    blocktype, blocklowest)
+    call figure_out_blocking_structure(sphamil, gaps, Fermi, bogo, blocked_qps,&
+    &                            partner_qps, p_overlaps,blocktype, blocklowest)
     !---------------------------------------------------------------------------
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
@@ -546,14 +554,18 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     deallocate(tempEqp)
   end subroutine solvepairing_HFB_gradient
   
-  function figure_out_blocking_structure(sphamil, gaps, lambda, Bogo_ref,      &
-  &                                      BlockType, blocklowest)   &
-  &                                     result(bl_qps)
+  subroutine figure_out_blocking_structure(sphamil , gaps, lambda,        &
+  &                                             Bogo_ref, bl_qps, part_qps,    &
+  &                                             p_overlaps,                    &
+  &                                             BlockType, blocklowest) 
     !---------------------------------------------------------------------------
-    !  This function attemps to figure out which quasiparticles are blocked
-    !  in a given "ordered" Bogoliubov transformation matrix. 
+    !  This subroutine attemps to figure out which quasiparticles are blocked
+    !  in a given "ordered" Bogoliubov transformation matrix. In addition, it
+    !  figures out what the "partner qps" are, the qps that are closest to 
+    !  being the time-reversal partner of the blocked qps. 
     !
-    ! With ordered, I mean that it is built as 
+    !
+    ! With ordered Bogoliubov matrix, I mean that it is built as 
     !
     !   Bogo_ref = ( V^T U )
     !              ( U^T V )
@@ -588,6 +600,8 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     ! For all non-blocked qps, the 1's will be in the diagonal blocks, i.e. they
     ! will not mix signatures. All blocked qps however, will find their '1's int
     ! the cross parts of this matrix.
+    !
+    !
     !---------------------------------------------------------------------------
     ! Input:
     !     sphamil     : matrix of the single-particle hamiltonian
@@ -601,18 +615,24 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     ! Output: 
     !     bl_qp       : indices of the blocked quasiparticles, determined by
     !                   the procedure discussed above.
+    !     part_qps    : indices of the partner quasiparticles
+    !     p_overlaps  : overlap between the time-reversed blocked qp and the
+    !                   (detected) partner
     !---------------------------------------------------------------------------
   
     real(KIND=dp), intent(in) :: sphamil(:,:), gaps(:,:), lambda(2)
     real(KIND=dp), intent(in) :: bogo_ref(:,:)
-    integer, intent(in)          :: BlockType
-    character(len=2), intent(in) :: BlockLowest(:)
+    integer, intent(in)                            :: BlockType
+    character(len=2), intent(in), allocatable      :: BlockLowest(:)
+    integer, allocatable, intent(out)       :: bl_qps(:), part_qps(:)
+    real(KIND=dp), allocatable, intent(out) :: p_overlaps(:)
 
-    real(KIND=dp)             :: part, lambda_copy(2), maxov
+    real(KIND=dp)             :: part, lambda_copy(2), maxov, tr_over
     real(KIND=dp), allocatable:: HFBHamil(:,:), config(:), bogo(:,:), eqp(:)
-    real(KIND=dp), allocatable:: overlap(:,:)
+    real(KIND=dp), allocatable:: overlap(:,:), tr_qp(:)
     integer                   :: si, sb, N, N2, ifail, B, it, i, j, k, NB, ind
-    integer, allocatable      :: blocked_qp(:), bl_qps(:), blockblock(:)
+    integer                   :: column
+    integer, allocatable      :: blocked_qp(:),blockblock(:)
     logical                   :: check
     
     if(blocktype.ne.2 .and. blocktype.ne.4 .and. blocktype.ne.0) then
@@ -620,16 +640,22 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
       print *, 'yet capable of dealing with blocktype != 0,2,4'
       stop
     endif
+    if(.not.allocated(blocklowest)) return
     
     NB = size(blocklowest)
     
-    
-    allocate(bl_qps(NB)) ; bl_qps = 0
+    allocate(bl_qps(NB))    ; bl_qps     = 0
+    allocate(part_qps(NB))  ; part_qps   = 0
+    allocate(p_overlaps(NB)); p_overlaps = 0.0d0
     
     allocate(HFBHamil(2*nwt, 2*nwt)) ; HFBHamil = 0.0d0
     allocate(bogo(2*nwt, 2*nwt))     ; bogo     = 0.0d0
     allocate(config(2*nwt))          ; config   = 0.0d0
     allocate(eqp(2*nwt))             ; eqp      = 0.0d0
+    
+    !---------------------------------------------------------------------------
+    ! Part 1: determine the indices of the blocked quasiparticles
+    !---------------------------------------------------------------------------
     
     ! Build the full HFB-hamiltonian
     si      = 0 ; sb = 0
@@ -724,11 +750,96 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
     enddo
-  end function figure_out_blocking_structure
+    
+    !---------------------------------------------------------------------------
+    ! Part 2: determine the closest thing to time-reversal partners that 
+    !         we can find. 
+    !---------------------------------------------------------------------------
+    do k=1,NB
+      select case(blocklowest(k))
+      case('n+')
+        B = 1
+      case('n-')
+        B = 3
+      case('p+')
+        B = 5
+      case('p-')
+        B = 7
+      case('n0', 'p0')
+        print *, 'The blocking identification for the gradient solver is not '
+        print *, 'yet capable of dealing with "n0", "p0" blocking options.'
+        stop
+      end select
+
+      si =   sum(HFBlocks(1:B-1))
+      sb = 2*sum(HFBlocks(1:B-1))
+
+      N  = HFBlocks(B)
+      N2 = HFBlocks(B+1)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! At this point:  
+      !   bl_qps(k) :  index of the blocked qp
+      !
+      ! which has a "blocked" structure, i.e. in a signature conserving  
+      ! calculation, looks like
+      !       
+      !  ( 0    )
+      !  ( U-_b )
+      !  ( V-_b )
+      !  ( 0    )
+      !
+      ! which can be seen as the result of switching U <-> V of a (non-blocked)
+      ! qp of the form
+      !
+      !  ( U+  )    ( V-_b  )
+      !  ( 0   ) =  (  0    )
+      !  ( 0   )    (  0    )
+      !  ( V+  )    ( U-_b  )
+      !
+      ! Note that we look for the time-reversal partner of the unblocked qp, 
+      ! i.e. we look for the quasiparticle that is "close to"
+      !
+      ! (  0   )   (  0    )
+      ! (  U+  ) = (  V-_b )
+      ! ( -V+  )   ( -U-_b )
+      ! (  0   )   (  0    )
+      !
+      ! This notation assumes a signature-conserved calculation and a 
+      ! blocked quasiparticle of signature +i. The signature = -i blocked
+      ! qp is similar, but NOT IMPLEMENTED YET!
+      !
+      allocate(tr_qp(2*N+2*N2))
+      
+      ! The right column in the Bogoliubov matrix is the following one.
+      ! We are doing some gymnastics, as the qps are indexed with the 
+      ! single-particle dimension, i.e. we count only the selected ones.
+      ! Meanwhile, the whole Bogoliubov matrix ofcourse has twice that many
+      ! columns.
+      column =  sb+bl_qps(k)-si+N+N2
+      tr_qp(       1:  N     ) = + 0
+      tr_qp(  N   +1:  N+  N2) = + Bogo_ref(sb+2*N   +1:sb+2*N+N2,column) 
+      tr_qp(  N+N2+1:2*N+  N2) = - Bogo_ref(sb+  N   +1:sb+  N+N2,column) 
+      tr_qp(2*N+N2+1:2*N+2*N2) = - 0 
+
+      p_overlaps(k) = -1000000      
+      do i=1,N+N2
+        tr_over = 0
+        do j=1,2*N+2*N2
+          tr_over = tr_over + tr_qp(j) * Bogo_ref(sb+j, sb+N+N2+i)
+        enddo      
+        
+        if(abs(tr_over).gt.p_overlaps(k)) then
+          p_overlaps(k) = abs(tr_over)
+          part_qps(k) = si + i
+        endif
+      enddo
+    enddo
+    
+  end subroutine figure_out_blocking_structure
   
   function obtain_eqp(sphamil, gaps, lambda, blocks) result(eigen)
     !---------------------------------------------------------------------------
-    ! Obtain the quasiparticle energies by constructing and diagonalizing the 
+    ! Obtain the quasiparticle energies by construspwf_J(:,:,:), hf_J(:,:), can_J(:,:)cting and diagonalizing the 
     ! HFB hamiltonian. 
     !
     ! Input :
@@ -1602,4 +1713,50 @@ $NTR  enddo
     if(allocated(HFBgaps))  deallocate(HFBGaps)
    end subroutine clean_HFB
 
+   subroutine update_qp_angmom(Bogo)
+    !---------------------------------------------------------------------------
+    ! Calculate the angular momentum expectation values for the HFB 
+    ! quasiparticle operators. 
+    !
+    ! What we calculate here is 
+    !
+    !  <  qp=k | J_mu | qp=k >  = sum_i - |V_{i,k}|^2 < i | J_mu | i >
+    !                                   + |U_{i,k}|^2 < i | J_mu | i >
+    !
+    ! where i is a single-particle index and k is a quasi-particle index.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Currently only <J_z>, hardcoded for CR8-like symmetries.
+    !
+    !---------------------------------------------------------------------------
+    integer                   :: B, k, N, N2, si, sb, wave, i
+    real(KIND=dp), intent(in) :: Bogo(:,:)
+    
+    if(.not.allocated(qp_J)) then
+      allocate(qp_J(3,2*nwt), qp_JTR(3,2*nwt), qp_JTI(3,2*nwt))
+    endif
+    qp_J   = 0.0d0 ;  qp_JTR = 0.0d0 ; qp_JTI = 0.0d0
+    
+    si = 0 ; sb = 0
+    do B=1,8,2
+      N = HFBlocks(B)   ; if(N.eq.0) cycle
+      N2= HFBlocks(B+1)
+      do wave=1,2*N+2*N2
+        do k=1,3
+          qp_J(k,sb+wave)   = 0.0d0
+          qp_JTR(k,sb+wave) = 0.0d0
+          qp_JTI(k,sb+wave) = 0.0d0
+          do i=1,N+N2
+            qp_J(k,sb+wave) = qp_J(k,sb+wave) +                                &
+            !          U^2                       V^2
+            &   (Bogo(sb+i,sb+wave)**2 - Bogo(sb+N+N2+i,sb+wave)**2)           &
+            &                                              * spwf_J(k,si+i,si+i)   
+          enddo
+        enddo
+      enddo
+      
+      si = si +  N +   N2
+      sb = sb +2*N + 2*N2
+    enddo
+    
+   end subroutine update_qp_angmom
 end module

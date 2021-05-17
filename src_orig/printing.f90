@@ -259,17 +259,22 @@ contains
   subroutine printqps
     !---------------------------------------------------------------------------
     ! Print all relevant info on quasiparticles.
-    ! Very bare-bones for the moment.
+    ! Rather bare-bones for the moment.
     !---------------------------------------------------------------------------
-    integer              :: i, N, B, si, sb, ind, N2
+    integer              :: i, N, B, si, sb, ind, N2, k, U(1),V(1)
     integer, allocatable :: indices(:)
+    real(KIND=dp)        :: ov
+    character(len=1)     :: Bstr, Pstr
     
     1  format (33 ('-'), 'Quasiparticles',33('-'))
-    2  format ( i3, 1f10.2, 2x, 1es12.2)
+    2  format ( i3, 1f10.2, 2x, 1es12.2,' | ', 2i4, ' | ', 2x, a1, 2x, a1,     &
+    &           2x, 1f5.3, ' | ',  3(2x,f5.2))
 
     11  format(80 ('-'))
 
     if(PairingType.eq.0) return
+    
+    call update_qp_angmom(Bogoliubov)
 
     print 1
     
@@ -282,12 +287,66 @@ contains
         call print_qp_header(B)
         select case(pairingtype)
         case(2)
-          ! HFB QP energies
+          ! HFB case
+
+          ! The unselected quasi-particles
           do i=1,N+N2
-            print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*N+2*N2-i+1)
+            ! What are the single-particles dominating these qps? 
+            if(maxval(abs(Bogoliubov(sb     +1:sb+  N+  N2,sb+i))).gt. 0.1) then
+              U = maxloc(Bogoliubov(sb     +1:sb+  N+  N2,sb+i)**2)+si
+            else
+              U = 0
+            endif
+            if(maxval(abs(Bogoliubov(sb+N+N2+1:sb+2*N+2*N2,sb+i))).gt. 0.1) then
+              V = maxloc(Bogoliubov(sb+N+N2+1:sb+2*N+2*N2,sb+i)**2)+si
+            else
+              V = 0
+            endif    
+          
+            print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*N+2*N2-i+1),     &
+            &           U(1), V(1), '-', '-', 0.0d0,                           &
+            &            qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
           enddo
+          ! The selected quasi-particles
           do i=N+N2+1,2*N+2*N2
-            print 2, i, QPenergies(sb+i), configmatrix(sb+i)
+            ! What are the single-particles dominating these qps? 
+            if(maxval(abs(Bogoliubov(sb     +1:sb+  N+  N2,sb+i))).gt. 0.1) then
+              U = maxloc(Bogoliubov(sb     +1:sb+  N+  N2,sb+i)**2)+si
+            else
+              U = 0
+            endif
+            if(maxval(abs(Bogoliubov(sb+N+N2+1:sb+2*N+2*N2,sb+i))).gt. 0.1) then
+              V = maxloc(Bogoliubov(sb+N+N2+1:sb+2*N+2*N2,sb+i)**2)+si
+            else
+              V = 0
+            endif          
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! Check if this particular qp is a blocked, partner or not special
+            if(allocated(blocked_qps)) then
+              Bstr = '-'
+              Pstr = '-'
+              ov   = 0.0d0 
+              do k=1,size(blocked_qps)
+                if(blocked_qps(k) .eq. si+i-N-N2) then
+                  Bstr = 'B'
+                  Pstr = '-'
+                  ov = partner_overlaps(k)
+                endif
+                if(partner_qps(k) .eq. si+i-N-N2) then
+                  Bstr = '-'
+                  Pstr = 'P'
+                  ov = partner_overlaps(k)
+                endif
+              enddo
+            else 
+              Bstr = '-'
+              Pstr = '-'
+              ov = 0.0d0
+            endif
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            print 2, i, QPenergies(sb+i), configmatrix(sb+i), U(1), V(1),      &
+            &           Bstr, Pstr, ov,                                        &
+            &           qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
           enddo
 
         case(1)
@@ -295,7 +354,7 @@ contains
           indices = order(BCSqps(si+1:si+N))
           do i=1, N
             ind  = indices(i)
-            print 2, i, BCSqps(si+ind), BCSf(si+ind)
+            print 2, i, BCSqps(si+ind), BCSf(si+ind), 0,0,'-', '-', 0.0d0
           enddo
         end select
         si = si +   N +  N2
@@ -310,7 +369,8 @@ contains
     integer, intent(in) :: B  
 
     1  format ('Block ', i1, ':  P=',a1,'1',2x,  a8)
-    2  format ( '  N      Eqp     f_n')
+    2  format ( '  N      Eqp       f_n      |   U   V  |   B  P  ov_TR |',4x, &
+    &           'JxT',4x,'JyT',4x,'Jz')
     3  format (80 ('_'))
   
     select case (B)

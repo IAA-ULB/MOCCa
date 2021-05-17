@@ -108,14 +108,6 @@ contains
     
   end function rotcut
   
-  pure real(KIND=dp) function qpcut(Eqp) result(cut)
-
-    real(KIND=dp), intent(in) :: Eqp
-    
-    cut = 0.5 * (1 + dtanh(c_qpcut * Eqp + d_qpcut))
-
-  end function qpcut
-
   subroutine calcJ2andBelyaev_HF
     !---------------------------------------------------------------------------
     !
@@ -477,7 +469,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
 
-    real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , cut_cr, cut_qp1, cut_qp2
+    real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , cut_cr
     logical       ::  blocked
 
     J2 = 0  ; Belyaev = 0 ; J2_coll = 0 ; Bely_coll = 0
@@ -772,7 +764,8 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             jjj= sb + N + N2 + j
 
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            ! Don't include the contribution from the blocked qps
+            ! Don't include the contribution from the blocked qps and their
+            ! partner qps.
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             blocked= .false.
             if(allocated(blocked_qps)) then
@@ -780,24 +773,16 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
                 if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
                   blocked = .true.
                 endif
-              enddo
+                if(ii.eq.partner_qps(k) .or.  jj.eq.partner_qps(k)) then
+                  blocked = .true.
+                endif
+              enddo              
             endif
             if(blocked) cycle
-            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-            ! But also use a cutoff to eliminate other qps with negative 
-            ! qp energies (unless asked for)
-            if(.not.qpsinMOI) then
-              cut_qp1 = qpcut(qpenergies(iii))
-              cut_qp2 = qpcut(qpenergies(jjj))
-            else
-              cut_qp1 = 1.0d0
-              cut_qp2 = 1.0d0
-            endif
-
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             !J^20 contribution
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            fac =  configmatrix(iii) * configmatrix(jjj)   * cut_qp1 * cut_qp2
+            fac =  configmatrix(iii) * configmatrix(jjj)
             ME = 0.5 * J20(ii,jj,:)**2  * fac
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! J^11 contribution
@@ -806,7 +791,7 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             !       I've coded it only as a sanity check, to check whether
             !       the full qp-basis expression is the same as the 
             !       sp-basis summation when the blocked QPS are not ommitted.
-            fac=  configmatrix(jjj)*(1 - configmatrix(iii))* cut_qp1 * cut_qp2
+            fac=  configmatrix(jjj)*(1 - configmatrix(iii))
             ME = ME + J11(ii,jj,:)**2  * fac
             
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -877,7 +862,7 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
           ! Collective Belyaev calculation  
           if(inversetemp.lt.0) then
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            ! Don't include the blocked_qps
+            ! Don't include the blocked_qps and their partner qps
             blocked= .false.
             
             if(allocated(blocked_qps)) then
@@ -885,31 +870,21 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
                 if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
                   blocked = .true.
                 endif
+                if(ii.eq.partner_qps(k) .or.  jj.eq.partner_qps(k)) then
+                  blocked = .true.
+                endif
               enddo
             endif
             if(blocked) cycle
-            
-            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-            ! But also use a cutoff to eliminate other qps with negative 
-            ! qp energies (unless asked for)
-            if(.not.qpsinMOI) then
-              cut_qp1 = qpcut(qpenergies(iii))
-              cut_qp2 = qpcut(qpenergies(jjj))
-            else
-              cut_qp1 = 1.0d0
-              cut_qp2 = 1.0d0
-            endif
 
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! (1 - f_i - f_j) J^{20}^2 contribution
             fac = 1 - configmatrix(sb+i) - configmatrix(sb+j) 
-            fac = fac * cut_qp1 * cut_qp2
             Bely_coll(:,it) = Bely_coll(:,it) + &
             &           fac*J20(ii,jj,:)**2 /(Qpenergies(iii) + Qpenergies(jjj))  
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             !  (f_j - f_i) J^{11} contribution (with numerical safety)
             fac =  configmatrix(sb+j) - configmatrix(sb+i)
-            fac = fac * cut_qp1 * cut_qp2
             if(abs(Qpenergies(iii) - Qpenergies(jjj)) .gt. 1d-8) then
               Bely_coll(:,it) = Bely_coll(:,it) + &
               &       fac*J11(ii,jj,:)**2 /(Qpenergies(iii)-Qpenergies(jjj))  
