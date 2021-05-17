@@ -756,20 +756,15 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     !         we can find. 
     !---------------------------------------------------------------------------
     do k=1,NB
-      select case(blocklowest(k))
-      case('n+')
-        B = 1
-      case('n-')
-        B = 3
-      case('p+')
-        B = 5
-      case('p-')
-        B = 7
-      case('n0', 'p0')
-        print *, 'The blocking identification for the gradient solver is not '
-        print *, 'yet capable of dealing with "n0", "p0" blocking options.'
-        stop
-      end select
+      si = 0 ; sb = 0
+      do B=1,8,2
+        N = HFBlocks(B)  ; if(N.eq.0) cycle
+        N2= HFBlocks(B+1)
+        if( bl_qps(k) .lt. si+N+N2 ) exit
+      
+        si = si +  N+  N2
+        sb = sb +2*N+2*N2
+      enddo     
 
       si =   sum(HFBlocks(1:B-1))
       sb = 2*sum(HFBlocks(1:B-1))
@@ -833,6 +828,8 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
           part_qps(k) = si + i
         endif
       enddo
+      
+      deallocate(tr_qp)
     enddo
     
   end subroutine figure_out_blocking_structure
