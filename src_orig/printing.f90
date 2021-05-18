@@ -288,7 +288,7 @@ contains
         select case(pairingtype)
         case(2)
           ! HFB case
-
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! The unselected quasi-particles
           do i=1,N+N2
             ! What are the single-particles dominating these qps? 
@@ -307,6 +307,7 @@ contains
             &           U(1), V(1), '-', '-', 0.0d0,                           &
             &            qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
           enddo
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! The selected quasi-particles
           do i=N+N2+1,2*N+2*N2
             ! What are the single-particles dominating these qps? 
