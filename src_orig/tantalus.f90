@@ -8,13 +8,15 @@ contains
 
 subroutine Run_Tantalus(run_mode, file_number,input_file)
  !==============================================================================
- !  #######   ##   #    # #####   ##   #      #    #  ####
- !     #     #  #  ##   #   #    #  #  #      #    # #
- !     #    #    # # #  #   #   #    # #      #    #  ####
- !     #    ###### #  # #   #   ###### #      #    #      #
- !     #    #    # #   ##   #   #    # #      #    # #    #
- !     #    #    # #    #   #   #    # ######  ####   ####
- !
+ !_________ _______  _       _________ _______  _                 _______ 
+ !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
+ !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
+ !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
+ !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
+ !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
+ !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
+ !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
+ !                                                                       
  !  Copyright W. Ryssens & M. Bender
  !
  !------------------------------------------------------------------------------
@@ -186,10 +188,12 @@ subroutine ReachForWaterAndFood()
     1 format('----------------------------------')
     2 format('| Convergence criteria satisfied.|')
     3 format('| Needed ', i4, ' iterations.', 8x,'|')
-    4 format('| dE < ', es10.3, 15x, ' | ')
-    5 format('| dQ < ', es10.3, 15x, ' | ')
-    6 format('| dH < ', es10.3, 15x, ' | ')
-    7 format('| dmu< ', es10.3, 15x, ' | ')
+    4 format('| dE    < ', es10.3, 12x, ' | ')
+    5 format('| dQ2   < ', es10.3, 12x, ' | ')
+    6 format('| d2H   < ', es10.3, 12x, ' | ')
+   61 format('| |spg| < ', es10.3, 12x, ' | ')
+    7 format('| dmu   < ', es10.3, 12x, ' | ')
+   71 format('| dJz   < ', es10.3, 12x, ' | ')    
     8 format('| Ending the iterative proces.   |')
 
     9 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
@@ -374,7 +378,9 @@ subroutine ReachForWaterAndFood()
             print 4, energy_prec
             print 5, moment_prec
             print 6, disp_prec
+            print 61, gradient_prec
             print 7, fermi_prec
+            print 71, angmom_prec
             print 8
             print 1
 

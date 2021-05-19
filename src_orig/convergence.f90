@@ -93,27 +93,57 @@ contains
 
   subroutine Converged(C) 
     !---------------------------------------------------------------------------
-    ! Checks if the code has converged using the following convergence 
-    ! criteria, all of which need to be verified across 5 iterations.
+    ! Checks if the code has converged using the following convergence criteria.
     !
+    ! Output : 
+    !       C  :  True if the convergence criteria are all satisfied.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !   Keyword         Default    Quantity
     !  ------------    ---------  -------------
     !   energy_prec     1d-9     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec 
-    !
-    !   moment_prec     1d-3     abs((Qlm^(i) - Qlm^(i))/Qlm^(i)) < moment_prec
-    !                                if Qlm^(i) is large enough
+    !                            
+    !   moment_prec     1d-3     abs((Q2m^(i) - Q2m^(i))/Q2m^(i)) < moment_prec
+    !                                         if abs(beta_2m^(i)) > 0.01 
+    !                            
     !
     !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
     !                                     < disp_prec
-    !    
+    !
+    !   gradient_prec   1d+0     |s.p. gradient|  <    gradient_prec  
+    !
     !   fermi_prec      1d-3     abs(lambda^(i) - lambda^(i-1)) < fermi_prec
     !                                    for both nucleon species
+    !
+    !   angmom_prec     1d-3     abs(<J_mu>^(i) - <J_mu>^(i-1)) < angmom_prec
+    !                                    for all cartesian directions
+    !
+    ! Additional notes:
+    !  *   The convergence criterion on the energy is checked for the past 
+    !      five (5) iterations, not only for the last one.
+    !  *   The angular momentum convergence criterion is trivially satisfied
+    !      when the angular momentum values are restricted by symmetry.
+    !  *   The multipole moment convergence used to include all multipole
+    !      moments, but now only looks at the quadrupole moments.
+    !  *   The dispersion condition is trivially satisfied when using the 
+    !      HFB gradient solver, as it is simply set to zero in that case.
+    !  *   Similarly, the gradient condition is trivially satisfied when using
+    !      the HFB solver, as it is simply set to zero in that case.
+    !      Note that this criterion is not particularly tight by default, as
+    !      I suspect the definition of |s.p. gradient| might evolve.
+    !
+    ! Things that could be thought about
+    ! - - - - - - - - - - - - - - - - - - 
+    !  -> Convergence criteria for constraints, both multipole and cranking, 
+    !     on values as well as multipliers.
     !---------------------------------------------------------------------------
     use Moments
     use functional
     use evolution
+    use cranking
 
-    logical       :: C
+    logical, intent(out)  :: C
+
     integer       :: i
     real(KIND=dp) :: dE(5), dQ
 
@@ -121,7 +151,6 @@ contains
 
     C = .true.
 
-    !---------------------------------------------------------------------------
     ! Checking the evolution of the energy
     do i =1,4
             dE(i) = abs(Ehistory(i) - Ehistory(i+1))/abs(totalE)
@@ -132,26 +161,31 @@ contains
       C = .false.
     endif
 
-    !---------------------------------------------------------------------------
-    ! Checking the weighted dispersion
-    if(d2H .gt. disp_prec) C = .false.
-
-    !---------------------------------------------------------------------------
-    ! Check all of the multipole moments that are large enough
+    ! Check all of the quadrupole moments that are large enough
     Current => Root
 
     do while(associated(Current%next)) 
         Current => Current%next
-        if(Current%Beta(3).gt.0.05) then
+        if(abs(Current%Beta(3)).gt.0.01 .and. Current%l .eq. 2) then
             dQ = abs(sum(Current%history)-sum(Current%value))
             dQ = dQ/abs(sum(Current%value))
             if(dQ > moment_prec) C = .false.
         endif
     enddo   
     
-    !---------------------------------------------------------------------------
+    ! Checking the weighted dispersion
+    if(d2H .gt. disp_prec) C = .false.
+
+    ! Checking the norm of the s.p. gradient
+    if(gradientnorm .gt. gradient_prec) C = .false.
+    
     ! Check the Fermi energy
     if(any(abs(Fermienergy - FermiHistory).gt.fermi_prec)) C = .false.
+        
+    ! Check the angular momentum
+    do i=1,3
+        if(abs(TotalAngMom(i) - AngMomOld(i)).gt.angmom_prec ) C = .false.
+    enddo
         
   end subroutine Converged
 
