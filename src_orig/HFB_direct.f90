@@ -36,7 +36,7 @@ contains
     real(KIND=dp), allocatable   :: R(:)
        
     integer                      :: N, N2,B, sb, i, NB, j, qblock, ind, si, bi
-    real(KIND=dp)                :: compare, occ, qpmin
+    real(KIND=dp)                :: compare, occ, qpmin, overl
     integer                      :: toblock(4), qpb, column
     real(KIND=dp), allocatable   :: tr_qp(:)
 
@@ -215,7 +215,6 @@ $NTR    endif
            do j=1,toblock(B)
              column =  sb+blocked_qp(j)-si+N+N2
              
-             !
              ! What we call a 'blocked qp' looks something like this in this
              ! particular module
              !
@@ -224,40 +223,35 @@ $NTR    endif
              !  ( 0   )
              !  ( V+  )
              !
-             ! BEFORE we would swap any U's and V's.
+             ! BEFORE we would swap any U's and V's.             
              !
+             ! Its time-reversed version becomes
+             !
+             !  ( 0   )
+             !  ( U+  )
+             !  (-V+  )
+             !  ( 0   )
              ! 
-             !
-             !
-             tr_qp(       1:  N     ) = + 0
-             tr_qp(  N   +1:  N+  N2) = + Bogo_ref(sb+2*N   +1:sb+2*N+N2,column) 
-             tr_qp(  N+N2+1:2*N+  N2) = - Bogo_ref(sb+  N   +1:sb+  N+N2,column) 
-             tr_qp(2*N+N2+1:2*N+2*N2) = - 0 
+             tr_qp(       1:  N     ) =   0
+             tr_qp(  N   +1:  N+  N2) = + Bogo(sb       +1:sb+  N     ,column) 
+             tr_qp(  N+N2+1:2*N+  N2) = - Bogo(sb+2*N+N2+1:sb+2*N+2*N2,column) 
+             tr_qp(2*N+N2+1:2*N+2*N2) =   0
 
-
+             qp_overlap(j) = -100000d0
+             do i=1,N+N2
+                overl = sum(tr_qp(:) * Bogo(sb+1:sb+2*N+2*N2,sb+N+N2+i))
+                
+                if(abs(overl) .gt. qp_overlap(j)) then
+                  qp_overlap(j) = abs(overl)
+                  partner_qp(j) = si + i 
+                endif
+             enddo 
            enddo
-                      
+
            deallocate(tr_qp)
            si = si +   N +  N2 
            sb = sb + 2*N +2*N2         
         enddo    
-!            allocate(tr_qp(2*N+2*N2))
-!            
-!            column =  sb+blocked_qp(ind)-si+N+N2
-!            tr_qp(       1:  N     ) = + 0
-!            tr_qp(  N   +1:  N+  N2) = + Bogo_ref(sb+2*N   +1:sb+2*N+N2,column) 
-!            tr_qp(  N+N2+1:2*N+  N2) = - Bogo_ref(sb+  N   +1:sb+  N+N2,column) 
-!            tr_qp(2*N+N2+1:2*N+2*N2) = - 0 
-
-!            
-!            
-!            qp_overlap(ind) = -1000000
-!            
-!            do i=1,2*N+2*N2
-!            
-!            enddo
-!            deallocate(tr_qp)
-                
     end select
    
   end function ConstructConfiguration
@@ -604,7 +598,7 @@ $TR   particles = 2 * particles
     real(KIND=dp)                :: A , B, C , FA, FB , FC
     real(KIND=dp)                :: D , E, S , P  , Q , R 
     real(KIND=dp)                :: Num , Tol , XM 
-    real(KIND=dp)                :: eps = 1.d-9
+    real(KIND=dp)                :: eps = 1.d-15
     integer                      :: FailCount, ifail
     logical                      :: Found
 
@@ -713,6 +707,21 @@ $TR   particles = 2 * particles
     enddo
     ! Output
     Lambda    = B ; particles = FB
+    
+   !---------------------------------------------------------------------------
+   ! output
+   !---------------------------------------------------------------------------
+   if ( abs(FA) .lt. abs(FB) ) then
+     FA = diagbyblock(H, blocks, config, Bogo,Eqp,A, blocktype,blockconf,      &
+        &                            blocked_qp, partner_qp, qp_overlap, ifail)
+     FA = FA - targetparticles
+     lambda = A
+   else
+     FB = diagbyblock(H, blocks, config, Bogo,Eqp,B, blocktype,blockconf,      &
+        &                            blocked_qp, partner_qp, qp_overlap, ifail)
+     FB = FB - targetparticles
+     lambda = B
+   endif
   end subroutine BrentBisection
 
   subroutine Identify(i, blocks, bi, qblock)
