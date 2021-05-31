@@ -328,15 +328,23 @@ contains
               Pstr = '-'
               ov   = 0.0d0 
               do k=1,size(blocked_qps)
-                if(blocked_qps(k) .eq. si+i-N-N2) then
-                  Bstr = 'B'
-                  Pstr = '-'
-                  ov = partner_overlaps(k)
-                endif
-                if(partner_qps(k) .eq. si+i-N-N2) then
-                  Bstr = '-'
-                  Pstr = 'P'
-                  ov = partner_overlaps(k)
+                if(N2.eq.0) then
+                  if(blocked_qps(k) .eq. si+i-N-N2) then
+                    Bstr = 'B'
+                    Pstr = 'P'
+                    ov = 1.0
+                  endif
+                else
+                  if(blocked_qps(k) .eq. si+i-N-N2) then
+                     Bstr = 'B'
+                     Pstr = '-'
+                     ov = partner_overlaps(k)
+                  endif
+                  if(partner_qps(k) .eq. si+i-N-N2) then
+                    Bstr = '-'
+                    Pstr = 'P'
+                    ov = partner_overlaps(k)
+                  endif
                 endif
               enddo
             else 
