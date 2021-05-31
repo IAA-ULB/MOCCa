@@ -311,7 +311,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       if(allocated(n_blocked)) then
          blocked_qps(   1:NN) = n_blocked
          partner_qps(   1:NN) = n_partners
-         qp_overlaps(   1:NN) = n_partners
+         qp_overlaps(   1:NN) = n_overlaps
       endif
       if(allocated(p_blocked)) then
          ! We need to offset stuff by the number of neutron qps

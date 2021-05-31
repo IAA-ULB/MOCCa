@@ -23,8 +23,68 @@ contains
   function ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf,     &
   &                               blocked_qp, partner_qp, qp_overlap)  result(R)
     !---------------------------------------------------------------------------
-    ! Construct the configuration matrix, based on the various user options.
+    ! The generalized density matrix in a HFB calculation is given by
     !
+    ! R = ( rho      kappa  )
+    !     (-kappa^*  1-rho^*)
+    !
+    !   = W^T  ( f_1  0    ....  0    0     ....  0      )  W
+    !          ( 0    f_2  ....  0    0     ....  0      )
+    !          ( 0    0    ....  f_n  0     ....  0      )
+    !          ( 0    0    ....  0    1-f_1 ....  0      )
+    !          ( 0    0    ....  0    0     ....  0      )
+    !          ( 0    0    ....  0    0     ....  1-f_n  )
+    !
+    ! where B is the Bogoliubov matrix and the matrix in the middle I call the 
+    ! configuration matrix. 
+    !
+    ! For a simple HFB ground state, we have
+    !
+    !               f_i = 0    for all i=1,N
+    !
+    ! If we block any given quasiparticle k, we have
+    ! 
+    !               f_k = 1 
+    !               f_i = 0    for all i not = k
+    !
+    ! If we are looking at calculations at finite temperature, we have 
+    !
+    !               f_i = (1+ exp(beta E^qp_i))^{-1}
+    ! 
+    ! where beta is the inverse temperature.         
+    !
+    ! This routine constructs the configuration matrix for a HFB calculation on 
+    ! the basis of a great many relevant options, and (if needed) returns 
+    ! indices of blocked qps, partner qps and the relevant overlaps. When this
+    ! is done, we can construct the density and anomalous density matrices and 
+    ! go on with life. 
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input :
+    !   Bogo      : Bogoliubov transformation obtained by diagonalisation of the 
+    !               HFB Hamiltonian
+    !   Eqp       : quasiparticle energies obtained by diagonalisation of the 
+    !               HFB Hamiltonian
+    !   blocks    : sizes of the symmetry blocks of the HFB hamiltonian
+    !   blocktype : type of blocking to perform (1-6)
+    !   blockconf : in which symmetry blocks to excite qps, for 
+    !               blocktype = 3,4
+    !
+    ! Output:
+    !   blocked_qp: indices of the blocked quasiparticles. These are indexed
+    !               from 1 to N, where N is the size of the single-particle 
+    !               space, NOT from 1 to 2*N.
+    !
+    !   partner_qp: indices of the partner quasiparticles, i.e. the
+    !               quasiparticles that are closely related to the blocked_qps.
+    !
+    !   qp_overlap: overlap between the time-reverse of blocked_qp(i) and 
+    !               partner_qp(i)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Note: this functions assumes the ordering of the Bogoliubov transformation
+    !       as used in the diagonalisation procedure of HFB_direct module. This
+    !       is NOT the same as the ordering assumed in the rest of the program, 
+    !       see the routine reorganise_matrices.
     !---------------------------------------------------------------------------
 
     integer, intent(in)          :: BlockType
@@ -202,7 +262,6 @@ $NTR    endif
           sb = sb + 2*N
         enddo
               
-        sb = 0 ; si = 0 ; ind = 0
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Then we look for the closest thing to a time-reversal partner. 
         sb = 0 ; si = 0 ; ind = 0
@@ -213,34 +272,39 @@ $NTR    endif
            allocate(tr_qp(2*N+2*N2))
 
            do j=1,toblock(B)
-             column =  sb+blocked_qp(j)-si+N+N2
-             
-             ! What we call a 'blocked qp' looks something like this in this
-             ! particular module
+             column =  sb+blocked_qp(j)-si+N2
+             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+             ! Inside the direct-HFB routines, the Bogoliubov matrix is 
+             ! ordered somewhat differently from the rest of the program. 
+             ! Remember
              !
-             !  ( U+  )
-             !  ( 0   )
-             !  ( 0   )
-             !  ( V+  )
+             !       (  V^*+  U+    0     0   )
+             !  W =  (  U^*+  V+    0     0   )
+             !       (  0     0     V^*-  U-  )
+             !       (  0     0     U^*-  V-  )
+             !   
+             !                ^           ^
+             !                |           | 
+             !               (1)         (2)
              !
-             ! BEFORE we would swap any U's and V's.             
+             ! because of the diagonalisation in subblocks. 
              !
-             ! Its time-reversed version becomes
+             ! Hence, a "blocked" qp is located in (1), while its possible
+             ! time-reversal partners are located in (2).
              !
-             !  ( 0   )
-             !  ( U+  )
-             !  (-V+  )
-             !  ( 0   )
-             ! 
+             ! Note that this particular routine is not yet ready for 
+             ! blocked quasiparticles with signature -i.
+             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+             tr_qp = Bogo(sb+1:sb+2*N+2*N2, column)
              tr_qp(       1:  N     ) =   0
-             tr_qp(  N   +1:  N+  N2) = + Bogo(sb       +1:sb+  N     ,column) 
-             tr_qp(  N+N2+1:2*N+  N2) = - Bogo(sb+2*N+N2+1:sb+2*N+2*N2,column) 
-             tr_qp(2*N+N2+1:2*N+2*N2) =   0
-
+             tr_qp(  N   +1:  N+  N2) =   0
+             tr_qp(  N+N2+1:2*N+  N2) = + Bogo(sb  +1:sb+N   ,column)
+             tr_qp(2*N+N2+1:2*N+2*N2) = - Bogo(sb+N+1:sb+N+N2,column)   
+             
              qp_overlap(j) = -100000d0
              do i=1,N+N2
                 overl = sum(tr_qp(:) * Bogo(sb+1:sb+2*N+2*N2,sb+N+N2+i))
-                
+
                 if(abs(overl) .gt. qp_overlap(j)) then
                   qp_overlap(j) = abs(overl)
                   partner_qp(j) = si + i 
@@ -265,12 +329,12 @@ $NTR    endif
       ! The routine only solves this for one particular isospin.
       !
       ! Input
-      !   H        : HFB hamiltonian, without Fermi energy
-      !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
-      !              the problem.
-      !   particles: Average number of particles to target. 
-      !   lambda   : Initial guess for the Fermi energy
-      !   maxhfbiter: Maximum number of iterations to perform
+      !   H               : HFB hamiltonian, without Fermi energy
+      !   blocks          : Sizes of the symmetry blocks that can be used to 
+      !                     simplify the problem.
+      !   targetparticles : Average number of particles to target. 
+      !   lambda          : Initial guess for the Fermi energy
+      !   maxhfbiter      : Maximum number of iterations to perform
       !
       ! Output
       !   config   : Configuration matrix of the final solution
@@ -333,14 +397,27 @@ $NTR    endif
       !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
       !              the problem.
       !   lambda   : Fermi energy.
-      !
-      ! Output
-      !   config   : Configuration matrix of the final solution
-      !   Eqp      : Quasiparticle energies of the final solution
-      !   Bogo     : Bogoliubov transformation that diagonalizes H
-      !   Lambda   : Final fermi energy
+      !   blocktype | Options for the construction of the configuration matrix
+      !   blockconf | see, contructConfiguration.
+
       ! 
-      !   particles: total number of particles for this input
+      ! Output
+      !   config    : Configuration matrix of the final solution
+      !               ( see  constructconfiguration )
+      !   Eqp       : Quasiparticle energies of the final solution
+      !   Bogo      : Bogoliubov transformation that diagonalizes H
+      !   Lambda    : Final fermi energy
+      !   blocked_qp| outputs of the constructconfiguration routine regarding 
+      !   partner_qp| blocking possibilities.
+      !   qp_overlap|
+      !   ifail     : 0 if succesful diagonalisation + fermi energy found
+      !              1 otherwise
+      !   particles : total number of particles for this input
+      !
+      !
+      ! Note that this routine is designed to be called for FOUR symmetry 
+      ! blocks, i.e. for ONE nucleon species. 
+      !
       !-------------------------------------------------------------------------
       real(KIND=dp), intent(in)    :: H(:,:)
       real(KIND=dp), intent(out)   :: config(:), Bogo(:,:), Eqp(:)
