@@ -928,11 +928,7 @@ contains
       call write_sp_info(SPHFFILE)
     endif 
     ! b) in the canonical basis
-    if(SPCANFILE .ne. '') then  
-      if(pairingtype.ne.2) then
-        print *, 'Cannot output single-particle information in the canonical basis.'
-        stop
-      endif
+    if(pairingtype.eq.2 .and. SPCANFILE .ne. '') then
       call write_sp_info_can(SPCANFILE)
     endif
 
@@ -1282,6 +1278,10 @@ contains
     !     #   nwn = i3, nwp = i3
     !     #   Name of the parameterization
     !     #   type of functional
+    !     #   Fermi energies of both nucleon species
+    !     #   Quadrupole deformation in terms of Q20 and Q22
+    !     #   Quadrupole deformation in terms of B20 and B22
+    !     #   Quadrupole deformation in terms of B2 and gamma
     !     #   BI 1: Blocktype, Blocknumber
     !     #   BI 2: BlockIndices
     !     #   BI 3: Blocklowest
@@ -1289,30 +1289,42 @@ contains
     !
     !---------------------------------------------------------------------------
     integer, intent(in) :: iochannel
-
+    type(moment), pointer :: Q20, Q22
    
     1 format("# N = ", i3, ' Z = ', i3, ' A = ', i3)
     2 format("# nwn = ", i3, ", nwp = ", i3)
     3 format("# (nx,ny,nz) = (", 3i3, "), dx = ", f8.6, ' fm')
-    4 format("# Parameterisation: ", a40)
-    5 format("# Functional type : ", a40)
+    4 format("# Parameterisation    : ", a40)
+    5 format("# Functional type     : ", a40)
+    6 format("# Fermi energies      : ", 2f15.4)
+    7 format("# Quadrupole   Q20,Q22: ", 2f15.4)
+    8 format("# Quadrupole   B20,B22: ", 2f15.4)
+    9 format("# Quadrupole    Q, gam: ", 2f15.4)
 
-    6 format("# BI 1: ", 2i3)
-    7 format("# BI 2: ", 99i4)
-    8 format("# BI 3: ", 99a3)
+   10 format("# BI 1: ", 2i3)
+   11 format("# BI 2: ", 99i4)
+   12 format("# BI 3: ", 99a3)
 
     write(iochannel, fmt=1)  int(neutrons), int(protons),int(neutrons+protons)
     write(iochannel, fmt=2)  nwn, nwp
     write(iochannel, fmt=3)  nx, ny, nz, dx
     write(iochannel, fmt=4)  name_param
     write(iochannel, fmt=5)  func_name
-    write(iochannel, fmt=6)  blocktype, blocknumber
+    write(iochannel, fmt=6)  FermiEnergy
+  
+    !Q20 =>FindMoment(2,0,.false.     )
+    !Q22 =>FindMoment(2,2,.false., Q20)    
+    !write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
+    !write(iochannel, fmt=8)    Q20%beta(3), Q22%beta(3)
+    !write(iochannel, fmt=9)    Q(3), G(3)
+    
+    write(iochannel, fmt=10)  blocktype, blocknumber
     if(blocknumber .gt. 0) then
-      write(iochannel, fmt=7) Blockindices
-      write(iochannel, fmt=8) Blocklowest
+      write(iochannel, fmt=11) Blockindices
+      write(iochannel, fmt=12) Blocklowest
     else
-      write(iochannel, fmt=7) 
-      write(iochannel, fmt=8)
+      write(iochannel, fmt=11) 
+      write(iochannel, fmt=12)
     endif
 
     write(iochannel, fmt='(a1)') '#'

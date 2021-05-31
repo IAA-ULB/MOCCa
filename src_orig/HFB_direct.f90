@@ -21,22 +21,84 @@ module HFB_direct
 contains 
 
   function ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf,     &
-  &                               blocked_qp)   result(R)
+  &                               blocked_qp, partner_qp, qp_overlap)  result(R)
     !---------------------------------------------------------------------------
-    ! Construct the configuration matrix, based on the various user options.
+    ! The generalized density matrix in a HFB calculation is given by
     !
+    ! R = ( rho      kappa  )
+    !     (-kappa^*  1-rho^*)
+    !
+    !   = W^T  ( f_1  0    ....  0    0     ....  0      )  W
+    !          ( 0    f_2  ....  0    0     ....  0      )
+    !          ( 0    0    ....  f_n  0     ....  0      )
+    !          ( 0    0    ....  0    1-f_1 ....  0      )
+    !          ( 0    0    ....  0    0     ....  0      )
+    !          ( 0    0    ....  0    0     ....  1-f_n  )
+    !
+    ! where B is the Bogoliubov matrix and the matrix in the middle I call the 
+    ! configuration matrix. 
+    !
+    ! For a simple HFB ground state, we have
+    !
+    !               f_i = 0    for all i=1,N
+    !
+    ! If we block any given quasiparticle k, we have
+    ! 
+    !               f_k = 1 
+    !               f_i = 0    for all i not = k
+    !
+    ! If we are looking at calculations at finite temperature, we have 
+    !
+    !               f_i = (1+ exp(beta E^qp_i))^{-1}
+    ! 
+    ! where beta is the inverse temperature.         
+    !
+    ! This routine constructs the configuration matrix for a HFB calculation on 
+    ! the basis of a great many relevant options, and (if needed) returns 
+    ! indices of blocked qps, partner qps and the relevant overlaps. When this
+    ! is done, we can construct the density and anomalous density matrices and 
+    ! go on with life. 
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input :
+    !   Bogo      : Bogoliubov transformation obtained by diagonalisation of the 
+    !               HFB Hamiltonian
+    !   Eqp       : quasiparticle energies obtained by diagonalisation of the 
+    !               HFB Hamiltonian
+    !   blocks    : sizes of the symmetry blocks of the HFB hamiltonian
+    !   blocktype : type of blocking to perform (1-6)
+    !   blockconf : in which symmetry blocks to excite qps, for 
+    !               blocktype = 3,4
+    !
+    ! Output:
+    !   blocked_qp: indices of the blocked quasiparticles. These are indexed
+    !               from 1 to N, where N is the size of the single-particle 
+    !               space, NOT from 1 to 2*N.
+    !
+    !   partner_qp: indices of the partner quasiparticles, i.e. the
+    !               quasiparticles that are closely related to the blocked_qps.
+    !
+    !   qp_overlap: overlap between the time-reverse of blocked_qp(i) and 
+    !               partner_qp(i)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Note: this functions assumes the ordering of the Bogoliubov transformation
+    !       as used in the diagonalisation procedure of HFB_direct module. This
+    !       is NOT the same as the ordering assumed in the rest of the program, 
+    !       see the routine reorganise_matrices.
     !---------------------------------------------------------------------------
 
     integer, intent(in)          :: BlockType
     integer, intent(in)          :: blocks(4) 
     integer, intent(in)          :: blockconf(:)
-    integer, allocatable         :: blocked_qp(:)
+    integer, allocatable         :: blocked_qp(:), partner_qp(:)
+    real(KIND=dp), allocatable, intent(out) :: qp_overlap(:)
     real(KIND=dp), intent(in)    :: Eqp(:), Bogo(:,:)
     real(KIND=dp), allocatable   :: R(:)
-      
+       
     integer                      :: N, N2,B, sb, i, NB, j, qblock, ind, si, bi
-    real(KIND=dp)                :: compare, occ, qpmin
-    integer                      :: toblock(4), qpb
+    real(KIND=dp)                :: compare, occ, qpmin, overl
+    integer                      :: toblock(4), qpb, column
+    real(KIND=dp), allocatable   :: tr_qp(:)
 
     N = size(Eqp) 
     allocate(R(N)) ;  R = 0
@@ -92,8 +154,8 @@ $NTR    endif
 
 
         print *, 'Currently not correctly implemented: blocking by overlap for'
-        print *, 'Interactions with rotational correction. The blocked_qp'
-        print *, 'array is wrong.'
+        print *, 'interactions with rotational correction.'
+        print *, 'The blocked_qp, partner_qp and qp_overlap arrays are wrong.'
         stop
         !-----------------------------------------------------------------------
         ! The user asked for a specific configuration that needs to be 
@@ -102,6 +164,8 @@ $NTR    endif
         NB = size(blockconf)
         if(.not.allocated(blocked_qp)) then
           allocate(blocked_qp(NB)) ; blocked_qp = 0
+          allocate(partner_qp(NB)) ; partner_qp = 0
+          allocate(qp_overlap(NB)) ; qp_overlap = 0.0d0
         endif        
 
         do j=1,NB
@@ -170,13 +234,17 @@ $NTR    endif
         NB = sum(toblock)
         if(allocated(blocked_qp)) then
           deallocate(blocked_qp)
+          deallocate(partner_qp)
         endif
 
         if(.not.allocated(blocked_qp)) then
           allocate(blocked_qp(NB)) ; blocked_qp = 0
+          allocate(partner_qp(NB)) ; partner_qp = 0
+          allocate(qp_overlap(NB)) ; qp_overlap = 0.0d0
         endif        
 
-        !  For every block, we flip the required number of qps.
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        !  For every block, we flip the required number of qps.  
         sb = 0 ; si = 0 ; ind = 0
         do B=1,4
           N = blocks(B) ; if (N.eq.0) cycle
@@ -189,34 +257,84 @@ $NTR    endif
             ! Saving the one we flipped
             ind = ind + 1
             blocked_qp(ind) = si + j
-            !-------------------------------------------------------------------
-            ! This additional blocking thing was just a try and found its
-            ! way into the master branch ...........
-!            ! .... and its canonical partner
-!            ind = ind + 1
-!            blocked_qp(ind) = si + N + j
           enddo
           si = si +   N
           sb = sb + 2*N
         enddo
+              
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Then we look for the closest thing to a time-reversal partner. 
+        sb = 0 ; si = 0 ; ind = 0
+        do B=1,4,2
+           N = blocks(B)   ; if(N.eq.0) cycle    
+           N2= blocks(B+1) 
+
+           allocate(tr_qp(2*N+2*N2))
+
+           do j=1,toblock(B)
+             column =  sb+blocked_qp(j)-si+N2
+             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+             ! Inside the direct-HFB routines, the Bogoliubov matrix is 
+             ! ordered somewhat differently from the rest of the program. 
+             ! Remember
+             !
+             !       (  V^*+  U+    0     0   )
+             !  W =  (  U^*+  V+    0     0   )
+             !       (  0     0     V^*-  U-  )
+             !       (  0     0     U^*-  V-  )
+             !   
+             !                ^           ^
+             !                |           | 
+             !               (1)         (2)
+             !
+             ! because of the diagonalisation in subblocks. 
+             !
+             ! Hence, a "blocked" qp is located in (1), while its possible
+             ! time-reversal partners are located in (2).
+             !
+             ! Note that this particular routine is not yet ready for 
+             ! blocked quasiparticles with signature -i.
+             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+             tr_qp = Bogo(sb+1:sb+2*N+2*N2, column)
+             tr_qp(       1:  N     ) =   0
+             tr_qp(  N   +1:  N+  N2) =   0
+             tr_qp(  N+N2+1:2*N+  N2) = + Bogo(sb  +1:sb+N   ,column)
+             tr_qp(2*N+N2+1:2*N+2*N2) = - Bogo(sb+N+1:sb+N+N2,column)   
+             
+             qp_overlap(j) = -100000d0
+             do i=1,N+N2
+                overl = sum(tr_qp(:) * Bogo(sb+1:sb+2*N+2*N2,sb+N+N2+i))
+
+                if(abs(overl) .gt. qp_overlap(j)) then
+                  qp_overlap(j) = abs(overl)
+                  partner_qp(j) = si + i 
+                endif
+             enddo 
+           enddo
+
+           deallocate(tr_qp)
+           si = si +   N +  N2 
+           sb = sb + 2*N +2*N2         
+        enddo    
     end select
    
   end function ConstructConfiguration
 
   subroutine FindFermi_secant(H, blocks, targetparticles, config, Bogo, Eqp,   & 
-            &       lambda, maxhfbiter, blocktype, blockconf, blocked_qp, ifail)
+            &                 lambda, maxhfbiter, blocktype, blockconf,        &
+            &                 blocked_qp, partner_qp, qp_overlap, ifail)
       !-------------------------------------------------------------------------
       ! Subroutine that diagonalizes the HFB hamiltonian (repeatedly) to find  
       ! the correct Fermi energy that fixes the average number of particles.
       ! The routine only solves this for one particular isospin.
       !
       ! Input
-      !   H        : HFB hamiltonian, without Fermi energy
-      !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
-      !              the problem.
-      !   particles: Average number of particles to target. 
-      !   lambda   : Initial guess for the Fermi energy
-      !   maxhfbiter: Maximum number of iterations to perform
+      !   H               : HFB hamiltonian, without Fermi energy
+      !   blocks          : Sizes of the symmetry blocks that can be used to 
+      !                     simplify the problem.
+      !   targetparticles : Average number of particles to target. 
+      !   lambda          : Initial guess for the Fermi energy
+      !   maxhfbiter      : Maximum number of iterations to perform
       !
       ! Output
       !   config   : Configuration matrix of the final solution
@@ -230,7 +348,8 @@ $NTR    endif
       integer, intent(in)          :: blocks(4), maxhfbiter, blocktype
       integer, intent(in)          :: blockconf(:)
       integer, intent(out)         :: ifail
-      integer, allocatable         :: blocked_qp(:)
+      integer, allocatable         :: blocked_qp(:), partner_qp(:)
+      real(KIND=dp), intent(out), allocatable :: qp_overlap(:)
 
       real(KIND=dp)                :: df, dn(2), particles
       integer                      :: iter
@@ -241,7 +360,7 @@ $NTR    endif
 
         particles = & 
         &   diagbyblock(H,blocks, config, Bogo,Eqp,lambda, blocktype,blockconf,&
-        &               blocked_qp, ifail)
+        &               blocked_qp, partner_qp, qp_overlap, ifail)
         ! Return if we do not want to readjust the Fermi energy
         if(MaxHFBiter.eq.1) return
         
@@ -267,7 +386,7 @@ $NTR    endif
   end subroutine FindFermi_secant
 
   function diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf,&
-  &                    blocked_qp, ifail) result(particles)
+  &                 blocked_qp, partner_qp, qp_overlap, ifail) result(particles)
       !-------------------------------------------------------------------------
       ! Routine that diagonalizes, block by block, a HFB Hamiltonian that is 
       ! passed in. It does the low-level work for all the high-level routines
@@ -278,21 +397,35 @@ $NTR    endif
       !   blocks   : Sizes of the symmetry blocks that can be used to simplify 
       !              the problem.
       !   lambda   : Fermi energy.
-      !
-      ! Output
-      !   config   : Configuration matrix of the final solution
-      !   Eqp      : Quasiparticle energies of the final solution
-      !   Bogo     : Bogoliubov transformation that diagonalizes H
-      !   Lambda   : Final fermi energy
+      !   blocktype | Options for the construction of the configuration matrix
+      !   blockconf | see, contructConfiguration.
+
       ! 
-      !   particles: total number of particles for this input
+      ! Output
+      !   config    : Configuration matrix of the final solution
+      !               ( see  constructconfiguration )
+      !   Eqp       : Quasiparticle energies of the final solution
+      !   Bogo      : Bogoliubov transformation that diagonalizes H
+      !   Lambda    : Final fermi energy
+      !   blocked_qp| outputs of the constructconfiguration routine regarding 
+      !   partner_qp| blocking possibilities.
+      !   qp_overlap|
+      !   ifail     : 0 if succesful diagonalisation + fermi energy found
+      !              1 otherwise
+      !   particles : total number of particles for this input
+      !
+      !
+      ! Note that this routine is designed to be called for FOUR symmetry 
+      ! blocks, i.e. for ONE nucleon species. 
+      !
       !-------------------------------------------------------------------------
       real(KIND=dp), intent(in)    :: H(:,:)
       real(KIND=dp), intent(out)   :: config(:), Bogo(:,:), Eqp(:)
       real(KIND=dp), intent(inout) :: lambda
       integer, intent(in)          :: blocks(4), blocktype
       integer, intent(in)          :: blockconf(:)
-      integer, allocatable         :: blocked_qp(:)
+      integer, allocatable         :: blocked_qp(:), partner_qp(:)
+      real(KIND=dp), allocatable, intent(out) :: qp_overlap(:)
 
       real(KIND=dp), allocatable   :: eigen(:), work(:), A(:,:)
       real(KIND=dp)                :: particles
@@ -340,7 +473,7 @@ $NTR    endif
       !-----------------------------------------------------------------------
       ! b) We construct the configuration matrix that was asked for
       config = ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf, &
-      &                               blocked_qp) 
+      &                               blocked_qp, partner_qp, qp_overlap) 
       !-----------------------------------------------------------------------
       ! c) Count the total number of particles that we have.
       si = 0 ; sb = 0
@@ -372,7 +505,8 @@ $TR   particles = 2 * particles
   end function diagbyblock
 
   subroutine FindFermi_Brent(H, blocks, targetparticles, config, Bogo, Eqp,    & 
-   &                lambda, maxhfbiter, blocktype, blockconf, blocked_qp, ifail)
+   &                         lambda, maxhfbiter, blocktype, blockconf,         &
+   &                         blocked_qp, partner_qp, qp_overlap, ifail)
       !-------------------------------------------------------------------------
       ! Subroutine that diagonalizes the HFB hamiltonian (repeatedly) to find  
       ! the correct Fermi energy that fixes the average number of particles.
@@ -412,17 +546,18 @@ $TR   particles = 2 * particles
       integer, intent(in)          :: blocks(4), maxhfbiter, blocktype
       integer, intent(in)          :: blockconf(:)
       integer, intent(out)         :: ifail  
+      real(KIND=dp), allocatable, intent(out) :: qp_overlap(:)
 
       real(KIND=dp)                :: InitialBracket(2), FA, FB, N
       integer                      :: idir = 0 , idirsig = 1, FailCount
       logical                      :: Success
-      integer, allocatable         :: blocked_qp(:)
+      integer, allocatable         :: blocked_qp(:), partner_qp(:)
  
       !-------------------------------------------------------------------------
       ! STEP 1: set up an initial bracket
       !-------------------------------------------------------------------------
       N = diagbyblock(H, blocks, config, Bogo,Eqp,lambda, blocktype,blockconf, &
-      &               blocked_qp, ifail)
+      &               blocked_qp, partner_qp, qp_overlap, ifail)
       N = N - targetparticles
       ! Check if this guess for lambda is good enough
       if(abs(N).lt.pairing_prec) return
@@ -455,9 +590,9 @@ $TR   particles = 2 * particles
         &                 InitialBracket(idir) + idirsig * 0.01_dp*(FailCount+1)
 
         FA = diagbyblock(H,blocks,config,Bogo,Eqp,InitialBracket(1),blocktype, &
-        &                                          blockconf, blocked_qp, ifail)
+        &                   blockconf, blocked_qp, partner_qp, qp_overlap,ifail)
         FB = diagbyblock(H,blocks,config,Bogo,Eqp,InitialBracket(2),blocktype, &
-        &                                          blockconf, blocked_qp, ifail)
+        &                   blockconf, blocked_qp, partner_qp, qp_overlap,ifail)
         FA = FA - targetparticles ; FB = FB - targetparticles
 
         ! check if N(epsilon_F) is a monotonically growing function.
@@ -491,12 +626,14 @@ $TR   particles = 2 * particles
       !-------------------------------------------------------------------------
       call BrentBisection(lambda,N,InitialBracket(1), InitialBracket(2),FA,FB, &
       &                   maxHFBIter,H,blocks, targetparticles, config, Bogo,  & 
-      &                   Eqp, blocktype, blockconf, blocked_qp)
+      &                   Eqp, blocktype, blockconf, blocked_qp, partner_qp,   &
+      &                   qp_overlap)
   
   end subroutine FindFermi_brent
 
   subroutine BrentBisection(lambda,particles, X1,X2,FX1,FX2,Depth, H, blocks,  & 
-    &      targetparticles, config, Bogo, Eqp, blocktype, blockconf, blocked_qp)
+    &                       targetparticles, config, Bogo, Eqp, blocktype,     &
+    &                       blockconf, blocked_qp, partner_qp, qp_overlap)
     !---------------------------------------------------------------------------
     ! This routine searches for the Fermi energy
     ! by Brent's methods https://en.wikipedia.org/wiki/Brent%27s_method
@@ -532,12 +669,13 @@ $TR   particles = 2 * particles
     integer, intent(in)          :: blockconf(:)
     integer, intent(in)          :: Depth
     real(KIND=dp), intent(in)    :: X1 , X2, FX1 , FX2 
-    integer, allocatable         :: blocked_qp(:)
+    integer, allocatable         :: blocked_qp(:), partner_qp(:)
+    real(KIND=dp), allocatable, intent(out) :: qp_overlap(:)
 
     real(KIND=dp)                :: A , B, C , FA, FB , FC
     real(KIND=dp)                :: D , E, S , P  , Q , R 
     real(KIND=dp)                :: Num , Tol , XM 
-    real(KIND=dp)                :: eps = 1.d-9
+    real(KIND=dp)                :: eps = 1.d-15
     integer                      :: FailCount, ifail
     logical                      :: Found
 
@@ -621,7 +759,7 @@ $TR   particles = 2 * particles
       ! particle number.
       !-------------------------------------------------------------------------
       Num = diagbyblock(H, blocks, config, Bogo,Eqp,B, blocktype,blockconf,    &
-      &                 blocked_qp, ifail)
+      &                 blocked_qp, partner_qp, qp_overlap, ifail)
       FB  = Num - targetparticles
 
       !-------------------------------------------------------------------------
@@ -646,6 +784,21 @@ $TR   particles = 2 * particles
     enddo
     ! Output
     Lambda    = B ; particles = FB
+    
+   !---------------------------------------------------------------------------
+   ! output
+   !---------------------------------------------------------------------------
+   if ( abs(FA) .lt. abs(FB) ) then
+     FA = diagbyblock(H, blocks, config, Bogo,Eqp,A, blocktype,blockconf,      &
+        &                            blocked_qp, partner_qp, qp_overlap, ifail)
+     FA = FA - targetparticles
+     lambda = A
+   else
+     FB = diagbyblock(H, blocks, config, Bogo,Eqp,B, blocktype,blockconf,      &
+        &                            blocked_qp, partner_qp, qp_overlap, ifail)
+     FB = FB - targetparticles
+     lambda = B
+   endif
   end subroutine BrentBisection
 
   subroutine Identify(i, blocks, bi, qblock)

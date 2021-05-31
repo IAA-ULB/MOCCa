@@ -101,9 +101,10 @@ module HFB
 contains
     
   subroutine solvepairing_HFB_direct(sphamil, gaps, fermi, Bogoliubov,         & 
-  &                           rho_pairing, kappa_pairing, configmatrix,        & 
-  &                           qpenergies, BlockType,Blockindices,              &
-  &                           blocklowest, blocked_qps, ifail)
+  &                          rho_pairing, kappa_pairing, configmatrix,         & 
+  &                          qpenergies, BlockType,Blockindices,               &
+  &                          blocklowest, blocked_qps, partner_qps,qp_overlaps,&
+  &                          ifail)
 
     !---------------------------------------------------------------------------
     ! Driver routine for the solving of the HFB equations in a direct fashion,
@@ -139,6 +140,10 @@ contains
     !                   of the Bogoliubov transformation.
     !    blocked_qps  : Indices of the quasiparticles that have been selected
     !                   to be blocked.
+    !    partner_qps  : Indices of the partner qps to the blocked qps, i.e. the 
+    !                   ones that are closest to being their time-reversal 
+    !                   partners.
+    !    qp_overlaps  : overlaps between blocked qps and their partners
     !    ifail        : Signals the appearance of problems. If 0, no problem
     !                   has been encountered. (This problem-signalling is not
     !                   entirely operational yet.)
@@ -156,9 +161,13 @@ contains
     integer, intent(in)          :: BlockType
     integer, intent(out)         :: ifail
     character(len=2), intent(in), allocatable :: BlockLowest(:)
+    real(KIND=dp), allocatable, intent(out)   :: qp_overlaps(:)
 
     integer, allocatable         :: neutron_block(:), proton_block(:)
-    integer, allocatable         :: blocked_qps(:), p_blocked(:), n_blocked(:)
+    integer, allocatable         :: p_blocked(:), n_blocked(:)
+    integer, allocatable         :: blocked_qps(:), partner_qps(:)
+    integer, allocatable         :: n_partners(:), p_partners(:)
+    real(KIND=dp), allocatable   :: p_overlaps(:), n_overlaps(:)
     
     integer                     :: si, sb, N, N2, B, it, i, np, nn
     integer                     :: n_ind, p_ind, NB
@@ -277,28 +286,39 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     &              neutrons, configmatrix(  1:2*nwn),                          &
     &              Bogoliubov(1:2*nwn, 1:2*nwn),                               &
     &              qpenergies(1:2*nwn),  Fermi(1), maxhfbiter,                 &
-    &              blocktype, neutron_block, n_blocked, ifail)   
+    &              blocktype, neutron_block, n_blocked, n_partners, n_overlaps,&
+    &              ifail)   
 
     call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBlocks(5:8),       &
     &              protons, configmatrix(2*nwn+1:2*nwt),                       &
     &              Bogoliubov(2*nwn+1:2*nwt, 2*nwn+1:2*nwt),                   &
     &              qpenergies(2*nwn+1:2*nwt),Fermi(2), maxhfbiter,             &
-    &              blocktype, proton_block, p_blocked, ifail)     
+    &              blocktype, proton_block, p_blocked, p_partners, p_overlaps, &
+    &              ifail)     
 
     ! 
+    
     if(allocated(blocked_qps)) deallocate(blocked_qps)
+    if(allocated(partner_qps)) deallocate(partner_qps)
+    
     NB = 0 ;  NN = 0 ; NP = 0
     if(allocated(n_blocked)) NN = size(n_blocked)
     if(allocated(p_blocked)) NP = size(p_blocked)
     NB = NP + NN
 
     if(NB.ne.0) then
-      allocate(blocked_qps(NB))
-      if(allocated(n_blocked))  blocked_qps(   1:NN) = n_blocked
+      allocate(blocked_qps(NB), partner_qps(NB), qp_overlaps(NB))
+      if(allocated(n_blocked)) then
+         blocked_qps(   1:NN) = n_blocked
+         partner_qps(   1:NN) = n_partners
+         qp_overlaps(   1:NN) = n_overlaps
+      endif
       if(allocated(p_blocked)) then
          ! We need to offset stuff by the number of neutron qps
          do i=1, NP
-           blocked_qps(NN+i) = p_blocked(i) + sum(HFBlocks(1:4))
+           blocked_qps(NN+i) = p_blocked(i)  + sum(HFBlocks(1:4))
+           partner_qps(NN+i) = p_partners(i) + sum(HFBlocks(1:4))
+           qp_overlaps(NN+i) = p_overlaps(i)
          enddo
       endif
     endif
@@ -312,6 +332,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     call PairingMatrices(configmatrix, bogoliubov, rho_pairing, kappa_pairing)
 
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
+
   end subroutine solvepairing_HFB_direct
 
   subroutine solvepairing_HFB_gradient( sphamil, gaps, fermi, lambda2, Bogo,   & 
@@ -629,10 +650,10 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
 
     real(KIND=dp)             :: part, lambda_copy(2), maxov, tr_over
     real(KIND=dp), allocatable:: HFBHamil(:,:), config(:), bogo(:,:), eqp(:)
-    real(KIND=dp), allocatable:: overlap(:,:), tr_qp(:)
+    real(KIND=dp), allocatable:: overlap(:,:), tr_qp(:), qpover(:)
     integer                   :: si, sb, N, N2, ifail, B, it, i, j, k, NB, ind
     integer                   :: column
-    integer, allocatable      :: blocked_qp(:),blockblock(:)
+    integer, allocatable      :: blocked_qp(:),blockblock(:), pqp(:)
     logical                   :: check
     
     if(blocktype.ne.2 .and. blocktype.ne.4 .and. blocktype.ne.0) then
@@ -682,12 +703,12 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     part = Diagbyblock(HFBHamil(1:2*nwn,1:2*nwn), HFblocks(1:4),               &
     &                  config(1:2*nwn),                                        &
     &                  Bogo(1:2*nwn,1:2*nwn),Eqp(1:2*nwn),      &
-    &                  lambda_copy(1), 0 , (/0/), blocked_qp, ifail)
+    &                  lambda_copy(1), 0 , (/0/), blocked_qp, pqp, qpover,ifail)
     
     part = Diagbyblock(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFblocks(5:8),   &
     &                  config(2*nwn+1:2*nwt),                                  &
     &                  Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt), Eqp(2*nwn+1:2*nwt),  &
-    &                  lambda_copy(2), 0 , (/0/), blocked_qp, ifail)
+    &                  lambda_copy(2), 0 , (/0/), blocked_qp, pqp, qpover,ifail)
 
     ! Don't forget to correct the structure of the matrices
     call reorganise_matrices(Bogo,Eqp, config)
@@ -836,7 +857,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
   
   function obtain_eqp(sphamil, gaps, lambda, blocks) result(eigen)
     !---------------------------------------------------------------------------
-    ! Obtain the quasiparticle energies by construspwf_J(:,:,:), hf_J(:,:), can_J(:,:)cting and diagonalizing the 
+    ! Obtain the quasiparticle energies by constructing and diagonalizing the 
     ! HFB hamiltonian. 
     !
     ! Input :

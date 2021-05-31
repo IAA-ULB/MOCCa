@@ -152,7 +152,7 @@ contains
         endif
     enddo
     print 20
-    deallocate( HF_gaps)  
+    if(allocated(HF_gaps)) deallocate( HF_gaps)  
     !---------------------------------------------------------------------------
     ! Return if we are not doing a HFB calculation
     if(PairingType.ne.2) return
@@ -274,7 +274,7 @@ contains
 
     if(PairingType.eq.0) return
     
-    call update_qp_angmom(Bogoliubov)
+    if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
 
     print 1
     
@@ -287,8 +287,9 @@ contains
         call print_qp_header(B)
         select case(pairingtype)
         case(2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! HFB case
-
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! The unselected quasi-particles
           do i=1,N+N2
             ! What are the single-particles dominating these qps? 
@@ -307,6 +308,7 @@ contains
             &           U(1), V(1), '-', '-', 0.0d0,                           &
             &            qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
           enddo
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! The selected quasi-particles
           do i=N+N2+1,2*N+2*N2
             ! What are the single-particles dominating these qps? 
@@ -327,15 +329,23 @@ contains
               Pstr = '-'
               ov   = 0.0d0 
               do k=1,size(blocked_qps)
-                if(blocked_qps(k) .eq. si+i-N-N2) then
-                  Bstr = 'B'
-                  Pstr = '-'
-                  ov = partner_overlaps(k)
-                endif
-                if(partner_qps(k) .eq. si+i-N-N2) then
-                  Bstr = '-'
-                  Pstr = 'P'
-                  ov = partner_overlaps(k)
+                if(N2.eq.0) then
+                  if(blocked_qps(k) .eq. si+i-N-N2) then
+                    Bstr = 'B'
+                    Pstr = 'P'
+                    ov = 1.0
+                  endif
+                else
+                  if(blocked_qps(k) .eq. si+i-N-N2) then
+                     Bstr = 'B'
+                     Pstr = '-'
+                     ov = partner_overlaps(k)
+                  endif
+                  if(partner_qps(k) .eq. si+i-N-N2) then
+                    Bstr = '-'
+                    Pstr = 'P'
+                    ov = partner_overlaps(k)
+                  endif
                 endif
               enddo
             else 
@@ -350,11 +360,14 @@ contains
           enddo
 
         case(1)
-          ! The BCS qp energies are not ordered by energy
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! BCS case
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           indices = order(BCSqps(si+1:si+N))
           do i=1, N
-            ind  = indices(i)
-            print 2, i, BCSqps(si+ind), BCSf(si+ind), 0,0,'-', '-', 0.0d0
+            !ind  = indices(i)
+            print 2, i, BCSqps(si+ind), BCSf(si+ind), 0,0,'-', '-', 0.0d0,     &
+            &        0.0d0, 0.0d0,0.0d0
           enddo
         end select
         si = si +   N +  N2
