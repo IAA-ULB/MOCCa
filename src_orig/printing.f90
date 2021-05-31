@@ -152,7 +152,7 @@ contains
         endif
     enddo
     print 20
-    deallocate( HF_gaps)  
+    if(allocated(HF_gaps)) deallocate( HF_gaps)  
     !---------------------------------------------------------------------------
     ! Return if we are not doing a HFB calculation
     if(PairingType.ne.2) return
