@@ -597,6 +597,8 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     ! (which is generally only used for printing)
     if(pairingtype.eq.2) then
       rho_hf =  construct_rho_HF(rho_pairing, HFtransfo)
+    else
+      rho_hf = rho_can/2.0
     endif  
     !---------------------------------------------------------------------------
     ! If beta != infty, we calculate the number of particles in the gas

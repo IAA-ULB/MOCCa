@@ -264,7 +264,7 @@ subroutine ReachForWaterAndFood()
     call printcranking  
     call printpairing(pairstabfactor)
     call PrintEnergy 
-
+    
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------

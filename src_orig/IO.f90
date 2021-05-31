@@ -925,11 +925,7 @@ contains
       call write_sp_info(SPHFFILE)
     endif 
     ! b) in the canonical basis
-    if(SPCANFILE .ne. '') then  
-      if(pairingtype.ne.2) then
-        print *, 'Cannot output single-particle information in the canonical basis.'
-        stop
-      endif
+    if(pairingtype.eq.2 .and. SPCANFILE .ne. '') then
       call write_sp_info_can(SPCANFILE)
     endif
 
@@ -1313,11 +1309,11 @@ contains
     write(iochannel, fmt=5)  func_name
     write(iochannel, fmt=6)  FermiEnergy
   
-    Q20 =>FindMoment(2,0,.false.     )
-    Q22 =>FindMoment(2,2,.false., Q20)    
-    write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
-    write(iochannel, fmt=8)    Q20%beta(3), Q22%beta(3)
-    write(iochannel, fmt=9)    Q(3), G(3)
+    !Q20 =>FindMoment(2,0,.false.     )
+    !Q22 =>FindMoment(2,2,.false., Q20)    
+    !write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
+    !write(iochannel, fmt=8)    Q20%beta(3), Q22%beta(3)
+    !write(iochannel, fmt=9)    Q(3), G(3)
     
     write(iochannel, fmt=10)  blocktype, blocknumber
     if(blocknumber .gt. 0) then

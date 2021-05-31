@@ -274,7 +274,7 @@ contains
 
     if(PairingType.eq.0) return
     
-    call update_qp_angmom(Bogoliubov)
+    if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
 
     print 1
     
@@ -287,6 +287,7 @@ contains
         call print_qp_header(B)
         select case(pairingtype)
         case(2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! HFB case
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! The unselected quasi-particles
@@ -359,11 +360,14 @@ contains
           enddo
 
         case(1)
-          ! The BCS qp energies are not ordered by energy
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! BCS case
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           indices = order(BCSqps(si+1:si+N))
           do i=1, N
-            ind  = indices(i)
-            print 2, i, BCSqps(si+ind), BCSf(si+ind), 0,0,'-', '-', 0.0d0
+            !ind  = indices(i)
+            print 2, i, BCSqps(si+ind), BCSf(si+ind), 0,0,'-', '-', 0.0d0,     &
+            &        0.0d0, 0.0d0,0.0d0
           enddo
         end select
         si = si +   N +  N2
