@@ -599,12 +599,12 @@ $TR      &                - mu * matmul(U,prev(si+1:si+T,si+1:si+T))
     !    Bogo : orthonormalized Bogoliubov transformation
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(inout) :: bogo(:,:)
-    integer, intent(in)          :: blocks(4)
+    integer, intent(in)          :: blocks(:)
     integer                      :: i,j,k, N, N2, sb, T, B
     real(KIND=dp)                :: overlap
 
     sb = 0
-    do B=1,4,2
+    do B=1,size(blocks),2
       N = blocks(B) ; if(N.eq.0) cycle
       N2= blocks(B+1)
 

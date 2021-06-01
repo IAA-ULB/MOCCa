@@ -52,7 +52,7 @@ contains
     real(KIND=dp), allocatable                :: temp(:,:,:), tempe(:)
     real(KIND=dp), allocatable                :: tempd(:), tempr(:)
     real(KIND=dp), allocatable                :: tempgaps(:,:), tempkap(:,:)
-
+    real(KIND=dp), allocatable                :: tempbogo(:,:), temprho(:,:)
     integer  :: wave, N, B, si, sb,i, wave2
 
     if(.not. allocated(rho_can)) then
@@ -120,18 +120,26 @@ contains
       HFBlocks(5) = blocks(5) ; HFBlocks(6) = blocks(5)
       HFBlocks(7) = blocks(7) ; HFBlocks(8) = blocks(7)
       !-------------------------------------------------------------------------
-      ! Transformation of the pairing gaps and pairing tensor kappa
+      ! Transformation of pairing quantities
+      ! (1) pairing gaps
+      ! (2) density matrix rho
+      ! (3) anomalous density kappa
+      ! (4) Bogoliubov transformation
       if(pairingtype.eq.2) then
         ! Only do this if HFB gaps have been read from file, otherwise we rely
         ! on the initialization routine for gaps
         if(allocated(HFBgaps)) then 
           tempgaps = HFBgaps
           tempkap  = kappa_pairing 
-        
+          tempbogo = Bogoliubov    
+          temprho  = rho_pairing
+          
           deallocate(HFBgaps)       ; allocate(HFBgaps(nwt, nwt))  
           deallocate(kappa_pairing) ; allocate(kappa_pairing(nwt,nwt))
-
-          HFBgaps = 0; kappa_pairing = 0
+          deallocate(Bogoliubov)    ; allocate(Bogoliubov(nwt,nwt))
+          deallocate(rho_pairing)   ; allocate(rho_pairing(nwt,nwt))
+          
+          HFBgaps = 0; rho_pairing = 0 ; kappa_pairing = 0 ; Bogoliubov = 0
 
           si = 0  ; sb = 0
           do B = 1,8
@@ -147,7 +155,47 @@ contains
                 &                                     tempgaps(si+wave,si+wave2)
                 kappa_pairing(sb + wave + N, sb + wave2    ) = &
                 &                                    -tempgaps(si+wave,si+wave2)
-              enddo
+              enddo 
+            enddo
+            
+            do wave=1,N
+                ! On file, the Bogoliubov transformation has the following form
+                !
+                !  W =   ( V^T,+  U^+)     => time-reversal invariant, i.e.
+                !        ( U^T,+  V^+)        half of all columns 
+                !
+                ! but we need to produce a Bogoliubov transform that reads
+                ! (in every pair of blocks linked by an antihermitian, linear 
+                !  symmetry)
+                ! 
+                !
+                !       (  V^*+   0     U+  0   )
+                !  W =  (  0      V^*-  0   U-  )      
+                !       (  0      U^*-  0   V-  )
+                !       (  U^*+   0     V+  0   )
+                !
+                ! with U^+ = U^- and V^- = - V^+.
+
+                ! We start by getting the r.h.s. columns correct
+                ! - - - - - - - - - - - - - - - - - - - - - - - -
+                ! U^+
+                Bogoliubov(sb    +1:sb+  N, sb+2*N+wave) = &
+                &                              tempbogo(si  +1:si+  N,si+N+wave)
+                ! V^+
+                Bogoliubov(sb+3*N+1:sb+4*N, sb+2*N+wave) = &
+                &                              tempbogo(si+N+1:si+2*N,si+N+wave)
+                ! U^-
+                Bogoliubov(sb+  N+1:sb+2*N, sb+3*N+wave) = &
+                &                              tempbogo(si  +1:si+  N,si+N+wave)
+                ! V^- (note the minus sign!)
+                Bogoliubov(sb+2*N+1:sb+3*N, sb+3*N+wave) = &
+                &                            - tempbogo(si+N+1:si+2*N,si+N+wave)
+                ! - - - - - - - - - - - - - - - - - - - - - - - -
+                ! and then we construct the l.h.s. columns by symmetry
+                Bogoliubov(sb    +1:sb+2*N, sb+2*N+1-wave) = &
+                &                       Bogoliubov(sb+2*N+1:sb+4*N, sb+2*N+wave)  
+                Bogoliubov(sb+2*N+1:sb+4*N, sb+2*N+1-wave) = &
+                &                       Bogoliubov(sb    +1:sb+2*N, sb+2*N+wave)            
             enddo
 
             si = si +   N
@@ -159,7 +207,7 @@ contains
   end subroutine Transformspwfs
 
   subroutine TransformInput(filenx,fileny,filenz,filenwn,filenwp, filedx,      &
-  &                         fileblocks, extraspwfs)
+  &                         fileblocks, file_HFB_blocks, extraspwfs)
     !---------------------------------------------------------------------------
     ! Transform the input from file to the parameters of the new calculation.
     ! Note that this means either 
@@ -191,13 +239,22 @@ contains
   2 format (' Interpolation (changing of dx) not yet allowed.')
 
     integer, intent(in)        :: filenx,fileny,filenz,filenwn, filenwp
-    integer, intent(in)        :: fileblocks(blocks),extraspwfs(blocks)
+    integer, intent(in)        :: fileblocks(8),extraspwfs(8)
+    integer, intent(in)        :: file_HFB_blocks(8)
+    integer                    :: bogo_blocks(8)
+
     real(KIND=dp), intent(in)  :: filedx
     real(KIND=dp), allocatable :: extended(:,:,:), newenergy(:), temp(:)
-    real(KIND=dp), allocatable :: temp2(:,:)
+    real(KIND=dp), allocatable :: temp2(:,:), U(:,:), V(:,:)
+    
+    real(KIND=dp), pointer :: Unew(:,:), Vnew(:,:)
 
     logical :: ChangeBoxSize = .false., transformed= .false.
+    logical :: gradient_detected
     integer :: i,j, b, sb, sf
+    integer :: N1HF   , N2HF   , N1F   , N2F   , TF, THF
+    integer :: N1HF_sp, N2HF_sp, N1F_sp, N2F_sp, TF_sp, THF_sp
+    
 
     transformed = .false.
     !---------------------------------------------------------------------------
@@ -248,16 +305,42 @@ $TR       if((extraspwfs(2).ne.0) .or. &
 $TR          &  (extraspwfs(4).ne.0) .or. & 
 $TR          &  (extraspwfs(6).ne.0) .or. &
 $TR          &  (extraspwfs(8).ne.0) ) then
-$TR           print *, 'Blocks 2,4,6,8 not allowed with T conserved.'
-$TR           stop
+$TR          print *, 'Blocks 2,4,6,8 not allowed with time-reversal conserved.'
+$TR          stop
 $TR       endif
+
+$NTR      do b=1,8,2
+$NTR        if(extraspwfs(b) .ne. extraspwfs(b+1)) then
+$NTR         print *, 'Spwf number with Rz = +i needs to match the number with Rz = -i.'
+$NTR         print *, 'Block = ', B, ' extraspwfs = ', extraspwfs(b), extraspwfs(b+1)
+$NTR         stop
+$NTR        endif
+$NTR      enddo
           !---------------------------------------------------------------------
           allocate(extended(nx*ny*nz,4,nwt)) ; allocate(newenergy(nwt))
           extended = 0.0
           hfblocks = fileblocks + extraspwfs ; newenergy = 1000.0
-
+          
+          gradient_detected =.false.
+          do b=1,8
+            if(fileblocks(B).ne.file_HFB_blocks(B)) then
+              gradient_detected = .true.
+            endif
+          enddo
+          
+          if(gradient_detected) then
+            bogo_blocks = file_HFB_blocks + extraspwfs
+          else
+            bogo_blocks = hfblocks
+          endif
+          
+          print *, hfblocks
+          print *, fileblocks
+          print *, file_HFB_blocks
+          print *, bogo_blocks
+          
           sb = 0 ; sf = 0  
-          do b = 1, blocks
+          do b = 1, 8
             do i=1, fileblocks(b)
                 extended(:,:,sb+i) = hfpsi(:,:,sf+i)
                 newenergy(sb+i)    = spenergies(sf+i)
@@ -277,9 +360,17 @@ $TR       endif
           if(allocated(rho_can))     deallocate(rho_can)     
           allocate(rho_can(nwt))     ; rho_can    =0.0
           !---------------------------------------------------------------------
-          ! Dealing with the gaps
+          ! Dealing with the quantities related to the pairing subproblem
+          ! (1)  the pairing gaps
+          ! (2)  the density matrix rho
+          ! (3)  the anomalous density matrix
+          ! (4)  the Bogoliubov transformation
+          ! (5)  the configuration matrix
+          ! (6)  the HF transformation
+          ! (7)  the current single-particle hamiltonian
           select case (pairingtype)
           case(0)
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
             ! HF, nothing to do
           case(1)
             ! BCS, need to move the gaps into the correct position
@@ -287,7 +378,7 @@ $TR       endif
             allocate(BCSgaps(nwt)) ; BCSgaps = 0.0
     
             sb = 0 ; sf = 0  
-            do b = 1, blocks
+            do b = 1,8,2
               do i=1, fileblocks(b)
                  BCSgaps(sb+i) = temp(sf+i)
               enddo
@@ -295,38 +386,275 @@ $TR       endif
               sf  = sf + fileblocks(b)
             enddo            
           case(2)
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! HFB pairing 
             if(allocated(HFBgaps)) then
-                !HFB, need to move the gaps into the correct position
-                temp2 = HFBgaps ; deallocate(HFBgaps)
-                allocate(HFBgaps(nwt,nwt)) ; HFBgaps = 0.0 
-        
-                sb = 0 ; sf = 0  
-                do b = 1, blocks
-                  do i=1, fileblocks(b)
-                    do j=1, fileblocks(b)
-                     HFBgaps(sb+i, sb+j) = temp2(sf+i, sf+j)
-                    enddo
+              !-----------------------------------------------------------------
+              ! (1) Pairing gaps
+              temp2 = HFBgaps ; deallocate(HFBgaps)
+              allocate(HFBgaps(nwt,nwt)) ; HFBgaps = 0.0 
+      
+              sb = 0 ; sf = 0  
+              do b = 1,8,2
+                do i=1, fileblocks(b) 
+                  do j=1, fileblocks(b+1) 
+                   HFBgaps(sb+i, sb+hfblocks(b)+j) = &
+                   &                             temp2(sf+i, sf+fileblocks(b)+j)
+                   HFBgaps(sb+hfblocks(b)+j, sb+i) = &
+                   &                             temp2(sf+fileblocks(b)+j, sf+i)
                   enddo
-                  sb  = sb + hfblocks(b)
-                  sf  = sf + fileblocks(b)
                 enddo
 
-                temp2 = kappa_pairing; deallocate(kappa_pairing)
-                allocate(kappa_pairing(nwt,nwt)) ; kappa_pairing = 0.0
-                
-                sb = 0 ; sf = 0  
-                do b = 1, blocks
-                  do i=1, fileblocks(b)
-                    do j=1, fileblocks(b)
-                     kappa_pairing(sb+i, sb+j) = temp2(sf+i, sf+j)
-                    enddo
+                sb  = sb +    hfblocks(b) +   hfblocks(b+1)
+                sf  = sf +  fileblocks(b) + fileblocks(b+1)
+              enddo
+              !-----------------------------------------------------------------
+              ! (2) density matrix rho
+              temp2 = rho_pairing; deallocate(rho_pairing)
+              allocate(rho_pairing(nwt,nwt)) ; rho_pairing = 0.0
+              
+              sb = 0 ; sf = 0  
+              do b = 1, 8
+                do i=1, fileblocks(b)
+                  do j=1, fileblocks(b) 
+                   rho_pairing(sb+i, sb+j) = temp2(sf+i, sf+j)
                   enddo
+                enddo
+                sb  = sb +    hfblocks(b) 
+                sf  = sf +  fileblocks(b) 
+              enddo
+              !-----------------------------------------------------------------
+              ! (3) anomalous density matrix kappa
+              temp2 = kappa_pairing; deallocate(kappa_pairing)
+              allocate(kappa_pairing(nwt,nwt)) ; kappa_pairing = 0.0
+              
+              sb = 0 ; sf = 0  
+              do b = 1, 8, 2
+                do i=1, fileblocks(b) 
+                  do j=1, fileblocks(b+1) 
+                   kappa_pairing(sb+i, sb+hfblocks(b)+j) = &
+                   &                             temp2(sf+i, sf+fileblocks(b)+j)
+                   kappa_pairing(sb+hfblocks(b)+j, sb+i) = &
+                   &                             temp2(sf+fileblocks(b)+j, sf+i)
+                  enddo
+                enddo
+                sb  = sb +    hfblocks(b) +   hfblocks(b+1)
+                sf  = sf +  fileblocks(b) + fileblocks(b+1)
+              enddo
+              !-----------------------------------------------------------------
+              ! (4) the Bogoliubov transformation
+              temp2 = Bogoliubov; deallocate(Bogoliubov)
+              allocate(Bogoliubov(2*nwt,2*nwt)) ; Bogoliubov = 0.0
+              
+              sb = 0 ; sf = 0  
+              do b = 1, 8, 2 
+                !
+                ! We need to keep track of a whole bunch of indexes:
+                !
+                ! *) single-particle indices (_sp)
+                ! *) quasiparticle indices  (no suffix)
+                ! *) file indices (F)
+                ! *) memory indices (HF)
+                !
+                ! We need to take both single-particle and quasi-particle
+                ! indices, as the Bogoliubov transformation on the file might
+                ! have been generated by a gradient solver, and blocking 
+                ! might have changed the effective qp-block size.                
+                N1HF = bogo_Blocks(B)   ; N1F = file_HFB_blocks(b)    
+                N2HF = bogo_Blocks(B+1) ; N2F = file_HFB_blocks(b+1)
+                
+                N1HF_sp = HFBlocks(B)   ; N1F_sp = fileblocks(b)    
+                N2HF_sp = HFBlocks(B+1) ; N2F_sp = fileblocks(b+1)
+                
+                THF   = N1HF   +N2HF    ; TF   = N1F    + N2F
+                THF_sp= N1HF_sp+N2HF_sp ; TF_sp= N1F_sp + N2F_sp
+
+                ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                ! Copy the Bogoliubov transformation on file into the new one
+                !
+                !       (  V^*+   0     U+  0   )
+                !  W =  (  0      V^*-  0   U-  )      
+                !       (  0      U^*-  0   V-  )
+                !       (  U^*+   0     V+  0   )
+                !
+                ! Note, we only fill in the r.h.s., as that is the only part
+                ! that gets propagated by the code. 
+                ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                ! U^+ and V^+
+                U = temp2(sf             +1:sf+N1F_sp,sf+TF+1:sf+TF+N1F)  
+                V = temp2(sf+TF_sp+N2F_sp+1:         ,sf+TF+1:sf+TF+N1F)  
+                Unew => Bogoliubov(sb               +1:sb+  THF_sp,sb+THF+1:sb+THF+N1HF)
+                Vnew => Bogoliubov(sb+THF_sp+N2HF_sp+1:sb+2*THF_sp,sb+THF+1:sb+THF+N1HF) 
+
+                Unew(1:N1F_sp, 1:N1F) = U
+                Vnew(1:N1F_sp, 1:N1F) = V
+                
+                !---------------------------------------------------------------
+                ! I initially tried to set up some random numbers in the
+                ! new U and V columns, but this made for a quite unpredictable
+                ! start of the iterative process for a gradient solver; either
+                !
+                ! (i)  I obtained a gas-like solution with all levels
+                !      fractionally occupied
+                ! (ii) The energy moved by several tens of MeV for just a few
+                !      iterations. 
+                !---------------------------------------------------------------
+                
+!                ! We have the old information in the right places, but now 
+!                ! we need to fill something in the new columns
+!                call random_number(Unew(N1F_sp+1:N1HF_sp,N1F+1:N1HF))
+!                call random_number(Vnew(N1F_sp+1:N1HF_sp,N1F+1:N1HF))
+
+!                ! We have the old information in the right places, but now 
+!                ! we need to fill something in the new columns
+!                Unew(N1F_sp+1:N1HF_sp,N1F+1:N1HF) = &
+!                &                    Unew(N1F_sp+1:N1HF_sp,N1F+1:N1HF) * 0.001
+!                Vnew(N1F_sp+1:N1HF_sp,N1F+1:N1HF) = &
+!                &                    Vnew(N1F_sp+1:N1HF_sp,N1F+1:N1HF) * 0.001
+
+                ! And keep this levels primarily as "unoccupied"
+                do i=1,extraspwfs(b)
+                    Unew(N1F_sp+i,N1F+i) =  Unew(N1F_sp+i,N1F+i)+ 1.0
+                enddo
+
+                ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                ! U^- and V^-
+                U = temp2(sf+N1F_sp+1:sf+N1F_sp+N2F_sp,sf+TF+N1F+1:)  
+                V = temp2(sf+ TF_sp+1:sf+ TF_sp+N1F_sp,sf+TF+N1F+1:)  
+
+                Unew => Bogoliubov(sb+N1HF_sp+1:sb+THF_sp        ,sb+THF+N1HF+1:)
+                Vnew => Bogoliubov(sb+ THF_sp+1:sb+THF_sp+N1HF_sp,sb+THF+N1HF+1:) 
+
+                Unew(1:N2F_sp, 1:N2F) = U
+                Vnew(1:N2F_sp, 1:N2F) = V
+
+                !---------------------------------------------------------------
+                ! Random part inactive
+                !---------------------------------------------------------------
+!                ! We have the old information in the right places, but now 
+!                ! we need to fill something in the new columns
+!                call random_number(Unew(N2F_sp+1:N2HF_sp,N2F+1:N2HF))
+!                call random_number(Vnew(N2F_sp+1:N2HF_sp,N2F+1:N2HF))
+
+!                ! But make these random numbers not mess up the calculation 
+!                ! TOO much
+!                Unew(N2F_sp+1:N2HF_sp,N2F+1:N2HF) = &
+!                &                    Unew(N2F_sp+1:N2HF_sp,N2F+1:N2HF) * 0.001
+!                Vnew(N2F_sp+1:N2HF_sp,N2F+1:N2HF) = &
+!                &                    Vnew(N2F_sp+1:N2HF_sp,N2F+1:N2HF) * 0.001
+
+                ! And keep this levels primarily as "unoccupied"
+                do i=1,extraspwfs(b+1)
+                    Unew(N2F_sp+i,N2F+i) = Unew(N2F_sp+i,N2F+i) + 1.0
+                enddo
+
+                sb  = sb + 2*bogo_blocks(b)     + 2*bogo_blocks(b+1)
+                sf  = sf + 2*file_HFB_blocks(b) + 2*file_HFB_blocks(b+1)
+              enddo
+
+!             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!             ! Debugging print statements
+!             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!
+!              sb = 0 ; sf = 0  
+!              do b = 1, 8, 2 
+!                N1HF = bogo_Blocks(B)   ; N1F = file_HFB_blocks(b)    
+!                N2HF = bogo_Blocks(B+1) ; N2F = file_HFB_blocks(b+1)
+!                
+!                N1HF_sp = HFBlocks(B)   ; N1F_sp = fileblocks(b)    
+!                N2HF_sp = HFBlocks(B+1) ; N2F_sp = fileblocks(b+1)
+!                
+!                THF   = N1HF   +N2HF    ; TF   = N1F    + N2F
+!                THF_sp= N1HF_sp+N2HF_sp ; TF_sp= N1F_sp + N2F_sp
+!              
+!                print *, 'BOGO'
+!                do i=1,2*(N1HF_sp+N2HF_sp)
+!                  print ('(99f10.3)'), Bogoliubov(sb+i, sb+THF+1:sb+2*THF)
+!                enddo
+!                print *
+!                print *, 'TEMP2'
+!                do i=1,2*(N1F_sp+N2F_sp)
+!                  print ('(99f10.3)'), temp2(sf+i, sf+TF+1:sf+2*TF)
+!                enddo
+!                print *
+!                sb  = sb + 2*bogo_blocks(b)   + 2*bogo_blocks(b+1)
+!                sf  = sf + 2*file_HFB_blocks(b) + 2*file_HFB_blocks(b+1)
+!              enddo
+!             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+              
+              ! And now make sure all columns are orthogonal
+              ! (NOTE: this routine only works on the right-most half of the 
+              !        transformation, but that is sufficient)
+              call ortho_bogo(Bogoliubov, HFBlocks)
+              
+              !-----------------------------------------------------------------
+              ! (5) the configuration matrix
+              temp = configmatrix 
+              deallocate(configmatrix) ; allocate(configmatrix(2*nwt))
+              sb = 0 ; sf = 0
+              do b=1,8,2
+                N1HF = bogo_Blocks(B)   ; N1F = file_HFB_blocks(b)    
+                N2HF = bogo_Blocks(B+1) ; N2F = file_HFB_blocks(b+1)
+                THF  = N1HF+N2HF     ; TF  = N1F + N2F
+
+                configmatrix(sb     +1:sb+N1F)       = temp(sf    +1:sf+N1F)
+                configmatrix(sb+N1HF+1:sb+N1HF+N2F ) = temp(sf+N1F+1:sf+TF)
+
+                configmatrix(sb+THF     +1:sb+THF+N1F) = &
+                &                                  temp(sf+TF    +1:sf+  TF+N1F)
+                configmatrix(sb+THF+N1HF+1:sb+THF+N1HF+N2F) = &
+                &                                  temp(sf+TF+N1F+1:sf+2*TF)
+
+                ! Filling in the occupation numbers for the new qps
+                configmatrix(sb+N1F+1:sb+N1HF)        = 0
+                configmatrix(sb+N1HF+N2F+1:sb+THF)    = 0
+
+                configmatrix(sb+THF+N1F     +1:sb+THF+N2HF)= 1
+                configmatrix(sb+THF+N1HF+N2F+1:sb+2*THF)   = 1
+              
+                sb  = sb + 2*bogo_blocks(b)   + 2*bogo_blocks(b+1)
+                sf  = sf + 2*file_HFB_blocks(b) + 2*file_HFB_blocks(b+1)
+              enddo
+              
+              !-----------------------------------------------------------------
+              ! (6) The HF transformation
+              temp2 = HFtransfo
+              deallocate(hftransfo) ; allocate(hftransfo(nwt,nwt))
+              hftransfo = 0
+              
+              sb = 0; sf = 0
+              do b=1,8
+                  hftransfo(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
+                  & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
+                  do i=1,extraspwfs(b)
+                      hftransfo(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = 1.0d0
+                  enddo
+                  
                   sb  = sb + hfblocks(b)
                   sf  = sf + fileblocks(b)
-                enddo
-              else
-                 ! We do nothing if no gaps were initialised yet.
-              endif 
+              enddo
+              !-----------------------------------------------------------------
+              ! (7) The current single-particle hamiltonian 
+              temp2 = current_sph
+              deallocate(current_sph); allocate(current_sph(nwt,nwt))
+              current_sph = 0.0d0
+                
+              sb = 0; sf = 0
+              do b=1,8
+                  current_sph(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
+                  & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
+                  do i=1,extraspwfs(b)
+                      current_sph(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = &
+                      &                    spenergies(sb+fileblocks(b)+i)
+                  enddo
+                  
+                  sb  = sb + hfblocks(b)
+                  sf  = sf + fileblocks(b)
+              enddo
+              !-----------------------------------------------------------------
+            else
+               ! We do nothing if no gaps were initialised yet.
+            endif 
           end select
           !---------------------------------------------------------------------
     else

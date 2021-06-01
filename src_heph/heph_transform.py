@@ -29,9 +29,11 @@ def ProcessTransform(fname, src, target, so, oldso):
     dic = {}
 
     if(so.timelike):
-        dic['TR'] = ''
+        dic['TR']  = ''
+        dic['NTR'] = '!'
     else:
-        dic['TR'] = '!'
+        dic['TR']  = '!'
+        dic['NTR'] = ''
 
 
     # Checking which symmetries we need to break

@@ -250,8 +250,8 @@ contains
   
   subroutine deriveHF()
     !---------------------------------------------------------------------------
-    ! Derives all of the single-particle wave-functions. 
-    ! a) In the HF basis
+    ! Derives all of the single-particle wave-functions in the basis in memory
+    ! (which is not always the actual HF basis)
     !---------------------------------------------------------------------------
     integer :: wave,k
     
@@ -283,6 +283,36 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
     enddo
     call stop_timer(T_derivatives)
   end subroutine DeriveHF
+  
+  subroutine derive_extra_spwfs(extraspwfs)
+      !-------------------------------------------------------------------------
+      ! Derives all of the single-particle wave-functions that were added as
+      ! "bonus". Useful if these spwfs are evolved separately from the rest.
+      !-------------------------------------------------------------------------
+  
+      integer, intent(in) :: extraspwfs(8)
+      integer :: wave,k, B, si, N
+      
+      si = 0
+      do B=1,8
+        N = HFBlocks(B) ; if(N.eq.0) cycle
+        
+        do wave=si+N-extraspwfs(B)+1, si+N
+          do k=1,4
+$N2        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
+$N2        &                                           HFdPsi(:,:,k,wave),     &
+$N2        &                                           HFddPsi(:,:,k,wave))
+
+$N3        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
+$N3        &                                           HFdPsi(:,:,k,wave),     &
+$N3        &                                           HFddPsi(:,:,k,wave),    &
+$N3        &                                           HFdddPsi(:,:,k,wave))
+          enddo
+        enddo
+        si = si + N
+      enddo
+  
+  end subroutine derive_extra_spwfs
   
   subroutine deriveCan()
     !---------------------------------------------------------------------------

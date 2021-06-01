@@ -314,7 +314,7 @@ contains
       else
           ! Option b): add points and/or add spwfs
           call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,    & 
-          &                                               fileblocks,extraspwfs)
+          &                               fileblocks,file_HFB_blocks,extraspwfs)
           call  GramSchmidt  
           ! The added spwfs are added somewhat randomly, hence we add an extra
           ! orthonormalisation in the mix.
@@ -353,7 +353,7 @@ contains
           ! This is the one case which we will accept: no blocking on the file, 
           ! but blocking in the input. In this case, we need to do an 
           ! explicit diagonalization from the start.
-          Bogofromfile = .false.
+          !Bogofromfile = .false.
       else
           ! In any other case, we check all things we can check.
           passed_block_test =  check_blocking_structure()      
@@ -1143,7 +1143,7 @@ contains
     enddo
 
     do B=1,8
-      if(file_HFB_blocks(B).ne.check_blocks(B)) then
+      if(file_HFB_blocks(B)+extraspwfs(B).ne.check_blocks(B)) then
         print *, 'Blocking structure of the Bogoliubov transformation on file'
         print *, 'does not match that reported by the file.'
         print *, ' Block structure of Bogoliubov matrix: ', file_HFB_blocks      
@@ -1312,11 +1312,11 @@ contains
     write(iochannel, fmt=5)  func_name
     write(iochannel, fmt=6)  FermiEnergy
   
-    !Q20 =>FindMoment(2,0,.false.     )
-    !Q22 =>FindMoment(2,2,.false., Q20)    
-    !write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
-    !write(iochannel, fmt=8)    Q20%beta(3), Q22%beta(3)
-    !write(iochannel, fmt=9)    Q(3), G(3)
+    Q20 =>FindMoment(2,0,.false.     )
+    Q22 =>FindMoment(2,2,.false., Q20)    
+    write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
+    write(iochannel, fmt=8)    Q20%beta(3), Q22%beta(3)
+    write(iochannel, fmt=9)    Q(3), G(3)
     
     write(iochannel, fmt=10)  blocktype, blocknumber
     if(blocknumber .gt. 0) then

@@ -48,8 +48,8 @@ module pairing
  !       code does not rely on it being this way.
  ! ...  and the "configuration matrix" ...
  real(KIND=dp), allocatable :: configmatrix(:)
- ! ... and finally, the Bogliubov transformation.
- real(KIND=dp), allocatable :: Bogoliubov(:,:)
+ ! ... and finally, the Bogoliubov transformation.
+ real(KIND=dp), allocatable, target :: Bogoliubov(:,:)
  ! Do we start with the Bogoliubov transformation from file? 
  ! This is important for the gradient solver, though not as much for the 
  ! HFB_direct solver. 
@@ -465,6 +465,7 @@ $FORBIDBCS endif
              ! half of the gaps, see HFB.f90
 $TR             do wave2=si+1,si+N
 $NTR          do wave2=si+N+1,si+N+N2
+
              !------------------------------------------------------------------
             if(allocated(kappa_pairing)) then
               ! We've found a kappa on file and can use it to guess better 

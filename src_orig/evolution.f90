@@ -436,6 +436,58 @@ contains
         call stop_timer(T_evolution)
 
     end subroutine Evolve_momentum
+    
+    subroutine evolve_partial(maxiter, extraspwfs)
+      !-------------------------------------------------------------------------
+      ! Perform some gradient evolution with a fixed single-particle hamiltonian 
+      ! for the BONUS spwfs, i.e. the ones that were added through the keyword
+      ! extraspwfs. As these are randomly initialized, such evolution brings 
+      ! them (hopefully) rather quickly to some "reasonable form".
+      !  
+      ! Input:
+      !    maxiter    :  # of evolutions to perform
+      !    extraspwfs :  number of extra spwfs that were added
+      !-------------------------------------------------------------------------
+      integer, intent(in) :: maxiter, extraspwfs(8)
+      integer :: B, N, iso, wave, iter, si, wave2
+      real(KIND=dp), allocatable :: hpsi(:,:)
+      
+      if(EstimateParams) call IterativeEstimation(1)
+      
+      do iter=1, maxiter
+        si = 0
+        do B=1,8
+          N = HFblocks(B) ; if(N.eq.0) cycle
+          iso = -1
+          if(B.gt.4) iso = +1
+          do wave=si+N-extraspwfs(B)+1,si+N
+            ! Calculate the action of the single-particle hamiltonian.
+            hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
+            &              hfdpsi(:,:,:,wave)   ,                              &
+            &              hfddpsi(:,:,:,wave)  ,                              &
+            &              hfdddpsi(:,:,:,wave) ,                              &
+            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+            
+            spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
+            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
+      
+            ! Evolve 
+            hfpsi(:,:,wave) = hfpsi(:,:,wave)  - dt/hbar* hpsi
+            do wave2=wave,si+N
+              current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+              current_sph(wave ,wave2) = current_sph(wave2,wave)
+            enddo
+          enddo
+
+          si = si + N
+        enddo
+        ! orthonormalize
+        call GramSchmidt
+        ! derive those that were evolved
+        call derive_extra_spwfs(extraspwfs)
+      enddo
+      
+    end subroutine evolve_partial
 
     subroutine eval_sph(diag)
       !------------------------------------------------------------------------
