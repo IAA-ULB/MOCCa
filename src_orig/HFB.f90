@@ -968,7 +968,9 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
       HFBHamil(sb  +1:sb+  T,sb  +1:sb+  T)     = +sphamil(si+1:si+T,si+1:si+T)
       HFBHamil(sb+T+1:sb+2*T,sb+T+1:sb+2*T)     = -sphamil(si+1:si+T,si+1:si+T)
   
-      HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = -gaps(si+1:si+T,si+1:si+T)
+$NTR  HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = -gaps(si+1:si+T,si+1:si+T)
+$TR   HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = +gaps(si+1:si+T,si+1:si+T)
+       
       HFBHamil(sb+1  :sb+  T,sb+T+1:sb+2*T) = +gaps(si+1:si+T,si+1:si+T)
       
       do i=1,T
@@ -988,7 +990,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
       do i=1, 2*T
         eigen(sb+i) = HFBHamil(sb+i, sb+i)
       enddo
-
+      
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
    enddo
