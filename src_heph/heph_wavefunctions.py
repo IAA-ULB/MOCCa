@@ -7,6 +7,7 @@
 #-------------------------------------------------------------------------------
 # Module governing the wavefunctions module of the FORTRAN code.
 import src_heph.heph_functional 
+from src_heph.heph_symmetries  import *
 from string                    import Template
 
 
@@ -29,10 +30,22 @@ def ProcessWavefunctions(fname, src, target, so):
 
       N2/N3 :  decides which derivative routines to comment/uncomment 
                depending on the order of derivatives in the functional
-  
-      ININX/NY/NZ: number of points in the box for the nilsson initialization
 
     """
+
+#    self.syms       = syms
+#    self.combs      = combs
+
+#    print (multiply_quantum_numbers(so.syms[0].permutation, so.combs[0], 1 ))
+#    print (multiply_quantum_numbers(so.syms[0].permutation, so.combs[0], 2 ))
+#    print (multiply_quantum_numbers(so.syms[0].permutation, so.combs[0], 3 ))
+#    print (multiply_quantum_numbers(so.syms[0].permutation, so.combs[0], 4 ))
+#    print ()
+#    print (multiply_quantum_numbers(so.syms[1].permutation, so.combs[1], 1 ))
+#    print (multiply_quantum_numbers(so.syms[1].permutation, so.combs[1], 2 ))
+#    print (multiply_quantum_numbers(so.syms[1].permutation, so.combs[1], 3 ))
+#    print (multiply_quantum_numbers(so.syms[1].permutation, so.combs[1], 4 ))
+#    exit()
 
     dic={}
     dic['N2'] = '!'

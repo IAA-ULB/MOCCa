@@ -16,17 +16,6 @@ import sys, importlib
 
 # Horizontal line for printing
 line  = 80*"-"
-#-------------------------------------------------------------------------------
-# Hephaestos can be run as
-# 
-#      python Hephaestos.py #1 #2
-#
-# where 
-#
-#   #1 = the name of a functional file, stored in the functionals/ folder.
-#   #2 = is a string determining the symmetries of the calculation
-#
-#-------------------------------------------------------------------------------
 
 heph_name= \
 '   =================================================================\n' +\
@@ -77,20 +66,32 @@ except AttributeError:
   print ("Config file does not have a INSYM attribute.")
   sys.exit(1)
 
-
 try:
   INREDUCE = configmod.INREDUCE
 except AttributeError:
   print ("Config file does not have a INREDUCE attribute.")
   sys.exit(1)
 
+try:
+  QUANT_AXIS = configmod.QUANT_AXIS
+except AttributeError:
+  QUANT_AXIS = 'Z'
+  
+try:
+  SECOND_AXIS = configmod.SECOND_AXIS
+except AttributeError:
+  SECOND_AXIS = 1
+
+
 print (line)
-print (' Configuration file: %s'%config)
-print ('    Functional file: %s'%FUNC_FILE)
-print ('    Symmetry string: %s'%SYMSTRING)
-print ('    Axis reduction : %s'%REDUCE)
-print ('    Symmetry string: %s'%INSYM)
-print ('    Axis reduction : %s'%INREDUCE)
+print (' Configuration file  : %s'%config)
+print ('    Functional file  : %s'%FUNC_FILE)
+print ('    Symmetry string  : %s'%SYMSTRING)
+print ('    Axis reduction   : %s'%REDUCE)
+print ('    Symmetry string  : %s'%INSYM)
+print ('    Axis reduction   : %s'%INREDUCE)
+print ('    Quantisation axis: %s'%QUANT_AXIS)
+print ('    Secondary    axis: %s'%SECOND_AXIS)
 print (line)
 
 #-------------------------------------------------------------------------------
@@ -127,8 +128,8 @@ if(not FOUND):
 
 #-------------------------------------------------------------------------------
 # First we identify all the relevant symmetry options
-so    = heph_symmetries.initsymmetries(SYMSTRING, REDUCE)
-oldso = heph_symmetries.initsymmetries(INSYM, INREDUCE)
+so    = heph_symmetries.initsymmetries(SYMSTRING,REDUCE,QUANT_AXIS,SECOND_AXIS)
+oldso = heph_symmetries.initsymmetries(INSYM,INREDUCE,QUANT_AXIS,SECOND_AXIS)
 
 print ("  Symmetry information" )
 heph_symmetries.printsymmetryoption(so)

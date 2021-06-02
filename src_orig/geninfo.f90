@@ -178,28 +178,57 @@ contains
   subroutine inimesh(x,y,z, mx, my, mz, mesh)
     !---------------------------------------------------------------------------
     ! Generate the coordinates of the mesh points for the Lagrange mesh.
-    ! Severe modification for Hephaestos will be necessary.
+    !
+    ! Input: 
+    !  mx,my,mz : number of points on the mesh in every direction that need
+    !             to be represented
+    !
+    ! Output:
+    !  x,y,z    : 1D arrays containing the coordinate values of the mesh points
+    !  mesh     : 3D array containing the coordinate values of the mesh points
+    !
+    ! All distances in units of [fm].
     !---------------------------------------------------------------------------
     integer                                         :: i,j,k
     integer, intent(in)                             :: mx, my, mz
     real(KIND=dp), intent(out), allocatable         :: x(:), y(:), z(:)
     real(KIND=dp), intent(out), allocatable, target :: mesh(:,:)
 
+    real(KIND=dp)          :: startx, starty, startz
     real(KIND=dp), pointer :: gridx(:,:,:), gridY(:,:,:)  , gridZ(:,:,:)    
 
     allocate( x(mx), y(my),z(mz))
     allocate(mesh(mx*my*mz,3))
     
+    if(reduX .eq.1) then
+      startX = 1/2.0_dp
+    else
+      startX = -(mx/2-1/2.0_dp)
+    endif
+    
+    if(reduY .eq.1) then
+      startY = 1/2.0_dp
+    else
+      startY = -(my/2-1/2.0_dp)
+    endif
+    
+    if(reduZ .eq.1) then
+      startZ = 1/2.0_dp
+    else
+      startZ = -(mz/2-1/2.0_dp)
+    endif
+    
     do i=1,mx
-      x(i) = (1/2.0_dp +(i-1))*dx
+      x(i) = (startx +(i-1))*dx
     enddo    
+
     do i=1,my
-      y(i) = (1/2.0_dp +(i-1))*dx
+      y(i) = (starty +(i-1))*dx
     enddo
     do i=1,mz
-      z(i) = (1/2.0_dp +(i-1))*dx
+      z(i) = (startz +(i-1))*dx
     enddo
-    
+
     mesh = 0
     gridx(1:mx,1:my,1:mz) => mesh(1:mx*my*mz,1)
     gridy(1:mx,1:my,1:mz) => mesh(1:mx*my*mz,2)

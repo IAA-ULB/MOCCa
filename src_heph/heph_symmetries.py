@@ -174,12 +174,14 @@ class symmetry_option():
       Practical container class to transmit all relevant symmetry combinations
       between different routines.
   """
-  def __init__(self, generators, syms, combs, ReduceAxes, desc):
+  def __init__(self, generators, syms, combs, ReduceAxes, desc, quant, second):
     self.generators = generators
     self.syms       = syms
     self.combs      = combs
     self.ReduceAxes = ReduceAxes 
     self.desc       = desc
+    self.quant_axis = quant
+    self.second_axis = second
       
     # Then, we check if there is a "timelike" symmetry conserved, i.e. an 
     # antilinear, antihermitian one
@@ -291,7 +293,7 @@ def symmetryencoding(so):
       encoded = encoded + '%d'%so.ReduceAxes[i]   
     return encoded
 
-def initsymmetries(SYMSTRING, REDUCE):
+def initsymmetries(SYMSTRING, REDUCE, QUANT_AXIS, SECOND_AXIS):
     """
       Parse the strings SYMSTRING and REDUCE and use them to make various 
       decisions based on the users symmetry choices. 
@@ -368,7 +370,7 @@ def initsymmetries(SYMSTRING, REDUCE):
         print ("  Stopping.")
         exit()
 
-    so = symmetry_option(generators, syms, combs, ReduceAxes, SYMSTRING)
+    so = symmetry_option(generators, syms, combs, ReduceAxes, SYMSTRING, QUANT_AXIS, SECOND_AXIS)
     return so
 
 def printsymmetryoption(so):

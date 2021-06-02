@@ -547,11 +547,6 @@ $NTR      enddo
             bogo_blocks = hfblocks
           endif
           
-          print *, hfblocks
-          print *, fileblocks
-          print *, file_HFB_blocks
-          print *, bogo_blocks
-          
           sb = 0 ; sf = 0  
           do b = 1, 8
             do i=1, fileblocks(b)

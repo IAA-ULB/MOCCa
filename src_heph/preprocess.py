@@ -26,6 +26,7 @@ from src_heph.heph_pairing       import ProcessPairing
 from src_heph.heph_transform     import ProcessTransform
 from src_heph.heph_IO            import ProcessIO
 from src_heph.heph_cranking      import ProcessCranking
+from src_heph.heph_multipoles    import ProcessMoments
 
 def preprocess(fname, src, target, so , oldso):
     """
@@ -84,7 +85,7 @@ def preprocess(fname, src, target, so , oldso):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='moments.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessMoments(fname, src, target, so)
         return
     if(fname=='constants.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
