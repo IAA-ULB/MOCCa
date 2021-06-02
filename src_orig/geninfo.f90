@@ -67,19 +67,29 @@ module GenInfo
   ! Negative values are used to indicate an infinite value, i.e. T = 0.
   real(KIND=dp) :: inversetemp = -1
   !---------------------------------------------------------------------------
-  ! Convergence criteria
-  !      Name       Default       Implementation   
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  !   energy_prec     1d-1     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec
-  !   moment_prec     1d-5     abs((Qlm^(i) - Qlm^(i))/Qlm^(i)) < moment_prec
-  !                                if Qlm^(i) is large enough
+  ! Convergence criteria. See the module convergence for additional remarks.
+  !
+  !   Keyword         Default    Quantity
+  !  ------------    ---------  -------------
+  !   energy_prec     1d-9     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec 
+  !                            
+  !   moment_prec     1d-3     abs((Q2m^(i) - Q2m^(i))/Q2m^(i)) < moment_prec
+  !                                         if abs(beta_2m^(i)) > 0.01 
+  !                            
+  !
   !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
   !                                     < disp_prec
+  !
+  !   gradient_prec   1d+0     |s.p. gradient|  <    gradient_prec  
+  !
   !   fermi_prec      1d-3     abs(lambda^(i) - lambda^(i-1)) < fermi_prec
   !                                    for both nucleon species
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  !
+  !   angmom_prec     1d-3     abs(<J_mu>^(i) - <J_mu>^(i-1)) < angmom_prec
+  !                                    for all cartesian directions
+  !---------------------------------------------------------------------------
   real(KIND=dp) :: energy_prec = 1d-11, moment_prec = 1d-5, disp_prec = 1d-5
-  real(KIND=dp) :: fermi_prec = 1d-3
+  real(KIND=dp) :: fermi_prec = 1d-3, angmom_prec   = 1d-3, gradient_prec=1d+0
   !-----------------------------------------------------------------------------
   ! Pairing tolerance
   ! Tolerance passed into the pairing solver. What exactly this determines 
@@ -275,6 +285,19 @@ contains
     end do
 
   end function to_lower
+
+  function rps(string,length) result(r)
+    !--------------------------------------------------------------------------
+    ! function rps (right-padded-string) to add blancs to a string such that 
+    ! it is printed left adjusted. Inspired by 
+    ! http://computer-programming-forum.com/49-fortran/45c9683fdbd85176.htm
+    !--------------------------------------------------------------------------
+    character(len=*) :: string
+    integer          :: length
+    character(len=length) :: r
+
+    r = adjustl(string)
+  end function rps 
   
   subroutine clean_geninfo()
     !---------------------------------------------------------------------------

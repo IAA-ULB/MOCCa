@@ -36,9 +36,11 @@ def ProcessTransform(fname, src, target, so, oldso):
     dic = {}
 
     if(so.timelike):
-        dic['TR'] = ''
+        dic['TR']  = ''
+        dic['NTR'] = '!'
     else:
-        dic['TR'] = '!'
+        dic['TR']  = '!'
+        dic['NTR'] = ''
 
     #---------------------------------------------------------------------------
     # Checking which symmetries we need to break
@@ -149,8 +151,8 @@ def ProcessTransform(fname, src, target, so, oldso):
 
     else:
       # Now to figure out how to the actual expansion
-      for i in range(4):
-        for j in range(4):
+      for i in range(1,5):
+        for j in range(1,5):
           dic['TRANSFO_Z_%d_B%d'%(i,j)] = '0.0d0'    
           dic['TRANSFO_Z_%d_B%d'%(i,j)] = '0.0d0'    
           dic['TRANSFO_Z_%d_B%d'%(i,j)] = '0.0d0'    

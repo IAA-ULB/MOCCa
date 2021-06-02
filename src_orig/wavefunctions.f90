@@ -1,12 +1,14 @@
 module wavefunctions
  !==============================================================================
- !  #######   ##   #    # #####   ##   #      #    #  ####
- !     #     #  #  ##   #   #    #  #  #      #    # #
- !     #    #    # # #  #   #   #    # #      #    #  ####
- !     #    ###### #  # #   #   ###### #      #    #      #
- !     #    #    # #   ##   #   #    # #      #    # #    #
- !     #    #    # #    #   #   #    # ######  ####   ####
- !
+ !_________ _______  _       _________ _______  _                 _______ 
+ !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
+ !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
+ !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
+ !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
+ !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
+ !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
+ !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
+ !                                                                       
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
@@ -30,8 +32,13 @@ module wavefunctions
  implicit none
  
  !------------------------------------------------------------------------------
- ! Array containing the values of the spwfs in the Hartree-Fock basis
- ! and their derivatives
+ ! Array containing the spwfs and their derivatives
+ !
+ ! Note: these are called the Hartree-Fock basis throughout the code (hence
+ !       the name HFBasis), but they are not guaranteed to be the actual 
+ !       Hartree-Fock basis, i.e. the basis that diagonalises the sphamiltonian.
+ !       An extra unitary transformation might be required among them to obtain
+ !       the physical HF basis. 
  !
  ! Note that higher-order derivative tensors are stored in lexicographical order
  ! in order to cut down on the number of indices and wasted computation.
@@ -43,7 +50,6 @@ module wavefunctions
  real(KIND=dp), allocatable, target ::   HFdPsi(:,:,:,:)!First order derivatives
  real(KIND=dp), allocatable, target ::  HFddPsi(:,:,:,:)!Second order derivatives
  real(KIND=dp), allocatable, target :: HFdddPsi(:,:,:,:)!Third order derivatives
- 
  !------------------------------------------------------------------------------
  ! Array containing the values of the spwfs in the Canonical basis
  ! and their derivatives.
@@ -52,8 +58,12 @@ module wavefunctions
  real(KIND=dp), allocatable, target ::CANddPsi(:,:,:,:)!Second order derivatives
  real(KIND=dp), allocatable, target ::CANdddPsi(:,:,:,:)!Third order derivatives
  !------------------------------------------------------------------------------
- ! Single-particle energies, diagonal elements of the single-particle
- ! hamiltonian: \langle psi_i | h | psi_i \rangle
+ ! Single-particle energies, 
+ ! Either:
+ ! (i)  diagonal elements of the single-particle hamiltonian: 
+ !      \langle psi_i | h | psi_i \rangle
+ ! (ii) eigenvalues of the single-particle hamiltonian when restricted to the
+ !      subspace being iterated
  real(KIND=dp), allocatable :: spenergies(:) 
  real(KIND=dp), allocatable :: current_sph(:,:)
  ! Dispersions of the spwfs with respect to h
@@ -61,18 +71,33 @@ module wavefunctions
  ! expectation values of the single-particle hamiltonian in the canonical basis
  real(KIND=dp), allocatable :: canenergies(:)
  !------------------------------------------------------------------------------
- ! Angular momentum properties of the spwfs in both the HF and canonical basis
- ! "Ordinary" <Jx>, <Jy>, <Jz> in the HF and canonical basis
- real(KIND=dp), allocatable :: spwf_J(:,:), can_J(:,:)
- ! Squared   <Jx^2>, <Jy^2>, <Jz^2>
- real(KIND=dp), allocatable :: spwf_J2(:,:), can_J2(:,:)
- ! With an extra time-reversal operator < Jx T >, < Jy T >, < Jz T >
+ ! Angular momentum properties of the spwfs in
+ !  (i)   the ordinary basis, i.e. the spwfs in storage: spwf_[...]
+ !  (ii)  the Hartree-Fock basis                       :   HF_[...]
+ !  (iii) the canonical basis                          :  can_[...]
+ ! "Ordinary" Jx, Jy, Jz 
+ real(KIND=dp), allocatable :: spwf_J(:,:,:), hf_J(:,:), can_J(:,:)
+ ! Squared   Jx^2, Jy^2, Jz^2
+ real(KIND=dp), allocatable :: spwf_J2(:,:,:), HF_J2(:,:), can_J2(:,:)
+ ! With an extra time-reversal operator JxT, JyT, JzT
  ! Both real and imaginary parts
- real(KIND=dp), allocatable :: spwf_JTR(:,:), can_JTR(:,:)
- real(KIND=dp), allocatable :: spwf_JTI(:,:), can_JTI(:,:)
+ real(KIND=dp), allocatable :: spwf_JTR(:,:,:), HF_JTR(:,:), can_JTR(:,:)
+ real(KIND=dp), allocatable :: spwf_JTI(:,:,:), HF_JTI(:,:), can_JTI(:,:)
  ! Total angular momentum "quantum number", i.e. the number J such that 
- !  J (J+1) = <J^2_x> +  <J^2_y> + <J^2_z>
- real(KIND=dp), allocatable :: spwf_JJ(:), can_JJ(:)
+ !  J (J+1) = J^2_x +  J^2_y + J^2_z
+ real(KIND=dp), allocatable :: spwf_JJ(:), HF_JJ(:), can_JJ(:)
+ ! 
+ ! Spin properties, i.e. < S_mu >
+ real(KIND=dp), allocatable :: spwf_spin(:,:,:), hf_spin(:,:), can_spin(:,:)
+ ! And values with a T-operator mixed in
+ real(KIND=dp), allocatable :: spwf_STR(:,:,:) , hf_STR(:,:) , can_STR(:,:)
+ real(KIND=dp), allocatable :: spwf_STI(:,:,:) , hf_STI(:,:) , can_STI(:,:)
+ !
+ ! Remark: when we diagonalise the sp hamiltonian explicitly, we are happy with 
+ ! calculating only the diagonal matrix elements. When not diagonalising the 
+ ! sphamiltonian explicitly, we are in need of the full matrices if we want to
+ ! print information in the actual HF basis.  
+ !------------------------------------------------------------------------------
  !------------------------------------------------------------------------------
  ! Number of the blocks with the same quantum numbers that divide up the 
  ! the single-particle wavefunctions.
@@ -111,7 +136,7 @@ module wavefunctions
  !       iterative scheme
  !  (ii) to stop caring about the diagonalisation of the sphamiltonian
  !       and simply care about the space spanned by the spwfs.
- logical :: diagsphamil = .false.
+ logical                    :: diagsphamil = .false.
  real(KIND=dp), allocatable :: HFtransfo(:,:)
 
 contains 
@@ -210,8 +235,8 @@ contains
   
   subroutine deriveHF()
     !---------------------------------------------------------------------------
-    ! Derives all of the single-particle wave-functions. 
-    ! a) In the HF basis
+    ! Derives all of the single-particle wave-functions in the basis in memory
+    ! (which is not always the actual HF basis)
     !---------------------------------------------------------------------------
     integer :: wave,k
     
@@ -243,6 +268,36 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
     enddo
     call stop_timer(T_derivatives)
   end subroutine DeriveHF
+  
+  subroutine derive_extra_spwfs(extraspwfs)
+      !-------------------------------------------------------------------------
+      ! Derives all of the single-particle wave-functions that were added as
+      ! "bonus". Useful if these spwfs are evolved separately from the rest.
+      !-------------------------------------------------------------------------
+  
+      integer, intent(in) :: extraspwfs(8)
+      integer :: wave,k, B, si, N
+      
+      si = 0
+      do B=1,8
+        N = HFBlocks(B) ; if(N.eq.0) cycle
+        
+        do wave=si+N-extraspwfs(B)+1, si+N
+          do k=1,4
+$N2        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
+$N2        &                                           HFdPsi(:,:,k,wave),     &
+$N2        &                                           HFddPsi(:,:,k,wave))
+
+$N3        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
+$N3        &                                           HFdPsi(:,:,k,wave),     &
+$N3        &                                           HFddPsi(:,:,k,wave),    &
+$N3        &                                           HFdddPsi(:,:,k,wave))
+          enddo
+        enddo
+        si = si + N
+      enddo
+  
+  end subroutine derive_extra_spwfs
   
   subroutine deriveCan()
     !---------------------------------------------------------------------------
@@ -491,43 +546,142 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     
   end function TimeReverse
 
-  subroutine update_spwf_angmom()
+  subroutine update_spwf_angmom(fullmatrices)
     !---------------------------------------------------------------------------
-    ! Calculate all the angular momentum properties of the spwfs.
-    ! For now, we only calculate properties that would be accessible in a 
-    ! CR8-geometry.
+    ! Calculate all relevant single-particle matrix elements of 
+    ! 
+    !  (a) Jx, Jy, Jz
+    !  (b) JxT, JyT, JzT => Real (JTR) and imaginary (JTI) parts
+    !  (c) Jx^2, Jy^2, Jz^2
+    !  (d) JJ 
+    !  (e) Sx, Sy, Sz
+    !  (f) STx, STy, STz
+    !  
+    ! where JJ is a simple number, such that J*(J+1) = Jx^2 + Jy^2 + Jz^2.
+    !
+    ! These things are calculated for 
+    !  (1) the spwfs in memory    => direct integration over the box 
+    !  (2) the Hartree-fock basis => matrix transformation
+    !                                (only if fullmatrices == .true.)
+    !  (3) the canonical basis    => direct integration over the box
+    !
+    ! Right now, all these things are calculated in CR8-like geometry.
+    !
+    ! Input: 
+    !    fullmatrices : if .true., the full matrix elements are calculated 
+    !                   for the set of spwfs in storage. If .false., only
+    !                   diagonal matrix elements are calculated. 
+    !                   Note: in the diagonal basis, we always only calculate
+    !                         diagonal matrix elements. 
+    !
     !---------------------------------------------------------------------------
-    integer       :: wave 
+    integer             :: wave, wave2, si, B, N, startind, endind, i,j,l,k
+    logical, intent(in) :: fullmatrices
 
     if(.not.allocated(spwf_J)) then
-      allocate(spwf_J(3,nwt))   ; spwf_J = 0.0
-      allocate(spwf_JTR(3,nwt)) ; spwf_JTR= 0.0
-      allocate(spwf_JTI(3,nwt)) ; spwf_JTI= 0.0
-      allocate(spwf_J2(3,nwt))  ; spwf_J2= 0.0
-      allocate(spwf_JJ(nwt))    ; spwf_JJ= 0.0
+      allocate(spwf_J(3,nwt,nwt))   ; spwf_J  = 0.0
+      allocate(spwf_JTR(3,nwt,nwt)) ; spwf_JTR= 0.0
+      allocate(spwf_JTI(3,nwt,nwt)) ; spwf_JTI= 0.0
+      allocate(spwf_J2(3,nwt,nwt))  ; spwf_J2 = 0.0
+      allocate(spwf_JJ(nwt))        ; spwf_JJ = 0.0
+
+      allocate(spwf_spin(3,nwt,nwt)); spwf_spin= 0.0
+      allocate(spwf_STR(3,nwt,nwt)) ; spwf_STR = 0.0
+      allocate(spwf_STI(3,nwt,nwt)) ; spwf_STI = 0.0
     endif
 
-    do wave=1,nwt
-      spwf_JTR(1,wave) = & 
-            & angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
-      spwf_JTI(2,wave) = &
-            & angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
-      spwf_J(3,wave)   = & 
-            & angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
+    if(.not.allocated(HF_J)) then
+     allocate(HF_J(3,nwt))   ;  HF_J = 0.0
+     allocate(HF_JTR(3,nwt)) ;  HF_JTR = 0.0
+     allocate(HF_JTI(3,nwt)) ;  HF_JTI = 0.0
+     allocate(HF_J2(3,nwt))  ;  HF_J2 = 0.0
+     allocate(HF_JJ(nwt))    ;  HF_JJ = 0.0
 
-      spwf_J2(1,wave)  = &
-        &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      spwf_J2(2,wave)  = &
-        &   angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      spwf_J2(3,wave)  = &
-        &   angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-        &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-  
-      spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave))))/2.
+     allocate(HF_spin(3,nwt)); HF_spin= 0.0
+     allocate(HF_STR (3,nwt)); HF_STR = 0.0
+     allocate(HF_STI (3,nwt)); HF_STI = 0.0
+    endif
+
+    si = 0
+    do B=1,8
+      N = HFBlocks(B) ; if(N.eq.0) cycle
+
+      !------------------------------------------------------------------------
+      ! spwf_[...] quantities
+      do wave=si+1,si+N        
+        if(fullmatrices) then
+          startind = si+1 ; endind = si+N
+        else
+          startind = wave ; endind = wave
+        endif
+        do wave2=startind, endind
+          spwf_JTR(1,wave, wave2) = & 
+          & angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
+          spwf_JTI(2,wave, wave2) = &
+          & angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
+          spwf_J  (3,wave, wave2) = & 
+          & angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
+
+          spwf_STR (1,wave,wave2)=spin_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave2))
+          spwf_STI (2,wave,wave2)=spin_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave2))
+          spwf_spin(3,wave,wave2)=spin_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave2))
+
+          spwf_J2(1,wave, wave2)  = &
+            &   angmom_x_quad(HFPsi(:,:,wave ),HFdPsi(:,:,:,wave ), &
+            &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
+          spwf_J2(2,wave, wave2)  = &
+            &   angmom_y_quad(HFPsi(:,:,wave ),HFdPsi(:,:,:,wave),  &
+            &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
+          spwf_J2(3,wave,wave2)   = &
+            &   angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave),   &
+            &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
+        enddo
+       spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave,wave))))/2.        
+      enddo      
+      !-------------------------------------------------------------------------
+      ! HF_[...] quantities
+      if(fullmatrices) then
+         do k=1,3
+            HF_J  (k,si+1:si+N) = 0.0
+            HF_J2 (k,si+1:si+N) = 0.0
+            HF_JTR(k,si+1:si+N) = 0.0
+            HF_JTI(k,si+1:si+N) = 0.0
+
+            HF_spin(k,si+1:si+N) = 0.0
+            HF_STR (k,si+1:si+N) = 0.0
+            HF_STI (k,si+1:si+N) = 0.0
+
+            do i=si+1,si+N
+             do j=si+1,si+N
+              do l=si+1,si+N
+               HF_J  (k,i)  = HF_J  (k,i) &
+               &            + HFtransfo(l,i) * spwf_J  (k,l,j)  * HFtransfo(j,i)                   
+               HF_J2 (k,i)  = HF_J2 (k,i) &
+               &            + HFtransfo(l,i) * spwf_J2 (k,l,j)  * HFtransfo(j,i)                   
+               HF_JTR(k,i)  = HF_JTR(k,i) &
+               &            + HFtransfo(l,i) * spwf_JTR(k,l,j)  * HFtransfo(j,i)                   
+               HF_JTI(k,i)  = HF_JTI(k,i) &
+               &            + HFtransfo(l,i) * spwf_JTI(k,l,j)  * HFtransfo(j,i)                   
+
+               HF_spin(k,i) = HF_spin  (k,i) &
+               &            + HFtransfo(l,i) * spwf_spin(k,l,j) * HFtransfo(j,i)                   
+               HF_STR(k,i)  = HF_STR(k,i) &
+               &            + HFtransfo(l,i) * spwf_STR(k,l,j)  * HFtransfo(j,i)                   
+               HF_STI(k,i)  = HF_STI(k,i) &
+               &            + HFtransfo(l,i) * spwf_STI(k,l,j)  * HFtransfo(j,i)                   
+              enddo
+             enddo
+            enddo
+         enddo
+         do wave=si+1,si+N
+          HF_JJ(wave) = (-1. + sqrt(1. + 4*sum(HF_J2(:,wave))))/2.
+         enddo
+      endif
+      si = si + N
     enddo
 
+    !-------------------------------------------------------------------------
+    ! can_[...] quantities
     if(allocated(CANPSI)) then
       if(.not.allocated(can_J)) then
         allocate(can_J(3,nwt))   ; can_J  = 0.0
@@ -535,6 +689,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         allocate(can_JTI(3,nwt)) ; can_JTI= 0.0
         allocate(can_J2(3,nwt))  ; can_J2 = 0.0
         allocate(can_JJ(nwt))    ; can_JJ = 0.0
+
+        allocate(can_spin(3,nwt)); can_J  = 0.0
+        allocate(can_STR(3,nwt)) ; can_JTR= 0.0
+        allocate(can_STI(3,nwt)) ; can_JTI= 0.0
       endif
 
       do wave=1,nwt
@@ -544,6 +702,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         & angmom_yt_imag(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
         can_J(3,wave)   = & 
         & angmom_z_real (CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
+
+        can_STR(1,wave) = spin_xt_real(CanPsi(:,:,wave),CanPsi(:,:,wave))
+        can_STI(2,wave) = spin_yt_imag(CanPsi(:,:,wave),CanPsi(:,:,wave))
+        can_spin(3,wave)= spin_z_real (CanPsi(:,:,wave),CanPsi(:,:,wave))
 
         can_J2(1,wave)  = &
           &   angmom_x_quad(CanPsi(:,:,wave),CandPsi(:,:,:,wave), &
@@ -561,7 +723,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
   end subroutine update_spwf_angmom
   
-  function angmom_x_real(wf2, wf1, dwf1) result(angmom)
+  pure function angmom_x_real(wf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !
@@ -604,7 +766,36 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
   end function angmom_x_real
 
-  function angmom_x_imag(wf2, wf1, dwf1) result(angmom)
+  pure function spin_x_real(wf2, wf1) result(sx)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     Re < wf2 | s_x | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       S_x = 1/2*( 0  1 ) 
+    !                 ( 1  0 )
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4)
+    integer                   :: i  
+    real(KIND=dp)             :: sx
+
+    sx = 0    
+    do i=1,mv
+      ! Spin part
+      sx = sx               + 0.5*(  wf2(i,1) * wf1(i,3)                       &
+      &                            + wf2(i,2) * wf1(i,4)                       & 
+      &                            + wf2(i,3) * wf1(i,1)                       &
+      &                            + wf2(i,4) * wf1(i,2))                        
+    enddo
+    sx = sx * dv
+
+  end function spin_x_real
+
+  pure function angmom_x_imag(wf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !
@@ -646,8 +837,37 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = angmom * dv
 
   end function angmom_x_imag
+  
+  pure function spin_x_imag(wf2, wf1) result(sx)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !    Im < wf2 | s_x | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       s_x = 1/2*( 0  1 )
+    !                 ( 1  0 )
+    !---------------------------------------------------------------------------
 
-  function angmom_xt_real(wf2, wf1, dwf1) result(angmom)
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4)
+    integer                   :: i
+    real(KIND=dp)             :: sx
+
+    sx = 0    
+    do i=1,mv
+      ! Spin part
+      sx = sx               + 0.5*(  wf2(i,1) * wf1(i,4)                       &
+      &                            - wf2(i,2) * wf1(i,3)                       & 
+      &                            + wf2(i,3) * wf1(i,1)                       &
+      &                            - wf2(i,4) * wf1(i,2))                        
+    enddo
+    sx = sx * dv
+
+  end function spin_x_imag
+
+  pure function angmom_xt_real(wf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !
@@ -687,8 +907,36 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     enddo
     angmom = angmom * dv
   end function angmom_xt_real
+  
+  pure function spin_xt_real(wf2, wf1) result(sx)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     < wf2 | s_x T | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       s_x = 1/2*( 0  1 ) 
+    !                 ( 1  0 )
+    !---------------------------------------------------------------------------
 
-  function angmom_x_quad(wf2, dwf2, wf1, dwf1) result(angmom)
+    real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:)
+    integer                   :: i
+    real(KIND=dp)             :: sx
+
+    sx = 0    
+    do i=1,mv
+      ! Spin part
+      sx = sx               + 0.5*(- wf2(i,1) * wf1(i,1)                       &
+      &                            + wf2(i,2) * wf1(i,2)                       & 
+      &                            + wf2(i,3) * wf1(i,3)                       &
+      &                            - wf2(i,4) * wf1(i,4))                        
+    enddo
+    sx = sx * dv
+  end function spin_xt_real
+
+  pure function angmom_x_quad(wf2, dwf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !
@@ -733,7 +981,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = angmom * dv
   end function angmom_x_quad
 
-  function angmom_y_real(wf2, wf1, dwf1) result(angmom)
+  pure function angmom_y_real(wf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !
@@ -775,8 +1023,37 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = angmom * dv
 
   end function angmom_y_real
+  
+  pure function spin_y_real(wf2, wf1) result(sy)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     Re < wf2 | s_y | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       s_z = 1/2*( 0 -i ) 
+    !                 ( i  0 )
+    !---------------------------------------------------------------------------
 
-  function angmom_y_imag(wf2, wf1, dwf1) result(angmom)
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4)
+    integer                   :: i 
+    real(KIND=dp)             :: sy
+
+    sy = 0
+    do i=1,mv
+      ! Spin part
+      sy = sy               + 0.5*(  wf2(i,1) * wf1(i,4)                       &
+      &                            - wf2(i,2) * wf1(i,3)                       & 
+      &                            - wf2(i,3) * wf1(i,2)                       &
+      &                            + wf2(i,4) * wf1(i,1))                        
+    enddo
+    sy = sy * dv
+
+  end function spin_y_real
+
+  pure function angmom_y_imag(wf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !
@@ -785,7 +1062,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! Note that this routine assumes that all checks regarding symmetries have 
     ! been performed.
     !
-    !       J_z = 1/2*( 0 -i ) + i x \partial_z - i z\partial_x
+    !       J_y = 1/2*( 0 -i ) + i x \partial_z - i z\partial_x
     !                 ( i  0 )
     !---------------------------------------------------------------------------
 
@@ -817,8 +1094,37 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = angmom * dv
 
   end function angmom_y_imag
+  
+  pure function spin_y_imag(wf2, wf1) result(sy)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     Im < wf2 | s_y | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       s_y = 1/2*( 0 -i ) 
+    !                 ( i  0 )
+    !---------------------------------------------------------------------------
 
-  function angmom_yt_imag(wf2, wf1, dwf1) result(angmom)
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4)
+    integer                   :: i
+    real(KIND=dp)             :: sy
+
+    sy = 0
+    do i=1,mv
+      ! Spin part
+      sy = sy               + 0.5*(- wf2(i,1) * wf1(i,3)                       &
+      &                            - wf2(i,2) * wf1(i,4)                       & 
+      &                            + wf2(i,3) * wf1(i,1)                       &
+      &                            + wf2(i,4) * wf1(i,2))                        
+    enddo
+    sy = sy * dv
+
+  end function spin_y_imag
+
+  pure function angmom_yt_imag(wf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !
@@ -860,8 +1166,38 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = angmom * dv
 
   end function angmom_yt_imag
+  
+  pure function spin_yt_imag(wf2, wf1) result(sy)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     < wf2 | s_yT | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       s_y = 1/2*( 0 -i )
+    !                 ( i  0 )
+    !---------------------------------------------------------------------------
 
-  function angmom_y_quad(wf2, dwf2, wf1, dwf1) result(angmom)
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4)
+    integer                   :: i
+    real(KIND=dp)             :: sy
+
+    sy = 0
+    do i=1,mv
+      ! Spin part
+      sy = sy               + 0.5*(+ wf2(i,1) * wf1(i,1)                       &
+      &                            - wf2(i,2) * wf1(i,2)                       & 
+      &                            + wf2(i,3) * wf1(i,3)                       &
+      &                            - wf2(i,4) * wf1(i,4))                        
+     !-------------------------------------------------------------------------
+    enddo
+    sy = sy * dv
+
+  end function spin_yt_imag
+
+  pure function angmom_y_quad(wf2, dwf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !
@@ -904,7 +1240,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = angmom * dv
   end function angmom_y_quad
 
-  function angmom_z_real(wf2, wf1, dwf1) result(angmom)
+  pure function angmom_z_real(wf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !
@@ -948,8 +1284,38 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = angmom * dv
 
   end function angmom_z_real
+  
+  pure function spin_z_real(wf2, wf1) result(sz)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !     < wf2 | s_z | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       s_z = 1/2*( 1  0 )
+    !                 ( 0 -1 ) 
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4)
+    real(KIND=dp)             :: sz
+    integer                   :: i
 
-  function angmom_z_imag(wf2, wf1, dwf1) result(angmom)
+    sz = 0
+    do i=1,nx*ny*nz
+      !-------------------------------------------------------------------------
+      ! Real part  
+      ! Spin part
+      sz = sz            + 0.5*(         wf2(i,1) * wf1(i,1)                   &
+      &                                + wf2(i,2) * wf1(i,2)                   & 
+      &                                - wf2(i,3) * wf1(i,3)                   &
+      &                                - wf2(i,4) * wf1(i,4))                        
+    enddo
+    sz = sz * dv
+
+  end function spin_z_real
+
+  pure function angmom_z_imag(wf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !
@@ -994,8 +1360,38 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = angmom * dv
 
   end function angmom_z_imag
+  
+  pure function spin_z_imag(wf2, wf1) result(sz)
+    !---------------------------------------------------------------------------
+    ! calculate the matrix element
+    !
+    !    Im < wf2 | s_z | wf1 >
+    !
+    ! Note that this routine assumes that all checks regarding symmetries have 
+    ! been performed.
+    !
+    !       s_z = 1/2*( 1  0 ) 
+    !                 ( 0 -1 ) 
+    !---------------------------------------------------------------------------
 
-  function angmom_zt_real(wf2, wf1, dwf1) result(angmom)
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4)
+    integer                   :: i
+    real(KIND=dp)             :: sz
+
+    sz = 0    
+    do i=1,mv
+      !-------------------------------------------------------------------------
+      ! Spin part
+      sz = sz               + 0.5*(- wf2(i,2) * wf1(i,1)                       &
+      &                            + wf2(i,1) * wf1(i,2)                       & 
+      &                            + wf2(i,4) * wf1(i,3)                       &
+      &                            - wf2(i,3) * wf1(i,4))                        
+    enddo
+    sz = sz * dv
+
+  end function spin_z_imag
+
+  pure function angmom_zt_real(wf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !
@@ -1037,8 +1433,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     enddo
     angmom = dv * angmom
   end function angmom_zt_real
-
-  function angmom_z_quad(wf2, dwf2, wf1, dwf1) result(angmom)
+  
+  pure function angmom_z_quad(wf2, dwf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
     ! calculate the matrix element
     !

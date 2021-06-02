@@ -91,7 +91,7 @@ contains
 
   end subroutine calcrigid
 
-  real(KIND=dp) function rotcut(eps,it) result(cut)
+  pure real(KIND=dp) function rotcut(eps,it) result(cut)
       !-------------------------------------------------------------------------
       ! Cutoff for use in the calculation of < J^2 > and the Belyaev moment
       ! of inertia. Similar in shape to the pairing cutoff, but sharper.
@@ -107,7 +107,7 @@ contains
       cut  = sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
     
   end function rotcut
-
+  
   subroutine calcJ2andBelyaev_HF
     !---------------------------------------------------------------------------
     !
@@ -327,7 +327,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
              uvj = 0
           endif
 
-          !-------------------------------------------------------------------
+          !---------------------------------------------------------------------
           ! <J^2>
           ! [u^2_k u_l^2 + u_k v_k u_l v_l] * f_k (1-f_l)                  (a)
           wa = (ui*uj + uvi*uvj) * fi * (1-fj)
@@ -339,7 +339,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
           wd = (vi*uj - uvi*uvj) * (1-fi) *(1-fj)
 
           J2(:,it) = J2(:,it) + ME * (wa+wb+wc+wd)
-          !-------------------------------------------------------------------
+          !---------------------------------------------------------------------
           ! I_xx, I_yy and I_zz
           if(abs(BCSqps(ii) - BCSqps(jj)).gt.1d-5) then            
             dfde = (fj - fi)/(BCSqps(ii) - BCSqps(jj))
@@ -469,7 +469,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
 
-    real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , cut_cr  
+    real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , cut_cr
     logical       ::  blocked
 
     J2 = 0  ; Belyaev = 0 ; J2_coll = 0 ; Bely_coll = 0
@@ -764,7 +764,8 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             jjj= sb + N + N2 + j
 
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            ! Don't include the contribution from the blocked qps
+            ! Don't include the contribution from the blocked qps and their
+            ! partner qps.
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             blocked= .false.
             if(allocated(blocked_qps)) then
@@ -772,7 +773,10 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
                 if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
                   blocked = .true.
                 endif
-              enddo
+                if(ii.eq.partner_qps(k) .or.  jj.eq.partner_qps(k)) then
+                  blocked = .true.
+                endif
+              enddo              
             endif
             if(blocked) cycle
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -787,7 +791,7 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             !       I've coded it only as a sanity check, to check whether
             !       the full qp-basis expression is the same as the 
             !       sp-basis summation when the blocked QPS are not ommitted.
-            fac=  configmatrix(jjj) * (1 - configmatrix(iii))
+            fac=  configmatrix(jjj)*(1 - configmatrix(iii))
             ME = ME + J11(ii,jj,:)**2  * fac
             
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -847,7 +851,6 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
             Belyaev(:,it) = Belyaev(:,it) + &
             &       fac*J11(ii,jj,:)**2 /(Qpenergies(iii)-Qpenergies(jjj))  
           elseif(inversetemp .gt. 0) then
-
            stop
            ! 28/12/2020, WR: I'm unsure whether there should be a factor 2
            ! here or not.... To be doublechecked.
@@ -859,7 +862,7 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
           ! Collective Belyaev calculation  
           if(inversetemp.lt.0) then
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            ! Don't include the blocked_qps
+            ! Don't include the blocked_qps and their partner qps
             blocked= .false.
             
             if(allocated(blocked_qps)) then
@@ -867,12 +870,16 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
                 if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
                   blocked = .true.
                 endif
+                if(ii.eq.partner_qps(k) .or.  jj.eq.partner_qps(k)) then
+                  blocked = .true.
+                endif
               enddo
             endif
             if(blocked) cycle
+
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! (1 - f_i - f_j) J^{20}^2 contribution
-            fac = 1 - configmatrix(sb+i) - configmatrix(sb+j)
+            fac = 1 - configmatrix(sb+i) - configmatrix(sb+j) 
             Bely_coll(:,it) = Bely_coll(:,it) + &
             &           fac*J20(ii,jj,:)**2 /(Qpenergies(iii) + Qpenergies(jjj))  
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -214,6 +214,7 @@ $PRINTCOEF_PAIR
   622 format (15x, '             pp:', 3f15.6)
 
    63 format (15x, '   Rotational ', a1, ':', 30x, f15.6)
+  631 format (15x, '   Rotational T:', 30x, f15.6)
     7 format (15x, ' Coulomb Direct:', 3f15.6)
    71 format (15x, '   Dir. (point):', 3f15.6)
     8 format (15x, '       Exchange:', 3f15.6)
@@ -250,7 +251,8 @@ $PRINTCOEF_PAIR
      print 622, COM2pp(:), sum(COM2pp(:))
     endif
 
-    if(rotcorr .ne.  0) then
+    if(rotcorr .ne.  0) then  
+      print 631, sum(Rotcorrection)
       print 63, 'X',  Rotcorrection(1)
       print 63, 'Y',  Rotcorrection(2)
       print 63, 'Z',  Rotcorrection(3)

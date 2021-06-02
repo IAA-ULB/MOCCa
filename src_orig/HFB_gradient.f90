@@ -135,7 +135,7 @@ contains
   end function precon_grad
 
   subroutine gradient_step(h,gaps,targetN, Bogo,Eqp,lambda, alpha,mu,prev,&
-  &                        precon, gradnorm, blocks, lambda2, rho, kappa,      &
+  &                        precon, gradnorm, blocks, lambda2, rho,        &
   &                        maxiter, ifail)
     !---------------------------------------------------------------------------
     !
@@ -187,7 +187,7 @@ contains
     integer, intent(out)         :: ifail
     real(KIND=dp), intent(in)    :: targetN, lambda2
     real(KIND=dp), intent(in)    :: h(:,:), gaps(:,:), alpha, mu
-    real(KIND=dp), intent(in)    :: rho(:,:), kappa(:,:)
+    real(KIND=dp), intent(in)    :: rho(:,:)
     logical, intent(in)          :: precon
     real(KIND=dp), intent(inout) :: Bogo(:,:), lambda
     real(KIND=dp), intent(inout) :: Eqp(:),  prev(:,:), gradnorm
@@ -198,10 +198,19 @@ contains
     logical                      :: converged
   
     converged = .false. 
+
+    ! Perform an additional transformation of the Bogoliubov transformation to
+    ! diagonalise H^11 and obtain another estimate for the QP energies
+    ! This is only needed at the start of the step if we precondition the 
+    ! evolution
+    if(precon) then
+      H11 = calcH11(Bogo, h, gaps, lambda, blocks)
+      call diagonalise_H11(bogo, prev, H11, blocks, Eqp)
+    endif
     do iter=1,maxiter
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! We calculate the relevant matrices to build the gradient 
-        H20 = calcH20(Bogo,h,gaps,rho, kappa, lambda2, blocks)
+        H20 = calcH20(Bogo,h,gaps,rho, lambda2, blocks)
         N20 = calcN20(Bogo, blocks) 
 
         ! First, we check if the pairing has collapsed: the Frobenius norm of 
@@ -501,10 +510,10 @@ contains
 !      print '(" BrentBisection ",i4,(1l2,2(f13.8,es16.7),f14.8))',    &
 !           & FailCount, Found,A,FA,B,FB,Num
 !     
-!      if ( FailCount .gt. Depth ) then
-!        print '(/," Warning: BrentBisection did not converge after ",i4," iterations")', & 
-!        &      FailCount
-!      endif
+      if ( FailCount .gt. Depth ) then
+        Lambda    = B ; particles = FB 
+        return 
+      endif
     enddo
     ! Output
     Lambda    = B ; particles = FB 
@@ -590,12 +599,12 @@ $TR      &                - mu * matmul(U,prev(si+1:si+T,si+1:si+T))
     !    Bogo : orthonormalized Bogoliubov transformation
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(inout) :: bogo(:,:)
-    integer, intent(in)          :: blocks(4)
+    integer, intent(in)          :: blocks(:)
     integer                      :: i,j,k, N, N2, sb, T, B
     real(KIND=dp)                :: overlap
 
     sb = 0
-    do B=1,4,2
+    do B=1,size(blocks),2
       N = blocks(B) ; if(N.eq.0) cycle
       N2= blocks(B+1)
 
@@ -625,7 +634,7 @@ $TR      &                - mu * matmul(U,prev(si+1:si+T,si+1:si+T))
     enddo
   end subroutine ortho_bogo
 
-  pure function calcH20(Bogo,h,gaps, rho, kappa, lambda2, blocks) result(H20)
+  pure function calcH20(Bogo,h,gaps, rho, lambda2, blocks) result(H20)
     !---------------------------------------------------------------------------
     ! Calculate the 2-quasi-particle-excitation component of H:
     ! 
@@ -638,12 +647,12 @@ $TR      &                - mu * matmul(U,prev(si+1:si+T,si+1:si+T))
     !   h    : single-particle hamiltonian
     !   gaps : pairing gaps
     !   rho  : normal and anomalous density matrix 
-    !   kappa| (only necessary when constraining the particle number dispersion)
+    !          (only necessary when constraining the particle number dispersion)
     !   lambda2:
     !
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)               :: H(:,:), bogo(:,:), gaps(:,:)
-    real(KIND=dp), intent(in)               :: rho(:,:), kappa(:,:), lambda2
+    real(KIND=dp), intent(in)               :: rho(:,:), lambda2
     integer, intent(in)                     :: blocks(4)
     
     real(KIND=dp), allocatable :: H20(:,:), U(:,:), V(:,:)
@@ -702,7 +711,7 @@ $TR                              &  - matmul(V, hU) - matmul(V, dV)
     real(KIND=dp), allocatable :: H11(:,:), U(:,:), V(:,:)
     real(KIND=dp), allocatable :: hV(:,:), hU(:,:), dV(:,:), dU(:,:)
     integer, intent(in)        :: blocks(4)
-    integer                    :: B, N, N2, si, sb, T, i
+    integer                    :: B, N, N2, si, sb, T
 
     allocate(H11(sum(blocks), sum(blocks))) ; H11 = 0
 
@@ -812,7 +821,7 @@ $TR  part = 2* part
       !-------------------------------------------------------------------------
       real(KIND=dp), intent(in) :: bogo(:,:)
       real(KIND=dp)             :: disp
-      real(KIND=dp), allocatable:: V(:,:), U(:,:), r(:,:), c(:,:)
+      real(KIND=dp), allocatable:: V(:,:), r(:,:), c(:,:)
       integer, intent(in)       :: blocks(4)
 
       integer :: B,  N, N2, T, sb, i
@@ -857,7 +866,7 @@ $TR  disp = 2 * disp
     real(KIND=dp), intent(out)   :: Eqp(:)
     real(KIND=dp), allocatable   :: A(:,:), work(:)
     integer, intent(in)          :: blocks(4)
-    integer                      :: si, sb, B, N, N2, lwork, ifail, T, i
+    integer                      :: si, sb, B, N, N2, lwork, ifail, T
       
     si = 0 ; sb = 0
     do B=1,4,2

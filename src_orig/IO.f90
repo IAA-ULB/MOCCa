@@ -1,12 +1,14 @@
 module IO
  !==============================================================================
- !  #######   ##   #    # #####   ##   #      #    #  ####
- !     #     #  #  ##   #   #    #  #  #      #    # #
- !     #    #    # # #  #   #   #    # #      #    #  ####
- !     #    ###### #  # #   #   ###### #      #    #      #
- !     #    #    # #   ##   #   #    # #      #    # #    #
- !     #    #    # #    #   #   #    # ######  ####   ####
- !
+ !_________ _______  _       _________ _______  _                 _______ 
+ !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
+ !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
+ !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
+ !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
+ !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
+ !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
+ !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
+ !                                                                       
  !  Copyright W. Ryssens & M. Bender
  !
  !============================================================================== 
@@ -212,7 +214,9 @@ contains
     &          '  Energy convergence           < ', es8.1, / & 
     &          '  Multipole moment convergence < ', es8.1, / &
     &          '  Dispersion convergence       < ', es8.1, / &
-    &          '  Fermi energy convergence     < ', es8.1)
+    &          '  S.p. gradient convergenc     < ', es8.1, / &
+    &          '  Fermi energy convergence     < ', es8.1, / &
+    &          '  Angular momentum convergence < ', es8.1)
    13 format ( ' Inverse temperature Beta = ', f14.9)
 
     print *
@@ -255,7 +259,8 @@ contains
     if(present(file_number)) then
       print 1111,  adjustl(trim(input_file)), file_number
     endif
-    print 12, energy_prec, moment_prec, disp_prec, fermi_prec
+    print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
+    &         angmom_prec
     
     call printevolution
     call printscfiteration
@@ -321,7 +326,7 @@ contains
       else
           ! Option b): add points and/or add spwfs
           call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,    & 
-          &                                               fileblocks,extraspwfs)
+          &                               fileblocks,file_HFB_blocks,extraspwfs)
           call  GramSchmidt  
           ! The added spwfs are added somewhat randomly, hence we add an extra
           ! orthonormalisation in the mix.
@@ -360,7 +365,7 @@ contains
           ! This is the one case which we will accept: no blocking on the file, 
           ! but blocking in the input. In this case, we need to do an 
           ! explicit diagonalization from the start.
-          Bogofromfile = .false.
+          !Bogofromfile = .false.
       else
           ! In any other case, we check all things we can check.
           passed_block_test =  check_blocking_structure()      
@@ -935,11 +940,7 @@ contains
       call write_sp_info(SPHFFILE)
     endif 
     ! b) in the canonical basis
-    if(SPCANFILE .ne. '') then  
-      if(pairingtype.ne.2) then
-        print *, 'Cannot output single-particle information in the canonical basis.'
-        stop
-      endif
+    if(pairingtype.eq.2 .and. SPCANFILE .ne. '') then
       call write_sp_info_can(SPCANFILE)
     endif
 
@@ -1154,7 +1155,7 @@ contains
     enddo
 
     do B=1,8
-      if(file_HFB_blocks(B).ne.check_blocks(B)) then
+      if(file_HFB_blocks(B)+extraspwfs(B).ne.check_blocks(B)) then
         print *, 'Blocking structure of the Bogoliubov transformation on file'
         print *, 'does not match that reported by the file.'
         print *, ' Block structure of Bogoliubov matrix: ', file_HFB_blocks      
@@ -1289,6 +1290,10 @@ contains
     !     #   nwn = i3, nwp = i3
     !     #   Name of the parameterization
     !     #   type of functional
+    !     #   Fermi energies of both nucleon species
+    !     #   Quadrupole deformation in terms of Q20 and Q22
+    !     #   Quadrupole deformation in terms of B20 and B22
+    !     #   Quadrupole deformation in terms of B2 and gamma
     !     #   BI 1: Blocktype, Blocknumber
     !     #   BI 2: BlockIndices
     !     #   BI 3: Blocklowest
@@ -1296,30 +1301,42 @@ contains
     !
     !---------------------------------------------------------------------------
     integer, intent(in) :: iochannel
-
+    type(moment), pointer :: Q20, Q22
    
     1 format("# N = ", i3, ' Z = ', i3, ' A = ', i3)
     2 format("# nwn = ", i3, ", nwp = ", i3)
     3 format("# (nx,ny,nz) = (", 3i3, "), dx = ", f8.6, ' fm')
-    4 format("# Parameterisation: ", a40)
-    5 format("# Functional type : ", a40)
+    4 format("# Parameterisation    : ", a40)
+    5 format("# Functional type     : ", a40)
+    6 format("# Fermi energies      : ", 2f15.4)
+    7 format("# Quadrupole   Q20,Q22: ", 2f15.4)
+    8 format("# Quadrupole   B20,B22: ", 2f15.4)
+    9 format("# Quadrupole    Q, gam: ", 2f15.4)
 
-    6 format("# BI 1: ", 2i3)
-    7 format("# BI 2: ", 99i4)
-    8 format("# BI 3: ", 99a3)
+   10 format("# BI 1: ", 2i3)
+   11 format("# BI 2: ", 99i4)
+   12 format("# BI 3: ", 99a3)
 
     write(iochannel, fmt=1)  int(neutrons), int(protons),int(neutrons+protons)
     write(iochannel, fmt=2)  nwn, nwp
     write(iochannel, fmt=3)  nx, ny, nz, dx
     write(iochannel, fmt=4)  name_param
     write(iochannel, fmt=5)  func_name
-    write(iochannel, fmt=6)  blocktype, blocknumber
+    write(iochannel, fmt=6)  FermiEnergy
+  
+    Q20 =>FindMoment(2,0,.false.     )
+    Q22 =>FindMoment(2,2,.false., Q20)    
+    write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
+    write(iochannel, fmt=8)    Q20%beta(3), Q22%beta(3)
+    write(iochannel, fmt=9)    Q(3), G(3)
+    
+    write(iochannel, fmt=10)  blocktype, blocknumber
     if(blocknumber .gt. 0) then
-      write(iochannel, fmt=7) Blockindices
-      write(iochannel, fmt=8) Blocklowest
+      write(iochannel, fmt=11) Blockindices
+      write(iochannel, fmt=12) Blocklowest
     else
-      write(iochannel, fmt=7) 
-      write(iochannel, fmt=8)
+      write(iochannel, fmt=11) 
+      write(iochannel, fmt=12)
     endif
 
     write(iochannel, fmt='(a1)') '#'
@@ -1447,8 +1464,6 @@ contains
     Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
     Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
 
-  
-
     ! Subtracting the coulomb potential depends on our treatment of the 
     ! proton and neutron finite size effect
     if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
@@ -1492,10 +1507,10 @@ contains
     ! The file contains a header written by the subroutine write_header, 
     ! supplemented by
     !     #   Information in the HartreeFock basis
-    !     #   i  iso  P  occ E  JxT JyT Jz J
+    !     #   i  iso  P  occ E  JxT JyT Jz J SxT SyT Sz
     !
     ! In the body of the file, it contains the following information  
-    !      wave, isospin, parity, rho, spenergy, JX, JY, JZ, JJ
+    !      wave, isospin, parity, rho, spenergy, JX, JY, JZ, JJ, SxT, SyT, Sz
     !
     !   wave     : numbering 
     !   isospin  : -1 for neutrons, +1 for protons
@@ -1513,21 +1528,24 @@ contains
     !              such that 
     !                    (JJ+1) JJ = <Jx^2> + <Jy^2> + <Jz^2> 
     !
+    !   SxT      : matrix element of S_x T (real part)
+    !   SyT      : matrix element of S_y T (imaginary part)
+    !   Sz       : matrix element of S_z 
     !---------------------------------------------------------------------------
     use wavefunctions
 
     character(len=*), intent(in) :: fname
     integer                      :: io, i, p,  wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp)                :: Jx, Jy, Jz, JJ
+    real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz
  
-    1 format(3i5, 6f10.4)
+    1 format(3i5, 9f10.4)
     2 format("# Neutron spwfs")
     3 format("# Proton spwfs")
     4 format("# Information in the Hartree-Fock basis")
 
     60 format ("#",3x,'i',3x,'iso',3x,'P',4x,'occ',7x,'<h>',7x,  &
-     &        'JxT',7x,'JyT', 7x ,'Jz', 8x, 'J')    
+     &        'JxT',7x,'JyT', 7x ,'Jz', 8x, 'J', 9x, 'SxT', 7x,'SyT',7x,'Sz')    
 
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
@@ -1550,21 +1568,13 @@ contains
       if(wave .le. HFBlocks(1)) p = +1
       if(wave .gt. HFBlocks(1)) p = -1
 
-      Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-      Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-      Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+      Jx = HF_JTR(1,wave) ; Spinx = HF_STR (1,wave)
+      Jy = HF_JTI(2,wave) ; Spiny = HF_STI (2,wave)
+      Jz = HF_J  (3,wave) ; Spinz = HF_spin(3,wave)
+      JJ = HF_JJ(wave)
 
-      JJ = & 
-      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      JJ = (-1. + sqrt(1. + 4*JJ))/2.
-
-      write(1, fmt=1) wave, -1, p, 2*rho_pairing(wave,wave), spenergies(wave),   & 
-      &               Jx, Jy,Jz, JJ
+      write(1, fmt=1) wave, -1, p, 2*rho_HF(wave), spenergies(wave),   & 
+      &               Jx, Jy,Jz, JJ, Spinx, Spiny, Spinz
     enddo      
     write(1, fmt=3) 
     !---------------------------------------------------------------------------
@@ -1574,21 +1584,13 @@ contains
       if(wave .le. sum(HFBlocks(1:5))) p = +1
       if(wave .gt. sum(HFBlocks(1:5))) p = -1
 
-      Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-      Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
-      Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFDPsi(:,:,:,wave))
+      Jx = HF_JTR(1,wave) ; Spinx = HF_STR (1,wave)
+      Jy = HF_JTI(2,wave) ; Spiny = HF_STI (2,wave)
+      Jz = HF_J  (3,wave) ; Spinz = HF_spin(3,wave)
+      JJ = HF_JJ(wave)
 
-      JJ = & 
-      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      JJ = (-1. + sqrt(1. + 4*JJ))/2.
-
-      write(1, fmt=1) wave, +1, p, 2*rho_pairing(wave,wave), spenergies(wave), & 
-      &                Jx, Jy,Jz,JJ
+      write(1, fmt=1) wave, +1, p, 2*rho_HF(wave), spenergies(wave), & 
+      &                Jx, Jy,Jz,JJ,Spinx,Spiny,Spinz
     enddo
     close(1)
   end subroutine write_sp_info
@@ -1609,7 +1611,7 @@ contains
     !     #   i  iso  P  occ E  JxT JyT Jz J
     ! 
     ! In the body of the file, it contains the following information  
-    !      wave, isospin, parity, rho_can, canenergy, JX, JY, JZ, JJ
+    !      wave, isospin,parity,rho_can, canenergy, JX, JY, JZ, JJ, SxT, SyT, Sz
     !
     !   wave     : numbering 
     !   isospin  : -1 for neutrons, +1 for protons
@@ -1626,23 +1628,24 @@ contains
     !   JJ       : J quantum number (real number) that corresponds to this state
     !              such that 
     !                    (JJ+1) JJ = <Jx^2> + <Jy^2> + <Jz^2> 
-    !
+    !   SxT      : matrix element of S_x T (real part)
+    !   SyT      : matrix element of S_y T (imaginary part)
+    !   Sz       : matrix element of S_z 
     !---------------------------------------------------------------------------
     use wavefunctions
 
     character(len=*), intent(in) :: fname
     integer                      :: io, i, p, wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp)                :: Jx, Jy, Jz, JJ
+    real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz
  
-    1 format(3i5, 6f10.4)
+    1 format(3i5, 9f10.4)
     2 format("# Neutron spwfs")
     3 format("# Proton spwfs")
     4 format("# Information in the basis that diagonalizes RHO")
 
     60 format ("#",3x,'i',3x,'iso',3x,'P',4x,'occ',7x,'<h>',7x,  &
-     &        'JxT',7x,'JyT', 7x ,'Jz', 8x, 'J')    
-
+     &        'JxT',7x,'JyT', 7x ,'Jz', 8x, 'J', 9x, 'SxT', 7x,'SyT',7x,'Sz') 
 
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
@@ -1663,24 +1666,17 @@ contains
     ! First do the neutron wavefunctions    
     do i=1,nwn
       wave = neutronorder(i)
+    
       if(wave .le. HFBlocks(1)) p = +1
       if(wave .gt. HFBlocks(1)) p = -1
 
-      Jx = angmom_xt_real(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-      Jy = angmom_yt_imag(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-      Jz = angmom_z_real (CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-
-      JJ = & 
-      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      JJ = (-1. + sqrt(1. + 4*JJ))/2.
+      Jx = can_JTR(1,wave) ; Spinx = can_STR (1,wave)
+      Jy = can_JTI(2,wave) ; Spiny = can_STI (2,wave)
+      Jz = can_J  (3,wave) ; Spinz = can_spin(3,wave)
+      JJ = can_JJ(wave)
 
       write(1, fmt=1) wave, -1, p, rho_can(wave), canenergies(wave), Jx, Jy,Jz,&
-      &               JJ
+      &               JJ, Spinx, Spiny, Spinz
     enddo      
     write(1, fmt=3) 
     !---------------------------------------------------------------------------
@@ -1690,21 +1686,13 @@ contains
       if(wave .le. sum(HFBlocks(1:5))) p = +1
       if(wave .gt. sum(HFBlocks(1:5))) p = -1
 
-      Jx = angmom_xt_real(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-      Jy = angmom_yt_imag(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-      Jz = angmom_z_real (CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-
-      JJ = & 
-      &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_y_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
-      & + angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
-      &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) 
-      JJ = (-1. + sqrt(1. + 4*JJ))/2.
+      Jx = can_JTR(1,wave) ; Spinx = can_STR (1,wave)
+      Jy = can_JTI(2,wave) ; Spiny = can_STI (2,wave)
+      Jz = can_J  (3,wave) ; Spinz = can_spin(3,wave)
+      JJ = can_JJ(wave)
 
       write(1, fmt=1) wave, +1, p, rho_can(wave), canenergies(wave), Jx, Jy,Jz,&
-      &               JJ
+      &               JJ, Spinx, Spiny, Spinz
     enddo
     close(1)
   end subroutine write_sp_info_can

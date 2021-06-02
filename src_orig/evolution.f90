@@ -1,15 +1,17 @@
 module evolution
-!===============================================================================
-!  #######   ##   #    # #####   ##   #      #    #  ####
-!     #     #  #  ##   #   #    #  #  #      #    # #
-!     #    #    # # #  #   #   #    # #      #    #  ####
-!     #    ###### #  # #   #   ###### #      #    #      #
-!     #    #    # #   ##   #   #    # #      #    # #    #
-!     #    #    # #    #   #   #    # ######  ####   ####
-!
+!==============================================================================
+!_________ _______  _       _________ _______  _                 _______ 
+!\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
+!   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
+!   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
+!   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
+!   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
+!   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
+!   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
+!                                                                       
 !  Copyright W. Ryssens & M. Bender
 !
-!===============================================================================
+!==============================================================================
 !
 ! Module that governs the evolution of the single-particle wavefunctions from 
 ! one iteration to the next. 
@@ -36,7 +38,7 @@ module evolution
     ! Default value of the momentum factor.
     real(KIND=dp) :: momentum=0.0
     !---------------------------------------------------------------------------
-    ! Norm of the gradient and weighted sum of the dispersionss
+    ! Norm of the gradient and weighted sum of the dispersions
     real(KIND=dp) :: gradientnorm, d2h
     !---------------------------------------------------------------------------
     !Maximum number of iterations and number of iterations to skip printing of
@@ -243,19 +245,66 @@ contains
     subroutine Evolve_momentum(iteration)
         !-----------------------------------------------------------------------
         ! 
-        ! a) For every wave-function do a gradient step, but with and added 
-        !    momentum term 
+        ! Evolution of the single-particle wavefunctions in memory through
+        ! heavy-ball evolution. 
         !
-        !    psi^(i+1) => ( 1 - dt/hbar h ) psi^(i) + mu * deltapsi
+        ! (0) If asked for, estimate the evolution parameters dt and mu.
+        ! (1) For every wave-function do a gradient step, but with and added 
+        !     momentum term 
+        !
+        !    psi^(i+1) => psi^(i) - dt/hbar * g^(i)  + mu * deltapsi
         !    
-        !    where deltapsi is the difference
-        !       psi^(i) - psi^(i-1)
-        ! 
-        ! b) Calculate values:
-        !    < psi | h   | psi >
-        !    < psi | h^2 | psi >
+        !    where 
+        !      *) deltapsi is the difference  psi^(i) - psi^(i-1)
+        !      *) g^(i) is the relevant gradient of the s.p. wavefunction.
         !
-        ! c) Orthonormalize within symmetry blocks by calling ortho
+        !
+        !    g^(i) can have two different forms:
+        !      (i) If the code is attempting to diagonalize the s.p. hamiltonian
+        !          completely, then the gradient is the "full" gradient:
+        !
+        !          g^(i) =  h^(i) | psi^(i) > - eps^i  | psi^(i) > 
+        !          eps^i =  < psi^(i) | h^(i) | psi^(i) >
+        !          
+        !          where the subtraction just takes away the gradient in the
+        !          direction of the spwf itself.
+        !
+        !     (ii) If the code is trying to construct the space spanned by 
+        !          the lowest eigenstates of h (without resolving the 
+        !          individual eigenstates by iteration), then we take 
+        !     
+        !           g^(i) =  h^(i) | psi^(i) > - \sum_j \lambda_j | psi_j > 
+        !           lambda_j =  < psi^(j) | h^(i) | psi^(i) >
+        !
+        !           where the sum runs over ALL single-particle states in 
+        !           memory. Hence, we are only exploring "new" directions that
+        !           can actually lower the Routhian, without shuffling around
+        !           single-particle states in memory.
+        !
+        ! (2) To end the evolution, orthonormalize all the s.p.w.fs.
+        !
+        ! As side-effects, the code calculates 
+        !
+        !   (a) The Hartree-Fock transformation linking the spwfs in memory
+        !       to the Hartree-Fock basis. If we diagsphamil =.true., then this
+        !       is the trivial transformation. Otherwise, this array is 
+        !       constructed by diagonalising the sp. hamiltonian in the 
+        !       subspace of the spwfs in memory, BEFORE the heavy-ball 
+        !       evolution. Hence, it diagonalizes
+        !
+        !         h_ij = <psi_i | h | \psi_j >
+        !
+        !   (b) spenenergies array
+        !       If diagonalizing the sp hamiltonian:
+        !            spenergies(i )=  < psi^(i) | h^(i) | psi^(i) >     
+        !       Else, the eigenvalues of the sphamiltonian obtained from the 
+        !       diagonalisation mentioned above.
+        !
+        !   (c) gradientnorm
+        !       Convergence measure that measures the size of the gradients.
+        !   (d) d2h:
+        !       Weighted dispersion of the spwfs, only calculated when
+        !       diagsphamil = .true.
         !-----------------------------------------------------------------------
         
         use wavefunctions
@@ -279,8 +328,9 @@ contains
         if(EstimateParams) call IterativeEstimation(iteration)
 
         gradientnorm = 0.0_dp
-        d2h = 0.0_dp
-        si  = 0
+        d2h          = 0.0_dp
+        si        = 0
+        hftransfo = 0.0d0
         do B=1,8
           N = HFblocks(B) ; if(N.eq.0) cycle
           iso = -1
@@ -294,38 +344,45 @@ contains
             &              hfdddpsi(:,:,:,wave) ,                              &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
           
-            !-------------------------------------------------------------------
             if(diagsphamil) then
+              ! If we are diagonalising the s.p. hamiltonian, we use hpsi to
+              ! calculate
+              !       spenergies  : <psi|h  | psi> 
+              !       dispersions : <psi|h h| psi> - spenergies**2       
               spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
               dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
-                        
+              ! d2h can be calculated as a convergence measure in this case
               select case(pairingtype)
               case(0,1)
                 d2h          = d2h + rho_can(wave)*dispersions(wave)
-                gradientnorm = gradientnorm + rho_can(wave) *                  &
-                & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
               case(2) 
                 d2h          = d2h + rho_pairing(wave,wave)*dispersions(wave)
-                gradientnorm = gradientnorm + rho_pairing(wave,wave) *         &
-                & sum((spenergies(wave) * hfpsi(:,:,wave) - hpsi(:,:))**2)*dv
               end select
             endif
             !-------------------------------------------------------------------
-            ! Current estimate for the single-particle hamiltonian
+            ! We always construct the matrix elements of the single-particle
+            ! hamiltonian in the basis of s.p. wavefunctions in memory.
             do wave2=wave,si+N
                 current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
                 current_sph(wave ,wave2) = current_sph(wave2,wave)
             enddo
             !-------------------------------------------------------------------
             if(diagsphamil) then
-              ! Remove the part that is propagation in its own direction.
+              ! We are diagonalising the s.p. hamiltonian completely, i.e.
+              ! also in the space spanned by the s.p. wavefunctions in memory
+              ! We simply move in the direction of h|psi\rangle
               hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
             else
-              ! orthogonalize against the spwfs currently in storage
+              ! We do not diagonalise the s.p. hamiltonian, we only try to 
+              ! construct the subspace spanned by its lowest eigenstates. 
+              ! Hence, our update should only take us into "new" directions.
+              ! So, we orthogonalise the update direction to all spwfs in
+              ! storage.
               do wave2=si+1,si+N
                 hpsi =   hpsi - current_sph(wave,wave2) * hfpsi(:,:,wave2)
               enddo            
-              
+              ! The norm of the gradient can always be calculated as a 
+              ! convergence measure.
               gradientnorm = gradientnorm + sum(hpsi**2)*dv
             endif
 
@@ -341,16 +398,20 @@ contains
             hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
           enddo
           
-          
           if(diagsphamil) then
+              ! The HF-transfo we use is trivial, i.e. the s.p. wavefunctions
+              ! in memory constitute the HF basis.
               hftransfo(si+1:si+N,si+1:si+N) = 0.0d0
               do wave=1,N
                   hftransfo(si+wave,si+wave) = 1.0d0
               enddo
           else
-              !-----------------------------------------------------------------
-              ! Diagonalize the current single-particle hamiltonian to obtain 
-              ! the correct aspects of quantities in the HF basis
+              ! The s.p. wavefunctions in memory do not constitute the HF-basis.
+              ! We diagonalise the single-particle hamiltonian (*) to 
+              ! obtain the unitary transformation into that basis.
+              !
+              ! (*) Actually, the single-particle hamiltonian BEFORE the 
+              !     heavy-ball evolution.
               HFtransfo(si+1:si+N,si+1:si+N) = current_sph(si+1:si+N, si+1:si+N)
 
               lwork = -1; allocate(work(1))
@@ -368,12 +429,65 @@ contains
     
         gradientnorm = sqrt(gradientnorm) 
         d2h          = d2h/(neutrons+protons)
-        ! Orthonormalize
+
+        ! Orthonormalize the new s.p.w.f. basis.
         call GramSchmidt
     
         call stop_timer(T_evolution)
 
     end subroutine Evolve_momentum
+    
+    subroutine evolve_partial(maxiter, extraspwfs)
+      !-------------------------------------------------------------------------
+      ! Perform some gradient evolution with a fixed single-particle hamiltonian 
+      ! for the BONUS spwfs, i.e. the ones that were added through the keyword
+      ! extraspwfs. As these are randomly initialized, such evolution brings 
+      ! them (hopefully) rather quickly to some "reasonable form".
+      !  
+      ! Input:
+      !    maxiter    :  # of evolutions to perform
+      !    extraspwfs :  number of extra spwfs that were added
+      !-------------------------------------------------------------------------
+      integer, intent(in) :: maxiter, extraspwfs(8)
+      integer :: B, N, iso, wave, iter, si, wave2
+      real(KIND=dp), allocatable :: hpsi(:,:)
+      
+      if(EstimateParams) call IterativeEstimation(1)
+      
+      do iter=1, maxiter
+        si = 0
+        do B=1,8
+          N = HFblocks(B) ; if(N.eq.0) cycle
+          iso = -1
+          if(B.gt.4) iso = +1
+          do wave=si+N-extraspwfs(B)+1,si+N
+            ! Calculate the action of the single-particle hamiltonian.
+            hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
+            &              hfdpsi(:,:,:,wave)   ,                              &
+            &              hfddpsi(:,:,:,wave)  ,                              &
+            &              hfdddpsi(:,:,:,wave) ,                              &
+            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+            
+            spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
+            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
+      
+            ! Evolve 
+            hfpsi(:,:,wave) = hfpsi(:,:,wave)  - dt/hbar* hpsi
+            do wave2=wave,si+N
+              current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+              current_sph(wave ,wave2) = current_sph(wave2,wave)
+            enddo
+          enddo
+
+          si = si + N
+        enddo
+        ! orthonormalize
+        call GramSchmidt
+        ! derive those that were evolved
+        call derive_extra_spwfs(extraspwfs)
+      enddo
+      
+    end subroutine evolve_partial
 
     subroutine eval_sph(diag)
       !------------------------------------------------------------------------
