@@ -30,23 +30,17 @@ def ProcessWavefunctions(fname, src, target, so):
 
       N2/N3 :  decides which derivative routines to comment/uncomment 
                depending on the order of derivatives in the functional
-
+               
+      SXab  :  integers determining the behaviour under symmetry of the spwfs
+               in different symmetry blocks.
+        where 
+          X  = X;Y;Z depending on the direction
+          a  = block index, i.e. 1-4 depending on the symmetries of the spwf
+          b  = component index, i.e. 1-4 depending on the spinor component
+               we are dealing with
     """
 
-#    self.syms       = syms
-#    self.combs      = combs
-
-#    print (multiply_quantum_numbers(so.syms[0].permutation, so.combs[0], 1 ))
-#    print (multiply_quantum_numbers(so.syms[0].permutation, so.combs[0], 2 ))
-#    print (multiply_quantum_numbers(so.syms[0].permutation, so.combs[0], 3 ))
-#    print (multiply_quantum_numbers(so.syms[0].permutation, so.combs[0], 4 ))
-#    print ()
-#    print (multiply_quantum_numbers(so.syms[1].permutation, so.combs[1], 1 ))
-#    print (multiply_quantum_numbers(so.syms[1].permutation, so.combs[1], 2 ))
-#    print (multiply_quantum_numbers(so.syms[1].permutation, so.combs[1], 3 ))
-#    print (multiply_quantum_numbers(so.syms[1].permutation, so.combs[1], 4 ))
-#    exit()
-
+ 
     dic={}
     dic['N2'] = '!'
     dic['N3'] = ' '
@@ -60,7 +54,40 @@ def ProcessWavefunctions(fname, src, target, so):
     elif(src_heph.heph_functional.derivative_order == 3):
         dic['N2'] = '!'
         dic['N3'] = ' '
-    
+ 
+    axes = ['X', 'Y', 'Z']
+    for k in range(3):
+      if(so.ReduceAxes[k] == 1):
+        # This axes is not represented because of symmetry, hence we need to
+        # generate a sign
+        for B in range(1,5):
+
+          #    A symmetry imposes a relation on an spwf
+          #    
+          #       [U psi] (x,y,z,c) = u psi(x,y,z,c)
+          #                         = psi(ex,ey,ez,c')
+          #      where  
+          #       * U is a symmetry operator
+          #       * u is the associated quantum number
+          #       * ex, ey, ez are x,y,z with perhaps a sign
+          #       * c and c', are components, i.e. 1,2,3,4
+
+          mult = multiply_quantum_numbers(so.syms[k].permutation, so.combs[k],B)
+          # => calling this routine lets us get the behaviour under the 
+          #    symmetry operator for every component, i.e. it gets us the 
+          #    number "u" for each block of spwfs (= a fixed set of quantum
+          #    numbers.)
+
+          for c in range(1,5):
+            key = 'S' + axes[k] + '%d'%B + '%d'%c
+            dic[key] = '%+2d'%(mult[c-1]/c)
+      else:
+        # This axis is completely represented in the calculation, we put 0
+        for B in range(1,5):
+          for c in range(1,5):
+            key = 'S' + axes[k] + '%d'%B + '%d'%c
+            dic[key] = ' 0'
+ 
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:

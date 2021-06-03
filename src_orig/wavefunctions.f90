@@ -17,11 +17,37 @@ module wavefunctions
  ! for the Tantalus program.
  !
  !==============================================================================
- ! Hephaestos:
+ ! Hephaestos keywords:
  ! 
  !    N2  : $N2
  !    N3  : $N3
  !
+ !
+ !    Symmetry properties of the spwfs
+ !
+ !            |  c  |    X   Y   Z
+ !    -----------------------------------------
+ !    Block 1 |  1  |   $SX11  $SY11  $SZ11 
+ !            |  2  |   $SX12  $SY12  $SZ12
+ !            |  3  |   $SX13  $SY13  $SZ13
+ !            |  4  |   $SX14  $SY14  $SZ14
+ !    -----------------------------------------
+ !    Block 2 |  1  |   $SX21  $SY21  $SZ21 
+ !            |  2  |   $SX22  $SY22  $SZ22
+ !            |  3  |   $SX23  $SY23  $SZ23
+ !            |  4  |   $SX24  $SY24  $SZ24
+ !    -----------------------------------------
+ !    Block 3 |  1  |   $SX31  $SY41  $SZ21 
+ !            |  2  |   $SX32  $SY42  $SZ22
+ !            |  3  |   $SX33  $SY43  $SZ23
+ !            |  4  |   $SX34  $SY44  $SZ24
+ !    -----------------------------------------
+ !    Block 4 |  1  |   $SX41  $SY41  $SZ21 
+ !            |  2  |   $SX42  $SY42  $SZ22
+ !            |  3  |   $SX43  $SY43  $SZ23
+ !            |  4  |   $SX44  $SY44  $SZ24
+ !    -----------------------------------------
+ ! 
  !==============================================================================
  use compilation
  use derivatives
@@ -461,6 +487,114 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     enddo
     deallocate(energies)
   end function OrderSpwfsSym
+
+  subroutine set_spwf_symmetries(sx, sy, sz, blocks)
+    !---------------------------------------------------------------------------
+    ! Routine that assigns the correct "signs" under symmetry transformation 
+    ! to all single-particle wavefunctions. 
+    !
+    ! Hephaestos fills in all practical signs here, using the following key
+    !
+    !  [dollar sign] SXab
+    !
+    !  where 
+    !      X  = X;Y;Z depending on the direction
+    !      a  = block index, i.e. 1-4 depending on the symmetries of the spwf
+    !      b  = component index, i.e. 1-4 depending on the spinor component
+    !           we are dealing with
+    !---------------------------------------------------------------------------
+    ! Input: blocks 
+    !        The number of spwfs in every symmetry block. 
+    !        This is an input of this routine, because this subroutine could be 
+    !        called for a subset of spwfs when reading from file.
+    !
+    ! Output: sx, sy, sz
+    !        The signs with respect to x/y/z reflection of the components of 
+    !        the spwf spinors. 
+    !---------------------------------------------------------------------------
+    integer, intent(out), allocatable :: sx(:,:), sy(:,:), sz(:,:)
+    integer, intent(in)               :: blocks(8)
+    integer                           :: N, i, B, si
+
+    if(allocated(sx)) deallocate(sx)
+    if(allocated(sy)) deallocate(sy)
+    if(allocated(sz)) deallocate(sz)
+
+    N = sum(blocks)
+    allocate(sx(4,N), sy(4,N), sz(4,N))
+
+    si = 0
+    do B=1,8,4 ! This is simply an isospin loop
+  
+      ! Positive parity neutrons
+      do i=si+1, si+blocks(B)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Block 1: positive parity, signature = +i spwfs
+        !
+        ! EV8-values for these quantities, as a point of comparison.
+        !
+        ! sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        ! sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
+        ! sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        ! sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = -1
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          sx(1,i) = $SX11 ; sy(1,i) = $SY11 ; sz(1,i) = $SZ11
+          sx(2,i) = $SX12 ; sy(2,i) = $SY12 ; sz(2,i) = $SZ12
+          sx(3,i) = $SX13 ; sy(3,i) = $SY13 ; sz(3,i) = $SZ13
+          sx(4,i) = $SX14 ; sy(4,i) = $SY14 ; sz(4,i) = $SZ14
+      enddo
+      do i=si+blocks(B)+1, si+blocks(B)+blocks(B+1)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        !  Block 2: positive parity, signature=-i spwfs
+        !
+        ! EV8-values for these quantities, as a point of comparison.
+        !
+        ! sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        ! sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = -1 
+        ! sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        ! sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = +1
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          sx(1,i) = $SX21 ; sy(1,i) = $SY21 ; sz(1,i) = $SZ21
+          sx(2,i) = $SX22 ; sy(2,i) = $SY22 ; sz(2,i) = $SZ22
+          sx(3,i) = $SX23 ; sy(3,i) = $SY23 ; sz(3,i) = $SZ23
+          sx(4,i) = $SX24 ; sy(4,i) = $SY24 ; sz(4,i) = $SZ24
+      enddo
+      ! Negative parity neutrons
+      do i=si+sum(blocks(B:B+1))+1,si+sum(blocks(B:B+2))
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        !  Block 3: negative parity, signature = +i spwfs
+        !
+        ! EV8-values for these quantities, as a point of comparison.
+        !
+        !  sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = -1
+        !  sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = -1 
+        !  sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
+        !  sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          sx(1,i) = $SX31 ; sy(1,i) = $SY31 ; sz(1,i) = $SZ31
+          sx(2,i) = $SX32 ; sy(2,i) = $SY32 ; sz(2,i) = $SZ32
+          sx(3,i) = $SX33 ; sy(3,i) = $SY33 ; sz(3,i) = $SZ33
+          sx(4,i) = $SX34 ; sy(4,i) = $SY34 ; sz(4,i) = $SZ34
+      enddo
+      do i=si+sum(blocks(B:B+2))+1, si+sum(blocks(B:B+3))
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        !  Block 4: negative parity, signature = -i spwfs
+        !
+        ! EV8-values for these quantities, as a point of comparison.
+        !  sx(1,i) = -1 ; sy(1,i) = +1 ; sz(1,i) = +1
+        !  sx(2,i) = +1 ; sy(2,i) = -1 ; sz(2,i) = +1 
+        !  sx(3,i) = +1 ; sy(3,i) = +1 ; sz(3,i) = -1
+        !  sx(4,i) = -1 ; sy(4,i) = -1 ; sz(4,i) = -1
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          sx(1,i) = $SX41 ; sy(1,i) = $SY41 ; sz(1,i) = $SZ41
+          sx(2,i) = $SX42 ; sy(2,i) = $SY42 ; sz(2,i) = $SZ42
+          sx(3,i) = $SX43 ; sy(3,i) = $SY43 ; sz(3,i) = $SZ43
+          sx(4,i) = $SX44 ; sy(4,i) = $SY44 ; sz(4,i) = $SZ44
+      enddo
+      si = si + sum(blocks(B:B+3))
+    enddo 
+
+  end subroutine set_spwf_symmetries
 
   subroutine GramSchmidt
     !---------------------------------------------------------------------------
