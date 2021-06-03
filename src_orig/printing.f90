@@ -105,7 +105,7 @@ contains
           &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
         else
           print 11, wave, p, s, rho_can(wave), spenergies(wave), &
-          &               dispersion(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz              
+          &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz              
         endif
     enddo
     

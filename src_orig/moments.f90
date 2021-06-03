@@ -444,7 +444,8 @@ $FILL_LIST
     NewMoment%SpherHarm     = 0.0_dp
     NewMoment%Squared       = 0.0_dp
     NewMoment%multiplier    = 0.0_dp
-    NewMoment%mult_hist  = 0.0_dp
+    NewMoment%mult_hist     = 0.0_dp
+    NewMoment%scalefactor   = 1.0_dp
     
     nullify(NewMoment%Calculate)
     NewMoment%Calculate   => Calculate_electric

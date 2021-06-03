@@ -27,6 +27,7 @@ from src_heph.heph_transform     import ProcessTransform
 from src_heph.heph_IO            import ProcessIO
 from src_heph.heph_cranking      import ProcessCranking
 from src_heph.heph_multipoles    import ProcessMoments
+from src_heph.heph_coulomb       import ProcessCoulomb
 
 def preprocess(fname, src, target, so , oldso):
     """
@@ -101,7 +102,7 @@ def preprocess(fname, src, target, so , oldso):
         ProcessIO(fname, src, target, so, oldso)
         return
     if(fname=='coulomb.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessCoulomb(fname, src, target, so)
         return
     if(fname=='pairing.f90'):
         ProcessPairing(fname, src, target, so)

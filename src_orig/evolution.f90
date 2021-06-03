@@ -350,7 +350,7 @@ contains
               !       spenergies  : <psi|h  | psi> 
               !       dispersions : <psi|h h| psi> - spenergies**2       
               spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
-              dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2          
+              dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2              
               ! d2h can be calculated as a convergence measure in this case
               select case(pairingtype)
               case(0,1)

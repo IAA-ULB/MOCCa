@@ -1,16 +1,34 @@
 module Coulombmod
  !==============================================================================
- !  #######   ##   #    # #####   ##   #      #    #  ####
- !     #     #  #  ##   #   #    #  #  #      #    # #
- !     #    #    # # #  #   #   #    # #      #    #  ####
- !     #    ###### #  # #   #   ###### #      #    #      #
- !     #    #    # #   ##   #   #    # #      #    # #    #
- !     #    #    # #    #   #   #    # ######  ####   ####
- !
+ !_________ _______  _       _________ _______  _                 _______ 
+ !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
+ !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
+ !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
+ !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
+ !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
+ !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
+ !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
+ !                                                                       
  !  Copyright W. Ryssens & M. Bender
  !
+ !============================================================================== 
+ ! Module that solves the Coulomb problem for the charge density (and is able
+ ! to construct said charge density.)
  !==============================================================================
- ! Module that solves the Coulomb problem of the proton density. 
+ ! Hephaestos keywords
+ !
+ !   GX : $GX
+ !   GY : $GY
+ !   GZ : $GZ
+ !
+ !   REDUX  : $REDUX
+ !   REDUY  : $REDUY
+ !   REDUZ  : $REDUZ
+ ! 
+ !   FULLX  : $FULLX
+ !   FULLY  : $FULLY
+ !   FULLZ  : $FULLZ
+ !
  !==============================================================================
  !
  ! Reminder about Coultreatment
@@ -31,17 +49,15 @@ module Coulombmod
  public
  
  !------------------------------------------------------------------------------
- ! The array containing the Coulomb Potential in the original box,
- ! enlarged with the boundary conditions. 
- !------------------------------------------------------------------------------
+ ! The array containing the Coulomb Potential in the full Coulomb box
  real(KIND=dp), allocatable :: CoulombPotential(:,:,:)
  real(KIND=dp), allocatable :: ExchangePotential(:,:,:)
- ! Array with the folded Coulomb potential, necessary if we take the proton size
- ! into account in a self-consistent way.
+ ! Array with the folded Coulomb potential, necessary if we take the 
+ ! finite size of the nucleons into account
  real(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExchange(:,:,:,:)
  !------------------------------------------------------------------------------
  !Precision required of the Coulomb Solvers
- real(KIND=dp), public              :: Prec
+ real(KIND=dp)              :: Prec = 1e-10
  !------------------------------------------------------------------------------
  ! Number of boundary conditions to put on all sides of the box.
  integer :: BC = 2
@@ -66,7 +82,10 @@ module Coulombmod
  ! index, the third whether it is the Gaussian with positive or negative sign.
  !------------------------------------------------------------------------------
  real(KIND=dp), allocatable :: Gaussx(:,:,:,:), Gaussy(:,:,:,:), Gaussz(:,:,:,:)
- 
+ !------------------------------------------------------------------------------
+ ! Offsets for the Coulomb box.
+ integer :: coul_offset_x, coul_offset_y, coul_offset_z
+
  !------------------------------------------------------------------------------
  ! Coefficients of the Coulomb laplacian
  !------------------------------------------------------------------------------
@@ -88,7 +107,7 @@ contains
  subroutine SolveCoulomb(rhop)
     !---------------------------------------------------------------------------
     ! Master routine to solve the Coulomb problem for a given source-density.
-    ! Input is the point proton density.
+    ! Input is the point (!) proton density.
     !---------------------------------------------------------------------------
 
     use Folding    
@@ -98,8 +117,9 @@ contains
     integer                    :: i,j,k,ii
     
     call start_timer(T_coulomb)
-
+    
     if(.not.allocated(CoulCoefs)) then
+       ! Determine the coefficients of the finite difference scheme
        select case(coulorder)
          case(1)
           BC = 1
@@ -120,12 +140,27 @@ contains
        end select
     endif
 
+    ! Determine the offsets of the original mesh inside the larger Coulomb mesh    
+    coul_offset_x = BC ; coul_offset_Y = BC ; coul_offset_z = BC
+    
+    ! If any given axis is not represented, the offset of the mesh in that
+    ! direction is zero.
+$REDUX  coul_offset_x = 0
+$REDUY  coul_offset_y = 0
+$REDUZ  coul_offset_z = 0
+
+
     if(.not.allocated(Source)) then
-        allocate(Source(nx+BC,ny+BC,nz+BC))           ; Source = 0.0_dp
+        allocate(Source(nx+BC+coul_offset_x, &
+        &               ny+BC+coul_offset_y, &
+        &               nz+BC+coul_offset_z))           
+        Source = 0.0_dp
     endif
 
-    if(.not.allocated(coulmeshx)) then  
-      call inimesh(coulmeshx, coulmeshy, coulmeshz,nx+BC,ny+BC,nz+BC,coulgrid)
+    if(.not.allocated(coulmeshx)) then
+        call inimesh(coulmeshx,coulmeshy,coulmeshz,nx+BC+coul_offset_x, &
+        &                                          ny+BC+coul_offset_y, &
+        &                                          nz+BC+coul_offset_z,coulgrid)
     endif
     !---------------------------------------------------------------------------
     ! Initialize all of the arrays.
@@ -138,23 +173,27 @@ contains
        return
     endif        
     !---------------------------------------------------------------------------
-    ! Set up the source term: 
-    ! For standard parameterizations it is the simply the proton density with
-    ! a prefactor.
+    ! Set up the source term: - 4 * pi * charge_density
+    ! Note that this is set up in the middle of the box, i.e. no source density
+    ! at the edges of the Coulomb box
     Source = 0.0_dp
+
     do k=1,nz
-        do j=1,ny
-            do i=1,nx
-                Source(i,j,k) = -4*pi*e2*Chargedensity(i,j,k)
-            enddo
+      do j=1,ny
+        do i=1,nx
+          Source(i+coul_offset_x,j+coul_offset_y,k+coul_offset_z) = &
+          &                                  -4*pi*e2*Chargedensity(i,j,k)
         enddo
+      enddo
     enddo
     !---------------------------------------------------------------------------
     ! Set the boundary conditions.
     call CoulombBound(Source)
- 
-    ! Solve for the direct coulomb potential   
-    call ConjugGrad (CoulombPotential,Source,1,1,1,1000,.false.,prec)
+    
+    ! Solve for the direct coulomb potential  
+    ! Note that the symmetry properties (+1,+1,+1) are never changed: 
+    ! Hephaestos modifies directly the Coulomb_Laplacian routine when necessary 
+    call ConjugGrad (CoulombPotential,Source, +1,+1,+1,1000,.false.,prec)
 
     if(Coultreatment.eq.1) then
       !-------------------------------------------------------------------------
@@ -277,8 +316,6 @@ contains
     ! Obtain the folded Coulomb potential, for use in the single-particle
     ! hamiltonian when finite size corrections are included selfconsistently.
     !---------------------------------------------------------------------------
-    !
-    !---------------------------------------------------------------------------
     use Folding
 
     real(KIND=dp), intent(in)  :: pot(:,:,:)
@@ -329,32 +366,39 @@ contains
     use sphericalharmonics
     use folding
     
-    integer       :: i,j,k
+    integer       :: i,j,k, ox, oy, oz
+    
+    ox = nx+BC+coul_offset_x
+    oy = ny+BC+coul_offset_y
+    oz = nz+BC+coul_offset_z
     
     !---------------------------------------------------------------------------
-    ! Allocate the CoulombPotential array (second-order boundary conditions)
-    allocate(CoulombPotential(nx+BC,ny+BC,nz+BC)) ; CoulombPotential = 0.0_dp
-    allocate(ExchangePotential(nx,ny,nz))      ; ExchangePotential = 0.0_dp
+    ! Allocate the CoulombPotential array on the full Coulomb mesh
+    allocate(CoulombPotential(ox,oy,oz))
+    CoulombPotential = 0.0_dp
+    ! The exchange potential is only defined on the original mesh
+    allocate(ExchangePotential(nx,ny,nz)) 
+    ExchangePotential = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
     Prec = 1.d-9/(dx**3*nx*ny*nz)
-    
     !---------------------------------------------------------------------------
-    ! Set-up the values of r and spherharmcoulomb on the mesh.
-    allocate(r(nx+BC,ny+BC,nz+BC))                                 ;  r = 0.0_dp
-    allocate(SpherHarmCoulomb(nx+BC,ny+BC,nz+BC,0:maxm,0:maxm,2)) 
+    ! Set-up the values of r and spherharmcoulomb on the Coulomb mesh.
+    allocate(r(ox,oy,oz))  ;  r = 0.0_dp
+    allocate(SpherHarmCoulomb(ox,oy,oz,0:maxm,0:maxm,2)) 
     SpherHarmCoulomb = 0.0_dp
     
-    do k=1,nz+BC
-      do j=1,ny+BC
-        do i=1,nx+BC
+    do k=1,oz
+      do j=1,oy
+        do i=1,ox
           r(i,j,k) = sqrt(coulmeshx(i)**2 + coulmeshx(j)**2 + coulmeshz(k)**2)
         enddo
       enddo
     enddo
     
-    call GenSphericalHarmonics(maxm,nx+BC,ny+BC,nz+BC,coulmeshx,coulmeshy,     &
-    &                 coulmeshz,SpherHarmCoulomb,QuantisationAxis,SecondaryAxis)
+    call GenSphericalHarmonics(maxm,ox,oy,oz,                                  &
+    &                          coulmeshx,coulmeshy, coulmeshz,SpherHarmCoulomb,&
+    &                          QuantisationAxis,SecondaryAxis)
     
  end subroutine SetupCoulomb
     
@@ -366,11 +410,11 @@ contains
     
     use folding
 
-    real(KIND=dp), intent(in) :: source(nx+BC,ny+BC,nz+BC)
-    integer                   :: i,j,k,l,m, im
+    real(KIND=dp), intent(in) :: source(:,:,:)
+    integer                   :: i,j,k,l,m, im, ox, oy, oz
     real(KIND=dp)             :: Qlm
     type(Moment), pointer     :: Current
-    logical                   :: cont
+    logical                   :: cont, condition
 
     !---------------------------------------------------------------------------
     ! Calculate the multipole moment expansion of the source term.
@@ -383,7 +427,30 @@ contains
     ! another place in the code where decisions regarding symmetries need
     ! to be chosen.
     !---------------------------------------------------------------------------
-    CoulombPotential=0
+
+    ox = nx+BC+coul_offset_x
+    oy = ny+BC+coul_offset_y
+    oz = nz+BC+coul_offset_z
+
+    do k=1,oz
+      do j=1,oy
+        do i=1,ox
+
+          condition = .false.
+          if(i.gt.nx) condition =.true.
+          if(j.gt.ny) condition =.true.
+
+$REDUZ     if(k.gt.nz) condition =.true.
+        
+$FULLZ     if(k.le.BC)    condition =.true.         
+$FULLZ     if(k.gt.nz+BC) condition =.true.         
+        
+          if(condition) then
+              CoulombPotential(i,j,k) = 0.0d0
+          endif
+        enddo
+      enddo
+    enddo
     
     nullify(Current)
     Current => Root
@@ -397,22 +464,37 @@ contains
       ! Recalculate the multipole distribution, since source is not
       ! necessarily the point proton distribution.
       Qlm = 0
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
+      do k=1,oz
+        do j=1,oy
+          do i=1,ox
             Qlm = Qlm - Source(i,j,k) * SpherHarmCoulomb(i,j,k,l,m,Im)
-
           enddo
         enddo
       enddo 
    
       Qlm = Qlm * dv/(2*l+1)        
+
       !  Previous implementation based on values of the multipole moments
       !Qlm = e2*Current%Value(2)*(4*pi/(2*l+1)) 
-      do k=1,nz+BC
-        do j=1,ny+BC
-          do i=1,nx+BC
-            if( (i.gt.nx) .or. (j.gt.ny) .or. (k.gt.nz)) then
+      do k=1,oz
+        do j=1,oy
+          do i=1,ox
+
+            condition = .false.
+ $REDUX     if(i.gt.nx) condition =.true.
+ $REDUY     if(j.gt.ny) condition =.true.
+ $REDUZ     if(k.gt.nz) condition =.true.
+          
+ $FULLX     if(i.le.BC)    condition =.true.         
+ $FULLX     if(i.gt.nx+BC) condition =.true.         
+
+ $FULLY     if(j.le.BC)    condition =.true.         
+ $FULLY     if(j.gt.ny+BC) condition =.true.         
+          
+ $FULLZ     if(k.le.BC)    condition =.true.         
+ $FULLZ     if(k.gt.nz+BC) condition =.true.         
+          
+            if(condition) then
               CoulombPotential(i,j,k) = CoulombPotential(i,j,k) +             &
               &           Qlm*SpherHarmCoulomb(i,j,k,l,m,Im)/(r(i,j,k)**(2*l+1))
             endif
@@ -435,8 +517,7 @@ contains
 
  subroutine ConstructFoldingMatrices(Gx,Gy,Gz)  
     !---------------------------------------------------------------------------
-    ! Construct the matrices for Gaussian folding, taking into account the 
-    ! symmetries of the density. 
+    ! Construct the matrices for Gaussian folding.
     !---------------------------------------------------------------------------
     use folding
     
@@ -473,16 +554,16 @@ contains
     endif
 
     do it=1,2
-        if(rplus(it) .ne. 0.0_dp) then 
-                call Gauss_1D(Gx(:,:,1,it), meshx, nx, rplus(it), +1)
-                call Gauss_1D(Gy(:,:,1,it), meshy, ny, rplus(it), +1)
-                call Gauss_1D(Gz(:,:,1,it), meshz, nz, rplus(it), +1)
-        endif
-        if(rmin(it) .ne. 0.0_dp) then 
-                call Gauss_1D(Gx(:,:,2,it), meshx, nx, rmin(it), +1)
-                call Gauss_1D(Gy(:,:,2,it), meshy, ny, rmin(it), +1)
-                call Gauss_1D(Gz(:,:,2,it), meshz, nz, rmin(it), +1)
-        endif
+      if(rplus(it) .ne. 0.0_dp) then 
+        call Gauss_1D(Gx(:,:,1,it), meshx, nx, rplus(it), $GX)
+        call Gauss_1D(Gy(:,:,1,it), meshy, ny, rplus(it), $GY)
+        call Gauss_1D(Gz(:,:,1,it), meshz, nz, rplus(it), $GZ)
+      endif
+      if(rmin(it) .ne. 0.0_dp) then 
+        call Gauss_1D(Gx(:,:,2,it), meshx, nx, rmin(it),  $GX)
+        call Gauss_1D(Gy(:,:,2,it), meshy, ny, rmin(it),  $GY)
+        call Gauss_1D(Gz(:,:,2,it), meshz, nz, rmin(it),  $GZ)
+      endif
     enddo
     
  end subroutine ConstructFoldingMatrices
@@ -497,14 +578,16 @@ contains
     !---------------------------------------------------------------------------
     real(KIND=dp) :: CEnergy
     real(KIND=dp), intent(in) :: rhop(mv)
-    integer       :: i,j,k
+    integer       :: i,j,k, ox, oy, oz
+    
+    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
     
     CEnergy = 0.0_dp
     do k=1,nz
         do j=1,ny
             do i=1,nx
                 CEnergy = CEnergy + rhop(i + nx*(j-1) + ny*nx*(k-1)) *         &
-                &                   CoulombPotential(i,j,k)
+                &                   CoulombPotential(i+ox,j+oy,k+oz)
             enddo
         enddo
     enddo
@@ -514,9 +597,8 @@ contains
  function CoulombEnergy_Exchange(rhop) result(CEnergy)
     !---------------------------------------------------------------------------
     ! Calculate the (exchange) electrostatic energy of the system in the 
-    ! Slater approximation.
-    ! Note that rhop is not necessarily the point-proton density that is 
-    ! passed in.
+    ! Slater approximation. Note that rhop is not necessarily the point-proton 
+    ! density that is passed in.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: rhop(mv)
     real(KIND=dp) :: factor, Cenergy
@@ -577,13 +659,13 @@ contains
     real(KIND=dp), intent(in),optional:: Precis
     logical, intent(in)               :: iprint
     
-    integer                    :: iteration
+    integer                    :: iteration, k
     real(KIND=dp), allocatable :: p_k(:,:,:), Temp(:,:,:)
     real(KIND=dp), allocatable :: Residual(:,:,:)
     real(KIND=dp)              :: PoissonNorm, Integral, a_k, c_k
     real(KIND=dp)              :: NewPoissonNorm
 
-    Residual = - CoulombLaplacian(Solution,sx,sy,sz)
+    Residual = - CoulombLaplacian(Solution,sx,sy,sz)   
     Residual = Residual + SourceTerm
     !---------------------------------------------------------------------------
     !The variable p_k is the conjugate direction. It starts out equal to our
@@ -607,7 +689,7 @@ contains
       Residual = Residual - a_k*Temp
       !NewPoissonNorm = zz2
       NewPoissonNorm = sum(Residual**2)
-      if(sum(Residual**2).le.Precis) then
+      if(sum(Residual**2).le.Precis .and. iteration.gt.5) then
         !Check if convergence is reached.
         if(iprint) print 1, Iteration
         exit
@@ -621,9 +703,9 @@ contains
       p_k = Residual    + c_k*p_k
       
       ! Diagnostic printing
-!      print *, 'Coul, it',  iteration, PoissonNorm
+      !print *, 'Coul, it',  iteration, PoissonNorm
     enddo
-
+    
     return
   end subroutine ConjugGrad
 
@@ -635,17 +717,19 @@ contains
     ! 
     ! Note that these boundary conditions are not touched by this procedure.
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: f(nx+BC,ny+BC,nz+BC)
-    real(KIND=dp)             :: lf(nx+BC,ny+BC,nz+BC)
+    real(KIND=dp), intent(in) ::  f(:,:,:)
+    real(KIND=dp), allocatable:: lf(:,:,:)
     integer, intent(in)       :: sx, sy, sz
-    integer :: i,j,k,l
+    integer :: i,j,k,l, ox, oy, oz
+    
+    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
 
-    lf = 0.0_dp
+    allocate(lf(nx+BC+ox, ny+BC+oy, nz+BC+oz)) ;  lf = 0.0_dp
     !---------------------------------------------------------------------------
     ! X-direction
-    do k=1,nz
-        do j=1,ny
-            do i=1+BC,nx
+    do k=oz+1,oz+nz
+        do j=oy+1,oy+ny
+            do i=1+BC,nx+ox
               do l=-BC,+BC
                  lf(i,j,k) = lf(i,j,k) + CoulCoefs(l+BC+1) * f(i+l,j,k)
               enddo
@@ -653,29 +737,26 @@ contains
         enddo
     enddo
 
-    do k=1,nz
-      do j=1,ny
-        do i=1,BC
-          ! Forwards and backwards difference without plane reflection
-          do l=-i+1,BC
-!            if(i.eq.3) print *,'+',i, l, CoulCoefs(l+BC+1) , i+l
-            lf(i,j,k) = lf(i,j,k) +      CoulCoefs(l+BC+1)  * f(i+l,j,k)
-          enddo
-          ! Backwards difference (with plane reflection)
-          do l=-BC,-i
-!            if(i.eq.3) print *,'-',i, l, CoulCoefs(l+BC+1) , -i-l+1 
-            lf(i,j,k) = lf(i,j,k) + sx * CoulCoefs(l+BC+1) * f(-i-l+1,j,k)
-          enddo
-!          if(i.eq.3)  stop
-        enddo
-      enddo
-    enddo
+$REDUX    do k=oz+1,oz+nz
+$REDUX      do j=oy+1,oy+ny
+$REDUX        do i=1,BC
+$REDUX          ! Forwards and backwards difference without plane reflection
+$REDUX          do l=-i+1,BC
+$REDUX            lf(i,j,k) = lf(i,j,k) +      CoulCoefs(l+BC+1)  * f(i+l,j,k)
+$REDUX          enddo
+$REDUX          ! Backwards difference (with plane reflection)
+$REDUX          do l=-BC,-i
+$REDUX            lf(i,j,k) = lf(i,j,k) + sx * CoulCoefs(l+BC+1) * f(-i-l+1,j,k)
+$REDUX          enddo
+$REDUX        enddo
+$REDUX      enddo
+$REDUX    enddo
 
     !---------------------------------------------------------------------------
     ! Y-direction
-    do k=1,nz
-        do j=1+BC,ny
-            do i=1,nx
+    do k=oz+1,oz+nz
+        do j=1+BC,ny+oy
+            do i=ox+1,ox+nx
               do l=-BC,+BC
                  lf(i,j,k) = lf(i,j,k) + CoulCoefs(l+BC+1) * f(i,j+l,k)
               enddo
@@ -683,27 +764,27 @@ contains
         enddo
     enddo
 
-    do k=1,nz
-      do j=1,BC
-        do i=1,nx
-          ! Forwards and backwards difference without plane reflection
-          do l=-j+1,BC
-            lf(i,j,k) = lf(i,j,k) +      CoulCoefs(l+BC+1)  * f(i,j+l,k)
-          enddo
-          ! Backwards difference (with plane reflection)
-          do l=-BC,-j
-            lf(i,j,k) = lf(i,j,k) + sy * CoulCoefs(l+BC+1) * f(i,-j-l+1,k)
-          enddo
-        enddo
-      enddo
-    enddo
+$REDUY    do k=oz+1,oz+nz
+$REDUY      do j=1,BC
+$REDUY        do i=ox+1,ox+nx
+$REDUY          ! Forwards and backwards difference without plane reflection
+$REDUY          do l=-j+1,BC
+$REDUY            lf(i,j,k) = lf(i,j,k) +      CoulCoefs(l+BC+1)  * f(i,j+l,k)
+$REDUY          enddo
+$REDUY          ! Backwards difference (with plane reflection)
+$REDUY          do l=-BC,-j
+$REDUY            lf(i,j,k) = lf(i,j,k) + sy * CoulCoefs(l+BC+1) * f(i,-j-l+1,k)
+$REDUY          enddo
+$REDUY        enddo
+$REDUY      enddo
+$REDUY    enddo
 
     !---------------------------------------------------------------------------
     ! Z-direction
     !---------------------------------------------------------------------------
-    do k=1+BC,nz
-        do j=1,ny
-            do i=1,nx
+    do k=1+BC,nz+oz
+        do j=oy+1,oy+ny
+            do i=ox+1,ox+nx
               do l=-BC,+BC
                  lf(i,j,k) = lf(i,j,k) + CoulCoefs(l+BC+1) * f(i,j,k+l)
               enddo
@@ -711,20 +792,20 @@ contains
         enddo
     enddo
 
-    do k=1,BC
-      do j=1,ny
-        do i=1,nx
-          ! Forwards and backwards difference without plane reflection
-          do l=-k+1,BC
-            lf(i,j,k) = lf(i,j,k) +      CoulCoefs(l+BC+1)  * f(i,j,k+l)
-          enddo
-          ! Backwards difference (with plane reflection)
-          do l=-BC,-k
-            lf(i,j,k) = lf(i,j,k) + sz * CoulCoefs(l+BC+1) * f(i,j, -k-l+1)
-          enddo
-        enddo
-      enddo
-    enddo
+$REDUZ    do k=1,BC
+$REDUZ      do j=oy+1,oy+ny
+$REDUZ        do i=ox+1,ox+nx
+$REDUZ          ! Forwards and backwards difference without plane reflection
+$REDUZ          do l=-k+1,BC
+$REDUZ            lf(i,j,k) = lf(i,j,k) +      CoulCoefs(l+BC+1)  * f(i,j,k+l)
+$REDUZ          enddo
+$REDUZ          ! Backwards difference (with plane reflection)
+$REDUZ          do l=-BC,-k
+$REDUZ            lf(i,j,k) = lf(i,j,k) + sz * CoulCoefs(l+BC+1) * f(i,j, -k-l+1)
+$REDUZ          enddo
+$REDUZ        enddo
+$REDUZ      enddo
+$REDUZ    enddo
 
     !---------------------------------------------------------------------------
     lf = lf/(dx**2)

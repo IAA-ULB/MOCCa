@@ -122,6 +122,7 @@
 from string          import Template
 from math            import log, factorial
 from .               import heph_symmetries 
+from src_heph.heph_symmetries  import *
 import numpy         as np
 import itertools
 
@@ -1085,14 +1086,14 @@ def AxisReflection(LO, RO, larg, rarg, so, pairing, nabla_arg = []):
     # Calculates the sign under axis reflection for the symmetries of an EV8/CR8
     # calculation.
     #
-    # LO        = left-operator
-    # RO        = right-operator
-    # larg      = indices of the left operator
-    # rarg      = indices of the right operator
-    # nabla_arg = indices of the nabla_operators acting possibly on the density
-    # so        = a set of symmetry options
-    # pairing   = whether or not we are dealing with a pairing density, i.e. 
-    #             a density that gets "summed over kappa".
+    #  LO        = left-operator
+    #  RO        = right-operator
+    #  larg      = indices of the left operator
+    #  rarg      = indices of the right operator
+    #  nabla_arg = indices of the nabla_operators acting possibly on the density
+    #  so        = a set of symmetry options
+    #  pairing   = whether or not we are dealing with a pairing density, i.e. 
+    #              a density that gets "summed over kappa".
     #---------------------------------------------------------------------------
 
     # Make sure that the empty tuple get recognised as simply indicating a number
@@ -1117,9 +1118,30 @@ def AxisReflection(LO, RO, larg, rarg, so, pairing, nabla_arg = []):
 
     # Then figure out the transformation of symmetry
     # Currently, hardcoded CR8-like symmetries 
-    sxp = [+1,-1,-1,+1] ; sxm = [-1,+1,+1,-1] 
-    syp = [+1,-1,+1,-1] ; sym = [+1,-1,+1,-1]
-    szp = [+1,+1,-1,-1] ; szm = [-1,-1,+1,+1]
+#    sxp = [+1,-1,-1,+1] ; sxm = [-1,+1,+1,-1] 
+#    syp = [+1,-1,+1,-1] ; sym = [+1,-1,+1,-1]
+#    szp = [+1,+1,-1,-1] ; szm = [-1,-1,+1,+1]
+
+    if(so.ReduceAxes[0] == 1):
+      sxp = multiply_quantum_numbers(so.syms[0].permutation, so.combs[0],1)
+      sxm = multiply_quantum_numbers(so.syms[0].permutation, so.combs[0],3)
+    else:
+      sxp = [0,0,0,0]
+      sxm = [0,0,0,0]
+
+    if(so.ReduceAxes[1] == 1):
+      syp = multiply_quantum_numbers(so.syms[1].permutation, so.combs[1],1)
+      sym = multiply_quantum_numbers(so.syms[1].permutation, so.combs[1],3)
+    else:
+      syp = [0,0,0,0]
+      sym = [0,0,0,0]
+
+    if(so.ReduceAxes[2] == 1):
+      szp = multiply_quantum_numbers(so.syms[2].permutation, so.combs[2],1)
+      szm = multiply_quantum_numbers(so.syms[2].permutation, so.combs[2],3)
+    else:
+      szp = [0,0,0,0]
+      szm = [0,0,0,0]
 
     for i in range(4):
         st_xp[i,0] = sxp[i] * start[i,0] ; st_xm[i,0] = sxm[i] * start[i,0] 
@@ -1200,18 +1222,24 @@ def AxisReflection(LO, RO, larg, rarg, so, pairing, nabla_arg = []):
             pz = - pz
     if(px > 0):
         px = '+1'
-    else:
+    elif(px < 0):
         px = '-1'
-            
+    else:
+        px = '0'
+        
     if(py > 0):
         py = '+1'
-    else:
+    elif(py < 0):
         py = '-1'
+    else:
+        py = '0'
     
     if(pz > 0):
         pz = '+1'
-    else:
+    elif(pz < 0):
         pz = '-1'
+    else:
+        pz = '0'
 
     return(px,py,pz)
 

@@ -38,7 +38,7 @@ contains
  subroutine Gauss_1D(G, mesh, m, r0, p)
     !---------------------------------------------------------------------------
     ! Function that constructs a matrix to fold in 1-D with a Gaussian of
-    ! parameter r0 and symmetry sign p. (To be filled in by Hephaestos later.)
+    ! parameter r0 and symmetry sign p. 
     !---------------------------------------------------------------------------
 
     real(KIND=dp)             :: G(m,m)
@@ -77,7 +77,7 @@ contains
   !                                Gx(|x1-x2|)Gx(|y1-y2|)Gx(|z1-z2|)
   !
   ! Where the folding functions Gx/Gy/Gz should be constructed beforehand and
-  ! passed in. They are in often Gaussians.  
+  ! passed in. 
   !-----------------------------------------------------------------------------
     
   real(KIND=dp), intent(in), target :: f(:,:,:)

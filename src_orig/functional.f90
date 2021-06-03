@@ -784,9 +784,11 @@ $TR   COM2pp = 2*COM2pp
     !---------------------------------------------------------------------------
     use Coulombmod , only : SolveCoulomb, CoulombPotential, Exchangepotential
     use Coulombmod , only : Foldedcoul,  FoldedExchange
+    use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
+    
     use moments
     
-    integer                    :: it,i,j,k, maxit
+    integer                    :: it,i,j,k, maxit, ox, oy, oz
     real(KIND=dp), allocatable :: update(:,:)
     logical, intent(in)        :: calcall, precon
     logical                    :: rhoread
@@ -815,20 +817,20 @@ $CALCFIELDS
     if(.not. rhoread) then    
         !-----------------------------------------------------------------------
         ! Add the Coulomb contribution to the field corresponding to rho.
-        ! The index juggling is ugly, but necessary. The Coulomb 
-        ! potential is defined on a slightly larger box using boundary 
-        ! conditions. A simple abstract statement might mess this up.
+        ! The index juggling is ugly, but necessary, because the Coulomb 
+        ! potential has a different size than the Lagrange mesh.
         if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
           &                             (.not. nucleonsize_selfconsistent)) then
-          ! We simply put the coulomb potential. Note that this breaks 
-          ! self-consistency if protons and neutrons are not treated as 
-          ! point particles.
+          ! We simply put the coulomb potential, "as is"
+
+          ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+          
           do k=1,nz
             do j=1,ny
               do i=1,nx
                 F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)=F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)&
-                &                              + CoulombPotential(i,j,k)       &
-                &                              + ExchangePotential(i,j,k)
+                &                       + CoulombPotential(i+ox,j+oy,k+oz)    &
+                &                       + ExchangePotential(i,j,k)
               enddo
             enddo
           enddo
