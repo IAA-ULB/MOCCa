@@ -856,9 +856,9 @@ $FILL_LIST
         print *, 'Invalid choice of cutofftype. It can either be 0 or 1.'
         stop
     end select
-
-!    !Constraining the non-physical degrees of freedom, if present
-!    call ConstrainNonPhysicalMoments()
+    
+    !Constraining the non-physical degrees of freedom, if present
+    call ConstrainNonPhysicalMoments()
 
     ! Do-loop exits when MoreConstraints indicated no more constraints will
     ! follow.
@@ -1677,7 +1677,86 @@ $FILL_LIST
     nullify(Root)
 
   end subroutine clean_moments
-!===============================================================================
-!
+  
+  subroutine ConstrainNonPhysicalMoments()
+    !---------------------------------------------------------------------------
+    ! A subroutine that automatically assigns the correct constraining
+    ! parameters to the multipole moments that do not represent physical degrees
+    ! of freedom. Those multipole moments are:
+    !
+    ! Q10     => Z-coordinate of the center of mass
+    ! Re(Q11) => X-coordinate of the center of mass
+    ! Im(Q11) => Y-coordinate of the center of masss
+    !
+    ! Re(Q21), Im(Q21), Im(Q22) => orientation of the nucleus in the box
+    !
+    ! This routine is symmetry-independent: we simply go through the linked 
+    ! list of multipole moments and see whether these degrees of freedom 
+    ! were initialized.
+    !---------------------------------------------------------------------------
+      type(Moment), pointer :: Current => null()
+
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Q_{ 1 0}
+      Current => FindMoment(1,0,.false.)
+      if(associated(Current)) then
+          Current%ConstraintType=2
+          Current%Intensity     =0.0_dp
+          Current%Constraint    =0.0_dp           
+          Current%Deviation     =0.0_dp
+          Current%Multiplier    =0.0_dp
+      endif
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Re Q_{ 1 1}
+      Current => FindMoment(1,1,.false.)
+      if(associated(Current)) then
+          Current%ConstraintType=2
+          Current%Intensity     =0.0_dp
+          Current%Constraint    =0.0_dp           
+          Current%Deviation     =0.0_dp
+          Current%Multiplier    =0.0_dp
+      endif
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Im Q_{ 1 1}
+      Current => FindMoment(1,1,.true.)
+      if(associated(Current)) then
+          Current%ConstraintType=2
+          Current%Intensity     =0.0_dp
+          Current%Constraint    =0.0_dp           
+          Current%Deviation     =0.0_dp
+          Current%Multiplier    =0.0_dp
+      endif
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Re Q_{ 2 1}
+      Current => FindMoment(2,1,.false.)
+      if(associated(Current)) then
+          Current%ConstraintType=2
+          Current%Intensity     =0.0_dp
+          Current%Constraint    =0.0_dp           
+          Current%Deviation     =0.0_dp
+          Current%Multiplier    =0.0_dp
+      endif
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Im Q_{ 2 1}
+      Current => FindMoment(2,1,.true.)
+      if(associated(Current)) then
+          Current%ConstraintType=2
+          Current%Intensity     =0.0_dp
+          Current%Constraint    =0.0_dp           
+          Current%Deviation     =0.0_dp
+          Current%Multiplier    =0.0_dp
+      endif
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Im Q_{ 2 2}
+      Current => FindMoment(2,2,.true.)
+      if(associated(Current)) then
+          Current%ConstraintType=2
+          Current%Intensity     =0.0_dp
+          Current%Constraint    =0.0_dp           
+          Current%Deviation     =0.0_dp
+          Current%Multiplier    =0.0_dp
+      endif
+  end subroutine ConstrainNonPhysicalMoments
+
 !===============================================================================
 end module 
