@@ -1,5 +1,5 @@
 module densities
-!==============================================================================
+!===============================================================================
 !_________ _______  _       _________ _______  _                 _______ 
 !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
 !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
@@ -11,8 +11,33 @@ module densities
 !                                                                       
 !  Copyright W. Ryssens & M. Bender
 !
-!============================================================================== 
+!=============================================================================== 
+! Module that defines, calculates and generally deals with all densities. 
+! 
+!=============================================================================== 
+! Hephaestos keywords
 !
+! DECLARATION     : [WAY too long to include here]
+! INITIALIZATION  : [WAY too long to include here]
+! ZEROING         : [WAY too long to include here]
+! EXPRESSION      : [WAY too long to include here]
+! BCSEXPRESSION   : [WAY too long to include here]
+! HFBEXPRESSION   : [WAY too long to include here]
+! DERIVATION      : [WAY too long to include here]
+! CLEANING        : [WAY too long to include here]
+!
+! TR              : $TR
+! NTR             : $NTR 
+! 
+! SX_RHO          : $SX_RHO 
+! SY_RHO          : $SY_RHO
+! SZ_RHO          : $SZ_RHO
+!
+! SX_SX/SY/SZ     : $SX_SX, $SX_SY, $SX_SZ
+! SY_SX/SY/SZ     : $SY_SX, $SY_SY, $SY_SZ
+! SY_SX/SY/SZ     : $SZ_SX, $SZ_SY, $SZ_SZ
+!
+!=============================================================================== 
 ! Some technical notes:
 !
 ! a) The densities are represented as vectors on the mesh, instead of 3D arrays. 
@@ -88,6 +113,16 @@ $NTR    real(KIND=dp), allocatable :: D_I_S_hist(:,:,:,:)
     real(KIND=dp), pointer ::  DenddPsi(:,:,:,:)
     real(KIND=dp), pointer :: DendddPsi(:,:,:,:)
     !---------------------------------------------------------------------------
+    ! As several other modules deal with the density D_I_I and its derivatives
+    ! in various forms,  Hephaestos fills in here the appropriate symmetries.
+    integer, parameter :: sx_rho = $SX_RHO
+    integer, parameter :: sy_rho = $SY_RHO
+    integer, parameter :: sz_rho = $SZ_RHO
+    ! and similar for the vector spin density s, which is needed in the 
+    ! preconditioning of the functionals
+    integer, parameter :: sx_s(3) = (/$SX_SX,$SX_SY,$SX_SZ/)
+    integer, parameter :: sy_s(3) = (/$SY_SX,$SY_SY,$SY_SZ/)
+    integer, parameter :: sz_s(3) = (/$SZ_SX,$SZ_SY,$SZ_SZ/)    
     
 contains
 

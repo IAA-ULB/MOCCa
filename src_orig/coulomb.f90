@@ -17,10 +17,6 @@ module Coulombmod
  !==============================================================================
  ! Hephaestos keywords
  !
- !   GX : $GX
- !   GY : $GY
- !   GZ : $GZ
- !
  !   REDUX  : $REDUX
  !   REDUY  : $REDUY
  !   REDUZ  : $REDUZ
@@ -555,14 +551,14 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
 
     do it=1,2
       if(rplus(it) .ne. 0.0_dp) then 
-        call Gauss_1D(Gx(:,:,1,it), meshx, nx, rplus(it), $GX)
-        call Gauss_1D(Gy(:,:,1,it), meshy, ny, rplus(it), $GY)
-        call Gauss_1D(Gz(:,:,1,it), meshz, nz, rplus(it), $GZ)
+        call Gauss_1D(Gx(:,:,1,it), meshx, nx, rplus(it), sx_rho)
+        call Gauss_1D(Gy(:,:,1,it), meshy, ny, rplus(it), sy_rho)
+        call Gauss_1D(Gz(:,:,1,it), meshz, nz, rplus(it), sz_rho)
       endif
       if(rmin(it) .ne. 0.0_dp) then 
-        call Gauss_1D(Gx(:,:,2,it), meshx, nx, rmin(it),  $GX)
-        call Gauss_1D(Gy(:,:,2,it), meshy, ny, rmin(it),  $GY)
-        call Gauss_1D(Gz(:,:,2,it), meshz, nz, rmin(it),  $GZ)
+        call Gauss_1D(Gx(:,:,2,it), meshx, nx, rmin(it),  sx_rho)
+        call Gauss_1D(Gy(:,:,2,it), meshy, ny, rmin(it),  sy_rho)
+        call Gauss_1D(Gz(:,:,2,it), meshz, nz, rmin(it),  sz_rho)
       endif
     enddo
     

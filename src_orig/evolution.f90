@@ -599,12 +599,8 @@ contains
       estiter = 500
       update  = 0.0
 
-      ! For now, assume positive parity, +i signature neutron.
-      sxm(1) =  1 ; sym(1) = +1 ; szm(1) = +1
-      sxm(2) = -1 ; sym(2) = -1 ; szm(2) = +1 
-      sxm(3) = -1 ; sym(3) = +1 ; szm(3) = -1
-      sxm(4) =  1 ; sym(4) = -1 ; szm(4) = -1
-
+      ! For now, assume the symmetries of the very first neutron state
+      sxm(:) = sx(1,:) ; sym(:) = sy(1,:) ; szm(:) = sz(1,:) 
       !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Iterative estimation of the maximal energy
       con = 1
@@ -725,7 +721,7 @@ contains
    ! With the update in hand, we update the spwfs
    si = 0   
    do B=1,8
-    N = HFBlocks(B)
+    N = HFBlocks(B) ; if(N.eq.0) cycle
     it = 1 ;  if(B.gt.4) it = 2
 
     do wave=1,N
@@ -735,12 +731,16 @@ contains
     enddo
     si = si + N
    enddo
-   HFPsi = HFPsi - mpsi
    do wave=1,nwt
       it = 1
       if(wave .gt. nwn) it = 2
       !Substituting the correction
-      HFPsi(:,:,wave) = HFPsi(:,:,wave) - mpsi(:,:,wave)
+      HFPsi(:,:,wave) = HFPsi(:,:,wave) - 2*mpsi(:,:,wave)
+      !
+      ! The factor two is a historical accident, and could be of course 
+      ! accomodated by a redefinition of the Update above, but I prefer to 
+      ! include it here and leave a trace of this happy (?) mistake.
+
     enddo
    !---------------------------------------------------------------------------
    ! Finally, orthonormalisation

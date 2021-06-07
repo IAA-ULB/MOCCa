@@ -324,7 +324,23 @@ def ProcessDensities(fname, src, target, so):
       dic['TR']  = '!'
       dic['NTR'] = ''
    
- 
+    # Here we figure out the symmetries of the ordinary density rho = D_I_I
+    # as that one is often necessary outside of the densities module
+    axes = ['X', 'Y', 'Z']
+    for k in range(3):
+     if(so.ReduceAxes[k] == 1):
+      dic['S%s_RHO'%axes[k]] ='+1'
+     else:
+      dic['S%s_RHO'%axes[k]] =' 0'
+    # And the same for D_I_S
+    for j in range(3):
+      P   = AxisReflection(Identity, Sigma,[()],[(j)],so,False)   
+      for k in range(3):  
+        if(so.ReduceAxes[k] == 1):
+         dic['S%s_S%s'%(axes[k],axes[j])] ='%s'%P[k]
+        else:
+         dic['S%s_S%s'%(axes[k],axes[j])] =' 0'
+           
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:

@@ -874,29 +874,21 @@ $NTR    G_I_N = G_I_N + crank_current_potential()
         if(.not.allocated(update)) allocate(update(nx*ny*nz,2))
       
         update=  F_I_I - F_I_I_hist
-        update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,+1,+1)
+        update=  PreconditionPotential(update,-preconfactor,1.0_dp, &
+        &                                                  sx_rho,sy_rho,sz_rho)
         F_I_I =  F_I_I_hist + update
       endif
       !---------------------------------------------------------------------------
       ! Precondition the field corresponding to s, F_I_S.
   $NTR    if(.not.all(F_I_S_hist.eq.0.0_dp) .and. potentialpreconditioning.eq.1) then
   $NTR      if(.not.allocated(update)) allocate(update(nx*ny*nz,2))
-      
-  $NTR      ! X component
-  $NTR      update=  F_I_S(:,1,:) - F_I_S_hist(:,1,:)
-  $NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,-1,+1,-1)
-  $NTR      F_I_S(:,1,:) =  F_I_S_hist(:,1,:) + update
 
-  $NTR      ! Y component
-  $NTR      update=  F_I_S(:,2,:) - F_I_S_hist(:,2,:)
-  $NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,-1,-1)
-  $NTR      F_I_S(:,2,:) =  F_I_S_hist(:,2,:) + update
-
-  $NTR      ! Z component
-  $NTR      update=  F_I_S(:,3,:) - F_I_S_hist(:,3,:)
-  $NTR      update=  PreconditionPotential(update,-preconfactor,1.0_dp,+1,+1,+1)
-  $NTR      F_I_S(:,3,:) =  F_I_S_hist(:,3,:) + update
-
+  $NTR      do k=1,3      
+  $NTR        update=  F_I_S(:,1,:) - F_I_S_hist(:,1,:)
+  $NTR        update=  PreconditionPotential(update,-preconfactor,1.0_dp, &
+  $NTR                                               sx_s(k),sy_s(k),sx_z(k))
+  $NTR        F_I_S(:,k,:) =  F_I_S_hist(:,k,:) + update
+  $NTR      enddo
   $NTR    endif
 
     endif
@@ -1143,9 +1135,17 @@ $WRITEPOTENTIALS
     ! Subroutine that reads the different mean-field potentials from file.
     !
     ! Input:
-    !   chan                  : 
-    !   filenx, fileny,filenz : 
-    !   symtransfo_needed     : 
+    !   chan                  : integer, channel number for input
+    !   filenx, fileny,filenz : integers, number of mesh points in every 
+    !                           direction for the quantities on file
+    !   symtransfo_needed     : logical, if a symmetry transformation is 
+    !                           needed (.true.) or not (.false.)
+    !                           If .false., use the potentials as read from 
+    !                           file. If .true., don't use the potentials as 
+    !                           read from file and simply set them to zero.
+    !                           This is currently done like this, as I am not
+    !                           motivated to write all the necessary routines
+    !                           to transform the potentials.
     !---------------------------------------------------------------------------
     integer, intent(in) :: chan, filenx, fileny, filenz
     logical, intent(in) :: symtransfo_needed

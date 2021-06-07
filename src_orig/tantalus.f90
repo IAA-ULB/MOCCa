@@ -449,7 +449,7 @@ subroutine printsummary(iter)
     print 4, totalE,     (totalE - Ehistory(1))/abs(totalE)
     print 41, Routhian,  (Routhian - Rhistory(1))/abs(Routhian)
     print 42, Routhian-totalE, &
-    &  ((Routhian - Rhistory(1)) - (totalE - Ehistory(1)))/abs(Routhian-totalE) 
+    &  ((Routhian - Rhistory(1)) - (totalE - Ehistory(1)))/abs(totalE) 
     if(fixfermi) then
         dN = part%value - part%history 
         print 7, dN

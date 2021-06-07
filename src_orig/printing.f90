@@ -30,11 +30,11 @@ contains
     20 format (100 ('-'))
     30 format (100 ('_'),/,3x , 'Neutron wavefunctions')
     40 format (100 ('_'),/,3x , 'Proton  wavefunctions')
-    60 format (2x,'i',4x,'P',3x, 'Rz', 3x,'occ',7x,'E',8x,'d2h',4x,'Delta',  &
+    60 format (2x,'i',5x,'P',3x, 'Rz', 3x,'occ',7x,'E',8x,'d2h',4x,'Delta',  &
     &             ' | ', 2x, 'JxT',4x, 'JyT', 4x,'Jz', 6x, 'J', 2x,          &
     &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz')    
 
-    11 format (i3, 1x, f4.1, 1x, f4.1, 2x, f6.4, 1x, f9.3, 1x, es8.1,1x,f6.2,  &
+    11 format (i3, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, f9.3, 1x, es8.1,1x,f6.2,  &
     &          1x,'|', 4(2x, f5.2), 1x, '|', 3(2x, f5.2) )
 
     integer       :: wave,k, B, si, N, T, wavebar

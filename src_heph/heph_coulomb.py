@@ -22,12 +22,10 @@ def ProcessCoulomb(fname, src, target, so):
   
   for k in range(3):
     if(so.ReduceAxes[k] == 1):
-      dic['G%s'%axes[k]] = '+1'
       dic['REDU%s'%axes[k]] = ' '
       dic['FULL%s'%axes[k]] = '!'
 
     else:
-      dic['G%s'%axes[k]] = ' 0'
       dic['REDU%s'%axes[k]] = '!'
       dic['FULL%s'%axes[k]] = ' '
   
