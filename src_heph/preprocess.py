@@ -77,7 +77,7 @@ def preprocess(fname, src, target, so , oldso):
         ProcessParameterization(fname, src, target)
         return
     if(fname=='functional.f90'):
-        ProcessFunctional(fname, src, target,so)
+        ProcessFunctional(fname, src, target,so, oldso)
         return
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)

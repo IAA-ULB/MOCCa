@@ -1138,11 +1138,17 @@ $EREAR
 $WRITEPOTENTIALS
   end subroutine WritePotentials
 
-  subroutine ReadPotentials(chan, filenx, fileny, filenz)
+  subroutine ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed)
     !---------------------------------------------------------------------------
-    !  Subroutine writing the different potentials to file.
+    ! Subroutine that reads the different mean-field potentials from file.
+    !
+    ! Input:
+    !   chan                  : 
+    !   filenx, fileny,filenz : 
+    !   symtransfo_needed     : 
     !---------------------------------------------------------------------------
     integer, intent(in) :: chan, filenx, fileny, filenz
+    logical, intent(in) :: symtransfo_needed
     integer             :: io, fieldnumber, fieldcount, it, filemv
     character(len=30)   :: fieldname
 
@@ -1154,8 +1160,7 @@ $WRITEPOTENTIALS
     do fieldcount = 1,fieldnumber
         ! Read the fieldname
         read(chan, iostat=io) fieldname   
-        ! Manually check for 
-
+        ! Then select which field we are going to be reading
         select case(trim(fieldname))
 $READPOTENTIALS
         CASE DEFAULT

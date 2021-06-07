@@ -22,7 +22,7 @@ contains
 
   subroutine PrintSpwfs
     !---------------------------------------------------------------------------
-    ! Print the info of the physical Hartree-Fock basis.
+    ! Print the info of the (physical) Hartree-Fock basis.
     !---------------------------------------------------------------------------
     
     10 format (21 ('-'), ' Sp wavefunctions ', 61('-'))

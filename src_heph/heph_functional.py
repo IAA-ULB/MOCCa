@@ -442,7 +442,7 @@ def ProcessParameterization(fname, src, target):
             for line in template:
                 generated.write(Template(line).substitute(dic))  
 
-def ProcessFunctional(fname, src, target, so):
+def ProcessFunctional(fname, src, target, so, oldso):
     """
      Master routine calling the other ones to generate a functional based
      on the parsing done before.
@@ -499,7 +499,7 @@ def ProcessFunctional(fname, src, target, so):
     #---------------------------------------------------------------------------
     # Generate the fields of the single-particle hamiltonian
     (fielddec, fieldcalc, fieldwrite,fieldread, fieldclean) =              \
-                                                          GenerateFields(so)
+                                                        GenerateFields(so,oldso)
     declaration = declaration + fielddec   + '\n'
     writing     = writing     + fieldwrite 
     reading     = reading     + fieldread 

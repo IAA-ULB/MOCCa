@@ -661,7 +661,7 @@ contains
     endif
     !---------------------------------------------------------------------------
     ! Potentials                                               
-    call readpotentials(chan, filenx,fileny,filenz)
+    call readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
     !---------------------------------------------------------------------------
     ! Multipole moment information                             
     io = 0
