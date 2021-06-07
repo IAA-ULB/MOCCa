@@ -417,9 +417,9 @@ subroutine printsummary(iter)
     implicit none
 
     integer, intent(in)   :: iter
-    type(Moment), pointer :: Q20, Q22, part
-    real(KIND=dp)         :: dQ20, dQ22, dF(2), DN(2), dL20, dL22
-     
+    type(Moment), pointer :: current, part
+    real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev
+    character(len=1)      :: t
 
     1 format (80('-'))
     2 format (' Iteration = ',i4)
@@ -428,18 +428,14 @@ subroutine printsummary(iter)
     4 format (' E   = ', f10.3,2x, '  DE  = ', e12.5)
    41 format (' R   = ', f10.3,2x, '  DR  = ', e12.5)  
    42 format (' R-E = ', f10.3,2x, 'D(R-E)= ', e12.5)  
-    5 format (' Q20 = ', f12.4,    '  Q22 = ', f12.4, /, &
-    &         ' dQ20= ', es8.1, 4x, '  dQ22= ', es8.1 , /, &
-    &         ' L20 = ', f12.4,    '  dL20= ', es8.1, /,  &
-    &         ' L22 = ', f12.4,    '  dL22= ', es8.1)
+    5 format (' ',a1, 'Q', 2i1,'=',f12.4, 3x, 'dQ =', es8.1, 2x,         &
+    &          'L =',f12.4,2x,' dL =', es8.1, 2x, 'dev =', es8.1)
 
     6 format (' dmun= ', es8.1, 4x, '  dmup= ', es8.1)
     7 format (' dN  = ', es8.1, 4x, '  dZ  = ', es8.1)  
     8 format (' Jz  = ', f8.3, 4x, '  dJZ = ', es8.1 )
 
     part=>FindMoment(0,0,.false.)
-    Q20 =>FindMoment(2,0,.false.     )
-    Q22 =>FindMoment(2,2,.false., Q20)
 
     print 1
     print 2, iter
@@ -459,12 +455,30 @@ subroutine printsummary(iter)
         print 6, dF
     endif
     
-    dQ20 =    (sum(Q20%value) - sum(Q20%history))
-    dQ22 =    (sum(Q22%value) - sum(Q22%history))
-    dL20 =    Q20%multiplier - Q20%mult_hist
-    dL22 =    Q22%multiplier - Q22%mult_hist
-    print 5, sum(Q20%value), sum(Q22%value), dQ20,dQ22, &
-    &        Q20%multiplier, dL20, Q22%multiplier, dL22
+    Current => Root
+    do while (associated(Current%next))
+      Current => Current%next
+      
+      if((Current%constrainttype .ne. 0) .or. (Current%l .eq. 2)) then
+        dQ = sum(Current%value) - sum(Current%history)
+        dL = Current%multiplier - Current%mult_hist
+        if(Current%Impart) then
+          t = 'I'
+        else
+          t = 'R'
+        endif
+        
+        if(Current%constrainttype.ne.0) then
+          dev = Current%constraint-sum(Current%value)
+        else
+          dev = 0
+        endif
+        
+        print 5, t, Current%l, Current%m, sum(Current%value), dQ, &
+        &              Current%multiplier, dL, dev
+          
+      endif
+    enddo    
     print 8, totalangmom(3), totalangmom(3) - angmomold(3)
         
 end subroutine printsummary
