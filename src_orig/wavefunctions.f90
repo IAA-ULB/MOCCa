@@ -97,6 +97,10 @@ module wavefunctions
  ! expectation values of the single-particle hamiltonian in the canonical basis
  real(KIND=dp), allocatable :: canenergies(:)
  !------------------------------------------------------------------------------
+ ! Single-particle expectation values of Parity in the HF basis and in the 
+ ! canonical basis
+ real(KIND=dp), allocatable :: P_hf(:), P_can(:)
+ !------------------------------------------------------------------------------
  ! Angular momentum properties of the spwfs in
  !  (i)   the ordinary basis, i.e. the spwfs in storage: spwf_[...]
  !  (ii)  the Hartree-Fock basis                       :   HF_[...]
@@ -679,6 +683,42 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     TPsi(:,4) =   Psi(:,2)
     
   end function TimeReverse
+  
+  subroutine update_spwf_symmetries()
+      !-------------------------------------------------------------------------      
+      ! Update/calculate all relevant expectation values of single-particle 
+      ! wavefunctions, for both HF-basis and canonical basis.
+      !
+      ! Currently implemented:
+      !      *   Parity: P_HF and P_can
+      !
+      ! Input: 
+      !    NONE
+      ! Output:
+      !    NONE
+      !-------------------------------------------------------------------------
+      real(KIND=dp), allocatable :: full_P(:,:)
+      integer                    :: i
+  
+      if(.not.allocated(P_HF))  allocate(P_HF (nwt))
+      if(.not.allocated(P_CAN) .and. allocated(canpsi)) allocate(P_CAN(nwt))
+            
+      full_P  = spwf_parities(HFPsi, .true.)
+      full_P  = matmul(full_P, HFtransfo)
+      full_P  = matmul(transpose(HFtransfo), full_P)
+
+      do i=1,nwt
+        P_HF(i) = full_P(i,i)
+      enddo
+
+      if(allocated(canpsi)) then
+        full_P = spwf_parities(canpsi,.false.)
+        do i=1,nwt
+          P_CAN(i) = full_P(i,i)
+        enddo
+      endif
+              
+  end subroutine update_spwf_symmetries
 
   subroutine update_spwf_angmom(fullmatrices)
     !---------------------------------------------------------------------------
@@ -1611,6 +1651,82 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     enddo
     angmom = angmom * dv
   end function angmom_z_quad
+  
+  function spwf_parities(basis, fullmatrices) result(P)
+      !-------------------------------------------------------------------------
+      ! Calculation of the single-particle matrix elements of parity P.
+      !
+      !         < i | P | j >
+      ! 
+      ! Input:
+      !     basis        : set of single-particle wavefunctions to perform the 
+      !                    calculation for.
+      !     fullmatrices : whether to calculate all matrix elements (.true.)
+      !                    or only the diagonal ones (.false.)
+      ! Output:
+      !     P    : set of parities
+      !
+      ! Currently, this routine is somewhat hardcoded for the symmetry options
+      ! corresponding to EV8/CR8/EV4. In time, Hephaestos should be able to deal
+      ! more properly with all these things. 
+      !-------------------------------------------------------------------------
+      real(KIND=dp), allocatable         :: P(:,:)
+      real(KIND=dp), intent(in), target  :: basis(nx*ny*nz,4,nwt)
+      real(KIND=dp), pointer             :: spwf(:,:,:,:),spwf2(:,:,:,:)
+      logical, intent(in)                :: fullmatrices
+      integer :: B, N, i, j,k,l, si, wave, wave2, startind, endind
+      logical :: check
+        
+      allocate(P(nwt,nwt))
+
+$PCON      P = 0 
+$PCON      do wave=1,nwt
+$PCON         if    (wave .lt. sum(HFBlocks(1:2))) then
+$PCON               P(wave,wave) = +1
+$PCON         elseif(wave .lt. sum(HFBlocks(1:4))) then
+$PCON               P(wave,wave) = -1
+$PCON         elseif(wave .lt. sum(HFBlocks(1:6))) then
+$PCON               P(wave,wave) = +1
+$PCON         else  
+$PCON               P(wave,wave) = -1
+$PCON         endif
+$PCON      enddo 
+     
+$PBROKEN   si = 0
+$PBROKEN   do B=1,8
+$PBROKEN      N = HFBlocks(B) ; if(N.eq.0) cycle
+$PBROKEN        
+$PBROKEN      do wave = si+1, si+N
+$PBROKEN        spwf(1:nx,1:ny,1:nz,1:4) => Basis(1:4*nx*ny*nz,1,wave)
+$PBROKEN        startind   = si + wave
+$PBROKEN        if(fullmatrices) then
+$PBROKEN          endind   = si + N
+$PBROKEN        else
+$PBROKEN          endind   = si+wave
+$PBROKEN        endif
+$PBROKEN        do wave2 = si+1,si+N
+$PBROKEN         spwf2(1:nx,1:ny,1:nz,1:4) => Basis(1:4*nx*ny*nz,1,wave2)
+$PBROKEN
+$PBROKEN         P(wave,wave2) = 0
+$PBROKEN         do k=1,nz
+$PBROKEN          do j=1,ny
+$PBROKEN            do i=1,nx
+$PBROKEN             P(wave,wave2) = P(wave,wave2) + spwf(i,j,k,1) * spwf2(i,j,nz-k+1,1)
+$PBROKEN             P(wave,wave2) = P(wave,wave2) + spwf(i,j,k,2) * spwf2(i,j,nz-k+1,2)
+$PBROKEN             P(wave,wave2) = P(wave,wave2) - spwf(i,j,k,3) * spwf2(i,j,nz-k+1,3)
+$PBROKEN             P(wave,wave2) = P(wave,wave2) - spwf(i,j,k,4) * spwf2(i,j,nz-k+1,4)
+$PBROKEN            enddo
+$PBROKEN          enddo
+$PBROKEN         enddo
+$PBROKEN         if(mod(B,2) .eq. 0) P(wave,wave2) = - P(wave,wave2)
+$PBROKEN         P(wave,wave2) = P(wave,wave2) * dv
+$PBROKEN         P(wave,wave2) = P(wave2,wave) 
+$PBROKEN        enddo
+$PBROKEN      enddo
+$PBROKEN      si = si + N
+$PBROKEN   enddo
+  
+  end function spwf_parities
 
   subroutine clean_wavefunctions()
 

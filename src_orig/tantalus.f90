@@ -211,7 +211,7 @@ subroutine ReachForWaterAndFood()
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
-    ! Derive all the single-particle wavefunctions
+    ! Derive all the single-particle wavefunctions 
     call deriveHF()
 
     if( (Bogofromfile.and.readHFBinfofile) .and. pairingscheme.eq.1) then
@@ -252,6 +252,8 @@ subroutine ReachForWaterAndFood()
 
     ! Only calculate the fields that have not been initialized from file.
     call calcFields(calcall=.false.,precon= .false.)
+
+    call update_spwf_symmetries()
     ! Update the angular momentum information of the spwfs
     call update_spwf_angmom(.true.)
     call updateAM 
@@ -283,6 +285,7 @@ subroutine ReachForWaterAndFood()
         ! One heavy-ball step.
         ! Note that the (diagonal) matrix elements of <h> get calculated here
         call Evolve(iter)
+        call update_spwf_symmetries()
        
         ! Save Fermi energy
         FermiHistory   = FermiEnergy

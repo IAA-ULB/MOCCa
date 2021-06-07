@@ -38,6 +38,12 @@ def ProcessWavefunctions(fname, src, target, so):
           a  = block index, i.e. 1-4 depending on the symmetries of the spwf
           b  = component index, i.e. 1-4 depending on the spinor component
                we are dealing with
+
+      PCON   | : Variables activating the relevant piece of code for the 
+      PBROKEN|   calculation of the expectation values of Parity. This is 
+                 all "placeholder", as Hephaestos should in the future be able
+                 to generate this type of code itself.
+
     """
 
  
@@ -87,7 +93,19 @@ def ProcessWavefunctions(fname, src, target, so):
           for c in range(1,5):
             key = 'S' + axes[k] + '%d'%B + '%d'%c
             dic[key] = ' 0'
- 
+
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    # Ugly manual checking if parity is part of the generator set and 
+    #  signalling this to the FORTRAN code
+    symdic  = populatesymmetries()
+    dic['PCON']    = '!'
+    dic['PBROKEN'] = ' '
+
+    for sym in so.generators:
+      if (sym == symdic['P']):
+        dic['PCON']    = ' '
+        dic['PBROKEN'] = '!'
+    
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:

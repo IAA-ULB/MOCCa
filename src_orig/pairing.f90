@@ -466,7 +466,10 @@ $FORBIDBCS endif
 $TR             do wave2=si+1,si+N
 $NTR          do wave2=si+N+1,si+N+N2
 
-             !------------------------------------------------------------------
+
+            ! We check if the spwfs are (close to) having opposite parity
+            if(abs(P_hf(wave) * P_hf(wave2) + 1 ).lt. 0.1) cycle
+            !------------------------------------------------------------------
             if(allocated(kappa_pairing)) then
               ! We've found a kappa on file and can use it to guess better 
               ! signs and sizes

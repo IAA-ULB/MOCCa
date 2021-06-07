@@ -350,6 +350,7 @@ contains
     endif
     
     call set_spwf_symmetries(sx, sy, sz, HFblocks)
+    call update_spwf_symmetries()
     !---------------------------------------------------------------------------
     if(guessgaps) then
       ! Guess some pairing gaps if asked for (always if starting from INIT)
@@ -1484,8 +1485,7 @@ contains
     ! First do the neutron wavefunctions    
     do i=1,nwn
       wave = neutronorder(i)
-      if(wave .le. HFBlocks(1)) p = +1
-      if(wave .gt. HFBlocks(1)) p = -1
+      P = P_hf(wave)
 
       Jx = HF_JTR(1,wave) ; Spinx = HF_STR (1,wave)
       Jy = HF_JTI(2,wave) ; Spiny = HF_STI (2,wave)
@@ -1500,8 +1500,7 @@ contains
     ! Then do the proton wavefunctions    
     do i=1,nwp
       wave =  protonorder(i)
-      if(wave .le. sum(HFBlocks(1:5))) p = +1
-      if(wave .gt. sum(HFBlocks(1:5))) p = -1
+      P = P_hf(wave)
 
       Jx = HF_JTR(1,wave) ; Spinx = HF_STR (1,wave)
       Jy = HF_JTI(2,wave) ; Spiny = HF_STI (2,wave)
@@ -1584,10 +1583,8 @@ contains
     !---------------------------------------------------------------------------
     ! First do the neutron wavefunctions    
     do i=1,nwn
-      wave = neutronorder(i)
-    
-      if(wave .le. HFBlocks(1)) p = +1
-      if(wave .gt. HFBlocks(1)) p = -1
+      wave = neutronorder(i)    
+      P = P_can(wave)
 
       Jx = can_JTR(1,wave) ; Spinx = can_STR (1,wave)
       Jy = can_JTI(2,wave) ; Spiny = can_STI (2,wave)
@@ -1602,8 +1599,7 @@ contains
     ! Then do the proton wavefunctions    
     do i=1,nwp
       wave =  protonorder(i)
-      if(wave .le. sum(HFBlocks(1:5))) p = +1
-      if(wave .gt. sum(HFBlocks(1:5))) p = -1
+      P = P_can(wave)
 
       Jx = can_JTR(1,wave) ; Spinx = can_STR (1,wave)
       Jy = can_JTI(2,wave) ; Spiny = can_STI (2,wave)

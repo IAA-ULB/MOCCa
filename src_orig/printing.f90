@@ -72,9 +72,8 @@ contains
     print 20
     do k=1,nwn 
         wave = NeutronOrder(k)
-        
-        if(wave .le. sum(HFBlocks(1:2))) p = +1
-        if(wave .gt. sum(HFBlocks(1:2))) p = -1
+
+        P = P_hf(wave)        
 
         if(wave .le. sum(HFBlocks(1:2))) then
             if(wave .le. HFBlocks(1)) then
@@ -114,9 +113,7 @@ contains
     print 20
     do k=1,nwp
         wave = ProtonOrder(k)
-        
-        if(wave .le. sum(HFBlocks(1:6))) p = +1
-        if(wave .gt. sum(HFBlocks(1:6))) p = -1
+        P = P_hf(wave)        
 
         if(wave .le. sum(HFBlocks(1:6))) then
             if(wave .le. sum(HFBlocks(1:5))) then
@@ -173,8 +170,7 @@ contains
 
     do k=1,nwn 
       wave = NeutronOrder(k) 
-      if(wave .le. sum(HFBlocks(1:2))) p = +1
-      if(wave .gt. sum(HFBlocks(1:2))) p = -1
+      P = P_can(wave)        
 
       if(wave .le. sum(HFBlocks(1:2))) then
           if(wave .le. HFBlocks(1)) then
@@ -212,11 +208,8 @@ contains
     print 60
     print 20
     do k=1,nwp 
-
       wave = ProtonOrder(k) 
-
-      if(wave .le. sum(HFBlocks(1:6))) p = +1
-      if(wave .gt. sum(HFBlocks(1:6))) p = -1
+      P = P_can(wave)        
 
       if(wave .le. sum(HFBlocks(1:6))) then
           if(wave .le. sum(HFBlocks(1:5))) then
@@ -231,7 +224,6 @@ contains
              s = -1
           endif
       endif
-
 
       Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
       Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
