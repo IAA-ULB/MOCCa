@@ -1455,11 +1455,11 @@ contains
     use wavefunctions
 
     character(len=*), intent(in) :: fname
-    integer                      :: io, i, p,  wave
+    integer                      :: io, i,  wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz
+    real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz, P
  
-    1 format(3i5, 9f10.4)
+    1 format(2i5, 1f5.4, 9f10.4)
     2 format("# Neutron spwfs")
     3 format("# Proton spwfs")
     4 format("# Information in the Hartree-Fock basis")
@@ -1553,11 +1553,11 @@ contains
     use wavefunctions
 
     character(len=*), intent(in) :: fname
-    integer                      :: io, i, p, wave
+    integer                      :: io, i, wave
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz
+    real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz, P
  
-    1 format(3i5, 9f10.4)
+    1 format(2i5, 1f5.4, 9f10.4)
     2 format("# Neutron spwfs")
     3 format("# Proton spwfs")
     4 format("# Information in the basis that diagonalizes RHO")

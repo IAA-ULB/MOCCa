@@ -525,7 +525,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     real(KIND=dp), intent(out) :: Gx(:,:,:,:), Gy(:,:,:,:), Gz(:,:,:,:)
     real(KIND=dp)              :: rplus(2), rmin(2)
     real(KIND=dp)              :: hbom, mhb, B
-    integer                    :: it, i
+    integer                    :: it
 
     ! The determination from input for neutrons and protons is not the same     
     rplus(1) = sqrt(neutronsize(1))
@@ -660,7 +660,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     real(KIND=dp), intent(in),optional:: Precis
     logical, intent(in)               :: iprint
     
-    integer                    :: iteration, k
+    integer                    :: iteration
     real(KIND=dp), allocatable :: p_k(:,:,:), Temp(:,:,:)
     real(KIND=dp), allocatable :: Residual(:,:,:)
     real(KIND=dp)              :: PoissonNorm, Integral, a_k, c_k
@@ -721,7 +721,10 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     real(KIND=dp), intent(in) ::  f(:,:,:)
     real(KIND=dp), allocatable:: lf(:,:,:)
     integer, intent(in)       :: sx, sy, sz
-    integer :: i,j,k,l, ox, oy, oz
+    integer                   :: i,j,k,l, ox, oy, oz, trash
+    
+    ! Statement to stop the compiler complaining about unused dummy arguments
+    trash = sx ; trash = sy ; trash = sz
     
     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
 

@@ -1672,10 +1672,15 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       !-------------------------------------------------------------------------
       real(KIND=dp), allocatable         :: P(:,:)
       real(KIND=dp), intent(in), target  :: basis(nx*ny*nz,4,nwt)
-      real(KIND=dp), pointer             :: spwf(:,:,:,:),spwf2(:,:,:,:)
       logical, intent(in)                :: fullmatrices
-      integer :: B, N, i, j,k,l, si, wave, wave2, startind, endind
-      logical :: check
+      integer                            :: wave 
+      real(KIND=dp)                      :: trash
+      
+$PBROKEN      integer :: B, N, i, j,k, si, wave2, startind, endind
+$PBROKEN      real(KIND=dp), pointer             :: spwf(:,:,:,:),spwf2(:,:,:,:)
+        
+      ! A statement to stop the compiler complaining about unused variables
+      if(fullmatrices) trash = basis(1,1,1)
         
       allocate(P(nwt,nwt))
 
