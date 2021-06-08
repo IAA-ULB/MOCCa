@@ -323,7 +323,8 @@ def ProcessDensities(fname, src, target, so):
     else:
       dic['TR']  = '!'
       dic['NTR'] = ''
-   
+
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Here we figure out the symmetries of the ordinary density rho = D_I_I
     # as that one is often necessary outside of the densities module
     axes = ['X', 'Y', 'Z']
@@ -340,6 +341,16 @@ def ProcessDensities(fname, src, target, so):
          dic['S%s_S%s'%(axes[k],axes[j])] ='%s'%P[k]
         else:
          dic['S%s_S%s'%(axes[k],axes[j])] =' 0'
+         
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    # Ugly manual checking if parity is part of the generator set and 
+    #  signalling this to the FORTRAN code for use in the calculation of the 
+    #  two-body center of mass correction.
+    symdic  = populatesymmetries()
+    dic['PBROKEN'] = ' '
+    for sym in so.generators:
+      if (sym == symdic['P']):
+        dic['PBROKEN'] = '!'
            
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

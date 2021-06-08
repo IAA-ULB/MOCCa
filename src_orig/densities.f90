@@ -37,6 +37,8 @@ module densities
 ! SY_SX/SY/SZ     : $SY_SX, $SY_SY, $SY_SZ
 ! SY_SX/SY/SZ     : $SZ_SX, $SZ_SY, $SZ_SZ
 !
+! PBROKEN         : $PBROKEN
+!
 !=============================================================================== 
 ! Some technical notes:
 !
@@ -413,23 +415,6 @@ function CompNablaMelements() result(NablaMelements)
     ! 3) We must not forget the time-reversed states when time reversal is
     !    conserved!
     !---------------------------------------------------------------------------
-    ! IMPORTANT NOTE
-    !---------------------------------------------------------------------------
-    ! The symmetries under (i <=> j) have been simply set to 1 and not been 
-    ! checked. I implemented this lazily, since the 2-body COMcorrection
-    ! only depends on the matrix elements squared.
-    !---------------------------------------------------------------------------
-    ! Why do we need them?
-    !  1) Calculation of 2-body COM correction in Energy module.
-    !---------------------------------------------------------------------------
-    ! This is one of the most complicated routines in MOCCa, due to the
-    ! complications of the symmetries here. Any suggestions to make this
-    ! less complicated are absolutely welcome!
-    ! P.S. I nominate the subroutine pipj in CR8/EV8/EV4 as the place in the
-    ! respective codes that needs clarification the most, as several
-    ! transformation are totally implicit.
-    !---------------------------------------------------------------------------
-  
     integer       :: i,j, B, N, si, N2, N3, N4, wave, wave2
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt), psi(mv,4)
     real(KIND=dp) :: derx(mv,4), dery(mv,4), derz(mv,4)
@@ -455,6 +440,9 @@ function CompNablaMelements() result(NablaMelements)
 
       !-------------------------------------------------------------------------
       ! Re < p_z > : only non-zero matrix elements when equal signature
+      !              and opposite parity (if it is conserved)
+      
+      ! Block 1 with block 3
       do i=1,N
         wave  = si+i
         psi   = DenPsi(:,:,wave)
@@ -469,7 +457,24 @@ function CompNablaMelements() result(NablaMelements)
           NablaMElements(3,1,wave2,wave) =   NablaMElements(3,1,wave,wave2)
         enddo
       enddo
+      
+      ! Block 1 with block 1 (parity broken)
+$PBROKEN      do i=1,N
+$PBROKEN        wave  = si+i
+$PBROKEN        psi   = DenPsi(:,:,wave)
+$PBROKEN        do j=1,N
+$PBROKEN          wave2 = si+j
+$PBROKEN          Derz  =  DendPsi(:,3,:,wave2)
+$PBROKEN
+$PBROKEN          NablaMElements(3,1,wave,wave2) = dv*                                 &
+$PBROKEN          & sum(                    derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
+$PBROKEN          &                      +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+$PBROKEN
+$PBROKEN          NablaMElements(3,1,wave2,wave) =   NablaMElements(3,1,wave,wave2)
+$PBROKEN        enddo
+$PBROKEN      enddo
   
+      ! Block 2 with block 4
       do i=1,N2
         wave  = si+N+i
         psi   = DenPsi(:,:,wave)
@@ -484,16 +489,35 @@ function CompNablaMelements() result(NablaMelements)
           NablaMElements(3,1,wave2,wave) =   NablaMElements(3,1,wave,wave2)
         enddo
       enddo
+      
+      ! Block 2 with block 2 (parity broken)
+$PBROKEN      do i=1,N2
+$PBROKEN        wave  = si+N+i
+$PBROKEN        psi   = DenPsi(:,:,wave)
+$PBROKEN        do j=1,N2
+$PBROKEN          wave2 = si+N+j
+$PBROKEN          Derz  =  DendPsi(:,3,:,wave2)
+$PBROKEN          ! Re < p_z > 
+$PBROKEN          NablaMElements(3,1,wave,wave2) = dv*                                 &
+$PBROKEN          & sum(                    derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
+$PBROKEN          &                      +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+$PBROKEN
+$PBROKEN          NablaMElements(3,1,wave2,wave) =   NablaMElements(3,1,wave,wave2)
+$PBROKEN        enddo
+$PBROKEN      enddo
+
       !-------------------------------------------------------------------------
       ! Re < p_x >, Im <p_y> 
+
       do i=1,N
         wave  = si+i
         psi   = DenPsi(:,:,wave)
+           ! Block 1 with block 4  (T-broken)    
 $NTR       do j=1, N4
 $NTR          wave2 = si+N+N2+N3+j
 $NTR          Derx  =  DendPsi(:,1,:,wave2)
 $NTR          Dery  =  DendPsi(:,2,:,wave2)
-
+           ! Block 1 with block 3  (T-conserved)    
 $TR        do j=1, N3
 $TR           wave2 = si+N+j
 $TR           Derx  =  TimeReverse(DendPsi(:,1,:,wave2))
@@ -511,15 +535,43 @@ $TR           Dery  =  TimeReverse(DendPsi(:,2,:,wave2))
           NablaMElements(2,2,wave2,wave) =   NablaMElements(2,2,wave,wave2)
         enddo
       enddo
+      
+$PBROKEN      do i=1,N
+$PBROKEN        wave  = si+i
+$PBROKEN        psi   = DenPsi(:,:,wave)
+                    ! Block 1 with block 2  (T-broken, P-broken)    
+$PBROKEN $NTR       do j=1, N2
+$PBROKEN $NTR          wave2 = si+N+j
+$PBROKEN $NTR          Derx  =  DendPsi(:,1,:,wave2)
+$PBROKEN $NTR          Dery  =  DendPsi(:,2,:,wave2)
+                    ! Block 1 with block 1  (T-conserved, P-broken)    
+$PBROKEN $TR        do j=1, N
+$PBROKEN $TR           wave2 = si+j
+$PBROKEN $TR           Derx  =  TimeReverse(DendPsi(:,1,:,wave2))
+$PBROKEN $TR           Dery  =  TimeReverse(DendPsi(:,2,:,wave2))
+
+$PBROKEN          NablaMElements(1,1,wave,wave2) = dv*                                 &
+$PBROKEN          & sum(                 derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+$PBROKEN          &                   +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+
+$PBROKEN          NablaMElements(2,2,wave,wave2) = dv*                                 &
+$PBROKEN          & sum(                  dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
+$PBROKEN          &                    -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+
+$PBROKEN          NablaMElements(1,1,wave2,wave) = - NablaMElements(1,1,wave,wave2)
+$PBROKEN          NablaMElements(2,2,wave2,wave) =   NablaMElements(2,2,wave,wave2)
+$PBROKEN        enddo
+$PBROKEN      enddo
 
       do i=1,N2
         wave  = si+N+i
         psi   = DenPsi(:,:,wave)
+           ! Block 2 with block 3  (T-broken)    
 $NTR       do j=1, N3
 $NTR          wave2 = si+N+N2+j
 $NTR          Derx  =  DendPsi(:,1,:,wave2)
 $NTR          Dery  =  DendPsi(:,2,:,wave2)
-
+           ! Block 2 with block 4  (T-conserved)    
 $TR        do j=1, N4
 $TR           wave2 = si+N+N2+N3+j
 $TR           Derx  =  TimeReverse(DendPsi(:,1,:,wave2))
@@ -537,70 +589,40 @@ $TR           Dery  =  TimeReverse(DendPsi(:,2,:,wave2))
           NablaMElements(2,2,wave2,wave) =   NablaMElements(2,2,wave,wave2)
         enddo
       enddo
+      
+$PBROKEN      do i=1,N2
+$PBROKEN        wave  = si+N+i
+$PBROKEN        psi   = DenPsi(:,:,wave)
+
+                    ! Block 2 with block 1 (P-broken, T-broken)
+                    ! This one is likely superfluous, as we have this 
+                    ! combination already once above
+$PBROKEN $NTR       do j=1, N
+$PBROKEN $NTR          wave2 = si+j
+$PBROKEN $NTR          Derx  =  DendPsi(:,1,:,wave2)
+$PBROKEN $NTR          Dery  =  DendPsi(:,2,:,wave2)
+
+                    ! Block 2 with block 2 (P-broken, T-conserved)
+$PBROKEN $TR        do j=1, N2
+$PBROKEN $TR           wave2 = si+N+j
+$PBROKEN $TR           Derx  =  TimeReverse(DendPsi(:,1,:,wave2))
+$PBROKEN $TR           Dery  =  TimeReverse(DendPsi(:,2,:,wave2))
+
+$PBROKEN          NablaMElements(1,1,wave,wave2) = dv*                                 &
+$PBROKEN          & sum(                 derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+$PBROKEN          &                   +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+
+$PBROKEN          NablaMElements(2,2,wave,wave2) = dv*                                 &
+$PBROKEN          & sum(                  dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
+$PBROKEN          &                    -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+
+$PBROKEN          NablaMElements(1,1,wave2,wave) = - NablaMElements(1,1,wave,wave2)
+$PBROKEN          NablaMElements(2,2,wave2,wave) =   NablaMElements(2,2,wave,wave2)
+$PBROKEN        enddo
+$PBROKEN      enddo
 
       si = si + N + N2 + N3 + N4 
     enddo    
-
-!    do i=1, HFBlocks(1)
-!     ! Positive parity neutrons with s=+i
-!     do j=HFBlocks(1)+HFBlocks(2)+1, HFBlocks(1)+HFBlocks(2)+HFBlocks(3)
-!$TR      Derx  =  TimeReverse(DendPsi(:,1,:,j))
-!$TR      Dery  =  TimeReverse(DendPsi(:,2,:,j))
-!$NTR     Derx  =  DendPsi(:,1,:,j)
-!$NTR     Dery  =  DendPsi(:,1,:,j)
-
-!      Derz  =  DendPsi(:,3,:,j)
-!      psi   =  DenPsi(:,:,i)
-!      !-------------------------------------------------------------------------
-!      NablaMElements(1,1,i,j) = dv*                                            &
-!      & sum(                     derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
-!      &                       +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
-!      NablaMElements(2,2,i,j) = dv*                                            &
-!      & sum(                     dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)   &
-!      &                       -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
-!      NablaMElements(3,1,i,j) = dv*                                            &
-!      & sum(                     derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)   &
-!      &                       +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
-
-!      !-------------------------------------------------------------------------     
-!      ! Negative parity neutrons with s=+i can be obtained with symmetry
-!      !-------------------------------------------------------------------------
-!      NablaMElements(1,1,j,i) = - NablaMElements(1,1,i,j)
-!      NablaMElements(2,2,j,i) =   NablaMElements(2,2,i,j)
-!      NablaMElements(3,1,j,i) =   NablaMElements(3,1,i,j)
-!     enddo
-!    enddo
-
-!    do i=sum(HFblocks(1:4))+1,sum(HFblocks(1:5))
-!     ! Positive parity protons with s=+i
-!     do j=sum(HFBlocks(1:6))+1,sum(HFblocks(1:7))
-!$TR      Derx  =  TimeReverse(DendPsi(:,1,:,j))
-!$TR      Dery  =  TimeReverse(DendPsi(:,2,:,j))
-!$NTR     Derx  =  DendPsi(:,1,:,j)
-!$NTR     Dery  =  DendPsi(:,1,:,j)
-
-!      Derz  =  DendPsi(:,3,:,j)
-!      psi   =  DenPsi(:,:,i)
-
-!      !-------------------------------------------------------------------------
-!      NablaMElements(1,1,i,j) = dv*                                            &
-!      & sum(                     derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
-!      &                        + derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
-!      NablaMElements(2,2,i,j) = dv*                                            &
-!      & sum(                     dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)   &
-!      &                        - dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
-!      NablaMElements(3,1,i,j) = dv*                                            &
-!      & sum(                     derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)   &
-!      &                        + derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
-!      !-------------------------------------------------------------------------     
-!      ! Negative parity neutrons with s=+i can be obtained with symmetry
-!      !-------------------------------------------------------------------------
-!      NablaMElements(1,1,j,i) = - NablaMElements(1,1,i,j)
-!      NablaMElements(2,2,j,i) =   NablaMElements(2,2,i,j)
-!      NablaMElements(3,1,j,i) =   NablaMElements(3,1,i,j)
-!     enddo
-!    enddo
-
     !---------------------------------------------------------------------------
 end function CompNablaMelements
 
