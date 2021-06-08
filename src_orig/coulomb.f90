@@ -145,7 +145,6 @@ $REDUX  coul_offset_x = 0
 $REDUY  coul_offset_y = 0
 $REDUZ  coul_offset_z = 0
 
-
     if(.not.allocated(Source)) then
         allocate(Source(nx+BC+coul_offset_x, &
         &               ny+BC+coul_offset_y, &
@@ -218,8 +217,14 @@ $REDUZ  coul_offset_z = 0
     ! Obtain the folded Coulomb potentials (direct and exchange) if needed.
     if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
       if(nucleonsize_selfconsistent) then
-         FoldedCoul    =FoldCoulombPotential(CoulombPotential (1:nx,1:ny,1:nz))
-         FoldedExchange=FoldCoulombPotential(ExchangePotential(1:nx,1:ny,1:nz))
+         FoldedCoul    =FoldCoulombPotential(CoulombPotential(                 &
+         &                                                  coul_offset_x+1:nx,&
+         &                                                  coul_offset_y+1:ny,&
+         &                                                  coul_offset_z+1:nz))
+         FoldedExchange=FoldCoulombPotential(ExchangePotential(                &
+         &                                                  coul_offset_x+1:nx,&
+         &                                                  coul_offset_y+1:ny,&
+         &                                                  coul_offset_z+1:nz))
       endif
     endif
 
@@ -284,7 +289,7 @@ $REDUZ  coul_offset_z = 0
     if(all(protonsize.eq.0.0)) then
         rho_charge = temp
     endif
-
+        
     !---------------------------------------------------------------------------
     ! Neutron contributions to the charge density.
     if(all(neutronsize.eq.0.0)) return
@@ -520,7 +525,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     real(KIND=dp), intent(out) :: Gx(:,:,:,:), Gy(:,:,:,:), Gz(:,:,:,:)
     real(KIND=dp)              :: rplus(2), rmin(2)
     real(KIND=dp)              :: hbom, mhb, B
-    integer                    :: it
+    integer                    :: it, i
 
     ! The determination from input for neutrons and protons is not the same     
     rplus(1) = sqrt(neutronsize(1))

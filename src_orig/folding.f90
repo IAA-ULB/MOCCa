@@ -39,13 +39,41 @@ contains
     !---------------------------------------------------------------------------
     ! Function that constructs a matrix to fold in 1-D with a Gaussian of
     ! parameter r0 and symmetry sign p. 
+    !
+    ! Input:
+    !   mesh : mesh coordinates along this direction
+    !   m    : number of mesh points along this direction
+    !   p    : symmetry sign for reflection along this direction.
+    !   r0   : width of the Gaussian
+    !
+    ! Output:
+    !   G  :  Constructed folding matrix
+    !
+    !          G(i,j) =     (r0 * sqrt(pi))**(-1) * exp[-(|+r_i - r_j|/r0)**2]
+    !                 + p * (r0 * sqrt(pi))**(-1) * exp[-(|-r_i - r_j|/r0)**2]
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! A few notes:
+    !
+    !  *) After construction, we normalize the folding matrix to offset 
+    !     numerical errors due to the mesh discretisation. In this way, we 
+    !     can guarantee that 
+    !
+    !         int dx int dx' G(x,x') f(x') = sum_ij G(i,j) f(j) = int dx f(x)  
+    !                                                           = sum_i  f(j)
+    !     i.e. that we don't change integrals on the mesh.
+    ! 
+    !  *) If the relevant Cartesian axis is completely stored in the code, 
+    !     meaning that there is no reflection symmetry, it is up to the user
+    !     to pass in p = 0, removing trivially the contribution of any 
+    !     reflection symmetry along the axis.
     !---------------------------------------------------------------------------
 
     real(KIND=dp)             :: G(m,m)
     integer, intent(in)       ::  m, p
     real(KIND=dp), intent(in) :: r0, mesh(m)
     
-    integer :: i,j
+    integer :: i,j, ind
     
     ! Elements actually represented on the mesh
     do i=1,m
@@ -60,13 +88,21 @@ contains
             G(i,j) = G(i,j) + p*Gaussian(-mesh(i), mesh(j), r0)
         enddo
     enddo
-
+    !---------------------------------------------------------------------------
     ! Normalize, to avoid the numerical errors due to the mesh discretization.
-!    do i=1,m    
-!        G(:,i) = G(:,i)/(sum(G(:,i)*dx))
-!    enddo
-
-    G(:,:) = G(:,:)/(sum(G(:,1)*dx))
+    ! Technical note: we normalize all columns with the norm of ONE PARTICULAR
+    !                 column, chosen "sufficiently far away" from the boundary
+    !                 of the mesh. If we would normalize G for j = m, on the 
+    !                 boundary, we would divide by too small a number, as the 
+    !                 Gaussian should extend BEYOND the mesh. 
+    !                 Naively, we could choose ind = 1 for this, 
+    !                 but this is ON the boundary of the mesh when this axis
+    !                 is not reduced through a conserved symmetry. For 
+    !                 reasonable meshes and reasonable folding sizes, m/2+1
+    !                 is several points away from either boundary of the mesh.
+    ind = m/2 + 1 
+    
+    G(:,:) = G(:,:)/(sum(G(:,ind)*dx))
  end subroutine Gauss_1D
  
  function FoldGaussian(f,Gx,Gy,Gz, mx, my, mz) result(Folded)
@@ -101,7 +137,7 @@ contains
   ! Then the Z-direction
   do j=1,my
     do i=1,mx
-      folded(i,j,:) = matmul(Gz, folded(i,j,:))*dx
+      folded(i,j,:) = matmul(Gz, folded(i,j,1:mz))*dx
     enddo
   enddo
   !-----------------------------------------------------------------------------
