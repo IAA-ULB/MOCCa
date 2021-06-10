@@ -88,6 +88,13 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call add_timer('Coulomb solver'             , T_coulomb)  
  call add_timer('Can. basis construction'    , T_den_can)  
  call add_timer('Moments of inertia '        , T_MOI)  
+ call add_timer('Centre-of-mass correction ' , T_COM)  
+ call add_timer('COM one-body '              , T_COM1)  
+ call add_timer('COM two-body '              , T_COM2)  
+ call add_timer('Pairing gaps '              , T_gaps)  
+ call add_timer('Multipole moments '         , T_moments)  
+ call add_timer('Feas. Proj. step '          , T_feasible)  
+ call add_timer('Spwf angular momentum '     , T_spwfangmom)  
 
  call start_timer(T_tantalus)
 

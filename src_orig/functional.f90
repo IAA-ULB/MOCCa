@@ -601,6 +601,10 @@ $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
     real(KIND=dp) :: Butler_t, Butler_f, prefac(2)
     
     COMCorrection = 0.0_dp
+    
+    call start_timer(T_com)
+    call start_timer(T_com1)
+    
     select case(COM1Body)
     case(0)
       ! No contribution
@@ -619,6 +623,9 @@ $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
       &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
     end select    
 
+    call stop_timer(T_com1)
+    call start_timer(T_com2)
+    
     if(COM2body .eq. 1) then
       !-------------------------------------------------------------------------
       ! The 2-body COM correction, calculated as discussed above
@@ -707,6 +714,8 @@ $TR   COM2pp = 2*COM2pp
           COMCorrection(2,it) = COM2ph(it) + COM2pp(it)   
       enddo
      endif      
+     call stop_timer(T_com2)
+     call stop_timer(T_com)
 
   end subroutine CompCOMCorrection
 

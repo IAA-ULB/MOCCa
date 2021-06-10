@@ -2,7 +2,7 @@
 ! Timing module for Tantalus, allowing for the definition of times in multiple
 ! (possibly nested) contexts. 
 !
-! W.R. 2019, but heavily based on earlier work Cristopher Gilbreth on the 
+! W.R. 2019, but heavily based on earlier work by Christopher Gilbreth on the 
 ! Yale SMMC code in 2010/2014.
 !-------------------------------------------------------------------------------
 module timing
@@ -15,6 +15,7 @@ module timing
   integer :: T_derivatives, T_derivatives_can, T_evolution, T_ortho, T_tantalus
   integer :: T_densities, T_fields, T_energy, T_pairing, T_den_ph, T_den_pp
   integer :: T_den_der, T_sphamil, T_coulomb, T_den_can, T_MOI
+  integer :: T_COM, T_COM1, T_COM2, T_gaps, T_moments, T_feasible, T_spwfangmom
   !-----------------------------------------------------------------------------
   ! There are two ways to record the time:
   !  1. cpu_time measures CPU time (excludes time spent in other programs)

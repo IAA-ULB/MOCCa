@@ -697,6 +697,8 @@ contains
    real(KIND=dp)         :: O2, value, des
    integer               :: it, wave, k, B, si, N
 
+   call start_timer(T_feasible)
+
    Current    => Root
    multipole = 0.0_dp
    call compcutoff()
@@ -745,6 +747,8 @@ contains
    !---------------------------------------------------------------------------
    ! Finally, orthonormalisation
    call Gramschmidt
+   call stop_timer(T_feasible)
+
   end subroutine feasibleproject
   
 !===============================================================================

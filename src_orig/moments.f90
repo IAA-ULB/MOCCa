@@ -468,6 +468,8 @@ $FILL_LIST
     
     type(Moment), pointer :: Current
 
+    call start_timer(T_moments)
+
     nullify(Current)
     Current => Root
     !---------------------------------------------------------------------------
@@ -484,6 +486,8 @@ $FILL_LIST
     enddo
 
     call CalcQuadrupoleAlt()
+
+    call stop_timer(T_moments)
 
     return
   end subroutine CalculateMoments

@@ -1412,6 +1412,8 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     
     val = Fermi ! To avoid the unused dummy argument warning from the compiler
 
+    call start_timer(T_gaps)
+
     if(.not.associated(Delta_action_HFB)) stop
 
     !---------------------------------------------------------------------------
@@ -1495,6 +1497,8 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
 
       si = si + N + N2
     enddo
+    
+    call stop_timer(T_gaps)
 
   end subroutine calcHFBgaps
 

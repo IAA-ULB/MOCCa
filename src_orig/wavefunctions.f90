@@ -751,6 +751,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
     integer             :: wave, wave2, si, B, N, startind, endind, i,j,l,k
     logical, intent(in) :: fullmatrices
+    
+    call start_timer(T_spwfangmom)
 
     if(.not.allocated(spwf_J)) then
       allocate(spwf_J(3,nwt,nwt))   ; spwf_J  = 0.0
@@ -894,6 +896,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         can_JJ(wave) = (-1. + sqrt(1. + 4*sum(can_J2(:,wave))))/2.
       enddo
     endif
+    call stop_timer(T_spwfangmom)
 
   end subroutine update_spwf_angmom
   
