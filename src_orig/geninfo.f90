@@ -55,8 +55,12 @@ module GenInfo
   real(KIND=dp)  :: dx=0.8_dp
   real(KIND=dp)  :: dv=(0.8_dp**3)*(2**$NUMSYM)
   !---------------------------------------------------------------------------
-  ! Pi is always practical to have.
+  ! Pi is always practical (delicious) to have.
   real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
+  !---------------------------------------------------------------------------
+  ! Maximum number of iterations and number of iterations to skip printing of
+  ! the code in the evolve subroutine
+  integer :: MaxIter=100, PrintIter=10
   !---------------------------------------------------------------------------
   ! Coordinates of the mesh points for the calculation as well as the 
   ! coulomb calculation

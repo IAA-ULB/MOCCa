@@ -40,10 +40,6 @@ module evolution
     !---------------------------------------------------------------------------
     ! Norm of the gradient and weighted sum of the dispersions
     real(KIND=dp) :: gradientnorm, d2h
-    !---------------------------------------------------------------------------
-    !Maximum number of iterations and number of iterations to skip printing of
-    ! the code in the evolve subroutine
-    integer :: MaxIter=100, PrintIter=10
 !    !---------------------------------------------------------------------------
 !    ! Precondition, whether to use the PG preconditioner
 !    character(len=20) :: Precondition = 'None'
@@ -142,7 +138,8 @@ contains
 
         1 format(80('-'))
         2 format(' Evolution strategy: ', a20 )
-        3 format('   dt= ', f7.4, ' mu= ', f7.4 )        
+        3 format('   dt= ', f7.4, ' mu= ', f7.4 )
+       31 format('   maxiter =', i5, ' printiter = ', i5)        
         4 format('   Estimate (dt,mu) linear subproblem  : ', a3)
        41 format('   Estimate (dt,mu) pairing subproblem : ', a3)
        42 format('   Safety HFB-gradient                 : ', f7.4)
@@ -152,7 +149,7 @@ contains
            
         print 1
         print 2, adjustl(Strategy)
-        
+        print 31, maxiter, printiter
         if( EstimateParams) then
           print 4, 'YES'
         else 

@@ -339,7 +339,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType, Blockindices,              &
   &                          blocklowest, blocked_qps, partner_qps,            & 
-  &                          p_overlaps, move, maxiter,  ifail) 
+  &                          p_overlaps, move, maxhfbiter,  ifail) 
     !---------------------------------------------------------------------------
     ! Driver routine for solving the HFB equations by heavy-ball evolution in 
     ! the manifold of Bogoliubov states connected by a Thouless transformation.
@@ -419,7 +419,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp), intent(inout) :: configmatrix(:)   , qpenergies(:) 
     real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:), lambda2(2)
     integer, intent(inout)       :: ifail
-    integer, intent(in)          :: maxiter
+    integer, intent(in)          :: maxhfbiter
     logical, intent(in)          :: move
 
     real(KIND=dp)                :: minqp, maxqp, condi
@@ -511,7 +511,7 @@ $TR    endif
       &                  Z_updates(1:nwn,1:nwn),                               &
       &                  gradient_precon, HFBgradnorm(1), grad_blocks(1:4),    &
       &                  lambda2(1), rho_pairing(1:nwn, 1:nwn),                &
-      &                  maxiter, ifail)
+      &                  maxhfbiter, ifail)
       ! and for the protons
       call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt),& 
       &                  protons,Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),            &
@@ -520,7 +520,7 @@ $TR    endif
       &                  Z_updates(nwn+1:nwt,nwn+1:nwt),                       &
       &                  gradient_precon, HFBgradnorm(2), grad_blocks(5:8),    &
       &                  lambda2(2), rho_pairing(nwn+1:nwt,nwn+1:nwt),         &
-      &                  maxiter, ifail)
+      &                  maxhfbiter, ifail)
     endif
     !---------------------------------------------------------------------------
     ! Copying the Bogoliubov matrix and reordering the configuration matrix.

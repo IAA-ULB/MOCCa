@@ -301,17 +301,25 @@ $PRINTCOEF_PAIR
     print 1
  end subroutine PrintEnergy
  
- subroutine CalcEnergy(iprint)
+ subroutine CalcEnergy(calc_expensive)
     !---------------------------------------------------------------------------
     ! Calculate (i)   the energy
     !           (ii)  the Routhian
-    !           (iii) the free energy
+    !           (iii) the free energy (when T!= 0)
+    !
+    ! Input: 
+    !    calc_expensive: controls the calculation of the numerically expensive 
+    !                    parts of the total energy. 
+    !                    Right now these are:
+    !                      (i) the 2-body centre-of-mass correction 
+    !                     (ii) the rotational correction 
+    !
     !---------------------------------------------------------------------------
     use momentsofinertia
     use Coulombmod
 
     integer :: i
-    integer, intent(in) :: iprint
+    logical, intent(in) :: calc_expensive
 
     call start_timer(T_energy)
     
@@ -320,8 +328,9 @@ $PRINTCOEF_PAIR
 
     ! Kinetic energy
     Kinetic = CompKinetic()
-    ! COM correction
-    call CompCOMCorrection()
+    ! COM correction 
+    ! (pass signal if we want to skip the calculation of the two-body part)
+    call CompCOMCorrection(calc_expensive)
     ! Skyrme functional
     call compSkyrme()
 
@@ -377,9 +386,8 @@ $PRINTCOEF_PAIR
     endif
 
     call calcrigid()
-    if(iprint.eq. 1 .or. rotcorr .eq. 1) then
-      ! Only calculate these things if we are going to print observables
-      ! or we need a rotational correction.
+    if(calc_expensive) then
+      ! Rotational co
       call start_timer(T_MOI)  
       call calcJ2andBelyaev()
       call stop_timer(T_MOI)  
@@ -522,11 +530,39 @@ $PRINT
     return
   end function CompKinetic
   
-  subroutine CompCOMCorrection()
+  subroutine CompCOMCorrection(do_2body)
     !---------------------------------------------------------------------------
     ! General reference for the actual calculation of the entire correction
     !
     ! M. Bender et al., Eur. Phys. J. A 7, 467-478 (2000)
+    !
+    ! Input:
+    !  do_2body: whether or not to calculate the two-body centre-of-mass
+    !            correction. This only has effect if we are employing a 
+    !            parameterisation that incorporates such correction of course.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+    ! REMARK FOR FUTURE GENERALISATIONS
+    ! ----------------------------------
+    ! For all current symmetry options available, the calculation as implemented 
+    ! is complete and correct to the best of my (W.R.) knowledge.
+    ! HOWEVER, once time-reversal and parity both are broken, the expectation
+    ! value of the total momentum of the nucleus is no longer restricted by 
+    ! symmetry, i.e. 
+    !
+    !             < P > != 0 
+    !
+    ! although individual components might still be restricted by remaining 
+    ! symmetries. 
+    ! 
+    ! If that is the case, the correction calculated here should have an extra
+    ! contribution that still needs to be implemented namely, 
+    !
+    !        extra term =  - f < P >^2
+    !
+    ! which will, however, be computationally cheap as it is the square of a
+    ! one-body expectation value.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !
     ! For future reference (all sums over the entire sp. space, unless
     ! explicitly mentioned)
@@ -545,7 +581,7 @@ $PRINT
     ! In the canonical basis, each of these gives rise to
     !
     ! (a) => -f  ( sum_i P_ii rho_ii )^2 = 0  as it is the square of <P>
-    !   
+    ! 
     ! The one-body component is given by (c1)
     !
     ! (c1) => -f  sum_ij P_ij P_ji rho_{ii} 
@@ -595,16 +631,18 @@ $PRINT
     !
     ! It is activated by putting COM1Body = 3, COM2BODY = 0. 
     !---------------------------------------------------------------------------
-    integer       :: it, i,j
+    logical, intent(in) :: do_2body
+    integer             :: it, i,j
 $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),tempph(3,2), temppp(3,2), fac
     real(KIND=dp) :: Butler_t, Butler_f, prefac(2)
     
-    COMCorrection = 0.0_dp
     
     call start_timer(T_com)
     call start_timer(T_com1)
-    
+
+    ! Reset the one-body COM
+    COMCorrection(1,:) = 0.0_dp
     select case(COM1Body)
     case(0)
       ! No contribution
@@ -624,15 +662,14 @@ $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
     end select    
 
     call stop_timer(T_com1)
-    call start_timer(T_com2)
     
-    if(COM2body .eq. 1) then
+    if(COM2body .eq. 1 .and. do_2body) then
       !-------------------------------------------------------------------------
       ! The 2-body COM correction, calculated as discussed above
       !-------------------------------------------------------------------------
+      call start_timer(T_com2)
 
       NablaMElements = compNablaMelements()
-      
       COMCorrection(2,:) = 0.0
         
       COM2pp = 0.0 ; COM2ph = 0.0
@@ -713,8 +750,8 @@ $TR   COM2pp = 2*COM2pp
       do it=1,2
           COMCorrection(2,it) = COM2ph(it) + COM2pp(it)   
       enddo
+      call stop_timer(T_com2)
      endif      
-     call stop_timer(T_com2)
      call stop_timer(T_com)
 
   end subroutine CompCOMCorrection

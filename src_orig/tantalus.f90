@@ -207,7 +207,7 @@ subroutine ReachForWaterAndFood()
 
     integer :: iter, iprint, scheme
     integer :: ifail
-    logical :: ConvergenceAchieved
+    logical :: ConvergenceAchieved, calc_expensive
     ! Logical to see if any moments with projection are necessary
     logical :: projectpresent = .false.
     ! Message for the output of the code, useful for the Brussels group.
@@ -266,7 +266,8 @@ subroutine ReachForWaterAndFood()
     call updateAM 
 
     call setBelyaevProcedure()
-    call CalcEnergy(1)
+    call CalcEnergy(.true.)      ! Calculate the energy WITH all the expensive
+                                 !   parts included. 
     call calc_avg_gap()
 
     ! Initial printout
@@ -337,11 +338,13 @@ subroutine ReachForWaterAndFood()
         ! Recalculate the energy
         if(mod(iter,PrintIter).eq.0) then
           iprint = 1
+          calc_expensive = .true.
         else
           iprint = 0
+          calc_expensive = .false.
         endif
         
-        call CalcEnergy(iprint)
+        call CalcEnergy(calc_expensive)
         call calc_avg_gap()
 
         ! Check for convergence or a failed calculation
@@ -354,8 +357,11 @@ subroutine ReachForWaterAndFood()
           call Converged(ConvergenceAchieved)  
         end if 
 
-        !call monitor_convergence(iter)
-        if(convergenceAchieved) iprint = 1
+        if(convergenceAchieved) then
+          iprint = 1
+          ! Recalculate the energy with all parts included at the end 
+          call CalcEnergy(.true.)
+        endif
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
         if(iprint .eq.1) then

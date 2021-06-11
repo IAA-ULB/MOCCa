@@ -245,6 +245,7 @@ $CHECKPARAMS
     103 format(' Rotational correction ')
     104 format('    Not included.')
     105 format('    Included.    ')
+   1051 format('     -> Attention: only calculated every ', i3, ' iterations.') 
     106 format('    Parameters b =', f6.3)
     107 format('               c =', f6.3)
     108 format('    Cutoff :     ACTIVE')
@@ -331,6 +332,7 @@ $PRINTPARAMS
       print 94
     case(1)
       print 95
+      print 1051, printiter
     case(2)
       print 96
       print *, 'Self-consistent inclusion of the two-body center of mass',  &
@@ -345,6 +347,7 @@ $PRINTPARAMS
       print 104
     case(1)   
       print 105
+      print 1051, printiter
       print 106, rotcorrb
       print 107, rotcorrc
       if(rotcorr_cut) then
