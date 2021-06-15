@@ -777,7 +777,7 @@ $FILL_LIST
     endif
     
     slow = ReadjustSlowdown
-    if(Toreadjust%constrainttype.eq.2) slow = 1.0
+    if(Toreadjust%constrainttype.eq.2) slow = 2.0
 
     ! Set the new multiplier        
     ToReadjust%mult_hist = ToReadjust%multiplier
