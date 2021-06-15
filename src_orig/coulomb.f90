@@ -244,6 +244,8 @@ $REDUZ  coul_offset_z = 0
     real(KIND=dp)              :: temp(nx,ny,nz)
     integer                    :: i
     
+    call start_timer(T_chargedensity)
+    
     ! Deallocation that rho_charge does not have the wrong dimensions
     if(allocated(rho_charge)) deallocate(rho_charge)
     if(.not.allocated(rho_charge)) then
@@ -310,6 +312,8 @@ $REDUZ  coul_offset_z = 0
         &                                                            nx, ny, nz)
     endif
     !---------------------------------------------------------------------------
+    
+    call stop_timer(T_chargedensity)
  end subroutine ConstructChargeDensity
 
  function FoldCoulombPotential(pot) result(Folded)

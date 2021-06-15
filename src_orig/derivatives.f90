@@ -250,7 +250,7 @@ $N2DIAG    sz = (pz + 3)/2 !    2    if pi =   +1
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    !  First order derivatives and diagonal second-order ones
 $N2DIAG    A = derX(:,:,sx) ; B = laplaX(:,:,sx)
-$N2DIAG    !$$OMP PARALLEL shared(df, ddf, f, A, B, sx) private(i,j) 
+$N2DIAG    !$$OMP PARALLEL shared(df, ddf, f, A, B, sx, sy, sz) private(i,j,k) 
 $N2DIAG    !$$OMP DO
 $N2DIAG    do j=1,nz
 $N2DIAG       do i=1,ny
@@ -259,7 +259,9 @@ $N2DIAG        ddf(1:nx,i,j,1) =        matmul(B,f(1:nx,i,j))
 $N2DIAG       enddo
 $N2DIAG    enddo   
 $N2DIAG    !$$OMP END DO
+$N2DIAG    !$$OMP END PARALLEL
 $N2DIAG    A = derY(:,:,sy) ; B = laplaY(:,:,sy)
+$N2DIAG    !$$OMP PARALLEL shared(df, ddf, f, A, B, sx, sy, sz) private(i,j,k) 
 $N2DIAG    !$$OMP DO
 $N2DIAG    do k=1,nz
 $N2DIAG        do i=1,nx
@@ -268,7 +270,9 @@ $N2DIAG           ddf(i,:,k,4) =    matmul(B,f(i,:,k))
 $N2DIAG        enddo
 $N2DIAG    enddo
 $N2DIAG    !$$OMP END DO
+$N2DIAG    !$$OMP END PARALLEL
 $N2DIAG    A = derZ(:,:,sz) ; B = laplaZ(:,:,sz)
+$N2DIAG    !$$OMP PARALLEL shared(df, ddf, f, A, B, sx, sy, sz) private(i,j,k) 
 $N2DIAG    !$$OMP DO
 $N2DIAG    do i=1,nx*ny
 $N2DIAG        df(i,1,:,3) =        matmul(A,f(i,1,:))
@@ -360,47 +364,47 @@ $N2ALL    sz = (pz + 3)/2 !    2    if pi =   +1
 $N2ALL    !---------------------------------------------------------------------------
 $N2ALL    !  First order derivatives and diagonal second-order ones
 $N2ALL    A = derX  (:,:,sx) ; B = laplaX(:,:,sx)
-$N2ALL    !$$OMP PARALLEL shared(df, ddf, f, A, B, sx) private(i) 
-$N2ALL    !$$OMP DO
+$N2ALL    !!$$OMP PARALLEL shared(df, ddf, f, A, B, sx) private(i) 
+$N2ALL    !!$$OMP DO
 $N2ALL    do i=1,ny*nz
 $N2ALL           df(:,i,1,1) =    matmul(A,f(:,i,1))
 $N2ALL          ddf(:,i,1,1) =    matmul(B,f(:,i,1)) 
 $N2ALL    enddo   
-$N2ALL    !$$OMP END DO
+$N2ALL    !!$$OMP END DO
 $N2ALL    A = derY  (:,:,sy) ; B = laplaY(:,:,sy)
-$N2ALL    !$$OMP DO
+$N2ALL    !!$$OMP DO
 $N2ALL    do k=1,nz
 $N2ALL        do i=1,nx
 $N2ALL           df(i,:,k,2) =    matmul(A,f(i,:,k))
 $N2ALL          ddf(i,:,k,4) =    matmul(B,f(i,:,k))                        
 $N2ALL        enddo
 $N2ALL    enddo
-$N2ALL    !$$OMP END DO
+$N2ALL    !!$$OMP END DO
 $N2ALL    A = derZ  (:,:,sz) ; B = laplaZ(:,:,sz)
-$N2ALL    !$$OMP DO
+$N2ALL    !!$$OMP DO
 $N2ALL    do i=1,nx*ny
 $N2ALL           df(i,1,:,3) =    matmul(A,f(i,1,:))
 $N2ALL          ddf(i,1,:,6) =    matmul(B,f(i,1,:))
 $N2ALL    enddo
-$N2ALL    !$$OMP END DO
+$N2ALL    !!$$OMP END DO
 $N2ALL    !---------------------------------------------------------------------------
 $N2ALL    ! Off-diagonal second order derivatives
 $N2ALL    A = derY  (:,:,sy) 
-$N2ALL    !$$OMP DO
+$N2ALL    !!$$OMP DO
 $N2ALL    do k=1,nz
 $N2ALL      do i=1,nx
 $N2ALL          ddf(i,:,k,2) =      matmul(A,df(i,:,k,1))
 $N2ALL      enddo
 $N2ALL    enddo
-$N2ALL    !$$OMP END DO
+$N2ALL    !!$$OMP END DO
 $N2ALL    A = derZ  (:,:,sz)
-$N2ALL    !$$OMP DO
+$N2ALL    !!$$OMP DO
 $N2ALL    do i=1,nx*ny
 $N2ALL          ddf(i,1,:,3) =      matmul(A,df(i,1,:,1))
 $N2ALL          ddf(i,1,:,5) =      matmul(A,df(i,1,:,2))
 $N2ALL    enddo
-$N2ALL    !$$OMP END DO
-$N2ALL    !$$OMP END PARALLEL
+$N2ALL    !!$$OMP END DO
+$N2ALL    !!$$OMP END PARALLEL
 $N2ALL    deallocate(A,B)
 $N2ALL end subroutine Derive_tot_3D
 

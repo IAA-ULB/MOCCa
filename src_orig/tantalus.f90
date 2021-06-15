@@ -95,6 +95,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call add_timer('Multipole moments '         , T_moments)  
  call add_timer('Feas. Proj. step '          , T_feasible)  
  call add_timer('Spwf angular momentum '     , T_spwfangmom)  
+ call add_timer('Charge density folding'     , T_chargedensity)  
 
  call start_timer(T_tantalus)
 
@@ -325,9 +326,11 @@ subroutine ReachForWaterAndFood()
         call ReadjustAllMoments(1)
         call Sphamilcontribution()
         call calcFields(calcall=.true.,precon=.true.)
-        
-        call update_spwf_angmom(.false.)
-        call updateAM
+
+        if(any(Omega.ne.0.0d0)) then        
+          call update_spwf_angmom(.false.)
+          call updateAM
+        endif
         !-----------------------------------------------------------------------
         ! Above: actual evolution
         ! Below: administration
