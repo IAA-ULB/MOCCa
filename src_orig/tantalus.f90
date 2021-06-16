@@ -31,6 +31,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  use IO
  use temperature_projection 
  use timing
+ USE OMP_LIB
 
  implicit none
  !------------------------------------------------------------------------------
@@ -70,33 +71,11 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  306 format ( 8x,'| Axis reduction  X Y Z  = ', 3i2, 26x, '|')
  307 format ( 8x,'| SYM_CODE               = ', a26, 6x, '|')
  308 format ( 8x,'| TRANS_CODE             = ', a26, 6x, '|')
- 309 format ( 8x,'|__________________________________________________________|')
+ 309 format ( 8x,'|-------------- Environment Information -------------------|')
+ 310 format ( 8x,'| OpenMP threads         = ', i5, 26x, '|')
+ 311 format ( 8x,'|__________________________________________________________|')
 
- call add_timer('Tantalus'                   , T_tantalus)  
- call add_timer('HF-basis Derivatives'       , T_derivatives)  
- call add_timer('Canonical basis Derivatives', T_derivatives_can)  
- call add_timer('Spwf evolution'             , T_evolution)  
- call add_timer('Orthonormalization'         , T_ortho)  
- call add_timer('Density calculations'       , T_densities)  
- call add_timer('Density: pp'                , T_den_pp)
- call add_timer('Density: ph'                , T_den_ph)  
- call add_timer('Density: derivatives'       , T_den_der)  
- call add_timer('Field calculations'         , T_fields)  
- call add_timer('Energy calculations'        , T_energy)  
- call add_timer('Pairing solver '            , T_pairing)  
- call add_timer('Sp. Hamiltonian '           , T_sphamil)  
- call add_timer('Coulomb solver'             , T_coulomb)  
- call add_timer('Can. basis construction'    , T_den_can)  
- call add_timer('Moments of inertia '        , T_MOI)  
- call add_timer('Centre-of-mass correction ' , T_COM)  
- call add_timer('COM one-body '              , T_COM1)  
- call add_timer('COM two-body '              , T_COM2)  
- call add_timer('Pairing gaps '              , T_gaps)  
- call add_timer('Multipole moments '         , T_moments)  
- call add_timer('Feas. Proj. step '          , T_feasible)  
- call add_timer('Spwf angular momentum '     , T_spwfangmom)  
- call add_timer('Charge density folding'     , T_chargedensity)  
-
+ call initialize_all_timers
  call start_timer(T_tantalus)
 
  print *
@@ -117,6 +96,8 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  print 307, SYM_CODE
  print 308, TRANS_CODE
  print 309
+ print 310, OMP_GET_MAX_THREADS()
+ print 311
 
  !------------------------------------------------------------------------------
  ! Read input from STDIN
@@ -501,6 +482,44 @@ subroutine printsummary(iter)
     print 8, totalangmom(3), totalangmom(3) - angmomold(3)
         
 end subroutine printsummary
+
+subroutine initialize_all_timers()
+   !----------------------------------------------------------------------------
+   ! Initialize all the timers that have been defined.
+   ! Input: 
+   !       NONE
+   ! Output:
+   !       NONE
+   !----------------------------------------------------------------------------
+
+   use timing
+   
+   call add_timer('Tantalus'                   , T_tantalus)  
+   call add_timer('HF-basis Derivatives'       , T_derivatives)  
+   call add_timer('Canonical basis Derivatives', T_derivatives_can)  
+   call add_timer('Spwf evolution'             , T_evolution)  
+   call add_timer('Orthonormalization'         , T_ortho)  
+   call add_timer('Density calculations'       , T_densities)  
+   call add_timer('Density: pp'                , T_den_pp)
+   call add_timer('Density: ph'                , T_den_ph)  
+   call add_timer('Density: derivatives'       , T_den_der)  
+   call add_timer('Field calculations'         , T_fields)  
+   call add_timer('Energy calculations'        , T_energy)  
+   call add_timer('Pairing solver '            , T_pairing)  
+   call add_timer('Sp. Hamiltonian '           , T_sphamil)  
+   call add_timer('Coulomb solver'             , T_coulomb)  
+   call add_timer('Can. basis construction'    , T_den_can)  
+   call add_timer('Moments of inertia '        , T_MOI)  
+   call add_timer('Centre-of-mass correction ' , T_COM)  
+   call add_timer('COM one-body '              , T_COM1)  
+   call add_timer('COM two-body '              , T_COM2)  
+   call add_timer('Pairing gaps '              , T_gaps)  
+   call add_timer('Multipole moments '         , T_moments)  
+   call add_timer('Feas. Proj. step '          , T_feasible)  
+   call add_timer('Spwf angular momentum '     , T_spwfangmom)  
+   call add_timer('Charge density folding'     , T_chargedensity)  
+
+end subroutine initialize_all_timers
 
 subroutine cleanupthemess()
   !-----------------------------------------------------------------------------
