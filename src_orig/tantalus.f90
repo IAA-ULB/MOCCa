@@ -31,8 +31,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  use IO
  use temperature_projection 
  use timing
- USE OMP_LIB
-
+!$OMP USE OMP_LIB
  implicit none
  !------------------------------------------------------------------------------
  ! These inputs control where the code will look for its input. Leaving them 
@@ -42,7 +41,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  character(len=*), intent(in)        :: run_mode 
  character(len=43)                   :: mode_print
  character(len=26)                   :: symprint
-
+ logical                             :: printed
 
  100 format &
      &  (/,8x,' ___________________________________________________________', &
@@ -72,8 +71,9 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  307 format ( 8x,'| SYM_CODE               = ', a26, 6x, '|')
  308 format ( 8x,'| TRANS_CODE             = ', a26, 6x, '|')
  309 format ( 8x,'|-------------- Environment Information -------------------|')
- 310 format ( 8x,'| OpenMP threads         = ', i5, 26x, '|')
- 311 format ( 8x,'|__________________________________________________________|')
+ !$OMP 310 format ( 8x,'| OpenMP threads         = ', i5, 26x, '|')
+ !$OMP 311 format ( 8x,'| OpenMP disabled                                          |')
+ 312 format ( 8x,'|__________________________________________________________|')
 
  call initialize_all_timers
  call start_timer(T_tantalus)
@@ -96,8 +96,11 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  print 307, SYM_CODE
  print 308, TRANS_CODE
  print 309
- print 310, OMP_GET_MAX_THREADS()
- print 311
+ printed = .false.
+!$OMP print 310, OMP_GET_MAX_THREADS()
+!$OMP printed = .true.
+!$OMP if(.not. printed) print 311
+ print 312
 
  !------------------------------------------------------------------------------
  ! Read input from STDIN
@@ -491,7 +494,6 @@ subroutine initialize_all_timers()
    ! Output:
    !       NONE
    !----------------------------------------------------------------------------
-
    use timing
    
    call add_timer('Tantalus'                   , T_tantalus)  
