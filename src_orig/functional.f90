@@ -79,6 +79,8 @@ module functional
     !---------------------------------------------------------------------------
     ! Rotational correction
     real(KIND=dp) :: RotCorrection(3)
+    ! and vibrational correction
+    real(KIND=dp) :: VibCorrection(3)
     !---------------------------------------------------------------------------
     ! Value of the Routhian 
     real(KIND=dp) :: Routhian, RHistory(5) 
@@ -213,8 +215,14 @@ $PRINTCOEF_PAIR
   621 format (15x, '             ph:', 3f15.6)
   622 format (15x, '             pp:', 3f15.6)
 
-   63 format (15x, '   Rotational ', a1, ':', 30x, f15.6)
-  631 format (15x, '   Rotational T:', 30x, f15.6)
+   63 format (15x, '  Rotational  '  , a1, ':', 30x, f15.6)
+  631 format (15x, '  Rotational  T:',          30x, f15.6)
+  
+   64 format (15x, '  Vibrational '   , a1, ':', 30x, f15.6)
+  641 format (15x, '  Vibrational T:',          30x, f15.6)
+
+   65 format (15x, '  Collective T: ',          30x, f15.6)
+  
     7 format (15x, ' Coulomb Direct:', 3f15.6)
    71 format (15x, '   Dir. (point):', 3f15.6)
     8 format (15x, '       Exchange:', 3f15.6)
@@ -252,10 +260,18 @@ $PRINTCOEF_PAIR
     endif
 
     if(rotcorr .ne.  0) then  
+      print 65, sum(Rotcorrection) + sum(Vibcorrection)
+      print *
       print 631, sum(Rotcorrection)
       print 63, 'X',  Rotcorrection(1)
       print 63, 'Y',  Rotcorrection(2)
       print 63, 'Z',  Rotcorrection(3)
+      print *
+      print 641, sum(Vibcorrection)
+      print 64, 'X',  Vibcorrection(1)
+      print 64, 'Y',  Vibcorrection(2)
+      print 64, 'Z',  Vibcorrection(3)
+      print *
     endif
   
     print *
@@ -285,7 +301,9 @@ $PRINTCOEF_PAIR
     print 103, TotalE - spwfenergy
 
     if(rotcorr.ne.0) then
-        print 991, totalE - sum(rotcorrection)- sum(COMcorrection(2,:))
+        print 991, totalE - sum(rotcorrection)      &
+        &                 - sum(COMcorrection(2,:)) & 
+        &                 - sum(vibcorrection)
     endif
       
     if(inversetemp .ne. -1) then
@@ -410,7 +428,9 @@ $PRINTCOEF_PAIR
     ! The total energy is comprised of 
     !      Kinetic part + Skyrme part + corrections + Coulomb energy
     TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)
-    TotalE = TotalE + CoulombDirect + CoulombExchange + sum(Rotcorrection)
+    TotalE = TotalE + CoulombDirect + CoulombExchange 
+    ! Plus schematic corrections for the collective energy
+    TotalE = TotalE + sum(Rotcorrection) + sum(Vibcorrection)
 
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
@@ -758,63 +778,102 @@ $TR   COM2pp = 2*COM2pp
 
   subroutine calcRotationalCorrection()
     !---------------------------------------------------------------------------
-    ! Calculate the rotational correction to the energy as
-    !     E_crank = - \sum_{\mu} <J_mu^2>/(2 * I_{\mu})   
+    ! Calculate a phenomenological collective correction:
     !
-    ! This is ill-defined for spherical nuclei, so we use the following
-    ! prescription from     
-    !    D. Pena-Arteaga, EPJA 52, 320 (2016).
-    ! which is
-    !    E_rot = E_crank * b * tanh(c|beta_2|)
+    !    E_corr = - \sum_{\mu} (f^rot_mu  +  f^vib_mu ) <J_mu^2>/(2 * I_{\mu})   
+    !
+    ! where
+    !      * the sum is over all three Cartesian directions
+    !      *  < J^2_{mu} > is the expectation value of the angular momentum
+    !                      squared in a given direction
+    !      *  I_mu is the Belyaev moment of inertia along a given direction
+    !     
+    ! This incorporates more than 'just' the rotational correction: the factors 
+    ! f have different interpretation:
+    !
+    !      * f^rot_mu is a cutoff function for the rotational correction
+    !      * f^vib_mu is a modification of the rotational correction, in order
+    !        to mimic a vibrational correction.
+    ! 
+    ! We take for both f-values
+    ! 
+    !      f^rot_mu = b tanh( c B_mu )  
+    !      f^vib_mu = d B_mu exp ( -l  (B - b_vib)**2  ) 
+    !
+    ! where 
+    !
+    !      B_mu = I_mu / I_c 
+    !
+    ! is the ratio between the calculated Belyaev moment of inertia and (one
+    ! third of) the classical moment of inertia: 
+    !
+    !      I_c = 2/15 * m_n * A * (1.2 * A)**2/(hbar c**2)
+    !
+    ! All of this is determined by five parameters: b, c, d, l and B_vib.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+    ! 
+    ! References:
+    !   G. Scamps, S. Goriely, E. Olsen, M. Bender and W. Ryssens, PRC XX (2021) 
+    ! & S. Goriely, M. Samyn and J. M. Pearson, PRC 75, 065312 (2007).
     !---------------------------------------------------------------------------
     use momentsofinertia
     use moments  
 
     integer       :: i
-    real(KIND=dp) :: B2, A, Q2(3), damp(3), compare(3), R
-    type(moment), pointer :: rms
+    real(KIND=dp) :: B(3), A,  compare(3), R, f_rot(3), f_vib(3)
+    real(KIND=dp) :: bely(3), J2_temp(3)
 
     Rotcorrection = 0.0
+    Vibcorrection = 0.0
     if(Rotcorr .eq. 0) return
+  
+    !---------------------------------------------------------------------------
+    ! Selecting the right quantities to use for the moment of inertia and <J^2>
+    select case(pairingtype)
+    case(0,1)
+      ! HF or BCS
+      Bely    = Belyaev(:,3)
+      J2_temp = J2(:,3)    
+      ! Sanity check: no collective sense of rotational correction implemented
+      !               yet for HF/BCStype calculations
+      if(blocktype.ne.0) then
+          print *, 'Rotational correction for odd nuclei not incorporated into HF/BCS.'      
+          stop
+      endif
+    case (2)
+      ! HFB
+      if(inversetemp.lt.0) then
+        Bely    = Bely_coll(:,3)
+        J2_temp = J2_coll(:,3)
+      else
+        Bely    = Belyaev(:,3)
+        J2_temp = J2(:,3)
+      endif
+    end select
 
+    !---------------------------------------------------------------------------
+    ! We calculate the classical moment of inertia along every Cartesian axis
     A = neutrons+protons    
-    Q2= calculatetotalql(2) 
-    B2= abs(4*pi/3. /((1.2*A**(1./3.))**2 * A) * Q2(3))
 
-    rms => FindMoment(-2,0, .false.)
-    ! We calculate the classical moment of inertia along the axis
     do i=1, 3
-!      compare(i) = 1./3. * 2./5. * sum(nucleonmass * rms%value(1:2)) 
       R = 1.2 * (neutrons+protons)**(1./3.)
       compare(i) = 1./3. * 2./5. * sum(nucleonmass)/2 * (neutrons+protons)*R**2
     enddo
     ! Putting it in correct units
     compare = compare/(hbarclum**2)
-
-    ! Another possibility is to compare the moment of inertia to that one of the
-    ! rigid rotor as calculated for the density in memory.
-    !compare = compare/rigid
-    select case(pairingtype)
-    case(0,1)
-      ! HF or BCS
-      damp             = rotcorrb * tanh(rotcorrc * Belyaev(:,3)/compare)
-      RotCorrection    =-J2(:,3)/(2*Belyaev(:,3))*damp
     
-      ! Sanity check: no collective sense of rotational correction implemented
-      !               yet for HF/BCStype calculations
-      if(blocktype.ne.0) then
-          print *, 'Rotational correction for odd nuclei not incorporated into BCS.'      
-          stop
-      endif
-    case (2)
-      if(inversetemp.lt.0) then
-        damp          = rotcorrb * tanh(rotcorrc * Bely_coll(:,3)/compare)
-        RotCorrection = - J2_coll(:,3)/(2*Bely_coll(:,3))*damp
-      else
-        damp          = rotcorrb * tanh(rotcorrc * Belyaev(:,3)/compare)
-        RotCorrection = - J2(:,3)/(2*Belyaev(:,3))*damp
-      endif
-    end select
+    !---------------------------------------------------------------------------
+    ! Actual calculation
+    B = Bely/compare
+    f_rot         = rotcorrb * tanh(rotcorrc * B)
+    f_vib         = vibcorrd * B * exp( - vibcorrl * (B - vibcorrb)**2)
+    RotCorrection = - f_rot * J2_temp/(2*Bely)
+    
+    print *, 'B', B
+    print *, 'vibcorrb', vibcorrb
+    print *, 'f_vib', f_vib
+    VibCorrection = - f_vib * J2_temp/(2*Bely)
 
   end subroutine calcRotationalCorrection
 
@@ -1121,7 +1180,8 @@ $EREAR
     endif
     ! Add the rotational correction
     Spwfenergy = Spwfenergy + sum(Rotcorrection)
-    
+    ! And the vibrational correction
+    Spwfenergy = Spwfenergy + sum(vibcorrection)
   end function calcspwfenergy
   
   subroutine output_Edensity(Edensity, N)

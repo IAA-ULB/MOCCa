@@ -294,8 +294,11 @@ $REDUZ  coul_offset_z = 0
         
     !---------------------------------------------------------------------------
     ! Neutron contributions to the charge density.
-    if(all(neutronsize.eq.0.0)) return
-
+    if(all(neutronsize.eq.0.0)) then
+      call stop_timer(T_chargedensity)
+      return
+    endif
+    
     do i=1, mv
         temp(i,1,1) = D_I_I(i,1)
     enddo       

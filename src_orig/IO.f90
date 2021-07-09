@@ -875,9 +875,9 @@ contains
     !
     ! It contains on a single line
     !
-    !      N, Z, Total energy, Q20(t), Q22(t), Q(t), Q(t),                     &   
-    ! &    Gamma(n), Gamma(p),  <r^2_p>, B(1:3), J2(1:3),                      &
-    ! &    Rotcorrection(1:3), Vibcorrection(1:3),                             &
+    !      N, Z, Total energy, Q20_t, Q22_t, Q_t, Gamma_t,                     &   
+    ! &     <r^2_p>, B(1:3), J2(1:3),                                          &
+    ! &    Rotcorrection(1:3) + Vibcorrection(1:3),                            &
     ! &    avgap_v2(n), avgap_uv(n), avgap_v2(p),  avgap_uv(p),                &
     ! &    tot_even, tot_odd, iter, io
     !
@@ -886,8 +886,11 @@ contains
     !    from the charge density, which is not necessarily the proton density.
     ! * B is the Belyaev moment of inertia, along every axis
     ! * J2 is the expectation value of J^2, along every axis
+    !
     ! * Rotcorrection is the rotational correction, separately along every axis
     ! * Vibcorrection is the vibrational correction, separately along every axis
+    !  => Note that these are summed in this table!
+    ! 
     ! * avgap_v2/uv(p/n) is the average gap for protons or neutrons as
     !                     calculated for the selected pairing approximation
     !                     by either averaging the gaps with the density matrix 
@@ -943,13 +946,12 @@ contains
       endif
     end select
   
-    write(10,'(2i4,26(1x,f20.6), i6)', advance='NO')  &
+    write(10,'(2i4,23(1x,f20.6), i6)', advance='NO')  &
     &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi,  &
     &     sqrt(rms/protons),  B(:), J2_coll(:,3)    ,             &
-    &     Rotcorrection, Vibcorrection,                           &
-    !   First neutron gaps
-    &    average_gap(:,1), average_gap(:,2), &
-    &    tot_even, tot_odd,                  &
+    &     Rotcorrection+Vibcorrection,                            &
+    &    average_gap(:,1), average_gap(:,2),                      &
+    &    tot_even, tot_odd,                                       &
     &    iter
   
     write(10, '(2x, a99)') adjustl(iomsg)

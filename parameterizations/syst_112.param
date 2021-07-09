@@ -1,4 +1,10 @@
 &skf
+!-------------------------------------------------------------------------------
+! Syst_112 parameterization produced by G. Scamps.
+!
+! Note: this is the version BEFORE a refit of the collective parameters to the 
+!       fission barriers of heavy nuclei.
+!-------------------------------------------------------------------------------
 name     =  'syst_112'
 func_file=  'DD-switch.func'
 force_switch = 0.0
@@ -36,4 +42,9 @@ rotcorr  = 1
 Cuttype = 1
 Cutneutron =       7.99756000
 Cutproton  =       7.99756000
+rotcorrb   = 1.14948
+rotcorrc   = 4.91873
+vibcorrb   = 0.866834 
+vibcorrl   = 6.78629
+vibcorrd   = 0.226028
 /

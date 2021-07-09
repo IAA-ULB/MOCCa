@@ -1,4 +1,10 @@
 &skf
+!-------------------------------------------------------------------------------
+! Syst_140 parameterization produced by G. Scamps.
+!
+! Note: this is the version BEFORE a refit of the collective parameters to the 
+!       fission barriers of heavy nuclei.
+!-------------------------------------------------------------------------------
 name     =  'syst_140'
 func_file=  'DD-switch.func'
 force_switch = 0.0
@@ -36,4 +42,9 @@ rotcorr  = 1
 Cuttype = 1
 Cutneutron =      10.71620000
 Cutproton  =      10.71620000
+rotcorrb   = 1.09331 
+rotcorrc   = 4.29516
+vibcorrb   = 1.85867
+vibcorrl   = 2.33006
+vibcorrd   = 0.0402645
 /
