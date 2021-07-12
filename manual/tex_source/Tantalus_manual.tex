@@ -212,6 +212,8 @@ BlockLowest  = Set of 'a2' formatted strings, of length BlockNumber.
 &evolution
 maxiter     = maximum number of mean-field iterations.
 printiter   = Large printouts after every multiple of this value. 
+              Attention: collective corrections are only recalculated at every
+                         total printout, as determined by this parameter.
 /
 --------------------------------------------------------------------------------
 &scfiteration/
@@ -306,8 +308,9 @@ named \texttt{\$BXLFITz\$Zn\$N.out}
 and writes a single line to it at the end of the iterations. 
 
 \begin{Verbatim}
-N, Z, Total energy, Q20(t), Q22(t), Q(t), Gamma(t), R_charge^RMS, Belyaev,  J2
-          Rotcorrection, avgap_v2, avgap_uv, tot_even, tot_odd,  iter, iomsg
+N, Z, Total energy, Q20(t), Q22(t), Q(t), Gamma(t), Q30(t), Q32(t), 
+R_charge^RMS, Belyaev, J2, Collective correction, avgap_v2, avgap_uv, tot_even, 
+tot_odd, iter, iomsg
 \end{Verbatim}
 
 The individual entries are
@@ -328,14 +331,16 @@ Gamma(t)     = Triaxality angle of the total density in DEGREES. This quantity
                depends on the orientation of the nucleus in the box. 
                 (Q and G are defined in Eq. 68 and 69 in 
                    W. Ryssens, CPC 187, 175-194 (2015))
-
+Q30,Q32      = Octupole deformations of the total density, units of fm^3.
 R_charge^RMS = RMS radius of the charge density. Includes the finite size 
                correction of the protons and neutrons if asked for.
 Belyaev      = Belyaev moment of inertia along every axis. (This is the ad-hoc
                 collective version without contribution of blocked qps).
 J2           = Expectation value of J^2 around every axis (again, ad-hoc version
                 without contribution of blocked qps)
-Rotcorrection= Energy associated with the rotational correction.
+Collective correction
+             = sum of the rotational and vibrational collective contributions
+               to the total energy
 avgap_v2/uv  = is the average gap for protons or neutrons as
                calculated for the selected pairing approximation
                by either averaging the gaps with the density matrix 
@@ -426,13 +431,13 @@ nucleonsize_selfconsistent = .true./
                              ! Whether to use the folding self-consistently, 
                              ! or only in the calculation of the energy.
 rotcorr     = 0              ! Whether (1) or not (0) to include the rotational 
-                             ! correction for the energy based on the Belyaev 
-                             ! moment of intertia.
+                             ! correction and vibrational correction (!) in 
+                             ! calculation.
 rotcorrb    = 0              ! Parameters b and c for the contribution of the 
-rotcorrc    = 0              ! rotational correction, based on Eq. (14)
-                             ! from D.  Pena-Arteaga et al. EPJA 52, 320 (2016).
-                             ! except for an extra minus sign, of which I'm 
-                             ! pretty sure it is a typo.
+rotcorrc    = 0              ! rotational correction.
+vibcorrb    = 0              ! Parameters b, d and l for the vibrational 
+vibcorrd    = 0              ! correction.
+vibcorrl    = 0              ! 
 \end{Verbatim}
 \end{minipage}
 \label{fig:paramexample}

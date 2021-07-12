@@ -1,9 +1,11 @@
 # Small bash script that generates the public version of Tantalus
 CONFIG=DD-switch
 CONFIG_T=DD-switch-T
+CONFIG_P=DD-switch-P
 
 SRCPUBLIC=$HOME/Documents/Codes/tantalus_public/src
 SRCPUBLIC_T=$HOME/Documents/Codes/tantalus_public/src_T
+SRCPUBLIC_P=$HOME/Documents/Codes/tantalus_public/src_P
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
 # Time-reversal conserved version
@@ -31,4 +33,15 @@ rm src/tantalus.version.f90.bak
 
 cp src/*.f90 $SRCPUBLIC_T/
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+# Parity broken version
+
+python3 Hephaestos.py $CONFIG_P
+
+cp src/tantalus.f90 src/tantalus.version.f90
+sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' src/tantalus.version.f90 
+sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' src/tantalus.version.f90 
+sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' src/tantalus.version.f90 
+rm src/tantalus.version.f90.bak
+
+cp src/*.f90 $SRCPUBLIC_P/
 

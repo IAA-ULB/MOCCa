@@ -152,7 +152,7 @@ module wavefunctions
  !------------------------------------------------------------------------------
  ! Oscillator frequencies to use for the initialization with a Nilsson  
  ! hamiltonian.
- real(KIND=dp) :: osc_freq(3) = (/ 0.225, 0.225, 0.15 /)
+ real(KIND=dp) :: osc_freq(3) = (/ 0.2125, 0.2125, 0.175 /)
  !------------------------------------------------------------------------------
  ! Filename to read the values on the mesh of a "model"-swpf for blocking. 
  character(len=40)                  :: blockfname = ''
@@ -394,6 +394,9 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     endif
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices
+!    print *, nwf
+!    stop
+
     if(allocated(indices))  deallocate(indices)
     if(allocated(Energies)) deallocate(Energies)
     allocate(Indices(nwf), Energies(nwf))
