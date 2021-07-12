@@ -690,9 +690,9 @@ contains
 
    type(Moment),pointer  :: Current
    real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
-   real(KIND=dp)         :: mpsi(nx*ny*nz,4,nwt)
+   real(KIND=dp)         :: mpsi(nx*ny*nz,4)
    real(KIND=dp)         :: O2, value, des
-   integer               :: it, wave, k, B, si, N
+   integer               :: wave, k, B, si, N, it
 
    call start_timer(T_feasible)
 
@@ -725,22 +725,16 @@ contains
 
     do wave=1,N
       do k=1,4
-        mpsi(:,k,si+wave) = multipole(:,it) * HFPsi(:,k,si+wave)
+        mpsi(:,k) = multipole(:,it) * HFPsi(:,k,si+wave)
       enddo
-    enddo
-    si = si + N
-   enddo
-   do wave=1,nwt
-      it = 1
-      if(wave .gt. nwn) it = 2
-      !Substituting the correction
-      HFPsi(:,:,wave) = HFPsi(:,:,wave) - 2*mpsi(:,:,wave)
-      !
+      ! Substituting the correction
+      HFPsi(:,:,si+wave) = HFPsi(:,:,si+wave) - 2*mpsi
       ! The factor two is a historical accident, and could be of course 
       ! accomodated by a redefinition of the Update above, but I prefer to 
       ! include it here and leave a trace of this happy (?) mistake.
-
     enddo
+    si = si + N
+   enddo
    !---------------------------------------------------------------------------
    ! Finally, orthonormalisation
    call Gramschmidt
