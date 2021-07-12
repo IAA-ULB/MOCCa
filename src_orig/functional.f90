@@ -870,9 +870,6 @@ $TR   COM2pp = 2*COM2pp
     f_vib         = vibcorrd * B * exp( - vibcorrl * (B - vibcorrb)**2)
     RotCorrection = - f_rot * J2_temp/(2*Bely)
     
-    print *, 'B', B
-    print *, 'vibcorrb', vibcorrb
-    print *, 'f_vib', f_vib
     VibCorrection = - f_vib * J2_temp/(2*Bely)
 
   end subroutine calcRotationalCorrection
