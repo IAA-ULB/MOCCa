@@ -158,6 +158,7 @@ Type="HFB"
 blocktype=2
 blocknumber=1
 pairingscheme=1
+bogofromfile=.false.
 /
 &indices
 blocklowest='n+'
