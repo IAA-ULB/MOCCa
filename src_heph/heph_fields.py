@@ -132,6 +132,10 @@ def GenerateFields(so, oldso):
              + 4*tab + 'do it=1,2 \n'                                                          \
              + 5*tab + '${FIELD}_hist(:$IND,it) = & \n'                                        \
              + 5*tab + '&  changeboxsize_function($FIELD(:$IND,it), filenx, fileny, filenz) \n'\
+             + 4*tab + 'enddo \n'                                                              \
+             + 4*tab + 'deallocate($FIELD) \n'                                                 \
+             + 4*tab + 'allocate($FIELD(mv$ALLOCIND,2)) \n'                                             \
+             + 4*tab + 'do it=1,2 \n'                                                          \
              + 5*tab + '$FIELD(:$IND,it) = ${FIELD}_hist(:$IND,it) \n'                         \
              + 5*tab + '${FIELD}_hist(:$IND,it) = 0.0d0  \n'                                   \
              + 4*tab + 'enddo \n'                                                              
