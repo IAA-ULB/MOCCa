@@ -691,7 +691,7 @@ contains
    type(Moment),pointer  :: Current
    real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
    real(KIND=dp)         :: mpsi(nx*ny*nz,4)
-   real(KIND=dp)         :: O2, value, des
+   real(KIND=dp)         :: O2, value, des, scale
    integer               :: wave, k, B, si, N, it
 
    call start_timer(T_feasible)
@@ -707,12 +707,13 @@ contains
     O2    = sum(Current%Squared)                    ! < C^2 >
     Value = sum(Current%Value)                      ! Current value of <C>
     Des   = Current%Constraint                      ! Desired final value
+    scale = Current%Scalefactor                     ! Scale factor
     
     update = 0.0
     !-----------------------------------------------------------------------
     !Calculate the update
     do it=1,2
-        Update(:,it) = 0.5*(Value-Des)/O2*Cutoff(:,it)*Current%SpherHarm
+        Update(:,it) = 0.5*(Value-Des)/O2*Cutoff(:,it)*Current%SpherHarm*scale
     enddo
     multipole = multipole + Update
    enddo

@@ -771,7 +771,7 @@ $FILL_LIST
           print 13
           print 14, ToReadjust%Intensity
           print 15, ToReadjust%scalefactor
-          ToReadjust%Intensity = ToReadjust%intensity * ToReadjust%scalefactor
+          !ToReadjust%Intensity = ToReadjust%intensity * ToReadjust%scalefactor
           print 16, ToReadjust%Intensity
           print 11
     endif
