@@ -728,10 +728,15 @@ contains
         mpsi(:,k) = multipole(:,it) * HFPsi(:,k,si+wave)
       enddo
       ! Substituting the correction
-      HFPsi(:,:,si+wave) = HFPsi(:,:,si+wave) - 2*mpsi
+      HFPsi(:,:,si+wave) = HFPsi(:,:,si+wave) - mpsi   !2 * mpsi
+      
       ! The factor two is a historical accident, and could be of course 
       ! accomodated by a redefinition of the Update above, but I prefer to 
       ! include it here and leave a trace of this happy (?) mistake.
+      
+      ! 22/07/21: turns out the factor two was not a happy mistake. For 
+      ! quadrupole constraints in EV8/CR8-mode, the code worked fine. For 
+      ! EV4-like calculations, this turned out to be too aggressive.
     enddo
     si = si + N
    enddo
