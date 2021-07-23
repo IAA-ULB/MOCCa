@@ -238,44 +238,42 @@ contains
             ! First block does not get modified
             offset_left  = 0
             offset_right = 0
-            dispersions(sb+offset_left +1:sb+offset_left +blocks(4)) &
-            &   = tempd(sb+offset_right+1:sb+offset_right+blocks(4))
-            spenergies (sb+offset_left +1:sb+offset_left +blocks(4)) &
-            &   = tempe(sb+offset_right+1:sb+offset_right+blocks(4))
-            rho_can    (sb+offset_left +1:sb+offset_left +blocks(4)) &
-            &   = tempr(sb+offset_right+1:sb+offset_right+blocks(4))
+            dispersions(sb+offset_left +1:sb+offset_left +blocks(B)) &
+            &   = tempd(sb+offset_right+1:sb+offset_right+blocks(B))
+            spenergies (sb+offset_left +1:sb+offset_left +blocks(B)) &
+            &   = tempe(sb+offset_right+1:sb+offset_right+blocks(B))
+            rho_can    (sb+offset_left +1:sb+offset_left +blocks(B)) &
+            &   = tempr(sb+offset_right+1:sb+offset_right+blocks(B))
 
             ! Third block on file becomes part of the first block
-            offset_left  = sum(blocks(1:3))
-            offset_right = sum(blocks(1:2))
-            dispersions(sb+offset_left +1:sb+offset_left +blocks(4)) &
-            &   = tempd(sb+offset_right+1:sb+offset_right+blocks(4))
-            spenergies (sb+offset_left +1:sb+offset_left +blocks(4)) &
-            &   = tempe(sb+offset_right+1:sb+offset_right+blocks(4))
-            rho_can    (sb+offset_left +1:sb+offset_left +blocks(4)) &
-            &   = tempr(sb+offset_right+1:sb+offset_right+blocks(4))
-
+            offset_left  = blocks(B)
+            offset_right = blocks(B) + blocks(B+1)
+            dispersions(sb+offset_left +1:sb+offset_left +blocks(B+2)) &
+            &   = tempd(sb+offset_right+1:sb+offset_right+blocks(B+2))
+            spenergies (sb+offset_left +1:sb+offset_left +blocks(B+2)) &
+            &   = tempe(sb+offset_right+1:sb+offset_right+blocks(B+2))
+            rho_can    (sb+offset_left +1:sb+offset_left +blocks(B+2)) &
+            &   = tempr(sb+offset_right+1:sb+offset_right+blocks(B+2))
+            
             ! Second block on file becomes first part of second block
-            offset_left  = blocks(1) + blocks(3)
-            offset_right = blocks(1)
-            dispersions(sb+1:sb+blocks(1))= tempd(sb+1:sb+blocks(1))
-            spenergies (sb+1:sb+blocks(1))= tempe(sb+1:sb+blocks(1))
-            rho_can    (sb+1:sb+blocks(1))= tempr(sb+1:sb+blocks(1))
-
-            dispersions(sb+1:sb+blocks(1))= tempd(sb+1:sb+blocks(1))
-            spenergies (sb+1:sb+blocks(1))= tempe(sb+1:sb+blocks(1))
-            rho_can    (sb+1:sb+blocks(1))= tempr(sb+1:sb+blocks(1))
+            offset_left  = blocks(B) + blocks(B+2)
+            offset_right = blocks(B)
+            dispersions(sb+offset_left +1:sb+offset_left +blocks(B+1)) &
+            &   = tempd(sb+offset_right+1:sb+offset_right+blocks(B+1))
+            spenergies (sb+offset_left +1:sb+offset_left +blocks(B+1)) &
+            &   = tempe(sb+offset_right+1:sb+offset_right+blocks(B+1))
+            rho_can    (sb+offset_left +1:sb+offset_left +blocks(B+1)) &
+            &   = tempr(sb+offset_right+1:sb+offset_right+blocks(B+1))
 
             ! Fourth  block on file becomes second part of second block
-            offset_left  = sum(blocks(1:3))
-            offset_right = sum(blocks(1:3))
-            dispersions(sb+offset_left +1:sb+offset_left +blocks(4)) &
-            &   = tempd(sb+offset_right+1:sb+offset_right+blocks(4))
-            spenergies (sb+offset_left +1:sb+offset_left +blocks(4)) &
-            &   = tempe(sb+offset_right+1:sb+offset_right+blocks(4))
-            rho_can    (sb+offset_left +1:sb+offset_left +blocks(4)) &
-            &   = tempr(sb+offset_right+1:sb+offset_right+blocks(4))
-
+            offset_left  = sum(blocks(B:B+2))
+            offset_right = sum(blocks(B:B+2))
+            dispersions(sb+offset_left +1:sb+offset_left +blocks(B+3)) &
+            &   = tempd(sb+offset_right+1:sb+offset_right+blocks(B+3))
+            spenergies (sb+offset_left +1:sb+offset_left +blocks(B+3)) &
+            &   = tempe(sb+offset_right+1:sb+offset_right+blocks(B+3))
+            rho_can    (sb+offset_left +1:sb+offset_left +blocks(B+3)) &
+            &   = tempr(sb+offset_right+1:sb+offset_right+blocks(B+3))
 
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
             ! First block is not modified
@@ -403,7 +401,7 @@ contains
                enddo
             enddo            
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-            sb = sb + sum(Blocks(1:B+3))            
+            sb = sb + sum(Blocks(B:B+3))              
           enddo
       endif
       !-------------------------------------------------------------------------
