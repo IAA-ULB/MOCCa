@@ -249,7 +249,7 @@ module moments
   !-----------------------------------------------------------------------------
   real(KIND=dp)  :: ReadjustSlowDown=0.1_dp
   !-----------------------------------------------------------------------------
-  !Pointer to the cutoff procedure chosen.
+  ! Pointer to the cutoff procedure chosen.
   !-----------------------------------------------------------------------------
   abstract interface
         subroutine comp_cutoff()
@@ -277,6 +277,10 @@ module moments
   ! If true, the code takes ALL of the information on the constrained moments
   ! from the read-in wavefunction file.
   logical :: ContinueAll = .false.
+  !-----------------------------------------------------------------------------
+  ! If .true., redefine the spherical harmonics of all Qlm (l>1) at every 
+  ! iteration to follow the movement of the centre-of-mass of the nucleus.
+  logical :: follow_COM = .false.
 
 contains
   
@@ -312,7 +316,6 @@ contains
     real(KIND=dp), pointer     :: harm_3D(:,:,:)
     
     allocate(SpherHarmMesh(nx,ny,nz,0:MaxMoment,0:MaxMoment,2))
-    
     !---------------------------------------------------------------------------
     ! Create the first Multipole moment: l=0, m=0
     nullify(Root) ;    allocate(Root)
@@ -377,6 +380,68 @@ contains
     !---------------------------------------------------------------------------
     return
   end subroutine IniMoments
+
+  subroutine shift_multipoles()
+    !---------------------------------------------------------------------------
+    ! Recenter the spherical harmonics of all multipole moments with l>1 on
+    ! the centre-of-mass. 
+    !
+    ! Note: currently hard-coded for situations where only the z-coordinate
+    !       of the centre-of-mass can move.
+    !---------------------------------------------------------------------------
+    type(Moment), pointer      :: current
+    real(KIND=dp), allocatable :: shift_mesh_z(:)
+    real(KIND=dp), pointer     :: harm_3D(:,:,:)
+    real(KIND=dp), allocatable :: SpherHarmMesh(:,:,:,:,:,:)
+    integer                    :: im, i
+    real(KIND=dp)              :: shiftz
+
+    !---------------------------------------------------------------------------
+    ! Find out the shift of the center of mass in the z-direction
+    ! We don't need any fancy symmetry considerations as a function of our 
+    ! choice of axes: at most one of the Q1m is allocated. 
+    shiftz = 0
+    current =>FindMoment(1,0,.false.)
+    if(associated(current)) then
+      shiftz = sum(current%value)
+    endif
+    current =>FindMoment(1,1,.false.)
+    if(associated(current)) then
+      shiftz = sum(current%value)
+    endif
+    current =>FindMoment(1,1,.true.)
+    if(associated(current)) then
+      shiftz = sum(current%value)
+    endif
+    
+!    print *, 'SHIFTING by', shiftz, current%value, current%l, current%m
+    if(shiftz .eq. 0) return
+    !---------------------------------------------------------------------------
+    allocate(shift_mesh_z(nz))
+    do i=1,nz
+      shift_mesh_z(i) = meshz(i) - shiftz
+    enddo
+    
+    allocate(SpherHarmMesh(nx,ny,nz,0:MaxMoment,0:MaxMoment,2))
+    
+    call GenSphericalHarmonics(maxmoment,nx,ny,nz,meshx,meshy,shift_mesh_z,    & 
+    &                          SpherHarmMesh,quantisationaxis,secondaryaxis)
+
+    current => Root
+    do while(associated(current%next)) 
+      current => current%next
+      
+      if(current%l .ne. 1) then 
+        im = 1
+        if(current%impart) im = 2
+      
+        harm_3D(1:nx,1:ny,1:nz) => Current%SpherHarm(:)
+        harm_3D=SpherHarmMesh(:,:,:,current%l,current%m,im)
+      endif
+    enddo
+    deallocate(shift_mesh_z, spherharmmesh)
+    
+  end subroutine shift_multipoles
 
   function NewMoment_Electric(l,m,ImPart) result(newmoment)
     !---------------------------------------------------------------------------
@@ -471,7 +536,7 @@ $FILL_LIST
     !---------------------------------------------------------------------------
     use Densities
     
-    type(Moment), pointer :: Current
+    type(Moment), pointer :: Current, Q1m
 
     call start_timer(T_moments)
 
@@ -483,6 +548,18 @@ $FILL_LIST
     !---------------------------------------------------------------------------
     ! Calculate the electric monopole
     call Current%Calculate(Current)
+    !---------------------------------------------------------------------------
+    if(follow_com) then
+      ! Calculate the Q1m beforehand, if these exist
+      Q1m=>Findmoment(1,0,.false.)
+      if(associated(Q1m)) call Q1m%calculate(Q1m)
+      Q1m=>Findmoment(1,1,.false.)
+      if(associated(Q1m)) call Q1m%calculate(Q1m)
+      Q1m=>Findmoment(1,1,.true.)
+      if(associated(Q1m)) call Q1m%calculate(Q1m)
+      
+      call shift_multipoles()
+    endif      
     !---------------------------------------------------------------------------
     ! Calculate the electric multipole moments
     do while(associated(Current%Next))
@@ -817,6 +894,7 @@ $FILL_LIST
     &           MaxMoment,                                  &  ! General options
     &           radd, acut, cutofftype,                     &   ! Cutoff options
     &           ContinueAll,                                &
+    &           follow_COM,                                 &
     &           MoreConstraints            ! Signal that constraints will follow
       
     NameList /MomentConstraint/                                                &
@@ -1695,9 +1773,13 @@ $FILL_LIST
     ! parameters to the multipole moments that do not represent physical degrees
     ! of freedom. Those multipole moments are:
     !
-    ! Q10     => Z-coordinate of the center of mass
+    ! Q10     => Z-coordinate of the center of mass 
     ! Re(Q11) => X-coordinate of the center of mass
-    ! Im(Q11) => Y-coordinate of the center of masss
+    ! Im(Q11) => Y-coordinate of the center of mass
+    !
+    !  (Attention: these three are always non-physical but only correspond to 
+    !              X/Y/Z in this way for the default choice of configuration
+    !              of axes. )
     !
     ! Re(Q21), Im(Q21), Im(Q22) => orientation of the nucleus in the box
     !
