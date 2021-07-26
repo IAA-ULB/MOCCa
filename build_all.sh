@@ -3,18 +3,22 @@
 #
 #    build_all.sh gfortran
 
-
+# Preparation
 if [ $# -eq 0 ]; then
     echo "No compiler specified."
+    exit
 fi
 
+mkdir -p compilation_logs
 
+# Loop over all configurations
 for config in configs/*.py
 do
 
 c=${config/'configs/'/}
 c=${c/'.py'/}
 
+# remove older executables
 rm -f exec/Tantalus.$c.exe exec/Tantalus.$c.mpi.exe
 
 echo "Compiling configuration $c"
