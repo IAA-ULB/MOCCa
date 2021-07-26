@@ -85,6 +85,15 @@ single: EXENAME:= Tantalus.$(CONFIG).exe
 # Recipes
 all: single mpi
 
+$(OBJDIR)/:
+	mkdir -p  obj/
+
+$(MODDIR)/:
+	mkdir -p  mod/
+
+compilation_logs/:
+	mkdir -p  compilation_logs/
+
 single: $(PRE) $(SINGLE_OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $(SINGLE_OBJ) $(LIBS)
 	mv single exec/$(EXENAME)
@@ -106,7 +115,7 @@ clean:
 	rm  -f $(OBJDIR)/*.o
 	rm  -f $(MODDIR)/*.mod
 
-$(OBJDIR)/%.o : $(SRCDIR)/%.f90
+$(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ compilation_logs/
 	$(CXX) $(CXXFLAGS) -c  $< -o $@ 
 
 setversioninfo:
