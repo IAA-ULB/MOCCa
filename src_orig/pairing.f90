@@ -20,7 +20,9 @@ module pairing
  ! Hephaestos keywords:
  !
  ! FORBIDBCS : $FORBIDBCS 
- !  
+ ! TR        : $TR
+ ! NTR       : $NTR
+ ! PBROKEN   : $PBROKEN
  !==============================================================================
 
  use compilation
@@ -170,6 +172,7 @@ contains
     !---------------------------------------------------------------------------
     character(len=20)                   :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
+    integer                             :: i
     
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
@@ -233,6 +236,30 @@ $FORBIDBCS endif
         allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
         allocate(BlockLowest(BlockNumber))  ; BlockLowest  = ' ' 
         read(unit=*, nml=Indices)
+
+        ! Sanity check on the BlockLowest array: 
+        !  do not allow for selection on parity of the blocked state if
+        !  parity is broken
+$PBROKEN        if(blocktype.eq.2 .or. blocktype .eq. 4) then
+$PBROKEN          do i=1, blocknumber
+$PBROKEN            select case(blocklowest(i))
+$PBROKEN            case('n+', 'n-')
+$PBROKEN              print *, 'Cannot block a neutron qp with definite parity.'
+$PBROKEN              stop
+$PBROKEN            case('p+', 'p-')
+$PBROKEN              print *, 'Cannot block a proton qp with definite parity.'
+$PBROKEN              stop
+$PBROKEN            case('n0', 'p0')
+$PBROKEN              ! allowed
+$PBROKEN            end select
+$PBROKEN          enddo
+$PBROKEN        endif
+
+        ! Sanity check on the useage of the gradient solver for EFA
+        if((blocktype.eq.2 .or. blocktype.eq.4) .and. pairingscheme .eq.1) then
+          print *,' The gradient solver cannot yet handle EFA blocking.'
+          stop
+        endif  
 
         ! Reading model spwf to block
         if(blockfname .ne. "") then

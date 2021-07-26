@@ -5,7 +5,8 @@
 # |_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/
 #              |_|                                             
 #-------------------------------------------------------------------------------
-from string          import Template
+from string                    import Template
+from src_heph.heph_symmetries  import *
 
 def ProcessPairing(fname, src, target, so):
   """
@@ -26,7 +27,17 @@ def ProcessPairing(fname, src, target, so):
   dic['FORBIDBCS'] = forbidBCS
   dic['TR']        = TR
   dic['NTR']       = NTR
+ 
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  # Ugly manual checking if parity is part of the generator set and 
+  #  signalling this to the FORTRAN code
+  symdic  = populatesymmetries()
+  dic['PBROKEN'] = ' '
 
+  for sym in so.generators:
+    if (sym == symdic['P']):
+     dic['PBROKEN'] = '!'
+    
   with open(src+fname, 'r') as template:
     with open(target+fname, 'w') as generated:
         for line in template:
