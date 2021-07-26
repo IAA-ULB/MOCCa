@@ -189,8 +189,11 @@ module moments
       ! Deviation of the constraint with respect to the asked for value.
       real(KIND=dp) :: deviation
       !-------------------------------------------------------------------------
-      ! Intensity of the constraint, and possible slowdown parameter
-      real(KIND=dp) :: Intensity, scalefactor
+      ! (1)  Intensity:   Intensity of the constraint
+      ! (2)  Scalefactor: Factor scaling the FeasibleProjection in evolution.f90
+      ! (3)  Intensityfactor:  Factor scaling the heuristic for the intensity
+      !                        of the constraint
+      real(KIND=dp) :: Intensity, scalefactor, intensityfactor
       !-------------------------------------------------------------------------
       ! Pointers to the previous and next item in the linked list.
       !-------------------------------------------------------------------------
@@ -439,13 +442,15 @@ $FILL_LIST
     endif
 
     ! The parameters of the new multipole moment are set to zero by default.
-    NewMoment%ConstraintType= 0
-    NewMoment%Value         = 0.0_dp
-    NewMoment%SpherHarm     = 0.0_dp
-    NewMoment%Squared       = 0.0_dp
-    NewMoment%multiplier    = 0.0_dp
-    NewMoment%mult_hist     = 0.0_dp
-    NewMoment%scalefactor   = 1.0_dp
+    NewMoment%ConstraintType  = 0
+    NewMoment%Value           = 0.0_dp
+    NewMoment%SpherHarm       = 0.0_dp
+    NewMoment%Squared         = 0.0_dp
+    NewMoment%multiplier      = 0.0_dp
+    NewMoment%mult_hist       = 0.0_dp
+    NewMoment%scalefactor     = 1.0_dp
+    NewMoment%intensity       = 0.0_dp
+    NewMoment%intensityfactor = 1.0_dp
     
     nullify(NewMoment%Calculate)
     NewMoment%Calculate   => Calculate_electric
@@ -765,13 +770,13 @@ $FILL_LIST
     ! Augmented Lagrangian readjustment
     if(ToReadjust%Intensity .eq. 0.0) then
           ! Find suitable intensity, if none was found before
-          ToReadjust%Intensity = 1d0/sum(ToReadjust%Squared)
+          ToReadjust%Intensity = 1d0/sum(ToReadjust%Squared) 
           print 11
           print 12, ToReadjust%l,ToReadjust%m
           print 13
           print 14, ToReadjust%Intensity
-          print 15, ToReadjust%scalefactor
-          !ToReadjust%Intensity = ToReadjust%intensity * ToReadjust%scalefactor
+          print 15, ToReadjust%intensityfactor
+          ToReadjust%Intensity = ToReadjust%Intensity*ToReadjust%intensityfactor
           print 16, ToReadjust%Intensity
           print 11
     endif
@@ -801,7 +806,7 @@ $FILL_LIST
     integer             :: iostat, iteration
     integer             :: l,m, ConstraintType
     real(KIND=dp)       :: Constraint, iq1=-1000000, iq2=-1000000, Intensity
-    real(KIND=dp)       :: scalefactor = 1.0d0
+    real(KIND=dp)       :: scalefactor = 1.0d0, intensityfactor = 1.0d0
     logical             :: MoreConstraints=.false., Impart, MultfromFile
     logical             :: continue
 
@@ -818,7 +823,7 @@ $FILL_LIST
     &          l,m, Impart,                    & ! Defining the multipole moment 
     &          Constraint,Intensity, ConstraintType, & ! Defining the constraint 
     &          iq1, iq2, Iteration, multfromfile, continue,                    &
-    &          scalefactor,                                                    &
+    &          scalefactor, intensityfactor,                                   &
     &          MoreConstraints        ! Signal that more constraints will follow
 
     nullify(Current)
@@ -874,7 +879,7 @@ $FILL_LIST
         Constraint=0.0_dp         ; MoreConstraints=.false.   
         ConstraintType=2          ; MultfromFile   =.false. ; continue = .false.
         iq1=-1000000_dp           ; iq2=-1000000_dp ; iteration = -1 
-        scalefactor = 1.0d0
+        scalefactor = 1.0d0       ; intensityfactor = 1.0d0
 
         if(present(file_number)) then
           read(unit=file_number, NML=MomentConstraint, IOSTAT=iostat)
@@ -914,6 +919,7 @@ $FILL_LIST
         Current%iteration      = iteration
         Current%Intensity      = Intensity
         Current%scalefactor    = scalefactor
+        Current%intensityfactor= intensityfactor
         !Reading the values for the constraints
         if(ConstraintType.ne.0) then
               !-----------------------------------------------------------------

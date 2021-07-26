@@ -27,6 +27,9 @@ def ProcessTransform(fname, src, target, so, oldso):
       EXPANDY               : .true. if we want to obtain the full Y-axis
       EXPANDZ               : .true. if we want to obtain the full Z-axis
       
+      PBROKEN               : Ugly manual flag to signal that Parity is broken,
+                              and that not all inputs to extraspwfs are valid.
+      
     """
 
     #---------------------------------------------------------------------------
@@ -158,6 +161,15 @@ def ProcessTransform(fname, src, target, so, oldso):
           dic['TRANSFO_Z_%d_B%d'%(i,j)] = '0.0d0'    
           dic['TRANSFO_Z_%d_B%d'%(i,j)] = '0.0d0'    
 
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    # Ugly manual checking if parity is part of the generator set and 
+    #  signalling this to the FORTRAN code 
+    symdic  = populatesymmetries()
+    dic['PBROKEN'] = ' '
+
+    for sym in so.generators:
+      if (sym == symdic['P']):
+        dic['PBROKEN'] = '!'
 
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

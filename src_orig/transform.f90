@@ -27,6 +27,8 @@ module transform
  !  EXPANDX    : $EXPANDX
  !  EXPANDY    : $EXPANDY
  !  EXPANDZ    : $EXPANDZ
+ !
+ ! PBROKEN     : $PBROKEN
  !==============================================================================
   use geninfo
   use wavefunctions
@@ -527,6 +529,16 @@ $NTR         print *, 'Block = ', B, ' extraspwfs = ', extraspwfs(b), extraspwfs
 $NTR         stop
 $NTR        endif
 $NTR      enddo
+
+$PBROKEN  do b=1,8,4 ! Essentially isospin loop
+$PBROKEN    if(extraspwfs(b+2).ne.0 .or. extraspwfs(b+3).ne. 0) then
+$PBROKEN      print *, 'Parity is broken, so spwfs can only be added in the first few blocks.'
+$PBROKEN      print *, 'Valid input is thus of the form'
+$PBROKEN      print *, ' extraspwfs = a, b, 0, 0 , c, d, 0 ,0'
+$PBROKEN      stop
+$PBROKEN    endif
+$PBROKEN  enddo
+
           !---------------------------------------------------------------------
           allocate(extended(nx*ny*nz,4,nwt)) ; allocate(newenergy(nwt))
           extended = 0.0
