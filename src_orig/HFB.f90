@@ -1610,7 +1610,6 @@ $TR      if(rho_can(i).gt.2.0) rho_can(i) = 2.0
 $NTR     if(rho_can(i).gt.1.0) rho_can(i) = 1.0
       if(rho_can(i).lt.0.0) rho_can(i) = 0.0
     enddo
-    
     !---------------------------------------------------------------------------
     ! b) Bring kappa into canonical form
     !
