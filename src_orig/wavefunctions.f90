@@ -347,7 +347,7 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
 
 $N3    if(allocated(CanPsi)) then
 $N3       if(.not.allocated(CANdddpsi)) then
-$N3         llocate(CandddPsi(nx*ny*nz,10,4,nwt))
+$N3         allocate(CandddPsi(nx*ny*nz,10,4,nwt))
 $N3       endif
 $N3    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

@@ -60,9 +60,14 @@ contains
     real(KIND=dp), allocatable, target        :: wftarget(:,:)
     real(KIND=dp), allocatable                :: tempgaps(:,:), tempkap(:,:)
     real(KIND=dp), allocatable                :: tempbogo(:,:), temprho(:,:)
-    real(KIND=dp),  pointer                   :: right3D(:,:,:,:), left3D(:,:,:,:) 
+    real(KIND=dp), allocatable                :: temptransfo(:,:), tempsph(:,:)
+    real(KIND=dp), allocatable                :: tempconfig(:)
+    
+    real(KIND=dp),  pointer                   :: right3D(:,:,:,:) 
+    real(KIND=dp),  pointer                   :: left3D(:,:,:,:) 
 
-    integer  :: wave, N, B, si, sb,i, wave2, offset_left, offset_right, j, k
+
+    integer  :: wave, N, B, si, sb,i, wave2, offset_left, offset_right, j, k, sc
 
     if(.not. allocated(rho_can)) then
         ! There is one case where this array might not be allocated upon entry
@@ -70,11 +75,18 @@ contains
         allocate(rho_can(sum(blocks))) ; rho_can = 0.0d0
     endif
 
-    temp = wfs ; tempe = spenergies ; tempd = dispersions ; tempr = rho_can
+    temp        = wfs         ; tempe   = spenergies 
+    tempd       = dispersions ; tempr   = rho_can
+    temptransfo = hftransfo   ; tempsph = current_sph
+    tempconfig  = configmatrix
+    
     deallocate(wfs)         ; allocate(wfs(nx*ny*nz,4,nwt))    
-    deallocate(dispersions) ; allocate(dispersions(nwt))
-    deallocate(spenergies)  ; allocate(spenergies(nwt))   
-    deallocate(rho_can)     ; allocate(rho_can(nwt))
+    deallocate(dispersions) ; allocate(dispersions(nwt))    ; dispersions  = 0
+    deallocate(spenergies)  ; allocate(spenergies(nwt))     ; spenergies   = 0
+    deallocate(rho_can)     ; allocate(rho_can(nwt))        ; rho_can      = 0
+    deallocate(hftransfo)   ; allocate(hftransfo(nwt,nwt))  ; hftransfo    = 0
+    deallocate(current_sph) ; allocate(current_sph(nwt,nwt)); current_sph  = 0
+    deallocate(configmatrix); allocate(configmatrix(2*nwt)) ; configmatrix = 0
 
     if( $NONSPATIAL ) then
       ! Use an antilinear, antihermitian symmetry operator 
@@ -139,10 +151,13 @@ contains
       HFBlocks(7) = blocks(7) ; HFBlocks(8) = blocks(7)
       !-------------------------------------------------------------------------
       ! Transformation of pairing quantities
-      ! (1) pairing gaps
-      ! (2) density matrix rho
-      ! (3) anomalous density kappa
-      ! (4) Bogoliubov transformation
+      ! (1)  the pairing gaps
+      ! (2)  the density matrix rho
+      ! (3)  the anomalous density matrix
+      ! (4)  the Bogoliubov transformation
+      ! (5)  the configuration matrix
+      ! (6)  the HF transformation
+      ! (7)  the current single-particle hamiltonian
       if(pairingtype.eq.2) then
         ! Only do this if HFB gaps have been read from file, otherwise we rely
         ! on the initialization routine for gaps
@@ -154,28 +169,38 @@ contains
           
           deallocate(HFBgaps)       ; allocate(HFBgaps(nwt, nwt))  
           deallocate(kappa_pairing) ; allocate(kappa_pairing(nwt,nwt))
-          deallocate(Bogoliubov)    ; allocate(Bogoliubov(nwt,nwt))
+          deallocate(Bogoliubov)    ; allocate(Bogoliubov(2*nwt,2*nwt))
           deallocate(rho_pairing)   ; allocate(rho_pairing(nwt,nwt))
           
           HFBgaps = 0; rho_pairing = 0 ; kappa_pairing = 0 ; Bogoliubov = 0
 
-          si = 0  ; sb = 0
+          si = 0  ; sb = 0 ; sc = 0
           do B = 1,8
             N = blocks(B) ; if(N .eq. 0) cycle
+            !-------------------------------------------------------------------  
+            ! (1)  the pairing gaps
+            ! (2)  the density matrix rho
+            ! (3)  the anomalous density matrix
             do wave=1,N
               do wave2=1,N
-                HFBgaps(sb + wave    , sb + wave2 + N)  = &
+                HFBgaps(sb + wave     , sb + wave2 + N)  = &
                 &                                     tempgaps(si+wave,si+wave2)
-                HFBgaps(sb + wave + N, sb + wave2    )  = &
+                HFBgaps(sb + wave  + N, sb + wave2    )  = &
                 &                                    -tempgaps(si+wave,si+wave2)
+                
+                rho_pairing(sb+wave  , sb+wave2)    = &
+                &                                      temprho(si+wave,si+wave2)
+                rho_pairing(sb+wave+N, sb+wave2+N)  = &
+                &                                      temprho(si+wave,si+wave2)
 
                 kappa_pairing(sb + wave    , sb + wave2 + N) = & 
-                &                                     tempgaps(si+wave,si+wave2)
-                kappa_pairing(sb + wave + N, sb + wave2    ) = &
-                &                                    -tempgaps(si+wave,si+wave2)
+                &                                      tempkap(si+wave,si+wave2)
+                kappa_pairing(sb + wave+ N , sb + wave2     ) = &
+                &                                     -tempkap(si+wave,si+wave2)
               enddo 
             enddo
-            
+            !-------------------------------------------------------------------  
+            ! (4) The current Bogoliubov transformation
             do wave=1,N
                 ! On file, the Bogoliubov transformation has the following form
                 !
@@ -197,27 +222,44 @@ contains
                 ! We start by getting the r.h.s. columns correct
                 ! - - - - - - - - - - - - - - - - - - - - - - - -
                 ! U^+
-                Bogoliubov(sb    +1:sb+  N, sb+2*N+wave) = &
-                &                              tempbogo(si  +1:si+  N,si+N+wave)
-                ! V^+
-                Bogoliubov(sb+3*N+1:sb+4*N, sb+2*N+wave) = &
-                &                              tempbogo(si+N+1:si+2*N,si+N+wave)
+                Bogoliubov(sc    +1:sc+  N, sc+2*N+wave) = &
+                &                              tempbogo(sb  +1:sb+  N,sb+N+wave)
+                ! V^+ (note the minus sign!)
+                Bogoliubov(sc+3*N+1:sc+4*N, sc+2*N+wave) = &
+                &                            - tempbogo(sb+N+1:sb+2*N,sb+N+wave)
                 ! U^-
-                Bogoliubov(sb+  N+1:sb+2*N, sb+3*N+wave) = &
-                &                              tempbogo(si  +1:si+  N,si+N+wave)
-                ! V^- (note the minus sign!)
-                Bogoliubov(sb+2*N+1:sb+3*N, sb+3*N+wave) = &
-                &                            - tempbogo(si+N+1:si+2*N,si+N+wave)
+                Bogoliubov(sc+  N+1:sc+2*N, sc+3*N+wave) = &
+                &                              tempbogo(sb  +1:sb+  N,sb+N+wave)
+                ! V^- 
+                Bogoliubov(sc+2*N+1:sc+3*N, sc+3*N+wave) = &
+                &                              tempbogo(sb+N+1:sb+2*N,sb+N+wave)
                 ! - - - - - - - - - - - - - - - - - - - - - - - -
-                ! and then we construct the l.h.s. columns by symmetry
-                Bogoliubov(sb    +1:sb+2*N, sb+2*N+1-wave) = &
-                &                       Bogoliubov(sb+2*N+1:sb+4*N, sb+2*N+wave)  
-                Bogoliubov(sb+2*N+1:sb+4*N, sb+2*N+1-wave) = &
-                &                       Bogoliubov(sb    +1:sb+2*N, sb+2*N+wave)            
+                ! and then we could construct the l.h.s. columns by symmetry ,
+                ! but this is never used by the code.        
             enddo
+            
+            !-------------------------------------------------------------------
+            ! (5) The configuration matrix
+            configmatrix(sc    +1:sc  +N) = tempconfig(sb+1:sb+N)
+            configmatrix(sc+  N+1:sc+2*N) = tempconfig(sb+1:sb+N)
+            configmatrix(sc+2*N+1:sc+3*N) = tempconfig(sb+N+1:sb+2*N)
+            configmatrix(sc+3*N+1:sc+4*N) = tempconfig(sb+N+1:sb+2*N)
+            !-------------------------------------------------------------------
+            ! (6) The current HF transformation
+            hftransfo(sb  +1:sb+  N,sb  +1:sb+  N) = &
+            &                                   temptransfo(si+1:si+N,si+1:si+N)
+            hftransfo(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
+            &                                   temptransfo(si+1:si+N,si+1:si+N)
+            !-------------------------------------------------------------------
+            ! (7) The current single-particle hamiltonian
+            current_sph(sb  +1:sb+  N,sb  +1:sb  +N)         = &
+            &                                       tempsph(si+1:si+N,si+1:si+N)
+            current_sph(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
+            &                                       tempsph(si+1:si+N,si+1:si+N)
 
             si = si +   N
             sb = sb + 2*N
+            sc = sc + 4*N
           enddo
         endif
       endif
