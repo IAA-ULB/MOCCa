@@ -256,7 +256,7 @@ $PBROKEN          enddo
 $PBROKEN        endif
 
         ! Sanity check on the useage of the gradient solver for EFA
-        if((blocktype.eq.2 .or. blocktype.eq.4) .and. pairingscheme .eq.1) then
+        if((blocktype.eq.3 .or. blocktype.eq.4) .and. pairingscheme .eq.1) then
           print *,' The gradient solver cannot yet handle EFA blocking.'
           stop
         endif  
