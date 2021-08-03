@@ -986,7 +986,7 @@ $NTR    G_I_N = G_I_N + crank_current_potential()
   $NTR      if(.not.allocated(update)) allocate(update(nx*ny*nz,2))
 
   $NTR      do k=1,3      
-  $NTR        update=  F_I_S(:,1,:) - F_I_S_hist(:,1,:)
+  $NTR        update=  F_I_S(:,k,:) - F_I_S_hist(:,k,:)
   $NTR        update=  PreconditionPotential(update,-preconfactor,1.0_dp, &
   $NTR                                               sx_s(k),sy_s(k),sz_s(k))
   $NTR        F_I_S(:,k,:) =  F_I_S_hist(:,k,:) + update
