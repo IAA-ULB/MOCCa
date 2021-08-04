@@ -165,9 +165,13 @@ $NTR    endif
         ! HF-basis.
         NB = size(blockconf)
         if(.not.allocated(blocked_qp)) then
-          allocate(blocked_qp(NB)) ; blocked_qp = 0
-          allocate(partner_qp(NB)) ; partner_qp = 0
-          allocate(qp_overlap(NB)) ; qp_overlap = 0.0d0
+          allocate(blocked_qp(NB)) ; blocked_qp = 1
+        endif
+        if(.not.allocated(partner_qp)) then
+          allocate(partner_qp(NB)) ; partner_qp = 1
+        endif
+        if(.not.allocated(qp_overlap)) then
+          allocate(qp_overlap(NB)) ; qp_overlap = 1.0d0
         endif        
 
         do j=1,NB
@@ -206,7 +210,6 @@ $NTR    endif
                 sb = sb + 2*N
                 si = si + N
             enddo    
-
         enddo
     case(2,4)
         !-----------------------------------------------------------------------
