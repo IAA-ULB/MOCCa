@@ -152,11 +152,12 @@ $NTR     print *, 'Can not do EFA blocking when time-reversal is not conserved.'
 $NTR     stop
 $NTR    endif
 
-
-        print *, 'Currently not correctly implemented: blocking by overlap for'
-        print *, 'interactions with rotational correction.'
-        print *, 'The blocked_qp, partner_qp and qp_overlap arrays are wrong.'
-        stop
+        if(rotcorr .ne. 0) then
+          print *, 'Currently not correctly implemented: blocking by overlap for'
+          print *, 'interactions with rotational correction.'
+          print *, 'The blocked_qp, partner_qp and qp_overlap arrays are wrong.'
+          stop
+        endif
         !-----------------------------------------------------------------------
         ! The user asked for a specific configuration that needs to be 
         ! identified. The array blockconf now contains the indices in the 
