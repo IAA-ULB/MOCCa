@@ -27,8 +27,11 @@ module HFB
  !
  ! Hephaestos keywords:
  !
- !      TR : $TR
- !     NTR : $NTR
+ !         TR : $TR
+ !        NTR : $NTR
+ ! PCONSERVED : $PCONSERVED
+ !    PBROKEN : $PBROKEN
+ !
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  !
  ! Implemented routines: 
@@ -733,10 +736,30 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
         blockblock(i) = 5
       case('p-')
         blockblock(i) = 7
-      case('n0', 'p0')
-        print *, 'The blocking identification for the gradient solver is not '
-        print *, 'yet capable of dealing with "n0", "p0" blocking options.'
-        stop
+      case('n0')
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! If parity is conserved, the code does not know how to deal with 
+        ! the possibility of the blocking option being in either of both 
+        ! parity blocks. 
+$PCONSERVED        print *, 'The blocking identification for the gradient solver is not '
+$PCONSERVED        print *, 'yet capable of dealing with "n0", "p0" blocking options.'
+$PCONSERVED        stop
+
+        ! If parity is broken, then there is only one possible block for 
+        ! the neutron qp excitation to be in 
+$PBROKEN blockblock(i) = 1
+      case('p0')
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! If parity is conserved, the code does not know how to deal with 
+        ! the possibility of the blocking option being in either of both 
+        ! parity blocks. 
+$PCONSERVED        print *, 'The blocking identification for the gradient solver is not '
+$PCONSERVED        print *, 'yet capable of dealing with "n0", "p0" blocking options.'
+$PCONSERVED        stop
+      
+        ! If parity is broken, then there is only one possible block for 
+        ! the proton qp excitation to be in 
+$PBROKEN blockblock(i) = 5
       end select
     enddo
   

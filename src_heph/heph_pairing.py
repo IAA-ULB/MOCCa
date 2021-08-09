@@ -57,6 +57,18 @@ def ProcessHFB(fname, src, target, so):
   else:
     dic["TR"]  = '!'
     dic["NTR"] = ' '
+    
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  # Ugly manual checking if parity is part of the generator set and 
+  #  signalling this to the FORTRAN code
+  symdic  = populatesymmetries()
+  dic['PCONSERVED'] = '!'
+  dic['PBROKEN']    = ' '
+
+  for sym in so.generators:
+    if (sym == symdic['P']):
+     dic['PBROKEN']    = '!'
+     dic['PCONSERVED'] = ' '
 
   with open(src+fname, 'r') as template:
     with open(target+fname, 'w') as generated:
