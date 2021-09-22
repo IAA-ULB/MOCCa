@@ -78,7 +78,6 @@ contains
     temp        = wfs         ; tempe   = spenergies 
     tempd       = dispersions ; tempr   = rho_can
     temptransfo = hftransfo   ; tempsph = current_sph
-    tempconfig  = configmatrix
     
     deallocate(wfs)         ; allocate(wfs(nx*ny*nz,4,nwt))    
     deallocate(dispersions) ; allocate(dispersions(nwt))    ; dispersions  = 0
@@ -91,8 +90,8 @@ contains
       ! The configmatrix is not necessarily initialised, hence a few more lines
       ! of code to deal with it.
       if(allocated(configmatrix)) then
-        deallocate(configmatrix)
         tempconfig  = configmatrix
+        deallocate(configmatrix)
       else
         allocate(tempconfig(2*nwt)) ; tempconfig = 0.0d0
       endif
@@ -150,6 +149,20 @@ contains
         dispersions(sb+N+1:sb+2*N)  = tempd(si+1:si+N)
         spenergies(sb+N+1 :sb+2*N)  = tempe(si+1:si+N)
         rho_can(sb+N+1:sb+2*N)      = tempr(si+1:si+N)/2.0 ! Note the factor 1/2
+        
+        !-------------------------------------------------------------------
+        ! (6) The current HF transformation
+        hftransfo(sb  +1:sb+  N,sb  +1:sb+  N) = &
+        &                                   temptransfo(si+1:si+N,si+1:si+N)
+        hftransfo(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
+        &                                   temptransfo(si+1:si+N,si+1:si+N)
+        !-------------------------------------------------------------------
+        ! (7) The current single-particle hamiltonian
+        current_sph(sb  +1:sb+  N,sb  +1:sb  +N) = &
+        &                                       tempsph(si+1:si+N,si+1:si+N)
+        current_sph(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
+        &                                       tempsph(si+1:si+N,si+1:si+N)
+
 
         si = si +   N
         sb = sb + 2*N
@@ -169,6 +182,9 @@ contains
       ! (5)  the configuration matrix
       ! (6)  the HF transformation
       ! (7)  the current single-particle hamiltonian
+      !
+      ! Note that (6) and (7) have been moved above, since they need to always
+      ! be performed, even if we are having new gaps initialized.
       if(pairingtype.eq.2) then
         ! Only do this if HFB gaps have been read from file, otherwise we rely
         ! on the initialization routine for gaps
@@ -255,18 +271,6 @@ contains
             configmatrix(sc+  N+1:sc+2*N) = tempconfig(sb+1:sb+N)
             configmatrix(sc+2*N+1:sc+3*N) = tempconfig(sb+N+1:sb+2*N)
             configmatrix(sc+3*N+1:sc+4*N) = tempconfig(sb+N+1:sb+2*N)
-            !-------------------------------------------------------------------
-            ! (6) The current HF transformation
-            hftransfo(sb  +1:sb+  N,sb  +1:sb+  N) = &
-            &                                   temptransfo(si+1:si+N,si+1:si+N)
-            hftransfo(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
-            &                                   temptransfo(si+1:si+N,si+1:si+N)
-            !-------------------------------------------------------------------
-            ! (7) The current single-particle hamiltonian
-            current_sph(sb  +1:sb+  N,sb  +1:sb  +N)         = &
-            &                                       tempsph(si+1:si+N,si+1:si+N)
-            current_sph(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
-            &                                       tempsph(si+1:si+N,si+1:si+N)
 
             si = si +   N
             sb = sb + 2*N
@@ -299,6 +303,16 @@ contains
             &   = tempe(sb+offset_right+1:sb+offset_right+blocks(B))
             rho_can    (sb+offset_left +1:sb+offset_left +blocks(B)) &
             &   = tempr(sb+offset_right+1:sb+offset_right+blocks(B))
+            
+            hftransfo        (sb+offset_left +1:sb+offset_left +blocks(B), &
+            &                 sb+offset_left +1:sb+offset_left +blocks(B)) &
+            &   = temptransfo(sb+offset_left +1:sb+offset_left +blocks(B), &
+            &                 sb+offset_left +1:sb+offset_left +blocks(B)) 
+                              
+            current_sph      (sb+offset_left +1:sb+offset_left +blocks(B),  &
+            &                 sb+offset_left +1:sb+offset_left +blocks(B))  &
+            &   = tempsph    (sb+offset_left +1:sb+offset_left +blocks(B),  &
+            &                 sb+offset_left +1:sb+offset_left +blocks(B)) 
 
             ! Third block on file becomes part of the first block
             offset_left  = blocks(B)
@@ -310,6 +324,16 @@ contains
             rho_can    (sb+offset_left +1:sb+offset_left +blocks(B+2)) &
             &   = tempr(sb+offset_right+1:sb+offset_right+blocks(B+2))
             
+            hftransfo        (sb+offset_left +1:sb+offset_left +blocks(B+2), &
+            &                 sb+offset_left +1:sb+offset_left +blocks(B+2)) &
+            &   = temptransfo(sb+offset_right+1:sb+offset_right+blocks(B+2), &
+            &                 sb+offset_right+1:sb+offset_right+blocks(B+2))
+            
+            current_sph      (sb+offset_left +1:sb+offset_left +blocks(B+2), &
+            &                 sb+offset_left +1:sb+offset_left +blocks(B+2)) &
+            &   = tempsph    (sb+offset_right+1:sb+offset_right+blocks(B+2), &
+            &                 sb+offset_left +1:sb+offset_left +blocks(B+2))
+            
             ! Second block on file becomes first part of second block
             offset_left  = blocks(B) + blocks(B+2)
             offset_right = blocks(B)
@@ -320,6 +344,16 @@ contains
             rho_can    (sb+offset_left +1:sb+offset_left +blocks(B+1)) &
             &   = tempr(sb+offset_right+1:sb+offset_right+blocks(B+1))
 
+            hftransfo        (sb+offset_left +1:sb+offset_left +blocks(B+1), &
+            &                 sb+offset_left +1:sb+offset_left +blocks(B+1)) &
+            &   = temptransfo(sb+offset_right+1:sb+offset_right+blocks(B+1), &
+            &                 sb+offset_left +1:sb+offset_left +blocks(B+1))
+
+            current_sph      (sb+offset_left +1:sb+offset_left +blocks(B+1), &
+            &                 sb+offset_left +1:sb+offset_left +blocks(B+1)) &
+            &   = tempsph    (sb+offset_right+1:sb+offset_right+blocks(B+1), &
+            &                 sb+offset_right+1:sb+offset_right+blocks(B+1))
+
             ! Fourth  block on file becomes second part of second block
             offset_left  = sum(blocks(B:B+2))
             offset_right = sum(blocks(B:B+2))
@@ -329,7 +363,16 @@ contains
             &   = tempe(sb+offset_right+1:sb+offset_right+blocks(B+3))
             rho_can    (sb+offset_left +1:sb+offset_left +blocks(B+3)) &
             &   = tempr(sb+offset_right+1:sb+offset_right+blocks(B+3))
+            
+            hftransfo        (sb+offset_left +1:sb+offset_left +blocks(b+3), &
+            &                 sb+offset_left +1:sb+offset_left +blocks(b+3)) &
+            &   = temptransfo(sb+offset_right+1:sb+offset_right+blocks(b+3), &
+            &                 sb+offset_right+1:sb+offset_right+blocks(b+3))
 
+            current_sph      (sb+offset_left +1:sb+offset_left +blocks(b+3), &
+            &                 sb+offset_right+1:sb+offset_right+blocks(b+3)) &
+            &   = tempsph    (sb+offset_right+1:sb+offset_right+blocks(b+3), &
+            &                 sb+offset_right+1:sb+offset_right+blocks(b+3))
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
             ! First block is not modified
             offset_left = 0
