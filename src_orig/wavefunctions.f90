@@ -194,14 +194,16 @@ contains
     ! Build harmonic oscillator eigenfunctions in an EV8-like box
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Also initialized:
-    !  *) Diagonal matrix elements of <h>
+    !  *) Diagonal matrix elements of <h> = spenergies
+    !  *) A default value for the current_sph as a diagonal matrix
+    !  *) A default value for the hf_transfo as a trivial identity matrix
     ! 
     ! Not initialized here:
     !  *) Delta for the gaps. Since this module can not know what kind of 
     !     pairing is needed, it cannot correctly guess a structure. 
     !---------------------------------------------------------------------------
     
-    integer                   :: i
+    integer                   :: i,j
     integer, intent(in)       :: ininx, ininy, ininz, ininwn, ininwp
     integer                   :: ininwt
     integer, allocatable      :: kparz(:)
@@ -218,6 +220,24 @@ contains
 
     allocate(dispersions(ININWT)) ; dispersions  = 0
     allocate(sx(4,ININWT), sy(4,ININWT), sz(4,ININWT))
+
+    if(.not.allocated(hftransfo)) allocate(hftransfo(nwt,nwt))
+    do i=1, nwt
+      hftransfo(i,i) = 1.0d0
+      do j=i+1,nwt
+        hftransfo(i,j) = 0.0d0 
+        hftransfo(j,i) = 0.0d0 
+      enddo
+    enddo
+
+    if(.not.allocated(current_sph)) allocate(current_sph(nwt,nwt))
+    do i=1, nwt
+      current_sph(i,i) = spenergies(i)
+      do j=i+1,nwt
+        current_sph(i,j) = 0.0d0 
+        current_sph(j,i) = 0.0d0 
+      enddo
+    enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! b) fill in the right symmetry properties for the wavefunctions

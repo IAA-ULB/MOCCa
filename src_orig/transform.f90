@@ -86,7 +86,18 @@ contains
     deallocate(rho_can)     ; allocate(rho_can(nwt))        ; rho_can      = 0
     deallocate(hftransfo)   ; allocate(hftransfo(nwt,nwt))  ; hftransfo    = 0
     deallocate(current_sph) ; allocate(current_sph(nwt,nwt)); current_sph  = 0
-    deallocate(configmatrix); allocate(configmatrix(2*nwt)) ; configmatrix = 0
+
+    if(pairingtype.eq.2) then
+      ! The configmatrix is not necessarily initialised, hence a few more lines
+      ! of code to deal with it.
+      if(allocated(configmatrix)) then
+        deallocate(configmatrix)
+        tempconfig  = configmatrix
+      else
+        allocate(tempconfig(2*nwt)) ; tempconfig = 0.0d0
+      endif
+      allocate(configmatrix(2*nwt)) ; configmatrix = 0
+    endif
 
     if( $NONSPATIAL ) then
       ! Use an antilinear, antihermitian symmetry operator 

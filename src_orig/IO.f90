@@ -309,6 +309,13 @@ contains
         ! Initialisation with nil8 wavefunctions is always EV8-style
         ! Thus we signal that a symmetry transformation is needed
         symtransfo_needed = .true.
+        if( TRANS_CODE .ne. "0 1 001 000 10 000 010 111") then
+          print *, "---------------------------------------------------"
+          print *, "| Calculations cannot be initialized from scratch |"
+          print *, "| for this particular symmetry option.            |"
+          print *, "---------------------------------------------------"
+          stop        
+        endif
       endif
       filenx = $ININX ; fileny = $ININY ; filenz = $ININZ ; filedx = dx
     else
