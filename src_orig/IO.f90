@@ -929,10 +929,10 @@ contains
     
     Q20 =>FindMoment( 2,0,.false.)
     Q22 =>FindMoment( 2,2,.false., Q20)
-    r2  =>FindMoment(-2,0,.false., Q22) ! The rms radius is associated with l=-2
+    r2  =>FindMoment(-2,0,.false., Q20) ! The rms radius is associated with l=-2
 
-    Q30 => FindMoment(3,0,.false., Q22)
-    Q32 => FindMoment(3,2,.false., Q30)
+    Q30 => FindMoment(3,0,.false., Q20)
+    Q32 => FindMoment(3,2,.false., Q20) ! We start searching from Q20, as that is guaranteed to exist
 
     write(filedone,'(a,"z",i3.3,"n",i3.3".out")')        &  
      &     trim(adjustl(BXLFIT)),int(protons),int(neutrons) 
