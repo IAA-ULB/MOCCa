@@ -882,11 +882,11 @@ contains
     !
     ! It contains on a single line
     !
-    !      N, Z, Total energy, Q20_t, Q22_t, Q_t, Gamma_t, Q30_t, Q32_t,       &   
-    ! &     <r^2_p>, B(1:3), J2(1:3),                                          &
-    ! &    Rotcorrection(1:3) + Vibcorrection(1:3),                            &
-    ! &    avgap_v2(n), avgap_uv(n), avgap_v2(p),  avgap_uv(p),                &
-    ! &    tot_even, tot_odd, iter, io
+    !      N, Z, Total energy, Enocor, Erot+Evib,  
+    ! &    b20, b22, b30, b32, b40                                 &
+    ! &     <r^2_p>, B(1:3), J2(1:3),                              &
+    ! &    avgap_uv(n), avgap_uv(p), Epairn, Epairp                &
+    ! &    DEhistory, iter
     !
     ! Notes:
     ! *  <r^2_p> is calculated as in the moments module, i.e. it is calculated  
@@ -894,18 +894,15 @@ contains
     ! * B is the Belyaev moment of inertia, along every axis
     ! * J2 is the expectation value of J^2, along every axis
     !
-    ! * Rotcorrection is the rotational correction, separately along every axis
-    ! * Vibcorrection is the vibrational correction, separately along every axis
-    !  => Note that these are summed in this table!
+    ! * Erot is the sum of the rotational corrections
+    ! * Evib is the sum of the vibrational corrections
     ! 
-    ! * avgap_v2/uv(p/n) is the average gap for protons or neutrons as
+    ! * avgap_uv(p/n)    is the average gap for protons or neutrons as
     !                     calculated for the selected pairing approximation
-    !                     by either averaging the gaps with the density matrix 
-    !                     rho (v^2) or with the anomalous density kappa (uv).
-    !                     This is of course zero on the HF level.
+    !                     by averaging the gaps with the anomalous density 
+    !                     kappa (uv). This is of course zero on the HF level.
     !
-    ! * tot_even, tot_odd are the total energies in the time-even/time-odd 
-    !   channel, separately for neutrons and protons.
+    ! * DEhistory is the maximal deviation in the last 5 iterations
     !
     ! * io is a character that indicates if problems have been detected.
     !   Currently:
@@ -921,9 +918,11 @@ contains
     use functional
     character(len=*), intent(in) :: iomsg
 
-    type(Moment), pointer :: Q20, Q22, r2, Q30, Q32
-    real(KIND=dp)         :: E, quad(2), rms, q2(3), B(3), Q30val, Q32val
+    type(Moment), pointer :: Q20, Q22, r2, Q30, Q32, Q40
+    real(KIND=dp)         :: E, Enocor,Erot_vib, rms,B(3), DEhistory
+    real(KIND=dp)         :: b20, b22, b30, b32, b40
     integer, intent(in)   :: iter
+    integer               :: iterh
 
     character(len=len(BXLFIT)+12) :: filedone
     
@@ -933,22 +932,33 @@ contains
 
     Q30 => FindMoment(3,0,.false., Q20)
     Q32 => FindMoment(3,2,.false., Q20) ! We start searching from Q20, as that is guaranteed to exist
+    Q40 => FindMoment(4,0,.false., Q20)
 
     write(filedone,'(a,"z",i3.3,"n",i3.3".out")')        &  
      &     trim(adjustl(BXLFIT)),int(protons),int(neutrons) 
   
     open(unit=10,file=filedone)
 
-    E = TotalE
-    quad(1) = sum(Q20%value)
-    quad(2) = sum(Q22%value)    
+    E = TotalE 
+    if(rotcorr.ne.0) then
+        Enocor = totalE - sum(rotcorrection)      &
+        &                 - sum(COMcorrection(2,:)) & 
+        &                 - sum(vibcorrection)
+        Erot_vib = sum(rotcorrection)+ sum(vibcorrection)
+    else
+        Enocor = totalE - sum(COMcorrection(2,:)) 
+        Erot_vib = 0.
+    endif
+
+    b20 = Q20%beta(3)
+    b22 = Q22%beta(3)    
     rms     =     r2%value(2)
-    q2      = CalculateTotalQl(2)
     
     if(associated(Q30)) then
-      Q30val = sum(Q30%value)
-      Q32val = sum(Q32%value)
+      b30 = Q30%beta(3)
+      b32 = Q32%beta(3)
     endif
+    b40 = Q40%beta(3)
 
     select case(pairingtype)
     case(0,1)
@@ -961,15 +971,16 @@ contains
       endif
     end select
   
-
-    write(10,'(2i4,25(1x,f20.6), i6)', advance='NO')  &
-    &     int(protons),int(neutrons),E,quad, q2(3), G(3)*180/pi,  &
-    &     Q30val, Q32val,                                         &
-    &     sqrt(rms/protons),  B(:), J2_coll(:,3)    ,             &
-    &     Rotcorrection+Vibcorrection,                            &
-    &    average_gap(:,1), average_gap(:,2),                      &
-    &    tot_even, tot_odd,                                       &
-    &    iter
+    iterh=min(iter,5)
+    DEhistory=maxval(Ehistory(1:iterh))-minval(Ehistory(1:iterh))
+    
+    
+    write(10,'(2i4,20(1x,f20.10), i6)', advance='NO')               &
+    &     int(protons), int(neutrons), E, Enocor, Erot_vib,         &
+    &     b20, b22, b30, b32, b40,                                  &
+    &     sqrt(rms/protons),  B(1:3), J2_coll(1:3,3),               &
+    &     average_gap(2,1), average_gap(2,2),  PairingEnergy(1:2),  &
+    &     DEhistory, iter
   
     write(10, '(2x, a99)') adjustl(iomsg)
     close(10)
@@ -1480,7 +1491,7 @@ contains
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz, P
  
-    1 format(2i5, 1f5.4, 9f10.4)
+    1 format(2i5, 10f10.4)
     2 format("# Neutron spwfs")
     3 format("# Proton spwfs")
     4 format("# Information in the Hartree-Fock basis")
@@ -1578,7 +1589,7 @@ contains
     integer                      :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp)                :: Jx, Jy, Jz, JJ, Spinx, Spiny, Spinz, P
  
-    1 format(2i5, 1f5.4, 9f10.4)
+    1 format(2i5, 10f10.4)
     2 format("# Neutron spwfs")
     3 format("# Proton spwfs")
     4 format("# Information in the basis that diagonalizes RHO")
