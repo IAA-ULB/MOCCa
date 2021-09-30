@@ -1007,26 +1007,63 @@ $PBROKEN  enddo
 
   function changeboxsize_function(f, filenx, fileny, filenz) result(ft)
     !---------------------------------------------------------------------------
-    ! Put a given function from a mesh with dx to the new mesh 
-    ! (nx,ny,nz,dx) with same dx.
+    ! Transform a function defined on a mesh characterized by
+    !
+    !         (filenx, fileny, filenz, dx)
+    !
+    ! to a mesh defined by
+    !         (    nx,     ny,      nz,dx)
+    !
+    ! with same mesh size dx.
+    !
+    !
     !---------------------------------------------------------------------------
     integer, intent(in)                :: filenx, fileny, filenz
     real(KIND=dp), intent(in), target  :: f(:)
     real(KIND=dp), allocatable, target :: ft(:)
     real(KIND=dp), pointer             :: f3 (:,:,:), ft3(:,:,:)
-    integer                            :: endx, endy, endz
+    integer                            :: endx, endy
+    integer                            :: endz_left, endz_right
+    integer                            :: startz_right, startz_left
 
     allocate(ft(nx*ny*nz)) ; ft = 0
   
     ft3(1:nx, 1:ny, 1:nz)             => ft(1:nx*ny*nz)
     f3(1:filenx, 1:fileny, 1:filenz)  => f (1:filenx*fileny*filenz)
-       
+
     endx = min(nx, filenx)
     endy = min(ny, fileny)
-    endz = min(nz, filenz)
 
-    ft3(1:endx,1:endy,1:endz) = f3(1:endx,1:endy,1:endz)
+    if (filenz .gt. nz) then
+        ! Removing points along the z-axis
+        startz_right  = 1 
+        endz_right    = nz
+
+        startz_left   = 1
+        endz_left     = nz
+        
+$PBROKEN  startz_right = 1  + (filenz - nz)/2
+$PBROKEN  endz_right   = nz + (filenz - nz)/2
+    elseif(nz .gt. filenz) then
+        ! Adding points along the z-axis
+        startz_right  = 1 
+        endz_right    = filenz
+
+        startz_left   = 1
+        endz_left     = filenz
+
+$PBROKEN  startz_left  = 1         +   (nz - filenz)/2  
+$PBROKEN  endz_left    = filenz    +   (nz - filenz)/2
+
+    else
+       startz_right = 1 ; endz_right = nz
+       startz_left  = 1 ; endz_left  = nz
+    endif
+    
+    ft3(1:endx,1:endy,startz_left:endz_left) =&
+    &                                  f3(1:endx,1:endy,startz_right:endz_right)
 
   end function changeboxsize_function
+
 
 end module transform

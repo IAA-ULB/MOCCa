@@ -141,6 +141,29 @@ contains
     mv = nx * ny * nz
     dv = (dx**3)*(2**$NUMSYM)
     
+    ! Sanity check on the number of mesh points
+    if(redux .eq. 0) then
+      if(mod(nx,2) .ne. 0) then
+        print *, 'An even number of mesh points in the x-direction is required'
+        print *, 'if we deal with the entire x-axis.'
+        stop
+      endif 
+    endif
+    if(reduy .eq. 0) then
+      if(mod(ny,2) .ne. 0) then
+        print *, 'An even number of mesh points in the y-direction is required'
+        print *, 'if we deal with the entire y-axis.'
+        stop
+      endif 
+    endif
+    if(reduz .eq. 0) then
+      if(mod(nz,2) .ne. 0) then
+        print *, 'An even number of mesh points in the z-direction is required'
+        print *, 'if we deal with the entire z-axis.'
+        stop
+      endif 
+    endif
+    
     call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid)
   end subroutine ReadGenInfo
 
