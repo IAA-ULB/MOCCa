@@ -91,9 +91,12 @@ contains
 !    enddo
 !  end subroutine monitor_convergence
 
-  subroutine Converged(C) 
+  subroutine Converged(C, iter) 
     !---------------------------------------------------------------------------
     ! Checks if the code has converged using the following convergence criteria.
+    !
+    ! Input :
+    !     iter :  Iteration count
     !
     ! Output : 
     !       C  :  True if the convergence criteria are all satisfied.
@@ -117,6 +120,8 @@ contains
     !
     !   angmom_prec     1d-3     abs(<J_mu>^(i) - <J_mu>^(i-1)) < angmom_prec
     !                                    for all cartesian directions
+    !
+    !   min_iter_conv   -1       A minimum number of iterations to perform
     !
     ! Additional notes:
     !  *   The convergence criterion on the energy is checked for the past 
@@ -144,8 +149,9 @@ contains
 
     logical, intent(out)  :: C
 
-    integer       :: i
-    real(KIND=dp) :: dE(5), dQ
+    integer             :: i
+    integer, intent(in) :: iter
+    real(KIND=dp)       :: dE(5), dQ
 
     type(Moment), pointer  :: Current 
 
@@ -186,6 +192,9 @@ contains
     do i=1,3
         if(abs(TotalAngMom(i) - AngMomOld(i)).gt.angmom_prec ) C = .false.
     enddo
+    
+    ! Check if we have performed at least a minimum of iterations
+    if(iter.le. min_iter_conv) C = .false.
         
   end subroutine Converged
 

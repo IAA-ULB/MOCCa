@@ -103,6 +103,11 @@ module GenInfo
   ! Be very careful if you change this, as reducing this precision can lead to
   ! nonconverging calculations, especially when doing blocked calculations.
   real(KIND=dp) :: pairing_prec = 1d-15
+  
+  ! Minimum number of iterations to perform before the code can stop itself
+  ! for convergence detection. Default value = -1, in which case the multipole
+  ! moments module modifies this number.
+  integer :: min_iter_conv = -1
   !-----------------------------------------------------------------------------
   ! Counter variables for the MPI implementation
   integer :: Counter = 1, Run = 1

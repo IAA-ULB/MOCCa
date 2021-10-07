@@ -995,6 +995,11 @@ $FILL_LIST
         !Setting the parameters of the moment
         Current%ConstraintType = ConstraintType
         Current%iteration      = iteration
+        if ( iteration + 5 .gt. Min_iter_conv ) then
+            ! If some temporary constraint is active, we force the code to
+            ! perform at the very least "iteration+5" iterations
+            Min_iter_conv = iteration + 5
+        endif
         Current%Intensity      = Intensity
         Current%scalefactor    = scalefactor
         Current%intensityfactor= intensityfactor

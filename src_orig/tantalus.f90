@@ -341,7 +341,7 @@ subroutine ReachForWaterAndFood()
           ConvergenceAchieved = .true.  !end bad calculation
           exit
         else  
-          call Converged(ConvergenceAchieved)  
+          call Converged(ConvergenceAchieved, iter)  
         end if 
 
         if(convergenceAchieved) then
