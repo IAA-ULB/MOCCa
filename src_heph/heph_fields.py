@@ -77,8 +77,8 @@ def GenerateFields(so, oldso):
                            2*tab + 'endif \n')
 
     field_allo_b_temp = Template(3*tab + 'if(.not.allocated($FIELD)) then\n'+\
-                           4*tab + 'allocate($FIELD(filemv$ALLOCIND,2)) \n'   +\
-                           4*tab + 'allocate(${FIELD}_hist(mv$ALLOCIND,2)) \n'+\
+                           4*tab + 'allocate($FIELD(mv$ALLOCIND,2)) \n'   +\
+                           4*tab + 'allocate(${FIELD}_hist(filemv$ALLOCIND,2)) \n'+\
                            4*tab + '$FIELD = 0.0 ; ${FIELD}_hist = 0.0 \n' + \
                            3*tab + 'endif \n')
 
@@ -121,25 +121,40 @@ def GenerateFields(so, oldso):
     field_write_template_b = Template(tab + ('write(chan, iostat=io)  $FIELD  \n'))
 
     field_read_template_a  = Template(2*tab + ('case("$FIELD") \n'))
-    field_read_template_b  = Template(3*tab +  'read(chan, iostat=io)  $FIELD \n')
+    field_read_template_b  = Template(3*tab +  'read(chan, iostat=io)  ${FIELD}_hist \n')
     field_read_template_c  = Template(3*tab +  'if(symtransfo_needed) then    \n')
-    field_read_template_d  = Template(4*tab +  '$UNDOREAD deallocate($FIELD, ${FIELD}_hist) \n')
+    field_read_template_d  = Template(4*tab + '$FIELD = ${FIELD}_hist \n'                  \
+                                  +   4*tab + '$UNDOREAD deallocate($FIELD, ${FIELD}_hist) \n')
     field_read_template_e  = Template(3*tab +  'else \n')
     field_read_template_f  = Template(3*tab +  'endif \n')
 
+#    field_transfo_temp = \
+#    Template( \
+#             + 4*tab + 'do it=1,2 \n'                                                          \
+#             + 5*tab + '${FIELD}_hist(:$IND,it) = & \n'                                        \
+#             + 5*tab + '&  changeboxsize_function($FIELD(:$IND,it), filenx, fileny, filenz) \n'\
+#             + 4*tab + 'enddo \n'                                                              \
+#             + 4*tab + 'deallocate($FIELD) \n'                                                 \
+#             + 4*tab + 'allocate($FIELD(mv$ALLOCIND,2)) \n'                                             \
+#             + 4*tab + 'do it=1,2 \n'                                                          \
+#             + 5*tab + '$FIELD(:$IND,it) = ${FIELD}_hist(:$IND,it) \n'                         \
+#             + 5*tab + '${FIELD}_hist(:$IND,it) = 0.0d0  \n'                                   \
+#             + 4*tab + 'enddo \n'                                                              
+#             )
     field_transfo_temp = \
     Template( \
-             + 4*tab + 'do it=1,2 \n'                                                          \
-             + 5*tab + '${FIELD}_hist(:$IND,it) = & \n'                                        \
-             + 5*tab + '&  changeboxsize_function($FIELD(:$IND,it), filenx, fileny, filenz) \n'\
-             + 4*tab + 'enddo \n'                                                              \
-             + 4*tab + 'deallocate($FIELD) \n'                                                 \
-             + 4*tab + 'allocate($FIELD(mv$ALLOCIND,2)) \n'                                             \
-             + 4*tab + 'do it=1,2 \n'                                                          \
-             + 5*tab + '$FIELD(:$IND,it) = ${FIELD}_hist(:$IND,it) \n'                         \
-             + 5*tab + '${FIELD}_hist(:$IND,it) = 0.0d0  \n'                                   \
+             + 4*tab + 'do it=1,2 \n'                                                                 \
+             + 5*tab + '${FIELD}(:$IND,it) = & \n'                                                    \
+             + 5*tab + '&  changeboxsize_function(${FIELD}_hist(:$IND,it), filenx, fileny, filenz) \n'\
              + 4*tab + 'enddo \n'                                                              
              )
+
+    field_transfo_end = \
+    Template( \
+             + 4*tab + 'deallocate(${FIELD}_hist)              \n' \
+             + 4*tab + 'allocate(${FIELD}_hist(mv$ALLOCIND,2)) \n' \
+             + 4*tab + '${FIELD}_hist = 0.0d0 \n' )
+    
 
     # Template for cleaning fields
     clean_template   = Template(   tab+'if(allocated($FIELD)) deallocate($FIELD)')
@@ -337,7 +352,7 @@ def GenerateFields(so, oldso):
                   dic['IND'] = dic['IND'] + ',%d'%(k+1)
 
            fieldread = fieldread + field_transfo_temp.substitute(dic)
-             
+        fieldread = fieldread + field_transfo_end.substitute(dic)
         fieldread    = fieldread   + field_read_template_f.substitute(dic)
 
         for fieldterm in fieldlist:

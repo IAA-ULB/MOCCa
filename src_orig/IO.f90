@@ -443,7 +443,9 @@ contains
     integer                      :: io,i
     logical                      :: exists
     real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
-    logical                      :: filediagsphamil
+    logical                      :: filediagsphamil 
+    logical                      :: check_x, check_y, check_z
+    logical                      :: check_nwn, check_nwp
     
     1 format ('Number of mesh points does not correspond to file.', / &
     &         'On file: nx= ', i3, ' ny= ', i3, ' nz= ',i3,            / &
@@ -689,6 +691,26 @@ contains
       if(filenwn.ne.nwn .or. filenwp.ne.nwp) then
           print 2, filenwn, filenwp, nwn, nwp
           stop
+      endif
+    else
+      ! We do not allow modification of the mesh, s.p. wavefunctions and 
+      ! symmetry transformations at the same time. 
+      check_x = (nx .ne. filenx) .and. (nx .ne. 2*filenx)
+      check_y = (ny .ne. fileny) .and. (ny .ne. 2*fileny)
+      check_z = (nz .ne. filenz) .and. (nz .ne. 2*filenz)
+      
+      check_nwn = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
+      check_nwp = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
+
+      if(symtransfo_needed) then
+         if(check_x .or. check_y .or. check_z) then 
+          print *, "Please don't combine symmetry transformations and mesh modifications."
+          stop
+         endif  
+         if(check_nwn .or. check_nwp ) then 
+          print *, "Please don't combine symmetry transformations and adding wavefunctions."
+          stop
+         endif  
       endif
     endif
 
