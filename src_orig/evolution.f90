@@ -705,16 +705,30 @@ contains
    
     if(Current%ConstraintType.lt.2) cycle
     O2    = sum(Current%Squared)                    ! < C^2 >
-    Value = sum(Current%Value)                      ! Current value of <C>
+
+    select case(Current%isoswitch)
+    case(0)
+      Value = sum(Current%Value)                    ! Total value
+    case(1,2)
+      it    = Current%isoswitch
+      Value = Current%Value(it)                     
+    end select
     Des   = Current%Constraint                      ! Desired final value
     scale = Current%Scalefactor                     ! Scale factor
     
     update = 0.0
     !-----------------------------------------------------------------------
     !Calculate the update
-    do it=1,2
+    select case(Current%isoswitch)
+    case(0)
+      do it=1,2
         Update(:,it) = 0.5*(Value-Des)/O2*Cutoff(:,it)*Current%SpherHarm*scale
-    enddo
+      enddo
+    case(1,2)
+      ! only one nucleon species feels the constraint
+      it = Current%isoswitch
+      Update(:,it) = 0.5*(Value-Des)/O2*Cutoff(:,it)*Current%SpherHarm*scale
+    end select
     multipole = multipole + Update
    enddo
    !---------------------------------------------------------------------------

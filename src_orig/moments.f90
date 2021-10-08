@@ -215,6 +215,13 @@ module moments
       ! Procedure pointer to the routine used to print output of the moment.
       procedure(PrintMoment_electric), pointer, nopass :: PrintMoment
       !-------------------------------------------------------------------------
+      ! Integer switch to determine whether we place the constraint on
+      !
+      ! 0: Total value of the multipole moment (neutrons + protons)
+      ! 1: Only on the neutrons
+      ! 2: Only on the protons
+      !-------------------------------------------------------------------------
+      integer                    :: Isoswitch = 0
   end type Moment
 
   !-----------------------------------------------------------------------------
@@ -606,8 +613,7 @@ $FILL_LIST
     !---------------------------------------------------------------------------
     use Densities
     
-    type(Moment), pointer :: Current, Q1m
-    real(KIND=dp)         :: shiftz
+    type(Moment), pointer :: Current
 
     call start_timer(T_moments)
 
@@ -619,8 +625,6 @@ $FILL_LIST
     !---------------------------------------------------------------------------
     ! Calculate the electric monopole
     call Current%Calculate(Current)
-    !---------------------------------------------------------------------------
-!    if(follow_com) call redefine_multipole_moments()
     !---------------------------------------------------------------------------
     ! Calculate the electric multipole moments
     do while(associated(Current%Next))
@@ -751,8 +755,15 @@ $FILL_LIST
 
     ! Set the deviation
     if(ToCalculate%ConstraintType.ne.0) then
-      ToCalculate%deviation    =                                               &
-      &                     abs(sum(ToCalculate%Value) - ToCalculate%constraint)
+      select case(ToCalculate%isoswitch)
+      case(0)
+        ToCalculate%deviation    =                                             &
+        &                 abs(sum(ToCalculate%Value)   - ToCalculate%constraint)
+      case(1,2)
+        it = Tocalculate%isoswitch
+        ToCalculate%deviation    =                                             &
+        &                 abs(    ToCalculate%Value(it)- ToCalculate%constraint)
+      end select
     endif
     call CalcBeta(ToCalculate)
 
@@ -937,10 +948,18 @@ $FILL_LIST
       ! Go to the next moment if this moment is not constrained
       if(Current%constrainttype.eq.0) cycle
      
-      do it=1,2
+      if(Current%isoswitch .eq. 0) then
+        ! Apply the constraint to all species
+        do it=1,2
+          Constraint_I_I(:,it) = Constraint_I_I(:,it)                          &
+          &                - Current%Multiplier * Current%SpherHarm*Cutoff(:,it)
+        enddo
+      elseif(Current%isoswitch .le. 2) then
+        ! Apply the constraint to only one species
+        it = Current%isoswitch
         Constraint_I_I(:,it) = Constraint_I_I(:,it)                            &
         &                  - Current%Multiplier * Current%SpherHarm*Cutoff(:,it)
-      enddo
+      endif
     enddo
     nullify(Current)
     
@@ -970,7 +989,8 @@ $FILL_LIST
     ! Subroutine that readjusts the constraint of a certain multipole moment.
     !---------------------------------------------------------------------------
     type(Moment), pointer    :: ToReadjust
-    real(KIND=dp) :: slow
+    real(KIND=dp) :: slow, dl
+    integer       :: it
 
    11 format ( '------------------------------------')
    12 format ( ' Constraint on Q_{ ', 2i2, ' has no ')
@@ -1003,8 +1023,15 @@ $FILL_LIST
 
     ! Set the new multiplier        
     ToReadjust%mult_hist = ToReadjust%multiplier
-    ToReadjust%Multiplier =  ToReadjust%Multiplier +   slow *                  &
-    &     ToReadjust%Intensity*(ToReadjust%Constraint - sum(ToReadjust%Value))
+    
+    select case(ToReadjust%isoswitch)
+    case(0)
+      dl = ToReadjust%Intensity*(ToReadjust%Constraint - sum(ToReadjust%Value))
+    case(1,2)
+      it = ToReadjust%isoswitch
+      dl = ToReadjust%Intensity*(ToReadjust%Constraint -   ToReadjust%Value(it))
+    end select
+    ToReadjust%Multiplier =  ToReadjust%Multiplier +   slow *  dl 
 
     return
   end subroutine Readjust
@@ -1021,7 +1048,7 @@ $FILL_LIST
     integer(dp), intent(in), optional   :: file_number   
   
     integer             :: iostat, iteration
-    integer             :: l,m, ConstraintType
+    integer             :: l,m, ConstraintType, isoswitch
     real(KIND=dp)       :: Constraint, iq1=-1000000, iq2=-1000000, Intensity
     real(KIND=dp)       :: scalefactor = 1.0d0, intensityfactor = 1.0d0
     logical             :: MoreConstraints=.false., Impart, MultfromFile
@@ -1040,7 +1067,7 @@ $FILL_LIST
     &          l,m, Impart,                    & ! Defining the multipole moment 
     &          Constraint,Intensity, ConstraintType, & ! Defining the constraint 
     &          iq1, iq2, Iteration, multfromfile, continue,                    &
-    &          scalefactor, intensityfactor,                                   &
+    &          scalefactor, intensityfactor, isoswitch,                        &
     &          MoreConstraints        ! Signal that more constraints will follow
 
     nullify(Current)
@@ -1097,6 +1124,7 @@ $FILL_LIST
         ConstraintType=2          ; MultfromFile   =.false. ; continue = .false.
         iq1=-1000000_dp           ; iq2=-1000000_dp ; iteration = -1 
         scalefactor = 1.0d0       ; intensityfactor = 1.0d0
+        isoswitch   = 0
 
         if(present(file_number)) then
           read(unit=file_number, NML=MomentConstraint, IOSTAT=iostat)
@@ -1142,6 +1170,13 @@ $FILL_LIST
         Current%Intensity      = Intensity
         Current%scalefactor    = scalefactor
         Current%intensityfactor= intensityfactor
+        Current%Isoswitch      = isoswitch
+        
+        if(isoswitch.lt.0 .or. isoswitch.gt.2) then
+          print *, 'ISOSWITCH must be either 0,1 or 2.'
+          stop
+        endif
+        
         !Reading the values for the constraints
         if(ConstraintType.ne.0) then
               !-----------------------------------------------------------------
@@ -1325,10 +1360,16 @@ $FILL_LIST
     character(len=2)                :: ReIm
       1 format (A2, '  Q_{', 2i2, '}', 3(1x,f15.4) )
       2 format ('Constrained ',  33x, f15.4)
+     21 format ('Constrained ',   1x, f15.4)
+     22 format ('Constrained ',  17x, f15.4)
       3 format (' Particles  ',  3(1x,f15.4))
       4 format (' RMS radius ',  3(1x,f15.4))
       5 format (A2, ' La_{',i2,i2,'}',   33x,  f15.4)
+     51 format (A2, ' La_{',i2,i2,'}',    1x,  f15.4)
+     52 format (A2, ' La_{',i2,i2,'}',   17x,  f15.4)
       6 format (A2, ' De_{',i2,i2,'}',   33x,  e15.7) 
+     61 format (A2, ' De_{',i2,i2,'}',    1x,  e15.7) 
+     62 format (A2, ' De_{',i2,i2,'}',   17x,  e15.7) 
 
     select case(ToPrint%l)
     !---------------------------------------------------------------------------
@@ -1355,9 +1396,20 @@ $FILL_LIST
       &        , Sum(ToPrint%Value)
 
       if(ToPrint%ConstraintType.ne.0) then
-        print 2,  ToPrint%Constraint
-        print 6, ReIm, ToPrint%l, Toprint%m, ToPrint%Deviation
-        print 5, ReIm, ToPrint%l, Toprint%m, ToPrint%Multiplier
+        select case(ToPrint%isoswitch)
+        case(0)
+          print 2,  ToPrint%Constraint
+          print 6, ReIm, ToPrint%l, Toprint%m, ToPrint%Deviation
+          print 5, ReIm, ToPrint%l, Toprint%m, ToPrint%Multiplier
+        case(1)
+          print 21,  ToPrint%Constraint
+          print 61, ReIm, ToPrint%l, Toprint%m, ToPrint%Deviation
+          print 51, ReIm, ToPrint%l, Toprint%m, ToPrint%Multiplier        
+        case(2)
+          print 22,  ToPrint%Constraint
+          print 62, ReIm, ToPrint%l, Toprint%m, ToPrint%Deviation
+          print 52, ReIm, ToPrint%l, Toprint%m, ToPrint%Multiplier
+        end select
       endif
     end select
     !---------------------------------------------------------------------------
@@ -1793,7 +1845,6 @@ $FILL_LIST
       stop
     endif
   end subroutine WriteMoment
-
 
 !===============================================================================
 ! Various things

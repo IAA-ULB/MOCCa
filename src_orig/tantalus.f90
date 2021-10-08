@@ -427,17 +427,18 @@ subroutine printsummary(iter)
 
     integer, intent(in)   :: iter
     type(Moment), pointer :: current, part
-    real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev
-    character(len=1)      :: t
+    real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val
+    character(len=1)      :: t, spec
 
     1 format (80('-'))
     2 format (' Iteration = ',i4)
-    3 format (' dt  = ', f8.4, 4x, '  mu  = ', f8.4, ' gradn= ', es12.3, ' D2H = ', es12.3)
-   31 format (' dtg = ', f8.4, 4x, '  mug = ', f8.4, ' gradn= ', es12.3)
-    4 format (' E   = ', f10.3,2x, '  DE  = ', e12.5)
-   41 format (' R   = ', f10.3,2x, '  DR  = ', e12.5)  
-   42 format (' R-E = ', f10.3,2x, 'D(R-E)= ', e12.5)  
-    5 format (' ',a1, 'Q', 2i1,'=',f12.4, 3x, 'dQ =', es8.1, 2x,         &
+    3 format (' dt   = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
+   31 format (' dtg  = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
+    4 format (' E    = ', f10.3,2x, '  DE   = ', e12.5)
+   41 format (' R    = ', f10.3,2x, '  DR   = ', e12.5)  
+   42 format (' R-E  = ', f10.3,2x, 'D(R-E) = ', e12.5)  
+
+    5 format (' ',a1, 'Q', 2i1,a1,'=',f12.4, 3x, 'dQ =', es8.1, 2x,         &
     &          'L =',f12.4,2x,' dL =', es8.1, 2x, 'dev =', es8.1)
 
     6 format (' dmun= ', es8.1, 4x, '  dmup= ', es8.1)
@@ -469,7 +470,6 @@ subroutine printsummary(iter)
       Current => Current%next
       
       if((Current%constrainttype .ne. 0) .or. (Current%l .eq. 2)) then
-        dQ = sum(Current%value) - sum(Current%history)
         dL = Current%multiplier - Current%mult_hist
         if(Current%Impart) then
           t = 'I'
@@ -478,14 +478,35 @@ subroutine printsummary(iter)
         endif
         
         if(Current%constrainttype.ne.0) then
-          dev = Current%constraint-sum(Current%value)
+          dev = Current%deviation
         else
           dev = 0
         endif
         
-        print 5, t, Current%l, Current%m, sum(Current%value), dQ, &
-        &              Current%multiplier, dL, dev
-          
+        if(current%l.eq.2 .and. current%isoswitch .ne. 0) then
+          dQ = sum(Current%value) - sum(Current%history)
+          print 5, t, Current%l, Current%m, 't', sum(Current%value), dQ, &
+          &              0.0d0, 0.0d0, 0.0d0
+        endif
+                
+        select case(Current%isoswitch)
+        case(0)
+          dQ   = sum(Current%value) - sum(Current%history)
+          spec = 't'
+          val  = sum(Current%value)
+        case(1,2)
+          dQ = Current%value(Current%isoswitch)&
+           & - Current%history(Current%isoswitch)     
+          val =  Current%value(Current%isoswitch)   
+          select case(Current%isoswitch)
+          case(1)
+            spec = 'n'
+          case(2)
+            spec = 'p'
+          end select
+        end select        
+        print 5, t, Current%l, Current%m, spec, val, &
+          &         dQ, Current%multiplier, dL, dev
       endif
     enddo    
     print 8, totalangmom(3), totalangmom(3) - angmomold(3)
