@@ -70,9 +70,9 @@ contains
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            xs(it) = xs(it) + meshx(i)**2 * rho(i,j,k)
-            ys(it) = ys(it) + meshy(j)**2 * rho(i,j,k)
-            zs(it) = zs(it) + meshz(k)**2 * rho(i,j,k)
+            xs(it) = xs(it) + meshx_shifted(i)**2 * rho(i,j,k)
+            ys(it) = ys(it) + meshy_shifted(j)**2 * rho(i,j,k)
+            zs(it) = zs(it) + meshz_shifted(k)**2 * rho(i,j,k)
           enddo
         enddo
       enddo

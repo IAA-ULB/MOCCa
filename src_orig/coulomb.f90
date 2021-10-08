@@ -155,7 +155,8 @@ $REDUZ  coul_offset_z = 0
     if(.not.allocated(coulmeshx)) then
         call inimesh(coulmeshx,coulmeshy,coulmeshz,nx+BC+coul_offset_x, &
         &                                          ny+BC+coul_offset_y, &
-        &                                          nz+BC+coul_offset_z,coulgrid)
+        &                                          nz+BC+coul_offset_z, &
+        &                                          coulgrid,0.0d0,0.0d0,0.0d0)
     endif
     !---------------------------------------------------------------------------
     ! Initialize all of the arrays.

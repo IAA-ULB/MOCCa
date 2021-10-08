@@ -950,17 +950,17 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       &                            + wf2(i,4) * wf1(i,2))                        
       ! Orbital part
       angmom = angmom &
-      &           + wf2(i,2) * meshgrid(i,3) * dwf1(i,2,1)                     &
-      &           - wf2(i,2) * meshgrid(i,2) * dwf1(i,3,1)                     &
+      &           + wf2(i,2) * meshgrid_shifted(i,3) * dwf1(i,2,1)             &
+      &           - wf2(i,2) * meshgrid_shifted(i,2) * dwf1(i,3,1)             &
       !
-      &           - wf2(i,1) * meshgrid(i,3) * dwf1(i,2,2)                     &
-      &           + wf2(i,1) * meshgrid(i,2) * dwf1(i,3,2)                     &
+      &           - wf2(i,1) * meshgrid_shifted(i,3) * dwf1(i,2,2)             &
+      &           + wf2(i,1) * meshgrid_shifted(i,2) * dwf1(i,3,2)             &
       !
-      &           + wf2(i,4) * meshgrid(i,3) * dwf1(i,2,3)                     &
-      &           - wf2(i,4) * meshgrid(i,2) * dwf1(i,3,3)                     &
+      &           + wf2(i,4) * meshgrid_shifted(i,3) * dwf1(i,2,3)             &
+      &           - wf2(i,4) * meshgrid_shifted(i,2) * dwf1(i,3,3)             &
       !
-      &           - wf2(i,3) * meshgrid(i,3) * dwf1(i,2,4)                     &
-      &           + wf2(i,3) * meshgrid(i,2) * dwf1(i,3,4)
+      &           - wf2(i,3) * meshgrid_shifted(i,3) * dwf1(i,2,4)             &
+      &           + wf2(i,3) * meshgrid_shifted(i,2) * dwf1(i,3,4)
     enddo
     angmom = angmom * dv
 
@@ -1022,17 +1022,17 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       &                            - wf2(i,4) * wf1(i,2))                        
       ! Orbital part
       angmom = angmom &
-      &           + wf2(i,1) * meshgrid(i,3) * dwf1(i,2,1)                     &
-      &           - wf2(i,1) * meshgrid(i,2) * dwf1(i,3,1)                     &
+      &           + wf2(i,1) * meshgrid_shifted(i,3) * dwf1(i,2,1)             &
+      &           - wf2(i,1) * meshgrid_shifted(i,2) * dwf1(i,3,1)             &
       !
-      &           + wf2(i,2) * meshgrid(i,3) * dwf1(i,2,2)                     &
-      &           - wf2(i,2) * meshgrid(i,2) * dwf1(i,3,2)                     &
+      &           + wf2(i,2) * meshgrid_shifted(i,3) * dwf1(i,2,2)             &
+      &           - wf2(i,2) * meshgrid_shifted(i,2) * dwf1(i,3,2)             &
       !
-      &           + wf2(i,3) * meshgrid(i,3) * dwf1(i,2,3)                     &
-      &           - wf2(i,3) * meshgrid(i,2) * dwf1(i,3,3)                     &
+      &           + wf2(i,3) * meshgrid_shifted(i,3) * dwf1(i,2,3)             &
+      &           - wf2(i,3) * meshgrid_shifted(i,2) * dwf1(i,3,3)             &
       !
-      &           + wf2(i,4) * meshgrid(i,3) * dwf1(i,2,4)                     &
-      &           - wf2(i,4) * meshgrid(i,2) * dwf1(i,3,4)
+      &           + wf2(i,4) * meshgrid_shifted(i,3) * dwf1(i,2,4)             &
+      &           - wf2(i,4) * meshgrid_shifted(i,2) * dwf1(i,3,4)
     enddo
     angmom = angmom * dv
 
@@ -1093,17 +1093,17 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       &                            - wf2(i,4) * wf1(i,4))                        
       ! Orbital part
       angmom = angmom &
-      &           + wf2(i,2) * meshgrid(i,3) * dwf1(i,2,3)                     &
-      &           - wf2(i,2) * meshgrid(i,2) * dwf1(i,3,3)                     &
+      &           + wf2(i,2) * meshgrid_shifted(i,3) * dwf1(i,2,3)             &
+      &           - wf2(i,2) * meshgrid_shifted(i,2) * dwf1(i,3,3)             &
       !
-      &           + wf2(i,1) * meshgrid(i,3) * dwf1(i,2,4)                     &
-      &           - wf2(i,1) * meshgrid(i,2) * dwf1(i,3,4)                     &
+      &           + wf2(i,1) * meshgrid_shifted(i,3) * dwf1(i,2,4)             &
+      &           - wf2(i,1) * meshgrid_shifted(i,2) * dwf1(i,3,4)             &
       !
-      &           - wf2(i,4) * meshgrid(i,3) * dwf1(i,2,1)                     &
-      &           + wf2(i,4) * meshgrid(i,2) * dwf1(i,3,1)                     &
+      &           - wf2(i,4) * meshgrid_shifted(i,3) * dwf1(i,2,1)             &
+      &           + wf2(i,4) * meshgrid_shifted(i,2) * dwf1(i,3,1)             &
       !
-      &           - wf2(i,3) * meshgrid(i,3) * dwf1(i,2,2)                     &
-      &           + wf2(i,3) * meshgrid(i,2) * dwf1(i,3,2)
+      &           - wf2(i,3) * meshgrid_shifted(i,3) * dwf1(i,2,2)             &
+      &           + wf2(i,3) * meshgrid_shifted(i,2) * dwf1(i,3,2)
     enddo
     angmom = angmom * dv
   end function angmom_xt_real
@@ -1157,23 +1157,37 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     do i=1,mv
 
        ! Action of J_x to the right
-       r1 = - meshgrid(i,3)* dwf1(i,2,2) + meshgrid(i,2)* dwf1(i,3,2)          & 
+       r1 = - meshgrid_shifted(i,3)* dwf1(i,2,2) &
+       &    + meshgrid_shifted(i,2)* dwf1(i,3,2) & 
        &    + 0.5_dp       * wf1(i,3)
-       r2 = + meshgrid(i,3)* dwf1(i,2,1) - meshgrid(i,2)* dwf1(i,3,1)          & 
+       
+       r2 = + meshgrid_shifted(i,3)* dwf1(i,2,1) &
+       &    - meshgrid_shifted(i,2)* dwf1(i,3,1) & 
        &    + 0.5_dp       * wf1(i,4)
-       r3 = - meshgrid(i,3)* dwf1(i,2,4) + meshgrid(i,2)* dwf1(i,3,4)          & 
+       
+       r3 = - meshgrid_shifted(i,3)* dwf1(i,2,4) &
+       &    + meshgrid_shifted(i,2)* dwf1(i,3,4) & 
        &    + 0.5_dp       * wf1(i,1)
-       r4 = + meshgrid(i,3)* dwf1(i,2,3) - meshgrid(i,2)* dwf1(i,3,3)          & 
+       
+       r4 = + meshgrid_shifted(i,3)* dwf1(i,2,3) &
+       &    - meshgrid_shifted(i,2)* dwf1(i,3,3) & 
        &    + 0.5_dp       * wf1(i,2)
             
        ! Action of J_x to the left
-       l1 = - meshgrid(i,3)* dwf2(i,2,2) + meshgrid(i,2)* dwf2(i,3,2)          & 
+       l1 = - meshgrid_shifted(i,3)* dwf2(i,2,2) &
+       &    + meshgrid_shifted(i,2)* dwf2(i,3,2) & 
        &    + 0.5_dp       * wf2(i,3)
-       l2 = + meshgrid(i,3)* dwf2(i,2,1) - meshgrid(i,2)* dwf2(i,3,1)          & 
+       
+       l2 = + meshgrid_shifted(i,3)* dwf2(i,2,1) &
+       &    - meshgrid_shifted(i,2)* dwf2(i,3,1) & 
        &    + 0.5_dp       * wf2(i,4)
-       l3 = - meshgrid(i,3)* dwf2(i,2,4) + meshgrid(i,2)* dwf2(i,3,4)          & 
+       
+       l3 = - meshgrid_shifted(i,3)* dwf2(i,2,4) &
+       &    + meshgrid_shifted(i,2)* dwf2(i,3,4) & 
        &    + 0.5_dp       * wf2(i,1)
-       l4 = + meshgrid(i,3)* dwf2(i,2,3) - meshgrid(i,2)* dwf2(i,3,3)          & 
+       
+       l4 = + meshgrid_shifted(i,3)* dwf2(i,2,3) &
+       &    - meshgrid_shifted(i,2)* dwf2(i,3,3) & 
        &    + 0.5_dp       * wf2(i,2)
             
         angmom = angmom + l1*r1 + l2*r2 + l3*r3 + l4*r4
@@ -1207,18 +1221,18 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       &                            + wf2(i,4) * wf1(i,1))                        
       ! Orbital part
       angmom = angmom                                                          &
-      &           + wf2(i,2) * meshgrid(i,1) * dwf1(i,3,1)                     &
-      &           - wf2(i,2) * meshgrid(i,3) * dwf1(i,1,1)                     &
+      &           + wf2(i,2) * meshgrid_shifted(i,1) * dwf1(i,3,1)             &
+      &           - wf2(i,2) * meshgrid_shifted(i,3) * dwf1(i,1,1)             &
       !
-      &           - wf2(i,1) * meshgrid(i,1) * dwf1(i,3,2)                     &
-      &           + wf2(i,1) * meshgrid(i,3) * dwf1(i,1,2)                     &
+      &           - wf2(i,1) * meshgrid_shifted(i,1) * dwf1(i,3,2)             &
+      &           + wf2(i,1) * meshgrid_shifted(i,3) * dwf1(i,1,2)             &
       !
-      &           + wf2(i,4) * meshgrid(i,1) * dwf1(i,3,3)                     &
-      &           - wf2(i,4) * meshgrid(i,3) * dwf1(i,1,3)                     &
+      &           + wf2(i,4) * meshgrid_shifted(i,1) * dwf1(i,3,3)             &
+      &           - wf2(i,4) * meshgrid_shifted(i,3) * dwf1(i,1,3)             &
       !
-      &           - wf2(i,3) * meshgrid(i,1) * dwf1(i,3,4)                     &
-      &           + wf2(i,3) * meshgrid(i,3) * dwf1(i,1,4) 
-     !-------------------------------------------------------------------------
+      &           - wf2(i,3) * meshgrid_shifted(i,1) * dwf1(i,3,4)             &
+      &           + wf2(i,3) * meshgrid_shifted(i,3) * dwf1(i,1,4) 
+     !--------------------------------------------------------------------------
     enddo
     angmom = angmom * dv
 
@@ -1279,17 +1293,17 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       &                            + wf2(i,4) * wf1(i,2))                        
       ! Orbital part
       angmom = angmom &
-      &           - wf2(i,1) * meshgrid(i,3) * dwf1(i,1,1)                     &
-      &           + wf2(i,1) * meshgrid(i,1) * dwf1(i,3,1)                     &
+      &           - wf2(i,1) * meshgrid_shifted(i,3) * dwf1(i,1,1)             &
+      &           + wf2(i,1) * meshgrid_shifted(i,1) * dwf1(i,3,1)             &
       !
-      &           - wf2(i,2) * meshgrid(i,3) * dwf1(i,1,2)                     &
-      &           + wf2(i,2) * meshgrid(i,1) * dwf1(i,3,2)                     &
+      &           - wf2(i,2) * meshgrid_shifted(i,3) * dwf1(i,1,2)             &
+      &           + wf2(i,2) * meshgrid_shifted(i,1) * dwf1(i,3,2)             &
       !
-      &           - wf2(i,3) * meshgrid(i,3) * dwf1(i,1,3)                     &
-      &           + wf2(i,3) * meshgrid(i,1) * dwf1(i,3,3)                     &
+      &           - wf2(i,3) * meshgrid_shifted(i,3) * dwf1(i,1,3)             &
+      &           + wf2(i,3) * meshgrid_shifted(i,1) * dwf1(i,3,3)             &
       !
-      &           - wf2(i,4) * meshgrid(i,3) * dwf1(i,1,4)                     &
-      &           + wf2(i,4) * meshgrid(i,1) * dwf1(i,3,4)
+      &           - wf2(i,4) * meshgrid_shifted(i,3) * dwf1(i,1,4)             &
+      &           + wf2(i,4) * meshgrid_shifted(i,1) * dwf1(i,3,4)
     enddo
     angmom = angmom * dv
 
@@ -1350,17 +1364,17 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       &                            - wf2(i,4) * wf1(i,4))                        
       ! Orbital part
       angmom = angmom                                                          &
-      &           - wf2(i,1) * meshgrid(i,3) * dwf1(i,1,3)                     &
-      &           + wf2(i,1) * meshgrid(i,1) * dwf1(i,3,3)                     &
+      &           - wf2(i,1) * meshgrid_shifted(i,3) * dwf1(i,1,3)             &
+      &           + wf2(i,1) * meshgrid_shifted(i,1) * dwf1(i,3,3)             &
       !
-      &           + wf2(i,2) * meshgrid(i,3) * dwf1(i,1,4)                     &
-      &           - wf2(i,2) * meshgrid(i,1) * dwf1(i,3,4)                     &
+      &           + wf2(i,2) * meshgrid_shifted(i,3) * dwf1(i,1,4)             &
+      &           - wf2(i,2) * meshgrid_shifted(i,1) * dwf1(i,3,4)             &
       !
-      &           + wf2(i,3) * meshgrid(i,3) * dwf1(i,1,1)                     &
-      &           - wf2(i,3) * meshgrid(i,1) * dwf1(i,3,1)                     &
+      &           + wf2(i,3) * meshgrid_shifted(i,3) * dwf1(i,1,1)             &
+      &           - wf2(i,3) * meshgrid_shifted(i,1) * dwf1(i,3,1)             &
       !
-      &           - wf2(i,4) * meshgrid(i,3) * dwf1(i,1,2)                     &
-      &           + wf2(i,4) * meshgrid(i,1) * dwf1(i,3,2) 
+      &           - wf2(i,4) * meshgrid_shifted(i,3) * dwf1(i,1,2)             &
+      &           + wf2(i,4) * meshgrid_shifted(i,1) * dwf1(i,3,2) 
      !-------------------------------------------------------------------------
     enddo
     angmom = angmom * dv
@@ -1417,24 +1431,39 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = 0    
     do i=1,mv
        ! Action of J_y to the right
-       r1 = - meshgrid(i,1)* dwf1(i,3,2) + meshgrid(i,3)* dwf1(i,1,2)          & 
+       r1 = - meshgrid_shifted(i,1)* dwf1(i,3,2) &
+       &    + meshgrid_shifted(i,3)* dwf1(i,1,2) & 
        &    + 0.5_dp       * wf1(i,4)
-       r2 = + meshgrid(i,1)* dwf1(i,3,1) - meshgrid(i,3)* dwf1(i,1,1)          & 
+       
+       r2 = + meshgrid_shifted(i,1)* dwf1(i,3,1) &
+       &    - meshgrid_shifted(i,3)* dwf1(i,1,1) & 
        &    - 0.5_dp       * wf1(i,3)
-       r3 = - meshgrid(i,1)* dwf1(i,3,4) + meshgrid(i,3)* dwf1(i,1,4)          & 
+       
+       r3 = - meshgrid_shifted(i,1)* dwf1(i,3,4) &
+       &    + meshgrid_shifted(i,3)* dwf1(i,1,4) & 
        &    - 0.5_dp       * wf1(i,2)
-       r4 = + meshgrid(i,1)* dwf1(i,3,3) - meshgrid(i,3)* dwf1(i,1,3)          & 
+       
+       r4 = + meshgrid_shifted(i,1)* dwf1(i,3,3) &
+       &    - meshgrid_shifted(i,3)* dwf1(i,1,3) & 
        &    + 0.5_dp       * wf1(i,1)
             
        ! Action of J_y to the left
-       l1 = - meshgrid(i,1)* dwf2(i,3,2) + meshgrid(i,3)* dwf2(i,1,2)          & 
+       l1 = - meshgrid_shifted(i,1)* dwf2(i,3,2) &
+       &    + meshgrid_shifted(i,3)* dwf2(i,1,2) & 
        &    + 0.5_dp       * wf2(i,4)
-       l2 = + meshgrid(i,1)* dwf2(i,3,1) - meshgrid(i,3)* dwf2(i,1,1)          & 
+       
+       l2 = + meshgrid_shifted(i,1)* dwf2(i,3,1) &
+       &    - meshgrid_shifted(i,3)* dwf2(i,1,1) & 
        &    - 0.5_dp       * wf2(i,3)
-       l3 = - meshgrid(i,1)* dwf2(i,3,4) + meshgrid(i,3)* dwf2(i,1,4)          & 
+       
+       l3 = - meshgrid_shifted(i,1)* dwf2(i,3,4) &
+       &    + meshgrid_shifted(i,3)* dwf2(i,1,4) & 
        &    - 0.5_dp       * wf2(i,2)
-       l4 = + meshgrid(i,1)* dwf2(i,3,3) - meshgrid(i,3)* dwf2(i,1,3)          & 
+       
+       l4 = + meshgrid_shifted(i,1)* dwf2(i,3,3) &
+       &    - meshgrid_shifted(i,3)* dwf2(i,1,3) & 
        &    + 0.5_dp       * wf2(i,1)
+       
         angmom = angmom + l1*r1 + l2*r2 + l3*r3 + l4*r4
     enddo
     angmom = angmom * dv
@@ -1468,17 +1497,17 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       &                                - wf2(i,4) * wf1(i,4))                        
       ! Orbital part
       angmom = angmom              +                                           &
-      &                              wf2(i,2) * meshgrid(i,2) * dwf1(i,1,1)    &
-      &                            - wf2(i,2) * meshgrid(i,1) * dwf1(i,2,1)    &
+      &                      wf2(i,2) * meshgrid_shifted(i,2) * dwf1(i,1,1)    &
+      &                    - wf2(i,2) * meshgrid_shifted(i,1) * dwf1(i,2,1)    &
       !                 
-      &                            - wf2(i,1) * meshgrid(i,2) * dwf1(i,1,2)    &
-      &                            + wf2(i,1) * meshgrid(i,1) * dwf1(i,2,2)    &
+      &                    - wf2(i,1) * meshgrid_shifted(i,2) * dwf1(i,1,2)    &
+      &                    + wf2(i,1) * meshgrid_shifted(i,1) * dwf1(i,2,2)    &
       !
-      &                            + wf2(i,4) * meshgrid(i,2) * dwf1(i,1,3)    &
-      &                            - wf2(i,4) * meshgrid(i,1) * dwf1(i,2,3)    &
+      &                    + wf2(i,4) * meshgrid_shifted(i,2) * dwf1(i,1,3)    &
+      &                    - wf2(i,4) * meshgrid_shifted(i,1) * dwf1(i,2,3)    &
       !                 
-      &                            - wf2(i,3) * meshgrid(i,2) * dwf1(i,1,4)    &
-      &                            + wf2(i,3) * meshgrid(i,1) * dwf1(i,2,4)
+      &                    - wf2(i,3) * meshgrid_shifted(i,2) * dwf1(i,1,4)    &
+      &                    + wf2(i,3) * meshgrid_shifted(i,1) * dwf1(i,2,4)
     enddo
 
     angmom = angmom * dv
@@ -1545,17 +1574,17 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       &                            - wf2(i,3) * wf1(i,4))                        
       ! Orbital part
       angmom = angmom &
-      &           + wf2(i,1) * meshgrid(i,2) * dwf1(i,1,1)                     &
-      &           - wf2(i,1) * meshgrid(i,1) * dwf1(i,2,1)                     &
+      &           + wf2(i,1) * meshgrid_shifted(i,2) * dwf1(i,1,1)             &
+      &           - wf2(i,1) * meshgrid_shifted(i,1) * dwf1(i,2,1)             &
       !
-      &           + wf2(i,2) * meshgrid(i,2) * dwf1(i,1,2)                     &
-      &           - wf2(i,2) * meshgrid(i,1) * dwf1(i,2,2)                     &
+      &           + wf2(i,2) * meshgrid_shifted(i,2) * dwf1(i,1,2)             &
+      &           - wf2(i,2) * meshgrid_shifted(i,1) * dwf1(i,2,2)             &
       !
-      &           + wf2(i,3) * meshgrid(i,2) * dwf1(i,1,3)                     &
-      &           - wf2(i,3) * meshgrid(i,1) * dwf1(i,2,3)                     &
+      &           + wf2(i,3) * meshgrid_shifted(i,2) * dwf1(i,1,3)             &
+      &           - wf2(i,3) * meshgrid_shifted(i,1) * dwf1(i,2,3)             &
       !
-      &           + wf2(i,4) * meshgrid(i,2) * dwf1(i,1,4)                     &
-      &           - wf2(i,4) * meshgrid(i,1) * dwf1(i,2,4)
+      &           + wf2(i,4) * meshgrid_shifted(i,2) * dwf1(i,1,4)             &
+      &           - wf2(i,4) * meshgrid_shifted(i,1) * dwf1(i,2,4)
     enddo
     angmom = angmom * dv
 
@@ -1619,17 +1648,17 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       &                                - wf2(i,4) * wf1(i,2))                        
       ! Orbital part
       angmom = angmom                                                          &
-      &                            + wf2(i,2) * meshgrid(i,2) * dwf1(i,1,3)    &
-      &                            - wf2(i,2) * meshgrid(i,1) * dwf1(i,2,3)    &
+      &                    + wf2(i,2) * meshgrid_shifted(i,2) * dwf1(i,1,3)    &
+      &                    - wf2(i,2) * meshgrid_shifted(i,1) * dwf1(i,2,3)    &
       !                 
-      &                            + wf2(i,1) * meshgrid(i,2) * dwf1(i,1,4)    &
-      &                            - wf2(i,1) * meshgrid(i,1) * dwf1(i,2,4)    &
+      &                    + wf2(i,1) * meshgrid_shifted(i,2) * dwf1(i,1,4)    &
+      &                    - wf2(i,1) * meshgrid_shifted(i,1) * dwf1(i,2,4)    &
       !
-      &                            - wf2(i,4) * meshgrid(i,2) * dwf1(i,1,1)    &
-      &                            + wf2(i,4) * meshgrid(i,1) * dwf1(i,2,1)    &
+      &                    - wf2(i,4) * meshgrid_shifted(i,2) * dwf1(i,1,1)    &
+      &                    + wf2(i,4) * meshgrid_shifted(i,1) * dwf1(i,2,1)    &
       !                 
-      &                            - wf2(i,3) * meshgrid(i,2) * dwf1(i,1,2)    &
-      &                            + wf2(i,3) * meshgrid(i,1) * dwf1(i,2,2)
+      &                    - wf2(i,3) * meshgrid_shifted(i,2) * dwf1(i,1,2)    &
+      &                    + wf2(i,3) * meshgrid_shifted(i,1) * dwf1(i,2,2)
     enddo
     angmom = dv * angmom
   end function angmom_zt_real
@@ -1654,23 +1683,37 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = 0    
     do i=1,mv
        ! Action of J_z to the right
-       r1 = - meshgrid(i,2)* dwf1(i,1,2) + meshgrid(i,1)* dwf1(i,2,2)          & 
+       r1 = - meshgrid_shifted(i,2)* dwf1(i,1,2) &
+       &    + meshgrid_shifted(i,1)* dwf1(i,2,2) & 
        &    + 0.5_dp       * wf1(i,1)
-       r2 = + meshgrid(i,2)* dwf1(i,1,1) - meshgrid(i,1)* dwf1(i,2,1)          & 
+       
+       r2 = + meshgrid_shifted(i,2)* dwf1(i,1,1) &
+       &    - meshgrid_shifted(i,1)* dwf1(i,2,1) & 
        &    + 0.5_dp       * wf1(i,2)
-       r3 = - meshgrid(i,2)* dwf1(i,1,4) + meshgrid(i,1)* dwf1(i,2,4)          & 
+       
+       r3 = - meshgrid_shifted(i,2)* dwf1(i,1,4) &
+       &    + meshgrid_shifted(i,1)* dwf1(i,2,4) & 
        &    - 0.5_dp       * wf1(i,3)
-       r4 = + meshgrid(i,2)* dwf1(i,1,3) - meshgrid(i,1)* dwf1(i,2,3)          & 
+       
+       r4 = + meshgrid_shifted(i,2)* dwf1(i,1,3) &
+       &    - meshgrid_shifted(i,1)* dwf1(i,2,3) & 
        &    - 0.5_dp       * wf1(i,4)
             
        ! Action of J_z to the left
-       l1 = - meshgrid(i,2)* dwf2(i,1,2) + meshgrid(i,1)* dwf2(i,2,2)          & 
+       l1 = - meshgrid_shifted(i,2)* dwf2(i,1,2) &
+       &    + meshgrid_shifted(i,1)* dwf2(i,2,2) & 
        &    + 0.5_dp       * wf2(i,1)
-       l2 = + meshgrid(i,2)* dwf2(i,1,1) - meshgrid(i,1)* dwf2(i,2,1)          & 
+       
+       l2 = + meshgrid_shifted(i,2)* dwf2(i,1,1) &
+       &    - meshgrid_shifted(i,1)* dwf2(i,2,1) & 
        &    + 0.5_dp       * wf2(i,2)
-       l3 = - meshgrid(i,2)* dwf2(i,1,4) + meshgrid(i,1)* dwf2(i,2,4)          & 
+       
+       l3 = - meshgrid_shifted(i,2)* dwf2(i,1,4) &
+       &    + meshgrid_shifted(i,1)* dwf2(i,2,4) & 
        &    - 0.5_dp       * wf2(i,3)
-       l4 = + meshgrid(i,2)* dwf2(i,1,3) - meshgrid(i,1)* dwf2(i,2,3)          & 
+       
+       l4 = + meshgrid_shifted(i,2)* dwf2(i,1,3) &
+       &    - meshgrid_shifted(i,1)* dwf2(i,2,3) & 
        &    - 0.5_dp       * wf2(i,4)
        
        angmom = angmom + l1*r1 + l2*r2 + l3*r3 + l4*r4

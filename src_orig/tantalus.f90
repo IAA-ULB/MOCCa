@@ -231,6 +231,10 @@ subroutine ReachForWaterAndFood()
     ! Calculate the initial densities and the charge density (separately)
     call densit(ifail,SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
+  
+    ! Adopt the relevant quantities to the centre-of-mass of the nucleus
+    call adapt_com()
+
     call CalculateMoments()   !=> vital to be called here, 
                               !    (a) before the calculation of the fields
                               !    (b) after construction of the charge density
@@ -290,6 +294,7 @@ subroutine ReachForWaterAndFood()
           ! set of derivatives
           call densit(ifail,SaveRho=.false.)
           call ConstructChargeDensity(ChargeDensity)
+          if(follow_com) call adapt_com()
           call CalculateMoments()
           ! Readjust the projection constraints here, to not take into account
           ! the update from the projection
@@ -304,6 +309,7 @@ subroutine ReachForWaterAndFood()
         call SolvePairing(pairingscheme,ifail)
         call densit(ifail,SaveRho=.true.)
         call ConstructChargeDensity(ChargeDensity)
+        if(follow_com) call adapt_com()
         ! Calculate a) moments values, b) readjustment and c) finally their
         ! contribution to the sphamiltonian.
         call CalculateMoments()

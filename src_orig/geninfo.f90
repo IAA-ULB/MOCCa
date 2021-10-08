@@ -66,6 +66,11 @@ module GenInfo
   ! coulomb calculation
   real(KIND=dp), allocatable         :: meshx(:), meshy(:), meshz(:)
   real(KIND=dp), allocatable, target :: meshgrid(:,:)
+  ! Coordinates of the mesh points in the inertial frame of the nucleus, i.e.
+  ! with the origin at the center-of-mass.
+  real(KIND=dp), allocatable         :: meshx_shifted(:), meshy_shifted(:)     
+  real(KIND=dp), allocatable         :: meshz_shifted(:)
+  real(KIND=dp), allocatable, target :: meshgrid_shifted(:,:)  
   !---------------------------------------------------------------------------
   ! Inverse temperature Beta = (k_b T)^{-1}.
   ! Negative values are used to indicate an infinite value, i.e. T = 0.
@@ -169,7 +174,7 @@ contains
       endif 
     endif
     
-    call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid)
+    call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid,0.0d0,0.0d0,0.0d0)
   end subroutine ReadGenInfo
 
   function vector_product( mu ) result(indices)
@@ -207,14 +212,15 @@ contains
 
   end function vector_product
   
-  subroutine inimesh(x,y,z, mx, my, mz, mesh)
+  subroutine inimesh(x,y,z, mx, my, mz, mesh, shiftx, shifty, shiftz)
     !---------------------------------------------------------------------------
     ! Generate the coordinates of the mesh points for the Lagrange mesh.
     !
     ! Input: 
-    !  mx,my,mz : number of points on the mesh in every direction that need
-    !             to be represented
-    !
+    !  mx,my,mz   : number of points on the mesh in every direction that need
+    !               to be represented
+    !  shiftx/y/z : Coordinates of the nuclear c.o.m. with respect to the box
+    !               Defaults to (0,0,0)
     ! Output:
     !  x,y,z    : 1D arrays containing the coordinate values of the mesh points
     !  mesh     : 3D array containing the coordinate values of the mesh points
@@ -223,6 +229,7 @@ contains
     !---------------------------------------------------------------------------
     integer                                         :: i,j,k
     integer, intent(in)                             :: mx, my, mz
+    real(KIND=dp), intent(in)                       :: shiftx, shifty, shiftz
     real(KIND=dp), intent(out), allocatable         :: x(:), y(:), z(:)
     real(KIND=dp), intent(out), allocatable, target :: mesh(:,:)
 
@@ -235,19 +242,22 @@ contains
     if(reduX .eq.1) then
       startX = 1/2.0_dp
     else
-      startX = -(mx/2-1/2.0_dp)
+      startX = -(mx/2-1/2.0_dp) - shiftx/dx     
+                                ! divided by dx, because we will multiply after
     endif
     
     if(reduY .eq.1) then
       startY = 1/2.0_dp
     else
-      startY = -(my/2-1/2.0_dp)
+      startY = -(my/2-1/2.0_dp) - shifty/dx
+                                ! divided by dx, because we will multiply after
     endif
     
     if(reduZ .eq.1) then
       startZ = 1/2.0_dp
     else
-      startZ = -(mz/2-1/2.0_dp)
+      startZ = -(mz/2-1/2.0_dp) - shiftz/dx
+                                ! divided by dx, because we will multiply after
     endif
     
     do i=1,mx

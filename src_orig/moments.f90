@@ -239,7 +239,7 @@ module moments
   ! 1 + exp[(\DeltaR - radd)/acut]
   ! Default values are the ones from K. Rutz et al, Nucl. Phys. A590 (1995) 690
   !-----------------------------------------------------------------------------
-  real(KIND=dp) :: radd = 4._dp,acut=0.4_dp
+  real(KIND=dp) :: radd = 4._dp,acut=0.4_dp, cutfac = 10.0d0
   !-----------------------------------------------------------------------------
   !Cutoff function
   ! For 1) Neutrons, 2) Protons
@@ -283,6 +283,92 @@ module moments
   logical :: follow_COM = .false.
 
 contains
+  
+  subroutine PrintMoment_init()
+    !---------------------------------------------------------------------------
+    ! Print relevant information on the treatment of multipole moments at the 
+    ! start of the run.
+    !---------------------------------------------------------------------------
+    
+    character(len=1) :: Ax='Z', secAx1='X', secAx2='Y'
+
+    1 format (30('-'), ' Multipole Moments', 30('-') )
+    2 format ('Maximum l considered = ' , i3 )
+
+    3 format ('Quantisation Axis for the multipole moments:  ', a1)
+    4 format ('  With secondary axis ordering             :  ', a1, ',', a1)
+    5 format ('  Total permutation                        : ', &
+    &                                        '(', a1, ',', a1, ',', a1, ')')
+
+    6 format ('Cutoff parameters')
+    7 format ('  CutoffType = ', i2)
+   71 format ('  Spherical cutoff' )
+   72 format ('  Density dependent cutoff')
+    8 format ('  radd       = ', e9.2,/, &
+    &         '  acut       = ', e9.2,/, &
+    &         '  cutfac     = ', e9.2)
+    
+    9 format ('Correction of spherical harmonics with COM:     ACTIVE')
+   91 format ('Correction of spherical harmonics with COM: NOT ACTIVE')
+
+    print 1
+    print 2, maxmoment
+
+    select case(QuantisationAxis)
+    case(1)
+      Ax = 'X'
+      select case(SecondaryAxis)
+      case(1)
+        secAx1='Y'
+        secAx2='Z'
+      case(2)
+        secAx1='Z'
+        secAx2='Y'
+      end select
+    case(2)
+      Ax = 'Y'
+      select case(SecondaryAxis)
+      case(1)
+        secAx1='X'
+        secAx2='Z'
+      case(2)
+        secAx1='Z'
+        secAx2='X'
+      end select
+    case(3)
+      Ax = 'Z'
+      select case(SecondaryAxis)
+      case(1)
+        secAx1='X'
+        secAx2='Y'
+      case(2)
+        secAx1='Y'
+        secAx2='X'
+      end select
+    end select
+    
+    print 3, Ax
+    print 4, SecAx1, SecAx2
+    print 5, Ax, SecAx1,SecAx2
+        
+    if(follow_com) then
+      print 9
+    else
+      print 91
+    endif
+
+    print 6
+    print 7, cutofftype
+    select case(Cutofftype)
+    case(1)
+      print 71
+    case(2)
+      print 72
+    end select
+    print 8, radd, acut, cutfac
+
+    
+  end subroutine PrintMoment_init
   
   subroutine IniMoments()
     !---------------------------------------------------------------------------
@@ -340,7 +426,6 @@ contains
     ! Starting the initialization
     nullify(Current)      ;  allocate(Current)     ; Current=>Root
     nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
-    
     !---------------------------------------------------------------------------
     !Creating all the moments and assigning each moment the spherical harmonic
     ! a) The electric moments
@@ -385,46 +470,17 @@ contains
     !---------------------------------------------------------------------------
     ! Recenter the spherical harmonics of all multipole moments with l>1 on
     ! the centre-of-mass. 
-    !
-    ! Note: currently hard-coded for situations where only the z-coordinate
-    !       of the centre-of-mass can move.
     !---------------------------------------------------------------------------
     type(Moment), pointer      :: current
-    real(KIND=dp), allocatable :: shift_mesh_z(:)
     real(KIND=dp), pointer     :: harm_3D(:,:,:)
     real(KIND=dp), allocatable :: SpherHarmMesh(:,:,:,:,:,:)
-    integer                    :: im, i
-    real(KIND=dp)              :: shiftz
+    integer                    :: im, i,j,k
 
-    !---------------------------------------------------------------------------
-    ! Find out the shift of the center of mass in the z-direction
-    ! We don't need any fancy symmetry considerations as a function of our 
-    ! choice of axes: at most one of the Q1m is allocated. 
-    shiftz = 0
-    current =>FindMoment(1,0,.false.)
-    if(associated(current)) then
-      shiftz = sum(current%value)
-    endif
-    current =>FindMoment(1,1,.false.)
-    if(associated(current)) then
-      shiftz = sum(current%value)
-    endif
-    current =>FindMoment(1,1,.true.)
-    if(associated(current)) then
-      shiftz = sum(current%value)
-    endif
-    
-!    print *, 'SHIFTING by', shiftz, current%value, current%l, current%m
-    if(shiftz .eq. 0) return
-    !---------------------------------------------------------------------------
-    allocate(shift_mesh_z(nz))
-    do i=1,nz
-      shift_mesh_z(i) = meshz(i) - shiftz
-    enddo
-    
     allocate(SpherHarmMesh(nx,ny,nz,0:MaxMoment,0:MaxMoment,2))
-    
-    call GenSphericalHarmonics(maxmoment,nx,ny,nz,meshx,meshy,shift_mesh_z,    & 
+
+    ! Regenerate
+    call GenSphericalHarmonics(maxmoment,nx,ny,nz, &
+    &                          meshx_shifted,meshy_shifted,meshz_shifted,    & 
     &                          SpherHarmMesh,quantisationaxis,secondaryaxis)
 
     current => Root
@@ -434,12 +490,26 @@ contains
       if(current%l .ne. 1) then 
         im = 1
         if(current%impart) im = 2
-      
+
         harm_3D(1:nx,1:ny,1:nz) => Current%SpherHarm(:)
-        harm_3D=SpherHarmMesh(:,:,:,current%l,current%m,im)
+        if(current%l .gt. 0) then
+          harm_3D=SpherHarmMesh(:,:,:,current%l,current%m,im)
+        elseif(current%l .eq. -2) then
+          ! RMS radius
+          do k=1,nz
+            do j=1,ny
+              do i=1,nx
+                harm_3D(i,j,k) = meshx_shifted(i)**2 &
+                &              + meshy_shifted(j)**2 &
+                &              + meshz_shifted(k)**2
+              enddo
+            enddo
+          enddo
+
+        endif
       endif
     enddo
-    deallocate(shift_mesh_z, spherharmmesh)
+    deallocate(spherharmmesh)
     
   end subroutine shift_multipoles
 
@@ -537,6 +607,7 @@ $FILL_LIST
     use Densities
     
     type(Moment), pointer :: Current, Q1m
+    real(KIND=dp)         :: shiftz
 
     call start_timer(T_moments)
 
@@ -549,17 +620,7 @@ $FILL_LIST
     ! Calculate the electric monopole
     call Current%Calculate(Current)
     !---------------------------------------------------------------------------
-    if(follow_com) then
-      ! Calculate the Q1m beforehand, if these exist
-      Q1m=>Findmoment(1,0,.false.)
-      if(associated(Q1m)) call Q1m%calculate(Q1m)
-      Q1m=>Findmoment(1,1,.false.)
-      if(associated(Q1m)) call Q1m%calculate(Q1m)
-      Q1m=>Findmoment(1,1,.true.)
-      if(associated(Q1m)) call Q1m%calculate(Q1m)
-      
-      call shift_multipoles()
-    endif      
+!    if(follow_com) call redefine_multipole_moments()
     !---------------------------------------------------------------------------
     ! Calculate the electric multipole moments
     do while(associated(Current%Next))
@@ -573,6 +634,85 @@ $FILL_LIST
 
     return
   end subroutine CalculateMoments
+  
+  subroutine center_of_mass_shift(shiftx, shifty, shiftz) 
+    !---------------------------------------------------------------------------
+    ! We calculate the center-of-mass coordinates of the nucleus.
+    !
+    ! Note that 
+    ! * Currently implemented symmetries imply that <x> = 0 and <y> = 0  
+    ! * We don't bother with selecting on a combination of 
+    !      (symmetries, quantisation axis)
+    !   we simply check which of the possible Q_1m exists and use that.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(out) :: shiftx, shifty, shiftz
+    real(KIND=dp)              :: C, fac
+    type(Moment), pointer      :: Q1m
+    
+    shiftx = 0
+    shifty = 0
+    shiftz = 0
+    fac    = sqrt(4.0 * pi/3.0) ! prefactor between z and Q10
+    
+    Q1m=>Findmoment(1,0,.false.)
+    if(associated(Q1m)) then
+      if(follow_com ) then
+        call Q1m%calculate(Q1m)
+        C = sum(Q1m%value)
+      else
+        C = Q1m%constraint
+      endif
+      shiftz = C/(protons+neutrons) * fac
+    endif
+
+    Q1m=>Findmoment(1,1,.false.)
+    if(associated(Q1m)) then
+      if(follow_com ) then
+        call Q1m%calculate(Q1m)
+        C = sum(Q1m%value)
+      else
+        C = Q1m%constraint
+      endif
+      shiftz = C/(protons+neutrons) * fac
+    endif
+
+    Q1m=>Findmoment(1,1,.true.)
+    if(associated(Q1m)) then
+      if(follow_com ) then
+        call Q1m%calculate(Q1m)
+        C = sum(Q1m%value)
+      else
+        C = Q1m%constraint
+      endif
+      shiftz = C/(protons+neutrons) * fac
+    endif
+    
+  end subroutine center_of_mass_shift
+  
+  subroutine adapt_com()
+    !---------------------------------------------------------------------------
+    ! Adapt things to the shifted nuclear center-of-mass
+    !  (1) Calculate the current center-of-mass coordinates
+    !  (2) Calculate the coordinates of the meshpoints in the reference frame
+    !  (3) modify all spherical harmonics (but not the COM itself!)
+    ! 
+    ! Note that the effects of the shifted meshes can be felt outside this  
+    ! module: in particular with respect to the angular momentum and moments
+    ! of inertia, which are all calculated with respect to the COM of the 
+    ! nucleus.
+    !---------------------------------------------------------------------------
+    real(KIND=dp) :: shiftx, shifty, shiftz
+    
+    ! Calculate the location of the C.O.M. 
+    call center_of_mass_shift(shiftx, shifty, shiftz) 
+    ! Generate shifted mesh variables
+    call inimesh(meshx_shifted, meshy_shifted, meshz_shifted, nx, ny,nz,       &
+    &                                     meshgrid_shifted,shiftx,shifty,shiftz)
+    
+    ! Regenerate values of the spherical harmonics on this mesh
+    call shift_multipoles()
+  
+  end subroutine adapt_com
   
   subroutine Calculate_electric(ToCalculate)
     !---------------------------------------------------------------------------
@@ -886,13 +1026,12 @@ $FILL_LIST
     real(KIND=dp)       :: scalefactor = 1.0d0, intensityfactor = 1.0d0
     logical             :: MoreConstraints=.false., Impart, MultfromFile
     logical             :: continue
-
-    type(Moment),pointer:: Current
+    type(Moment),pointer::  Current
     real(KIND=dp), allocatable:: LegacyCon(:)
 
     NameList /MomentParam/                                                     &
     &           MaxMoment,                                  &  ! General options
-    &           radd, acut, cutofftype,                     &   ! Cutoff options
+    &           radd, acut, cutfac, cutofftype,             &   ! Cutoff options
     &           ContinueAll,                                &
     &           follow_COM,                                 &
     &           MoreConstraints            ! Signal that constraints will follow
@@ -1422,7 +1561,7 @@ $FILL_LIST
     !      DeltaR(i,j,k) = - min[|r(i,j,k) - r(i',j',k')|]
     !                    with Density(i',j',k').le.Treshold
     !    endif
-    ! A good value for Treshold ought to be max(Density)/10.
+    ! A good value for Treshold ought to be max(Density)/cutfac. with cutfac =10
     !
     ! Everything in this comment is taken from
     !                    K. Rutz et al, Nucl. Phys. A590 (1995) 690.
@@ -1448,7 +1587,7 @@ $FILL_LIST
 
       !Finding the treshold value. At the moment it is fixed to one tenth
       !of the maximum density.
-      Treshold(it) = maxval(rho_3D(:,:,:,it))/10.0_dp
+      Treshold(it) = maxval(rho_3D(:,:,:,it))/cutfac
 
       !Taking a ridiculously large number as starting point
       DeltaR = 1.d12

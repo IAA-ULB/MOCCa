@@ -265,6 +265,7 @@ contains
     call printevolution
     call printscfiteration
     call printpairing_init
+    call printmoment_init
     call printcranking_init
     call printfunctional  
     
@@ -678,6 +679,7 @@ contains
     do while(io.eq.0)
       call ReadMoment(chan,io)
     enddo
+    
     ! End of reading
     close(chan)
     !---------------------------------------------------------------------------
