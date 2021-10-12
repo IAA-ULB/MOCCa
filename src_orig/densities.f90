@@ -399,6 +399,34 @@ $NTR    D_I_S = D_I_S_hist(:,:,:,1) + (1-denmix) * sresid
     where(D_I_I.lt.1d-10) D_I_I = 0 
 end subroutine MassageDensity
 
+function couple_iso(density, iso) result(coupled)
+    !---------------------------------------------------------------------------
+    ! All densities are calculated and stored in proton-neutron format, but 
+    ! terms in the EDF are generally calculated in isospin formalism. 
+    !
+    ! This function takes as argument a density (with ONLY an proton/neutron)
+    ! index and produces the isoscalar or isovector combination for on-the-fly
+    ! resummation and easy Hephaestos code generation.
+    !
+    !---------------------------------------------------------------------------
+    integer, intent(in)       ::  iso
+    real(KIND=dp), intent(in) ::  density(mv,2)
+    real(KIND=dp)             ::  coupled(mv)
+    
+    select case(iso)
+    case(0)
+      ! Isoscalar = neutron + proton
+      coupled = sum(density(:,2))
+    case(1)
+      ! Isovector = neutron - proton
+      coupled = density(:,1) - density(:,2)
+    case DEFAULT
+      print *, 'Invalid iso argument to couple_iso. iso = ', iso
+      stop    
+    end select
+
+end function couple_iso
+
 function CompNablaMelements() result(NablaMelements)
     !---------------------------------------------------------------------------
     ! Computes the matrix elements of Nabla

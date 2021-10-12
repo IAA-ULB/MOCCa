@@ -295,13 +295,11 @@ def GenerateFields(so, oldso):
                                 nc = nc + (k-removedsum+OrderOfDen(den),)
                         newcpl.append(nc)        
 
-                    if(den == "D_I_S"):
-                        print ("%30s %20s"%(term, altden), "%30s"%cpl, "%30s"%newcpl, startind,altder, removedsum)
-                    if(den == "C_I_NS"):
-                        print ("%30s %20s"%(term, altden), "%30s"%cpl, "%30s"%newcpl, startind,altder, removedsum)
-
-                    #cpl = newcpl
-                    
+#                    if(den == "D_I_S"):
+#                        print ("%30s %20s"%(term, altden), "%30s"%cpl, "%30s"%newcpl, startind,altder, removedsum)
+#                    if(den == "C_I_NS"):
+#                        print ("%30s %20s"%(term, altden), "%30s"%cpl, "%30s"%newcpl, startind,altder, removedsum)
+#                    
                     ind   = src_heph.heph_functional.Functional_terms.index(term)
                     cplct = cplcts[ind]
                     dden  = src_heph.heph_functional.density_dependence[ind]

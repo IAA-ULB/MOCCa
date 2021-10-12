@@ -222,10 +222,39 @@ def PruneDeriv_needed():
         
 def ReadFunctional(fname):
     """
-     Read the functional terms and the coupling coefficients from the
-     functional file (fname)
+     Read the details of the EDF terms, their structure and coupling constants, 
+     from the file named fname. 
+
+     Such a file should be composed of 
+      
+      Part 1: description of the functional (in words)
+      Part 2: enumeration of the parameters
+      Part 3: !TERMS => signalling the end of Part 2 and the start of Part 1
+      Part 4: term specification
+      
+     All of these parts can be interspersed with lines starting with '!'; these
+     are comment lines and do not influence the code generation in any way. 
+      
+     - - - - - - - 
+      Part 1: description of the type of functional, which will be included in
+              the Hephaestos output.  
+              Lines need to start with '#'    
+     - - - - - - - 
+      Part 2: enumeration of all parameters that should be read from a .param
+              file; all will be treated as doubles. Entries should be separated
+              by ';'.
+     - - - - - - - 
+      Part 3: '!TERMS' (no modification, EVER)           
+     - - - - - - - 
+      Part 4: line-by-line specification of all the terms in the functional. 
+              Detailed format to be worked out. 
     """
     global Functional_terms, Functional_pair_terms
+
+    def clean(a):
+      # Quick'n'dirty string cleaning routine
+      return a.replace(' ', '').replace('\n', '')
+
 
     description      = ''
     pair_description = ''
@@ -233,46 +262,48 @@ def ReadFunctional(fname):
     with open(fname, 'r') as f:
       for line in f:
         try:
-            if(len(line.split()) == 0):
-                continue
-            elif(line[0] == '#'):
-                 #-sign indicates description of the functional                  
-                 description = description + line
-                 continue
-            elif(line[0:6] == '!TERMS'):
-                # Signal that the parameters part of the functional is over.
-                termsstart  = 1   
-                continue            
-            elif(line[0] == '!'):
-                continue
-            
-            if(termsstart == 0):
-                # Parse the parameters of the functional
-                split = line.split(';')
-                for s in split:
-                    paramparameters.append(s.replace(' ','').replace('\n', ''))
-            elif(termsstart == 1):
-                #  Start the actual terms of the functional
-                split = line.split(';')
-                Functional_terms.append(split[0].replace(' ', ''))
-                coupling_constants_0.append(split[1].replace(' ', ''))
-                coupling_constants_1.append(split[2].replace(' ', '').replace('\n', ''))   
-                    
-                if(len(split)>3):
-                    density_dependence.append(split[3].replace(' ', ''))
-                    dd_den   = split[4].replace(' ', '')
-                    f_dd     = split[5].replace(' ', '')
-                    field_DD_terms[split[0].replace(' ', '')] =(dd_den,f_dd)
-                    DD_rearcoefs.append(split[6].replace(' ', ''))
-                else:
-                    density_dependence.append('')
-                    field_DD_terms[split[0].replace(' ', '')] =  ('','')
-                    DD_rearcoefs.append('')
+          if(len(line.split()) == 0):
+            continue
+          elif(line[0] == '#'):
+            #-signs indicate PART 1                   
+            description = description + line
+            continue
+          elif(line[0:6] == '!TERMS'):
+            # Signal that the parameter specification, PART 2 is over.
+            termsstart  = 1   
+            continue            
+          elif(line[0] == '!'):
+            continue
+          
+          if(termsstart == 0):
+            # Parse the parameters of the functional in PART 2
+            split = line.split(';')
+            for s in split:
+              paramparameters.append(clean(s))
+          elif(termsstart == 1):
+            #  Start the actual terms of the functional in PART 3
+            split = line.split(';')
+            Functional_terms.append(clean(split[0]))
+            coupling_constants_0.append(clean(split[1]))
+            coupling_constants_1.append(clean(split[2]))   
+                
+            if(len(split)>3):
+              density_dependence.append(clean(split[3]))
+              dd_den   = clean(split[4])
+              f_dd     = clean(split[5])
+              field_DD_terms[clean(split[0])] =(dd_den,f_dd)
+              DD_rearcoefs.append(clean(split[6]))
+            else:
+              density_dependence.append('')
+              field_DD_terms[clean(split[0])] =  ('','')
+              DD_rearcoefs.append('')
         except IndexError:
             print ('Problem reading the following line in the func file.')
             print (line)
             exit()      
 
+    print (Functional_terms)
+    exit()
     return description
 
 def RemoveTimeOddTerms():
@@ -399,17 +430,11 @@ def ParseDensities(term):
 
 def ProcessParameterization(fname, src, target):
     """
-     Processing of the parameterization.f90 file to include the different 
-     parameters.
+     Process the parameterization.f90 file to include the different parameters.
     """
-    decl_template = Template(  tab + 'real(KIND=dp) :: $PARAM = -123456789 \n')
-    read_template = Template(        ' $PARAM,')
-    print_template= Template(2*tab + 'print "(a6,2x, f10.3)", "$PARAM", $PARAM \n ')
-    
-    check_a_template = Template(  tab + 'if($PARAM .eq. -123456789) then \n')
-    check_b_template = Template(2*tab + '   print *, "$PARAM not read from .param file." \n')
-    check_c_template = Template(2*tab + '   stop \n')        
-    check_d_template = Template(  tab + 'endif \n')
+
+    # Go and get the relevant snippets of FORTRAN CODE to combine. 
+    import src_heph.fortran_templates.ProcessParameterization_templates as ts
 
     decl      = ''
     readparam = ''
@@ -419,13 +444,13 @@ def ProcessParameterization(fname, src, target):
         dic= {}
         dic['PARAM']     = s
         
-        decl      = decl + decl_template.substitute(dic)
-        readparam = readparam + read_template.substitute(dic)
-        printparam= printparam+ print_template.substitute(dic)
-        checkparam= checkparam+ check_a_template.substitute(dic)
-        checkparam= checkparam+ check_b_template.substitute(dic)
-        checkparam= checkparam+ check_c_template.substitute(dic)
-        checkparam= checkparam+ check_d_template.substitute(dic)
+        decl      = decl      + ts.decl.substitute(dic)
+        readparam = readparam + ts.read.substitute(dic)
+        printparam= printparam+ ts.print.substitute(dic)
+        checkparam= checkparam+ ts.check_a.substitute(dic)
+        checkparam= checkparam+ ts.check_b.substitute(dic)
+        checkparam= checkparam+ ts.check_c.substitute(dic)
+        checkparam= checkparam+ ts.check_d.substitute(dic)
         checkparam= checkparam+ '\n'
         
     # Remove the trailing comma and add line-end
@@ -603,79 +628,16 @@ def ProcessFunctional(fname, src, target, so, oldso):
 def GenTermExpression( term, ccoef, DD, DDrear, so):
     """
      Generate the expressions for the terms in the functional.
-    
     """
     global sumindices
+    
+    # This module contains all of the little snippets of FORTRAN code that 
+    # need to be combined in an intelligent way by this function. 
+    import src_heph.fortran_templates.GenTermExpression_templates as ts
 
     declaration = ''
     calculation = ''
     printing    = ''
-
-    #---------------------------------------------------------------------------
-    # Templates for the declaration, calculation and printing of an energy term.
-    # And, not forgetting, its contribution to the rearrangement energy
-    decl_template   = Template( tab + 'real(KIND=dp) :: $CPCTE(2,2), $TERM(2,2)')
-    edent_template  = Template('sum($DEN(:$IND,:),2)')
-    edenq_template  = Template('$DEN(:$IND,$IT)')
-    
-    comment_template= Template(   tab + '!' + 38 * '- ' + '\n' +               \
-                                  tab + '! Calculation of $TERM \n')
-                                  
-    end_comment     =             tab + '!' + 38 * '- ' + '\n'
-                                  
-    doloop_template    =    tab + 'do %s = 1, 3 \n'
-    enddoloop_template =    tab + 'enddo \n'
-   
-    sumtotal_template  = Template( 2*tab + ' & + $TERM(:,1)')
-    pairtotal_template  = Template( 2*tab + ' & + $TERM(:,1)')
-    
-    calc_z_template = Template(   tab + 'Edensity = 0.0_dp \n')
-    calc_a_template = Template(   tab + 'EDensity(:,3) = Edensity(:,3) $SIGN $EDENT\n')
-    calc_b_template = Template(   tab + 'Edensity(:,1) = Edensity(:,1) $SIGN $EDENN\n' + \
-                                  tab + 'Edensity(:,2) = Edensity(:,2) $SIGN $EDENP\n'  )
-    calc_DD_template= Template(   tab + 'do m=1,3 \n' +                                 \
-                                2*tab + 'EDensity(:,m) = Edensity(:,m) * $DD \n' +      \
-                                  tab + 'enddo \n')
-    calc_c_template = Template(   tab + '$TERM(1,2) = $CPCTE(1,2) * sum( Edensity(:,3)) * dv \n')
-    calc_d_template = Template(   tab + '$TERM(2,2) = $CPCTE(2,2) * dv & \n'+           \
-                                  tab + '&'+6*tab+' * sum(Edensity(:,1) + Edensity(:,2) ) \n')
-
-    # This new division of contributions is only correct for bilinear terms.
-    # If we want to include trilinear terms, we should probably explicitly 
-    # construct isoscalar and isovector densities.    
-    calc_e_template = Template(   tab + '$TERM(1,1) = dv * ( & \n' + 
-                                  tab + '& ($CPCTE(1,2)+0.5*$CPCTE(2,2)) * sum(Edensity(:,3))) \n')
-    calc_f_template = Template(   tab + '$TERM(2,1) = dv * & \n' +
-                                  tab + '& (         $CPCTE(2,2) * sum(Edensity(:,1) + Edensity(:,2)) & \n' + 
-                                  tab + '&   - 0.5 * $CPCTE(2,2) * sum(Edensity(:,3))               )   \n')
-  
-    calc_pair_a_temp= Template(   tab + 'Edensity(:,1) = Edensity(:,1) + $EDENN\n' + \
-                                  tab + 'Edensity(:,2) = Edensity(:,2) + $EDENP\n'  )
-    calc_pair_c_temp = Template(  tab + '$TERM(1,1) = $CPCTE(1,1) * sum( Edensity(:,1)) * dv \n')
-    calc_pair_d_temp = Template(  tab + '$TERM(2,1) = $CPCTE(2,1) * sum( Edensity(:,2)) * dv \n')
-
-    calc_coef_template  = Template(tab + '$CPCTE(1,1) = $EXP1 \n' + \
-                                   tab + '$CPCTE(2,1) = $EXP2 \n' + \
-                                   tab + '$CPCTE(1,2) = $CPCTE(1,1) - $CPCTE(2,1) \n' + \
-                                   tab + '$CPCTE(2,2) =             2*$CPCTE(2,1) \n')       
-
-    calc_coef_pair_temp = Template(tab + '$CPCTE(1,1) = $EXP1 \n' + \
-                                   tab + '$CPCTE(2,1) = $EXP2 \n')    
-                                
-    write_edensity = Template( tab + ' call output_Edensity(Edensity, "$FILENAME")' )
-    print_template = Template(tab +" print('(2x, a28, 3f15.6)'), rps('$TERM',28),    & \n"+ 
-                              tab +"                           $TERM(:,1),& \n"+
-                              tab +"                       sum($TERM(:,1))  \n")
-    print_P_templ  = Template(tab +" print('(2x, a28, 30x, f15.6)'), rps('$TERM',28),& \n"+
-                              tab +"                       sum($TERM(:,1))  \n")
-
-    
-    print_cpl_pn_template   = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE(:,1)")
-    print_cpl_iso_template  = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE(:,2)")
-    print_cpl_pair_template = Template(tab +" print('(a30 , 4f15.6)'), '$CPCTE', $CPCTE(:,1)")
-    
-    rear_template       = Template(tab +" e_rear = e_rear $REARCOEF*sum($TERM(:,2))\n")
-    rear_p_template     = Template(tab +" e_rear = e_rear $REARCOEF*sum($TERM(:,1))\n")
     
     #---------------------------------------------------------------------------
     # Parse the term of the functional.
@@ -759,9 +721,9 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
     else:
       true_args = list(itertools.product(args, vec_args))
             
-    declaration = decl_template.substitute(dic) 
-    calculation = comment_template.substitute(dic)
-    calculation = calculation = calculation + calc_z_template.substitute(dic)
+    declaration = ts.decl.substitute(dic) 
+    calculation = ts.comment.substitute(dic)
+    calculation = calculation + ts.calc_z.substitute(dic)
     for arg in true_args: 
         dic['EDENT'] = ''
         dic['EDENP'] = ''
@@ -807,12 +769,12 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
             for l in indices:
                 isodic['IND'] = isodic['IND'] + ',%d'%(l+1)
            
-            dic['EDENT'] = dic['EDENT'] + edent_template.substitute(isodic)+ '*'
+            dic['EDENT'] = dic['EDENT'] + ts.edent.substitute(isodic)+ '*'
             
             isodic['IT'] = 1
-            dic['EDENN'] = dic['EDENN'] + edenq_template.substitute(isodic)+ '*'
+            dic['EDENN'] = dic['EDENN'] + ts.edenq.substitute(isodic)+ '*'
             isodic['IT'] = 2
-            dic['EDENP'] = dic['EDENP'] + edenq_template.substitute(isodic)+ '*'    
+            dic['EDENP'] = dic['EDENP'] + ts.edenq.substitute(isodic)+ '*'    
             # Take out the final '*' which should not be necessary
             prevorder = prevorder + orders[i]
       
@@ -829,55 +791,55 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
 
         if('P' not in term ):
           # Ordinary mean-field densities only in the term
-          calculation = calculation + calc_a_template.substitute(dic)
-          calculation = calculation + calc_b_template.substitute(dic)
+          calculation = calculation + ts.calc_a.substitute(dic)
+          calculation = calculation + ts.calc_b.substitute(dic)
         else:
           # Pairing mean-field densities in the term.
-          calculation = calculation + calc_pair_a_temp.substitute(dic)
+          calculation = calculation + ts.calc_pair_a.substitute(dic)
             
     calculation = calculation + '\n'
     if(DD != ''):
         dic['DD'] = DD  
-        calculation = calculation + calc_DD_template.substitute(dic)
+        calculation = calculation + ts.calc_DD.substitute(dic)
 
     dic['FILENAME'] ='edensities/' + dic['TERM'] + '.dat'
     #calculation = calculation + write_edensity.substitute(dic) + '\n'
  
     if('P' not in term):  
       # Ordinary mean-field densities
-      calculation = calculation + calc_c_template.substitute(dic) 
-      calculation = calculation + calc_d_template.substitute(dic) + '\n'
-      calculation = calculation + calc_e_template.substitute(dic)
-      calculation = calculation + calc_f_template.substitute(dic)
+      calculation = calculation + ts.calc_c.substitute(dic) 
+      calculation = calculation + ts.calc_d.substitute(dic) + '\n'
+      calculation = calculation + ts.calc_e.substitute(dic)
+      calculation = calculation + ts.calc_f.substitute(dic)
 
-      printing = print_template.substitute(dic) 
+      printing = ts.print.substitute(dic) 
 
     else:
       # Pairing mean-field densities.
-      calculation = calculation + calc_pair_c_temp.substitute(dic) 
-      calculation = calculation + calc_pair_d_temp.substitute(dic) + '\n'
+      calculation = calculation + ts.calc_pair_c.substitute(dic) 
+      calculation = calculation + ts.calc_pair_d.substitute(dic) + '\n'
 
-      printing = print_P_templ.substitute(dic) 
+      printing = ts.print_P.substitute(dic) 
 
-    calculation = calculation + end_comment 
+    calculation = calculation + ts.end_comment 
     
     dic['EXP1'] = ccoef[0]
     dic['EXP2'] = ccoef[1]
     
-    calccoef  = calc_coef_template.substitute(dic)
+    calccoef  = ts.calc_coef.substitute(dic)
     
     if('P' not in term):
         # Ordinary mean-field densities
-        printcoef_pn  = print_cpl_pn_template.substitute(dic)    
-        printcoef_iso = print_cpl_iso_template.substitute(dic)
+        printcoef_pn  = ts.print_cpl_pn.substitute(dic)    
+        printcoef_iso = ts.print_cpl_iso.substitute(dic)
         printcoef_pair= ''
     else:
         printcoef_pn  = ''
         printcoef_iso = ''
-        printcoef_pair= print_cpl_pair_template.substitute(dic) 
+        printcoef_pair= ts.print_cpl_pair.substitute(dic) 
     
-    sumtotal  = sumtotal_template.substitute(dic)
-    pairtotal = pairtotal_template.substitute(dic)
+    sumtotal  = ts.sumtotal.substitute(dic)
+    pairtotal = ts.pairtotal.substitute(dic)
     
     # Getting the contribution to the rearrangement energy
     # Two-body, non-density dependent terms don't have rearrangement terms.
@@ -892,9 +854,9 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
         dic['REARCOEF'] = rearcoef
 
         if('P' not in term):
-          erear = rear_template.substitute(dic)
+          erear = ts.rear.substitute(dic)
         else:
-          erear = rear_p_template.substitute(dic)
+          erear = ts.rear_p.substitute(dic)
         
     return (declaration, calculation, printing, calccoef, printcoef_iso, 
               printcoef_pn, printcoef_pair, sumtotal, pairtotal, erear, timerev)    
