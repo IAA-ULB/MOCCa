@@ -31,7 +31,6 @@
 import itertools
 import numpy as np
 
-from string                  import Template
 from src_heph.heph_densities import Densities_needed, tab, sumindices, derstring
 from src_heph.heph_densities import lapstring, OrderOfDen, ParseOperators
 from src_heph.heph_densities import crossindices, Storage_Mapping, Multiplicity

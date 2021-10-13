@@ -5,6 +5,10 @@
 # |_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/
 #              |_|                                             
 #-------------------------------------------------------------------------------
+#
+# Module governing the calculation of mean-field potentials. 
+#
+#-------------------------------------------------------------------------------
 # TODO
 #   
 #   Q Is the isospin coupling of the fields ok?
@@ -454,37 +458,11 @@ def GenerateAction(field, symmetrize, so):
         so          : a set of symmetry options 
     """
     
+    import src_heph.fortran_templates.GenerateAction_templates as ts
+    
     #---------------------------------------------------------------------------
     WFNames   = ['psi', 'dpsi', 'ddpsi', 'dddpsi', 'ddddpsi']
     Direction = ["X", 'Y', 'Z']
-    #---------------------------------------------------------------------------
-    # Templates to fill in.
-    #---------------------------------------------------------------------------
-    action_final            = Template(  tab + \
-    'hpsi(:,$IND) =  hpsi(:,$IND) $SIGN $LMULT $TEMP(:$LIND,$RCOMP)\n')
-    action_final_pairing    = Template(  tab + \
-    'deltapsi(:,$IND) =  deltapsi(:,$IND) $SIGN $LMULT $TEMP(:$LIND,$RCOMP)\n')
-    
-    
-    temp_ini        = tab + 'temp = 0.0 \n'
-    action_temp    = Template(2*tab + \
-    'temp(i,$IND) =  temp(i,$IND) $SIGN $RMULT $FIELD(i$FIELDIND,it) * $WF(i$RIND,$RCOMP)\n')
-    
-    derive_temp     = Template(tab + \
-    'call Derive_$DIR($DNUMBER(:,$RCOMP), $SYM, d$DNUMBER(:,$DIRIND,$RCOMP)) \n')
-    lap_temp        = Template(tab + \
-    'call Derive_lap(temp(:,$RCOMP), $SYMX, $SYMY, $SYMZ, laptemp(:,$RCOMP)) \n')
-    
-    position_loop   = tab + 'do i=1,mv\n'
-    position_end    = tab + 'enddo    \n'
-    
-    action_comment  = Template(tab + '!' + 75*'-' + '\n'\
-                          +    tab + '! Action of $FIELD symmetrized: $SYM \n')
-    
-    #---------------------------------------------------------------------------
-    # First, figure out whether there is an antilinear, antihermitian symmetry
-    # that is conserved.
-
     #---------------------------------------------------------------------------
     # Parse the field under consideration
     (left,right,coupling,cross) = ParseOperatorsField(field, so.timelike)
@@ -554,7 +532,7 @@ def GenerateAction(field, symmetrize, so):
     # Construct an iterator with all possible combinations of uncontracted 
     # indices
     dic['SYM'] = symmetrize
-    expression = action_comment.substitute(dic)
+    expression = ts.action_comment.substitute(dic)
     #---------------------------------------------------------------------------
     # So this is quite complicated. 
     # Steps:
@@ -628,7 +606,7 @@ def GenerateAction(field, symmetrize, so):
     for true_larg in largs:
         
         # reset temp to 0
-        expression = expression + temp_ini
+        expression = expression + ts.temp_ini
         
         # Get the multiplicity correct
         #m = multiplicities[largs.index(true_larg)]
@@ -697,7 +675,7 @@ def GenerateAction(field, symmetrize, so):
                 rarg_uncontracted.append(p)
             #-------------------------------------------------------------------
             # Loop over right-arguments
-            expression = expression + position_loop
+            expression = expression + ts.position_loop
             for true_rarg in rarg_uncontracted:
                 # Action of the right operator for this indices
                 rightind = RightOperator(true_rarg, start)
@@ -769,8 +747,8 @@ def GenerateAction(field, symmetrize, so):
                         dic['SIGN']= '+'
                     else :
                         dic['SIGN']= '-'
-                    expression = expression + action_temp.substitute(dic)
-            expression = expression + position_end
+                    expression = expression + ts.action.substitute(dic)
+            expression = expression + ts.position_end
             #---------------------------------------------------------------
             # End of true_rarg loop
         #-------------------------------------------------------------------
@@ -800,7 +778,7 @@ def GenerateAction(field, symmetrize, so):
                     dic['SYMZ']    = 'sz(%d)'%(k+1)      
                 
                     dic['RCOMP']  = k  + 1 
-                    expression = expression + lap_temp.substitute(dic)
+                    expression = expression + ts.lap.substitute(dic)
                 lasttemp = 'laptemp'
             else:
                 offset = LeftOperator.dimension - LeftOperator.derorder
@@ -831,7 +809,7 @@ def GenerateAction(field, symmetrize, so):
                     else:
                         dic['SYM']    = '-s' + Direction[direc-1] + '(%d)'%(k+1)   
                     
-                    expression = expression + derive_temp.substitute(dic)
+                    expression = expression + ts.derive.substitute(dic)
                 lasttemp = (lorder+1) * 'd' + 'temp'
         #-----------------------------------------------------------------------
         # Add final result to hpsi
@@ -852,9 +830,9 @@ def GenerateAction(field, symmetrize, so):
                 dic['SIGN']= '-'
             
             if('P' not in field):
-              expression = expression + action_final.substitute(dic)
+              expression = expression + ts.action_final.substitute(dic)
             else:
-              expression = expression + action_final_pairing.substitute(dic)
+              expression = expression + ts.action_final_pairing.substitute(dic)
         expression = expression + '\n'
         #-----------------------------------------------------------------------
         # End of true_larg loop

@@ -126,6 +126,9 @@ from src_heph.heph_symmetries  import *
 import numpy         as np
 import itertools
 
+# Import some string templates
+import src_heph.fortran_templates.Densities_templates as ta
+
 # Horizontal line for printing
 line  = 80*"-"
 #-------------------------------------------------------------------------------
@@ -154,41 +157,6 @@ crossindices    = ['x', 'y', 'z']
 # Strings indicating the (external) laplacian and derivative of a density.  
 lapstring = 'Lap'
 derstring = 'Der'
-#-------------------------------------------------------------------------------
-# Density calculation template to fill in
-# Could be defined globally, but is nice to have here for quick reference
-
-Den_template_1 = Template( \
-                        2*tab+'$NAME(i$IND,it) = $NAME(i$IND,it) + $WEIGHT * (')
-Den_template_diag = Template( \
-            tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,$LEFTWAVE) * ' + \
-                '$RIGHTWF(i$RIND,$RCOMP,$RIGHTWAVE)')
-Den_template_nondiag = Template( \
-       tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,wave1) * $RIGHTWF(i$RIND,$RCOMP,wave2)')
-
-Ini_template   = Template(   tab+'if(.not.allocated($NAME)) then     \n' + \
-                           2*tab+'allocate($NAME(mv$DIM,2)) \n'          + \
-                           2*tab+'$NAME = 0.0d0 \n'                      + \
-                             tab+'endif \n'                              ) 
-Zero_template  = Template(   tab+'$NAME = 0.0d0 \n')
-Clean_template = Template(   tab+'if(allocated($NAME)) deallocate($NAME)')
-
-Dec_template   = Template( \
-                     tab + 'real*8, allocatable, target :: $NAME(:$TOTALIND,:)')
-Der_indep_template = Template( 2*tab + \
-             'call Derive_$DIR($NAME(:$IND,it), $PS,der_$NAME(:$DERIND,it)) \n') 
-Lap_template   = Template( 2*tab + \
-       'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ, lap_$NAME(:$IND,it)) \n')
-
-#-------------------------------------------------------------------------------
-# Some templates for comments to put into the densities file
-Den_comment          = Template(2*tab+'! Calculation of density $NAME \n')
-
-Den_comment_deriv    = Template(2*tab+ \
-                                   '! Derivation of density $NAME(:$IND,it) \n')
-Den_comment_deriv_b  =         (2*tab+'! LAP = %d, DER = %d \n')
-Den_line             = Template(2*tab+ \
-  '! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  \n')
 #-------------------------------------------------------------------------------
 
 def initdensities():
@@ -529,10 +497,10 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     
     #---------------------------------------------------------------------------
     # Get the declaration of the density and its derivatives right
-    Declaration    = Dec_template.substitute(dic)
-    Initialisation = Ini_template.substitute(dic)
-    Zeroing        = Zero_template.substitute(dic)
-    Cleaning       = Clean_template.substitute(dic)
+    Declaration    = ta.Dec.substitute(dic)
+    Initialisation = ta.Ini.substitute(dic)
+    Zeroing        = ta.Zero_template.substitute(dic)
+    Cleaning       = ta.Clean_template.substitute(dic)
 
     for c in derivative_combinations:
         l = c[0]
@@ -554,9 +522,9 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
         else:
             dic['DIM']     = dim
 
-        Declaration    = Declaration    + '\n' + Dec_template.substitute(dic)
-        Initialisation = Initialisation + '\n' + Ini_template.substitute(dic)
-        Cleaning       = Cleaning + '\n' + Clean_template.substitute(dic)
+        Declaration    = Declaration    + '\n' + ta.Dec.substitute(dic)
+        Initialisation = Initialisation + '\n' + ta.Ini.substitute(dic)
+        Cleaning       = Cleaning + '\n' + ta.Clean_template.substitute(dic)
 
         dic['NAME']    = density
         
@@ -575,8 +543,8 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     # since we loop over all of them, only that they are consistently applied. 
     args = itertools.product(range(3), repeat=ndim)
     
-    Expression = Expression +  Den_line.substitute(dic)
-    Expression = Expression +  Den_comment.substitute(dic)
+    Expression = Expression +  ta.Den_line.substitute(dic)
+    Expression = Expression +  ta.Den_comment.substitute(dic)
     
     for arg in args:
         # We have the uncontracted indices. Now construct the combinations of
@@ -681,7 +649,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
         
         dic['IND'] = IND
         
-        Expression = Expression +  Den_template_1.substitute(dic)
+        Expression = Expression +  ta.Den_1.substitute(dic)
 
         #-----------------------------------------------------------------------
         # Now loop over the uncontracted indices
@@ -769,7 +737,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                 dic['LCOMP'] = str(int(abs( leftind[i,0])))
                 Expression = Expression +  \
                             '& \n               &' +  \
-                            Den_template_diag.substitute(dic)
+                            ta.Den_diag.substitute(dic)
         # Don't forget the closing bracket
         Expression = Expression +  ')\n'
         #----------------------------------------------------------------------- 
@@ -781,12 +749,12 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
         # exhibit the same symmetries. 
         #-----------------------------------------------------------------------
         if(len(derivative_combinations)> 1):
-            Derivation = Derivation + Den_line.substitute(dic)
-            Derivation = Derivation + Den_comment_deriv.substitute(dic)
+            Derivation = Derivation + ta.Den_line.substitute(dic)
+            Derivation = Derivation + ta.Den_comment_deriv.substitute(dic)
         for c in derivative_combinations:
             if(c == (0,0)):
                 continue
-            Derivation = Derivation + Den_comment_deriv_b%(c[0], c[1])
+            Derivation = Derivation + ta.Den_comment_deriv_b%(c[0], c[1])
             
             deriv_args = list(itertools.product(range(3),repeat=c[1]))
 
@@ -827,7 +795,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                             dic['IND'] = ',' + str(int(Storage_Mapping(darg)+1)) + IND
                         else:
                             dic['IND'] = IND     
-                        Derivation     = Derivation + Lap_template.substitute(dic)
+                        Derivation     = Derivation + ta.Lap_template.substitute(dic)
                     else:
                         # There is no laplacian, so we only calculate partial
                         # derivatives
@@ -845,7 +813,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                             dic['IND'] =  ',' + str(int(Storage_Mapping(darg[1:])+1)) + IND
                         else:
                             dic['IND'] = IND     
-                        Derivation     = Derivation  + Der_indep_template.substitute(dic)
+                        Derivation     = Derivation  + ta.Der_indep.substitute(dic)
             else:
                     (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin)
                     dic['PX']    = str(px) #+ 'd0'
@@ -855,12 +823,12 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                     dic['IND']  =  IND  
                     
                     # Decide if we need to use a gradient or a laplacian routine
-                    Derivation  = Derivation + Lap_template.substitute(dic)
+                    Derivation  = Derivation + ta.Lap.substitute(dic)
             Derivation  = Derivation + '\n'
         
         
         dic['NAME'] = density
-    Expression = Expression + Den_line.substitute(dic) 
+    Expression = Expression + ta.Den_line.substitute(dic) 
     
     return (Expression, Declaration, Initialisation, Derivation, Zeroing, Cleaning)
     
@@ -869,13 +837,8 @@ def GenVecProd(density, coupling):
     # Generate the appropriate expressions for the calculation of a vector
     # product. 
     #---------------------------------------------------------------------------
-    decl_template = Template(   tab + 'real(KIND=dp), allocatable :: $NAME(:$DECLIND,:)')
-    ini_template  = Template(   tab + 'if(.not.allocated($NAME)) then \n'      \
-                            + 2*tab + 'allocate($NAME(mv$ALLOCIND,2)) \n'      \
-                            +   tab + 'endif  \n'                              \
-                            +   tab + '$NAME = 0.0_dp  \n')
-    calc_temp     = Template(   tab + '$NAME(:$ARG,:) = & \n')
-    calc_a_temp   = Template( '$SIGN $DEN(:$IND,:) ')
+
+    import src_heph.fortran_templates.GenVecProd as tb
     
     index_encountered = 0
     name              = ''
@@ -915,8 +878,8 @@ def GenVecProd(density, coupling):
     dic['ALLOCIND'] = allocind
     dic['DECLIND']  = allocind.replace('3', ':')
     
-    decl = decl_template.substitute(dic)
-    ini  =  ini_template.substitute(dic)
+    decl = tb.decl_template.substitute(dic)
+    ini  = tb.Ini.substitute(dic)
     
     #---------------------------------------------------------------------------
     # Constructing the calculation segments.
@@ -963,7 +926,7 @@ def GenVecProd(density, coupling):
         dic['DEN'] = density
         for i in range(len(arg)):
             dic['ARG'] = dic['ARG'] + ',%s'%(arg[i]+1)
-        calc = calc + calc_temp.substitute(dic)
+        calc = calc + tb.calc_a.substitute(dic)
         calc = calc + 2 * tab +'&'
         
         count = 0
@@ -977,7 +940,7 @@ def GenVecProd(density, coupling):
                 dic['SIGN'] = '+'
             else:
                 dic['SIGN'] = '-'
-            calc = calc + calc_a_temp.substitute(dic)
+            calc = calc + tb.calc_b.substitute(dic)
             count = count + 1
             if(count%3 == 0):
                 calc = calc + '& \n' + 2 * tab +'&'
