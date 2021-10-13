@@ -21,7 +21,6 @@ import itertools
 import numpy as np
 import src_heph.heph_functional
 from src_heph.heph_densities    import *
-from string import Template
 
 # List of fields needed 
 Fields_needed         = []
@@ -61,104 +60,13 @@ def initfields(so):
   
       
 def GenerateFields(so, oldso):
-    #---------------------------------------------------------------------------
-    # Generate a list of fields based on list of terms in the functional. 
-    #---------------------------------------------------------------------------
+    """
+     Generate a list of fields based on list of terms in the functional. 
+    """
         
     global sumindices,tab
-
-    field_decl_temp = Template(  tab + 'real(KIND=dp), allocatable, target :: $FIELD(:$DECLIND,:) \n')
-    fhist_decl_temp = Template(  tab + 'real(KIND=dp), allocatable :: ${FIELD}_hist(:$DECLIND,:) \n')
     
-    field_allo_temp = Template(2*tab + 'if(.not.allocated($FIELD)) then\n'+\
-                           3*tab + 'allocate($FIELD(mv$ALLOCIND,2)) \n'   +\
-                           3*tab + 'allocate(${FIELD}_hist(mv$ALLOCIND,2)) \n'+\
-                           3*tab + '$FIELD = 0.0 ; ${FIELD}_hist = 0.0 \n' + \
-                           2*tab + 'endif \n')
-
-    field_allo_b_temp = Template(3*tab + 'if(.not.allocated($FIELD)) then\n'+\
-                           4*tab + 'allocate($FIELD(mv$ALLOCIND,2)) \n'   +\
-                           4*tab + 'allocate(${FIELD}_hist(filemv$ALLOCIND,2)) \n'+\
-                           4*tab + '$FIELD = 0.0 ; ${FIELD}_hist = 0.0 \n' + \
-                           3*tab + 'endif \n')
-
-    field_hist_temp = Template( 2*tab + 'if(calcall) then \n' + 
-                                3*tab + '${FIELD}_hist = $FIELD \n' + 
-                                3*tab + '$FIELD = 0.0 \n'           + 
-                                2*tab + 'endif \n')
-
-    field_line             = Template(2*tab+ \
-    '!----------------------------------------------------------------------\n')
-    field_calc_temp_a    = Template( 2*tab + '! Calculation of $FIELD \n')
-    field_calc_temp_b    = Template( 3*tab + '$FIELD(:$IND,it) = $FIELD(:$IND,it)  & \n')
-
-    field_calc_den_a     = Template('* sum($DENSITY(:$DENIND,:),$SUMIND)  ')
-    field_calc_den_b     = Template('* $DENSITY(:$DENIND,it)')
-    field_calc_den_c     = Template('* $DENSITY(:$DENIND,3-it)')
-
-    # Note the convention for coupling constants for the pairing term is 
-    # different. We do not deal with isoscalar and isovector coupling constants
-    # but rather with the coupling constants for neutrons and protons.
-    field_calc_den_pair  = Template('* $DENSITY(:$DENIND,it)')
-
-    isoloop = Template(2*tab + 'maxit = 2 \n' + \
-              2*tab + 'if((.not.calcall).and.(any(${FIELD}.ne.0.0))) maxit=0\n'+\
-              2*tab + 'do it=1,maxit \n')
-    
-    isoloop_end = 2*tab + 'enddo\n'
-
-    field_calc_b_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(1,2)  $EXPR1 & \n') 
-    field_calc_c_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(2,2)  $EXPR2 & \n') 
-    field_calc_d_temp  = Template( 3*tab + '& $SIGN $DD $CPLCTE(2,2)  $EXPR3 & \n') 
-
-    field_pair_a_temp    = Template( 3*tab + '& $SIGN $DD $CPLCTE(it,1)   $EXPR2  & \n') 
-    field_pair_b_temp    = Template( 3*tab + '& $SIGN $DD $CPLCTE(3-it,1) $EXPR3  & \n') 
-
-    doloop_template    = 2*tab + 'do %s = 1, 3 \n'
-    enddoloop_template = 2*tab + 'enddo \n'
-
-    field_write_template_a = Template(tab + ('write(chan, iostat=io) "$FIELDFILLED" \n'))
-    field_write_template_b = Template(tab + ('write(chan, iostat=io)  $FIELD  \n'))
-
-    field_read_template_a  = Template(2*tab + ('case("$FIELD") \n'))
-    field_read_template_b  = Template(3*tab +  'read(chan, iostat=io)  ${FIELD}_hist \n')
-    field_read_template_c  = Template(3*tab +  'if(symtransfo_needed) then    \n')
-    field_read_template_d  = Template(4*tab + '$FIELD = ${FIELD}_hist \n'                  \
-                                  +   4*tab + '$UNDOREAD deallocate($FIELD, ${FIELD}_hist) \n')
-    field_read_template_e  = Template(3*tab +  'else \n')
-    field_read_template_f  = Template(3*tab +  'endif \n')
-
-#    field_transfo_temp = \
-#    Template( \
-#             + 4*tab + 'do it=1,2 \n'                                                          \
-#             + 5*tab + '${FIELD}_hist(:$IND,it) = & \n'                                        \
-#             + 5*tab + '&  changeboxsize_function($FIELD(:$IND,it), filenx, fileny, filenz) \n'\
-#             + 4*tab + 'enddo \n'                                                              \
-#             + 4*tab + 'deallocate($FIELD) \n'                                                 \
-#             + 4*tab + 'allocate($FIELD(mv$ALLOCIND,2)) \n'                                             \
-#             + 4*tab + 'do it=1,2 \n'                                                          \
-#             + 5*tab + '$FIELD(:$IND,it) = ${FIELD}_hist(:$IND,it) \n'                         \
-#             + 5*tab + '${FIELD}_hist(:$IND,it) = 0.0d0  \n'                                   \
-#             + 4*tab + 'enddo \n'                                                              
-#             )
-    field_transfo_temp = \
-    Template( \
-             + 4*tab + 'do it=1,2 \n'                                                                 \
-             + 5*tab + '${FIELD}(:$IND,it) = & \n'                                                    \
-             + 5*tab + '&  changeboxsize_function(${FIELD}_hist(:$IND,it), filenx, fileny, filenz) \n'\
-             + 4*tab + 'enddo \n'                                                              
-             )
-
-    field_transfo_end = \
-    Template( \
-             + 4*tab + 'deallocate(${FIELD}_hist)              \n' \
-             + 4*tab + 'allocate(${FIELD}_hist(mv$ALLOCIND,2)) \n' \
-             + 4*tab + '${FIELD}_hist = 0.0d0 \n' )
-    
-
-    # Template for cleaning fields
-    clean_template   = Template(   tab+'if(allocated($FIELD)) deallocate($FIELD)')
-    clean_template_b = Template(   tab+'if(allocated(${FIELD}_hist)) deallocate(${FIELD}_hist)')
+    import src_heph.fortran_templates.GenerateFields_templates as ts 
 
     cplcts    = []       
     for term in src_heph.heph_functional.Functional_terms:      
@@ -211,8 +119,8 @@ def GenerateFields(so, oldso):
         fieldlist = []
         cpcte     = ''
 
-        fieldclean = fieldclean + '\n' + clean_template.substitute(dic)
-        fieldclean = fieldclean + '\n' + clean_template_b.substitute(dic)
+        fieldclean = fieldclean + '\n' + ts.clean.substitute(dic)
+        fieldclean = fieldclean + '\n' + ts.clean_b.substitute(dic)
 
         #-----------------------------------------------------------------------
         for term in src_heph.heph_functional.Functional_terms: 
@@ -295,11 +203,6 @@ def GenerateFields(so, oldso):
                                 nc = nc + (k-removedsum+OrderOfDen(den),)
                         newcpl.append(nc)        
 
-#                    if(den == "D_I_S"):
-#                        print ("%30s %20s"%(term, altden), "%30s"%cpl, "%30s"%newcpl, startind,altder, removedsum)
-#                    if(den == "C_I_NS"):
-#                        print ("%30s %20s"%(term, altden), "%30s"%cpl, "%30s"%newcpl, startind,altder, removedsum)
-#                    
                     ind   = src_heph.heph_functional.Functional_terms.index(term)
                     cplct = cplcts[ind]
                     dden  = src_heph.heph_functional.density_dependence[ind]
@@ -323,24 +226,24 @@ def GenerateFields(so, oldso):
             dic['ALLOCIND'] = dic['ALLOCIND'] + ',3' 
             dic['DECLIND']  = dic['DECLIND']  + ',:'
        
-        declaration  = declaration + field_decl_temp.substitute(dic)
-        declaration  = declaration + fhist_decl_temp.substitute(dic)
+        declaration  = declaration + ts.field_decl.substitute(dic)
+        declaration  = declaration + ts.fhist_decl.substitute(dic)
 
-        fieldread    = fieldread   + field_read_template_a.substitute(dic)
-        fieldread    = fieldread   + field_allo_b_temp.substitute(dic)
-        fieldread    = fieldread   + field_read_template_b.substitute(dic)
-        fieldread    = fieldread   + field_read_template_c.substitute(dic)
-        fieldread    = fieldread   + field_read_template_d.substitute(dic)
-        fieldread    = fieldread   + field_read_template_e.substitute(dic)
+        fieldread    = fieldread   + ts.field_read_a.substitute(dic)
+        fieldread    = fieldread   + ts.field_allo_b.substitute(dic)
+        fieldread    = fieldread   + ts.field_read_b.substitute(dic)
+        fieldread    = fieldread   + ts.field_read_c.substitute(dic)
+        fieldread    = fieldread   + ts.field_read_d.substitute(dic)
+        fieldread    = fieldread   + ts.field_read_e.substitute(dic)
         
-        fieldwrite   = fieldwrite  + field_write_template_a.substitute(dic)
-        fieldwrite   = fieldwrite  + field_write_template_b.substitute(dic)
+        fieldwrite   = fieldwrite  + ts.field_write_a.substitute(dic)
+        fieldwrite   = fieldwrite  + ts.field_write_b.substitute(dic)
         
-        FIELDCALC    = FIELDCALC + field_line.substitute(dic)
-        FIELDCALC    = FIELDCALC + field_calc_temp_a.substitute(dic)
-        FIELDCALC    = FIELDCALC + field_allo_temp.substitute(dic)
-        FIELDCALC    = FIELDCALC + field_hist_temp.substitute(dic)
-        FIELDCALC    = FIELDCALC + isoloop.substitute(dic)
+        FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
+        FIELDCALC    = FIELDCALC + ts.field_calc_a_start.substitute(dic)
+        FIELDCALC    = FIELDCALC + ts.field_allo.substitute(dic)
+        FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
+        FIELDCALC    = FIELDCALC + ts.isoloop.substitute(dic)
 
         args = list(itertools.product(range(3), repeat=OrderOfDen(den)))
         for arg in args:   
@@ -349,9 +252,10 @@ def GenerateFields(so, oldso):
            for k in arg:
                   dic['IND'] = dic['IND'] + ',%d'%(k+1)
 
-           fieldread = fieldread + field_transfo_temp.substitute(dic)
-        fieldread = fieldread + field_transfo_end.substitute(dic)
-        fieldread    = fieldread   + field_read_template_f.substitute(dic)
+           fieldread = fieldread + ts.field_transfo.substitute(dic)
+
+        fieldread = fieldread + ts.field_transfo.substitute(dic)
+        fieldread = fieldread  + ts.field_read_f.substitute(dic)
 
         for fieldterm in fieldlist:
              #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -435,7 +339,7 @@ def GenerateFields(so, oldso):
                               temp = (mu,abs(nuka[0]), abs(nuka[1]))
                               dic['IND'] = dic['IND'] + ',%d'%(temp[c.index(k)]+1)
 
-                 FIELDCALC = FIELDCALC + field_calc_temp_b.substitute(dic)
+                 FIELDCALC = FIELDCALC + ts.field_calc_b_start.substitute(dic)
                  
                  dic['DENSITY']  = ''
                  dic['EXPR1']    = ''
@@ -509,31 +413,31 @@ def GenerateFields(so, oldso):
                     for l in indices:
                         dic['DENIND'] = dic['DENIND'] + ',%d'%int(l+1)
 
-                    dic['EXPR1'] = dic['EXPR1'] + field_calc_den_a.substitute(dic)
-                    dic['EXPR2'] = dic['EXPR2'] + field_calc_den_b.substitute(dic)
+                    dic['EXPR1'] = dic['EXPR1'] + ts.field_calc_den_a.substitute(dic)
+                    dic['EXPR2'] = dic['EXPR2'] + ts.field_calc_den_b.substitute(dic)
                    
                     if(len(dic['DD']) >0):
-                        dic['EXPR3'] = dic['EXPR3'] + field_calc_den_c.substitute(dic)
+                        dic['EXPR3'] = dic['EXPR3'] + ts.field_calc_den_c.substitute(dic)
                         lastorder = lastorder + OrderOfDen(dic['DENSITY'])
 
                  if('P' not in dic['DENSITY']):
                     # Ordinary mean-field densities; coupling constants are
                     # the isoscalar and isovector ones
-                    FIELDCALC = FIELDCALC + field_calc_b_temp.substitute(dic)
-                    FIELDCALC = FIELDCALC + field_calc_c_temp.substitute(dic)
+                    FIELDCALC = FIELDCALC + ts.field_calc_b.substitute(dic)
+                    FIELDCALC = FIELDCALC + ts.field_calc_c.substitute(dic)
                     if(fieldterm[6] == 1):
-                       FIELDCALC = FIELDCALC + field_calc_d_temp.substitute(dic)
+                       FIELDCALC = FIELDCALC + ts.field_calc_d.substitute(dic)
                     FIELDCALC = FIELDCALC[:-4] + '\n \n'
                  else:
                     # Pairing densities, coupling constants are pn ones.  
-                    FIELDCALC = FIELDCALC + field_pair_a_temp.substitute(dic)       
+                    FIELDCALC = FIELDCALC + ts.field_pair_a.substitute(dic)       
                     if(fieldterm[6] == 1):
-                      FIELDCALC = FIELDCALC + field_pair_b_temp.substitute(dic)
+                      FIELDCALC = FIELDCALC + ts.field_pair_b.substitute(dic)
                     FIELDCALC = FIELDCALC[:-4] + '\n \n'
                                 
         
-        FIELDCALC    = FIELDCALC + isoloop_end
-        FIELDCALC    = FIELDCALC + field_line.substitute(dic)
+        FIELDCALC    = FIELDCALC + ts.isoloop_end
+        FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
 
     return(declaration, FIELDCALC, fieldwrite, fieldread, fieldclean)
 

@@ -302,8 +302,6 @@ def ReadFunctional(fname):
             print (line)
             exit()      
 
-    print (Functional_terms)
-    exit()
     return description
 
 def RemoveTimeOddTerms():
