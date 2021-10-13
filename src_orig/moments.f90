@@ -1007,7 +1007,14 @@ $FILL_LIST
     ! Augmented Lagrangian readjustment
     if(ToReadjust%Intensity .eq. 0.0) then
           ! Find suitable intensity, if none was found before
-          ToReadjust%Intensity = 1d0/sum(ToReadjust%Squared) 
+          
+          select case(ToReadjust%isoswitch)
+          case(0)
+            ToReadjust%Intensity = 1d0/sum(ToReadjust%Squared) 
+          case(1,2)
+            it = ToReadjust%isoswitch
+            ToReadjust%Intensity = 1d0/ToReadjust%Squared(it) 
+          end select
           print 11
           print 12, ToReadjust%l,ToReadjust%m
           print 13

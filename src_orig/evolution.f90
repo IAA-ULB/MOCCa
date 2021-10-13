@@ -704,14 +704,15 @@ contains
     Current => Current%next
    
     if(Current%ConstraintType.lt.2) cycle
-    O2    = sum(Current%Squared)                    ! < C^2 >
 
     select case(Current%isoswitch)
     case(0)
       Value = sum(Current%Value)                    ! Total value
+      O2    = sum(Current%Squared)                  ! < C^2 >
     case(1,2)
       it    = Current%isoswitch
       Value = Current%Value(it)                     
+      O2    = Current%Squared(it)                  ! < C^2 >
     end select
     Des   = Current%Constraint                      ! Desired final value
     scale = Current%Scalefactor                     ! Scale factor
