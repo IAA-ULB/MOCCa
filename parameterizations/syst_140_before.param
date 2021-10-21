@@ -1,0 +1,50 @@
+&skf
+!-------------------------------------------------------------------------------
+! Syst_140 parameterization produced by G. Scamps.
+!
+! Note: this is the version BEFORE a refit of the collective parameters to the 
+!       fission barriers of heavy nuclei.
+!-------------------------------------------------------------------------------
+name     =  'syst_140'
+func_file=  'DD-switch.func'
+force_switch = 0.0
+t0       =            -1886.21674147,
+t1       =              347.35252834,
+t2       =               -8.04436000,
+t3       =            12361.98887383,
+x0       =                0.16995500,
+x1       =               -0.58003800,
+x2       =               20.49026880,
+x3       =                0.08000080,
+sigma    =                0.30000000,
+wso      =              115.85600000,
+wsoq     =               99.99960000,
+CT0      =                0.00000000,
+CT1      =                0.00000000,
+CSDS0    =      0.00000000,
+CSDS1    =      0.00000000,
+Vn       =   -483.76600000,
+Vp       =   -479.72800000,
+alpha    =                0.53450600,
+sigmap   =                0.85050300,
+Estabn   =                0.00000000,
+Estabp   =                0.00000000,
+hbm(1)   =     20.73553000,     20.73553000,
+COM1Body = 2
+COM2Body = 1
+e2            = 1.439964460
+Protonsize    = 0.895, 0.00
+Neutronsize   = 0.387, 0.467
+HOcomform     = .true.
+nucleonsize_selfconsistent=.true.
+CoulTreatment = 2
+rotcorr  = 1
+Cuttype = 1
+Cutneutron =      10.71620000
+Cutproton  =      10.71620000
+rotcorrb   = 1.09331 
+rotcorrc   = 4.29516
+vibcorrb   = 1.85867
+vibcorrl   = 2.33006
+vibcorrd   = 0.0402645
+/
