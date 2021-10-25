@@ -2,7 +2,7 @@
 !-------------------------------------------------------------------------------
 ! Syst_112 parameterization produced by G. Scamps.
 !
-! Note: this is the version AFTER a refit of the collective parameters to the 
+! Note: this is the version BEFORE a refit of the collective parameters to the 
 !       fission barriers of heavy nuclei.
 !-------------------------------------------------------------------------------
 name     =  'syst_112'
@@ -42,9 +42,9 @@ rotcorr  = 1
 Cuttype = 1
 Cutneutron =       7.99756000
 Cutproton  =       7.99756000
-rotcorrb    = 0.87841
-rotcorrc    = 8.29315
-vibcorrd    = 0.5952
-vibcorrl    = 4.5553
-vibcorrb    = 0.7875 
+rotcorrb   = 1.14948
+rotcorrc   = 4.91873
+vibcorrb   = 0.866834 
+vibcorrl   = 6.78629
+vibcorrd   = 0.226028
 /
