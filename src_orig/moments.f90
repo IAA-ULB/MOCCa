@@ -23,7 +23,8 @@ module moments
 ! FILL_LIST : [much too long to reproduce]
 ! QUANT_AX  : $QUANT_AX
 ! SECOND_AX : $SECOND_AX
-!
+! TR        : $TR
+! NTR       : $NTR
 !==============================================================================
 ! 
 ! Spherical harmonics are taken to be in the convention of Messiah.
@@ -53,9 +54,6 @@ module moments
 ! Note that the magnetic moments are not calculated in this way by the code, 
 ! but rather by partial integration and using a vector identity for the orbit
 ! part.
-!
-! The magnetic multipole moments do not appear yet in this code, as they are
-! time-odd.
 !
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! The rms radius is treated on the same footing as the multipole moments here
@@ -147,10 +145,6 @@ module moments
       integer :: l,m
       !Looking at the real(.false.) or imaginary(.true.) part
       logical :: ImPart
-      ! Nature of the multipole moment. 
-      ! Accepted values:
-      ! a) electric
-      integer :: momtype
       !-------------------------------------------------------------------------
       !The SpherHarm variable contains the values of the associated Qlm.
       !-------------------------------------------------------------------------
@@ -167,10 +161,27 @@ module moments
       ! temporary constraint in order to initialize a calculation.
       integer       :: Iteration=-1
       !-------------------------------------------------------------------------
-      ! Calculated value of the moment with and without cutoff,
-      ! for neutrons and protons.
+      ! Calculated value of the moment for neutrons and protons.
+      ! (*) Scalar for mass/electric multipole moments.
+      ! (*) Vector for magnetic multipole moments. 
+      !      vectorvalue    : contains the integrals of the multipole moments 
+      !                       over the individual densities (spin, current)
+      !      physvectorvalue: contains the physical value, i.e. the sum over the
+      !                       individual components in vectorvalue, weighted by
+      !                       the appropriate g-factors.
       !-------------------------------------------------------------------------
       real(KIND=dp) :: Value(2)
+      !                      |
+      !                      > isospin index (neutrons, protons)   
+      real(KIND=dp) :: vectorvalue(3,2,2)
+      !                            | | |
+      !                            | | > isospin index (neutrons, protons)
+      !                            | > spin/orbital index (spin, orbital)
+      !                            > cartesian index (x,y,z)
+      real(KIND=dp) :: physvectorvalue(3,2)
+      !                                | |
+      !                                | > isospin index (neutrons, protons)
+      !                                > cartesian index (x,y,z)
       !-------------------------------------------------------------------------
       ! Value of the multipole at the previous iteration
       real(KIND=dp) :: history(2)
@@ -227,14 +238,20 @@ module moments
   !-----------------------------------------------------------------------------
   ! Maximum degree of the multipole moments that are considered in the 
   ! Tantalus calculation. Default = 10
-  integer      :: MaxMoment=10, maxmoment_J0=2
+  integer      :: MaxMoment=10, maxmoment_mag=3
   ! Maximum degree of the multipole moments that was checked by Hephaestos 
   ! for its symmetries. Hence MaxMoment <= list_size.
   integer, parameter     :: list_size = $MAX_ELL
   !-----------------------------------------------------------------------------
   ! Starting point for the linked list of moments.
   !-----------------------------------------------------------------------------
-  type(Moment),save, pointer :: Root         ! Electric multipole moments
+  type(Moment),save, pointer    :: Root     ! Electric multipole moments
+  type(Moment), public, pointer :: Root_mag ! Magnetic multipole moments
+  !-----------------------------------------------------------------------------
+  ! Couplings of the angular momentum to the magnetic moments
+  ! Compile-time parameters to avoid any surprises.
+  real(KIND=dp), parameter :: g_spin (2)= (/-3.826d0, 5.586d0/)!Spin-coupling 
+  real(KIND=dp), parameter :: g_orbit(2)= (/    0.d0, 1.d0   /)!Orbital-coupling
   !-----------------------------------------------------------------------------
   ! CutoffType
   ! 0 : Density-dependent cutoff
@@ -300,7 +317,7 @@ contains
     character(len=1) :: Ax='Z', secAx1='X', secAx2='Y'
 
     1 format (30('-'), ' Multipole Moments', 30('-') )
-    2 format ('Maximum l considered = ' , i3 )
+    2 format ('Maximum l considered = ' , i3, ' (mass) ', i3, ' (magnetic) ' )
 
     3 format ('Quantisation Axis for the multipole moments:  ', a1)
     4 format ('  With secondary axis ordering             :  ', a1, ',', a1)
@@ -319,7 +336,7 @@ contains
    91 format ('Correction of spherical harmonics with COM: NOT ACTIVE')
 
     print 1
-    print 2, maxmoment
+    print 2, maxmoment, maxmoment_mag
 
     select case(QuantisationAxis)
     case(1)
@@ -381,10 +398,12 @@ contains
     !---------------------------------------------------------------------------
     ! This routine sets up all of the linked lists needed.
     ! 
-    ! 1) The first moment ( l=0, m=0 ) is created. It is called 'Root'.
-    !    
-    ! 2) The values of all the desired spherical harmonics
-    !    (l=0,..., MaxMoment, m=0,...,MaxMoment) are computed.
+    ! 1) The first moments ( l=0, m=0 ) to anchor the linked lists are created. 
+    !      Root         : mass (electric) multipole moments
+    !      Root_mag   : magnetic-spin multipole moments
+    ! 
+    ! 2) For each of these multipole moments, we calculate the values of the 
+    !    spherical harmonics on the mesh.
     !
     ! 3) The routine creates all the necessary moments using subroutine
     !    NewMoment and links them in the following order:
@@ -392,14 +411,14 @@ contains
     !    Moments that are automatically zero (by symmetry) are not created by
     !    NewMoment and are absent from the list.
     ! 
-    ! 4) Tantalus here detects the nonphysical moments. Not yet applicable to 
-    !    this version.
+    ! 4) Tantalus here detects the nonphysical moments. 
     !
-    ! 5) After all this, a final addition to the linked list is made: the
-    !    radius squared. (This can be used to calculate the rms radius
-    !    obviously).
+    ! 5) After all this, a final addition to the linked list for the 
+    !    mass/electric multipole moments is made: the radius squared. 
+    !    This is implemented as a multipole moment with l = -2. 
     !
     ! --------------------------------------------------------------------------
+
     integer :: l,m,ImPart,i,j,k
     ! Meshes containing the values of all associated Legendre Polynomials
     ! Some dimensions start at index 0, because l and m can both be 0
@@ -410,11 +429,14 @@ contains
     
     allocate(SpherHarmMesh(nx,ny,nz,0:MaxMoment,0:MaxMoment,2))
     !---------------------------------------------------------------------------
-    ! Create the first Multipole moment: l=0, m=0
+    ! Create the first Multipole moments: l=0, m=0
     nullify(Root) ;    allocate(Root)
     Root%l=0      ;    Root%m=0
     allocate(Root%SpherHarm(nx*ny*nz))
     
+$NTR    nullify(Root_mag) ;    allocate(Root_mag)
+$NTR    Root_mag%l=0      ;    Root_mag%m=0
+$NTR    allocate(Root_mag%SpherHarm(nx*ny*nz))
     !---------------------------------------------------------------------------
     !This is the l=0,m=0 spherical harmonic
     Root%SpherHarm=1.0_dp/sqrt(4.0_dp*pi) 
@@ -423,6 +445,16 @@ contains
     Root%Calculate   => Calculate_electric
     Root%PrintMoment => PrintMoment_electric
     nullify(Root%Prev) ;  nullify(Root%Next)
+
+$NTR    Root_mag%SpherHarm=1.0_dp/sqrt(4.0_dp*pi) 
+$NTR    Root_mag%Impart=.false.
+$NTR    Root_mag%ConstraintType=0
+$NTR    ! Note that I'm not sure what the l=0,m=0 magnetic moment would be
+$NTR    ! At the least it is parity violating, so just to avoid trouble, we
+$NTR    ! associate these pointers with the ELECTRIC routines.
+$NTR    Root_mag%Calculate   => Calculate_electric
+$NTR    Root_mag%PrintMoment => PrintMoment_electric
+$NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     
     !---------------------------------------------------------------------------
     ! Calculating all the spherical harmonics
@@ -430,13 +462,13 @@ contains
     &                          SpherHarmMesh,quantisationaxis,secondaryaxis)
     
     !---------------------------------------------------------------------------
-    ! Starting the initialization
+    !Creating all the moments and assigning each moment the spherical harmonic
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! a) The mass/electric moments
     nullify(Current)      ;  allocate(Current)     ; Current=>Root
     nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
-    !---------------------------------------------------------------------------
-    !Creating all the moments and assigning each moment the spherical harmonic
-    ! a) The electric moments
-    do l=1, MaxMoment
+ 
+    do l=1,MaxMoment
       do m=0,l
         do ImPart=0,1
           NextMoment => NewMoment_electric(l,m,ImPart)
@@ -453,8 +485,7 @@ contains
         enddo
       enddo
     enddo
-    !---------------------------------------------------------------------------
-    !Appending the radius squared to the ordinary list
+    !We append the radius squared to the ordinary list
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_rms  
@@ -469,8 +500,29 @@ contains
     
     Current%Next    => NextMoment
     NextMoment%Prev => Current
+    nullify(Current)
     !---------------------------------------------------------------------------
-    return
+$NTR    allocate(Current)
+$NTR    Current=>Root_mag
+$NTR    nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
+$NTR    do l=1,MaxMoment_mag
+$NTR     do m=0,l
+$NTR        do ImPart=0,1
+$NTR          NextMoment => NewMoment_magnetic(l,m,ImPart)
+$NTR          !Placing the moment in the list
+$NTR          if(associated(NextMoment)) then
+$NTR            harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
+$NTR            harm_3D=SpherHarmMesh(:,:,:,l,m,Impart+1)
+$NTR
+$NTR            NextMoment%Prev => Current
+$NTR            Current%Next => NextMoment
+$NTR            Current => NextMoment
+$NTR            nullify(NextMoment)
+$NTR          endif
+$NTR        enddo
+$NTR      enddo
+$NTR    enddo
+    !---------------------------------------------------------------------------
   end subroutine IniMoments
 
   subroutine shift_multipoles()
@@ -522,10 +574,11 @@ contains
 
   function NewMoment_Electric(l,m,ImPart) result(newmoment)
     !---------------------------------------------------------------------------
-    ! This subroutine tries to create a new multipole moment. It checks a 
-    ! predefined list (generated by Hephaestos) whether the asked for
-    ! combination (l, m, impart) is restricted by symmetry or not. 
-    ! 
+    ! This subroutine tries to create a new mass/electric multipole moment. 
+    ! It checks a predefined list (generated by Hephaestos) whether the asked 
+    ! for combination (l, m, impart) is restricted by a self-consistent symmetry
+    ! or not.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   l, m  : characteristic numbers of the multipole moment
     !   impart: real (0) or imaginary (1) part of multipole moment
@@ -593,6 +646,10 @@ $FILL_LIST
     NewMoment%scalefactor     = 1.0_dp
     NewMoment%intensity       = 0.0_dp
     NewMoment%intensityfactor = 1.0_dp
+    ! Zero these for safety
+    NewMoment%vectorvalue     = 0.0_dp
+    NewMoment%physvectorvalue = 0.0_dp
+
     
     nullify(NewMoment%Calculate)
     NewMoment%Calculate   => Calculate_electric
@@ -600,6 +657,96 @@ $FILL_LIST
 
     return
   end function NewMoment_Electric
+  
+  function NewMoment_magnetic(l,m,Impart) result(newmoment)
+    !---------------------------------------------------------------------------
+    ! This subroutine tries to create a new magneic multipole moment. 
+    ! It checks a predefined list (generated by Hephaestos) whether the asked 
+    ! for combination (l, m, impart) is restricted by a self-consistent symmetry
+    ! or not.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   l, m  : characteristic numbers of the multipole moment
+    !   impart: real (0) or imaginary (1) part of multipole moment
+    !
+    ! Output:
+    !   newmoment :  either (a) a pointer to an empty Moment extended type
+    !                or    (b) an unassociated pointer
+    !
+    !                If the multipole moment is a relevant degree of freedom
+    !                (as determined by Hephaestos from the symmetry options)
+    !                then the routine returns (a), else (b).
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! ATTENTION: 
+    ! (*) This routine is currently hard-coded for CR8-like symmetry and for
+    !     multipole options that put the quantisation axis around the z-axis.
+    !     An expansion of Hephaestos is necessary to properly extend this to
+    !     complicated symmetry-breaking calculations.
+    !---------------------------------------------------------------------------  
+    type(Moment),pointer   :: NewMoment
+    integer, intent(in)    :: l,m,ImPart
+
+    nullify(NewMoment)
+
+    
+    if((m.eq.0).and.(Impart.eq.1)) then
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      !Do not create a new moment for an imaginary part of moments with m=0
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      return
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Symmetry selection options
+    ! - - - - - - - - - - - - - - 
+    ! For a CR8-like symmetry with a multipole quantisation axis around Z we 
+    ! have that:
+    ! 
+    ! (1) imaginary parts are zero
+    ! (2) all moments with m = odd are zero
+    ! (3) all moments with l = odd are zero 
+    !
+    ! These options need to be refined with hephaestos one day.
+    if((ImPart.eq.1.)) return
+    if((mod(m,2).ne.0)) return
+    if((mod(l,2).eq.0)) return
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    
+    allocate(NewMoment)
+    NewMoment%l=l
+    NewMoment%m=m
+
+    nullify(NewMoment%Prev, NewMoment%Next)
+    allocate(NewMoment%SpherHarm(nx*ny*nz))
+
+    if(ImPart.eq.1.) then
+        NewMoment%ImPart=.true.
+    else
+        NewMoment%ImPart=.false.
+    endif
+
+    ! The parameters of the new multipole moment are set to zero by default.
+    NewMoment%ConstraintType  = 0
+    NewMoment%Value           = 0.0_dp
+    NewMoment%SpherHarm       = 0.0_dp
+    NewMoment%Squared         = 0.0_dp
+    NewMoment%multiplier      = 0.0_dp
+    NewMoment%mult_hist       = 0.0_dp
+    NewMoment%scalefactor     = 1.0_dp
+    NewMoment%intensity       = 0.0_dp
+    NewMoment%intensityfactor = 1.0_dp
+    NewMoment%vectorvalue     = 0.0_dp
+    NewMoment%physvectorvalue = 0.0_dp
+
+
+    nullify(NewMoment%Calculate)
+
+    NewMoment%Calculate   => Calculate_Magnetic
+    NewMoment%PrintMoment => PrintMoment_Magnetic
+
+    return
+  
+  end function NewMoment_magnetic
 
 !===============================================================================
 ! Calculation routines
@@ -608,7 +755,7 @@ $FILL_LIST
   subroutine CalculateMoments()
     !---------------------------------------------------------------------------
     ! Subroutine that
-    !   1) Calculates the values of all multipole moments
+    !   1) Calculates the values of all multipole (mass and magnetic) moments
     !   2) Calculate the quadrupole moments in different representations
     !---------------------------------------------------------------------------
     use Densities
@@ -617,21 +764,27 @@ $FILL_LIST
 
     call start_timer(T_moments)
 
-    nullify(Current)
-    Current => Root
     !---------------------------------------------------------------------------
-    !First, we need to calculate the cutoff function
+    ! First, we need to calculate the cutoff function
     call CompCutoff
-    !---------------------------------------------------------------------------
-    ! Calculate the electric monopole
-    call Current%Calculate(Current)
+
     !---------------------------------------------------------------------------
     ! Calculate the electric multipole moments
+    nullify(Current) ;  Current => Root
+    call Current%Calculate(Current) !  electric monopole
+    !---------------------------------------------------------------------------
     do while(associated(Current%Next))
         Current => Current%Next
         call Current%Calculate(Current)
     enddo
-
+    !---------------------------------------------------------------------------
+    ! Calculate the magnetic multipole moments 
+$NTR    nullify(Current) ;  Current => Root_mag
+$NTR    do while(associated(Current%Next))
+$NTR        Current => Current%Next
+$NTR        call Current%Calculate(Current)
+$NTR    enddo
+    
     call CalcQuadrupoleAlt()
 
     call stop_timer(T_moments)
@@ -639,88 +792,12 @@ $FILL_LIST
     return
   end subroutine CalculateMoments
   
-  subroutine center_of_mass_shift(shiftx, shifty, shiftz) 
-    !---------------------------------------------------------------------------
-    ! We calculate the center-of-mass coordinates of the nucleus.
-    !
-    ! Note that 
-    ! * Currently implemented symmetries imply that <x> = 0 and <y> = 0  
-    ! * We don't bother with selecting on a combination of 
-    !      (symmetries, quantisation axis)
-    !   we simply check which of the possible Q_1m exists and use that.
-    !---------------------------------------------------------------------------
-    real(KIND=dp), intent(out) :: shiftx, shifty, shiftz
-    real(KIND=dp)              :: C, fac
-    type(Moment), pointer      :: Q1m
-    
-    shiftx = 0
-    shifty = 0
-    shiftz = 0
-    fac    = sqrt(4.0 * pi/3.0) ! prefactor between z and Q10
-    
-    Q1m=>Findmoment(1,0,.false.)
-    if(associated(Q1m)) then
-      if(follow_com ) then
-        call Q1m%calculate(Q1m)
-        C = sum(Q1m%value)
-      else
-        C = Q1m%constraint
-      endif
-      shiftz = C/(protons+neutrons) * fac
-    endif
-
-    Q1m=>Findmoment(1,1,.false.)
-    if(associated(Q1m)) then
-      if(follow_com ) then
-        call Q1m%calculate(Q1m)
-        C = sum(Q1m%value)
-      else
-        C = Q1m%constraint
-      endif
-      shiftz = C/(protons+neutrons) * fac
-    endif
-
-    Q1m=>Findmoment(1,1,.true.)
-    if(associated(Q1m)) then
-      if(follow_com ) then
-        call Q1m%calculate(Q1m)
-        C = sum(Q1m%value)
-      else
-        C = Q1m%constraint
-      endif
-      shiftz = C/(protons+neutrons) * fac
-    endif
-    
-  end subroutine center_of_mass_shift
-  
-  subroutine adapt_com()
-    !---------------------------------------------------------------------------
-    ! Adapt things to the shifted nuclear center-of-mass
-    !  (1) Calculate the current center-of-mass coordinates
-    !  (2) Calculate the coordinates of the meshpoints in the reference frame
-    !  (3) modify all spherical harmonics (but not the COM itself!)
-    ! 
-    ! Note that the effects of the shifted meshes can be felt outside this  
-    ! module: in particular with respect to the angular momentum and moments
-    ! of inertia, which are all calculated with respect to the COM of the 
-    ! nucleus.
-    !---------------------------------------------------------------------------
-    real(KIND=dp) :: shiftx, shifty, shiftz
-    
-    ! Calculate the location of the C.O.M. 
-    call center_of_mass_shift(shiftx, shifty, shiftz) 
-    ! Generate shifted mesh variables
-    call inimesh(meshx_shifted, meshy_shifted, meshz_shifted, nx, ny,nz,       &
-    &                                     meshgrid_shifted,shiftx,shifty,shiftz)
-    
-    ! Regenerate values of the spherical harmonics on this mesh
-    call shift_multipoles()
-  
-  end subroutine adapt_com
-  
   subroutine Calculate_electric(ToCalculate)
     !---------------------------------------------------------------------------
-    ! This subroutine calculates the passed-in electric multipole moment.
+    ! This subroutine calculates the value of a mass/electric multipole moment.
+    !
+    ! Input:
+    !        Tocalculate :  mass/electric multipole moment to be calculated
     !---------------------------------------------------------------------------
     use Densities, only : D_I_I
   
@@ -769,6 +846,80 @@ $FILL_LIST
 
     return
   end subroutine Calculate_electric
+  
+  subroutine Calculate_magnetic(ToCalculate)
+    !---------------------------------------------------------------------------
+    ! This subroutine calculates the magnetic multipole moment by integrating 
+    ! the spin and current density over the mesh with the appropriate 
+    ! spherical harmonic. 
+    ! 
+    ! There are two integrations to be performed here
+    !
+    ! < Q^m_(lm,s) > =   -  1/2 int d^3r  (nabla_mu s_mu)       Q_lm
+    ! < Q^m_(lm,l) > =   -      int d^3r  (nabla_mu (r x j)_mu) Q_lm
+    !                =   +      int d^3r r_mu (nabla x j)_mu    Q_lm
+    !
+    ! Note the 'surprise!' factor of two, since our Pauli matrices have
+    ! eigenvalues +/-1 instead of +/- 0.5. 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !        Tocalculate :  mass/electric multipole moment to be calculated
+    !---------------------------------------------------------------------------
+$NTR    use densities, only : der_C_I_N, der_D_I_S
+
+    class(Moment),        intent(inout) :: ToCalculate
+$NTR    integer                             :: it,mu
+$NTR    real(KIND=dp)                       :: rj(nx*ny*nz,3)
+
+    !Initialise
+    ToCalculate%VectorValue     = 0.0_dp
+    ToCalculate%PhysVectorValue = 0.0_dp
+    
+    !---------------------------------------------------------------------------
+    ! Orbital function to integrate over
+    ! - div.(r x j) 
+    !   = - sum_ijk epsilon_ijk nabla_i (r_j j_k)
+    !   = - sum_ijk epsilon_ijk [ (nabla_i r_j) j_k + r_j (nabla_i j_k) ]
+    !   = - sum_ijk epsilon_ijk r_j (nabla_i j_k)
+    !   =   r.(nabla x j)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+$NTR    do it=1,2
+$NTR      !                                [nabla x j]_x = nabla_y j_z - nabla_z j_y
+$NTR      rj(:,1) = meshgrid_shifted(:,1) * &
+$NTR      &                              (der_C_I_N(:,2,3,it) - der_C_I_N(:,3,2,it))
+$NTR      !                                [nabla x j]_y = nabla_z j_x - nabla_x j_z
+$NTR      rj(:,2) = meshgrid_shifted(:,2) * &
+$NTR      &                              (der_C_I_N(:,3,1,it) - der_C_I_N(:,1,3,it)) 
+$NTR      !                                [nabla x j]_z = nabla_x j_y - nabla_y j_x
+$NTR      rj(:,3) = meshgrid_shifted(:,3) * &
+$NTR      &                              (der_C_I_N(:,1,2,it) - der_C_I_N(:,2,1,it)) 
+$NTR  
+$NTR      ! spin part = -1/2 Y_lm div.s(r)
+$NTR      do mu=1,3
+$NTR        ToCalculate%VectorValue(mu,1,it)    = - 0.5_dp*                        &
+$NTR        &                    sum(ToCalculate%SpherHarm(:)*Der_D_I_S(:,mu,mu,it))
+$NTR      enddo
+$NTR      ! Orbital part -2/(l+1) Y_lm div(r x j) = 2/(l+1) Y_lm r.(rot j)
+$NTR      do mu=1,3
+$NTR        ToCalculate%VectorValue(mu,2,it) =  2.0_dp/(ToCalculate%l+1) *         &
+$NTR        &                                 sum(ToCalculate%SpherHarm(:)*rj(:,mu))
+$NTR      enddo  
+$NTR    enddo
+$NTR    !---------------------------------------------------------------------------
+$NTR    ! Calculate the contribution to the physical magnetic multipole moment
+$NTR    do it=1,2
+$NTR        do mu=1,3
+$NTR            toCalculate%Physvectorvalue(mu,it) =                &
+$NTR            &    g_spin (it) * tocalculate%vectorvalue(mu,1,it) &
+$NTR            &  + g_orbit(it) * tocalculate%vectorvalue(mu,2,it)
+$NTR        enddo
+$NTR    enddo
+$NTR    ToCalculate%vectorValue       = ToCalculate%vectorValue*dv
+$NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
+
+    return
+  end subroutine Calculate_magnetic
+ 
 
   subroutine Calculate_rms(ToCalculate)
     !---------------------------------------------------------------------------
@@ -1067,7 +1218,7 @@ $FILL_LIST
     &           MaxMoment,                                  &  ! General options
     &           radd, acut, cutfac, cutofftype,             &   ! Cutoff options
     &           ContinueAll,                                &
-    &           follow_COM,                                 &
+    &           follow_COM, maxmoment, maxmoment_mag,       &
     &           MoreConstraints            ! Signal that constraints will follow
       
     NameList /MomentConstraint/                                                &
@@ -1235,6 +1386,7 @@ $FILL_LIST
     character(len=1)      :: AX='Z',secAx1='Y', secAx2='Z'
 
   100 format (16('-'),' Electric Multipole Moments ', 17('-'))
+  101 format (15('-'),' Magnetic Multipole Moments ', 16('-'))   
   102 format (60('-'))
     1 format (62('_'))
     2 format (17x,4x, 'Neutrons',8x, 'Protons',9x, 'Total')
@@ -1243,7 +1395,9 @@ $FILL_LIST
     8 format ('Q_{',i2,'} ',5x, 3(1x,f15.4))
    10 format ('Quantisation Axis             : ', a1)
    11 format ('  With secondary axis ordering: ', a1, ',', a1)
-
+   12 format (' Units: ',/,&
+     &          '   spin/orbit/total: hbar fm^(l-1)', /, &
+     &          '   phys:             mu_N fm^(l-1)'  )
 
    ! Print information on the quantisationaxis and secondary axis
    select case(QuantisationAxis)
@@ -1279,8 +1433,10 @@ $FILL_LIST
     print 1
     print 2
     print 1
-
-    !-------------------------------------------------------------------------
+  
+    !---------------------------------------------------------------------------
+    ! Mass/electric multipole moments
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Print all moments individually
     Current => Root
     currentl = Current%l
@@ -1288,7 +1444,6 @@ $FILL_LIST
     call Current%printMoment(Current)
     do while(associated(Current%Next))
       Current => Current%Next
-      !------------------------------------
       !Print a new line when getting new l.
       if(currentl .ne. Current%l) print *
       currentl = Current%l
@@ -1297,7 +1452,7 @@ $FILL_LIST
     print 1
     nullify(Current)
     
-    !-------------------------------------------------------------------------
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Printing Beta_lm deformation parameters
     print 2
     print 1
@@ -1305,7 +1460,6 @@ $FILL_LIST
     currentl = Current%l
     do while(associated(Current%Next))
       Current => Current%Next
-      !-------------------------------------------------------------------------
       !Print a new line when getting new l.
       if(currentl .ne. Current%l) print *
       currentl = Current%l
@@ -1316,7 +1470,7 @@ $FILL_LIST
     enddo
     nullify(Current)
     print 1
-    !---------------------------------------------------------------------------
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Printing the total multipole moments Q_l
     print 2
     print 1
@@ -1330,7 +1484,7 @@ $FILL_LIST
     enddo
     print 1
     nullify(Current)
-    !-------------------------------------------------------------------------
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Printing Beta_l deformation parameters
     print 2
     print 1
@@ -1347,10 +1501,33 @@ $FILL_LIST
     enddo
     print 1
     nullify(Current)
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Print alternative conventions for the quadrupole moment
     call PrintQuadrupoleAlt
     print 102
-
+    
+    !---------------------------------------------------------------------------
+    ! b) Magnetic multipole moments
+$NTR    print 101
+$NTR    print 10, Ax
+$NTR    print 11, SecAx1, SecAx2
+$NTR    print 12
+$NTR    print 1
+$NTR    Current => Root_mag
+$NTR    Current => Current%Next
+$NTR    currentl = Current%l
+    
+$NTR    call Current%printMoment(Current)
+$NTR    do while(associated(Current%Next))
+$NTR      Current => Current%Next
+$NTR      print 1
+$NTR      currentl = Current%l
+$NTR      call Current%PrintMoment(Current)
+$NTR    enddo
+$NTR    
+$NTR    nullify(Current)
+$NTR    print 102
+    
     return
   end subroutine PrintAllMoments
 
@@ -1421,6 +1598,114 @@ $FILL_LIST
     end select
     !---------------------------------------------------------------------------
   end subroutine PrintMoment_electric
+
+  subroutine PrintMoment_magnetic(ToPrint)
+    !---------------------------------------------------------------------------
+    ! This subroutine provides the printing of all relevant info of a magnetic
+    ! multipole moment. 
+    ! 
+    ! Remarks [MB 19/04/17]:
+    !  (1) the X/Y/Z components have no physical meaning, they just represent 
+    !      the contribution from the x/y/z component of either s(r) or 
+    !      r x j(r) to the moments.  
+    !  (2) We also print the cartesian expression for the physical dipole moment
+    !      This is defined as ( j j | mu_z | j j ), with 
+    !      mu_z = sqrt((4*pi)/3) Y_10
+    !      This quantity only makes sense if (a) the nucleus is (near-)axially
+    !      symmetric with z as the symmetry axis and (b) the angular momentum is
+    !      oriented along the z-axis.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+    ! Input:
+    !   ToPrint: multipole moment to be printed. Should be a magnetic one.
+    !---------------------------------------------------------------------------
+
+    class(Moment),       intent(in) :: ToPrint
+    character(len=2)                :: ReIm
+    real(KIND=dp)                   :: fac
+
+    1 format (1x, A2, ' Q^m_{', 2i2, '}     X           Y            Z        total')
+    2 format (    ' Spin     n ', 4(1x,es11.3),/, & 
+    &             '          p ', 4(1x,es11.3),/, & 
+    &             '          t ', 4(1x,es11.3))
+    3 format (    ' Orbital  n ', 4(1x,es11.3),/, &
+    &             '          p ', 4(1x,es11.3),/, &
+    &             '          t ', 4(1x,es11.3))
+    4 format (    ' Total    n ', 4(1x,es11.3),/, &
+    &             '          p ', 4(1x,es11.3),/, & 
+    &             '          t ', 4(1x,es11.3))
+    5 format (    ' Phys     n ', 4(1x,es11.3),/,&
+    &             '          p ', 4(1x,es11.3),/,& 
+    &             '          t ', 4(1x,es11.3))
+    6 format (    60('_'),/, & 
+    &             ' mu_z  n    ', 36x,1x,f11.6,/,&
+    &             ' mu_z  p(S) ', 36x,1x,f11.6,/,&
+    &             ' mu_z  p(L) ', 36x,1x,f11.6,/,&
+    &             ' mu_z  p    ', 36x,1x,f11.6,/,&
+    &             ' mu_z  t    ', 36x,1x,f11.6)
+    7 format (    60('_'),/, & 
+    &             ' mu_x  n    ', 36x,1x,f11.6,/,&
+    &             ' mu_x  p(S) ', 36x,1x,f11.6,/,&
+    &             ' mu_x  p(L) ', 36x,1x,f11.6,/,&
+    &             ' mu_x  p    ', 36x,1x,f11.6,/,&
+    &             ' mu_x  t    ', 36x,1x,f11.6)
+
+    ! All "normal" magnetic moments
+    if(.not.ToPrint%Impart) then
+        ReIm = 'Re'
+    else
+        ReIm = 'Im'
+    endif
+
+    print 1, ReIm, ToPrint%l, ToPrint%m
+    print 2, ToPrint%VectorValue(1:3,1,1), sum(ToPrint%VectorValue(1:3,1,1)),  &
+    &        ToPrint%VectorValue(1:3,1,2), sum(ToPrint%VectorValue(1:3,1,2)),  &
+    &                                    sum(ToPrint%VectorValue(1:3,1,:),2),  &
+    &                                    sum(ToPrint%VectorValue(1:3,1,:))
+    print 3, ToPrint%VectorValue(1:3,2,1), sum(ToPrint%VectorValue(1:3,2,1)),  &
+    &        ToPrint%VectorValue(1:3,2,2), sum(ToPrint%VectorValue(1:3,2,2)),  &
+    &                                    sum(ToPrint%VectorValue(1:3,2,:),2),  &
+    &                                    sum(ToPrint%VectorValue(1:3,2,:))
+    print 4, sum(ToPrint%VectorValue(1:3,:,1),2),         &
+    &        sum(ToPrint%VectorValue(1:3,:,1)),           &
+    &        sum(ToPrint%VectorValue(1:3,:,2),2),         &
+    &        sum(ToPrint%VectorValue(1:3,:,2)),           &
+    &        sum(sum(ToPrint%VectorValue(1:3,:,:),2),2),  &
+    &        sum(ToPrint%VectorValue)
+    print 5, ToPrint%physVectorValue(1:3,1), sum(ToPrint%physVectorValue(1:3,1)),&
+    &        ToPrint%physVectorValue(1:3,2), sum(ToPrint%physVectorValue(1:3,2)),&
+    &    sum(ToPrint%physVectorValue(1:3,:),2), sum(ToPrint%physVectorValue)
+    !------------------------------------------------------------------------
+    ! in case of dipole moment, print also the z component of the cartesian 
+    ! magnetic dipole moment defined as ( j j | mu_z | j j ).
+    ! mu_z = sqrt((4*pi)/3) Y_10
+    !------------------------------------------------------------------------
+    ! Note that this value only has a sense when the nucleus is axial and
+    ! near-symmetric around the z axis.
+    !------------------------------------------------------------------------
+    if ( ToPrint%l .eq. 1 .and. ToPrint%m .eq. 0 ) then
+      fac = sqrt((4.0_dp*pi)/3.0_dp)
+      print 6,fac *              sum(ToPrint%physVectorValue(1:3,1)),  &
+    &         fac * g_spin (2) * sum(ToPrint%VectorValue(1:3,1,2)),    &
+    &         fac * g_orbit(2) * sum(ToPrint%VectorValue(1:3,2,2)),    &
+    &         fac *              sum(ToPrint%physVectorValue(1:3,2)),  &
+    &         fac * (            sum(ToPrint%physVectorValue(1:3,1))   &
+    &                           +sum(ToPrint%physVectorValue(1:3,2)))
+    endif  
+    !------------------------------------------------------------------------
+    ! in case of dipole moment, print also the x component of the cartesian 
+    ! magnetic dipole moment defined as mu_x = sqrt((8*pi)/3) Re{Y_11}.
+    !------------------------------------------------------------------------
+    if ( ToPrint%l .eq. 1 .and. ToPrint%m .eq. 1 ) then
+      fac = -sqrt((8.0_dp*pi)/3.0_dp)
+      print 7,fac *              sum(ToPrint%physVectorValue(1:3,1)),  &
+    &         fac * g_spin (2) * sum(ToPrint%VectorValue(1:3,1,2)),    &
+    &         fac * g_orbit(2) * sum(ToPrint%VectorValue(1:3,2,2)),    &
+    &         fac *              sum(ToPrint%physVectorValue(1:3,2)),  &
+    &         fac * (            sum(ToPrint%physVectorValue(1:3,1))   &
+    &                           +sum(ToPrint%physVectorValue(1:3,2)))
+    endif  
+   
+  end subroutine PrintMoment_magnetic
 
   subroutine PrintQuadrupoleAlt()
     !---------------------------------------------------------------------------
@@ -1912,15 +2197,108 @@ $FILL_LIST
 
   end function checkconstraints
 
+!===============================================================================  
+! Other business.
+!===============================================================================  
+    
+  subroutine center_of_mass_shift(shiftx, shifty, shiftz) 
+    !---------------------------------------------------------------------------
+    ! We calculate the center-of-mass coordinates of the nucleus.
+    !
+    ! Note that 
+    ! * Currently implemented symmetries imply that <x> = 0 and <y> = 0  
+    ! * We don't bother with selecting on a combination of 
+    !      (symmetries, quantisation axis)
+    !   we simply check which of the possible Q_1m exists and use that.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(out) :: shiftx, shifty, shiftz
+    real(KIND=dp)              :: C, fac
+    type(Moment), pointer      :: Q1m
+    
+    shiftx = 0
+    shifty = 0
+    shiftz = 0
+    fac    = sqrt(4.0 * pi/3.0) ! prefactor between z and Q10
+    
+    Q1m=>Findmoment(1,0,.false.)
+    if(associated(Q1m)) then
+      if(follow_com ) then
+        call Q1m%calculate(Q1m)
+        C = sum(Q1m%value)
+      else
+        C = Q1m%constraint
+      endif
+      shiftz = C/(protons+neutrons) * fac
+    endif
+
+    Q1m=>Findmoment(1,1,.false.)
+    if(associated(Q1m)) then
+      if(follow_com ) then
+        call Q1m%calculate(Q1m)
+        C = sum(Q1m%value)
+      else
+        C = Q1m%constraint
+      endif
+      shiftz = C/(protons+neutrons) * fac
+    endif
+
+    Q1m=>Findmoment(1,1,.true.)
+    if(associated(Q1m)) then
+      if(follow_com ) then
+        call Q1m%calculate(Q1m)
+        C = sum(Q1m%value)
+      else
+        C = Q1m%constraint
+      endif
+      shiftz = C/(protons+neutrons) * fac
+    endif
+    
+  end subroutine center_of_mass_shift
+  
+  subroutine adapt_com()
+    !---------------------------------------------------------------------------
+    ! Adapt things to the shifted nuclear center-of-mass
+    !  (1) Calculate the current center-of-mass coordinates
+    !  (2) Calculate the coordinates of the meshpoints in the reference frame
+    !  (3) modify all spherical harmonics (but not the COM itself!)
+    ! 
+    ! Note that the effects of the shifted meshes can be felt outside this  
+    ! module: in particular with respect to the angular momentum and moments
+    ! of inertia, which are all calculated with respect to the COM of the 
+    ! nucleus.
+    !---------------------------------------------------------------------------
+    real(KIND=dp) :: shiftx, shifty, shiftz
+    
+    ! Calculate the location of the C.O.M. 
+    call center_of_mass_shift(shiftx, shifty, shiftz) 
+    ! Generate shifted mesh variables
+    call inimesh(meshx_shifted, meshy_shifted, meshz_shifted, nx, ny,nz,       &
+    &                                     meshgrid_shifted,shiftx,shifty,shiftz)
+    
+    ! Regenerate values of the spherical harmonics on this mesh
+    call shift_multipoles()
+  
+  end subroutine adapt_com
+
   recursive function FindMoment(l,m,Impart,StartMoment) result(FoundMoment)
     !---------------------------------------------------------------------------
-    ! Subroutine that finds a pointer to the moment, specified by multipole
-    ! values l,m and whether it is a real or imaginary part.
-    ! For maximum efficiency, it is possible to specify a StartMoment, so that
-    ! the search starts at that specific moment.
-    ! Ex: Tantalus can find Im(Q_{22}) faster if it starts from Re(Q_{20}).
+    ! Subroutine that finds a pointer to the multipole moment, specified by 
+    ! quantum l,m and whether it is a real or imaginary part.
+    ! 
+    ! ATTENTION: by default this will traverse the linked list of ordinary
+    !            (=mass/electric) multipole moments. If you want to look for 
+    !            magnetic moments or others, give the routine a starting point
+    !            in the relevant linked list.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !
-    ! The result is null if the moment isn't found.
+    ! Input: 
+    !   l,m        : quantum numbers of the multipole moment
+    !   Impart     : real part (.false.) or imaginary part (.false.)  
+    !   Startmoment: a multipole moment, starting point of the search 
+    ! Output:
+    !   Foundmoment : pointer to the asked for moment. The result is null
+    !                 (=unassociated) if the moment isn't found. 
+    ! 
     !---------------------------------------------------------------------------
     integer, intent(in)                        :: l,m
     logical, intent(in)                        :: Impart
@@ -1929,9 +2307,12 @@ $FILL_LIST
 
     nullify(Current); nullify(FoundMoment)
 
+  
     if(present(StartMoment)) then
       Current => StartMoment
     else
+      ! By default, if no startingmoment is supplied, start from the top of
+      ! the mass multipole moment list.
       Current => Root
     endif
 

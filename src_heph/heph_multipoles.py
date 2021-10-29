@@ -175,6 +175,13 @@ def ProcessMoments(fname, src, target, so):
   dic['FILL_LIST'] = filling
   dic['QUANT_AX']  = '%d'%(['X','Y','Z'].index(so.quant_axis) + 1)
   dic['SECOND_AX'] = so.second_axis
+  
+  if(so.timelike):
+    dic['TR']  = ''
+    dic['NTR'] = '!'
+  else:
+    dic['TR']  = '!'
+    dic['NTR'] = ''
     
   with open(src+fname, 'r') as template:
     with open(target+fname, 'w') as generated:

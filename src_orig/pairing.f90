@@ -172,7 +172,7 @@ contains
     !---------------------------------------------------------------------------
     character(len=20)                   :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
-    integer                             :: i
+$PBROKEN    integer                             :: i
     
     NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 

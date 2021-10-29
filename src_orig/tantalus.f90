@@ -430,7 +430,7 @@ subroutine printsummary(iter)
     real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val
     character(len=1)      :: t, spec
 
-    1 format (80('-'))
+    1 format (82('-'))
     2 format (' Iteration = ',i4)
     3 format (' dt   = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
    31 format (' dtg  = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
