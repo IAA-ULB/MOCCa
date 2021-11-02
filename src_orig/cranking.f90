@@ -45,6 +45,7 @@ module cranking
  !   the three Cartesian directions.
  !------------------------------------------------------------------------------
  real(KIND=dp) :: Omega(3)       = 0.0_dp
+ real(KIND=dp) :: Omega_prev(3)  = 0.0_dp
  !------------------------------------------------------------------------------
  ! Crankvalues:  Values of J_mu to use in the cranking constraint
  !------------------------------------------------------------------------------
@@ -114,6 +115,27 @@ module cranking
  integer, parameter, dimension(cranklen+1) :: crankdirections = (/ $CRANKDIR 0/)
 
 contains
+
+  function check_cranking() result(checked)
+    !---------------------------------------------------------------------------
+    ! Simple function that indicates whether there are active cranking 
+    ! constraints requiring projection on the feasible subspace.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Output: 
+    !    checked: .false. if no such constraints present, .true. else.
+    !
+    !---------------------------------------------------------------------------
+    logical :: checked
+    integer :: i
+    
+    checked = .false.
+    do i=1,3
+      if(cranktype(i) .eq. 1) then
+        checked = .true.
+      endif
+    enddo
+    
+  end function check_cranking
 
   subroutine readcranking(file_number)
     !---------------------------------------------------------------------------
@@ -235,46 +257,99 @@ $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
     ! at the start of the program.
     !---------------------------------------------------------------------------
     1 format ( 29('-'), ' Cranking information ', 29('-'))
-    2 format ( ' Cranking frequencies ', /, & 
+    2 format ( ' Cranking frequencies:   ', /, & 
     &          '    Omega_X = ', f15.3, /,  &
     &          '    Omega_Y = ', f15.3, /,  &
     &          '    Omega_Z = ', f15.3) 
-
+    3 format ( ' Cranking target values: ', /, & 
+    &          '    J_X     = ', f15.3, /,  &
+    &          '    J_Y     = ', f15.3, /,  &
+    &          '    J_Z     = ', f15.3) 
+    4 format ( ' Cranking types: ', 3i3)
+    5 format ( ' Cranking on the basis of INTEGRATION OF DENSITIES')
+   51 format ( ' Cranking on the basis of SPWFs ANGULAR MOMENTUM')
+   
     print 1
     print 2, Omega
-        
+    print 3, CrankValues
+    print 4, Cranktype
 
+    if(crank_smooth) then
+      print 51
+    else
+      print 5
+    endif    
+ 
   end subroutine printcranking_init
 
-  subroutine PrintCranking
+  subroutine PrintCranking()
     !---------------------------------------------------------------------------
     ! Prints all kinds of information about the expectation value of the 
     ! angular momentum operator and all kinds of angles.
     !---------------------------------------------------------------------------
+    character(len=1), parameter  :: dir(3) = (/'x', 'y', 'z'/)
+    integer           :: i,j
+    logical           :: found
 
     1 format (2x,74('_') )
    10 format (2x,74('-'))
     2 format (25('-'), ' Angular Momentum (hbar) ',26('-') )
     3 format (15x, 'Spwfs(*)  ',2x, 'Desired', 5x, 'Omega', 7x, 'E (MeV)' 6x,'Densit. ')
-
+   31 format (15x, 'Densit.(*)',2x, 'Desired', 5x, 'Omega', 7x, 'E (MeV)' 6x,'Spwfs   ')
     4 format (3x,'J_',a1,'   ','|', 5f12.5 )
-   31 format (3x,'Size  |', 3f12.5,12x,1f12.5)
-!   32 format (1x,'ReJT',a1,'   ','|', 5f12.5 )
-!   33 format (1x,'ImJT',a1,'   ','|', 5f12.5 )
-!   34 format (2x,'|J|' ,a1,'   ','|', 5f12.5 )
+   41 format (3x,'Size  |', 3f12.5,12x,1f12.5)
+    5 format (2x,' _______________________________________________________' )
+    6 format (3x,'Open spin')
+    7 format (15x, 'Neutrons', 3x, 'Protons')
+    8 format (3x,a1,1x,'|',3x,'|',4f12.5)
 
     print 2
     print *
-    print 3
+    
+    if(crank_smooth) then
+     print 31
+    else
+     print 3
+    endif
+    
+    !---------------------------------------------------------------------------
+    ! Information on the total angular momentum
     print 1
-
-    print 4, 'x', TotalAngMom(1), 0.0, Omega(1), CrankEnergy(1), TotalAngMom_dens(1)
-    print 4, 'y', TotalAngMom(2), 0.0, Omega(2), CrankEnergy(2), TotalAngMom_dens(2)
-    print 4, 'z', TotalAngMom(3), 0.0, Omega(3), CrankEnergy(3), TotalAngMom_dens(3)
+    do i=1,3
+      if(crank_smooth) then
+        print 4, dir(i), TotalAngMom(i), CrankValues(i), Omega(i),        &
+        &                CrankEnergy(i), TotalAngMom     (i)
+      else
+        print 4, dir(i), TotalAngMom_dens(i), CrankValues(i), Omega(i),   &
+        &                CrankEnergy(i), TotalAngMom_dens(i)
+      endif
+    enddo
     print 1
-    print 31, sqrt(sum(totalangmom**2)), 0.0, &
+    print 41, sqrt(sum(totalangmom**2)), 0.0, &
     &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom_dens**2))
     print 10
+    
+    !---------------------------------------------------------------------------
+    ! Information on the spin density
+$NTR    print *
+$NTR    print 6
+$NTR    print 7
+$NTR    print 5
+$NTR    do i=1,3
+$NTR      found = .false.
+$NTR      do j=1,cranklen
+$NTR        if(i .eq. crankdirections(j)) found = .true.
+$NTR      enddo      
+$NTR      if(found) then
+$NTR        ! There is a possibility for total spin in this Cartesian direction.
+$NTR        print 8     , dir(i), 0.5*sum(D_I_S(:,i,1))*dv, &
+$NTR        &                     0.5*sum(D_I_S(:,i,2))*dv
+$NTR      else
+$NTR        ! Spin is restricted in this particular direction
+$NTR        print 8     , dir(i), 0.0d0,0.0d0      
+$NTR      endif
+$NTR    enddo
+$NTR    print 5
   end subroutine PrintCranking
 
   function crank_spin_potential() result(spot)
@@ -347,6 +422,7 @@ $NTR    enddo
         select case(CrankType(i))
         case(0)
           ! Nothing to be done; constant omega-cranking
+          Omega_prev(i) = Omega(i)
         case(1)
           if(CrankIntensity(i) .eq. 0.0_dp) then
             !-------------------------------------------------------------------
@@ -360,6 +436,8 @@ $NTR    enddo
           else
             value = TotalAngMom(i)
           endif
+          ! Save the previous value
+          Omega_prev(i) = Omega(i)
           Omega(i) = Omega(i)- CrankIntensity(i)*(value-CrankValues(i))
 
           ! Debugging printout

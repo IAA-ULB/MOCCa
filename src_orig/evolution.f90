@@ -690,12 +690,14 @@ contains
 
    type(Moment),pointer  :: Current
    real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
-   real(KIND=dp)         :: mpsi(nx*ny*nz,4)
-   real(KIND=dp)         :: O2, value, des, scale
-   integer               :: wave, k, B, si, N, it
+   real(KIND=dp)         :: mpsi(nx*ny*nz,4), jpsi(nx*ny*nz,4)
+   real(KIND=dp)         :: O2, value, des, scale, crankfactor(3)
+   integer               :: wave, k, B, si, N, it, i
 
    call start_timer(T_feasible)
 
+   !----------------------------------------------------------------------------
+   ! (i) The contribution of the multipole moments to the update
    Current    => Root
    multipole = 0.0_dp
    call compcutoff()
@@ -718,8 +720,6 @@ contains
     scale = Current%Scalefactor                     ! Scale factor
     
     update = 0.0
-    !-----------------------------------------------------------------------
-    !Calculate the update
     select case(Current%isoswitch)
     case(0)
       do it=1,2
@@ -732,8 +732,16 @@ contains
     end select
     multipole = multipole + Update
    enddo
-   !---------------------------------------------------------------------------
-   ! With the update in hand, we update the spwfs
+   
+   !----------------------------------------------------------------------------
+   ! (ii) The contribution of the cranking constraints to the update
+   do i=1,3
+     if(CrankType(i).ne.1) cycle ! Only include cranking for cranktype=1
+     CrankFactor(i)= 0.5*(TotalAngMom(i)-CrankValues(i))/J2_sp(i)
+   enddo
+   
+   !----------------------------------------------------------------------------
+   ! We evolve the spwfs
    si = 0   
    do B=1,8
     N = HFBlocks(B) ; if(N.eq.0) cycle
@@ -743,9 +751,23 @@ contains
       do k=1,4
         mpsi(:,k) = multipole(:,it) * HFPsi(:,k,si+wave)
       enddo
-      ! Substituting the correction
-      HFPsi(:,:,si+wave) = HFPsi(:,:,si+wave) - mpsi   !2 * mpsi
       
+      jpsi = 0.0d0
+      do i=1,3
+        if(cranktype(i) .ne. 1) cycle
+        ! Add J_i | psi >
+        jpsi = jpsi + crankfactor(i) &
+        &          * AngMomOperator(HFpsi(:,:,si+wave), HFdpsi(:,:,:,si+wave),i)
+      enddo
+      do k=1,4
+        jpsi(:,k) = cutoff(:,it) * jpsi(:,k)      
+      enddo
+      
+      ! Substituting the correction
+      HFPsi(:,:,si+wave) = HFPsi(:,:,si+wave) - mpsi - jpsi
+ 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+      !HFPsi(:,:,si+wave) = HFPsi(:,:,si+wave) - 2 * mpsi
       ! The factor two is a historical accident, and could be of course 
       ! accomodated by a redefinition of the Update above, but I prefer to 
       ! include it here and leave a trace of this happy (?) mistake.
@@ -753,6 +775,7 @@ contains
       ! 22/07/21: turns out the factor two was not a happy mistake. For 
       ! quadrupole constraints in EV8/CR8-mode, the code worked fine. For 
       ! EV4-like calculations, this turned out to be too aggressive.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
     enddo
     si = si + N
    enddo

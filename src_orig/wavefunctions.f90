@@ -1721,6 +1721,146 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     angmom = angmom * dv
   end function angmom_z_quad
   
+  function AngMomOperator(psi, dpsi, direction) result(Jpsi)
+    !---------------------------------------------------------------------------
+    ! Calculate the action of the angular momentum operator on a spwf.
+    !
+    !       J_x = 1/2*( 0  1 ) + i z \partial_y - i y\partial_z
+    !                 ( 1  0 )
+    !
+    !       J_y = 1/2*( 0 -i ) + i x \partial_z - i z\partial_x
+    !                 ( i  0 )
+    !
+    !       J_z = 1/2*( 1  0 ) + i y \partial_x - i x\partial_y
+    !                 ( 0 -1 )
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     psi   : spwf values on the mesh (= spinor)
+    !    dpsi   : derivative of the spwf on the mesh ( = 3 spinors)
+    !  direction: Cartesian direction, indicates which angular momentum to 
+    !             calculate; 1/2/3 = x/y/z
+    ! Output:
+    !   Jpsi    : the action of the angular momentum on the spwf ( = spinor)
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: psi(mv,4), dpsi(mv,3,4)
+    integer, intent(in)       :: direction
+    real(KIND=dp), allocatable :: Jpsi(:,:)
+     
+    JPsi = Orbital(dpsi, direction) + Pauli(psi,direction)   
+ 
+  end function AngMomOperator
+  
+  function Orbital(dpsi, direction) result(Lpsi)
+    !---------------------------------------------------------------------------
+    ! Calculate the action of the orbital momentum operator on a spwf.
+    !
+    !       L_x = i z \partial_y - i y\partial_z
+    !       L_y = i x \partial_z - i z\partial_x
+    !       L_z = i y \partial_x - i x\partial_y
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     psi   : spwf values on the mesh (= spinor)
+    !    dpsi   : derivative of the spwf on the mesh ( = 3 spinors)
+    !  direction: Cartesian direction, indicates which angular momentum to 
+    !             calculate; 1/2/3 = x/y/z
+    ! Output:
+    !   Lpsi    : the action of the orbital momentum on the spwf ( = spinor)
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  :: dpsi(mv,3,4)
+    integer, intent(in)        :: direction
+    real(KIND=dp), allocatable :: Lpsi(:,:), temp(:,:)
+    integer                    :: k
+    
+    allocate(LPsi(mv,4)) ; LPsi = 0.0d0
+    allocate(temp(mv,4)) ; temp = 0.0d0
+    
+    ! Calculate the spatial operation
+    select case(Direction)
+    case(1)
+      do k=1,4
+        temp(:,k) =  meshgrid_shifted(:,3) *dpsi(:,2,k)                        &
+        &         -  meshgrid_shifted(:,2) *dpsi(:,3,k)
+      enddo
+    case(2)
+      do k=1,4
+        temp(:,k) =  meshgrid_shifted(:,1) *dpsi(:,3,k)                        &
+        &         -  meshgrid_shifted(:,3) *dpsi(:,1,k)
+      enddo
+    case(3)
+      do k=1,4
+        temp(:,k) =  meshgrid_shifted(:,2) *dpsi(:,1,k)                        &
+        &         -  meshgrid_shifted(:,1) *dpsi(:,2,k)
+      enddo
+    end select
+    
+    ! And multiply by 'i'
+    LPsi(:,1) = - temp(:,2)
+    LPsi(:,2) = + temp(:,1)
+    LPsi(:,3) = - temp(:,4)
+    LPsi(:,4) = + temp(:,3)
+
+  end function Orbital
+  
+  pure function Pauli(psi, direction) result(Spsi)
+    !---------------------------------------------------------------------------
+    ! Calculate the action of the spin operator on a spwf.
+    !
+    !       S_x = 1/2*( 0  1 ) 
+    !                 ( 1  0 )
+    !
+    !       S_y = 1/2*( 0 -i ) 
+    !                 ( i  0 )
+    !
+    !       S_z = 1/2*( 1  0 ) 
+    !                 ( 0 -1 )
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     psi   : spwf values on the mesh (= spinor)
+    !  direction: Cartesian direction, indicates which angular momentum to 
+    !             calculate; 1/2/3 = x/y/z
+    ! Output:
+    !   Spsi    : the action of the spin operator on the spwf ( = spinor)
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  :: psi(mv,4)
+    integer, intent(in)        :: direction
+    real(KIND=dp), allocatable :: Spsi(:,:)
+    integer                    :: i
+    
+    allocate(SPsi(mv,4)) ; SPsi = 0.0d0
+    
+    if(Direction.eq.1) then
+        !\sigma_x = ( 0  1 )
+        !           ( 1  0 )
+        do i=1,mv
+          SPsi(i,1) = Psi(i,3)
+          SPsi(i,2) = Psi(i,4)
+          SPsi(i,3) = Psi(i,1)
+          SPsi(i,4) = Psi(i,2)   
+        enddo      
+    elseif(Direction.eq.2) then                
+        !\sigma_y = ( 0 -i )
+        !           ( i  0 )
+        do i=1,mv          
+          SPsi(i,1) =   Psi(i,4)
+          SPsi(i,2) = - Psi(i,3)
+          SPsi(i,3) = - Psi(i,2)
+          SPsi(i,4) =   Psi(i,1)
+        enddo       
+    elseif(Direction.eq.3) then
+        !\sigma_z = ( 1  0 )
+        !           ( 0 -1 )
+        do i=1,mv      
+          SPsi(i,1) =   Psi(i,1)
+          SPsi(i,2) =   Psi(i,2)
+          SPsi(i,3) = - Psi(i,3)
+          SPsi(i,4) = - Psi(i,4)
+        enddo
+    endif
+  
+  end function Pauli
+  
   function spwf_parities(basis, fullmatrices) result(P)
       !-------------------------------------------------------------------------
       ! Calculation of the single-particle matrix elements of parity P.

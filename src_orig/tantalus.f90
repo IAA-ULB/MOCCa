@@ -133,8 +133,8 @@ subroutine ReachForWaterAndFood()
     !
     ! 
     ! The overall iterative scheme is as explained in
-    !   W. Ryssens et al. [HEAVY-BALL PAPER]
-    !
+    !   W. Ryssens, M. Bender, M. and P.-H. Heenen,
+    !   Eur. Phys. J. A, 55, 93. https://doi.org/10.1140/epja/i2019-12766-6
     !
     ! Which is
     !
@@ -286,7 +286,7 @@ subroutine ReachForWaterAndFood()
        
         ! Save Fermi energy
         FermiHistory   = FermiEnergy
-        projectpresent = checkconstraints()        
+        projectpresent = checkconstraints() .or. check_cranking()    
 
         if(projectpresent) then
           ! Update the densities
@@ -317,9 +317,10 @@ subroutine ReachForWaterAndFood()
         call Sphamilcontribution()
         call calcFields(calcall=.true.,precon=.true.)
 
-        if(any(Omega.ne.0.0d0)) then        
+        if(any(Omega.ne.0.0d0) .or. any(Cranktype.ne.0)) then        
           call update_spwf_angmom(.false.)
           call updateAM
+          call ReadjustCranking
         endif
         !-----------------------------------------------------------------------
         ! Above: actual evolution
@@ -360,6 +361,7 @@ subroutine ReachForWaterAndFood()
         if(iprint .eq.1) then
             call update_spwf_angmom(.true.)
             call updateAM 
+            call ReadjustCranking
             call PrintSpwfs
             call PrintQps
             call printallmoments
@@ -415,7 +417,7 @@ end subroutine ReachForWaterAndFood
 
 subroutine printsummary(iter)
     !---------------------------------------------------------------------------
-    ! Short printout after an iteration
+    ! Short printout after an iteration.
     ! 
     !---------------------------------------------------------------------------
     use functional
@@ -427,7 +429,7 @@ subroutine printsummary(iter)
 
     integer, intent(in)   :: iter
     type(Moment), pointer :: current, part
-    real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val
+    real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val, devJ
     character(len=1)      :: t, spec
 
     1 format (82('-'))
@@ -441,9 +443,10 @@ subroutine printsummary(iter)
     5 format (' ',a1, 'Q', 2i1,a1,'=',f12.4, 3x, 'dQ =', es8.1, 2x,         &
     &          'L =',f12.4,2x,' dL =', es8.1, 2x, 'dev =', es8.1)
 
-    6 format (' dmun= ', es8.1, 4x, '  dmup= ', es8.1)
-    7 format (' dN  = ', es8.1, 4x, '  dZ  = ', es8.1)  
-    8 format (' Jz  = ', f8.3, 4x, '  dJZ = ', es8.1 )
+    6 format (' dmun = ', es8.1, 4x, '  dmup= ', es8.1)
+    7 format (' dN   = ', es8.1, 4x, '  dZ  = ', es8.1)  
+    8 format (' Jz   =', f12.4,  2x, ' dJZ=', es8.1,  &
+    &         ' Om =' , f12.4,  2x ' dO =', e8.1, 2x, 'dev =', es8.1)
 
     part=>FindMoment(0,0,.false.)
 
@@ -509,7 +512,14 @@ subroutine printsummary(iter)
           &         dQ, Current%multiplier, dL, dev
       endif
     enddo    
-    print 8, totalangmom(3), totalangmom(3) - angmomold(3)
+    
+    if(cranktype(3) .eq. 1) then
+      devJ = TotalAngMom(3) - CrankValues(3)
+    else
+      devJ = 0.0
+    endif
+    print 8, totalangmom(3), totalangmom(3) - angmomold(3), &
+    &        omega(3), omega(3)-omega_prev(3), devJ
         
 end subroutine printsummary
 
