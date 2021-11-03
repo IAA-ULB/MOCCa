@@ -1386,7 +1386,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     character(len=1)      :: AX='Z',secAx1='Y', secAx2='Z'
 
   100 format (16('-'),' Electric Multipole Moments ', 17('-'))
-  101 format (15('-'),' Magnetic Multipole Moments ', 16('-'))   
+$NTR  101 format (15('-'),' Magnetic Multipole Moments ', 16('-'))   
   102 format (60('-'))
     1 format (62('_'))
     2 format (17x,4x, 'Neutrons',8x, 'Protons',9x, 'Total')
@@ -1395,9 +1395,9 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     8 format ('Q_{',i2,'} ',5x, 3(1x,f15.4))
    10 format ('Quantisation Axis             : ', a1)
    11 format ('  With secondary axis ordering: ', a1, ',', a1)
-   12 format (' Units: ',/,&
-     &          '   spin/orbit/total: hbar fm^(l-1)', /, &
-     &          '   phys:             mu_N fm^(l-1)'  )
+$NTR   12 format (' Units: ',/,&
+$NTR     &          '   spin/orbit/total: hbar fm^(l-1)', /, &
+$NTR     &          '   phys:             mu_N fm^(l-1)'  )
 
    ! Print information on the quantisationaxis and secondary axis
    select case(QuantisationAxis)

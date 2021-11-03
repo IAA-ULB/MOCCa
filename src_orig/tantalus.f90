@@ -317,11 +317,9 @@ subroutine ReachForWaterAndFood()
         call Sphamilcontribution()
         call calcFields(calcall=.true.,precon=.true.)
 
-        if(any(Omega.ne.0.0d0) .or. any(Cranktype.ne.0)) then        
-          call update_spwf_angmom(.false.)
-          call updateAM
-          call ReadjustCranking
-        endif
+        call update_spwf_angmom(.false.)
+        call updateAM
+        call ReadjustCranking
         !-----------------------------------------------------------------------
         ! Above: actual evolution
         ! Below: administration

@@ -152,13 +152,6 @@ $NTR    if(blocktype.eq.3) then
 $NTR     print *, 'Can not do EFA blocking when time-reversal is not conserved.'   
 $NTR     stop
 $NTR    endif
-
-        if(rotcorr .ne. 0) then
-          print *, 'Currently not correctly implemented: blocking by overlap for'
-          print *, 'interactions with rotational correction.'
-          print *, 'The blocked_qp, partner_qp and qp_overlap arrays are wrong.'
-          stop
-        endif
         !-----------------------------------------------------------------------
         ! The user asked for a specific configuration that needs to be 
         ! identified. The array blockconf now contains the indices in the 
@@ -175,41 +168,55 @@ $NTR    endif
         endif        
 
         do j=1,NB
-            compare = 0.0
-            ind     = 0
+          compare = 0.0
+          ind     = 0
 
-            ! Check which block the requested index is in.
-            call Identify(blockconf(j),blocks, bi, qblock)
-            !-------------------------------------------------------------------
-            ! Look for the column in the second half of the eigenvectors with
-            ! the largest overlap with asked for state.
-            sb = 0
-            do B=1,4
-                N = blocks(B) ; if (N.eq.0) cycle
-                if(B.eq.qblock) then
-                    do i=N+1,2*N
-                        if(Bogo(sb+bi,sb+i)**2 .gt. compare) then
-                            compare = Bogo(sb+bi+N,sb+i)**2 
-                            ind     = i
-                        endif
-                    enddo
+          ! Check which block the requested index is in.
+          call Identify(blockconf(j),blocks, bi, qblock)
+          !-------------------------------------------------------------------
+          ! Look for the column in the second half of the eigenvectors with
+          ! the largest overlap with asked for state.
+          sb = 0
+          do B=1,4
+            N = blocks(B) ; if (N.eq.0) cycle
+            if(B.eq.qblock) then
+              do i=N+1,2*N
+                if(Bogo(sb+bi,sb+i)**2 .gt. compare) then
+                  compare = Bogo(sb+bi+N,sb+i)**2 
+                  ind     = i
                 endif
-                sb = sb +2*N
-            enddo 
-            !-------------------------------------------------------------------
-            !  Change the occupation of this particular qp
-            sb = 0 ; si =0 
-            do B=1,4
-                N = blocks(B)
-                if(qblock.eq.B) then
-                    R(sb+ind-N)       = occ 
-                    R(sb+ind)         = 1 - occ
-                    ! Save which one we blocked
-                    blocked_qp(j) = si+ind
-                endif
-                sb = sb + 2*N
-                si = si + N
-            enddo    
+              enddo
+            endif
+            sb = sb +2*N
+          enddo 
+          !-------------------------------------------------------------------
+          ! Change the occupation of this particular qp
+          sb = 0 ; si =0 
+          do B=1,4
+              N = blocks(B)
+              if(qblock.eq.B) then
+                  R(sb+ind-N)       = occ 
+                  R(sb+ind)         = 1 - occ
+                  ! Save which one we blocked
+                  blocked_qp(j)     = si+ind-N
+              endif
+              sb = sb + 2*N
+              si = si + N
+          enddo    
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! Then we look for the closest thing to a time-reversal partner. 
+          sb = 0 ; si =0 
+          do B=1,4,2
+              N = blocks(B)
+              N2= blocks(B+1)
+              if(qblock.eq.B .or. qblock.eq.B+1) then
+                 call find_partner(N,N2,si,blocked_qp(j), &
+                 &                 Bogo(sb+1:sb+2*N+2*N2,sb+1:sb+2*N+2*N2),  &
+                 &                 partner_qp(j),qp_overlap(j))
+              endif
+              sb = sb + 2*N + 2*N2
+              si = si +   N +   N2
+          enddo    
         enddo
     case(2,4)
         !-----------------------------------------------------------------------
@@ -274,56 +281,102 @@ $NTR    endif
            N = blocks(B)   ; if(N.eq.0) cycle    
            N2= blocks(B+1) 
 
-           allocate(tr_qp(2*N+2*N2))
-
            do j=1,toblock(B)
-             column =  sb+blocked_qp(j)-si+N2
-             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-             ! Inside the direct-HFB routines, the Bogoliubov matrix is 
-             ! ordered somewhat differently from the rest of the program. 
-             ! Remember
-             !
-             !       (  V^*+  U+    0     0   )
-             !  W =  (  U^*+  V+    0     0   )
-             !       (  0     0     V^*-  U-  )
-             !       (  0     0     U^*-  V-  )
-             !   
-             !                ^           ^
-             !                |           | 
-             !               (1)         (2)
-             !
-             ! because of the diagonalisation in subblocks. 
-             !
-             ! Hence, a "blocked" qp is located in (1), while its possible
-             ! time-reversal partners are located in (2).
-             !
-             ! Note that this particular routine is not yet ready for 
-             ! blocked quasiparticles with signature -i.
-             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-             tr_qp = Bogo(sb+1:sb+2*N+2*N2, column)
-             tr_qp(       1:  N     ) =   0
-             tr_qp(  N   +1:  N+  N2) =   0
-             tr_qp(  N+N2+1:2*N+  N2) = + Bogo(sb  +1:sb+N   ,column)
-             tr_qp(2*N+N2+1:2*N+2*N2) = - Bogo(sb+N+1:sb+N+N2,column)   
-             
-             qp_overlap(j) = -100000d0
-             do i=1,N+N2
-                overl = sum(tr_qp(:) * Bogo(sb+1:sb+2*N+2*N2,sb+N+N2+i))
-
-                if(abs(overl) .gt. qp_overlap(j)) then
-                  qp_overlap(j) = abs(overl)
-                  partner_qp(j) = si + i 
-                endif
-             enddo 
+              call find_partner(N,N2,si,blocked_qp(j), &
+                   &                 Bogo(sb+1:sb+2*N+2*N2,sb+1:sb+2*N+2*N2),  &
+                   &                 partner_qp(j),qp_overlap(j))
            enddo
-
-           deallocate(tr_qp)
            si = si +   N +  N2 
            sb = sb + 2*N +2*N2         
         enddo    
     end select
-   
+    
   end function ConstructConfiguration
+  
+  subroutine find_partner(N,N2,si,qp,bogo,partner,overlap)
+    !---------------------------------------------------------------------------
+    ! Find the partner-qp (= almost time-reversal partner) within the right 
+    ! symmetry block. 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input: 
+    !    N, N2 : size of the two symmetry blocks related by a linear,
+    !            antihermitian symmetry. 
+    !    si    : matrix indices of the HFB transformation
+    !    qp    : index of the original blocked qp
+    !    bogo  : part of the Bogoliubov transformation in the right subblocks.
+    !            Size     : 2*N+2*N2
+    !            Subblock : sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2  
+    !
+    ! Output:
+    !    partner: index of the partner-qp
+    !    overlap: overlap of the partner-qp with the time-reversed original qp
+    !
+    !---------------------------------------------------------------------------
+    integer, intent(in)       :: N, N2, si, qp
+    real(KIND=dp), intent(in) :: bogo(:,:)
+    integer, intent(out)      :: partner
+    real(KIND=dp), intent(out):: overlap
+
+    real(KIND=dp), allocatable :: tr_qp(:)
+    real(KIND=dp)              :: overl
+    integer                    :: i, column, offset
+    
+    allocate(tr_qp(2*N+2*N2))
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Inside the direct-HFB routines, the Bogoliubov matrix is 
+    ! ordered somewhat differently from the rest of the program. 
+    ! Remember
+    !
+    !       (  V^*+  U+    0     0   )
+    !  W =  (  U^*+  V+    0     0   )
+    !       (  0     0     V^*-  U-  )
+    !       (  0     0     U^*-  V-  )
+    !   
+    !                ^           ^
+    !                |           | 
+    !               (1)         (2)
+    !
+    ! because of the diagonalisation in subblocks. 
+    !
+    ! Hence, a "blocked" qp is located in (1), while its possible
+    ! time-reversal partners are located in (2).
+    !
+    ! Note that this particular routine is not yet ready for 
+    ! blocked quasiparticles with signature -i.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    if(qp - si .lt. N) then
+      ! our blocked qp is in the first of the two related blocks
+      column = qp-si+N2
+      offset = N+N2
+  
+      tr_qp(       1:  N     ) =   0
+      tr_qp(  N   +1:  N+  N2) =   0
+      tr_qp(  N+N2+1:2*N+  N2) = + Bogo(  1:N   ,column)
+      tr_qp(2*N+N2+1:2*N+2*N2) = - Bogo(N+1:N+N2,column)  
+                               ! Sign due to time-reversal
+    else
+      column = qp-si+N2+N
+      offset = 0
+
+      tr_qp(       1:  N     ) = + Bogo(1:  N+N2+1,column)
+      tr_qp(  N   +1:  N+  N2) = - Bogo(1:2*N+N2+1,column) 
+      tr_qp(  N+N2+1:2*N+  N2) =   0
+      tr_qp(2*N+N2+1:2*N+2*N2) =   0
+                               ! Sign due to time-reversal
+    endif
+    
+    overlap = -100000d0
+    do i=1,N+N2
+       overl = sum(tr_qp(:) * Bogo(1:2*N+2*N2,offset+i))
+
+       if(abs(overl) .gt. overlap) then
+         overlap = abs(overl)
+         partner = si + i 
+       endif
+    enddo 
+    return
+  end subroutine find_partner
 
   subroutine FindFermi_secant(H, blocks, targetparticles, config, Bogo, Eqp,   & 
             &                 lambda, maxhfbiter, blocktype, blockconf,        &
@@ -808,8 +861,16 @@ $TR   particles = 2 * particles
 
   subroutine Identify(i, blocks, bi, qblock)
     !---------------------------------------------------------------------------
-    ! Identifies both the symmetry block(qblock) and index in said symmetry 
-    ! block (bi), based on the index i in the HF basis. 
+    ! Given a state in the HF-basis (labelled by i), we find the corresponding 
+    ! symmetry block (bi) and the corresponding index (bi) in said block.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !       i     :  label of the sp state in the HF-basis
+    !       blocks:  size of the symmetry blocks
+    ! Output:
+    !       bi    : index (=row) in the matrix for this particular HF-state
+    !       qblock: symmetry block to which this HF-state belongs
     !---------------------------------------------------------------------------
     integer, intent(in)  :: i, blocks(4)
     integer, intent(out) :: bi, qblock    

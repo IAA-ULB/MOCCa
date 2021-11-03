@@ -259,7 +259,13 @@ $PBROKEN        endif
         if((blocktype.eq.3 .or. blocktype.eq.4) .and. pairingscheme .eq.1) then
           print *,' The gradient solver cannot yet handle EFA blocking.'
           stop
-        endif  
+        endif 
+        
+        ! Sanity check: cannot do full blocking if time-reversal is not broken
+$TR        if(blocktype.eq.1 .or. Blocktype.eq.2) then
+$TR         print *, 'Cannot do true blocking when time-reversal is conserved.'
+$TR         stop
+$TR        endif
 
         ! Reading model spwf to block
         if(blockfname .ne. "") then

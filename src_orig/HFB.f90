@@ -852,8 +852,7 @@ $PBROKEN blockblock(i) = 5
       ! The right column in the Bogoliubov matrix is the following one.
       ! We are doing some gymnastics, as the qps are indexed with the 
       ! single-particle dimension, i.e. we count only the selected ones.
-      ! Meanwhile, the whole Bogoliubov matrix ofcourse has twice that many
-      ! columns.
+      ! Meanwhile, the whole Bogoliubov matrix has twice that many columns.
       column =  sb+bl_qps(k)-si+N+N2
       tr_qp(       1:  N     ) = + 0
       tr_qp(  N   +1:  N+  N2) = + Bogo_ref(sb+2*N   +1:sb+2*N+N2,column) 

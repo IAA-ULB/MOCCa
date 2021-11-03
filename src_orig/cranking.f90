@@ -299,9 +299,9 @@ $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
     4 format (3x,'J_',a1,'   ','|', 5f12.5 )
    41 format (3x,'Size  |', 3f12.5,12x,1f12.5)
     5 format (2x,' _______________________________________________________' )
-    6 format (3x,'Open spin')
-    7 format (15x, 'Neutrons', 3x, 'Protons')
-    8 format (3x,a1,1x,'|',3x,'|',4f12.5)
+$NTR    6 format (3x,'Open spin')
+$NTR    7 format (15x, 'Neutrons', 3x, 'Protons')
+$NTR    8 format (3x,a1,1x,'|',3x,'|',4f12.5)
 
     print 2
     print *
@@ -416,7 +416,7 @@ $NTR    enddo
     ! Readjust the cranking constraint(s)
     !---------------------------------------------------------------------------
     integer                 :: i,j
-    real(KIND=dp)           :: SizeJ, value
+    real(KIND=dp)           :: value
 
     do i=1,3
         select case(CrankType(i))
