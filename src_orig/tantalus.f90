@@ -432,19 +432,19 @@ subroutine printsummary(iter)
 
     1 format (82('-'))
     2 format (' Iteration = ',i4)
-    3 format (' dt   = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
-   31 format (' dtg  = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
-    4 format (' E    = ', f10.3,2x, '  DE   = ', e12.5)
-   41 format (' R    = ', f10.3,2x, '  DR   = ', e12.5)  
-   42 format (' R-E  = ', f10.3,2x, 'D(R-E) = ', e12.5)  
+    3 format (' dt    = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
+   31 format (' dtg   = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
+    4 format (' E     = ', f10.3,2x, '  DE   = ', e12.5)
+   41 format (' R     = ', f10.3,2x, '  DR   = ', e12.5)  
+   42 format (' R-E   = ', f10.3,2x, 'D(R-E) = ', e12.5)  
 
-    5 format (' ',a1, 'Q', 2i1,a1,'=',f12.4, 3x, 'dQ =', es8.1, 2x,         &
-    &          'L =',f12.4,2x,' dL =', es8.1, 2x, 'dev =', es8.1)
+    5 format (' ',a1, 'Q', 2i1,a1,' = ',f12.4, 3x, 'dQ = ', es8.1, 2x,         &
+    &          'L = ',f12.4,2x,' dL = ', es8.1, 2x, 'dev = ', es8.1)
 
-    6 format (' dmun = ', es8.1, 4x, '  dmup= ', es8.1)
-    7 format (' dN   = ', es8.1, 4x, '  dZ  = ', es8.1)  
-    8 format (' Jz   =', f12.4,  2x, ' dJZ=', es8.1,  &
-    &         ' Om =' , f12.4,  2x ' dO =', e8.1, 2x, 'dev =', es8.1)
+    6 format (' dmun  = ', es8.1, 4x, '  dmup= ', es8.1)
+    7 format (' dN    = ', es8.1, 4x, '  dZ  = ', es8.1)  
+    8 format (' Jz    = ', f12.4,  2x, ' dJZ= ', es8.1,  &
+    &         ' Om = ' , f12.4,  2x ' dO = ', e8.1, 2x, 'dev = ', es8.1)
 
     part=>FindMoment(0,0,.false.)
 
