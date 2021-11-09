@@ -22,7 +22,12 @@ def Lagrange_interpolation_function(x, xr, nx, dx) :
   a = np.pi/dx
   N = 1.0/(2*nx)
 
-  f = N * np.sin(a*( x - xr))/(np.sin(a *N* (x - xr)))
+  f      = N * np.sin(a*( x - xr))/(np.sin(a *N* (x - xr)))
+
+  # We have to take care that (x - xr) is not too close to zero, the code
+  # will throw us a NaN instead of the correct answer (1)
+  ind = np.where(abs(x - xr) < 1e-10 )    
+  f[ind] = 1.0
 
   return f
 
@@ -37,6 +42,8 @@ def Interpolate_function(points,mesh_points,f_values,sx,sy,sz):
 
       sx, sy, sz : signs of the transformation of the function under spatial 
                    reflections in every direction.
+                   Should be +1 or -1 if there is a symmetry in said direction, 
+                   0 if the symmetry is broken
   
     Output:
       values :  interpolated function values on the new points.
@@ -47,6 +54,13 @@ def Interpolate_function(points,mesh_points,f_values,sx,sy,sz):
   """
 
   dx = mesh_points[1,0] - mesh_points[0,0]
+
+  assert (abs(sx)<=1)  
+  assert (abs(sy)<=1)  
+  assert (abs(sz)<=1)  
+  
+  # Note that in both cases (symmetry conserved or not) this returns 
+  # HALF the number of mesh points in a full box.   
   nx = int(np.max(mesh_points[:,0])/dx + 0.5)
   ny = int(np.max(mesh_points[:,1])/dx + 0.5)
   nz = int(np.max(mesh_points[:,2])/dx + 0.5)
@@ -59,13 +73,16 @@ def Interpolate_function(points,mesh_points,f_values,sx,sy,sz):
     zi = mesh_points[i,2]
 
     Lx =         Lagrange_interpolation_function(points[:,0],  xi, 2*nx, dx) 
-    Lx = Lx + sx*Lagrange_interpolation_function(points[:,0], -xi, 2*nx, dx)
+    if(sx != 0):
+      Lx = Lx + sx*Lagrange_interpolation_function(points[:,0], -xi, 2*nx, dx)
 
     Ly =         Lagrange_interpolation_function(points[:,1],  yi, 2*ny, dx) 
-    Ly = Ly + sy*Lagrange_interpolation_function(points[:,1], -yi, 2*ny, dx)
+    if(sy != 0):
+      Ly = Ly + sy*Lagrange_interpolation_function(points[:,1], -yi, 2*ny, dx)
 
-    Lz =         Lagrange_interpolation_function(points[:,2],  zi, 2*nz, dx) 
-    Lz = Lz + sz*Lagrange_interpolation_function(points[:,2], -zi, 2*nz, dx)
+    Lz =         Lagrange_interpolation_function(points[:,2],  zi, 2*nz, dx)
+    if(sz != 0):  
+      Lz = Lz + sz*Lagrange_interpolation_function(points[:,2], -zi, 2*nz, dx)
 
     den = den + Lx * Ly * Lz * f_values[i]
   
