@@ -272,6 +272,9 @@ subroutine ReachForWaterAndFood()
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
+        projectpresent = checkconstraints() .or. check_cranking()    
+        call feasibleproject()
+    
         ! Calculate the gaps Delta with the current 
         ! a) fields 
         ! b) density matrix and anomalous density matrix 
@@ -286,22 +289,21 @@ subroutine ReachForWaterAndFood()
        
         ! Save Fermi energy
         FermiHistory   = FermiEnergy
-        projectpresent = checkconstraints() .or. check_cranking()    
-
-        if(projectpresent) then
-          ! Update the densities
-          ! Note that this update is incorrect, as we do not want to perform a 
-          ! set of derivatives
-          call densit(ifail,SaveRho=.false.)
-          call ConstructChargeDensity(ChargeDensity)
-          if(follow_com) call adapt_com()
-          call CalculateMoments()
-          ! Readjust the projection constraints here, to not take into account
-          ! the update from the projection
-          call ReadjustAllMoments(2)
-          ! Do an approximate projection on the feasible set
-          call feasibleproject()
-        endif
+ 
+!        if(projectpresent) then
+!          ! Update the densities
+!          ! Note that this update is incorrect, as we do not want to perform a 
+!          ! set of derivatives
+!          call densit(ifail,SaveRho=.false.)
+!          call ConstructChargeDensity(ChargeDensity)
+!          if(follow_com) call adapt_com()
+!          call CalculateMoments()
+!          ! Readjust the projection constraints here, to not take into account
+!          ! the update from the projection
+!          call ReadjustAllMoments(2)
+!          ! Do an approximate projection on the feasible set
+!          call feasibleproject()
+!        endif
 
         ! Restore all the different derivatives.
         call deriveHF()
@@ -314,6 +316,7 @@ subroutine ReachForWaterAndFood()
         ! contribution to the sphamiltonian.
         call CalculateMoments()
         call ReadjustAllMoments(1)
+        call ReadjustAllMoments(2)
         call Sphamilcontribution()
         call calcFields(calcall=.true.,precon=.true.)
 
