@@ -40,8 +40,8 @@ SRC    +=   nil8.f90 derivatives.f90 precondition.f90 wavefunctions.f90
 SRC    +=   pairingcutoffs.f90 parameterization.f90 hartree-fock.f90 BCS.f90 
 SRC    +=   HFB_gradient.f90 HFB_direct.f90
 SRC    +=   HFB.f90 pairing.f90 densities.f90 moments.f90 coulomb.f90 
-SRC    +=   cranking.f90 momentsofinertia.f90 transform.f90 functional.f90 
-SRC    +=   evolution.f90  scfiteration.f90 
+SRC    +=   cranking.f90 momentsofinertia.f90 fission_MOI.f90 transform.f90  
+SRC    +=   functional.f90 evolution.f90 scfiteration.f90 
 SRC    +=   IO.f90 temperature_projection.f90 convergence.f90 printing.f90 
 SRC    +=   tantalus.version.f90
 

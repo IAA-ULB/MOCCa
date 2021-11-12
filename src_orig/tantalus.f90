@@ -174,6 +174,7 @@ subroutine ReachForWaterAndFood()
     use convergence
     use scfiteration
     use timing
+    use fission_MOI
 
     implicit none
 
@@ -267,6 +268,8 @@ subroutine ReachForWaterAndFood()
     call printcranking  
     call printpairing(pairstabfactor)
     call PrintEnergy 
+    
+    call calc_collective_inertia
     
     !---------------------------------------------------------------------------
     ! Start of the iterations
