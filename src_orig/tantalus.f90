@@ -268,9 +268,6 @@ subroutine ReachForWaterAndFood()
     call printcranking  
     call printpairing(pairstabfactor)
     call PrintEnergy 
-    
-    call calc_collective_inertia
-    
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
@@ -403,10 +400,14 @@ subroutine ReachForWaterAndFood()
     if(inversetemp .ne. -1) then
         call projectThermal
     endif    
+    ! Calculate and print the collective moment of inertias    
+    call calc_collective_inertia
+    call print_collective_inertia
 
     if(iter.eq.maxiter+1) then
       iomsg='MAXITER'  
     endif
+
     !---------------------------------------------------------------------------
     ! Write output to the outputfile, i.e. the full wavefunction file
     call WriteTantalus(12, outputfilename)     
@@ -558,6 +559,7 @@ subroutine initialize_all_timers()
    call add_timer('Feas. Proj. step '          , T_feasible)  
    call add_timer('Spwf angular momentum '     , T_spwfangmom)  
    call add_timer('Charge density folding'     , T_chargedensity)  
+   call add_timer('Collective MOIs'            , T_collective_moi)  
 
 end subroutine initialize_all_timers
 
