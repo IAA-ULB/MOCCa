@@ -68,9 +68,11 @@ implicit none
   !   version 4 : inclusion of 
   !               * blocking information 
   !               * single-particle hamiltonian
-  !               (March 2021 - ....      )
+  !               (March 2021 - November 2021)
+  !   version 5 :  inclusion of 
+  !               * cranking frequencies omega_x/y/z
   !-----------------------------------------------------------------------------
-  integer, parameter  :: version_number = 4
+  integer, parameter  :: version_number = 5
   integer             :: file_version = 0
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
@@ -427,7 +429,7 @@ contains
     !        |   HFBgaps      
     !        |   Bogoliubov transformation 
     !        |   Configuration matrix      
-    ! CrankingInfo                                           (*)                      
+    ! CrankingInfo                                                                 
     ! Potentials                                             (2)                
     ! Multipole Moments                                                 
     !     | The code writes the data on ALL the multipole moments.
@@ -436,6 +438,7 @@ contains
     !---------------------------------------------------------------------------    
     use functional
     use moments
+    use cranking
     
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ifn
@@ -443,6 +446,7 @@ contains
     character(len=26)            :: SYM_CODE_CHECK
     integer                      :: io,i
     logical                      :: exists
+    real(KIND=dp)                :: Omega_file(3)
     real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
     logical                      :: filediagsphamil 
     logical                      :: check_x, check_y, check_z
@@ -664,12 +668,24 @@ contains
       print *, 'Something is seriously wrong with the .wf file.'
       stop
     end select   
-    ! Cranking information                                     (NOT IMPLEMENTED)
-    read(chan, iostat=io)
+    ! Cranking information       
+    if(file_version .gt. 4 ) then                              
+      read(chan, iostat=io) omega_file(1:3)
+    else
+      ! File-versions < 4 do not have this line
+      read(chan, iostat=io) 
+      omega_file = 0.0d0
+    endif
     if(io.ne.0) then
         print *, 'ERROR in reading cranking line of the wf file.'
         stop
     endif
+    
+    if(continueCrank) then
+      ! Using the cranking frequencies read from file
+      omega = omega_file
+    endif
+    
     !---------------------------------------------------------------------------
     ! Potentials                                               
     call readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
@@ -755,7 +771,7 @@ contains
     !        |   HFBgaps      
     !        |   Bogoliubov transformation 
     !        |   Configuration matrix   
-    ! CrankingInfo                                           (*)                      
+    ! CrankingInfo                                                                 
     ! Potentials                                             (2)                
     ! Multipole Moments                                                 
     !     | The code writes the data on ALL the multipole moments.
@@ -769,6 +785,7 @@ contains
 
     use functional
     use moments
+    use Cranking
 
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ofn
@@ -840,8 +857,8 @@ contains
         write(chan, iostat=io) configmatrix      ! Configuration matrix
         
     end select
-    ! Cranking information                                     (NOT IMPLEMENTED)
-    write(chan, iostat=io)
+    ! Cranking information: frequencies in all Cartesian directions                                     
+    write(chan, iostat=io) Omega(1:3)
     !---------------------------------------------------------------------------
     ! Potentials on file
     call writepotentials(chan)

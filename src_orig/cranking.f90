@@ -159,7 +159,7 @@ $NTR  integer             :: j,c
     &                   CrankX, CrankY, CrankZ,             & 
     &                   CrankTypeX, CrankTypeY, CrankTypeZ, &
     &                   IntensityX, IntensityY, IntensityZ, &
-    &                   crank_smooth
+    &                   crank_smooth, ContinueCrank
  
     OmegaX     = 0 ; OmegaY     = 0 ; OmegaZ     = 0
     CrankX     = 0 ; CrankY     = 0 ; CrankZ     = 0
@@ -261,23 +261,30 @@ $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
     &          '    Omega_X = ', f15.3, /,  &
     &          '    Omega_Y = ', f15.3, /,  &
     &          '    Omega_Z = ', f15.3) 
+    21 format ('    => read from STDIN ')
+    22 format ('    => read from FILE  ')
     3 format ( ' Cranking target values: ', /, & 
     &          '    J_X     = ', f15.3, /,  &
     &          '    J_Y     = ', f15.3, /,  &
     &          '    J_Z     = ', f15.3) 
     4 format ( ' Cranking types: ', 3i3)
     5 format ( ' Cranking on the basis of INTEGRATION OF DENSITIES')
-   51 format ( ' Cranking on the basis of SPWFs ANGULAR MOMENTUM')
+   51 format ( ' Cranking on the basis of SUMMED SPWF ANGULAR MOMENTUM')
    
     print 1
     print 2, Omega
+    if(continuecrank) then
+      print 22
+    else
+      print 21
+    endif
     print 3, CrankValues
     print 4, Cranktype
 
     if(crank_smooth) then
-      print 51
-    else
       print 5
+    else
+      print 51
     endif    
  
   end subroutine printcranking_init
