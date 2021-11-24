@@ -1,0 +1,52 @@
+&skf
+!-------------------------------------------------------------------------------
+! Syst_112 parameterization produced by G. Scamps, with a scale factor for the 
+!          time-odd fields
+!
+! Note: this is the version AFTER a refit of the collective parameters to the 
+!       fission barriers of heavy nuclei.
+!-------------------------------------------------------------------------------
+name     =  'syst_112_scale'
+func_file=  'DD-switch-scaleTO.func'
+force_switch = 0.0
+t0       =            -1885.74370718,
+t1       =              343.58759401,
+t2       =               -8.04132000,
+t3       =            12358.44030829,
+x0       =                0.18177500,
+x1       =               -0.58400300,
+x2       =               20.14637542,
+x3       =                0.10159576,
+sigma    =                0.30000000,
+wso      =              108.65500000,
+wsoq     =              108.60300000,
+CT0      =                0.00000000,
+CT1      =                0.00000000,
+CSDS0    =      0.00000000,
+CSDS1    =      0.00000000,
+Vn       =   -483.36600000,
+Vp       =   -503.79000000,
+alpha    =                0.48601200,
+sigmap   =                0.79602400,
+Estabn   =                0.00000000,
+Estabp   =                0.00000000,
+hbm(1)   =     20.73553000,     20.73553000,
+COM1Body = 2
+COM2Body = 1
+e2            = 1.439964460
+Protonsize    = 0.895, 0.00
+Neutronsize   = 0.387, 0.467
+HOcomform     = .true.
+nucleonsize_selfconsistent=.true.
+CoulTreatment = 2
+rotcorr  = 1
+Cuttype = 1
+Cutneutron =       7.99756000
+Cutproton  =       7.99756000
+rotcorrb    = 0.87841
+rotcorrc    = 8.29315
+vibcorrd    = 0.5952
+vibcorrl    = 4.5553
+vibcorrb    = 0.7875 
+scaleTO     = 0.0000001
+/
