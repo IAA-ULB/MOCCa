@@ -1,7 +1,7 @@
 ################################################################################
 #
 # This is an example script illustrating the use of the code for parity-broken
-# calculations. 
+# calculations, as well as a testing ground for adding points to the mesh.
 #
 ################################################################################
 
@@ -137,6 +137,64 @@ EOF
 
 echo "-> Breaking parity"
 ./$exeb < tant.data > $outfile
+mv $outfile ../out/STDOUT
+
+#-------------------------------------------------------------------------------
+# Adding some points
+#-------------------------------------------------------------------------------
+
+outfile="Tant.$param.Q30=30.added.out"
+
+cat << EOF > tant.data
+&nucleus
+neutrons=10, protons=10
+/
+# Parameters of the Lagrange mesh. 
+&mesh
+nx=12, ny=12, nz=28, dx=0.8
+/
+# The code will look, on a file forces.param, for the parameterization with 
+# this name.
+&func
+name_param="$param"
+/
+# Options for the pairing.
+&pairing
+type='HFB'
+/
+# maxiter = Maximum number of iterations to be performed
+&evolution
+maxiter=10
+printiter=10
+/
+&scfiteration
+/
+# Number of neutron (nwn) and proton (nwp) spwfs to use.
+&wfs
+nwn = 20, nwp = 20
+/
+# Inputfilename  = file from which to continue the calculation
+# Outputfilename = .wf file to write after the end of the calculation. 
+# init signals the code to perform its own initialization.
+&IO
+InputFilename='tant.wf'
+Outputfilename='tant.wf'
+allowtransform=.true.
+/
+&MomentParam
+MoreConstraints=.true.
+/
+&MomentConstraint
+l=3
+m=0
+constraint=50.0
+/
+&Cranking
+/
+EOF
+
+echo "-> Breaking parity"
+./$exeb < tant.data >  $outfile
 mv $outfile ../out/STDOUT
 
 #-------------------------------------------------------------------------------
