@@ -654,6 +654,38 @@ $PBROKEN      enddo
     !---------------------------------------------------------------------------
 end function CompNablaMelements
 
+subroutine print_boxsize_check()
+  !-----------------------------------------------------------------------------
+  ! Print the maximum values of the density at the edges of the box, to
+  ! check that we are not dealing with a too small box.
+  !-----------------------------------------------------------------------------
+
+  real(KIND=dp), pointer :: rho3D(:,:,:,:)
+
+  1 format ('----------------------- Box Size Check -------------------------')
+  2 format (' Xmax = (nx+0.5)dx = ', f6.3, ' fm,  max(rho(X=Xmax)) = ', es12.3 )
+! 21 format (' Xmin =-(nx+0.5)dx = ', f6.3, 'fm,  max(rho(X=Xmin)) = ', e12.3 )
+
+  3 format (' Ymax = (ny+0.5)dx = ', f6.3, ' fm,  max(rho(Y=Ymax)) = ', es12.3 )
+! 31 format (' Ymin =-(ny+0.5)dx = ', f5.3, 'fm,  max(rho(Y=Ymax)) = ', e12.3 )
+
+  4 format (' Zmax = (nz+0.5)dx = ', f6.3, ' fm,  max(rho(Z=Zmax)) = ', es12.3 )
+$PBROKEN 41 format (' Zmin =-(nz+0.5)dx = ', f6.3, 'fm,  max(rho(Z=Zmin)) = ', es12.3 )
+  
+  rho3D(1:nx,1:ny,1:nz,1:2) => D_I_I
+  
+  print 1
+  print 2, meshX(nx) , maxval(sum(rho3D(nx,:,:,:),3))
+!  print 21, meshX(1) , maxval(sum(rho3D(1,:,:),3))
+
+  print 3 , meshY(ny), maxval(sum(rho3D(:,ny,:,:),3))
+!  print 31, meshY(1) , maxval(sum(rho3D(:,1,:,:),3)
+
+  print 4 , meshZ(nz), maxval(sum(rho3D(:,:,nz,:),3))
+$PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
+
+end subroutine print_boxsize_check
+
 subroutine clean_densities
 $CLEANING
     if(allocated(D_I_I_hist))    deallocate(D_I_I_hist)

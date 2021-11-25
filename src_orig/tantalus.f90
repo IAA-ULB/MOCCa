@@ -274,6 +274,7 @@ subroutine ReachForWaterAndFood()
     call printSpwfs
     call printQps
     call printallmoments
+    call print_boxsize_check
     call PrintMomentsofInertia
     call printcranking  
     call printpairing(pairstabfactor)
@@ -377,8 +378,9 @@ subroutine ReachForWaterAndFood()
             call PrintSpwfs
             call PrintQps
             call printallmoments
-            call printcranking
+            call print_boxsize_check
             call PrintMomentsofInertia
+            call printcranking
             call printpairing(PairStabfactor)
             call printEnergy()
         else
