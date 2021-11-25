@@ -69,7 +69,7 @@ endif
 
 ################################################################################
 # Precompilation instructions
-PRE         :=  run_heph getgitinfo setversioninfo 
+PRE         :=  run_heph getgitinfo getcompilerinfo setversioninfo 
 PRE_NIL     :=  cp_nil 
 SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
 MPI_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(MPI_SRC))
@@ -124,6 +124,10 @@ setversioninfo:
 	sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' $(SRCDIR)/tantalus.version.f90 
 	sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' $(SRCDIR)/tantalus.version.f90 
 	sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' $(SRCDIR)/tantalus.version.f90 
+	# Copy the compiler information
+	sed -i.bak 's/COMPCOMP/"${COMPVERSION}"/' $(SRCDIR)/tantalus.version.f90 
+	sed -i.bak 's/FLAGS/"${CXXFLAGS}"/'       $(SRCDIR)/tantalus.version.f90 
+	
 	rm $(SRCDIR)/tantalus.version.f90.bak
 
 getgitinfo:
@@ -132,6 +136,10 @@ getgitinfo:
 	$(eval GIT_INFO2=$(shell git show | grep 'Author:' | head -1))
 	$(eval GIT_INFO3=$(shell git show | grep 'Date:'   | head -1))
 
+getcompilerinfo:
+  # Get information from 'CXX --version'
+	$(eval COMPVERSION=$(shell $(CXX) --version | head -1))
+	
 cp_nil:
 	cp src_orig/gennilsson.f90 $(SRCDIR)/gennilsson.f90
   

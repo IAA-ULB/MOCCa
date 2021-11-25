@@ -73,7 +73,12 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  309 format ( 8x,'|-------------- Environment Information -------------------|')
  !$ 310 format ( 8x,'| OpenMP threads         = ', i5, 26x, '|')
  !$ 311 format ( 8x,'| OpenMP disabled                                          |')
- 312 format ( 8x,'|__________________________________________________________|')
+ 312 format ( 8x,'|-------------- Compilation Information -------------------|')
+ 313 format ( 8x,'| Compiled with:                                           |')
+ 314 format ( 8x,'| COMPCOMP |')
+ 315 format ( 8x,'| Compilation flags reported:                              |')
+ 316 format ( 8x,'| FLAGS    |')
+ 317 format ( 8x,'|__________________________________________________________|')
 
  call initialize_all_timers
  call start_timer(T_tantalus)
@@ -100,7 +105,13 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
 !$ print 310, OMP_GET_MAX_THREADS()
 !$ printed = .true.
 !$ if(.not. printed) print 311
+
  print 312
+ print 313
+ print 314
+ print 315
+ print 316
+ print 317
 
  !------------------------------------------------------------------------------
  ! Read input from STDIN
