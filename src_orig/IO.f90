@@ -79,7 +79,7 @@ implicit none
   character(len=100)  :: inputfilename, outputfilename
   ! Signal the code to write extra output.
   character(len=40)   :: BXLFIT='', COMBI='', denfile='', potfile=''
-  character(len=40)   :: sphffile='', spcanfile=''
+  character(len=40)   :: sphffile='', spcanfile='', tofile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
   !-----------------------------------------------------------------------------
@@ -131,7 +131,7 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           Counter, run
+    &           Counter, run, tofile
     
     if(present(file_number)) then
       inquire(file=input_file, exist=exists)
@@ -898,6 +898,9 @@ contains
     if(DENFILE .ne. '') then
       call write_densities(DENFILE)
     endif
+    if(TOFILE .ne. '') then
+      call write_timeodd_densities(TOFILE)
+    endif
     ! Write the relevant potentials to a file for postprocessing
     if(POTFILE .ne. '') then
       call write_potentials(POTFILE)
@@ -1392,6 +1395,79 @@ contains
 
     close(1)
   end subroutine write_densities
+
+  subroutine write_timeodd_densities(fname)
+    !---------------------------------------------------------------------------
+    ! Write the following densities to a file named "fname"
+    !    D_I_S, C_I_N
+    ! All are total densities, i.e. neutron + proton.
+    !---------------------------------------------------------------------------
+    ! The file contains a header written by the subroutine write_header,
+    ! supplemented by
+    !
+    !     #   X[fm] Y[fm] Z[fm]
+    ! 
+    ! where the # are included so that Numpy (or other plotting tools) can 
+    ! ignore these lines when naively plotting stuff. Note that the fourth
+    ! line is currently empty, but is reserved for future additions concerning
+    ! symmetry options of the current run.
+    !
+    ! The format of the body of said file is
+    ! 
+    !   x , y , z, D_I_Sx/y/z (n),D_I_Sx/y/z (p), C_I_Nx/y/z (n),C_I_Nx/y/z (p) 
+    !
+    ! where the first three numbers are the Cartesian coordinates (units of fm).
+    ! The points are written down in column-major order ('Fortran order'), 
+    ! which might not be how your favorite plotting tool prefers it.
+    !---------------------------------------------------------------------------
+    ! Note that the densities are written "as they are" to file, i.e. only in
+    ! part of the box that is actually represented numerically. It is up to
+    ! postprocessing to actually construct the densities in the entire box.
+    !---------------------------------------------------------------------------
+    
+    real(KIND=dp), pointer           :: Sxn(:,:,:), Sxp(:,:,:)
+    real(KIND=dp), pointer           :: Jxn(:,:,:), Jxp(:,:,:)
+    real(KIND=dp), pointer           :: Syn(:,:,:), Syp(:,:,:)
+    real(KIND=dp), pointer           :: Jyn(:,:,:), Jyp(:,:,:)
+    real(KIND=dp), pointer           :: Szn(:,:,:), Szp(:,:,:)
+    real(KIND=dp), pointer           :: Jzn(:,:,:), Jzp(:,:,:)
+    character(len=*), intent(in)     :: fname
+    integer                          :: io, i,j,k
+
+    1 format('#  X[fm]   Y[fm]   Z[fm]   ')
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'Something went wrong with writing a density to file.'
+      print *, 'filename = ', fname
+      stop
+    endif
+
+    Sxn(1:nx,1:ny,1:nz)  => D_I_S(:,1,1) ; Sxp(1:nx,1:ny,1:nz)  => D_I_S(:,1,2)
+    Syn(1:nx,1:ny,1:nz)  => D_I_S(:,2,1) ; Syp(1:nx,1:ny,1:nz)  => D_I_S(:,2,2)
+    Szn(1:nx,1:ny,1:nz)  => D_I_S(:,3,1) ; Szp(1:nx,1:ny,1:nz)  => D_I_S(:,3,2)
+
+    Jxn(1:nx,1:ny,1:nz)  => C_I_N(:,1,1) ; Jxp(1:nx,1:ny,1:nz)  => C_I_N(:,1,2)
+    Jyn(1:nx,1:ny,1:nz)  => C_I_N(:,2,1) ; Jyp(1:nx,1:ny,1:nz)  => C_I_N(:,2,2)
+    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3,2)
+
+    call write_header(1)
+    write(1, fmt=1) 
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          write(1, fmt='(3f8.3, 12es25.12E3)') meshx(i), meshx(j), meshz(k),   &
+          &                                Sxn(i,j,k), Syn(i,j,k), Szn(i,j,k), & 
+          &                                Sxp(i,j,k), Syp(i,j,k), Szp(i,j,k), & 
+          &                                Jxn(i,j,k), Jyn(i,j,k), Jzn(i,j,k), & 
+          &                                Jxp(i,j,k), Jyp(i,j,k), Jzp(i,j,k)
+
+        enddo
+      enddo
+    enddo
+
+    close(1)
+
+  end subroutine write_timeodd_densities
 
   subroutine write_potentials(fname)
     !---------------------------------------------------------------------------
