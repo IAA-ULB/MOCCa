@@ -45,9 +45,13 @@ module fission_MOI
   !-----------------------------------------------------------------------------
   ! Multipole moments for which to construct the inertia tensor. 
   ! Hardcoded at the moment, maybe a runtime parameter in the future.
-  integer, parameter :: N_inertia            = 2
-  integer, parameter :: inertia_l(N_inertia) = (/2,4/) !,3/) 
-  integer, parameter :: inertia_m(N_inertia) = (/0,0/) !,0/)
+!  integer, parameter :: N_inertia            = 5
+!  integer, parameter :: inertia_l(N_inertia) = (/1,2,2,3,4/) !,3/) 
+!  integer, parameter :: inertia_m(N_inertia) = (/0,0,2,0,0/) !,0/)
+
+  integer, parameter :: N_inertia            = 3
+  integer, parameter :: inertia_l(N_inertia) = (/2,2,4/) !,3/) 
+  integer, parameter :: inertia_m(N_inertia) = (/0,2,0/) !,0/)
 
   !-----------------------------------------------------------------------------
   ! Contains the full inertia tensor 
@@ -107,9 +111,9 @@ contains
     !
     ! where the matrices M_n are determined by
     !
-    !                       Q^{20}_{i,ab} Q^{20}_{j,ab} 
-    ! M_{n,ij} = sum_{ab}  ---------------------------
-    !                         (E_a + E_b)^n
+    !                          Q^{20}_{i,ab} Q^{20}_{j,ab} 
+    ! M_{n,ij} = Re sum_{ab}  ---------------------------
+    !                               (E_a + E_b)^n
     !
     ! where the sum is over all quasiparticle states and E_a and E_b are 
     ! quasiparticle energies. 
@@ -141,8 +145,10 @@ contains
     
     allocate(Mat(N_inertia, N_inertia, 2,2)) ;  Mat   = 0.0d0
     allocate(Qsp(nwt,nwt,N_inertia))         ;  Qsp = 0.0d0
-    allocate(Q20(nwt,nwt,N_inertia))         ;  Q20 = 0.0d0
     
+    if(pairingtype.eq.2) then
+      allocate(Q20(nwt,nwt,N_inertia))         ;  Q20 = 0.0d0
+    endif  
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Step 1 & 2: construct relevant sp matrices
     do i=1, N_inertia
@@ -153,8 +159,10 @@ contains
       Qsp(:,:,i) = Qlm_spme(l,m,.false.) ! Hardcoded to consider only real parts
                                          ! at the moment
 
-      ! Transform to the quasiparticle basis
-      Q20(:,:,i) = calc_Q20(Qsp(:,:,i), bogoliubov, l)
+      if(pairingtype.eq.2) then
+        ! Transform to the quasiparticle basis if needed
+        Q20(:,:,i) = calc_Q20(Qsp(:,:,i), bogoliubov, l)
+      endif
     enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -164,7 +172,16 @@ contains
       do j=1, N_inertia
         lb = inertia_l(j)
         ! Perform the sums to obtain M_k for k=1,3
-        Mat(i,j,:,:) = Ksum_Mij(Q20(:,:,i), Q20(:,:,j), la, lb,  (/1,3/))
+        select case(pairingtype)
+        case(1)
+          Mat(i,j,:,:) = Ksum_Mij_BCS(Qsp(:,:,i), Qsp(:,:,j), &
+          &                                                      la, lb,(/1,3/))
+        case(2)
+          Mat(i,j,:,:) = Ksum_Mij(Q20(:,:,i), Q20(:,:,j), la, lb,  (/1,3/))
+        case DEFAULT
+          print *, 'NOT IMPLEMENTED.'
+          stop
+        end select
       enddo
     enddo
 
@@ -285,12 +302,78 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
       sab = sab + 2*Ta
     enddo
     
+    ! Factor two for the time-reversal partners
+    Ksum = 2*Ksum
+    
   end function Ksum_Mij
+    
+  function Ksum_Mij_BCS(Qa, Qb, la, lb,  Ks) result(Ksum)
+    !---------------------------------------------------------------------------
+    ! Perform the relevant sums over the quasiparticle space for the calculation
+    ! of the collective inertia in the case of a BCS calculation, i.e.
+    ! 
+    !  M_k = sum_ij (<i|Qa|j><j|Q^\dagger_b|i >)/[(Ei + Ej)^k] {eta^+_ij}^2
+    !
+    ! where 
+    !  (*) the <|Q|> are single-particle matrix elements
+    !  (*) the Ei and Ej are a BCS quasiparticle energies
+    !  (*) eta^+_ij = u_i v_j + u_j v_i 
+    !  (*) the sum runs over all single-particle states
+    !
+    ! This expression is Eq. 58 in 
+    ! 
+    !  A. Baran et al,  Phys. Rev. C 84, 054321 (2011).
+    !   
+    ! This routine bunches the summations for the same multipole moments with
+    ! all different powers k.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     Qa, Qb    : two-quasiparticle representations of both multipole 
+    !                 operators
+    !     Ks        : set of powers to use in the inverted calculation
+    ! Output:
+    !     Ksum      : result of the summations, array with the size of Ks
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: Qa(:,:), Qb(:,:)
+    real(KIND=dp), allocatable:: Ksum(:,:)
+    integer, intent(in)       :: Ks(:), la, lb
+    real(KIND=dp)             :: num, denom, eta, ui, vi, uj, vj
+    integer                   :: i,j, it, itb, k, Nk
+
+    Nk = size(Ks)
+    allocate(Ksum(Nk,2)) ; Ksum = 0.0d0
+
+    ! If parity is conserved, there is a parity selection rule    
+$PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return     
+
+    do i=1,nwt
+      call uv_from_occupation(BCSoccupations(i), ui, vi)
+     
+      it = 1 ;  if(i.gt. nwn) it = 2
+      do j=1,nwt
+        call uv_from_occupation(BCSoccupations(j), uj, vj)
+        
+        itb = 1 ;  if(j.gt. nwn) itb = 2
+        if(it .ne. itb) cycle
+
+        eta   = ui * vj + vi * uj  
+        num   = Qa(i,j) * Qb(i,j) * eta**2
+        do k=1,Nk
+         denom      = (BCSqps(i) + BCSqps(j))**Ks(k)
+         Ksum(k,it) = Ksum(k,it) + num/denom
+        enddo
+      enddo
+    enddo    
+    ! Factor two for the time-reversal partners
+    Ksum = 2*Ksum
+    
+  end function Ksum_Mij_BCS
   
   function calc_Q20(Qsp, bogo, l) result(Q20)
     !---------------------------------------------------------------------------
     ! Function that calculates the two-quasiparticle matrix for a multipole 
-    ! moment operator. 
+    ! moment operator in the case of a HFB calculation.
     ! 
     !  Q20 = U^\dagger Q V^* - V^\dagger Q^t U^*
     !
@@ -349,8 +432,11 @@ $PCONSERVED    if(mod(l,2).eq.0) then
         tmp(si+1:si+T,si+1:si+T) = matmul(tmp(si+1:si+T,si+1:si+T), U)
 
         ! Put both parts together      
-        Q20(si+1:si+T,si+1:si+T) = Q20(si+1:si+T,si+1:si+T) &
-        &                        - tmp(si+1:si+T,si+1:si+T)
+        !
+        ! ATTENTION TO THE SIGN DUE TO TIMEREVERSAL
+        !
+        Q20(si+1:si+T,si+1:si+T) = - Q20(si+1:si+T,si+1:si+T) &
+        &                          - tmp(si+1:si+T,si+1:si+T)
 
         si = si +   N +   N2
         sb = sb + 2*N + 2*N2
@@ -375,7 +461,7 @@ $PCONSERVED    endif
 !      
 !      enddo
       ![TO BE IMPLEMENTED]
-      stop
+!      stop
     endif
 
   end function calc_Q20

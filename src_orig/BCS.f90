@@ -71,6 +71,36 @@ module BCS
 
 contains
  
+ subroutine uv_from_occupation(occ, u, v)
+  !-----------------------------------------------------------------------------
+  ! Simple function that calculates BSC u and v factors in a numerically
+  ! safe way from the BCS occupation v^2.
+  !
+  ! Attention: only VALID if u and v can be assumed to be real.
+  !
+  ! Input:
+  !      occ  : 2 v^2, i.e. what is stored in BCSoccupations
+  ! Output:
+  !      u, v : bcs factors
+  !-----------------------------------------------------------------------------
+  
+  real(KIND=dp), intent(in) :: occ
+  real(KIND=dp), intent(out) :: u,v
+  
+  if(occ/2 .gt. 0.0d0) then
+    v = sqrt(occ/2)
+  else
+    v = 0.0d0
+  endif
+  
+  u = 1 - occ/2
+  if(u .gt. 0.0d0) then
+    u = sqrt(u)
+  else
+    u = 0.0d0
+  endif
+ end subroutine uv_from_occupation
+ 
  subroutine solvepairing_BCS(fermi, rho_can, kappa_can, qpenergies, gas,       &
  &                             BlockType,Blockindices, blocklowest, blocked_qps)
   !-----------------------------------------------------------------------------
