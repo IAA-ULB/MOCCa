@@ -80,8 +80,8 @@ contains
 
     header = ''
     do i=1,N_inertia
-			write(tmp, 3) inertia_l(i),inertia_m(i) 
-			header = adjustl(trim(header)//tmp)
+      write(tmp, 3) inertia_l(i),inertia_m(i) 
+      header = adjustl(trim(header)//tmp)
     enddo
 
     print *, '                 ', header   
@@ -153,7 +153,7 @@ contains
     !---------------------------------------------------------------------------
     real(KIND=dp), allocatable :: Mat(:,:,:,:), Qsp(:,:,:), Q20(:,:,:)
     real(KIND=dp), allocatable :: M1(:,:), M3(:,:), work(:)
-    integer :: i, j, la, ma, lb, mb, l, m, info, lwork
+    integer :: i, j, la, lb, l, m, info, lwork
     integer, allocatable :: ipiv(:)
         
     call start_timer(T_collective_MOI)
@@ -225,7 +225,7 @@ contains
     ! Ask for a workspace size
     allocate(work(1), ipiv(N_inertia))
     call dsytrf('U', N_inertia, M1, N_inertia, ipiv, work, -1, info)
-    lwork = work(1)
+    lwork = int(work(1))
     deallocate(work)
     allocate(work(lwork))
     ! Factorize M1
@@ -329,7 +329,7 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
     enddo
     
     ! Factor two for the time-reversal partners
-    Ksum = 2*Ksum
+$TR    Ksum = 2*Ksum
     
   end function Ksum_Mij
     
@@ -417,24 +417,27 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Note: 
     !
-    !  * No attempt is made to take into account the effect of 
-    !    (non-)conservation of time-reversal symmetry. This is not an issue 
-    !    as long as we only consider real parts of multipole moments with 
-    !    even m, on the condition we take the 'default' orientation of the 
-    !    multipole moments. 
+    !  * This routine assumes that the single-particle matrix elements 
+    !    Qsp are (i) real and (ii) correspond to an operator that conserves
+    !    signature symmetry. 
+    ! 
+    !  * If time-reversal is conserved, the routine assumes IN ADDITION that 
+    !    the operator conserves time-reversal symmetry as well, i.e.
+    !                 Q_ab = Q_{\bar{a} \bar{b}}
+    !    where \bar{x} indicates a time-reversal partner. 
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)  :: Qsp(nwt,nwt), bogo(2*nwt,2*nwt)
     integer, intent(in)        :: l
     real(KIND=dp)              :: Q20(nwt,nwt), tmp(nwt,nwt)
     real(KIND=dp), allocatable :: U(:,:), V(:,:)    
-    integer                    :: N, N2, T, si, sb, B
+    integer                    :: N, N2, T, si, sb, B, Tp, Tm, i
 
     Q20 = 0.0d0
 
     !---------------------------------------------------------------------------
     ! This situation is:
     !  (a) it concerns a multipole moment with even parity; or
-    !  (b) parity is broken and there are no more parity blocks
+    !  (b) parity is broken 
     ! In both cases we can simply multiply matrices straightforwardly.
 $PCONSERVED    if(mod(l,2).eq.0) then
       si = 0 ; sb = 0
@@ -458,11 +461,14 @@ $PCONSERVED    if(mod(l,2).eq.0) then
         tmp(si+1:si+T,si+1:si+T) = matmul(tmp(si+1:si+T,si+1:si+T), U)
 
         ! Put both parts together      
-        !
-        ! ATTENTION TO THE SIGN DUE TO TIMEREVERSAL
-        !
-        Q20(si+1:si+T,si+1:si+T) = - Q20(si+1:si+T,si+1:si+T) &
-        &                          - tmp(si+1:si+T,si+1:si+T)
+        ! Default formula
+$NTR        Q20(si+1:si+T,si+1:si+T) = + Q20(si+1:si+T,si+1:si+T) &
+$NTR        &                          - tmp(si+1:si+T,si+1:si+T)
+
+        ! Attention to the extra sign incurred when time-reversal is 
+        ! conserved
+$TR        Q20(si+1:si+T,si+1:si+T) = - Q20(si+1:si+T,si+1:si+T) &
+$TR        &                          - tmp(si+1:si+T,si+1:si+T)
 
         si = si +   N +   N2
         sb = sb + 2*N + 2*N2
@@ -476,18 +482,60 @@ $PCONSERVED    endif
     ! Using straightforward notation, this case corresponds to
     !
     !  U = ( U+ 0 )  V = ( V+ 0 )  Q = (0   Q+-)
-    !      ( 0  U-)      ( 0  V-)      (Q+- 0  )
+    !      ( 0  U-)      ( 0  V-)      (Q-+ 0  )
     !
     ! And so
     !
-    ! U^dagger Q V^* = (  0              U+^dagger Q V-  )
-    !                  ( U-^dagger Q V+          0       )
+    ! U^dagger Q V^*    = (  0              U+^dagger Q+- V-  )
+    !                     ( U-^dagger Q-+ V+          0       )
+    !
+    !
+    ! V^\dagger Q^t U^* = (  0              V+^dagger Q-+ U-  )
+    !                     ( V-^dagger Q+- U+          0       )
+    !
     if(mod(l,2).eq.1) then
-!      do B=1,8,4 ! Just an isospin loop ...;
-!      
-!      enddo
-      ![TO BE IMPLEMENTED]
-!      stop
+      si = 0 ; sb = 0
+      do B=1,8,4 ! Just an isospin loop ...
+        ! Size of the positive parity block
+        Tp = HFBlocks(B) + HFBLocks(B+1)
+        ! Size of the negative parity block
+        Tm= HFBlocks(B+2) + HFBLocks(B+3)
+  
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Uplus : U in the positive parity block
+        U = bogo(sb+        1:sb+  Tp     , sb+  Tp   +1:sb+2*Tp     )
+        ! Vmin  : V in the negative parity block
+        V = bogo(sb+2*Tp+Tm+1:sb+2*Tp+2*Tm, sb+2*Tp+Tm+1:sb+2*Tp+2*Tm)    
+        
+        ! U^+\dagger Q V^-
+        Q20(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = &
+          &  matmul(matmul(transpose(U),Qsp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)), V)
+!        Q20(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = &
+!          & matmul(transpose(U),Qsp(si+1:si+Tp,si+Tp+1:si+Tp+Tm))
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Umin : U in the negative parity block
+        U = bogo(sb+2*Tp+1:sb+2*Tp+Tm      ,sb+2*Tp+Tm+1:sb+2*Tp+2*Tm)
+        ! Vplus  : V in the positive parity block
+        V = bogo(sb+ Tp+1:sb+2*Tp          ,sb+  Tp   +1:sb+2*Tp     )    
+
+        tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = &
+          &  matmul(matmul(transpose(V),Qsp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)), U)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Putting both together
+        ! Default formula
+$NTR     Q20(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = + Q20(si+1:si+Tp,si+Tp+1:si+Tp+Tm) &
+$NTR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm) 
+!       ! Extra time-reversal sign when T is conserved
+$TR     Q20(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = - Q20(si+1:si+Tp,si+Tp+1:si+Tp+Tm) &
+$TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
+        
+        ! And then we abuse hermeticity of these operators
+        Q20(si+Tp+1:si+Tp+Tm, si+1:si+Tp) = &
+        &                            transpose(Q20(si+1:si+Tp,si+Tp+1:si+Tp+Tm))
+        
+        si = si +   Tm  +   Tp
+        sb = sb + 2*Tm  + 2*Tp
+      enddo
     endif
 
   end function calc_Q20
@@ -648,43 +696,9 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     
     ! Rescale with the units of b^(ell/2) with 1 b = 100 fm^2.
     me = me/(100**(l/2.0))
-      
+
   end function Qlm_spme
 
 end module fission_MOI
 
 ! Code zoo
-    
-!    allocate(coll_me(nwt,nwt))
-!    
-!    coll_me = Qlm_spme(2,0,.false.)
-!    
-!    s = 0 
-!    do i=1, nwt 
-!      do j=1,nwt
-!        s = s + rho_pairing(i,j) * coll_me(j,i) * 2
-!      enddo
-!    enddo
-!    print *, 'Collective Q20', s
-!    
-!    coll_me = Qlm_spme(3,0,.false.)
-!    
-!    s = 0 
-!    do i=1, nwt 
-!      do j=1,nwt
-!        s = s + rho_pairing(i,j) * coll_me(j,i) * 2
-!      enddo
-!    enddo
-!    print *, 'Collective Q30', s
-!    
-!    coll_me = Qlm_spme(4,0,.false.)
-!    
-!    s = 0 
-!    do i=1, nwt 
-!      do j=1,nwt
-!        s = s + rho_pairing(i,j) * coll_me(j,i) * 2
-!      enddo
-!    enddo
-!    print *, 'Collective Q40', s
-!!    
-!    
