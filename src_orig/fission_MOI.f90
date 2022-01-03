@@ -45,13 +45,13 @@ module fission_MOI
   !-----------------------------------------------------------------------------
   ! Multipole moments for which to construct the inertia tensor. 
   ! Hardcoded at the moment, maybe a runtime parameter in the future.
-!  integer, parameter :: N_inertia            = 5
-!  integer, parameter :: inertia_l(N_inertia) = (/1,2,2,3,4/) !,3/) 
-!  integer, parameter :: inertia_m(N_inertia) = (/0,0,2,0,0/) !,0/)
+  integer, parameter :: N_inertia            = 5
+  integer, parameter :: inertia_l(N_inertia) = (/1,2,2,3,4/) !,3/) 
+  integer, parameter :: inertia_m(N_inertia) = (/0,0,2,0,0/) !,0/)
 
-  integer, parameter :: N_inertia            = 3
-  integer, parameter :: inertia_l(N_inertia) = (/2,2,4/) !,3/) 
-  integer, parameter :: inertia_m(N_inertia) = (/0,2,0/) !,0/)
+!  integer, parameter :: N_inertia            = 3
+!  integer, parameter :: inertia_l(N_inertia) = (/2,2,4/) !,3/) 
+!  integer, parameter :: inertia_m(N_inertia) = (/0,2,0/) !,0/)
 
   !-----------------------------------------------------------------------------
   ! Contains the full inertia tensor 
@@ -100,6 +100,26 @@ contains
     print *
         
   end subroutine print_collective_inertia
+  
+  subroutine verify_COM_motion()
+    !
+    !
+    !
+    !
+    
+    real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
+    real(KIND=dp) :: mat(2,2), Qsp(nwt,nwt)
+      
+  
+    NablaMElements = compNablaMElements()
+    Qsp            = sqrt(hbm(1)*2) * NablaMElements(3,1,:,:)
+    mat            =   Ksum_Mij_BCS(Qsp, Qsp, 1, 1,(/1,3/))
+  
+    print *, ' 1 ', mat(1,:)
+    print *, ' 3 ', mat(2,:)
+    print *, 'TOGETHER', 1.0/mat(1,:) * mat(2,:) * 1.0/mat(1,:)
+  
+  end subroutine verify_COM_motion
 
   subroutine calc_collective_inertia()
     !---------------------------------------------------------------------------
@@ -143,6 +163,10 @@ contains
     endif
     collective_inertia = 0
     
+    ! We do not perform calculate any collective inertia for a pure
+    ! Hartree-Fock calculation 
+    if(pairingtype.eq.0) return      
+    
     allocate(Mat(N_inertia, N_inertia, 2,2)) ;  Mat   = 0.0d0
     allocate(Qsp(nwt,nwt,N_inertia))         ;  Qsp = 0.0d0
     
@@ -174,9 +198,11 @@ contains
         ! Perform the sums to obtain M_k for k=1,3
         select case(pairingtype)
         case(1)
+          ! BCS summation
           Mat(i,j,:,:) = Ksum_Mij_BCS(Qsp(:,:,i), Qsp(:,:,j), &
           &                                                      la, lb,(/1,3/))
         case(2)
+          ! HFB summation
           Mat(i,j,:,:) = Ksum_Mij(Q20(:,:,i), Q20(:,:,j), la, lb,  (/1,3/))
         case DEFAULT
           print *, 'NOT IMPLEMENTED.'
@@ -529,7 +555,12 @@ $PCONSERVED    endif
     harm_3D(1:nx,1:ny,1:nz) => Qlm
     harm_3D                 = SpherHarmMesh(:,:,:,l,m,im)
     deallocate(SpherHarmMesh)
-      
+
+    ! We rescale the ell = 1 multipole moments
+    if(l .eq. 1) then
+      harm_3D = sqrt(4*pi/3) * harm_3D
+    endif      
+
     !--------------------------------------------------------------------------- 
     ! Loop over the neutron single-particle states
     !---------------------------------------------------------------------------
