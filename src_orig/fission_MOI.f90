@@ -67,7 +67,7 @@ contains
     1 format (' Collective inertia tensor')
     2 format ('--------------------------')
     3 format ('     I_Q',2i1)
-    4 format ('     I_Q',2i1, 1x,'|', 1x, 99f10.3)
+    4 format ('     I_Q',2i1, 1x,'|', 1x, 99es12.3)
     5 format (12('_'))
 
     character(len=80) :: header, sep
@@ -108,22 +108,28 @@ contains
     !
     
     real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
-    real(KIND=dp) :: mat(2,2), Qsp(nwt,nwt), fac(2)
+    real(KIND=dp) :: mat(2,2), Qsp(nwt,nwt), fac(2), neutronmass, protonmass
       
   
     NablaMElements = compNablaMElements()
     Qsp            =  NablaMElements(3,1,:,:)
 
     fac = sqrt(hbm*nucleonmass*2) ! = hbar
-    Qsp(1:nwn,1:nwn)         = fac(1) * qsp(1:nwn,1:nwn)
-    Qsp(nwn+1:nwt,nwn+1:nwt) = fac(2) * qsp(nwn+1:nwt,nwn+1:nwt)
+    Qsp(1:nwn,1:nwn)         = qsp(1:nwn,1:nwn)
+    Qsp(nwn+1:nwt,nwn+1:nwt) = qsp(nwn+1:nwt,nwn+1:nwt)
     mat                      =  Ksum_Mij_BCS(Qsp, Qsp, 1, 1,(/1,3/))
   
     print *, ' 1 ', mat(1,:), sum(mat(1,:))
     print *, ' 3 ', mat(2,:)
-    print *, 'TOGETHER', 1.0/sum(mat(1,:)) * sum(mat(2,:)) * 1.0/sum(mat(1,:))
-    print *, 'MASS', protons*nucleonmass(2) , neutrons*nucleonmass(1), &
+    neutronmass = 1.0/mat(1,1) * mat(2,1) * 1.0/mat(1,1)
+    protonmass  = 1.0/mat(1,2) * mat(2,2) * 1.0/mat(1,2)
+
+    print *, 'MASS ', neutronmass, protonmass, neutronmass + protonmass    
+    print *, 'MASS ', protons*nucleonmass(2) , neutrons*nucleonmass(1), &
     &                 protons*nucleonmass(2) + neutrons*nucleonmass(1)
+    print *, 'RATIO ', protonmass/(protons) , &
+    &                  neutronmass/(neutrons), &
+    &                  (neutronmass + protonmass)/(protons*nucleonmass(2) + neutrons*nucleonmass(1))
   
   end subroutine verify_COM_motion
 
@@ -158,8 +164,8 @@ contains
     !
     !---------------------------------------------------------------------------
     real(KIND=dp), allocatable :: Mat(:,:,:,:), Qsp(:,:,:), Q20(:,:,:)
-    real(KIND=dp), allocatable :: M1(:,:), M3(:,:), work(:)
-    integer :: i, j, la, lb, l, m, info, lwork
+    real(KIND=dp), allocatable :: M1(:,:,:), M3(:,:,:), work(:)
+    integer :: i, j, la, lb, l, m, info, lwork, it
     integer, allocatable :: ipiv(:)
         
     call start_timer(T_collective_MOI)
@@ -218,46 +224,54 @@ contains
     enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Constructing explicitly the matrices M_1 and M_3 by summing proton and 
-    ! neutron contributions    
-    allocate(M1(N_inertia, N_inertia)) 
-    allocate(M3(N_inertia, N_inertia)) 
-    M1 = Mat(:,:,1,1) + Mat(:,:,1,2) 
-    M3 = Mat(:,:,2,1) + Mat(:,:,2,2) 
+    ! Constructing explicitly the matrices M_1 and M_3 for ease of reading
+    allocate(M1(N_inertia, N_inertia,2)) 
+    allocate(M3(N_inertia, N_inertia,2)) 
+    M1 = Mat(:,:,1,:) 
+    M3 = Mat(:,:,2,:) 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Step 4: use LAPACK routines to invert M1
     ! 
     ! Ask for a workspace size
-    allocate(work(1), ipiv(N_inertia))
-    call dsytrf('U', N_inertia, M1, N_inertia, ipiv, work, -1, info)
-    lwork = int(work(1))
-    deallocate(work)
-    allocate(work(lwork))
-    ! Factorize M1
-    call dsytrf('U', N_inertia, M1, N_inertia, ipiv, work, lwork, info)
-    deallocate(work)
-    ! Invert M1
-    allocate(Work(N_inertia))
-    call dsytri('U', N_inertia, M1, N_inertia,ipiv,work, info)
+    do it=1,2
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      allocate(work(1), ipiv(N_inertia))
+      call dsytrf('U', N_inertia, M1(:,:,it),N_inertia, ipiv, work, -1, info)
+      lwork = int(work(1))
+      deallocate(work)
+      allocate(work(lwork))
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Factorize M1
+      call dsytrf('U', N_inertia, M1(:,:,it),N_inertia, ipiv, work, lwork, info)
+      deallocate(work)
+      ! Invert M1
+      allocate(Work(N_inertia))
+      call dsytri('U', N_inertia, M1(:,:,it), N_inertia,ipiv,work, info)
 
-    if(info.ne.0) then
-       print *, 'Problem for DSYTRI during the calculation of collective inertia.'
-       print *, 'INFO = ', info
-       stop
-    endif
-    ! Note that after DSYTRI, only the top half of M1 is guaranteed to be right
-    ! Thus, we populate the other half here to avoid any surprises
-    do i=1,N_inertia
-      do j=i+1,N_inertia
-        M1(j,i) = M1(i,j)
+      if(info.ne.0) then
+         print *, 'Problem for DSYTRI during the calculation of collective inertia.'
+         print *, 'INFO = ', info
+         stop
+      endif
+      deallocate(work, ipiv)
+
+      ! Note that after DSYTRI, only the top half of M1 is guaranteed to be right
+      ! Thus, we populate the other half here to avoid any surprises
+      do i=1,N_inertia
+        do j=i+1,N_inertia
+          M1(j,i,it) = M1(i,j,it)
+        enddo
       enddo
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Step 5: calculate cranking tensor 
-    !  M_c = M1^{-1} M3 M1^{-1}
-    collective_inertia = matmul(matmul(M1, M3), M1)
-
+    ! Step 5: calculate cranking tensor for every isospin
+    !             M_c = M1^{-1} M3 M1^{-1}
+    !         and sum the results
+    !             M_t = M_n + M_p
+    collective_inertia = matmul(matmul(M1(:,:,1), M3(:,:,1)), M1(:,:,1)) & 
+    &                  + matmul(matmul(M1(:,:,2), M3(:,:,2)), M1(:,:,2))
+    
     call stop_timer(T_collective_MOI)
 
   end subroutine calc_collective_inertia
@@ -612,7 +626,7 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
 
     ! We rescale the ell = 1 multipole moments
     if(l .eq. 1) then
-      harm_3D = sqrt(4*pi/3) * harm_3D
+      harm_3D = sqrt(4*pi/3) * harm_3D !/(protons*nucleonmass(2)+neutrons*nucleonmass(1))
     endif      
 
     !--------------------------------------------------------------------------- 
@@ -701,7 +715,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     enddo
     
     ! Rescale with the units of b^(ell/2) with 1 b = 100 fm^2.
-    me = me/(100**(l/2.0))
+    if(l.ne.1) me = me/(100**(l/2.0))
 
   end function Qlm_spme
 
