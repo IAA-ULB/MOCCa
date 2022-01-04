@@ -108,16 +108,22 @@ contains
     !
     
     real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
-    real(KIND=dp) :: mat(2,2), Qsp(nwt,nwt)
+    real(KIND=dp) :: mat(2,2), Qsp(nwt,nwt), fac(2)
       
   
     NablaMElements = compNablaMElements()
-    Qsp            = sqrt(hbm(1)*2) * NablaMElements(3,1,:,:)
-    mat            =   Ksum_Mij_BCS(Qsp, Qsp, 1, 1,(/1,3/))
+    Qsp            =  NablaMElements(3,1,:,:)
+
+    fac = sqrt(hbm*nucleonmass*2) ! = hbar
+    Qsp(1:nwn,1:nwn)         = fac(1) * qsp(1:nwn,1:nwn)
+    Qsp(nwn+1:nwt,nwn+1:nwt) = fac(2) * qsp(nwn+1:nwt,nwn+1:nwt)
+    mat                      =  Ksum_Mij_BCS(Qsp, Qsp, 1, 1,(/1,3/))
   
-    print *, ' 1 ', mat(1,:)
+    print *, ' 1 ', mat(1,:), sum(mat(1,:))
     print *, ' 3 ', mat(2,:)
-    print *, 'TOGETHER', 1.0/mat(1,:) * mat(2,:) * 1.0/mat(1,:)
+    print *, 'TOGETHER', 1.0/sum(mat(1,:)) * sum(mat(2,:)) * 1.0/sum(mat(1,:))
+    print *, 'MASS', protons*nucleonmass(2) , neutrons*nucleonmass(1), &
+    &                 protons*nucleonmass(2) + neutrons*nucleonmass(1)
   
   end subroutine verify_COM_motion
 
