@@ -29,6 +29,8 @@ module transform
  !  EXPANDZ    : $EXPANDZ
  !
  ! PBROKEN     : $PBROKEN
+ ! TR          : $TR
+ ! NTR         : $NTR
  !==============================================================================
   use geninfo
   use wavefunctions

@@ -43,6 +43,13 @@ def ProcessIO(fname, src, target, so, oldso):
       dic['ININWT']  ='nwt/2'
       dic['ININWN']  ='nwn/2'
       dic['ININWP']  ='nwp/2'
+          
+    if(so.timelike):
+      dic['TR'] = ''
+      dic['NTR']= '!'
+    else:
+      dic['TR'] = '!'
+      dic['NTR']= ''
 
     with open(src+fname, 'r') as template:
       with open(target+fname, 'w') as generated:

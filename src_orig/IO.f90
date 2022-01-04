@@ -899,6 +899,8 @@ contains
       call write_densities(DENFILE)
     endif
     if(TOFILE .ne. '') then
+$TR   print *, 'Time-odd densities do not figure in a calculation that assumes time-reversal.'
+$TR   stop
       call write_timeodd_densities(TOFILE)
     endif
     ! Write the relevant potentials to a file for postprocessing
@@ -1130,36 +1132,43 @@ contains
 !        stop
 !      endif
 !    enddo
-    !---------------------------------------------------------------------------
-    ! Instead, we check the "effective" block sizes. 
-    ! A reference unblocked calculation will have HFBlocks = grad_blocks
-    check_blocks = HFBlocks
-    
-    do i=1,NB
-      select case(blocklowest(i))
-      case('n+')
-        B = 1       
-      case('n-')
-        B = 3       
-      case('p+')
-        B = 5       
-      case('p-')
-        B = 7       
-      end select 
-      check_blocks(B)   = check_blocks(B)   - 1 
-      check_blocks(B+1) = check_blocks(B+1) + 1 
-    enddo
 
-    do B=1,8
-      if(file_HFB_blocks(B)+extraspwfs(B).ne.check_blocks(B)) then
-        print *, 'Blocking structure of the Bogoliubov transformation on file'
-        print *, 'does not match that reported by the file.'
-        print *, ' Block structure of Bogoliubov matrix: ', file_HFB_blocks      
-        print *, ' Block structure asked for           : ', check_blocks      
-        stop
-      endif
-    enddo
+    if(.not. symtransfo_needed) then
+      !---------------------------------------------------------------------------
+      ! Instead, we check the "effective" block sizes. 
+      ! A reference unblocked calculation will have HFBlocks = grad_blocks
+      
+      ! 04/01/2022: NOTE, that we can only do this for cases where we need NO
+      !             symmetry transformation. If you transform symmetries, you
+      !             are on your own! 
+      
+      check_blocks = HFBlocks
+      
+      do i=1,NB
+        select case(blocklowest(i))
+        case('n+')
+          B = 1       
+        case('n-')
+          B = 3       
+        case('p+')
+          B = 5       
+        case('p-')
+          B = 7       
+        end select 
+        check_blocks(B)   = check_blocks(B)   - 1 
+        check_blocks(B+1) = check_blocks(B+1) + 1 
+      enddo
 
+      do B=1,8
+        if(file_HFB_blocks(B)+extraspwfs(B).ne.check_blocks(B)) then
+          print *, 'Blocking structure of the Bogoliubov transformation on file'
+          print *, 'does not match that reported by the file.'
+          print *, ' Block structure of Bogoliubov matrix: ', file_HFB_blocks      
+          print *, ' Block structure asked for           : ', check_blocks      
+          stop
+        endif
+      enddo
+    endif
   end function check_blocking_structure
   
   subroutine massage_Bogoliubov()
@@ -1442,13 +1451,13 @@ contains
       stop
     endif
 
-    Sxn(1:nx,1:ny,1:nz)  => D_I_S(:,1,1) ; Sxp(1:nx,1:ny,1:nz)  => D_I_S(:,1,2)
-    Syn(1:nx,1:ny,1:nz)  => D_I_S(:,2,1) ; Syp(1:nx,1:ny,1:nz)  => D_I_S(:,2,2)
-    Szn(1:nx,1:ny,1:nz)  => D_I_S(:,3,1) ; Szp(1:nx,1:ny,1:nz)  => D_I_S(:,3,2)
+$NTR    Sxn(1:nx,1:ny,1:nz)  => D_I_S(:,1,1) ; Sxp(1:nx,1:ny,1:nz)  => D_I_S(:,1,2)
+$NTR    Syn(1:nx,1:ny,1:nz)  => D_I_S(:,2,1) ; Syp(1:nx,1:ny,1:nz)  => D_I_S(:,2,2)
+$NTR    Szn(1:nx,1:ny,1:nz)  => D_I_S(:,3,1) ; Szp(1:nx,1:ny,1:nz)  => D_I_S(:,3,2)
 
-    Jxn(1:nx,1:ny,1:nz)  => C_I_N(:,1,1) ; Jxp(1:nx,1:ny,1:nz)  => C_I_N(:,1,2)
-    Jyn(1:nx,1:ny,1:nz)  => C_I_N(:,2,1) ; Jyp(1:nx,1:ny,1:nz)  => C_I_N(:,2,2)
-    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3,2)
+$NTR    Jxn(1:nx,1:ny,1:nz)  => C_I_N(:,1,1) ; Jxp(1:nx,1:ny,1:nz)  => C_I_N(:,1,2)
+$NTR    Jyn(1:nx,1:ny,1:nz)  => C_I_N(:,2,1) ; Jyp(1:nx,1:ny,1:nz)  => C_I_N(:,2,2)
+$NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3,2)
 
     call write_header(1)
     write(1, fmt=1) 
