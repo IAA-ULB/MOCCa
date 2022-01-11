@@ -171,7 +171,9 @@ module moments
       !-------------------------------------------------------------------------
       real(KIND=dp) :: Value(2)
       !                      |
-      !                      > isospin index (neutrons, protons)   
+      !                      > isospin index (neutrons, protons)
+      real(KIND=dp) :: ChargeValue ! value of the multipole moment for the 
+      !                            ! charge density
       real(KIND=dp) :: vectorvalue(3,2,2)
       !                            | | |
       !                            | | > isospin index (neutrons, protons)
@@ -211,9 +213,9 @@ module moments
       type(Moment), pointer  :: Next
       !-------------------------------------------------------------------------
       ! Deformation parameter Beta_lm associated with the moment.
-      ! (neutrons,protons,total)
+      ! (neutrons,protons,charge,total)
       !-------------------------------------------------------------------------
-      real(KIND=dp) :: Beta(3)
+      real(KIND=dp) :: Beta(4)
       !-------------------------------------------------------------------------
       ! Logical: if True, use the Lagrange multiplier as read from file.
       logical :: multfromfile = .false.
@@ -488,7 +490,7 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     ! We append the radius squared to the ordinary list...
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
-    NextMoment%Calculate    => Calculate_charge  
+    NextMoment%Calculate    => Calculate_electric 
 
     do k=1,nz
       do j=1,ny
@@ -505,7 +507,7 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     ! as well as the fourth radial moment for good measure
     NextMoment   => NewMoment_electric(-4,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
-    NextMoment%Calculate    => Calculate_charge
+    NextMoment%Calculate    => Calculate_electric
 
     do k=1,nz
       do j=1,ny
@@ -658,6 +660,7 @@ $FILL_LIST
     ! The parameters of the new multipole moment are set to zero by default.
     NewMoment%ConstraintType  = 0
     NewMoment%Value           = 0.0_dp
+    NewMoment%ChargeValue     = 0.0_dp
     NewMoment%SpherHarm       = 0.0_dp
     NewMoment%Squared         = 0.0_dp
     NewMoment%multiplier      = 0.0_dp
@@ -818,7 +821,7 @@ $NTR    enddo
     ! Input:
     !        Tocalculate :  mass/electric multipole moment to be calculated
     !---------------------------------------------------------------------------
-    use Densities, only : D_I_I
+    use Densities, only : D_I_I, chargedensity
   
     1 format ('Nan in Q_{ ,' i2, ' ', i2, '}')
     
@@ -835,13 +838,17 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     ! Calculate the new value for ordinary constraints
     do it=1,2
-      ToCalculate%Value(it)    = ToCalculate%Value(it) + &
+      ToCalculate%Value(it)      = ToCalculate%Value(it) + &
       &       sum(ToCalculate%SpherHarm*D_I_I(:,it))
       ToCalculate%Squared(it)    = ToCalculate%Squared(it)    + &
       &       sum(ToCalculate%SpherHarm**2*D_I_I(:,it))
     enddo
-    ToCalculate%Value     =ToCalculate%Value*dv
-    ToCalculate%Squared   =ToCalculate%Squared*dv
+    ToCalculate%ChargeValue      =  &
+    &                sum(ToCalculate%SpherHarm*   chargedensity(1:nx*ny*nz,1,1))
+
+    ToCalculate%Value        =ToCalculate%Value      *dv
+    ToCalculate%ChargeValue  =ToCalculate%ChargeValue*dv
+    ToCalculate%Squared      =ToCalculate%Squared    *dv
     
     ! Check for problems
     if(any(ToCalculate%Value.eq.ToCalculate%Value+1)) then
@@ -939,48 +946,48 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     return
   end subroutine Calculate_magnetic
  
-  subroutine Calculate_charge(ToCalculate)
-    !---------------------------------------------------------------------------
-    ! Subroutine to calculate the values of 
-    !        (1) the square radius               <r^2>
-    !        (2) the fourth power of the radius  <r^4>
-    ! of     (a) the point neutron density
-    !   and  (b) the charge density (including finite size of the proton)
-    !---------------------------------------------------------------------------
-    use densities, only : chargedensity, D_I_I
+!  subroutine Calculate_charge(ToCalculate)
+!    !---------------------------------------------------------------------------
+!    ! Subroutine to calculate the values of 
+!    !        (1) the square radius               <r^2>
+!    !        (2) the fourth power of the radius  <r^4>
+!    ! of     (a) the point neutron density
+!    !   and  (b) the charge density (including finite size of the proton)
+!    !---------------------------------------------------------------------------
+!    use densities, only : chargedensity, D_I_I
 
-    class(Moment),        intent(inout) :: ToCalculate
+!    class(Moment),        intent(inout) :: ToCalculate
 
-    ! Save the history
-    Tocalculate%history = tocalculate%value
+!    ! Save the history
+!    Tocalculate%history = tocalculate%value
 
-    !Initialise
-    ToCalculate%Value      = 0.0_dp
-    ToCalculate%Squared    = 0.0_dp
+!    !Initialise
+!    ToCalculate%Value      = 0.0_dp
+!    ToCalculate%Squared    = 0.0_dp
 
-    ! Neutron rms radius
-    ToCalculate%Value(1)    = sum(ToCalculate%SpherHarm*D_I_I(:,1))
-    ToCalculate%Squared(1)  = sum(ToCalculate%SpherHarm**2*D_I_I(:,1))
+!    ! Neutron rms radius
+!    ToCalculate%Value(1)    = sum(ToCalculate%SpherHarm*D_I_I(:,1))
+!    ToCalculate%Squared(1)  = sum(ToCalculate%SpherHarm**2*D_I_I(:,1))
 
-    ! The charge density in the Coulomb module includes the folding when it is 
-    ! included in the functional.
-    ToCalculate%Value(2)    =  &
-    &                sum(ToCalculate%SpherHarm*   chargedensity(1:nx*ny*nz,1,1))
-    ToCalculate%Squared(2)  =  &
-    &                sum(ToCalculate%SpherHarm**2*chargedensity(1:nx*ny*nz,1,1))
+!    ! The charge density in the Coulomb module includes the folding when it is 
+!    ! included in the functional.
+!    ToCalculate%Value(2)    =  &
+!    &                sum(ToCalculate%SpherHarm*   chargedensity(1:nx*ny*nz,1,1))
+!    ToCalculate%Squared(2)  =  &
+!    &                sum(ToCalculate%SpherHarm**2*chargedensity(1:nx*ny*nz,1,1))
 
-    !  Volume elements
-    ToCalculate%Value     = ToCalculate%Value   * dv
-    ToCalculate%Squared   = ToCalculate%Squared * dv
-    
-    ! Set the deviation
-    if(ToCalculate%ConstraintType.ne.0) then
-      ToCalculate%deviation    =                                               &
-      &                     abs(sum(ToCalculate%Value) - ToCalculate%constraint)
-    endif
-    call CalcBeta(ToCalculate)
+!    !  Volume elements
+!    ToCalculate%Value     = ToCalculate%Value   * dv
+!    ToCalculate%Squared   = ToCalculate%Squared * dv
+!    
+!    ! Set the deviation
+!    if(ToCalculate%ConstraintType.ne.0) then
+!      ToCalculate%deviation    =                                               &
+!      &                     abs(sum(ToCalculate%Value) - ToCalculate%constraint)
+!    endif
+!    call CalcBeta(ToCalculate)
 
-  end subroutine Calculate_charge
+!  end subroutine Calculate_charge
   
   subroutine CalcBeta(Mom)
   !-----------------------------------------------------------------------------
@@ -994,7 +1001,8 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     factor = 4.0_dp * pi /(3.0_dp * (neutrons+ protons) * R**(Mom%l))
 
     Mom%Beta(1:2) = factor*Mom%Value
-    Mom%Beta(3)   = factor*sum(Mom%Value)
+    Mom%Beta(3)   = factor*Mom%ChargeValue
+    Mom%Beta(4)   = factor*sum(Mom%Value)
   end subroutine CalcBeta
   
   subroutine CalcQuadrupoleAlt()
@@ -1404,18 +1412,17 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     !-------------------------------------------------------------------------
     type(Moment), pointer :: Current => null()
     integer               :: currentl
-    real(KIND=dp)         :: ql(3), factor, R
+    real(KIND=dp)         :: ql(4), factor, R
     character(len=1)      :: AX='Z',secAx1='Y', secAx2='Z'
 
-  100 format (16('-'),' Electric Multipole Moments ', 17('-'))
+  100 format (24('-'),' Electric Multipole Moments ', 25('-'))
 $NTR  101 format (15('-'),' Magnetic Multipole Moments ', 16('-'))   
-  102 format (60('-'))
-    1 format (62('_'))
-    2 format (17x,4x, 'Neutrons',8x,   'Protons ',9x, 'Total')
-   21 format (17x,4x, 'N. (point)', 6x ' Charge ')
-    7 format ('Beta_{', 2i2 , '} ', 3(1x,f15.8) )
-   71 format ('Beta_{',2x, i2,'} ', 3(1x,f15.8) )
-    8 format ('Q_{',i2,'} ',5x, 3(1x,f15.4))
+  102 format (76('-'))
+    1 format (78('_'))
+    2 format (17x,2x, 'Neutrons',8x,   'Protons ',9x, 'Charge', 9x, 'Total')
+    7 format ('Beta_{', 2i2 , '} ', 4(1x,f15.8) )
+   71 format ('Beta_{',2x, i2,'} ', 4(1x,f15.8) )
+    8 format ('Q_{',i2,'} ',5x, 4(1x,f15.4))
    10 format ('Quantisation Axis             : ', a1)
    11 format ('  With secondary axis ordering: ', a1, ',', a1)
 $NTR   12 format (' Units: ',/,&
@@ -1470,10 +1477,6 @@ $NTR     &          '   phys:             mu_N fm^(l-1)'  )
       !Print a new line when getting new l.
       if(currentl .ne. Current%l .and. Currentl .ge.0) print *
       currentl = Current%l
-      if(currentl.eq.-2) then
-          print 21
-          print 1
-      endif
       call Current%PrintMoment(Current)
     enddo
     print 1
@@ -1492,7 +1495,7 @@ $NTR     &          '   phys:             mu_N fm^(l-1)'  )
       currentl = Current%l
 
       if(Current%l.gt.1 ) then
-          print 7, Current%l, Current%m,Current%Beta
+          print 7, Current%l, Current%m, Current%Beta
       endif
     enddo
     nullify(Current)
@@ -1569,17 +1572,17 @@ $NTR    print 102
 
     class(Moment),       intent(in) :: ToPrint
     character(len=2)                :: ReIm
-      1 format (A2, '  Q_{', 2i2, '}', 3(1x,f15.4) )
-      2 format ('Constrained ',  33x, f15.4)
+      1 format (A2, '  Q_{', 2i2, '}', 4(1x,f15.4) )
+      2 format ('Constrained ',  49x, f15.4)
      21 format ('Constrained ',   1x, f15.4)
      22 format ('Constrained ',  17x, f15.4)
-      3 format (' Particles  ',  3(1x,f15.4))
-      4 format (' RMS radius ',  2(1x,f15.4))
-     41 format (' Fourth mom.',  2(1x,f15.4)) 
-      5 format (A2, ' La_{',i2,i2,'}',   33x,  f15.4)
+      3 format (' Particles  ',  4(1x,f15.4))
+      4 format (' RMS radius ',  4(1x,f15.4))
+     41 format (' Fourth mom.',  4(1x,f15.4)) 
+      5 format (A2, ' La_{',i2,i2,'}',   49x,  f15.4)
      51 format (A2, ' La_{',i2,i2,'}',    1x,  f15.4)
      52 format (A2, ' La_{',i2,i2,'}',   17x,  f15.4)
-      6 format (A2, ' De_{',i2,i2,'}',   33x,  e15.7) 
+      6 format (A2, ' De_{',i2,i2,'}',   49x,  e15.7) 
      61 format (A2, ' De_{',i2,i2,'}',    1x,  e15.7) 
      62 format (A2, ' De_{',i2,i2,'}',   17x,  e15.7) 
 
@@ -1587,24 +1590,29 @@ $NTR    print 102
     !---------------------------------------------------------------------------
     case(0)
       ! Printing the total number of particles
-      print 3, sqrt(4*pi)*ToPrint%Value, sqrt(4*pi)*sum(ToPrint%Value)
+      print 3, sqrt(4*pi)*ToPrint%Value,  sqrt(4*pi)*ToPrint%ChargeValue,      &
+      &        sqrt(4*pi)*sum(ToPrint%Value)
     !---------------------------------------------------------------------------
     case(-2)
       ! Printing RMS charge radii
-      print 4, sqrt(ToPrint%Value(1)/Neutrons)                                 &
-      &      , sqrt(ToPrint%Value(2)/(Protons))                               
+      print 4, sqrt(ToPrint%Value(1)/Neutrons),                                &
+      &        sqrt(ToPrint%Value(2)/(Protons)),                               &
+      &        sqrt(ToPrint%ChargeValue/(Protons)),                            &
+      &        sqrt(sum(ToPrint%Value)/(Neutrons+Protons))                                  
     case(-4)
       ! Printing <r^4>^{1/4}
-      print 41, (ToPrint%Value(1)/Neutrons)**(1.0/4.0)                         &
-      &      , (ToPrint%Value(2)/(Protons))**(1.0/4.0)                        
+      print 41, (ToPrint%Value(1)/Neutrons)**(1.0d0/4.0d0),                    &
+      &         (ToPrint%Value(2)/Protons)**(1.0d0/4.0d0),                     &
+      &         (ToPrint%ChargeValue/Protons)**(1.0d0/4.0d0),                  &
+      &         (sum(ToPrint%Value)/(Protons+Neutrons))**(1.0d0/4.0d0)            
     !---------------------------------------------------------------------------
     case DEFAULT
       !All other "normal" multipole moments
       ReIm = 'Re'
       if(ToPrint%Impart) ReIm = 'Im'
 
-      print 1, ReIm, ToPrint%l, ToPrint%m, ToPrint%Value(1), ToPrint%Value(2) &
-      &        , Sum(ToPrint%Value)
+      print 1, ReIm, ToPrint%l, ToPrint%m, ToPrint%Value(1), ToPrint%Value(2), &
+      &        ToPrint%Chargevalue,  Sum(ToPrint%Value)
 
       if(ToPrint%ConstraintType.ne.0) then
         select case(ToPrint%isoswitch)
@@ -1864,7 +1872,7 @@ $NTR    print 102
 
     integer, intent(in)   :: l
     type(Moment), pointer :: Current
-    real(KIND=dp)         :: ql(3), fm
+    real(KIND=dp)         :: ql(4), fm
     integer               :: m
     
     ql = 0.0_dp ; m=0
@@ -1881,7 +1889,8 @@ $NTR    print 102
     endif
 
     ql(1:2) =     Current%Value**2
-    ql(3)   = sum(Current%Value)**2
+    ql(3)   =     Current%ChargeValue**2
+    ql(4)   = sum(Current%Value)**2
     do while(associated(Current%Next))
       Current  => Current%Next
       if(Current%l .ne.l) exit
@@ -1892,8 +1901,9 @@ $NTR    print 102
         fm=1
       endif
 
-      ql(1:2) = ql(1:2) + Current%Value**2*fm
-      ql(3)   = ql(3)   + sum(Current%Value)**2*fm
+      ql(1:2) = ql(1:2) + Current%Value**2       *fm
+      ql(3)   = ql(3)   + Current%ChargeValue**2 *fm
+      ql(4)   = ql(4)   + sum(Current%Value)**2  *fm
     enddo
     nullify(Current)
     ql = sqrt(ql)
