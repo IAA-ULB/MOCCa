@@ -56,10 +56,9 @@ module moments
 ! part.
 !
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-! The rms radius is treated on the same footing as the multipole moments here
-! even though there is no spherical harmonic corresponding to it. It is put into
-! the linked list for l=-1. 
-!
+! The calculation of the rms charge radius and the fourth radial moment 
+! also happen in this module; they are treated as multipole moments. They
+! are both appended at the end of the linked list with l=-2 and -4 respectively.
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! For the electric multipole moments, practical quantities to investigate are
 !
@@ -485,21 +484,41 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
         enddo
       enddo
     enddo
-    !We append the radius squared to the ordinary list
+    !---------------------------------------------------------------------------
+    ! We append the radius squared to the ordinary list...
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
-    NextMoment%Calculate    => Calculate_rms  
+    NextMoment%Calculate    => Calculate_charge  
 
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          harm_3D(i,j,k) = meshx(i)**2 + meshy(j)**2 + meshz(k)**2
+          harm_3D(i,j,k) = meshx(i)**2 + meshy(j)**2 + meshz(k)**2 ! r^2
         enddo
       enddo
     enddo
     
     Current%Next    => NextMoment
     NextMoment%Prev => Current
+    Current         => NextMoment
+    !---------------------------------------------------------------------------
+    ! as well as the fourth radial moment for good measure
+    NextMoment   => NewMoment_electric(-4,0,0)
+    harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
+    NextMoment%Calculate    => Calculate_charge
+
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          harm_3D(i,j,k) = (meshx(i)**2 + meshy(j)**2 + meshz(k)**2)**2 ! r^4
+        enddo
+      enddo
+    enddo
+    
+    Current%Next    => NextMoment
+    NextMoment%Prev => Current
+
+    ! End of the chain
     nullify(Current)
     !---------------------------------------------------------------------------
 $NTR    allocate(Current)
@@ -920,13 +939,13 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     return
   end subroutine Calculate_magnetic
  
-
-  subroutine Calculate_rms(ToCalculate)
+  subroutine Calculate_charge(ToCalculate)
     !---------------------------------------------------------------------------
-    ! Subroutine to calculate the rms radii of both nucleon species.
-    ! This proceeds in the same way as the Calculate_electric, but is different
-    ! since it possibly needs to include the folding for the finite size of the
-    ! proton. 
+    ! Subroutine to calculate the values of 
+    !        (1) the square radius               <r^2>
+    !        (2) the fourth power of the radius  <r^4>
+    ! of     (a) the point neutron density
+    !   and  (b) the charge density (including finite size of the proton)
     !---------------------------------------------------------------------------
     use densities, only : chargedensity, D_I_I
 
@@ -961,7 +980,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     endif
     call CalcBeta(ToCalculate)
 
-  end subroutine Calculate_rms
+  end subroutine Calculate_charge
   
   subroutine CalcBeta(Mom)
   !-----------------------------------------------------------------------------
@@ -1351,6 +1370,9 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
                 if(Current%l .eq. -2) then
                   print *, 'RMS radius constraint is not implemented'
                   stop
+                elseif(Current%l .eq. -4) then
+                  print *, 'Constraint on fourth radial moment is not implemented'
+                  stop
                 elseif(Current%l .eq. 0) then
                   print *, 'You cannot constrain the number of particles here!'
                   stop
@@ -1389,7 +1411,8 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 $NTR  101 format (15('-'),' Magnetic Multipole Moments ', 16('-'))   
   102 format (60('-'))
     1 format (62('_'))
-    2 format (17x,4x, 'Neutrons',8x, 'Protons',9x, 'Total')
+    2 format (17x,4x, 'Neutrons',8x,   'Protons ',9x, 'Total')
+   21 format (17x,4x, 'N. (point)', 6x ' Charge ')
     7 format ('Beta_{', 2i2 , '} ', 3(1x,f15.8) )
    71 format ('Beta_{',2x, i2,'} ', 3(1x,f15.8) )
     8 format ('Q_{',i2,'} ',5x, 3(1x,f15.4))
@@ -1445,8 +1468,12 @@ $NTR     &          '   phys:             mu_N fm^(l-1)'  )
     do while(associated(Current%Next))
       Current => Current%Next
       !Print a new line when getting new l.
-      if(currentl .ne. Current%l) print *
+      if(currentl .ne. Current%l .and. Currentl .ge.0) print *
       currentl = Current%l
+      if(currentl.eq.-2) then
+          print 21
+          print 1
+      endif
       call Current%PrintMoment(Current)
     enddo
     print 1
@@ -1547,7 +1574,8 @@ $NTR    print 102
      21 format ('Constrained ',   1x, f15.4)
      22 format ('Constrained ',  17x, f15.4)
       3 format (' Particles  ',  3(1x,f15.4))
-      4 format (' RMS radius ',  3(1x,f15.4))
+      4 format (' RMS radius ',  2(1x,f15.4))
+     41 format (' Fourth mom.',  2(1x,f15.4)) 
       5 format (A2, ' La_{',i2,i2,'}',   33x,  f15.4)
      51 format (A2, ' La_{',i2,i2,'}',    1x,  f15.4)
      52 format (A2, ' La_{',i2,i2,'}',   17x,  f15.4)
@@ -1562,14 +1590,13 @@ $NTR    print 102
       print 3, sqrt(4*pi)*ToPrint%Value, sqrt(4*pi)*sum(ToPrint%Value)
     !---------------------------------------------------------------------------
     case(-2)
-      ! Printing RMS radii
-      print 4, sqrt(ToPrint%Value(1)/Neutrons)                                &
-      &      , sqrt(ToPrint%Value(2)/(Protons))                               &
-      &      , sqrt(sum(ToPrint%Value)/(Neutrons+Protons))
-
-      if(ToPrint%ConstraintType.ne.0) then
-          print 2, sqrt(abs(ToPrint%Constraint/(Neutrons + Protons)))
-      endif
+      ! Printing RMS charge radii
+      print 4, sqrt(ToPrint%Value(1)/Neutrons)                                 &
+      &      , sqrt(ToPrint%Value(2)/(Protons))                               
+    case(-4)
+      ! Printing <r^4>^{1/4}
+      print 41, (ToPrint%Value(1)/Neutrons)**(1.0/4.0)                         &
+      &      , (ToPrint%Value(2)/(Protons))**(1.0/4.0)                        
     !---------------------------------------------------------------------------
     case DEFAULT
       !All other "normal" multipole moments
