@@ -998,7 +998,7 @@ $TR   stop
 
     b20 = Q20%beta(3)
     b22 = Q22%beta(3)    
-    rms     =     r2%value(2)
+    rms     =     r2%chargevalue
     
     if(associated(Q30)) then
       b30 = Q30%beta(3)
