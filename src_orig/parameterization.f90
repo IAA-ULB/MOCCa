@@ -209,7 +209,7 @@ $CHECKPARAMS
     1 format (80('-'))
     2 format (' Parameterization name',  5x, 20a)
     3 format (' Functional name      ',  5x, 20a)
-    4 format (' - - - - - - - - - - -')
+    4 format (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
     5 format (' Parameters' )
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    

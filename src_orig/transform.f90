@@ -52,6 +52,23 @@ contains
   2 format(" Number of spwfs on STDIN does not match what is required.")
   3 format(" Symmetry-broken calculation should have (nwn,nwp) = ", 2i5)
   4 format(" STDIN says                              (nwn,nwp) = ", 2i5)
+  5 format &
+     &  (/,8x,' ___________________________________________________________', &
+     &   /,8x,'| Symmetry-transformation of the input                     |', &
+     &   /,8x,'| On file:                                                 |', &
+     &   /,8x,'|    nx, ny, nz    = ', 3i5, '                       |', &
+     &   /,8x '|    dx            = ', f10.7, ' (fm)                       |', &
+     &   /,8x,'|    nwn, nwn      = ', 2i7 , '                        |', &
+     &   /,8x,'|    (n+,n-)       = (', 4i5, ')                |', &
+     &   /,8x,'|    (p+,p-)       = (', 4i5, ')                |', &
+     &   /,8x,'| This calculation:                                        |' , &
+     &   /,8x,'|    nx, ny, nz    = ', 3i5, '                       |'       , &
+     &   /,8x '|    dx            = ', f10.7, '(fm)                        |', &
+     &   /,8x,'|    nwn, nwn      = ', 2i7, '                        |'      , &
+     &   /,8x,'|    (n+,n-)       = (', 4i5, ')                |', &
+     &   /,8x,'|    (p+,p-)       = (', 4i5, ')                |', &
+     &   /,8x,'|__________________________________________________________|')
+
 
     real(KIND=dp), intent(inout), allocatable, target :: wfs(:,:,:)
     integer, intent(inout)                    :: blocks(8)
@@ -514,6 +531,9 @@ contains
       HFBlocks(3:4) = 0
       HFBlocks(7:8) = 0
     endif
+    
+    print 5, oldnx, oldny, oldnz, dx, sum(blocks(1:4)), sum(blocks(5:8)),      &
+    &       blocks, nx,ny,nz,dx,nwn,nwp, hfblocks
     
   end subroutine Transformspwfs
 

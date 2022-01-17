@@ -25,23 +25,23 @@ contains
     ! Print the info of the (physical) Hartree-Fock basis.
     !---------------------------------------------------------------------------
     
-    10 format (21 ('-'), ' Sp wavefunctions ', 61('-'))
-    12 format (21 ('-'), ' Canonical basis  ', 61('-'))
-    20 format (100 ('-'))
-    30 format (100 ('_'),/,3x , 'Neutron wavefunctions')
-    40 format (100 ('_'),/,3x , 'Proton  wavefunctions')
-    60 format (2x,'i',5x,'P',3x, 'Rz', 3x,'occ',7x,'E',8x,'d2h',4x,'Delta',  &
+    10 format (21 ('-'), ' Hartree-Fock basis', 67('-'))
+    12 format (21 ('-'), ' Canonical    basis', 67('-'))
+    20 format (106 ('-'))
+    30 format (106 ('_'),/,3x , 'Neutron wavefunctions')
+    40 format (106 ('_'),/,3x , 'Proton  wavefunctions')
+    60 format (2x,'i',5x,'P',3x, 'Rz', 3x,'occ',10x,'E',7x,'d2h',4x,'Delta',  &
     &             ' | ', 2x, 'JxT',4x, 'JyT', 4x,'Jz', 6x, 'J', 2x,          &
     &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz')    
 
-    11 format (i3, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, f9.3, 1x, es8.1,1x,f6.2,  &
-    &          1x,'|', 4(2x, f5.2), 1x, '|', 3(2x, f5.2) )
+    11 format (i3, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, 1x, f9.3, 1x,es8.1,1x,& 
+    &           f6.2,  1x,'|', 4(2x, f5.2), 1x, '|', 3(2x, f5.2) )
 
-    integer       :: wave,k, B, si, N, T, wavebar
+    integer       :: wave,k, B, si, N, T, wavebar, l
     integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz
-    
     real(KIND=dp), allocatable :: HF_gaps(:,:), can_gaps(:,:)
+    character(len=1) :: blo
     
     ! We transform the gaps to the Hartree-Fock basis for printing
     if(pairingtype.eq.2) then
@@ -95,15 +95,15 @@ contains
         JJ = HF_JJ(wave)
 
         if(pairingtype.eq.1) then
-          print 11, wave, p, s, rho_can(wave), spenergies(wave), &
+          print 11, wave, p, s, rho_can(wave), ' ', spenergies(wave), &
           &               dispersions(wave), BCSgaps(wave),      &
           &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
         elseif(pairingtype.eq.2) then
-          print 11, wave, p, s, rho_HF(wave), spenergies(wave),                &
+          print 11, wave, p, s, rho_HF(wave), ' ', spenergies(wave),          &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
           &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
         else
-          print 11, wave, p, s, rho_can(wave), spenergies(wave), &
+          print 11, wave, p, s, rho_can(wave), ' ', spenergies(wave), &
           &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz              
         endif
     enddo
@@ -135,15 +135,15 @@ contains
         JJ = HF_JJ(wave)
 
         if(pairingtype.eq.1) then
-          print 11, wave, p, s, rho_can(wave), spenergies(wave),               &
+          print 11, wave, p, s, rho_can(wave), ' ', spenergies(wave),          &
           &               dispersions(wave), BCSgaps(wave),                    &
           &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
         elseif(pairingtype.eq.2) then
-          print 11, wave, p, s,  rho_HF(wave), spenergies(wave),               &
+          print 11, wave, p, s,  rho_HF(wave), ' ', spenergies(wave),          &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
           &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
         else
-          print 11, wave, p, s, rho_can(wave), spenergies(wave),               &
+          print 11, wave, p, s, rho_can(wave),' ',  spenergies(wave),          &
           &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ,              &
           &               Sx, Sy, Sz
         endif
@@ -191,17 +191,24 @@ contains
       Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
       JJ = can_JJ(wave)
     
-     if(allocated(conjugp)) then
+      if(allocated(conjugp)) then
        wavebar  = conjugp(wave)
-     else
+      else
        wavebar  = wave     
-     endif
+      endif
       if(wavebar .eq.0) then
           Delta = 0.0
       else
           Delta = can_gaps(wave, wavebar)
       endif    
-      print 11, wave, p,  s,   rho_can(wave), canenergies(wave),             &
+      
+      blo = ' ' 
+      if(allocated(blocked_sps)) then
+        do l = 1, blocknumber
+          if(wave.eq.blocked_sps(l)) blo = '*'
+        enddo
+      endif    
+      print 11, wave, p,  s,   rho_can(wave), blo , canenergies(wave),        &
       &               0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz
     enddo
     print 40  
@@ -240,8 +247,15 @@ contains
       else
           Delta = can_gaps(wave, wavebar)
       endif   
+    
+      blo = ' ' 
+      if(allocated(blocked_sps)) then
+        do l = 1, blocknumber
+          if(wave.eq.blocked_sps(l)) blo = '*'
+        enddo
+      endif   
 
-      print 11, wave, p, s,    rho_can(wave), canenergies(wave),             &
+      print 11, wave, p, s,   rho_can(wave),  blo, canenergies(wave),       &
       &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz
     enddo
     print 20

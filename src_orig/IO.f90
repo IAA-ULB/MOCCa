@@ -79,7 +79,7 @@ implicit none
   character(len=100)  :: inputfilename, outputfilename
   ! Signal the code to write extra output.
   character(len=40)   :: BXLFIT='', COMBI='', denfile='', potfile=''
-  character(len=40)   :: sphffile='', spcanfile='', tofile=''
+  character(len=40)   :: sphffile='', spcanfile='', tofile='', blockfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
   !-----------------------------------------------------------------------------
@@ -131,7 +131,7 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           Counter, run, tofile
+    &           Counter, run, tofile, blockfile
     
     if(present(file_number)) then
       inquire(file=input_file, exist=exists)
@@ -208,7 +208,9 @@ contains
              & '    DEN file       = ', a40, / &
              & '    POT file       = ', a40, / &
              & '    SPHF file      = ', a40, / &
-             & '    SPCAN file     = ', a40) 
+             & '    SPCAN file     = ', a40, / &
+             & '    TO file        = ', a40, / & 
+             & '    BLOCK file     = ', a40) 
  1111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
   112 format ( ' Checkpointiter =', i10)
@@ -257,7 +259,7 @@ contains
 
     print 112, checkpointiter
 
-    print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE
+    print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE
     if(present(file_number)) then
       print 1111,  adjustl(trim(input_file)), file_number
     endif
@@ -893,7 +895,7 @@ contains
     if(BXLFIT .ne. '') then
         call Brussels_output(iter, iomsg)
     endif  
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Write the neutron, proton and charge density to a file for postprocessing 
     if(DENFILE .ne. '') then
       call write_densities(DENFILE)
@@ -903,10 +905,12 @@ $TR   print *, 'Time-odd densities do not figure in a calculation that assumes t
 $TR   stop
       call write_timeodd_densities(TOFILE)
     endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Write the relevant potentials to a file for postprocessing
     if(POTFILE .ne. '') then
       call write_potentials(POTFILE)
     endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Single-particle wave function information 
     ! a) in the HF-basis
     if(SPHFFILE .ne. '') then
@@ -916,6 +920,11 @@ $TR   stop
     if(pairingtype.eq.2 .and. SPCANFILE .ne. '') then
       call write_sp_info_can(SPCANFILE)
     endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! 
+    if(pairingtype.eq.2 .and. BLOCKFILE .ne. '') then
+      call write_blocked_sps(BLOCKFILE)
+    endif        
 
   end subroutine write_advanced_output
 
@@ -930,13 +939,14 @@ $TR   stop
     !
     !      N, Z, Total energy, Enocor, Erot+Evib,  
     ! &    b20, b22, b30, b32, b40                                 &
-    ! &     <r^2_p>, B(1:3), J2(1:3),                              &
+    ! &    sqrt(<r^2_p>/Z), B(1:3), J2(1:3),                       &
     ! &    avgap_uv(n), avgap_uv(p), Epairn, Epairp                &
-    ! &    DEhistory, iter
+    ! &    DEhistory, iter, iomsg
     !
     ! Notes:
-    ! *  <r^2_p> is calculated as in the moments module, i.e. it is calculated  
-    !    from the charge density, which is not necessarily the proton density.
+    ! *  sqrt(<r^2_p>/Z) is calculated as in the moments module, i.e. it is 
+    !    calculated from the charge density, which is not necessarily the proton
+    !    density.
     ! * B is the Belyaev moment of inertia, along every axis
     ! * J2 is the expectation value of J^2, along every axis
     !
@@ -1769,6 +1779,82 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     enddo
     close(1)
   end subroutine write_sp_info_can
+  
+  subroutine write_blocked_sps(fname)
+    !---------------------------------------------------------------------------
+    ! Write the density of the 'blocked' single-particle states to file, i.e. 
+    ! the single-particle states in the canonical basis that come out with 
+    ! rho_can = 1 due to blocking.
+    !
+    ! The file contains a header written by the subroutine write_header, 
+    ! supplemented by the following 
+    !
+    ! # X [fm] Y [fm] Z [fm]   Psi_1  Psi_2  Psi_3 ....
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !
+    !---------------------------------------------------------------------------
+    character(len=*), intent(in) :: fname
+    integer                      :: io
+    integer                      :: i,j,k, wave
+    real(KIND=dp), allocatable   :: psis(:,:,:,:) 
+    real(KIND=dp), pointer       :: tempwf_one(:,:,:), tempwf_two(:,:,:)
+    real(KIND=dp), pointer       :: tempwf_three(:,:,:), tempwf_four(:,:,:)
+
+    1 format('#  X[fm]   Y[fm]   Z[fm]')
+    2 format(7x, ' |Psi_', i1, '|^2' , 10x)
+
+    if(.not.allocated(blocked_sps)) then
+      print *, 'Cannot write single-particle wavefunctions to file.'
+      return
+    endif
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'Something went wrong with writing blocked states to file.'
+      print *, 'filename = ', fname
+      stop
+    endif
+    
+    call write_header(1)
+    write(1, fmt=1, advance='no')
+    do k=1, blocknumber
+      write(1, fmt=2, advance ='no') k
+    enddo
+    write(1, fmt=*)
+    
+    allocate(psis(nx,ny,nz,blocknumber)) ; psis = 0
+    do wave=1,blocknumber
+      tempwf_one(1:nx,1:ny,1:nz)   => canpsi(1:nx*ny*nz,1,wave)
+      tempwf_two(1:nx,1:ny,1:nz)   => canpsi(1:nx*ny*nz,2,wave)
+      tempwf_three(1:nx,1:ny,1:nz) => canpsi(1:nx*ny*nz,3,wave)
+      tempwf_four(1:nx,1:ny,1:nz)  => canpsi(1:nx*ny*nz,4,wave)
+      do k=1, nz
+        do j=1,ny
+          do i=1,nx
+            psis(i,j,k,wave) =     tempwf_one(i,j,k)**2   &
+            &                     +tempwf_two(i,j,k)**2   &
+            &                     +tempwf_three(i,j,k)**2 &
+            &                     +tempwf_four(i,j,k)**2 
+          enddo
+        enddo
+      enddo
+    enddo
+    
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          write(1, fmt='(3f8.3)', advance='no')  meshx(i), meshx(j), meshz(k)
+          do wave=1,blocknumber
+            write(1, fmt='(1x,es25.12,1x)', advance='no') psis(i,j,k,wave) 
+          enddo
+          write(1, fmt=*)
+        enddo
+      enddo
+    enddo
+      
+      
+  end subroutine write_blocked_sps
 
   function force_halfinteger(j) result(jforced)
       !-------------------------------------------------------------------------

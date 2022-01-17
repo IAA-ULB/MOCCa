@@ -97,9 +97,8 @@ contains
     real(KIND=dp), allocatable   :: R(:)
        
     integer                      :: N, N2,B, sb, i, NB, j, qblock, ind, si, bi
-    real(KIND=dp)                :: compare, occ, qpmin, overl
-    integer                      :: toblock(4), qpb, column
-    real(KIND=dp), allocatable   :: tr_qp(:)
+    real(KIND=dp)                :: compare, occ, qpmin
+    integer                      :: toblock(4), qpb    
 
     N = size(Eqp) 
     allocate(R(N)) ;  R = 0

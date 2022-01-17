@@ -317,7 +317,7 @@ contains
     
     character(len=1) :: Ax='Z', secAx1='X', secAx2='Y'
 
-    1 format (30('-'), ' Multipole Moments', 30('-') )
+    1 format (31('-'), ' Multipole Moments', 31('-') )
     2 format ('Maximum l considered = ' , i3, ' (mass) ', i3, ' (magnetic) ' )
 
     3 format ('Quantisation Axis for the multipole moments:  ', a1)

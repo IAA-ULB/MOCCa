@@ -295,8 +295,8 @@ $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
     ! angular momentum operator and all kinds of angles.
     !---------------------------------------------------------------------------
     character(len=1), parameter  :: dir(3) = (/'x', 'y', 'z'/)
-    integer           :: i,j
-    logical           :: found
+    integer           :: i $NTR,j
+$NTR    logical           :: found
 
     1 format (2x,74('_') )
    10 format (2x,74('-'))
@@ -305,7 +305,7 @@ $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
    31 format (15x, 'Densit.(*)',2x, 'Desired', 5x, 'Omega', 7x, 'E (MeV)' 6x,'Spwfs   ')
     4 format (3x,'J_',a1,'   ','|', 5f12.5 )
    41 format (3x,'Size  |', 3f12.5,12x,1f12.5)
-    5 format (2x,' _______________________________________________________' )
+$NTR    5 format (2x,' _______________________________________________________' )
 $NTR    6 format (3x,'Open spin')
 $NTR    7 format (15x, 'Neutrons', 3x, 'Protons')
 $NTR    8 format (3x,a1,1x,'|',3x,'|',4f12.5)
@@ -422,7 +422,7 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     ! Readjust the cranking constraint(s)
     !---------------------------------------------------------------------------
-    integer                 :: i,j
+    integer                 :: i
     real(KIND=dp)           :: value
 
     do i=1,3

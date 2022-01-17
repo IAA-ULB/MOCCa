@@ -42,6 +42,14 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  character(len=43)                   :: mode_print
  character(len=26)                   :: symprint
  logical                             :: printed
+ !------------------------------------------------------------------------------
+ ! Information gleaned from git and the Makefile, to be used to identify the 
+ ! executable
+ character(len=57), parameter        :: version1 =VERSION1
+ character(len=57), parameter        :: version2 =VERSION2
+ character(len=57), parameter        :: version3 =VERSION3
+ character(len=57), parameter        :: compiler =COMPCOMP
+ character(len=57), parameter        :: cflags   =FLAGS
 
  100 format &
      &  (/,8x,' ___________________________________________________________', &
@@ -61,9 +69,9 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  200 format ( 8x, '|', 58('-'), '|'  ,/,8x, '| Runtype = ', a43, 4x, '|')
 
  299 format ( 8x,'|-------------- Version Information -----------------------|')
- 300 format ( 8x,'| VERSION1',  8x, '|') ! Git commit
- 301 format ( 8x,'| VERSION2',  7x, '|') ! Author of commit
- 302 format ( 8x,'| VERSION3', 17x, '|') ! Date
+ 300 format ( 8x,'| ', a57, '|') ! Git commit
+ 301 format ( 8x,'| ', a57, '|') ! Author of commit
+ 302 format ( 8x,'| ', a57, '|') ! Date
  303 format ( 8x,'|                                                          |')
  304 format ( 8x,'|-------------- Symmetry Information ----------------------|')
  305 format ( 8x,'| S.p. generators        = ', a26, 6x, '|')
@@ -75,9 +83,9 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !$ 311 format ( 8x,'| OpenMP disabled                                          |')
  312 format ( 8x,'|-------------- Compilation Information -------------------|')
  313 format ( 8x,'| Compiled with:                                           |')
- 314 format ( 8x,'| COMPCOMP |')
+ 314 format ( 8x,'| ', a57, '|')
  315 format ( 8x,'| Compilation flags reported:                              |')
- 316 format ( 8x,'| FLAGS    |')
+ 316 format ( 8x,'| ', a57, '|')
  317 format ( 8x,'|__________________________________________________________|')
 
  call initialize_all_timers
@@ -89,9 +97,9 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  print 200, adjustl(mode_print)
  print 299
  print 303
- print 300
- print 301
- print 302
+ print 300, version1
+ print 301, version2
+ print 302, version3
  print 303
  print 304
  print 303
@@ -108,9 +116,9 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
 
  print 312
  print 313
- print 314
+ print 314, compiler
  print 315
- print 316
+ print 316, cflags
  print 317
 
  !------------------------------------------------------------------------------
@@ -200,7 +208,11 @@ subroutine ReachForWaterAndFood()
     8 format('| Ending the iterative proces.   |')
 
     9 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
-
+    
+   10 format(86('-'))  
+   11 format(30x, 'Iteration = ', i5, /)   
+   12 format(24x, 'FINAL Iteration = ', i5, /)
+   
     integer :: iter, iprint, scheme
     integer :: ifail
     logical :: ConvergenceAchieved, calc_expensive
@@ -375,6 +387,14 @@ subroutine ReachForWaterAndFood()
             call update_spwf_angmom(.true.)
             call updateAM 
             call ReadjustCranking
+            print 10
+            
+            if(iter.ne. maxiter) then
+              print 11, iter
+            else
+              print 12, iter
+            endif
+
             call PrintSpwfs
             call PrintQps
             call printallmoments
@@ -446,7 +466,7 @@ subroutine printsummary(iter)
     real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val, devJ
     character(len=1)      :: t, spec
 
-    1 format (82('-'))
+    1 format (86('-'))
     2 format (' Iteration = ',i4)
     3 format (' dt    = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
    31 format (' dtg   = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
@@ -464,7 +484,7 @@ subroutine printsummary(iter)
 
     part=>FindMoment(0,0,.false.)
 
-    print 1
+    if(iter.eq.1) print 1
     print 2, iter
     print 3, dt, momentum, gradientnorm, d2h
     if(pairingscheme.eq.1) then
@@ -534,6 +554,7 @@ subroutine printsummary(iter)
     endif
     print 8, totalangmom(3), totalangmom(3) - angmomold(3), &
     &        omega(3), omega(3)-omega_prev(3), devJ
+    print 1
         
 end subroutine printsummary
 

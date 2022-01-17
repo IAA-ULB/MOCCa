@@ -88,14 +88,6 @@ module pairing
  ! Decide which module gets to calculate the pairing gaps.
  procedure(calcBCSgaps), pointer :: CalcGaps
  !------------------------------------------------------------------------------
- ! Mixing parameter for the HFB equations
- real(KIND=dp) :: HFBMix = 1.0
- !------------------------------------------------------------------------------
- ! Mixtype HFB
- ! 0 => linear mixing of rho and kappa
- ! 1 => linear mixing of the generalized density
- integer       :: HFBmixtype = 0
- !------------------------------------------------------------------------------
  ! Type of blocking we want. 
  ! (0) no blocking
  ! (1) ordinary blocking, based on indices
@@ -119,6 +111,10 @@ module pairing
  ! regularize the calculation of the rotational energy.
  integer, allocatable       :: blocked_qps(:), partner_qps(:)
  real(KIND=dp), allocatable :: partner_overlaps(:)
+ !------------------------------------------------------------------------------
+ ! Indices (in the CANONICAL basis) of the single-particle states that obtained
+ ! v^2 = 1 through blocking
+ integer, allocatable :: blocked_sps(:)
  !------------------------------------------------------------------------------ 
  ! EFA blocking for the lowest qp. 
  ! Indicated by either
@@ -172,9 +168,9 @@ contains
     !---------------------------------------------------------------------------
     character(len=20)                   :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
-$PBROKEN    integer                             :: i
+    integer                             :: i
     
-    NameList /Pairing/ Type, Constantgap, hfbmix, hfbmixtype,                  &
+    NameList /Pairing/ Type, Constantgap,                                      &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
     &                  FermiSolver, guessgaps,  pairingscheme,                 &
     &                  gradient_precon, bogofromfile, lambda2
@@ -237,23 +233,39 @@ $FORBIDBCS endif
         allocate(BlockLowest(BlockNumber))  ; BlockLowest  = ' ' 
         read(unit=*, nml=Indices)
 
-        ! Sanity check on the BlockLowest array: 
-        !  do not allow for selection on parity of the blocked state if
+        ! Sanity checks on the BlockLowest array: 
+        ! (a) do not proceed with empty list
+        ! (b) do not allow for selection on parity of the blocked state if
         !  parity is broken
-$PBROKEN        if(blocktype.eq.2 .or. blocktype .eq. 4) then
-$PBROKEN          do i=1, blocknumber
-$PBROKEN            select case(blocklowest(i))
-$PBROKEN            case('n+', 'n-')
+        if(blocktype.eq.2 .or. blocktype .eq. 4) then
+          do i=1, blocknumber
+            select case(blocklowest(i))
+            case('n+', 'n-')
 $PBROKEN              print *, 'Cannot block a neutron qp with definite parity.'
 $PBROKEN              stop
-$PBROKEN            case('p+', 'p-')
+            case('p+', 'p-')
 $PBROKEN              print *, 'Cannot block a proton qp with definite parity.'
 $PBROKEN              stop
-$PBROKEN            case('n0', 'p0')
-$PBROKEN              ! allowed
-$PBROKEN            end select
-$PBROKEN          enddo
-$PBROKEN        endif
+            case('n0', 'p0')
+              ! allowed
+            case DEFAULT
+              ! something else went wrong
+              print *, 'Did not read all elements in blocklowest correctly.'
+              stop
+            end select
+          enddo
+        endif
+        
+        ! Sanity checks on the BlockIndices array:
+        ! (a) check if everything was read
+        if(blocktype.eq.1 .or. blocktype.eq.3) then
+          do i=1,blocknumber
+            if(blockindices(i) .eq.0) then
+              print *, 'Did not read all elements in blockindices correctly.'
+              stop
+            endif
+          enddo
+        endif
 
         ! Sanity check on the useage of the gradient solver for EFA
         if((blocktype.eq.3 .or. blocktype.eq.4) .and. pairingscheme .eq.1) then
@@ -320,9 +332,6 @@ $TR        endif
    21 format('   Fermi-solver: ', a99 )
   211 format('   Pairing strategy:', a60)
  2111 format('     -> Fermi tolerance: ', es10.3)
-    3 format('   Linear mixing of (rho,kappa)')    
-    4 format('   Linear mixing of eigenvalues of R')
-    5 format('   HFBmix = ', f5.3)
     6 format('   Cutoff parameters  = ', a20)
     7 format('     dE (n,p) = ', 2f5.2, ' MeV ')
     8 format('     mu (n,p) = ', 2f5.2, ' MeV ')
@@ -377,15 +386,6 @@ $TR        endif
         end select 
         print 2111, pairing_prec
     end select
-
-    if(pairingtype.eq.2) then
-        if(HFBmixtype.eq.0) then
-            print 3
-        elseif(HFBmixtype.eq.1) then
-            print 4
-        endif 
-        print 5, HFBmix
-    endif    
 
     select case(CutType)
     case(1)
@@ -649,6 +649,9 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     call ComputePairingCutoffs(fermienergy)
     call stop_timer(T_pairing)
    
+    if(blocknumber.ne.0) then
+      blocked_sps = identify_blocked_particle(Bogoliubov) 
+    endif   
   end subroutine SolvePairing
 
   subroutine calc_avg_gap()
@@ -992,6 +995,63 @@ $NTR      endif
     enddo
     
   end function construct_rho_HF
+  
+  function identify_blocked_particle(Bogo) result (indices)
+    !---------------------------------------------------------------------------
+    ! Finds the indices in the canonical basis of the levels that obtain v^2 
+    ! as a cause of blocking. 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !   Bogo   : Bogoliubov transformation
+    ! Output:
+    !   indices: indices of the individual levels identified as 'blocked'
+    !            in the canonical basis.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), allocatable, intent(in) :: Bogo(:,:)
+    integer, allocatable :: indices(:)
+    integer              :: B, si, sb, N, N2, k, ind, j, qp, sp
+    real(KIND=dp), allocatable :: U(:), V(:)
+    real(KIND=dp)        :: over
+    
+    allocate(indices(blocknumber)) ; indices= 0
+      
+    si  = 0
+    sb  = 0
+    ind = 0
+    do B=1,8,2
+      N = HFBlocks(B) ; if(N.eq.0) cycle
+      N2= HFBlocks(B+1)
+      
+      do k=1,blocknumber
+        qp = blocked_qps(k)
+        
+        if( qp .gt. si .and. qp .le. si+N+N2) then
+          ! This particular blocked qp lives in this symmetry block(s)
+          U = Bogo(sb     +1:sb+  N+  N2, sb + N + N2 - qp + si + 1)
+          V = Bogo(sb+N+N2+1:sb+2*N+2*N2, sb + N + N2 - qp + si + 1)
+          ! These are matrix elements in the HF basis, so we transform to 
+          ! the canonical basis
+          U = matmul(transpose(cantransfo(si+1:si+N+N2, si+1:si+N+N2)), U)
+          V = matmul(transpose(cantransfo(si+1:si+N+N2, si+1:si+N+N2)), V)
+            
+          over = 0          
+          sp   = 0
+          do j=1,N+N2
+            ! We check for the sp state with the largest V element
+            if( V(j)**2 .gt. over .and. abs(rho_can(si+j) - 1.0d0).lt.0.1d0) then
+              over = V(j)**2
+              sp   = j
+            endif 
+          enddo
+          !
+          ind = ind +1 
+          indices(ind) = si + sp         
+        endif
+      enddo    
+      si = si +   N +   N2
+      sb = sb + 2*N + 2*N2
+    enddo
+   end function identify_blocked_particle
 
   subroutine read_modelwf(fname)
       !-------------------------------------------------------------------------

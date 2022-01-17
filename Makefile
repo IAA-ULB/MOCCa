@@ -1,11 +1,5 @@
 #-------------------------------------------------------------------------------
 # Make options included at this point
-#
-#   all:    Build both single and mpi executables.
-#           Note that Hephaestos is only used once to generate the code.
-#   single: Ordinary mode, one calculation. Corresponds to run_single.f90.
-#   mpi:    (Possibly) multiple runs. Corresponds to run_mpi.f90.
-#
 #-------------------------------------------------------------------------------
 #
 # OPTIONS:
@@ -22,8 +16,7 @@
 #
 #-------------------------------------------------------------------------------
 # Executables at the end will be named
-#  Tantalus.$(CONFIG).exe        => single
-#  Tantalus.$(CONFIG).mpi.exe    => mpi
+#  Tantalus.$(CONFIG).exe  
 #-------------------------------------------------------------------------------
 
 OBJDIR :=   obj
@@ -46,7 +39,6 @@ SRC    +=   IO.f90 temperature_projection.f90 convergence.f90 printing.f90
 SRC    +=   tantalus.version.f90
 
 SINGLE_SRC = $(SRC) run_single.f90
-MPI_SRC    = $(SRC) multirun_example.f90
 
 NIL_SRC := compilation.f90 timing.f90 geninfo.f90 derivatives.f90 nil8.f90   
 NIL_SRC += wavefunctions.f90 gennilsson.f90
@@ -72,18 +64,16 @@ endif
 PRE         :=  run_heph getgitinfo getcompilerinfo setversioninfo 
 PRE_NIL     :=  cp_nil 
 SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
-MPI_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(MPI_SRC))
 NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
 
 # Default configuration
 CONFIG   :=  default
 
-mpi:    EXENAME:= Tantalus.$(CONFIG).mpi.exe
 single: EXENAME:= Tantalus.$(CONFIG).exe
 
 ################################################################################
 # Recipes
-all: single mpi
+all: single
 
 $(OBJDIR)/:
 	mkdir -p  obj/
@@ -97,10 +87,6 @@ compilation_logs/:
 single: $(PRE) $(SINGLE_OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $(SINGLE_OBJ) $(LIBS)
 	mv single exec/$(EXENAME)
-
-mpi: $(PRE) $(MPI_OBJ)
-	$(CXX) $(CXXFLAGS) -o $@ $(MPI_OBJ) $(LIBS)
-	mv mpi exec/$(EXENAME)
 
 run_heph:
   # Run Hephaestos with the correct configuration file
@@ -142,8 +128,6 @@ getcompilerinfo:
 	
 cp_nil:
 	cp src_orig/gennilsson.f90 $(SRCDIR)/gennilsson.f90
-  
-
 
 ################################################################################
 

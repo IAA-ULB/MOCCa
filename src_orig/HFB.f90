@@ -82,6 +82,10 @@ module HFB
   real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
   real(KIND=dp), allocatable ::  configmatrix_history(:) 
   real(KIND=dp), allocatable ::  Bogoliubov_history(:,:)
+  !-----------------------------------------------------------------------------
+  ! Cutoff parameter to judge whether or not levels are participating in the 
+  ! pairing.
+  real(KIND=dp), parameter            :: rho_cutoff = 1e-7
 
   interface
    function delta_action_dummy(psi,dpsi,ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
@@ -425,16 +429,20 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     integer, intent(in)          :: maxhfbiter
     logical, intent(in)          :: move
 
-    real(KIND=dp)                :: minqp, maxqp, condi
-    real(KIND=dp), allocatable   :: tempEqp(:), full_eqp(:)
-    
-    integer, intent(in)          :: BlockType
-    integer, intent(in)          :: Blockindices(:)
+    integer, intent(in)                       :: BlockType
+    integer, intent(in), allocatable          :: Blockindices(:)
     character(len=2), intent(in), allocatable :: BlockLowest(:)
+
+    real(KIND=dp)                :: minqp, maxqp, condi, trash
+    real(KIND=dp), allocatable   :: tempEqp(:), full_eqp(:)
     integer, allocatable         :: blocked_qps(:), partner_qps(:)
     real(KIND=dp), allocatable   :: p_overlaps(:) 
 
+
     integer :: sb, B, N, N2, T,i, j, stind,endind !,NB ,X(1),Y(1)
+  
+    ! Statement to stop the compiler complaining about this dummy variable
+    if(allocated(blockindices)) trash = 0.0d0
   
     if(.not.allocated(rho_history)) then
       allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
@@ -1593,10 +1601,9 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
  
     integer, intent(out) :: ifail
    
-    real(KIND=dp), allocatable :: tmp(:,:), work(:)
-    
-    integer :: si, N, N2, B, i, lwork
-$NTR integer :: j
+    real(KIND=dp), allocatable :: tmp(:,:), work(:), temp_occ(:)
+    integer, allocatable       :: indices(:)
+    integer :: si, N, N2, B, i,j, lwork, effN, ind, ii, jj
     
     !---------------------------------------------------------------------------
     ! a) Diagonalize rho
@@ -1608,20 +1615,69 @@ $NTR integer :: j
     do B=1,8
       N =HFBlocks(B) ;  if(N .eq. 0) cycle 
       
-      allocate(tmp(N,N)) 
-      
-      tmp = rho_pairing(si+1:si+N, si+1:si+N)
-      
-      lwork = -1 ; allocate(work(1))
-      call DSYEV( 'V', 'U', N, tmp, N, rho_can(si+1:si+N), work, lwork, ifail)
-      lwork = int(work(1)) ; deallocate(work) ; allocate(work(lwork))
-      call DSYEV( 'V', 'U', N, tmp, N, rho_can(si+1:si+N), work, lwork, ifail)
-      deallocate(work)
-  
-      rhotransfo(si+1:si+N,si+1:si+N) = tmp
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Search for all the states in the Hartree-Fock basis that don't 
+      ! participate in pairing; for a state i this means
+      ! 
+      !       rho_{ij} = 0 if i != j and rho_ii = 0 or 1.
+      !       kappa_ij = 0 for all j      
+      effN = 0 ; ind = 1
+      allocate(indices(N)) ; indices = 0
+      do i=1,N
+        if (      any(abs(rho_pairing(i,i+1:N)) .gt. rho_cutoff)  &
+        &  .or. (       abs(rho_pairing(i,i)  ).gt.rho_cutoff  &    
+        &         .and. abs(rho_pairing(i,i)-1).gt.rho_cutoff))&
+        then
+            indices(ind) = i
+            ind          = ind + 1
+        endif        
+      enddo
+      effN = ind - 1
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Construct the submatrix of rho that we will diagonalize
+      allocate(tmp(effN,effN), temp_occ(effN)) 
 
+      do i=1, effN
+        ii = indices(i)
+        do j=1, effN
+          jj = indices(j)
+          tmp(i,j) = rho_pairing(si + ii, si + jj)
+        enddo
+      enddo
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Diagonalize rho in the limited subspace
+      if(effN .ne. 0) then         ! only do this if pairing has not collapsed
+        lwork = -1 ; allocate(work(1))
+        call DSYEV( 'V', 'U', effN, tmp, effN, temp_occ, work, lwork, ifail)
+        lwork = int(work(1)) ; deallocate(work) ; allocate(work(lwork))
+        call DSYEV( 'V', 'U', effN, tmp, effN, temp_occ, work, lwork, ifail)
+        deallocate(work)
+      endif
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! And then reconstruct (1) the occupations in the full space
+      !                      (2) the transformation in the full space
+      
+      ! Make this whole transformation trivial in the HF basis
+      ! And use the diagonal elements for rho_can
+      rhotransfo(si+1:si+N,si+1:si+N) = 0  
+      do i=1, N
+        rhotransfo(si+i,si+i) = 1
+        rho_can(si+i) = rho_pairing(si+i, si+i)
+      enddo
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! And then overwrite these arrays with the non-trivial information
+      do i=1, effN
+        ii = indices(i)
+        rho_can(si+ii) = temp_occ(i)
+        do j=1, effN
+          jj = indices(j)
+          
+          rhotransfo(si+ii,si+jj) = tmp(i,j)
+        enddo
+      enddo
       si = si + N
-      deallocate(tmp)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      deallocate(tmp, temp_occ, indices)
     enddo
     
     ! Time-reversal
