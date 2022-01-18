@@ -1,5 +1,12 @@
 #-------------------------------------------------------------------------------
 # Functional file for the fits in Brussels, including time-odd terms.
+# 
+# BSkG1 : G. Scamps, S. Goriely, E. Olsen, M. Bender, W. Ryssens 
+#         Skyrme-Hartree-Fock-Bogoliubov mass models on a 3D mesh: effect of triaxial shape. 
+#         European Physical Journal A, 57(12), 333 (2021). 
+#         https://doi.org/10.1140/epja/s10050-021-00642-1
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Note:
 #   *) Optional JmnJmn and s x j terms 
 #   *) No S Delta S/ D_I_S_Lap_D_I_S term to suppress numerical instabilities
@@ -12,11 +19,6 @@ t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3;  wso ;  sigma
 CT0; CT1 ; CSDS0; CSDS1; wsoq
 ! Particle-particle parameters
 Vn ; Vp ; alpha ; sigmap
-! Scale factor for the time-odd channel
-scaleTO 
-! Switch to use either the DD-force or the ULB-pairing-like
-! Currently inactive
-force_switch 
 !TERMS
 #-------------------------------------------------------------------------------
 # Particle-hole part, ordinary NLO SKYRME
@@ -26,8 +28,8 @@ force_switch
 E_D_I_I_D_I_I            ; Cc(t0,x0,+1,0,0)                                     ;          Cc(t0,x0,+1,0,1)
 E_D_I_I_D_Nm_Nm          ;+1.0/2.0*Cc(t1,x1,+1,0,0) + 1.0/2.0*Cc(t2,x2,-1,0,0)  ; +1.0/2.0*Cc(t1,x1,+1,0,1) + 1.0/2.0*Cc(t2,x2,-1,0,1)
 ! time-odd
-E_D_I_Sm_D_I_Sm          ; scaleTO * Cc(t0,x0,+1,1,0)                                     ; scaleTO *        Cc(t0,x0,+1,1,1)
-E_D_I_Sm_D_I_Sm_DD       ; scaleTO * +1.0/6.0*Cc(t3,x3,+1,1,0)                            ; scaleTO * +1.0/6.0*Cc(t3,x3,+1,1,1)                              ;  (sum(D_I_I,2)**(sigma)) ;  D_I_I ; sigma*((sum(D_I_I,2)+eps)**(sigma-1)) ; sigma ;
+E_D_I_Sm_D_I_Sm          ; Cc(t0,x0,+1,1,0)                                     ;         Cc(t0,x0,+1,1,1)
+E_D_I_Sm_D_I_Sm_DD       ;+1.0/6.0*Cc(t3,x3,+1,1,0)                             ; +1.0/6.0*Cc(t3,x3,+1,1,1)                              ;  (sum(D_I_I,2)**(sigma)) ;  D_I_I ; sigma*((sum(D_I_I,2)+eps)**(sigma-1)) ; sigma ;
 !-------------------------------------------------------------------------------
 ! Central NLO terms
 ! time-even     
@@ -35,9 +37,9 @@ E_D_I_I_Lap_D_I_I        ;-3.0/8.0*Cc(t1,x1,+1,0,0) + 1.0/8.0*Cc(t2,x2,-1,0,0)  
 E_D_I_I_D_I_I_DD         ;+1.0/6.0*Cc(t3,x3,+1,0,0)                             ; +1.0/6.0*Cc(t3,x3,+1,0,1)                              ;  (sum(D_I_I,2)**(sigma)) ;  D_I_I ; sigma*((sum(D_I_I,2)+eps)**(sigma-1)) ; sigma ;
 E_C_I_NmSk_C_I_NmSk      ; - CT0  ; - CT1
 ! time-odd
-E_C_I_Nm_C_I_Nm          ; -1.0/2.0*Cc(t1,x1,+1,0,0) -1.0/2.0*Cc(t2,x2,-1,0,0)  ; -1.0/2.0*Cc(t1,x1,+1,0,1) - 1.0/2.0*Cc(t2,x2,-1,0,1)
-E_D_I_Sm_Lap_D_I_Sm      ;  +scaleTO * CSDS0 ; +scaleTO * CSDS1 
-E_D_I_Sm_D_Nk_NkSm       ;  +scaleTO * CT0   ; +scaleTO * CT1
+E_C_I_Nm_C_I_Nm          ; -1.0/2.0*Cc(t1,x1,+1,0,0) - 1.0/2.0*Cc(t2,x2,-1,0,0)  ; -1.0/2.0*Cc(t1,x1,+1,0,1) - 1.0/2.0*Cc(t2,x2,-1,0,1)
+E_D_I_Sm_Lap_D_I_Sm      ; CSDS0 ;  CSDS1 
+E_D_I_Sm_D_Nk_NkSm       ; +CT0  ;  +CT1
 !-------------------------------------------------------------------------------
 ! NLO spin-orbit
 ! time-even

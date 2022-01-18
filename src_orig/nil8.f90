@@ -431,8 +431,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
                 if (nz2.eq.nz1-1) h(i,j) =-x*x2*x4*sqrt(an*nz1)
                 if (nz2.eq.nz1+2) h(i,j) = x*y*sqrt(nz2*(nz2-1)*am*(nx1-1))
                 if (nz2.eq.nz1-2) h(i,j) = x*y*sqrt(nz1*(nz1-1)*an*(nx2-1))
-                h(j,i) = h(i,j)
-            18 enddo
+            18 h(j,i) = h(i,j)
         17 continue
 !     call diagon (h,ndim,n,s,d,wd, ifail)
      
@@ -558,8 +557,8 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
                     enddo
                 enddo
             enddo
-           kk = kk + mz
-        46 enddo
+        46 kk = kk + mz
+        
         ny2 = 0
         kk  = 0
         

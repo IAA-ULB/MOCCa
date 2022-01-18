@@ -1,5 +1,5 @@
 # Configuration file for Tantalus compilation
-FUNC_FILE = 'DD-switch-scaleTO.func'
+FUNC_FILE = 'BXL-scaleTO.func'
 SYMSTRING = 'Rz,P,STy'
 REDUCE    = [1,1,1]
 # Read symmetries: EV8-style

@@ -1,8 +1,8 @@
 # Small bash script that generates the public version of Tantalus
-CONFIG=DD-switch
-CONFIG_T=DD-switch-T
-CONFIG_P=DD-switch-P
-CONFIG_TP=DD-switch-TP
+CONFIG=BXL
+CONFIG_T=BXL-T
+CONFIG_P=BXL-P
+CONFIG_TP=BXL-TP
 
 SRCPUBLIC=$HOME/Documents/Codes/tantalus_public/src
 SRCPUBLIC_T=$HOME/Documents/Codes/tantalus_public/src_T
