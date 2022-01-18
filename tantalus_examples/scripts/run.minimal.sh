@@ -70,6 +70,8 @@ maxiter=100
 # Number of neutron (nwn) and proton (nwp) spwfs to use.
 &wfs
 nwn = 15, nwp = 15
+! For this particular example, we initialize in a spherical configuration
+osc_freq = 0.2, 0.2, 0.2
 /
 # Inputfilename  = file from which to continue the calculation
 # Outputfilename = .wf file to write after the end of the calculation. 

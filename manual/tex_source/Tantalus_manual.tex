@@ -175,9 +175,9 @@ actual compilation options in the header of the code, such as for example:
 |-------------- Environment Information -------------------| > Not used yet
 |-------------- Compilation Information -------------------|
 | Compiled with:                                           |
-| "GNU Fortran (Ubuntu 9.3.0-17ubuntu1~20.04) 9.3.0" |       > output of "CXX --version"
+| "GNU Fortran (Ubuntu 9.3.0-17ubuntu1~20.04) 9.3.0"       | > output of "$CXX --version"
 | Compilation flags reported:                              | 
-| "-O3 -Jmod -Wall -Wno-uninitialized  "    |                > CXXFLAGS; compilation options 
+| "-O3 -Jmod -Wall -Wno-uninitialized  "                   | > CXXFLAGS; compilation options 
 |__________________________________________________________|
 
 \end{Verbatim}
@@ -573,6 +573,8 @@ A   checkpointiter= Write a checkpoint (wavefunction file) to disk every time th
                     many iterations have passed.
 A   tofile        = filename for the writeout of time-odd densities D_I_S and 
                     C_I_N to a file with this name. 
+A   blockfile     = filename to write the densities |psi|^2 to of the blocked
+                    single-particle wavefunctions (in the canonical basis)
 ---------------------------------------------------------------------------------------
 \end{Verbatim}
 

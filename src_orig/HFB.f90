@@ -85,7 +85,7 @@ module HFB
   !-----------------------------------------------------------------------------
   ! Cutoff parameter to judge whether or not levels are participating in the 
   ! pairing.
-  real(KIND=dp), parameter            :: rho_cutoff = 1e-7
+  real(KIND=dp), parameter            :: rho_cutoff = 1e-12
 
   interface
    function delta_action_dummy(psi,dpsi,ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &

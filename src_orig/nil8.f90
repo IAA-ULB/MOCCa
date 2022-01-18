@@ -394,7 +394,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
             x1  = 1 - 2*mod(nb-nz1,2)
             x2  = 1 - 2*mod(ny1,2)
     !c.............................................. loop on the second vector
-            do 18 j=i,n
+            do j=i,n
                 nx2 = nx(nn+j)
                 ny2 = ny(nn+j)
                 nz2 = nz(nn+j)
@@ -432,6 +432,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
                 if (nz2.eq.nz1+2) h(i,j) = x*y*sqrt(nz2*(nz2-1)*am*(nx1-1))
                 if (nz2.eq.nz1-2) h(i,j) = x*y*sqrt(nz1*(nz1-1)*an*(nx2-1))
             18 h(j,i) = h(i,j)
+            enddo 
         17 continue
 !     call diagon (h,ndim,n,s,d,wd, ifail)
      
@@ -533,7 +534,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
         
         ny2 = 0
         kk  = 0
-        do 46 k=1,4
+        do k=1,4
             if (nsi(nvv,k).eq.0) go to 46
             nx2 = ny2 + 1
             ny2 = ny2 + nsi(nvv,k)
@@ -557,7 +558,8 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
                     enddo
                 enddo
             enddo
-        46 kk = kk + mz
+            46 kk = kk + mz
+        enddo
         
         ny2 = 0
         kk  = 0
