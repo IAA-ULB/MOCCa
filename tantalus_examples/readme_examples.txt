@@ -18,14 +18,6 @@ The structure of this folder is as follows
                   will not.
 
    * work/      : working directory
-   * diffs/     : directory containing the output of "diff" commands between 
-                  the reference output and the                   
-
-   * compare.sh : simple bash script that compares all different calculations, 
-                  allowing the user to find errors. It runs simple diff 
-                  commands on the BXLFIT output of the new calculations and 
-                  reference files and puts them in the diffs/ folder.
-
    * run.all.sh : execute all tests/examples
 
  Outputs:
@@ -56,9 +48,8 @@ Individual tests are
     out/STDOUT/Tant.BCS.out
     out/STDOUT/Tant.HFB.out
 
-    out/summary/BCS.z020n022num001run001.out
-    out/summary/HFB.z020n022num001run001.out
-
+    out/summary/BCS.z020n022.out
+    out/summary/HFB.z020n022.out
 
   * run.constrained.sh
     - - - - - - - - - - 
@@ -70,9 +61,9 @@ Individual tests are
     out/STDOUT/Tant.Q20=20.out
     out/STDOUT/Tant.Q20=30.out
 
-    out/summary/constrained.Q20=10.z010n010num001run001.out
-    out/summary/constrained.Q20=20.z010n010num001run001.out
-    out/summary/constrained.Q20=30.z010n010num001run001.out
+    out/summary/constrained.Q20=10.z010n010.out
+    out/summary/constrained.Q20=20.z010n010.out
+    out/summary/constrained.Q20=30.z010n010.out
 
   * run.continuing.sh
     - - - - - - - - - - -
@@ -84,9 +75,8 @@ Individual tests are
     out/STDOUT/Tant.Ca40.out
     out/STDOUT/Tant.Ca42.out
 
-    out/summary/continuing.z020n020num001run001.out
-    out/summary/continuing.z020n022num001run001.out
-
+    out/summary/continuing.z020n020.out
+    out/summary/continuing.z020n022.out
 
   * run.input.sh
     - - - - - - - - -
@@ -105,44 +95,70 @@ Individual tests are
     - - - - - - - - - -
  
     Example calculation showcasing the various option for blocking
-    Calculation
       (1) Converges a false vacuum for Mg25
       (2) Uses the previous run to initialize an EFA calculation for Mg25
       (3) Uses that final run to perform a time-reversal broken calculation, 
          still blocking EFA-style
       (4) Finally, transfer the EFA-blocking to a real blocked calculation
+    Note that all of these operate the DIRECT HFB solver, pairingscheme=0.
 
     out/STDOUT/Tant.Mg25.FV.out
     out/STDOUT/Tant.Mg25.EFA.out
     out/STDOUT/Tant.Mg25.EFA.T.out
     out/STDOUT/Tant.Mg25.block.out
-  
 
-  * run.gsk12.sh
+  * run.gradient.sh
+    - - - - - - - - - -
+ 
+    Example calculation showcasing the difference between gradient and direct
+    HFB solvers. 
+       1) Converge a false vacuum for O19
+       2) Block the lowest n+ state and try to converge the direct case
+       3) Block the lowest n+ state and converge with the gradient solver
+
+    out/STDOUT/Tant.O19.FV.out
+    out/STDOUT/Tant.O19.direct.out
+    out/STDOUT/Tant.O19.grad.out
+
+  * run.BSkG1.sh
     - - - - - - - -
 
     Example calculations for the GSk1 and GSk2 parameterizations for Ca48.
 
-    out/STDOUT/Tant.GSk1.out
-    out/STDOUT/Tant.GSk2.out
+    out/STDOUT/Tant.BSkG1.out
+    out/STDOUT/Tant.BSkG2.out!
 
-    out/summary/gsk1.z020n028num001run001.out
-    out/summary/gsk2.z020n028num001run001.out
+    out/summary/BSkG1.z020n028.out
+    out/summary/BSkG2.z020n028.out
 
-
-  * run.N2LO.sh
+  * run.BSkG.T.sh
     - - - - - - - -
 
-    Example calculation using the N2LO parameterization SN2LO for Ca48.
+    Example calculations for the BSkG1 and BSkG2 parameterizations for Ca48, but
+    this time with the time-reversal broken executable, verifying that it gives
+    the right results when time-reversal is not explicitly broken.
 
-    out/STDOUT/Tant.N2LO.out
+    out/STDOUT/Tant.BSkG1.T.out
+    out/STDOUT/Tant.BSkG2.T.out
+
+    out/summary/BSkG1.T.z020n028.out
+    out/summary/BSkG2.T.z020n028.out
+
+  * run.magmoment.sh
+    - - - - - - - - -
+    This is an example script showing the calculation of the magnetic dipole 
+    moment of the 7/2- ground-state in Sc41 with the SLy5s1 EDF.
     
-    out/summary/N2LO.z020n028num001run001.out
+    out/STDOUT/Tant.Sc41.SLy5s1.FV.out
+    out/STDOUT/Tant.Sc41.SLy5s1.blocked.out
 
   * run.cranking.sh
     - - - - - - - - 
 
     Example cranking calculation using the SLy5s1 parameterisation for Ar36.  
+    Note that the example is not so great, as we crank here around the 
+    symmetry axis Z, such that we are not really talking about collective
+    rotational motion.
         
     out/STDOUT/Tant.Ar36.out
     out/STDOUT/Tant.Ar36.om_z=0.1.out
@@ -159,5 +175,22 @@ Individual tests are
 
     out/STDOUT/Tant.Pb208.out
 
-    out/summary/Pb208.z082n126num001run001.out
+    out/summary/Pb208.z082n126.out
+    
+  * run.N2LO.sh
+    - - - - - - - -
 
+    Example calculation using the N2LO parameterization SN2LO for Ca48.
+
+    out/STDOUT/Tant.N2LO.out
+    
+    out/summary/N2LO.z020n028.out
+    
+  * run.P.sh
+   - - - - - - - 
+    Example demonstrating the breaking of parity symmetry and then adding some
+    points on the mesh.
+    
+    out/STDOUT/Tant.BSkG1.symmetric.out
+    out/STDOUT/Tant.BSkG1.Q30=30.out  
+    out/STDOUT/Tant.BSkG1.Q30=30.added.out

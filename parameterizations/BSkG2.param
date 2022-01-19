@@ -5,7 +5,7 @@
 ! Note: this is the version AFTER a refit of the collective parameters to the 
 !       fission barriers of heavy nuclei.
 !-------------------------------------------------------------------------------
-name     =  'syst_112'
+name     =  'BSkG2'
 func_file=  'BXL.func'
 t0       =            -1885.74370718,
 t1       =              343.58759401,

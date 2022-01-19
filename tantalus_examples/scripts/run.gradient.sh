@@ -7,10 +7,10 @@
 # 3) Block the lowest n+ state and converge with the gradient solver
 ################################################################################
 
-exe='Tantalus.DD-switch-T.exe'
+exe='Tantalus.BXL-T.exe'
 execdir='../exec'
 paramloc='../parameterizations/'
-param="gsk2"
+param="BSkG1"
 iterations=200
 
 #Create storage directories

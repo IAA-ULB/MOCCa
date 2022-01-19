@@ -5,8 +5,8 @@
 #
 ################################################################################
 
-exe='Tantalus.DD-switch.exe'
-exeb='Tantalus.DD-switch-P.exe'
+exe='Tantalus.BXL.exe'
+exeb='Tantalus.BXL-P.exe'
 execdir='../exec'
 
 #Create storage directories
@@ -26,11 +26,11 @@ fi
 cp $execdir/$exe   work/
 cp $execdir/$exeb   work/
 
-cp ../parameterizations/gsk2.param         work/gsk2.param
+cp ../parameterizations/BSkG1.param         work/BSkG1.param
 
 cd work
 
-param=gsk2
+param=BSkG1
 outfile="Tant.$param.symmetric.out"
 
 #-------------------------------------------------------------------------------

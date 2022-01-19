@@ -12,10 +12,10 @@
 #
 ################################################################################
 
-exe='Tantalus.DD-switch.exe'
+exe='Tantalus.BXL.exe'
 execdir='../exec'
 paramloc='../parameterizations/'
-param="gsk2"
+param="BSkG1"
 iterations=200
 
 #Create storage directories
@@ -129,7 +129,7 @@ mv $outfile ../out/STDOUT/
 echo " --> EFA blocking without T calculation"
 outfile="Tant.Mg25.EFA.T.out"
 
-exe='Tantalus.DD-switch-T.exe'
+exe='Tantalus.BXL-T.exe'
 execdir='../exec'
 cd ..
 cp $execdir/$exe             work/

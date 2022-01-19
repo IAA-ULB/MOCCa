@@ -133,7 +133,7 @@ EOF
 echo "Running the blocked calculation."
 outfile="Tant.Sc41.$param.blocked.out"
 ./$exe_T < tant.data > $outfile
-
+mv $outfile ../out/STDOUT/
 
 #Cleaning up
 rm tant.*.wf 
