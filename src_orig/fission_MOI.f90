@@ -66,7 +66,7 @@ contains
 
     1 format (' Collective inertia tensor')
     2 format (70('-'))
-    3 format ('     I_Q',2i1, '2x')
+    3 format ('     I_Q',2i1, 2x)
     4 format ('     I_Q',2i1, 1x,'|', 1x, 99es15.5)
     5 format (12('_'))
 
@@ -184,8 +184,9 @@ contains
         
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate single-particle matrix elements of z-c.o.m. coordinate
-    Qsp            = sqrt(4*pi/3) * Qlm_spme(1,0,.false.) 
-                    ! Q10 = sqrt(3/4pi) * z
+    Qsp            = sqrt(4*pi/3) * Qlm_spme(1,0,.false.) * 10 
+                    ! Q10 = sqrt(3/4pi) * z 
+                    ! and the routine uses units of b^1/2
     Qsp(1:nwn,1:nwn)         =      Qsp(1:nwn,1:nwn)        /(neutrons)
     Qsp(nwn+1:nwt,nwn+1:nwt) =      Qsp(nwn+1:nwt,nwn+1:nwt)/(protons )
 
