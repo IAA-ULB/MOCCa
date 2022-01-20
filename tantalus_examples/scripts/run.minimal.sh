@@ -89,7 +89,7 @@ EOF
 
 #-------------------------------------------------------------------------------
 # Running the code
-./$exe < tant.data > $outfile
+./$exe < tant.data | tee $outfile
 
 #Cleaning up
 rm tant.wf  

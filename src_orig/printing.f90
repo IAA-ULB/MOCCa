@@ -371,7 +371,7 @@ contains
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           indices = order(BCSqps(si+1:si+N))
           do i=1, N
-            !ind  = indices(i)
+            ind  = indices(i)
             print 2, i, BCSqps(si+ind), BCSf(si+ind), 0,0,'-', '-', 0.0d0,     &
             &        0.0d0, 0.0d0,0.0d0
           enddo

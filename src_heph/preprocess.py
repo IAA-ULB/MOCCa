@@ -26,7 +26,7 @@ from src_heph.heph_pairing       import ProcessPairing
 from src_heph.heph_transform     import ProcessTransform
 from src_heph.heph_IO            import ProcessIO
 from src_heph.heph_cranking      import ProcessCranking
-from src_heph.heph_multipoles    import ProcessMoments
+from src_heph.heph_multipoles    import ProcessMoments, ProcessFission_MOI
 from src_heph.heph_coulomb       import ProcessCoulomb
 
 def preprocess(fname, src, target, so , oldso):
@@ -136,6 +136,9 @@ def preprocess(fname, src, target, so , oldso):
         return
     if(fname=='momentsofinertia.f90'):
         ProcessGeneric(fname, src, target, so)
+        return
+    if(fname=='fission_MOI.f90'):
+        ProcessFission_MOI(fname, src, target, so)
         return
     if(fname=='particleinabox.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)

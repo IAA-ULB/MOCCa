@@ -5,8 +5,11 @@
 # |_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/
 #              |_|                                             
 #-------------------------------------------------------------------------------
-# This module processes the moments.f90 module of Tantalus, tailoring several
-# aspects of the calculation of multipole moments to the symmetry choices. 
+# This module processes the 
+#  (a) moments.f90 
+#  (b) fission_MOI.f90 
+# modules of Tantalus, tailoring several aspects of the calculation of multipole
+# moments to the symmetry choices. 
 #
 # Important remarks:
 # - - - - - - - - - - 
@@ -238,6 +241,39 @@ def CartToSpher(x,y,z, so):
       return r, theta, phi
 
 
+def ProcessFission_MOI(fname, src, target, so):
+  """
+    Generate the required Fortran code to process the fission_MOI.f90 file. 
     
+    Input: 
+      fname : filename of the Fortran template
+      src   : directory of the templates
+      target: directory to put the finished source code
+      so    : SymmetryOption object, containing all the details on the 
+              symmetries conserved during the calculation.
+    
+  """
   
+  dic = {}
+
+  # Ugly Hack to check for parity conservation  
+  symdic  = populatesymmetries()
+  dic['PBROKEN']    = ' '
+  dic['PCONSERVED'] = '!'
+  for sym in so.generators:
+    if (sym == symdic['P']):
+      dic['PBROKEN'] = '!'
+      dic['PCONSERVED'] = ''
+  
+  if(so.timelike):
+    dic['TR']  = ''
+    dic['NTR'] = '!'
+  else:
+    dic['TR']  = '!'
+    dic['NTR'] = ''
+      
+  with open(src+fname, 'r') as template:
+    with open(target+fname, 'w') as generated:
+      for line in template:
+        generated.write(Template(line).substitute(dic))   
   

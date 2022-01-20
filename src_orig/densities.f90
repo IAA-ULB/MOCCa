@@ -433,6 +433,10 @@ function CompNablaMelements() result(NablaMelements)
     !
     !   < Psi_i | \nabla | \Psi_j >
     !
+    ! In the basis from which the densities are constructed:
+    !    (a) HF-basis for HF and BCS calculations
+    !    (b) Canonical basis for HFB calculations
+    !
     ! Some notes:
     ! 1) These are, in general, complex numbers!
     ! 2) Symmetries restrict them in weird ways:
