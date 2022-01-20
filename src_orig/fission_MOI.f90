@@ -161,9 +161,8 @@ contains
     real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
     real(KIND=dp) :: mat(2,2), Pmat(2,2), neutronmass, protonmass
       
-    real(KIND=dp) :: Psp(nwt,nwt), Qsp(nwt,nwt), commut(nwt,nwt), hbar
+    real(KIND=dp) :: Psp(nwt,nwt), Qsp(nwt,nwt), hbar
     real(KIND=dp) :: P20(nwt,nwt), Q20(nwt,nwt), avg_effmass(2)
-    integer       :: i, B, N, si
     
     ! Calculate hbar to make its use consistent
     hbar =  sqrt(hbm(1) * 2  * 0.5 * sum(nucleonmass))
@@ -277,7 +276,6 @@ contains
     !---------------------------------------------------------------------------
     real(KIND=dp), allocatable :: Mat(:,:,:,:), Qsp(:,:,:), Q20(:,:,:)
     real(KIND=dp), allocatable :: M1(:,:,:), M3(:,:,:), work(:)
-    real(KIND=dp)              :: fac(2), A,R
     integer :: i, j, la, lb, l, m, info, lwork, it
     integer, allocatable :: ipiv(:)
         
@@ -559,7 +557,7 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
     integer, intent(in)        :: l
     real(KIND=dp)              :: Q20(nwt,nwt), tmp(nwt,nwt)
     real(KIND=dp), allocatable :: U(:,:), V(:,:)    
-    integer                    :: N, N2, T, si, sb, B, Tp, Tm, i
+    integer                    :: N, N2, T, si, sb, B, Tp, Tm
 
     Q20 = 0.0d0
 
