@@ -37,7 +37,7 @@ Individual tests are
 
     out/STDOUT/Tant.minimal.out
 
-    out/summary/minimal.z008n008num001run001.out
+    out/summary/minimal.z008n008.out
 
   * run.pairing.sh
     - - - - - - - -
