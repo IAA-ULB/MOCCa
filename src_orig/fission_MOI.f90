@@ -45,9 +45,9 @@ module fission_MOI
   !-----------------------------------------------------------------------------
   ! Multipole moments for which to construct the inertia tensor. 
   ! Hardcoded at the moment, maybe a runtime parameter in the future.
-  integer, parameter :: N_inertia            = 5
-  integer, parameter :: inertia_l(N_inertia) = (/1,2,2,3,4/) !,3/) 
-  integer, parameter :: inertia_m(N_inertia) = (/0,0,2,0,0/) !,0/)
+  integer, parameter :: N_inertia            = 4
+  integer, parameter :: inertia_l(N_inertia) = (/1,2,2,3/) !,3/) 
+  integer, parameter :: inertia_m(N_inertia) = (/0,0,2,0/) !,0/)
 
 !  integer, parameter :: N_inertia            = 3
 !  integer, parameter :: inertia_l(N_inertia) = (/2,2,4/) !,3/) 
@@ -65,9 +65,9 @@ contains
     !---------------------------------------------------------------------------
 
     1 format (' Collective inertia tensor')
-    2 format ('--------------------------')
-    3 format ('     I_Q',2i1)
-    4 format ('     I_Q',2i1, 1x,'|', 1x, 99es12.3)
+    2 format (70('-'))
+    3 format ('     I_Q',2i1, '2x')
+    4 format ('     I_Q',2i1, 1x,'|', 1x, 99es15.5)
     5 format (12('_'))
 
     character(len=80) :: header, sep
@@ -102,35 +102,143 @@ contains
   end subroutine print_collective_inertia
   
   subroutine verify_COM_motion()
+    !---------------------------------------------------------------------------
+    !  This routine performs calculations of the collective moments of inertia
+    !  for the motion of the z-coordinate of the center of mass.
     !
+    !  The collective coordinate for species q is thus
+    !    Q_q = z_q / N_q
+    !  to which corresponds a collective momentum  (in our convention)     
+    !    P_q = - i \nabla_z (*)
+    !  
+    !  One can show that, analytically, the collective inertia associated with 
+    !  movement of the centre-of-mass should be the TOTAL mass of the nucleus
+    ! 
+    !   M'_{0,q} = N_q m_q
     !
+    !  This is what is always presented in the literature. Note however the 
+    !  little accent M', indicating that this IS NOT the collective inertia
+    !  associated with P_q. Rather, it is the collective mass associated with 
+    !     P'_q = hbar P_q
+    !  i.e. the 'physical' convention for the momentum. 
     !
+    ! We calculate the collective inertia related to COM motion here in multiple
+    ! ways:
     !
+    !   (a) Analytically, printed as 'N_q m_q'
+    !   (b) By using the Belyaev formula for the momentum in our convention (*)
+    !       (and multiplying by hbar^2 afterward)
+    !   (c) By using the perturbative cranking formula starting from Q_q
+    !       (and converting convention again afterward)
+    !
+    ! The results of (b) and (c) are not necessarily close to (a) however: 
+    ! for typical Skyrme interactions the effective mass m^*/m is not equal
+    ! to one, spoiling the correspondence. The origin lies in the absence of 
+    ! Galileian invariance of the interaction (at least in a perturbative
+    ! calculation) as discussed in 
+    !
+    !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
+    !
+    ! We calculate an "average effective mass" and also display the corrected
+    ! result. 
+    !
+    !---------------------------------------------------------------------------
+    
+    use functional
+    use densities
+    
+    1 format (' Pushing model                 M_0 (MeV/c^2)')
+    2 format (02x, 'neutrons        protons          total', / &
+    &         70('-'))
+    3 format (' Belyaev M_0      ', 3f16.5)
+    4 format (' Pert. cranking   ', 3f16.5)
+    5 format (' Belyaev m / m_*  ', 3f16.5)
+    6 format (' Pert.   m / m_*  ', 3f16.5)
+    
+    7 format (70('-'),/, &
+    &         ' N_q m_q          ', 3f16.5, /, 70('-'))
     
     real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
-    real(KIND=dp) :: mat(2,2), Qsp(nwt,nwt), fac(2), neutronmass, protonmass
+    real(KIND=dp) :: mat(2,2), Pmat(2,2), neutronmass, protonmass
       
-  
-    NablaMElements = compNablaMElements()
-    Qsp            =  NablaMElements(3,1,:,:)
+    real(KIND=dp) :: Psp(nwt,nwt), Qsp(nwt,nwt), commut(nwt,nwt), hbar
+    real(KIND=dp) :: P20(nwt,nwt), Q20(nwt,nwt), avg_effmass(2)
+    integer       :: i, B, N, si
+    
+    ! Calculate hbar to make its use consistent
+    hbar =  sqrt(hbm(1) * 2  * 0.5 * sum(nucleonmass))
 
-    fac = sqrt(hbm*nucleonmass*2) ! = hbar
-    Qsp(1:nwn,1:nwn)         = qsp(1:nwn,1:nwn)
-    Qsp(nwn+1:nwt,nwn+1:nwt) = qsp(nwn+1:nwt,nwn+1:nwt)
-    mat                      =  Ksum_Mij_BCS(Qsp, Qsp, 1, 1,(/1,3/))
-  
-    print *, ' 1 ', mat(1,:), sum(mat(1,:))
-    print *, ' 3 ', mat(2,:)
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Calculate single-particle matrix elements of nabla_z 
+    NablaMElements = compNablaMElements()
+    Psp            =  NablaMElements(3,1,:,:) 
+    if(pairingtype.eq.2) then
+      ! Attention, in a HFB calculation these are the matrix elements in the 
+      ! canonical basis, while Bogoliubov refers to the HF basis. So, we 
+      ! transfer back to the HFbasis
+      Psp = matmul(matmul(cantransfo, Psp), transpose(cantransfo))
+    endif
+    
+    Psp(1:nwn,1:nwn)         =  Psp(1:nwn,1:nwn)         * hbar
+    Psp(nwn+1:nwt,nwn+1:nwt) =  Psp(nwn+1:nwt,nwn+1:nwt) * hbar
+        
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Calculate single-particle matrix elements of z-c.o.m. coordinate
+    Qsp            = sqrt(4*pi/3) * Qlm_spme(1,0,.false.) 
+                    ! Q10 = sqrt(3/4pi) * z
+    Qsp(1:nwn,1:nwn)         =      Qsp(1:nwn,1:nwn)        /(neutrons)
+    Qsp(nwn+1:nwt,nwn+1:nwt) =      Qsp(nwn+1:nwt,nwn+1:nwt)/(protons )
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculate average effective mass 
+    !
+    !   m^*/m_q  = 2m/N_q * int d^3r   rho_q(r) hbar^2/2m^*_q(r)
+    ! 
+    ! with hbar^2/2m^*_q =  hbar^2/2m_q(r) + F_Nm_Nm(r)
+    ! 
+    ! which is the logical generalization from Eq. (30) in 
+    !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
+    ! and an explicit factor of hbar^2.
+    avg_effmass = sum(F_Nm_Nm(:,:) * D_I_I(:,:) , 1) * dv 
+    avg_effmass(1) = avg_effmass(1) / (hbm(1) * neutrons)
+    avg_effmass(2) = avg_effmass(2) / (hbm(2) * protons)
+    avg_effmass    = avg_effmass + 1 
+    avg_effmass    = 1/avg_effmass
+
+    print 1
+    print 2
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! perform the summations
+    if(pairingtype.eq. 1) then
+      Pmat                     =  Ksum_Mij_BCS(Psp, Psp, 1, 1,(/1,3/))
+      mat                      =  Ksum_Mij_BCS(Qsp, Qsp, 1, 1,(/1,3/))
+    else
+      P20 = calc_Q20(Psp, bogoliubov, 1)        
+      Pmat                     =  Ksum_Mij(P20, P20, 1, 1,(/1,3/))
+      Q20 = calc_Q20(Qsp, bogoliubov, 1)        
+      mat                      =  Ksum_Mij(Q20, Q20, 1, 1,(/1,3/))
+    endif  
     neutronmass = 1.0/mat(1,1) * mat(2,1) * 1.0/mat(1,1)
     protonmass  = 1.0/mat(1,2) * mat(2,2) * 1.0/mat(1,2)
 
-    print *, 'MASS ', neutronmass, protonmass, neutronmass + protonmass    
-    print *, 'MASS ', protons*nucleonmass(2) , neutrons*nucleonmass(1), &
-    &                 protons*nucleonmass(2) + neutrons*nucleonmass(1)
-    print *, 'RATIO ', protonmass/(protons) , &
-    &                  neutronmass/(neutrons), &
-    &                  (neutronmass + protonmass)/(protons*nucleonmass(2) + neutrons*nucleonmass(1))
-  
+
+    print 3,  Pmat(1,:), sum(Pmat(1,:))
+    print 4,  neutronmass*hbar**2,  &
+    &         protonmass*hbar**2,   & 
+    &         (neutronmass+protonmass)*hbar**2
+
+    print 5,  Pmat(1,:)/avg_effmass, sum(Pmat(1,:)/avg_effmass)
+    print 6,  neutronmass*hbar**2/avg_effmass(1), &
+    &         protonmass *hbar**2/avg_effmass(2), &
+    &         (neutronmass/avg_effmass(1)+protonmass/avg_effmass(2))*hbar**2 
+    
+    
+    ! Analytical result
+    print 7,  neutrons * nucleonmass(1), protons*nucleonmass(2), &
+    &         neutrons * nucleonmass(1)+ protons*nucleonmass(2) 
+
+    print *
+
   end subroutine verify_COM_motion
 
   subroutine calc_collective_inertia()
@@ -148,7 +256,9 @@ contains
     !                               (E_a + E_b)^n
     !
     ! where the sum is over all quasiparticle states and E_a and E_b are 
-    ! quasiparticle energies. 
+    ! quasiparticle energies. The collective coordinates Q_{i} are given by
+    ! the multipole moments Q_lm as defined in the arrays inertia_l 
+    ! and inertia_m.
     !
     ! Steps:
     !  (1) Calculate all the single-particle matrix elements of the Qlm
@@ -158,13 +268,15 @@ contains
     !  (3) Sum the matrix elements, weighted with the appropriate power of 
     !      the quasiparticle energies, using Ksum_Mij
     !  (4) Invert M_1 with Lapack routines
-    !  (5) Obtain M_c
+    !  (5) Obtain M_c for each species. The total inertia is M_t = M_n + M_p
+    !          
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Note: this routine is not yet ready to deal with blocked HFB vacua!
     !
     !---------------------------------------------------------------------------
     real(KIND=dp), allocatable :: Mat(:,:,:,:), Qsp(:,:,:), Q20(:,:,:)
     real(KIND=dp), allocatable :: M1(:,:,:), M3(:,:,:), work(:)
+    real(KIND=dp)              :: fac(2), A,R
     integer :: i, j, la, lb, l, m, info, lwork, it
     integer, allocatable :: ipiv(:)
         
@@ -194,7 +306,6 @@ contains
       ! Calculate all relevant single-particle matrix elements              
       Qsp(:,:,i) = Qlm_spme(l,m,.false.) ! Hardcoded to consider only real parts
                                          ! at the moment
-
       if(pairingtype.eq.2) then
         ! Transform to the quasiparticle basis if needed
         Q20(:,:,i) = calc_Q20(Qsp(:,:,i), bogoliubov, l)
@@ -322,12 +433,12 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
         Tb = Nb + N2b
         itb= 1 ; if(Bb.gt.4) itb=2
         
-        !Gain some CPU time
-        if(ita.ne.itb) then
-          sbi = sbi +   Tb
-          sbb = sbb + 2*Tb
-          cycle
-        endif
+!        !Gain some CPU time
+!        if(ita.ne.itb) then
+!          sbi = sbi +   Tb
+!          sbb = sbb + 2*Tb
+!          cycle
+!        endif
         
         do i=1,Ta
           do j=1,Tb
@@ -335,9 +446,6 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
             do k=1,Nk
               denom = (qpenergies(sab+Ta+i) + qpenergies(sbb+Tb+j))**Ks(k)
               Ksum(k,ita) = Ksum(k,ita) + num/denom
-!              if(k.eq.1 .and. abs(num) .gt.1d-6 )  then
-!                print *,Ba, Bb, i,j, num/denom, qpenergies(sab+Ta+i),qpenergies(sbb+Tb+j)
-!              endif
             enddo
           enddo
         enddo
@@ -625,9 +733,9 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
     deallocate(SpherHarmMesh)
 
     ! We rescale the ell = 1 multipole moments
-    if(l .eq. 1) then
-      harm_3D = sqrt(4*pi/3) * harm_3D !/(protons*nucleonmass(2)+neutrons*nucleonmass(1))
-    endif      
+!    if(l .eq. 1) then
+!      harm_3D = sqrt(4*pi/3) * harm_3D !/(protons*nucleonmass(2)+neutrons*nucleonmass(1))
+!    endif      
 
     !--------------------------------------------------------------------------- 
     ! Loop over the neutron single-particle states
@@ -715,7 +823,7 @@ $PBROKEN if( Bi .ne. Bj ) cycle
     enddo
     
     ! Rescale with the units of b^(ell/2) with 1 b = 100 fm^2.
-    if(l.ne.1) me = me/(100**(l/2.0))
+    me = me/(100**(l/2.0))
 
   end function Qlm_spme
 
