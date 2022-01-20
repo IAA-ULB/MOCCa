@@ -1006,15 +1006,15 @@ $TR   stop
         Erot_vib = 0.
     endif
 
-    b20 = Q20%beta(3)
-    b22 = Q22%beta(3)    
+    b20 = Q20%beta(4)
+    b22 = Q22%beta(4)    
     rms     =     r2%chargevalue
     
     if(associated(Q30)) then
-      b30 = Q30%beta(3)
-      b32 = Q32%beta(3)
+      b30 = Q30%beta(4)
+      b32 = Q32%beta(4)
     endif
-    b40 = Q40%beta(3)
+    b40 = Q40%beta(4)
 
     select case(pairingtype)
     case(0,1)
@@ -1342,7 +1342,7 @@ $TR   stop
     Q20 =>FindMoment(2,0,.false.     )
     Q22 =>FindMoment(2,2,.false., Q20)    
     write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
-    write(iochannel, fmt=8)    Q20%beta(3), Q22%beta(3)
+    write(iochannel, fmt=8)    Q20%beta(4), Q22%beta(4)
     write(iochannel, fmt=9)    Q(3), G(3)
     
     write(iochannel, fmt=10)  blocktype, blocknumber
