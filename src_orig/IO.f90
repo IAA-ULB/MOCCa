@@ -80,6 +80,7 @@ implicit none
   ! Signal the code to write extra output.
   character(len=40)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=40)   :: sphffile='', spcanfile='', tofile='', blockfile=''
+  character(len=40)   :: inertfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
   !-----------------------------------------------------------------------------
@@ -119,6 +120,7 @@ contains
     use moments,       only : readmomentdata
     use functional,    only : readfunctional
     use pairing,       only : initpairing
+    use fission_moi,   only : N_inertia, read_inertia
   
     implicit none
 
@@ -131,7 +133,7 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           Counter, run, tofile, blockfile
+    &           Counter, run, tofile, blockfile, inertfile, N_inertia
     
     if(present(file_number)) then
       inquire(file=input_file, exist=exists)
@@ -153,6 +155,15 @@ contains
       read (unit=file_number, nml=IO)
     else
       read (unit=*, nml=IO)
+    endif
+    
+    if(N_inertia .gt. 0) then
+      call read_inertia(file_number)
+    else
+      if(N_inertia .lt. 0) then
+        print *, 'Wrong value for N_inertia.'
+        stop
+      endif
     endif
     
     call readmomentdata(file_number)
@@ -925,6 +936,10 @@ $TR   stop
     if(pairingtype.eq.2 .and. BLOCKFILE .ne. '') then
       call write_blocked_sps(BLOCKFILE)
     endif        
+    
+    if(inertfile .ne. '') then
+      call write_inertias(inertfile)
+    endif
 
   end subroutine write_advanced_output
 
@@ -1853,8 +1868,81 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
       enddo
     enddo
       
-      
   end subroutine write_blocked_sps
+
+  subroutine write_inertias(fname)
+    !---------------------------------------------------------------------------
+    !
+    !
+    !
+    !---------------------------------------------------------------------------
+    use fission_MOI
+    use moments
+      
+    character(len=*), intent(in) :: fname
+    integer                      :: io
+    integer                      :: k,it, l, m
+    type(Moment), pointer        :: current 
+
+    1 format ('#', 18x)
+    2 format (' B_{ ', i2, i2, '}     ')
+   21 format (14x)
+    3 format (f15.3)
+    4 format ('# Neutrons')
+    5 format ('# Protons')
+    6 format ('# Total')
+    7 format (' Q_{ ', i2, 1x, i2, '} | ', 99es15.5 )
+   
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'Something went wrong with writing collective inertias to file.'
+      print *, 'filename = ', fname
+      stop
+    endif
+    
+    call write_header(1)
+    write(1, fmt=1, advance ='no') 
+    do k=1, N_inertia
+       l = inertia_l(k)
+       m = inertia_m(k)
+       write(1, fmt=2, advance ='no') l, m
+    enddo
+    write(1, fmt=*)
+    write(1, fmt=21, advance ='no')
+    do k=1, N_inertia
+       l = inertia_l(k)
+       m = inertia_m(k)
+       current => findmoment(l, m, .false.)      
+       if(associated(current)) then
+         ! We only write the value to file if the multipole moment can be 
+         ! found, i.e. when it is not restricted by symmetry
+         write(1, fmt=3, advance ='no') current%beta(4)
+       else
+         ! This multipole moment was not found, we just write 0.0 to file
+         write(1, fmt=3, advance ='no') 0.0d0
+       endif
+    enddo
+    write(1, fmt=*)
+    do it=1,3
+      select case(it)
+      ! FORTRAN does not seem to allow for calculated fmt = it + 3 statements,
+      ! so hardcoding it is.
+      case(1)
+        write(1, fmt=4)
+      case(2)
+        write(1, fmt=5)
+      case(3)
+        write(1, fmt=6)
+      end select      
+      do k=1, N_inertia
+        l = inertia_l(k)
+        m = inertia_m(k)
+        write(1, fmt=7) l,m,collective_inertia(k,1:N_inertia ,it)
+      enddo    
+      write(1, fmt=*)
+    enddo
+  
+  end subroutine write_inertias
 
   function force_halfinteger(j) result(jforced)
       !-------------------------------------------------------------------------

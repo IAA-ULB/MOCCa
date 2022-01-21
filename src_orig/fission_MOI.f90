@@ -44,20 +44,63 @@ module fission_MOI
 
   !-----------------------------------------------------------------------------
   ! Multipole moments for which to construct the inertia tensor. 
-  ! Hardcoded at the moment, maybe a runtime parameter in the future.
-  integer, parameter :: N_inertia            = 4
-  integer, parameter :: inertia_l(N_inertia) = (/1,2,2,3/) !,3/) 
-  integer, parameter :: inertia_m(N_inertia) = (/0,0,2,0/) !,0/)
-
-!  integer, parameter :: N_inertia            = 3
-!  integer, parameter :: inertia_l(N_inertia) = (/2,2,4/) !,3/) 
-!  integer, parameter :: inertia_m(N_inertia) = (/0,2,0/) !,0/)
+  integer :: N_inertia            = 0
+  integer, allocatable :: inertia_l(:) 
+  integer, allocatable :: inertia_m(:)  
 
   !-----------------------------------------------------------------------------
   ! Contains the full inertia tensor 
-  real(KIND = dp), allocatable :: collective_inertia(:,:)
+  real(KIND = dp), allocatable :: collective_inertia(:,:,:)
   
 contains 
+
+  subroutine read_inertia(file_number)
+    !---------------------------------------------------------------------------
+    ! Subroutine to read the &inertia/ namelist from the specified file (via the
+    ! specified channel) or from STDIN if the variables are not present.
+    !---------------------------------------------------------------------------
+    
+    integer(dp), intent(in), optional   :: file_number   
+    integer :: k
+
+    NameList /inertia/ inertia_l, inertia_m
+    
+    allocate(inertia_l(N_inertia)) ; inertia_l = -1
+    allocate(inertia_m(N_inertia)) ; inertia_m = -1
+  
+    if(present(file_number)) then
+      read (unit=file_number, nml=inertia)
+    else
+      read (unit=*, nml=inertia)
+    endif
+
+    ! Some sanity checks
+    do k=1, N_inertia
+      if(inertia_l(k) .eq. -1) then 
+        print *, inertia_l
+        print *, 'Number of elements in inertia_l does not match N_inertia.'
+        stop
+      endif
+      
+      if(inertia_l(k) .gt. maxmoment) then
+        print *, 'Cannot compute inertia for Qlm with l > Maxmoment.'
+        stop
+      endif
+      
+      if(inertia_m(k) .eq. -1) then 
+        print *, inertia_m
+        print *, 'Number of elements in inertia_m does not match N_inertia.'
+        stop
+      endif
+
+      if(inertia_m(k) .gt. inertia_l(k)) then
+        print *, 'Cannot compute inertia for Qlm with m > l.'
+        stop
+      endif
+
+    enddo
+  
+  end subroutine read_inertia
 
   subroutine print_collective_inertia()
     !---------------------------------------------------------------------------
@@ -94,7 +137,17 @@ contains
     enddo
     print *, sep 
     do i=1, N_inertia
-      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia)
+      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,1)
+    enddo
+    print *,sep
+    print *
+    do i=1, N_inertia
+      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,2)
+    enddo
+    print *,sep
+    print *
+    do i=1, N_inertia
+      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,3)
     enddo
     print *,sep
     print *
@@ -282,7 +335,7 @@ contains
     call start_timer(T_collective_MOI)
         
     if(.not.allocated(collective_inertia)) then
-      allocate(collective_inertia(N_inertia, N_inertia))
+      allocate(collective_inertia(N_inertia, N_inertia,3))
     endif
     collective_inertia = 0
     
@@ -343,9 +396,9 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Step 4: use LAPACK routines to invert M1
     ! 
-    ! Ask for a workspace size
     do it=1,2
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Ask for a workspace size
       allocate(work(1), ipiv(N_inertia))
       call dsytrf('U', N_inertia, M1(:,:,it),N_inertia, ipiv, work, -1, info)
       lwork = int(work(1))
@@ -373,15 +426,18 @@ contains
           M1(j,i,it) = M1(i,j,it)
         enddo
       enddo
+
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Step 5: calculate cranking tensor for every isospin
     !             M_c = M1^{-1} M3 M1^{-1}
     !         and sum the results
     !             M_t = M_n + M_p
-    collective_inertia = matmul(matmul(M1(:,:,1), M3(:,:,1)), M1(:,:,1)) & 
-    &                  + matmul(matmul(M1(:,:,2), M3(:,:,2)), M1(:,:,2))
-    
+    do it=1,2
+      collective_inertia(:,:,it) = &
+      &                       matmul(matmul(M1(:,:,it), M3(:,:,it)), M1(:,:,it)) 
+    enddo
+    collective_inertia(:,:,3) = sum(collective_inertia(:,:,:),3)
     call stop_timer(T_collective_MOI)
 
   end subroutine calc_collective_inertia
@@ -432,12 +488,12 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
         Tb = Nb + N2b
         itb= 1 ; if(Bb.gt.4) itb=2
         
-!        !Gain some CPU time
-!        if(ita.ne.itb) then
-!          sbi = sbi +   Tb
-!          sbb = sbb + 2*Tb
-!          cycle
-!        endif
+        !Gain some CPU time
+        if(ita.ne.itb) then
+          sbi = sbi +   Tb
+          sbb = sbb + 2*Tb
+          cycle
+        endif
         
         do i=1,Ta
           do j=1,Tb
@@ -637,8 +693,6 @@ $PCONSERVED    endif
         ! U^+\dagger Q V^-
         Q20(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = &
           &  matmul(matmul(transpose(U),Qsp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)), V)
-!        Q20(si+1:si+Tp,si+Tp+1:si+Tp+Tm) = &
-!          & matmul(transpose(U),Qsp(si+1:si+Tp,si+Tp+1:si+Tp+Tm))
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Umin : U in the negative parity block
         U = bogo(sb+2*Tp+1:sb+2*Tp+Tm      ,sb+2*Tp+Tm+1:sb+2*Tp+2*Tm)

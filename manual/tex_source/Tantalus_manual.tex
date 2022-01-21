@@ -365,6 +365,7 @@ This simple line masks however that there are multiple inputs and outputs.
 &IO              / ! Input and output options
                    ! (i)  multiple kinds of filenames  
                    ! (ii) symmetry transformation options
+&Inertia         / ! Determines for which l,m the collective inertias get calculated
 &MomentParam     / ! General treatment of multipole constraints
 &MomentConstraint/ ! Specify a single ( = one,1 ) multipole constraint.
                    ! NOTE: optional, can be repeated
@@ -376,15 +377,19 @@ This simple line masks however that there are multiple inputs and outputs.
 \end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\vspace{-1cm}
 \subsection{The STDIN input: tant.in}
 \label{sec:STDIN}
 
 Tantalus reads input from STDIN, using the FORTRAN namelist machinery. The 
 available namelists are indicated in Fig.~\ref{fig:namelists}; the ordering 
 of the namelist is important and all of them are required. The only exceptions
-to this are the \textsf{\&indices/} namelist and the \textsf{\&momentconstraint/}
-namelists. Both are only required if the user activates other parameters in 
-the \textbf{\&pairing/} and \textsf{\&MomentParam/} namelists. In addition, 
+to this are (i) the \textsf{\&indices/} namelist, 
+           (ii) the \textsf{\&momentconstraint/} namelist
+       and (iii) the \textsf{\&inertia/} namelist. All are only required if the 
+       user activates other parameters in 
+the \textbf{\&pairing/}, \textsf{\&MomentParam/} and \textsf{\&IO/} namelists. 
+In addition, 
 \textsf{\&momentconstraint/} can be repeated. Below, I document the input 
 parameters in all of these namelists; please do not assume that all of the 
 below is complete. 
@@ -559,8 +564,11 @@ A      osc_freq= Harmonic oscillator frequencies in all Cartesian directions
     denfile       =  filenames for the write-out of extra information. In order: 
     potfile          scalar densities, mean-field potential, single-particle info
     sphffile         in the HF basis and single-particle info in the canonical basis.
-    spcanfile
-
+    spcanfile        Finally, the inertfile outputs the (asked-for) collective 
+    inertfile        inertia parameters.
+    N_inertia     =  number of collective degrees of freedom to calculate the 
+                     inertias for. If non-zero, the code will read the
+                     &inertia/ namelist next.
     Extraspwfs    = 8 integers. If non-zero, the code will add this many (randomly
                     generated) spwfs in the corresponding isospin-parity-signature
                     blocks. Note that the nwn/nwp numbers need to be correctly 
@@ -579,20 +587,25 @@ A   blockfile     = filename to write the densities |psi|^2 to of the blocked
 \end{Verbatim}
 
 \begin{Verbatim}
+&Inertia              * Optional, only read if N_inertia is > 0
+---------------------------------------------------------------------------------------
+    Inertia_l     = lists of values l/m for collective degrees of freedom Qlm for
+    Inertia_m       which the collective inertias should be calculated.
+---------------------------------------------------------------------------------------
+\end{Verbatim}
+
+\begin{Verbatim}
 &MomentParam
 ----------------------------------------------------------------------------------------
       MoreConstraints = Logical. If .true., signals that the namelist 
                         &MomentConstraint/ will follow.
       ContinueAll     = Logical. If .true., signal that the data of the constrained 
-                        multipole moments should be taken from the input .wf file,
-                        not from STDIN.
+                        multipole moments should be taken from the input .wf file, not from STDIN.
 A     follow_com      = If .true., redefine the multipole moment operators at
                         every iteration to follow the centre-of-mass of the nucleus
                         around. Only active if parity is broken. Default: .false.
-A     MaxMoment       = Maximum l of the multipole moments Q_lm to be calculated.
-                        Default = 10
-A     MaxMomentMag    = Maximum l of the magnetic moments to be calculated.
-                        Default = 3
+A     MaxMoment       = Maximum l of the multipole moments Q_lm to be calculated. Default = 10
+A     MaxMomentMag    = Maximum l of the magnetic moments to be calculated.  Default = 3
 A     radd, acut,       = Parameters of the cutoff function as pioneered by K. Rutz
       cutfac             for multipole constraints.  Defaults= (4 fm, 0.4fm, 10)                  
 A     cutofftype      = Type of cutoff to use for the multipole constraints
