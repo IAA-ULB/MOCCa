@@ -262,15 +262,19 @@ contains
     print 2
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! perform the summations
-    if(pairingtype.eq. 1) then
+    select case(pairingtype)
+    case(0) ! HF
+      Pmat                     =  Ksum_Mij_HF(Psp, Psp, 1, 1,(/1,3/))
+      mat                      =  Ksum_Mij_HF(Qsp, Qsp, 1, 1,(/1,3/))
+    case(1) ! BCS
       Pmat                     =  Ksum_Mij_BCS(Psp, Psp, 1, 1,(/1,3/))
       mat                      =  Ksum_Mij_BCS(Qsp, Qsp, 1, 1,(/1,3/))
-    else
+    case(2) !HFB
       P20 = calc_Q20(Psp, bogoliubov, 1)        
       Pmat                     =  Ksum_Mij(P20, P20, 1, 1,(/1,3/))
       Q20 = calc_Q20(Qsp, bogoliubov, 1)        
       mat                      =  Ksum_Mij(Q20, Q20, 1, 1,(/1,3/))
-    endif  
+    end select
     neutronmass = 1.0/mat(1,1) * mat(2,1) * 1.0/mat(1,1)
     protonmass  = 1.0/mat(1,2) * mat(2,2) * 1.0/mat(1,2)
 
@@ -339,10 +343,6 @@ contains
     endif
     collective_inertia = 0
     
-    ! We do not perform calculate any collective inertia for a pure
-    ! Hartree-Fock calculation 
-    if(pairingtype.eq.0) return      
-    
     allocate(Mat(N_inertia, N_inertia, 2,2)) ;  Mat   = 0.0d0
     allocate(Qsp(nwt,nwt,N_inertia))         ;  Qsp = 0.0d0
     
@@ -372,6 +372,10 @@ contains
         lb = inertia_l(j)
         ! Perform the sums to obtain M_k for k=1,3
         select case(pairingtype)
+        case(0)
+          ! HF summation
+          Mat(i,j,:,:) = Ksum_Mij_HF(Qsp(:,:,i), Qsp(:,:,j), &
+          &                                                      la, lb,(/1,3/))
         case(1)
           ! BCS summation
           Mat(i,j,:,:) = Ksum_Mij_BCS(Qsp(:,:,i), Qsp(:,:,j), &
@@ -440,7 +444,63 @@ contains
     collective_inertia(:,:,3) = sum(collective_inertia(:,:,:),3)
     call stop_timer(T_collective_MOI)
 
+    do i=1,N_inertia
+      print *, 'M1', M1(i,:,1)
+    enddo
+    print *
+    do i=1,N_inertia
+      print *, 'M1', M3(i,:,1)
+    enddo
+    print *
+    
   end subroutine calc_collective_inertia
+  
+  function Ksum_Mij_HF(Qa, Qb, la, lb, Ks) result (Ksum)
+    !---------------------------------------------------------------------------
+    !
+    !
+    !
+    !
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: Qa(:,:), Qb(:,:)
+    real(KIND=dp), allocatable:: Ksum(:,:)
+    integer, intent(in)       :: Ks(:), la, lb
+ 
+    integer :: i, j, k, it, itb , Nk
+    real(KIND=dp) :: num, denom 
+ 
+    Nk = size(Ks)
+    allocate(Ksum(Nk,2)) ; Ksum = 0.0d0
+
+    ! If parity is conserved, there is a parity selection rule    
+$PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return    
+    
+    do i=1,nwt
+      ! Loop over full HF states
+      if(abs(rho_can(i)) .lt. 0.5) cycle
+     
+      it = 1 ;  if(i.gt. nwn) it = 2
+      do j=1,nwt
+        ! Loop over empty HF states
+        if(abs(rho_can(j)) .gt. 0.1) cycle
+        
+        itb = 1 ;  if(j.gt. nwn) itb = 2
+        if(it .ne. itb) cycle
+
+        num   = Qa(i,j) * Qb(i,j) 
+        do k=1,Nk
+         denom      = (spenergies(j) - spenergies(i))**Ks(k)
+         Ksum(k,it) = Ksum(k,it) + num/denom
+        enddo
+      enddo
+    enddo    
+    
+    ! Factor two for the time-reversal partners
+$TR    Ksum = 2*Ksum
+
+    ! Explicit factor 2 Eq. 3.89
+    Ksum = 2*Ksum
+  end function Ksum_Mij_HF
   
   function Ksum_Mij(Qa, Qb, la, lb,  Ks) result(Ksum)
     !---------------------------------------------------------------------------
