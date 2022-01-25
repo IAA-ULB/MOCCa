@@ -160,7 +160,7 @@ contains
     !  for the motion of the z-coordinate of the center of mass.
     !
     !  The collective coordinate for species q is thus
-    !    Q_q = z_q / N_q
+    !    Q_q = z_q / A
     !  to which corresponds a collective momentum  (in our convention)     
     !    P_q = - i \nabla_z (*)
     !  
@@ -219,7 +219,6 @@ contains
     
     ! Calculate hbar to make its use consistent
     hbar =  sqrt(hbm(1) * 2  * 0.5 * sum(nucleonmass))
-
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate single-particle matrix elements of nabla_z 
     NablaMElements = compNablaMElements()
@@ -238,10 +237,9 @@ contains
     ! Calculate single-particle matrix elements of z-c.o.m. coordinate
     Qsp            = sqrt(4*pi/3) * Qlm_spme(1,0,.false.) * 10 
                     ! Q10 = sqrt(3/4pi) * z 
-                    ! and the routine uses units of b^1/2
-    Qsp(1:nwn,1:nwn)         =      Qsp(1:nwn,1:nwn)        /(neutrons)
-    Qsp(nwn+1:nwt,nwn+1:nwt) =      Qsp(nwn+1:nwt,nwn+1:nwt)/(protons )
-
+                    ! and the routine Qlm_spme uses units of b^1/2 => factor 10
+    Qsp(1:nwn,1:nwn)         =      Qsp(1:nwn,1:nwn)        /(neutrons+protons)
+    Qsp(nwn+1:nwt,nwn+1:nwt) =      Qsp(nwn+1:nwt,nwn+1:nwt)/(protons +neutrons)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculate average effective mass 
     !
@@ -275,10 +273,12 @@ contains
       Q20 = calc_Q20(Qsp, bogoliubov, 1)        
       mat                      =  Ksum_Mij(Q20, Q20, 1, 1,(/1,3/))
     end select
-    neutronmass = 1.0/mat(1,1) * mat(2,1) * 1.0/mat(1,1)
-    protonmass  = 1.0/mat(1,2) * mat(2,2) * 1.0/mat(1,2)
-
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Calculating the inertia parameters
+    neutronmass = 0.25d0 * 1.0/mat(1,1) * mat(2,1) * 1.0/mat(1,1)
+    protonmass  = 0.25d0 * 1.0/mat(1,2) * mat(2,2) * 1.0/mat(1,2)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Printing 
     print 3,  Pmat(1,:), sum(Pmat(1,:))
     print 4,  neutronmass*hbar**2,  &
     &         protonmass*hbar**2,   & 
@@ -304,7 +304,7 @@ contains
     ! Qlm determined in inertia_l and inertia_m. This tensor in the perturbative
     ! cranking approximation is given by
     !
-    !     M_c = M_1^{-1} M_3 M_1^{-1}
+    !     M_c = 1/4  M_1^{-1} M_3 M_1^{-1}    (from Baran et al.)
     !
     ! where the matrices M_n are determined by
     !
@@ -439,28 +439,32 @@ contains
     !             M_t = M_n + M_p
     do it=1,2
       collective_inertia(:,:,it) = &
-      &                       matmul(matmul(M1(:,:,it), M3(:,:,it)), M1(:,:,it)) 
+      &                0.25d0*matmul(matmul(M1(:,:,it), M3(:,:,it)), M1(:,:,it)) 
     enddo
     collective_inertia(:,:,3) = sum(collective_inertia(:,:,:),3)
     call stop_timer(T_collective_MOI)
 
-    do i=1,N_inertia
-      print *, 'M1', M1(i,:,1)
-    enddo
-    print *
-    do i=1,N_inertia
-      print *, 'M1', M3(i,:,1)
-    enddo
-    print *
-    
   end subroutine calc_collective_inertia
   
   function Ksum_Mij_HF(Qa, Qb, la, lb, Ks) result (Ksum)
     !---------------------------------------------------------------------------
+    ! Perform the sum over holes and particles for the matrices of the form
     !
-    !
-    !
-    !
+    !                              Q_{i,ml} Q_{j,lm} 
+    ! M_{n,ij} = 2 sum_m sum_l  ---------------------------
+    !                               (e_m - e_l)^n
+    ! 
+    ! where Q_{i/j, ml} are single-particle matrix elements and the e_m/l
+    ! are single-particle energies. The m are empty sp states, the l are 
+    ! occupied states.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     Qa, Qb    : two-quasiparticle representations of both multipole 
+    !                 operators
+    !     Ks        : set of powers to use in the inverted calculation
+    ! Output:
+    !     Ksum      : result of the summations, array with the size of Ks
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: Qa(:,:), Qb(:,:)
     real(KIND=dp), allocatable:: Ksum(:,:)
@@ -844,11 +848,6 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
     harm_3D(1:nx,1:ny,1:nz) => Qlm
     harm_3D                 = SpherHarmMesh(:,:,:,l,m,im)
     deallocate(SpherHarmMesh)
-
-    ! We rescale the ell = 1 multipole moments
-!    if(l .eq. 1) then
-!      harm_3D = sqrt(4*pi/3) * harm_3D !/(protons*nucleonmass(2)+neutrons*nucleonmass(1))
-!    endif      
 
     !--------------------------------------------------------------------------- 
     ! Loop over the neutron single-particle states
