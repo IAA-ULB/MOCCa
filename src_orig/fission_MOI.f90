@@ -107,19 +107,25 @@ contains
     ! Print all entries in the collective inertia tensor.
     !---------------------------------------------------------------------------
 
-    1 format (' Collective inertia tensor')
-    2 format (70('-'))
-    3 format ('     I_Q',2i1, 2x)
+    1 format (26('-'),' Collective inertia tensor', 27('-'))
+    2 format (80('-'))
+    3 format ('          I_Q',2i1, 2x)
     4 format ('     I_Q',2i1, 1x,'|', 1x, 99es15.5)
-    5 format (12('_'))
+    6 format (15('-'))
+    
+   99 format ('  Conventions:' /, & 
+   &          '    Collective variables: multipole moments Qlm = r^l Y_lm .', /,&
+   &          '    Collective modes normalized with hbar = 1.'              /,&
+   &          '    Units of collective inertias in MeV^{-1} b^{-l/2} [hbar^2].')
 
     character(len=80) :: header, sep
-    character(len=12) :: tmp
+    character(len=16) :: tmp
     integer :: i
     
-    print 2
     print 1
-    print 2
+    print *
+    print 99
+    print *
 
     header = ''
     do i=1,N_inertia
@@ -127,31 +133,40 @@ contains
       header = adjustl(trim(header)//tmp)
     enddo
 
-    print *, '                 ', header   
-
-    write(sep,5)
+    sep = ''
     tmp = ''
+    write(sep,6)    
     do i=1,N_inertia
-      write(tmp,5)    
+      write(tmp,6)    
       sep = adjustl(trim(sep)//tmp)  
     enddo
+
+    print *, ' neutrons        ', header   
     print *, sep 
     do i=1, N_inertia
       print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,1)
     enddo
     print *,sep
     print *
+    print *, ' protons         ', header   
+    print *,sep
     do i=1, N_inertia
       print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,2)
     enddo
     print *,sep
     print *
+    print *, ' total          ', header   
+    print *,sep
     do i=1, N_inertia
       print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,3)
     enddo
     print *,sep
     print *
+    
+    ! Verify these results with the COM motion    
+    call verify_COM_motion
         
+    print 2
   end subroutine print_collective_inertia
   
   subroutine verify_COM_motion()
@@ -167,7 +182,7 @@ contains
     !  One can show that, analytically, the collective inertia associated with 
     !  movement of the centre-of-mass should be the TOTAL mass of the nucleus
     ! 
-    !   M'_{0,q} = N_q m_q
+    !   M'_{0} = A m
     !
     !  This is what is always presented in the literature. Note however the 
     !  little accent M', indicating that this IS NOT the collective inertia
@@ -178,7 +193,7 @@ contains
     ! We calculate the collective inertia related to COM motion here in multiple
     ! ways:
     !
-    !   (a) Analytically, printed as 'N_q m_q'
+    !   (a) Analytically, printed as 'A m'
     !   (b) By using the Belyaev formula for the momentum in our convention (*)
     !       (and multiplying by hbar^2 afterward)
     !   (c) By using the perturbative cranking formula starting from Q_q
@@ -201,15 +216,15 @@ contains
     use densities
     
     1 format (' Pushing model                 M_0 (MeV/c^2)')
-    2 format (02x, 'neutrons        protons          total', / &
-    &         70('-'))
-    3 format (' Belyaev M_0      ', 3f16.5)
-    4 format (' Pert. cranking   ', 3f16.5)
-    5 format (' Belyaev m / m_*  ', 3f16.5)
-    6 format (' Pert.   m / m_*  ', 3f16.5)
+    2 format (25x, 'neutrons        protons          total', / &
+    &         1x, 80('-'))
+    3 format ('   Belyaev M_0      | ', 3f16.5)
+    4 format ('   Pert. cranking   | ', 3f16.5)
+    5 format ('   Belyaev m / m_*  | ', 3f16.5)
+    6 format ('   Pert.   m / m_*  | ', 3f16.5)
     
-    7 format (70('-'),/, &
-    &         ' N_q m_q          ', 3f16.5, /, 70('-'))
+    7 format (1x, 80('-'),/, &
+    &         '   Am               | ', 3f16.5, /, 80('-'))
     
     real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
     real(KIND=dp) :: mat(2,2), Pmat(2,2), neutronmass, protonmass
