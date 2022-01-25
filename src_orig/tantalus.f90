@@ -421,11 +421,12 @@ subroutine ReachForWaterAndFood()
     if(inversetemp .ne. -1) then
         call projectThermal
     endif    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate and print the collective moment of inertias    
     call calc_collective_inertia
     call print_collective_inertia
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     
-    call verify_COM_motion
 
     if(iter.eq.maxiter+1) then
       iomsg='MAXITER'  
