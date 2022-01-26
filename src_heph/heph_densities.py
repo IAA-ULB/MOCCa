@@ -223,6 +223,7 @@ def ProcessDensities(fname, src, target, so):
     Derivation     = ''
     BCSExpression  = ''
     HFBExpression  = ''
+    Isospincoupl   = ''
     Zeroing        = ''
     Cleaning       = ''
 
@@ -246,32 +247,33 @@ def ProcessDensities(fname, src, target, so):
     print ('           DEN   LARG  RARG   T     P    RX    RY    RZ    SX    SY    SZ')
     print (line)
     for i in range(len(Densities_needed)):
-        den = Densities_needed[i]
+      den = Densities_needed[i]
 
-        # Summation with leftwf = rightwf
-        (e,dec,ini,der,zeroi,cleani)  = \
-        GenDensityExpression(Densities_needed[i],deriv_needed[i],'wave','wave',so)
-        print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+      # Summation with leftwf = rightwf
+      (e,dec,ini,der,isoi,zeroi,cleani)  = \
+      GenDensityExpression(Densities_needed[i],deriv_needed[i],'wave','wave',so)
+      print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
-        Declaration    = Declaration    + '\n' + dec
-    
-        if('P' in den): 
-          # The BCS expression is diagonal in 'wave'
-          BCSExpression = BCSExpression + '\n' + e
-          # But we also need the HFB expression 
-          # So we recall the routine with different 'wave' indices
-          # This summation is blockwise, hence the 'si+'
-          (e,dec,ini,der,zeroi,cleani)  = \
+      Declaration    = Declaration    + '\n' + dec
+  
+      if('P' in den): 
+        # The BCS expression is diagonal in 'wave'
+        BCSExpression = BCSExpression + '\n' + e
+        # But we also need the HFB expression 
+        # So we recall the routine with different 'wave' indices
+        # This summation is blockwise, hence the 'si+'
+        (e,dec,ini,der,isoi,zeroi,cleani)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],\
                                          'si+wave2', 'si+wave', so, silent=True)
-          HFBExpression = HFBExpression + '\n' + e
-        else:
-          Expression    = Expression     + '\n' + e
+        HFBExpression = HFBExpression + '\n' + e
+      else:
+        Expression    = Expression     + '\n' + e
           
-        Initialisation = Initialisation + '\n' + ini
-        Derivation     = Derivation     + '\n' + der
-        Zeroing        = Zeroing        + '\n' + zeroi
-        Cleaning       = Cleaning       + '\n' + cleani
+      Initialisation = Initialisation + '\n' + ini
+      Derivation     = Derivation     + '\n' + der
+      Isospincoupl   = Isospincoupl   + '\n' + isoi
+      Zeroing        = Zeroing        + '\n' + zeroi
+      Cleaning       = Cleaning       + '\n' + cleani
     print (line)
 
     # Substitute into the densities.f90 file.        
@@ -284,6 +286,7 @@ def ProcessDensities(fname, src, target, so):
     dic['DERIVATION'    ] = Derivation
     dic['ZEROING'       ] = Zeroing 
     dic['CLEANING'      ] = Cleaning 
+    dic['ISOSPINCOUPL'  ] = Isospincoupl
   
     if(so.timelike):
       dic['TR']  = ''
@@ -405,25 +408,40 @@ def ParseOperators(density, timelike, findindices=False):
 
 def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                          silent=False):
-    #---------------------------------------------------------------------------
-    # Generate the following strings 
-    #       (Expression, Declaration, Initialisation, Derivation, Zeroing)
-    #
-    # to plug into FORTRAN source code, that takes care of everything regarding
-    # that density.
-    # --------------------------------------------------------------------------
-    # *) Derivative_combinations
-    #    Declares the different external derivatives of that density that need
-    #    to be calculated by the code
-    #
-    # *) leftwave, rightwave
-    #    Strings indicating to the summation what the left and right spwf is.
-    #
-    # *) so: a set of symmetry options
-    #
-    # *) silent: don't print the symmetry output 
-    #---------------------------------------------------------------------------
-   
+    """
+      Generate all the necessary strings to plug into FORTRAN source code 
+      template Densities.f90.
+
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+     Input : 
+      * denin                  : Expression for the density
+      * Derivative_combinations: declares the different external derivatives of 
+                                 the density that need to be calculated 
+    
+      * leftwave, rightwave    : Strings indicating to the summation what the 
+                                 left and right spwf is.
+      * so                     : a set of symmetry options
+      * silent                 : If True  => don't print the symmetry output 
+                                 If False => print symmetry output for the 
+                                             reflection symmetries of the 
+                                             generated density
+
+      - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Output :
+      
+        Expression     :  string that calculates the density
+        Declaration    :  string that declares the density in the FORTRAN code
+        Initialisation :  string that (if necessary) allocates the density 
+        Derivation     :  string that handles all the derivatives that need to 
+                          be calculated of the density
+        Isospincoupl   :  string that handles the calculation of isospin 
+                          densities
+        Zeroing        :  string that sets the density to zero
+        Cleaning       :  string deallocating the density
+      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      
+    """
+
     #---------------------------------------------------------------------------
     # Initialisation 
     Expression    = ''
@@ -431,6 +449,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     Initialisation= ''
     Derivation    = ''
     Zeroing       = ''
+    Isospincoupl  = ''
     Cleaning      = ''
 
     #---------------------------------------------------------------------------
@@ -494,6 +513,11 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     
     dic['TOTALIND']= totalind
     dic['DIM']     = dim
+
+    if('P' not in density):
+      dic['ISOSIZE'] = 4 # Full complement of neutron, proton, isoscalar, isovector
+    else:
+      dic['ISOSIZE'] = 2 # Only neutron, proton components for pairing densities
     
     #---------------------------------------------------------------------------
     # Get the declaration of the density and its derivatives right
@@ -501,6 +525,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     Initialisation = ta.Ini.substitute(dic)
     Zeroing        = ta.Zero_template.substitute(dic)
     Cleaning       = ta.Clean_template.substitute(dic)
+
 
     for c in derivative_combinations:
         l = c[0]
@@ -740,6 +765,11 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                             ta.Den_diag.substitute(dic)
         # Don't forget the closing bracket
         Expression = Expression +  ')\n'
+        
+        # And add a line for the isospin coupling
+        if('P' not in density): 
+          Isospincoupl = Isospincoupl + ta.Den_iso_comment.substitute(dic) 
+          Isospincoupl = Isospincoupl + ta.iso_normal.substitute(dic) 
         #----------------------------------------------------------------------- 
         # Add the derivatives of the original density
         #
@@ -814,6 +844,10 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                         else:
                             dic['IND'] = IND     
                         Derivation     = Derivation  + ta.Der_indep.substitute(dic)
+                        
+                        # Add a line for the isospin coupling while we are here
+                        if('P' not in density):
+                          Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic) 
             else:
                     (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin)
                     dic['PX']    = str(px) #+ 'd0'
@@ -821,16 +855,22 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                     dic['PZ']    = str(pz) #+ 'd0'
                     
                     dic['IND']  =  IND  
-                    
-                    # Decide if we need to use a gradient or a laplacian routine
                     Derivation  = Derivation + ta.Lap.substitute(dic)
-            Derivation  = Derivation + '\n'
-        
+                    
+                    # Add a line for the isospin coupling while we are here
+                    if('P' not in density):
+                      Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic) 
+
+            Derivation  = Derivation   + '\n'
+            Isospincoupl= Isospincoupl + '\n'
         
         dic['NAME'] = density
+        
     Expression = Expression + ta.Den_line.substitute(dic) 
     
-    return (Expression, Declaration, Initialisation, Derivation, Zeroing, Cleaning)
+    
+    return (Expression, Declaration, Initialisation, Derivation, Isospincoupl,\
+                                                              Zeroing, Cleaning)
     
 def GenVecProd(density, coupling):
     #---------------------------------------------------------------------------
@@ -1327,7 +1367,6 @@ def Rot_ind(k):
         j = 1
         return [(i,j), (-j,i)]
         
-        
 def Storage_Mapping(indices):
     """
      Map the indices (i,j,k,...) of a totally symmetric tensor unto indices
@@ -1369,3 +1408,40 @@ def Multiplicity(indices):
     a = set(list(itertools.permutations(indices)))
     m = len(a)
     return(m)
+    
+def Isospinindices(iso):
+  """
+    Translate a string indicating a specific component of a density (0 or 1 for 
+    isoscalar and isovector densities, p/n for proton/neutron densities) into 
+    an array index. In the FORTRAN code, densities are stored as
+    
+      D_X_(SPATIAL INDEX, CARTESIAN COMPONENTS, 1:4)
+    
+    where 1 : neutron density
+          2 : proton density
+          3 : isoscalar density
+          4 : isovector density
+    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    Input:
+      iso: string indicating an "isospin component of a density"
+    Output:
+      index : 1-4 indicating the index in the FORTRAN array
+    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      
+  """
+
+  assert len(iso) == 1
+  
+  index = 0
+  
+  if(iso == '0'):
+    index = 3
+  elif(iso == '1'):
+    index = 4
+  elif(iso == 'n'):
+    index = 1
+  elif(iso == 'p'):
+    index = 2  
+  return index
+
+

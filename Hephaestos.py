@@ -81,17 +81,22 @@ try:
   SECOND_AXIS = configmod.SECOND_AXIS
 except AttributeError:
   SECOND_AXIS = 1
-
+  
+try:
+  PH_PP_DECOUPL = configmod.PH_PP_DECOUPL
+except AttributeError:
+  PH_PP_DECOUPL = True
 
 print (line)
-print (' Configuration file  : %s'%config)
-print ('    Functional file  : %s'%FUNC_FILE)
-print ('    Symmetry string  : %s'%SYMSTRING)
-print ('    Axis reduction   : %s'%REDUCE)
-print ('    Symmetry string  : %s'%INSYM)
-print ('    Axis reduction   : %s'%INREDUCE)
-print ('    Quantisation axis: %s'%QUANT_AXIS)
-print ('    Secondary    axis: %s'%SECOND_AXIS)
+print (' Configuration file         : %s'%config)
+print ('    Functional file         : %s'%FUNC_FILE)
+print ('    PH-PP channel decoupling: %s'%PH_PP_DECOUPL)
+print ('    Symmetry string         : %s'%SYMSTRING)
+print ('    Axis reduction          : %s'%REDUCE)
+print ('    Symmetry string         : %s'%INSYM)
+print ('    Axis reduction          : %s'%INREDUCE)
+print ('    Quantisation axis       : %s'%QUANT_AXIS)
+print ('    Secondary    axis       : %s'%SECOND_AXIS)
 print (line)
 
 #-------------------------------------------------------------------------------
@@ -146,12 +151,13 @@ heph_densities.initdensities()
 description = heph_functional.initfunctional(FUNC_FILE, so)
 # ... and initialize the fields module
 heph_fields.initfields(so)
-
 #-------------------------------------------------------------------------------
 # On to the real business: generating Fortran code.
 for fname in FORTRANFILES:
-     pp.preprocess(fname,SRCPATH,GENPATH, so, oldso)
+#     print ("Preprocessing " + fname)
+     pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL)
 
+exit()
 #-------------------------------------------------------------------------------
 # Output all of the relevant things into .tex files.
 #latex.Build(FUNC_FILE, description)

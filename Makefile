@@ -105,19 +105,20 @@ $(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ compilation_logs/
 	$(CXX) $(CXXFLAGS) -c  $< -o $@ 
 
 setversioninfo:
-  # Copy the git information into the main code, so it can be printed
-	cp $(SRCDIR)/tantalus.f90 $(SRCDIR)/tantalus.version.f90
-	sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' $(SRCDIR)/tantalus.version.f90 
-	sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' $(SRCDIR)/tantalus.version.f90 
-	sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' $(SRCDIR)/tantalus.version.f90 
-	# Copy the compiler information
-	sed -i.bak 's/COMPCOMP/"${COMPVERSION}"/' $(SRCDIR)/tantalus.version.f90 
-	sed -i.bak 's/FLAGS/"${CXXFLAGS}"/'       $(SRCDIR)/tantalus.version.f90 
+  
+# Copy the git information into the main code, so it can be printed
+	@cp $(SRCDIR)/tantalus.f90 $(SRCDIR)/tantalus.version.f90
+	@sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' $(SRCDIR)/tantalus.version.f90 
+	@sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' $(SRCDIR)/tantalus.version.f90 
+	@sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' $(SRCDIR)/tantalus.version.f90 
+#Copy the compiler information
+	@sed -i.bak 's/COMPCOMP/"${COMPVERSION}"/' $(SRCDIR)/tantalus.version.f90 
+	@sed -i.bak 's/FLAGS/"${CXXFLAGS}"/'       $(SRCDIR)/tantalus.version.f90 
 	
-	rm $(SRCDIR)/tantalus.version.f90.bak
+	@rm $(SRCDIR)/tantalus.version.f90.bak
 
 getgitinfo:
-	# Get information from 'git show', to see what kind of build this is.
+# Get information from 'git show', to see what kind of build this is.
 	$(eval GIT_INFO1=$(shell git show | grep 'commit ' | head -1))
 	$(eval GIT_INFO2=$(shell git show | grep 'Author:' | head -1))
 	$(eval GIT_INFO3=$(shell git show | grep 'Date:'   | head -1))

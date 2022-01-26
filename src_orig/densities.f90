@@ -24,6 +24,7 @@ module densities
 ! BCSEXPRESSION   : [WAY too long to include here]
 ! HFBEXPRESSION   : [WAY too long to include here]
 ! DERIVATION      : [WAY too long to include here]
+! ISOSPINCOUPL    : [WAY too long to include here]
 ! CLEANING        : [WAY too long to include here]
 !
 ! TR              : $TR
@@ -39,6 +40,21 @@ module densities
 !
 ! PBROKEN         : $PBROKEN
 !
+!===============================================================================
+!
+! A density D_L_R is stored as
+!
+!      D_L_R (mv, [cartesian indices], [isospin indices])
+!             |     |                            |
+!             > spatial indices                  |
+!                   |                            |
+!                   > all cartesian indices      |
+!                                                > isospin indices
+!                                                  4 for normal densities
+!                                                     (n, p, 0, 1)
+!                                                  2 for pairing densities
+!                                                     (n,p)
+
 !=============================================================================== 
 ! Some technical notes:
 !
@@ -67,6 +83,7 @@ module densities
 !           D_N_N is fully stored with indices (nx*ny*nz,3,3,2)
 !    But 
 !           Der_Der_D_I_I is stored as (nx*ny*nz,7,2)
+!
 !===============================================================================
 use compilation
 use geninfo
@@ -365,6 +382,10 @@ $HFBEXPRESSION
 $DERIVATION  
     enddo  
     call stop_timer(T_den_der)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Calculate the densities in isospin representation 
+$ISOSPINCOUPL    
 
     call stop_timer(T_densities)
 

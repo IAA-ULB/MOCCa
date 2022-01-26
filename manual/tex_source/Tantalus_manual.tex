@@ -742,10 +742,7 @@ in which case they will take (hopefully sensible) default values.
 \subsubsection{NLO EDF in the style of the Brussels group}
 %\begin{figure}
 \begin{minipage}{.8\textwidth}
-\begin{Verbatim}
-! --------------------------------------------------------------------------------------------
-! See G. Scamps et al., Eur. Phys. J. A 57, 333 (2021). 
-! --------------------------------------------------------------------------------------------
+\begin{Verbatim}[fontsize=\small]
 &skf 
 name     = "SLy4"         (R) ! Name of the parameterization. 
                               ! This needs to match name_param in the input data
@@ -754,11 +751,17 @@ t0       =  -2488.913,    (R) ! t0 parameter of the Skyrme parameterization
 t1       =    486.818,    (R)  
 t2       =   -546.395,    (R)  
 t3       =  13777.0,      (R)
+t4       =      0.0       (R)
+t5       =      0.0       (R)
 x0       =      0.834,    (R)
 x1       =     -0.344,    (R)
 x2       =     -1.0,      (R)
-x3       =       1.354,   (R) 
-sigma    =      0.1666667 (R) ! Exponent of the density dependence.
+x3       =      1.354,    (R) 
+x4       =      0.0       (R)
+x5       =      0.0       (R)
+beta     =      0.0       (R) ! Exponent of the density dependence (t4).
+gamma    =      0.0       (R) ! Exponent of the density dependence (t5).
+sigma    =      0.1666667 (R) ! Exponent of the density dependence (t3).
 wso      =    123.0,      (R) ! Spin-orbit strength.
 wsoq     =    123.0       (R) !  
 CT0      =      0.0       (R) ! Coupling constant (isoscalar) of the J^2 terms
@@ -781,7 +784,7 @@ COM1Body = 2                  ! Treatment of the one-body COM correction.
                               !   (0) => None. (1) => Perturbative. (2) => Self-consistent
 COM2Body = 0                  ! Treatment of the two-body COM correction.
                               !   (0) => None. (1) => Perturbative.
-CoulombTreatment = 1          ! Treatment of Coulomb interaction.
+CoulTreatment = 1             ! Treatment of Coulomb interaction.
                               !   (0) => No Coulomb included.
                               !   (1) => Direct and exchange (Slater) contribution
                               !   (2) => Only direct contribution.
@@ -803,6 +806,10 @@ rotcorrc    = 0               ! rotational correction.
 vibcorrb    = 0               ! Parameters b, d and l for the vibrational 
 vibcorrd    = 0               ! correction.
 vibcorrl    = 0               ! 
+eps         = 1d-20           ! Numerical parameter to safeguard the potentials 
+                              ! associated with density-dependent terms with 
+                              ! small exponents. Default value works for everything
+                              ! without t4/t5 terms in my experience. 
 \end{Verbatim}
 \end{minipage}
 %\label{fig:paramexample}

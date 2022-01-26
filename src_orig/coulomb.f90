@@ -390,7 +390,7 @@ $REDUZ  coul_offset_z = 0
     ExchangePotential = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
-    Prec = 1.d-9/(dx**3*nx*ny*nz)
+    Prec = 1.d-12/(dx**3*nx*ny*nz)
     !---------------------------------------------------------------------------
     ! Set-up the values of r and spherharmcoulomb on the Coulomb mesh.
     allocate(r(ox,oy,oz))  ;  r = 0.0_dp
@@ -400,7 +400,7 @@ $REDUZ  coul_offset_z = 0
     do k=1,oz
       do j=1,oy
         do i=1,ox
-          r(i,j,k) = sqrt(coulmeshx(i)**2 + coulmeshx(j)**2 + coulmeshz(k)**2)
+          r(i,j,k) = sqrt(coulmeshx(i)**2 + coulmeshy(j)**2 + coulmeshz(k)**2)
         enddo
       enddo
     enddo

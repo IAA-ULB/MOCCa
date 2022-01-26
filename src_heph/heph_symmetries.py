@@ -411,7 +411,7 @@ def printsymmetryoption(so):
             if(so.combs[i][l] == symdic[key]):
               st = st + key + ','
 
-        print ("   ", direc[i], " =>  %10s, "%st[:-1], so.syms[i])
+#        print ("   ", direc[i], " =>  %10s, "%st[:-1], so.syms[i])
 
     print (" Encoding string : ", symmetryencoding(so))
 
