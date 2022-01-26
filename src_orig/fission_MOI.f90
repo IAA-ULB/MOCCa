@@ -114,17 +114,23 @@ contains
     6 format (15('-'))
     
    99 format ('  Conventions:' /, & 
-   &          '    Collective variables: multipole moments Qlm = r^l Y_lm .', /,&
+   &          '    Collective variables: multipole moments Qlm = r^l Y_lm ,',/,&
+   &          '                          calculated wrt COM = (', 3f8.3, ')',/,&
    &          '    Collective modes normalized with hbar = 1.'              /,&
    &          '    Units of collective inertias in MeV^{-1} b^{-l/2} [hbar^2].')
 
     character(len=80) :: header, sep
     character(len=16) :: tmp
+    real(KIND=dp)     :: shiftx, shifty, shiftz
     integer :: i
+
     
     print 1
     print *
-    print 99
+    shiftx = -meshx_shifted(1) + meshx(1)      
+    shifty = -meshy_shifted(1) + meshy(1)      
+    shiftz = -meshz_shifted(1) + meshz(1)      
+    print 99, shiftx, shifty, shiftz
     print *
 
     header = ''
@@ -485,7 +491,7 @@ contains
     real(KIND=dp), allocatable:: Ksum(:,:)
     integer, intent(in)       :: Ks(:), la, lb
  
-    integer :: i, j, k, it, itb , Nk
+    integer :: i, j, k, it, itb , Nk, trash
     real(KIND=dp) :: num, denom 
  
     Nk = size(Ks)
@@ -493,6 +499,8 @@ contains
 
     ! If parity is conserved, there is a parity selection rule    
 $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return    
+    if(la .eq. lb) trash = 0           
+    !         ^---- trash statement to stop compilator complaints
     
     do i=1,nwt
       ! Loop over full HF states
@@ -544,7 +552,7 @@ $TR    Ksum = 2*Ksum
     integer, intent(in)       :: Ks(:), la, lb
     
     integer :: Na, N2a, Ta, Ba, Bb, Tb, Nb, N2b, ita, itb, k, i,j, Nk
-    integer :: sai, sbi, sab, sbb
+    integer :: sai, sbi, sab, sbb, trash
     real(KIND=dp) :: num, denom
 
     Nk = size(Ks)
@@ -552,6 +560,8 @@ $TR    Ksum = 2*Ksum
 
     ! If parity is conserved, there is a parity selection rule    
 $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return     
+    if(la .eq. lb) trash = 0           
+    !         ^---- trash statement to stop compilator complaints
 
     sai = 0 ; sab = 0
     do Ba=1,8,2
@@ -627,13 +637,15 @@ $TR    Ksum = 2*Ksum
     real(KIND=dp), allocatable:: Ksum(:,:)
     integer, intent(in)       :: Ks(:), la, lb
     real(KIND=dp)             :: num, denom, eta, ui, vi, uj, vj
-    integer                   :: i,j, it, itb, k, Nk
+    integer                   :: i,j, it, itb, k, Nk, trash
 
     Nk = size(Ks)
     allocate(Ksum(Nk,2)) ; Ksum = 0.0d0
 
     ! If parity is conserved, there is a parity selection rule    
 $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return     
+    if(la .eq. lb) trash = 0           
+    !         ^---- trash statement to stop compilator complaints
 
     do i=1,nwt
       call uv_from_occupation(BCSoccupations(i), ui, vi)
@@ -737,6 +749,8 @@ $TR        &                          - tmp(si+1:si+T,si+1:si+T)
       enddo
 $PCONSERVED    endif
     
+$PBROKEN return
+    
     !---------------------------------------------------------------------------
     ! The following situation concerns only the case for a multipole moment 
     ! with odd l and parity is conserved.
@@ -820,6 +834,9 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
     !    of m yet; those connect single-particle states with different 
     !    signature, for the traditional definition of spherical harmonics at 
     !    least.
+    ! *) This routine shifts the multipole moments with respect to the center
+    !    of mass of the nucleus, since it uses the meshx/y/z_shifted arrays to
+    !    calculate the numerical values of the spherical harmonics on the mesh.
     !---------------------------------------------------------------------------
 
     integer, intent(in)        :: l, m

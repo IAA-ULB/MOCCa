@@ -423,11 +423,11 @@ subroutine ReachForWaterAndFood()
     endif    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate and print the collective moment of inertias    
-    call calc_collective_inertia
-    call print_collective_inertia
+    if(N_inertia .gt. 0) then
+      call calc_collective_inertia
+      call print_collective_inertia
+    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    
-
     if(iter.eq.maxiter+1) then
       iomsg='MAXITER'  
     endif

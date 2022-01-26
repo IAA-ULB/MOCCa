@@ -1428,6 +1428,7 @@ $NTR  101 format (15('-'),' Magnetic Multipole Moments ', 16('-'))
 $NTR   12 format (' Units: ',/,&
 $NTR     &          '   spin/orbit/total: hbar fm^(l-1)', /, &
 $NTR     &          '   phys:             mu_N fm^(l-1)'  )
+   13 format ('  Calculated wrt to COM = (', 3f8.3, ')')
 
    ! Print information on the quantisationaxis and secondary axis
    select case(QuantisationAxis)
@@ -1460,6 +1461,9 @@ $NTR     &          '   phys:             mu_N fm^(l-1)'  )
     print 100
     print 10, Ax
     print 11, SecAx1, SecAx2
+    print 13, -meshx_shifted(1) + meshx(1), &
+    &         -meshy_shifted(1) + meshy(1), &
+    &         -meshz_shifted(1) + meshz(1) 
     print 1
     print 2
     print 1
@@ -2307,7 +2311,7 @@ $NTR    print 102
     real(KIND=dp) :: shiftx, shifty, shiftz
     
     ! Calculate the location of the C.O.M. 
-    call center_of_mass_shift(shiftx, shifty, shiftz) 
+    call center_of_mass_shift(shiftx, shifty, shiftz)
     ! Generate shifted mesh variables
     call inimesh(meshx_shifted, meshy_shifted, meshz_shifted, nx, ny,nz,       &
     &                                     meshgrid_shifted,shiftx,shifty,shiftz)
