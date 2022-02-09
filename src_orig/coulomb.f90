@@ -527,7 +527,6 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
           enddo
         enddo
       enddo
-      print *, 'COULOMBBOUND', l, m, Qlm
       !-------------------------------------------------------------------------
       !Transferring to the next moment in the list, until the r**2 is reached or
       ! the highest admissible L.
