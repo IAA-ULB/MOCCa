@@ -139,6 +139,7 @@ contains
     ! Determine the offsets of the original mesh inside the larger Coulomb mesh    
     coul_offset_x = BC ; coul_offset_Y = BC ; coul_offset_z = BC
     
+    
     ! If any given axis is not represented, the offset of the mesh in that
     ! direction is zero.
 $REDUX  coul_offset_x = 0
@@ -158,6 +159,10 @@ $REDUZ  coul_offset_z = 0
         &                                          nz+BC+coul_offset_z, &
         &                                          coulgrid,0.0d0,0.0d0,0.0d0)
     endif
+    
+!    print *, coul_offset_x, coul_offset_y, coul_offset_z 
+!    print *, maxval(coulmeshx), maxval(coulmeshy), maxval(coulmeshz)
+!    stop
     !---------------------------------------------------------------------------
     ! Initialize all of the arrays.
     if(.not.allocated(CoulombPotential)) then
@@ -400,7 +405,7 @@ $REDUZ  coul_offset_z = 0
     do k=1,oz
       do j=1,oy
         do i=1,ox
-          r(i,j,k) = sqrt(coulmeshx(i)**2 + coulmeshx(j)**2 + coulmeshz(k)**2)
+          r(i,j,k) = sqrt(coulmeshx(i)**2 + coulmeshy(j)**2 + coulmeshz(k)**2)
         enddo
       enddo
     enddo
@@ -420,6 +425,7 @@ $REDUZ  coul_offset_z = 0
     use folding
 
     real(KIND=dp), intent(in) :: source(:,:,:)
+    real(KIND=dp)             :: fac
     integer                   :: i,j,k,l,m, im, ox, oy, oz
     real(KIND=dp)             :: Qlm
     type(Moment), pointer     :: Current
@@ -481,7 +487,17 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
         enddo
       enddo 
    
-      Qlm = Qlm * dv/(2*l+1)        
+      Qlm = Qlm * dv/(2*l+1)    
+
+      
+      ! WR 09/02/22 
+      ! Bugfix: the code only calculates Q_lm for positive m, but the 
+      !         complex conjugate multipole moments Q_l(-m) should contribute
+      !         as well. This means that (1) real multipole moments contribute
+      !         with a factor 2 and (2) imaginary multipole moments do not 
+      !         contribute at all.
+      fac = 1
+      if(m.ne.0) fac = 2    
 
       !  Previous implementation based on values of the multipole moments
       !Qlm = e2*Current%Value(2)*(4*pi/(2*l+1)) 
@@ -503,14 +519,15 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
  $FULLZ     if(k.le.BC)    condition =.true.         
  $FULLZ     if(k.gt.nz+BC) condition =.true.         
           
+            
             if(condition) then
               CoulombPotential(i,j,k) = CoulombPotential(i,j,k) +             &
-              &           Qlm*SpherHarmCoulomb(i,j,k,l,m,Im)/(r(i,j,k)**(2*l+1))
+              &       fac*Qlm*SpherHarmCoulomb(i,j,k,l,m,Im)/(r(i,j,k)**(2*l+1))
             endif
           enddo
         enddo
       enddo
-      
+      print *, 'COULOMBBOUND', l, m, Qlm
       !-------------------------------------------------------------------------
       !Transferring to the next moment in the list, until the r**2 is reached or
       ! the highest admissible L.
