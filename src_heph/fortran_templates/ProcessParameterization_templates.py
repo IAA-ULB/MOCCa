@@ -12,6 +12,7 @@ tab = '   '
 decl    = T(  tab + 'real(KIND=dp) :: $PARAM = -123456789 \n')
 read    = T(        ' $PARAM,')
 print   = T(2*tab + 'print "(a6,2x, f10.3)", "$PARAM", $PARAM \n ')
+reset   = T(  tab + '$PARAM = -123456789 \n')
 
 check_a = T(  tab + 'if($PARAM .eq. -123456789) then \n')
 check_b = T(2*tab + '   print *, "$PARAM not read from .param file." \n')

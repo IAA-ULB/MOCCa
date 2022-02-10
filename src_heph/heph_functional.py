@@ -510,6 +510,7 @@ def ProcessParameterization(fname, src, target):
     readparam = ''
     printparam= ''
     checkparam= ''
+    resetparam= ''
     for s in paramparameters:
         dic= {}
         dic['PARAM']     = s
@@ -522,6 +523,7 @@ def ProcessParameterization(fname, src, target):
         checkparam= checkparam+ ts.check_c.substitute(dic)
         checkparam= checkparam+ ts.check_d.substitute(dic)
         checkparam= checkparam+ '\n'
+        resetparam= resetparam+ ts.reset.substitute(dic)
         
     # Remove the trailing comma and add line-end
     readparam = readparam[:-1] + '\n'    
@@ -531,6 +533,7 @@ def ProcessParameterization(fname, src, target):
     dic['READPARAMS']  = readparam
     dic['PRINTPARAMS'] = printparam
     dic['CHECKPARAMS'] = checkparam
+    dic['RESETPARAMS'] = resetparam
     
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

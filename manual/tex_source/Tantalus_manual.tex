@@ -258,9 +258,16 @@ This simple line masks however that there are multiple inputs and outputs.
                     An input file detailing the specifics of the calculation, such as 
                     nucleon number, name of the parameterization, mesh discretisation, ... 
                     This is fed to the executable through STDIN.
- (2) forces.param:  REQUIRED
+ (2) ${PARAM}.param file :  REQUIRED
                     An input file containing the requested the parameter values of the EDF. 
                     Must be present in the current directory where Tantalus is executed. 
+                    Can be either a file named as
+                     -  ${param}.param: named after the parameterization, ex. SLy4.param, 
+                                        containing a SINGLE parameter set.
+                     -  forces.param  : a file containing multiple parameter sets.
+                    Note, the code will look first for files names ${param}.param
+                    and will only look for forces.param if the more specific file
+                    cannot be found.
  (3) ${INPUTFILENAME}.wf :  OPTIONAL
                     A wavefunction (.wf) file created by some previous Tantalus run
                     to warmstart the calculation. Must be present in the current directory
