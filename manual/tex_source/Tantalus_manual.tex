@@ -189,7 +189,17 @@ actual compilation options in the header of the code, such as for example:
 Tantalus.XXX.exe & source folder & mesh \& spwfs & Typical use  & Spatial representation  \\
 \hline
 NLO.func   &src     & ($N_x/2, N_y/2,N_z/2, dx$)  & Starting point & \raisebox{-.5\height}{\multirow{10}*{\includegraphics[width=.15\textwidth]{Boxes_PRS.eps}}} \\ 
-\textsf{make single}           &        & (nwn/2, nwp/2)              &                  & \\
+\textsf{make single}           &        & (nwn/2, nwp/2)              &  Multipole moments: oriented around Z-axis                & \\
+           &        &               & & \\
+           &        &               & & \\
+           &        &               & & \\
+           &        &               & & \\
+           &        &               & & \\
+           &        &               & & \\
+           &        &               & & \\
+\hline
+NLO.func.crankX   &src\_crankX     & ($N_x/2, N_y/2,N_z/2, dx$)  & Starting point for cranking calculations   & \raisebox{-.5\height}{\multirow{10}*{\includegraphics[width=.15\textwidth]{Boxes_PRS.eps}}} \\ 
+\textsf{make single\_crankX}           &        & (nwn/2, nwp/2)              &   Multipole moments: oriented around X-axis                 & \\
            &        &               & & \\
            &        &               & & \\
            &        &               & & \\
@@ -199,7 +209,7 @@ NLO.func   &src     & ($N_x/2, N_y/2,N_z/2, dx$)  & Starting point & \raisebox{-
            &        &               & & \\
 \hline
 NLO.func.T   &src\_T     & ($N_x/2, N_y/2,N_z/2, dx$)  & Nuclei with odd-N/Z& \multirow{10}*{\raisebox{-.0\height}{\includegraphics[width=.15\textwidth]{Boxes_PRS.eps}}} \\ 
-\textsf{make single\_T}            &        & (nwn, nwp)              & Rotational bands & \\
+\textsf{make single\_T\_crankX}            &        & (nwn, nwp)              &  Multipole moments: oriented around Z-axis & \\
            &        &               & & \\
            &        &               & & \\
            &        &               & & \\
@@ -208,8 +218,18 @@ NLO.func.T   &src\_T     & ($N_x/2, N_y/2,N_z/2, dx$)  & Nuclei with odd-N/Z& \m
            &        &               & & \\
            &        &               & & \\
 \hline
-NLO.func.P   &src\_P     & ($N_x/2, N_y/2,N_z, dx$)  & Octupole deformation & \multirow{10}*{\raisebox{-.0\height}{\includegraphics[width=.15\textwidth]{Boxes_RS.eps}}} \\ 
-\textsf{make single\_P}            &        & (nwn/2, nwp/2)                 & Fission barriers     & \\
+NLO.func.T.crankX   &src\_T\_crankX     & ($N_x/2, N_y/2,N_z/2, dx$)  & Rotational bands& \multirow{10}*{\raisebox{-.0\height}{\includegraphics[width=.15\textwidth]{Boxes_PRS.eps}}} \\ 
+\textsf{make single\_T}            &        & (nwn, nwp)              &  Multipole moments: oriented around X-axis  & \\
+           &        &               & & \\
+           &        &               & & \\
+           &        &               & & \\
+           &        &               & & \\
+           &        &               & & \\
+           &        &               & & \\
+           &        &               & & \\
+\hline
+NLO.func.P   &src\_P     & ($N_x/2, N_y/2,N_z, dx$)  & Octupole deformation and fission barriers & \multirow{10}*{\raisebox{-.0\height}{\includegraphics[width=.15\textwidth]{Boxes_RS.eps}}} \\ 
+\textsf{make single\_P}            &        & (nwn/2, nwp/2)                 &  Multipole moments: oriented around Z-axis    & \\
            &        &               & & \\
            &        &               & & \\
            &        &               & & \\
@@ -219,7 +239,7 @@ NLO.func.P   &src\_P     & ($N_x/2, N_y/2,N_z, dx$)  & Octupole deformation & \m
            &        &               & & \\
 \hline
 NLO.func.TP   &src\_TP     & ($N_x/2, N_y/2,N_z, dx$)  & Octupole for odd-Z/N & \multirow{10}*{\raisebox{-.0\height}{\includegraphics[width=.15\textwidth]{Boxes_RS.eps}}} \\ 
-\textsf{make single\_TP}            &        & (nwn, nwp)                 & Bands with octupole     & \\
+\textsf{make single\_TP}            &        & (nwn, nwp)                 &  Multipole moments: oriented around Z-axis    & \\
            &        &               & & \\
            &        &               & & \\
            &        &               & & \\
