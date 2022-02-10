@@ -1,0 +1,43 @@
+!-------------------------------------------------------------------------------
+! BSk29 parameterization
+! S. Goriely, N. Chamel and J. M. Pearson, Phys. Rev. C 93, 034337 (2016).
+!-------------------------------------------------------------------------------
+&skf 
+name     = "BSk29" 
+func_file= 'BXL.func'
+t0       =   -3970.40,
+t1       =     394.880,
+t2       =       0.0001,
+t3       =   22649.3,
+t4       =    -100.0,
+t5       =    -150.0, 
+x0       =       0.964850,
+x1       =      -0.00477741,
+x2       =   -13889500.0,
+x3       =       1.14453,
+x4       =       2.0,
+x5       =     -11.0,
+sigma    =      0.0833333333, 
+beta     =      0.5,
+gamma    =      0.0833333333,
+wso      =    64.6,
+wsoq     =   193.8
+Vp       =  -1250.00000
+Vn       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.72126890,20.74983164      
+COM1Body = 2
+COM2Body = 1
+Protonsize    = 0.895, 0.0
+Neutronsize   = 0.387, 0.467 
+HOcomform     = .true.
+nucleonsize_selfconsistent=.false.
+CoulTreatment = 2
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+/
+
+

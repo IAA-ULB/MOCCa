@@ -13,35 +13,58 @@ module functional
  !
  !==============================================================================
  !
- ! Module containing the means to calculate (and print) the mean-field energy.
- ! Note that the actual coupling constants are contained in the constants.f90
- ! file. 
+ ! Module containing the means to calculate (and print) the mean-field energy, 
+ ! as well as all the potentials.
  !
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! Hephaestos keywords
  ! 
- ! Declaration     : [WAY TOO LONG TO INCLUDE HERE]
- ! Calccoef        : [WAY TOO LONG TO INCLUDE HERE]
- ! PrintCOEF_iso   : [WAY TOO LONG TO INCLUDE HERE]
- ! PrintCOEF_PN    : [WAY TOO LONG TO INCLUDE HERE]
- ! PrintCOEF_pair  : [WAY TOO LONG TO INCLUDE HERE]
- ! Calculation     : [WAY TOO LONG TO INCLUDE HERE]
- ! Total_EVEN      : [WAY TOO LONG TO INCLUDE HERE]
- ! Total_ODD       : [WAY TOO LONG TO INCLUDE HERE]
- ! TotalPAIR       : [WAY TOO LONG TO INCLUDE HERE]
- ! Print           : [WAY TOO LONG TO INCLUDE HERE]
- ! Calcfields      : [WAY TOO LONG TO INCLUDE HERE]
- ! SkyrmeAction    : [WAY TOO LONG TO INCLUDE HERE]
- ! PairingAction   : [WAY TOO LONG TO INCLUDE HERE]
- ! ERear           : [WAY TOO LONG TO INCLUDE HERE]
- ! CLEANING        : [WAY TOO LONG TO INCLUDE HERE]
- ! FIELDNUMBER     : [WAY TOO LONG TO INCLUDE HERE]
- ! WRITEPOTENTIALS : [WAY TOO LONG TO INCLUDE HERE]
- ! READPOTENTIALS  : [WAY TOO LONG TO INCLUDE HERE]
- ! TR              : $TR
- ! NTR             : $NTR
- ! N2              : $N2
- ! N3              : $N3
+ ! NTERMS           : $NTERMS
+ ! QUADRI           : $QUADRI
+ ! Declaration      : [WAY TOO LONG TO INCLUDE HERE]
+ ! Calccoef         : [WAY TOO LONG TO INCLUDE HERE]
+ ! Calculation      : [WAY TOO LONG TO INCLUDE HERE]
+ ! Total_EVEN       : [WAY TOO LONG TO INCLUDE HERE]
+ ! Total_ODD        : [WAY TOO LONG TO INCLUDE HERE]
+ ! Total_BI         : [WAY TOO LONG TO INCLUDE HERE]
+ ! Total_TRI        : [WAY TOO LONG TO INCLUDE HERE]
+ ! Total_QUAD       : [WAY TOO LONG TO INCLUDE HERE]
+ ! Total_DD         : [WAY TOO LONG TO INCLUDE HERE]
+ ! PAIRTOTAL_PROTON : [WAY TOO LONG TO INCLUDE HERE]
+ ! PAIRTOTAL_NEUTRON: [WAY TOO LONG TO INCLUDE HERE]
+ !
+ ! PrintCOEF_iso    : [WAY TOO LONG TO INCLUDE HERE]
+ ! PrintCOEF_pair   : [WAY TOO LONG TO INCLUDE HERE]
+ ! Print            : [WAY TOO LONG TO INCLUDE HERE]
+ ! Calcfields       : [WAY TOO LONG TO INCLUDE HERE]
+ ! SkyrmeAction     : [WAY TOO LONG TO INCLUDE HERE]
+ ! PairingAction    : [WAY TOO LONG TO INCLUDE HERE]
+ ! ERear            : [WAY TOO LONG TO INCLUDE HERE]
+ !
+ ! CLEANING         : [WAY TOO LONG TO INCLUDE HERE]
+ ! FIELDNUMBER      : [WAY TOO LONG TO INCLUDE HERE]
+ ! WRITEPOTENTIALS  : [WAY TOO LONG TO INCLUDE HERE]
+ ! READPOTENTIALS   : [WAY TOO LONG TO INCLUDE HERE]
+ !
+ ! TR               : $TR
+ ! NTR              : $NTR
+ ! N2               : $N2
+ ! N3               : $N3
+ !
+ !------------------------------------------------------------------------------
+ ! A density F_L_R is stored as
+ !
+ !      F_L_R (mv, [cartesian indices], [isospin indices])
+ !             |     |                            |
+ !             > spatial indices                  |
+ !                   |                            |
+ !                   > all cartesian indices      |
+ !                                                > isospin indices
+ !                                                  4 for normal densities
+ !                                                     (n, p, 0, 1)
+ !                                                  2 for pairing densities
+ !                                                     (n,p)
+ !
  !==============================================================================
  
  use compilation
@@ -65,8 +88,9 @@ module functional
     character(len=20), parameter :: func_name = $FUNC_NAME
     !---------------------------------------------------------------------------
     ! Definition of global contributions to the energy
-    real(KIND=dp) :: Kinetic(2), Skyrme(2), TotalE, Ehistory(5)
-    real(KIND=dp) :: tot_even(2), tot_odd(2)
+    real(KIND=dp) :: Kinetic(2), Skyrme, TotalE, Ehistory(5)
+    real(KIND=dp) :: tot_even  , tot_odd
+    real(KIND=dp) :: bilinear, trilinear, quadrilinear, densitydependent
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
     ! Separation of 2-body Centre-of-mass correction into particle-hole 
     ! and pairing parts for diagnostic printing
@@ -92,10 +116,6 @@ module functional
     ! NUMERICAL OPTIONS
     !===========================================================================
     !---------------------------------------------------------------------------
-    ! Small non-zero value that can be used in a .func file to safeguard against
-    ! division by zero. 
-    real(KIND=dp) :: eps =1d-20
-    !---------------------------------------------------------------------------
     ! Factor in the preconditioning of the F_I_I potential
     real(KIND=dp) :: preconfactor = 1.0_dp
     !---------------------------------------------------------------------------
@@ -116,6 +136,7 @@ module functional
     ! d) Previous_values of the fields
     ! All automatically generated by Hephaestos
     !---------------------------------------------------------------------------
+    real(KIND=dp) :: coupl_constant($NTERMS) = 0
 $DECLARATION
     !---------------------------------------------------------------------------
       
@@ -173,30 +194,27 @@ $CALCCOEF
     ! Print the values of the EFD coefs used.
     !---------------------------------------------------------------------------
     1 format (' - - - - - - - - - - -')
-    2 format (5x, 58('_'))
-    3 format (' Skyrme coupling constants ')
-    4 format (38x, 'Isospin representation')
-    5 format (36x, '  C_0            C_1    ')
-    6 format (38x, 'BFH representation ')
-    7 format (36x, '  C_0            C_q    ')
-    8 format (38x, 'Pairing terms ')
-    9 format (36x, '  neutron        proton ')
+    2 format (2x, 74('_'))
+    3 format (' EDF coupling constants ')
+    4 format (40x, 'Particle-hole terms')
+   41 format (2x, 'Term', 35x, 'Isospin', 5x, '# #G', 5x,' Value ')
+    5 format (40x, 'Pairing terms')
+
+   97 format (2x, a38,'|', 2a2, 5x ,'|', 2i3,'|', 1x, f15.6)
+   98 format (2x, a38,'|', 3a2, 3x ,'|', 2i3,'|', 1x, f15.6)
+$QUADRI   99 format (2x, a38,'|', 4a2, 1x ,'|', 2i3,'|', 1x, f15.6)
     
      print 1
      print 3
      print 2
      print 4
-     print 5
+     print 41
      print 2
      ! This part is automatically generated by Hephaestos.
-$PRINTCOEF_ISO
+$PRINTCOEF_PH
      print 2
-     print 6
-     print 7
-$PRINTCOEF_PN
+     print 5
      print 2
-     print 8
-     print 9
 $PRINTCOEF_PAIR
      print 2
  end subroutine printedfcoefs
@@ -387,7 +405,7 @@ $PRINTCOEF_PAIR
 
       ! We correct the 'Skyrme' energy here, as the pairing energy was already
       ! summed in there. Hence, we subtract it and add the stabilised one. 
-      Skyrme = Skyrme - PairDenEnergy + PairdenE_stab
+      Skyrme = Skyrme - sum(PairDenEnergy) + sum(PairdenE_stab)
     endif
 
 
@@ -427,7 +445,7 @@ $PRINTCOEF_PAIR
 
     ! The total energy is comprised of 
     !      Kinetic part + Skyrme part + corrections + Coulomb energy
-    TotalE = sum(Skyrme + Kinetic) + sum(COMCorrection)
+    TotalE = Skyrme + sum(Kinetic) + sum(COMCorrection)
     TotalE = TotalE + CoulombDirect + CoulombExchange 
     ! Plus schematic corrections for the collective energy
     TotalE = TotalE + sum(Rotcorrection) + sum(Vibcorrection)
@@ -446,7 +464,7 @@ $PRINTCOEF_PAIR
     &                         - sum(crankenergy_cut)/2.0_dp &       
     !                              multipole contribution
     !                               -  lambda_ml < Q_ml > 
-    &                 + sum(Constraint_I_I * D_I_I)*dv/2.0_dp
+    &                 + sum(Constraint_I_I(:,1:2) * D_I_I(:,1:2))*dv/2.0_dp
 
     call stop_timer(T_energy)
 
@@ -456,8 +474,7 @@ $PRINTCOEF_PAIR
     !---------------------------------------------------------------------------
     ! Calculate the Skyrme part to the functional.
     !---------------------------------------------------------------------------
-    real(KIND=dp) :: Edensity(mv,3)
-    integer       :: m
+    real(KIND=dp) :: Edensity(mv)
     
 $CALCULATION    
 
@@ -467,9 +484,25 @@ $TOTAL_EVEN
     tot_odd  = &
 $TOTAL_ODD
 
+    bilinear = &
+$TOTAL_BI
+
+    trilinear = &
+$TOTAL_TRI
+
+    quadrilinear = &
+$TOTAL_QUAD
+
+    densitydependent = &
+$TOTAL_DD
+
     Skyrme = tot_even + tot_odd
-    PairDenEnergy = &
-$TOTALPAIR
+
+    PairDenEnergy(1) = &
+$TOTALPAIR_NEUTRON
+
+    PairDenEnergy(2) = &
+$TOTALPAIR_PROTON
 
  end subroutine CompSkyrme
  
@@ -480,23 +513,35 @@ $TOTALPAIR
     !---------------------------------------------------------------------------
     
     1 format (80('-'))
-    2 format (' Skyrme Energy ')
-    3 format (35x, ' Isoscalar      Isovector   |   Total')
+    3 format (' Skyrme Energy',16x, 'Isospin  1 2 3 4', 19x, 'Energy [MeV]')
     !4 format (17x, 'Total Skyrme:', 3f15.6)
-    5 format (17x, 'Total Skyrme:', 30x, f15.6)    
-   51 format (17x, '   time-even:', 30x, f15.6)
-   52 format (17x, '   time-odd :', 30x, f15.6)
+    5 format (17x, 'Total Skyrme:', 31x, f15.6)    
+
+   51 format (17x, '   time-even:', 31x, f15.6)
+   52 format (17x, '   time-odd :', 31x, f15.6)
+
+   53 format (17x,     '   bilinear :', 31x, f15.6)
+   54 format (17x,     '   trilinear:', 31x, f15.6)
+   55 format (17x,     'quadrilinear:', 31x, f15.6)
+   56 format (12x, 'density-dependent:', 31x, f15.6)
+   
+   97 format ( a38, 2a2, 19x, f15.6)
+   98 format ( a38, 3a2, 17x, f15.6)
+$QUADRI   99 format ( a38, 4a2, 15x, f15.6)
 
      print 1
-     print 2
      print 3
      print 1
 $PRINT
      print 1
-     !print 4, Skyrme, sum(Skyrme)
-     print 5, sum(Skyrme)
-     print 51, sum(tot_even)
-     print 52, sum(tot_odd)
+     print 5,   Skyrme
+     print 1
+     print 51,  tot_even
+     print 52,  tot_odd
+     print 53,  bilinear
+     print 54,  trilinear
+     print 55, quadrilinear
+     print 56, densitydependent
      print 1
  end subroutine PrintSkyrme
 
@@ -890,7 +935,7 @@ $TR   COM2pp = 2*COM2pp
     
     use moments
     
-    integer                    :: it,i,j,k, maxit, ox, oy, oz
+    integer                    :: it,i,j,k, ox, oy, oz
     real(KIND=dp), allocatable :: update(:,:)
     logical, intent(in)        :: calcall, precon
     logical                    :: rhoread
@@ -961,7 +1006,12 @@ $CALCFIELDS
         !-----------------------------------------------------------------------
         ! Add the contribution from the constraints on the electric multipole 
         ! moments. 
-        F_I_I =  F_I_I + Constraint_I_I
+        F_I_I(:,1:2) =  F_I_I(:,1:2) + Constraint_I_I(:,1:2)
+        !-----------------------------------------------------------------------
+        ! We added stuff to the proton and neutron fields, we should be 
+        ! consistent with the isospin 0 and 1 fields
+        F_I_I(:,3) = F_I_I(:,1) + F_I_I(:,2)
+        F_I_I(:,4) = F_I_I(:,1) - F_I_I(:,2)
         !-----------------------------------------------------------------------
         ! Add the contribution of a cranking constraint to the 
         !    F_I_S and G_I_N  fields
@@ -978,6 +1028,7 @@ $NTR    G_I_N = G_I_N + crank_current_potential()
         update=  F_I_I - F_I_I_hist
         update=  PreconditionPotential(update,-preconfactor,1.0_dp, &
         &                                                  sx_rho,sy_rho,sz_rho)
+        ! The preconditionpotential routine takes good care of consistency
         F_I_I =  F_I_I_hist + update
       endif
       !---------------------------------------------------------------------------
@@ -997,6 +1048,22 @@ $NTR    G_I_N = G_I_N + crank_current_potential()
     call stop_timer(T_fields)
  
   end subroutine calcFields 
+  
+  pure function pow( f, alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Safely take powers of a density f, avoiding negative powers of numbers
+    ! that might be accidentally 0 or negative below machine precision. This is
+    ! achieved by adding a small (positive value) to the density. 
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: f(mv), alpha
+    real(KIND=dp)             :: pf(mv)
+    
+    if(alpha .lt. 0) then
+      pf = (f + eps)**(alpha)
+    else
+      pf = (f)**(alpha)
+    endif
+  end function pow
   
   function sphamil(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
                                                                   & result(hpsi)
@@ -1135,7 +1202,7 @@ $PAIRINGACTION
     real(KIND=dp) :: spwfenergy, e_rear
     
     ! Start by summing the single-particle energies
-    spwfenergy = 0 ; e_rear = 0
+    spwfenergy = 0 
     do wave=1,nwt
         if(pairingtype.lt.2) then
           spwfenergy = spwfenergy + rho_can(wave) * spenergies(wave)
@@ -1143,15 +1210,19 @@ $PAIRINGACTION
           spwfenergy = spwfenergy + rho_can(wave) * canenergies(wave)
         endif
     enddo
+    !
+    spwfenergy = 0.5 * spwfenergy
     
     ! Calculation of rearrangement energy (without Coulomb Exchange)
+    e_rear = 0                    
+    e_rear = e_rear - 0.5d0*  trilinear
+    e_rear = e_rear -         quadrilinear
 $EREAR   
-
-    ! Add the rearrangement energy 
-    spwfenergy = spwfenergy - e_rear 
-    
-    ! Add everything and don't forget about Coulomb exchange
-    spwfenergy = 0.5 * spwfenergy + 0.5 * sum(kinetic) + CoulombExchange/3.d0
+   
+   
+    spwfenergy = spwfenergy + e_rear
+    ! Add kinetic and CoulombExchange contributions
+    spwfenergy = spwfenergy + 0.5 * sum(kinetic) + CoulombExchange/3.d0
     
     ! Always add the 1-body COMcorrection. In case it is used iteratively, it
     ! is double counted along with the kinetic energy!
@@ -1164,7 +1235,7 @@ $EREAR
     endif
     
     ! Subtract contribution by multipole constraints
-    SpwfEnergy = SpwfEnergy - sum(Constraint_I_I * D_I_I)*dv/2.0_dp
+    SpwfEnergy = SpwfEnergy - sum(Constraint_I_I(:,1:2) * D_I_I(:,1:2))*dv/2.0_dp
 
     ! Subtract contribution by cranking constraints
     SpwfEnergy = SpwfEnergy - sum(crankenergy_cut)/2.0_dp

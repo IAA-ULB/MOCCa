@@ -5,27 +5,8 @@
 # |_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/
 #              |_|                                             
 #-------------------------------------------------------------------------------
-#
-# Module governing the treatment of the functional in Hephaestos, 
-# for writing to Tantalus source files. 
-#
-# The type of functional is read from file, passed into the initfunctional
-# procedure. 
-# Example, the density dependent term from standard Skyrme
-# E_D_I_I_D_I_I_DD ;  
-#                 (sum(D_I_I,2)**(yt3a)) ;  D_I_I ; 
-#          yt3a*(sum(D_I_I,2)**(yt3a-1)) ;   yt3a ; 
-#                    3.0_dp/48.0_dp * t3 ; - 1.0_dp/24.0_dp * t3 * (0.5_dp + x3) 
-#
-# Once read the code will parse the input for
-#   a) the densities needed to calculate these terms
-#   b) the coupling between different indices in the expression of the term
-#       Example: E_D_Nm_Nm_D_Nn_Nn vs E_D_Nm_Nn_D_Nm_Nn
-#                tau^2             vs tau_mn tau_mn
-# 
-# Afterwards, the code determines which densities actually need calculating. 
-# This is a non-trivial task. For example: D_N_N is not actually needed in its
-# full form with an NLO functional, as the contraction D_Nm_Nm suffices. 
+# Module governing the treatment of the functional in Hephaestos, for writing to
+# Tantalus source files. 
 #-------------------------------------------------------------------------------
 
 import itertools
@@ -34,7 +15,7 @@ import numpy as np
 from src_heph.heph_densities import Densities_needed, tab, sumindices, derstring
 from src_heph.heph_densities import lapstring, OrderOfDen, ParseOperators
 from src_heph.heph_densities import crossindices, Storage_Mapping, Multiplicity
-from src_heph.heph_densities import deriv_needed
+from src_heph.heph_densities import deriv_needed, Isospinindices
 from src_heph.heph_linechecker import *
 from src_heph.heph_fields      import *
 
@@ -45,20 +26,29 @@ func_name = ''
 #-------------------------------------------------------------------------------
 # Array containing the expressions of all the functional terms. 
 Functional_terms      = []
-Functional_pair_terms = []
+# Array containing all the coupling constants
+coupling_constants    = []
+# Array containing the isospin indices of the densities in the terms
+isospin_indices       = []
+# array containing the density dependence of the first density of the term
+density_dependence    = []
+# Array containing all parameters are used to compute coupling constants
+paramparameters       = []
+# Array indicating the indices of a term within a subgroup of terms with 
+# identical structure. I.e. "x" in this list means this the (x+1)-th term of
+# this structure in the Functional_terms list.
+term_grouping         = []
+term_number           = {}
+
+################################################################################
+# Not used any more
 density_dependence    = []
 field_DD_terms        = {}
 DD_rearcoefs          = []
-#-------------------------------------------------------------------------------
-# Strings telling Tantalus how to calculate coupling constants from Skyrme
-# force values for the isoscalar (_0) and isovector (_1) coupling. 
 coupling_constants_0 = []
 coupling_constants_1 = []
-
+################################################################################
 #-------------------------------------------------------------------------------
-# Strings telling Tantalus which parameters are used to compute coupling 
-# constants
-paramparameters = []
 
 #-------------------------------------------------------------------------------
 # Switch determining what order of derivatives is needed to be computed.
@@ -92,24 +82,43 @@ paramparameters = []
 
 def initfunctional(fname, so):
     """
-     Read the functional form from a file, populating on the way the list of 
-     densities that we need to calculate. 
+      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      Initialize everything relevant about this module
+      
+      1) read the functional from the fname file
+      2) remove time-odd terms if necessary
+      3) generate all the densities required to calculate this functional
+      4) figure out what order of derivatives is going to be needed for this EDF
+      5) Print some output to STDOUT
+      
+      Input: 
+        fname : filename containing the functional description 
+        so    : set of symmetry-options, determining whether time-odd terms
+                get kept or not.
+      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     """
     global Functional_terms, Densities_needed, derivative_order, func_name
     
+    #---------------------------------------------------------------------------
     # Read the functional from a given file
     description = ReadFunctional(fname)
-
+    #---------------------------------------------------------------------------
     # Check if time-reversal (or time-parity) is conserved
     if(so.timelike):
       RemoveTimeOddTerms()
+      
+    #---------------------------------------------------------------------------
+    # Reorder terms, such that everything which is "grouped" by structure 
+    # is put together
+    regroup_terms()
 
+    #---------------------------------------------------------------------------
     # Set the name of the functional file, without the directory structure
     func_name = '"%s"'%fname.split('/')[-1].upper()
-    
+
+    #---------------------------------------------------------------------------
     # Generating the list of all densities
     tempden     = []
-    rotationals = []
     for term in Functional_terms:
         (densities,coup) = ParseDensities(term)
         for den in densities:
@@ -183,6 +192,7 @@ def initfunctional(fname, so):
         derivative_order = max(derivative_order, ders)
 
     #---------------------------------------------------------------------------
+    # Print some information to STDOUT
     print (' Functional form taken from file %s'%fname)
     print (' Description from file:')
     print ( description.replace('#', tab))
@@ -198,11 +208,58 @@ def initfunctional(fname, so):
         print ('  ', paramparameters[3*(i+1):3*(i+1)+len(paramparameters)%3])
 
     return (description)
+    
+def regroup_terms():
+  """
+    Reorder terms such that all terms with the same structure, but different 
+    isospin couplings are grouped together.
+  """
+  
+  global Functional_terms, coupling_constants, isospin_indices
+  global density_dependence, term_grouping, term_number
+
+  
+  # Copy the lists into temporary lists
+  tempterms = Functional_terms 
+  tempcoupl = coupling_constants
+  tempiso   = isospin_indices
+  tempddep  = density_dependence
+  
+  term_grouping = []
+  Functional_terms = []
+  isospin_indices  = []
+  coupling_constants = []
+  density_dependence = []
+  
+  # First: find all terms with a unique structure  
+  unique_terms = []
+  for term in tempterms: 
+    term_grouping.append(0)
+    if(term not in unique_terms):
+      unique_terms.append(term)
+      term_number[term] = -1
+      
+  # Then, repopulate the Functional_terms with all terms "grouped"
+  for l,uterm in enumerate(unique_terms):
+    for k,term in enumerate(tempterms):
+      if(term == uterm):
+        Functional_terms.append(term)
+        coupling_constants.append(tempcoupl[k])
+        density_dependence.append(tempddep[k])
+        isospin_indices.append(tempiso[k])
+        
+        term_number[uterm] = term_number[uterm] + 1
+
+  for k,aterm in enumerate(Functional_terms):
+    for l,bterm in enumerate(Functional_terms[:k]):
+      if(bterm == aterm):
+        term_grouping[k] = term_grouping[k] +1          
 
 def PruneDeriv_needed():
-    #---------------------------------------------------------------------------
-    # Add all of the possible combinations with less derivatives and laplacians,
-    # so that we can build the eventually needed combinations.
+    """
+      Add all of the possible combinations with less derivatives and laplacians,
+      so that we can build the eventually needed combinations.
+    """
     for i in range(len(deriv_needed)):
         newderiv=[]
         for j in deriv_needed[i]:
@@ -218,9 +275,10 @@ def PruneDeriv_needed():
     for i in range(len(deriv_needed)):
         deriv_needed[i] = list(set(deriv_needed[i]))
         deriv_needed[i] = sorted(deriv_needed[i])
-        
+
 def ReadFunctional(fname):
-    """
+  """
+    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
      Read the details of the EDF terms, their structure and coupling constants, 
      from the file named fname. 
 
@@ -230,87 +288,108 @@ def ReadFunctional(fname):
       Part 2: enumeration of the parameters
       Part 3: !TERMS => signalling the end of Part 2 and the start of Part 1
       Part 4: term specification
-      
+    
      All of these parts can be interspersed with lines starting with '!'; these
      are comment lines and do not influence the code generation in any way. 
       
-     - - - - - - - 
       Part 1: description of the type of functional, which will be included in
               the Hephaestos output.  
               Lines need to start with '#'    
-     - - - - - - - 
+
       Part 2: enumeration of all parameters that should be read from a .param
               file; all will be treated as doubles. Entries should be separated
               by ';'.
-     - - - - - - - 
+
       Part 3: '!TERMS' (no modification, EVER)           
-     - - - - - - - 
+
       Part 4: line-by-line specification of all the terms in the functional. 
-              Detailed format to be worked out. 
-    """
-    global Functional_terms, Functional_pair_terms
+              These should have the form 
+              
+              E_[D1]_[D2]_[D3]_[D4] ; C ; alpha ; iso_1 ; iso_2 ; iso_3 ; iso_4 
+                 (1)                 (2)  (3)      (4)
+              
+              (1)    enumeration of the densities in the term, including the way
+                     they are coupled. Example: 
+                     
+                      E_D_I_Sm_D_I_Sm =  \sum_{mu=x/y/z} s_mu(r) s_mu(r)
+                      
+                     this version of the code allows for
+                      (a) bilinear (two densities)
+                      (b) trilinear
+                      (c) quadrilinear terms
 
-    def clean(a):
-      # Quick'n'dirty string cleaning routine
-      return a.replace(' ', '').replace('\n', '')
+               (2)   coupling constant of the term. Can be given in terms of the 
+                     Cc function coded in the Fortran templates. 
+                     
+               (3)   density dependence of the FIRST density, D1. 
+                     If alpha != 1, the code will enforce iso_1 to be zero
+               
+               (4)   isospin indices of the densities; 0, 1, 'p' or 'n'.
+                     normal densities should have isospin indices (0,1) and 
+                     pairing densities should have p/n indices ('p', 'n')
+    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  """
+  global Functional_terms
 
+  def clean(a):
+    # Quick'n'dirty string cleaning routine, strips spaces and newlines
+    return a.replace(' ', '').replace('\n', '')
 
-    description      = ''
-    pair_description = ''
-    termsstart = 0
-    with open(fname, 'r') as f:
-      for line in f:
-        try:
-          if(len(line.split()) == 0):
-            continue
-          elif(line[0] == '#'):
-            #-signs indicate PART 1                   
-            description = description + line
-            continue
-          elif(line[0:6] == '!TERMS'):
-            # Signal that the parameter specification, PART 2 is over.
-            termsstart  = 1   
-            continue            
-          elif(line[0] == '!'):
-            continue
+  description      = ''
+  termsstart       = 0
+      
+  with open(fname, 'r') as f:
+    for line in f:
+      try:
+      
+        if(len(line.split()) == 0):
+          # Forget about empty lines
+          continue
+        elif(line[0] == '#'):
+          #-signs indicate PART 1, description of the EDF             
+          description = description + line
+          continue
+        elif(line[0:6] == '!TERMS'):
+          # Signal that the parameter specification, PART 2 is over.
+          termsstart  = 1   
+          continue            
+        elif(line[0] == '!'):
+          # comment line, don't do anything with it
+          continue
           
-          if(termsstart == 0):
-            # Parse the parameters of the functional in PART 2
-            split = line.split(';')
-            for s in split:
-              paramparameters.append(clean(s))
-          elif(termsstart == 1):
-            #  Start the actual terms of the functional in PART 3
-            split = line.split(';')
-            Functional_terms.append(clean(split[0]))
-            coupling_constants_0.append(clean(split[1]))
-            coupling_constants_1.append(clean(split[2]))   
-                
-            if(len(split)>3):
-              density_dependence.append(clean(split[3]))
-              dd_den   = clean(split[4])
-              f_dd     = clean(split[5])
-              field_DD_terms[clean(split[0])] =(dd_den,f_dd)
-              DD_rearcoefs.append(clean(split[6]))
-            else:
-              density_dependence.append('')
-              field_DD_terms[clean(split[0])] =  ('','')
-              DD_rearcoefs.append('')
-        except IndexError:
-            print ('Problem reading the following line in the func file.')
-            print (line)
-            exit()      
+        if(termsstart == 0):
+          # Parse the parameters of the functional in PART 2
+          split = line.split(';')
+          for s in split:
+            paramparameters.append(clean(s))
+        elif(termsstart == 1):
+          #  Start the actual terms of the functional in PART 4
+          split = line.split(';')
+          Functional_terms.append  (clean(split[0]))
+          coupling_constants.append(clean(split[1]))
+          density_dependence.append(clean(split[2]))                      
+          
+          iso_list = []
+          for k in range(3,len(split)):
+            iso = clean(split[k])
+            if(iso != '0' and iso != '1' and iso != 'p' and iso != 'n'):
+              raise IndexError
+            iso_list.append(iso)
+          isospin_indices.append(iso_list)
+          
+      except IndexError:
+          print ('Problem reading the following line in the func file.')
+          print (line)
+          exit()      
 
-    return description
+  return description  
 
 def RemoveTimeOddTerms():
     """
-      We scan through all the terms, removing all those containing time-odd 
-      densities. We profit from the opportunity to check the correctness of 
-      the functional, that all individual terms are time-even.
+    We remove all terms that contain time-odd densities. 
     """
-    global Functional_terms, coupling_constants_0, coupling_constants_1
-    global field_DD_terms, DD_rearcoefs, density_dependence
+    global Functional_terms, coupling_constants, density_dependence
+    global density_dependence, isospin_indices
 
     toremove = []
     for i,term in enumerate(Functional_terms):
@@ -333,27 +412,21 @@ def RemoveTimeOddTerms():
         toremove.append(i)
 
     tempterms   = Functional_terms
-    tempcc0     = coupling_constants_0
-    tempcc1     = coupling_constants_1
+    tempcc      = coupling_constants
     tempdd      = density_dependence
-    tempddrear  = DD_rearcoefs
-    tempfieldDD = field_DD_terms
+    tempiso     = isospin_indices
 
     Functional_terms      = []
-    coupling_constants_0  = []
-    coupling_constants_1  = []
+    coupling_constants    = []
     density_dependence    = []
-    field_DD_terms        = {}
-    DD_rearcoefs          = []
-     
+    isospin_indices       = [] 
+        
     for j in range(len(tempterms)):
        if (j not in toremove):
           Functional_terms.append(tempterms[j])
-          coupling_constants_0.append(tempcc0[j])
-          coupling_constants_1.append(tempcc1[j])
+          coupling_constants.append(tempcc[j])
           density_dependence.append(tempdd[j])
-          DD_rearcoefs.append(tempddrear[j])
-          field_DD_terms[tempterms[j]] = tempfieldDD[tempterms[j]]
+          isospin_indices.append(tempiso[j])
 
 def ParseDensities(term): 
     """
@@ -464,64 +537,105 @@ def ProcessParameterization(fname, src, target):
             for line in template:
                 generated.write(Template(line).substitute(dic))  
 
-def ProcessFunctional(fname, src, target, so, oldso):
+def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
     """
-     Master routine calling the other ones to generate a functional based
-     on the parsing done before.
+     Master routine calling the other ones to generate a functional.
     """
-
     declaration   = ''
     calculation   = ''
     form          = ''
     printing      = ''
     calccoef      = ''
-    printcoef_iso = ''
-    printcoef_pn  = ''
+    printcoef_ph  = ''
     printcoef_pair= ''
     sumtotal_even = ''
     sumtotal_odd  = ''
-    pairtotal     = ''
+    sumtotal_bi   = ''
+    sumtotal_tri  = ''
+    sumtotal_quad = ''
+    sumtotal_dd   = ''
     fieldcalc     = ''
     erear         = ''
     writing       = ''
     reading       = ''
     cleaning      = ''
 
+    pairtotal_neutron = ''
+    pairtotal_proton  = ''
     #---------------------------------------------------------------------------
     # Generate the terms in the functional
+    Quadri = False
     for i in range(len(Functional_terms)): 
-        (d,c,p,cc, pc_iso, pc_pn,pc_pair, st,pt,er, T)  = \
-         GenTermExpression(Functional_terms[i], [coupling_constants_0[i], \
-         coupling_constants_1[i]],density_dependence[i], DD_rearcoefs[i],so)
-
-        declaration = declaration + d + '\n'
+        # Check if we have a quadrilinear term
+        (tempden, coupling) = ParseDensities(Functional_terms[i])
+        if(len(tempden) == 4):
+          Quadri = True
+    
+        # Generate a bunch of strings to insert into the FORTRAN code for this
+        # particular term 
+        (d,c,p,cc, pc_ph, pc_pair, st,pt,er, T) = \
+          GenTermExpression(Functional_terms[i], i, term_grouping[i],    
+                        term_number[Functional_terms[i]], coupling_constants[i], 
+                            isospin_indices[i], density_dependence[i], so)
+        if( d != ''):
+          declaration = declaration + d + '\n'
         calculation = calculation + c + '\n'
         printing    = printing    + p + '\n'
         calccoef    = calccoef    + cc+ '\n'
-        printcoef_iso = printcoef_iso   + pc_iso + '\n'
-        printcoef_pn  = printcoef_pn    + pc_pn  + '\n'
+        printcoef_ph  = printcoef_ph    + pc_ph + '\n'
         printcoef_pair= printcoef_pair  + pc_pair+ '\n'
+
+        # Decide in which of the subtotals of the energy the term belongs
         if(T):
           # Term to be added to the time-even subtotal
           sumtotal_even = sumtotal_even    + st+ '&\n'
         else:
+          # Or to the time-odd subtotal
           sumtotal_odd  = sumtotal_odd     + st+ '&\n'
 
+        (tempden, coupling) = ParseDensities(Functional_terms[i])
+        if(density_dependence[i] == '1'):
+          if(len(tempden) == 2):
+            sumtotal_bi   = sumtotal_bi   + st + '&\n'
+          elif(len(tempden) == 3):
+            sumtotal_tri  = sumtotal_tri  + st + '&\n'
+          elif(len(tempden) == 4):
+            sumtotal_quad = sumtotal_quad + st + '&\n'
+        else:
+          sumtotal_dd = sumtotal_dd + st + '&\n'
+          
         if('P' in Functional_terms[i]):    
-          pairtotal   = pairtotal   + pt+ '&\n'
-        erear       = erear       + er
+          if('p' in isospin_indices[i]):
+            pairtotal_proton = pairtotal_proton   + pt+ '&\n'
+          else:
+            pairtotal_neutron= pairtotal_neutron  + pt+ '&\n'
+                  
+        if('P' in Functional_terms[i] and ph_pp_decoupl):
+          # Drop the rearrangement terms due to density-dependent pairing terms
+          pass
+        else:
+          erear       = erear       + er
     
     sumtotal_even  = rreplace( sumtotal_even, '&\n', '', 1)
     sumtotal_odd   = rreplace( sumtotal_odd , '&\n', '', 1)
-    pairtotal      = rreplace( pairtotal, '&\n', '', 1)
+    
+    sumtotal_bi    = rreplace( sumtotal_bi  , '&\n', '', 1)
+    sumtotal_tri   = rreplace( sumtotal_tri , '&\n', '', 1)
+    sumtotal_quad  = rreplace( sumtotal_quad, '&\n', '', 1)
+    sumtotal_dd    = rreplace( sumtotal_dd  , '&\n', '', 1)
 
-    if(len(pairtotal) == 0):    
-        pairtotal = '0'
+    pairtotal_neutron = rreplace( pairtotal_neutron   , '&\n', '', 1)
+    pairtotal_proton  = rreplace( pairtotal_proton    , '&\n', '', 1)
+
+    if(len(pairtotal_proton) == 0):    
+      pairtotal_proton = '0'
+    if(len(pairtotal_neutron) == 0):    
+      pairtotal_neutron = '0'
 
     #---------------------------------------------------------------------------
     # Generate the fields of the single-particle hamiltonian
     (fielddec, fieldcalc, fieldwrite,fieldread, fieldclean) =              \
-                                                        GenerateFields(so,oldso)
+                                         GenerateFields(so,oldso, ph_pp_decoupl)
     declaration = declaration + fielddec   + '\n'
     writing     = writing     + fieldwrite 
     reading     = reading     + fieldread 
@@ -559,8 +673,7 @@ def ProcessFunctional(fname, src, target, so, oldso):
     calculation   = LineFormat(calculation)
     printing      = LineFormat(printing)
     calccoef      = LineFormat(calccoef)
-    printcoef_iso = LineFormat(printcoef_iso)
-    printcoef_pn  = LineFormat(printcoef_pn)
+    printcoef_ph  = LineFormat(printcoef_ph)
     sumtotal_even = LineFormat(sumtotal_even)
     sumtotal_odd  = LineFormat(sumtotal_odd)
     fieldcalc     = LineFormat(fieldcalc)
@@ -574,12 +687,12 @@ def ProcessFunctional(fname, src, target, so, oldso):
     # Substitute into the functional.f90 file.  
     dic={}
 
+    dic['NTERMS']         = len(Functional_terms)
     dic['DECLARATION']    = declaration
     dic['CALCULATION']    = calculation
     dic['PRINT']          = printing
     dic['CALCCOEF']       = calccoef   
-    dic['PRINTCOEF_ISO']  = printcoef_iso
-    dic['PRINTCOEF_PN']   = printcoef_pn
+    dic['PRINTCOEF_PH']   = printcoef_ph
     dic['PRINTCOEF_PAIR'] = printcoef_pair
 
     dic['TOTAL_EVEN']     = sumtotal_even
@@ -588,7 +701,24 @@ def ProcessFunctional(fname, src, target, so, oldso):
     else:
       dic['TOTAL_ODD']      = '0.0d0'
 
-    dic['TOTALPAIR']      = pairtotal
+    dic['TOTAL_BI']     = sumtotal_bi
+    if(len(sumtotal_tri)>1):
+      dic['TOTAL_TRI']      = sumtotal_tri
+    else:
+      dic['TOTAL_TRI']      = '0.0d0'
+    if(len(sumtotal_quad)>1):
+      dic['TOTAL_QUAD']      = sumtotal_quad
+    else:
+      dic['TOTAL_QUAD']      = '0.0d0'
+
+    if(len(sumtotal_dd)>1):
+      dic['TOTAL_DD']      = sumtotal_dd
+    else:
+      dic['TOTAL_DD']      = '0.0d0'
+
+    dic['TOTALPAIR_NEUTRON']= pairtotal_neutron
+    dic['TOTALPAIR_PROTON'] = pairtotal_proton
+    
     dic['CALCFIELDS']     = fieldcalc
     dic['SKYRMEACTION']   = SkyrmeAction
     dic['PAIRINGACTION']  = PairingAction
@@ -598,7 +728,11 @@ def ProcessFunctional(fname, src, target, so, oldso):
     dic['WRITEPOTENTIALS']= writing
     dic['READPOTENTIALS'] = reading
     dic['CLEANING']       = cleaning
-
+    
+    if(Quadri):
+      dic['QUADRI'] = ' '
+    else:
+      dic['QUADRI'] = '!'
     
     if(derivative_order == 1):
       dic['N2'] = ' '    
@@ -618,13 +752,49 @@ def ProcessFunctional(fname, src, target, so, oldso):
       dic['TR']  = '!'
     
     with open(src+fname, 'r') as template:
-            with open(target+fname, 'w') as generated:
-                for line in template:
-                    generated.write(Template(line).substitute(dic))  
+      with open(target+fname, 'w') as generated:
+        for line in template:
+          generated.write(Template(line).substitute(dic))  
 
-def GenTermExpression( term, ccoef, DD, DDrear, so):
+def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, so):
     """
-     Generate the expressions for the terms in the functional.
+     Generate the FORTRAN expressions to calculate the terms in the functional.
+     
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+     Input:
+      term : string containing the actual expression
+             example: E_D_Nm_Nm_D_No_No
+      index: number of the term in the complete list of terms
+      un_index : index of the term in the grouping of terms with same 
+                  structure. If negative, this term is unique.
+      t_number : total number of terms with this structure
+      ccoef: string containg the coupling constant of the term
+      isoc : isospin coupling of the terms
+      ddep : density dependence of the FIRST density in the term
+      so   : symmetry options
+
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      
+     Output: a ton of strings that should be inserted in the FORTRAN templates
+     
+      declaration   : declaration of the (1) coupling constants
+                                         (2) terms in the energy
+      calculation   : FORTRAN statements to calculate the terms
+      printing      : FORTRAN statements to print the content of the terms
+      calccoef      : FORTRAN statement that calculates the coupling constant
+
+      printcoef_ph  :
+      printcoef_pair:
+
+      sumtotal      : 
+      pairtotal     :
+      erear         : 
+      
+      timerev       :
+
+      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
     """
     global sumindices
     
@@ -640,7 +810,7 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
     # Parse the term of the functional.
     # The result is 
     #   tempden : a list of densities that make up the term
-    #   coupling: the set of scalar couplings in the term
+    #   coupling: the set of scalar couplings of Cartesian indices in the term
     #
     #   Example:
     #           E_D_I_Sm_Derxm_C_I_Nxm 
@@ -666,7 +836,7 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
 
     # Signal back about whether this term is built out of time-odd or time-even
     # densities. Note that we don't do any checking of consistency between 
-    # symmetries and terms, this is achieve somewhere else in Hephaestos.
+    # symmetries and terms, this is achieved somewhere else in Hephaestos.
     timerev = True
     for den in densities:
       if( TimeDen(den) < 0):
@@ -684,10 +854,14 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
     # => recount the couplings (not the densities!)
     altterm = term
     for c in coupling: 
-        for i in range(len(densities)):
-            if(densities[i].count(sumindices[coupling.index(c)]) == 2):
-                # Replace internal couplings
-                altterm = altterm.replace(sumindices[coupling.index(c)],'')               
+      for i in range(len(densities)):
+        for s1 in sumindices:
+          if(densities[i].count(s1) == 2):
+            # Replace internal couplings
+            for s2 in sumindices:
+              tryout = densities[i].replace(s1, s2)
+              nosum  = densities[i].replace(s1, '')
+              altterm = altterm.replace(tryout,nosum)               
     (rubbish, true_coupling) = ParseDensities(altterm)
     
     dic = {}
@@ -697,7 +871,11 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
             name = name + '_' + densities[i]
 
     dic ['TERM' ] = term
-    dic ['CPCTE'] = 'B' + dic ['TERM'][1:]    
+    dic ['CPCTE'] = 'coupl_constant(%d)'%(index+1)  #'B' + dic ['TERM'][1:]   
+    dic ['GROUPINDEX']  = ''
+    dic ['GROUPNUMBER'] = '(%d)'%(tnumber+1)
+    if( tnumber >= 0):
+      dic['GROUPINDEX'] = '(%d)'%(un_index + 1) 
     #---------------------------------------------------------------------------
     # We construct all possible values for all indices
     # 1. We count the number of three-length contractions in true_coupling
@@ -717,21 +895,22 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
       true_args = vec_args
     else:
       true_args = list(itertools.product(args, vec_args))
-            
-    declaration = ts.decl.substitute(dic) 
+           
+    if(un_index == 0):  
+      # only construct a declaration for the first term in a set
+      declaration = ts.decl.substitute(dic) 
     calculation = ts.comment.substitute(dic)
     calculation = calculation + ts.calc_z.substitute(dic)
+    
     for arg in true_args: 
         dic['EDENT'] = ''
-        dic['EDENP'] = ''
-        dic['EDENN'] = ''
         
         sign      = +1
         prevorder =  0 
         for i in range(len(densities)):
             isodic = {}
             isodic['DEN'] = densities[i]
-            
+            isodic['ISO'] = Isospinindices(isoc[i])   
             #-------------------------------------------------------------------
             # Get the index of the density correct
             (der,lap,left,right, coupl, cross) = \
@@ -766,12 +945,14 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
             for l in indices:
                 isodic['IND'] = isodic['IND'] + ',%d'%(l+1)
            
-            dic['EDENT'] = dic['EDENT'] + ts.edent.substitute(isodic)+ '*'
+            if(i == 0 and ddep != '1'):
+              # The first density for the first density in the term
+              isodic['EXP']= ddep
+              dic['EDENT'] = dic['EDENT'] + ts.edent_DD.substitute(isodic)+ '*'
+            else:
+              # No density dependence
+              dic['EDENT'] = dic['EDENT'] + ts.edent.substitute(isodic)+ '*'
             
-            isodic['IT'] = 1
-            dic['EDENN'] = dic['EDENN'] + ts.edenq.substitute(isodic)+ '*'
-            isodic['IT'] = 2
-            dic['EDENP'] = dic['EDENP'] + ts.edenq.substitute(isodic)+ '*'    
             # Take out the final '*' which should not be necessary
             prevorder = prevorder + orders[i]
       
@@ -781,82 +962,74 @@ def GenTermExpression( term, ccoef, DD, DDrear, so):
           dic['SIGN'] = '-'
             
         dic['EDENT'] = dic['EDENT'][:-1]
-        dic['EDENN'] = dic['EDENN'][:-1]  
-        dic['EDENP'] = dic['EDENP'][:-1]  
-        
-        calculation = calculation +'\n' + tab + '! indices = ' + str(arg) + '\n'
+        calculation = calculation + tab + '! indices = ' + str(arg) + '\n'
 
-        if('P' not in term ):
-          # Ordinary mean-field densities only in the term
-          calculation = calculation + ts.calc_a.substitute(dic)
-          calculation = calculation + ts.calc_b.substitute(dic)
-        else:
-          # Pairing mean-field densities in the term.
-          calculation = calculation + ts.calc_pair_a.substitute(dic)
+#        if('P' not in term ):
+#        # Ordinary mean-field densities only in the term
+        calculation = calculation + ts.calc_a.substitute(dic)
+#        else:
+#          # Pairing mean-field densities in the term.
+#          calculation = calculation + ts.calc_a.substitute(dic)
             
+    calculation = calculation + ts.calc_b.substitute(dic)
     calculation = calculation + '\n'
-    if(DD != ''):
-        dic['DD'] = DD  
-        calculation = calculation + ts.calc_DD.substitute(dic)
 
-    dic['FILENAME'] ='edensities/' + dic['TERM'] + '.dat'
-    #calculation = calculation + write_edensity.substitute(dic) + '\n'
- 
-    if('P' not in term):  
-      # Ordinary mean-field densities
-      calculation = calculation + ts.calc_c.substitute(dic) 
-      calculation = calculation + ts.calc_d.substitute(dic) + '\n'
-      calculation = calculation + ts.calc_e.substitute(dic)
-      calculation = calculation + ts.calc_f.substitute(dic)
+    dic['ISO_FULL'] = ''
+    for k in range(4):
+      try:
+        dic['ISO_FULL'] = dic['ISO_FULL'] + "'%s',"%isoc[k]
+      except IndexError:
+        continue
+    dic['ISO_FULL'] =     dic['ISO_FULL'][:-1] 
 
-      printing = ts.print.substitute(dic) 
-
-    else:
-      # Pairing mean-field densities.
-      calculation = calculation + ts.calc_pair_c.substitute(dic) 
-      calculation = calculation + ts.calc_pair_d.substitute(dic) + '\n'
-
-      printing = ts.print_P.substitute(dic) 
-
+    # Format statements for printing in the FORTRAN code depend on whether
+    # this term is bilinear, trilinear or quadrilinear
+    if(len(densities) == 2):
+      dic['FMT'] = 97
+    if(len(densities) == 3):
+      dic['FMT'] = 98
+    if(len(densities) == 4):
+      dic['FMT'] = 99
+    
+    printing = ts.print.substitute(dic) 
     calculation = calculation + ts.end_comment 
     
-    dic['EXP1'] = ccoef[0]
-    dic['EXP2'] = ccoef[1]
+    # Temporary
+    erear         = ''
+    printcoef_ph  = ''
+    printcoef_pair= ''
+    sumtotal      = ''
+    pairtotal     = ''
     
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # Put the coupling constant in the right spot
+    dic['EXP']       = ccoef
+    dic['ISO']       = str(isoc)
+    dic['NCONSTANT'] = index + 1
     calccoef  = ts.calc_coef.substitute(dic)
     
     if('P' not in term):
         # Ordinary mean-field densities
-        printcoef_pn  = ts.print_cpl_pn.substitute(dic)    
-        printcoef_iso = ts.print_cpl_iso.substitute(dic)
+        printcoef_ph  = ts.print_cpl_ph.substitute(dic)
         printcoef_pair= ''
     else:
-        printcoef_pn  = ''
-        printcoef_iso = ''
+        printcoef_ph  = ''
         printcoef_pair= ts.print_cpl_pair.substitute(dic) 
     
     sumtotal  = ts.sumtotal.substitute(dic)
     pairtotal = ts.pairtotal.substitute(dic)
     
-    # Getting the contribution to the rearrangement energy
-    # Two-body, non-density dependent terms don't have rearrangement terms.
-    if( len(densities) == 2 and DD == ''):
-        erear = ''
+    # Getting the contribution to the rearrangement energy if this is a 
+    # density dependent term
+    if( ddep == '1'):
+        erear = '' 
     else:
-        rearcoef = '+' + '(' + str(len(densities) - 2)
-        if(DDrear != '') :
-            rearcoef = rearcoef  + '+' + DDrear + ')'
-        else:
-            rearcoef = rearcoef + ')'
+        rearcoef = '+' + '0.5d0 * (%d - %s)'%(2-len(densities)+1, ddep) 
         dic['REARCOEF'] = rearcoef
-
-        if('P' not in term):
-          erear = ts.rear.substitute(dic)
-        else:
-          erear = ts.rear_p.substitute(dic)
+        erear = ts.rear.substitute(dic)
         
-    return (declaration, calculation, printing, calccoef, printcoef_iso, 
-              printcoef_pn, printcoef_pair, sumtotal, pairtotal, erear, timerev)    
+    return (declaration, calculation, printing, calccoef, printcoef_ph, 
+                            printcoef_pair, sumtotal, pairtotal, erear, timerev)    
     
 def rreplace(s, old, new, occurrence):
      li = s.rsplit(old, occurrence)  

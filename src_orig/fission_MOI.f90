@@ -271,7 +271,7 @@ contains
     ! which is the logical generalization from Eq. (30) in 
     !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
     ! and an explicit factor of hbar^2.
-    avg_effmass = sum(F_Nm_Nm(:,:) * D_I_I(:,:) , 1) * dv 
+    avg_effmass =1.0 ! sum(F_Nm_Nm(:,:) * D_I_I(:,:) , 1) * dv 
     avg_effmass(1) = avg_effmass(1) / (hbm(1) * neutrons)
     avg_effmass(2) = avg_effmass(2) / (hbm(2) * protons)
     avg_effmass    = avg_effmass + 1 

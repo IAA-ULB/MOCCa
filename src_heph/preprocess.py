@@ -29,7 +29,7 @@ from src_heph.heph_cranking      import ProcessCranking
 from src_heph.heph_multipoles    import ProcessMoments, ProcessFission_MOI
 from src_heph.heph_coulomb       import ProcessCoulomb
 
-def preprocess(fname, src, target, so , oldso):
+def preprocess(fname, src, target, so , oldso, ph_pp_decoupl):
     """
       Dispatching routine that selects the right preprocessing routine and
       additional info for every source code file.
@@ -41,6 +41,9 @@ def preprocess(fname, src, target, so , oldso):
               the symmetries conserved during the calculation
       oldso : SymmetryOption object, containing all the details on
               the symmetries conserved ON THE INPUT WF FILE.
+      ph_pp_decouple: Boolean. If True, do not include contributions of 
+                      density-dependent pairing interactions to the potentials
+                      associated with normal densities
     """
       
     if(fname=='compilation.f90'):
@@ -77,7 +80,7 @@ def preprocess(fname, src, target, so , oldso):
         ProcessParameterization(fname, src, target)
         return
     if(fname=='functional.f90'):
-        ProcessFunctional(fname, src, target,so, oldso)
+        ProcessFunctional(fname, src, target,so, oldso, ph_pp_decoupl)
         return
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)

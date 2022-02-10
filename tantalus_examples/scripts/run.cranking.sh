@@ -135,5 +135,5 @@ mv tant.Ar36.om=$omz.wf tant.in
 
 done
 mv *.out ../out/STDOUT
-rm *.exe *.param *.dat
+rm *.exe *.param 
 

@@ -378,7 +378,7 @@ $NTR    use Moments, only : cutoff
     real(KIND=dp), allocatable :: spot(:,:,:)
 $NTR    integer :: i, it, c
 
-    allocate(spot(nx*ny*nz,3,2)) ; spot = 0.0d0
+    allocate(spot(nx*ny*nz,3,4)) ; spot = 0.0d0
 
 $NTR    do i=1, cranklen
 $NTR      c           = crankdirections(i)
@@ -386,6 +386,9 @@ $NTR      do it=1,2
 $NTR        spot(:,c,it) = - 0.5 * omega(c) * cutoff(:,it)
 $NTR      enddo
 $NTR    enddo
+
+$NTR    spot(:,:,3) = spot(:,:,1) + spot(:,:,2) 
+$NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)  
       
     return
   end function crank_spin_potential
@@ -405,7 +408,7 @@ $NTR    enddo
     real(KIND=dp), allocatable :: jpot(:,:,:)
     integer                    :: it, mu, indices(2) , nu, ka
 
-    allocate(jpot(nx*ny*nz,3,2)) ; jpot = 0.0d0
+    allocate(jpot(nx*ny*nz,3,4)) ; jpot = 0.0d0
     do mu=1, 3
       indices = vector_product(mu)
       nu = indices(1)
@@ -415,6 +418,10 @@ $NTR    enddo
           &            (omega(nu) * meshgrid(:,ka) - omega(ka) * meshgrid(:,nu))
       enddo
     enddo
+    
+    jpot(:,:,3) = jpot(:,:,1) + jpot(:,:,2) 
+    jpot(:,:,4) = jpot(:,:,1) - jpot(:,:,2)  
+    
     return
   end function crank_current_potential
   

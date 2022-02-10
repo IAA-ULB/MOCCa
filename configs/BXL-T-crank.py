@@ -9,3 +9,5 @@ INREDUCE  = [1,1,1]
 # Axis orientation for multipole moments : X
 QUANT_AXIS='X'
 SECOND_AXIS=2
+# Decouple the particle-hole and particle-particle fields? 
+PH_PP_DECOUPL = True

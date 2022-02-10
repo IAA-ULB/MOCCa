@@ -107,7 +107,7 @@ contains
  !   (2)
  !------------------------------------------------------------------------------
 
- function PreconditionPotential(pot,a,b,sx,sy,sz) result(invpot)
+ function PreconditionPotential(pot,A,B,sx,sy,sz) result(invpot)
     !---------------------------------------------------------------------------
     ! Precondition a potential with the matrix
     !
@@ -115,15 +115,24 @@ contains
     !
     ! Calculated through the repeated application of its inverse in a 
     ! conjugate gradient algorithm. 
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !    potential : potential to be preconditioned (all components!)
+    !    A, B      : numbers characterizing the preconditioning matrix
+    !    sx/y/z    : integers characterizing the reflection symmetries of the
+    !                potential
+    ! Output:
+    !    invpot    : preconditioned potential (all components!)
     !---------------------------------------------------------------------------
     use Derivatives
     
     real(KIND=dp), intent(in) :: a, b
-    real(KIND=dp), intent(in) :: pot(nx*ny*nz,2)
+    real(KIND=dp), intent(in) :: pot(nx*ny*nz,4)
     integer, intent(in) :: sx,sy,sz
 
     real(KIND=dp) :: residual(nx*ny*nz), update(nx*ny*nz), aCG
-    real(KIND=dp) :: invpot(nx*ny*nz,2), direction(nx*ny*nz), bCG
+    real(KIND=dp) :: invpot(nx*ny*nz,4), direction(nx*ny*nz), bCG
     real(KIND=dp) :: newresnorm, oldresnorm
     
     integer:: it, iter
@@ -152,6 +161,9 @@ contains
         enddo
         !-----------------------------------------------------------------------
     enddo
+    invpot(:,3) = invpot(:,1) + invpot(:,2)
+    invpot(:,4) = invpot(:,1) - invpot(:,2) 
+
     !---------------------------------------------------------------------------
 !    print *, 'Inv. Pot., iter = ', iter, newresnorm, sum(invpot(:,1))*dv,  &
 !    &                     sum(invpot(:,2))*dv

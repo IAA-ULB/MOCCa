@@ -10,9 +10,6 @@
 #
 #-------------------------------------------------------------------------------
 # TODO
-#   
-#   Q Is the isospin coupling of the fields ok?
-#   A NO, see Sadoudi.
 #
 #   C Add option for more than one derivative and/or laplacian to the action-
 #     of fields routine
@@ -31,10 +28,10 @@ Fields_needed         = []
 Pairing_Fields_needed = []
 
 def initfields(so):
-
-  #-----------------------------------------------------------------------------
-  # Go over the needed densities and the functional terms and check whether
-  # we have enough derivatives to calculate the fields. 
+  """
+    Go over the needed densities and the functional terms and check whether
+    we have enough derivatives of the spwfs to calculate the fields.
+  """ 
   for term in src_heph.heph_functional.Functional_terms:
       (densities, cpl) = src_heph.heph_functional.ParseDensities(term)
       # Count the number of derivatives needed in this term
@@ -58,392 +55,669 @@ def initfields(so):
               if(altleft == left and altright == right):
                   # Set minimum derivatives
                   deriv_needed[j].append((totallap, totalder))
-                  
-  
+                  if(len(densities)>2):
+                    # For trilinear and quadrilinear terms, we will need 
+                    # more derivatives, as the laplacians can "uncouple"
+                    # for the calculation of the fields
+                    deriv_needed[j].append((0, totalder+totallap))
+
   src_heph.heph_functional.PruneDeriv_needed()
-  
       
-def GenerateFields(so, oldso):
-    """
-     Generate a list of fields based on list of terms in the functional. 
-    """
-        
-    global sumindices,tab
-    
-    import src_heph.fortran_templates.GenerateFields_templates as ts 
+def GenerateFields(so, oldso, ph_pp_decoupl):
+  """
+   Generate a list of fields based on list of terms in the functional. 
+   
+   Attention!
+    The output of this routine depends on whether or not PH_PP_DECOUPL is True
+    or not. If True, ALL possible contributions to the fields are taken into
+    account. If False, all contributions to fields associated with normal 
+    densities by pairing densities are omitted.
+   
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+   Input: 
+    so   :  symmetry options for the CURRENT executable being constructed
+    oldso:  symmetry options for the executable that wrote the .wf file
+    ph_pp_decoupl: Boolean. If True, drop all contributions to the normal
+                   potentials that arise from density-dependent pairing 
+                   terms.
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+   Output: 
+   
+    declaration:
+    FIELDCALC  : 
+    fieldwrite :
+    fieldread  :
+    fieldclean :
 
-    cplcts    = []       
-    for term in src_heph.heph_functional.Functional_terms:      
-        cplcts.append(term.replace('E_', 'B_'))
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-    #---------------------------------------------------------------------------
-    # For every unique density encountered, we need to figure out the field
-    # and the action of the field. 
-    FIELDCALC   = ''
-    declaration = ''
+  """
+      
+  global sumindices,tab
+  
+  import src_heph.fortran_templates.GenerateFields_templates as ts 
 
-    fieldread = ''
-    fieldwrite= ''
-    fieldtransfo = ''
-        
-    fieldclean= '' 
-    for den in src_heph.heph_functional.Densities_needed:
-        #-----------------------------------------------------------------------
-        # Name the field correctly
-        dic = {}
-        dic['FIELD'] = den.replace('D', 'F').replace('C', 'G')
+  #---------------------------------------------------------------------------
+  # For every unique density encountered, we need to figure out the field
+  # and the action of the field. 
+  FIELDCALC   = ''
+  declaration = ''
 
-        #Get a string of length 30 with the field name, but with extra spaces
-        # at the end
-        dic['FIELDFILLED'] = dic['FIELD'].ljust(30)
+  fieldread = ''
+  fieldwrite= ''
+  fieldtransfo = ''
+      
+  fieldclean= '' 
+  for den in src_heph.heph_functional.Densities_needed:
+      #-----------------------------------------------------------------------
+      # Name the field correctly
+      dic = {}
+      dic['FIELD'] = den.replace('D', 'F').replace('C', 'G')
 
-        # We check if there is a change of spatial symmetries between the 
-        # new (so) and old (oldso) symmetry options        
-        spatial = False
-        for k in range(3):
-          if(so.ReduceAxes[k] != oldso.ReduceAxes[k]):
-            spatial = True
-        
-        if(spatial):
-          # Tantalus will essentially not read potentials from file
-          dic['UNDOREAD'] = ' '
-        else:
-          # Tantalus will read potentials correctly from file
-          dic['UNDOREAD'] = '!'
-        
-        if('P' not in den): 
-          Fields_needed.append(dic['FIELD'])
-        else:
-          Pairing_Fields_needed.append(dic['FIELD'])
-        #-----------------------------------------------------------------------
-        #  Get the operator structure of the density correctly                                
-        (der,lap,left, right, coupling,cross) = ParseOperators(den,so.timelike) 
-        #-----------------------------------------------------------------------
-        # Check all of the terms if they depend on the density
-        fieldlist = []
-        cpcte     = ''
+      #Get a string of length 30 with the field name, but with extra spaces
+      # at the end
+      dic['FIELDFILLED'] = dic['FIELD'].ljust(30)
 
-        fieldclean = fieldclean + '\n' + ts.clean.substitute(dic)
-        fieldclean = fieldclean + '\n' + ts.clean_b.substitute(dic)
+      # We check if there is a change of spatial symmetries between the 
+      # new (so) and old (oldso) symmetry options        
+      spatial = False
+      for k in range(3):
+        if(so.ReduceAxes[k] != oldso.ReduceAxes[k]):
+          spatial = True
+      
+      if(spatial):
+        # Tantalus will essentially not read potentials from file
+        dic['UNDOREAD'] = ' '
+      else:
+        # Tantalus will read potentials correctly from file
+        dic['UNDOREAD'] = '!'
+      
+      if('P' not in den): 
+        Fields_needed.append(dic['FIELD'])
+      else:
+        Pairing_Fields_needed.append(dic['FIELD'])
+      #-----------------------------------------------------------------------
+      #  Get the operator structure of the density correctly                                
+      (der,lap,left, right, coupling,cross) = ParseOperators(den,so.timelike) 
+      #-----------------------------------------------------------------------
+      # Check all of the terms if they depend on the density
+      fieldlist = {}
+      fieldlist['0'] = []
+      fieldlist['1'] = []        
+      fieldlist['p'] = []
+      fieldlist['n'] = []        
+      cpcte     = ''
 
-        #-----------------------------------------------------------------------
-        for term in src_heph.heph_functional.Functional_terms: 
-            (densities, cpl)=src_heph.heph_functional.ParseDensities(term)
-            #-------------------------------------------------------------------
-            # Replace the densities in the list by the ones actually calculated
+      fieldclean = fieldclean + '\n' + ts.clean.substitute(dic)
+      fieldclean = fieldclean + '\n' + ts.clean_b.substitute(dic)
+
+      #-----------------------------------------------------------------------
+      for nterm, term in enumerate(src_heph.heph_functional.Functional_terms): 
+          (densities, cpl)=src_heph.heph_functional.ParseDensities(term)
+          iso_ind = src_heph.heph_functional.isospin_indices[nterm]
+
+          #-------------------------------------------------------------------
+          # Replace the densities in the list by the ones actually calculated
+          
+          newden = densities.copy()
+          for i, d in enumerate(densities):
+              (x,y,l2,r2,c2,cr2) = ParseOperators(d,so.timelike)
+              for altden in src_heph.heph_functional.Densities_needed:
+                  (altder, altlap, altleft, altright, altcoup, altcross) = \
+                                            ParseOperators(altden,so.timelike)
+                  if(altleft == l2 and r2 == altright and cr2 == altcross):
+                      newden[i]    = y*'Lap_' +               \
+                                     x*'Der_' +               \
+                                     altden
+          densities = newden
+          #-------------------------------------------------------------------
+          # Remove all the mentions of couplings inside the density if only
+          # contractions are calculated.
+          altterm = term
+          for c in cpl: 
             for i in range(len(densities)):
-                (x,y,l2,r2,c2,cr2) = ParseOperators(densities[i],so.timelike)
-                for altden in src_heph.heph_functional.Densities_needed:
-                    (altder, altlap, altleft, altright, altcoup, altcross) = \
-                                              ParseOperators(altden,so.timelike)
-                    if(altleft == l2 and r2 == altright and cr2 == altcross):
-                        densities[i] = y*'Lap_' +               \
-                                       x*'Der_' +               \
-                                       altden
-            #-------------------------------------------------------------------
-            # Remove all the mentions of couplings inside the density if only
-            # contractions are calculated.
-            altterm = term
-            for c in cpl: 
-                for i in range(len(densities)):
-                    if(OrderOfDen(densities[i]) != OrderOfDen(densities[i], contract=False)):
-                      for s in sumindices:
-                          if(densities[i].count(s) == 2):
-                            # Replace internal couplings
-                            altterm = altterm.replace(s,'')
+              if(OrderOfDen(densities[i]) != OrderOfDen(densities[i], contract=False)):
+               for s1 in sumindices:
+                if(densities[i].count(s1) == 2):
+                  for s2 in sumindices:
+                    tryout = densities[i].replace(s1, s2)
+                    nosum  = densities[i].replace(s1, '')
+                    altterm = altterm.replace(tryout, nosum)
 
-            (rubbish, cpl) = src_heph.heph_functional.ParseDensities(altterm)
-            #-------------------------------------------------------------------
-            # Check if the term contains this density
+
+          (rubbish, cpl) = src_heph.heph_functional.ParseDensities(altterm)
+
+          #---------------------------------------------------------------------
+          # We drop contributions to the normal potentials from pairing 
+          # densities if PH_PP_DECOUPL is true
+          mixedterm = False  
+          for d in densities:
+            mixedterm = mixedterm or ('P' in d)
+          mixedterm = mixedterm and ('P' not in den)
+          if(mixedterm and ph_pp_decoupl):
+            continue
+          #-------------------------------------------------------------------
+          # Loop over the possible isospin components of this density
+          if ('P' in den):
+            isorange = ['n', 'p'] # Pairing densities are treated in 
+                                  # proton-neutron formalism
+          else:
+            isorange = ['0', '1'] # Normal densities are treated in isospin
+                                  # formalism
+          for iso in isorange:
+            # Check if the term of the EDF contains this isospin component 
+            # of this particular density
             startind = 0
-            for i in range(len(densities)):
-                altden = densities[i]
+            for i, altden  in enumerate(densities):
                 (altder, altlap, altleft, altright, altcoup, altcross) \
                                             = ParseOperators(altden,so.timelike)
                 
-                if((altleft == left) and (altright == right)):
-                    #  Add the term to the fieldlist for this density, 
-                    #  and additionally mentioning the number of external 
-                    #  derivatives and laplacians
+                if(     (altleft == left) 
+                    and (altright == right) 
+                    and (iso == iso_ind[i])):
+                  #  Add the term to the fieldlist for this density andd isospin
+                  #  and additionally mentioning the number of external 
+                  #  derivatives and laplacians
+                  
+                  dden  = src_heph.heph_functional.density_dependence[nterm]
+
+                  if(dden == '1' or i != 0):
+                    # Either
+                    #  a) the term is not density-dependent; or
+                    #  b) the functional derivative did not fall on the 
+                    #     density dependence
+                    # Proceed as standard
+                    # - - - - - - - - - - -- - - - - - - - - - - - - - - - - -
 
                     # First we count how much indices are accounted for by the 
                     # other densities in the term
                     removed    = []
                     removedsum = 0
                     for j in range(len(densities)):
-                        if i != j :
-                            removed.append(densities[j])
+                      if i != j :
+                        removed.append(densities[j])
                     for j in range(i):
-                            removedsum = removedsum + OrderOfDen(densities[j])
-                    #-----------------------------------------------------------
-                    # From a term
-                    # 
-                    #      E_C/D_L'_R'_C/D_L_R
-                    #
-                    # with some prescribed coupling between the indices of L,R
-                    #  and L', R' (and possibly more densities...)
-                    #
-                    # Now we derive this term with respect to a density, which 
-                    # is not necessarily the first in the list, i.e. C/D_L_R.
-                    # We are then looking for the contribution to the 
-                    # corresponding 
-                    #
-                    #   F/G_L_R  = ... +  CC  C/D_L'_R' + ...
-                    # 
-                    # where CC is a coupling constant. 
-                    #-----------------------------------------------------------
-                    newcpl = []
-                    shift = OrderOfDen(den) + altder
-                    for c in cpl:
-                        nc = ()
-                        for k in c:     
+                        removedsum = removedsum + OrderOfDen(densities[j])
+
+                    cplct = 'coupl_constant(%d)'%(nterm+1)                      
+                    isoc  = iso_ind.copy()
+                    isoc.pop(i)                                          
+                                        
+                    # When terms are trilinear or quadrilinear, every partial 
+                    # integration generates MORE THAN ONE TERM in the 
+                    # calculation of the field. Example:
+                    #   fg Delta (h) => F_h ~ Delta(f) g + f Delta(g) 
+                    #                                   + 2 nabla(f) nabla(g)  
+                    nden = len(removed)
+                    #    = Total number of densities the derivatives can fall on
+                    indiv_lap = itertools.product(range(nden), repeat=2)
+                    lap_combinations = itertools.product(indiv_lap, repeat=altlap)
+                    #    = All possibilities to redistribute the laplacian operators
+                 
+                    for lcmb in lap_combinations:
+                      # Need to regenerate this everytime, due to the structure of Python iterators
+                      der_combinations = itertools.product(range(nden),repeat=altder)
+                      #    = All possibilities to redistribute the individual derivatives
+                      for dcmb in der_combinations:
+                        #-----------------------------------------------------------
+                        # From a term
+                        # 
+                        #      E_C/D_L'_R'_C/D_L_R
+                        #
+                        # with some prescribed coupling between the indices of L,R
+                        #  and L', R' (and possibly more densities...)
+                        #
+                        # Now we derive this term with respect to a density, which 
+                        # is not necessarily the first in the list, i.e. C/D_L_R.
+                        # We are then looking for the contribution to the 
+                        # corresponding 
+                        #
+                        #   F/G_L_R  = ... +  CC  C/D_L'_R' + ...
+                        # 
+                        # where CC is a coupling constant. 
+                        #-----------------------------------------------------------
+                        newcpl = []
+                        shift = OrderOfDen(den) + altder 
+                        for c in cpl:
+                          nc = ()
+                          for k in c:     
                             if( k < startind): 
-                                nc = nc + (k+shift,)
+                              nc = nc + (k+shift,)
                             elif(k >= startind + OrderOfDen(altden) ):
-                                nc = nc + (k,)
+                              nc = nc + (k,)
                             elif(k >= startind + altder):
-                                nc = nc + (k-removedsum-altder,)
+                              nc = nc + (k-removedsum-altder,)
                             else:
-                                nc = nc + (k-removedsum+OrderOfDen(den),)
-                        newcpl.append(nc)        
+                              nc = nc + (k-removedsum+OrderOfDen(den),)
+                          newcpl.append(nc)        
 
-                    ind   = src_heph.heph_functional.Functional_terms.index(term)
-                    cplct = cplcts[ind]
-                    dden  = src_heph.heph_functional.density_dependence[ind]
+                        if(dcmb.count(0) == 1 and dden != '1'):
+                          if(len(dcmb) !=  1):
+                            print ("Hephaestos cannot yet deal with derivatives upon derivatives of density dependent terms!")
+                            exit()
+                          # The derivative falls on the density dependence!
+                          # nabla_m rho^alpha = alpha rho^(alpha-1) nabla_m rho
+                          cc      = '(%s) * '%(dden) + cplct
+                          dd      = '(' + dden + ' - 1)'
+                          
+                          a = removed.copy()
+                          a.insert(0, removed[0])
+                          b = isoc.copy()
+                          b.insert(0,isoc[0])
 
-                    fieldlist.append([removed, altder,altlap,cplct,newcpl,dden,0])
+                          newd = ()
+                          for i in range(len(dcmb)):
+                             newd = newd + (dcmb[i]+1,)
+                          derc = newd
+                          lapc = lcmb
+                        
+                        elif(dden != '1' and len(lcmb) != 0):
+                          # There is (maybe) (part of ) a Laplacian falling on 
+                          # the density dependent factor
+                          
+                          if(len(lcmb)>1):
+                            print ("Repeated derivatives of density dependence.")
+                            exit()
+
+                          lc = lcmb[0]                          
+                          if( lc.count(0) == 1):
+                              # Single derivative
+                              cc      = '(%s) * '%(dden) + cplct
+                              dd      = '(' + dden + ' - 1)'
+                              
+                              a = removed.copy()
+                              a.insert(0, removed[0])
+                              b = isoc.copy()
+                              b.insert(0,isoc[0])
+
+                              newd = ()
+                              for i in range(len(lc)):
+                                 newd = newd + (lc[i]+1,)
+                              derc = dcmb
+                              lapc = (newd,)
+                              
+                          elif( lc.count(0) == 2):
+                              # Complete Laplacian acting on rho^alpha
+                              continue
+                          else:
+                            # No partial derivatives fall on the density dependent term
+                            a   = removed
+                            b   = isoc
+                            derc= dcmb
+                            lapc= lcmb
+                            cc  = cplct
+                            dd  = dden
+                        else:
+                          # No partial derivatives fall on the density dependent term
+                          a   = removed
+                          b   = isoc
+                          derc= dcmb
+                          lapc= lcmb
+                          cc  = cplct
+                          dd  = dden
+                          
+                        # We add a term to the expression for the field
+                        fieldlist[iso].append([    a, # all the densities in the contribution to the field
+                                                derc, # derivative combination
+                                                lapc, # laplacian combination
+                                                  cc, # Coupling constant
+                                              newcpl, # Coupling of the indices 
+                                                   b, # Isospin indices
+                                                  dd] # Density dependence power
+                                                )
+                  else:
+                    #-----------------------------------------------------------
+                    # The term is density dependent AND the functional 
+                    # derivative fell on the density in the density-dependence
+                    cplct = 'coupl_constant(%d)'%(nterm+1)
+                    altdden = '(' + dden + ' - 1)'                          
+                    altcpl  = cplct + ' * (' +  dden + ')' 
+                    isoc    = iso_ind.copy()
+                    #-----------------------------------------------------------
+
+                    # When terms are trilinear or quadrilinear, every partial 
+                    # integration generates MORE THAN ONE TERM in the 
+                    # calculation of the field. Example:
+                    #   fg Delta (h) => F_h ~ Delta(f) g + f Delta(g) 
+                    #                                   + 2 nabla(f) nabla(g)  
+                    nden = len(densities)
+                    #    = Total number of densities the derivatives can fall on
+                    indiv_lap = itertools.product(range(nden), repeat=2)
+                    lap_combinations = itertools.product(indiv_lap, repeat=altlap)
+                    #    = All possibilities to redistribute the laplacian operators
+                    for lcmb in lap_combinations:
+                      der_combinations = itertools.combinations_with_replacement(range(nden),   altder)
+
+                      for dcmb in der_combinations:
+                        fieldlist[iso].append([densities, 
+                                                    dcmb, 
+                                                    lcmb,
+                                                  altcpl,
+                                                     cpl,
+                                                    isoc,
+                                                altdden])
+                  
                 startind = startind + OrderOfDen(altden) 
-                
-            #-------------------------------------------------------------------
-            # Now check if there are density dependences in this term that 
-            # involve this density
-            dd    = src_heph.heph_functional.field_DD_terms[term]
-            ind   = src_heph.heph_functional.Functional_terms.index(term)
-            cplct = cplcts[ind]
-            if(dd[0] == den):
-                fieldlist.append([densities, altder, altlap,cplct,cpl,dd[1],1])
-
-        # Create the expression for the field
-        dic['ALLOCIND']= ''
-        dic['DECLIND'] = ''
-        for k in range(OrderOfDen(den)):
-            dic['ALLOCIND'] = dic['ALLOCIND'] + ',3' 
-            dic['DECLIND']  = dic['DECLIND']  + ',:'
-       
-        declaration  = declaration + ts.field_decl.substitute(dic)
-        declaration  = declaration + ts.fhist_decl.substitute(dic)
-
-        fieldread    = fieldread   + ts.field_read_a.substitute(dic)
-        fieldread    = fieldread   + ts.field_allo_b.substitute(dic)
-        fieldread    = fieldread   + ts.field_read_b.substitute(dic)
-        fieldread    = fieldread   + ts.field_read_c.substitute(dic)
-        fieldread    = fieldread   + ts.field_read_d.substitute(dic)
-        fieldread    = fieldread   + ts.field_read_e.substitute(dic)
+      # End of the costruction of all terms in the fields
+      # Now we BUILD the code that calculates all these terms
+      #-----------------------------------------------------------------------
+      # Create the expression for the field
+      dic['ALLOCIND']= ''
+      dic['DECLIND'] = ''
+      for k in range(OrderOfDen(den)):
+          dic['ALLOCIND'] = dic['ALLOCIND'] + ',3' 
+          dic['DECLIND']  = dic['DECLIND']  + ',:'
+      if('P' in den):
+        dic['ISOSIZE'] = 2
+      else:
+        dic['ISOSIZE'] = 4
         
-        fieldwrite   = fieldwrite  + ts.field_write_a.substitute(dic)
-        fieldwrite   = fieldwrite  + ts.field_write_b.substitute(dic)
-        
-        FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
-        FIELDCALC    = FIELDCALC + ts.field_calc_a_start.substitute(dic)
-        FIELDCALC    = FIELDCALC + ts.field_allo.substitute(dic)
-        FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
-        FIELDCALC    = FIELDCALC + ts.isoloop.substitute(dic)
-
-        args = list(itertools.product(range(3), repeat=OrderOfDen(den)))
-        for arg in args:   
+      declaration  = declaration + ts.field_decl.substitute(dic)
+      declaration  = declaration + ts.fhist_decl.substitute(dic)
+      
+      # ... and the expression for reading/writing the fields from file
+      #     NOTE THAT ONLY NEUTRON/PROTON FIELDS ARE WRITTEN/READ FROM FILE
+      fieldread    = fieldread   + ts.field_read_a.substitute(dic)
+      fieldread    = fieldread   + ts.field_allo_b.substitute(dic)
+      fieldread    = fieldread   + ts.field_read_b.substitute(dic)
+      fieldread    = fieldread   + ts.field_read_c.substitute(dic)
+      fieldread    = fieldread   + ts.field_read_d.substitute(dic)
+      fieldread    = fieldread   + ts.field_read_e.substitute(dic)
+ 
+      args = list(itertools.product(range(3), repeat=OrderOfDen(den)))
+      for arg in args:   
            # get the indices of the field correct
            dic['IND']     = ''
            for k in arg:
-                  dic['IND'] = dic['IND'] + ',%d'%(k+1)
-
+              dic['IND'] = dic['IND'] + ',%d'%(k+1)
+              
            fieldread = fieldread + ts.field_transfo.substitute(dic)
-
-        fieldread = fieldread + ts.field_transfo.substitute(dic)
-        fieldread = fieldread  + ts.field_read_f.substitute(dic)
-
-        for fieldterm in fieldlist:
-             #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-             # We start constructing individual contributions to the fields  
-             #
-             # A statement in the code will have the following form formally
-             #
-             #   F/G_{mu nu .... kappa } =  F/G_{mu nu .... kappa }
-             #    +/- C sum_{a,b,c} D_{mu nu ... kappa a b c  }
-             #
-             # where the we have dropped the isospin index and the C is some
-             # coupling constant. 
-             # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-             # The first order of business is to determine the number of free
-             # indices there are in the field F/G, i.e. how many INDEPENDENT 
-             # indices there are in total in the entire expression above
-             NumberOfIndices = 0
-             nthree = 0
-             for c in fieldterm[4]:
-                if(len(c) == 2):
-                  NumberOfIndices = NumberOfIndices + 1
-                elif(len(c) == 3):
-                  nthree          = nthree +1  
-             
-             #------------------------------------------------------------------
-             # arguments for all the indices
-             args = list(itertools.product(range(3), repeat=NumberOfIndices))
-             vec_args = list(itertools.product(range(6), repeat=nthree))
-
-             if(nthree == 0):
-                true_args = args
-             elif(NumberOfIndices == 0 ):
-                true_args = vec_args
-             else:
-                true_args = itertools.product(args, vec_args)
-
-             for arg in true_args:
-                 # get the indices of the field (i.e. the lhs above) correct
-                 dic['IND']     = ''
-                 sign           = +1
-
-                 #--------------------------------------------------------------
-                 # Now we do something wacky: we detect if   
-                 # we have changed the ordering of indices in a 
-                 # vector product by partial integration
-                 #
-                 # For example:
-                 #
-                 #      E_C_I_Nm_Derxm_D_I_Sxm
-                 # 
-                 # contributes to F_I_S. It gives rise to a fieldterm
-                 # like 
-                 #    F_I_Sxm  \sim Derxm_C_I_Nm
-                 # 
-                 # I detect this here in a simple way: if in a three-coupling 
-                 # ( a,b,c ) the two largest elements are ordered correctly, 
-                 # things are okay. If not, we have changed the ordering of a 
-                 # vector product  by partial integration.
-                 #--------------------------------------------------------------
-
-#                 for c in fieldterm[4]:
-#                  if(len(c) == 3):
-#                    nc = list(c)
-#                    sign = sign * perm_parity(nc)
-#                    print (den, sign)
-                 #--------------------------------------------------------------
-                 for k in range(OrderOfDen(den)):
-                    for c in fieldterm[4]:
-                        if k in c:
-                            if(len(c) == 2):
-                              mu = arg[fieldterm[4].index(c)]
-                              dic['IND'] = dic['IND'] + ',%d'%(mu+1)
-                            elif(len(c) == 3):
-                              # Integer division
-                              mu   = int(arg[fieldterm[4].index(c)]/2) 
-                              # Which term of two?
-                              t = arg[fieldterm[4].index(c)] - 2*mu
-                              nuka = Rot_ind(mu)[t] 
-                              if(t == 1):
-                                sign = sign * -1                              
-                              temp = (mu,abs(nuka[0]), abs(nuka[1]))
-                              dic['IND'] = dic['IND'] + ',%d'%(temp[c.index(k)]+1)
-
-                 FIELDCALC = FIELDCALC + ts.field_calc_b_start.substitute(dic)
-                 
-                 dic['DENSITY']  = ''
-                 dic['EXPR1']    = ''
-                 dic['EXPR2']    = ''
-                 dic['EXPR3'] = ''
-                 ind = src_heph.heph_functional.Functional_terms.index(term)
-                 dic['DD']       = fieldterm[5]
-                 
-                 if(len(dic['DD']) >0 ):
-                    dic['DD']       = dic['DD'] + '*'
-                 
-                 lastorder = OrderOfDen(den)
-                 for i in range(len(fieldterm[0])):
-                    dic['DENSITY']  =                    fieldterm[2] * 'Lap_' \
-                                                       + fieldterm[1] * 'Der_' \
-                                                       + fieldterm[0][i] 
-                    #-----------------------------------------------------------
-                    # Make sure the combination of laplacians and derivatives
-                    # is in the right ordering 
-                    dercount = dic['DENSITY'].count('Der')
-                    lapcount = dic['DENSITY'].count('Lap')
-                    
-                    dic['DENSITY'] = dic['DENSITY'].replace('Der_', '')
-                    dic['DENSITY'] = dic['DENSITY'].replace('Lap_', '')
-                    dic['DENSITY'] = lapcount * 'Lap_' \
-                                   + dercount * 'Der_' + dic['DENSITY']
-
-                    dic['CPLCTE']   =  fieldterm[3]
-                    #-----------------------------------------------------------
-                    # Get the indices of the density on the rhs.
-                    indices = ()
-                    for k in range(lastorder,lastorder+OrderOfDen(dic['DENSITY'])):
-                      for c in fieldterm[4]:
-                        if k in c:   
-                          if(len(c) == 2):    
-                            mu      = arg[fieldterm[4].index(c)]
-                            indices = indices + (mu,)
-                          elif(len(c) == 3):
-                            # Integer division
-                            mu   = int(arg[fieldterm[4].index(c)]/2) 
-                            # Which term of two?
-                            t = arg[fieldterm[4].index(c)] - 2*mu
-                            if(t == 1):
-                              sign = sign * -1
-
-                            nuka = Rot_ind(mu)[t] 
-                                  
-                            temp = (mu,abs(nuka[0]), abs(nuka[1]))
-                            indices = indices + (temp[c.index(k)],)                                 
-                    #-----------------------------------------------------------                      
-                    # Put an extra sign for every partial integration of a nabla
-                    # needed
-                    if( fieldterm[1]%2 != 0):
-                        localsign = sign * (-1)
-                    else:
-                        localsign = sign
-  
-                    if(localsign > 0):
-                      dic['SIGN']     =  '+'
-                    else:
-                      dic['SIGN']     =  '-'
-
-                    #-----------------------------------------------------------
-                    # The first indices are necessarily external derivatives
-                    if(dercount > 0):
-                        derind  = Storage_Mapping(indices[:dercount])
-                        indices = (derind,) + indices[dercount:]
-                    
-                    dic['DENIND']      = ''
-                    dic['SUMIND']      = 2 
-                    for l in indices:
-                        dic['DENIND'] = dic['DENIND'] + ',%d'%int(l+1)
-
-                    dic['EXPR1'] = dic['EXPR1'] + ts.field_calc_den_a.substitute(dic)
-                    dic['EXPR2'] = dic['EXPR2'] + ts.field_calc_den_b.substitute(dic)
-                   
-                    if(len(dic['DD']) >0):
-                        dic['EXPR3'] = dic['EXPR3'] + ts.field_calc_den_c.substitute(dic)
-                        lastorder = lastorder + OrderOfDen(dic['DENSITY'])
-
-                 if('P' not in dic['DENSITY']):
-                    # Ordinary mean-field densities; coupling constants are
-                    # the isoscalar and isovector ones
-                    FIELDCALC = FIELDCALC + ts.field_calc_b.substitute(dic)
-                    FIELDCALC = FIELDCALC + ts.field_calc_c.substitute(dic)
-                    if(fieldterm[6] == 1):
-                       FIELDCALC = FIELDCALC + ts.field_calc_d.substitute(dic)
-                    FIELDCALC = FIELDCALC[:-4] + '\n \n'
-                 else:
-                    # Pairing densities, coupling constants are pn ones.  
-                    FIELDCALC = FIELDCALC + ts.field_pair_a.substitute(dic)       
-                    if(fieldterm[6] == 1):
-                      FIELDCALC = FIELDCALC + ts.field_pair_b.substitute(dic)
-                    FIELDCALC = FIELDCALC[:-4] + '\n \n'
-                                
+      if('P' not in den):
+        # Only recombine normal fields
+        fieldread = fieldread + ts.field_transfo_recomb.substitute(dic)
+      fieldread = fieldread + ts.field_read_f.substitute(dic)
         
-        FIELDCALC    = FIELDCALC + ts.isoloop_end
-        FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
+      fieldwrite   = fieldwrite  + ts.field_write_a.substitute(dic)
+      fieldwrite   = fieldwrite  + ts.field_write_b.substitute(dic)
 
-    return(declaration, FIELDCALC, fieldwrite, fieldread, fieldclean)
+      FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
+      FIELDCALC    = FIELDCALC + ts.field_calc_a_start.substitute(dic)
+      FIELDCALC    = FIELDCALC + ts.field_allo.substitute(dic)
+      FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
+      
+      FIELDCALC    = FIELDCALC + ts.field_condition_start.substitute(dic)
+      # Isospin loop:
+      for iso in ['0','1', 'n', 'p']:        
+      
+        if(len(fieldlist[iso]) == 0):
+          continue
+      
+        dic['ISO']    = str(iso)
+        dic['ISOIND'] = Isospinindices(iso)
+        
+        FIELDCALC    = FIELDCALC + ts.field_calc_iso_start.substitute(dic)
+        for fieldterm in fieldlist[iso]:
+        
+           # We rearrange things in this separate routine 
+           NumberOfIndices, nthree, densities, newcpl, pisigns = \
+            Adaptdensities(fieldterm[0],fieldterm[4],fieldterm[1],fieldterm[2])
+
+           # We construct arguments for all latin indices
+           args = list(itertools.product(range(3), repeat=NumberOfIndices))
+           vec_args = list(itertools.product(range(6), repeat=nthree))
+
+           if(nthree == 0):
+              true_args = args
+           elif(NumberOfIndices == 0 ):
+              true_args = vec_args
+           else:
+              true_args = itertools.product(args, vec_args)
+
+           for arg in true_args:            
+             # get the indices of the field (i.e. the lhs above) correct
+             dic['IND']     = ''
+             sign           = +1
+
+             #--------------------------------------------------------------
+             for k in range(OrderOfDen(den)):
+              for c in fieldterm[4]:
+               if k in c:
+                if(len(c) == 2):
+                  mu = arg[fieldterm[4].index(c)]
+                  dic['IND'] = dic['IND'] + ',%d'%(mu+1)
+                elif(len(c) == 3):
+                  # Integer division
+                  mu   = int(arg[fieldterm[4].index(c)]/2) 
+                  # Which term of two?
+                  t = arg[fieldterm[4].index(c)] - 2*mu
+                  nuka = Rot_ind(mu)[t] 
+                  if(t == 1):
+                    sign = sign * -1                              
+                  temp = (mu,abs(nuka[0]), abs(nuka[1]))
+                  dic['IND'] = dic['IND'] + ',%d'%(temp[c.index(k)]+1)
+
+             lastorder = OrderOfDen(den)
+             
+             FIELDCALC = FIELDCALC + ts.field_calc_b_start.substitute(dic)
+              
+             dic['DENSITY']  = ''
+             dic['EXPR1']    = ''
+             dic['EXPR2']    = ''
+             dic['EXPR3']    = ''
+             dic['CPLCTE']   =  fieldterm[3]
+             
+             for i,d in enumerate(densities):
+                dic['DENSITY'] = d
+                #-----------------------------------------------------------
+                # Get the indices of the density on the rhs.
+                indices = ()
+                for k in range(lastorder,lastorder+OrderOfDen(d)):
+                  for c in newcpl: #fieldterm[4]:
+                    if k in c:   
+                      if(len(c) == 2):    
+                        mu      = arg[newcpl.index(c)]  #fieldterm[4].index(c)]
+                        indices = indices + (mu,)
+                      elif(len(c) == 3):
+                        # Integer division
+                        mu   = int(arg[newcpl.index(c)]/2) 
+                        # Which term of two?
+                        t = arg[newcpl.index(c)] - 2*mu
+                        if(t == 1):
+                          sign = sign * -1
+
+                        nuka = Rot_ind(mu)[t] 
+                              
+                        temp = (mu,abs(nuka[0]), abs(nuka[1]))
+                        indices = indices + (temp[c.index(k)],)                                 
+
+                #-----------------------------------------------------------
+                # The first indices are necessarily external derivatives
+                dercount = d.count('Der')
+                if(dercount > 0):
+                    derind  = Storage_Mapping(indices[:dercount])
+                    indices = (derind,) + indices[dercount:]
+                
+                dic['DENIND']      = ''
+                for l in indices:
+                    dic['DENIND'] = dic['DENIND'] + ',%d'%int(l+1)
+                dic['ISOALT']= Isospinindices(fieldterm[5][i])
+                if(fieldterm[-1] != '1' and i == 0): 
+                  dic['DD'] = fieldterm[-1]
+                  # Expression with a call to 'pow'
+                  dic['EXPR1'] = dic['EXPR1'] + ts.field_calc_DD.substitute(dic)
+                else:
+                  # Ordinary expression
+                  dic['EXPR1'] = dic['EXPR1'] + ts.field_calc_den.substitute(dic)
+
+                # Increment the starting point of indices
+                lastorder = lastorder + OrderOfDen(dic['DENSITY'])
+
+             #------------------------------------------------------------------                   
+             # Put an extra sign for every partial integration of a nabla
+             if( len(fieldterm[1])%2 != 0):
+                 localsign = sign * (-1)
+             else:
+                 localsign = sign
+
+             if(localsign > 0):
+               dic['SIGN']     =  '+'
+             else:
+               dic['SIGN']    =  '-'
+
+             FIELDCALC = FIELDCALC + ts.field_calc_full.substitute(dic)
+             FIELDCALC = FIELDCALC[:-4] + '\n \n'
+                            
+      # Add the recombination statements from isospin representation to 
+      # proton-neutron representation, but only for normal densities
+      if('P' not in den):
+        FIELDCALC    = FIELDCALC + ts.field_recombination.substitute(dic)
+      FIELDCALC    = FIELDCALC + ts.field_condition_end.substitute(dic)
+      FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic) + '\n'
+
+  return(declaration, FIELDCALC, fieldwrite, fieldread, fieldclean)
+
+def Adaptdensities( dens, cpl, dcmb, lcmb):
+  """
+  
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    Input  : 
+      dens      :
+      cpl       : 
+      lcmb      : 
+      dcmb      :
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    Output : 
+      NumberOfIndices :
+      nthree          :
+      densities       : 
+      newcpl          : 
+      pisigns         : 
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  """
+  
+  densities = []
+  newcpl    = []
+  pisigns   = []
+  
+  NumberOfIndices = 0
+  nthree = 0
+  
+  #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  # We have here all ingredients to construct one contribution to one field 
+  #
+  # A statement in the code will have the following form formally
+  #
+  #   F/G_{mu nu .... kappa } =  F/G_{mu nu .... kappa }
+  #    +/- C sum_{a,b,c,....}[\sum_{l=1}^{3} D_{l, mu nu ... kappa a b c .... }]
+  #  
+  #  where 
+  #  * we have dropped the isospin index 
+  #  * C is some coupling constant
+  #  * l is the index of the density in the terms. We permit quadrilinear terms,
+  #    so it is maximum three
+  #  * D_l is some density; which includes the possibility of a DERIVATIVE of a
+  #                         density
+  #  * mu,nu,kappa : greek indices are indices of the FIELD being calculated
+  #  * a,b;c; ...  : latin indices are indices of the r.h.s., to be summed over
+  #                  for a given set of greek indices
+  #
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  # The first order of business is to determine the number of latin indices!
+  #
+  # For this, we first check the coupling array
+  for c in cpl:
+    if(len(c) == 2):
+      NumberOfIndices = NumberOfIndices + 1
+    elif(len(c) == 3):
+      nthree          = nthree +1  
+  
+  # But this is not sufficient, as Laplacian operators that need to be 
+  # integrated by parts can "uncouple", i.e. act on different densities for
+  # terms that are trilinear or quadrilinear.
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  # Note: this kind of construction NEVER appears for bilinear terms
+  #       and can always be eliminated by partial integration for trilinear
+  #       terms. For quadrilinear terms however, this cannot be avoided.....
+  uncoupled_laplacians = 0            
+  for m, d in enumerate(dens):
+   for lc in lcmb:
+    nl = lc.count(m)
+    if(nl%2 != 0):
+      uncoupled_laplacians = uncoupled_laplacians + 1     
+
+  uncoupled_laplacians = uncoupled_laplacians//2
+  NumberOfIndices = NumberOfIndices + uncoupled_laplacians
+  #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  # Next, we construct the full expressions for the densities with the 
+  # integration by parts of all kinds of derivatives
+  for m,d in enumerate(dens):
+    denstring  = ''
+    if(len(lcmb) != 0):
+      for lc in lcmb:
+        nl = lc.count(m)
+        
+        if(nl == 2):
+          # this laplacian remains coupled
+          denstring = denstring + 'Lap_'
+        elif(nl == 0):
+          # No extra derivatives
+          pass
+        else:
+          # this laplacian is uncoupled
+          denstring = denstring + 'Der_'
+           
+    if(len(dcmb) != 0):
+       nder = dcmb.count(m)
+       denstring = denstring +  nder * 'Der_'
+      
+    # and we add the name of the density itself
+    denstring = denstring + d 
+   
+    # Note that it is possible that the above code has mixed up the ordering 
+    # of the "Lap_" and "Der_" expressions. We reorder them for surety
+    dercount = denstring.count('Der')
+    lapcount = denstring.count('Lap')
+    
+    denstring = denstring.replace('Der_', '')
+    denstring = denstring.replace('Lap_', '')
+    denstring = lapcount * 'Lap_' + dercount * 'Der_' + denstring
+   
+    # Adding the constructed density to the array
+    densities.append(denstring)
+    
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  # Next, we modify the couplings of the indices as 
+  #  (a) modify existing couplings to reflect the insertion of the derivatives
+  #      from uncoupled laplacians
+  for c in cpl:
+    newc = ()
+    for k in c:
+      ind = 0
+      inc = 0
+      for m, d in enumerate(dens):
+        km = 0
+        for lc in lcmb:
+          km = km + lc.count(m)%2
+        if(k >= ind):
+          inc = inc + km - 2*(km//2)
+        
+        ind = ind + OrderOfDen(d)
+      newc = newc + (k+inc,)
+    newcpl.append(newc)
+
+  #  (b) insert the couplings for the uncoupled laplacians
+  for lc in lcmb:
+    newc = ()
+    ind  = 0 
+    for m, d in enumerate(densities):
+      if(lc.count(m)%2 == 1):        
+        newc = newc + (ind,)
+      
+      ind = ind + OrderOfDen(d)
+    newcpl.append(newc)
+  
+  return NumberOfIndices, nthree, densities, newcpl, pisigns
+
 
 def GenerateAction(field, symmetrize, so):
     """
