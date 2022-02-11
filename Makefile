@@ -61,7 +61,7 @@ endif
 
 ################################################################################
 # Precompilation instructions
-PRE         :=  run_heph getgitinfo getcompilerinfo setversioninfo 
+PRE         :=  run_heph getgitinfo getcompilerinfo setversioninfo exec/
 PRE_NIL     :=  cp_nil 
 SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
 NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
@@ -74,6 +74,9 @@ single: EXENAME:= Tantalus.$(CONFIG).exe
 ################################################################################
 # Recipes
 all: single
+
+exec/:
+	mkdir -p exec/
 
 $(OBJDIR)/:
 	mkdir -p  obj/
