@@ -75,6 +75,7 @@ module functional
  use timing
  use transform
  use Cranking
+ use pairing_strengths
 
  implicit none
  
@@ -932,6 +933,8 @@ $TR   COM2pp = 2*COM2pp
     use Coulombmod , only : SolveCoulomb, CoulombPotential, Exchangepotential
     use Coulombmod , only : Foldedcoul,  FoldedExchange
     use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
+    
+    use pairing_strengths, only : vmicro
     
     use moments
     

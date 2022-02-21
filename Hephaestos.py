@@ -11,7 +11,7 @@ from os.path  import isfile as isfile
 import os
 from src_heph import heph_symmetries,heph_densities,heph_functional,heph_fields
 from src_heph import preprocess as pp
-from src_heph import latex
+#from src_heph import latex
 import sys, importlib
 
 # Horizontal line for printing
@@ -113,7 +113,7 @@ FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90
               'hartree-fock.f90'  , 'BCS.f90'          , 'pairingcutoffs.f90',
               'temperature_projection.f90',              'momentsofinertia.f90', 
               'fission_MOI.f90'   , 'particleinabox.f90', 'densities.f90'      , 
-              'moments.f90'       , 'pairing.f90'       ,
+              'moments.f90'       , 'pairing.f90'       , 'pairing_strengths.f90',
               'functional.f90'    , 'parameterization.f90' , 'evolution.f90'   , 
               'scfiteration.f90'  , 'IO.f90'               , 'tantalus.f90'    ,   
               'transform.f90'     ,  'cranking.f90'        , 'convergence.f90' , 

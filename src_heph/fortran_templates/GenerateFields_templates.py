@@ -40,7 +40,7 @@ field_calc_b_start   = T(2*tab + '$FIELD(:$IND,$ISOIND) = $FIELD(:$IND,$ISOIND) 
 field_calc_den       = T(' * $DENSITY(:$DENIND,$ISOALT)')
 field_calc_DD        = T(' * pow($DENSITY(:$DENIND,$ISOALT), $DD)')
 
-field_calc_full      = T(2*tab + '& $SIGN $CPLCTE $EXPR1 & \n') 
+field_calc_full      = T(2*tab + '& $SIGN $CPLCTE $EXPR1 $EXTRA & \n') 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Recombination statements

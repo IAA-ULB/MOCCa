@@ -315,7 +315,6 @@ $TR        endif
     end select
     !---------------------------------------------------------------------------
     ! 
-    
     if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
       print *, 'Invalid pairingscheme value.'
       stop
