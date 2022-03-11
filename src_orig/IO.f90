@@ -931,6 +931,10 @@ $TR   stop
     if(pairingtype.eq.2 .and. SPCANFILE .ne. '') then
       call write_sp_info_can(SPCANFILE)
     endif
+    ! c) for the combinatorial level density code
+    if(COMBI .ne. '') then
+      call combi_output(COMBI)
+    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! 
     if(pairingtype.eq.2 .and. BLOCKFILE .ne. '') then
@@ -1965,92 +1969,150 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
       endif
   end function force_halfinteger
 
-!-------------------------------------------------------------------------------
-!  subroutine combi_output
-!    !---------------------------------------------------------------------------
-!    ! Write an extra file for input of the combinatorial level density code.
-!    !
-!    ! ATTENTION: this output assumes an axial nucleus with a symmetry axis 
-!    !            along the z-axis. If the single-particle states are not  
-!    !            (at least approximately) eigenstates of J_z, then this output
-!    !            will effectively be nonsense.
-!    !---------------------------------------------------------------------------
+  subroutine combi_output(COMBI)
+    !---------------------------------------------------------------------------
+    ! Write an extra file for input of the combinatorial level density code.
+    !
+    ! ATTENTION: this output assumes an axial nucleus with a symmetry axis 
+    !            along the z-axis. If the single-particle states are not  
+    !            (at least approximately) eigenstates of J_z, then this output
+    !            will effectively be nonsense.
+    !---------------------------------------------------------------------------
+    character(len=*), intent(in) :: combi
+    integer, allocatable :: indices(:)
+    integer              :: i,ii, p1, p2,jj
+    real(KIND=dp)        :: R0, A, fac, mstate1, mstate2
 
-!    integer, allocatable :: indices(:)
-!    integer              :: i,ii, p1, p2,jj
-!    real(KIND=dp)        :: R0, A, fac, mstate1, mstate2
+    1 format (a1, 3i4)
+    2 format (2(f5.1,i2,3f8.3))
+    3 format ( 2i4,2(x,f8.4),15(x,f7.3),2f12.3)
 
-!    1 format (a1, 3i4)
-!    2 format (2(f5.1,i2,3f8.3))
-!    3 format ( 2i4,17(x,f7.4),2f9.2)
+    open(unit=6, file=COMBI)
+    
+    select case(pairingtype)
+    case(0)
+      ! HF: we don't do nothing for the moment
+    case(1)
+      ! BCS case: things are straightforward
+      !-------------------------------------------------------------------------
+      ! a) single-particle neutron states
+      write(6, fmt=1) '*', int(protons), int(neutrons+protons), nwn/2
+      indices = OrderSpwfsISO(-1)
+      
+      do i=1,nwn/2
+          ii    = indices(i)
+          jj    = indices(i+nwn/2)
 
-!    open(unit=6, file=COMBI)
+          if(ii .lt. (HFBlocks(1))) p1 =  0
+          if(ii .gt. (HFBlocks(1))) p1 =  1
 
-!    ! a) single-particle neutron states
-!    write(6, fmt=1) '*', int(protons), int(neutrons+protons), nwn/2
-!    indices = OrderSpwfsISO(-1)
+          if(jj .lt. (HFBlocks(1))) p2 =  0
+          if(jj .gt. (HFBlocks(1))) p2 =  1
 
-!    do i=1,nwn/2
-!        ii    = indices(i)
-!        jj    = indices(i+nwn/2)
+          mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
+          mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
 
-!        if(ii .lt. (HFBlocks(1))) p1 =  0
-!        if(ii .gt. (HFBlocks(1))) p1 =  1
+          mstate1 = force_halfinteger(mstate1)
+          mstate2 = force_halfinteger(mstate2)
 
-!        if(jj .lt. (HFBlocks(1))) p2 =  0
-!        if(jj .gt. (HFBlocks(1))) p2 =  1
+          write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+          &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
+      enddo
+      !-------------------------------------------------------------------------
+      ! b) single-particle proton states
+      write(6, fmt=1) ' ', int(protons), int(neutrons+protons), nwp/2
+      indices = OrderSpwfsISO(+1)
+      do i=1,nwp/2
+          ii     = indices(i)
+          jj     = indices(i+nwp/2)
 
-!        mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
-!        mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
+          if(ii .lt. sum(HFBlocks(1:3))) p1 =  0
+          if(ii .gt. sum(HFBlocks(1:3))) p1 =  1
 
-!        mstate1 = force_halfinteger(mstate1)
-!        mstate2 = force_halfinteger(mstate2)
+          if(jj .lt. sum(HFBlocks(1:3))) p2 =  0
+          if(jj .gt. sum(HFBlocks(1:3))) p2 =  1
 
-!        write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
-!        &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
-!    enddo
+          mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
+          mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
 
-!    ! b) single-particle neutron states
-!    write(6, fmt=1) ' ', int(protons), int(neutrons+protons), nwp/2
-!    indices = OrderSpwfsISO(+1)
-!    do i=1,nwp/2
-!        ii     = indices(i)
-!        jj     = indices(i+nwp/2)
+          mstate1 = force_halfinteger(mstate1)
+          mstate2 = force_halfinteger(mstate2)
+          
+          write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+          &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
+      enddo
+    !---------------------------------------------------------------------------
+    case(2)
+      ! HFB case: things are less straightforward
+      !-------------------------------------------------------------------------
+      ! a) single-particle neutron states
+      write(6, fmt=1) '*', int(protons), int(neutrons+protons), nwn/2
+      indices = OrderSpwfsISO(-1)
+      
+       do i=1,nwn/2
+          ii    = indices(i)
+          jj    = indices(i+nwn/2)
 
-!        if(ii .lt. sum(HFBlocks(1:3))) p1 =  0
-!        if(ii .gt. sum(HFBlocks(1:3))) p1 =  1
+          if(ii .lt. (HFBlocks(1))) p1 =  0
+          if(ii .gt. (HFBlocks(1))) p1 =  1
 
-!        if(jj .lt. sum(HFBlocks(1:3))) p2 =  0
-!        if(jj .gt. sum(HFBlocks(1:3))) p2 =  1
+          if(jj .lt. (HFBlocks(1))) p2 =  0
+          if(jj .gt. (HFBlocks(1))) p2 =  1
 
-!        mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
-!        mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
+          mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
+          mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
 
-!        mstate1 = force_halfinteger(mstate1)
-!        mstate2 = force_halfinteger(mstate2)
-!        
-!        write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
-!        &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
-!    enddo
+          mstate1 = force_halfinteger(mstate1)
+          mstate2 = force_halfinteger(mstate2)
 
-!    !  The final line is composed of various informations
-!    !  Z, A, beta2, beta4, Gn, Gp, Deltan, Deltap, ddmn, ddmp,
-!    !       econdn,econdp,eshcorn,eshcorp,lambdan,lambdap,ainer,rigid,
-!    !       etott,etable
+          write(6,fmt=2),mstate1,p1,spenergies(ii),rho_pairing(ii,ii),HFBgaps(ii,ii),& 
+          &              mstate2,p2,spenergies(jj),rho_pairing(jj,jj),HFBgaps(jj,jj)
+      enddo
+      !-------------------------------------------------------------------------
+      ! b) single-particle proton states
+      write(6, fmt=1) ' ', int(protons), int(neutrons+protons), nwp/2
+      indices = OrderSpwfsISO(+1)
+      do i=1,nwp/2
+          ii     = indices(i)
+          jj     = indices(i+nwp/2)
 
-!    R0  = 1.2
-!    A   = neutrons + protons
-!    fac = 4. * pi/(3. * (R0 *(A))**2 * A) * Q(3) * sqrt(5/(16*pi))
+          if(ii .lt. sum(HFBlocks(1:3))) p1 =  0
+          if(ii .gt. sum(HFBlocks(1:3))) p1 =  1
 
-!    !                                              Q40   Gn   Gp  Deltan Deltap  
-!    write(unit=6, fmt=3), int(protons),int(A),fac*Q(3), 0.0, 0.0, 0.0, 0.0,0.0,&
-!    !                     ddmn, ddmp, econdn, econdp, eshcorn, eshcorp 
-!    &                      0.0,  0.0,    0.0,    0.0,     0.0,     0.0,        & 
-!     !                     lambdan, lambdap, ANONYMOUOS NUMBER,  ainer, rigid, 
-!    &                      FermiEnergy(1),  FermiEnergy(2), 0.0, Belyaev(3,3), &
-!    &                      Rigid(3,3), totalE, 0.0
+          if(jj .lt. sum(HFBlocks(1:3))) p2 =  0
+          if(jj .gt. sum(HFBlocks(1:3))) p2 =  1
 
-!    close(unit=6)
-!  end subroutine combi_output
+          mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
+          mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
+
+          mstate1 = force_halfinteger(mstate1)
+          mstate2 = force_halfinteger(mstate2)
+          
+          write(6,fmt=2),mstate1,p1,spenergies(ii),rho_pairing(ii,ii),HFBgaps(ii,ii),& 
+          &              mstate2,p2,spenergies(jj),rho_pairing(jj,jj),HFBgaps(jj,jj) 
+      enddo
+    !---------------------------------------------------------------------------
+    end select
+    !  The final line is composed of various informations
+    !  Z, A, beta2, beta4, Gn, Gp, Deltan, Deltap, ddmn, ddmp,
+    !       econdn,econdp,eshcorn,eshcorp,lambdan,lambdap,ainer,rigid,
+    !       etott,etable
+
+    R0  = 1.2
+    A   = neutrons + protons
+    fac = 4. * pi/(3. * (R0 *(A))**2 * A) * Q(3) * sqrt(5.0d0/(16.0d0*pi))
+
+    !                                              Q40   Gn   Gp  
+    write(unit=6, fmt=3), int(protons),int(A),fac*Q(3), 0.0, 0.0,  &
+    !                        Deltan Deltap   
+    &                     average_gap(2,1),average_gap(2,2) ,0.0,  &
+    !                     ddmn, ddmp, econdn, econdp, eshcorn, eshcorp 
+    &                      0.0,  0.0,    0.0,    0.0,     0.0,     0.0,   &  
+     !                     lambdan, lambdap,   ainer, rigid, 
+    &                      FermiEnergy(1),  FermiEnergy(2), Belyaev(2,3), &
+    &                      0.0d0, Rigid(2,3), totalE, 0.0
+
+    close(unit=6)
+  end subroutine combi_output
     
 end module IO
