@@ -10,7 +10,7 @@ from string                  import Template as T
 tab = '   '
 
 decl    = T(  tab + 'real(KIND=dp) :: $PARAM = -123456789 \n')
-read    = T(        ' $PARAM,')
+read    = T(  tab + '& $PARAM, & \n')
 print   = T(2*tab + 'print "(a6,2x, f10.3)", "$PARAM", $PARAM \n ')
 reset   = T(  tab + '$PARAM = -123456789 \n')
 

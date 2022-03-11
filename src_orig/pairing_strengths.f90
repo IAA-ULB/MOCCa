@@ -93,10 +93,9 @@ contains
   kfp=(3.d0*pi**2*    rho(:,2))**(1./3.) ! Neutron density
 
   ! Asymmetry \eta
-  eta = rho(:,4) ! Isovector density
   do i=1,mv
     if(abs(rho(i,3)).gt.1d-12) then
-      eta(i) = rho(i,3)/rho(i,4)
+      eta(i) = rho(i,4)/rho(i,3)
     else
       eta(i) = 0.0d0
     endif

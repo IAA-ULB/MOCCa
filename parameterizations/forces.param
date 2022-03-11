@@ -1,0 +1,950 @@
+!-------------------------------------------------------------------------------
+! BSK27 parameterization
+! From: 
+! S. Goriely, N. Chamel and J. M. Pearson, Phys. Rev. C  88, 061302(R) (2013).
+!
+! Note: the pairing parameters are not included!
+!-------------------------------------------------------------------------------
+&skf 
+name     = "BSK27" 
+func_file= 'BXL.func'
+t0  = -0.1837060863E+04 , x0 = 0.4600673712E+00
+t1  =  0.3761855572E+03 , x1 =-0.3858531133E+00
+t2  = -0.6030802735E+02 , x2 = 0.1259817673E+01
+t3  = 0.1152167193E+05 , x3 = 0.6403012547E+00
+wso = 0.1146308139E+03 , wsoq=0.1146308139E+03
+t4  = 0.0
+t5  = 0.0
+x4  = 0.0
+x5  = 0.0
+beta= 0.0
+gamma= 0.0
+CSDS0= 0.0
+CSDS1= 0.0
+sigma    =      0.3 
+CT0      =      0.0
+CT1      =      0.0
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)      = 20.72126890,20.74983164
+COM1Body = 2
+COM2Body = 1
+e2            = 1.43996446
+Protonsize    = 0.895, 0.0
+Neutronsize   = 0.387, 0.467 
+HOcomform     = .true.
+nucleonsize_selfconsistent=.false.
+CoulTreatment = 2
+/
+!-------------------------------------------------------------------------------
+! BSk29 parameterization
+! S. Goriely, N. Chamel and J. M. Pearson, Phys. Rev. C 93, 034337 (2016).
+!-------------------------------------------------------------------------------
+&skf 
+name     = "BSk29" 
+func_file= 'BXL.func'
+t0       =   -3970.40,
+t1       =     394.880,
+t2       =       0.0001,
+t3       =   22649.3,
+t4       =    -100.0,
+t5       =    -150.0, 
+x0       =       0.964850,
+x1       =      -0.00477741,
+x2       =   -13889500.0,
+x3       =       1.14453,
+x4       =       2.0,
+x5       =     -11.0,
+sigma    =      0.0833333333, 
+beta     =      0.5,
+gamma    =      0.0833333333,
+wso      =    64.6,
+wsoq     =   193.8
+Vp       =  -1250.00000
+Vn       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.72126890,20.74983164      
+COM1Body = 2
+COM2Body = 1
+Protonsize    = 0.895, 0.0
+Neutronsize   = 0.387, 0.467 
+HOcomform     = .true.
+nucleonsize_selfconsistent=.false.
+CoulTreatment = 2
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+/
+
+
+!-------------------------------------------------------------------------------
+! BSk31 parameterization
+! S. Goriely, N. Chamel and J. M. Pearson, Phys. Rev. C 93, 034337 (2016).
+!-------------------------------------------------------------------------------
+&skf 
+name     = "BSk31" 
+func_file= 'BXL.func'
+t0       =   -2302.01,
+t1       =     762.99,
+t2       =       0.0001,
+t3       =   13797.83,
+t4       =    -500.0,
+t5       =     -40.0, 
+x0       =       0.676655,
+x1       =       2.658109,
+x2       =-4222900.0,
+x3       =       0.83982,
+x4       =       5.0,
+x5       =     -12.0,
+sigma    =       0.2, 
+beta     =       0.083333333,
+gamma    =       0.25,
+wso      =      62.174,
+wsoq     =     186.522 
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+Vp       =  -1250.00000
+Vn       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.72126890,20.74983164      
+e2       = 1.43996446
+COM1Body = 2
+COM2Body = 1
+Protonsize    = 0.895, 0.0
+Neutronsize   = 0.387, 0.467 
+HOcomform     = .true.
+nucleonsize_selfconsistent=.false.
+CoulTreatment = 2
+/
+
+
+!---------------------------------------------------------------------------------------
+! BSkG1 parameterization from 
+!  G. Scamps, S. Goriely, E. Olsen, M. Bender & W. Ryssens, 
+!  Skyrme-Hartree-Fock-Bogoliubov mass models on a 3D mesh: effect of triaxial shape. 
+!  European Physical Journal A, 57(12), 333 (2021). 
+!  https://doi.org/10.1140/epja/s10050-021-00642-1
+! 
+!---------------------------------------------------------------------------------------
+&skf
+name     =  'BSkG1'
+func_file=  'BXL.func'
+t0       =  -1882.35523413,
+t1       =    344.79024487,
+t2       =     -2.43198284,
+t3       =  12321.95584346,
+t4       =      0.00000000,
+t5       =      0.00000000,
+x0       =      0.19627560,
+x1       =     -0.58030767,
+x2       =     69.98525353,
+x3       =      0.12075120,
+x4       =      0.00000000,
+x5       =      0.00000000,
+sigma    =      0.30000000,
+beta     =      0.00000000,
+gamma    =      0.00000000,
+wso      =    123.92157871,
+wsoq     =     83.51868649,
+CT0      =      0.00000000,
+CT1      =      0.00000000,
+CSDS0    =      0.00000000,
+CSDS1    =      0.00000000,
+Vn       =   -644.92061125,
+Vp       =   -682.55925239,
+alpha    =      0.69203290,
+sigmap   =      0.77348339,
+Estabn   =      0.00000000,
+Estabp   =      0.00000000,
+cutproton  = 7.42,
+cutneutron = 7.42,
+hbm(1)   =     20.73553000,     20.73553000,
+COM1Body = 2
+COM2Body = 1
+e2            = 1.439964460
+Protonsize    = 0.895, 0.00
+Neutronsize   = 0.387, 0.467
+HOcomform     = .true.
+nucleonsize_selfconsistent=.true.
+CoulTreatment = 2
+rotcorr  = 1
+rotcorrb = 0.93
+rotcorrc = 5.00
+/
+&skf
+!-------------------------------------------------------------------------------
+! Syst_112 parameterization produced by G. Scamps.
+!
+! Note: this is the version AFTER a refit of the collective parameters to the 
+!       fission barriers of heavy nuclei.
+!-------------------------------------------------------------------------------
+name     =  'BSkG2'
+func_file=  'BXL.func'
+t0       =            -1885.74370718,
+t1       =              343.58759401,
+t2       =               -8.04132000,
+t3       =            12358.44030829,
+t4       =      0.00000000,
+t5       =      0.00000000,
+x0       =                0.18177500,
+x1       =               -0.58400300,
+x2       =               20.14637542,
+x3       =                0.10159576,
+x4       =      0.00000000,
+x5       =      0.00000000,
+sigma    =                0.30000000,
+beta     =      0.00000000,
+gamma    =      0.00000000,
+wso      =              108.65500000,
+wsoq     =              108.60300000,
+CT0      =                0.00000000,
+CT1      =                0.00000000,
+CSDS0    =      0.00000000,
+CSDS1    =      0.00000000,
+Vn       =   -483.36600000,
+Vp       =   -503.79000000,
+alpha    =                0.48601200,
+sigmap   =                0.79602400,
+Estabn   =                0.00000000,
+Estabp   =                0.00000000,
+hbm(1)   =     20.73553000,     20.73553000,
+COM1Body = 2
+COM2Body = 1
+e2            = 1.439964460
+Protonsize    = 0.895, 0.00
+Neutronsize   = 0.387, 0.467
+HOcomform     = .true.
+nucleonsize_selfconsistent=.true.
+CoulTreatment = 2
+rotcorr  = 1
+Cuttype = 1
+Cutneutron =       7.99756000
+Cutproton  =       7.99756000
+rotcorrb    = 0.87841
+rotcorrc    = 8.29315
+vibcorrd    = 0.5952
+vibcorrl    = 4.5553
+vibcorrb    = 0.7875 
+/
+!-------------------------------------------------------------------------------
+! MSk7 parameterization
+!
+! from
+!   S. Goriely, F. Tondeur and J. M. Pearson
+!   A Hartree-Fock Nuclear Mass Table
+!   Atomic data and Nuclear Data Tables
+!
+! but more information on the implementation can be found in 
+! 
+!   F. Tondeur, S. Goriely, J. M. Pearson and M. Onsi
+!   Towards a Hartree-Fock mass formula 
+!   Phys. Rev. C 62, 024308.
+!
+! which deals with the forces MSK1-6.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "MSk7" 
+func_file= 'NLO.func'
+t0       =  -1828.23,
+t1       =    259.400,
+t2       =   -292.840,
+t3       =  13421.7, 
+x0       =      0.576761,
+x1       =     -0.5,
+x2       =     -0.5,
+x3       =      0.785290,
+sigma    =      0.33333333333333333333333 
+wso      =    118.807,
+wsoq     =    118.807, 
+CT0      =     -2.09, 
+CT1      =     69.03,
+Vp       =      0.00000
+Vn       =      0.00000
+alpha    =    1.0
+sigmap   =    1.0
+COM1Body = 3                            ! => Special Butler-style COM correction
+COM2Body = 0
+Protonsize    = 0.895, 0.0
+Neutronsize   = 0.000, 0.000 
+HOcomform     = .true.
+nucleonsize_selfconsistent=.false.
+/
+!-------------------------------------------------------------------------------
+! SLy4 parameterization
+!
+! E. Chabanat et al. Nucl. Phys. A 635, 231 (1998).
+! E. Chabanat et al. Nucl. Phys. A 643, 441 (1998).
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLy4" 
+func_file= 'NLO.func'
+t0       =  -2488.913,
+t1       =    486.818,
+t2       =   -546.395,
+t3       =  13777.0, 
+x0       =      0.834,
+x1       =     -0.344,
+x2       =     -1.0,
+x3       =       1.354,
+sigma    =      0.166666666666666666667 
+wso      =    123.0,
+wsoq     =    123.0 
+Vp       =  -1250.00000
+Vn       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73551910, 20.73551910        
+COM1Body = 2
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+/
+
+
+!-------------------------------------------------------------------------------
+! SLy5s1 parameterization
+!
+! R. Jodon, M. Bender, K. Bennaceur and J. Meyer
+! Phys. Rev. C 94, 024335 (2016)
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLy5s1" 
+func_file= 'NLO.func'
+t0       =  -2558.057480,
+t1       =    419.916807,
+t2       =   -476.596504,
+t3       =  14629.881420 , 
+x0       =      0.529674,
+x1       =     -0.081714,
+x2       =     -0.973427,
+x3       =      0.784514,
+sigma    =      0.166666666666666666667 
+wso      =    115.480186,
+wsoq     =    115.480186, 
+CT0      =     -2.329729
+CT1      =    -56.032082
+CSDS0    =   29.9515034219
+CSDS1    =   12.2367799531
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73553,20.73553
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SLy5s2 parameterization
+!
+! R. Jodon, M. Bender, K. Bennaceur and J. Meyer
+! Phys. Rev. C 94, 024335 (2016)
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLy5s2" 
+func_file= 'NLO.func'
+t0       =  -2548.749804,
+t1       =    426.514662,
+t2       =   -488.720413,
+t3       =  14527.586866,
+x0       =      0.549185,
+x1       =     -0.084917,
+x2       =     -0.977337,
+x3       =      0.818566,
+sigma    =      0.166666666666666666667 
+wso      =    114.281995,
+wsoq     =    114.281995, 
+CT0      =     -2.02391759661
+CT1      =    -57.2021921875
+CSDS0    =     30.67848017
+CSDS1    =     12.3566183281
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73553,20.73553
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SLy5s3 parameterization
+!
+! R. Jodon, M. Bender, K. Bennaceur and J. Meyer
+! Phys. Rev. C 94, 024335 (2016)
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLy5s3" 
+func_file= 'NLO.func'
+t0       =  -2539.426019,
+t1       =    432.712575,
+t2       =   -498.927389,
+t3       =  14425.919684,
+x0       =      0.567723,
+x1       =     -0.089298,
+x2       =     -0.980362,
+x3       =       0.851218 
+sigma    =      0.166666666666666666667 
+wso      =    112.862685,
+wsoq     =    112.862685, 
+CT0      =     -1.91636207344
+CT1      =    -58.22749775
+CSDS0    =     31.3954913594
+CSDS1    =     12.4876615
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73553,20.73553
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SLy5s4 parameterization
+!
+! R. Jodon, M. Bender, K. Bennaceur and J. Meyer
+! Phys. Rev. C 94, 024335 (2016)
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLy5s4" 
+func_file= 'NLO.func'
+t0       =      -2530.965970
+t1       =        438.428185
+t2       =       -507.607115
+t3       =      14334.363347 
+x0       =          0.583984, 
+x1       =         -0.092942
+x2       =         -0.982117
+x3       =          0.879542 
+sigma    =      0.166666666666666666667 
+wso      =    111.339379,
+wsoq     =    111.339379, 
+CT0      =     -1.90455817598
+CT1      =    -59.12720625
+CSDS0    =     32.0191710648
+CSDS1    =     12.61996
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73553,20.73553
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SLy5s5 parameterization
+!
+! R. Jodon, M. Bender, K. Bennaceur and J. Meyer
+! Phys. Rev. C 94, 024335 (2016)
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLy5s5" 
+func_file= 'NLO.func'
+t0       =  -2523.383918,
+t1       =    443.717952, 
+t2       =   -515.145242, 
+t3       =  14252.967410 
+x0       =      0.598108, 
+x1       =     -0.095506, 
+x2       =     -0.982824,
+x3       =      0.903677 
+wso      =    109.744420,
+wsoq     =    109.744420 
+sigma    =      0.166666666667
+CT0      =     -1.93902705004
+CT1      =    -59.928949625
+CSDS0    =     32.544831078
+CSDS1    =     12.7501345938
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73553,20.73553
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SLy5s6 parameterization
+!
+! R. Jodon, M. Bender, K. Bennaceur and J. Meyer
+! Phys. Rev. C 94, 024335 (2016)
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLy5s6" 
+func_file= 'NLO.func'
+t0       = -2516.593201, 
+t1       =   448.642928, 
+t2       = -521.790098, 
+t3       =14180.723259 
+x0       =    0.610335, 
+x1       =   -0.096977, 
+x2       =   -0.982676,
+x3       =    0.924029 
+wso      =  108.100743, 
+wsoq     =  108.100743 
+sigma    =    0.166666666666666666667 
+CT0      =  -1.9967439858
+CT1      =  -60.652064125
+CSDS0    =   32.9795026571
+CSDS1    =   12.8771669688
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73553,20.73553
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SLy5s7 parameterization
+!
+! R. Jodon, M. Bender, K. Bennaceur and J. Meyer
+! Phys. Rev. C 94, 024335 (2016)
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLy5s7" 
+func_file= 'NLO.func'
+t0       =-2510.520955, 
+t1       =  453.249829, 
+t2       = -527.697625,
+t3       =14116.772889 
+x0       =    0.620866,
+x1       =   -0.097416,
+x2       =   -0.981807,
+x3       =    0.940945 
+wso      =  106.423469,
+wsoq     =  106.423469 
+sigma    =      0.166666666666666666667 
+CT0      =  -2.06628627919
+CT1      =  -61.309215875
+CSDS0    =   33.3307659104
+CSDS1    =   13.0008103438
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73553,20.73553
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SLy5s8 parameterization
+!
+! R. Jodon, M. Bender, K. Bennaceur and J. Meyer
+! Phys. Rev. C 94, 024335 (2016)
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLy5s8" 
+func_file= 'NLO.func'
+t0       =-2505.070155,
+t1       =  457.580723,
+t2       = -532.993259,
+t3       =14060.030291 
+x0       =    0.629905, 
+x1       =   -0.096939,
+x2       =   -0.980339,
+x3       =    0.954818 
+wso      =  104.723810
+wsoq     =  104.723810 
+sigma    =    0.166666666666666666667 
+CT0      =   -2.14129127151
+CT1      =  -61.910873875
+CSDS0    =   33.608149583
+CSDS1    =   13.1210767187
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73553,20.73553
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SLy6 parameterization
+!
+! E. Chabanat et al. Nucl. Phys. A 635, 231 (1998).
+! E. Chabanat et al. Nucl. Phys. A 643, 441 (1998).
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLy6" 
+func_file= 'NLO.func'
+t0       =  -2479.50,
+t1       =    462.18,
+t2       =   -448.61,
+t3       =  13673.0, 
+x0       =      0.825,
+x1       =     -0.465,
+x2       =     -1.0,
+x3       =       1.355,
+sigma    =      0.166666666666666666667 
+wso      =    122.0,
+wsoq     =    122.0 
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.7361986,20.7361986
+COM1Body = 2
+COM2Body = 1
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+/
+
+!-------------------------------------------------------------------------------
+! SLyIII.07 parameterization
+! from K. Washiyama, PRC 86, 054309.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLyIII.07" 
+func_file= 'NLO.func'
+t0       =  -1122.408,
+t1       =    440.572,
+t2       =   -197.528,
+t3       =  11906.299, 
+x0       =      0.394119,
+x1       =      0.068384,
+x2       =     -0.752728,
+x3       =      0.946945,
+sigma    =      1.0
+wso      =    119.125,
+wsoq     =    119.125, 
+CT0      =    -22.351679
+CT1      =     79.762571
+Vn       =   -994.00000
+Vp       =   -994.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   =  20.735530,  20.735530
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SLyIII.08 parameterization
+! from K. Washiyama, PRC 86, 054309.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLyIII.08" 
+func_file= 'NLO.func'
+t0       =  -1100.272,
+t1       =    359.568,
+t2       =   -210.840,
+t3       =  13653.845, 
+x0       =      0.445280,
+x1       =      0.224693,
+x2       =     -0.615015,
+x3       =      0.639947,
+sigma    =      1.0
+wso      =    110.828,
+wsoq     =    110.828 
+CT0      =    -26.307798
+CT1      =     71.301024
+Vn       =   -987.00000
+Vp       =   -987.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   =  20.735530,  20.735530
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SLyIII.09 parameterization
+! from K. Washiyama, PRC 86, 054309.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLyIII.09" 
+func_file= 'NLO.func'
+t0       =  -1082.609,
+t1       =    295.999,
+t2       =   -240.653,
+t3       =  15003.161, 
+x0       =      0.491775,
+x1       =      0.389884,
+x2       =     -0.579284,
+x3       =      0.512106,
+sigma    =      1.0
+wso      =    103.516,
+wsoq     =    103.516, 
+CT0      =    -31.851421
+CT1      =     67.081439
+Vn       =   -985.00000
+Vp       =   -985.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   =  20.735530,  20.735530
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SLyIII.10 parameterization
+! from K. Washiyama, PRC 86, 054309.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLyIII.10" 
+func_file= 'NLO.func'
+t0       =  -1066.976,
+t1       =    245.431,
+t2       =   -245.314,
+t3       =  16026.086, 
+x0       =      0.525497,
+x1       =      0.603399,
+x2       =     -0.500115,
+x3       =      0.366056,
+sigma    =      1.0
+wso      =     97.977,
+wsoq     =     97.977, 
+CT0      =    -33.847253
+CT1      =     61.343125
+Vn       =   -988.00000
+Vp       =   -988.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   =  20.735530,  20.735530
+COM1Body = 2
+/
+!-------------------------------------------------------------------------------
+! SN2LO1 parameterization of the N2LO functional using the parameter values
+! of 
+!
+! P. Becker, D. Davesne, J. Meyer, J. Navarro and A. Pastore,
+! Phys. Rev. C 96, 044330 (2017).
+!
+! The functional form is however the more optimal one shown in 
+! 
+! W. Ryssens and M. Bender, in preparation. 
+! 
+! Note that this parameterisation was fitted to doubly-magic nuclei only, 
+! and pairing was not included. This file uses a standard ULB pairing with 
+! the strength typically used for SLy4.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SN2LO1-Becker" 
+func_file= 'N2LO.Becker.func'
+t0       =  -2486.90786,
+t1       =    497.51821,
+t2       =   -451.60715,
+t3       =  13707.18320, 
+t1n2     =    -11.95063,
+t2n2     =    -15.04405,
+x0       =      0.57160369,
+x1       =     -0.05521333,
+x2       =     -0.99803779,
+x3       =      0.88704830,
+x1n2     =      0.10279808,
+x2n2     =     -0.93024200,
+sigma    =      0.166666666666666666667 
+wso      =    117.904418,
+wsoq     =    117.904418, 
+CT0      =     -6.413914397
+CT1      =    -59.320335000
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73553,20.73553
+COM1Body = 2
+/ 
+!-------------------------------------------------------------------------------
+! SN2LO1 parameterization of the N2LO functional using the parameter values
+! of 
+!
+! P. Becker, D. Davesne, J. Meyer, J. Navarro and A. Pastore,
+! Phys. Rev. C 96, 044330 (2017).
+!
+! The functional form is however the more optimal one shown in 
+! 
+! W. Ryssens and M. Bender, in preparation. 
+! 
+! Note that this parameterisation was fitted to doubly-magic nuclei only, 
+! and pairing was not included. This file uses a standard ULB pairing with 
+! the strength typically used for SLy4.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SN2LO1" 
+func_file= 'N2LO.func'
+t0       =  -2486.90786,
+t1       =    497.51821,
+t2       =   -451.60715,
+t3       =  13707.18320, 
+t1n2     =    -11.95063,
+t2n2     =    -15.04405,
+x0       =      0.57160369,
+x1       =     -0.05521333,
+x2       =     -0.99803779,
+x3       =      0.88704830,
+x1n2     =      0.10279808,
+x2n2     =     -0.93024200,
+sigma    =      0.166666666666666666667 
+wso      =    117.904418,
+wsoq     =    117.904418, 
+CT0      =     -6.413914397
+CT1      =    -59.320335000
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73553,20.73553
+COM1Body = 2
+/ 
+!-------------------------------------------------------------------------------
+! SV-bas parameterization from P. Kl\"upfel et al, PRC 79, 034310 (2009).
+!-------------------------------------------------------------------------------
+&skf 
+NAME     = 'SV-bas' 
+func_file= 'NLO.func'
+t0       = -1879.639
+x0       =     0.258546
+t1       =   313.749
+x1       =    -0.381689
+t2       =   112.677
+x2       =    -2.823638
+t3       = 12527.376
+x3       =     0.123229
+sigma    =     0.3
+wso      = 124.634
+wsoq     =  68.22334 
+Vn       = -674.618
+Vp       = -606.902
+! What is called the switching density  \rho_pair in the paper can be simulated
+! in our case through the appropriate use of our scaling factor alpha. 
+!    We have alpha = 0.16/\rho_pair.
+alpha    =     0.795505394521
+sigmap   =     1.0
+hbm(1)   = 20.721260, 20.749821
+COM1Body = 1
+COM2Body = 1
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+/
+
+!-------------------------------------------------------------------------------
+! SVI parameterization
+! From
+!   M. Beiner et al.
+!   Nuclear ground-state properties and self-consistent calculations with the
+!   Skyrme interaction
+!   Nuclear Physics A238 29 - 69 (1975).
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SVI" 
+func_file= 'NLO.func'
+t0       =  -1101.81,
+t1       =    271.67,
+t2       =   -138.33,
+t3       =  17000.0, 
+x0       =      0.583,
+x1       =      0,
+x2       =      0,
+x3       =      1,
+sigma    =      1
+wso      =    115.0,
+wsoq     =    115.0 
+Vp       =  -1250.00000
+Vn       =  -1250.00000
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73551910, 20.73551910 
+COM1Body = 2
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+/
+!-------------------------------------------------------------------------------
+! SV-mas07 parameterization from P. Kl\"upfel et al, PRC 79, 034310 (2009).
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SV-mas07" 
+func_file= 'NLO.func'
+t0       = -2203.658
+x0       =     0.354369
+t1       =   438.349
+x1       =    -1.78294
+t2       =   566.845
+x2       =    -1.436932
+t3       = 12222.736
+x3       =     0.632534
+sigma    =     0.2
+wsoq     =   115.53698
+wso      =   113.522
+hbm(1)   =    20.721260, 20.749821  
+Vn       =  -688.246
+Vp       =  -752.655
+! What is called the switching density  \rho_pair in the paper can be simulated
+! in our case through the appropriate use of our scaling factor alpha. 
+!    We have alpha = 0.16/\rho_pair.
+alpha    =     0.795149587516
+sigmap   =     1.0
+hbm(1)   = 20.721260, 20.749821
+COM1Body = 1
+COM2Body = 1
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+/
+!-------------------------------------------------------------------------------
+! SV-mas08 parameterization from P. Kl\"upfel et al, PRC 79, 034310 (2009).
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SV-mas08" 
+func_file= 'NLO.func'
+t0       = -1982.650
+x0       =     0.285653
+t1       =   368.228
+x1       =    -1.037404
+t2       =   274.611
+x2       =    -1.780825
+t3       = 12141.094
+x3       =     0.339364
+sigma    =     0.26
+wsoq     =    88.67138
+wso      =   119.794
+Vp       =  -678.404
+Vn       =  -621.138
+! What is called the switching density  \rho_pair in the paper can be simulated
+! in our case through the appropriate use of our scaling factor alpha. 
+!    We have alpha = 0.16/\rho_pair.
+alpha    =     0.769934074395
+sigmap   =     1.0
+hbm(1)   = 20.721260, 20.749821
+COM1Body = 1
+COM2Body = 1
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+/
+!-------------------------------------------------------------------------------
+! SV-mas10 parameterization from P. Kl\"upfel et al, PRC 79, 034310 (2009).
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SV-mas10" 
+func_file= 'NLO.func'
+t0       = -1813.907
+x0       =     0.232898
+t1       =   270.452
+x1       =     0.127181
+t2       =    57.215
+x2       =    -4.795203
+t3       = 12965.454
+x3       =    -0.062346
+sigma    =     0.33
+wsoq     =    54.27844
+wso      =   127.649
+hbm(1)   =    20.721260, 20.749821  
+CT0      =     0.0
+CT1      =     0.0
+Vp       =  -665.102
+Vn       =  -558.101
+! What is called the switching density  \rho_pair in the paper can be simulated
+! in our case through the appropriate use of our scaling factor alpha. 
+!    We have alpha = 0.16/\rho_pair.
+alpha    =     0.80914331951
+sigmap   =     1.0
+hbm(1)   = 20.721260, 20.749821
+COM1Body = 1
+COM2Body = 1
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+/

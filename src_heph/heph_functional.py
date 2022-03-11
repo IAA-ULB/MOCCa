@@ -538,7 +538,7 @@ def ProcessParameterization(fname, src, target):
         resetparam= resetparam+ ts.reset.substitute(dic)
         
     # Remove the trailing comma and add line-end
-    readparam = readparam[:-1] + '\n'    
+    readparam = readparam[:-5] + '\n'    
     
     dic= {}
     dic['PARAMDECL']   = decl
@@ -586,6 +586,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
         (tempden, coupling) = ParseDensities(Functional_terms[i])
         if(len(tempden) == 4):
           Quadri = True
+          
+        # Do not include terms which include pairing densities in this accounting
     
         # Generate a bunch of strings to insert into the FORTRAN code for this
         # particular term 
@@ -616,7 +618,12 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
           elif(len(tempden) == 3):
             sumtotal_tri  = sumtotal_tri  + st + '&\n'
           elif(len(tempden) == 4):
-            sumtotal_quad = sumtotal_quad + st + '&\n'
+            pairing_term = False
+            for k in range(4):
+              if ('P' in tempden[k]):
+                pairing_term = True
+            if(not pairing_term):
+              sumtotal_quad = sumtotal_quad + st + '&\n'
         else:
           sumtotal_dd = sumtotal_dd + st + '&\n'
           
