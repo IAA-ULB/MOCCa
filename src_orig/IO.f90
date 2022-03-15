@@ -2098,9 +2098,9 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     !       econdn,econdp,eshcorn,eshcorp,lambdan,lambdap,ainer,rigid,
     !       etott,etable
 
-    R0  = 1.2
     A   = neutrons + protons
-    fac = 4. * pi/(3. * (R0 *(A))**2 * A) * Q(3) * sqrt(5.0d0/(16.0d0*pi))
+    R0  = 1.2 * A**(1.0/3.0)
+    fac = 4. * pi/(3. * R0**2 * A) *  sqrt(5.0d0/(16.0d0*pi))
 
     !                                              Q40   Gn   Gp  
     write(unit=6, fmt=3), int(protons),int(A),fac*Q(3), 0.0, 0.0,  &
