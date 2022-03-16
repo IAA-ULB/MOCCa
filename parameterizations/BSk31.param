@@ -39,6 +39,7 @@ Neutronsize   = 0.387, 0.467
 HOcomform     = .true.
 nucleonsize_selfconsistent=.false.
 CoulTreatment = 2
+eps      = 1e-8
 /
 
 

@@ -2015,7 +2015,7 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
 
-          write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
           &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
       enddo
       !-------------------------------------------------------------------------
@@ -2038,7 +2038,7 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
           
-          write(6,fmt=2),mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
+          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_can(ii)/2,BCSgaps(ii),& 
           &              mstate2,p2,spenergies(jj),rho_can(jj)/2,BCSgaps(jj) 
       enddo
     !---------------------------------------------------------------------------
@@ -2065,7 +2065,7 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
 
-          write(6,fmt=2),mstate1,p1,spenergies(ii),rho_pairing(ii,ii),HFBgaps(ii,ii),& 
+          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_pairing(ii,ii),HFBgaps(ii,ii),& 
           &              mstate2,p2,spenergies(jj),rho_pairing(jj,jj),HFBgaps(jj,jj)
       enddo
       !-------------------------------------------------------------------------
@@ -2088,7 +2088,7 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
           
-          write(6,fmt=2),mstate1,p1,spenergies(ii),rho_pairing(ii,ii),HFBgaps(ii,ii),& 
+          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_pairing(ii,ii),HFBgaps(ii,ii),& 
           &              mstate2,p2,spenergies(jj),rho_pairing(jj,jj),HFBgaps(jj,jj) 
       enddo
     !---------------------------------------------------------------------------
