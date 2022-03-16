@@ -1978,6 +1978,7 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     !            (at least approximately) eigenstates of J_z, then this output
     !            will effectively be nonsense.
     !---------------------------------------------------------------------------
+    type(moment), pointer :: quadrupole
     character(len=*), intent(in) :: combi
     integer, allocatable :: indices(:)
     integer              :: i,ii, p1, p2,jj
@@ -2106,14 +2107,15 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     ! to be perpendicular to the symmetry axis.
     !---------------------------------------------------------------------------
 
-    A   = neutrons + protons
-    R0  = 1.2 * A**(1.0/3.0)
-    fac = 4. * pi/(3. * R0**2 * A) *  sqrt(5.0d0/(16.0d0*pi))
+    quadrupole => FindMoment(2,0,.false.)
+!    A   = neutrons + protons
+!    R0  = 1.2 * A**(1.0/3.0)
+!    fac = 4. * pi/(3. * R0**2 * A) *  sqrt(5.0d0/(16.0d0*pi))
 
     ! Note: items marked with (*) are written as zero and, to the best of
     ! my (=W.R.) knowledge, not used by the level density code.  
     !                        IZ          IA    BETA     B4
-    write(unit=6, fmt=3)  int(protons),int(A),fac*Q(3), 0.0, &
+    write(unit=6, fmt=3)  int(protons),int(A),quadrupole%beta(4), 0.0,  &
     !                      HGN    HFGP  HFDN             HFDP
     &                      0.0,   0.0,  average_gap(2,1),average_gap(2,2), & 
     !                      HFDDN,HFDDP,HFEN,HFEP,HFUN,HFUP
