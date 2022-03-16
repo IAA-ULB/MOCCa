@@ -82,7 +82,7 @@ contains
   integer                   :: i
   real(KIND=dp)             :: vp(mv), kf0(mv), kfp(mv), kfn(mv), eta(mv)
   real(KIND=dp)             :: deltann(mv), deltanp(mv), deltans(mv)
-  real(KIND=dp)             :: delta(mv), xkfmax, xkfint, x(mv), mu(mv)
+  real(KIND=dp)             :: delta(mv), x(mv), mu(mv)
   real(KIND=dp)             :: integral(mv)
  
   vp = 0.0d0
@@ -100,31 +100,13 @@ contains
       eta(i) = 0.0d0
     endif
   enddo
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  ! Calculation of gaps in neutron and proton matter
-  ! Expressions taken from the Brussels axial code
-  
-  !Neutron matter: final, totally screened + self-energy
-  xkfmax=1.382d0
-  xkfint=1.25
 
-  deltann=3.37968*kfn**2/(kfn**2+0.556092**2)*(kfn-1.38236)**2 &
-  &    /((kfn-1.38236)**2+0.327517**2)
-  deltanp=3.37968*kfp**2/(kfp**2+0.556092**2)*(kfp-1.38236)**2 &
-  &    /((kfp-1.38236)**2+0.327517**2)
-  do i=1, mv
-    if (kfn(i).gt.xkfint) deltann(i)=0.39609*dexp(-(kfn(i)-xkfint)/0.1)
-    if (kfp(i).gt.xkfint) deltanp(i)=0.39609*dexp(-(kfp(i)-xkfint)/0.1)
-  enddo
-  ! nuclear matter: totally screened + free spectrum 
-  xkfmax=1.314d0
-  xkfint=1.12
-  deltans=11.5586*kf0**2*(kf0-1.3142)**2/(kf0**2+0.489932**2)/ & 
-  &       ((kf0-1.3142)**2+0.906146**2)
-  do i=1,mv
-    if (kf0(i).ge.xkfint) deltans(i)=0.42605*dexp(-(kf0(i)-xkfint)/0.1)
-  enddo
-  ! Calculating of gaps for pure nucleon species
+  deltann = Cao_delta(kfn, 1) ! pairing gap in pure neutron matter
+  deltanp = Cao_delta(kfp, 2) !                pure proton  matter
+  deltans = Cao_delta(kf0, 3) !                symmetric    matter
+
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+  ! Calculating of gaps for each nucleon species
   delta =(1.-abs(eta))*deltans 
   select case(iso)
   case(1)
@@ -140,7 +122,7 @@ contains
   ! mu_q = hbar^2/2M* k_f^2
   ! hbar^2/2M^* = hbar^2/2M + F_Nm_Nm(r)
   ! 
-  mu = (hbm(iso) + F_Nm_Nm(:,iso)) 
+  mu = hbm(iso) / 0.84  !+ F_Nm_Nm(:,iso)) 
   select case(iso)
   case(1)
     mu = mu * kfn**2
@@ -164,7 +146,6 @@ contains
   ! The function Lambda is 
   ! \Lambda(x) = log(16*x) + 2 * sqrt(1 + x) - 2 log(1 + sqrt{1 + x}) - 4.
   x = pairingcut(iso)/mu
-
   
   do i=1,mv
     if(delta(i) .gt. 0) then
@@ -202,6 +183,43 @@ contains
   l=dlog(16.d0*x)+2.d0*dsqrt(1.d0+x)- 2d0*dlog(1.d0+dsqrt(1.d0+x))-4.d0
   
  end function Lambda
+ 
+ pure function Cao_delta(kf, iso) result(delta)
+  !-----------------------------------------------------------------------------
+  ! Calculation of gaps in infinite neutron, proton and symmetric matter.
+  ! All expressions taken from the Brussels axial HFB code.
+  !-----------------------------------------------------------------------------
+  real(KIND=dp), intent(in) :: kf(mv)
+  integer, intent(in)       :: iso
+  real(KIND=dp)             :: delta(mv), xkfint, xkfmax
+  integer                   :: i
+  
+  select case(iso)
+  case(1,2)
+    ! Neutron matter and proton matter have identical gaps for this prescription
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    xkfmax= 1.382d0
+    xkfint= 1.25
+    delta = 3.37968*kf**2/(kf**2+0.556092**2)*(kf-1.38236)**2 &
+    &    /((kf-1.38236)**2+0.327517**2)
+
+    do i=1, mv
+      if (kf(i).gt.xkfint) delta(i)=0.39609*dexp(-(kf(i)-xkfint)/0.1)
+    enddo
+
+  case(3)
+    ! Symmetric matter
+
+    xkfmax=1.314d0
+    xkfint=1.12
+    delta =11.5586*kf**2*(kf-1.3142)**2/(kf**2+0.489932**2)/ & 
+    &       ((kf-1.3142)**2+0.906146**2)
+    do i=1,mv
+      if (kf(i).ge.xkfint) delta(i)=0.42605*dexp(-(kf(i)-xkfint)/0.1)
+    enddo
+  end select
+    
+ end function Cao_delta
  
 end module pairing_strengths
 

@@ -1051,7 +1051,7 @@ def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,
     if( ddep == '1'):
         erear = '' 
     else:
-        rearcoef = '+' + '0.5d0 * (%d - %s)'%(2-len(densities)+1, ddep) 
+        rearcoef = '+' + '0.5d0 * (%d - (%s))'%(2-len(densities)+1, ddep) 
         dic['REARCOEF'] = rearcoef
         erear = ts.rear.substitute(dic)
         
