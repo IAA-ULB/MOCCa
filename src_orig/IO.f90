@@ -2095,22 +2095,35 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     end select
     !  The final line is composed of various informations
     !  Z, A, beta2, beta4, Gn, Gp, Deltan, Deltap, ddmn, ddmp,
-    !       econdn,econdp,eshcorn,eshcorp,lambdan,lambdap,ainer,rigid,
-    !       etott,etable
+    !
+    !        READ(15,*,err=5) IZ,IA,BETA,HFBET4,HFGN,HFGP,
+    ! &       HFDN,HFDP,HFDDN,HFDDP,HFEN,HFEP,HFUN,HFUP,HFLN,
+    ! &       HFLP,HFIN,HFIP,HFJ2,HFE1,HFE2
+    !
+    ! NOTE: the level density code assumes axial symmetry. This routine is
+    ! coded at the moment ASSUMING that the z-axis is one of axial symmetry.
+    ! Quantities written to file correspond to the y-axis, which is ASSUMED
+    ! to be perpendicular to the symmetry axis.
+    !---------------------------------------------------------------------------
 
     A   = neutrons + protons
     R0  = 1.2 * A**(1.0/3.0)
     fac = 4. * pi/(3. * R0**2 * A) *  sqrt(5.0d0/(16.0d0*pi))
 
-    !                                              Q40   Gn   Gp  
-    write(unit=6, fmt=3), int(protons),int(A),fac*Q(3), 0.0, 0.0,  &
-    !                        Deltan Deltap   
-    &                     average_gap(2,1),average_gap(2,2) ,0.0,  &
-    !                     ddmn, ddmp, econdn, econdp, eshcorn, eshcorp 
-    &                      0.0,  0.0,    0.0,    0.0,     0.0,     0.0,   &  
-     !                     lambdan, lambdap,   ainer, rigid, 
-    &                      FermiEnergy(1),  FermiEnergy(2), Belyaev(2,3), &
-    &                      0.0d0, Rigid(2,3), totalE, 0.0
+    ! Note: items marked with (*) are written as zero and, to the best of
+    ! my (=W.R.) knowledge, not used by the level density code.  
+    !                        IZ          IA    BETA     B4
+    write(unit=6, fmt=3)  int(protons),int(A),fac*Q(3), 0.0, &
+    !                      HGN    HFGP  HFDN             HFDP
+    &                      0.0,   0.0,  average_gap(2,1),average_gap(2,2), & 
+    !                      HFDDN,HFDDP,HFEN,HFEP,HFUN,HFUP
+    &                      0.0,   0.0,  0.0, 0.0, 0.0, 0.0, & 
+    !                      HFLN, HFLP, 
+    &                      FermiEnergy(1), FermiEnergy(2),  &
+    !                      HFIN        ,         HFIP,   HFJ2 
+    &                      Belyaev(2,1), Belyaev(2,2), J2(2,3), &
+    !                      HFE1  , HE2
+    &                      totalE, 0.0
 
     close(unit=6)
   end subroutine combi_output
