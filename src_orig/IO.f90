@@ -38,8 +38,8 @@ module IO
  ! ININWP : $ININWP
  ! ININWT : $ININWT
  ! 
- !
- !  
+ !  TR    : $TR
+ ! NTR    : $NTR
  !==============================================================================
 
 use geninfo
@@ -1982,7 +1982,7 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     character(len=*), intent(in) :: combi
     integer, allocatable :: indices(:)
     integer              :: i,ii, p1, p2,jj
-    real(KIND=dp)        :: R0, A, fac, mstate1, mstate2
+    real(KIND=dp)        :: A, mstate1, mstate2
 
     1 format (a1, 3i4)
     2 format (2(f5.1,i2,3f8.3))
@@ -2065,9 +2065,12 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
 
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
+          
+$TR          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),HFBgaps(ii,ii),& 
+$TR          &              mstate2,p2,spenergies(jj),rho_HF(jj),HFBgaps(jj,jj)
 
-          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_pairing(ii,ii),HFBgaps(ii,ii),& 
-          &              mstate2,p2,spenergies(jj),rho_pairing(jj,jj),HFBgaps(jj,jj)
+$NTR         write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),HFBgaps(ii,ii),& 
+$NTR         &              mstate2,p2,spenergies(jj),rho_HF(jj),HFBgaps(jj,jj)
       enddo
       !-------------------------------------------------------------------------
       ! b) single-particle proton states
@@ -2088,9 +2091,12 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
 
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
+
+$TR      write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),HFBgaps(ii,ii),& 
+$TR      &              mstate2,p2,spenergies(jj),rho_HF(jj),HFBgaps(jj,jj) 
           
-          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_pairing(ii,ii),HFBgaps(ii,ii),& 
-          &              mstate2,p2,spenergies(jj),rho_pairing(jj,jj),HFBgaps(jj,jj) 
+$NTR      write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),HFBgaps(ii,ii),& 
+$NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),HFBgaps(jj,jj) 
       enddo
     !---------------------------------------------------------------------------
     end select
@@ -2108,9 +2114,6 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     !---------------------------------------------------------------------------
 
     quadrupole => FindMoment(2,0,.false.)
-!    A   = neutrons + protons
-!    R0  = 1.2 * A**(1.0/3.0)
-!    fac = 4. * pi/(3. * R0**2 * A) *  sqrt(5.0d0/(16.0d0*pi))
 
     ! Note: items marked with (*) are written as zero and, to the best of
     ! my (=W.R.) knowledge, not used by the level density code.  
