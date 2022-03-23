@@ -1997,7 +1997,8 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
       ! BCS case: things are straightforward
       !-------------------------------------------------------------------------
       ! a) single-particle neutron states
-      write(6, fmt=1) '*', int(protons), int(neutrons+protons), nwn/2
+$TR      write(6, fmt=1) '*', int(protons), int(neutrons+protons),  +nwn/2
+$NTR     write(6, fmt=1) '*', int(protons), int(neutrons+protons),  -nwn/2
       indices = OrderSpwfsISO(-1)
       
       do i=1,nwn/2
@@ -2021,7 +2022,8 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
       enddo
       !-------------------------------------------------------------------------
       ! b) single-particle proton states
-      write(6, fmt=1) ' ', int(protons), int(neutrons+protons), nwp/2
+$TR      write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
+$NTR     write(6, fmt=1) ' ', int(protons), int(neutrons+protons),-nwp/2
       indices = OrderSpwfsISO(+1)
       do i=1,nwp/2
           ii     = indices(i)
@@ -2047,7 +2049,8 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
       ! HFB case: things are less straightforward
       !-------------------------------------------------------------------------
       ! a) single-particle neutron states
-      write(6, fmt=1) '*', int(protons), int(neutrons+protons), nwn/2
+$TR      write(6, fmt=1) '*', int(protons), int(neutrons+protons),+nwn/2
+$NTR     write(6, fmt=1) '*', int(protons), int(neutrons+protons),-nwn/2
       indices = OrderSpwfsISO(-1)
       
        do i=1,nwn/2
@@ -2074,7 +2077,8 @@ $NTR         &              mstate2,p2,spenergies(jj),rho_HF(jj),HFBgaps(jj,jj)
       enddo
       !-------------------------------------------------------------------------
       ! b) single-particle proton states
-      write(6, fmt=1) ' ', int(protons), int(neutrons+protons), nwp/2
+$TR       write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
+$NTR      write(6, fmt=1) ' ', int(protons), int(neutrons+protons),-nwp/2
       indices = OrderSpwfsISO(+1)
       do i=1,nwp/2
           ii     = indices(i)
