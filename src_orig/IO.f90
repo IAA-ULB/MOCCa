@@ -1978,11 +1978,12 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     !            (at least approximately) eigenstates of J_z, then this output
     !            will effectively be nonsense.
     !---------------------------------------------------------------------------
-    type(moment), pointer :: quadrupole
+    type(moment), pointer        :: quadrupole
     character(len=*), intent(in) :: combi
     integer, allocatable :: indices(:)
     integer              :: i,ii, p1, p2,jj
     real(KIND=dp)        :: A, mstate1, mstate2
+    real(KIND=dp), allocatable :: tempgaps(:,:)
 
     1 format (a1, 3i4)
     2 format (2(f5.1,i2,3f8.3))
@@ -1998,7 +1999,7 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
       !-------------------------------------------------------------------------
       ! a) single-particle neutron states
 $TR      write(6, fmt=1) '*', int(protons), int(neutrons+protons),  +nwn/2
-$NTR     write(6, fmt=1) '*', int(protons), int(neutrons+protons),  -nwn/2
+$NTR     write(6, fmt=1) '#', int(protons), int(neutrons+protons),  +nwn/2
       indices = OrderSpwfsISO(-1)
       
       do i=1,nwn/2
@@ -2023,7 +2024,7 @@ $NTR     write(6, fmt=1) '*', int(protons), int(neutrons+protons),  -nwn/2
       !-------------------------------------------------------------------------
       ! b) single-particle proton states
 $TR      write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
-$NTR     write(6, fmt=1) ' ', int(protons), int(neutrons+protons),-nwp/2
+$NTR     write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
       indices = OrderSpwfsISO(+1)
       do i=1,nwp/2
           ii     = indices(i)
@@ -2047,10 +2048,15 @@ $NTR     write(6, fmt=1) ' ', int(protons), int(neutrons+protons),-nwp/2
     !---------------------------------------------------------------------------
     case(2)
       ! HFB case: things are less straightforward
+      tempgaps = HFBGaps
+
+      if((.not. diagsphamil) .and. allocated(HFTransfo)) then
+        call calc_gaps_HF(tempgaps, HFTransfo)
+      endif
       !-------------------------------------------------------------------------
       ! a) single-particle neutron states
 $TR      write(6, fmt=1) '*', int(protons), int(neutrons+protons),+nwn/2
-$NTR     write(6, fmt=1) '*', int(protons), int(neutrons+protons),-nwn/2
+$NTR     write(6, fmt=1) '#', int(protons), int(neutrons+protons),+nwn/2
       indices = OrderSpwfsISO(-1)
       
        do i=1,nwn/2
@@ -2069,16 +2075,16 @@ $NTR     write(6, fmt=1) '*', int(protons), int(neutrons+protons),-nwn/2
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
           
-$TR          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),HFBgaps(ii,ii),& 
-$TR          &              mstate2,p2,spenergies(jj),rho_HF(jj),HFBgaps(jj,jj)
+$TR          write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),tempgaps(ii,ii),& 
+$TR          &              mstate2,p2,spenergies(jj),rho_HF(jj),tempgaps(jj,jj)
 
-$NTR         write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),HFBgaps(ii,ii),& 
-$NTR         &              mstate2,p2,spenergies(jj),rho_HF(jj),HFBgaps(jj,jj)
+$NTR         write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),maxval(abs(tempgaps(ii,:))),& 
+$NTR         &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgaps(jj,:))) 
       enddo
       !-------------------------------------------------------------------------
       ! b) single-particle proton states
 $TR       write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
-$NTR      write(6, fmt=1) ' ', int(protons), int(neutrons+protons),-nwp/2
+$NTR      write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
       indices = OrderSpwfsISO(+1)
       do i=1,nwp/2
           ii     = indices(i)
@@ -2096,12 +2102,12 @@ $NTR      write(6, fmt=1) ' ', int(protons), int(neutrons+protons),-nwp/2
           mstate1 = force_halfinteger(mstate1)
           mstate2 = force_halfinteger(mstate2)
 
-$TR      write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),HFBgaps(ii,ii),& 
-$TR      &              mstate2,p2,spenergies(jj),rho_HF(jj),HFBgaps(jj,jj) 
+$TR      write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),tempgaps(ii,ii),& 
+$TR      &              mstate2,p2,spenergies(jj),rho_HF(jj),tempgaps(jj,jj) 
           
-$NTR      write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),HFBgaps(ii,ii),& 
-$NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),HFBgaps(jj,jj) 
-      enddo
+$NTR      write(6,fmt=2) mstate1,p1,spenergies(ii),rho_HF(ii),maxval(abs(tempgaps(ii,:))),& 
+$NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgaps(jj,:)))  
+    enddo
     !---------------------------------------------------------------------------
     end select
     !  The final line is composed of various informations

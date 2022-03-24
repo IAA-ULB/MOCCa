@@ -1497,6 +1497,9 @@ $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
       !-------------------------------------------------------------------------      
       ! We have now calculated the gaps (without cutoffs) in the basis that 
       ! is currently in storage. This can either be the HF basis or not!
+      
+      ! I could do this with the transformation routine below, but this was
+      ! historically first and block-wise, so I keep it. 
       if(.not.diagsphamil .and. allocated(HFtransfo)) then
         ! Transform to the HF basis
         HFBgaps(si+1:si+T,si+1:si+T) = &
@@ -1531,6 +1534,40 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     call stop_timer(T_gaps)
 
   end subroutine calcHFBgaps
+
+  subroutine calc_gaps_HF(gaps, transfo)
+    !---------------------------------------------------------------------------
+    ! Input:
+    !    gaps   : pairing gaps in the basis in memory
+    !    transfo: unitary transformation from the basis in memory to the one 
+    !             we want.
+    !
+    ! Output:
+    !    gaps   :  gaps in the basis defined by the transformation.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), allocatable, intent(inout) :: gaps(:,:) 
+    real(KIND=dp), allocatable, intent(in)    :: transfo(:,:)
+    real(KIND=dp), allocatable                :: temp(:,:)
+    integer :: si, N, B, T
+    
+    temp = gaps
+    gaps = 0.0d0
+    
+    si = 0
+    do B=1,8,2
+      N = HFblocks(B)         ; if(N.eq.0) cycle
+      T = HFBlocks(B+1) + N
+        
+      gaps(si+1:si+T, si+1:si+T) = &
+      & matmul(transpose(transfo(si+1:si+T,si+1:si+T)),&
+      &                                          temp(si+1:si+T,si+1:si+T))
+      gaps(si+1:si+T, si+1:si+T) = &
+      &    matmul(gaps(si+1:si+T,si+1:si+T),transfo(si+1:si+T,si+1:si+T))
+
+      si = si + T
+    enddo
+  
+  end subroutine calc_gaps_HF 
 
   subroutine PrintHFBconvergence(rho_pairing, kappa_pairing)
     !---------------------------------------------------------------------------
