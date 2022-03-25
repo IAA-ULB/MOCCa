@@ -1566,7 +1566,7 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     ! should not include the constraints, nor the contribution of the 
     ! Coulomb potential
     allocate(temp(nx*ny*nz,2), couln(nx,ny,nz), coulp(nx,ny,nz))
-    temp = F_I_I - constraint_I_I
+    temp = F_I_I(:,1:2) - constraint_I_I
 
     Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
     Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
