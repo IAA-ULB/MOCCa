@@ -1592,7 +1592,7 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          write(1, fmt='(3f8.3, 8es25.12)') meshx(i), meshx(j), meshz(k),      &
+          write(1, fmt='(3f8.3, 8es25.12)') meshx(i), meshy(j), meshz(k),      &
           &          Vnucn(i,j,k), Vnucp(i,j,k), Couln(i,j,k), Coulp(i,j,k),   &
           &          0.0, 0.0 ,0.0, 0.0 
         enddo
