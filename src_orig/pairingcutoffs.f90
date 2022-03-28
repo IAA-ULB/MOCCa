@@ -75,6 +75,25 @@ contains
     return
   end function SymmetricFermi
   
+  real(KIND=dp) function FermiAbove(E, Lambda, it) result(Cutoff)
+    !---------------------------------------------------------------------------
+    ! Calculates a cutoff that utilises a single Fermi function above the 
+    ! Fermi energy. 
+    ! 
+    !        f^-2 = [1 + exp((  epsilon - lambda - DeltaE)/mu)]
+    !
+    !    with mu and DeltaE being read from input.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: E, Lambda
+    integer, intent(in)       :: it
+    real(Kind=dp)             :: Up
+    
+    Up   =     (E - Lambda - PairingCut(it))/PairingMu(it)
+    Cutoff = sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
+
+    return
+  end function FermiAbove
+  
   real(KIND=dp) function CosineCut(E, Lambda, it) result(Cutoff)
     !---------------------------------------------------------------------------
     ! Calculates a cutoff using a cosine function.

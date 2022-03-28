@@ -82,15 +82,15 @@ contains
   integer                   :: i
   real(KIND=dp)             :: vp(mv), kf0(mv), kfp(mv), kfn(mv), eta(mv)
   real(KIND=dp)             :: deltann(mv), deltanp(mv), deltans(mv)
-  real(KIND=dp)             :: delta(mv), x(mv), mu(mv)
+  real(KIND=dp)             :: delta(mv), x(mv), mu(mv), effm(mv)
   real(KIND=dp)             :: integral(mv)
  
   vp = 0.0d0
 
   ! Fermi wavelengths
-  kf0=(3.d0*pi**2*    rho(:,3))**(1./3.) ! Isoscalar density
-  kfn=(3.d0*pi**2*    rho(:,1))**(1./3.) ! Proton density
-  kfp=(3.d0*pi**2*    rho(:,2))**(1./3.) ! Neutron density
+  kf0=(3.d0/2.0d0*pi**2*    rho(:,3))**(1./3.) ! Isoscalar density
+  kfn=(3.d0      *pi**2*    rho(:,1))**(1./3.) ! Neutron density
+  kfp=(3.d0      *pi**2*    rho(:,2))**(1./3.) ! Proton  density
 
   ! Asymmetry \eta
   do i=1,mv
@@ -105,6 +105,8 @@ contains
   deltanp = Cao_delta(kfp, 2) !                pure proton  matter
   deltans = Cao_delta(kf0, 3) !                symmetric    matter
 
+  ! Calculate the effective masses
+  effm = hbm(iso) + F_Nm_Nm(:,iso) 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
   ! Calculating of gaps for each nucleon species
   delta =(1.-abs(eta))*deltans 
@@ -122,12 +124,11 @@ contains
   ! mu_q = hbar^2/2M* k_f^2
   ! hbar^2/2M^* = hbar^2/2M + F_Nm_Nm(r)
   ! 
-  mu = hbm(iso) / 0.84  !+ F_Nm_Nm(:,iso)) 
   select case(iso)
   case(1)
-    mu = mu * kfn**2
+    mu = effm * kfn**2
   case(2)
-    mu = mu * kfp**2
+    mu = effm * kfp**2
   end select   
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! calculation of the pairing strengths, inverted from the gaps. 
@@ -145,12 +146,12 @@ contains
   ! \Delta_q is the gap for species q and epsilon_l is the pairing cutoff. 
   ! The function Lambda is 
   ! \Lambda(x) = log(16*x) + 2 * sqrt(1 + x) - 2 log(1 + sqrt{1 + x}) - 4.
+
   x = pairingcut(iso)/mu
-  
   do i=1,mv
     if(delta(i) .gt. 0) then
       if(rho(i,iso) .gt. 1d-15) then
-        integral(i) = sqrt(mu(i)) * (2.d0*dlog(2.d0*mu(i)/delta(i))+Lambda(x(i)))
+        integral(i) = sqrt(mu(i))* (2.d0*dlog(2.d0*mu(i)/delta(i))+Lambda(x(i)))
       else
         integral(i) = 2 * sqrt(pairingcut(iso))
       endif
@@ -159,9 +160,17 @@ contains
     endif
   enddo
   
+!  if(iso .eq.1) then
+!    open( unit=47 )
+!    do i=1,nx
+!      write(47,'(i3,1p,20e11.3)') iso, rho(i,1), mu(i), 6.5, eta(i), kf0(i), kfn(i), &
+!      & delta(i), deltans(i), deltann(i), lambda(x(i)), integral(i)
+!    enddo
+!    write(47, '()')
+!  endif
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Final results for the pairing strengths
-  vp = - (8.*pi**2)  /integral  * (hbm(iso) + F_Nm_Nm(:,iso))**(1.5d0)
+  vp = - (8.*pi**2)  /integral*(effm)**1.5d0 
 
  end function Cao
 
@@ -215,7 +224,7 @@ contains
     delta =11.5586*kf**2*(kf-1.3142)**2/(kf**2+0.489932**2)/ & 
     &       ((kf-1.3142)**2+0.906146**2)
     do i=1,mv
-      if (kf(i).ge.xkfint) delta(i)=0.42605*dexp(-(kf(i)-xkfint)/0.1)
+      if (kf(i).ge.xkfint) delta(i)=0.42605d0*exp(-(kf(i)-xkfint)/0.1d0)
     enddo
   end select
     

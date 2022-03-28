@@ -28,21 +28,24 @@ CT0      = 0.0                             ! No Jmunu terms
 CT1      = 0.0                             ! 
 Vp       =  0.00000
 Vn       =  0.00000
-kappa_n  = 0.0 !-36630.4
-kappa_p  = 0.0 !-45207.2
+kappa_n  = -36630.4
+kappa_p  = -45207.2
+pairingmu= 0.25,0.25
 Cutneutron =       6.5
 Cutproton  =       6.5
+cuttype    = 2
 alpha    =    1.0
 sigmap   =    1.0
 hbm(1)   = 20.72126890,20.74983164      
 e2       = 1.43996446
 COM1Body = 2
 COM2Body = 1
-!Protonsize    = 0.895, 0.0
-!Neutronsize   = 0.387, 0.467 
-!HOcomform     = .true.
-!nucleonsize_selfconsistent=.true.
-!CoulTreatment = 2
+Protonsize    = 0.895, 0.0
+Neutronsize   = 0.387, 0.467 
+HOcomform     = .true.
+nucleonsize_selfconsistent=.true.
+CoulTreatment = 2
+eps=1e-8
 /
 
 
