@@ -86,8 +86,8 @@ E_DP_I_I_DP_I_I                ; +Vn/4                                          
 E_DP_I_I_DP_I_I                ; +Vp/4                                              ;   1   ; p ; p   
 E_D_I_I_DP_I_I_DP_I_I          ; -Vn/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; n ; n
 E_D_I_I_DP_I_I_DP_I_I          ; -Vp/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; p ; p
-E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_n/4.0                        ;   1   ; 0 ; 0 ; n ; n
-E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_p/4.0                        ;   1   ; 0 ; 0 ; p ; p
+E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_n/4.0                        ;   1   ; 0 ; 0 ; n ; n ;  vmicro(D_I_I, F_Nm_Nm,1,0)  
+E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_p/4.0                        ;   1   ; 0 ; 0 ; p ; p ;  vmicro(D_I_I, F_Nm_Nm,2,0)  
 E_DP_I_I_DP_I_I                ; +Vnm/4.0d0                                         ;   1   ; n ; n ;  vmicro(D_I_I, F_Nm_Nm,1,0)  
 E_DP_I_I_DP_I_I                ; +Vpm/4.0d0                                         ;   1   ; p ; p ;  vmicro(D_I_I, F_Nm_Nm,2,0)  
 ! Time-odd pairing density                  
