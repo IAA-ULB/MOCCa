@@ -212,19 +212,20 @@ def regroup_terms():
   
   global Functional_terms, coupling_constants, isospin_indices, extra_calls
   global density_dependence, term_grouping, term_number
-
   
   # Copy the lists into temporary lists
   tempterms = Functional_terms 
   tempcoupl = coupling_constants
   tempiso   = isospin_indices
   tempddep  = density_dependence
+  tempextra = extra_calls
   
-  term_grouping = []
-  Functional_terms = []
-  isospin_indices  = []
+  term_grouping      = []
+  Functional_terms   = []
+  isospin_indices    = []
   coupling_constants = []
   density_dependence = []
+  extra_calls        = []
   
   # First: find all terms with a unique structure  
   unique_terms = []
@@ -242,6 +243,7 @@ def regroup_terms():
         coupling_constants.append(tempcoupl[k])
         density_dependence.append(tempddep[k])
         isospin_indices.append(tempiso[k])
+        extra_calls.append(tempextra[k])
         
         term_number[uterm] = term_number[uterm] + 1
 
@@ -382,8 +384,6 @@ def ReadFunctional(fname):
             extra_calls.append(extra)            
           else:
             extra_calls.append('')            
-          print (line)
-          print (extra_calls[-1])          
       except IndexError:
           print ('Problem reading the following line in the func file.')
           print (line)
@@ -399,6 +399,7 @@ def RemoveTimeOddTerms():
     """
     global Functional_terms, coupling_constants, density_dependence
     global density_dependence, isospin_indices, extra_calls
+    
 
     toremove = []
     for i,term in enumerate(Functional_terms):
@@ -439,6 +440,7 @@ def RemoveTimeOddTerms():
           density_dependence.append(tempdd[j])
           isospin_indices.append(tempiso[j])
           extra_calls.append(temp_extra[j])
+
 
 def ParseDensities(term): 
     """

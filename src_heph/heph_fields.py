@@ -151,11 +151,14 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       fieldclean = fieldclean + '\n' + ts.clean.substitute(dic)
       fieldclean = fieldclean + '\n' + ts.clean_b.substitute(dic)
 
+      print(src_heph.heph_functional.extra_calls)
+      print(src_heph.heph_functional.Functional_terms)
       #-----------------------------------------------------------------------
       for nterm, term in enumerate(src_heph.heph_functional.Functional_terms): 
           (densities, cpl)=src_heph.heph_functional.ParseDensities(term)
           iso_ind = src_heph.heph_functional.isospin_indices[nterm]
           extra_call = src_heph.heph_functional.extra_calls[nterm]
+          
           #-------------------------------------------------------------------
           # Replace the densities in the list by the ones actually calculated
           

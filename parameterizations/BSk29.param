@@ -5,6 +5,8 @@
 &skf 
 name     = "BSk29" 
 func_file= 'BXL.func'
+! - - - - - - - - - - - - - - - - - - - - - 
+! Particle-hole parameters 
 t0       =   -3970.40,
 t1       =     394.880,
 t2       =       0.0001,
@@ -22,10 +24,25 @@ beta     =      0.5,
 gamma    =      0.0833333333,
 wso      =    64.6,
 wsoq     =   193.8
-Vp       =  -1250.00000
-Vn       =  -1250.00000
-alpha    =    1.0
-sigmap   =    1.0
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+! - - - - - - - - - - - - - - - - - - - - - 
+! Pairing parameters 
+Vp       =  0.00000
+Vn       =  0.00000
+Vmn      =  1.0
+Vmp      =  1.0
+kappa_n  =  0.0
+kappa_p  =  0.0
+alpha    =  1.0
+sigmap   =  1.0
+Cutneutron =  16
+Cutproton  =  16
+cuttype    =  2
+! - - - - - - - - - - - - - - - - - - - - - 
+! Constants and Coulomb
 hbm(1)   = 20.72126890,20.74983164      
 COM1Body = 2
 COM2Body = 1
@@ -34,10 +51,6 @@ Neutronsize   = 0.387, 0.467
 HOcomform     = .true.
 nucleonsize_selfconsistent=.false.
 CoulTreatment = 2
-CSDS0    = 0.0                             ! No s \Delta s term
-CSDS1    = 0.0                             ! 
-CT0      = 0.0                             ! No Jmunu terms
-CT1      = 0.0                             ! 
 /
 
 

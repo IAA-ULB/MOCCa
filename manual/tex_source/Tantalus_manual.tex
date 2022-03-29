@@ -769,7 +769,7 @@ in which case they will take (hopefully sensible) default values.
 \subsubsection{NLO EDF in the style of the Brussels group}
 %\begin{figure}
 \begin{minipage}{.8\textwidth}
-\begin{Verbatim}[fontsize=\small]
+\begin{Verbatim}[fontsize=\footnotesize]
 &skf 
 name     = "SLy4"         (R) ! Name of the parameterization. 
                               ! This needs to match name_param in the input data
@@ -789,7 +789,7 @@ x5       =      0.0       (R)
 beta     =      0.0       (R) ! Exponent of the density dependence (t4).
 gamma    =      0.0       (R) ! Exponent of the density dependence (t5).
 sigma    =      0.1666667 (R) ! Exponent of the density dependence (t3).
-wso      =    123.0,      (R) ! Spin-orbit strength.
+wso      =    123.0,      (R) ! Spin-orbit strengths.
 wsoq     =    123.0       (R) !  
 CT0      =      0.0       (R) ! Coupling constant (isoscalar) of the J^2 terms
 CT1      =      0.0       (R) ! Coupling constant (isovector) of the J^2 terms
@@ -797,6 +797,10 @@ CSDS0    =      0.0       (R) ! Coupling constant (isoscalar) of the s Delta s t
 CSDS1    =      0.0       (R) ! Coupling constant (isovector) of the s Delta s term
 Vn       =  -1250.00000   (R) ! Pairing strength (neutrons) of the ULB interaction.
 Vp       =  -1250.00000   (R) ! Pairing strength (protons) of the ULB interaction.
+Vnp      =    0.0         (R) ! Microscopic pairing strength on (1.0) or off (0.0)
+Vpm      =    0.0         (R) ! for neutrons and protons 
+kappa_n  =    0.0         (R) ! Strength of the neutron and proton gradient 
+kappa_p  =    0.0         (R) ! terms in the pairing functional
 alpha    =    1.0         (R) ! Alpha parameter in the ULB pairing interaction. 
 sigma_p  =    1.0         (R) ! Power of the density dependence in the pairing interaction. 
                               ! Alpha in EQ. (2) in S. Goriely et al, PRC88, 061302 (2013).

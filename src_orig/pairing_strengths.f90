@@ -50,6 +50,8 @@ contains
   integer, intent(in)       :: ptype, iso
   real(KIND=dp), intent(in) :: rho(mv,4), F_Nm_Nm(mv,4)
   real(KIND=dp)             :: vmicro(mv)
+  
+  call start_timer(T_microscopic_pairing)
  
   select case(ptype) 
   case(0) 
@@ -60,6 +62,8 @@ contains
     print *, '  0 : subroutine Cao'
     stop
   end select
+
+  call stop_timer(T_microscopic_pairing)
  
  end function vmicro
 
