@@ -585,6 +585,7 @@ subroutine initialize_all_timers()
    call add_timer('Spwf angular momentum '     , T_spwfangmom)  
    call add_timer('Charge density folding'     , T_chargedensity)  
    call add_timer('Collective MOIs'            , T_collective_moi)  
+   call add_timer('Microscopic pairing'        , T_microscopic_pairing)  
 
 end subroutine initialize_all_timers
 

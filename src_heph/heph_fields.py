@@ -155,7 +155,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       for nterm, term in enumerate(src_heph.heph_functional.Functional_terms): 
           (densities, cpl)=src_heph.heph_functional.ParseDensities(term)
           iso_ind = src_heph.heph_functional.isospin_indices[nterm]
-
+          extra_call = src_heph.heph_functional.extra_calls[nterm]
+          
           #-------------------------------------------------------------------
           # Replace the densities in the list by the ones actually calculated
           
@@ -363,8 +364,9 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                                                   cc, # Coupling constant
                                               newcpl, # Coupling of the indices 
                                                    b, # Isospin indices
-                                                  dd] # Density dependence power
-                                                )
+                                                  dd, # Density dependence power
+                                          extra_call # Extra call to a subroutine
+                                                ])
                   else:
                     #-----------------------------------------------------------
                     # The term is density dependent AND the functional 
@@ -395,7 +397,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                                                   altcpl,
                                                      cpl,
                                                     isoc,
-                                                altdden])
+                                                altdden, 
+                                                extra_call])
                   
                 startind = startind + OrderOfDen(altden) 
       # End of the costruction of all terms in the fields
@@ -541,8 +544,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                 for l in indices:
                     dic['DENIND'] = dic['DENIND'] + ',%d'%int(l+1)
                 dic['ISOALT']= Isospinindices(fieldterm[5][i])
-                if(fieldterm[-1] != '1' and i == 0): 
-                  dic['DD'] = fieldterm[-1]
+                if(fieldterm[+6] != '1' and i == 0): 
+                  dic['DD'] = fieldterm[+6]
                   # Expression with a call to 'pow'
                   dic['EXPR1'] = dic['EXPR1'] + ts.field_calc_DD.substitute(dic)
                 else:
@@ -563,6 +566,12 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                dic['SIGN']     =  '+'
              else:
                dic['SIGN']    =  '-'
+
+             if(fieldterm[-1] == ''):
+               dic['EXTRA'] = ''
+             else:
+               dic['EXTRA'] = '*(%s)'%fieldterm[-1]
+             
 
              FIELDCALC = FIELDCALC + ts.field_calc_full.substitute(dic)
              FIELDCALC = FIELDCALC[:-4] + '\n \n'

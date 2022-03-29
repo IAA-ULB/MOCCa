@@ -295,11 +295,13 @@ $TR        endif
     case(1)
        PairingCutoff => SymmetricFermi
     case(2)
-       PairingCutoff => CosineCut
+       PairingCutoff => FermiAbove
     case(3)
+       PairingCutoff => CosineCut
+    case(4)
        PairingCutoff => SymmetricFermizero
     case DEFAULT
-       print *, 'Unknown cutoff type CutType. Valid options are 1,2,3.'
+       print *, 'Unknown cutoff type CutType. Valid options are 1-4.'
        stop
     end select
     pairingcut(1) = cutneutron
@@ -315,7 +317,6 @@ $TR        endif
     end select
     !---------------------------------------------------------------------------
     ! 
-    
     if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
       print *, 'Invalid pairingscheme value.'
       stop
@@ -391,8 +392,10 @@ $TR        endif
     case(1)
        print 6, 'Symmetric Fermi'
     case(2)
-       print 6, 'Cosine'
+       print 6, 'Fermi above'
     case(3)
+       print 6, 'Cosine'
+    case(4)
        print 6, 'Sym. Fermi + Heaviside'
     end select
 

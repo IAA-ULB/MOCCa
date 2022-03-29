@@ -110,6 +110,9 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl):
     if(fname=='pairing.f90'):
         ProcessPairing(fname, src, target, so)
         return
+    if(fname=='pairing_strengths.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='BCS.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return

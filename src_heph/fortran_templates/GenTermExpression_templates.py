@@ -22,6 +22,7 @@ edent_DD  = T('pow($DEN(:$IND,$ISO), $EXP)')
 
 calc_z    = T(   tab + 'Edensity = 0.0_dp \n')
 calc_a    = T(   tab + 'EDensity = Edensity $SIGN $EDENT  \n')
+calc_extra= T(   tab + 'EDensity = Edensity * $EXTRA  \n')
 calc_b    = T(   tab + '$TERM$GROUPINDEX = $CPCTE * sum( Edensity) * dv \n')
 
 doloop    =    tab + 'do %s = 1, 3 \n'
