@@ -227,10 +227,18 @@ $REDUZ  coul_offset_z = 0
          &                                                  coul_offset_x+1:nx,&
          &                                                  coul_offset_y+1:ny,&
          &                                                  coul_offset_z+1:nz))
-         FoldedExchange=FoldCoulombPotential(ExchangePotential(                &
-         &                                                  coul_offset_x+1:nx,&
-         &                                                  coul_offset_y+1:ny,&
-         &                                                  coul_offset_z+1:nz))
+         
+         if(coultreatment .eq. 1) then
+           FoldedExchange=FoldCoulombPotential(ExchangePotential(              &
+           &                                                coul_offset_x+1:nx,&
+           &                                                coul_offset_y+1:ny,&
+           &                                                coul_offset_z+1:nz))
+         else
+           if(.not. allocated(FoldedExchange)) then
+            allocate (FoldedExchange(nx,ny,nz,2))
+           endif
+           foldedexchange = 0.0d0
+         endif
       endif
     endif
 
