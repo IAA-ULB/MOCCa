@@ -91,7 +91,7 @@ contains
         &                    gradient_stepsize, gradient_mu,                   &
         &                    maxiter, printiter, strategy,                     &
         &                    estimateparams, estimategradparams,               &
-        &                    gradient_safety                              
+        &                    gradient_safety, efficientHFB                            
         
 
         if(present(file_number)) then
@@ -127,6 +127,19 @@ contains
         else
           diagsphamil = .true.
         endif
+        
+        ! Efficient HFB-solving is not implemented for the gradient solver (yet)    
+        if(efficientHFB .and. pairingscheme.ne.0) then
+           print *, 'EfficientHFB can not yet be combined with the gradient solver.'
+           stop
+        endif
+        
+        if(efficientHFB) then
+          diagsphamil = .false.
+          ConstructCanonicalBasis => ConstructCanonicalBasis_efficient
+        else
+          ConstructCanonicalBasis => ConstructCanonicalBasis_inefficient
+        endif 
 
     end subroutine ReadEvolution
 
@@ -146,6 +159,7 @@ contains
 
 !        5 format(' Preconditioning   : ', a20 )
         6 format(' Diagonalise the s.p. hamiltonian: ', a3)
+        7 format(' EfficientHFB : ACTIVE! ')
            
         print 1
         print 2, adjustl(Strategy)
@@ -166,6 +180,7 @@ contains
         endif
 !        print 5, adjustl(Precondition)
 
+        if(efficientHFB) print 7
         if(diagsphamil) then
             print 6, 'YES'
         else

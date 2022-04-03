@@ -213,8 +213,14 @@ $ZEROING
       DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
     case(2)
       ! HFB calculation
-      DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
-      DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
+      if(.not. efficientHFB) then
+        DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
+        DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
+      else
+        DenPsi    => HFPsi    ; DenDPsi   => HFDPsi 
+        DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
+      endif
+      
     end select
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

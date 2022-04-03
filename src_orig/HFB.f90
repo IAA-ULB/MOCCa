@@ -101,9 +101,15 @@ module HFB
       logical, intent(in)   :: onthefly
    end function
   end interface
+  
   !-----------------------------------------------------------------------------
   ! Which routine to use to find the Fermi energy
   procedure(FindFermi_Brent), pointer  :: FindFermi
+
+  !-----------------------------------------------------------------------------
+  ! Which routine to use to construct the canonical basis
+  procedure(ConstructCanonicalBasis_inefficient), pointer :: &
+  &                                                      ConstructCanonicalBasis
 
 contains
     
@@ -1775,7 +1781,7 @@ $NTR  enddo
     
    end subroutine Canonical
    
-   subroutine ConstructCanonicalBasis(Transfo)
+   subroutine ConstructCanonicalBasis_inefficient(Transfo)
     !---------------------------------------------------------------------------
     ! Transform the spwf wavefunctions in the HFBasis into Canbasis, with the 
     ! passed in Transfo. 
@@ -1817,7 +1823,52 @@ $NTR  enddo
       !-------------------------------------------------------------------------
     enddo
     
-   end subroutine ConstructCanonicalBasis
+   end subroutine ConstructCanonicalBasis_inefficient
+   
+   subroutine ConstructCanonicalBasis_efficient(transfo)
+    !---------------------------------------------------------------------------
+    ! A more memory-efficient version of ConstructCanonicalBasis, i.e. a
+    ! routine that performs an "in-place" transformation of the array HF-basis.
+    !
+    ! Input:
+    !   Transfo : transformation into the canonical basis
+    !---------------------------------------------------------------------------
+
+    integer                    :: wave1, wave2, B, N, si, wave3
+    real(KIND=dp), intent(in)  :: Transfo(nwt,nwt)
+    real(KIND=dp), allocatable :: temp(:,:,:)
+
+    if(.not.allocated(CanPsi)) then
+      allocate(Canenergies(nwt)) ; canenergies = 0.0
+    endif
+    canenergies = 0.0
+
+    si     = 0   
+    do B=1,8
+      N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
+      !-------------------------------------------------------------------------
+      ! Apply the transformation in this symmetry block
+      allocate(temp(mv,4,N))
+      do wave1=1, N 
+        temp(:,:,wave1) = 0
+        do wave2=1,N
+          temp(:,:,wave1)  = temp(:,:,wave1) &
+          &                   + Transfo(si+wave2,si+wave1) * HFPsi(:,:,si+wave2) 
+          
+          do wave3=1,N
+             canenergies(si+wave1) = canenergies(si+wave1) +                  &
+           &         Transfo(si+wave2,si+wave1) *  Transfo(si+wave3,si+wave1) & 
+           &                       * current_sph(si+wave2,si+wave3) 
+          enddo
+        enddo 
+      enddo
+      HFPsi(:,:,si+1:si+N) = temp
+      deallocate(temp)
+      si = si +  N
+      !-------------------------------------------------------------------------
+    enddo
+  
+   end subroutine ConstructCanonicalBasis_efficient
 
    pure function construct_generalized_density(rho, kappa) result(R)
     !---------------------------------------------------------------------------

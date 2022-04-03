@@ -156,7 +156,9 @@ module pairing
  !         HFB Hamiltonian
  !  (1) => Gradient solution, i.e. following the manifold of HFB solutions
  integer :: pairingscheme = 0
-
+ !------------------------------------------------------------------------------
+ ! Use (or not) the more efficient implementation of the two-basis method
+ logical :: efficientHFB = .false.
 
 contains
 
@@ -321,7 +323,6 @@ $TR        endif
       print *, 'Invalid pairingscheme value.'
       stop
     endif
-    
   end subroutine initpairing
 
   subroutine printpairing_init
