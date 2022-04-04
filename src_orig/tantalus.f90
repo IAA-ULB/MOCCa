@@ -251,7 +251,7 @@ subroutine ReachForWaterAndFood()
     endif    
 
     ! Construct the canonical basis    
-    call ConstructCanonicalBasis()
+    if(pairingtype.eq. 2) call ConstructCanonicalBasis()
     ! Derive all the single-particle wavefunctions in the HFPsi array
     call deriveHF()
 
@@ -317,7 +317,7 @@ subroutine ReachForWaterAndFood()
         FermiHistory   = FermiEnergy
 
         call SolvePairing(pairingscheme,ifail)
-        call ConstructCanonicalBasis()
+        if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
 
         ! Derive all spwfs in the HF-basis
         call deriveHF()
@@ -589,6 +589,8 @@ subroutine initialize_all_timers()
    call add_timer('Charge density folding'     , T_chargedensity)  
    call add_timer('Collective MOIs'            , T_collective_moi)  
    call add_timer('Microscopic pairing'        , T_microscopic_pairing)  
+   call add_timer('Orthogonalisation of h\psi' , T_Hortho)  
+   call add_timer('Construction HF transo'     , T_HFDiag)  
 
 end subroutine initialize_all_timers
 

@@ -313,7 +313,7 @@ contains
         use wavefunctions
         
         integer, intent(in)   :: iteration
-        integer               :: wave, iso, B, si, N, wave2, lwork, ifail
+        integer               :: wave, iso, B, si, N, wave2, lwork, ifail, i,k
         real(KIND=dp), allocatable :: work(:)
         real(KIND=dp)              :: hpsi(nx*ny*nz,4) 
 
@@ -381,9 +381,13 @@ contains
               ! Hence, our update should only take us into "new" directions.
               ! So, we orthogonalise the update direction to all spwfs in
               ! storage.
+              call start_timer(T_Hortho)
               do wave2=si+1,si+N
-                hpsi =   hpsi - current_sph(wave,wave2) * hfpsi(:,:,wave2)
-              enddo            
+               do i=1,4*mv
+                 hpsi(i,1) = hpsi(i,1)-current_sph(wave,wave2)*hfpsi(i,1,wave2)
+               enddo
+              enddo
+              call stop_timer(T_Hortho)
               ! The norm of the gradient can always be calculated as a 
               ! convergence measure.
               gradientnorm = gradientnorm + sum(hpsi**2)*dv
@@ -415,6 +419,8 @@ contains
               !
               ! (*) Actually, the single-particle hamiltonian BEFORE the 
               !     heavy-ball evolution.
+              call start_timer(T_HFdiag)
+              
               HFtransfo(si+1:si+N,si+1:si+N) = current_sph(si+1:si+N, si+1:si+N)
 
               lwork = -1; allocate(work(1))
@@ -424,6 +430,8 @@ contains
               call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
               &                       spenergies(si+1:si+N),work,lwork,ifail)
               deallocate(work)
+
+              call stop_timer(T_HFdiag)
               !-----------------------------------------------------------------
           endif
 
