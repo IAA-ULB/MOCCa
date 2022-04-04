@@ -1496,10 +1496,11 @@ $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
       enddo
       !-------------------------------------------------------------------------      
       ! We have now calculated the gaps (without cutoffs) in the basis that 
-      ! is currently in storage. This can either be the HF basis or not!
-      
-      ! I could do this with the transformation routine below, but this was
-      ! historically first and block-wise, so I keep it. 
+      ! is currently in storage. This can either be the HF basis or not, but
+      ! we need the gaps in the HF-basis to calculate the cutoffs. 
+      !-------------------------------------------------------------------------      
+      ! I could do this transformation with the transformation routine below, 
+      ! but this was  historically first and block-wise, so I keep it. 
       if(.not.diagsphamil .and. allocated(HFtransfo)) then
         ! Transform to the HF basis
         HFBgaps(si+1:si+T,si+1:si+T) = &

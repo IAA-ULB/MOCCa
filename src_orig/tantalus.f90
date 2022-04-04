@@ -227,8 +227,6 @@ subroutine ReachForWaterAndFood()
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
-    ! Derive all the single-particle wavefunctions 
-    call deriveHF()
 
     if( (Bogofromfile.and.readHFBinfofile) .and. pairingscheme.eq.1) then
       ! If using a gradient strategy and we want to continue from file.  
@@ -251,8 +249,12 @@ subroutine ReachForWaterAndFood()
       ! steps, with finite values for Delta.
       call SolvePairing(pairingscheme, ifail)
     endif    
-    
+
+    ! Construct the canonical basis    
     call ConstructCanonicalBasis()
+    ! Derive all the single-particle wavefunctions in the HFPsi array
+    call deriveHF()
+
     ! Calculate the initial densities and the charge density (separately)
     call densit(SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
@@ -314,10 +316,11 @@ subroutine ReachForWaterAndFood()
         ! Save Fermi energy
         FermiHistory   = FermiEnergy
 
-        ! Restore all the different derivatives.
-        call deriveHF()
         call SolvePairing(pairingscheme,ifail)
         call ConstructCanonicalBasis()
+
+        ! Derive all spwfs in the HF-basis
+        call deriveHF()
         call densit(SaveRho=.true.)
         call ConstructChargeDensity(ChargeDensity)
         if(follow_com) call adapt_com()

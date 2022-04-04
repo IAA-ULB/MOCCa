@@ -164,4 +164,39 @@ contains
   
  end function transform_vec
  
+ function transform_diag(H, transfo) result(Hc)
+  !-----------------------------------------------------------------------------
+  ! 
+  !
+  ! Input:
+  !   H    : matrix 
+  ! transfo: unitary transformation C
+  !
+  ! Output:
+  !   Hc   : diagonal matrix elements of 
+  !            Hc = C^T H 
+  !          (not that Hc is necessarily diagonal)
+  !-----------------------------------------------------------------------------
+  real(KIND=dp), intent(in)    :: H(nwt,nwt)
+  real(KIND=dp)                :: Hc(nwt)
+  real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
+  integer                      :: B, N, si, wave1, wave2, wave3
+  
+  si = 0   
+  do B=1,8
+    N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
+    do wave1=1,N
+      Hc(si+wave1) = 0
+      do wave2=1,N
+        do wave3=1,N
+         Hc(si+wave1) = Hc(si+wave1) +  Transfo(si+wave2,si+wave1) &
+         &                            * Transfo(si+wave3,si+wave1) & 
+         &                            * H(si+wave2,si+wave3) 
+        enddo
+      enddo
+    enddo
+    si = si +  N
+  enddo
+ end function transform_diag
+ 
 end module basis_transform

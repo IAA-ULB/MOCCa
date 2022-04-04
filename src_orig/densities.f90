@@ -137,14 +137,22 @@ contains
  
  subroutine ConstructCanonicalBasis()
     !---------------------------------------------------------------------------
-    !
-    ! [DESCRIPTION NECESSARY]
+    ! Construction of the canonical basis, including all possible transformation
+    ! matrices if we are doing HFB calculations in a single basis. 
     ! 
-    !
+    ! a. Diagonalize the density matrix rho to obtain the canonical 
+    !    transformation.
+    ! b. Apply the canonical transformation, either in-place or allocating 
+    !    a second set of spwfs.
+    ! c. If the canonical basis was constructed in-place, we transform all
+    !    relevant matrices as well. (Including the canonical transformation, 
+    !    which becomes trivial.)
     !---------------------------------------------------------------------------
-    integer :: ifail, wave, wave2
+    integer :: ifail, wave
 
     call start_timer(T_den_can)
+    
+    if(.not.allocated(Canenergies)) allocate(Canenergies(nwt)) 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! a. construct the transformation CanTransfo that brings us into the 
@@ -166,49 +174,36 @@ contains
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! b.2 
+    ! c. Transform all relevant matrices into the new basis
     if(efficientHFB) then
       rho_pairing   = transform_mat(rho_pairing, cantransfo)
       ! Kappa transforms differently from rho, but in case of real 
       ! matrices this is largely irrelevant
       kappa_pairing = transform_mat(kappa_pairing, cantransfo)
-      current_sph   = transform_mat(current_sph, cantransfo)
 
-      HFtransfo     = transform_vec(HFtransfo  , cantransfo)
-      ! TODO: Bogoliubov transformation should transform as well
-    endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! d. calculate the canonical energies, i.e. the diagonal matrix elements
-    !    of h in the new basis
-    if(.not.allocated(Canenergies)) allocate(Canenergies(nwt)) 
-    
-    if(allocated(current_sph)) then
+      current_sph   = transform_mat(current_sph, cantransfo)
       do wave=1,nwt
         canenergies(wave) = current_sph(wave,wave)
       enddo 
-    else
-      do wave=1,nwt
-        canenergies(wave) = 0.0
-        do wave2=1,nwt
-          canenergies(wave) = canenergies(wave) + &
-          &                   cantransfo(wave,wave2)**2 * spenergies(wave2)
-        enddo
-      enddo    
-    endif
-    
-    if(efficientHFB) then
+
+      HFtransfo   = transform_vec(HFtransfo  , cantransfo)
+      ! TODO: Bogoliubov transformation should transform as well
+
       ! The new basis IS the canonical basis, hence the canonical transformation
       ! is trivial.
       cantransfo = 0.0d0
       do wave=1,nwt
         cantransfo(wave,wave) = 1.0d0
       enddo 
+    else
+      canenergies = transform_diag(current_sph, cantransfo) 
     endif
-    
     call stop_timer(T_den_can)
-    call derivecan()
 
-  end subroutine ConstructCanonicalBasis
+    ! If we are not doing HFB efficiently, we should rederive the spwfs
+    if(.not. efficientHFB) call derivecan()
+
+ end subroutine ConstructCanonicalBasis
 
  subroutine densit(SaveRho)
     !---------------------------------------------------------------------------

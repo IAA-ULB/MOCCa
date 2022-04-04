@@ -389,7 +389,6 @@ $N3       endif
 $N3    endif
 
     if(allocated(CanPsi)) then
-      ! We are doing HFB with the two-basis method, but not efficiently
       do wave=1,nwt
         do k=1,4
 
@@ -404,25 +403,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
         enddo
       enddo
-      
-    elseif(efficientHFB) then
-      ! We are doing HFB in the two-basis method, but efficiently
-      do wave=1,nwt
-        do k=1,4
-
-$N2        call Derive_tot(HFPsi(:,k,wave), sx(k,wave),sy(k,wave), sz(k,wave),&
-$N2        &                                           HFdPsi(:,:,k,wave),    &
-$N2        &                                           HFddPsi(:,:,k,wave))
-
-$N3        call Derive_tot(HFPsi(:,k,wave), sx(k,wave),sy(k,wave), sz(k,wave),&
-$N3        &                                           HFPsi(:,:,k,wave),    &
-$N3        &                                           HFddPsi(:,:,k,wave),   &
-$N3        &                                           HFdddPsi(:,:,k,wave))
-        enddo
-      enddo
-
     endif
-
     call stop_timer(T_derivatives_can)
     
   end subroutine DeriveCan
@@ -659,10 +640,14 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
 
   subroutine GramSchmidt
     !---------------------------------------------------------------------------
-    ! This subroutine uses a Gram-Schmidt scheme to orthonormalise the Spwfs in
-    ! the HF basis. Small point of interest: the orthonormalisation is done in 
-    ! order of ascending energy within each symmetry block, in order to avoid
-    ! wasting CPU cycles reordering levels.
+    ! This subroutine uses a Gram-Schmidt scheme to orthonormalise the Spwfs 
+    ! in the array HFPsi. The orthonormalisation proceeds per symmetry block, 
+    ! as this saves precious CPU cycles/
+    !
+    ! In the interest of convergence speed, the orthogonalisation is done in 
+    ! order of ascending single-particle energy if this is possible, i.e. if
+    ! diagsphamil == .true..
+    ! 
     !---------------------------------------------------------------------------
     integer  :: b, i,j,nw, mw,l, si, N
     integer  :: indices(maxval(HFBlocks)), spatial_size
@@ -678,13 +663,21 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
     
     si = 0
     do b = 1, Blocks 
+        N = HFBlocks(b) ; if(N.eq.0) cycle
+
         indices = 0
-        N = HFBlocks(b)
-!        indices(1:HFblocks(b)) = OrderSpwfsSym(b)
-        do i = 1, HFBlocks(b)
+        if(diagsphamil) then
+          indices(1:HFblocks(b)) = OrderSpwfsSym(b)
+        else
+          do i=1, N
+            indices(i) = si + i
+          enddo
+        endif
+
+        do i = 1,N
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Normalize wave-function nw
-            nw = si + i !indices(i)
+            nw = indices(i)
             norm = sum(HFpsi(:,:,nw)**2) * dv
             HFPsi(:,:,nw) = (sqrt(1.0/norm)) * HFPsi(:,:,nw) 
             
@@ -711,20 +704,18 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
             !!$$OMP PARALLEL private(j, mw, norm, l)
             !!$$OMP DO
             do j= i+1, HFBlocks(b)
-                mw = si + j !indices(j)    
-                ! Real part of the inproduct
-                norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
-                do l=1,spatial_size
-                    HFPsi(l,1,mw) = HFPsi(l,1,mw) - norm * HFPsi(l,1,nw)
-                enddo
+              mw = indices(j)    
+              ! Real part of the inproduct
+              norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
+              do l=1,spatial_size
+                  HFPsi(l,1,mw) = HFPsi(l,1,mw) - norm * HFPsi(l,1,nw)
+              enddo
             enddo
            !!$$OMP END DO
            !!$$OMP END PARALLEL 
         enddo
         si = si + N
     enddo
-    
-
     call stop_timer(T_ortho)
 
   end subroutine GramSchmidt
