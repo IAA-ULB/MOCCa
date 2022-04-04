@@ -252,8 +252,9 @@ subroutine ReachForWaterAndFood()
       call SolvePairing(pairingscheme, ifail)
     endif    
     
+    call ConstructCanonicalBasis()
     ! Calculate the initial densities and the charge density (separately)
-    call densit(ifail,SaveRho=.false.)
+    call densit(SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
   
     ! Adopt the relevant quantities to the centre-of-mass of the nucleus
@@ -307,7 +308,6 @@ subroutine ReachForWaterAndFood()
         call CalcGaps(FermiEnergy, PairStabFactor)
         
         ! One heavy-ball step.
-        ! Note that the (diagonal) matrix elements of <h> get calculated here
         call Evolve(iter)
         call update_spwf_symmetries()
        
@@ -316,9 +316,9 @@ subroutine ReachForWaterAndFood()
 
         ! Restore all the different derivatives.
         call deriveHF()
-            
         call SolvePairing(pairingscheme,ifail)
-        call densit(ifail,SaveRho=.true.)
+        call ConstructCanonicalBasis()
+        call densit(SaveRho=.true.)
         call ConstructChargeDensity(ChargeDensity)
         if(follow_com) call adapt_com()
         ! Calculate a) moments values, b) readjustment and c) finally their

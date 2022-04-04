@@ -71,10 +71,6 @@ module evolution
     real*8, allocatable :: preconY(:,:,:,:)
     real*8, allocatable :: preconZ(:,:,:,:) 
 
-    !---------------------------------------------------------------------------
-    ! Store the change in the spwfs from last iteration for momentum
-    real(KIND = dp), allocatable :: Momentum_Updates(:,:,:)  
-
 contains
     
     subroutine ReadEvolution(file_number)
@@ -134,12 +130,7 @@ contains
            stop
         endif
         
-        if(efficientHFB) then
-          diagsphamil = .false.
-          ConstructCanonicalBasis => ConstructCanonicalBasis_efficient
-        else
-          ConstructCanonicalBasis => ConstructCanonicalBasis_inefficient
-        endif 
+        if(efficientHFB) diagsphamil = .false.
 
     end subroutine ReadEvolution
 

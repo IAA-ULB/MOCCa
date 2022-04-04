@@ -156,9 +156,6 @@ module pairing
  !         HFB Hamiltonian
  !  (1) => Gradient solution, i.e. following the manifold of HFB solutions
  integer :: pairingscheme = 0
- !------------------------------------------------------------------------------
- ! Use (or not) the more efficient implementation of the two-basis method
- logical :: efficientHFB = .false.
 
 contains
 
@@ -611,7 +608,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       endif
       ! Depending on the algorithm in use, we build a different single-particle
       ! hamiltonian matrix.
-      sphamil = build_sph(scheme)
+      sphamil = build_sph(scheme, efficientHFB)
 
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
@@ -672,18 +669,20 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     end select
   end subroutine calc_avg_gap
 
-  function build_sph(pscheme) result(sph)
+  function build_sph(pscheme, efficient) result(sph)
     !---------------------------------------------------------------------------
     !
     !   
     !---------------------------------------------------------------------------
     real(KIND=dp), allocatable :: sph(:,:)
     integer, intent(in)        :: pscheme
+    logical, intent(in)        :: efficient 
     integer                    :: i
 
     allocate(sph(nwt,nwt)) ; sph = 0.0d0
 
-    if(pscheme.eq. 0 .or. (.not. allocated(current_sph))) then
+    if((pscheme.eq. 0 .and. (.not. efficient)) &
+    &   .or. (.not. allocated(current_sph))) then
       ! Diagonal part
       do i=1, nwt
         sph(i,i) = spenergies(i)

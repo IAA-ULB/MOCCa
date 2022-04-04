@@ -563,6 +563,8 @@ $PRINT
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Correctly set the pointers to the spwfs
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! W.R. 03/04/22 : This is superfluous, as this is done in the pairing
+    !                 module. Unsure why I wrote this.
     select case(PairingType)
     case(0,1)
       ! HF or BCS Calculation
@@ -570,8 +572,13 @@ $PRINT
       DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
     case(2)
       ! HFB calculation
-      DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
-      DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
+      if(.not. efficientHFB) then
+        DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
+        DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
+      else
+        DenPsi    => HFPsi    ; DenDPsi   => HFDPsi 
+        DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
+      endif
     end select
 
     ! Kinetic Energy

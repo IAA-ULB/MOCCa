@@ -91,6 +91,7 @@ use wavefunctions
 use pairing
 use derivatives 
 use preconditioning 
+use basis_transform
 use timing
 
 implicit none
@@ -98,7 +99,6 @@ implicit none
     !---------------------------------------------------------------------------
     ! Type declaration of the various densities
 $DECLARATION   
-
     !---------------------------------------------------------------------------
     ! Density-mixing parameter default value.
     ! This can be set in the scfiteration namelist in the scfiteration model.
@@ -122,16 +122,6 @@ $NTR    real(KIND=dp), allocatable :: D_I_S_hist(:,:,:,:)
     ! estimation of the convergence rate
     integer           :: memory = 3
     !---------------------------------------------------------------------------
-    ! Pointer to which basis is supposed to be used to calculate the densities
-    ! Based on pairingtype
-    !  (0) HF  => use the HF basis
-    !  (1) BCS => use the HF basis
-    !  (2) HFB => Use the canonical basis
-    real(KIND=dp), pointer ::      DenPsi(:,:,:)
-    real(KIND=dp), pointer ::   DendPsi(:,:,:,:)
-    real(KIND=dp), pointer ::  DenddPsi(:,:,:,:)
-    real(KIND=dp), pointer :: DendddPsi(:,:,:,:)
-    !---------------------------------------------------------------------------
     ! As several other modules deal with the density D_I_I and its derivatives
     ! in various forms,  Hephaestos fills in here the appropriate symmetries.
     integer, parameter :: sx_rho = $SX_RHO
@@ -141,16 +131,90 @@ $NTR    real(KIND=dp), allocatable :: D_I_S_hist(:,:,:,:)
     ! preconditioning of the functionals
     integer, parameter :: sx_s(3) = (/$SX_SX,$SX_SY,$SX_SZ/)
     integer, parameter :: sy_s(3) = (/$SY_SX,$SY_SY,$SY_SZ/)
-    integer, parameter :: sz_s(3) = (/$SZ_SX,$SZ_SY,$SZ_SZ/)    
+    integer, parameter :: sz_s(3) = (/$SZ_SX,$SZ_SY,$SZ_SZ/)
     
 contains
+ 
+ subroutine ConstructCanonicalBasis()
+    !---------------------------------------------------------------------------
+    !
+    ! [DESCRIPTION NECESSARY]
+    ! 
+    !
+    !---------------------------------------------------------------------------
+    integer :: ifail, wave, wave2
 
-subroutine densit(ifail, SaveRho)
+    call start_timer(T_den_can)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! a. construct the transformation CanTransfo that brings us into the 
+    !    canonical basis by diagonalizing rho
+    call Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,             &
+    &              cantransfo,cancuttransfo,ifail)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! b. use this transformation to construct the physical wavefunctions
+    if(efficientHFB) then
+       ! Saving memory
+       call transform_spwfs_inplace(hfpsi, cantransfo)
+       if(allocated(momentum_updates)) then
+         call transform_spwfs_inplace(momentum_updates, cantransfo)
+       endif
+    else
+       ! Full-on transformation, we have memory to burn
+       call transform_spwfs(hfpsi, canpsi, cantransfo)
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! b.2 
+    if(efficientHFB) then
+      rho_pairing   = transform_mat(rho_pairing, cantransfo)
+      ! Kappa transforms differently from rho, but in case of real 
+      ! matrices this is largely irrelevant
+      kappa_pairing = transform_mat(kappa_pairing, cantransfo)
+      current_sph   = transform_mat(current_sph, cantransfo)
+
+      HFtransfo     = transform_vec(HFtransfo  , cantransfo)
+      ! TODO: Bogoliubov transformation should transform as well
+    endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! d. calculate the canonical energies, i.e. the diagonal matrix elements
+    !    of h in the new basis
+    if(.not.allocated(Canenergies)) allocate(Canenergies(nwt)) 
+    
+    if(allocated(current_sph)) then
+      do wave=1,nwt
+        canenergies(wave) = current_sph(wave,wave)
+      enddo 
+    else
+      do wave=1,nwt
+        canenergies(wave) = 0.0
+        do wave2=1,nwt
+          canenergies(wave) = canenergies(wave) + &
+          &                   cantransfo(wave,wave2)**2 * spenergies(wave2)
+        enddo
+      enddo    
+    endif
+    
+    if(efficientHFB) then
+      ! The new basis IS the canonical basis, hence the canonical transformation
+      ! is trivial.
+      cantransfo = 0.0d0
+      do wave=1,nwt
+        cantransfo(wave,wave) = 1.0d0
+      enddo 
+    endif
+    
+    call stop_timer(T_den_can)
+    call derivecan()
+
+  end subroutine ConstructCanonicalBasis
+
+ subroutine densit(SaveRho)
     !---------------------------------------------------------------------------
     ! Calculate all of the densities. 
     ! If SaveRho=.false., do not save the previous values to history!
     !---------------------------------------------------------------------------
-    integer, intent(out) :: ifail
 
     integer      :: i, it, wave, wave2, B, N, si, N2, T
     real(KIND=dp):: weight
@@ -186,23 +250,6 @@ $NTR      D_I_S_hist(:,:,:,1) = D_I_S
     ! Zero the current density
 $ZEROING
 
-    if(PairingType.eq.2) then
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Construct the transformations to 
-      ! a) Canonical basis, where rho_pairing is diagonal
-      ! b) Cut-canonical basis, where kappa_pairing with cutoffs is diagonal
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      call start_timer(T_den_can)
-      call Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,           &
-      &               cantransfo,cancuttransfo,ifail)
-     
-      ! Apply this transformation
-      call ConstructCanonicalBasis(cantransfo)
-      call stop_timer(T_den_can)
-
-      call derivecan()
-    endif
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Correctly set the pointers to the spwfs
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -220,7 +267,6 @@ $ZEROING
         DenPsi    => HFPsi    ; DenDPsi   => HFDPsi 
         DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
       endif
-      
     end select
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -290,8 +336,8 @@ $BCSEXPRESSION
       ! HFB calculations: full summations.
       !------------------------------------
       
-      ! For now, sum the pairing densities in the HFbasis, not the canonical
-      ! basis.
+      ! Temporary fix: sum the pairing densities in the HFbasis, not the 
+      !                canonical basis, althought it would be easy to change.
       DenPsi    => HFPsi   ; DenDPsi   => HFdPsi 
       DenddPsi  => HFddPsi ; DendddPsi => HFdddpsi
       
@@ -373,6 +419,25 @@ $HFBEXPRESSION
         enddo
         si = si + N + N2
       enddo
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! We (possibly) changed these pointers, make sure they are still
+      ! pointing the right way
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      select case(PairingType)
+      case(0,1)
+        ! HF or BCS Calculation
+        DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
+        DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
+      case(2)
+        ! HFB calculation
+        if(.not. efficientHFB) then
+          DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
+          DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
+        else
+          DenPsi    => HFPsi    ; DenDPsi   => HFDPsi 
+          DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
+        endif
+      end select
     end select
     call stop_timer(T_den_pp)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
