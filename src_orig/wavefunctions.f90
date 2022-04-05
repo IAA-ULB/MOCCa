@@ -831,12 +831,11 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     si = 0
     do B=1,8
       N = HFBlocks(B) ; if(N.eq.0) cycle
-
       !------------------------------------------------------------------------
       ! spwf_[...] quantities
       do wave=si+1,si+N        
         if(fullmatrices) then
-          startind = si+1 ; endind = si+N
+          startind = wave ; endind = si+N
         else
           startind = wave ; endind = wave
         endif
@@ -861,12 +860,25 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
           spwf_J2(3,wave,wave2)   = &
             &   angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave),   &
             &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
+
+          ! Symmetry properties of these things
+          spwf_JTR(1,wave2,wave) =-spwf_JTR(1,wave,wave2)
+          spwf_JTI(2,wave2,wave) =-spwf_JTI(2,wave,wave2)
+          spwf_J  (3,wave2,wave) =+spwf_J  (3,wave,wave2)
+
+          spwf_STR (1,wave2,wave) =-spwf_STR(1,wave,wave2)
+          spwf_STI (2,wave2,wave) =-spwf_STI(2,wave,wave2)
+          spwf_spin(3,wave2,wave) =+spwf_spin(3,wave,wave2)
+
+          spwf_J2 (1,wave2,wave)  =+spwf_J2(1,wave,wave2)
+          spwf_J2 (2,wave2,wave)  =+spwf_J2(2,wave,wave2)
+          spwf_J2 (3,wave2,wave)  =+spwf_J2(3,wave,wave2)
         enddo
        spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave,wave))))/2.        
       enddo      
       !-------------------------------------------------------------------------
       ! HF_[...] quantities
-      if(fullmatrices) then
+      if(fullmatrices .and. (.not.diagsphamil)) then
          do k=1,3
             HF_J  (k,si+1:si+N) = 0.0
             HF_J2 (k,si+1:si+N) = 0.0
@@ -902,6 +914,18 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
          do wave=si+1,si+N
           HF_JJ(wave) = (-1. + sqrt(1. + 4*sum(HF_J2(:,wave))))/2.
          enddo
+      elseif(diagsphamil) then
+        do k=1,3
+          do i=1,N
+            HF_J   (k,i) = spwf_J   (k,i,i)
+            HF_J2  (k,i) = spwf_J2  (k,i,i)
+            HF_JTR (k,i) = spwf_JTR (k,i,i)
+            HF_JTI (k,i) = spwf_JTI (k,i,i)
+            HF_spin(k,i) = spwf_spin(k,i,i)
+            HF_STR (k,i) = spwf_STR (k,i,i)
+            HF_STI (k,i) = spwf_STI (k,i,i)
+          enddo
+        enddo
       endif
       si = si + N
     enddo
