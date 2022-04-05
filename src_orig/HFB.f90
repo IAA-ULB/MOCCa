@@ -1476,7 +1476,8 @@ $TR        inda = si + wave1
         &                          hfdddpsi(:,:,:,inda),                       &
         &                        sx(:,inda), sy(:,inda), sz(:,inda),iso,.false.)
         
-        do wave2=1,N
+$NTR        do wave2=1,N
+$TR         do wave2=wave1,N
           ! The second index is always in the first block. 
           indb = si + wave2 
 
@@ -1490,8 +1491,7 @@ $TR        inda = si + wave1
 $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
           ! ... but the stored matrix is symmetric when time-reversal is 
           ! conserved; but this is not exploited at the moment!
-!$TR       HFBgaps(indb,inda) = HFBgaps(inda,indb)
-
+$TR       HFBgaps(indb,inda) = HFBgaps(inda,indb)
         enddo
       enddo
       !-------------------------------------------------------------------------      
