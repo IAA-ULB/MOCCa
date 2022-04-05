@@ -24,10 +24,21 @@ CSDS1= 0.0
 sigma    =      0.3 
 CT0      =      0.0
 CT1      =      0.0
-Vn       =  -1250.00000
-Vp       =  -1250.00000
-alpha    =    1.0
-sigmap   =    1.0
+! - - - - - - - - - - - - - - - - - - - - - 
+! Pairing parameters 
+Vn        =  -456.60000
+Vp        =  -500.20000
+Cutneutron=  16.0
+Cutproton =  16.0
+cuttype   =  2
+alpha     =    0.45
+sigmap    =    0.47
+pairingmu =  0.25,0.25
+kappa_n   =  0.0
+kappa_p   =  0.0
+Vnm       =  0.0
+Vpm       =  0.0
+! - - - - - - - - - - - - - - - - - - - - - 
 hbm(1)      = 20.72126890,20.74983164
 COM1Body = 2
 COM2Body = 1
