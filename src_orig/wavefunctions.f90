@@ -834,7 +834,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       !------------------------------------------------------------------------
       ! spwf_[...] quantities
       do wave=si+1,si+N        
-        if(fullmatrices) then
+        if(fullmatrices .and. (.not. diagsphamil)) then
           startind = wave ; endind = si+N
         else
           startind = wave ; endind = wave
