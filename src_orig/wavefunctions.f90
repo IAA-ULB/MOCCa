@@ -862,12 +862,12 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
 
           ! Symmetry properties of these things
-          spwf_JTR(1,wave2,wave) =-spwf_JTR(1,wave,wave2)
-          spwf_JTI(2,wave2,wave) =-spwf_JTI(2,wave,wave2)
+          spwf_JTR(1,wave2,wave) =+spwf_JTR(1,wave,wave2)
+          spwf_JTI(2,wave2,wave) =+spwf_JTI(2,wave,wave2)
           spwf_J  (3,wave2,wave) =+spwf_J  (3,wave,wave2)
 
-          spwf_STR (1,wave2,wave) =-spwf_STR(1,wave,wave2)
-          spwf_STI (2,wave2,wave) =-spwf_STI(2,wave,wave2)
+          spwf_STR (1,wave2,wave) =+spwf_STR(1,wave,wave2)
+          spwf_STI (2,wave2,wave) =+spwf_STI(2,wave,wave2)
           spwf_spin(3,wave2,wave) =+spwf_spin(3,wave,wave2)
 
           spwf_J2 (1,wave2,wave)  =+spwf_J2(1,wave,wave2)
