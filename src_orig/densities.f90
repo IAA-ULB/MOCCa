@@ -187,7 +187,7 @@ contains
       enddo 
 
       HFtransfo   = transform_vec(HFtransfo  , cantransfo)
-      ! TODO: Bogoliubov transformation should transform as well
+      Bogoliubov  = transform_bogo(Bogoliubov, cantransfo)
 
       ! The new basis IS the canonical basis, hence the canonical transformation
       ! is trivial.

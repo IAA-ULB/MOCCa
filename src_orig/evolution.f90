@@ -123,13 +123,7 @@ contains
         else
           diagsphamil = .true.
         endif
-        
-        ! Efficient HFB-solving is not implemented for the gradient solver (yet)    
-        if(efficientHFB .and. pairingscheme.ne.0) then
-           print *, 'EfficientHFB can not yet be combined with the gradient solver.'
-           stop
-        endif
-        
+                
         if(efficientHFB) diagsphamil = .false.
 
     end subroutine ReadEvolution

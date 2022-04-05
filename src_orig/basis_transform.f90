@@ -199,4 +199,42 @@ contains
   enddo
  end function transform_diag
  
+ function transform_bogo(Bogo, transfo) result(Bc)
+  !-----------------------------------------------------------------------------
+  ! Input: 
+  !    B     : Bogoliubov transformation to transform
+  !  transfo : unitary transformation C to employ 
+  !            (in the conventions of this module)
+  !-----------------------------------------------------------------------------
+  real(KIND=dp), intent(in)    :: Bogo(2*nwt,2*nwt)
+  real(KIND=dp)                :: Bc  (2*nwt, 2*nwt)
+  real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
+
+  integer                      :: B, N, N2, si, sb, T
+    
+  si = 0
+  sb = 0
+  Bc = 0.0
+  do B=1,8,2
+    N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
+    N2= HFblocks(B+1) 
+
+    T = N+N2 
+    
+    Bc(sb  +1:sb+  T, sb+T+1:sb+2*T) = &
+    &                       matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T),transfo)
+    Bc(sb+T+1:sb+2*T, sb+T+1:sb+2*T) = & 
+    &                       matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T),transfo)
+
+    Bc(sb  +1:sb+  T, sb+  1:sb+ T) = &
+    &                       matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T),transfo)
+    Bc(sb+T+1:sb+2*T, sb+  1:sb+ T) = & 
+    &                       matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T),transfo)
+
+    si = si +   T
+    sb = sb + 2*T
+  enddo
+
+ end function transform_bogo
+ 
 end module basis_transform
