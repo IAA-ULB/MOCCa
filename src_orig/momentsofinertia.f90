@@ -547,9 +547,8 @@ $NTR     ii = si + N + i
 $NTR     do j=i,N2
 $NTR      jj = si + N + j
 $NTR
-$NTR      jz(ii,jj) = angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj), & 
-$NTR                                              hfdpsi(:,:,:,jj)
-$NTR      jz(jj,ii) = jz(ii,jj)
+$NTR      jz(ii,jj)= angmom_z_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+$NTR      jz(jj,ii)= jz(ii,jj)
 $NTR     enddo
 $NTR  enddo
       !-------------------------------------------------------------------------

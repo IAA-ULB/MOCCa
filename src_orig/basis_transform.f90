@@ -126,6 +126,11 @@ contains
   !-----------------------------------------------------------------------------
   ! Transform the matrix M with the orthonormal transformation C = transfo.
   !
+  ! This routine is a bit wasteful: it constructs the new matrix in both 
+  ! signature blocks at the same time. When time-reversal is broken, this means
+  ! that some 0's are multiplied and added together. Since N/N2/T is generally
+  ! small, I don't care enough to do better.
+  ! 
   ! Input:
   !     M    : matrix to transform
   !  transfo : unitary transformation C to employ 
@@ -137,19 +142,21 @@ contains
   real(KIND=dp), intent(in)    :: M(nwt,nwt)
   real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
   real(KIND=dp)                :: Mc(nwt,nwt)
-  integer                      :: B, N, si
+  integer                      :: B, N, N2, si, T
 
   si      = 0   
   Mc = 0.0d0
-  do B=1,8
+  do B=1,8,2
     N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
+    N2= HFBlocks(B+1)
+    T = N + N2
 
-    Mc(si+1:si+N, si+1:si+N) =&
-    &             matmul(M(si+1:si+N, si+1:si+N), transfo(si+1:si+N, si+1:si+N))
-    Mc(si+1:si+N, si+1:si+N) =&
-    & matmul( transpose(transfo(si+1:si+N, si+1:si+N)),Mc(si+1:si+N, si+1:si+N))
+    Mc(si+1:si+T, si+1:si+T) =&
+    &             matmul(M(si+1:si+T, si+1:si+T), transfo(si+1:si+T, si+1:si+T))
+    Mc(si+1:si+T, si+1:si+T) =&
+    & matmul( transpose(transfo(si+1:si+T, si+1:si+T)),Mc(si+1:si+T, si+1:si+T))
 
-    si = si +  N
+    si = si +  T
   enddo  
   
  end function transform_mat 
@@ -226,7 +233,8 @@ contains
   !            (in the conventions of this module)
   !-----------------------------------------------------------------------------
   real(KIND=dp), intent(in)    :: Bogo(2*nwt,2*nwt)
-  real(KIND=dp)                :: Bc  (2*nwt, 2*nwt)
+  real(KIND=dp)                :: Bc  (2*nwt,2*nwt)
+  real(KIND=dp), allocatable   :: A   (    :,    :)
   real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
 
   integer                      :: B, N, N2, si, sb, T
@@ -240,19 +248,17 @@ contains
 
     T = N+N2 
     
+    A = transpose(transfo(si  +1:si+  T, si  +1:si  +T))
+    
     Bc(sb  +1:sb+  T, sb+T+1:sb+2*T) = &
-    &          matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T), &
-    &              transfo(si  +1:si+  T, si  +1:si  +T))
-
+    &            matmul(A,Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T))
     Bc(sb+T+1:sb+2*T, sb+T+1:sb+2*T) = & 
-    &          matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T), &
-    &              transfo(si  +1:si+  T, si  +1:si+  T))
-    Bc(sb  +1:sb+  T, sb+  1:sb+ T) = &
-    &          matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T), &
-    &              transfo(si  +1:si+  T, si  +1:si+  T))
-    Bc(sb+T+1:sb+2*T, sb+  1:sb+ T) = & 
-    &          matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T), &
-    &              transfo(si  +1:si+  T, si+  1:si+  T))
+    &            matmul(A,Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T))
+
+    Bc(sb  +1:sb+  T, sb+  1:sb+  T) = &
+    &            matmul(A, Bogo(sb  +1:sb+  T, sb+  1:sb+  T))
+    Bc(sb+T+1:sb+2*T, sb+  1:sb+  T) = & 
+    &            matmul(A, Bogo(sb+T+1:sb+2*T, sb+  1:sb+  T))
 
     si = si +   T
     sb = sb + 2*T

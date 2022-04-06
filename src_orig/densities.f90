@@ -185,6 +185,7 @@ contains
       do wave=1,nwt
         canenergies(wave) = current_sph(wave,wave)
       enddo 
+      HFBgaps    = transform_mat(HFBgaps, cantransfo)
 
       HFtransfo   = transform_vec(HFtransfo  , cantransfo)
       Bogoliubov  = transform_bogo(Bogoliubov, cantransfo)
