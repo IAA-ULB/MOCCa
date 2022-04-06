@@ -360,7 +360,8 @@ contains
             ! We always construct the matrix elements of the single-particle
             ! hamiltonian in the basis of s.p. wavefunctions in memory.
             do wave2=wave,si+N
-                current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+                current_sph(wave2,wave) = ddot(4*mv,hfpsi(:,1,wave2),1,hpsi(:,1),1)*dv 
+!                current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
                 current_sph(wave ,wave2) = current_sph(wave2,wave)
             enddo
             !-------------------------------------------------------------------
@@ -377,9 +378,11 @@ contains
               ! storage.
               call start_timer(T_Hortho)
               do wave2=si+1,si+N
-               do i=1,4*mv
-                 hpsi(i,1) = hpsi(i,1)-current_sph(wave,wave2)*hfpsi(i,1,wave2)
-               enddo
+                call daxpy(4*mv, current_sph(wave, wave2),&
+                &                                hpsi(:,1), 1, hfpsi(i,:,wave2))
+!               do i=1,4*mv
+!                 hpsi(i,1) = hpsi(i,1)-current_sph(wave,wave2)*hfpsi(i,1,wave2)
+!               enddo
               enddo
               call stop_timer(T_Hortho)
               ! The norm of the gradient can always be calculated as a 
@@ -389,8 +392,10 @@ contains
 
             !-------------------------------------------------------------------
             ! Add some history and 'momentum' to the update. 
-            momentum_updates(:,:,wave) = &
-            &               momentum*momentum_updates(:,:,wave) - dt/hbar * hpsi
+            hpsi = (-dt/hbar) * hpsi
+            call daxpy( 4*mv, momentum, momentum_updates(:,1,wave),1,hpsi(:,1),1)
+!            momentum_updates(:,:,wave) = &
+!            &               momentum*momentum_updates(:,:,wave) + hpsi
           enddo
           
           do wave=si+1, si+N

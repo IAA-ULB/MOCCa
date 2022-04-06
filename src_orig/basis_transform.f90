@@ -49,13 +49,12 @@ contains
   !  psi     : transformed set of spwfs
   !               psi' = C^T psi 
   !-----------------------------------------------------------------------------
-  integer                      :: wave1, wave2, B, N, si, c
+  integer                      :: wave1, wave2, B, N, si
   real(KIND=dp), intent(inout) :: psi(mv,4,nwt)
   real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
   real(KIND=dp), allocatable   :: temp(:,:,:)
 
   si      = 0   
-  c       = 0
   do B=1,8
     N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
     
@@ -71,8 +70,7 @@ contains
         ! Initial tests seem to show that daxpy is more efficient than an 
         ! implicit simple implementation
         call daxpy(4*mv, Transfo(si+wave2,si+wave1), &
-        &                 psi(:,1,si+wave2), 1, temp(:,:,wave1), 1 )
-        c = c +1 
+        &                 psi(:,1,si+wave2), 1, temp(:,1,wave1), 1 )
       enddo 
     enddo
     psi(:,:,si+1:si+N) =  temp
@@ -80,7 +78,6 @@ contains
     
     si = si +  N
   enddo
-  print *, 'TRANSFOS DONE', c 
  end subroutine transform_spwfs_inplace
 
  subroutine transform_spwfs(psi_in, psi_out, transfo)
@@ -118,7 +115,7 @@ contains
         ! Initial tests seem to show that daxpy is more efficient than an 
         ! implicit simple implementation
         call daxpy(4*mv, Transfo(si+wave2,si+wave1), &
-        &                 psi_in(:,1,si+wave2), 1, psi_out(:,:,wave1), 1 )
+        &                 psi_in(:,1,si+wave2), 1, psi_out(:,1,si+wave1), 1 )
       enddo 
     enddo
     si = si +  N
