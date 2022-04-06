@@ -30,6 +30,9 @@ module evolution
 
     implicit none
     
+    ! Since ddot is a LAPACK function (as opposed to a subroutine), it needs
+    ! to be declared explicitly.    
+    !real*8, external :: ddot
     !---------------------------------------------------------------------------
     ! Parameters of the iteration scheme
     real(KIND=dp):: dt    =  0.01
@@ -307,7 +310,7 @@ contains
         use wavefunctions
         
         integer, intent(in)   :: iteration
-        integer               :: wave, iso, B, si, N, wave2, lwork, ifail, i
+        integer               :: wave, iso, B, si, N, wave2, lwork, ifail
         real(KIND=dp), allocatable :: work(:)
         real(KIND=dp)              :: hpsi(nx*ny*nz,4) 
 
@@ -360,8 +363,7 @@ contains
             ! We always construct the matrix elements of the single-particle
             ! hamiltonian in the basis of s.p. wavefunctions in memory.
             do wave2=wave,si+N
-                current_sph(wave2,wave) = ddot(4*mv,hfpsi(:,1,wave2),1,hpsi(:,1),1)*dv 
-!                current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+                current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
                 current_sph(wave ,wave2) = current_sph(wave2,wave)
             enddo
             !-------------------------------------------------------------------
@@ -378,11 +380,7 @@ contains
               ! storage.
               call start_timer(T_Hortho)
               do wave2=si+1,si+N
-                call daxpy(4*mv, current_sph(wave, wave2),&
-                &                                hpsi(:,1), 1, hfpsi(i,:,wave2))
-!               do i=1,4*mv
-!                 hpsi(i,1) = hpsi(i,1)-current_sph(wave,wave2)*hfpsi(i,1,wave2)
-!               enddo
+                 hpsi = hpsi-current_sph(wave,wave2)*hfpsi(:,:,wave2)
               enddo
               call stop_timer(T_Hortho)
               ! The norm of the gradient can always be calculated as a 
@@ -392,10 +390,8 @@ contains
 
             !-------------------------------------------------------------------
             ! Add some history and 'momentum' to the update. 
-            hpsi = (-dt/hbar) * hpsi
-            call daxpy( 4*mv, momentum, momentum_updates(:,1,wave),1,hpsi(:,1),1)
-!            momentum_updates(:,:,wave) = &
-!            &               momentum*momentum_updates(:,:,wave) + hpsi
+            momentum_updates(:,:,wave) = &
+            &               momentum*momentum_updates(:,:,wave) - dt/hbar * hpsi
           enddo
           
           do wave=si+1, si+N

@@ -64,13 +64,13 @@ contains
       do wave2=1,N
         ! Don't bother if the wavefunction is not important enough
         if(abs(Transfo(si+wave2,si+wave1)).lt.basis_cut) cycle
-!        temp(:,:,wave1) = temp(:,:,wave1) +                                    &
-!        &                     Transfo(si+wave2,si+wave1) * psi(:,:,si+wave2) 
+        temp(:,:,wave1) = temp(:,:,wave1) +                                    &
+        &                     Transfo(si+wave2,si+wave1) * psi(:,:,si+wave2) 
 
         ! Initial tests seem to show that daxpy is more efficient than an 
         ! implicit simple implementation
-        call daxpy(4*mv, Transfo(si+wave2,si+wave1), &
-        &                 psi(:,1,si+wave2), 1, temp(:,1,wave1), 1 )
+!        call daxpy(4*mv, Transfo(si+wave2,si+wave1), &
+!        &                 psi(:,1,si+wave2), 1, temp(:,1,wave1), 1 )
       enddo 
     enddo
     psi(:,:,si+1:si+N) =  temp
@@ -109,13 +109,13 @@ contains
         ! Don't bother if the wavefunction is not important enough
         if(abs(Transfo(si+wave2,si+wave1)).lt.basis_cut) cycle
 
-!        psi_out(:,:,si+wave1)  = psi_out(:,:,si+wave1) +                       &
-!        &                     Transfo(si+wave2,si+wave1) * psi_in(:,:,si+wave2) 
+        psi_out(:,:,si+wave1)  = psi_out(:,:,si+wave1) +                       &
+        &                     Transfo(si+wave2,si+wave1) * psi_in(:,:,si+wave2) 
 
         ! Initial tests seem to show that daxpy is more efficient than an 
         ! implicit simple implementation
-        call daxpy(4*mv, Transfo(si+wave2,si+wave1), &
-        &                 psi_in(:,1,si+wave2), 1, psi_out(:,1,si+wave1), 1 )
+!        call daxpy(4*mv, Transfo(si+wave2,si+wave1), &
+!        &                 psi_in(:,1,si+wave2), 1, psi_out(:,1,si+wave1), 1 )
       enddo 
     enddo
     si = si +  N
