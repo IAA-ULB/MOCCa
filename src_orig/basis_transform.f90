@@ -25,6 +25,11 @@ module basis_transform
  
  implicit none
 
+ !------------------------------------------------------------------------------
+ ! Constructing the canonical basis can be demanding, so we include a cutoff
+ ! to save some CPU cycles for spwfs with small matrix elements.
+ real(KIND=dp), parameter :: basis_cut = 1d-12
+
 contains
 
  subroutine transform_spwfs_inplace(psi, transfo)
@@ -44,12 +49,13 @@ contains
   !  psi     : transformed set of spwfs
   !               psi' = C^T psi 
   !-----------------------------------------------------------------------------
-  integer                      :: wave1, wave2, B, N, si
+  integer                      :: wave1, wave2, B, N, si, c
   real(KIND=dp), intent(inout) :: psi(mv,4,nwt)
   real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
   real(KIND=dp), allocatable   :: temp(:,:,:)
 
   si      = 0   
+  c       = 0
   do B=1,8
     N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
     
@@ -57,8 +63,16 @@ contains
     temp = 0.0
     do wave1=1,N 
       do wave2=1,N
-        temp(:,:,wave1) = temp(:,:,wave1) +                                    &
-        &                     Transfo(si+wave2,si+wave1) * psi(:,:,si+wave2) 
+        ! Don't bother if the wavefunction is not important enough
+        if(abs(Transfo(si+wave2,si+wave1)).lt.basis_cut) cycle
+!        temp(:,:,wave1) = temp(:,:,wave1) +                                    &
+!        &                     Transfo(si+wave2,si+wave1) * psi(:,:,si+wave2) 
+
+        ! Initial tests seem to show that daxpy is more efficient than an 
+        ! implicit simple implementation
+        call daxpy(4*mv, Transfo(si+wave2,si+wave1), &
+        &                 psi(:,1,si+wave2), 1, temp(:,:,wave1), 1 )
+        c = c +1 
       enddo 
     enddo
     psi(:,:,si+1:si+N) =  temp
@@ -66,7 +80,7 @@ contains
     
     si = si +  N
   enddo
- 
+  print *, 'TRANSFOS DONE', c 
  end subroutine transform_spwfs_inplace
 
  subroutine transform_spwfs(psi_in, psi_out, transfo)
@@ -95,8 +109,16 @@ contains
     N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
     do wave1=1, N 
       do wave2=1,N
-        psi_out(:,:,si+wave1)  = psi_out(:,:,si+wave1) +                       &
-        &                     Transfo(si+wave2,si+wave1) * psi_in(:,:,si+wave2) 
+        ! Don't bother if the wavefunction is not important enough
+        if(abs(Transfo(si+wave2,si+wave1)).lt.basis_cut) cycle
+
+!        psi_out(:,:,si+wave1)  = psi_out(:,:,si+wave1) +                       &
+!        &                     Transfo(si+wave2,si+wave1) * psi_in(:,:,si+wave2) 
+
+        ! Initial tests seem to show that daxpy is more efficient than an 
+        ! implicit simple implementation
+        call daxpy(4*mv, Transfo(si+wave2,si+wave1), &
+        &                 psi_in(:,1,si+wave2), 1, psi_out(:,:,wave1), 1 )
       enddo 
     enddo
     si = si +  N
@@ -222,14 +244,18 @@ contains
     T = N+N2 
     
     Bc(sb  +1:sb+  T, sb+T+1:sb+2*T) = &
-    &                       matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T),transfo)
-    Bc(sb+T+1:sb+2*T, sb+T+1:sb+2*T) = & 
-    &                       matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T),transfo)
+    &          matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T), &
+    &              transfo(si  +1:si+  T, si  +1:si  +T))
 
+    Bc(sb+T+1:sb+2*T, sb+T+1:sb+2*T) = & 
+    &          matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T), &
+    &              transfo(si  +1:si+  T, si  +1:si+  T))
     Bc(sb  +1:sb+  T, sb+  1:sb+ T) = &
-    &                       matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T),transfo)
+    &          matmul(Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T), &
+    &              transfo(si  +1:si+  T, si  +1:si+  T))
     Bc(sb+T+1:sb+2*T, sb+  1:sb+ T) = & 
-    &                       matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T),transfo)
+    &          matmul(Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T), &
+    &              transfo(si  +1:si+  T, si+  1:si+  T))
 
     si = si +   T
     sb = sb + 2*T

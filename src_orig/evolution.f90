@@ -307,7 +307,7 @@ contains
         use wavefunctions
         
         integer, intent(in)   :: iteration
-        integer               :: wave, iso, B, si, N, wave2, lwork, ifail, i,k
+        integer               :: wave, iso, B, si, N, wave2, lwork, ifail, i
         real(KIND=dp), allocatable :: work(:)
         real(KIND=dp)              :: hpsi(nx*ny*nz,4) 
 
