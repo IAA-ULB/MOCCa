@@ -753,9 +753,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       if(.not.allocated(P_HF))                             allocate(P_HF (nwt))
       if(.not.allocated(P_CAN).and.allocated(canenergies)) allocate(P_CAN(nwt))
             
-      full_P  = spwf_parities(HFPsi, .true.)
-      full_P  = matmul(full_P, HFtransfo)
-      full_P  = matmul(transpose(HFtransfo), full_P)
+      if(diagsphamil) then
+        full_P  = spwf_parities(HFPsi, .false.)
+      else
+        full_P  = spwf_parities(HFPsi, .true.)
+
+        full_P  = matmul(full_P, HFtransfo)
+        full_P  = matmul(transpose(HFtransfo), full_P)
+      endif
 
       do i=1,nwt
         P_HF(i) = full_P(i,i)
@@ -1967,9 +1972,9 @@ $PBROKEN        startind   = si + wave
 $PBROKEN        if(fullmatrices) then
 $PBROKEN          endind   = si + N
 $PBROKEN        else
-$PBROKEN          endind   = si+wave
+$PBROKEN          endind   = wave
 $PBROKEN        endif
-$PBROKEN        do wave2 = si+1,si+N
+$PBROKEN        do wave2 = wave,endind
 $PBROKEN         spwf2(1:nx,1:ny,1:nz,1:4) => Basis(1:4*nx*ny*nz,1,wave2)
 $PBROKEN
 $PBROKEN         P(wave,wave2) = 0
@@ -1984,8 +1989,8 @@ $PBROKEN            enddo
 $PBROKEN          enddo
 $PBROKEN         enddo
 $PBROKEN         if(mod(B,2) .eq. 0) P(wave,wave2) = - P(wave,wave2)
-$PBROKEN         P(wave,wave2) = P(wave,wave2) * dv
-$PBROKEN         P(wave,wave2) = P(wave2,wave) 
+$PBROKEN         P(wave ,wave2) = P(wave,wave2) * dv
+$PBROKEN         P(wave2,wave ) = P(wave,wave2) 
 $PBROKEN        enddo
 $PBROKEN      enddo
 $PBROKEN      si = si + N

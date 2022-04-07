@@ -301,17 +301,16 @@ subroutine ReachForWaterAndFood()
     do iter=1,maxiter
         projectpresent   = checkconstraints() .or. check_cranking()    
         if(projectpresent) call feasibleproject()
-    
+        
+        ! One heavy-ball step.
+        call Evolve(iter)
+
         ! Calculate the gaps Delta with the current 
         ! a) fields 
         ! b) density matrix and anomalous density matrix 
         ! c) Fermi-energy
         PairStabfactor = CompStabilisingFactor(PairDenEnergy)
         call CalcGaps(FermiEnergy, PairStabFactor)
-        
-        ! One heavy-ball step.
-        call Evolve(iter)
-        call update_spwf_symmetries()
        
         ! Save Fermi energy
         FermiHistory   = FermiEnergy
@@ -372,6 +371,7 @@ subroutine ReachForWaterAndFood()
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
         if(iprint .eq.1) then
+            call update_spwf_symmetries()
             call update_spwf_angmom(.true.)
             call updateAM 
             call ReadjustCranking
