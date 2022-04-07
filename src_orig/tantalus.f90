@@ -340,7 +340,7 @@ subroutine ReachForWaterAndFood()
         call TurnOffConstraints(iter)
 
         ! Recalculate the energy
-        if(mod(iter,PrintIter).eq.0) then
+        if((mod(iter,PrintIter).eq.0) .or. (iter.eq.maxiter)) then
           iprint = 1
           calc_expensive = .true.
         else
