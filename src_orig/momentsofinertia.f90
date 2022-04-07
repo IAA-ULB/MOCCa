@@ -524,28 +524,31 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
       !-------------------------------------------------------------------------
       do i=1,N
         ii = si + i
-        do j=1,N
+        do j=i,N
           jj = si + j
 
 $TR       ! |< k | j_x | -l >|^2            
 $TR       jx(ii,jj)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
+$TR       jx(jj,ii)= jx(ii,jj)
 $TR       ! |< k | j_y | -l >|^2 
 $TR       jy(ii,jj)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
-        
+$TR       jy(jj,ii)= jy(ii,jj)
+
           ! |< k | j_z |  l >|^2 
           jz(ii  ,jj  ) = angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),          &
           &                              hfdpsi(:,:,:,jj))
+          jz(jj  ,ii  ) = jz(ii,jj)
         enddo
       enddo
       ! If time-reversal is not conserved, we have only calculated half of the 
       ! necessary matrix elements of jz above
 $NTR  do i=1,N2
 $NTR     ii = si + N + i
-$NTR     do j=1,N2
+$NTR     do j=i,N2
 $NTR      jj = si + N + j
 $NTR
-$NTR      jz(ii,jj) = angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj), & 
-$NTR                                              hfdpsi(:,:,:,jj))
+$NTR      jz(ii,jj)= angmom_z_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
+$NTR      jz(jj,ii)= jz(ii,jj)
 $NTR     enddo
 $NTR  enddo
       !-------------------------------------------------------------------------

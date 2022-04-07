@@ -88,6 +88,9 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl):
     if(fname=='scfiteration.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
+    if(fname=='basis_transform.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
     if(fname=='moments.f90'):
         ProcessMoments(fname, src, target, so)
         return

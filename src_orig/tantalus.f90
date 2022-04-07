@@ -227,8 +227,6 @@ subroutine ReachForWaterAndFood()
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
-    ! Derive all the single-particle wavefunctions 
-    call deriveHF()
 
     if( (Bogofromfile.and.readHFBinfofile) .and. pairingscheme.eq.1) then
       ! If using a gradient strategy and we want to continue from file.  
@@ -251,9 +249,14 @@ subroutine ReachForWaterAndFood()
       ! steps, with finite values for Delta.
       call SolvePairing(pairingscheme, ifail)
     endif    
-    
+
+    ! Construct the canonical basis    
+    if(pairingtype.eq. 2) call ConstructCanonicalBasis()
+    ! Derive all the single-particle wavefunctions in the HFPsi array
+    call deriveHF()
+
     ! Calculate the initial densities and the charge density (separately)
-    call densit(ifail,SaveRho=.false.)
+    call densit(SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
   
     ! Adopt the relevant quantities to the centre-of-mass of the nucleus
@@ -307,18 +310,18 @@ subroutine ReachForWaterAndFood()
         call CalcGaps(FermiEnergy, PairStabFactor)
         
         ! One heavy-ball step.
-        ! Note that the (diagonal) matrix elements of <h> get calculated here
         call Evolve(iter)
         call update_spwf_symmetries()
        
         ! Save Fermi energy
         FermiHistory   = FermiEnergy
 
-        ! Restore all the different derivatives.
-        call deriveHF()
-            
         call SolvePairing(pairingscheme,ifail)
-        call densit(ifail,SaveRho=.true.)
+        if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
+
+        ! Derive all spwfs in the HF-basis
+        call deriveHF()
+        call densit(SaveRho=.true.)
         call ConstructChargeDensity(ChargeDensity)
         if(follow_com) call adapt_com()
         ! Calculate a) moments values, b) readjustment and c) finally their
@@ -586,6 +589,8 @@ subroutine initialize_all_timers()
    call add_timer('Charge density folding'     , T_chargedensity)  
    call add_timer('Collective MOIs'            , T_collective_moi)  
    call add_timer('Microscopic pairing'        , T_microscopic_pairing)  
+   call add_timer('Orthogonalisation of h\psi' , T_Hortho)  
+   call add_timer('Construction HF transo'     , T_HFDiag)  
 
 end subroutine initialize_all_timers
 

@@ -17,6 +17,7 @@ module timing
   integer :: T_den_der, T_sphamil, T_coulomb, T_den_can, T_MOI
   integer :: T_COM, T_COM1, T_COM2, T_gaps, T_moments, T_feasible, T_spwfangmom
   integer :: T_chargedensity, T_collective_moi, T_microscopic_pairing
+  integer :: T_HFdiag, T_Hortho
   !-----------------------------------------------------------------------------
   ! There are two ways to record the time:
   !  1. cpu_time measures CPU time (excludes time spent in other programs)

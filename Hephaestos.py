@@ -109,7 +109,7 @@ FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90
               'constants.f90'     , 'printing.f90'     , 'HFB.f90',               
               'HFB_gradient.f90'  , 'HFB_direct.f90'   , 'folding.f90' ,
               'nil8.f90'          , 'coulomb.f90'      , 'derivatives.f90'   , 
-              'precondition.f90'  , 'wavefunctions.f90',
+              'precondition.f90'  , 'wavefunctions.f90', 'basis_transform.f90',
               'hartree-fock.f90'  , 'BCS.f90'          , 'pairingcutoffs.f90',
               'temperature_projection.f90',              'momentsofinertia.f90', 
               'fission_MOI.f90'   , 'particleinabox.f90', 'densities.f90'      , 

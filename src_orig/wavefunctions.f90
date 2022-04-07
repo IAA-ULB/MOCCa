@@ -83,6 +83,20 @@ module wavefunctions
  real(KIND=dp), allocatable, target ::  CANdPsi(:,:,:,:)!First order derivatives
  real(KIND=dp), allocatable, target ::CANddPsi(:,:,:,:)!Second order derivatives
  real(KIND=dp), allocatable, target ::CANdddPsi(:,:,:,:)!Third order derivatives
+ !---------------------------------------------------------------------------
+ ! Pointer to which basis is supposed to be used to calculate the densities
+ ! Based on pairingtype
+ !  (0) HF  => use the HF basis
+ !  (1) BCS => use the HF basis
+ !  (2) HFB => Use the canonical basis
+ real(KIND=dp), pointer ::      DenPsi(:,:,:)
+ real(KIND=dp), pointer ::   DendPsi(:,:,:,:)
+ real(KIND=dp), pointer ::  DenddPsi(:,:,:,:)
+ real(KIND=dp), pointer :: DendddPsi(:,:,:,:)
+ !------------------------------------------------------------------------------
+ ! Store the change in the spwfs from last iteration for momentum
+ ! (Stored here such that they can be basis-transformed by other modules)
+ real(KIND = dp), allocatable :: Momentum_Updates(:,:,:)  
  !------------------------------------------------------------------------------
  ! Single-particle energies, 
  ! Either:
@@ -168,6 +182,10 @@ module wavefunctions
  !       and simply care about the space spanned by the spwfs.
  logical                    :: diagsphamil = .false.
  real(KIND=dp), allocatable :: HFtransfo(:,:)
+
+ !------------------------------------------------------------------------------
+ ! Use (or not) the more efficient implementation of the two-basis method
+ logical :: efficientHFB = .false.
 
 contains 
 
@@ -351,8 +369,7 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
   
   subroutine deriveCan()
     !---------------------------------------------------------------------------
-    ! Derives all of the single-particle wave-functions. 
-    ! b) In the canonical basis
+    ! Derives all of the single-particle wave-functions in the canonical basis.
     !---------------------------------------------------------------------------
     integer :: wave,k
       
@@ -370,8 +387,7 @@ $N3       if(.not.allocated(CANdddpsi)) then
 $N3         allocate(CandddPsi(nx*ny*nz,10,4,nwt))
 $N3       endif
 $N3    endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Currently EV8 symmetries are hardcoded.
+
     if(allocated(CanPsi)) then
       do wave=1,nwt
         do k=1,4
@@ -388,7 +404,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         enddo
       enddo
     endif
-
     call stop_timer(T_derivatives_can)
     
   end subroutine DeriveCan
@@ -625,12 +640,16 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
   subroutine GramSchmidt
     !---------------------------------------------------------------------------
-    ! This subroutine uses a Gram-Schmidt scheme to orthonormalise the Spwfs in
-    ! the HF basis. Small point of interest: the orthonormalisation is done in 
-    ! order of ascending energy within each symmetry block, in order to avoid
-    ! wasting CPU cycles reordering levels.
+    ! This subroutine uses a Gram-Schmidt scheme to orthonormalise the Spwfs 
+    ! in the array HFPsi. The orthonormalisation proceeds per symmetry block, 
+    ! as this saves precious CPU cycles/
+    !
+    ! In the interest of convergence speed, the orthogonalisation is done in 
+    ! order of ascending single-particle energy if this is possible, i.e. if
+    ! diagsphamil == .true..
+    ! 
     !---------------------------------------------------------------------------
-    integer  :: b, i,j,nw, mw,l
+    integer  :: b, i,j,nw, mw,l, si, N
     integer  :: indices(maxval(HFBlocks)), spatial_size
     real(KIND=dp) ::  norm
     
@@ -642,10 +661,20 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! box.
     spatial_size = size(HFPsi(:,:,1))
     
+    si = 0
     do b = 1, Blocks 
+        N = HFBlocks(b) ; if(N.eq.0) cycle
+
         indices = 0
-        indices(1:HFblocks(b)) = OrderSpwfsSym(b)
-        do i = 1, HFBlocks(b)
+        if(diagsphamil) then
+          indices(1:HFblocks(b)) = OrderSpwfsSym(b)
+        else
+          do i=1, N
+            indices(i) = si + i
+          enddo
+        endif
+
+        do i = 1,N
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Normalize wave-function nw
             nw = indices(i)
@@ -670,25 +699,23 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! What is also missing is an orthonormalisation versus the spwf
             ! that are assumed to be present but not represented numerically.
-            ! The MOCCa example is of course conserved time-reversal but broken
-            ! signature.
+            ! The MOCCa example is conserved time-reversal but broken signature.
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             !!$$OMP PARALLEL private(j, mw, norm, l)
             !!$$OMP DO
             do j= i+1, HFBlocks(b)
-                mw = indices(j)    
-                ! Real part of the inproduct
-                norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
-                do l=1,spatial_size
-                    HFPsi(l,1,mw) = HFPsi(l,1,mw) - norm * HFPsi(l,1,nw)
-                enddo
+              mw = indices(j)    
+              ! Real part of the inproduct
+              norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
+              do l=1,spatial_size
+                  HFPsi(l,1,mw) = HFPsi(l,1,mw) - norm * HFPsi(l,1,nw)
+              enddo
             enddo
            !!$$OMP END DO
            !!$$OMP END PARALLEL 
-
         enddo
+        si = si + N
     enddo
-
     call stop_timer(T_ortho)
 
   end subroutine GramSchmidt
@@ -723,8 +750,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       real(KIND=dp), allocatable :: full_P(:,:)
       integer                    :: i
   
-      if(.not.allocated(P_HF))  allocate(P_HF (nwt))
-      if(.not.allocated(P_CAN) .and. allocated(canpsi)) allocate(P_CAN(nwt))
+      if(.not.allocated(P_HF))                             allocate(P_HF (nwt))
+      if(.not.allocated(P_CAN).and.allocated(canenergies)) allocate(P_CAN(nwt))
             
       full_P  = spwf_parities(HFPsi, .true.)
       full_P  = matmul(full_P, HFtransfo)
@@ -734,8 +761,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         P_HF(i) = full_P(i,i)
       enddo
 
-      if(allocated(canpsi)) then
-        full_P = spwf_parities(canpsi,.false.)
+      if(allocated(canenergies)) then
+        full_P = spwf_parities(denpsi,.false.)
         do i=1,nwt
           P_CAN(i) = full_P(i,i)
         enddo
@@ -804,12 +831,11 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     si = 0
     do B=1,8
       N = HFBlocks(B) ; if(N.eq.0) cycle
-
       !------------------------------------------------------------------------
       ! spwf_[...] quantities
       do wave=si+1,si+N        
-        if(fullmatrices) then
-          startind = si+1 ; endind = si+N
+        if(fullmatrices .and. (.not. diagsphamil)) then
+          startind = wave ; endind = si+N
         else
           startind = wave ; endind = wave
         endif
@@ -834,12 +860,25 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
           spwf_J2(3,wave,wave2)   = &
             &   angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave),   &
             &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
+
+          ! Symmetry properties of these things
+          spwf_JTR(1,wave2,wave) =+spwf_JTR(1,wave,wave2)
+          spwf_JTI(2,wave2,wave) =+spwf_JTI(2,wave,wave2)
+          spwf_J  (3,wave2,wave) =+spwf_J  (3,wave,wave2)
+
+          spwf_STR (1,wave2,wave) =+spwf_STR(1,wave,wave2)
+          spwf_STI (2,wave2,wave) =+spwf_STI(2,wave,wave2)
+          spwf_spin(3,wave2,wave) =+spwf_spin(3,wave,wave2)
+
+          spwf_J2 (1,wave2,wave)  =+spwf_J2(1,wave,wave2)
+          spwf_J2 (2,wave2,wave)  =+spwf_J2(2,wave,wave2)
+          spwf_J2 (3,wave2,wave)  =+spwf_J2(3,wave,wave2)
         enddo
        spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave,wave))))/2.        
       enddo      
       !-------------------------------------------------------------------------
       ! HF_[...] quantities
-      if(fullmatrices) then
+      if(fullmatrices .and. (.not.diagsphamil)) then
          do k=1,3
             HF_J  (k,si+1:si+N) = 0.0
             HF_J2 (k,si+1:si+N) = 0.0
@@ -875,25 +914,37 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
          do wave=si+1,si+N
           HF_JJ(wave) = (-1. + sqrt(1. + 4*sum(HF_J2(:,wave))))/2.
          enddo
+      elseif(diagsphamil) then
+        do k=1,3
+          do i=1,N
+            HF_J   (k,i) = spwf_J   (k,i,i)
+            HF_J2  (k,i) = spwf_J2  (k,i,i)
+            HF_JTR (k,i) = spwf_JTR (k,i,i)
+            HF_JTI (k,i) = spwf_JTI (k,i,i)
+            HF_spin(k,i) = spwf_spin(k,i,i)
+            HF_STR (k,i) = spwf_STR (k,i,i)
+            HF_STI (k,i) = spwf_STI (k,i,i)
+          enddo
+        enddo
       endif
       si = si + N
     enddo
 
     !-------------------------------------------------------------------------
     ! can_[...] quantities
+    if(.not.allocated(can_J)) then
+      allocate(can_J(3,nwt))   ; can_J  = 0.0
+      allocate(can_JTR(3,nwt)) ; can_JTR= 0.0
+      allocate(can_JTI(3,nwt)) ; can_JTI= 0.0
+      allocate(can_J2(3,nwt))  ; can_J2 = 0.0
+      allocate(can_JJ(nwt))    ; can_JJ = 0.0
+
+      allocate(can_spin(3,nwt)); can_J  = 0.0
+      allocate(can_STR(3,nwt)) ; can_JTR= 0.0
+      allocate(can_STI(3,nwt)) ; can_JTI= 0.0
+    endif
+    
     if(allocated(CANPSI)) then
-      if(.not.allocated(can_J)) then
-        allocate(can_J(3,nwt))   ; can_J  = 0.0
-        allocate(can_JTR(3,nwt)) ; can_JTR= 0.0
-        allocate(can_JTI(3,nwt)) ; can_JTI= 0.0
-        allocate(can_J2(3,nwt))  ; can_J2 = 0.0
-        allocate(can_JJ(nwt))    ; can_JJ = 0.0
-
-        allocate(can_spin(3,nwt)); can_J  = 0.0
-        allocate(can_STR(3,nwt)) ; can_JTR= 0.0
-        allocate(can_STI(3,nwt)) ; can_JTI= 0.0
-      endif
-
       do wave=1,nwt
         can_JTR(1,wave) = & 
         & angmom_xt_real(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
@@ -1895,11 +1946,11 @@ $PBROKEN      real(KIND=dp), pointer             :: spwf(:,:,:,:),spwf2(:,:,:,:)
 
 $PCON      P = 0 
 $PCON      do wave=1,nwt
-$PCON         if    (wave .lt. sum(HFBlocks(1:2))) then
+$PCON         if    (wave .le. sum(HFBlocks(1:2))) then
 $PCON               P(wave,wave) = +1
-$PCON         elseif(wave .lt. sum(HFBlocks(1:4))) then
+$PCON         elseif(wave .le. sum(HFBlocks(1:4))) then
 $PCON               P(wave,wave) = -1
-$PCON         elseif(wave .lt. sum(HFBlocks(1:6))) then
+$PCON         elseif(wave .le. sum(HFBlocks(1:6))) then
 $PCON               P(wave,wave) = +1
 $PCON         else  
 $PCON               P(wave,wave) = -1

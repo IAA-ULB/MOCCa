@@ -30,6 +30,9 @@ module evolution
 
     implicit none
     
+    ! Since ddot is a LAPACK function (as opposed to a subroutine), it needs
+    ! to be declared explicitly.    
+    !real*8, external :: ddot
     !---------------------------------------------------------------------------
     ! Parameters of the iteration scheme
     real(KIND=dp):: dt    =  0.01
@@ -71,10 +74,6 @@ module evolution
     real*8, allocatable :: preconY(:,:,:,:)
     real*8, allocatable :: preconZ(:,:,:,:) 
 
-    !---------------------------------------------------------------------------
-    ! Store the change in the spwfs from last iteration for momentum
-    real(KIND = dp), allocatable :: Momentum_Updates(:,:,:)  
-
 contains
     
     subroutine ReadEvolution(file_number)
@@ -91,7 +90,7 @@ contains
         &                    gradient_stepsize, gradient_mu,                   &
         &                    maxiter, printiter, strategy,                     &
         &                    estimateparams, estimategradparams,               &
-        &                    gradient_safety                              
+        &                    gradient_safety, efficientHFB                            
         
 
         if(present(file_number)) then
@@ -127,6 +126,8 @@ contains
         else
           diagsphamil = .true.
         endif
+                
+        if(efficientHFB) diagsphamil = .false.
 
     end subroutine ReadEvolution
 
@@ -146,6 +147,7 @@ contains
 
 !        5 format(' Preconditioning   : ', a20 )
         6 format(' Diagonalise the s.p. hamiltonian: ', a3)
+        7 format(' EfficientHFB : ACTIVE! ')
            
         print 1
         print 2, adjustl(Strategy)
@@ -166,6 +168,7 @@ contains
         endif
 !        print 5, adjustl(Precondition)
 
+        if(efficientHFB) print 7
         if(diagsphamil) then
             print 6, 'YES'
         else
@@ -375,9 +378,11 @@ contains
               ! Hence, our update should only take us into "new" directions.
               ! So, we orthogonalise the update direction to all spwfs in
               ! storage.
+              call start_timer(T_Hortho)
               do wave2=si+1,si+N
-                hpsi =   hpsi - current_sph(wave,wave2) * hfpsi(:,:,wave2)
-              enddo            
+                 hpsi = hpsi-current_sph(wave,wave2)*hfpsi(:,:,wave2)
+              enddo
+              call stop_timer(T_Hortho)
               ! The norm of the gradient can always be calculated as a 
               ! convergence measure.
               gradientnorm = gradientnorm + sum(hpsi**2)*dv
@@ -409,6 +414,8 @@ contains
               !
               ! (*) Actually, the single-particle hamiltonian BEFORE the 
               !     heavy-ball evolution.
+              call start_timer(T_HFdiag)
+              
               HFtransfo(si+1:si+N,si+1:si+N) = current_sph(si+1:si+N, si+1:si+N)
 
               lwork = -1; allocate(work(1))
@@ -418,6 +425,8 @@ contains
               call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
               &                       spenergies(si+1:si+N),work,lwork,ifail)
               deallocate(work)
+
+              call stop_timer(T_HFdiag)
               !-----------------------------------------------------------------
           endif
 

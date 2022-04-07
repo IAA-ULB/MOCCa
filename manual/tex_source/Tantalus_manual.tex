@@ -543,6 +543,9 @@ A     gradient_stepsize,= Parameters governing the heavy-ball update. Note: read
 A     EstimateGradparams= If .true. (= default), use heuristics to guess optimal
                           evolution parameters for the gradient solver in the 
                           pairing space. Only active if pairingscheme=1.
+A     efficientHFB      = If .true., perform an EXPERIMENTAL HFB-scheme that 
+                          requires only roughly half of the memory the original
+                          one requires. Will take somewhat longer to converge.
 --------------------------------------------------------------------------------------
 \end{Verbatim}
 

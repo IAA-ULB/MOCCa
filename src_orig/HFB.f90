@@ -44,7 +44,6 @@ module HFB
  !  - subroutine calcHFBgaps
  !  - subroutine PrintHFBconvergence
  !  - subroutine Canonical
- !  - subroutine ConstructCanonicalBasis
  !  - subroutine clean_HFB
  !  - function   figure_out_blocking_structure
  !  - function   obtain_eqp
@@ -101,6 +100,7 @@ module HFB
       logical, intent(in)   :: onthefly
    end function
   end interface
+  
   !-----------------------------------------------------------------------------
   ! Which routine to use to find the Fermi energy
   procedure(FindFermi_Brent), pointer  :: FindFermi
@@ -1476,7 +1476,8 @@ $TR        inda = si + wave1
         &                          hfdddpsi(:,:,:,inda),                       &
         &                        sx(:,inda), sy(:,inda), sz(:,inda),iso,.false.)
         
-        do wave2=1,N
+$NTR        do wave2=1,N
+$TR         do wave2=wave1,N
           ! The second index is always in the first block. 
           indb = si + wave2 
 
@@ -1490,16 +1491,16 @@ $TR        inda = si + wave1
 $NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
           ! ... but the stored matrix is symmetric when time-reversal is 
           ! conserved; but this is not exploited at the moment!
-!$TR       HFBgaps(indb,inda) = HFBgaps(inda,indb)
-
+$TR       HFBgaps(indb,inda) = HFBgaps(inda,indb)
         enddo
       enddo
       !-------------------------------------------------------------------------      
       ! We have now calculated the gaps (without cutoffs) in the basis that 
-      ! is currently in storage. This can either be the HF basis or not!
-      
-      ! I could do this with the transformation routine below, but this was
-      ! historically first and block-wise, so I keep it. 
+      ! is currently in storage. This can either be the HF basis or not, but
+      ! we need the gaps in the HF-basis to calculate the cutoffs. 
+      !-------------------------------------------------------------------------      
+      ! I could do this transformation with the transformation routine below, 
+      ! but this was  historically first and block-wise, so I keep it. 
       if(.not.diagsphamil .and. allocated(HFtransfo)) then
         ! Transform to the HF basis
         HFBgaps(si+1:si+T,si+1:si+T) = &
@@ -1774,50 +1775,6 @@ $NTR  enddo
     enddo    
     
    end subroutine Canonical
-   
-   subroutine ConstructCanonicalBasis(Transfo)
-    !---------------------------------------------------------------------------
-    ! Transform the spwf wavefunctions in the HFBasis into Canbasis, with the 
-    ! passed in Transfo. 
-    !---------------------------------------------------------------------------
-
-    integer                   :: wave1, wave2, B, N, si, wave3
-    real(KIND=dp), intent(in) :: Transfo(nwt,nwt)
-    
-    if(.not.allocated(CanPsi)) then
-      allocate(CanPsi(mv,4,nwt)) ; CanPsi      = 0.0
-      allocate(Canenergies(nwt)) ; canenergies = 0.0
-    endif
-
-    si     = 0   
-    CanPsi = 0.0 ; canenergies = 0.0
-    do B=1,8
-      N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
-      !-------------------------------------------------------------------------
-      ! Apply the transformation in this symmetry block
-      do wave1=1, N 
-        do wave2=1,N
-          CanPsi(:,:,si+wave1)  = CanPsi(:,:,si+wave1) +                       &
-          &                     Transfo(si+wave2,si+wave1) * HFPsi(:,:,si+wave2) 
-          
-          if(.not. allocated(current_sph)) then
-            canenergies(si+wave1) = canenergies(si+wave1) +                    &
-            &          abs(Transfo(si+wave2,si+wave1)**2) *spenergies(si+wave2) 
-          else
-            do wave3=1,N
-              canenergies(si+wave1) = canenergies(si+wave1) +                  &
-            &         Transfo(si+wave2,si+wave1) *  Transfo(si+wave3,si+wave1) & 
-            &                       * current_sph(si+wave2,si+wave3) 
-            enddo
-          endif
-        enddo 
-      enddo
-      
-      si = si +  N
-      !-------------------------------------------------------------------------
-    enddo
-    
-   end subroutine ConstructCanonicalBasis
 
    pure function construct_generalized_density(rho, kappa) result(R)
     !---------------------------------------------------------------------------
