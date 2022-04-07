@@ -416,7 +416,7 @@ $HFBEXPRESSION
         si = si + N + N2
       enddo
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! We (possibly) changed these pointers, make sure they are still
+      ! We (possibly) changed these pointers, and now make sure they are still
       ! pointing the right way
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       select case(PairingType)
@@ -541,17 +541,6 @@ function CompNablaMelements() result(NablaMelements)
 
     !---------------------------------------------------------------------------
     NablaMElements= 0.0_dp
-    
-    select case(PairingType)
-    case(0,1)
-      ! HF or BCS Calculation
-      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
-      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
-    case(2)
-      ! HFB calculation
-      DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
-      DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
-    end select
 
     si = 0 
     do B=1,8,4 ! This loop is essentially over protons vs neutrons

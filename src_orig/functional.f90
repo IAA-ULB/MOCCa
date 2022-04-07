@@ -565,21 +565,21 @@ $PRINT
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! W.R. 03/04/22 : This is superfluous, as this is done in the pairing
     !                 module. Unsure why I wrote this.
-    select case(PairingType)
-    case(0,1)
-      ! HF or BCS Calculation
-      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
-      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
-    case(2)
-      ! HFB calculation
-      if(.not. efficientHFB) then
-        DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
-        DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
-      else
-        DenPsi    => HFPsi    ; DenDPsi   => HFDPsi 
-        DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
-      endif
-    end select
+!    select case(PairingType)
+!    case(0,1)
+!      ! HF or BCS Calculation
+!      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
+!      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
+!    case(2)
+!      ! HFB calculation
+!      if(.not. efficientHFB) then
+!        DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
+!        DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
+!      else
+!        DenPsi    => HFPsi    ; DenDPsi   => HFDPsi 
+!        DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
+!      endif
+!    end select
 
     ! Kinetic Energy
     Kinetic = 0.0_dp
