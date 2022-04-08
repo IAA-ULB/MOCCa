@@ -354,15 +354,21 @@ $BCSEXPRESSION
           kappa_cut =matmul(          kappa_cut, HFtransfo(si+1:si+T,si+1:si+T))
         endif
         ! Multiply with the cutoffs
-        do wave=1,N
-$TR          do wave2=wave,N      
-$NTR          do wave2=N+1,N+N2      
-              kappa_cut(wave,wave2) = kappa_cut(wave,wave2) &
-              &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)
-$NTR              kappa_cut(wave2,wave) = kappa_cut(wave2,wave) &
-$NTR              &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)              
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! W.R. Nasty bug 07/04/'22
+        ! The multiplication by the cutoffs needs to happen for ALL matrix
+        ! elements of kappa, not just the ones that are used to sum the 
+        ! pairing densities. The reason is that the HFTransfo multiplication 
+        ! does see all of them, at least as it is coded at the moment.
+        ! We could use the symmetries of kappa to reduce the workload, but 
+        ! this is O(nwt**2) effort and it depends on T-breaking.
+        do wave=1,T
+          do wave2=1,T
+            kappa_cut(wave, wave2) = kappa_cut(wave,wave2) &
+            &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)
           enddo
         enddo
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         if((.not. diagsphamil) ) then 
           ! Transform back to the basis in memory
           kappa_cut=matmul(HFtransfo(si+1:si+T,si+1:si+T), kappa_cut)
