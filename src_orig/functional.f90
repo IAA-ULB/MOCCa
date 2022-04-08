@@ -338,6 +338,26 @@ $PRINTCOEF_PAIR
     print 1
  end subroutine PrintEnergy
  
+ subroutine update_E_history()
+    !---------------------------------------------------------------------------
+    ! Update the history of the module with the values of various things 
+    ! currently in storage.
+    !---------------------------------------------------------------------------
+    integer :: i
+ 
+    ! Move old values
+    do i=4,1,-1
+        Ehistory(i+1)    = Ehistory(i) 
+        Rhistory(i+1)    = Rhistory(i) 
+        Fhistory(i+1)    = Fhistory(i)
+        Spwfhistory(i+1) = Spwfhistory(i)
+    enddo
+    Ehistory(1)    = TotalE   
+    Rhistory(1)    = Routhian 
+    Fhistory(1)    = FreeEner
+    SpwfHistory(1) = SpwfEnergy
+ end subroutine update_E_history
+ 
  subroutine CalcEnergy(calc_expensive)
     !---------------------------------------------------------------------------
     ! Calculate (i)   the energy
@@ -432,17 +452,6 @@ $PRINTCOEF_PAIR
     endif
     ! Entropy calculation when temperature is finite
     call calcentropy()
-
-    !---------------------------------------------------------------------------
-    ! Then we save the histories
-    do i=4,1,-1
-        Ehistory(i+1) = Ehistory(i) 
-        Rhistory(i+1) = Rhistory(i) 
-        Fhistory(i+1) = Fhistory(i)
-        Spwfhistory(i+1) = Spwfhistory(i)
-    enddo
-    Ehistory(1) = TotalE   ;   Rhistory(1) = Routhian 
-    Fhistory(1) = FreeEner ;   SpwfHistory(1) = SpwfEnergy
 
     ! The total energy is comprised of 
     !      Kinetic part + Skyrme part + corrections + Coulomb energy

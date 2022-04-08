@@ -299,6 +299,8 @@ subroutine ReachForWaterAndFood()
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
+        call update_E_history()
+    
         projectpresent   = checkconstraints() .or. check_cranking()    
         if(projectpresent) call feasibleproject()
         
@@ -377,10 +379,11 @@ subroutine ReachForWaterAndFood()
             call ReadjustCranking
             print 10
             
-            if(iter.ne. maxiter) then
-              print 11, iter
+            if((iter .eq. maxiter) .or. ConvergenceAchieved) then
+              ! Add a clear indication this is the FINAL iteration
+              print 12, iter  
             else
-              print 12, iter
+              print 11, iter
             endif
 
             call PrintSpwfs

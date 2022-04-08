@@ -1576,7 +1576,8 @@ $NTR    print 102
 
     class(Moment),       intent(in) :: ToPrint
     character(len=2)                :: ReIm
-      1 format (A2, '  Q_{', 2i2, '}', 4(1x,f15.4) )
+      1 format (A2, '  Q_{', 2i2, '}', 4(1x, f15.4) )
+     11 format (A2, '  Q_{', 2i2, '}', 4(1x,es15.4) )      
       2 format ('Constrained ',  49x, f15.4)
      21 format ('Constrained ',   1x, f15.4)
      22 format ('Constrained ',  17x, f15.4)
@@ -1615,9 +1616,16 @@ $NTR    print 102
       ReIm = 'Re'
       if(ToPrint%Impart) ReIm = 'Im'
 
-      print 1, ReIm, ToPrint%l, ToPrint%m, ToPrint%Value(1), ToPrint%Value(2), &
-      &        ToPrint%Chargevalue,  Sum(ToPrint%Value)
-
+      if (ToPrint%l .lt. 6) then
+       ! Ordinary print
+       print 1, ReIm, ToPrint%l, ToPrint%m, ToPrint%Value(1), ToPrint%Value(2),&
+       &        ToPrint%Chargevalue,  Sum(ToPrint%Value)
+      else
+       ! Start using scientific notation
+       print 11,ReIm, ToPrint%l, ToPrint%m, ToPrint%Value(1), ToPrint%Value(2),&
+       &        ToPrint%Chargevalue,  Sum(ToPrint%Value)
+      endif
+  
       if(ToPrint%ConstraintType.ne.0) then
         select case(ToPrint%isoswitch)
         case(0)
