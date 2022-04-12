@@ -395,6 +395,10 @@ $TR        endif
        print 6, 'Cosine'
     case(4)
        print 6, 'Sym. Fermi + Heaviside'
+    case DEFAULT
+       print *, 'Unrecognized type of pairing cutoff.'
+       print *, 'Accepted values are 1-4.'
+       stop
     end select
 
     print 7, pairingcut
