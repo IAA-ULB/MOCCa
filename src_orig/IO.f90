@@ -1987,7 +1987,7 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
 
     1 format (a1, 3i4)
     2 format (2(f5.1,i2,3f8.3))
-    3 format ( 2i4,2(x,f8.4),15(x,f7.3),2f12.3)
+    3 format ( 2i4,2(x,f8.4),19(x,f7.3),2f12.3)
 
     open(unit=6, file=COMBI)
     
@@ -2110,17 +2110,16 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     enddo
     !---------------------------------------------------------------------------
     end select
-    !  The final line is composed of various informations
-    !  Z, A, beta2, beta4, Gn, Gp, Deltan, Deltap, ddmn, ddmp,
+    !  The final line is composed of various informations read by the 
+    !  gennew code. The FORTRAN read statement is
     !
-    !        READ(15,*,err=5) IZ,IA,BETA,HFBET4,HFGN,HFGP,
+    !            READ(15,*,err=5) IZ,IA,BETA,HFBET4,HFGN,HFGP,
     ! &       HFDN,HFDP,HFDDN,HFDDP,HFEN,HFEP,HFUN,HFUP,HFLN,
-    ! &       HFLP,HFIN,HFIP,HFJ2,HFE1,HFE2
-    !
-    ! NOTE: the level density code assumes axial symmetry. This routine is
-    ! coded at the moment ASSUMING that the z-axis is one of axial symmetry.
-    ! Quantities written to file correspond to the y-axis, which is ASSUMED
-    ! to be perpendicular to the symmetry axis.
+    ! &       HFLP,HFINX,HFIPX,HFINY,HFIPY,HFINZ,HFIPZ,HFJ2,HFE1,HFE2    
+    ! 
+    ! NOTE: the level density code assumes that, if the nucleus is axially
+    !       symmetric, the symmetry axis is the z-axis. It is the single-particle
+    !       expectation values of Jz that are written on file.
     !---------------------------------------------------------------------------
 
     quadrupole => FindMoment(2,0,.false.)
@@ -2135,10 +2134,14 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     &                      0.0,   0.0,  0.0, 0.0, 0.0, 0.0, & 
     !                      HFLN, HFLP, 
     &                      FermiEnergy(1), FermiEnergy(2),  &
-    !                      HFIN        ,         HFIP,   HFJ2 
-    &                      Belyaev(2,1), Belyaev(2,2), J2(2,3), &
-    !                      HFE1  , HE2
-    &                      totalE, 0.0
+    !                      HFINX /     ,    HFIPX
+    &                      Belyaev(1,1), Belyaev(1,2),       &
+    !                      HFINY /     ,    HFIPY,      
+    &                      Belyaev(2,1), Belyaev(2,2),       &
+    !                      HFINZ /     ,    HFIPZ,      
+    &                      Belyaev(3,1), Belyaev(3,2),       &
+    !                      HFJ2               HFE1  , HE2
+    &                       J2(2,3),  totalE, 0.0
 
     close(unit=6)
   end subroutine combi_output
