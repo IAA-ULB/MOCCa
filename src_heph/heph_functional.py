@@ -596,6 +596,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
           GenTermExpression(Functional_terms[i], i, term_grouping[i],    
                         term_number[Functional_terms[i]], coupling_constants[i], 
                  isospin_indices[i], density_dependence[i], extra_calls[i], so)
+                 
         if( d != ''):
           declaration = declaration + d + '\n'
         calculation = calculation + c + '\n'
@@ -873,6 +874,7 @@ def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,
     for i in range(len(densities)): 
         orders.append(OrderOfDen(densities[i])) 
 
+
     # Clever trick to recount the couplings of the term
     # => Find the couplings that are inside a given density
     # => Remove them from the term
@@ -882,13 +884,22 @@ def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,
       for i in range(len(densities)):
         for s1 in sumindices:
           if(densities[i].count(s1) == 2):
+            altterm = altterm.replace(s1,'')
+            
+            # WR 14/04/22: I'm unsure why I made things this 
+            #              complicated. For future reference, 
+            #              the below code fails when multiple
+            #              couplings are present in one density
+            #              Example : D_I_I_D_NmNm_NkNk term in
+            #              N2LO functionals.
             # Replace internal couplings
-            for s2 in sumindices:
-              tryout = densities[i].replace(s1, s2)
-              nosum  = densities[i].replace(s1, '')
-              altterm = altterm.replace(tryout,nosum)               
+#            for s2 in sumindices:
+#              tryout = densities[i].replace(s1, s2)
+#              nosum  = densities[i].replace(s1, '')
+#              altterm = altterm.replace(tryout,nosum)           
+#              print (s1, s2, densities[i].count(s1), altterm)    
     (rubbish, true_coupling) = ParseDensities(altterm)
-    
+        
     dic = {}
     index_encountered=0
     name = ''

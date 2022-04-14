@@ -180,10 +180,18 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
               if(OrderOfDen(densities[i]) != OrderOfDen(densities[i], contract=False)):
                for s1 in sumindices:
                 if(densities[i].count(s1) == 2):
-                  for s2 in sumindices:
-                    tryout = densities[i].replace(s1, s2)
-                    nosum  = densities[i].replace(s1, '')
-                    altterm = altterm.replace(tryout, nosum)
+                  altterm = altterm.replace(s1, "")
+                  
+            # WR 14/04/22: I'm unsure why I made things this 
+            #              complicated. For future reference, 
+            #              the below code fails when multiple
+            #              couplings are present in one density
+            #              Example : D_I_I_D_NmNm_NkNk term in
+            #              N2LO functionals.
+#                  for s2 in sumindices:
+#                    tryout = densities[i].replace(s1, s2)
+#                    nosum  = densities[i].replace(s1, '')
+#                    altterm = altterm.replace(tryout, nosum)
 
 
           (rubbish, cpl) = src_heph.heph_functional.ParseDensities(altterm)

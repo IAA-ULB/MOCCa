@@ -3,11 +3,11 @@
 # Lyon group with NLO and N2LO EDFs.
 #-------------------------------------------------------------------------------
 CONFIG=default
-CONFIG_T=NLO-T
-CONFIG_P=NLO-P
-CONFIG_TP=NLO-TP
-CONFIG_crankX=NLO-crank
-CONFIG_T_crankX=NLO-T-crank
+CONFIG_T=BXL-T
+CONFIG_P=BXL-P
+CONFIG_TP=BXL-TP
+CONFIG_crankX=BXL-crank
+CONFIG_T_crankX=BXL-T-crank
 
 SRCPUBLIC=$HOME/Documents/Codes/tantalus_lyon/src
 SRCPUBLIC_T=$HOME/Documents/Codes/tantalus_lyon/src_T
