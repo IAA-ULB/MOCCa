@@ -5,7 +5,7 @@
 # -> Jmunu and sDs terms optional
 #
 ! Particle-hole parameters
-t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3;  wso ; wsoq ; sigma ; CT0 ; CT1 ; CSDS0 ; CSDS1
+t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3; t3b; x3b;  wso ; wsoq ; sigma ; sigma_b ; CT0 ; CT1 ; CSDS0 ; CSDS1
 ! Pairing parameters
 Vn ; Vp ; alpha ; sigmap
 !TERMS
@@ -13,15 +13,19 @@ Vn ; Vp ; alpha ; sigmap
 ! Central, LO terms   
 ! Time-even  
 ! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
-E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,0)                                   ;   1   ; 0 ; 0
-E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,1)                                   ;   1   ; 1 ; 1
-E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3,x3,+1,0,0)                          ; sigma ; 0 ; 0 ; 0
-E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3,x3,+1,0,1)                          ; sigma ; 0 ; 1 ; 1
+E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,0)                                   ;   1      ; 0 ; 0
+E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,1)                                   ;   1     ; 1 ; 1
+E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3,x3,+1,0,0)                          ; sigma   ; 0 ; 0 ; 0
+E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3,x3,+1,0,1)                          ; sigma   ; 0 ; 1 ; 1
+E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3b,x3b,+1,0,0)                        ; sigma_b ; 0 ; 0 ; 0
+E_D_I_I_D_I_I_D_I_I            ; +1.0/6.0*Cc(t3b,x3b,+1,0,1)                        ; sigma_b ; 0 ; 1 ; 1
 ! Time-odd  
-E_D_I_Sm_D_I_Sm                ; Cc(t0,x0,+1,1,0)                                   ;   1   ; 0 ; 0
-E_D_I_Sm_D_I_Sm                ; Cc(t0,x0,+1,1,1)                                   ;   1   ; 1 ; 1
-E_D_I_I_D_I_Sm_D_I_Sm          ; +1.0/6.0*Cc(t3,x3,+1,1,0)                          ; sigma ; 0 ; 0 ; 0
-E_D_I_I_D_I_Sm_D_I_Sm          ; +1.0/6.0*Cc(t3,x3,+1,1,1)                          ; sigma ; 0 ; 1 ; 1
+E_D_I_Sm_D_I_Sm                ; Cc(t0,x0,+1,1,0)                                   ;   1     ; 0 ; 0
+E_D_I_Sm_D_I_Sm                ; Cc(t0,x0,+1,1,1)                                   ;   1     ; 1 ; 1
+E_D_I_I_D_I_Sm_D_I_Sm          ; +1.0/6.0*Cc(t3,x3,+1,1,0)                          ; sigma   ; 0 ; 0 ; 0
+E_D_I_I_D_I_Sm_D_I_Sm          ; +1.0/6.0*Cc(t3,x3,+1,1,1)                          ; sigma   ; 0 ; 1 ; 1
+E_D_I_I_D_I_Sm_D_I_Sm          ; +1.0/6.0*Cc(t3b,x3b,+1,1,0)                        ; sigma_b ; 0 ; 0 ; 0
+E_D_I_I_D_I_Sm_D_I_Sm          ; +1.0/6.0*Cc(t3b,x3b,+1,1,1)                        ; sigma_b ; 0 ; 1 ; 1
 !---------------------------------------------------------------------------------------------------------------
 ! Central, NLO terms
 ! Time-even  
