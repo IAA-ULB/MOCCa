@@ -1,0 +1,356 @@
+\documentclass[print,amsmath,amssymb,aps,prc,nofootinbib,notitlepage]{revtex4-1}
+
+\usepackage[usenames,dvipsnames]{xcolor}
+\usepackage{graphicx}% Include figure files
+\usepackage{dcolumn}% Align table columns on decimal point
+\usepackage{bm}% bold math
+\usepackage{hyperref}% add hypertext capabilities
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+
+\renewcommand{\topfraction}{.85}
+\renewcommand{\bottomfraction}{.7}
+\renewcommand{\textfraction}{.15}
+\renewcommand{\floatpagefraction}{.66}
+\renewcommand{\dbltopfraction}{.66}
+\renewcommand{\dblfloatpagefraction}{.66}
+\setcounter{topnumber}{9}
+\setcounter{bottomnumber}{9}
+\setcounter{totalnumber}{20}
+\setcounter{dbltopnumber}{9}
+
+\usepackage{multirow}
+
+\newcommand*{\w}[1]{\textcolor{red}{WR: #1}}
+\newcommand*{\wrnote}[1]{\footnote{\textcolor{red}{WR: #1}}}
+\newcommand{\phh}[1]{\textcolor{blue}{#1}}
+\newcommand{\phhnote}[1]{\footnote{\textcolor{blue}{PHH: #1}}}
+\newcommand{\nn}{\nonumber}
+\renewcommand{\vec}[1]{{\bf #1}}
+\newcommand{\rmd}{{\rm d}}
+\newcommand{\MeV}{{\rm MeV}}
+\newcommand{\fm}{{\rm fm}}
+\newcommand{\iunit}{{\rm i}}
+\newcommand{\econ}{{\rm e}}
+\newcommand{\rvec}{\vec{r}}
+\newcommand{\rvecp}{\vec{r}{\, }'}
+\newcommand{\xvec}{\vec{x}}
+\newcommand{\xvecp}{\vec{x}{\, }'}
+\newcommand{\etal}{\emph{et al.}}
+
+\newcommand{\tensym}[1]{\underline{\textsf{#1}}}
+\newcommand{\nuc}[2]{$^{#1}$\textrm{#2}}
+
+\renewcommand{\Re}{\text{Re}}
+\renewcommand{\Im}{\text{Im}}
+
+\usepackage{fancyvrb}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+\author{W. Ryssens}
+\email{wryssens@ulb.be}
+\affiliation{Institut d’Astronomie et d’Astrophysique, Université Libre de 
+            Bruxelles, Campus de la Plaine CP 226, 1050 Brussels, Belgium}
+
+
+\author{M. Bender}
+\affiliation{IPNL, Universit\'e de Lyon, Universit\'e Lyon 1, CNRS/IN2P3, 
+                                                   F-69622 Villeurbanne, France}
+\author{P.-H. Heenen}
+\affiliation{PNTPM, CP229, Universit\'e Libre de Bruxelles, 
+                                                      B-1050 Bruxelles, Belgium}
+    
+\date{April 2022}
+\title{Brewing a cup of MOCCa: Hephaestos}
+
+
+\maketitle
+
+\setlength{\parindent}{0pt}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Directory and file structure of the entire package}
+
+
+\begin{Verbatim}
+ Core functionality
+ -------------------
+ Makefile          : contains all instructions for building working Tantalus executables.
+ Hephaestos.py     : main driver for Hephaestos
+ configs/          : contains predefined configuration files
+ functionals/      : contains predefined functional files
+ parameterizations/: contains parameterization files
+ exec/             : contains executables
+ mod/, obj/        : compilation directories for the compiler
+
+ src_heph/         : Hephaestos source code
+ src_orig/         : Tantalus source code, i.e. FORTRAN templates
+ src/              : "completed" Tantalus source code, output of Hephaestos
+
+ Optional/useful stuff
+ -----------------------
+ build_all.sh      : script to compile ALL possible configurations of Tantalus
+ compilation_logs/ : compilation logs, associated with build_all.sh
+ gen_XYZ_version.sh: scripts to generate public versions of the code, for 
+                     distribution to various groups. 
+ tantalus_examples : many examples for bugtesting and illustration
+ manual            : contains Tantalus and Hephaestos manuals
+ auxiliary/        : auxiliary scripts for analysing results
+ 
+ Not-so-useful stuff
+ ----------------------   
+ tex/              : Folders for future interfacing with LateX documents. 
+ tex_templates/    : Folders for future interfacing with LateX documents.
+
+\end{Verbatim}
+
+\clearpage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Running Hephaestos / Practically building Tantalus}
+
+Hephaestos is a Python-3 code\footnote{Running with Python2.7 or before will 
+likely fail.} that takes Tantalus source code templates and, depending on 
+user choices, builds compileable FORTRAN code. Running Hephaestos is as simple 
+as 
+
+\begin{Verbatim}
+python Hephaestos.py config
+\end{Verbatim}
+
+where \textrm{config} is the name of a configuration file from the \textrm{configs/} folder
+(witthout the trailing '.py'). If everything went smoothly, you should now 
+have a set of compileable Tantalus source code in the \textrm{src/} folder
+that reflects the choices made in the configuration file.  
+
+In day-to-day practice, I use the Makefile instead of running Hephaestos
+manually. By typing 
+%
+\begin{Verbatim}
+make CONFIG=config
+\end{Verbatim}
+%
+which (i) runs Hephaestos and (ii) starts compiling immediately. Other optional
+arguments for the make command are
+%
+\begin{Verbatim}
+CXX = compiler    => ifort/gfortran work by default)
+PRE = ""          => If this is given, Hephaestos is NOT run before starting the 
+                     compilation process. 
+\end{Verbatim}
+%
+At the end of a successful compilation process, you will find a new executable
+in the \textrm{exec/} folder.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Configuration files}
+
+The configuration files contain the settings with respect to symmetry choices
+and advanced options regarding EDFs. The default configuration file for 
+example contains the following instructions (I've removed non-relevant 
+comments for brevity):  
+
+\begin{Verbatim}
+FUNC_FILE = 'NLO.func'           ! functional file to use for compilation
+
+SYMSTRING = 'Rz,T,P,STy'         ! Symmetries to conserve in the calculation 
+REDUCE    = [1,1,1]              ! Reduce (=1) or not (=0) every Cartesian axis
+                                 ! [1,1,1] : calculations in 1/8th of the box
+                                 ! [1,1,0] : use complete z-axis, EV4-style
+                                 ! Note: the code will ensure coherence between
+                                 ! SYMSTRING and this input.
+
+INSYM     = 'Rz,T,P,STy'         ! Same options as before: these now refer to 
+INREDUCE  = [1,1,1]              ! what type of .wf files this executable will
+                                 ! be able to read. 
+                                 
+QUANT_AXIS='Z'                   ! Orientation options for the definition of
+SECOND_AXIS=1                    ! multipole moments.
+
+PH_PP_DECOUPL = True             ! If True: all feedback through density-dependencies
+                                 ! of the pairing interaction will be ignored. 
+                                 ! For example: a standard ULB-delta-interaction
+                                 ! depends on D_I_I, but its contribution to 
+                                 ! F_I_I is ignored. 
+\end{Verbatim}
+
+
+\clearpage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Functional files}
+
+Functional files are the true input to Hephaestos; they contain the specification of 
+the EDF. They consist of three parts, that can be described schematically as
+%
+\begin{itemize}
+\item Description part: lines starting with '\#'. These serve to describe the 
+      functional and are copied into Hephaestos output. They have no effect
+      on the FORTRAN code generated. Ends with the last line starting with 
+      '\#'.
+\item Parameters part : a list of parameters of the functional. These are the 
+      quantities that Hephaestos will assume will be read from a parameterization
+      file. This is the place to put the $t_i, x_i$ and more parameters.
+      Ends when the user includes a line '!TERMS'.
+\item Terms part: dedicated description of terms, will be explained below.
+\end{itemize}
+%
+In between, it is possible to write human-readable comments starting with '!'. 
+These will be ignored completely by both Hephaestos and Tantalus. The only 
+exception is the specific '!TERMS', which is used to indicate the transition 
+between the second and third part of a .func file. 
+
+A functional file in the end looks like this, the (abbreviated) 
+content of the default functional file.
+
+\begin{Verbatim}[fontsize=\footnotesize]
+# Standard NLO Skyrme functional                                                     | Description
+# -> with time-odd terms                                                             | Description
+# -> without tensor terms                                                            | Description
+# -> Jmunu and sDs terms optional                                                    | Description
+! Particle-hole parameters                                                           | Comment
+t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3; t3b; x3b;  wso ; wsoq ; sigma ; sigma_b      | Parameters
+! Pairing parameters                                                                 | Comment
+Vn ; Vp ; alpha ; sigmap  ; CT0 ; CT1 ; CSDS0 ; CSDS1                                | Parameters
+!TERMS                                                                               | TRANSITION
+!------------------------------------------------------------------------------------| Comment
+! Central, LO terms                                                                  | Comment
+! Time-even                                                                          | Comment
+! Term                         ! Coupling constant            ! DD_pow! isospin      | Comment
+E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,0)             ;   1    ; 0 ; 0       | Term
+E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,1)             ;   1    ; 1 ; 1       | Term
+[.......]
+E_D_I_I_CP_I_I_CP_I_I          ; -Vn/4*alpha/(0.16**sigmap)   ; sigmap; 0 ; n ; n    | Term
+E_D_I_I_CP_I_I_CP_I_I          ; -Vp/4*alpha/(0.16**sigmap)   ; sigmap; 0 ; p ; p    | Term
+\end{Verbatim}
+
+To include a term in the functional, one needs to specify
+%
+\begin{itemize}
+\item Its structure.
+\item Its coupling constant
+\item Whether or not it is density dependent 
+\item The isospin components of all densities involved. 
+\end{itemize}
+%
+The simplest term
+%
+\begin{align}
+C^{\rho \rho}_0 \rho_0(\vec{r}) \rho_0(\vec{r})
+\end{align}
+%
+is encoded as
+%
+\begin{Verbatim}
+E_D_I_I_D_I_I                  ; Cc(t0,x0,+1,0,0)                ;   1    ; 0 ; 0      
+\end{Verbatim}
+%
+where
+\begin{itemize}
+\item Different columns are separated by ';'
+\item The first column tells the code about $\rho \rho = D^{I,I} D^{I,I}$. 
+      Note the underscores separating (i) the different operators 'I' in the densities 
+      and (ii) the different densities and (iii) the initial 'E'. These are all
+      mandatory.
+\item The expression \textrm{ Cc(t0,x0,+1,0,0) } is the coupling constant. This
+      can be any string, but Hephaestos will simply paste this into the relevant
+      parts of Tantalus. Hence, this string needs to be valid FORTRAN code; 
+      you can include function calls (as I do here), but these need to be 
+      defined in the FORTRAN code. You can freely use any parameters included
+      in the first part of the func file. Note that the convention of the 
+      code for coupling constants is the most logical one: i.e. \textsf{all possible
+      signs and factors} should be included in this column. I.e. the code will
+      program in this case simply $E = Cc D^{I,I} D^{I,I}$.
+\item The '1' indicates the power of the density dependence of the first 
+      density in the term. In case this is '1', the code will ignore the 
+      possibilities of this term being density-dependent.
+\item The final columns indicate the isospin components: 0 or 1 for particle-hole
+      terms and 'p' or 'n' for pairing densities. Note that the code expects one
+      index for every density; tri/quadrilinear terms need three/four indices.
+\end{itemize}
+
+In general, the code can deal with terms $T$ of the form
+%
+\begin{align}
+T = (X^{\hat{L}_1, \hat{R}_1}_{t_1})^{\alpha}  \prod_{i=2}^{i_{\rm max}} X^{\hat{L}_i, \hat{R}_i}_{t_i}  \, .
+\end{align}
+%
+where $i_{\rm max} = 2,3,4$ depending if we are dealing with a 
+bi-, tri- or quadrilinear term, $X$ can stand for $D, C, \tilde{D}$ or $\tilde{C}$ and
+the isospin indices $t_i$ can all be independent . Hephaestos is powerful, 
+but is limited by the following for the moment:
+%
+\begin{itemize}
+\item Only the first density in the product can be raised to a power.
+\item Only one vector-product $\vec{x} \times \vec{y}$ between indices 
+      can be present in a single density.
+\item All spin-indices/operators in all densities should be part of the 
+      right-operators, i.e. in $\hat{R}_{i}$, never in the $\hat{L}_i$.
+\end{itemize}
+% 
+
+Furthermore, I want to emphasize that 
+\textbf{\textcolor{red}{Hephaestos is not so clever as he seems and checks
+for consistency of your input only in very limited ways}}. It is \textbf{EXTREMELY
+EASY} to give Hephaestos wrong input that either (i) crashes Hephaestos with 
+an unintelligible error warning (ii) exits gracefully, but produces uncompileable
+FORTRAN code or, even worse, (iii) generates a correct Tantalus executable that 
+is subtly wrong in an unforeseen way. 
+
+\subsection{The structure of densities}
+
+I'll use examples to explain the writing of any given density for Hephaestos:
+%
+\begin{align}
+D^{I,I}             &\rightarrow \textsf{D\_I\_I} \\
+D^{(\nabla,\nabla)} &\rightarrow \textsf{D\_Nm\_Nm} \\
+C^{I,\nabla\sigma}  &\rightarrow \textsf{C\_I\_NS} \\
+\tilde{D}^{I,I}     &\rightarrow \textsf{DP\_I\_I} \, .
+\end{align}
+%
+In short: 
+\begin{itemize}
+\item Replace $\nabla$ by \textsf{'N'} and $\sigma$ by \textsf{'S'}.
+\item Indicate contraction by repeated summation indices like \textsf{'m'}. Other
+      valid options are currently \textsf{'k', 'q', 'o', 'l'}.
+\item Indicate pairing densities by adding a \textsf{'P'} after the \textsf{'D'}
+      or \textsf{'C'}.     
+\end{itemize}
+%
+To indicate external derivatives, use prefixes \textsf{Der\_} and \textsf{Lap\_}, 
+such as for example
+\begin{align}
+\Delta D^{1,1}                  &\rightarrow \textsf{Lap\_D\_I\_I} \\
+\sum_{\mu \nu \kappa} \nabla_{\mu} \epsilon_{\mu\nu\kappa} C_{\nu \kappa}^{I, \nabla \sigma}   &\rightarrow \textsf{Derm\_C\_I\_NxmSxm}\, .
+\end{align}
+%
+This last example is perfect to demonstrate the useage of vector products: indicate
+the two last indices of the Levi-civita symbol by \textsf{x}, then link these two
+with the third summation index by repeated small summation letters (here \textsf{m}).
+
+\subsection{The structure of terms}
+
+Terms in Hephaestos are just combinations of densities linked by underscores and 
+preceded by \textsf{E\_}. Of course, this means
+that contractions and/or vector products can involve multiple densities. The 
+code has no problems with 
+%
+\begin{Verbatim}
+E_D_I_I_Derm_C_I_NxmSxm or E_C_Nm_NkSo_C_Nm_NkSo 
+\end{Verbatim}
+%
+which are (i) the time-even spin-orbit term of NLO functionals and (ii) the 
+$\left(\Im T_{\mu \nu \kappa}\right)^2$ terms of the Becker N2LO formulation. 
+
+
+\subsection{Some remarks}
+
+\begin{itemize}
+\item The code figures out what densities and contractions to calculate from your input.
+\item It time-reversal is broken is however, the cranking parts of the code require that you put at least one term with $C^{I, \nabla}$ and one with $D^{I, \sigma}$. Their coupling constants can be zero.
+\item You are yourself in charge of making sure your terms are time-reversal invariant.
+\item If time-reversal is conserved, the code is smart enough to drop all time-odd terms it finds.
+\end{itemize}
+
+\end{document}

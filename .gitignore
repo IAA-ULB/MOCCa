@@ -17,3 +17,9 @@ manual/tex_source/*.log
 manual/tex_source/*.bib
 manual/tex_source/*.pdf
 manual/tex_source/*.out
+
+manual/tex_source_heph/*.aux
+manual/tex_source_heph/*.log
+manual/tex_source_heph/*.bib
+manual/tex_source_heph/*.pdf
+manual/tex_source_heph/*.out

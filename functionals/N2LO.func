@@ -114,8 +114,8 @@ E_D_Nm_NkSo_Derm_Derk_D_I_So   ; -2.0/ 4.0*Cc(t1n2,x1n2,+1,1,1)-2.0/ 4.0*Cc(t2n2
 E_C_I_Nk_Lap_C_I_Nk            ; -1.0/ 4.0*Cc(t1n2,x1n2,+1,0,0)-1.0/ 4.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
 E_C_I_Nk_Lap_C_I_Nk            ; -1.0/ 4.0*Cc(t1n2,x1n2,+1,0,1)-1.0/ 4.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
 ! A^(4,7)_o
-E_Derm_C_I_Nm_Derk_C_I_Nk      ; +1.0/ 2.0*Cc(t1n2,x1n2,+1,0,0)+1.0/ 2.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
-E_Derm_C_I_Nm_Derk_C_I_Nk      ; +1.0/ 2.0*Cc(t1n2,x1n2,+1,0,1)+1.0/ 2.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
+E_Derm_C_I_Nm_Derk_C_I_Nk      ; -1.0/ 2.0*Cc(t1n2,x1n2,+1,0,0)-1.0/ 2.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
+E_Derm_C_I_Nm_Derk_C_I_Nk      ; -1.0/ 2.0*Cc(t1n2,x1n2,+1,0,1)-1.0/ 2.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
 ! A^(4,8)_o
 E_C_I_Nm_C_NkNk_Nm             ; +1.0     *Cc(t1n2,x1n2,+1,0,0)+1.0     *Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
 E_C_I_Nm_C_NkNk_Nm             ; +1.0     *Cc(t1n2,x1n2,+1,0,1)+1.0     *Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
