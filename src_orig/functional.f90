@@ -375,7 +375,6 @@ $PRINTCOEF_PAIR
     use momentsofinertia
     use Coulombmod
 
-    integer :: i
     logical, intent(in) :: calc_expensive
 
     call start_timer(T_energy)

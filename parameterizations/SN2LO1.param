@@ -7,7 +7,11 @@
 !
 ! The functional form is however the more optimal one shown in 
 ! 
-! W. Ryssens and M. Bender, in preparation. 
+! W. Ryssens and M. Bender, 
+! Skyrme pseudopotentials at next-to-next-to-leading order: 
+! Construction of local densities and first symmetry-breaking calculations. 
+! Phys. Rev. C 104, 044308 (2021). 
+! https://doi.org/10.1103/PhysRevC.104.044308
 ! 
 ! Note that this parameterisation was fitted to doubly-magic nuclei only, 
 ! and pairing was not included. This file uses a standard ULB pairing with 
