@@ -554,6 +554,8 @@ $TR    Ksum = 2*Ksum
     integer :: Na, N2a, Ta, Ba, Bb, Tb, Nb, N2b, ita, itb, k, i,j, Nk
     integer :: sai, sbi, sab, sbb, trash
     real(KIND=dp) :: num, denom
+    
+    logical :: blocked
 
     Nk = size(Ks)
     allocate(Ksum(Nk,2)) ; Ksum = 0.0d0
@@ -586,6 +588,24 @@ $PCONSERVED if(mod(la,2) .ne. mod(lb,2)) return
         
         do i=1,Ta
           do j=1,Tb
+            
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! Don't include the contribution from the blocked qps and their
+            ! partner qps.
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            blocked= .false.
+            if(allocated(blocked_qps)) then
+              do k=1,size(blocked_qps)
+                if(sai+i.eq.blocked_qps(k) .or.  sbi+j.eq.blocked_qps(k)) then
+                  blocked = .true.
+                endif
+                if(sai+i.eq.partner_qps(k) .or.  sbi+j.eq.partner_qps(k)) then
+                  blocked = .true.
+                endif
+              enddo              
+            endif
+            if(blocked) cycle
+          
             num = Qa(sai+i,sbi+j) * Qb(sai+i,sbi+j)
             do k=1,Nk
               denom = (qpenergies(sab+Ta+i) + qpenergies(sbb+Tb+j))**Ks(k)
