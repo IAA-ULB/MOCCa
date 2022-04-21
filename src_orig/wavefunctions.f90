@@ -921,7 +921,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
          enddo
       elseif(diagsphamil) then
         do k=1,3
-          do i=1,N
+          do i=si+1,si+N
             HF_J   (k,i) = spwf_J   (k,i,i)
             HF_J2  (k,i) = spwf_J2  (k,i,i)
             HF_JTR (k,i) = spwf_JTR (k,i,i)
@@ -929,6 +929,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             HF_spin(k,i) = spwf_spin(k,i,i)
             HF_STR (k,i) = spwf_STR (k,i,i)
             HF_STI (k,i) = spwf_STI (k,i,i)
+
+            HF_JJ(i) = (-1. + sqrt(1. + 4*sum(HF_J2(:,i))))/2.    
           enddo
         enddo
       endif
