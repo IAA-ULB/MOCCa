@@ -2123,6 +2123,7 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     !---------------------------------------------------------------------------
 
     quadrupole => FindMoment(2,0,.false.)
+    A = protons + neutrons
 
     ! Note: items marked with (*) are written as zero and, to the best of
     ! my (=W.R.) knowledge, not used by the level density code.  
