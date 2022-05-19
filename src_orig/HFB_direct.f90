@@ -227,7 +227,7 @@ $NTR    endif
         if(blockconf(5).ne.0) then
           do i = 1, blockconf(5)
             qpmin = 10000000
-            si = 0
+            si = 0 ;  sb = 0
             do B=1,4,2
               N = blocks(B) ; if (N.eq.0) cycle
               N2= blocks(B+1) 
@@ -235,10 +235,15 @@ $NTR    endif
                 qpmin = Eqp(sb+N+toblock(B)+1)
                 qpb   = B
               endif
-              si = si +   N + N2
+              si = si +   N +   N2
+              sb = sb + 2*N + 2*N2
             enddo
             toblock(qpb) = toblock(qpb) + 1
-            if(blocktype.eq.4) toblock(qpb+1) = toblock(qpb+1) +1 
+
+            !--------------------------------------------------------
+            ! I'm not entirely sure why I coded this before....
+            ! if(blocktype.eq.4) toblock(qpb+1) = toblock(qpb+1) +1 
+
           enddo
         endif
 
