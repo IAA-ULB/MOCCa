@@ -85,6 +85,8 @@ module functional
     !---------------------------------------------------------------------------
     ! Name of the parameterization
     character(len=30) :: name_param 
+    ! Name of the parameterization used to generate the .wf file
+    character(len=30) :: ini_name_param=''
     ! Name of the functional file this code was compiled with
     character(len=20), parameter :: func_name = $FUNC_NAME
     !---------------------------------------------------------------------------

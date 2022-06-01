@@ -206,6 +206,7 @@ contains
     
   101 format ( ' Information obtained from file ')  
   102 format ( '      - version number          : ', i5)  
+ 1021 format ( '      - param. used on file     : ', 20a)
   103 format ( '      - Bogoliubov transfo read?: ', l5)  
  1031 format ( '      - Bogoliubov transfo used?: ', l5)  
   104 format ( '      - Blocking type           : ', i5)
@@ -252,6 +253,7 @@ contains
     if(trim(to_upper(inputfilename)).ne.'INIT') then
       print 101
       print 102, file_version
+      print 1021, ini_name_param
       print 103, readHFBinfofile
       print 1031, Bogofromfile
       
@@ -546,7 +548,7 @@ contains
     
     read(chan,iostat=io) HFPsi    
     ! Name of the force and functional
-    read(chan, iostat=io) name_param, func_name_check
+    read(chan, iostat=io) ini_name_param, func_name_check
     ! Single-particle hamiltonian
     if(file_version.ge.4) then
       allocate(current_sph(filenwt,filenwt))
