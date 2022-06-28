@@ -1,0 +1,68 @@
+!-------------------------------------------------------------------------------
+! Syst_13 parameterization, as sent to me (=W. R.) by G. Grams 27/06/'22 
+!-------------------------------------------------------------------------------
+&skf 
+  name      = 'syst_13' 
+  func_file = 'BXL.func' 
+  ! Skyrme ph channel
+  t0        = -2308.3627164599425, 
+  t1        =   736.4811511831416, 
+  t2       =      0.010384, 
+  t3       =  13889.992451585138, 
+  t4       =   -476.541, 
+  t5       =   -109.01479375695973,  
+  x0       =      0.655259, 
+  x1       =      2.58354, 
+  x2       = -40824.30115686761, 
+  x3       =      0.7660378458384098, 
+  x4       =      4.67858, 
+  x5       =     -5.205278869045255, 
+  sigma    =      0.2,  
+  beta     =      0.08333, 
+  gamma    =      0.25, 
+  wso      =    116.388, 
+  wsoq     =     83.1049,  
+  CSDS0    =      0.0,                             ! No s \Delta s term 
+  CSDS1    =      0.0,                             !  
+  CT0      =      0.0,                             ! Jmunu terms 
+  CT1      =      0.0,                             !  
+  ! - - - - - - - - - - - - - - - - - - - - - 
+  ! pairing channel
+  Vn       =      0.0, 
+  Vp       =      0.0, 
+  Vnm      =      1.00, 
+  Vpm      =      1.00, 
+  kappa_n  =    120.77, 
+  kappa_p  =    159.97, 
+  alpha    =      1.00, 
+  sigmap   =      1.00, 
+  Estabn   =      0.00, 
+  Estabp   =      0.00, 
+  Cuttype    = 2  
+  Cutneutron = 7.337  
+  Cutproton  = 7.337  
+  ! - - - - - - - - - - - - - - - - - - - - - -
+  ! Coulomb solver
+  Protonsize                 = 0.895, 0.0 
+  Neutronsize                = 0.387, 0.467  
+  HOcomform                  = .false. 
+  nucleonsize_selfconsistent = .true. 
+  CoulTreatment              = 2 
+ ! - - - - - - - - - - - - - - - - - - - - - -
+ ! Collective correction
+  COM1Body =      2 
+  COM2Body =      1 
+  rotcorr                    = 1  
+  rotcorrb    = 0.88149  
+  rotcorrc    = 7.41822  
+  vibcorrd    = 0.359835  
+  vibcorrl    = 0.5  
+  vibcorrb    = 1.0   
+! - - - - - - - - - - - - - - - - - - - - - -
+! Constants
+  hbm(1)   =     20.73553000,  20.73553000,    
+  e2       =      1.43996446, 
+! - - - - - - - - - - - - - - - - - - - - - - 
+! Numerical aspects
+  eps = 1d-8 
+/
