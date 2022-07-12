@@ -117,7 +117,7 @@ contains
    &          '    Collective variables: multipole moments Qlm = r^l Y_lm ,',/,&
    &          '                          calculated wrt COM = (', 3f8.3, ')',/,&
    &          '    Collective modes normalized with hbar = 1.'              /,&
-   &          '    Units of collective inertias in MeV^{-1} b^{-l/2} [hbar^2].')
+   &          '    Units of collective inertias in MeV^{-1} b^{-l} [hbar^2].')
 
     character(len=80) :: header, sep
     character(len=16) :: tmp
