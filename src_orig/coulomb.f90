@@ -224,15 +224,15 @@ $REDUZ  coul_offset_z = 0
     if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
       if(nucleonsize_selfconsistent) then
          FoldedCoul    =FoldCoulombPotential(CoulombPotential(                 &
-         &                                                  coul_offset_x+1:nx,&
-         &                                                  coul_offset_y+1:ny,&
-         &                                                  coul_offset_z+1:nz))
+         &                                    coul_offset_x+1:coul_offset_x+nx,&
+         &                                    coul_offset_y+1:coul_offset_y+ny,&
+         &                                    coul_offset_z+1:coul_offset_z+nz))
          
          if(coultreatment .eq. 1) then
            FoldedExchange=FoldCoulombPotential(ExchangePotential(              &
-           &                                                coul_offset_x+1:nx,&
-           &                                                coul_offset_y+1:ny,&
-           &                                                coul_offset_z+1:nz))
+           &                                  coul_offset_x+1:coul_offset_x+nx,&
+           &                                  coul_offset_y+1:coul_offset_y+ny,&
+           &                                  coul_offset_z+1:coul_offset_z+nz))
          else
            if(.not. allocated(FoldedExchange)) then
             allocate (FoldedExchange(nx,ny,nz,2))
