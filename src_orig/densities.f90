@@ -158,7 +158,7 @@ contains
     ! a. construct the transformation CanTransfo that brings us into the 
     !    canonical basis by diagonalizing rho
     call Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,             &
-    &              cantransfo,cancuttransfo,ifail)
+    &              cantransfo,cancuttransfo,ifail, bogoliubov)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! b. use this transformation to construct the physical wavefunctions
