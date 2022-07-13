@@ -1878,8 +1878,21 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
 
   subroutine write_inertias(fname)
     !---------------------------------------------------------------------------
+    ! Write information on collective inertia's to file:
     !
+    !    a) the total collective inertia tensor for 
+    !       1. neutrons
+    !       2. protons
+    !       3. total
+    !    b) the M1 intermediate matrix
+    !       1. neutrons
+    !       2. protons
+    !    c) the M3 intermediate matrix
+    !       1. neutrons
+    !       2. protons
     !
+    ! Input :
+    !   fname : filename to write information to.
     !
     !---------------------------------------------------------------------------
     use fission_MOI
@@ -1899,6 +1912,10 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     6 format ('# Total')
     7 format (' Q_{ ', i2, 1x, i2, '} | ', 99es15.5 )
    
+    9 format ('#', 50('-'), 'Collective inertia tensor', 50('-'))
+   91 format ('#', 50('-'), '    Intermediate M^1     ', 50('-'))
+   92 format ('#', 50('-'), '    Intermediate M^3     ', 50('-'))
+   
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
       print *, 'Something went wrong with writing collective inertias to file.'
@@ -1907,6 +1924,8 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
     endif
     
     call write_header(1)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Values of all relevant multipole moments
     write(1, fmt=1, advance ='no') 
     do k=1, N_inertia
        l = inertia_l(k)
@@ -1928,7 +1947,11 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
          write(1, fmt=3, advance ='no') 0.0d0
        endif
     enddo
-    write(1, fmt=*)
+    write(1, *)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Collective inertia
+    write(1, fmt=1)
+    write(1, fmt=9)
     do it=1,3
       select case(it)
       ! FORTRAN does not seem to allow for calculated fmt = it + 3 statements,
@@ -1945,7 +1968,50 @@ $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3
         m = inertia_m(k)
         write(1, fmt=7) l,m,collective_inertia(k,1:N_inertia ,it)
       enddo    
-      write(1, fmt=*)
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Intermediate matrix M1
+    write(1, fmt=1)
+    write(1, fmt=91)
+    do it=1,2
+      select case(it)
+      ! FORTRAN does not seem to allow for calculated fmt = it + 3 statements,
+      ! so hardcoding it is.
+      case(1)
+        write(1, fmt=4)
+      case(2)
+        write(1, fmt=5)
+      case(3)
+        write(1, fmt=6)
+      end select      
+      do k=1, N_inertia
+        l = inertia_l(k)
+        m = inertia_m(k)
+        write(1, fmt=7) l,m,M1(k,1:N_inertia ,it)
+      enddo    
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Intermediate matrix M3
+    write(1, fmt=1)
+    write(1, fmt=92)
+    do it=1,2
+      select case(it)
+      ! FORTRAN does not seem to allow for calculated fmt = it + 3 statements,
+      ! so hardcoding it is.
+      case(1)
+        write(1, fmt=4)
+      case(2)
+        write(1, fmt=5)
+      case(3)
+        write(1, fmt=6)
+      end select      
+      do k=1, N_inertia
+        l = inertia_l(k)
+        m = inertia_m(k)
+        write(1, fmt=7) l,m,M3(k,1:N_inertia ,it)
+      enddo    
     enddo
   
   end subroutine write_inertias
