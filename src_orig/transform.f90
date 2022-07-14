@@ -653,6 +653,7 @@ $PBROKEN    if(extraspwfs(b+2).ne.0 .or. extraspwfs(b+3).ne. 0) then
 $PBROKEN      print *, 'Parity is broken, so spwfs can only be added in the first few blocks.'
 $PBROKEN      print *, 'Valid input is thus of the form'
 $PBROKEN      print *, ' extraspwfs = a, b, 0, 0 , c, d, 0 ,0'
+$PBROKEN      print *, extraspwfs
 $PBROKEN      stop
 $PBROKEN    endif
 $PBROKEN  enddo
