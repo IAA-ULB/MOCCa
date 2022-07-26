@@ -1641,6 +1641,7 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
    
     real(KIND=dp), allocatable :: tmp(:,:), work(:), temp_occ(:)
     integer, allocatable       :: indices(:)
+    real(KIND=dp)              :: mindiff, diff
     integer :: si, N, N2, B, i,j, lwork, effN, ind, ii, jj
     
     !---------------------------------------------------------------------------
@@ -1757,19 +1758,45 @@ $TR      enddo
       ! the canonical partners beforehand.
 $NTR  conjugp(si+1:si+N+N2) = 0
 
-$NTR  do i=1, N+N2
-$NTR    do j=i+1, N+N2
-$NTR      if(abs(rho_can(si+i) - rho_can(si+j)).lt.1d-12) then
-$NTR        if( abs(tmp(i,j)).gt. 1d-14) then
-$NTR            conjugp(si+i) =  si+j
-$NTR            conjugp(si+j) =  si+i
-$NTR            kappa_can(si+i) = tmp(i,j)
-$NTR            kappa_can(si+j) = tmp(j,i)   
-$NTR        endif
-$NTR      endif    
-$NTR    enddo
-$NTR  enddo
-
+!-------------------------------------------------------------------------------
+!    This way of constructing the conjugate partners is close to that used
+!    in Esperance. However, it depends on two numerical cutoffs, and failing 
+!    those could result in small differences in the final energy.
+!    W.R. 26/07/22
+!$NTR  do i=1, N
+!$NTR    do j=N+1, N+N2
+!$NTR      if(abs(rho_can(si+i) - rho_can(si+j)).lt.1d-6) then
+!$NTR        if( abs(tmp(i,j)).gt. 2e-5) then
+!$NTR            conjugp(si+i) =  si+j
+!$NTR            conjugp(si+j) =  si+i
+!$NTR            kappa_can(si+i) = tmp(i,j)
+!$NTR            kappa_can(si+j) = tmp(j,i)   
+!$NTR        endif
+!$NTR      endif    
+!$NTR    enddo
+!$NTR  enddo
+!-------------------------------------------------------------------------------
+!    This way of constructing conjugp is somewhat less arbitrary: it scans the
+!    opposite signature block for the level with the occupation that is the 
+!    closest in value. This might not necessarily be better than the other 
+!    way commented above, but it at least does not depend on parameters.
+!    W.R. 26/07/22
+$NTR     do i=1, N
+$NTR       mindiff = 10000
+$NTR       conjugp(si+i) = 0
+$NTR       do j=1, N2
+$NTR          diff = abs(rho_can(si+i) - rho_can(si+N+j))
+$NTR          if(diff .lt. mindiff ) then
+$NTR            mindiff = diff
+$NTR            conjugp(si+i) = si+N+j
+$NTR          endif
+$NTR       enddo
+$NTR       !print *, i, mindiff, conjugp(si+i)
+$NTR       conjugp(conjugp(si+i)) = si + i
+$NTR       kappa_can(si+i)          = tmp(i,conjugp(si+i)-si)
+$NTR       kappa_can(conjugp(si+i)) = tmp(conjugp(si+i)-si,i)
+$NTR     enddo
+!-------------------------------------------------------------------------------
       deallocate(tmp)
       si = si + N + N2
     enddo    

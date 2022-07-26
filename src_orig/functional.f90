@@ -645,6 +645,9 @@ $PRINT
     !
     ! which will, however, be computationally cheap as it is the square of a
     ! one-body expectation value.
+    !
+    ! TODO: add <P>^2 term to the 2-body COM calculation for parity and 
+    !       time-reversal broken calculations.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !
     ! For future reference (all sums over the entire sp. space, unless
