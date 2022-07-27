@@ -1636,14 +1636,13 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     real(KIND=dp), intent(in)  :: kappa_pairing(nwt,nwt)
     real(KIND=dp), intent(out) :: rho_can(nwt), kappa_can(nwt)
     real(KIND=dp), intent(out) :: rhotransfo(nwt,nwt), kappatransfo(nwt,nwt)
- 
-    integer, intent(out) :: ifail
+    integer, intent(out)       :: ifail
    
     real(KIND=dp), allocatable :: tmp(:,:), work(:), temp_occ(:)
     integer, allocatable       :: indices(:)
-    real(KIND=dp)              :: mindiff, diff
     integer :: si, N, N2, B, i,j, lwork, effN, ind, ii, jj
-    
+    $NTR   real(KIND=dp)       :: mindiff, diff
+ 
     !---------------------------------------------------------------------------
     ! a) Diagonalize rho
     !

@@ -124,6 +124,7 @@ contains
     ! Read some of the general information needed.
     !---------------------------------------------------------------------------
     integer(dp), intent(in), optional   :: file_number   
+    integer                             :: io
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
@@ -132,9 +133,9 @@ contains
     
     ! Reading the information on the nucleus
     if(present(file_number)) then
-      read (unit=file_number, nml=nucleus)
+      read (unit=file_number, nml=nucleus, iostat=io)
     else
-      read (unit=*, nml=nucleus)
+      read (unit=*, nml=nucleus, iostat=io)
     endif
 
     if(fixfermi .and. (mun.eq.-10d8 .or.mup.eq.-10d8) )then
@@ -287,6 +288,35 @@ contains
     enddo
     
   end subroutine inimesh
+
+  subroutine find_nml_error(nmlname, iunit)
+    !---------------------------------------------------------------------------
+    ! Complain about an error in a namelist input, using the backspace command
+    ! to find the offending line.
+    !
+    ! Input: 
+    !     nmlname : namelist name, to tell the user.
+    !     iunit   : unit of the opened file to backspace.
+    !
+    !---------------------------------------------------------------------------
+    character(len=*)    :: nmlname
+    integer, intent(in) :: iunit
+    
+    character(len=1000) :: line
+
+    backspace(iunit)
+    read(iunit,fmt='(A)') line
+    
+    print *, '--------------------------------------------------------------'
+    print *, 'Input problem encountered for namelist ', nmlname
+    print *, 'This is the offending line:' 
+    print *, ' > ', trim(line)
+    print *, 'It likely contains a variable the code does not know about.'
+    print *, '--------------------------------------------------------------'
+    
+    ! Stop the program
+    stop
+  end subroutine find_nml_error 
 
   pure integer function LeviCivita(i,j,k)
     !---------------------------------------------------------------------------

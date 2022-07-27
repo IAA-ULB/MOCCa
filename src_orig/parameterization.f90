@@ -173,12 +173,20 @@ contains
 
     do 
       read (unit=12, nml=skf, iostat=io)        ! Read the parameterization info
-      if(io .ne. 0 .and. io.ne.iostat_end) then
+      if(io.ne. 0 .and. io.ne.iostat_end .and.  &
+        &    (adjustl(to_upper(name_param)) .eq. adjustl(to_upper(name)))) then
+
+        call find_nml_error('&skf', 12)
+
+      elseif(io .ne. 0 .and. io.ne.iostat_end) then
         ! Something went wrong, but the file isn't at its end yet
         ! Maybe we read a parameter that doesn't exist for this EDF-type?
         ! Maybe something else; in any case, we proceed to the next &SKF/ 
         call resetparameterization()
         cycle
+      elseif(io.eq.iostat_end) then
+        print *, 'Parameterization not found on .param file.'
+        stop
       endif
         
       name = to_upper(name)  ; func_file = to_upper(func_file)
@@ -186,16 +194,10 @@ contains
         ! Found the parameterization
         exit
       else
-        if(io.eq.iostat_end) then 
-          print *, 'Parameterization not found on the .param file.'
-          stop
-        else
-          ! Reset all values
-          call resetparameterization()
-        endif
+       ! Reset all values
+        call resetparameterization()
       endif
     enddo
-    close(unit=12)
     !---------------------------------------------------------------------------
     ! Some sanity checks
     if(adjustl(func_file) .ne. adjustl(func_name)) then
