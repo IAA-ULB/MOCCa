@@ -272,12 +272,11 @@ contains
     real(KIND=dp)        :: ov
     character(len=1)     :: Bstr, Pstr
     
-    1  format (33 ('-'), 'Quasiparticles',33('-'))
-    2  format ( i3, 1f10.2, 2x, 1es12.2,' | ', 2i4, ' | ', 2x, a1, 2x, a1,     &
-    &           2x, 1f5.3, ' | ',  3(2x,f5.2))
+    1  format (33 ('-'), 'Quasiparticles',44('-'))
+    2  format ( i3, 1f10.2, 2x, 1es12.2, 1es12.2, ' | ', 2i4, ' | ', 2x, a1,   &
+    &           2x, a1,  2x, 1f5.3, ' | ',  3(2x,f5.2))
 
-    11  format(80 ('-'))
-
+    11  format(91 ('-'))
     if(PairingType.eq.0) return
     
     if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
@@ -311,6 +310,7 @@ contains
             endif    
           
             print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*N+2*N2-i+1),     &
+            &           qpdispersions(sb+i),                                   &
             &           U(1), V(1), '-', '-', 0.0d0,                           &
             &            qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
           enddo
@@ -360,8 +360,9 @@ contains
               ov = 0.0d0
             endif
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            print 2, i, QPenergies(sb+i), configmatrix(sb+i), U(1), V(1),      &
-            &           Bstr, Pstr, ov,                                        &
+            print 2, i, QPenergies(sb+i), configmatrix(sb+i),                  & 
+            &           qpdispersions(sb+i),                                   &
+            &           U(1), V(1), Bstr, Pstr, ov,                            &
             &           qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
           enddo
 
@@ -372,7 +373,7 @@ contains
           indices = order(BCSqps(si+1:si+N))
           do i=1, N
             ind  = indices(i)
-            print 2, i, BCSqps(si+ind), BCSf(si+ind), 0,0,'-', '-', 0.0d0,     &
+            print 2, i, BCSqps(si+ind), BCSf(si+ind),0.0d0, 0,0,'-', '-',0.0d0,&
             &        0.0d0, 0.0d0,0.0d0
           enddo
         end select
@@ -384,13 +385,16 @@ contains
   end subroutine printqps
 
   subroutine print_qp_header(B)
-    
+    !---------------------------------------------------------------------------
+    !
+    !
+    !---------------------------------------------------------------------------
     integer, intent(in) :: B  
 
     1  format ('Block ', i1, ':  P=',a1,'1',2x,  a8)
-    2  format ( '  N      Eqp       f_n      |   U   V  |   B  P  ov_TR |',4x, &
-    &           'JxT',4x,'JyT',4x,'Jz')
-    3  format (80 ('_'))
+    2  format ( '  N      Eqp       f_n         disp     |   U   V  |   B  P', &
+    &           '  ov_TR |',4x,'JxT',4x,'JyT',4x,'Jz')
+    3  format (91 ('_'))
   
     select case (B)
     case(1)

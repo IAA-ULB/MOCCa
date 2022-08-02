@@ -40,14 +40,15 @@ module HFB
  !  - subroutine solvepairing_HFB_gradient
  !  - subroutine reorganise_bogo_gradient
  !  - subroutine mix_pairing
- !  - subroutine pairing_matrices
+ !  - subroutine pairingmatrices
  !  - subroutine calcHFBgaps
  !  - subroutine PrintHFBconvergence
  !  - subroutine Canonical
  !  - subroutine clean_HFB
- !  - function   figure_out_blocking_structure
+ !  - subroutine correct_ordering_eqp
+ !  - subroutine figure_out_blocking_structure
+ !  - subroutine figure_out_blocking_structure_EFA
  !  - function   obtain_eqp
- !  - function   correct_ordering_eqp
  !  - function   calc_dispersion_HFB
  !  - function   ConstructHFBHamil
  ! 
@@ -76,6 +77,8 @@ module HFB
   procedure(delta_action_dummy), pointer :: delta_action_HFB
   ! Angular momentum "expectation values" of the Bogoliubov quasiparticles
   real(KIND=dp), allocatable :: qp_J(:,:), qp_JTR(:,:), qp_JTI(:,:)
+  ! Quasiparticle dispersions: <H^2> - E_qp^2
+  real(KIND=dp), allocatable :: qpdispersions(:)
   !---------------------------------------------------------------------------
   ! History of the pairing matrices, for mixing purposes.
   real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
@@ -342,7 +345,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
 
   end subroutine solvepairing_HFB_direct
 
-  subroutine solvepairing_HFB_gradient( sphamil, gaps, fermi, lambda2, Bogo,   & 
+  subroutine solvepairing_HFB_gradient( sphamil, gaps, fermi,  Bogo,           & 
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType, Blockindices,              &
   &                          blocklowest, blocked_qps, partner_qps,            & 
@@ -385,6 +388,8 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !
+    ! TODO: update these comments, they no longer reflect reality
+    !
     ! Note that the gradient solver is conceptually different from the direct 
     ! HFB solver: it requires an initial Bogoliubov transformation to get 
     ! started and requires the knowledge of the "selected" quasiparticles. 
@@ -424,7 +429,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp), intent(inout) :: Fermi(2)          , Bogo(:,:)
     real(KIND=dp), intent(inout) :: kappa_pairing(:,:), rho_pairing(:,:)
     real(KIND=dp), intent(inout) :: configmatrix(:)   , qpenergies(:) 
-    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:), lambda2(2)
+    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
     integer, intent(inout)       :: ifail
     integer, intent(in)          :: maxhfbiter
     logical, intent(in)          :: move
@@ -434,12 +439,12 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     character(len=2), intent(in), allocatable :: BlockLowest(:)
 
     real(KIND=dp)                :: minqp, maxqp, condi, trash
-    real(KIND=dp), allocatable   :: tempEqp(:), full_eqp(:)
+    real(KIND=dp), allocatable   :: tempEqp(:), full_eqp(:), occ(:)
     integer, allocatable         :: blocked_qps(:), partner_qps(:)
     real(KIND=dp), allocatable   :: p_overlaps(:) 
 
 
-    integer :: sb, B, N, N2, T,i, j, stind,endind !,NB ,X(1),Y(1)
+    integer :: si,sb, B, N, N2, T,i, j, stind,endind !,NB ,X(1),Y(1)
   
     ! Statement to stop the compiler complaining about this dummy variable
     if(allocated(blockindices)) trash = 0.0d0
@@ -452,7 +457,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     endif
 
     if(.not.allocated(Z_updates)) then
-      allocate(Z_updates(nwt,nwt)) ; Z_updates = 0.0d0
+      allocate(Z_updates(nwt,nwt,2)) ; Z_updates = 0.0d0
     endif
     allocate(tempEqp(nwt))  ; tempEqp = 0 
 
@@ -514,71 +519,83 @@ $TR    endif
 
     if(move) then
       !-------------------------------------------------------------------------
-      ! Heavy-ball stepping
+      ! For clarity, build the occupation factors for the gradient routines
+      allocate(occ(nwt)) ; occ = 0.0
+    
+      si = 0 ; sb = 0
+      do B=1,8,2
+        N = HFblocks(B)   ; if(N.eq.0) cycle
+        N2= HFblocks(B+1)
+        T = N + N2
+        
+        do i=1,T
+          occ(si+i) = 1.0d0 - configmatrix(sb+T+i)
+        enddo
+        si = si +  T
+        sb = sb +2*T
+      enddo    
+    
+      !-------------------------------------------------------------------------
+      ! Heavy-ball stepping for the neutrons
       call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),               & 
       &                  neutrons, Bogo(1:2*nwn,1:2*nwn),                      &
+      &                  occ(1:nwn),                                           &
       &                  tempEqp(1:nwn),Fermi(1),                              &
       &                  gradient_stepsize, gradient_mu,                       &
-      &                  Z_updates(1:nwn,1:nwn),                               &
+      &                  Z_updates(1:nwn,1:nwn,:),                             &
       &                  gradient_precon, HFBgradnorm(1), grad_blocks(1:4),    &
-      &                  lambda2(1), rho_pairing(1:nwn, 1:nwn),                &
       &                  maxhfbiter, ifail)
       ! and for the protons
       call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt),& 
       &                  protons,Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),            &
+      &                  occ(nwn+1:nwt),                                       &
       &                  tempEqp(nwn+1:nwt),Fermi(2),                          &
       &                  gradient_stepsize, gradient_mu,                       &
-      &                  Z_updates(nwn+1:nwt,nwn+1:nwt),                       &
+      &                  Z_updates(nwn+1:nwt,nwn+1:nwt,:),                     &
       &                  gradient_precon, HFBgradnorm(2), grad_blocks(5:8),    &
-      &                  lambda2(2), rho_pairing(nwn+1:nwt,nwn+1:nwt),         &
       &                  maxhfbiter, ifail)
+
+      deallocate(occ)
     endif
     !---------------------------------------------------------------------------
-    ! Copying the Bogoliubov matrix and reordering the configuration matrix.
-    sb = 0
-    do B=1,8,2
-      N = HFblocks(B)   ; if(N.eq.0) cycle
-      N2= HFblocks(B+1)
-      T = N + N2
-  
-      do i=1,T
-        ! Populate the columns of the Bogoliubov transformation that have not 
-        ! been evolved. Note the extra minus sign when time-reversal is conserved.
-$TR     Bogo(sb  +1:sb  +T, sb+T+1-i) =-Bogo(sb+T+1:sb+2*T, sb+T+i)   
-$NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
-        Bogo(sb+T+1:sb+2*T, sb+T+1-i) = Bogo(sb  +1:sb+  T, sb+T+i)   
-      enddo
-      
-      sb = sb + 2*T
-    enddo
-    
-    sb = 0
-    configmatrix = 0.0d0
-    do B=1,8,2
-      N = HFBlocks(B)   ; if(N.eq.0) cycle
-      N2= HFBlocks(B+1)
-      T = N+N2
+    ! Copying the Bogoliubov matrix into its 'left side'
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! W.R. 29/07/'22 : this is now handled inside the gradient_step routine.
+    !    sb = 0
+    !    do B=1,8,2
+    !      N = HFblocks(B)   ; if(N.eq.0) cycle
+    !      N2= HFblocks(B+1)
+    !      T = N + N2
+    !  
+    !      do i=1,T
+    !        ! Populate the columns of the Bogoliubov transformation that have not 
+    !        ! been evolved. Note the extra minus sign when time-reversal is conserved.
+    !$TR     Bogo(sb  +1:sb  +T, sb+T+1-i) =-Bogo(sb+T+1:sb+2*T, sb+T+i)   
+    !$NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
+    !        Bogo(sb+T+1:sb+2*T, sb+T+1-i) = Bogo(sb  +1:sb+  T, sb+T+i)   
+    !      enddo 
+    !      sb = sb + 2*T
+    !    enddo
 
-      configmatrix(sb+1:sb+T)     = 0.0d0
-      configmatrix(sb+T+1:sb+2*T) = 1.0d0
-      sb = sb + 2*T
-    enddo
-    
     !---------------------------------------------------------------------------
     ! Calculate the density and anomalous density matrix
     call PairingMatrices(configmatrix, bogo, rho_pairing, kappa_pairing)
     !---------------------------------------------------------------------------
-    ! Final organisation of the Bogoliubov transformation and QP energies
-    ! We calculate the QP energies by simply calculating
-    !
-    !             B^T h B
-    ! 
-    ! and taking the diagonal matrix elements, which then need no extra 
-    ! sorting. 
-    qpenergies = correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFblocks)
+    ! Final organisation of the Bogoliubov transformation B and QP energies. 
+    call correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFblocks, &
+    &                                                  qpenergies,qpdispersions)
 
-    call figure_out_blocking_structure(sphamil, gaps, Fermi, bogo, blocked_qps,&
-    &                            partner_qps, p_overlaps,blocktype, blocklowest)
+
+    ! TODO: this identification of the blocked quasiparticles assumes a 
+    !       perfectly ordered Bogoliubov transformation, which we cannot
+    !       construct for EFA calculations
+    if(blocktype .ne. 4) then
+      call figure_out_blocking_structure(sphamil, gaps, Fermi, bogo, &
+      &              blocked_qps,partner_qps, p_overlaps,blocktype, blocklowest)
+    else
+      call figure_out_blocking_structure_EFA( &
+      & configmatrix,blocked_qps,partner_qps, p_overlaps,blocktype, blocklowest)
+    endif
     !---------------------------------------------------------------------------
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
@@ -586,7 +603,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     deallocate(tempEqp)
   end subroutine solvepairing_HFB_gradient
   
-  subroutine figure_out_blocking_structure(sphamil , gaps, lambda,        &
+  subroutine figure_out_blocking_structure(sphamil , gaps, lambda,             &
   &                                             Bogo_ref, bl_qps, part_qps,    &
   &                                             p_overlaps,                    &
   &                                             BlockType, blocklowest) 
@@ -630,12 +647,12 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     !           (    cross       signature=-)
     !
     ! For all non-blocked qps, the 1's will be in the diagonal blocks, i.e. they
-    ! will not mix signatures. All blocked qps however, will find their '1's int
+    ! will not mix signatures. All blocked qps however, will find their '1's in
     ! the cross parts of this matrix.
-    !
     !
     !---------------------------------------------------------------------------
     ! Input:
+    ! ------
     !     sphamil     : matrix of the single-particle hamiltonian
     !     gaps        : matrix of the pairing gaps
     !     lambda      : fermi energies of both nucleon species
@@ -645,6 +662,7 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     !     Blocklowest : Set of types of excitation to build.
     !
     ! Output: 
+    ! ------
     !     bl_qp       : indices of the blocked quasiparticles, determined by
     !                   the procedure discussed above.
     !     part_qps    : indices of the partner quasiparticles
@@ -667,9 +685,9 @@ $NTR    Bogo(sb  +1:sb  +T, sb+T+1-i) = Bogo(sb+T+1:sb+2*T, sb+T+i)
     integer, allocatable      :: blocked_qp(:),blockblock(:), pqp(:)
     logical                   :: check
     
-    if(blocktype.ne.2 .and. blocktype.ne.4 .and. blocktype.ne.0) then
+    if(blocktype.ne.2 .and. blocktype.ne.0) then
       print *, 'The blocking identification for the gradient solver is not '
-      print *, 'yet capable of dealing with blocktype != 0,2,4'
+      print *, 'yet capable of dealing with blocktype != 0,2.'
       stop
     endif
     if(.not.allocated(blocklowest)) return
@@ -885,6 +903,66 @@ $PBROKEN blockblock(i) = 5
     
   end subroutine figure_out_blocking_structure
   
+  subroutine figure_out_blocking_structure_EFA(&
+  &          config,bl_qps, part_qps, p_overlaps, BlockType, blocklowest) 
+    !---------------------------------------------------------------------------
+    ! Identify the blocked quasiparticle(s) and their (almost) time-reversal
+    ! partner(s) in the case of Equal Filling blocking.
+    !
+    ! Input:
+    ! ------
+    ! config     : configuration (1-f) factors
+    ! blocktype  : type of blocking to be done
+    ! blocklowest: types of qps to be blocked
+    ! 
+    ! Output:
+    ! -------
+    ! bl_qps     : identified blocked quasiparticles
+    ! part_qps   : identified partner quasiparticles
+    ! p_overlaps : overlaps with time-reversal, i.e. <B|T|P>
+    ! 
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)                      :: config(:)
+    integer, allocatable, intent(out)              :: bl_qps(:), part_qps(:)
+    real(KIND=dp), allocatable, intent(out)        :: p_overlaps(:)
+    integer, intent(in)                            :: BlockType
+    character(len=2), intent(in), allocatable      :: BlockLowest(:)
+
+    integer :: i, NB, si, sb, N, N2, T, ind, B
+
+    NB = size(blocklowest)
+
+    if(blocktype.ne.4) then
+      print *, 'figure_out_blocking_structure_EFA should only be called for'
+      print *, 'blocktype.eq.40'
+      stop
+    endif
+
+    allocate(bl_qps(NB))    ; bl_qps     = 0
+    allocate(part_qps(NB))  ; part_qps   = 0
+    allocate(p_overlaps(NB)); p_overlaps = 0.0d0
+    
+    si      = 0 ; sb = 0 ; ind = 0
+    do B=1,8,2
+      N  = HFBlocks(B)    ! Size of the first partner block
+      N2 = HFBlocks(B+1)  ! Size of the second partner block
+      T  = N + N2
+      
+      do i=1,T
+        if(config(sb+i) .eq. 0.5d0) then
+          ind             = ind + 1
+          bl_qps(ind)     = si + i
+          part_qps(ind)   = si + i
+          p_overlaps(ind) = 1.0d0
+        endif
+      enddo
+      
+      si = si +   T
+      sb = sb + 2*T
+    enddo
+
+  end subroutine figure_out_blocking_structure_EFA
+  
   function obtain_eqp(sphamil, gaps, lambda, blocks) result(eigen)
     !---------------------------------------------------------------------------
     ! Obtain the quasiparticle energies by constructing and diagonalizing the 
@@ -956,36 +1034,49 @@ $PBROKEN blockblock(i) = 5
   
   end function obtain_eqp
   
-  function correct_ordering_eqp(sphamil, gaps, lambda,bogo,blocks) result(eigen) 
+  subroutine correct_ordering_eqp(sphamil,gaps,lambda,bogo,blocks, eigen,disp) 
     !---------------------------------------------------------------------------
     ! This routine obtains estimates of the qp-energies of the HFB Hamiltonian H
     ! by taking the diagonal matrix elements of
     !
     !       W^T H W
     !
-    ! where W is the Bogoliubov transformation passed in. 
-    ! This ensures that the estimate of an qp energy is correctly associated 
-    ! with the corresponding (approximation to) an eigenvector of H. 
+    ! where W is the Bogoliubov transformation. This ensures that the estimate 
+    ! of an qp energy is correctly associated with the corresponding 
+    ! (approximate) eigenvector of H. We also calculate the associated 
+    ! dispersions.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !
     ! Input : 
+    ! -------
     !   sphamil : matrix of the single-particle hamiltonian
     !   gaps    : matrix of the pairing gaps
     !   lambda  : Fermi energies for both nucleon species
     !   blocks  : sizes of the symmetry blocks of the HFB Hamiltonian
+    !
     ! Output: 
+    ! -------
     !   eigen   : the diagonal matrix elements of W^T H W
+    !   disp    : the dispersion of the vectors in W
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), lambda(2), bogo(:,:)
     real(KIND=dp), allocatable  :: HFBhamil(:,:)
     integer, intent(in)         :: blocks(8)
-    real(KIND=dp),allocatable   :: eigen(:)
+    real(KIND=dp),  intent(out) :: eigen(:), disp(:)
     
+    real(KIND=dp), allocatable  :: prod(:,:)
     integer       :: si, sb, B, N, N2, T, i,  it
   
-    si      = 0 ; sb = 0
-    allocate(eigen(2*sum(blocks))) ;   eigen   = 0
+    si    = 0 ; sb   = 0
+    eigen = 0 ; disp = 0
     
     allocate(HFBHamil(2*sum(blocks), 2*sum(blocks)))
+    !  ^
+    !  |
+    ! Actually inefficient memory useage: we can allocate this thing inside
+    ! the loop with the size of individual blocks....
+
     do B=1,8,2
       N  = Blocks(B)    ! Size of the first partner block
       N2 = Blocks(B+1)  ! Size of the second partner block
@@ -993,10 +1084,11 @@ $PBROKEN blockblock(i) = 5
       
       it = 1 ; if(B.gt.4) it = 2
       
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! I construct the HFB Hamiltonian by hand as it needs to have the right 
       ! structure from the start
-      HFBHamil(sb  +1:sb+  T,sb  +1:sb+  T)     = +sphamil(si+1:si+T,si+1:si+T)
-      HFBHamil(sb+T+1:sb+2*T,sb+T+1:sb+2*T)     = -sphamil(si+1:si+T,si+1:si+T)
+      HFBHamil(sb  +1:sb+  T,sb  +1:sb+  T) = +sphamil(si+1:si+T,si+1:si+T)
+      HFBHamil(sb+T+1:sb+2*T,sb+T+1:sb+2*T) = -sphamil(si+1:si+T,si+1:si+T)
   
 $NTR  HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = -gaps(si+1:si+T,si+1:si+T)
 $TR   HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = +gaps(si+1:si+T,si+1:si+T)
@@ -1008,24 +1100,43 @@ $TR   HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = +gaps(si+1:si+T,si+1:si+T)
         HFBHamil(sb+T+i,sb+T+i) =  HFBHamil(sb+T+i,sb+T+i) +lambda(it)
       enddo
 
-      ! Multiply with bogo from the right      
-      HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T) = &
-      & matmul(HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T), &
-      &        Bogo(sb+1:sb+2*T,sb+1:sb+2*T))
-      ! and with B^T from the left
-      HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T) = &
-      & matmul(transpose(Bogo(sb+1:sb+2*T,sb+1:sb+2*T)), &
-      &                  HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T) )
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Multiply with the Bogliubov transformation from the right      
+      prod = matmul(HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T), &
+      &             Bogo(sb+1:sb+2*T,sb+1:sb+2*T))
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! ..... and with its transpose from the left
+      prod = matmul(transpose(Bogo(sb+1:sb+2*T,sb+1:sb+2*T)), prod)
+      ! We don't actually need ALL these matrix elements, but it is a nice 
+      ! debugging tool to just be able to 'print HFBHamiltonian'....
       
       do i=1, 2*T
-        eigen(sb+i) = HFBHamil(sb+i, sb+i)
+        eigen(sb+i) = prod(i,i)
       enddo
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Squaring the HFB Hamiltonian
+      HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T) = matmul( &
+      &    HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T),HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T))     
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Multiply with the Bogliubov transformation from the right      
+      prod = matmul(HFBHamil(sb+1:sb+2*T,sb+1:sb+2*T), &
+      &             Bogo(sb+1:sb+2*T,sb+1:sb+2*T))
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! ..... and with its transpose from the left
+      prod = matmul(transpose(Bogo(sb+1:sb+2*T,sb+1:sb+2*T)), prod)
       
+      do i=1, 2*T
+        ! Dispersion = <H^2> - E^2
+        disp(sb+i) = prod(i,i) - eigen(sb+i)**2
+      enddo
+
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
    enddo
   
-  end function correct_ordering_eqp
+  end subroutine correct_ordering_eqp
 
   pure subroutine reorganise_Bogo_gradient(Bogo, config, effblocks) 
     !---------------------------------------------------------------------------
@@ -1052,15 +1163,15 @@ $TR   HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = +gaps(si+1:si+T,si+1:si+T)
     !                which might be larger or smaller than the HFBlocks.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(inout) :: Bogo(:,:)
-    real(KIND=dp), intent(in)    :: config(:)
+    real(KIND=dp), intent(inout) :: config(:)
     integer, intent(inout)       :: effblocks(8)
-    real(KIND=dp), allocatable   :: tempBogo(:,:)
+    real(KIND=dp), allocatable   :: tempBogo(:,:), tempconfig(:)
    
     integer                      :: B, N, N2, T, sb,  NP, ind, ind2, i
     integer, allocatable         :: indices(:) 
     real(KIND=dp)                :: compare
     
-    allocate(tempBogo(2*nwt, 2*nwt))
+    allocate(tempBogo(2*nwt, 2*nwt), tempconfig(2*nwt))
     tempBogo = 0.0d0
     !---------------------------------------------------------------------------
     ! if these variables have been set, then we know that the 
@@ -1114,9 +1225,15 @@ $TR return
       do i=1,T
         if(config(sb+T+indices(i)).eq.1.0d0) then
           tempBogo(sb+1:sb+2*T ,sb+T+i)  = Bogo(sb+1:sb+2*T,sb+T+indices(i))  
+          tempconfig  (sb+T+i)           = config(sb+T+indices(i))
+!      config(sb+T+1:sb+2*T) = 1.0d0
+        elseif(config(sb+T+indices(i)).eq.0.5d0) then
+          tempBogo(sb+1:sb+2*T ,sb+T+i)  = Bogo(sb+1:sb+2*T,sb+T+indices(i))  
+          tempconfig  (sb+T+i)           = config(sb+T+indices(i))
         else
           tempBogo(sb+1  :sb+  T,sb+T+i) = Bogo(sb+T+1:sb+2*T,sb+T+indices(i))    
           tempBogo(sb+T+1:sb+2*T,sb+T+i) = Bogo(sb+  1:sb+  T,sb+T+indices(i))    
+          tempconfig  (sb+T+i)           = 1-config(sb+T+indices(i))
         endif
       enddo    
       deallocate(indices)
@@ -1163,6 +1280,22 @@ $TR return
       effBlocks(B)   = Np
       effBlocks(B+1) = T - Np
       sb = sb + 2 * T
+    enddo
+    
+    !---------------------------------------------------------------------------
+    ! Finally, we change the configmatrix around.
+    sb = 0
+    config = 0.0d0
+    do B=1,8,2
+      N = HFBlocks(B)   ; if(N.eq.0) cycle
+      N2= HFBlocks(B+1)
+      T = N+N2
+
+      do i=1, T
+        config(sb  +i) = 1 - tempconfig(sb+T+i)
+        config(sb+T+i) =     tempconfig(sb+T+i)
+      enddo
+      sb = sb + 2*T
     enddo
     
   end subroutine reorganise_Bogo_gradient
@@ -1274,11 +1407,10 @@ $TR    dispersion = 2 * dispersion
             !-------------------------------------------------------------------
             !                                   U      f  U^{\dagger}
             rho(si+i,si+j)  = rho(si+i,si+j) +                 &
-            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+  j,column)
+            &     config(sb+  k)*bogo(sb+     i,column) * bogo(sb+     j,column)
             !                                   V^* (1-f) V^{T}
             rho(si+i,si+j)  = rho(si+i,si+j) +                 &
             &     config(column)*bogo(sb+N+N2+i,column) * bogo(sb+N+N2+j,column)
-
             !-------------------------------------------------------------------
             !                                   U   f        V^{\dagger}     
             ! Note the minus sign due to the hidden time-reversal!
@@ -1570,7 +1702,7 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
   
   end subroutine calc_gaps_HF 
 
-  subroutine PrintHFBconvergence(rho_pairing, kappa_pairing)
+  subroutine PrintHFBconvergence(rho_pairing, kappa_pairing, Bogo)
     !---------------------------------------------------------------------------
     ! Prints out some convergence info on the HFB subproblem.
     !   a) sqrt(sum( (rho*rho - rho + kapppa * kappa^T)**2)
@@ -1578,20 +1710,25 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     ! 
     ! These should be (numerically) vanishingly small at convergence, when we
     ! have solved the HFB problem consistently.
+    !
+    ! Input : 
+    !   rho_pairing  : density matrix
+    !   kappa_pairing: anomalous density matrix
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Note that these numbers do not vanish when we do either
     !   (i)  finite-temperature calculations (they increase as T increases)
     !   (ii) Equal Filling-style blocking
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)  :: rho_pairing(:,:), kappa_pairing(:,:)
-    real(KIND=dp)              :: test1(8), test2(8)
-    real(KIND=dp), allocatable :: A(:,:) , r(:,:), k(:,:)
-    integer                    :: N, B, si, N2
+    real(KIND=dp), intent(in)  :: rho_pairing(:,:),kappa_pairing(:,:),bogo(:,:)
+    real(KIND=dp)              :: test1(8), test2(8), test3(8)
+    real(KIND=dp), allocatable :: A(:,:) , r(:,:), k(:,:), check(:,:)
+    integer                    :: N, B, si, N2, T, sb, i,j
 
     1 format (' HFB convergence:   (N,+)    (N,-)    (P,+)    (P,-)')
     2 format ('  r^2-r+k*k^T    = ',  4es9.2)
     3 format ('  r*k-k*r        = ',  4es9.2)
-    4 format (' Grad. norm      = ',  4es9.2)
+    4 format ('  unitarity      = ',  4es9.2)    
+!    5 format (' Grad. norm      = ',  4es9.2)
 
     print *
     print 1
@@ -1601,9 +1738,10 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
         N = HFBlocks(B) ; if (N.eq. 0) cycle
         N2= HFBlocks(B+1)
 
-        allocate(A(N+N2,N+N2), r(N+N2,N+N2), k(N+N2,N+N2))
-        r = rho_pairing(si+1:si+N+N2  ,si+1:si+N+N2)
-        k = kappa_pairing(si+1:si+N+N2,si+1:si+N+N2)
+        T = N + N2
+        allocate(A(T,T), r(T,T), k(T,T))
+        r = rho_pairing(si+1:si+T  ,si+1:si+T)
+        k = kappa_pairing(si+1:si+T,si+1:si+T)
         
         ! A = rho^2 - rho + kappa * kappa^T
         A = matmul(r,r) - r + matmul(k, transpose(k))
@@ -1619,7 +1757,30 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
 
     print 2, test1(1), test1(3), test1(5), test1(7)
     print 3, test2(1), test2(3), test2(5), test2(7)
-    print 4, HFBgradnorm
+
+    si = 0 ; sb = 0
+    test3 = 0.0d0 
+    do B=1,8,2
+        N = HFBlocks(B) ; if (N.eq. 0) cycle
+        N2= HFBlocks(B+1)
+
+        T = N + N2
+        check = matmul(transpose(Bogo(sb+1:sb+2*T,sb+1:sb+2*T)), &
+        &                        Bogo(sb+1:sb+2*T,sb+1:sb+2*T))
+        
+        do i=1,2*T
+          do j=1,2*T
+            if(i.eq.j) then
+              test3(B) = test3(B) + (check(i,j) - 1.0d0)**2
+            else 
+              test3(B) = test3(B) + (check(i,j))**2
+            endif
+          enddo
+        enddo
+        sb = sb + 2*T
+    enddo
+    test3 = sqrt(test3)
+    print 4, test3(1),test3(3),test3(5),test3(7) 
 
   end subroutine PrintHFBconvergence
 
@@ -1637,10 +1798,11 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     real(KIND=dp), intent(out) :: rho_can(nwt), kappa_can(nwt)
     real(KIND=dp), intent(out) :: rhotransfo(nwt,nwt), kappatransfo(nwt,nwt)
     integer, intent(out)       :: ifail
-   
     real(KIND=dp), allocatable :: tmp(:,:), work(:), temp_occ(:)
+    
     integer, allocatable       :: indices(:)
-    integer :: si, N, N2, B, i,j, lwork, effN, ind, ii, jj
+    integer                    :: si, N, N2, B, i,j,  lwork, effN, ind
+    integer                    :: ii, jj
     $NTR   real(KIND=dp)       :: mindiff, diff
  
     !---------------------------------------------------------------------------
@@ -1720,11 +1882,11 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     
     ! Time-reversal
 $TR    rho_can = 2*rho_can
-    
+
     do i=1,nwt
-$TR      if(rho_can(i).gt.2.0) rho_can(i) = 2.0
-$NTR     if(rho_can(i).gt.1.0) rho_can(i) = 1.0
-      if(rho_can(i).lt.0.0) rho_can(i) = 0.0
+$TR      if(rho_can(i).gt.2.0d0) rho_can(i) = 2.0d0
+$NTR     if(rho_can(i).gt.1.0d0) rho_can(i) = 1.0d0
+      if(rho_can(i).lt.0.0) rho_can(i) = 0.0d0
     enddo
     !---------------------------------------------------------------------------
     ! b) Bring kappa into canonical form
@@ -1816,17 +1978,27 @@ $NTR     enddo
 
     N = size(rho, 1)
 
-    allocate(R(2*N, 2*N))
+    allocate(R(4*N, 4*N)) ; R = 0.0d0
 
     R(  1:  N,   1:  N) = rho
-    R(N+1:2*N, N+1:2*N) =-rho
+    R(N+1:2*N, N+1:2*N) = rho
+    
+    R(2*N+1:3*N, 2*N+1:3*N) =-rho
+    R(3*N+1:4*N, 3*N+1:4*N) =-rho
 
-    do i=1, N
-        R(N+i, N+i) = R(N+i, N+i) + 1.0d0
+    do i=1, 2*N
+        R(2*N+i, 2*N+i) = R(2*N+i, 2*N+i) + 1.0d0
     enddo
     
-    R(  1:  N,N+1:2*N) = kappa
-    R(N+1:2*N,  1:  N) =-kappa
+    R(  1:  N,3*N+1:4*N) = kappa
+    R(N+1:2*N,2*N+1:3*N) = -transpose(kappa)
+
+    R(2*N+1:3*N, N+1:2*N) = -kappa
+    R(3*N+1:4*N,   1:  N) = transpose(kappa)
+
+
+!$NTR    R(N+1:2*N,  1:  N) =-kappa
+!$TR     R(N+1:2*N,  1:  N) =+kappa
 
    end function construct_generalized_density
 

@@ -68,8 +68,6 @@ module pairing
  !------------------------------------------------------------------------------
  ! Fermi energy for neutrons and protons.
  real(KIND=dp) :: FermiEnergy(2) , FermiHistory(2)
- ! Constraint on the dispersion of the particle number
- real(KIND=dp) :: Lambda2(2) = 0.0
  !------------------------------------------------------------------------------
  ! Particle number dispersion
  real(KIND=dp) :: Dispersion(2)
@@ -172,7 +170,7 @@ contains
     NameList /Pairing/ Type, Constantgap,                                      &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
     &                  FermiSolver, guessgaps,  pairingscheme,                 &
-    &                  gradient_precon, bogofromfile, lambda2
+    &                  gradient_precon, bogofromfile
 
     NameList /Indices/ BlockIndices, blocklowest, blockfname
 
@@ -267,10 +265,10 @@ $PBROKEN              stop
         endif
 
         ! Sanity check on the useage of the gradient solver for EFA
-        if((blocktype.eq.3 .or. blocktype.eq.4) .and. pairingscheme .eq.1) then
-          print *,' The gradient solver cannot yet handle EFA blocking.'
-          stop
-        endif 
+!        if((blocktype.eq.3 .or. blocktype.eq.4) .and. pairingscheme .eq.1) then
+!          print *,' The gradient solver cannot yet handle EFA blocking.'
+!          stop
+!        endif 
         
         ! Sanity check: cannot do full blocking if time-reversal is not broken
 $TR        if(blocktype.eq.1 .or. Blocktype.eq.2) then
@@ -610,6 +608,10 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       if(.not.allocated(Bogoliubov)) then
         allocate(Bogoliubov(2*nwt,2*nwt))  ; Bogoliubov    = 0.0
       endif
+      if(.not.allocated(qpdispersions)) then
+        allocate(qpdispersions(2*nwt)) ; qpdispersions = 0.0d0
+      endif
+      
       ! Depending on the algorithm in use, we build a different single-particle
       ! hamiltonian matrix.
       sphamil = build_sph(scheme, efficientHFB)
@@ -624,13 +626,13 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         &   blocked_qps, partner_qps, partner_overlaps, ifail)
       case(+1)
         call solvepairing_HFB_gradient( &
-        &   sphamil,HFBgaps,FermiEnergy,Lambda2,Bogoliubov,rho_pairing,        &
+        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
         &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
         &   .true. , 1, ifail)
       case(-1)
         call solvepairing_HFB_gradient( &
-        &   sphamil,HFBgaps,FermiEnergy,Lambda2,Bogoliubov,rho_pairing,        &
+        &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
         &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
         &  .false., 1, ifail)
@@ -641,7 +643,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     if(pairingtype.eq.2) then
       rho_hf =  construct_rho_HF(rho_pairing, HFtransfo)
     else
-      rho_hf = rho_can/2.0
+      rho_hf = rho_can/2.0d0
     endif  
     !---------------------------------------------------------------------------
     ! If beta != infty, we calculate the number of particles in the gas
@@ -766,7 +768,9 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
 !$NTR    print 13, nb(1:4)
 !$NTR    print 14, nb(5:8)
 
-        !if(pairingtype.eq.2)call PrintHFBConvergence(rho_pairing, kappa_pairing)
+        if(pairingtype.eq.2) then
+          call PrintHFBConvergence(rho_pairing, kappa_pairing, Bogoliubov)
+        endif
     end select
     print 7
   end subroutine PrintPairing
@@ -774,7 +778,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
   function calcpairingenergy() result(E)
     !---------------------------------------------------------------------------
     ! Calculate the pairing energy.
-    !---------------------------------------------------------------------------
+    !-----------------------------------------------------f----------------------
     integer       :: wave, it, wave2
     real(KIND=dp) :: E(2)
     
@@ -1181,6 +1185,7 @@ $NTR      endif
     if(allocated(configmatrix))  deallocate(configmatrix)
     if(allocated(Bogoliubov))    deallocate(Bogoliubov)
     if(allocated(QPenergies))    deallocate(QPenergies)
+    if(allocated(QPdispersions)) deallocate(QPdispersions)
     if(allocated(CanTransfo))    deallocate(CanTransfo)
     if(allocated(CanCutTransfo)) deallocate(CanCutTransfo)
     if(allocated(BlockIndices))  deallocate(BlockIndices)

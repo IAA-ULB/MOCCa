@@ -753,10 +753,11 @@ $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
     call stop_timer(T_com1)
     
     ! The calculations is not yet implemented for Hartree-Fock calculations
-    if(COM2body .ne. 0 .and. pairingtype .eq. 0) then
-      print *, 'Two-body COM not implemented yet for Hartree-Fock calculations.'
-      stop
-    endif
+$NTR    if(COM2body .ne. 0 .and. pairingtype .eq. 0) then
+$NTR      print *, 'Two-body COM not implemented yet for Hartree-Fock calculations '
+$NTR      print *, 'with time-reversal breaking.'
+$NTR      stop
+$NTR    endif
     
     if(COM2body .eq. 1 .and. do_2body) then
       !-------------------------------------------------------------------------

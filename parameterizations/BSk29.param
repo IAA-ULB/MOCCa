@@ -32,8 +32,8 @@ CT1      = 0.0                             !
 ! Pairing parameters 
 Vp       =  0.00000
 Vn       =  0.00000
-Vmn      =  1.0
-Vmp      =  1.0
+Vnm      =  1.0
+Vpm      =  1.0
 kappa_n  =  0.0
 kappa_p  =  0.0
 alpha    =  1.0
