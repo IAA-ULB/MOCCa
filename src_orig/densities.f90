@@ -775,10 +775,10 @@ $PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
     rhoP_3D(1:nx,1:ny,1:nz,1:2) => DP_I_I
 
     print 12
-    print 2, meshX(nx) , maxval(sum(rhoP_3D(nx,:,:,:),3))
-    print 3 , meshY(ny), maxval(sum(rhoP_3D(:,ny,:,:),3))
-    print 4 , meshZ(nz), maxval(sum(rhoP_3D(:,:,nz,:),3))
-$PBROKEN  print 41, meshZ(1) , maxval(sum(rhoP_3D(:,:,1,:),3))
+    print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
+    print 3 , meshY(ny), maxval(abs(sum(rhoP_3D(:,ny,:,:),3)))
+    print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
+$PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
   endif
   
 end subroutine print_boxsize_check

@@ -646,8 +646,11 @@ $PRINT
     ! which will, however, be computationally cheap as it is the square of a
     ! one-body expectation value.
     !
-    ! TODO: add <P>^2 term to the 2-body COM calculation for parity and 
+    ! TODO: 
+    ! -------
+    !  (a) add <P>^2 term to the 2-body COM calculation for parity and 
     !       time-reversal broken calculations.
+    !  (b) allow computation for Hartree-Fock calculations
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !
     ! For future reference (all sums over the entire sp. space, unless
@@ -748,6 +751,12 @@ $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
     end select    
 
     call stop_timer(T_com1)
+    
+    ! The calculations is not yet implemented for Hartree-Fock calculations
+    if(COM2body .ne. 0 .and. pairingtype .eq. 0) then
+      print *, 'Two-body COM not implemented yet for Hartree-Fock calculations.'
+      stop
+    endif
     
     if(COM2body .eq. 1 .and. do_2body) then
       !-------------------------------------------------------------------------
