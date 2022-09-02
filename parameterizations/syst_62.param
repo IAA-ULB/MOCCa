@@ -1,0 +1,65 @@
+!-------------------------------------------------------------------------------
+! Syst_46 parameterization, a candidate for BSkG3 
+! as sent to me (=W. R.) by G. Grams 09/09/'22 
+!-------------------------------------------------------------------------------
+&skf 
+ 	name     = 'syst_62' 
+  func_file= 'BXL.func' 
+!- - - - - - - - - - - - - - - - - - - -
+ 	t0       =  -2313.6644944913937, 
+ 	t1       =    727.3575806708918, 
+ 	t2       =      0.010135, 
+ 	t3       =  13986.58062643814, 
+ 	t4       =   -471.595, 
+ 	t5       =    -26.69008171155539,  
+ 	x0       =      0.554875, 
+ 	x1       =      2.486, 
+ 	x2       = -43806.07421325245, 
+ 	x3       =      0.5894240439909457, 
+ 	x4       =      4.50106, 
+ 	x5       =    -18.324620935798528, 
+ 	sigma    =      0.2,  
+ 	beta     =      0.08333, 
+ 	gamma    =      0.25, 
+ 	wso      =    116.604, 
+ 	wsoq     =     84.8772,  
+ 	CSDS0    =      0.0,  ! No s \Delta s term 
+ 	CSDS1    =      0.0,  !  
+ 	CT0      =      0.0,  ! Jmunu terms 
+ 	CT1      =      0.0,  !  
+ 	hbm(1)   = 20.73553000,  20.73553000,    
+!- - - - - - - - - - - - - - - - - - - -
+! Pairing parameters
+ 	Vn       =      0.0, 
+ 	Vp       =      0.0, 
+ 	Vnm      =      1.00, 
+ 	Vpm      =      1.00, 
+ 	kappa_n  =    120.77, 
+ 	kappa_p  =    159.97, 
+ 	alpha    =      1.00, 
+ 	sigmap   =      1.00, 
+ 	Estabn   =      0.00, 
+ 	Estabp   =      0.00, 
+!- - - - - - - - - - - - - - - - - - - 
+!  Treatment of coulomb interaction
+ 	e2       = 1.43996446, 
+ 	COM1Body = 2 
+ 	COM2Body = 1 
+ 	Protonsize    = 0.895, 0.0 
+ 	Neutronsize   = 0.387, 0.467  
+ 	nucleonsize_selfconsistent=.true. 
+ 	HOcomform     = .false. 
+! - - - - - - - - - - - - - - - - - -
+! Collective correction
+ 	CoulTreatment = 2 
+ 	rotcorr       = 1  
+ 	Cuttype       = 2  
+ 	Cutneutron    = 7.337  
+ 	Cutproton     = 7.337  
+ 	rotcorrb      = 1.01  
+ 	rotcorrc      = 7.22  
+ 	vibcorrd      = 0.001  
+ 	vibcorrl      = 0.6  
+ 	vibcorrb      = 0.9   
+ 	eps = 1d-8 
+ 	/
