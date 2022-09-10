@@ -99,5 +99,8 @@ def read_den_file(fname):
   nx = int(np.max(dat[:,0])/dx + 0.5)
   ny = int(np.max(dat[:,1])/dx + 0.5)
   nz = int(np.max(dat[:,2])/dx + 0.5)
+  
+  if(np.min(dat[:,2])< 0.0):
+    nz = 2*nz    
 
   return nx,ny,nz,dx, dat
