@@ -615,6 +615,9 @@ $TR   particles = 2 * particles
       logical                      :: Success
       integer, allocatable         :: blocked_qp(:), partner_qp(:)
  
+      if ( targetparticles .lt. 0.1_dp ) then
+        lambda = -10000.0_dp
+      endif
       !-------------------------------------------------------------------------
       ! STEP 1: set up an initial bracket
       !-------------------------------------------------------------------------
@@ -669,9 +672,9 @@ $TR   particles = 2 * particles
 !        print '(" Bracketing ",i4,1l2,(2(f13.8,es16.7)))',        &
 !              & FailCount,Success,InitialBracket(1),FA, InitialBracket(2),FB          
         ! code failure (Fermi energy has changed by 30 MeV)
-        if (Failcount .gt. 76) then
-          print '(/," A = ", f13.8, "FA = ",1es12.4,              &
-               &    " B = ", f13.8, "FB = ",1es12.4)',            &
+        if (Failcount .gt. 200) then
+          print '(/," A = ", f13.8, " FA = ",1es12.4,              &
+               &    " B = ", f13.8, " FB = ",1es12.4)',            &
                &     InitialBracket(1),FA,InitialBracket(2),FB 
           ifail = 1
           return

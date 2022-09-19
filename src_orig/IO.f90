@@ -381,7 +381,7 @@ contains
     !---------------------------------------------------------------------------
     if(guessgaps) then
       ! Guess some pairing gaps if asked for (always if starting from INIT)
-      call initializeGaps()
+      call initializeGaps(gapvalue)
     endif
     
     !---------------------------------------------------------------------------

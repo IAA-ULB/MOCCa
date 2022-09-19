@@ -148,6 +148,9 @@ module pairing
  !------------------------------------------------------------------------------
  ! Whether or not to guess some pairing gaps when starting the code.
  logical :: guessgaps = .false.
+ ! ... and with which values to initialize them. Negative values signal
+ ! the code to use the default value, 1.5 MeV.
+ real(KIND=dp) :: gapvalue(2) = -2
  !-----------------------------------------------------------------------------
  ! Determine the scheme used for solving the HFB problem in the HF basis
  !  (0) => Direct solution, i.e. construction and diagonalisation of the 
@@ -170,7 +173,7 @@ contains
     NameList /Pairing/ Type, Constantgap,                                      &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
     &                  FermiSolver, guessgaps,  pairingscheme,                 &
-    &                  gradient_precon, bogofromfile
+    &                  gradient_precon, bogofromfile, gapvalue
 
     NameList /Indices/ BlockIndices, blocklowest, blockfname
 
@@ -226,6 +229,12 @@ $FORBIDBCS endif
     !---------------------------------------------------------------------------
     ! Reading information on the blocking if needed.
     if(BlockNumber.ne.0) then
+        ! Sanity check: only allow for blocking in HFB mode
+        if(pairingtype.ne.2) then 
+          print *, 'Blocking only allowed when doing HFB calculations.'
+          stop
+        endif
+
         allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
         allocate(BlockLowest(BlockNumber))  ; BlockLowest  = ' ' 
         read(unit=*, nml=Indices)
@@ -336,6 +345,7 @@ $TR        endif
    82 format('    Estab(p,n)= ', 2f4.1, ' MeV')
    83 format('   Initialisation:')
   831 format('   -> guessed initial gaps Delta')
+ 8311 format('       Gn = ', f4.1, ' MeV ', ' Gp = ', f4.1, ' MeV.' )
   832 format('   -> started with HFB transformation from file')
   833 format('   -> started with explicit vacuum construction')
 
@@ -419,7 +429,10 @@ $TR        endif
         print 833
       endif 
     endif
-    if(guessgaps) print 831
+    if(guessgaps) then
+      print 831
+      print 8311, gapvalue
+    endif
 
     if(particles_in_gas .eq.1) then
       print 14
@@ -460,13 +473,38 @@ $TR        endif
 
   end subroutine printpairing_init
   
-  subroutine initializeGaps()
+  subroutine initializeGaps( gapvalue )
     !---------------------------------------------------------------------------
-    ! 
+    ! Allocate the pairing gaps (BCSgaps or HFBgaps) and assign them a 
+    ! value according to the users wishes. 
     !
+    ! Note that 
     !
+    ! a) this routine respects symmetries, i.e. gaps forbidden by symmetry
+    !    are initialized to zero, independently from gapvalue.
+    !
+    ! b) This routine is not necessary (but will function) when starting the 
+    !    code from a .wf file. In that case, the gaps will be overwritten.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !
+    ! Input:
+    !   gapvalue :  values to assign to the pairing gaps for neutrons and protons
+    !               in MeV. If gapvalue < 0, use the default value, 1.5 MeV.
     !---------------------------------------------------------------------------
-    integer :: wave, wave2, si, B, N, s, N2
+    integer                   :: wave, wave2, si, B, N, s, N2, it
+    real(KIND=dp), intent(in) :: gapvalue(2) 
+    real(KIND=dp)             :: fill(2)
+    
+    do it=1,2
+      if(gapvalue(it) .lt. 0) then
+        fill(it) = 1.5
+      else
+        fill(it) = gapvalue(it)
+      endif
+    enddo
+    
+    
 
     select case (PairingType)
     case(0)
@@ -495,6 +533,12 @@ $TR        endif
         N = HFBlocks(B) ; if(N.eq.0) cycle
         N2= HFblocks(B+1)
         
+        if(B .ge. 5) then
+          it = 2
+        else
+          it = 1
+        endif
+        
         do wave=si+1,si+N
              !------------------------------------------------------------------
              ! If there is a conserved time-like symmetry, then we store only
@@ -520,7 +564,7 @@ $NTR          do wave2=si+N+1,si+N+N2
             else
               ! Either we don't have a kappa in storage, or the pairing has 
               ! collapsed in this subblock.
-              HFBgaps( wave, wave2) = 1.5
+              HFBgaps( wave, wave2) = fill(it)
             endif
 $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
           enddo 
