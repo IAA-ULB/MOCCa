@@ -124,6 +124,7 @@ def initfunctional(fname, so):
     # B) removing contractions when the full density will be calculated
     Densities_needed.append(tempden[0])
     deriv_needed.append([])
+
     for i in range(len(tempden)):
         (deri, lapi, lefti, righti, coupi, crossi) = \
                         ParseOperators(tempden[i],so.timelike)
@@ -504,7 +505,17 @@ def ParseDensities(term):
                     densities[j] = densities[j].replace(l, '')
                 else:
                     pass
-    # Remove vector coupling indices
+
+    for l in sumindices:
+      for x in crossindices:
+        for i in range(len(densities)): 
+            if( derstring + x + l in densities[i]) :
+                # Remove the coupling if it involves derivatives
+                densities[i] = densities[i].replace(l, '')
+                for j in range(len(densities)):
+                    densities[j] = densities[j].replace(l, '')
+
+    # Remove vector coupling indices that might remain
     for l in crossindices:
         for i in range(len(densities)): 
             densities[i] = densities[i].replace(l, '')
@@ -899,7 +910,7 @@ def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,
 #              altterm = altterm.replace(tryout,nosum)           
 #              print (s1, s2, densities[i].count(s1), altterm)    
     (rubbish, true_coupling) = ParseDensities(altterm)
-        
+       
     dic = {}
     index_encountered=0
     name = ''
@@ -930,7 +941,10 @@ def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,
     elif(len(true_coupling) == nthree):
       true_args = vec_args
     else:
-      true_args = list(itertools.product(args, vec_args))
+      true_args = []
+      for a in args:
+        for va in vec_args:
+          true_args.append(a+va)
            
     if(un_index == 0):  
       # only construct a declaration for the first term in a set
@@ -1030,6 +1044,11 @@ def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,
     if(len(densities) == 4):
       dic['FMT'] = 99
     
+    if(len(densities) == 1):
+      print ('This term was not parsed correctly.')
+      print (term)
+      print (densities)
+      exit()
     printing = ts.print.substitute(dic) 
     calculation = calculation + ts.end_comment 
     

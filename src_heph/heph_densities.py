@@ -570,7 +570,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     
     Expression = Expression +  ta.Den_line.substitute(dic)
     Expression = Expression +  ta.Den_comment.substitute(dic)
-    
+ 
     for arg in args:
         # We have the uncontracted indices. Now construct the combinations of
         # indices, including contracted ones, that correspond to this. 
@@ -765,7 +765,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                             ta.Den_diag.substitute(dic)
         # Don't forget the closing bracket
         Expression = Expression +  ')\n'
-        
+
         # And add a line for the isospin coupling
         if('P' not in density): 
           Isospincoupl = Isospincoupl + ta.Den_iso_comment.substitute(dic) 
@@ -782,6 +782,8 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
             Derivation = Derivation + ta.Den_line.substitute(dic)
             Derivation = Derivation + ta.Den_comment_deriv.substitute(dic)
         for c in derivative_combinations:
+             #print (denin,so.ReduceAxes, c, len(derivative_combinations))
+
             if(c == (0,0)):
                 continue
             Derivation = Derivation + ta.Den_comment_deriv_b%(c[0], c[1])
@@ -816,7 +818,8 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                     if(c[0] > 0):
                         # There is a Laplacian involved, and we first calculate
                         # all derivatives, and then only afterwards laplacians.
-                        (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,darg,so,'P' in denin)
+
+                        (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin,darg)
                         dic['PX']    = str(px)
                         dic['PY']    = str(py)
                         dic['PZ']    = str(pz) 
@@ -825,7 +828,12 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                             dic['IND'] = ',' + str(int(Storage_Mapping(darg)+1)) + IND
                         else:
                             dic['IND'] = IND     
-                        Derivation     = Derivation + ta.Lap_template.substitute(dic)
+                        Derivation     = Derivation + ta.Lap.substitute(dic)
+
+                        # Add a line for the isospin coupling while we are here
+                        if('P' not in density):
+                          Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic) 
+
                     else:
                         # There is no laplacian, so we only calculate partial
                         # derivatives

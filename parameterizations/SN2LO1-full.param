@@ -1,0 +1,47 @@
+!-------------------------------------------------------------------------------
+! SN2LO1 parameterization of the N2LO functional using the parameter values
+! of 
+!
+! P. Becker, D. Davesne, J. Meyer, J. Navarro and A. Pastore,
+! Phys. Rev. C 96, 044330 (2017).
+!
+! The functional form is however the more optimal one shown in 
+! 
+! W. Ryssens and M. Bender, 
+! Skyrme pseudopotentials at next-to-next-to-leading order: 
+! Construction of local densities and first symmetry-breaking calculations. 
+! Phys. Rev. C 104, 044308 (2021). 
+! https://doi.org/10.1103/PhysRevC.104.044308
+! 
+! Note that this parameterisation was fitted to doubly-magic nuclei only, 
+! and pairing was not included. This file uses a standard ULB pairing with 
+! the strength typically used for SLy4.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SN2LO1-full" 
+func_file= 'N2LO.full.func'
+t0       =  -2486.90786,
+t1       =    497.51821,
+t2       =   -451.60715,
+t3       =  13707.18320, 
+t1n2     =    -11.95063,
+t2n2     =    -15.04405,
+x0       =      0.57160369,
+x1       =     -0.05521333,
+x2       =     -0.99803779,
+x3       =      0.88704830,
+x1n2     =      0.10279808,
+x2n2     =     -0.93024200,
+sigma    =      0.166666666666666666667 
+w0      =    117.904418,
+te       =     0.0
+to       =     0.0
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+w1n2     =   40000.0
+w2n2     =   00000.0 
+alpha    =    1.0
+sigmap   =    1.0
+hbm(1)   = 20.73553,20.73553
+COM1Body = 2
+/ 

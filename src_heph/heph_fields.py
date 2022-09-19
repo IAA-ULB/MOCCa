@@ -482,8 +482,11 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
            elif(NumberOfIndices == 0 ):
               true_args = vec_args
            else:
-              true_args = itertools.product(args, vec_args)
-
+              true_args = []
+              for a in args:
+                for va in vec_args:
+                  true_args.append(a+va)
+      
            for arg in true_args:            
              # get the indices of the field (i.e. the lhs above) correct
              dic['IND']     = ''

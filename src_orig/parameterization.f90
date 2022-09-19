@@ -516,5 +516,40 @@ $PRINTPARAMS
     !---------------------------------------------------------------------------
   end function Cc
 
+  real(KIND=dp) function Ct(t,p,it) result(c)
+    !--------------------------------------------------------------------------
+    ! Generic coupling coefficients of tensor and LS Skyrme terms.
+    !--------------------------------------------------------------------------
+    ! C^+/-_tST    +       -
+    !              t       t        
+    !    c10     +1/4    +3/4
+    !    c11     -1/4    +1/4
+    !--------------------------------------------------------------------------
+    integer, intent(in)      :: p,it
+    real(KIND=dp),intent(in) :: t
+    
+    c = 0
+
+    select case(p)
+    !--------------------------------------------------------------------------
+    case(+1) ! C^+_t
+      select case(it)
+      case(0)
+        c =  1.0_dp/4.0_dp * t  ! C^+_t10
+      case(+1)
+        c = -1.0_dp/4.0_dp * t  ! C^+_t11
+      end select
+    !--------------------------------------------------------------------------
+    case(-1) ! C^-_t
+      select case(it)
+      case(0)
+        c =  3.0_dp/4.0_dp * t  ! C^-_t10
+      case(+1)
+        c =  1.0_dp/4.0_dp * t  ! C^-_t11
+      end select
+    end select
+
+  end function Ct
+
 
 end module parameterization
