@@ -155,7 +155,20 @@ E_C_I_Nm_C_NkNk_Nm             ; +1.0     *Cc(t1n2,x1n2,+1,0,0)+1.0     *Cc(t2n2
 E_C_I_Nm_C_NkNk_Nm             ; +1.0     *Cc(t1n2,x1n2,+1,0,1)+1.0     *Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
 !----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ! time-even N2LO spin-orbit
-! NOTE: hephaestos can only handle the first of these four terms
+!----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+! The first three terms are simple, they just add two contracted gradients acting in or on the same 
+! density already found in the NLO expression D_I_I_Derm_C_I_NxmSxm. Only the forth term is more complicated.
+! The term with external Laplacian is the only one for which the overall sign is different for
+! the space-even and space-odd interactions (for evident reasons when looking at the difference in generating
+! operators of these terms).
+! The forth term is rewritten compared to PP's notes as we have to change the order of indices in the 
+! Levi-Civita tensor, which gives an additional "-" sign 
+! epsilon_mnk D_Na_Nk Der_n C_1_NaSm = - epsilon_knm D_Na_Nk nabla_n C_1_NaSm 
+!                                      = - D_Na_Nk Der_xk C_1_NaSxk
+!                                      = - D_Nk_Nm Der_xm C_1_NkSxm
+! HOWEVER: to get (near-)zero self-interaction I had to further change the sign of this term by hand. (to be checked further!)
+!----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+! Note that 
 !----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
 E_D_I_I_Derm_C_NkNk_NxmSxm     ; +1.0/4.0*Ct(w1n2,+1,0)+1.0/4.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
@@ -164,22 +177,29 @@ E_D_Nk_Nk_Derm_C_I_NxmSxm      ; -1.0/4.0*Ct(w1n2,+1,0)-1.0/4.0*Ct(w2n2,-1,0)   
 E_D_Nk_Nk_Derm_C_I_NxmSxm      ; -1.0/4.0*Ct(w1n2,+1,1)-1.0/4.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
 E_Lap_D_I_I_Derm_C_I_NxmSxm    ; -1.0/4.0*Ct(w1n2,+1,0)+1.0/4.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
 E_Lap_D_I_I_Derm_C_I_NxmSxm    ; -1.0/4.0*Ct(w1n2,+1,1)+1.0/4.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
-!! note the - sign from reorganising the order of indices in the Levi-Civita compared to PP's notes
-E_D_Nk_Nk_Derxm_C_I_NmSxm      ; -1.0/2.0*Ct(w1n2,+1,0)-1.0/2.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
-E_D_Nk_Nk_Derxm_C_I_NmSxm      ; -1.0/2.0*Ct(w1n2,+1,1)-1.0/2.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
+E_D_Nk_Nm_Derxm_C_I_NkSxm      ;  1.0/2.0*Ct(w1n2,+1,0)+1.0/2.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
+E_D_Nk_Nm_Derxm_C_I_NkSxm      ;  1.0/2.0*Ct(w1n2,+1,1)+1.0/2.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
 !----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ! time-odd N2LO spin-orbit
-! NOTE: hephaestos can only handle the first two of these four terms
+!----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+! The first three terms are again simple, they just add two contracted gradients acting in or on the same 
+! density already found in the NLO expression E_D_I_Sm_Derxm_C_I_Nxm. Only the forth term is more complicated.
+! Like for the time-even part, the term with external Laplacian is the only one for which the overall sign 
+! is different for the space-even and space-odd interactions.
+! The forth term contains a rank-2 contraction of the rank-3 spin-kinetic tensor, 
+! epsilon_nop D_Nm_NoSp Der_n C_I_Nm = epsilon_nop Der_n C_I_Nm D_Nm_NoSp 
+!                                    = Der_n C_I_Nm D_Nm_NxnSxn
+!                                    = Der_m C_I_Nk D_Nk_NxmSxm
 !----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
 E_D_I_Sm_Derxm_C_NkNk_Nxm      ; +1.0/4.0*Ct(w1n2,+1,0)+1.0/4.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
 E_D_I_Sm_Derxm_C_NkNk_Nxm      ; +1.0/4.0*Ct(w1n2,+1,1)+1.0/4.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
-E_D_NkNk_Sm_Derxm_C_I_Nxm      ; -1.0/4.0*Ct(w1n2,+1,0)-1.0/4.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
-E_D_NkNk_Sm_Derxm_C_I_Nxm      ; -1.0/4.0*Ct(w1n2,+1,1)-1.0/4.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
+E_D_Nk_Nk_Sm_Derxm_C_I_Nxm     ; -1.0/4.0*Ct(w1n2,+1,0)-1.0/4.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
+E_D_Nk_Nk_Sm_Derxm_C_I_Nxm     ; -1.0/4.0*Ct(w1n2,+1,1)-1.0/4.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
 E_Lap_D_I_Sm_Derxm_C_I_Nxm     ; -1.0/4.0*Ct(w1n2,+1,0)+1.0/4.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
 E_Lap_D_I_Sm_Derxm_C_I_Nxm     ; -1.0/4.0*Ct(w1n2,+1,1)+1.0/4.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
-E_Derk_C_I_Nm_D_Nm_NxkSxk      ; -1.0/2.0*Ct(w1n2,+1,0)-1.0/2.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
-E_Derk_C_I_Nm_D_Nm_NxkSxk      ; -1.0/2.0*Ct(w1n2,+1,1)-1.0/2.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
+E_D_Nk_NxmSxm_Derm_C_I_Nk      ; -1.0/2.0*Ct(w1n2,+1,0)-1.0/2.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
+E_D_Nk_NxmSxm_Derm_C_I_Nk      ; -1.0/2.0*Ct(w1n2,+1,1)-1.0/2.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
 !---------------------------------------------------------------------------------------------------------------
 ! Pairing interaction (in proton-neutron representation)
 !---------------------------------------------------------------------------------------------------------------
