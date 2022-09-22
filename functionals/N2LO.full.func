@@ -194,8 +194,8 @@ E_D_Nk_Nm_Derxm_C_I_NkSxm      ;  1.0/2.0*Ct(w1n2,+1,1)+1.0/2.0*Ct(w2n2,-1,1)   
 ! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
 E_D_I_Sm_Derxm_C_NkNk_Nxm      ; +1.0/4.0*Ct(w1n2,+1,0)+1.0/4.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
 E_D_I_Sm_Derxm_C_NkNk_Nxm      ; +1.0/4.0*Ct(w1n2,+1,1)+1.0/4.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
-E_D_Nk_Nk_Sm_Derxm_C_I_Nxm     ; -1.0/4.0*Ct(w1n2,+1,0)-1.0/4.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
-E_D_Nk_Nk_Sm_Derxm_C_I_Nxm     ; -1.0/4.0*Ct(w1n2,+1,1)-1.0/4.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
+E_D_Nk_NkSm_Derxm_C_I_Nxm      ; -1.0/4.0*Ct(w1n2,+1,0)-1.0/4.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
+E_D_Nk_NkSm_Derxm_C_I_Nxm      ; -1.0/4.0*Ct(w1n2,+1,1)-1.0/4.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
 E_Lap_D_I_Sm_Derxm_C_I_Nxm     ; -1.0/4.0*Ct(w1n2,+1,0)+1.0/4.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
 E_Lap_D_I_Sm_Derxm_C_I_Nxm     ; -1.0/4.0*Ct(w1n2,+1,1)+1.0/4.0*Ct(w2n2,-1,1)       ;   1   ; 1 ; 1
 E_D_Nk_NxmSxm_Derm_C_I_Nk      ; -1.0/2.0*Ct(w1n2,+1,0)-1.0/2.0*Ct(w2n2,-1,0)       ;   1   ; 0 ; 0
