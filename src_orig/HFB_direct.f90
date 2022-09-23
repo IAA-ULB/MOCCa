@@ -363,8 +363,8 @@ $NTR    endif
       column = qp-si+N2+N
       offset = 0
 
-      tr_qp(       1:  N     ) = + Bogo(1:  N+N2+1,column)
-      tr_qp(  N   +1:  N+  N2) = - Bogo(1:2*N+N2+1,column) 
+      tr_qp(       1:  N     ) = + Bogo(  N+N2+1:2*N+  N2,column)
+      tr_qp(  N   +1:  N+  N2) = - Bogo(2*N+N2+1:2*N+2*N2,column) 
       tr_qp(  N+N2+1:2*N+  N2) =   0
       tr_qp(2*N+N2+1:2*N+2*N2) =   0
                                ! Sign due to time-reversal
