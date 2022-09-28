@@ -1,0 +1,36 @@
+!-------------------------------------------------------------------------------
+! SV-min parameterization from P. Kl\"upfel et al, PRC 79, 034310 (2009).
+!-------------------------------------------------------------------------------
+&skf 
+NAME     = 'SV-min' 
+func_file= 'NLO.func'
+t0       = -2112.248
+x0       =     0.243886
+t1       =   295.781
+x1       =    -1.434926
+t2       =   142.268
+x2       =    -2.625899
+t3       = 13988.567
+x3       =     0.258070
+x3b      =      0.0
+t3b      =      0.0
+sigma_b  =      0.0
+sigma    =     0.255368
+wso      = 111.291
+wsoq     =  45.93615
+Vn       = -601.160
+Vp       = -567.191
+! What is called the switching density  \rho_pair in the paper can be simulated
+! in our case through the appropriate use of our scaling factor alpha. 
+!    We have alpha = 0.16/\rho_pair.
+alpha    =     0.756179404
+sigmap   =     1.0
+hbm(1)   = 20.721260, 20.749821
+COM1Body = 1
+COM2Body = 1
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+/
+
