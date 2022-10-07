@@ -832,7 +832,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
 
                         # Add a line for the isospin coupling while we are here
                         if('P' not in density):
-                          Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic) 
+                          Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic) 
 
                     else:
                         # There is no laplacian, so we only calculate partial
@@ -855,6 +855,8 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                         
                         # Add a line for the isospin coupling while we are here
                         if('P' not in density):
+                          dic['DARG'] = str(darg)
+                          dic['DC'] = str(c)
                           Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic) 
             else:
                     (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin)

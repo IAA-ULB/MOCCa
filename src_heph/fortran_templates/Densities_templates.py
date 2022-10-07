@@ -23,10 +23,10 @@ Lap   = T( 2*tab + \
 
 iso_normal   =  T( tab +'$NAME(:$IND,3) = $NAME(:$IND,1) + $NAME(:$IND,2) \n' \
                   +tab +'$NAME(:$IND,4) = $NAME(:$IND,1) - $NAME(:$IND,2) \n' )
-iso_der      =  T( tab +'der_$NAME(:$DERIND,3) = der_$NAME(:$DERIND,1) + der_$NAME(:$DERIND,2) \n' \
-                  +tab +'der_$NAME(:$DERIND,4) = der_$NAME(:$DERIND,1) - der_$NAME(:$DERIND,2) \n' )
-iso_lap      =  T( tab +'lap_$NAME(:$IND,3) = lap_$NAME(:$IND,1) + lap_$NAME(:$IND,2) \n' \
-                  +tab +'lap_$NAME(:$IND,4) = lap_$NAME(:$IND,1) - lap_$NAME(:$IND,2) \n' )
+iso_der      =  T( tab +'Der_$NAME(:$DERIND,3) = Der_$NAME(:$DERIND,1) + Der_$NAME(:$DERIND,2) \n' \
+                  +tab +'Der_$NAME(:$DERIND,4) = Der_$NAME(:$DERIND,1) - Der_$NAME(:$DERIND,2) \n' )
+iso_lap      =  T( tab +'Lap_$NAME(:$IND,3) = Lap_$NAME(:$IND,1) + Lap_$NAME(:$IND,2) \n' \
+                  +tab +'Lap_$NAME(:$IND,4) = Lap_$NAME(:$IND,1) - Lap_$NAME(:$IND,2) \n' )
 #-------------------------------------------------------------------------------
 # Some templates for comments to put into the densities file
 Den_comment          = T(2*tab+'! Calculation of density $NAME \n')
