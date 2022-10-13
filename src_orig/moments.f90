@@ -988,7 +988,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 !    call CalcBeta(ToCalculate)
 
 !  end subroutine Calculate_charge
-  
+
   subroutine CalcBeta(Mom)
   !-----------------------------------------------------------------------------
   ! Function that calculates the beta_lm deformation parameters associated with
@@ -998,11 +998,22 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     real(KIND=dp)               :: R, factor
 
     R = 1.2_dp  * (neutrons + protons)**(1.0_dp/3.0_dp)
-    factor = 4.0_dp * pi /(3.0_dp * (neutrons+ protons) * R**(Mom%l))
+    factor = 4.0_dp * pi /(3.0_dp * R**(Mom%l))
 
-    Mom%Beta(1:2) = factor*Mom%Value
-    Mom%Beta(3)   = factor*Mom%ChargeValue
-    Mom%Beta(4)   = factor*sum(Mom%Value)
+    if(neutrons .ne. 0) then
+      Mom%Beta(1) = factor*Mom%Value(1)/neutrons
+    else 
+      Mom%Beta(1) = 0.0
+    endif
+
+    if(protons .ne. 0) then      
+      Mom%Beta(2) = factor*Mom%Value(2)/protons
+      Mom%Beta(3) = factor*Mom%ChargeValue/protons
+    else
+      Mom%Beta(2) = 0.0
+      Mom%Beta(3) = 0.0
+    endif
+    Mom%Beta(4) = factor*sum(Mom%Value)/(neutrons+protons)
   end subroutine CalcBeta
   
   subroutine CalcQuadrupoleAlt()
