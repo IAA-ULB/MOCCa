@@ -1000,9 +1000,10 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     R = 1.2_dp  * (neutrons + protons)**(1.0_dp/3.0_dp)
     factor = 4.0_dp * pi /(3.0_dp * R**(Mom%l))
 
-    Mom%Beta(1) = factor*Mom%Value(1)/neutrons
-    Mom%Beta(2) = factor*Mom%Value(2)/protons
-    Mom%Beta(3) = factor*Mom%ChargeValue/protons
+    Mom%Beta(:) = 0.0_dp
+    if ( neutrons .gt. 0.0_dp ) Mom%Beta(1) = factor*Mom%Value(1)/neutrons
+    if ( protons  .gt. 0.0_dp ) Mom%Beta(2) = factor*Mom%Value(2)/protons
+    if ( protons  .gt. 0.0_dp ) Mom%Beta(3) = factor*Mom%ChargeValue/protons
     Mom%Beta(4) = factor*sum(Mom%Value)/(neutrons+protons)
   end subroutine CalcBeta
   
@@ -1574,9 +1575,11 @@ $NTR    print 102
     ! - l = 0 moment => Particle numbers
     ! - l =-2 moment => RMS radii
     !---------------------------------------------------------------------------
-
+     
     class(Moment),       intent(in) :: ToPrint
     character(len=2)                :: ReIm
+    real(KIND=dp)                   :: printedValue(4)
+
       1 format (A2, '  Q_{', 2i2, '}', 4(1x, f15.4) )
      11 format (A2, '  Q_{', 2i2, '}', 4(1x,es15.4) )      
       2 format ('Constrained ',  49x, f15.4)
@@ -1601,16 +1604,31 @@ $NTR    print 102
     !---------------------------------------------------------------------------
     case(-2)
       ! Printing RMS charge radii
-      print 4, sqrt(ToPrint%Value(1)/Neutrons),                                &
-      &        sqrt(ToPrint%Value(2)/(Protons)),                               &
-      &        sqrt(ToPrint%ChargeValue/(Protons)),                            &
-      &        sqrt(sum(ToPrint%Value)/(Neutrons+Protons))                                  
+      ! Avoid division by 0 in case of one nucleon number being zero
+      printedValue(:) = 0.0_dp
+      if ( neutrons .gt. 0.0_dp ) then
+        printedValue(1) = sqrt(ToPrint%Value(1)/Neutrons)
+      endif
+      if ( protons  .gt. 0.0_dp ) then
+        printedValue(2) = sqrt(ToPrint%Value(2)/Protons)
+        printedValue(3) = sqrt(ToPrint%ChargeValue/Protons)
+      endif
+      printedValue(4) = sqrt(sum(ToPrint%Value)/(Neutrons+Protons))
+      print 4, printedValue(1:4)
+
     case(-4)
       ! Printing <r^4>^{1/4}
-      print 41, (ToPrint%Value(1)/Neutrons)**(1.0d0/4.0d0),                    &
-      &         (ToPrint%Value(2)/Protons)**(1.0d0/4.0d0),                     &
-      &         (ToPrint%ChargeValue/Protons)**(1.0d0/4.0d0),                  &
-      &         (sum(ToPrint%Value)/(Protons+Neutrons))**(1.0d0/4.0d0)            
+      printedValue(:) = 0.0_dp
+      if ( neutrons .gt. 0.0_dp ) then
+        printedValue(1) = (ToPrint%Value(1)/Neutrons)**(1.0d0/4.0d0)
+      endif
+      if ( protons  .gt. 0.0_dp ) then
+        printedValue(2) = (ToPrint%Value(2)/Protons)**(1.0d0/4.0d0)
+        printedValue(3) = (ToPrint%ChargeValue/Protons)**(1.0d0/4.0d0)
+      endif
+      printedValue(4) = (sum(ToPrint%Value)/(Protons+Neutrons))**(1.0d0/4.0d0)
+      print 41, printedValue(1:4)
+
     !---------------------------------------------------------------------------
     case DEFAULT
       !All other "normal" multipole moments
