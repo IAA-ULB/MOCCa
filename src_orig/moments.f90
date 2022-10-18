@@ -1000,8 +1000,8 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     R = 1.2_dp  * (neutrons + protons)**(1.0_dp/3.0_dp)
     factor = 4.0_dp * pi /(3.0_dp * R**(Mom%l))
 
-    Mom%Beta(1) = factor*Mom%Value/neutrons
-    Mom%Beta(2) = factor*Mom%Value/protons
+    Mom%Beta(1) = factor*Mom%Value(1)/neutrons
+    Mom%Beta(2) = factor*Mom%Value(2)/protons
     Mom%Beta(3) = factor*Mom%ChargeValue/protons
     Mom%Beta(4) = factor*sum(Mom%Value)/(neutrons+protons)
   end subroutine CalcBeta
