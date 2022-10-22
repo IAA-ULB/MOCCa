@@ -376,7 +376,7 @@ def ParseOperators(density, timelike, findindices=False):
         for i in range(1,len(density)):      
             if(density[i] == l):
                 c = c+ (ind,)
-            if(density[i] in sumindices):
+            if(density[i-1] in ['N', 'S']):
                 ind = ind + 1 
         if(len(c) > 0) :
             coupling.append(c)
