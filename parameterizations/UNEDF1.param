@@ -1,0 +1,50 @@
+!-------------------------------------------------------------------------------
+! UNEDF1 parameterization from
+!
+! M. Kortelainen et al.
+! Nuclear Energy Density Optimization: Large Deformations, 
+! Phys. Rev. C 85, 024304 (2012).
+! 10.1103/PhysRevC.85.024304
+!
+! Note that this parameterization was fitted using a harmonic oscillator code. 
+! While we can reproduce the particle-hole channel, the pairing channel cannot 
+! be reproduced. You should think about what values of Vn/Vp to put here for 
+! your application. 
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Lightly edited notes by M.B. taken from the original MOCCa forces.param file:
+! * MB 2018/09/21: J^2 terms are not present (which is not clear from the
+!     original paper, but the supplementary material to the UNEDF2 paper)
+! * update MB 2018/10/28
+!   source of parameter values: supplementary material of the original 
+!   submission of the UNEDF2 paper. The tables containing these disappeared in 
+!   the final version. In P.-G's notation , spin-orbit constants are 
+!   b4 = wso/2 = 38.3680720616682009 ,  b4' = wsoq/2 = 71.3165222295833985
+!-------------------------------------------------------------------------------
+&skf
+name     = "unedf1",
+func_file= 'NLO.func'
+t0       = -2078.3280232556408   
+x0       =     0.0537569206858470316
+t1       =   239.400812041522045 
+x1       =    -5.07723238187693671
+t2       =  1575.11954189757989 
+x2       =    -1.36650561394298609
+t3       = 14263.646247077595    
+x3       =    -0.162491168089956339 
+sigma    =     0.2700180115027076
+wso      =    76.7361441233364019   
+wsoq     =   142.6330444591667970
+sigma_b  =     0.0
+x3b      =     0.0
+t3b      =     0.0
+CSDS0    =     0.0                           ! No s \Delta s term for stability
+CSDS1    =     0.0                           ! 
+CT0      =     0.0                           ! No JmnuJmunu terms
+CT1      =     0.0                           !
+Vn       = -1250.00000                       ! Standard pairing parameter values
+Vp       = -1250.00000                       ! These are very likely NOT suited
+alpha    =     1.0                           ! to your application.
+sigmap   =     1.0
+COM1Body = 0
+hbm(1) = 20.73553, 20.73553  
+/
