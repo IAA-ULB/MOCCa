@@ -209,8 +209,8 @@ E_C_I_NkSm_C_NkNm_NoSo         ; +3.0/ 2.0*Ct(tt1n2,+1,1)+3.0/ 2.0*Ct(tt2n2,-1,1
 E_Derk_D_I_Sk_Derm_Lap_D_I_Sm  ; -9.0/16.0*Ct(tt1n2,+1,0)+3.0/16.0*Ct(tt2n2,-1,0)-3.0/ 8.0*Ct(tt3n2,+1,0)-3.0/ 8.0*Ct(tt5n2,+1,0) ;   1   ; 0 ; 0 ;
 E_Derk_D_I_Sk_Derm_Lap_D_I_Sm  ; -9.0/16.0*Ct(tt1n2,+1,1)+3.0/16.0*Ct(tt2n2,-1,1)-3.0/ 8.0*Ct(tt3n2,+1,1)-3.0/ 8.0*Ct(tt5n2,+1,1) ;   1   ; 1 ; 1 ;
 ! A^(4,?)_o                    local
-E_D_I_So_D_NmNm_NoNkSk         ; +3.0/ 4.0*Ct(tt1n2,+1,0)+3.0/ 4.0*Ct(tt2n2,-1,0)                                                 ;   1   ; 0 ; 0 ;
-E_D_I_So_D_NmNm_NoNkSk         ; +3.0/ 4.0*Ct(tt1n2,+1,1)+3.0/ 4.0*Ct(tt2n2,-1,1)                                                 ;   1   ; 1 ; 1 ;
+E_D_I_So_D_NkNk_NoNmSm         ; +3.0/ 4.0*Ct(tt1n2,+1,0)+3.0/ 4.0*Ct(tt2n2,-1,0)                                                 ;   1   ; 0 ; 0 ;
+E_D_I_So_D_NkNk_NoNmSm         ; +3.0/ 4.0*Ct(tt1n2,+1,1)+3.0/ 4.0*Ct(tt2n2,-1,1)                                                 ;   1   ; 1 ; 1 ;
 ! A^(4,?)_o                    non local
 E_D_Nm_NkSk_Lap_D_I_Sm         ; -3.0/ 4.0*Ct(tt3n2,+1,0)-3.0/ 4.0*Ct(tt4n2,-1,0)                                                 ;   1   ; 0 ; 0 ;
 E_D_Nm_NkSk_Lap_D_I_Sm         ; -3.0/ 4.0*Ct(tt3n2,+1,1)-3.0/ 4.0*Ct(tt4n2,-1,1)                                                 ;   1   ; 1 ; 1 ;
