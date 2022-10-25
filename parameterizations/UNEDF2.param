@@ -1,0 +1,48 @@
+!-------------------------------------------------------------------------------
+! UNEDF2 parameterization from
+!
+! M. Kortelainen et al.
+! Nuclear Energy Density Optimization: Shell Structure, 
+! Phys. Rev. C 89, 054314 (2014).
+!
+! Note that this parameterization was fitted using a harmonic oscillator code. 
+! While we can reproduce the particle-hole channel, the pairing channel cannot 
+! be reproduced. You should think about what values of Vn/Vp to put here for 
+! your application. 
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Lightly edited notes by M.B. taken from the original MOCCa forces.param file:
+! * update MB 2018/10/28
+!   source of parameter values: supplementary material of the original 
+!   submission of the UNEDF2 paper. The tables containing these disappeared in 
+!   the final version. In P.-G's notation , spin-orbit constants are 
+!   In P.-G's notation, spin-orbit constants are 
+!   b4 = wso/2 = 25.658667730648304 , b4' = wsoq/2 = 77.3003893702710059
+!-------------------------------------------------------------------------------
+&skf
+name     = "unedf2",
+func_file= 'NLO.func'
+t0       = -1735.45685190850349
+x0       =     0.172247227624101162
+t1       =   262.814456235313969  
+x1       =    -3.76692685046941023
+t2       =  1183.31263243304011   
+x2       =    -1.38349812677880979
+t3       = 12293.2432941125371    
+x3       =     0.0528642727436126059 
+sigma    =     0.351455132555483607
+wso      =    51.3173354612966079    
+wsoq     =   154.6007787405420117
+sigma_b  =     0.0
+x3b      =     0.0
+t3b      =     0.0
+CSDS0    =     0.0                           ! No s \Delta s term for stability
+CSDS1    =     0.0                           ! 
+CT0      =    54.43336359737210020           ! Attention to the minus term 
+CT1      =    65.9030310445938028            ! in NLO.func!
+Vn       = -1250.00000                       ! Standard pairing parameter values
+Vp       = -1250.00000                       ! These are very likely NOT suited
+alpha    =     1.0                           ! to your application.
+sigmap   =     1.0
+COM1Body = 0
+hbm(1) = 20.73553, 20.73553  
+/
