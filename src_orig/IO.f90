@@ -78,9 +78,9 @@ implicit none
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100)  :: inputfilename, outputfilename
   ! Signal the code to write extra output.
-  character(len=40)   :: BXLFIT='', COMBI='', denfile='', potfile=''
-  character(len=40)   :: sphffile='', spcanfile='', tofile='', blockfile=''
-  character(len=40)   :: inertfile=''
+  character(len=80)   :: BXLFIT='', COMBI='', denfile='', potfile=''
+  character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
+  character(len=80)   :: inertfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
   !-----------------------------------------------------------------------------
@@ -216,13 +216,13 @@ contains
   108 format ( '      - Passed blocking test    : ', l5)
     
    11 format ( ' Filename for other output (not written if empty): ', /     &
-             & '    BXL output     = ', a40, / &
-             & '    DEN file       = ', a40, / &
-             & '    POT file       = ', a40, / &
-             & '    SPHF file      = ', a40, / &
-             & '    SPCAN file     = ', a40, / &
-             & '    TO file        = ', a40, / & 
-             & '    BLOCK file     = ', a40) 
+             & '    BXL output     = ', a80, / &
+             & '    DEN file       = ', a80, / &
+             & '    POT file       = ', a80, / &
+             & '    SPHF file      = ', a80, / &
+             & '    SPCAN file     = ', a80, / &
+             & '    TO file        = ', a80, / & 
+             & '    BLOCK file     = ', a80) 
  1111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
   112 format ( ' Checkpointiter =', i10)
