@@ -221,6 +221,8 @@ subroutine ReachForWaterAndFood()
     logical :: projectpresent = .false.
     ! Message for the output of the code, useful for the Brussels group.
     character(len=99) :: iomsg = 'START'
+    
+    real(KIND=dp) :: temp(mv)
 
     ifail = 0
     ConvergenceAchieved = .false.   
@@ -437,7 +439,6 @@ subroutine ReachForWaterAndFood()
     if(iter.eq.maxiter+1) then
       iomsg='MAXITER'  
     endif
-
     !---------------------------------------------------------------------------
     ! Write output to the outputfile, i.e. the full wavefunction file
     call WriteTantalus(12, outputfilename)     
