@@ -1,9 +1,10 @@
 &skf
 !-------------------------------------------------------------------------------
-! Syst_112 parameterization produced by G. Scamps.
+! BSkG2 parameterization from
 !
-! Note: this is the version AFTER a refit of the collective parameters to the 
-!       fission barriers of heavy nuclei.
+! W. Ryssens, G. Scamps, S. Goriely, and M. Bender, 
+! Eur. Phys. J. A 58, 246 (2022).
+!
 !-------------------------------------------------------------------------------
 name     =  'BSkG2'
 func_file=  'BXL.func'
