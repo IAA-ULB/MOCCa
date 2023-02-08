@@ -1135,7 +1135,7 @@ $TR  disp = 2 * disp
     ! If we are not performing equal filling, then this means diagonalising 
     ! the 11-component of H, i.e. H^{11}.
     !
-    ! On output, this produces estimates for the quasiparticles. 
+    ! On output, this produces estimates for the quasiparticle energies. 
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
@@ -1165,7 +1165,7 @@ $TR  disp = 2 * disp
     real(KIND=dp), allocatable   :: block_transfo(:,:), A11(:,:), A20(:,:)
     real(KIND=dp), allocatable   :: temp(:,:), tempE(:), work(:), transfo(:,:)
     real(KIND=dp), allocatable   :: prev_full(:,:)
-    integer :: k, sb, B, T, N, N2, si, s, NB, lwork, occ_blocks(3), ifail
+    integer :: k, sb, B, T, N, N2, si, s, NB, lwork, occ_blocks(3,2), ifail,sig
     
     si = 0 ; sb = 0
     do B=1,4,2
@@ -1183,7 +1183,7 @@ $TR  disp = 2 * disp
       A20 = H20(si+1:si+T, si+1:si+T) - lambda * N20(si+1:si+T,si+1:si+T)
 
       ! Separate things into blocks of equal occupation
-      call occupation_blocks(T, occ(si+1:si+T), occ_blocks, block_transfo)
+      call occupation_blocks(N, N2, occ(si+1:si+T), occ_blocks, block_transfo)
 
       ! Reorder the matrices according to occupation
       A11 = matmul(                     A11, block_transfo)
@@ -1208,10 +1208,13 @@ $TR  disp = 2 * disp
       ! Diagonalise the subblocks with f = 0 and f = 1
       s = 0   ! starting index of the subblock, to be incremented
       do k=1,2
-        NB = occ_blocks(k)
-        if( NB .eq. 0) cycle   ! Don't work if nothing in this occupation-block
+       ! We explicitly conserve z-signature, which we can do simply by 
+       ! separating the diagonalisations in this subblock.
+       do sig=1,2
+        NB  = occ_blocks(k,sig) 
+        if(NB.eq.0) cycle   ! Don't work if nothing in this occupation-block
 
-        ! diagonalize A11 in this particular occupation block
+        ! diagonalize A11 
         lwork = -1; allocate(work(1))
         call DSYEV( 'V', 'U', NB, A11(s+1:s+NB,s+1:s+NB), NB, &
         &                        Eqp(si+s+1:si+NB),work,lwork,ifail)
@@ -1230,14 +1233,17 @@ $TR  disp = 2 * disp
         transfo(s+T+1:s+T+NB,s+T+1:s+T+NB) =  A11(s+1:s+NB,s+1:s+NB)
         transfo(s  +1:s  +NB,s+T+1:s+T+NB) =  0.0d0
         transfo(s+T+1:s+T+NB,s  +1:s  +NB) =  0.0d0
-        ! Note that the 20-part of this transformation is zero
+        ! Note that the 20-part of this transformation is zero by construction
 
-        s = s + occ_blocks(k)
+        s = s + occ_blocks(k,sig)
+       enddo
       enddo
 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Diagonalise the f=0.5 subblock
-      NB = occ_blocks(3)
+      NB = occ_blocks(3,1) + occ_blocks(3,2)
+      ! Note, I don't do anything for signature here, since I assume the EFA
+      ! option will only serve for Time-reversal conserving calculations.
       if(NB .ne. 0) then
           allocate(temp(2*NB, 2*NB)) ; temp  = 0.0d0
           allocate(tempE(2*NB))      ; tempE = 0.0d0
@@ -1248,8 +1254,7 @@ $TR  disp = 2 * disp
           ! Putting in the H^{20} part
           temp(   1:  NB,NB+1:2*NB) =+A20(s+1:s+NB,s+1:s+NB)
           temp(NB+1:2*NB,   1:  NB) =+A20(s+1:s+NB,s+1:s+NB)
-          ! TODO: There is likely some signs to be considered for T-reversal
-
+          !---------------------------------------------------------------------
           lwork = -1; allocate(work(1))
           call DSYEV( 'V', 'U', 2*NB, temp,2*NB, tempE,work,lwork,ifail)
           lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
@@ -1416,7 +1421,7 @@ $TR  disp = 2 * disp
   
   end subroutine permute_columns
 
-  subroutine occupation_blocks(N, occ, sizes, transfo)
+  subroutine occupation_blocks(N1, N2, occ, sizes, transfo)
     !---------------------------------------------------------------------------
     ! Identify and reorder blocks in the Bogoliubov transformation with 
     ! identical occupation factors. We limit this at the moment to occupations 
@@ -1435,7 +1440,8 @@ $TR  disp = 2 * disp
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     ! -------
-    !         N : total size of occupations
+    !         N1: total size of occupations with signature +i
+    !         N2: total size of occupations with signature -i
     !       occ : occupation factors f
     ! 
     ! Output:
@@ -1448,41 +1454,67 @@ $TR  disp = 2 * disp
     !
     !---------------------------------------------------------------------------
 
-    real(KIND=dp), intent(in)  :: occ(N)
-    integer, intent(out)       :: sizes(3)
-    real(KIND=dp), intent(out) :: transfo(N,N)
-    integer                    :: indices(N,3),i, k, N, ind
+    integer, intent(in)        :: N1, N2
+    real(KIND=dp), intent(in)  :: occ(N1+N2)
+    integer, intent(out)       :: sizes(3,2)
+    real(KIND=dp), intent(out) :: transfo(N1+N2,N1+N2)
+    integer                    :: indices(N1+N2,3),i, k,ind
     
     sizes = 0
-    
     transfo = 0.0d0 ; indices = 0
 
+    !---------------------------------------------------------------------------  
     ! Count the number of qps in all three possible subblocks
-    do i=1,N
+    ! First eta=+i
+    do i=1,N1
       if(occ(i) .eq. 1.0d0) then
           ! Occupation factors 1.0
-          sizes(1)             = sizes(1) + 1
-          indices(sizes(1), 1) = i 
+          sizes(1,1)             = sizes(1,1) + 1
+          indices(sizes(1,1), 1) = i 
       elseif(occ(i) .eq. 0.0d0) then
           ! Occupation factors 0.0
-          sizes(2)             = sizes(2) + 1
-          indices(sizes(2), 2) = i 
+          sizes(2,1)             = sizes(2,1) + 1
+          indices(sizes(2,1), 2) = i 
       elseif(occ(i) .eq. 0.5d0) then
           ! Occupation factors 0.5
-          sizes(3)             = sizes(3) + 1
-          indices(sizes(3), 3) = i 
+          sizes(3,1)             = sizes(3,1) + 1
+          indices(sizes(3,1), 3) = i 
       else
           print *, 'Gradient solver only knows how to handle f=0, 0.5 or 1.'
           print ('(a20, f10.3)'), 'Offending entry = ', occ(i)
           print ('(99f10.3)'), occ(:)
           stop
       endif
-    enddo    
+    enddo
+    !---------------------------------------------------------------------------  
+    ! Then eta=-i
+    if(N2 .ne. 0) then
+      do i=N1+1,N1+N2
+        if(occ(i) .eq. 1.0d0) then
+            ! Occupation factors 1.0
+            sizes(1,2)                        = sizes(1,2) + 1
+            indices(sizes(1,1)+sizes(1,2), 1) = i 
+        elseif(occ(i) .eq. 0.0d0) then
+            ! Occupation factors 0.0
+            sizes(2,2)                        = sizes(2,2) + 1
+            indices(sizes(2,1)+sizes(2,2), 2) = i 
+        elseif(occ(i) .eq. 0.5d0) then
+            ! Occupation factors 0.5
+            sizes(3,1)                        = sizes(3,2) + 1
+            indices(sizes(3,1)+sizes(3,2), 3) = i 
+        else
+            print *, 'Gradient solver only knows how to handle f=0, 0.5 or 1.'
+            print ('(a20, f10.3)'), 'Offending entry = ', occ(i)
+            print ('(99f10.3)'), occ(:)
+            stop
+        endif
+      enddo    
+    endif
     
     ! Construct the switching transformation
     ind = 1
     do k=1,3
-      do i=1, sizes(k)
+      do i=1, sizes(k,1)+sizes(k,2)
         transfo(indices(i,k),ind) = 1.0d0
         ind = ind + 1
       enddo  
