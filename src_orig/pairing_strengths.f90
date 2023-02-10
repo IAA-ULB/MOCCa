@@ -16,7 +16,7 @@ module pairing_strengths
  ! 
  !
  !==============================================================================
- ! Hephaestos keywords:
+ ! Hephaestos keywords: [NONE at the moment]
  !
  !==============================================================================
  
@@ -43,43 +43,98 @@ module pairing_strengths
 
 contains 
 
- function vmicro(rho, F_Nm_Nm, iso, ptype) 
+ subroutine print_micro_pairing_info(ptype, intertype)
+  !-----------------------------------------------------------------------------
+  ! Print some information on the type of microscopic pairing type detected.
+  !
+  ! Input:
+  ! ------- 
+  !   ptype     : selection of gap to get to
+  !   intertype :  selection of INM interpolation routine
+  !
+  !   ptype   type of gap     
+  !   -----   -----------     
+  !     0     Cao             
+  !
+  !
+  ! intertype   interpolation routine         Interpolation approach
+  ! ---------   ----------------------       ---------------------------------
+  !  0          standard_interpolation  N. Chamel et al., PRC 80, 065804 (2009).
+  !  1          linear interpolation    D=(1-|eta|)D_sym + |eta|D_{q,pure}
+  !-----------------------------------------------------------------------------
+  integer, intent(in) :: ptype, intertype
+  
+  1 format (' Microscopic treatment of the pairing active')
+  2 format ('      Vmic prescription :  ', a20)
+  3 format ('      INM interpolation :  ', a20)
+ 
+  print 1
+  select case(ptype)
+  case(0)
+    print 2, 'Cao et al., PRC 74 064301 (2006)'
+  case DEFAULT
+    print *, 'PTYPE not recognized in print_micro_pairing_info'
+    stop
+  end select 
+
+  select case(intertype)
+  case(0)
+    print 3, ' "Standard interpolation" from N. Chamel et al., PRC 80, 065804 (2009).'
+    print *, '     ATTENTION: this INM interpolation is NOT recommended. '
+  case (1)
+    print 3, ' Linear interpolation '
+    print *, '     Delta_q = (1 - |eta|) Delta_sym + |eta| Delta_{q,pure}'
+  case DEFAULT
+    print *, 'intertype not recognized in print_micro_pairing_info'
+    stop
+  end select 
+
+ end subroutine print_micro_pairing_info
+
+ function vmicro(rho, F_Nm_Nm, iso, ptype, intertype) 
   !-----------------------------------------------------------------------------
   ! Select the right routine for calculation the (position-dependent)
   ! microscopic pairing strength from among possible options. 
-  ! Available right now:
-  !
-  !   ptype   type of gap     interpolation routine
-  !   -----   -----------     ----------------------- 
-  !     0     Cao             standard_interpolation
-  !     1     Cao             linear interpolation
-  !
+  ! 
   ! Input:
   !   rho     : density   
   !   iso     : isospin (1 or 2 for neutrons or protons) 
   !   F_NM_NM : potential associated with D_Nm_Nm, for calculating
   !             the position-dependent effective mass.
-  !   ptype   : select the type of microscopic pairing strength
+  !   ptype   : select the prescription for microscopic pairing strength
+  !   intertype: select the prescription for INM matter interpolation
+  !   
   ! Output:
   !   vmicro: deduced pairing strength for both isospin species
   !-----------------------------------------------------------------------------
  
-  integer, intent(in)       :: ptype, iso
+  integer, intent(in)       :: ptype, iso, intertype
   real(KIND=dp), intent(in) :: rho(mv,4), F_Nm_Nm(mv,4)
   real(KIND=dp)             :: vmicro(mv)
+  procedure(inter_abstract), pointer :: interpolation
   
   call start_timer(T_microscopic_pairing)
  
+  ! Select the right type of interpolation
+  print *, 'INTERPOLATION', intertype
+  select case(intertype)
+  case(0)
+    interpolation => standard_interpolation
+  case(1)
+    interpolation => linear_interpolation
+  case DEFAULT
+    print *, 'Unrecognised option for intertype.'
+    print *, 'INTERTYPE = ', intertype
+    stop    
+  end select
+ 
   select case(ptype) 
   case(0) 
-    vmicro = Cao(rho, F_Nm_Nm, iso, standard_interpolation)
-  case(1) 
-    vmicro = Cao(rho, F_Nm_Nm, iso, linear_interpolation)
+    vmicro = Cao(rho, F_Nm_Nm, iso, interpolation)
   case DEFAULT
-    print *, 'Unrecognized micptype value.'
-    print *, 'Accepted values:'
-    print *, '  0 : subroutine Cao'
-    stop
+    print *, 'Unrecognized ptype option.'
+    print *, 'PTYPE = ', ptype
+    stop    
   end select
 
   call stop_timer(T_microscopic_pairing)
@@ -89,14 +144,15 @@ contains
  function Cao(rho, F_Nm_Nm, iso, interpolation, debug) result (vp)
   !-----------------------------------------------------------------------------
   ! Deduce the microscopic pairing strength (vp) from the density (rho).
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Input:
-  !   rho  : density D_I_I, including BOTH isospins
-  !   iso  : isospin component to return (1 or 2)
-  ! F_Nm_Nm: potential associated with D_Nm_Nm, for calculating
-  !          the position-dependent effective mass.
+  !   rho         : density D_I_I, including BOTH isospins
+  !   iso         : isospin component to return (1 or 2)
+  ! F_Nm_Nm       : potential associated with D_Nm_Nm, for calculating
+  !                 the position-dependent effective mass.
+  !  interpolation: routine to deal with the interpolation to densities
+  !                 that are not strictly symmetric or neutron matter.
   !  debug : if .true., print a ton of debugging output to stdout.
   ! Output:
   !   vp  : relevant pairing strength deduced, vp(r) [position-dependent!]
@@ -168,15 +224,6 @@ contains
   ! routine selected
   delta = interpolation(deltans, deltann, deltanp, eta, iso)  
 
-!------------------------------------------------------------------------------
-!  delta =(1.-abs(eta))*deltans 
-!  select case(iso)
-!  case(1)
-!    delta = delta + eta * (eta + 1.0d0)/2.0d0 * deltann
-!  case(2)
-!    delta = delta + eta * (eta - 1.0d0)/2.0d0 * deltanp
-!  end select
-  
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculation of the Fermi energies using the position-dependent 
   ! effective masses
@@ -250,8 +297,8 @@ contains
 ! The following functions are all different ways of doing the interpolation:
 ! 
 ! - standard_interpolation: used for the older BSk-models, like HFB31
-!                           but this seems to be suboptimal, as we discovered
-!                           while fitting BSkG3
+!                           but this seems to be problematic, as we discovered
+!                           while fitting BSkG3. NOT RECOMMENDED.
 !
 ! - linear_interpolation  : simpler recipe to correct for the deficiencies of
 !                           standard_inerpolation
@@ -307,7 +354,7 @@ contains
   !   deltann :  the gap in pure neutron matter
   !   deltanp :  the gap in pure proton matter
   !   eta     :  local asymmetry
-  !   iso     :  for 1 (2) the code calculated the neutron (proton) gap by
+  !   iso     :  for 1 (2) the function calculates the neutron (proton) gap by
   !              interpolation.
   ! Output:
   !   delta   : interpolated gap

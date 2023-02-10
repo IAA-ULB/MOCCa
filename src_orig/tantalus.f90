@@ -222,8 +222,6 @@ subroutine ReachForWaterAndFood()
     ! Message for the output of the code, useful for the Brussels group.
     character(len=99) :: iomsg = 'START'
     
-    real(KIND=dp) :: temp(mv)
-
     ifail = 0
     ConvergenceAchieved = .false.   
     !---------------------------------------------------------------------------

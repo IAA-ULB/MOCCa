@@ -34,13 +34,20 @@ isospin_indices       = []
 density_dependence    = []
 # Array containing all parameters are used to compute coupling constants
 paramparameters       = []
+# ... and a corresponding array that tracks their types 
+# Currently accepted: Real    =  'R '
+#                     Integer =  'I ' 
+paramtypes            = []
 # Array indicating the indices of a term within a subgroup of terms with 
 # identical structure. I.e. "x" in this list means this the (x+1)-th term of
 # this structure in the Functional_terms list.
 term_grouping         = []
 term_number           = {}
-
+# The additional function calls that need to be made for the calculation of
+# coupling constants
 extra_calls           = []
+vmicro_found          = False # Whether or not this functional file will 
+                              # place calls to vmicro
 ################################################################################
 #-------------------------------------------------------------------------------
 
@@ -92,7 +99,7 @@ def initfunctional(fname, so):
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     """
     global Functional_terms, Densities_needed, derivative_order, func_name
-    global extra_calls
+    global extra_calls, vmicro_found
     
     #---------------------------------------------------------------------------
     # Read the functional from a given file
@@ -187,6 +194,12 @@ def initfunctional(fname, so):
         derivative_order = max(derivative_order, ders)
 
     #---------------------------------------------------------------------------
+    # Finding out whether this functional file places calls to subroutine vmicro
+    vmicro_found = False
+    for cc in extra_calls:
+      if('vmicro' in cc):
+        vmicro_found = True
+    #---------------------------------------------------------------------------
     # Print some information to STDOUT
     print (' Functional form taken from file %s'%fname)
     print (' Description from file:')
@@ -195,6 +208,7 @@ def initfunctional(fname, so):
     if(so.timelike):
       print (' ! Attention: terms with time-odd densities dropped. ' )
     print (' Order of derivatives: %d'%derivative_order)
+    print (' Microscopic pairing treatment: ', vmicro_found)
     print (' # Parameters        : %d'%len(paramparameters))
     #print   paramparameters
     for i in range(int(len(paramparameters)/3)):
@@ -294,8 +308,7 @@ def ReadFunctional(fname):
               Lines need to start with '#'    
 
       Part 2: enumeration of all parameters that should be read from a .param
-              file; all will be treated as doubles. Entries should be separated
-              by ';'.
+              file. Entries should be separated by ';'.
 
       Part 3: '!TERMS' (no modification, EVER)           
 
@@ -362,7 +375,9 @@ def ReadFunctional(fname):
           # Parse the parameters of the functional in PART 2
           split = line.split(';')
           for s in split:
-            paramparameters.append(clean(s))
+             paramtype, param = identify_param(s)
+             paramparameters.append(param)
+             paramtypes.append(paramtype)
         elif(termsstart == 1):
           #  Start the actual terms of the functional in PART 4
           split = line.split(';')
@@ -524,13 +539,18 @@ def ProcessParameterization(fname, src, target):
     printparam= ''
     checkparam= ''
     resetparam= ''
-    for s in paramparameters:
+    for k,s in enumerate(paramparameters):
         dic= {}
         dic['PARAM']     = s
         
-        decl      = decl      + ts.decl.substitute(dic)
+        if(paramtypes[k] == 'real'):
+          decl      = decl      + ts.decl_real.substitute(dic)
+          printparam= printparam+ ts.print_real.substitute(dic)
+        else:
+          decl      = decl      + ts.decl_int.substitute(dic)
+          printparam= printparam+ ts.print_int.substitute(dic)
+          
         readparam = readparam + ts.read.substitute(dic)
-        printparam= printparam+ ts.print.substitute(dic)
         checkparam= checkparam+ ts.check_a.substitute(dic)
         checkparam= checkparam+ ts.check_b.substitute(dic)
         checkparam= checkparam+ ts.check_c.substitute(dic)
@@ -547,7 +567,7 @@ def ProcessParameterization(fname, src, target):
     dic['PRINTPARAMS'] = printparam
     dic['CHECKPARAMS'] = checkparam
     dic['RESETPARAMS'] = resetparam
-    
+
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:
@@ -1069,7 +1089,26 @@ def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,
         
     return (declaration, calculation, printing, calccoef, printcoef_ph, 
                             printcoef_pair, sumtotal, pairtotal, erear, timerev)    
-    
+
+def identify_param(paramstring):
+  """
+     Identify a parameter from a string read from file.
+  """    
+  # First, strip sole "R" and "I"
+  if('R ' == paramstring[0:2]):
+    paramtype = 'real'
+  elif('I ' == paramstring[0:2]):
+    paramtype = 'integer'
+  else:
+    print ('Unrecognized parameter type.')
+    print ('Offending entry: ', paramstring)
+    exit()
+
+  # cleaning routine, strips spaces and newlines
+  param = paramstring[2:].replace(' ', '').replace('\n', '')
+
+  return paramtype, param
+  
 def rreplace(s, old, new, occurrence):
      li = s.rsplit(old, occurrence)  
      return new.join(li)

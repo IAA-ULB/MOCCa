@@ -1,11 +1,11 @@
 # (time-reversal invariant, local, central) N2LO functional 
 # proposed by Ryssens & Bender. Jmunu^2 terms are optional
 ! (N) LO parameters
-t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3 ; wso ; wsoq ; sigma ; CT0 ; CT1
+R t0;R x0;R t1;R x1;R t2;R x2 ;R t3;R x3 ;R wso;R wsoq;R sigma;R CT0 ;R CT1
 ! N2LO parameters
-t1n2 ; x1n2 ; t2n2 ; x2n2
+R t1n2;R x1n2;R t2n2;R x2n2
 ! Pairing strengths
-Vn ; Vp ; alpha ; sigmap
+R Vn;R Vp;R alpha;R sigmap
 !TERMS
 !----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ! Time-even, central, LO terms

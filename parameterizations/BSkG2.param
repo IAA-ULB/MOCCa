@@ -56,5 +56,7 @@ rotcorrb    = 0.87841
 rotcorrc    = 8.29315
 vibcorrd    = 0.5952
 vibcorrl    = 4.5553
-vibcorrb    = 0.7875 
+vibcorrb    = 0.7875
+ptype=0
+intertype=0 
 /

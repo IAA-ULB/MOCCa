@@ -59,4 +59,6 @@ vibcorrd    = 0.0
 vibcorrl    = 0.6  
 vibcorrb    = 0.9   
 eps = 1d-8 
+ptype=0
+intertype=1
 /

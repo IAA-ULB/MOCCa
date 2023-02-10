@@ -7,6 +7,7 @@
 #-------------------------------------------------------------------------------
 from string                    import Template
 from src_heph.heph_symmetries  import *
+from src_heph.heph_functional  import *
 
 def ProcessPairing(fname, src, target, so):
   """
@@ -28,6 +29,15 @@ def ProcessPairing(fname, src, target, so):
   dic['TR']        = TR
   dic['NTR']       = NTR
  
+  # Checking if we are dealing with calls to subroutine vmicro or not
+  # This reliance on a global definition on vmicro_found from the functional
+  # module is ugly, but there is no obvious way around it due to the hierarchy
+  # of the Fortran modules
+  if(src_heph.heph_functional.vmicro_found):          
+     dic['VMICRO']      = ' '
+  else:
+     dic['VMICRO']      = '!'
+    
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   # Ugly manual checking if parity is part of the generator set and 
   #  signalling this to the FORTRAN code
