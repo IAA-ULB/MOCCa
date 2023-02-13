@@ -277,8 +277,10 @@ $PBROKEN              stop
 
         ! Sanity check on the useage of time-reversal conservation and EFA
 $NTR    if( blocktype.eq.3 .or. blocktype.eq.4) then        
-$NTR      print *, 'Cannot do EFA blocking when time-reversal is broken.'
-$NTR      stop
+$NTR      if(pairingscheme.eq.1) then
+$NTR        print *, 'Cannot do EFA blocking with gradient solver when time-reversal is broken.'
+$NTR        stop
+$NTR      endif
 $NTR    endif
         
         ! Sanity check: cannot do full blocking if time-reversal is not broken

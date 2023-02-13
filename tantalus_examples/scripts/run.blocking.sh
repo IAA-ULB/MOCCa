@@ -126,51 +126,51 @@ EOF
 ./$exe < tant.Mg25.data > $outfile
 mv $outfile ../out/STDOUT/
 #-------------------------------------------------------------------------------
-#echo " --> EFA blocking without T calculation"
-#outfile="Tant.Mg25.EFA.T.out"
+echo " --> EFA blocking without T calculation"
+outfile="Tant.Mg25.EFA.T.out"
 
-#exe='Tantalus.BXL-T.exe'
-#execdir='../exec'
-#cd ..
-#cp $execdir/$exe             work/
-#cd  work
+exe='Tantalus.BXL-T.exe'
+execdir='../exec'
+cd ..
+cp $execdir/$exe             work/
+cd  work
 
-#cat << EOF > tant.Mg25.data
-#&nucleus
-#neutrons=13, protons=12
-#/
-#&mesh
-#nx=12, ny=12, nz=12, dx=1.0
-#/
-#&func
-#name_param="$param"
-#/
-#&pairing
-#Type="HFB"
-#blocktype=4
-#blocknumber=1
-#/
-#&indices
-#blocklowest='n+'
-#/
-#&evolution
-#maxiter=$iterations 
-#/
-#&scfiteration
-#/
-#&wfs
-#nwn = 40, nwp = 40
-#/
-#&IO
-#InputFilename='tant.Mg25.EFA.wf'
-#Outputfilename='tant.Mg25.EFA.T.wf'
-#allowtransform=.true.
-#/
-#&MomentParam
-#/
-#&Cranking
-#/
-#EOF
+cat << EOF > tant.Mg25.data
+&nucleus
+neutrons=13, protons=12
+/
+&mesh
+nx=12, ny=12, nz=12, dx=1.0
+/
+&func
+name_param="$param"
+/
+&pairing
+Type="HFB"
+blocktype=4
+blocknumber=1
+/
+&indices
+blocklowest='n+'
+/
+&evolution
+maxiter=$iterations 
+/
+&scfiteration
+/
+&wfs
+nwn = 40, nwp = 40
+/
+&IO
+InputFilename='tant.Mg25.EFA.wf'
+Outputfilename='tant.Mg25.EFA.T.wf'
+allowtransform=.true.
+/
+&MomentParam
+/
+&Cranking
+/
+EOF
 #-------------------------------------------------------------------------------
 # Running the code
 ./$exe < tant.Mg25.data > $outfile
