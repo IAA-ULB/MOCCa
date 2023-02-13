@@ -1,0 +1,64 @@
+&skf
+!-------------------------------------------------------------------------------
+! BSkG3 parameterization from
+!
+! G. Grams, W. Ryssens, G. Scamps, S. Goriely and N. Chamel,
+! EPJA, to be submitted.
+!
+!
+!--------------------------------------------------------------------------------
+name     =  'BSkG3'
+func_file=  'BXL.func'
+t0       = -2327.5356386745516, 
+t1       =   734.1934380713492, 
+t2       =     0.0101, 
+t3       = 14104.881137376016, 
+t4       =  -471.378, 
+t5       =   169.73839382095076,  
+x0       =     0.52326, 
+x1       =     2.53337, 
+x2       =-42869.21346276344, 
+x3       =     0.5821476370556791, 
+x4       =     5.05435, 
+x5       =     1.2855714870162136, 
+sigma    =     0.2,  
+beta     =     0.08333, 
+gamma    =     0.25, 
+wso      =   122.435, 
+wsoq     =    83.9307,  
+CSDS0    =     0.0,                ! No s \Delta s term 
+CSDS1    =     0.0,                             !  
+CT0      =     0.0, !Jmunu terms 
+CT1      =     0.0,  !  
+Vn       =     0.0, 
+Vp       =     0.0, 
+Vnm      =     1.00, 
+Vpm      =     1.00, 
+kappa_n  =   120.292, 
+kappa_p  =   200.685, 
+alpha    =     1.00, 
+sigmap   =     1.00, 
+Estabn   =     0.00, 
+Estabp   =     0.00, 
+hbm(1)   = 20.73553000,  20.73553000,    
+e2       = 1.43996446, 
+COM1Body = 2 
+COM2Body = 1 
+Protonsize    = 0.895, 0.0 
+Neutronsize   = 0.387, 0.467  
+HOcomform     = .false. 
+nucleonsize_selfconsistent=.true. 
+CoulTreatment = 2 
+rotcorr  = 1  
+Cuttype = 2  
+Cutneutron = 7.2382  
+Cutproton  = 7.2382  
+rotcorrb    = 1.0  
+rotcorrc    = 8.03072  
+vibcorrd    = 0.0  
+vibcorrl    = 0.6  
+vibcorrb    = 0.9   
+eps = 1d-8 
+ptype=0
+intertype=1
+/

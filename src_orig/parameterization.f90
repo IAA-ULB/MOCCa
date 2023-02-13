@@ -12,6 +12,14 @@ module parameterization
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
+ ! Hephaestos keywords:
+ ! 
+ ! PARAMDECL  = [too long to be copied]
+ ! READPARAMS = [too long to be copied]
+ ! PRINTPARAMS= [too long to be copied]
+ ! CHECKPARAMS= [too long to be copied]
+ ! RESETPARAMS= [too long to be copied]
+ !==============================================================================
  
  use iso_fortran_env
  use compilation
@@ -351,7 +359,7 @@ $RESETPARAMS
 $PRINTPARAMS
     
     print 4
-    
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     ! All coulomb options
     print 7, coultreatment

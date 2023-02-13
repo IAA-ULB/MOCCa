@@ -23,6 +23,7 @@ module pairing
  ! TR        : $TR
  ! NTR       : $NTR
  ! PBROKEN   : $PBROKEN
+ ! VMICRO    : $VMICRO
  !==============================================================================
 
  use compilation
@@ -34,6 +35,7 @@ module pairing
  use pairingcutoffs
  use timing
  use parameterization  
+ use pairing_strengths
 
  implicit none
  
@@ -441,6 +443,8 @@ $TR     endif
     else
       print 13
     endif
+
+$VMICRO call print_micro_pairing_info(ptype, intertype)        
 
     if(Blocktype .ne. 0) then
         print 90

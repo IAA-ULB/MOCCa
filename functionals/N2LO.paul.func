@@ -1,11 +1,11 @@
-# (local, central) N2LO functional with Jmunu terms optional
-# Useable for SN2LO1, ....
+# (time-reversal invariant, local, central) N2LO functional 
+# proposed by Ryssens & Bender. Jmunu^2 terms are optional
 ! (N) LO parameters
-R t0 ;R x0 ;R t1 ;R x1;R t2;R x2;R t3;R x3 ;R wso;R wsoq;R sigma;R CT0 ;R CT1
+R t0;R x0 ;R t1;R x1;R t2;R x2;R t3;R x3;R wso;R wsoq;R sigma;R CT0;R CT1
 ! N2LO parameters
-R t1n2 ;R x1n2 ;R t2n2 ;R x2n2
+R t1n2;R x1n2;R t2n2;R x2n2
 ! Pairing strengths
-R Vn ;R Vp ;R alpha ;R sigmap
+R Vn;R Vp;R alpha;R sigmap
 !TERMS
 !----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ! Time-even, central, LO terms
@@ -54,50 +54,71 @@ E_D_I_Sm_D_Nk_NkSm             ; +CT0                                           
 E_D_I_Sm_D_Nk_NkSm             ; +CT1                                               ;   1   ; 1 ; 1
 !----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ! Time-even, central N2LO terms
-! Without spin (DrhoDrho, rhoQ, tau^2, tau_mn^2, taumn dmdnrho)
+! Without spin
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+! These are the terms multiplying the following coupling constants in order
 ! Term                         ! Coupling constant                                            ! DD_pow! isospin indices
+! A^(4,1)_e
 E_Lap_D_I_I_Lap_D_I_I          ; +3.0/16.0*Cc(t1n2,x1n2,+1,0,0)-1.0/16.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
 E_Lap_D_I_I_Lap_D_I_I          ; +3.0/16.0*Cc(t1n2,x1n2,+1,0,1)-1.0/16.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
-E_D_I_I_D_NmNm_NkNk            ; +1.0/4.0*Cc(t1n2,x1n2,+1,0,0) +1.0/ 4.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
-E_D_I_I_D_NmNm_NkNk            ; +1.0/4.0*Cc(t1n2,x1n2,+1,0,1) +1.0/ 4.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
-E_D_Nm_Nm_D_Nk_Nk              ; +1.0/4.0*Cc(t1n2,x1n2,+1,0,0) +1.0/ 4.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
-E_D_Nm_Nm_D_Nk_Nk              ; +1.0/4.0*Cc(t1n2,x1n2,+1,0,1) +1.0/ 4.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
-E_D_Nm_Nk_D_Nm_Nk              ; +2.0/4.0*Cc(t1n2,x1n2,+1,0,0) +2.0/ 4.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
-E_D_Nm_Nk_D_Nm_Nk              ; +2.0/4.0*Cc(t1n2,x1n2,+1,0,1) +2.0/ 4.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
-E_D_Nm_Nk_Derm_Derk_D_I_I      ; -2.0/4.0*Cc(t1n2,x1n2,+1,0,0) -2.0/ 4.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
-E_D_Nm_Nk_Derm_Derk_D_I_I      ; -2.0/4.0*Cc(t1n2,x1n2,+1,0,1) -2.0/ 4.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
-! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-! With spin (ImT^2, JmnVmn)
-! Term                         ! Coupling constant                                            ! DD_pow! isospin indices
-E_C_Nm_NkSo_C_Nm_NkSo          ; -2.0/4.0*Cc(t1n2,x1n2,+1,1,0)-2.0/4.0*Cc(t2n2,x2n2,-1,1,0)   ;   1   ; 0 ; 0
-E_C_Nm_NkSo_C_Nm_NkSo          ; -2.0/4.0*Cc(t1n2,x1n2,+1,1,1)-2.0/4.0*Cc(t2n2,x2n2,-1,1,1)   ;   1   ; 1 ; 1
-E_C_I_NmSo_C_Nk_NkNmSo         ; -1.0    *Cc(t1n2,x1n2,+1,1,0)-1.0    *Cc(t2n2,x2n2,-1,1,0)   ;   1   ; 0 ; 0
-E_C_I_NmSo_C_Nk_NkNmSo         ; -1.0    *Cc(t1n2,x1n2,+1,1,1)-1.0    *Cc(t2n2,x2n2,-1,1,1)   ;   1   ; 1 ; 1
-E_Derm_C_I_NmSk_Dero_C_I_NoSk  ; +1.0/4.0*Cc(t1n2,x1n2,+1,1,0)+1.0/4.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
-E_Derm_C_I_NmSk_Dero_C_I_NoSk  ; +1.0/4.0*Cc(t1n2,x1n2,+1,1,1)+1.0/4.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
-!------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-! Time-odd, central N2LO terms
+! A^(4,2)_e
+E_D_I_I_D_NmNm_NkNk            ; +1.0/4.0*Cc(t1n2,x1n2,+1,0,0)+1.0/4.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
+E_D_I_I_D_NmNm_NkNk            ; +1.0/4.0*Cc(t1n2,x1n2,+1,0,1)+1.0/4.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
+! A^(4,3)_e
+E_D_Nm_Nm_D_Nk_Nk              ; +1.0/ 4.0*Cc(t1n2,x1n2,+1,0,0)+1.0/ 4.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
+E_D_Nm_Nm_D_Nk_Nk              ; +1.0/ 4.0*Cc(t1n2,x1n2,+1,0,1)+1.0/ 4.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
+! A^(4,4)_e
+E_D_Nm_Nk_D_Nm_Nk              ; +2.0/ 4.0*Cc(t1n2,x1n2,+1,0,0)+2.0/ 4.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
+E_D_Nm_Nk_D_Nm_Nk              ; +2.0/ 4.0*Cc(t1n2,x1n2,+1,0,1)+2.0/ 4.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
+! A^(4,5)_e
+E_D_Nm_Nk_Derm_Derk_D_I_I      ; -2.0/ 4.0*Cc(t1n2,x1n2,+1,0,0)-2.0/ 4.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
+E_D_Nm_Nk_Derm_Derk_D_I_I      ; -2.0/ 4.0*Cc(t1n2,x1n2,+1,0,1)-2.0/ 4.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 ! With spin
 ! Term                         ! Coupling constant                                            ! DD_pow! isospin indices
-E_Lap_D_I_Sm_Lap_D_I_Sm        ; +3.0/16.0*Cc(t1n2,x1n2,+1,1,0) -1.0/16.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
-E_Lap_D_I_Sm_Lap_D_I_Sm        ; +3.0/16.0*Cc(t1n2,x1n2,+1,1,1) -1.0/16.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
-E_D_I_So_D_NkNk_NmNmSo         ; +1.0/ 4.0*Cc(t1n2,x1n2,+1,1,0) +1.0/ 4.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
-E_D_I_So_D_NkNk_NmNmSo         ; +1.0/ 4.0*Cc(t1n2,x1n2,+1,1,1) +1.0/ 4.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
-E_D_Nm_NmSo_D_Nk_NkSo          ; +1.0/ 4.0*Cc(t1n2,x1n2,+1,1,0) +1.0/ 4.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0 
-E_D_Nm_NmSo_D_Nk_NkSo          ; +1.0/ 4.0*Cc(t1n2,x1n2,+1,1,1) +1.0/ 4.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1 
-E_D_Nm_NkSo_D_Nm_NkSo          ; +2.0/ 4.0*Cc(t1n2,x1n2,+1,1,0) +2.0/ 4.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
-E_D_Nm_NkSo_D_Nm_NkSo          ; +2.0/ 4.0*Cc(t1n2,x1n2,+1,1,1) +2.0/ 4.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
-E_D_Nm_NkSo_Derm_Derk_D_I_So   ; -2.0/ 4.0*Cc(t1n2,x1n2,+1,1,0) -2.0/ 4.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0 
-E_D_Nm_NkSo_Derm_Derk_D_I_So   ; -2.0/ 4.0 *Cc(t1n2,x1n2,+1,1,1)-2.0/ 4.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
-! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-! Without spin
+! A^(4,6)_e
+E_C_I_NmSk_Lap_C_I_NmSk        ; -1.0/ 4.0*Cc(t1n2,x1n2,+1,1,0)-1.0/ 4.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
+E_C_I_NmSk_Lap_C_I_NmSk        ; -1.0/ 4.0*Cc(t1n2,x1n2,+1,1,1)-1.0/ 4.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
+! A^(4,7)_e. 
+! Note, these terms should be zero for local functionals, but we program them for completeness' sake.
+E_Derm_C_I_NmSk_Dero_C_I_NoSk  ; +1.0/ 2.0*Cc(t1n2,x1n2,+1,1,0)+1.0/ 2.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
+E_Derm_C_I_NmSk_Dero_C_I_NoSk  ; +1.0/ 2.0*Cc(t1n2,x1n2,+1,1,1)+1.0/ 2.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
+! A^(4,8)_e
+E_C_I_NmSo_C_NkNk_NmSo         ; +1.0     *Cc(t1n2,x1n2,+1,1,0)+1.0     *Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
+E_C_I_NmSo_C_NkNk_NmSo         ; +1.0     *Cc(t1n2,x1n2,+1,1,1)+1.0     *Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
+!----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+! Time-odd, central N2LO terms
+! With spin 
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+! These are the terms multiplying the following coupling constants in order
 ! Term                         ! Coupling constant                                            ! DD_pow! isospin indices
-E_C_Nm_Nk_C_Nm_Nk              ; -2.0/4.0*Cc(t1n2,x1n2,+1,0,0)-2.0/4.0*Cc(t2n2,x2n2,-1,0,0)   ;   1   ; 0 ; 0
-E_C_Nm_Nk_C_Nm_Nk              ; -2.0/4.0*Cc(t1n2,x1n2,+1,0,1)-2.0/4.0*Cc(t2n2,x2n2,-1,0,1)   ;   1   ; 1 ; 1
-E_Derm_C_I_Nm_Derk_C_I_Nk      ; -1.0/4.0*Cc(t1n2,x1n2,+1,0,0)-1.0/4.0*Cc(t2n2,x2n2,-1,0,0)   ;   1   ; 0 ; 0
-E_Derm_C_I_Nm_Derk_C_I_Nk      ; -1.0/4.0*Cc(t1n2,x1n2,+1,0,1)-1.0/4.0*Cc(t2n2,x2n2,-1,0,1)   ;   1   ; 1 ; 1
-E_C_I_Nm_C_Nk_NkNm             ; -1.0    *Cc(t1n2,x1n2,+1,0,0)-1.0*Cc(t2n2,x2n2,-1,0,0)       ;   1   ; 0 ; 0
-E_C_I_Nm_C_Nk_NkNm             ; -1.0    *Cc(t1n2,x1n2,+1,0,1)-1.0*Cc(t2n2,x2n2,-1,0,1)       ;   1   ; 1 ; 1
+! A^(4,1)_o
+E_Lap_D_I_Sm_Lap_D_I_Sm        ; +3.0/16.0*Cc(t1n2,x1n2,+1,1,0)-1.0/16.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
+E_Lap_D_I_Sm_Lap_D_I_Sm        ; +3.0/16.0*Cc(t1n2,x1n2,+1,1,1)-1.0/16.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
+! A^(4,2)_o
+E_D_I_So_D_NkNk_NmNmSo         ; +1.0/ 4.0*Cc(t1n2,x1n2,+1,1,0)+1.0/ 4.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
+E_D_I_So_D_NkNk_NmNmSo         ; +1.0/ 4.0*Cc(t1n2,x1n2,+1,1,1)+1.0/ 4.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
+! A^(4,3)_o
+E_D_Nk_NkSo_D_Nm_NmSo          ; +1.0/ 4.0*Cc(t1n2,x1n2,+1,1,0)+1.0/ 4.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
+E_D_Nk_NkSo_D_Nm_NmSo          ; +1.0/ 4.0*Cc(t1n2,x1n2,+1,1,1)+1.0/ 4.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
+! A^(4,4)_o
+E_D_Nk_NmSo_D_Nk_NmSo          ; +2.0/ 4.0*Cc(t1n2,x1n2,+1,1,0)+2.0/ 4.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
+E_D_Nk_NmSo_D_Nk_NmSo          ; +2.0/ 4.0*Cc(t1n2,x1n2,+1,1,1)+2.0/ 4.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
+! A^(4,5)_o
+E_D_Nm_NkSo_Derm_Derk_D_I_So   ; -2.0/ 4.0*Cc(t1n2,x1n2,+1,1,0)-2.0/ 4.0*Cc(t2n2,x2n2,-1,1,0) ;   1   ; 0 ; 0
+E_D_Nm_NkSo_Derm_Derk_D_I_So   ; -2.0/ 4.0*Cc(t1n2,x1n2,+1,1,1)-2.0/ 4.0*Cc(t2n2,x2n2,-1,1,1) ;   1   ; 1 ; 1
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+! Without spin 
+! Term                         ! Coupling constant                                            ! DD_pow! isospin indices
+! A^(4,6)_o
+E_C_I_Nk_Lap_C_I_Nk            ; -1.0/ 4.0*Cc(t1n2,x1n2,+1,0,0)-1.0/ 4.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
+E_C_I_Nk_Lap_C_I_Nk            ; -1.0/ 4.0*Cc(t1n2,x1n2,+1,0,1)-1.0/ 4.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
+! A^(4,7)_o
+E_Derm_C_I_Nm_Derk_C_I_Nk      ; -1.0/ 2.0*Cc(t1n2,x1n2,+1,0,0)-1.0/ 2.0*Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
+E_Derm_C_I_Nm_Derk_C_I_Nk      ; -1.0/ 2.0*Cc(t1n2,x1n2,+1,0,1)-1.0/ 2.0*Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
+! A^(4,8)_o
+E_C_I_Nm_C_NkNk_Nm             ; +1.0     *Cc(t1n2,x1n2,+1,0,0)+1.0     *Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
+E_C_I_Nm_C_NkNk_Nm             ; +1.0     *Cc(t1n2,x1n2,+1,0,1)+1.0     *Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
 !---------------------------------------------------------------------------------------------------------------
 ! Pairing interaction 
 ! Time-even pairing density

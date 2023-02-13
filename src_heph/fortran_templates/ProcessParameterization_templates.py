@@ -7,11 +7,16 @@
 #  from file.
 #-------------------------------------------------------------------------------
 from string                  import Template as T
-tab = '   '
+tab = '    '
 
-decl    = T(  tab + 'real(KIND=dp) :: $PARAM = -123456789 \n')
+decl_real    = T(  tab + 'real(KIND=dp) :: $PARAM = -123456789 \n')
+decl_int     = T(  tab + 'integer       :: $PARAM = -123456789 \n')
+
+
 read    = T(  tab + '& $PARAM, & \n')
-print   = T(2*tab + 'print "(a6,2x, f10.3)", "$PARAM", $PARAM \n ')
+print_real   = T(2*tab + 'print "(a6,2x, f10.3)", "$PARAM", $PARAM \n ')
+print_int    = T(2*tab + 'print "(a6,2x,    i5)", "$PARAM", $PARAM \n ')
+
 reset   = T(  tab + '$PARAM = -123456789 \n')
 
 check_a = T(  tab + 'if($PARAM .eq. -123456789) then \n')

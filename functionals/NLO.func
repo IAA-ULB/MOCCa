@@ -5,9 +5,10 @@
 # -> Jmunu and sDs terms optional
 #
 ! Particle-hole parameters
-t0 ;  x0 ; t1 ;  x1 ; t2 ; x2 ; t3; x3; t3b; x3b;  wso ; wsoq ; sigma ; sigma_b ; CT0 ; CT1 ; CSDS0 ; CSDS1
+R   t0 ;R x0 ;R t1   ;R  x1 ;R t2 ;R x2 ;R t3;R x3;R t3b;R x3b
+R  wso ;R wsoq ;R sigma;R sigma_b;R CT0 ;R CT1 ;R CSDS0 ;R CSDS1
 ! Pairing parameters
-Vn ; Vp ; alpha ; sigmap
+R Vn ;R Vp ;R alpha;R sigmap
 !TERMS
 !---------------------------------------------------------------------------------------------------------------
 ! Central, LO terms   

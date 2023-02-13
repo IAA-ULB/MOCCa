@@ -24,7 +24,7 @@ rm -f exec/Tantalus.$c.exe exec/Tantalus.$c.mpi.exe
 echo "Compiling configuration $c"
 make CONFIG=$c CXX=$1 &> compilation_logs/$c.log
 if [ -f "exec/Tantalus.$c.exe" ]; then
- echo "Compilation succesfull."
+ echo "Compilation succesful."
 else
  echo "Compilation failed. Logfile = $c.log"
 fi
