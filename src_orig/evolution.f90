@@ -747,6 +747,8 @@ contains
    do i=1,3
      if(CrankType(i).ne.1) cycle ! Only include cranking for cranktype=1
      CrankFactor(i)= 0.5*(TotalAngMom(i)-CrankValues(i))/J2_sp(i)
+     ! Rescale with a factor
+     Crankfactor(i) = Crankfactor(i)*CrankScaleFactor(i)
    enddo
    
    !----------------------------------------------------------------------------

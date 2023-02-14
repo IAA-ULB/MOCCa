@@ -57,6 +57,11 @@ module cranking
  !------------------------------------------------------------------------------
  real(KIND=dp) :: CrankIntensity(3) = 0.0_dp
  !------------------------------------------------------------------------------
+ ! CrankScalefactor: scaling factor for the projection on the feasible subspace
+ !                   see subroutine FeasibleProject in evolution.f90
+ !------------------------------------------------------------------------------
+ real(KIND=dp) :: CrankScaleFactor(3) = 0.0_dp
+ !------------------------------------------------------------------------------
  ! Crankenergy:
  !   Energy associated with the cranking constraint in each Cartesian direction,
  !   i.e. CE(i) = - omega_i * <J_i>.
@@ -149,6 +154,7 @@ contains
     real(KIND=dp)       :: OmegaX, OmegaY, OmegaZ
     real(KIND=dp)       :: CrankX, CrankY, CrankZ
     real(KIND=dp)       :: IntensityX, IntensityY, IntensityZ
+    real(KIND=dp)       :: ScaleX, ScaleY, ScaleZ
     integer             :: CrankTypeX, CrankTypeY, CrankTypeZ
     
     integer             :: i
@@ -159,11 +165,13 @@ $NTR  integer             :: j,c
     &                   CrankX, CrankY, CrankZ,             & 
     &                   CrankTypeX, CrankTypeY, CrankTypeZ, &
     &                   IntensityX, IntensityY, IntensityZ, &
+    &                   ScaleX, ScaleY, ScaleZ,             &
     &                   crank_smooth, ContinueCrank
  
     OmegaX     = 0 ; OmegaY     = 0 ; OmegaZ     = 0
     CrankX     = 0 ; CrankY     = 0 ; CrankZ     = 0
     CrankTypeX = 0 ; CrankTypeY = 0 ; CrankTypeZ = 0
+    ScaleX     = 1 ; ScaleY     = 1 ; ScaleZ     = 1
     IntensityX = 0 ; IntensityY = 0 ; IntensityZ = 0
 
     if(present(file_number)) then
@@ -173,10 +181,11 @@ $NTR  integer             :: j,c
     endif    
 
     !----------------- Assigning Constants based on Input ----------------------
-    CrankValues    = (/ CrankX,CrankY,CrankZ/)
-    Omega          = (/ OmegaX,OmegaY,OmegaZ/)
-    CrankType      = (/ CrankTypeX, CrankTypeY, CrankTypeZ/)
-    CrankIntensity = (/ IntensityX, IntensityY, IntensityZ/)
+    CrankValues      = (/ CrankX,CrankY,CrankZ/)
+    Omega            = (/ OmegaX,OmegaY,OmegaZ/)
+    CrankType        = (/ CrankTypeX, CrankTypeY, CrankTypeZ/)
+    CrankScaleFactor = (/ ScaleX, ScaleY, ScaleZ/)
+    CrankIntensity   = (/ IntensityX, IntensityY, IntensityZ/)
         
     ! Check if the asked for cranking options are allowed by the CONFIG file.
     do i=1,3
@@ -206,6 +215,7 @@ $NTR    integer :: B, N, wave, si, i, c, it
     
     angmomold   = totalangmom
     totalangmom = 0.0
+    J2_sp       = 0.0
 
 $NTR    si = 0    
 $NTR    do B=1,8
@@ -267,7 +277,14 @@ $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
     &          '    J_X     = ', f15.3, /,  &
     &          '    J_Y     = ', f15.3, /,  &
     &          '    J_Z     = ', f15.3) 
-    4 format ( ' Cranking types: ', 3i3)
+   31 format ( ' Cranking scale factors: ', /, & 
+    &          '    J_X     = ', f15.3, /,  &
+    &          '    J_Y     = ', f15.3, /,  &
+    &          '    J_Z     = ', f15.3) 
+    4 format ( ' Cranking types: ', /, & 
+    &          '    J_X     = ', i15, /,  &
+    &          '    J_Y     = ', i15, /,  &
+    &          '    J_Z     = ', i15 ) 
     5 format ( ' Cranking on the basis of INTEGRATION OF DENSITIES')
    51 format ( ' Cranking on the basis of SUMMED SPWF ANGULAR MOMENTUM')
    
@@ -279,8 +296,8 @@ $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
       print 21
     endif
     print 3, CrankValues
+    print 31, CrankScaleFactor
     print 4, Cranktype
-
     if(crank_smooth) then
       print 5
     else
@@ -431,6 +448,10 @@ $NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
     !---------------------------------------------------------------------------
     integer                 :: i
     real(KIND=dp)           :: value
+    character(len=1), parameter  :: dir(3) = (/'x', 'y', 'z'/)
+   11 format ( '------------------------------------------------------')
+   12 format ( ' Constraint on J_', a1,  ' has no intensity parameter.')
+   13 format ( ' Heuristic taken from J2_sp:', 1es12.5)
 
     do i=1,3
         select case(CrankType(i))
@@ -441,8 +462,14 @@ $NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
           if(CrankIntensity(i) .eq. 0.0_dp) then
             !-------------------------------------------------------------------
             ! If left to zero by the user, the code uses this heuristic to guess
-            ! an intensity for the cranking constraint. 
+            ! an intensity for the cranking constraint. This works very well for
+            ! collective cranking. Although still decent, you might want to 
+            ! manually set intensity_x when cranking around a symmetry axis.
+            print 11
+            print 12, dir(i)
             CrankIntensity(i) =  1.0d0 / J2_sp(i)
+            print 13, CrankIntensity(i)
+            print 11
           endif
           ! Actual readjustment of the constraint           
           if(crank_smooth) then
