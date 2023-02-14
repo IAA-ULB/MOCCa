@@ -115,6 +115,7 @@ setversioninfo:
 	@sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' $(SRCDIR)/tantalus.version.f90 
 	@sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' $(SRCDIR)/tantalus.version.f90 
 	@sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' $(SRCDIR)/tantalus.version.f90 
+	@sed -i.bak 's/VERSION4/"${GIT_INFO4}"/' $(SRCDIR)/tantalus.version.f90 
 #Copy the compiler information
 	@sed -i.bak 's/COMPCOMP/"${COMPVERSION}"/' $(SRCDIR)/tantalus.version.f90 
 	@sed -i.bak 's/FLAGS/"${CXXFLAGS}"/'       $(SRCDIR)/tantalus.version.f90 
@@ -123,9 +124,10 @@ setversioninfo:
 
 getgitinfo:
 # Get information from 'git show', to see what kind of build this is.
-	$(eval GIT_INFO1=$(shell git show | grep 'commit ' | head -1))
-	$(eval GIT_INFO2=$(shell git show | grep 'Author:' | head -1))
-	$(eval GIT_INFO3=$(shell git show | grep 'Date:'   | head -1))
+	$(eval GIT_INFO1=$(shell git show   | grep 'commit ' | head -1))
+	$(eval GIT_INFO2=$(shell git show   | grep 'Author:' | head -1))
+	$(eval GIT_INFO3=$(shell git show   | grep 'Date:'   | head -1))
+	$(eval GIT_INFO4=$(shell git branch | grep '*'       | head -1 | cut -c2- ))
 
 getcompilerinfo:
   # Get information from 'CXX --version'

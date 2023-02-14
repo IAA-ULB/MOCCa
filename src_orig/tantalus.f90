@@ -48,6 +48,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  character(len=57), parameter        :: version1 =VERSION1
  character(len=57), parameter        :: version2 =VERSION2
  character(len=57), parameter        :: version3 =VERSION3
+ character(len=57), parameter        :: version4 =VERSION4
  character(len=57), parameter        :: compiler =COMPCOMP
  character(len=57), parameter        :: cflags   =FLAGS
 
@@ -72,21 +73,22 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  300 format ( 8x,'| ', a57, '|') ! Git commit
  301 format ( 8x,'| ', a57, '|') ! Author of commit
  302 format ( 8x,'| ', a57, '|') ! Date
- 303 format ( 8x,'|                                                          |')
- 304 format ( 8x,'|-------------- Symmetry Information ----------------------|')
- 305 format ( 8x,'| S.p. generators        = ', a26, 6x, '|')
- 306 format ( 8x,'| Axis reduction  X Y Z  = ', 3i2, 26x, '|')
- 307 format ( 8x,'| SYM_CODE               = ', a26, 6x, '|')
- 308 format ( 8x,'| TRANS_CODE             = ', a26, 6x, '|')
- 309 format ( 8x,'|-------------- Environment Information -------------------|')
- !$ 310 format ( 8x,'| OpenMP threads         = ', i5, 26x, '|')
- !$ 311 format ( 8x,'| OpenMP disabled                                          |')
- 312 format ( 8x,'|-------------- Compilation Information -------------------|')
- 313 format ( 8x,'| Compiled with:                                           |')
- 314 format ( 8x,'| ', a57, '|')
- 315 format ( 8x,'| Compilation flags reported:                              |')
- 316 format ( 8x,'| ', a57, '|')
- 317 format ( 8x,'|__________________________________________________________|')
+ 303 format ( 8x,'| Branch: ', a49, '|') ! Branch
+ 304 format ( 8x,'|                                                          |')
+ 305 format ( 8x,'|-------------- Symmetry Information ----------------------|')
+ 306 format ( 8x,'| S.p. generators        = ', a26, 6x, '|')
+ 307 format ( 8x,'| Axis reduction  X Y Z  = ', 3i2, 26x, '|')
+ 308 format ( 8x,'| SYM_CODE               = ', a26, 6x, '|')
+ 309 format ( 8x,'| TRANS_CODE             = ', a26, 6x, '|')
+ 310 format ( 8x,'|-------------- Environment Information -------------------|')
+ !$ 311 format ( 8x,'| OpenMP threads         = ', i5, 26x, '|')
+ !$ 312 format ( 8x,'| OpenMP disabled                                          |')
+ 313 format ( 8x,'|-------------- Compilation Information -------------------|')
+ 314 format ( 8x,'| Compiled with:                                           |')
+ 315 format ( 8x,'| ', a57, '|')
+ 316 format ( 8x,'| Compilation flags reported:                              |')
+ 317 format ( 8x,'| ', a57, '|')
+ 318 format ( 8x,'|__________________________________________________________|')
 
  call initialize_all_timers
  call start_timer(T_tantalus)
@@ -96,30 +98,31 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  write(mode_print, '(a43)') run_mode
  print 200, adjustl(mode_print)
  print 299
- print 303
+ print 304
  print 300, version1
  print 301, version2
  print 302, version3
- print 303
+ print 303, version4
  print 304
- print 303
+ print 305
+ print 304
  symprint = adjustl(SYMSTRING)
- print 305, symprint
- print 306, reduX, reduY, reduZ
- print 307, SYM_CODE
- print 308, TRANS_CODE
- print 309
+ print 306, symprint
+ print 307, reduX, reduY, reduZ
+ print 308, SYM_CODE
+ print 309, TRANS_CODE
+ print 310
  printed = .false.
-!$ print 310, OMP_GET_MAX_THREADS()
+!$ print 311, OMP_GET_MAX_THREADS()
 !$ printed = .true.
-!$ if(.not. printed) print 311
+!$ if(.not. printed) print 312
 
- print 312
  print 313
- print 314, compiler
- print 315
- print 316, cflags
- print 317
+ print 314
+ print 315, compiler
+ print 316
+ print 317, cflags
+ print 318
 
  !------------------------------------------------------------------------------
  ! Read input from STDIN

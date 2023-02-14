@@ -585,10 +585,6 @@ $TR    endif
     call correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFblocks, &
     &                                                  qpenergies,qpdispersions)
 
-
-    ! TODO: this identification of the blocked quasiparticles assumes a 
-    !       perfectly ordered Bogoliubov transformation, which we cannot
-    !       construct for EFA calculations
     if(blocktype .ne. 4) then
       call figure_out_blocking_structure(sphamil, gaps, Fermi, bogo, &
       &              blocked_qps,partner_qps, p_overlaps,blocktype, blocklowest)
