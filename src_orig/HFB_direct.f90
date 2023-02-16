@@ -19,6 +19,8 @@ module HFB_direct
 
   implicit none
 
+  real(KIND=dp) :: blockJ = 1.0
+
 contains 
 
   function ConstructConfiguration(Bogo, Eqp, blocks, blocktype, blockconf,     &
@@ -139,6 +141,9 @@ contains
     case(3,4)
         ! EFA blocking
         occ = 0.5_dp
+    case(5)
+        ! Spherical-like blocking
+        occ = 1/(2*blockJ +1)
     end select
     !---------------------------------------------------------------------------
     ! Modify this default configuration when needed.
@@ -146,7 +151,7 @@ contains
     case(0)
         !-----------------------------------------------------------------------
         ! No blocking asked for. 
-    case(1,3)
+    case(1,3,5)
 $NTR    if(blocktype.eq.3) then
 $NTR     print *, 'Can not do EFA blocking when time-reversal is not conserved.'   
 $NTR     stop

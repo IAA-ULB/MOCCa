@@ -205,7 +205,7 @@ contains
     case(0)
       allocate(proton_block(1))
       allocate(neutron_block(1))
-    case(1,3)
+    case(1,3,5)
       ! We pass to the configuration routine the indices of all quasiparticles
       ! to excite.
       nn = 0 ; np = 0
@@ -259,16 +259,16 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
         end select
       enddo
 
-    case(5,6)
-      ! We simply pass which isospin needs to be compared to the modelspwf 
-      allocate(proton_block(5))  ; proton_block  = 0 
-      allocate(neutron_block(5)) ; neutron_block = 0
-      
-      if(modelblock .gt. 4) then
-          proton_block(modelblock-4)  = 1
-      else
-          neutron_block(modelblock)   = 1
-      endif
+!    case(5,6)
+!      ! We simply pass which isospin needs to be compared to the modelspwf 
+!      allocate(proton_block(5))  ; proton_block  = 0 
+!      allocate(neutron_block(5)) ; neutron_block = 0
+!      
+!      if(modelblock .gt. 4) then
+!          proton_block(modelblock-4)  = 1
+!      else
+!          neutron_block(modelblock)   = 1
+!      endif
     end select
 
     !---------------------------------------------------------------------------

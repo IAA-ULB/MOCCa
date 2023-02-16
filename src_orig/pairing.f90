@@ -94,8 +94,12 @@ module pairing
  ! (2) ordinary blocking, asking for lowest energy configurations
  ! (3) EFA blocking, based on indices.
  ! (4) EFA blocking, asking for lowest energy configurations.
- ! (5) ordinary blocking, index selection through overlap
- ! (6) EFA blocking, index selection through overlap
+ ! (5) ordinary blocking, spherical averaging.
+ !     should be combined with setting blockJ in HFB_direct.f90
+ ! 
+ ! DEPRECATED;
+ !   (5) ordinary blocking, index selection through overlap
+ !   (6) EFA blocking, index selection through overlap
  !  
  ! If this is nonzero, the code will look for a new namelist "Indices"
  !
@@ -177,7 +181,7 @@ contains
     &                  FermiSolver, guessgaps,  pairingscheme,                 &
     &                  gradient_precon, bogofromfile, gapvalue
 
-    NameList /Indices/ BlockIndices, blocklowest, blockfname
+    NameList /Indices/ BlockIndices, blocklowest, blockfname, blockJ
 
     if(present(file_number)) then
       read(unit=file_number, NML=Pairing)
@@ -214,10 +218,15 @@ $FORBIDBCS endif
       stop
     endif
     
-    if(Blocktype.lt.0 .or. BlockType.gt.6) then
+    if(Blocktype.lt.0 .or. BlockType.gt.5) then
         print *, 'This value of BlockType is not accepted.'
         stop
     endif
+    
+    if(blocktype.eq.5 .and. pairingscheme.eq.1) then
+      print *, 'Cannot combine forced-spherical symmetry blocking and the gradient solver.'
+      stop
+    endif 
     
     if(particles_in_gas .lt. 0 .or. particles_in_gas .gt. 2) then
       print *, 'This value for particles_in_gas is not accepted.'
@@ -367,8 +376,10 @@ $TR     endif
    10 format ('    Blocknumber  = ', i2 )
    11 format ('    Blocklowest  = ', 20(1x, a2))
    12 format ('    BlockIndices = ', 20i3)
-   16 format ('    Block through overlap')
-   17 format ('    Blockfile    = ', 40a)
+   16 format ('    Spherical averaging of levels = ', 20(1x,i3))
+   17 format ('            of angular momentum J = ', f5.1)
+!   16 format ('    Block through overlap')
+!   17 format ('    Blockfile    = ', 40a)
 
     character(len=60) :: ptreat, pscheme
 
@@ -469,11 +480,14 @@ $VMICRO call print_micro_pairing_info(ptype, intertype)
             print 10, Blocknumber
             print 11, Blocklowest
         case(5)
-            print 92
-        case(6)
-            print 93
-            print 16
-            print 17, adjustl(blockfname)
+            print 16, blockindices
+            print 17, blockJ
+!        case(5)
+!            print 92
+!        case(6)
+!            print 93
+!            print 16
+!            print 17, adjustl(blockfname)
         end select
     endif
 
