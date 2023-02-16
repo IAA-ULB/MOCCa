@@ -98,9 +98,10 @@ contains
     real(KIND=dp), intent(in)    :: Eqp(:), Bogo(:,:)
     real(KIND=dp), allocatable   :: R(:)
        
-    integer                      :: N, N2,B, sb, i, NB, j, qblock, ind, si, bi
+    integer                      :: N, N2,B, sb, i, NB, j, k,qblock, ind, si, bi
     real(KIND=dp)                :: compare, occ, qpmin
     integer                      :: toblock(4), qpb    
+    logical                      :: found
 
     N = size(Eqp) 
     allocate(R(N)) ;  R = 0
@@ -171,6 +172,7 @@ $NTR    endif
           allocate(qp_overlap(NB)) ; qp_overlap = 1.0d0
         endif        
 
+        blocked_qp = 0
         do j=1,NB
           compare = 0.0
           ind     = 0
@@ -179,18 +181,28 @@ $NTR    endif
           call Identify(blockconf(j),blocks, bi, qblock)
           !-------------------------------------------------------------------
           ! Look for the column in the second half of the eigenvectors with
-          ! the largest overlap with asked for state.
-          sb = 0
+          ! the largest overlap with asked for state, but taking care not to 
+          ! select the same qp twice
+          sb = 0; si = 0
           do B=1,4
             N = blocks(B) ; if (N.eq.0) cycle
             if(B.eq.qblock) then
               do i=N+1,2*N
+                ! removing previously selected qps from the comparison
+                found = .false.
+                do k=1,j
+                  if(si+i-N .eq.blocked_qp(k)) found=.true.
+                enddo              
+                if(found) cycle
+              
+              
                 if(Bogo(sb+bi,sb+i)**2 .gt. compare) then
                   compare = Bogo(sb+bi+N,sb+i)**2 
                   ind     = i
                 endif
               enddo
             endif
+            si = si +  N
             sb = sb +2*N
           enddo 
           !-------------------------------------------------------------------
