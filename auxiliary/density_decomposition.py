@@ -2,19 +2,46 @@ import numpy         as np
 from read_density    import *
 from scipy.special   import sph_harm
 from scipy.integrate import romb
-import matplotlib.pyplot  as plt
 
-def decompose_density_axial(fname, rr, ls=[0], power=5):
+def decompose_density_axial(fname, rr, ls=[0], power=5, dcolumn=4):
   """
+    ----------------------------------------------------------------------------
     Obtain the multipole components of an (axially symmetric) density, i.e.    
     get some of the coefficients in 
     
-    rho(r,theta) = sum_{lm} r_lm(r)  Re[Y_lm(theta,phi)]
+    rho(r,theta,phi) = sum_{lm} r_lm(r)  Y_lm(theta,phi)
 
     by explicitly integrating 
       
-    r_lm(r) = int dtheta dphi
+    r_lm(r) = int dtheta dphi sin (theta) r(theta, phi).
+    
+    ----------------------------------------------------------------------------
+    
+    This particular routine assumes axial symmetry, i.e. that the density does
+    not depend on phi, to simplify the calculations.
+    
+    ----------------------------------------------------------------------------
 
+    Input:
+      fname  : filename where the 3D density can be found
+      rr     : radial mesh for which to do the integration
+      ls     : set of quantum numbers l for which to get the component
+      power  : the power of 2 for which to take integration points along the 
+               theta direction. More specifically, this routine takes
+                    2**power + 1 points
+               in the interval [0, pi/2]. Power = 5 seems to work decently.
+      dcolumn: in which column the relevant density can be found, if the 
+               file is read with read_den_file. For MOCCa-produced files, 
+               these values correspond to:
+                  3 -> neutron density
+                  4 -> proton  density
+                  5 -> charge  density
+
+     Output:
+      den_r : the components of the density, each column corresponds to one
+              value of l in ls-array.
+                  
+    ----------------------------------------------------------------------------
   """
 
   #--------------------------------------------
@@ -28,8 +55,8 @@ def decompose_density_axial(fname, rr, ls=[0], power=5):
   for k in range(len(ls)):
     l = ls[k]
     
+    assert( l > 0)
     for i,r in enumerate(rr):
-
        #------------------------------------------------------------------------       
        # Now, we define a function of (theta, phi) that we want to integrate over
        def integrand(theta, phi=0):
@@ -44,7 +71,7 @@ def decompose_density_axial(fname, rr, ls=[0], power=5):
           point[:,2] = r*np.cos(theta)              # Z = r cos(theta)
        
           # Interpolate with Lagrange functions
-          inter_den = Interpolate_function(point,den[:,0:3],den[:,4],+1,+1,+1)
+          inter_den = Interpolate_function(point,den[:,0:3],den[:,dcolumn],+1,+1,+1)
        
           # multiply with the (real part of the) spherical harmonic
           Ylm = np.real(sph_harm(0,l,0,theta)) 
