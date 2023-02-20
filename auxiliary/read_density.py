@@ -72,15 +72,15 @@ def Interpolate_function(points,mesh_points,f_values,sx,sy,sz):
     yi = mesh_points[i,1]
     zi = mesh_points[i,2]
 
-    Lx =         Lagrange_interpolation_function(points[:,0],  xi, 2*nx, dx) 
+    Lx =           Lagrange_interpolation_function(points[:,0],  xi, 2*nx, dx) 
     if(sx != 0):
       Lx = Lx + sx*Lagrange_interpolation_function(points[:,0], -xi, 2*nx, dx)
 
-    Ly =         Lagrange_interpolation_function(points[:,1],  yi, 2*ny, dx) 
+    Ly =           Lagrange_interpolation_function(points[:,1],  yi, 2*ny, dx) 
     if(sy != 0):
       Ly = Ly + sy*Lagrange_interpolation_function(points[:,1], -yi, 2*ny, dx)
 
-    Lz =         Lagrange_interpolation_function(points[:,2],  zi, 2*nz, dx)
+    Lz =           Lagrange_interpolation_function(points[:,2],  zi, 2*nz, dx)
     if(sz != 0):  
       Lz = Lz + sz*Lagrange_interpolation_function(points[:,2], -zi, 2*nz, dx)
 
