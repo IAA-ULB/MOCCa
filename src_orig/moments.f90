@@ -239,15 +239,16 @@ module moments
   !-----------------------------------------------------------------------------
   ! Maximum degree of the multipole moments that are considered in the 
   ! Tantalus calculation. Default = 10
-  integer      :: MaxMoment=10, maxmoment_mag=3
+  integer      :: MaxMoment=10, maxmoment_mag=3, maxmoment_divJ=4
   ! Maximum degree of the multipole moments that was checked by Hephaestos 
   ! for its symmetries. Hence MaxMoment <= list_size.
   integer, parameter     :: list_size = $MAX_ELL
   !-----------------------------------------------------------------------------
   ! Starting point for the linked list of moments.
   !-----------------------------------------------------------------------------
-  type(Moment),save, pointer    :: Root     ! Electric multipole moments
-  type(Moment), public, pointer :: Root_mag ! Magnetic multipole moments
+  type(Moment),save, pointer    :: Root      ! Electric multipole moments
+  type(Moment), public, pointer :: Root_mag  ! Magnetic multipole moments
+  type(Moment), public, pointer :: Root_divJ ! Moments of nabla cdot J
   !-----------------------------------------------------------------------------
   ! Couplings of the angular momentum to the magnetic moments
   ! Compile-time parameters to avoid any surprises.
@@ -337,7 +338,7 @@ contains
    91 format ('Correction of spherical harmonics with COM: NOT ACTIVE')
 
     print 1
-    print 2, maxmoment, maxmoment_mag
+    print 2, maxmoment, maxmoment_mag, maxmoment_divJ
 
     select case(QuantisationAxis)
     case(1)
@@ -400,8 +401,9 @@ contains
     ! This routine sets up all of the linked lists needed.
     ! 
     ! 1) The first moments ( l=0, m=0 ) to anchor the linked lists are created. 
-    !      Root         : mass (electric) multipole moments
+    !      Root       : mass (electric) multipole moments
     !      Root_mag   : magnetic-spin multipole moments
+    !      Root_divJ  : multipole moments of nabla cdot J
     ! 
     ! 2) For each of these multipole moments, we calculate the values of the 
     !    spherical harmonics on the mesh.
@@ -438,6 +440,11 @@ contains
 $NTR    nullify(Root_mag) ;    allocate(Root_mag)
 $NTR    Root_mag%l=0      ;    Root_mag%m=0
 $NTR    allocate(Root_mag%SpherHarm(nx*ny*nz))
+
+
+    nullify(Root_divJ) ;    allocate(Root_divJ)
+    Root_divJ%l=0      ;    Root_divJ%m=0
+    allocate(Root_divJ%SpherHarm(nx*ny*nz))
     !---------------------------------------------------------------------------
     !This is the l=0,m=0 spherical harmonic
     Root%SpherHarm=1.0_dp/sqrt(4.0_dp*pi) 
@@ -456,6 +463,14 @@ $NTR    ! associate these pointers with the ELECTRIC routines.
 $NTR    Root_mag%Calculate   => Calculate_electric
 $NTR    Root_mag%PrintMoment => PrintMoment_electric
 $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
+
+
+    Root_divJ%SpherHarm=1.0_dp/sqrt(4.0_dp*pi) 
+    Root_divJ%Impart=.false.
+    Root_divJ%ConstraintType=0
+    Root_divJ%Calculate   => Calculate_multipole_divJ
+    Root_divJ%PrintMoment => PrintMoment_divJ
+    nullify(Root_divJ%Prev) ;  nullify(Root_divJ%Next)
     
     !---------------------------------------------------------------------------
     ! Calculating all the spherical harmonics
@@ -486,8 +501,7 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
         enddo
       enddo
     enddo
-    !---------------------------------------------------------------------------
-    ! We append the radius squared to the ordinary list...
+   ! We append the radius squared to the ordinary list...
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_electric 
@@ -503,8 +517,7 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     Current%Next    => NextMoment
     NextMoment%Prev => Current
     Current         => NextMoment
-    !---------------------------------------------------------------------------
-    ! as well as the fourth radial moment for good measure
+    ! .... as well as the fourth radial moment for good measure
     NextMoment   => NewMoment_electric(-4,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_electric
@@ -523,6 +536,7 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     ! End of the chain
     nullify(Current)
     !---------------------------------------------------------------------------
+    ! b) The magnetic moments
 $NTR    allocate(Current)
 $NTR    Current=>Root_mag
 $NTR    nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
@@ -543,6 +557,67 @@ $NTR          endif
 $NTR        enddo
 $NTR      enddo
 $NTR    enddo
+    !---------------------------------------------------------------------------
+    ! c) The moments of divJ
+    nullify(Current)      ;  allocate(Current)     ; Current=>Root_divJ
+    nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
+ 
+    do l=1,MaxMoment_divJ
+      do m=0,l
+        do ImPart=0,1
+          ! div_J has the same symmetries as rho, so its multipole moments
+          ! satisfy the same requirements
+          NextMoment => NewMoment_divJ(l,m,ImPart) 
+          
+          !Placing the moment in the list
+          if(associated(NextMoment)) then
+            harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
+            harm_3D=SpherHarmMesh(:,:,:,l,m,Impart+1)
+            ! Putting the pointers in the correct direction
+            NextMoment%Prev => Current
+            Current%Next    => NextMoment
+            Current         => NextMoment
+            nullify(NextMoment)
+          endif
+        enddo
+      enddo
+    enddo
+    ! We append the radius squared to the ordinary list...
+    NextMoment   => NewMoment_electric(-2,0,0)
+    harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
+    NextMoment%Calculate    => Calculate_multipole_divJ 
+    NextMoment%Printmoment  => Printmoment_divJ 
+
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          harm_3D(i,j,k) = meshx(i)**2 + meshy(j)**2 + meshz(k)**2 ! r^2
+        enddo
+      enddo
+    enddo
+    
+    Current%Next    => NextMoment
+    NextMoment%Prev => Current
+    Current         => NextMoment
+    ! .... as well as the fourth radial moment for good measure
+    NextMoment   => NewMoment_electric(-4,0,0)
+    harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
+    NextMoment%Calculate    => Calculate_multipole_divJ 
+    NextMoment%Printmoment  => Printmoment_divJ 
+
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          harm_3D(i,j,k) = (meshx(i)**2 + meshy(j)**2 + meshz(k)**2)**2 ! r^4
+        enddo
+      enddo
+    enddo
+    
+    Current%Next    => NextMoment
+    NextMoment%Prev => Current
+
+    ! End of the chain
+    nullify(Current)
     !---------------------------------------------------------------------------
   end subroutine IniMoments
 
@@ -680,6 +755,90 @@ $FILL_LIST
     return
   end function NewMoment_Electric
   
+  function NewMoment_divJ(l,m,ImPart) result(newmoment)
+    !---------------------------------------------------------------------------
+    ! An exact copy of Newmoment_electric, but for the last two lines
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   l, m  : characteristic numbers of the multipole moment
+    !   impart: real (0) or imaginary (1) part of multipole moment
+    !
+    ! Output:
+    !   newmoment :  either (a) a pointer to an empty Moment extended type
+    !                or    (b) an unassociated pointer
+    !
+    !                If the multipole moment is a relevant degree of freedom
+    !                (as determined by Hephaestos from the symmetry options)
+    !                then the routine returns (a), else (b).
+    !---------------------------------------------------------------------------
+    type(Moment),pointer   :: NewMoment
+    integer, intent(in)    :: l,m,ImPart
+    integer, allocatable   :: moment_list(:,:,:)
+
+    nullify(NewMoment)
+
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! We fill the list that decides which multipole moments are restricted by
+    ! symmetry and which should be calculated. 
+    !
+    !  moment_list(l,m,k) = 0 => restricted by symmetry, 
+    !              | | |           should not be calculated
+    !              | | |
+    !  moment_list(l,m,k) = 1 => should be calculated
+    !              | | |
+    !              | | -> k : real (0) or imaginary(1) part
+    !              | ---> m : second characteristic number
+    !              -----> l : first characteristic number
+    !                      
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    allocate(moment_list(0:list_size, 0:list_size, 0:1))
+    moment_list = 0
+    
+$FILL_LIST
+
+    ! Actually check our multipole moment
+    ! ( Note that negative l are taken separately as special cases )
+    if(l.ge.0) then
+      if(moment_list(l,m,impart) .eq. 0) return
+    endif
+    deallocate(moment_list)
+
+    !---------------------------------------------------------------------------
+    ! The multipole moment is a relevant degree of freedom, create all things
+    allocate(NewMoment) ; NewMoment%l=l ; NewMoment%m=m
+
+    nullify(NewMoment%Prev, NewMoment%Next) 
+    allocate(NewMoment%SpherHarm(nx*ny*nz))
+
+    if(ImPart.eq.1.) then
+        NewMoment%ImPart=.true.
+    else
+        NewMoment%ImPart=.false.
+    endif
+
+    ! The parameters of the new multipole moment are set to zero by default.
+    NewMoment%ConstraintType  = 0
+    NewMoment%Value           = 0.0_dp
+    NewMoment%ChargeValue     = 0.0_dp
+    NewMoment%SpherHarm       = 0.0_dp
+    NewMoment%Squared         = 0.0_dp
+    NewMoment%multiplier      = 0.0_dp
+    NewMoment%mult_hist       = 0.0_dp
+    NewMoment%scalefactor     = 1.0_dp
+    NewMoment%intensity       = 0.0_dp
+    NewMoment%intensityfactor = 1.0_dp
+    ! Zero these for safety
+    NewMoment%vectorvalue     = 0.0_dp
+    NewMoment%physvectorvalue = 0.0_dp
+
+    
+    nullify(NewMoment%Calculate)
+    NewMoment%Calculate   => Calculate_multipole_divJ
+    NewMoment%PrintMoment => PrintMoment_divJ
+
+    return
+  end function NewMoment_divJ
+  
   function NewMoment_magnetic(l,m,Impart) result(newmoment)
     !---------------------------------------------------------------------------
     ! This subroutine tries to create a new magneic multipole moment. 
@@ -806,6 +965,15 @@ $NTR    do while(associated(Current%Next))
 $NTR        Current => Current%Next
 $NTR        call Current%Calculate(Current)
 $NTR    enddo
+
+    !---------------------------------------------------------------------------
+    ! Calculate the multipole moments of divJ
+    nullify(Current) ;  Current => Root_divJ
+    call Current%Calculate(Current)           !norm of div J
+    do while(associated(Current%Next))
+       Current => Current%Next
+       call Current%Calculate(Current)
+    enddo
     
     call CalcQuadrupoleAlt()
 
@@ -838,18 +1006,12 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     ! Calculate the new value for ordinary constraints
     do it=1,2
-      ToCalculate%Value(it)      = ToCalculate%Value(it) + &
-      &       sum(ToCalculate%SpherHarm*D_I_I(:,it))
-      ToCalculate%Squared(it)    = ToCalculate%Squared(it)    + &
-      &       sum(ToCalculate%SpherHarm**2*D_I_I(:,it))
+      ToCalculate%Value(it)      = sum(ToCalculate%SpherHarm*D_I_I(:,it))   * dv
+      ToCalculate%Squared(it)    = sum(ToCalculate%SpherHarm**2*D_I_I(:,it))* dv
     enddo
     ToCalculate%ChargeValue      =  &
-    &                sum(ToCalculate%SpherHarm*   chargedensity(1:nx*ny*nz,1,1))
+    &             dv*sum(ToCalculate%SpherHarm*   chargedensity(1:nx*ny*nz,1,1))
 
-    ToCalculate%Value        =ToCalculate%Value      *dv
-    ToCalculate%ChargeValue  =ToCalculate%ChargeValue*dv
-    ToCalculate%Squared      =ToCalculate%Squared    *dv
-    
     ! Check for problems
     if(any(ToCalculate%Value.eq.ToCalculate%Value+1)) then
       print 1, ToCalculate%l, ToCalculate%m
@@ -945,49 +1107,57 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 
     return
   end subroutine Calculate_magnetic
- 
-!  subroutine Calculate_charge(ToCalculate)
-!    !---------------------------------------------------------------------------
-!    ! Subroutine to calculate the values of 
-!    !        (1) the square radius               <r^2>
-!    !        (2) the fourth power of the radius  <r^4>
-!    ! of     (a) the point neutron density
-!    !   and  (b) the charge density (including finite size of the proton)
-!    !---------------------------------------------------------------------------
-!    use densities, only : chargedensity, D_I_I
 
-!    class(Moment),        intent(inout) :: ToCalculate
+  subroutine Calculate_multipole_divJ(ToCalculate)
+    !---------------------------------------------------------------------------
+    ! This subroutine calculates the value of a multipole moment of the 
+    !  vector component of the spin-current density J_mn = C^{1,nabla sigma}_mn
+    !
+    ! Input:
+    !        Tocalculate :  multipole moment to be calculated
+    !---------------------------------------------------------------------------
+    use Densities, only : Der_C_I_NS, C_I_NS
+    use derivatives
+  
+    1 format ('Nan in Q_{ ,' i2, ' ', i2, '}')
+    
+    class(Moment),        intent(inout) :: ToCalculate
+    integer                             :: it
+    real(KIND=dp)                       :: divJ(nx*ny*nz)
+    real(KIND=dp)                       :: temp(nx*ny*nz),der(nx*ny*nz)
 
-!    ! Save the history
-!    Tocalculate%history = tocalculate%value
+    ! Save the history
+    Tocalculate%history = tocalculate%value
 
-!    !Initialise
-!    ToCalculate%Value      = 0.0_dp
-!    ToCalculate%Squared    = 0.0_dp
+    !Initialise
+    ToCalculate%Value      = 0.0_dp
+    ToCalculate%Squared    = 0.0_dp  !Unused, but zeroed anyway
 
-!    ! Neutron rms radius
-!    ToCalculate%Value(1)    = sum(ToCalculate%SpherHarm*D_I_I(:,1))
-!    ToCalculate%Squared(1)  = sum(ToCalculate%SpherHarm**2*D_I_I(:,1))
+    !---------------------------------------------------------------------------
+    ! Calculate these values    
+    do it=1,2
+      ! calculate divJ on the fly         mu nu kappa
+      divJ = der_C_I_NS(:,1,2,3,it)  & !   x  y     z
+      &    - der_C_I_NS(:,1,3,2,it)  & !   x  z     y
+      &    - der_C_I_NS(:,2,1,3,it)  & !   y  x     z
+      &    + der_C_I_NS(:,2,3,1,it)  & !   y  z     x
+      &    + der_C_I_NS(:,3,1,2,it)  & !   z  x     y
+      &    - der_C_I_NS(:,3,2,1,it)    !   z  y     x
+                    
+      ToCalculate%Value(it)      = sum(ToCalculate%SpherHarm*divJ)    *dv
+    
+    enddo
+    ! Not sure what a "charge density" J_mn would be, set to zero for now
+    ToCalculate%ChargeValue      =  0.0d0
+    
+    ! Check for problems
+    if(any(ToCalculate%Value.eq.ToCalculate%Value+1)) then
+      print 1, ToCalculate%l, ToCalculate%m
+      stop
+    endif
 
-!    ! The charge density in the Coulomb module includes the folding when it is 
-!    ! included in the functional.
-!    ToCalculate%Value(2)    =  &
-!    &                sum(ToCalculate%SpherHarm*   chargedensity(1:nx*ny*nz,1,1))
-!    ToCalculate%Squared(2)  =  &
-!    &                sum(ToCalculate%SpherHarm**2*chargedensity(1:nx*ny*nz,1,1))
-
-!    !  Volume elements
-!    ToCalculate%Value     = ToCalculate%Value   * dv
-!    ToCalculate%Squared   = ToCalculate%Squared * dv
-!    
-!    ! Set the deviation
-!    if(ToCalculate%ConstraintType.ne.0) then
-!      ToCalculate%deviation    =                                               &
-!      &                     abs(sum(ToCalculate%Value) - ToCalculate%constraint)
-!    endif
-!    call CalcBeta(ToCalculate)
-
-!  end subroutine Calculate_charge
+    return
+  end subroutine Calculate_multipole_divJ
 
   subroutine CalcBeta(Mom)
   !-----------------------------------------------------------------------------
@@ -1248,7 +1418,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     &           MaxMoment,                                  &  ! General options
     &           radd, acut, cutfac, cutofftype,             &   ! Cutoff options
     &           ContinueAll,                                &
-    &           follow_COM, maxmoment, maxmoment_mag,       &
+    &           follow_COM, maxmoment, maxmoment_mag, maxmoment_divJ,          &
     &           MoreConstraints            ! Signal that constraints will follow
       
     NameList /MomentConstraint/                                                &
@@ -1433,6 +1603,9 @@ $NTR     &          '   spin/orbit/total: hbar fm^(l-1)', /, &
 $NTR     &          '   phys:             mu_N fm^(l-1)'  )
    13 format ('  Calculated wrt to COM = (', 3f8.3, ')')
 
+  104 format (25('-'),' Multipole Moments of divJ', 25('-'))   
+  105 format (24x, 'Neutrons',8x,   'Protons ',9x, 'Total')
+
    ! Print information on the quantisationaxis and secondary axis
    select case(QuantisationAxis)
    case(1)
@@ -1564,6 +1737,24 @@ $NTR    enddo
 $NTR    
 $NTR    nullify(Current)
 $NTR    print 102
+
+    !---------------------------------------------------------------------------
+    ! c) divJ multipole moments
+    print 104
+    print 10, Ax
+    print 11, SecAx1, SecAx2
+    print 1
+    print 105
+    print 1
+
+    Current => Root_divJ
+    call Current%printMoment(Current)
+    do while(associated(Current%Next))
+      Current => Current%Next
+      call Current%PrintMoment(Current)
+    enddo
+    nullify(Current)
+    print 102
     
     return
   end subroutine PrintAllMoments
@@ -1575,6 +1766,7 @@ $NTR    print 102
     ! Special printing rules are provided for
     ! - l = 0 moment => Particle numbers
     ! - l =-2 moment => RMS radii
+    ! - l = 4 moment => r^4 radii
     !---------------------------------------------------------------------------
      
     class(Moment),       intent(in) :: ToPrint
@@ -1665,6 +1857,49 @@ $NTR    print 102
     end select
     !---------------------------------------------------------------------------
   end subroutine PrintMoment_electric
+
+  subroutine PrintMoment_divJ(ToPrint)
+    !---------------------------------------------------------------------------
+    ! This subroutine provides the printing of all relevant info of a Moment
+    ! associated with div_J 
+    !---------------------------------------------------------------------------
+    ! Special printing rules are provided for
+    ! - l = 0 moment 
+    ! - l =-2 moment 
+    ! - l =-4 moment
+    !---------------------------------------------------------------------------
+     
+    class(Moment),       intent(in) :: ToPrint
+    character(len=2)                :: ReIm
+
+    1 format (1x,  A2,'  divJ_{', 2i2, '}', 3(f15.4,1x) )
+    2 format ('norm divJ ',  6x,  3(es15.7,1x))
+    3 format ('r^2  divJ ', 6x,  3(f15.4,1x))
+    4 format ('r^4  divJ ', 6x,  3(f15.4,1x)) 
+
+    select case(ToPrint%l)
+    !---------------------------------------------------------------------------
+    case(0)
+      ! Printing the total number of particles
+      print 2, sqrt(4*pi)*ToPrint%Value, sqrt(4*pi)*sum(ToPrint%Value)
+    !---------------------------------------------------------------------------
+    case(-2)
+      ! Printing r^2 divJ
+      print 3, ToPrint%value(1), ToPrint%value(2), sum(ToPrint%Value)
+    case(-4)
+      ! Printing r^4 divJ
+      print 4, ToPrint%value(1), ToPrint%value(2), sum(ToPrint%Value)
+    !---------------------------------------------------------------------------
+    case DEFAULT
+      !All other "normal" multipole moments of divJ
+      ReIm = 'Re'
+      if(ToPrint%Impart) ReIm = 'Im'
+
+      print 1, ReIm, ToPrint%l, ToPrint%m, ToPrint%Value(1), ToPrint%Value(2),&
+      &        Sum(ToPrint%Value)
+    end select
+    !---------------------------------------------------------------------------
+  end subroutine PrintMoment_divJ
 
   subroutine PrintMoment_magnetic(ToPrint)
     !---------------------------------------------------------------------------
