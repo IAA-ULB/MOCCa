@@ -512,8 +512,14 @@ $TR    endif
 
       minqp =  max(minqp, gradient_safety)
       condi =  maxqp/minqp
-      gradient_mu       = ((sqrt(condi)-1)/(sqrt(condi)+1))**2
-      gradient_stepsize =  2.0/maxqp * (  1 + gradient_mu) * 0.9 
+      if(gradient_stepsize .eq. 0.0) then
+        ! This is the first time this gets estimated, don't mess up!'
+        gradient_mu       =  0.0
+        gradient_stepsize =  1.0/maxqp 
+      else
+        gradient_mu       = ((sqrt(condi)-1)/(sqrt(condi)+1))**2 
+        gradient_stepsize =  2.0/maxqp * (  1 + gradient_mu)     * 0.9
+      endif      
       deallocate(full_eqp)
     endif    
 

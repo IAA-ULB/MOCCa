@@ -23,3 +23,6 @@ manual/tex_source_heph/*.log
 manual/tex_source_heph/*.bib
 manual/tex_source_heph/*.pdf
 manual/tex_source_heph/*.out
+
+auxiliary/decomposition/mod/
+auxiliary/decomposition/obj/

@@ -69,7 +69,7 @@ module HFB_gradient
   
   !-----------------------------------------------------------------------------
   ! Parameters for the heavy-ball evolution in the pairing subproblem.
-  real(KIND=dp) :: gradient_stepsize = 0.03, gradient_mu = 0.6
+  real(KIND=dp) :: gradient_stepsize = 0.00, gradient_mu = 0.0
   real(KIND=dp) :: gradient_safety   = 0.1
   !-----------------------------------------------------------------------------
   ! The norm of the gradient for every isospin
@@ -287,9 +287,17 @@ contains
         if(normN.gt.1d-4) then
           ! 1. If the pairing has not collapsed, we try different values of the 
           ! Fermi energy to arrive at a correct particle number AFTER the 
-          ! heavy-vall step. 
+          ! heavy-ball step. 
           call find_fermi_brent(Bogo, H20, N20, H11, N11, prev, occ, Eqp,   &
           &        lambda, particles, targetN, alpha, mu, precon, blocks, ifail)
+
+          ! Note: if ifail .ne. 0 here, then the Brent routine failed to find 
+          !       an interval bracketing a zero of <N>-N0. This typically happens
+          !       for cases where the <N> is not stricly increasing function of
+          !       lambda, which can happen when blocking. This is often not 
+          !       strictly speaking a problem, so we ignore it and hope that 
+          !       the correction step can take care of this. 
+          ifail = 0
         endif
         
         ! 2. Building the gradient update 
@@ -312,6 +320,8 @@ contains
           call find_fermi_brent(Bogo, H20, N20, H11, N11, prev, occ, Eqp,   &
           &                     lambda_corr,particles, targetN, 1.0d0, 0.0d0,  &
           &                     precon, blocks, ifail)
+          
+          ! If IFAIL .ne. 0, we have a more serious problem.
           grad = buildgrad(H20, N20, H11, N11, occ, lambda_corr, Eqp, precon)
           bogo = GradUpdate(grad, prev, bogo, 1.0d0, 0.0d0, blocks)
         endif
@@ -366,7 +376,7 @@ contains
       
   end function calc_gradN
 
-  pure subroutine find_fermi_brent(Bogo, H20, N20, H11, N11, prev, occ, Eqp,&
+  subroutine find_fermi_brent(Bogo, H20, N20, H11, N11, prev, occ, Eqp,&
   &                               lambda,particles, targetN, alpha, mu, precon,&
   &                               blocks, ifail)
     !---------------------------------------------------------------------------
@@ -475,6 +485,17 @@ contains
 
         FA = particle_number_bogo(nbA, occ, blocks) - targetN
         FB = particle_number_bogo(nbB, occ, blocks) - targetN
+
+        if ( FB .lt. FA ) then 
+          print '(" : Warning N(eps_F) decreases ")'
+          print '(" A = ",f13.8," FA = ",f14.8," B = ",f13.8," FB = ",f14.8)', &
+               & InitialBracket(1),FA+N, InitialBracket(2),FB+N
+          ! This routine cannot gracefully recover (yet) when <N> is not a 
+          ! strictly increasing function of the Fermi energy, so we just do not
+          ! change the Fermi energy.                  
+          ifail = 10
+          return
+        endif
         
         ! diagnostic printing for convergence analysis (usually commented out)
         !print '(" Bracketing ",i4,1l2,(2(f13.8,es16.7)))',        &

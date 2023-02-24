@@ -360,9 +360,8 @@ subroutine ReachForWaterAndFood()
 
         ! Check for convergence or a failed calculation
         if (ifail .ne. 0) then  
-          write(*,*) "ifail=", ifail  
-          iomsg               = 'MAXITER'  
-          ConvergenceAchieved = .true.  !end bad calculation
+          iomsg               = 'FERMI'  
+          ConvergenceAchieved = .false.  
           exit
         else  
           call Converged(ConvergenceAchieved, iter)  
@@ -426,7 +425,7 @@ subroutine ReachForWaterAndFood()
             iomsg='CONVERGED'
             exit
         endif
-    enddo
+    enddo    
     if(inversetemp .ne. -1) then
         call projectThermal
     endif    
