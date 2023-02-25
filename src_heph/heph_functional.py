@@ -618,9 +618,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
         (tempden, coupling) = ParseDensities(Functional_terms[i])
         if(len(tempden) == 4):
           Quadri = True
-          
-        # Do not include terms which include pairing densities in this accounting
-    
+   
         # Generate a bunch of strings to insert into the FORTRAN code for this
         # particular term 
         (d,c,p,cc, pc_ph, pc_pair, st,pt,er, T) = \
@@ -645,20 +643,25 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
           sumtotal_odd  = sumtotal_odd     + st+ '&\n'
 
         (tempden, coupling) = ParseDensities(Functional_terms[i])
-        if(density_dependence[i] == '1'):
-          if(len(tempden) == 2):
-            sumtotal_bi   = sumtotal_bi   + st + '&\n'
-          elif(len(tempden) == 3):
-            sumtotal_tri  = sumtotal_tri  + st + '&\n'
-          elif(len(tempden) == 4):
-            pairing_term = False
-            for k in range(4):
-              if ('P' in tempden[k]):
-                pairing_term = True
-            if(not pairing_term):
+        #-----------------------------------------------------------------------
+        # Figure out if there is a pairing density in this term
+        # Attention: these calculations are all intended for the calculation 
+        #            of the SPWF-energy. They are not intended as a calculation
+        #            of ALL terms that are bi/tri/quadrilinear or density-dependent.
+        pairing_term = False
+        for k in range(len(tempden)):
+          if ('P' in tempden[k]):
+             pairing_term = True
+        if((not pairing_term) or (not ph_pp_decoupl)):
+          if(density_dependence[i] == '1'):
+            if(len(tempden) == 2):
+              sumtotal_bi   = sumtotal_bi   + st + '&\n'
+            elif(len(tempden) == 3):
+              sumtotal_tri  = sumtotal_tri  + st + '&\n'
+            elif(len(tempden) == 4):
               sumtotal_quad = sumtotal_quad + st + '&\n'
-        else:
-          sumtotal_dd = sumtotal_dd + st + '&\n'
+          else:
+            sumtotal_dd = sumtotal_dd + st + '&\n'
           
         if('P' in Functional_terms[i]):    
           if('p' in isospin_indices[i]):
