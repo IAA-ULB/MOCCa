@@ -1116,14 +1116,13 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     ! Input:
     !        Tocalculate :  multipole moment to be calculated
     !---------------------------------------------------------------------------
-    use Densities, only : Der_C_I_NS, C_I_NS
+    use Densities, only : divJ
     use derivatives
   
     1 format ('Nan in Q_{ ,' i2, ' ', i2, '}')
     
     class(Moment),        intent(inout) :: ToCalculate
     integer                             :: it
-    real(KIND=dp)                       :: divJ(nx*ny*nz)
     real(KIND=dp)                       :: temp(nx*ny*nz),der(nx*ny*nz)
 
     ! Save the history
@@ -1136,16 +1135,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     !---------------------------------------------------------------------------
     ! Calculate these values    
     do it=1,2
-      ! calculate divJ on the fly         mu nu kappa
-      divJ = der_C_I_NS(:,1,2,3,it)  & !   x  y     z
-      &    - der_C_I_NS(:,1,3,2,it)  & !   x  z     y
-      &    - der_C_I_NS(:,2,1,3,it)  & !   y  x     z
-      &    + der_C_I_NS(:,2,3,1,it)  & !   y  z     x
-      &    + der_C_I_NS(:,3,1,2,it)  & !   z  x     y
-      &    - der_C_I_NS(:,3,2,1,it)    !   z  y     x
-                    
-      ToCalculate%Value(it)      = sum(ToCalculate%SpherHarm*divJ)    *dv
-    
+      ToCalculate%Value(it)      = sum(ToCalculate%SpherHarm*divJ(:,it))    *dv
     enddo
     ! Not sure what a "charge density" J_mn would be, set to zero for now
     ToCalculate%ChargeValue      =  0.0d0

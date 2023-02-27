@@ -1919,6 +1919,23 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
   
   end function Pauli
   
+  pure function ImagMultiplySpinor(Psi, Phi) result(ImPsiPhi)
+    !-------------------------------------------------------------------------
+    ! Computes the imaginary part of 
+    !       Psi^{dagger} Phi
+    !-------------------------------------------------------------------------
+    real(KIND=dp),intent(in) :: Psi(nx*ny*nz,4), Phi(nx*ny*nz,4)
+    real(KIND=dp)            :: ImPsiPhi(nx*ny*nz)
+    integer                  :: i
+
+    do i=1,nx*ny*nz
+      ImPsiPhi(i) = Psi(i,1) * Phi(i,2) &
+      &           - Psi(i,2) * Phi(i,1) &
+      &           + Psi(i,3) * Phi(i,4) &
+      &           - Psi(i,4) * Phi(i,3)
+    enddo
+
+  end function ImagMultiplySpinor
   function spwf_parities(basis, fullmatrices) result(P)
       !-------------------------------------------------------------------------
       ! Calculation of the single-particle matrix elements of parity P.

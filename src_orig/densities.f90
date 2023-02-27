@@ -100,6 +100,10 @@ implicit none
     ! Type declaration of the various densities
 $DECLARATION   
     !---------------------------------------------------------------------------
+    ! Separate, manual, declaration of Div.J(r) as calculated from the spwfs
+    ! for the more accurate calculation of its multipole moments
+    real(KIND=dp), allocatable :: divJ(:,:)
+    !---------------------------------------------------------------------------
     ! Density-mixing parameter default value.
     ! This can be set in the scfiteration namelist in the scfiteration model.
     real(KIND=dp) :: denmix = 0.75_dp
@@ -223,6 +227,9 @@ contains
     ! Allocation and initialization
 $INITIALIZATION
 
+    if(.not.allocated(divJ)) then
+      allocate(divJ(nx*ny*nz,4))    
+    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Save old density for next iteration and mixing.
     ! Note that this is only necessary at the moment for the ordinary rho
@@ -246,6 +253,7 @@ $NTR      D_I_S_hist(:,:,:,1) = D_I_S
     ! Zero the current density
 $ZEROING
 
+    divJ = 0.0d0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Correctly set the pointers to the spwfs
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -460,9 +468,97 @@ $DERIVATION
     ! Calculate the densities in isospin representation 
 $ISOSPINCOUPL    
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Sum DivJ from the spwfs separately
+    divJ = sum_divJ_spwf()
+    
     call stop_timer(T_densities)
 
 end subroutine densit
+
+function sum_divJ_spwf() result(divJ)
+    !---------------------------------------------------------------------------
+    ! Calculate the 
+    !            nabla cdot J
+    ! where J is the vector component of the spin-current density J_munu. 
+    ! The contribution from a single spwf is 
+    !
+    !  sum_{mu nu kappa} eps_munukappa
+    !            rho_ii  Im [ \nabla_mu Psi_i^* \nabla_kappa \sigma_nu \Psi_ii]
+    !
+    ! where eps_munukappa is a Levi-Civita symbol.
+    !
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! The reason this thing is calculated separately is because the sum of 
+    ! spwfs is represented much more accurately on the mesh than the sum of
+    ! derivatives of J on the mesh. We use this summation for the calculation
+    ! of multipole moments of J, but it should in W.R.'s opinion NOT be used
+    ! in the calculation of any energy for consistency reasons.
+    !---------------------------------------------------------------------------
+    real(KIND=dp) :: divJ(nx*ny*nz,4)
+    real(KIND=dp) :: temp(nx*ny*nz,4)
+    real(KIND=dp) :: weight
+    integer       :: wave,it
+
+    divJ = 0.0d0
+    select case(PairingType)
+    case(0,1)
+      ! HF or BCS Calculation
+      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
+      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
+    case(2)
+      ! HFB calculation
+      if(.not. efficientHFB) then
+        DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
+        DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
+      else
+        DenPsi    => HFPsi    ; DenDPsi   => HFDPsi 
+        DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
+      endif
+    end select
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    do wave=1,nwt
+        ! Isospin is neutron in the first half of blocks, proton in the rest
+        it = 2
+        if(wave.le.nwn) it = 1
+        
+        ! For ordinary densities
+        weight  = rho_can(wave) 
+
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! I code this with calls to the Pauli and ImagMultiplySpinor functions 
+        ! to make no mistakes
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! x y z
+        temp = Pauli(DenDPsi(:,2,:,wave), 3)
+        divJ(:,it) = divJ(:,it) &
+        &            + weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
+        ! y x z
+        temp = Pauli(DenDPsi(:,1,:,wave), 3)
+        divJ(:,it) = divJ(:,it) &
+        &            - weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
+        ! x z y 
+        temp = Pauli(DenDPsi(:,3,:,wave), 2)
+        divJ(:,it) = divJ(:,it) &
+        &            - weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
+        ! z x y 
+        temp = Pauli(DenDPsi(:,1,:,wave), 2)
+        divJ(:,it) = divJ(:,it) &
+        &            + weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
+        ! y z x 
+        temp = Pauli(DenDPsi(:,3,:,wave), 1)
+        divJ(:,it) = divJ(:,it) &
+        &            + weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
+        ! z y x 
+        temp = Pauli(DenDPsi(:,2,:,wave), 1)
+        divJ(:,it) = divJ(:,it) &
+        &            - weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
+    enddo
+    ! Taking isospin combinations
+    divJ(:,3) = divJ(:,1) + divJ(:,2)
+    divJ(:,4) = divJ(:,1) - divJ(:,2)
+  
+end function sum_divJ_spwf
 
 subroutine MassageDensity()
     !---------------------------------------------------------------------------
