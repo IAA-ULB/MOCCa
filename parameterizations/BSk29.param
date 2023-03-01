@@ -1,6 +1,9 @@
 !-------------------------------------------------------------------------------
 ! BSk29 parameterization
-! S. Goriely, N. Chamel and J. M. Pearson, Phys. Rev. C 93, 034337 (2016).
+! S. Goriely, Nuclear Physics A 933, 68 (2015).
+! Note: Tantalus cannot simulate the pairing of this parameterization, and in 
+!       particular the concept of kappa_p and kappa_n is absolutely not the 
+!       same as in the paper.
 !-------------------------------------------------------------------------------
 &skf 
 name     = "BSk29" 

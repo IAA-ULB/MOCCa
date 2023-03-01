@@ -1,53 +1,52 @@
 !-------------------------------------------------------------------------------
-! BSk31 parameterization
+! BSk22 parameterization
+! S. Goriely, N. Chamel, and J. M. Pearson, Phys. Rev. C 88, 024308 (2013).
 ! Note: Tantalus cannot simulate the pairing of this parameterization, and in 
 !       particular the concept of kappa_p and kappa_n is absolutely not the 
 !       same as in the paper.
 !-------------------------------------------------------------------------------
 &skf 
-name     = "BSk31" 
+name     = "BSk22" 
 func_file= 'BXL.func'
 ! - - - - - - - - - - - - - - - - - - - - - 
 ! Particle-hole parameters 
-t0       =   -2302.01,
-t1       =     762.99,
+t0       =   -3978.97,
+t1       =     404.461,
 t2       =       0.0001,
-t3       =   13797.83,
-t4       =    -500.0,
-t5       =     -40.0, 
-x0       =       0.676655,
-x1       =       2.658109,
-x2       =-4222900.0,
-x3       =       0.83982,
-x4       =       5.0,
-x5       =     -12.0,
-sigma    =       0.2, 
-beta     =       0.083333333,
-gamma    =       0.25,
-wso      =      62.174,
-wsoq     =     186.522 
+t3       =   22704.7,
+t4       =    -100.0,
+t5       =    -150.0, 
+x0       =       0.472558,
+x1       =       0.0627540,
+x2       =   -13961300.0,
+x3       =       0.514386,
+x4       =       2.0,
+x5       =     -11.0,
+sigma    =      0.0833333333, 
+beta     =      0.5,
+gamma    =      0.0833333333,
+wso      =    111.109,
+wsoq     =    111.109
 CSDS0    = 0.0                             ! No s \Delta s term
 CSDS1    = 0.0                             ! 
 CT0      = 0.0                             ! No Jmunu terms
 CT1      = 0.0                             ! 
 ! - - - - - - - - - - - - - - - - - - - - - 
 ! Pairing parameters 
-Vp         =  0.00000
-Vn         =  0.00000
-Vnm        =  1.0
-Vpm        =  1.0 
-kappa_n    = -36630.4
-kappa_p    = -45207.2
-pairingmu  =  0.25,0.25
-Cutneutron =  6.5
-Cutproton  =  6.5
+Vp       =  0.00000
+Vn       =  0.00000
+Vnm      =  1.0
+Vpm      =  1.0
+kappa_n  =  0.0
+kappa_p  =  0.0
+alpha    =  1.0
+sigmap   =  1.0
+Cutneutron =  16
+Cutproton  =  16
 cuttype    =  2
-alpha      =  1.0
-sigmap     =  1.0
 ! - - - - - - - - - - - - - - - - - - - - - 
 ! Constants and Coulomb
 hbm(1)   = 20.72126890,20.74983164      
-e2       = 1.43996446
 COM1Body = 2
 COM2Body = 1
 Protonsize    = 0.895, 0.0
@@ -55,7 +54,7 @@ Neutronsize   = 0.387, 0.467
 HOcomform     = .true.
 nucleonsize_selfconsistent=.false.
 CoulTreatment = 2
-eps=1e-8
+eps      = 1e-8
 ptype=0
 intertype=1
 /
