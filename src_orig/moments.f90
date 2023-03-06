@@ -1123,7 +1123,6 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     
     class(Moment),        intent(inout) :: ToCalculate
     integer                             :: it
-    real(KIND=dp)                       :: temp(nx*ny*nz),der(nx*ny*nz)
 
     ! Save the history
     Tocalculate%history = tocalculate%value

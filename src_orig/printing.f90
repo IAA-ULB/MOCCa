@@ -12,6 +12,12 @@ module Printing
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
+ ! Hephaestos keywords
+ !
+ ! TR        : $TR
+ ! NTR       : $NTR
+ !==============================================================================
+ use geninfo
  use pairing
  use wavefunctions
  use convergence
@@ -25,21 +31,23 @@ contains
     ! Print the info of the (physical) Hartree-Fock basis.
     !---------------------------------------------------------------------------
     
-    10 format (21 ('-'), ' Hartree-Fock basis', 67('-'))
-    12 format (21 ('-'), ' Canonical    basis', 67('-'))
-    20 format (106 ('-'))
-    30 format (106 ('_'),/,3x , 'Neutron wavefunctions')
-    40 format (106 ('_'),/,3x , 'Proton  wavefunctions')
-    60 format (2x,'i',5x,'P',3x, 'Rz', 3x,'occ',10x,'E',7x,'d2h',4x,'Delta',  &
+    10 format (42 ('-'), ' Hartree-Fock basis', 67('-'))
+    12 format (42 ('-'), ' Canonical    basis', 67('-'))
+    20 format (118 ('-'))
+    30 format (118 ('_'),/,3x , 'Neutron wavefunctions')
+    40 format (118 ('_'),/,3x , 'Proton  wavefunctions')
+    60 format (1x,' n ', 2x 'i', 4x,'P',4x, 'Rz', 3x,'occ',10x,'E',7x,       &
+    &             'd2h',4x,'Delta', 1x,                                      &
     &             ' | ', 2x, 'JxT',4x, 'JyT', 4x,'Jz', 6x, 'J', 2x,          &
-    &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz')    
+    &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz', '   | r_rms ' )    
 
-    11 format (i3, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, 1x, f9.3, 1x,es8.1,1x,& 
-    &           f6.2,  1x,'|', 4(2x, f5.2), 1x, '|', 3(2x, f5.2) )
+    11 format (1x, i3, 1x, i3, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, &
+    &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(2x, f5.2), 1x, '|',   &
+    &          3(2x, f5.2), ' | ', f6.2 )
 
     integer       :: wave,k, B, si, N, T, wavebar, l
-    integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
-    real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz
+    integer       :: ProtonOrder(nwp), NeutronOrder(nwn), sumocc
+    real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz, r2
     real(KIND=dp), allocatable :: HF_gaps(:,:), can_gaps(:,:)
     character(len=1) :: blo
     
@@ -72,6 +80,8 @@ contains
     print 20
     do k=1,nwn 
         wave = NeutronOrder(k)
+$NTR    sumocc = k
+$TR     sumocc = 2*k
 
         P = P_hf(wave)        
 
@@ -93,18 +103,24 @@ contains
         Jy = HF_JTI(2,wave) ; SY = HF_STI (2,wave)
         Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
         JJ = HF_JJ(wave)
-
+        
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        !Quickly calculate sqrt(<psi|r^2|psi>)
+        r2 = sum(sum(HFpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
+        r2 = sqrt(r2)
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         if(pairingtype.eq.1) then
-          print 11, wave, p, s, rho_can(wave), ' ', spenergies(wave), &
-          &               dispersions(wave), BCSgaps(wave),      &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
+          print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
+          &               dispersions(wave), BCSgaps(wave),                    &
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
         elseif(pairingtype.eq.2) then
-          print 11, wave, p, s, rho_HF(wave), ' ', spenergies(wave),          &
+          print 11, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),   &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
         else
-          print 11, wave, p, s, rho_can(wave), ' ', spenergies(wave), &
-          &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz              
+          print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
+          &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &              
+          &               r2
         endif
     enddo
     
@@ -113,8 +129,10 @@ contains
     print 20
     do k=1,nwp
         wave = ProtonOrder(k)
-        P = P_hf(wave)        
+$NTR    sumocc = k
+$TR     sumocc = 2*k
 
+        P = P_hf(wave)        
         if(wave .le. sum(HFBlocks(1:6))) then
             if(wave .le. sum(HFBlocks(1:5))) then
                s = +1
@@ -134,18 +152,24 @@ contains
         Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
         JJ = HF_JJ(wave)
 
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        !Quickly calculate sqrt(<psi|r^2|psi>)
+        r2 = sum(sum(HFpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
+        r2 = sqrt(r2)
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
         if(pairingtype.eq.1) then
-          print 11, wave, p, s, rho_can(wave), ' ', spenergies(wave),          &
+          print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), BCSgaps(wave),                    &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
         elseif(pairingtype.eq.2) then
-          print 11, wave, p, s,  rho_HF(wave), ' ', spenergies(wave),          &
+          print 11, sumocc, wave, p, s,  rho_HF(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
         else
-          print 11, wave, p, s, rho_can(wave),' ',  spenergies(wave),          &
+          print 11, sumocc, wave, p, s, rho_can(wave),' ',  spenergies(wave),  &
           &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ,              &
-          &               Sx, Sy, Sz
+          &               Sx, Sy, Sz, r2
         endif
     enddo
     print 20
@@ -170,6 +194,9 @@ contains
 
     do k=1,nwn 
       wave = NeutronOrder(k) 
+$NTR    sumocc = k
+$TR     sumocc = 2*k
+
       P = P_can(wave)        
 
       if(wave .le. sum(HFBlocks(1:2))) then
@@ -190,6 +217,12 @@ contains
       Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
       Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
       JJ = can_JJ(wave)
+      
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !Quickly calculate sqrt(<psi|r^2|psi>)
+      r2 = sum(sum(canpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
+      r2 = sqrt(r2)
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     
       if(allocated(conjugp)) then
        wavebar  = conjugp(wave)
@@ -208,14 +241,17 @@ contains
           if(wave.eq.blocked_sps(l)) blo = '*'
         enddo
       endif    
-      print 11, wave, p,  s,   rho_can(wave), blo , canenergies(wave),        &
-      &               0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz
+      print 11, sumocc, wave, p,  s,   rho_can(wave), blo , canenergies(wave), &
+      &               0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
     enddo
     print 40  
     print 60
     print 20
     do k=1,nwp 
       wave = ProtonOrder(k) 
+$NTR    sumocc = k
+$TR     sumocc = 2*k
+
       P = P_can(wave)        
 
       if(wave .le. sum(HFBlocks(1:6))) then
@@ -237,6 +273,12 @@ contains
       Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
       JJ = can_JJ(wave)
       
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !Quickly calculate sqrt(<psi|r^2|psi>)
+      r2 = sum(sum(canpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
+      r2 = sqrt(r2)
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      
       if(allocated(conjugp)) then
         wavebar  = conjugp(wave)
       else
@@ -255,8 +297,8 @@ contains
         enddo
       endif   
 
-      print 11, wave, p, s,   rho_can(wave),  blo, canenergies(wave),       &
-      &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz
+      print 11, sumocc, wave, p, s,   rho_can(wave),  blo, canenergies(wave),  &
+      &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
     enddo
     print 20
 
@@ -265,18 +307,19 @@ contains
   subroutine printqps
     !---------------------------------------------------------------------------
     ! Print all relevant info on quasiparticles.
-    ! Rather bare-bones for the moment.
+    ! This routine has no side-effects.
     !---------------------------------------------------------------------------
-    integer              :: i, N, B, si, sb, ind, N2, k, U(1),V(1)
+    integer              :: i, N, B, si, sb, ind, N2, k, U(1),V(1), T
     integer, allocatable :: indices(:)
-    real(KIND=dp)        :: ov
+    real(KIND=dp)        :: ov, v2, u2
     character(len=1)     :: Bstr, Pstr
     
-    1  format (33 ('-'), 'Quasiparticles',44('-'))
-    2  format ( i3, 1f10.2, 2x, 1es12.2, 1es12.2, ' | ', 2i4, ' | ', 2x, a1,   &
+    1  format (48 ('-'), 'Quasiparticles',48('-'))
+    2  format ( i3, 1f10.2, 2x, 1es12.2, 1es12.2, ' | ', 2i4,  2x, 2f8.5,  &
+    &           ' | ', 2x, a1,   &
     &           2x, a1,  2x, 1f5.3, ' | ',  3(2x,f5.2))
 
-    11  format(91 ('-'))
+    11  format(110('-'))
     if(PairingType.eq.0) return
     
     if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
@@ -289,45 +332,53 @@ contains
         N = HFblocks(B) ;      if(N.eq.0) cycle
         N2 = HFBlocks(B+1)
 
+        T = N + N2
+
         call print_qp_header(B)
         select case(pairingtype)
         case(2)
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! HFB case
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The unselected quasi-particles
-          do i=1,N+N2
+          ! The first half of the Bogoliubov matrix
+          do i=1,T
             ! What are the single-particles dominating these qps? 
-            if(maxval(abs(Bogoliubov(sb     +1:sb+  N+  N2,sb+i))).gt. 0.1) then
-              U = maxloc(Bogoliubov(sb     +1:sb+  N+  N2,sb+i)**2)+si
+            if(maxval(abs(Bogoliubov(sb+1:sb+T,sb+i))).gt. 0.1) then
+              U =  maxloc(Bogoliubov(sb+1:sb+T,sb+i)**2)+si
             else
               U = 0
             endif
-            if(maxval(abs(Bogoliubov(sb+N+N2+1:sb+2*N+2*N2,sb+i))).gt. 0.1) then
-              V = maxloc(Bogoliubov(sb+N+N2+1:sb+2*N+2*N2,sb+i)**2)+si
+            if(maxval(abs(Bogoliubov(sb+T+1:sb+2*T,sb+i))).gt. 0.1) then
+              V =  maxloc(Bogoliubov(sb+T+1:sb+2*T,sb+i)**2)+si
             else
               V = 0
-            endif    
+            endif  
+
+            u2 = sum(Bogoliubov(sb  +1:sb+  T,sb+i)**2) 
+            v2 = sum(Bogoliubov(sb+T+1:sb+2*T,sb+i)**2) 
           
-            print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*N+2*N2-i+1),     &
+            print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*T-i+1),          &
             &           qpdispersions(sb+i),                                   &
-            &           U(1), V(1), '-', '-', 0.0d0,                           &
+            &           U(1), V(1), u2, v2, '-', '-', 0.0d0,                   &
             &            qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
           enddo
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The selected quasi-particles
-          do i=N+N2+1,2*N+2*N2
+          ! The second half of the Bogoliubov matrix
+          do i=T+1,2*T
             ! What are the single-particles dominating these qps? 
-            if(maxval(abs(Bogoliubov(sb     +1:sb+  N+  N2,sb+i))).gt. 0.1) then
-              U = maxloc(Bogoliubov(sb     +1:sb+  N+  N2,sb+i)**2)+si
+            if(maxval(abs(Bogoliubov(sb     +1:sb+T,sb+i))).gt. 0.1) then
+              U =  maxloc(Bogoliubov(sb     +1:sb+T,sb+i)**2)+si
             else
               U = 0
             endif
-            if(maxval(abs(Bogoliubov(sb+N+N2+1:sb+2*N+2*N2,sb+i))).gt. 0.1) then
-              V = maxloc(Bogoliubov(sb+N+N2+1:sb+2*N+2*N2,sb+i)**2)+si
+            if(maxval(abs(Bogoliubov(sb+T+1:sb+2*T,sb+i))).gt. 0.1) then
+              V =  maxloc(Bogoliubov(sb+T+1:sb+2*T,sb+i)**2)+si
             else
               V = 0
             endif          
+
+            u2 = sum(Bogoliubov(sb  +1:sb+  T,sb+i)**2) 
+            v2 = sum(Bogoliubov(sb+T+1:sb+2*T,sb+i)**2) 
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Check if this particular qp is a blocked, partner or not special
             if(allocated(blocked_qps)) then
@@ -336,18 +387,18 @@ contains
               ov   = 0.0d0 
               do k=1,size(blocked_qps)
                 if(N2.eq.0) then
-                  if(blocked_qps(k) .eq. si+i-N-N2) then
+                  if(blocked_qps(k) .eq. si+i-T) then
                     Bstr = 'B'
                     Pstr = 'P'
                     ov = 1.0
                   endif
                 else
-                  if(blocked_qps(k) .eq. si+i-N-N2) then
+                  if(blocked_qps(k) .eq. si+i-T) then
                      Bstr = 'B'
                      Pstr = '-'
                      ov = partner_overlaps(k)
                   endif
-                  if(partner_qps(k) .eq. si+i-N-N2) then
+                  if(partner_qps(k) .eq. si+i-T) then
                     Bstr = '-'
                     Pstr = 'P'
                     ov = partner_overlaps(k)
@@ -362,7 +413,7 @@ contains
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             print 2, i, QPenergies(sb+i), configmatrix(sb+i),                  & 
             &           qpdispersions(sb+i),                                   &
-            &           U(1), V(1), Bstr, Pstr, ov,                            &
+            &           U(1), V(1), u2, v2, Bstr, Pstr, ov,                    &
             &           qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
           enddo
 
@@ -377,8 +428,8 @@ contains
             &        0.0d0, 0.0d0,0.0d0
           enddo
         end select
-        si = si +   N +  N2
-        sb = sb + 2*N +2*N2
+        si = si +   T
+        sb = sb + 2*T
         print *
     enddo
     print 11
@@ -386,15 +437,16 @@ contains
 
   subroutine print_qp_header(B)
     !---------------------------------------------------------------------------
-    !
+    ! Print a header for the table of quasiparticle properties.
     !
     !---------------------------------------------------------------------------
     integer, intent(in) :: B  
 
     1  format ('Block ', i1, ':  P=',a1,'1',2x,  a8)
-    2  format ( '  N      Eqp       f_n         disp     |   U   V  |   B  P', &
-    &           '  ov_TR |',4x,'JxT',4x,'JyT',4x,'Jz')
-    3  format (91 ('_'))
+    2  format ( '  N      Eqp       f_n         disp     |   U   V'&
+    &           '    sum u^2 sum v^2 |   B  P', '  ov_TR |' &
+    &            ,4x,'JxT',4x,'JyT',4x,'Jz')
+    3  format (110 ('_'))
   
     select case (B)
     case(1)

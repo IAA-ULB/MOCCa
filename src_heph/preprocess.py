@@ -123,7 +123,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
     if(fname=='printing.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessGeneric(fname, src, target, so)
         return
     if(fname=='HFB_gradient.f90'):
         ProcessGeneric(fname, src, target, so)
