@@ -1536,10 +1536,30 @@ $TR   stop
     real(KIND=dp), pointer           :: Jyn(:,:,:), Jyp(:,:,:)
     real(KIND=dp), pointer           :: Szn(:,:,:), Szp(:,:,:)
     real(KIND=dp), pointer           :: Jzn(:,:,:), Jzp(:,:,:)
-    character(len=*), intent(in)     :: fname
-    integer                          :: io, i,j,k
+    real(KIND=dp), pointer           :: Txn(:,:,:), Txp(:,:,:)
+    real(KIND=dp), pointer           :: Tyn(:,:,:), Typ(:,:,:)
+    real(KIND=dp), pointer           :: Tzn(:,:,:), Tzp(:,:,:)
 
-    1 format('#  X[fm]   Y[fm]   Z[fm]   ')
+    real(KIND=dp), allocatable, target  :: totalangmom(:,:,:)
+  
+    character(len=*), intent(in)     :: fname
+    integer                          :: io, i,j,k, it
+
+    1 format('#  X[fm]   Y[fm]   Z[fm] ', &
+    &        '   Sxn     Syn     Szn   ', &
+    &        '   Sxp     Syp     Szp   ', &
+    &        '   jxn     jyn     jzn   ', &
+    &        '   jxp     jyp     jzp   ', &
+    &        '   Jxn     Jyn     Jzn   ', &
+    &        '   Jxp     Jyp     Jzp   ')
+    2 format('#  0       1       2     ', &
+    &        '   3       4       5     ', &
+    &        '   6       7       8     ', &
+    &        '   9      10      11     ', &
+    &        '  12      13      14     ', &
+    &        '  15      16      17     ', &
+    &        '  18      19      20     ')
+
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
       print *, 'Something went wrong with writing a density to file.'
@@ -1555,21 +1575,56 @@ $NTR    Jxn(1:nx,1:ny,1:nz)  => C_I_N(:,1,1) ; Jxp(1:nx,1:ny,1:nz)  => C_I_N(:,1
 $NTR    Jyn(1:nx,1:ny,1:nz)  => C_I_N(:,2,1) ; Jyp(1:nx,1:ny,1:nz)  => C_I_N(:,2,2)
 $NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3,2)
 
+
+    ! Calculate the total angular momentum density
+$NTR    allocate(totalangmom(nx*ny*nz,3,2)) ; totalangmom = 0.0d0
+$NTR    do it=1,2
+$NTR      totalangmom(:,1,it) = 0.5 * D_I_S(:,1,it) ! spin part
+$NTR      totalangmom(:,2,it) = 0.5 * D_I_S(:,2,it) ! spin part
+$NTR      totalangmom(:,3,it) = 0.5 * D_I_S(:,3,it) ! spin part
+$NTR      do i=1, nx*ny*nz
+$NTR        ! X component : J_x ~ y j_z - z j_y
+$NTR        TotalAngMom(i,1,it) = TotalAngMom(i,1,it) &
+$NTR        & + meshgrid(i,2) * C_I_N(i,3,it) - meshgrid(i,3) * C_I_N(i,2,it)
+$NTR
+$NTR        ! Y component : J_y ~ z j_x - x j_z
+$NTR        TotalAngMom(i,2,it) = TotalAngMom(i,2,it) &
+$NTR        & + meshgrid(i,3) * C_I_N(i,1,it) - meshgrid(i,1) * C_I_N(i,3,it)
+$NTR
+$NTR        ! Z component : J_z ~ x j_y - y j_x
+$NTR        TotalAngMom(i,3,it) = TotalAngMom(i,3,it) &
+$NTR        & + meshgrid(i,1) * C_I_N(i,2,it) - meshgrid(i,2) * C_I_N(i,1,it)
+$NTR      enddo
+$NTR    enddo
+
+   
+$NTR    Txn(1:nx,1:ny,1:nz)  => TotalAngMom(:,1,1) 
+$NTR    Txp(1:nx,1:ny,1:nz)  => TotalAngMom(:,1,2)
+$NTR    Tyn(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,1) 
+$NTR    Typ(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,2)
+$NTR    Tzn(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,1) 
+$NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
+
+    print *, 'TOTAL J_Z', sum(TotalAngmom(:,3,1)) * dv, sum(TotalAngmom(:,3,2)) * dv
+
     call write_header(1)
+    write(1, fmt=2) 
     write(1, fmt=1) 
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          write(1, fmt='(3f8.3, 12es25.12E3)') meshx(i), meshx(j), meshz(k),   &
+          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
           &                                Sxn(i,j,k), Syn(i,j,k), Szn(i,j,k), & 
           &                                Sxp(i,j,k), Syp(i,j,k), Szp(i,j,k), & 
           &                                Jxn(i,j,k), Jyn(i,j,k), Jzn(i,j,k), & 
-          &                                Jxp(i,j,k), Jyp(i,j,k), Jzp(i,j,k)
-
+          &                                Jxp(i,j,k), Jyp(i,j,k), Jzp(i,j,k), &
+          &                                Txn(i,j,k), Tyn(i,j,k), Tzn(i,j,k), &
+          &                                Txp(i,j,k), Typ(i,j,k), Tzp(i,j,k)
         enddo
       enddo
     enddo
 
+    deallocate(TotalAngMom)
     close(1)
 
   end subroutine write_timeodd_densities
