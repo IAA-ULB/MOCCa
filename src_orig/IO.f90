@@ -1543,7 +1543,8 @@ $TR   stop
     real(KIND=dp), allocatable, target  :: totalangmom(:,:,:)
   
     character(len=*), intent(in)     :: fname
-    integer                          :: io, i,j,k, it
+    integer                          :: io, i,j,k
+$NTR integer                         :: it
 
     1 format('#  X[fm]   Y[fm]   Z[fm] ', &
     &        '   Sxn     Syn     Szn   ', &
@@ -2251,12 +2252,12 @@ $NTR     write(6, fmt=1) '#', int(protons), int(neutrons+protons),+nwn/2
           ii    = indices(i)
           jj    = indices(i+nwn/2)
 
-          if(ii .lt. (HFBlocks(1))) p1 =  0
-          if(ii .gt. (HFBlocks(1))) p1 =  1
+          if(ii .le. sum(HFBlocks(1:2))) p1 =  0
+          if(ii .gt. sum(HFBlocks(1:2))) p1 =  1
 
-          if(jj .lt. (HFBlocks(1))) p2 =  0
-          if(jj .gt. (HFBlocks(1))) p2 =  1
-
+          if(jj .le. sum(HFBlocks(1:2))) p2 =  0
+          if(jj .gt. sum(HFBlocks(1:2))) p2 =  1
+          
           mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
           mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
 
@@ -2278,11 +2279,11 @@ $NTR      write(6, fmt=1) ' ', int(protons), int(neutrons+protons),+nwp/2
           ii     = indices(i)
           jj     = indices(i+nwp/2)
 
-          if(ii .lt. sum(HFBlocks(1:3))) p1 =  0
-          if(ii .gt. sum(HFBlocks(1:3))) p1 =  1
+          if(ii .le. sum(HFBlocks(1:6))) p1 =  0 
+          if(ii .gt. sum(HFBlocks(1:6))) p1 =  1
 
-          if(jj .lt. sum(HFBlocks(1:3))) p2 =  0
-          if(jj .gt. sum(HFBlocks(1:3))) p2 =  1
+          if(jj .le. sum(HFBlocks(1:6))) p2 =  0
+          if(jj .gt. sum(HFBlocks(1:6))) p2 =  1
 
           mstate1 = angmom_z_real(HFPsi(:,:,ii),HFPsi(:,:,ii),HFdPsi(:,:,:,ii))
           mstate2 = angmom_z_real(HFPsi(:,:,jj),HFPsi(:,:,jj),HFdPsi(:,:,:,jj))
