@@ -226,7 +226,8 @@ program decomposition
         factorialquotient = factorialquotient/( l + m - q + 1)
       enddo
       fac=(-1)**m*sqrt(factorialquotient)
-      fac = fac * sqrt((2*l +1)/(4 * pi))
+!      fac = fac * sqrt((2*l +1)/(4 * pi))
+      fac = fac * sqrt((2*l +1)*1.0d0) ! WR: change of convention: no more sqrt(4pi)
       spherharm(:,:,l,m) = spherharm(:,:,l,m) * fac 
     enddo
   enddo
@@ -308,7 +309,11 @@ program decomposition
     do l = 0, maxl,2
       do m = 0, l, 2
         do q=1,ncol
-          write(unit=10, fmt='(e15.6)', advance='no') decomp_den(rr,l,m,q)
+          if( abs(decomp_den(rr,l,m,q)).gt.1e-16 ) then
+            write(unit=10, fmt='(e15.6)', advance='no') decomp_den(rr,l,m,q)
+          else
+            write(unit=10, fmt='(e15.6)', advance='no') 0.0d0
+          endif
         enddo
       enddo
     enddo
@@ -330,7 +335,9 @@ program decomposition
   do q=1,ncol
     print *, 'Density ', q
     Aold = sum(density(:,:,:,q))*dv
-    Anew = sum(decomp_den(:,0,0,q)*r**2)*dr*sqrt(4*pi)
+!    Anew = sum(decomp_den(:,0,0,q)*r**2)*dr*sqrt(4*pi)
+    Anew = sum(decomp_den(:,0,0,q)*r**2)*dr ! WR: change of convention, no more 
+                                            ! sqrt(4pi)
     print 22, Aold, Anew, Anew/Aold
     
     if(maxl .ge. 2) then
@@ -345,14 +352,21 @@ program decomposition
       enddo
       rms_old = rms_old *dv/Aold
     endif  
-    print 23, sqrt(rms_old), &
-    &         sqrt(sum(decomp_den(:,0,0,q)*r**4)*dr*sqrt(4*pi)/Anew), &
-    &         sqrt(sum(decomp_den(:,0,0,q)*r**4)*dr*sqrt(4*pi)/Anew)/sqrt(rms_old)
+!    print 23, sqrt(rms_old), &
+!    &         sqrt(sum(decomp_den(:,0,0,q)*r**4)*dr*sqrt(4*pi)/Anew), &
+!    &         sqrt(sum(decomp_den(:,0,0,q)*r**4)*dr*sqrt(4*pi)/Anew)/sqrt(rms_old)
 
+    ! Change of convention, no more sqrt(4pi)
+    print 23, sqrt(rms_old), &
+    &         sqrt(sum(decomp_den(:,0,0,q)*r**4)*dr/Anew), &
+    &         sqrt(sum(decomp_den(:,0,0,q)*r**4)*dr/Anew)/sqrt(rms_old)
+
+    ! Change of convention, no more sqrt(4pi)
     do l=0, maxl,2
       do m=0,l,2
         oldQ = sum(sph_old(:,:,:,l,m,1) * density(:,:,:,q))*dv
-        newQ = sum(r**(l+2) * decomp_den(:,l,m,q))*dr
+!        newQ = sum(r**(l+2) * decomp_den(:,l,m,q))*dr
+        newQ = sum(r**(l+2) * decomp_den(:,l,m,q))*dr/sqrt(4*pi)
         
         ! non-trivial factor two because of our conventions!
         if(m.ne.0) newQ = newQ/2

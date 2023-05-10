@@ -94,7 +94,6 @@ contains
   endif
   end function Lagrange_interpolation_function 
   
-  
   function Interpolate(newpoints,fvalues, nx, ny, nz, dx) result (interp)
     !---------------------------------------------------------------------------
     ! Interpolate a function defined on a Cartesian mesh with characteristics
@@ -154,6 +153,4 @@ contains
      enddo 
   
   end function Interpolate 
-  
-  
 end module interpolation
