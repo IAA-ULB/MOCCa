@@ -1802,7 +1802,7 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
       Jz = HF_J  (3,wave) ; Spinz = HF_spin(3,wave)
       JJ = HF_JJ(wave)
 
-      write(1, fmt=1) wave, -1, p, 2*rho_HF(wave), spenergies(wave),   & 
+      write(1, fmt=1) wave, -1, p, rho_HF(wave), spenergies(wave),   & 
       &               Jx, Jy,Jz, JJ, Spinx, Spiny, Spinz
     enddo      
     write(1, fmt=3) 
@@ -1817,7 +1817,7 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
       Jz = HF_J  (3,wave) ; Spinz = HF_spin(3,wave)
       JJ = HF_JJ(wave)
 
-      write(1, fmt=1) wave, +1, p, 2*rho_HF(wave), spenergies(wave), & 
+      write(1, fmt=1) wave, +1, p, rho_HF(wave), spenergies(wave), & 
       &                Jx, Jy,Jz,JJ,Spinx,Spiny,Spinz
     enddo
     close(1)
