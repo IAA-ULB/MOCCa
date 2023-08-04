@@ -604,6 +604,7 @@ contains
 
       estiter = 500
       update  = 0.0
+      maxE    = 100.0 ! Initialize some value to avoid compiler complaints
 
       ! For now, assume the symmetries of the very first neutron state
       sxm(:) = sx(1,:) ; sym(:) = sy(1,:) ; szm(:) = sz(1,:) 

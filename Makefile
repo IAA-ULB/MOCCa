@@ -53,11 +53,16 @@ ifneq (,$(findstring gfortran,$(CXX)))
 #	CXXFLAGS := -J$(MODDIR) -Wall -fbacktrace -g3
   OPENMP   := 
 	CXXFLAGS := -O3 -J$(MODDIR) -Wall -Wno-uninitialized $(OPENMP) 
-    LIBS   := -llapack -lblas
+    LIBS   := -lopenblas
 else ifeq ($(CXX),ifort)
   OPENMP   := 
-	CXXFLAGS := -O3  $(OPENMP) -assume realloc-lhs -assume byterecl -no-wrap-margin -module $(MODDIR)
-    LIBS   := -mkl
+	CXXFLAGS := -Ofast  $(OPENMP) -assume realloc-lhs -assume byterecl -no-wrap-margin -module $(MODDIR)
+    LIBS   := -qmkl
+else ifeq ($(CXX),ftn)
+  OPENMP   := 
+	CXXFLAGS := -J$(MODDIR)
+    LIBS   := 
+# No library linking required for LAPACK with CRAY compilers
 endif
 
 ################################################################################

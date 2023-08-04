@@ -1430,7 +1430,7 @@ $TR   stop
       do j=1,ny
         do i=1,nx
           write(1, fmt='(3f8.3, 3es25.12E3)') meshx(i), meshx(j), meshz(k),      &
-          &                        on(i,j,k), rhop(i,j,k), chargedensity(i,j,k) 
+          &                        rhon(i,j,k), rhop(i,j,k), chargedensity(i,j,k) 
         enddo
       enddo
     enddo
