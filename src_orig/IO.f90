@@ -1409,7 +1409,7 @@ $TR   stop
     ! part of the box that is actually represented numerically. It is up to
     ! postprocessing to actually construct the densities in the entire box.
     !---------------------------------------------------------------------------
-    real(KIND=dp), pointer           :: dn(:,:,:), dp(:,:,:)
+    real(KIND=dp), pointer           :: rhon(:,:,:), rhop(:,:,:)
     character(len=*), intent(in)     :: fname
     integer                          :: io, i,j,k
 
@@ -1421,8 +1421,8 @@ $TR   stop
       stop
     endif
 
-    dn(1:nx,1:ny,1:nz)  => D_I_I(:,1)
-    dp(1:nx,1:ny,1:nz)  => D_I_I(:,2)
+    rhon(1:nx,1:ny,1:nz)  => D_I_I(:,1)
+    rhop(1:nx,1:ny,1:nz)  => D_I_I(:,2)
 
     call write_header(1)
     write(1, fmt=1) 
@@ -1430,7 +1430,7 @@ $TR   stop
       do j=1,ny
         do i=1,nx
           write(1, fmt='(3f8.3, 3es25.12E3)') meshx(i), meshx(j), meshz(k),      &
-          &                           dn(i,j,k), dp(i,j,k), chargedensity(i,j,k) 
+          &                        rhon(i,j,k), rhop(i,j,k), chargedensity(i,j,k) 
         enddo
       enddo
     enddo
