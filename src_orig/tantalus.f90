@@ -50,7 +50,8 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  character(len=57), parameter        :: version3 =VERSION3
  character(len=57), parameter        :: version4 =VERSION4
  character(len=57), parameter        :: compiler =COMPCOMP
- character(len=57), parameter        :: cflags   =FLAGS
+ character(len=57), parameter        :: cflags   =CFLAGS
+ character(len=57), parameter        :: optflags =OPTFLAGS
 
  100 format &
      &  (/,8x,' ___________________________________________________________', &
@@ -88,7 +89,9 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  315 format ( 8x,'| ', a57, '|')
  316 format ( 8x,'| Compilation flags reported:                              |')
  317 format ( 8x,'| ', a57, '|')
- 318 format ( 8x,'|__________________________________________________________|')
+ 318 format ( 8x,'| Optimisation flags reported:                             |')
+ 319 format ( 8x,'| ', a57, '|')
+ 320 format ( 8x,'|__________________________________________________________|')
 
  call initialize_all_timers
  call start_timer(T_tantalus)
@@ -123,6 +126,8 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  print 316
  print 317, cflags
  print 318
+ print 319, optflags
+ print 320
 
  !------------------------------------------------------------------------------
  ! Read input from STDIN

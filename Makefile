@@ -1,31 +1,210 @@
 #-------------------------------------------------------------------------------
-# Make options included at this point
-#-------------------------------------------------------------------------------
+# 
+# Makefile for the succesfull compilation of different Tantalus executables.
 #
-# OPTIONS:
-#                                                    DEFAULT
-#  CXX      : compiler to use                        gfortran
-#  CXXFLAGS : compiler flags                         -O3 -J$(MODDIR) -Wall
-#  PRE      : steps to do before compilation         run Hephaestos
-#  CONFIG   : name of configutation file in the      default
-#             config/ folder
-#  
-# Note that config file needs to supply all the necessary information to 
-# Hephaestos: a functional file as well as the information on the symmetries
-# to conserve and the symmetries that can be expected on the input file.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# For succesful compilation, one needs
+#
+# * a complete copy of the Tantalus repository, including 
+#   - a working Hephaestos version
+#   - a correct set of Tantalus source code template files
+#
+# * a working installation of some version of Python3 to run Hephaestos
+#   - which should have access to basic Python libraries and numpy in particular
+# 
+# * a configuration file to run Hephaestos with; a ton are provided in configs/.
+# 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+# Basic useage:
+#
+#   > make
+#
+# which will compile a standard executable to be placed in the exec/ folder
+# using gfortran (provided it is installed).
+#
+# For more control, specify additional options either in this Makefile itself
+# or on the command line. For example: 
+#
+#   > make CONFIG=BXL CXX=ifort  
+# 
+# will compile a Tantalus executable based on the BXL.py configuration file 
+# (look in the configs/ folder) using the Intel ifort compiler. 
+# 
+# The option to specify compiler and CONFIG file should be sufficient for most
+# users; changing any other options is at your own risk.
+#
+# Executables at the end will be named Tantalus.$(CONFIG).exe and be placed
+# in the $(EXECDIR) configured below.
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# OPTIONS
+# - - - - -                                                    
+#  CXX      : compiler to use                        
+#  CONFIG   : name of configutation file in the config/ folder 
+#            (without trailing .py)
+#  OPTFLAGS : optimisation compiler flags            
+#  CXXFLAGS : other compiler flags                   
+#  PRE      : steps to do before compilation         
+#  DEBUG    : 0 => no debugging options
+#             1 => full debugging options
+#  USE_MPI  : 0 => no MPI
+#             1 => MPI (note: your compiler should be MPI-capable to use this)
+#  EXECDIR  : directory for storage of the final executables
+#  SRCDIR   : source code as processed by Hephaestos
+#  OBJDIR   : storage for intermediate object files
+#  MODDIR   : storage for final module files
+#
+# Notes
+# - - - -
+# 1. this is a Makefile, so you can essentially override ANY AND ALL 
+#    variables from the command line by simply passing them as argument to
+#    make. The options I document above are only the ones that I think are
+#    relevant to normal useage.
+# 2. All relevant directories will be created if they don't exist already.
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Compilers that are currently "pre-configured" with appropriate optimisation
+# flags etc.
+# 
+# 1. gfortran
+#    optimisation: -O3    
+#    versions tested: 9.4.0
+# 
+# 2. ifort
+#    optimisation: -Ofast
+#    versions tested: 2021.1 
+#
+# 3. cray compilers
+#    optimisation: -O2
 #
 #-------------------------------------------------------------------------------
-# Executables at the end will be named
-#  Tantalus.$(CONFIG).exe  
+# Acknowledgment: 
+#   the organisation of this Makefile as well as a bunch of options are 
+#   inspired by the Makefile of the HFBTHO v4 code, see the repository of 
+#   P. Marević et al., Computer Physics Communications 276, 108367 (2022).
 #-------------------------------------------------------------------------------
 
-OBJDIR :=   obj
-SRCDIR :=   src
-MODDIR :=   mod
+################################################################################
+# Physics details (modify as you want)
+################################################################################
+CONFIG  := default
+EXENAME := Tantalus.$(CONFIG).exe
 
-# Public src directory
-SRCPUBLIC := ../tantalus_public/src/
+################################################################################
+# Compilation details (this section should be modified as you see fit)
+################################################################################
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+# Compiler executable
+#
+# Options are present for 
+# - gfortran  by GNU
+# - ifort     by Intel
+# - ftn       (which should be a wrapper for a compiler) by Cray 
+CXX      :=  gfortran
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+# Directory names  (will be created if they don't exist)
+# 
+# - EXECDIR = directory for storage of the final executables
+# - SRCDIR  = source code as processed by Hephaestos
+# - OBJDIR  = storage for intermediate object files
+# - MODDIR  = storage for final module files
+EXECDIR :=  exec
+SRCDIR  :=   src
+OBJDIR  :=   obj
+MODDIR  :=   mod
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+# USE_MPI 
+#  => 0 if inactive
+#  => 1 if active
+USE_MPI := 0
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+# DEBUG 
+# => 0 : compile without debugging options
+# => 1 : compile with debugging options for each compiler
+DEBUG   := 0
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+# Libraries for linear algebra
+# This can be specified on the command line, but is in practice compiler based
+ifneq (,$(findstring gfortran,$(CXX))) 
+	# versions of gfortran should link to OPENBLAS
+	LIBS := -lopenblas                   
+else ifeq ($(CXX),ifort)               
+  # ifort compiler should link to the new Intel math library
+	LIBS := -qmkl                       
+else ifeq ($(CXX), ftn)                
+  # Cray compilers don't need specific linking to my knowledge
+	LIBS :=                              
+endif
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+# Python interpreter with which to invoke Hephaestos
+PYTHON_CMD := python3
+
+################################################################################
+# Setting compiler flags based on information provided above.
+# (This section should NOT be modified in principle)
+################################################################################
+
+# 1. set some compiler-specific options concerning storage etc.
+ifneq (,$(findstring gfortran,$(CXX)))
+	CXXFLAGS := -J$(MODDIR) 
+else ifeq ($(CXX),ifort)
+	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin 
+else ifeq ($(CXX),ftn)
+	CXXFLAGS := -J$(MODDIR)
+endif
+
+# 2. set compiler-specific optimisation level 
+# .... when in production mode
+ifeq ($(DEBUG),0)
+  ifneq (,$(findstring gfortran,$(CXX)))
+	  OPTFLAGS := -O3
+  else ifeq ($(CXX),ifort)
+	  OPTFLAGS := -Ofast
+  else ifeq ($(CXX),ftn)
+	  OPTFLAGS := -O2 # to be tested if optimal
+  endif
+else
+  ifneq (,$(findstring gfortran,$(CXX)))
+	  OPTFLAGS := -O0 -g -Wall -Wno-uninitialized -traceback 
+  else ifeq ($(CXX),ifort)
+	  OPTFLAGS := -g -traceback
+  else ifeq ($(CXX),ftn)
+	  OPTFLAGS := -e c -e D # to be tested if optimal
+  endif
+endif
+################################################################################
+# Sanity checks (should not be modified)
+################################################################################
+
+# 1. Check if compiler exists
+ifeq (, $(shell which $(CXX)))
+ $(error "The compiler CXX=$(CXX) cannot be invoked. Is it installed?")
+endif
+
+# 2. Check if config file exists
+CONFIGPATH := configs/$(CONFIG).py
+ifeq ("$(wildcard $(CONFIGPATH))", "")
+ $(error "The configuration file '$(CONFIG).py' does not seem to exist in the configs/ directory.")
+endif
+
+# 2. Check if python3 interpreter exists
+ifeq (, $(shell which $(PYTHON_CMD)))
+ $(error "The python interpreter $(PYTHON_CMD) does not seem to be installed.")
+endif
+
+################################################################################
+# Files to be compiled (This section should NOT be modified in principle)
+################################################################################
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Tantalus source files
 TARGET :=   Tantalus.exe
 SRC    :=   compilation.f90 geninfo.f90 timing.f90 constants.f90 
 SRC    +=   sphericalharmonics.f90 folding.f90   
@@ -38,80 +217,69 @@ SRC    +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 SRC    +=   functional.f90 fission_MOI.f90  evolution.f90 scfiteration.f90 
 SRC    +=   IO.f90 temperature_projection.f90 convergence.f90 printing.f90 
 SRC    +=   tantalus.version.f90
-
 SINGLE_SRC = $(SRC) run_single.f90
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Nilsson source files
 NIL_SRC := compilation.f90 timing.f90 geninfo.f90 derivatives.f90 nil8.f90   
 NIL_SRC += wavefunctions.f90 gennilsson.f90
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-################################################################################
-# Compiler details
-CXX      :=  gfortran
-OPENMP   :=  
-
-ifneq (,$(findstring gfortran,$(CXX)))
-#	CXXFLAGS := -J$(MODDIR) -Wall -fbacktrace -g3
-  OPENMP   := 
-	CXXFLAGS := -O3 -J$(MODDIR) -Wall -Wno-uninitialized $(OPENMP) 
-    LIBS   := -lopenblas
-else ifeq ($(CXX),ifort)
-  OPENMP   := 
-	CXXFLAGS := -Ofast  $(OPENMP) -assume realloc-lhs -assume byterecl -no-wrap-margin -module $(MODDIR)
-    LIBS   := -qmkl
-else ifeq ($(CXX),ftn)
-  OPENMP   := 
-	CXXFLAGS := -J$(MODDIR)
-    LIBS   := 
-# No library linking required for LAPACK with CRAY compilers
-endif
-
-################################################################################
-# Precompilation instructions
-PRE         :=  run_heph getgitinfo getcompilerinfo setversioninfo exec/
-PRE_NIL     :=  cp_nil 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Translate source files into object files
 SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
 NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
 
-# Default configuration
-CONFIG   :=  default
-
-single: EXENAME:= Tantalus.$(CONFIG).exe
+################################################################################
+# Precompilation steps 
+#
+# 1) Run Hephaestos to preprocess the entire code
+# 2) Get version information from git
+# 3) Get compiler information 
+# 4) set the version and compiler info in the source code
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+PRE         :=  run_heph getgitinfo getcompilerinfo setversioninfo 
+PRE_NIL     :=  cp_nil 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 ################################################################################
-# Recipes
+# Recipes (This section should NOT be modified in principle)
+################################################################################
+
 all: single
 
-exec/:
-	mkdir -p exec/
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Creation of required directories 
+$(EXECDIR)/:
+	mkdir -p $(EXECDIR)/
 
 $(OBJDIR)/:
-	mkdir -p  obj/
+	mkdir -p  $(OBJDIR)/
 
 $(MODDIR)/:
-	mkdir -p  mod/
+	mkdir -p  $(MODDIR)/
 
-compilation_logs/:
-	mkdir -p  compilation_logs/
-
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 single: $(PRE) $(SINGLE_OBJ)
-	$(CXX) $(CXXFLAGS) -o $@ $(SINGLE_OBJ) $(LIBS)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) -o $@ $(SINGLE_OBJ) $(LIBS)
 	mv single exec/$(EXENAME)
 
 run_heph:
   # Run Hephaestos with the correct configuration file
 	python3 Hephaestos.py $(CONFIG) 
 
-
 gen_nilsson: $(PRE_NIL) $(NIL_OBJ)
-	$(CXX) $(CXXFLAGS) -o $@ $(NIL_OBJ) $(LIBS)
+	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) -o $@ $(NIL_OBJ) $(LIBS)
 	mv gen_nilsson exec/$(EXENAME)
 
 clean:
 	rm  -f $(OBJDIR)/*.o
 	rm  -f $(MODDIR)/*.mod
 
-$(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ compilation_logs/
-	$(CXX) $(CXXFLAGS) -c  $< -o $@ 
+$(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/ 
+	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) -c  $< -o $@ 
 
 setversioninfo:
   
@@ -123,7 +291,8 @@ setversioninfo:
 	@sed -i.bak 's/VERSION4/"${GIT_INFO4}"/' $(SRCDIR)/tantalus.version.f90 
 #Copy the compiler information
 	@sed -i.bak 's/COMPCOMP/"${COMPVERSION}"/' $(SRCDIR)/tantalus.version.f90 
-	@sed -i.bak 's/FLAGS/"${CXXFLAGS}"/'       $(SRCDIR)/tantalus.version.f90 
+	@sed -i.bak 's/CFLAGS/"${CXXFLAGS}"/'      $(SRCDIR)/tantalus.version.f90 
+	@sed -i.bak 's/OPTFLAGS/"${OPTFLAGS}"/'    $(SRCDIR)/tantalus.version.f90 
 	
 	@rm $(SRCDIR)/tantalus.version.f90.bak
 
