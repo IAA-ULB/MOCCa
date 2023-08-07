@@ -701,8 +701,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             ! that are assumed to be present but not represented numerically.
             ! The MOCCa example is conserved time-reversal but broken signature.
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            !!$$OMP PARALLEL private(j, mw, norm, l)
-            !!$$OMP DO
             do j= i+1, HFBlocks(b)
               mw = indices(j)    
               ! Real part of the inproduct
@@ -711,8 +709,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
                   HFPsi(l,1,mw) = HFPsi(l,1,mw) - norm * HFPsi(l,1,nw)
               enddo
             enddo
-           !!$$OMP END DO
-           !!$$OMP END PARALLEL 
         enddo
         si = si + N
     enddo
