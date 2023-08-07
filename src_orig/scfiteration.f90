@@ -56,7 +56,7 @@ contains
       densitymixing            = 0
       potentialpreconditioning = 1
     case(1)
-      ! Linear mixing of the densitie
+      ! Linear mixing of the densities
       densitymixing            = 1
       potentialpreconditioning = 0
     end select

@@ -298,8 +298,8 @@ contains
     !                                       for the BCS gas)
     !  (d) Finite-temperature, blocking   : nothing implemented
     !---------------------------------------------------------------------------
-    real*8              :: f(nwt), occ, qpmin, overlap, maxover
-    integer             :: wave, NB, i, ind, si, N, B,  qpb, indover, c
+    real*8              :: f(nwt), occ, qpmin
+    integer             :: wave, NB, i, ind, si, N, B,  qpb, c
 
     integer, intent(in)          :: Blockindices(:)
     integer, intent(in)          :: BlockType, gas
