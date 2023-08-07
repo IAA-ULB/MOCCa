@@ -881,11 +881,27 @@ contains
     call writepotentials(chan)
     !---------------------------------------------------------------------------
     ! Multipole moment information                             
+    !
+    ! The Cray compilers on LUCIA want to inline the WriteMoment function while
+    ! also flattening the linked list of multipole moments when optimisation 
+    ! options -O2 or above are used. For reasons I do not understand, this 
+    ! makes the executable segfault. Since this routine has absolutely no impact
+    ! on execution time, I simply forbid the CRAY compiler to inline this function. 
+    ! This magically solves the issue (which does not exist for ifort or gnu compilers) 
+    ! 
+    ! Cray version on LUCIA at the time of writing:
+    ! Cray Fortran : Version 14.0.3
+    ! 
+    ! Note the double dollar-sign, to make sure Hephaestos does not replace these
+    ! compiler directives. 
+    ! 
+    !DIR$$ NOINLINE
     mom => root
     do while(associated(mom%next))
       mom => mom%next
       call Writemoment(mom,chan)
     enddo
+    !DIR$$ RESETINLINE
     close(chan)
 
   end subroutine WriteTantalus
