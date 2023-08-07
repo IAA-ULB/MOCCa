@@ -895,13 +895,13 @@ contains
     ! Note the double dollar-sign, to make sure Hephaestos does not replace these
     ! compiler directives. 
     ! 
-    !DIR$$ NOINLINE
     mom => root
     do while(associated(mom%next))
       mom => mom%next
+      !DIR$$ NOINLINE
       call Writemoment(mom,chan)
+      !DIR$$ INLINE
     enddo
-    !DIR$$ RESETINLINE
     close(chan)
 
   end subroutine WriteTantalus
