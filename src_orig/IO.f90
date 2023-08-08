@@ -1649,30 +1649,29 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
   subroutine write_potentials(fname)
     !---------------------------------------------------------------------------
     ! Write the following potentials to a file named "fname"
-    !  F_I_I(n/p),  F_c(n/p),  V_so(n/p),   V_pair(n/p)
+    !  F_I_I(n/p)    F_c(n/p)  F_Nm_Nm (n/p)  G_I_NS(n/p) 
     !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !  central       coulomb   spin-orbit   pairing  
+    !  central       coulomb   kinetic        spin-orbit   potentials
     !
     ! Remarks:
-    !   *) no definition yet of V_so or V_pair
     !   *) F_c is the potential of the DIRECT Coulomb energy, directly obtained
     !      from the charge density. It is in general NOT this potential that 
     !      the protons (and neutrons) feel. 
+    ! 
+    !   *)  Note that G_I_NS has 9 components for each isospin, corresponding 
+    !       to the gradient and spin indices. 
+    !
     !---------------------------------------------------------------------------
     !
     ! The file contains a header written by the subroutine write_header,
     ! supplemented by
     ! #   X[fm] Y[fm] Z[fm] V_nuc(n) V_nuc(p) V_c(n) V_c(p) 
-    !                                             V_so(n) V_so(p) V_p(n) V_p(p)
+    !               V_so(xx,n), V_so(xy,n), ..., V_so(zz,p)
     ! 
     ! where the # are included so that Numpy (or other plotting tools) can 
     ! ignore these lines when naively plotting stuff. Note that the fourth
     ! line is currently empty, but is reserved for future additions concerning
     ! symmetry options of the current run.
-    !
-    ! The format of the body of said file is
-    ! 
-    !     x,y,z,F_I_I(n),F_I_I(p), F_c,V_so(n), V_so(p),V_pair(n),V_pair(p)
     !
     ! where the first three numbers are the Cartesian coordinates (units of fm).
     ! The points are written down in column-major order ('Fortran order'), 
@@ -1687,9 +1686,12 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     real(KIND=dp), allocatable   :: Couln(:,:,:), Coulp(:,:,:)
 
     real(KIND=dp), allocatable, target   :: temp(:,:)
-    integer                              :: io, i,j,k
+    integer                              :: io, i,j,k, mu, nu
+    character(len=1) :: directions(3) 
 
-    1 format('#  X[fm]   Y[fm]   Z[fm]  V_nuc(n) V_nuc(p) V_c(n) V_c(p) V_so(n) V_so(p) V_p(n) V_p(p)')
+    1 format('#  X[fm]   Y[fm]   Z[fm]', 7x, 'V_nuc(n)', 17x, 'V_nuc(p)', 17x, &
+      &      'V_c(n)', 19x, 'V_c(p)', 19x, 'V_kin(n)', 17x, 'V_kin(p)', 19x) 
+    2 format('W_', 2a1,'(n)', 18x, 'W_', 2a1,'(p)', 18x )
 
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
@@ -1699,8 +1701,17 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     endif
 
     call write_header(1)
-    write(1, fmt=1) 
+    write(1, fmt=1, advance='no') 
   
+    directions = (/'x', 'y', 'z'/)
+    do mu=1,3
+      do nu=1,3
+        write(1, fmt=2, advance='no') directions(mu), directions(nu), &
+        &                             directions(mu), directions(nu)
+      enddo
+    enddo
+    write(1, fmt='()')
+    
     ! The central nuclear potential is the field associated with D_I_I, but it
     ! should not include the constraints, nor the contribution of the 
     ! Coulomb potential
@@ -1731,9 +1742,25 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          write(1, fmt='(3f8.3, 8es25.12)') meshx(i), meshy(j), meshz(k),      &
-          &          Vnucn(i,j,k), Vnucp(i,j,k), Couln(i,j,k), Coulp(i,j,k),   &
-          &          0.0, 0.0 ,0.0, 0.0 
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Mesh coordinates and F_I_I and coulomb contribution to it.
+          write(1, fmt='(3f8.3, 4es25.12)', advance='no') &
+          &          meshx(i), meshy(j), meshz(k),      &
+          &          Vnucn(i,j,k), Vnucp(i,j,k), Couln(i,j,k), Coulp(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The kinetic potential is the field F_Nm_Nm associated with D_Nm_Nm
+          write(1, fmt='(4es25.12)', advance='no') &
+          &         F_Nm_Nm(i,1), F_Nm_Nm(i,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The spin-orbit potential is the field G_I_NS, associated with the
+          ! density C_I_NS
+          do mu=1,3
+            do nu=1,3
+              write(1, fmt='(2es25.12)', advance='no') &
+              &               G_I_NS(i,mu,nu,1), G_I_NS(i,mu,nu,2)
+            enddo
+          enddo
+          write(1, fmt='()') !  newline character
         enddo
       enddo
     enddo
