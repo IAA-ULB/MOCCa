@@ -294,16 +294,20 @@ contains
     !---------------------------------------------------------------------------
     ! High-level routine to determine the starting point of a calculation. 
     !
-    ! There are two starting options
+    ! There are two main starting options, one of which has two suboptions
     !
     ! 1) Initialize in an EV8-style box with Nilsson orbitals
+    !    a - start self-consistency cycles immediately
+    !    b - read a set of potentials from file to start the calculations
+    ! 
     ! 2) Read a set of spwfs from file 
     ! 
-    ! Which option is chosen based on the InputFileName keyword: it is is
-    !  'INIT' (case insensitive) then the code performs option 1). Otherwise
-    ! it will attempt to read said file. 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Which option is chosen based on the InputFileName keyword: 
+    !  - INIT (case insensitive) : option 1a, no reading of any file
+    !  - *.pot                   : option 1b, reading of a potential file
+    !  - [any other filename]    : option 2, reading of a wavefunction file
     !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! These inputs can then be amended by either
     !
     ! a) Breaking a symmetry, as coded by Hephaestos
@@ -316,14 +320,35 @@ contains
     ! None of a) or b) is allowed if the user does not set the AllowTransform
     ! flag to .true. This behavior is coded like that as a general safeguard.
     !---------------------------------------------------------------------------
-    integer :: i
+    integer                       :: i, inputoption, lenchar
+    character(len=:), allocatable :: standardized_input  
+    
+    standardized_input = trim(to_upper(inputfilename))
+    lenchar=len(standardized_input)
+
+    if(standardized_input.eq.'INIT') then
+      ! option 1a : starting completely from scratch
+      inputoption = 0 
+    else if( standardized_input(lenchar-3:lenchar) .eq. '.POT') then
+      ! option 1b : reading potentials
+      inputoption = 1 
+    else
+      ! option 2 : reading complete .wf file
+      inputoption = 2        
+    endif   
     !---------------------------------------------------------------------------
     ! Input options 
-    if(trim(to_upper(inputfilename)).eq.'INIT') then
-      ! Option 1) generate starting point with Nilsson wavefunctions.
+    if( inputoption.eq.0  .or. inputoption .eq. 1) then
+      ! Generate starting point with Nilsson wavefunctions.
       call iniwavefunctions($ININX, $ININY, $ININZ, $ININWN, $ININWP)
       guessgaps         = .true.
       fileblocks        = HFBlocks
+      
+      if(inputoption.eq.1) then
+        call read_potentials(12, inputfilename)
+        Coulomb_read_from_file = .true. 
+        ! Signalling that we have direct and Exchange potentials read
+      endif
 
       if( SYM_CODE .ne. "0 1 001 000 10 000 010 111" ) then
         ! Initialisation with nil8 wavefunctions is always EV8-style
@@ -1649,17 +1674,30 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
   subroutine write_potentials(fname)
     !---------------------------------------------------------------------------
     ! Write the following potentials to a file named "fname"
-    !  F_I_I(n/p)    F_c(n/p)  F_Nm_Nm (n/p)  G_I_NS(n/p) 
+    !  F_I_I(n/p)    F_c       E_c      F_Nm_Nm (n/p)  G_I_NS(n/p) 
     !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !  central       coulomb   kinetic        spin-orbit   potentials
-    !
+    !  central       coulomb   coulomb   kinetic        spin-orbit   potentials
+    !                 direct   exchange
     ! Remarks:
-    !   *) F_c is the potential of the DIRECT Coulomb energy, directly obtained
-    !      from the charge density. It is in general NOT this potential that 
-    !      the protons (and neutrons) feel. 
     ! 
-    !   *)  Note that G_I_NS has 9 components for each isospin, corresponding 
-    !       to the gradient and spin indices. 
+    !   *) Note that G_I_NS has 9 components for each isospin, corresponding 
+    !      to the gradient and spin indices. These are arranged in lexographical
+    !      order.  
+    !   *) F_I_I should be the exact potential corresponding to the derivative 
+    !      of the Skyrme energy with respect to D_I_I. This means that it should
+    !      not include
+    !       - the contributions from constraints
+    !       - the contribution of the Coulomb interaction
+    !   *) To reproduce the complete state of the code, it is important that 
+    !      the Coulomb potentials written to file are the potentials 
+    !      corresponding to the charge density; for the direct potential this
+    !      is the U that satisfies 
+    ! 
+    !                 Delta U = 4 pi rho_charge
+    !
+    !      If the finite extent of the nucleons charge density is taken into 
+    !      account selfconsistently, this means that U is NOT the potential 
+    !      which should be added to F_I_I. 
     !
     !---------------------------------------------------------------------------
     !
@@ -1683,14 +1721,15 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     !---------------------------------------------------------------------------
     character(len=*), intent(in) :: fname
     real(KIND=dp), pointer       :: Vnucp(:,:,:), Vnucn(:,:,:)
-    real(KIND=dp), allocatable   :: Couln(:,:,:), Coulp(:,:,:)
+    real(KIND=dp), allocatable   :: Coulp(:,:,:), Excp(:,:,:)
 
     real(KIND=dp), allocatable, target   :: temp(:,:)
-    integer                              :: io, i,j,k, mu, nu
+    integer                              :: io, i,j,k, mu, nu, ox, oy, oz
+    integer                              :: meshindex
     character(len=1) :: directions(3) 
 
     1 format('#  X[fm]   Y[fm]   Z[fm]', 7x, 'V_nuc(n)', 17x, 'V_nuc(p)', 17x, &
-      &      'V_c(n)', 19x, 'V_c(p)', 19x, 'V_kin(n)', 17x, 'V_kin(p)', 19x) 
+      &      'V_cd', 20x, 'V_ce', 20x, 'V_kin(n)', 17x, 'V_kin(p)', 19x) 
     2 format('W_', 2a1,'(n)', 18x, 'W_', 2a1,'(p)', 18x )
 
     open(1,file=fname, iostat=io)
@@ -1714,50 +1753,72 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     
     ! The central nuclear potential is the field associated with D_I_I, but it
     ! should not include the constraints, nor the contribution of the 
-    ! Coulomb potential
-    allocate(temp(nx*ny*nz,2), couln(nx,ny,nz), coulp(nx,ny,nz))
+    ! direct and exchange Coulomb potentials
+    allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
+    
     temp = F_I_I(:,1:2) - constraint_I_I
 
     Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
     Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Subtracting the coulomb potential depends on our treatment of the 
     ! proton and neutron finite size effect
+    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
     if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
     &                             (.not. nucleonsize_selfconsistent)) then
-      ! No finite size effect for either protons or neutrons
-      Vnucp = Vnucp - CoulombPotential  - ExchangePotential
-
-      Couln = 0.0d0
-      Coulp = CoulombPotential
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! No finite size effect
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! The index juggling is ugly, but necessary, because the Coulomb 
+      ! potential has a different size than the Lagrange mesh.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            Vnucp(i,j,k)          =   Vnucp(i,j,k) &
+            &                       - CoulombPotential(i+ox,j+oy,k+oz)    &
+            &                       - ExchangePotential(i,j,k)
+          enddo
+        enddo
+      enddo
     else
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Finite size effects taken into account
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Note that there is no index juggling since these matrices are 
+      ! conveniently defined on the ordinary mesh.
       Vnucn = Vnucn - FoldedCoul(:,:,:,1)       - FoldedExchange(:,:,:,1)
       Vnucp = Vnucp - FoldedCoul(:,:,:,2)       - FoldedExchange(:,:,:,2)
-
-      Couln = FoldedCoul(:,:,:,1)
-      Coulp = FoldedCoul(:,:,:,2)
     endif
-
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! The potentials related to the charge density
+    Coulp = CoulombPotential (ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
+    Excp  = ExchangePotential(ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
     do k=1,nz
       do j=1,ny
         do i=1,nx
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! Mesh coordinates and F_I_I and coulomb contribution to it.
           write(1, fmt='(3f8.3, 4es25.12)', advance='no') &
-          &          meshx(i), meshy(j), meshz(k),      &
-          &          Vnucn(i,j,k), Vnucp(i,j,k), Couln(i,j,k), Coulp(i,j,k)
+          &          meshx(i), meshy(j), meshz(k),        &
+          &            Vnucn(i,j,k), Vnucp(i,j,k),        & 
+          &            Coulp(i,j,k), Excp(i,j,k) 
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! the contributions above are indexed according to (x,y,z) but 
+          ! we do not have this luxury for the following potentials
+          meshindex = i+(j-1)*nx+(k-1)*ny*nx
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! The kinetic potential is the field F_Nm_Nm associated with D_Nm_Nm
-          write(1, fmt='(4es25.12)', advance='no') &
-          &         F_Nm_Nm(i,1), F_Nm_Nm(i,2)
+          write(1, fmt='(2es25.12)', advance='no') &
+          &         F_Nm_Nm(meshindex,1), F_Nm_Nm(meshindex,2)
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! The spin-orbit potential is the field G_I_NS, associated with the
           ! density C_I_NS
           do mu=1,3
             do nu=1,3
               write(1, fmt='(2es25.12)', advance='no') &
-              &               G_I_NS(i,mu,nu,1), G_I_NS(i,mu,nu,2)
+              &             G_I_NS(meshindex,mu,nu,1), G_I_NS(meshindex,mu,nu,2)
             enddo
           enddo
           write(1, fmt='()') !  newline character
@@ -1765,9 +1826,158 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
       enddo
     enddo
 
-    deallocate(couln, coulp)
     close(1)
   end subroutine write_potentials
+
+  subroutine read_potentials(chan, ifn)
+    !---------------------------------------------------------------------------
+    ! Read mean-field potentials from a separate file.
+    !
+    ! Input: 
+    !  * chan : integer, channel number to read the file
+    !  * ifn  : input filename (will be checked for existence)
+    !
+    ! Caution: this routine is currently foreseen for a specific application, 
+    !          limited to maximally symmetric calculations and .func files
+    !          for which F_Nm_Nm and G_I_NS potentials are defined.
+    !---------------------------------------------------------------------------
+    use Coulombmod ! module explicitly 'used' in order to be able to place the 
+                   ! values of the direct and exchange Coulomb potentials 
+                   ! correctly on the mesh
+  
+    integer, intent(in)          :: chan
+    character(len=*), intent(in) :: ifn
+
+    logical :: exists
+    integer :: i,j,k,io, it, mu, nu, ox, oy, oz, meshindex, headercount
+    real(KIND=dp), allocatable :: Vc(:), Ec(:)
+    real(KIND=dp) :: x,y,z
+    character(len=200) :: temp
+     
+    inquire(file=inputfilename, exist=exists)
+    if(.not.exists) then
+      print *, 'Input file specified does not exist!'
+      stop
+    endif
+
+    open (chan,file=ifn)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! We need to skip any header lines (indicated by #).
+    ! For a Tantalus-created file, there are 14 of them by default but other 
+    ! people might write a different amount
+    io = 0; headercount = -1
+    do while(io.eq.0) 
+      headercount = headercount + 1
+      read(chan, iostat=io, fmt='(a200)') temp
+      if(temp(1:1) .ne. '#') io = 1
+    enddo  
+    ! We've found an error; we have counted the number of header lines!
+    rewind(chan)
+    ! ... and now we skip this number of lines    
+    do i=1,headercount
+        read(chan, fmt=('()'))
+    enddo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Allocate the relevant potentials    
+    allocate(F_I_I  (nx*ny*nz,4))     ; F_I_I   = 0.0d0
+    allocate(F_Nm_Nm(nx*ny*nz,4))     ; F_Nm_Nm = 0.0d0
+    allocate(G_I_NS (nx*ny*nz,3,3,4)) ; G_I_NS  = 0.0d0
+    allocate(Vc(nx*ny*nz))            ; VC      = 0.0d0
+    allocate(Ec(nx*ny*nz))            ; EC      = 0.0d0
+
+    ! We assume the points on the file are correctly ordered in 
+    ! FORTRAN fashion, such that we do not have to worry about looping 
+    ! separately over x/y/z and can just loop once over all mesh points.
+    ! This also means the coordinate information is not used.
+    do i=1,nx*ny*nz
+      read(chan, fmt='(3f8.3, 4es25.12)', iostat=io, advance='no') & 
+      &                            x,y,z, & !unused
+      &                            F_I_I(i,1), F_I_I(i,2),     & ! U(r)
+      &                            Vc(i),  Ec(i)                 ! Coulomb
+      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
+      &                            F_Nm_Nm(i,1), F_Nm_Nm(i,2)    ! kinetic
+
+      do mu=1,3
+        do nu=1,3
+          read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
+          &               G_I_NS(i,mu,nu,1), G_I_NS(i,mu,nu,2)
+        enddo
+      enddo
+      read(chan, *) ! Advance to new line
+      
+      if(io.ne.0) then
+        print *, 'Problem encountered reading potential file ', inputfilename
+        print *, 'IOSTAT = ', io
+        stop
+      endif
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Make sure the Coulomb module is configured with the right array dimensions
+    call setupCoulomb
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! The index juggling is ugly, but necessary, because the Coulomb 
+    ! potential has a different size than the Lagrange mesh.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+      
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          meshindex = i+(j-1)*nx+(k-1)*ny*nx
+          CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex)
+          ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex)
+        enddo
+      enddo
+    enddo
+    
+    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+    &                             (.not. nucleonsize_selfconsistent)) then
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! No finite size effects; correction is simple
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+      F_I_I(:,2) = F_I_I(:,2) + Vc(:) + Ec(:)
+    else
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Finite size effects taken into account
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Calculate folded potentials from the read-in potentials
+      call obtain_folded_potentials()
+      ! ... and correct F_I_I for them with ugly index juggling
+      do it=1, 2
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              meshindex = i+(j-1)*nx+(k-1)*ny*nx
+
+              F_I_I(meshindex,it)= F_I_I(meshindex,it) &
+              &                              + FoldedCoul(i,j,k,it)            &
+              &                              + FoldedExchange(i,j,k,it)
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Make sure isospin combinations are made correctly for all potentials
+    F_I_I(:,3) = F_I_I(:,1) + F_I_I(:,2)
+    F_I_I(:,4) = F_I_I(:,1) - F_I_I(:,2)
+             
+    F_Nm_Nm(:,3) = F_Nm_Nm(:,1) + F_Nm_Nm(:,2)
+    F_Nm_Nm(:,4) = F_Nm_Nm(:,1) - F_Nm_Nm(:,2)
+
+    do mu=1,3
+      do nu=1,3
+        G_I_NS(:,mu,nu,3) = G_I_NS(:,mu,nu,1) + G_I_NS(:,mu,nu,2)
+        G_I_NS(:,mu,nu,4) = G_I_NS(:,mu,nu,1) - G_I_NS(:,mu,nu,2)
+      enddo
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Close channel after succesfull IO operations.
+    close(chan)
+  end subroutine read_potentials
 
   subroutine write_sp_info(fname)
     !---------------------------------------------------------------------------

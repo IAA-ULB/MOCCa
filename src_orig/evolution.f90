@@ -90,7 +90,7 @@ contains
         &                    gradient_stepsize, gradient_mu,                   &
         &                    maxiter, printiter, strategy,                     &
         &                    estimateparams, estimategradparams,               &
-        &                    gradient_safety, efficientHFB                            
+        &                    gradient_safety, efficientHFB, freezeiter                            
         
 
         if(present(file_number)) then
@@ -133,7 +133,7 @@ contains
 
     subroutine PrintEvolution
         !-----------------------------------------------------------------------
-        ! Print the information on the evolution strategy.
+        ! Print the information on the evolution strategy to STDOUT.
         !
         !-----------------------------------------------------------------------
 
@@ -141,6 +141,7 @@ contains
         2 format(' Evolution strategy: ', a20 )
         3 format('   dt= ', f7.4, ' mu= ', f7.4 )
        31 format('   maxiter =', i5, ' printiter = ', i5)        
+       32 format('   of which freezeiter= ', i5, 'do change the potentials.')
         4 format('   Estimate (dt,mu) linear subproblem  : ', a3)
        41 format('   Estimate (dt,mu) pairing subproblem : ', a3)
        42 format('   Safety HFB-gradient                 : ', f7.4)
@@ -152,6 +153,7 @@ contains
         print 1
         print 2, adjustl(Strategy)
         print 31, maxiter, printiter
+        print 32, freezeiter
         if( EstimateParams) then
           print 4, 'YES'
         else 

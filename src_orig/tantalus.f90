@@ -281,7 +281,8 @@ subroutine ReachForWaterAndFood()
                               !      requires the charge density to be 
                               !      constructed
 
-    ! Only calculate the fields that have not been initialized from file.
+    ! Only calculate the fields that have not been read from either a 
+    ! wavefunction file or a potential file. 
     call calcFields(calcall=.false.,precon= .false.)
 
     call update_spwf_symmetries()
@@ -339,8 +340,12 @@ subroutine ReachForWaterAndFood()
         call ReadjustAllMoments(1)
         call ReadjustAllMoments(2)
         call Sphamilcontribution()
-        call calcFields(calcall=.true.,precon=.true.)
 
+        ! Recalculate the fields, but only if MaxIter > FreezeIter
+        if(iter .gt. freezeiter) then
+          call calcFields(calcall=.true.,precon=.true.)
+        endif
+        
         call update_spwf_angmom(.false.)
         call updateAM
         call ReadjustCranking
@@ -472,6 +477,7 @@ subroutine printsummary(iter)
 
     1 format (86('-'))
     2 format (' Iteration = ',i4)
+   21 format (' Potentials frozen.')
     3 format (' dt    = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
    31 format (' dtg   = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
     4 format (' E     = ', f10.3,2x, '  DE   = ', e12.5)
@@ -490,6 +496,7 @@ subroutine printsummary(iter)
 
     if(iter.eq.1) print 1
     print 2, iter
+    if(freezeiter .gt. iter) print 21
     print 3, dt, momentum, gradientnorm, d2h
     if(pairingscheme.eq.1) then
       print 31, gradient_stepsize, gradient_mu, sqrt(sum(HFBGradnorm**2))

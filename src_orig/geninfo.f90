@@ -62,6 +62,11 @@ module GenInfo
   ! the code in the evolve subroutine
   integer :: MaxIter=100, PrintIter=10
   !---------------------------------------------------------------------------
+  ! This is the number of iterations during which the selfconsistent 
+  ! potentials are not changed. The TOTAL number of iterations remains
+  ! MaxIter; (MaxIter - FreezeIter) iterations DO change the potentials.
+  integer :: FreezeIter = 0
+  !---------------------------------------------------------------------------
   ! Coordinates of the mesh points for the calculation as well as the 
   ! coulomb calculation
   real(KIND=dp), allocatable         :: meshx(:), meshy(:), meshz(:)

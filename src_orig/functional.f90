@@ -961,7 +961,7 @@ $TR   COM2pp = 2*COM2pp
     ! Includes preconditioning of F_I_I at the moment only.
     !---------------------------------------------------------------------------
     use Coulombmod , only : SolveCoulomb, CoulombPotential, Exchangepotential
-    use Coulombmod , only : Foldedcoul,  FoldedExchange
+    use Coulombmod , only : Foldedcoul,  FoldedExchange, Coulomb_read_from_file
     use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
     
     use pairing_strengths, only : vmicro
@@ -992,8 +992,10 @@ $CALCFIELDS
     
     !-----------------------------------------------------------------------
     ! Solve for the Coulomb Potential
-    call SolveCoulomb(D_I_I(:,2))
-
+    if(calcall .or. (.not. Coulomb_read_from_file)) then
+      call SolveCoulomb(D_I_I(:,2))
+    endif
+    
     if(.not. rhoread) then    
         !-----------------------------------------------------------------------
         ! Add the Coulomb contribution to the field corresponding to rho.
@@ -1001,10 +1003,7 @@ $CALCFIELDS
         ! potential has a different size than the Lagrange mesh.
         if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
           &                             (.not. nucleonsize_selfconsistent)) then
-          ! We simply put the coulomb potential, "as is"
-
           ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-          
           do k=1,nz
             do j=1,ny
               do i=1,nx

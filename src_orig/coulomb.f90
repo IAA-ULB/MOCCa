@@ -81,6 +81,11 @@ module Coulombmod
  !------------------------------------------------------------------------------
  ! Offsets for the Coulomb box.
  integer :: coul_offset_x, coul_offset_y, coul_offset_z
+ !------------------------------------------------------------------------------
+ ! Flag indicating whether or not the direct and exchange Coulomb potentials
+ ! were read from file. This is by default .false.; it should only happen when
+ ! reading .pot files.
+ logical :: Coulomb_read_from_file = .false.
 
  !------------------------------------------------------------------------------
  ! Coefficients of the Coulomb laplacian
@@ -136,38 +141,18 @@ contains
        end select
     endif
 
-    ! Determine the offsets of the original mesh inside the larger Coulomb mesh    
-    coul_offset_x = BC ; coul_offset_Y = BC ; coul_offset_z = BC
-    
-    
-    ! If any given axis is not represented, the offset of the mesh in that
-    ! direction is zero.
-$REDUX  coul_offset_x = 0
-$REDUY  coul_offset_y = 0
-$REDUZ  coul_offset_z = 0
-
-    if(.not.allocated(Source)) then
-        allocate(Source(nx+BC+coul_offset_x, &
-        &               ny+BC+coul_offset_y, &
-        &               nz+BC+coul_offset_z))           
-        Source = 0.0_dp
+    !---------------------------------------------------------------------------
+    ! Initialize all of the arrays.
+    if(.not.allocated(SpherHarmCoulomb)) then
+        ! Check for all things that should have been setup
+        ! Note: checking for the allocation of CoulombPotential would be more
+        !       natural, but it is possible that the potentials have been read
+        !       from file while nothing else in this module has been set up
+        call setupcoulomb
     endif
-
-    if(.not.allocated(coulmeshx)) then
-        call inimesh(coulmeshx,coulmeshy,coulmeshz,nx+BC+coul_offset_x, &
-        &                                          ny+BC+coul_offset_y, &
-        &                                          nz+BC+coul_offset_z, &
-        &                                          coulgrid,0.0d0,0.0d0,0.0d0)
-    endif
-    
 !    print *, coul_offset_x, coul_offset_y, coul_offset_z 
 !    print *, maxval(coulmeshx), maxval(coulmeshy), maxval(coulmeshz)
 !    stop
-    !---------------------------------------------------------------------------
-    ! Initialize all of the arrays.
-    if(.not.allocated(CoulombPotential)) then
-        call setupcoulomb
-    endif
     
     if(coultreatment.eq.0) then
        call stop_timer(T_coulomb)
@@ -177,8 +162,13 @@ $REDUZ  coul_offset_z = 0
     ! Set up the source term: - 4 * pi * charge_density
     ! Note that this is set up in the middle of the box, i.e. no source density
     ! at the edges of the Coulomb box
+    if(.not.allocated(Source)) then
+        allocate(Source(nx+BC+coul_offset_x, &
+        &               ny+BC+coul_offset_y, &
+        &               nz+BC+coul_offset_z))           
+    endif
+    
     Source = 0.0_dp
-
     do k=1,nz
       do j=1,ny
         do i=1,nx
@@ -219,8 +209,21 @@ $REDUZ  coul_offset_z = 0
       ! No Coulomb Exchange
       ExchangePotential = 0.0
     endif  
+    
+    ! This routine calculates FoldedCoul and FoldedExchange if required
+    call Obtain_folded_potentials()
 
+    call stop_timer(T_coulomb)
+    deallocate(source)
+ end subroutine SolveCoulomb 
+
+ subroutine Obtain_folded_potentials()
+    !---------------------------------------------------------------------------
     ! Obtain the folded Coulomb potentials (direct and exchange) if needed.
+    ! It is a separate routine from SolveCoulomb because it should also be 
+    ! callable from the routine to read potentials.
+    !---------------------------------------------------------------------------
+
     if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
       if(nucleonsize_selfconsistent) then
          FoldedCoul    =FoldCoulombPotential(CoulombPotential(                 &
@@ -241,10 +244,8 @@ $REDUZ  coul_offset_z = 0
          endif
       endif
     endif
-
-    call stop_timer(T_coulomb)
-    deallocate(source)
- end subroutine SolveCoulomb 
+ 
+ end subroutine Obtain_folded_potentials
 
  subroutine ConstructChargeDensity(rho_charge)
     !---------------------------------------------------------------------------
@@ -267,10 +268,15 @@ $REDUZ  coul_offset_z = 0
     endif
 
     rho_charge = 0.0
-
+    
     !---------------------------------------------------------------------------
-    ! If the proton has a finite size, we need to fold the density with a
-    ! Gaussian. This sets up the necessary matrices.
+    ! If we account for the finite extent of the charge of the nucleus, then 
+    ! we need to fold densities and potentials with gaussians. This sets up the 
+    ! required matrices.
+    !
+    ! Note: this little piece of code is duplicated, since in different 
+    !       runmodes of the code different Coulomb routines get called in 
+    !       different order; this makes sure we get no segfaults.
     !---------------------------------------------------------------------------
     if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
         if(.not.allocated(Gaussx)) then
@@ -389,11 +395,20 @@ $REDUZ  coul_offset_z = 0
     use folding
     
     integer       :: i,j,k, ox, oy, oz
+
+    ! Determine the offsets of the original mesh inside the larger Coulomb mesh    
+    coul_offset_x = BC ; coul_offset_Y = BC ; coul_offset_z = BC
     
+    ! If any given axis is not represented, the offset of the mesh in that
+    ! direction is zero.
+$REDUX  coul_offset_x = 0
+$REDUY  coul_offset_y = 0
+$REDUZ  coul_offset_z = 0
+
     ox = nx+BC+coul_offset_x
     oy = ny+BC+coul_offset_y
     oz = nz+BC+coul_offset_z
-    
+
     !---------------------------------------------------------------------------
     ! Allocate the CoulombPotential array on the full Coulomb mesh
     allocate(CoulombPotential(ox,oy,oz))
@@ -404,8 +419,14 @@ $REDUZ  coul_offset_z = 0
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
     Prec = 1.d-12/(dx**3*nx*ny*nz)
+
     !---------------------------------------------------------------------------
     ! Set-up the values of r and spherharmcoulomb on the Coulomb mesh.
+    call inimesh(coulmeshx,coulmeshy,coulmeshz,nx+BC+coul_offset_x, &
+    &                                          ny+BC+coul_offset_y, &
+    &                                          nz+BC+coul_offset_z, &
+    &                                          coulgrid,0.0d0,0.0d0,0.0d0)
+
     allocate(r(ox,oy,oz))  ;  r = 0.0_dp
     allocate(SpherHarmCoulomb(ox,oy,oz,0:maxm,0:maxm,2)) 
     SpherHarmCoulomb = 0.0_dp
@@ -421,6 +442,26 @@ $REDUZ  coul_offset_z = 0
     call GenSphericalHarmonics(maxm,ox,oy,oz,                                  &
     &                          coulmeshx,coulmeshy, coulmeshz,SpherHarmCoulomb,&
     &                          QuantisationAxis,SecondaryAxis)
+    
+    !---------------------------------------------------------------------------
+    ! If we account for the finite extent of the charge of the nucleus, then 
+    ! we need to fold densities and potentials with gaussians. This sets up the 
+    ! required matrices.    
+    !
+    ! Note: this little piece of code is duplicated, since in different 
+    !       runmodes of the code different Coulomb routines get called in 
+    !       different order; this makes sure we get no segfaults.
+    !
+    !---------------------------------------------------------------------------
+    if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
+        if(.not.allocated(Gaussx)) then
+            allocate(Gaussx(nx,nx,2,2), Gaussy(ny,ny,2,2), Gaussz(nz,nz,2,2)) 
+            Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
+        endif
+        !-----------------------------------------------------------------------
+        ! Construct Gauss matrices
+        call ConstructFoldingMatrices(Gaussx,Gaussy,Gaussz)
+    endif
     
  end subroutine SetupCoulomb
     
