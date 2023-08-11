@@ -1007,7 +1007,7 @@ $CALCFIELDS
           do k=1,nz
             do j=1,ny
               do i=1,nx
-                F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)=F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)&
+                F_I_I(meshindex(i,j,k),2)=F_I_I(meshindex(i,j,k),2)           &
                 &                       + CoulombPotential(i+ox,j+oy,k+oz)    &
                 &                       + ExchangePotential(i,j,k)
               enddo
@@ -1026,8 +1026,7 @@ $CALCFIELDS
             do k=1,nz
               do j=1,ny
                 do i=1,nx
-                  F_I_I(i+(j-1)*nx+(k-1)*ny*nx,it)=  &
-                  &                 F_I_I(i+(j-1)*nx+(k-1)*ny*nx,it)           &
+                  F_I_I(meshindex(i,j,k),it)= F_I_I(meshindex(i,j,k),it)       &
                   &                              + FoldedCoul(i,j,k,it)        &
                   &                              + FoldedExchange(i,j,k,it)
                 enddo

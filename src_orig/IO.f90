@@ -1724,8 +1724,7 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     real(KIND=dp), allocatable   :: Coulp(:,:,:), Excp(:,:,:)
 
     real(KIND=dp), allocatable, target   :: temp(:,:)
-    integer                              :: io, i,j,k, mu, nu, ox, oy, oz
-    integer                              :: meshindex
+    integer                              :: io, i,j,k, mu, nu, ox, oy, oz, mi
     character(len=1) :: directions(3) 
 
     1 format('#  X[fm]   Y[fm]   Z[fm]', 7x, 'V_nuc(n)', 17x, 'V_nuc(p)', 17x, &
@@ -1807,18 +1806,18 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! the contributions above are indexed according to (x,y,z) but 
           ! we do not have this luxury for the following potentials
-          meshindex = i+(j-1)*nx+(k-1)*ny*nx
+          mi = meshindex(i,j,k)
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! The kinetic potential is the field F_Nm_Nm associated with D_Nm_Nm
           write(1, fmt='(2es25.12)', advance='no') &
-          &         F_Nm_Nm(meshindex,1), F_Nm_Nm(meshindex,2)
+          &         F_Nm_Nm(mi,1), F_Nm_Nm(mi,2)
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! The spin-orbit potential is the field G_I_NS, associated with the
           ! density C_I_NS
           do mu=1,3
             do nu=1,3
               write(1, fmt='(2es25.12)', advance='no') &
-              &             G_I_NS(meshindex,mu,nu,1), G_I_NS(meshindex,mu,nu,2)
+              &             G_I_NS(mi,mu,nu,1), G_I_NS(mi,mu,nu,2)
             enddo
           enddo
           write(1, fmt='()') !  newline character
@@ -1849,7 +1848,7 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     character(len=*), intent(in) :: ifn
 
     logical :: exists
-    integer :: i,j,k,io, it, mu, nu, ox, oy, oz, meshindex, headercount
+    integer :: i,j,k,io, it, mu, nu, ox, oy, oz, headercount
     real(KIND=dp), allocatable :: Vc(:), Ec(:)
     real(KIND=dp) :: x,y,z
     character(len=200) :: temp
@@ -1924,9 +1923,8 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          meshindex = i+(j-1)*nx+(k-1)*ny*nx
-          CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex)
-          ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex)
+          CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex(i,j,k))
+          ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex(i,j,k))
         enddo
       enddo
     enddo
@@ -1948,9 +1946,8 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
         do k=1,nz
           do j=1,ny
             do i=1,nx
-              meshindex = i+(j-1)*nx+(k-1)*ny*nx
 
-              F_I_I(meshindex,it)= F_I_I(meshindex,it) &
+              F_I_I(meshindex(i,j,k),it)= F_I_I(meshindex(i,j,k),it)           &
               &                              + FoldedCoul(i,j,k,it)            &
               &                              + FoldedExchange(i,j,k,it)
             enddo

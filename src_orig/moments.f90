@@ -2098,9 +2098,9 @@ $NTR    print 102
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            Qi(1,it) = Qi(1,it) + meshx(i)**2*D_I_I(i+(j-1)*nx +(k-1)*ny*nx,it)
-            Qi(2,it) = Qi(2,it) + meshy(j)**2*D_I_I(i+(j-1)*nx +(k-1)*ny*nx,it)
-            Qi(3,it) = Qi(3,it) + meshz(k)**2*D_I_I(i+(j-1)*nx +(k-1)*ny*nx,it)
+            Qi(1,it) = Qi(1,it) + meshx(i)**2*D_I_I(meshindex(i,j,k),it)
+            Qi(2,it) = Qi(2,it) + meshy(j)**2*D_I_I(meshindex(i,j,k),it)
+            Qi(3,it) = Qi(3,it) + meshz(k)**2*D_I_I(meshindex(i,j,k),it)
           enddo
         enddo
       enddo

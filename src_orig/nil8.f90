@@ -575,17 +575,12 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
               wfs(ind,3,nwave) = psi(i,j,k,3)
               wfs(ind,4,nwave) = psi(i,j,k,4)
 
-!              wfs(i+(j-1)*mx+(k-1)*my*mx,1,nwave) = psi(i,j,k,1)
-!              wfs(i+(j-1)*mx+(k-1)*my*mx,2,nwave) = psi(i,j,k,2)
-!              wfs(i+(j-1)*mx+(k-1)*my*mx,3,nwave) = psi(i,j,k,3)
-!              wfs(i+(j-1)*mx+(k-1)*my*mx,4,nwave) = psi(i,j,k,4)
             enddo
           enddo
         enddo
 
     enddo
   enddo
-!  stop
   deallocate(h,s,d,wd) 
   deallocate(nsi,ns)
   deallocate(nx,ny, nz, e, nor,npa)

@@ -193,7 +193,7 @@ contains
         do k=1,nz
           do j=1,ny
               do i=1,nx
-               ii = i+(j-1)*nx+(k-1)*ny*nx
+               ii = meshindex(i,j,k)
                ExchangePotential(i,j,k) =                                      & 
                  &        -(3.0/pi)**(1.0/3.0_dp)*e2*(rhop(ii)**(1.0_dp/3.0_dp))   
               enddo

@@ -293,6 +293,33 @@ contains
     enddo
     
   end subroutine inimesh
+  
+  integer function meshindex(i,j,k)
+      !-------------------------------------------------------------------------
+      ! The code relies on two types of mesh storage
+      !   1) (i,j,k): indices used for arrays stored on a three-dimensional 
+      !               mesh such as for example the Coulomb potential. 
+      !               we have 1 <= i <= nx
+      !                       1 <= j <= ny
+      !                       1 <= k <= nz
+      !   2) (i)    : one-dimensional indices that are used for efficiency
+      !               to index the whole mesh.
+      !                       1 <= i <= nx*ny*nz
+      ! 
+      ! This routine translates a set of indices (i,j,k) into the corresponding
+      ! index in a one-dimensional mapping. 
+      ! 
+      ! Input:
+      !   i,j,k : x/y/z mesh-indices in a three-dimensional mapping
+      ! Output:
+      !   meshindex : the equivalent index in a 1D mapping in FORTRAN order
+      !               i+(j-1)*nx+(k-1)*ny*nx 
+      !-------------------------------------------------------------------------
+      integer, intent(in) :: i,j,k
+      
+      meshindex = i+(j-1)*nx+(k-1)*ny*nx
+  
+  end function meshindex
 
   subroutine find_nml_error(nmlname, iunit)
     !---------------------------------------------------------------------------
