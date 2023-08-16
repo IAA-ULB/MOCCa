@@ -103,12 +103,8 @@ $TR     sumocc = 2*k
         Jy = HF_JTI(2,wave) ; SY = HF_STI (2,wave)
         Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
         JJ = HF_JJ(wave)
-        
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        !Quickly calculate sqrt(<psi|r^2|psi>)
-        r2 = sum(sum(HFpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
-        r2 = sqrt(r2)
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        r2 = sqrt(spwf_r2_hf(wave))
         if(pairingtype.eq.1) then
           print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), BCSgaps(wave),                    &
@@ -152,12 +148,7 @@ $TR     sumocc = 2*k
         Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
         JJ = HF_JJ(wave)
 
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        !Quickly calculate sqrt(<psi|r^2|psi>)
-        r2 = sum(sum(HFpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
-        r2 = sqrt(r2)
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+        r2 = sqrt(spwf_r2_hf(wave))
         if(pairingtype.eq.1) then
           print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), BCSgaps(wave),                    &
@@ -213,17 +204,19 @@ $TR     sumocc = 2*k
           endif
       endif
 
-      Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
-      Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
-      Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
-      JJ = can_JJ(wave)
-      
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !Quickly calculate sqrt(<psi|r^2|psi>)
-      r2 = sum(sum(canpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
-      r2 = sqrt(r2)
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    
+      if(allocated(canpsi)) then
+        Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
+        Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
+        Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
+        JJ = can_JJ(wave)
+      else
+        Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
+        Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
+        Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
+        JJ = spwf_JJ(wave)     
+      endif    
+      r2 = sqrt(spwf_r2_can(wave))
+
       if(allocated(conjugp)) then
        wavebar  = conjugp(wave)
       else
@@ -268,16 +261,18 @@ $TR     sumocc = 2*k
           endif
       endif
 
-      Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
-      Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
-      Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
-      JJ = can_JJ(wave)
-      
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !Quickly calculate sqrt(<psi|r^2|psi>)
-      r2 = sum(sum(canpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
-      r2 = sqrt(r2)
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      if(allocated(canpsi)) then
+        Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
+        Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
+        Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
+        JJ = can_JJ(wave)
+      else
+        Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
+        Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
+        Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
+        JJ = spwf_JJ(wave)     
+      endif    
+      r2 = sqrt(spwf_r2_can(wave))
       
       if(allocated(conjugp)) then
         wavebar  = conjugp(wave)

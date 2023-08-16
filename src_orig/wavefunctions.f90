@@ -174,7 +174,7 @@ module wavefunctions
  real(KIND=dp)                      :: blockoverlap = 0.0
  real(KIND=dp), allocatable, target :: modelspwf(:,:,:)
 
- !---------------------------------------------------------------------------
+ !------------------------------------------------------------------------------
  ! Tell Tantalus to either 
  !  (i)  diagonalise the sp hamiltonian the ordinary way, i.e. using an
  !       iterative scheme
@@ -186,6 +186,12 @@ module wavefunctions
  !------------------------------------------------------------------------------
  ! Use (or not) the more efficient implementation of the two-basis method
  logical :: efficientHFB = .false.
+
+ !------------------------------------------------------------------------------
+ ! The contribution of each individual spwf (in the HF or canonical basis)
+ ! to <r^2> for printing purposes. These get explicitly saved here because, 
+ ! if efficientHFB = .true., the HF basis is never explicitly constructed.
+ real(KIND=dp), allocatable :: spwf_r2_hf(:), spwf_r2_can(:)
 
 contains 
 
@@ -730,7 +736,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     
   end function TimeReverse
   
-  subroutine update_spwf_symmetries()
+  subroutine update_spwf_symmetries(fullmatrices)
       !-------------------------------------------------------------------------      
       ! Update/calculate all relevant expectation values of single-particle 
       ! wavefunctions, for both HF-basis and canonical basis.
@@ -744,16 +750,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       !    NONE
       !-------------------------------------------------------------------------
       real(KIND=dp), allocatable :: full_P(:,:)
+      logical, intent(in)        :: fullmatrices
       integer                    :: i
   
       if(.not.allocated(P_HF))                             allocate(P_HF (nwt))
       if(.not.allocated(P_CAN).and.allocated(canenergies)) allocate(P_CAN(nwt))
-            
-      if(diagsphamil) then
-        full_P  = spwf_parities(HFPsi, .false.)
-      else
-        full_P  = spwf_parities(HFPsi, .true.)
 
+      full_P  = spwf_parities(HFPsi, fullmatrices)
+      if(.not. diagsphamil) then
         full_P  = matmul(full_P, HFtransfo)
         full_P  = matmul(transpose(HFtransfo), full_P)
       endif
@@ -1932,6 +1936,128 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     enddo
 
   end function ImagMultiplySpinor
+  
+  subroutine update_spwf_properties( fullmatrices )
+      !-------------------------------------------------------------------------
+      ! Wrapper function to update all spwf information that needs to be
+      ! recalculated. This is not hidden inside some other routine, simply 
+      ! because the timing of this call is important: it needs to be AFTER
+      ! the construction of the canonical basis.
+      ! 
+      ! Input:
+      !    fullmatrices : if .true., force calculation in HF and canonical basis
+      !                   even if diagsphamil = .false.
+      !
+      ! All of these calculations can be trivially executed in any basis which
+      ! is explicitly stored. For the canonical basis hence, this is trivial in
+      ! every runmode of the calculation. For the HFbasis, this is only trivial
+      ! if diagsphamil = .true.. If diagsphamil is .false., then we can still
+      ! calculate everything using the HF-transformation and a full set of 
+      ! matrix elements. Since the latter are expensive to calculate, and 
+      ! expectation values of operators in the HF-basis are not so relevant 
+      ! to a HFB calculation (except for printing) this routine offers the 
+      ! option to skip the expensive calculation by setting fullmatrices=.false.
+      ! Ofcourse, this means that HFbasis values should not be trusted....
+      !-------------------------------------------------------------------------
+      
+      logical, intent(in) :: fullmatrices
+      
+      call update_spwf_symmetries(fullmatrices) ! <symmetry operators>
+      call update_spwf_angmom(fullmatrices)     ! angular momentum
+      call update_spwf_r2(fullmatrices)         ! <r^2> 
+           
+  end subroutine update_spwf_properties
+  
+  subroutine update_spwf_r2(fullmatrices)
+      !-------------------------------------------------------------------------
+      ! Calculate the single-particle expectation <r^2> for every spwf in 
+      ! the Hartree-Fock and canonical basis.
+      !
+      ! Input:
+      !   fullmatrices : if .true., force calculation in the HF and canonical
+      !                  basis even if diagsphamil = .false.
+      !-------------------------------------------------------------------------
+      logical, intent(in) :: fullmatrices
+
+      real(KIND=dp), allocatable :: rme(:,:)
+      integer                    :: wave, wave2, B, N, si
+      
+     
+      if(diagsphamil) then
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! This is easy: both HFBasis and canbasis are explicitly stored
+        if(.not. allocated(spwf_r2_HF))  allocate(spwf_r2_HF(nwt))
+
+        do wave=1, nwt
+          spwf_r2_HF(wave) = &
+          &             sum(sum(HFpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
+        enddo
+
+        if(allocated(canpsi)) then
+          if(.not. allocated(spwf_r2_can))  allocate(spwf_r2_can(nwt))
+
+          do wave=1, nwt
+            spwf_r2_can(wave) = &
+            &             sum(sum(canpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
+          enddo
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        endif
+      else
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! The canonical basis is still trivial, but is now stored in HFPSI
+        ! Note: it is safe to assume the calculation is a HFB one; this is the
+        !       only case when diagsphamil should be set to false.
+        if(.not. allocated(spwf_r2_can))  allocate(spwf_r2_can(nwt))
+
+        if(.not. allocated(canpsi)) then
+          ! gradient solver is active
+          do wave=1, nwt
+            spwf_r2_can(wave) = &
+            &             sum(sum(HFpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
+          enddo
+        else
+          do wave=1, nwt
+            spwf_r2_can(wave) = &
+            &             sum(sum(canpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
+          enddo
+        endif
+        
+        ! For the HFbasis, things are more involved.....
+        if(.not. allocated(spwf_r2_HF))  allocate(spwf_r2_HF(nwt))
+        si = 0
+        do B=1,8  
+          N = HFBlocks(B) ; if(N.eq.0) cycle
+          allocate(rme(N,N))
+          
+          !... we need to calculate all matrix elements of r^2
+          do wave=1, N
+            do wave2=wave,N
+              rme(wave, wave2) = dv*sum(sum( &
+              &                               HFpsi(:,:,si+wave) *   &
+              &                               HFpsi(:,:,si+wave2),2) &
+              &                                 *sum(meshgrid,2)**2)
+              ! This matrix is symmetric
+              rme(wave2, wave) = rme(wave, wave2)
+            enddo
+          enddo
+
+          ! .... and then transform to the real Hartree-Fock basis
+          rme = matmul(transpose(HFtransfo(si+1:si+N, si+1:si+N)), rme)
+          rme = matmul(            rme,HFtransfo(si+1:si+N, si+1:si+N))
+          
+          ! and store the diagonal matrix elements!
+          do wave=1,N
+            spwf_r2_hf(si+wave) = rme(wave, wave)
+          enddo
+                  
+          si = si + N
+          deallocate(rme)
+        enddo
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      endif
+      
+  end subroutine update_spwf_r2
+  
   function spwf_parities(basis, fullmatrices) result(P)
       !-------------------------------------------------------------------------
       ! Calculation of the single-particle matrix elements of parity P.

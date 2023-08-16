@@ -260,6 +260,7 @@ subroutine ReachForWaterAndFood()
 
     ! Construct the canonical basis    
     if(pairingtype.eq. 2) call ConstructCanonicalBasis()
+    
     ! Derive all the single-particle wavefunctions in the HFPsi array
     call deriveHF()
 
@@ -284,10 +285,8 @@ subroutine ReachForWaterAndFood()
     ! Only calculate the fields that have not been initialized from file.
     call calcFields(calcall=.false.,precon= .false.)
 
-    call update_spwf_symmetries()
-    ! Update the angular momentum information of the spwfs
-    call update_spwf_angmom(.true.)
-    call updateAM 
+    ! Update all spwf properties
+    call update_spwf_properties( .true. ) ! expensive version
 
     call setBelyaevProcedure()
     call CalcEnergy(.true.)      ! Calculate the energy WITH all the expensive
@@ -341,7 +340,9 @@ subroutine ReachForWaterAndFood()
         call Sphamilcontribution()
         call calcFields(calcall=.true.,precon=.true.)
 
-        call update_spwf_angmom(.false.)
+        ! Update all spwf properties
+        call update_spwf_properties( .false. ) ! nonexpensive version
+
         call updateAM
         call ReadjustCranking
         !-----------------------------------------------------------------------
@@ -380,8 +381,8 @@ subroutine ReachForWaterAndFood()
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
         if(iprint .eq.1) then
-            call update_spwf_symmetries()
-            call update_spwf_angmom(.true.)
+            ! Update all spwf properties
+            call update_spwf_properties( .true. ) ! expensive version
             call updateAM 
             call ReadjustCranking
             print 10
@@ -598,8 +599,8 @@ subroutine initialize_all_timers()
    call add_timer('Charge density folding'     , T_chargedensity)  
    call add_timer('Collective MOIs'            , T_collective_moi)  
    call add_timer('Microscopic pairing'        , T_microscopic_pairing)  
-   call add_timer('Orthogonalisation of h\psi' , T_Hortho)  
-   call add_timer('Construction HF transo'     , T_HFDiag)  
+   call add_timer('Orthogonalisation of h|psi>', T_Hortho)  
+   call add_timer('Construction HF transfo'    , T_HFDiag)  
 
 end subroutine initialize_all_timers
 
