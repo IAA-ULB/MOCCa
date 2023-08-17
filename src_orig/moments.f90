@@ -1493,17 +1493,25 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
         endif
   
         !-----------------------------------------------------------------------
-        if((iq1.ne.-1000000_dp) .or. (iq2.ne.-1000000_dp)) then                
+        if((iq1.ne.-1000000_dp) .or. (iq2.ne.-1000000_dp)) then       
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Consistency checks
+          ! a) Make sure iq1 and iq2 are specified for *QUADRUPOLE* constraints      
           if((l.ne.2) .or. (m.ne.2 .and. m .ne. 0)) then
-            !Only allow iq1 & iq2 for Q20 and Q22
             print *, 'You specified legacy iq1,iq2 input for multipoles that ' &
             &        ,'are not Q20 or Q22.'
             stop
-          else
-            !Converting input
-            allocate(LegacyCon(2))
-            LegacyCon = LegacyQuad(iq1,iq2)
           endif
+          ! b) Make sure iq1 *AND* iq2 are both specified
+          if((iq1.eq.-1000000_dp) .or. (iq2.eq.-1000000_dp) ) then
+            print *, 'You specified only one of (iq1, iq2).'
+            print *, 'A correct run requires setting both.'
+            stop
+          endif
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Convert (iq1, iq2) input into Q20, Q22
+          allocate(LegacyCon(2))
+          LegacyCon = LegacyQuad(iq1,iq2)
         endif
         !-----------------------------------------------------------------------
         !Setting the parameters of the moment
