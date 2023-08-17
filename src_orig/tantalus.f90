@@ -31,7 +31,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  use IO
  use temperature_projection 
  use timing
-!$ USE OMP_LIB
+
  implicit none
  !------------------------------------------------------------------------------
  ! These inputs control where the code will look for its input. Leaving them 
@@ -82,8 +82,6 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  308 format ( 8x,'| SYM_CODE               = ', a26, 6x, '|')
  309 format ( 8x,'| TRANS_CODE             = ', a26, 6x, '|')
  310 format ( 8x,'|-------------- Environment Information -------------------|')
- !$ 311 format ( 8x,'| OpenMP threads         = ', i5, 26x, '|')
- !$ 312 format ( 8x,'| OpenMP disabled                                          |')
  313 format ( 8x,'|-------------- Compilation Information -------------------|')
  314 format ( 8x,'| Compiled with:                                           |')
  315 format ( 8x,'| ', a57, '|')
@@ -116,10 +114,6 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  print 309, TRANS_CODE
  print 310
  printed = .false.
-!$ print 311, OMP_GET_MAX_THREADS()
-!$ printed = .true.
-!$ if(.not. printed) print 312
-
  print 313
  print 314
  print 315, compiler
