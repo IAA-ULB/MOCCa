@@ -137,7 +137,7 @@ ifneq (,$(findstring gfortran,$(CXX)))
 	LIBS := -lopenblas
 else ifeq ($(CXX),ifort)
   # ifort compiler should link to the new Intel math library
-	LIBS := -qmkl
+	LIBS := -mkl
 else ifeq ($(CXX), ftn)
   # Cray compilers don't need specific linking to my knowledge
 	LIBS :=
@@ -233,7 +233,7 @@ SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
 NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
 
 ################################################################################
-# Precompilation steps 
+# Explicit precompilation steps 
 #
 # 1) Run Hephaestos to preprocess the entire code
 # 2) Get version information from git
@@ -243,6 +243,11 @@ NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRE         :=  run_heph getgitinfo getcompilerinfo setversioninfo 
 PRE_NIL     :=  cp_nil 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Internal (to the compiler) preprocessing directives
+#    -cpp      => explicitly enable preprocessing
+#    -DUSE_MPI => enable (1) or disable (0) MPI (see above) 
+PREPROCESSOR :=  -cpp -DUSE_MPI=$(USE_MPI)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 ################################################################################
@@ -264,7 +269,7 @@ $(MODDIR)/:
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 single: $(PRE) $(SINGLE_OBJ)
-	$(CXX) $(OPTFLAGS) $(CXXFLAGS) -o $@ $(SINGLE_OBJ) $(LIBS)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(SINGLE_OBJ) $(LIBS)
 	mv single exec/$(EXENAME)
 
 run_heph:
@@ -272,7 +277,7 @@ run_heph:
 	python3 Hephaestos.py $(CONFIG) 
 
 gen_nilsson: $(PRE_NIL) $(NIL_OBJ)
-	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) -o $@ $(NIL_OBJ) $(LIBS)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LIBS)
 	mv gen_nilsson exec/$(EXENAME)
 
 clean:
@@ -280,7 +285,7 @@ clean:
 	rm  -f $(MODDIR)/*.mod
 
 $(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/ 
-	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) -c  $< -o $@ 
+	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  $< -o $@ 
 
 setversioninfo:
 # Copy the git information into the main code, so it can be printed

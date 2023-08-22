@@ -53,6 +53,12 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  character(len=57), parameter        :: cflags   =CFLAGS
  character(len=57), parameter        :: optflags =OPTFLAGS
 
+ !------------------------------------------------------------------------------
+ ! MPI error code
+#if(USE_MPI > 0)
+ integer :: mpi_err
+#endif
+
  100 format &
      &  (/,8x,' ___________________________________________________________', &
      &   /,8x,'|                                                          |', &
@@ -90,6 +96,15 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  318 format ( 8x,'| Optimisation flags reported:                             |')
  319 format ( 8x,'| ', a57, '|')
  320 format ( 8x,'|__________________________________________________________|')
+ 
+ !------------------------------------------------------------------------------
+ ! Step 0: start the different processes across MPI ranks
+#if(USE_MPI > 0) 
+  call mpi_init(mpi_err)
+  call MPI_COMM_SIZE(MPI_COMM_WORLD, nodes, mpi_err)
+  call MPI_COMM_RANK(MPI_COMM_WORLD, iam,   mpi_err)
+#endif
+ !------------------------------------------------------------------------------
 
  call initialize_all_timers
  call start_timer(T_tantalus)
@@ -142,10 +157,16 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! Clean up after running, just in case we need to run again.
  call Cleanupthemess()
  !------------------------------------------------------------------------------
+ ! end the processes across MPI ranks
+#if(USE_MPI > 0) 
+  call mpi_finalize(mpi_err)
+#endif
+ !------------------------------------------------------------------------------
  ! Print all timing info
  call stop_timer(T_tantalus)
  call print_all_timers()
 
+ ! end of one mean-field calculation..;
 end subroutine Run_Tantalus
 
 subroutine ReachForWaterAndFood()
