@@ -173,7 +173,6 @@ module wavefunctions
  integer                            :: modelblock = 0
  real(KIND=dp)                      :: blockoverlap = 0.0
  real(KIND=dp), allocatable, target :: modelspwf(:,:,:)
-
  !------------------------------------------------------------------------------
  ! Tell Tantalus to either 
  !  (i)  diagonalise the sp hamiltonian the ordinary way, i.e. using an
@@ -182,16 +181,23 @@ module wavefunctions
  !       and simply care about the space spanned by the spwfs.
  logical                    :: diagsphamil = .false.
  real(KIND=dp), allocatable :: HFtransfo(:,:)
-
  !------------------------------------------------------------------------------
  ! Use (or not) the more efficient implementation of the two-basis method
  logical :: efficientHFB = .false.
-
  !------------------------------------------------------------------------------
  ! The contribution of each individual spwf (in the HF or canonical basis)
  ! to <r^2> for printing purposes. These get explicitly saved here because, 
  ! if efficientHFB = .true., the HF basis is never explicitly constructed.
  real(KIND=dp), allocatable :: spwf_r2_hf(:), spwf_r2_can(:)
+ !------------------------------------------------------------------------------
+ ! MPI parallelization variables
+ !  NCORES   = the number of cores we are working with
+ !  MPI_RANK = the rank of the current core
+ ! Note that MPI_ranks are indexed starting at zero. 
+ !
+ ! NCORES=1, MPI_RANK= 0 corresponds to a sequential calculation.
+ !------------------------------------------------------------------------------
+ integer :: NCORES = 1, MPI_RANK    = 0 
 
 contains 
 

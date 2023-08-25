@@ -88,6 +88,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  308 format ( 8x,'| SYM_CODE               = ', a26, 6x, '|')
  309 format ( 8x,'| TRANS_CODE             = ', a26, 6x, '|')
  310 format ( 8x,'|-------------- Environment Information -------------------|')
+ 311 format ( 8x,'|  # of MPI_ranks  = ', i6, 26x, '|')
  313 format ( 8x,'|-------------- Compilation Information -------------------|')
  314 format ( 8x,'| Compiled with:                                           |')
  315 format ( 8x,'| ', a57, '|')
@@ -98,45 +99,57 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  320 format ( 8x,'|__________________________________________________________|')
  
  !------------------------------------------------------------------------------
- ! Step 0: start the different processes across MPI ranks
+ ! Start the different processes across MPI ranks and doMPI bookkeeping
 #if(USE_MPI > 0) 
   call mpi_init(mpi_err)
-  call MPI_COMM_SIZE(MPI_COMM_WORLD, nodes, mpi_err)
-  call MPI_COMM_RANK(MPI_COMM_WORLD, iam,   mpi_err)
+  call MPI_COMM_SIZE(MPI_COMM_WORLD, NCORES  , mpi_err)
+  call MPI_COMM_RANK(MPI_COMM_WORLD, MPI_RANK, mpi_err)
 #endif
  !------------------------------------------------------------------------------
+ ! starting all timers 
+ ! (disabled for now as I'm not sure how this interacts with MPI)
+ !call initialize_all_timers
+ !call start_timer(T_tantalus)
 
- call initialize_all_timers
- call start_timer(T_tantalus)
+ !------------------------------------------------------------------------------
+ ! Printing information to STDOUT on the run
+ if(MPI_RANK .eq. 0) then
+   print *
+   print 100
+   write(mode_print, '(a43)') run_mode
+   print 200, adjustl(mode_print)
+   print 299
+   print 304
+   print 300, version1
+   print 301, version2
+   print 302, version3
+   print 303, version4
+   print 304
+   print 305
+   print 304
+   symprint = adjustl(SYMSTRING)
+   print 306, symprint
+   print 307, reduX, reduY, reduZ
+   print 308, SYM_CODE
+   print 309, TRANS_CODE
+   print 310
+   print 311, NCORES
+   printed = .false.
+   print 313
+   print 314
+   print 315, compiler
+   print 316
+   print 317, cflags
+   print 318
+   print 319, optflags
+   print 320
+ endif
+ stop
 
- print *
- print 100
- write(mode_print, '(a43)') run_mode
- print 200, adjustl(mode_print)
- print 299
- print 304
- print 300, version1
- print 301, version2
- print 302, version3
- print 303, version4
- print 304
- print 305
- print 304
- symprint = adjustl(SYMSTRING)
- print 306, symprint
- print 307, reduX, reduY, reduZ
- print 308, SYM_CODE
- print 309, TRANS_CODE
- print 310
- printed = .false.
- print 313
- print 314
- print 315, compiler
- print 316
- print 317, cflags
- print 318
- print 319, optflags
- print 320
+#if(USE_MPI > 0) 
+  call mpi_finalize(mpi_err)
+#endif
+
 
  !------------------------------------------------------------------------------
  ! Read input from STDIN
@@ -158,13 +171,10 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call Cleanupthemess()
  !------------------------------------------------------------------------------
  ! end the processes across MPI ranks
-#if(USE_MPI > 0) 
-  call mpi_finalize(mpi_err)
-#endif
  !------------------------------------------------------------------------------
  ! Print all timing info
- call stop_timer(T_tantalus)
- call print_all_timers()
+ !call stop_timer(T_tantalus)
+ !call print_all_timers()
 
  ! end of one mean-field calculation..;
 end subroutine Run_Tantalus
