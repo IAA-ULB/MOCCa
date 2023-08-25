@@ -139,13 +139,13 @@ ifeq ($(COMPILER),gfortran)
 endif
 else ifeq ($(COMPILER),ifort)
   ifeq ($(USE_MPI),1)
-    CXX := mpifort # on the systems available to me, this is the wrapper for
+    CXX := mpiifort # on the systems available to me, this is the wrapper for
                    # MPI-enabled IFORT
   else
     CXX := ifort
   endif
 else ifeq ($(COMPILER), cray)
-  CXX := ftn  
+  CXX := ftn
   # I have yet to figure out MPI with CRAY compilers
 endif
 endif
@@ -205,17 +205,17 @@ endif
 ifeq ($(DEBUG),0)
   ifeq ($(COMPILER),gfortran)
 	  OPTFLAGS := -O3
-  else ifeq ($(CXX),ifort)
+  else ifeq ($(COMPILER),ifort)
 	  OPTFLAGS := -Ofast
-  else ifeq ($(CXX),ftn)
+  else ifeq ($(COMPILER),ftn)
 	  OPTFLAGS := -O3 # to be tested if optimal
   endif
 else
   ifeq ($(COMPILER),gfortran)
 	  OPTFLAGS := -O0 -g -Wall -Wno-uninitialized -fbacktrace
-  else ifeq ($(CXX),ifort)
+  else ifeq ($(COMPILER),ifort)
 	  OPTFLAGS := -g -traceback
-  else ifeq ($(CXX),ftn)
+  else ifeq ($(COMPILER),ftn)
 	  OPTFLAGS := -e c -e D # to be tested if optimal
   endif
 endif
