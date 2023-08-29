@@ -5,12 +5,12 @@ module compilation
   ! b) MPI utilities
   ! throughout the entire code.
   !-----------------------------------------------------------------------------
-  
-  implicit none
 
 #if (USE_MPI > 0)
-  include 'mpif.h'
+  use MPI
 #endif
+  
+  implicit none
 
   integer, parameter :: dp = selected_real_kind(15,307) 
   integer, parameter :: sp = selected_real_kind(6,37)  

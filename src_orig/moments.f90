@@ -1390,11 +1390,14 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
   subroutine ReadMomentData(file_number)
     !---------------------------------------------------------------------------
     ! A subroutine that governs the input of this module.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-
     integer(dp), intent(in), optional   :: file_number   
   
-    integer             :: iostat, iteration
+    integer             :: iostat, iteration, mpi_err
     integer             :: l,m, ConstraintType, isoswitch
     real(KIND=dp)       :: Constraint, iq1=-1000000, iq2=-1000000, Intensity
     real(KIND=dp)       :: scalefactor = 1.0d0, intensityfactor = 1.0d0
@@ -1405,9 +1408,9 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 
     NameList /MomentParam/                                                     &
     &           MaxMoment,                                  &  ! General options
-    &           radd, acut, cutfac, cutofftype,             &   ! Cutoff options
+    &           radd, acut, cutfac, cutofftype,             &  ! Cutoff options
     &           ContinueAll,                                &
-    &           follow_COM, maxmoment, maxmoment_mag, maxmoment_divJ,          &
+    &           follow_COM, maxmoment_mag, maxmoment_divJ,  &
     &           MoreConstraints            ! Signal that constraints will follow
       
     NameList /MomentConstraint/                                                &
@@ -1421,30 +1424,51 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 
     iostat = 0 ;  l = 1
 
-    !Reading the parameters
-    if(present(file_number)) then
-      read(unit=file_number,NML=MomentParam )
-    else
-      read(unit=*,NML=MomentParam )
-    endif
+    if(MPI_RANK .eq. 0) then
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Reading the general parameters of the module, but only with the very
+      ! first MPI rank
+      if(present(file_number)) then
+        read(unit=file_number,NML=MomentParam )
+      else
+        read(unit=*          ,NML=MomentParam )
+      endif
 
-    if(QuantisationAxis.le.0 .or. QuantisationAxis .gt. 3) then
+      if(QuantisationAxis.le.0 .or. QuantisationAxis .gt. 3) then
         print *, 'Illegal value of quantisation axis!'
         stop
+      endif
+
+      if(SecondaryAxis .le. 0 .or. SecondaryAxis .gt. 2) then
+        print *, 'Illegal value of secondary axis!'
+        stop
+      endif
     endif
 
-    if(SecondaryAxis .le. 0 .or. SecondaryAxis .gt. 2) then
-      print *, 'Illegal value of secondary axis!'
-      stop
-    endif
+#if(USE_MPI > 0)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Broadcasting to the other MPI ranks
+    ! a) general parameters
+    call MPI_Bcast(MaxMoment     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(MaxMoment_mag , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(MaxMoment_divJ, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(ContinueAll   , 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(Follow_COM    , 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
 
-    !Initialising the Linked List
+    ! b) cutoff parameters
+    call MPI_Bcast(radd      , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(acut      , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(cutfac    , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(cutofftype, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+#endif
+
+    !Initialising the linked list containing all multipole moments
     call IniMoments()
 
     allocate(Constraint_I_I(nx*ny*nz,2))
     Constraint_I_I = 0.0_dp
 
-    !Choosing cutoff
+    ! Choosing cutoff
     nullify(CompCutoff)
     select case (CutoffType)
       case(0)
@@ -1458,33 +1482,82 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
         stop
     end select
     
-    !Constraining the non-physical degrees of freedom, if present
+    ! Constraining the non-physical degrees of freedom, if present
     call ConstrainNonPhysicalMoments()
 
-    ! Do-loop exits when MoreConstraints indicated no more constraints will
-    ! follow.
+    ! Loop exits when MoreConstraints = .false. 
     do while(MoreConstraints)
         !-----------------------------------------------------------------------
-        !Initialisation
+        ! Initialisation
         l=0; m=0; Impart=.false.  ; Intensity      = 0.0_dp
         Constraint=0.0_dp         ; MoreConstraints=.false.   
         ConstraintType=2          ; MultfromFile   =.false. ; continue = .false.
         iq1=-1000000_dp           ; iq2=-1000000_dp ; iteration = -1 
         scalefactor = 1.0d0       ; intensityfactor = 1.0d0
         isoswitch   = 0
-
-        if(present(file_number)) then
-          read(unit=file_number, NML=MomentConstraint, IOSTAT=iostat)
-        else
-          read(unit=*, NML=MomentConstraint, IOSTAT=iostat)
-        endif
-
-        if(iostat .ne. 0) then
-          print *, "Input error for moment constraints." 
-          stop
-        endif
         !-----------------------------------------------------------------------
-        !Finding the Correct Moment to constrain
+        ! Actual reading (and checking) of info
+        if(MPI_RANK .eq. 0) then
+          ! Only the very first MPI rank reads stuff
+          if(present(file_number)) then
+            read(unit=file_number, NML=MomentConstraint, IOSTAT=iostat)
+          else
+            read(unit=*          , NML=MomentConstraint, IOSTAT=iostat)
+          endif
+
+          if(iostat .ne. 0) then
+            print *, "Input error for moment constraints." 
+            stop
+          endif
+          
+          ! ... and performs some consistency checks          
+          if(isoswitch.lt.0 .or. isoswitch.gt.2) then
+            print *, 'ISOSWITCH must be either 0,1 or 2.'
+            stop
+          endif
+          
+          if(constrainttype .ne. 2) then
+            if(l .eq. -2) then
+             print *, 'A constraint on the RMS radius is not (yet) implemented.'
+             stop
+            elseif(l .eq. -4) then
+             print *, 'A constraint on fourth radial moment is not implemented.'
+             stop
+            elseif(l .eq. 0) then
+             print *, 'You cannot constrain the number of particles this way!'
+             stop
+            endif
+          endif          
+        endif
+
+#if(USE_MPI > 0)
+        !-----------------------------------------------------------------------
+        ! Broadcasting all relevant info        
+        ! a) identity of the multipole moment
+        call MPI_Bcast(l     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+        call MPI_Bcast(m     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+        call MPI_Bcast(Impart, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+
+        ! b) constraints
+        call MPI_Bcast(constraint     , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+        call MPI_Bcast(intensity      , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+        call MPI_Bcast(iq1            , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+        call MPI_Bcast(iq2            , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+        call MPI_Bcast(scalefactor    , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+        call MPI_Bcast(intensityfactor, 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+
+        call MPI_Bcast(constrainttype, 1, MPI_INTEGER,0,MPI_COMM_WORLD, mpi_err)
+        call MPI_Bcast(iteration     , 1, MPI_INTEGER,0,MPI_COMM_WORLD, mpi_err)
+        call MPI_Bcast(isoswitch     , 1, MPI_INTEGER,0,MPI_COMM_WORLD, mpi_err)
+
+        call MPI_Bcast(multfromfile   , 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
+        call MPI_Bcast(continue       , 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
+        call MPI_Bcast(MoreConstraints, 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
+#endif    
+        !-----------------------------------------------------------------------
+        ! ... and now we can act on the information
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Finding the Correct Moment to constrain
         Current => FindMoment(l,m,Impart)
 
         if(.not.associated(Current)) then
@@ -1514,7 +1587,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
           LegacyCon = LegacyQuad(iq1,iq2)
         endif
         !-----------------------------------------------------------------------
-        !Setting the parameters of the moment
+        ! Setting the parameters of this multipole moment
         Current%ConstraintType = ConstraintType
         Current%iteration      = iteration
         if ( iteration + 5 .gt. Min_iter_conv ) then
@@ -1527,42 +1600,24 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
         Current%intensityfactor= intensityfactor
         Current%Isoswitch      = isoswitch
         
-        if(isoswitch.lt.0 .or. isoswitch.gt.2) then
-          print *, 'ISOSWITCH must be either 0,1 or 2.'
-          stop
-        endif
-        
-        !Reading the values for the constraints
+        ! Reading the values for the constraints
         if(ConstraintType.ne.0) then
-              !-----------------------------------------------------------------
-              ! Deal with legacy input
-              if( allocated(LegacyCon)                                       &
-              &  .and. l.eq. 2 .and. m.eq.2 .and. .not. Impart) then
-                 ! Constraint on Q22 as dictated by iq1/iq2
-                 Current%Constraint    = LegacyCon(2)
-              elseif(allocated(LegacyCon)                                    &
-              &  .and. l.eq. 2 .and. m.eq.0 .and. .not. Impart) then
-                ! Constraint on Q20 as dictated by iq1/iq2
-                Current%Constraint     = LegacyCon(1)
-              else
-                if(Current%l .eq. -2) then
-                  print *, 'RMS radius constraint is not implemented'
-                  stop
-                elseif(Current%l .eq. -4) then
-                  print *, 'Constraint on fourth radial moment is not implemented'
-                  stop
-                elseif(Current%l .eq. 0) then
-                  print *, 'You cannot constrain the number of particles here!'
-                  stop
-                else
-                  Current%Constraint = Constraint
-                endif
-              endif
-
-              Current%MultFromFile = MultFromFile
-              Current%Continue     = Continue
-             
-              !-----------------------------------------------------------------
+            !-------------------------------------------------------------------
+            ! Deal with legacy input
+            if( allocated(LegacyCon)                                       &
+            &  .and. l.eq. 2 .and. m.eq.2 .and. .not. Impart) then
+               ! Constraint on Q22 as dictated by iq1/iq2
+               Current%Constraint    = LegacyCon(2)
+            elseif(allocated(LegacyCon)                                    &
+            &  .and. l.eq. 2 .and. m.eq.0 .and. .not. Impart) then
+              ! Constraint on Q20 as dictated by iq1/iq2
+              Current%Constraint     = LegacyCon(1)
+            else
+              Current%Constraint = Constraint
+            endif
+            Current%MultFromFile = MultFromFile
+            Current%Continue     = Continue
+            !-------------------------------------------------------------------
         endif
      enddo
      nullify(Current)

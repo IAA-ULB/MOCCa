@@ -189,33 +189,39 @@ module wavefunctions
  ! to <r^2> for printing purposes. These get explicitly saved here because, 
  ! if efficientHFB = .true., the HF basis is never explicitly constructed.
  real(KIND=dp), allocatable :: spwf_r2_hf(:), spwf_r2_can(:)
- !------------------------------------------------------------------------------
- ! MPI parallelization variables
- !  NCORES   = the number of cores we are working with
- !  MPI_RANK = the rank of the current core
- ! Note that MPI_ranks are indexed starting at zero. 
- !
- ! NCORES=1, MPI_RANK= 0 corresponds to a sequential calculation.
- !------------------------------------------------------------------------------
- integer :: NCORES = 1, MPI_RANK    = 0 
 
 contains 
 
   subroutine ReadWFdata(file_number)
     !---------------------------------------------------------------------------
     ! Read the number of single-particle neutron and proton wave-functions.
-    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
 
     integer(dp), intent(in), optional   :: file_number   
+    integer                             :: mpi_err
 
     namelist /wfs/ nwn, nwp, osc_freq
-
-    if(present(file_number)) then
-      read(unit=file_number, nml = wfs)
-    else
-      read(unit=*, nml = wfs)
+    
+    ! Only the first MPI rank reads input
+    if(MPI_rank .eq. 0) then
+      if(present(file_number)) then
+        read(unit=file_number, nml = wfs)
+      else
+        read(unit=*, nml = wfs)
+      endif
     endif
+    
+#if(USE_MPI > 0)
+    ! Broadcasting all information
+    call MPI_Bcast(nwn     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(nwp     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(osc_freq, 3, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+#endif    
+    ! Bookkeeping for all MPI ranks
     nwt = nwn + nwp
   end subroutine ReadWFdata
 

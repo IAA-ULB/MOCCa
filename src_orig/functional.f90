@@ -150,22 +150,39 @@ contains
     ! Initializes the functional
     ! a) read the details of the parameterization from file
     ! b) calculate the coupling constants
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
     
     integer(dp), intent(in), optional   :: file_number 
+    integer                             :: mpi_err
 
     namelist /func/ name_param
     
-    if(present(file_number)) then
-      read(unit=file_number, nml=func) 
-    else
-      read(unit=*, nml=func) 
+    if(MPI_RANK.eq.0) then
+      ! Only the very first MPI rank reads stuff
+      if(present(file_number)) then
+        read(unit=file_number, nml=func) 
+      else
+        read(unit=*, nml=func) 
+      endif
     endif
+#if(USE_MPI > 0)
+    ! broadcasting the name of the parameterization for consistency
+    call MPI_Bcast(name_param, len(name_param), MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+#endif
 
+    ! Only the very first MPI rank goes on to read the .param file, but this
+    ! is handled inside the readparameterization subroutine
     call readparameterization(name_param, func_name)
-    call calcedfcoefs()
 
-    !---------------------------------------------------------------------------
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Bookkeeping operations, including the calculation of the coupling 
+    ! coefficients, that are to be executed by all MPI ranks 
+    call calcedfcoefs()
     ! Put the pairing routines pointers to the action of Delta
     delta_action_BCS => delta_action
     delta_action_HFB => delta_action

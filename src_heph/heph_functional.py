@@ -550,6 +550,8 @@ def ProcessParameterization(fname, src, target):
     printparam= ''
     checkparam= ''
     resetparam= ''
+    bcastparam= ''
+    
     for k,s in enumerate(paramparameters):
         dic= {}
         dic['PARAM']     = s
@@ -557,9 +559,11 @@ def ProcessParameterization(fname, src, target):
         if(paramtypes[k] == 'real'):
           decl      = decl      + ts.decl_real.substitute(dic)
           printparam= printparam+ ts.print_real.substitute(dic)
+          bcastparam= bcastparam+ ts.bcast_param_real.substitute(dic)
         else:
           decl      = decl      + ts.decl_int.substitute(dic)
           printparam= printparam+ ts.print_int.substitute(dic)
+          bcastparam= bcastparam+ ts.bcast_param_int.substitute(dic)
           
         readparam = readparam + ts.read.substitute(dic)
         checkparam= checkparam+ ts.check_a.substitute(dic)
@@ -578,6 +582,7 @@ def ProcessParameterization(fname, src, target):
     dic['PRINTPARAMS'] = printparam
     dic['CHECKPARAMS'] = checkparam
     dic['RESETPARAMS'] = resetparam
+    dic['BCASTPARAMS'] = bcastparam
 
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:

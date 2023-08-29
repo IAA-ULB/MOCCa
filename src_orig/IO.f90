@@ -111,8 +111,19 @@ contains
     !---------------------------------------------------------------------------
     ! Subroutine to read all the data from the specified file (via the
     ! specified channel) or from STDIN if the variables are not present.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   filenumber: (optional) integer, channel number 
+    !   input_file: (opional) character, filename to look for input on
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! MPI represents a bit of a bookkeeping problem: namelist reading should
+    ! be done by only one of the MPI ranks with results broadcasted to the rest.
+    ! My philosophy here: 
+    ! - To make things easier when adding/removing variables in the future, 
+    !   I decided to do the MPI bookkeeping in each separate routine.
+    ! - I broadcast ALL INPUT VARIABLES to ALL ranks, even if many variables
+    !   will be acted upon by just one single rank. 
     !---------------------------------------------------------------------------
-
     use geninfo,       only : ReadGenInfo
     use evolution,     only : ReadEvolution
     use wavefunctions, only : ReadWFdata
@@ -120,7 +131,7 @@ contains
     use moments,       only : readmomentdata
     use functional,    only : readfunctional
     use pairing,       only : initpairing
-    use fission_moi,   only : N_inertia, read_inertia
+    use fission_moi,   only : read_inertia
   
     implicit none
 
@@ -130,10 +141,7 @@ contains
     character(26), intent(in), optional :: input_file 
 
     logical :: exists
-
-    NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
-    &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           Counter, run, tofile, blockfile, inertfile, N_inertia
+    integer :: mpi_err
     
     if(present(file_number)) then
       inquire(file=input_file, exist=exists)
@@ -150,22 +158,8 @@ contains
     call ReadEvolution(file_number)
     call ReadSCFIteration(file_number)
     call ReadWFdata(file_number)
-    
-    if(present(file_number)) then
-      read (unit=file_number, nml=IO)
-    else
-      read (unit=*, nml=IO)
-    endif
-    
-    if(N_inertia .gt. 0) then
-      call read_inertia(file_number)
-    else
-      if(N_inertia .lt. 0) then
-        print *, 'Wrong value for N_inertia.'
-        stop
-      endif
-    endif
-    
+    call ReadIOInput(file_number)
+    call read_inertia(file_number)
     call readmomentdata(file_number)
     call readcranking(file_number)
 
@@ -173,7 +167,78 @@ contains
       close(unit=file_number)
     endif
 
+#if(USE_MPI > 0) 
+  ! No MPI ranks can quit this routine before having received all information! 
+  call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+#endif
+
   end subroutine ReadInput
+
+  subroutine ReadIOInput(file_number)
+    !---------------------------------------------------------------------------
+    ! Subroutine to read all the data on IO operations
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
+    !---------------------------------------------------------------------------
+    use fission_moi,   only : N_inertia
+
+    integer(dp), intent(in), optional   :: file_number   
+    integer                             :: mpi_err
+  
+    NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
+    &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
+    &           tofile, blockfile, inertfile, N_inertia
+  
+    ! Only the first MPI RANK reads input
+    if(MPI_RANK .eq. 0) then
+      if(present(file_number)) then
+        read (unit=file_number, nml=IO)
+      else
+        read (unit=*          , nml=IO)
+      endif
+    endif
+    
+    ! ... and then broadcasts information
+    !      ( I am aware that these variables are likely to be useful only to 
+    !        rank 0 core, but this might avoid future errors )
+#if(USE_MPI > 0)
+    call MPI_Bcast(InputFileName , len(InputFileName) , MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(OutputFileName, len(OutputFileName), MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(BXLFIT        , len(BXLFIT)        , MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(COMBI         , len(COMBI)         , MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(denfile       , len(denfile)       , MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(potfile       , len(potfile)       , MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(sphffile      , len(sphffile)      , MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(spcanfile     , len(spcanfile)     , MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(inertfile     , len(inertfile)     , MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(tofile        , len(tofile)        , MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(blockfile     , len(blockfile)     , MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+
+    call MPI_Bcast(checkpointiter, 1                  , MPI_INTEGER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(extraspwfs    , 8                  , MPI_INTEGER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(N_inertia     , 1                  , MPI_INTEGER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+
+    call MPI_Bcast(allowtransform, 1                  , MPI_LOGICAL, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+#endif  
+  
+  end subroutine ReadIOInput
 
   subroutine PrintInput(file_number, input_file)
   !-----------------------------------------------------------------------------
@@ -2346,8 +2411,8 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     &                      Belyaev(2,1), Belyaev(2,2),       &
     !                      HFINZ /     ,    HFIPZ,      
     &                      Belyaev(3,1), Belyaev(3,2),       &
-    !                      HFJ2               HFE1  , HE2
-    &                       J2(2,3),  totalE, 0.0
+    !                      HFJ2             HFE1  , HE2
+    &                      J2(2,3),  totalE, 0.0
 
     close(unit=6)
   end subroutine combi_output

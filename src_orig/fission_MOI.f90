@@ -64,48 +64,68 @@ contains
     !---------------------------------------------------------------------------
     ! Subroutine to read the &inertia/ namelist from the specified file (via the
     ! specified channel) or from STDIN if the variables are not present.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
     
     integer(dp), intent(in), optional   :: file_number   
-    integer :: k
+    integer :: k, mpi_err
 
     NameList /inertia/ inertia_l, inertia_m
-    
+
+    ! Sanity check    
+    if(N_inertia .lt. 0) then
+      print *, 'Wrong value for N_inertia.'
+      stop
+    else if (N_inertia .eq. 0) then
+      ! do nothing
+      return
+    endif
+  
     allocate(inertia_l(N_inertia)) ; inertia_l = -1
     allocate(inertia_m(N_inertia)) ; inertia_m = -1
-  
-    if(present(file_number)) then
-      read (unit=file_number, nml=inertia)
-    else
-      read (unit=*, nml=inertia)
+
+    ! only the very first MPI rank reads input   
+    if(MPI_RANK.eq.0) then 
+      if(present(file_number)) then
+        read (unit=file_number, nml=inertia)
+      else
+        read (unit=*, nml=inertia)
+      endif
+
+      ! Some sanity checks
+      do k=1, N_inertia
+        if(inertia_l(k) .eq. -1) then 
+          print *, inertia_l
+          print *, 'Number of elements in inertia_l does not match N_inertia.'
+          stop
+        endif
+        
+        if(inertia_l(k) .gt. maxmoment) then
+          print *, 'Cannot compute inertia for Qlm with l > Maxmoment.'
+          stop
+        endif
+        
+        if(inertia_m(k) .eq. -1) then 
+          print *, inertia_m
+          print *, 'Number of elements in inertia_m does not match N_inertia.'
+          stop
+        endif
+
+        if(inertia_m(k) .gt. inertia_l(k)) then
+          print *, 'Cannot compute inertia for Qlm with m > l.'
+          stop
+        endif
+      enddo
     endif
-
-    ! Some sanity checks
-    do k=1, N_inertia
-      if(inertia_l(k) .eq. -1) then 
-        print *, inertia_l
-        print *, 'Number of elements in inertia_l does not match N_inertia.'
-        stop
-      endif
-      
-      if(inertia_l(k) .gt. maxmoment) then
-        print *, 'Cannot compute inertia for Qlm with l > Maxmoment.'
-        stop
-      endif
-      
-      if(inertia_m(k) .eq. -1) then 
-        print *, inertia_m
-        print *, 'Number of elements in inertia_m does not match N_inertia.'
-        stop
-      endif
-
-      if(inertia_m(k) .gt. inertia_l(k)) then
-        print *, 'Cannot compute inertia for Qlm with m > l.'
-        stop
-      endif
-
-    enddo
-  
+    
+    ! ... and then broadcast to all ranks
+#if(USE_MPI > 0)
+    call MPI_Bcast(inertia_l, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(inertia_m, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
+#endif      
   end subroutine read_inertia
 
   subroutine print_collective_inertia()

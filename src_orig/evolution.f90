@@ -79,12 +79,15 @@ contains
     subroutine ReadEvolution(file_number)
         !-----------------------------------------------------------------------
         ! Read the information on the evolution of the spwfs. 
-        !
-        !
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Input:
+        !   file_number : optional integer. If present, read from (open) channel
+        !                 with this number. If absent, read from STDIN.
         !-----------------------------------------------------------------------
         use geninfo
 
         integer(dp), intent(in), optional   :: file_number   
+        integer                             :: mpi_err
 
         namelist /evolution/ dt, momentum,                                     &
         &                    gradient_stepsize, gradient_mu,                   &
@@ -92,22 +95,50 @@ contains
         &                    estimateparams, estimategradparams,               &
         &                    gradient_safety, efficientHFB                            
         
-
-        if(present(file_number)) then
-          read(unit=file_number, nml=evolution)
-        else
-          read(unit=*, nml=evolution)
-        endif
         !-----------------------------------------------------------------------
-        !  Assign the correct preconditioner
+        ! Only the very first MPI rank reads the input
+        if(MPI_RANK.eq.0) then
+          if(present(file_number)) then
+            read(unit=file_number, nml=evolution)
+          else
+            read(unit=*, nml=evolution)
+          endif
+        endif
+#if(USE_MPI > 0)
+        !-----------------------------------------------------------------------
+        ! Broadcasting from rank 0 to the rest
+        call MPI_BCAST(dt       , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(momentum , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(gradient_stepsize, 1, MPI_REAL8, 0, &
+        &                                               MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(gradient_safety  , 1, MPI_REAL8, 0, &
+        &                                               MPI_COMM_WORLD, mpi_err)
+
+        call MPI_BCAST(estimateparams,     1, MPI_LOGICAL, 0, &
+        &                                               MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(estimategradparams, 1, MPI_LOGICAL, 0, &
+        &                                               MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(efficientHFB      , 1, MPI_LOGICAL, 0, &
+        &                                               MPI_COMM_WORLD, mpi_err)
+        
+        call MPI_BCAST(strategy  ,len(strategy), MPI_CHARACTER, 0, & 
+        &                                               MPI_COMM_WORLD, mpi_err)
+
+        call MPI_BCAST(printiter , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+        !-----------------------------------------------------------------------
+#endif
+        !-----------------------------------------------------------------------
+        ! Bookkeeping that each rank should do
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! a) Assign the correct preconditioner
 !        Precondition = to_upper(Precondition )
 !        if(adjustl(Precondition) .eq. 'PG' ) then
 !            Precon => Precondition_PG
 !        else 
 !            Precon => Precondition_none
 !        endif
-        !-----------------------------------------------------------------------
-        ! Assign the correct evolution routine
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! b) assign the correct evolution routine
         Strategy = to_upper(Strategy)
         if(adjustl(Strategy) .eq. 'IMTIME' ) then
             Evolve => Evolve_graddesc
@@ -116,17 +147,18 @@ contains
         else
             stop ('STRATEGY NOT RECOGNIZED.')
         endif
-        
-        !-----------------------------------------------------------------------
-        ! If we use the heavy-ball algorithm for the pairing subproblem, we 
-        ! limit the heavy-ball algorithm in the linear subproblem to optimising
-        ! the relevant subspace and not in diagonalising the individual spwfs.
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! c) set diagsphamil 
+        ! - If we use the heavy-ball algorithm for the pairing subproblem, we 
+        !   limit the heavy-ball algorithm in the linear subproblem to 
+        !   optimising the relevant subspace and not in diagonalising the 
+        !   individual spwfs.
         if(pairingscheme .eq. 1) then
           diagsphamil = .false.
         else
           diagsphamil = .true.
         endif
-                
+        ! - if efficientHFB is true, we also do not diagonalise h
         if(efficientHFB) diagsphamil = .false.
 
     end subroutine ReadEvolution

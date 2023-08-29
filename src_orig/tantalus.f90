@@ -88,7 +88,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  308 format ( 8x,'| SYM_CODE               = ', a26, 6x, '|')
  309 format ( 8x,'| TRANS_CODE             = ', a26, 6x, '|')
  310 format ( 8x,'|-------------- Environment Information -------------------|')
- 311 format ( 8x,'|  # of MPI_ranks  = ', i6, 26x, '|')
+ 311 format ( 8x,'|  Number of MPI_ranks   = ', i6, 26x, '|')
  313 format ( 8x,'|-------------- Compilation Information -------------------|')
  314 format ( 8x,'| Compiled with:                                           |')
  315 format ( 8x,'| ', a57, '|')
@@ -144,16 +144,15 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
    print 319, optflags
    print 320
  endif
- stop
-
-#if(USE_MPI > 0) 
-  call mpi_finalize(mpi_err)
-#endif
-
 
  !------------------------------------------------------------------------------
  ! Read input from STDIN
  call ReadInput(file_number, input_file)
+
+#if(USE_MPI > 0) 
+  call mpi_finalize(mpi_err)
+#endif
+ stop
  !------------------------------------------------------------------------------
  ! Initalize relevant matrices throughout the code.
  call inilag() ! Derivative matrices. 

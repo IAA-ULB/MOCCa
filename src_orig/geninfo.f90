@@ -108,74 +108,120 @@ module GenInfo
   ! Be very careful if you change this, as reducing this precision can lead to
   ! nonconverging calculations, especially when doing blocked calculations.
   real(KIND=dp) :: pairing_prec = 1d-15
-  
+  !------------------------------------------------------------------------------
   ! Minimum number of iterations to perform before the code can stop itself
   ! for convergence detection. Default value = -1, in which case the multipole
   ! moments module modifies this number.
   integer :: min_iter_conv = -1
-  !-----------------------------------------------------------------------------
-  ! Counter variables for the MPI implementation
-  integer :: Counter = 1, Run = 1
+  !------------------------------------------------------------------------------
+  ! MPI parallelization variables
+  !  NCORES   = the number of cores we are working with
+  !  MPI_RANK = the rank of the current core
+  ! Note that MPI_ranks are indexed starting at zero. 
+  !
+  ! NCORES=1, MPI_RANK= 0 corresponds to a sequential calculation.
+  !------------------------------------------------------------------------------
+  integer :: NCORES = 1, MPI_RANK    = 0 
 
 contains
 
   subroutine ReadGenInfo(file_number)
     !---------------------------------------------------------------------------
     ! Read some of the general information needed.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
     integer(dp), intent(in), optional   :: file_number   
-    integer                             :: io
+    integer                             :: io, mpi_err
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
     &                  fermi_prec
     Namelist /mesh/    nx,ny,nz, dx
-    
-    ! Reading the information on the nucleus
-    if(present(file_number)) then
-      read (unit=file_number, nml=nucleus, iostat=io)
-    else
-      read (unit=*, nml=nucleus, iostat=io)
+
+    if(MPI_rank .eq. 0) then    
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Reading the information on the nucleus by the first MPI rank
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+      if(present(file_number)) then
+        read (unit=file_number, nml=nucleus, iostat=io)
+      else
+        read (unit=*, nml=nucleus, iostat=io)
+      endif
+
+      if(fixfermi .and. (mun.eq.-10d8 .or.mup.eq.-10d8) )then
+          print *, 'You should fix an appropriate Lambda_N and Lambda_P'
+          stop
+      endif
+
+      ! Reading information on the mesh
+      if(present(file_number)) then
+        read (unit=file_number, nml=mesh)
+      else
+        read (unit=*, nml=mesh)
+      endif   
+      
+      ! Sanity check on the number of mesh points
+      if(redux .eq. 0) then
+        if(mod(nx,2) .ne. 0) then
+          print *, 'An even number of mesh points in the x-direction is required'
+          print *, 'if we deal with the entire x-axis.'
+          stop
+        endif 
+      endif
+      if(reduy .eq. 0) then
+        if(mod(ny,2) .ne. 0) then
+          print *, 'An even number of mesh points in the y-direction is required'
+          print *, 'if we deal with the entire y-axis.'
+          stop
+        endif 
+      endif
+      if(reduz .eq. 0) then
+        if(mod(nz,2) .ne. 0) then
+          print *, 'An even number of mesh points in the z-direction is required'
+          print *, 'if we deal with the entire z-axis.'
+          stop
+        endif 
+      endif
     endif
 
-    if(fixfermi .and. (mun.eq.-10d8 .or.mup.eq.-10d8) )then
-        print *, 'You should fix an appropriate Lambda_N and Lambda_P'
-        stop
-    endif
-
-    ! Reading information on the mesh
-    if(present(file_number)) then
-      read (unit=file_number, nml=mesh)
-    else
-      read (unit=*, nml=mesh)
-    endif   
+#if(USE_MPI > 0)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Broadcasting all information from MPI_rank 0 to the rest
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! content of /mesh/ namelist
+    call MPI_BCAST(nx, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(ny, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(nz, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(dx, 1, MPI_REAL8,   0, MPI_COMM_WORLD, mpi_err)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! content of /nucleus/ namelist
+    ! a) particle numbers
+    call MPI_BCAST(protons , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(neutrons, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    ! b) fermi level options
+    call MPI_BCAST(mun     , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(mup     , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(fixfermi, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    ! c) convergence parameters
+    ! Note: convergence checking is likely to be done by a single MPI_RANK
+    !       but this duplication just makes future programming errors 
+    !       less likely.
+    call MPI_BCAST(energy_prec , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(moment_prec , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(disp_prec   , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(pairing_prec, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(fermi_prec  , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+#endif
+  
+    ! Some bookkeeping operations, to be executed by all MPIranks 
     mv = nx * ny * nz
-    dv = (dx**3)*(2**$NUMSYM)
-    
-    ! Sanity check on the number of mesh points
-    if(redux .eq. 0) then
-      if(mod(nx,2) .ne. 0) then
-        print *, 'An even number of mesh points in the x-direction is required'
-        print *, 'if we deal with the entire x-axis.'
-        stop
-      endif 
-    endif
-    if(reduy .eq. 0) then
-      if(mod(ny,2) .ne. 0) then
-        print *, 'An even number of mesh points in the y-direction is required'
-        print *, 'if we deal with the entire y-axis.'
-        stop
-      endif 
-    endif
-    if(reduz .eq. 0) then
-      if(mod(nz,2) .ne. 0) then
-        print *, 'An even number of mesh points in the z-direction is required'
-        print *, 'if we deal with the entire z-axis.'
-        stop
-      endif 
-    endif
-    
+    dv = (dx**3)*(2**$NUMSYM)    
     call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid,0.0d0,0.0d0,0.0d0)
+        
   end subroutine ReadGenInfo
 
   function vector_product( mu ) result(indices)

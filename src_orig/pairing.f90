@@ -27,6 +27,7 @@ module pairing
  !==============================================================================
 
  use compilation
+ use geninfo
  use wavefunctions
  use hartreefock
  use BCS
@@ -171,145 +172,178 @@ contains
     ! Read and initialize pairing options from the namelists
     !   /Pairing/
     !   /Indices/
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
     character(len=20)                   :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
-    integer                             :: i
+    integer                             :: i, mpi_err
     
     NameList /Pairing/ Type, Constantgap,                                      &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
     &                  FermiSolver, guessgaps,  pairingscheme,                 &
     &                  gradient_precon, bogofromfile, gapvalue
 
-    NameList /Indices/ BlockIndices, blocklowest, blockfname, blockJ
+    NameList /Indices/ BlockIndices, blocklowest, blockJ
 
-    if(present(file_number)) then
-      read(unit=file_number, NML=Pairing)
-    else
-      read(unit=*, NML=Pairing)
-    endif  
+    ! Only the very first MPI rank reads input
+    if(MPI_RANK .eq. 0) then
+      if(present(file_number)) then
+        read(unit=file_number, NML=Pairing)
+      else
+        read(unit=*, NML=Pairing)
+      endif  
 
-    Type        = to_upper(Type)
-    if('HF' .eq.adjustl(type)) then
-      pairingtype = 0
-    elseif('BCS' .eq. adjustl(type)) then
-      pairingtype = 1
-    elseif('HFB' .eq. adjustl(type)) then
-      pairingtype = 2
-    elseif('' .eq. adjustl(type)) then
-      pairingtype = 0
-    else
-      print *, 'This type of pairing is not implemented yet.'
-      stop
-    endif
+      Type        = to_upper(Type)
+      if('HF' .eq.adjustl(type)) then
+        pairingtype = 0
+      elseif('BCS' .eq. adjustl(type)) then
+        pairingtype = 1
+      elseif('HFB' .eq. adjustl(type)) then
+        pairingtype = 2
+      elseif('' .eq. adjustl(type)) then
+        pairingtype = 0
+      else
+        print *, 'This type of pairing is not implemented yet.'
+        stop
+      endif
 
+      ! Transfer to uppercase and sanity check
+      FermiSolver = to_upper(FermiSolver)    
+      if((adjustl(FermiSolver) .ne. 'SECANT') &
+      &                        .AND.          & 
+      &  (adjustl(FermiSolver).ne. 'BRENT')) then
+        print *, 'Unknown FermiSolver', FermiSolver, ' selected.'
+        stop
+      endif 
 $FORBIDBCS if( pairingtype .eq. 1) then
 $FORBIDBCS    print *, "BCS pairing treatment not allowed."
 $FORBIDBCS    stop
-$FORBIDBCS endif
-
-    FermiSolver = to_upper(FermiSolver)    
-    if(adjustl(FermiSolver).eq.'SECANT') then
-      FindFermi => FindFermi_secant
-    elseif(adjustl(FermiSolver).eq.'BRENT') then
-      FindFermi => FindFermi_brent
-    else
-      print *, 'Unknown FermiSolver', FermiSolver, ' selected.'
-      stop
-    endif
-    
-    if(Blocktype.lt.0 .or. BlockType.gt.5) then
-        print *, 'This value of BlockType is not accepted.'
-        stop
-    endif
-    
-    if(blocktype.eq.5 .and. pairingscheme.eq.1) then
-      print *, 'Cannot combine forced-spherical symmetry blocking and the gradient solver.'
-      stop
-    endif 
-    
-    if(particles_in_gas .lt. 0 .or. particles_in_gas .gt. 2) then
-      print *, 'This value for particles_in_gas is not accepted.'
-      stop
-    endif
-
-    if(particles_in_gas .ne. 0 .and. inversetemp .eq. -1) then
-       print *, 'Particles_in_gas should be zero for T=0 calculations.'
-      stop
-    endif
-    !---------------------------------------------------------------------------
-    ! Reading information on the blocking if needed.
-    if(BlockNumber.ne.0) then
-        ! Sanity check: only allow for blocking in HFB mode
-        if(pairingtype.ne.2) then 
-          print *, 'Blocking only allowed when doing HFB calculations.'
+  $FORBIDBCS endif
+      
+      if(Blocktype.lt.0 .or. BlockType.gt.5) then
+          print *, 'This value of BlockType is not accepted.'
           stop
-        endif
+      endif
+      
+      if(blocktype.eq.5 .and. pairingscheme.eq.1) then
+        print *, 'Cannot combine forced-spherical symmetry blocking and the gradient solver.'
+        stop
+      endif 
+      
+      if(particles_in_gas .lt. 0 .or. particles_in_gas .gt. 2) then
+        print *, 'This value for particles_in_gas is not accepted.'
+        stop
+      endif
 
-        allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
-        allocate(BlockLowest(BlockNumber))  ; BlockLowest  = ' ' 
-        read(unit=*, nml=Indices)
+      if(particles_in_gas .ne. 0 .and. inversetemp .eq. -1) then
+         print *, 'Particles_in_gas should be zero for T=0 calculations.'
+        stop
+      endif
 
-        ! Sanity checks on the BlockLowest array: 
-        ! (a) do not proceed with empty list
-        ! (b) do not allow for selection on parity of the blocked state if
-        !  parity is broken
-        if(blocktype.eq.2 .or. blocktype .eq. 4) then
-          do i=1, blocknumber
-            select case(blocklowest(i))
-            case('n+', 'n-')
-$PBROKEN              print *, 'Cannot block a neutron qp with definite parity.'
-$PBROKEN              stop
-            case('p+', 'p-')
-$PBROKEN              print *, 'Cannot block a proton qp with definite parity.'
-$PBROKEN              stop
-            case('n0', 'p0')
-              ! allowed
-            case DEFAULT
-              ! something else went wrong
-              print *, 'Did not read all elements in blocklowest correctly.'
-              stop
-            end select
-          enddo
-        endif
-        
-        ! Sanity checks on the BlockIndices array:
-        ! (a) check if everything was read
-        if(blocktype.eq.1 .or. blocktype.eq.3) then
-          do i=1,blocknumber
-            if(blockindices(i) .eq.0) then
-              print *, 'Did not read all elements in blockindices correctly.'
-              stop
-            endif
-          enddo
-        endif
+      if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
+        print *, 'Invalid pairingscheme value.'
+        stop
+      endif
+      !---------------------------------------------------------------------------
+      ! Reading information on the blocking if needed.
+      if(BlockNumber.ne.0) then
+          ! Sanity check: only allow for blocking in HFB mode
+          if(pairingtype.ne.2) then 
+            print *, 'Blocking only allowed when doing HFB calculations.'
+            stop
+          endif
 
-        ! Sanity check on the useage of time-reversal conservation and EFA
-$NTR    if( blocktype.eq.3 .or. blocktype.eq.4) then        
-$NTR      if(pairingscheme.eq.1) then
-$NTR        print *, 'Cannot do EFA blocking with gradient solver when time-reversal is broken.'
-$NTR        stop
-$NTR      endif
-$NTR    endif
-        
-        ! Sanity check: cannot do full blocking if time-reversal is not broken
-$TR     if(blocktype.eq.1 .or. Blocktype.eq.2) then
-$TR       print *, 'Cannot do true blocking when time-reversal is conserved.'
-$TR       stop
-$TR     endif
+          allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
+          allocate(BlockLowest(BlockNumber))  ; BlockLowest  = ' ' 
+          read(unit=*, nml=Indices)
 
-        ! Reading model spwf to block
-        if(blockfname .ne. "") then
-           call read_modelwf(blockfname)
-           if(blocknumber.gt. 1) then
-              print *, 'Cannot block more than one modelspwf.'
-              stop
-           endif
-        endif
+          ! Sanity checks on the BlockLowest array: 
+          ! (a) do not proceed with empty list
+          ! (b) do not allow for selection on parity of the blocked state if
+          !  parity is broken
+          if(blocktype.eq.2 .or. blocktype .eq. 4) then
+            do i=1, blocknumber
+              select case(blocklowest(i))
+              case('n+', 'n-')
+  $PBROKEN              print *, 'Cannot block a neutron qp with definite parity.'
+  $PBROKEN              stop
+              case('p+', 'p-')
+  $PBROKEN              print *, 'Cannot block a proton qp with definite parity.'
+  $PBROKEN              stop
+              case('n0', 'p0')
+                ! allowed
+              case DEFAULT
+                ! something else went wrong
+                print *, 'Did not read all elements in blocklowest correctly.'
+                stop
+              end select
+            enddo
+          endif
+          
+          ! Sanity checks on the BlockIndices array:
+          ! (a) check if everything was read
+          if(blocktype.eq.1 .or. blocktype.eq.3) then
+            do i=1,blocknumber
+              if(blockindices(i) .eq.0) then
+                print *, 'Did not read all elements in blockindices correctly.'
+                stop
+              endif
+            enddo
+          endif
+
+          ! Sanity check on the useage of time-reversal conservation and EFA
+  $NTR    if( blocktype.eq.3 .or. blocktype.eq.4) then        
+  $NTR      if(pairingscheme.eq.1) then
+  $NTR        print *, 'Cannot do EFA blocking with gradient solver when time-reversal is broken.'
+  $NTR        stop
+  $NTR      endif
+  $NTR    endif
+          
+          ! Sanity check: cannot do full blocking if time-reversal is not broken
+  $TR     if(blocktype.eq.1 .or. Blocktype.eq.2) then
+  $TR       print *, 'Cannot do true blocking when time-reversal is conserved.'
+  $TR       stop
+  $TR     endif
+
+      endif
     endif
-
     !---------------------------------------------------------------------------
-    ! Cutoff decision
+    ! Broadcasting of values
+#if(USE_MPI > 0)
+    ! Don't forget about pairingtype, the most important integer in this module!    
+    call MPI_Bcast(pairingtype, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+
+    ! namelist /pairing/ variables
+    call MPI_Bcast(Type, len(type), MPI_CHARACTER, 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_Bcast(Constantgap    ,  1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(guessgaps      ,  1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(gradient_precon,  1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(bogofromfile   ,  1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_Bcast(pairingscheme ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(Blocktype     ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(Blocknumber   ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(maxhfbiter    ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(gapvalue      ,  2, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+
+    ! /blocking/ namelist variables
+    if(BlockNumber.ne.0) then
+      call MPI_Bcast(blockJ, 1, MPI_REAL8, MPI_COMM_WORLD, mpi_err)
+      allocate(blockindices(blocknumber)) ; allocate(blocklowest(blocknumber))
+      call MPI_Bcast(blockindices, blocknumber, MPI_INTEGER, MPI_COMM_WORLD, mpi_err)
+      ! blocklowest is an array of strings, so it is complicated to transfer...
+      do i=1,blocknumber
+        call MPI_Bcast(blocklowest(i), 2,MPI_CHARACTER,MPI_COMM_WORLD,mpi_err) 
+      enddo
+    endif
+#endif
+    !---------------------------------------------------------------------------
+    ! Bookkeeping to be done by all MPI ranks
+    ! a) Cutoff decision
     select case(CutType)
     case(1)
        PairingCutoff => SymmetricFermi
@@ -325,7 +359,8 @@ $TR     endif
     end select
     pairingcut(1) = cutneutron
     pairingcut(2) = cutproton
-    !---------------------------------------------------------------------------
+    
+    ! b) Gaps calculation decision
     select case(PairingType)
     case(0)
       CalcGaps => calcHFgaps
@@ -334,12 +369,15 @@ $TR     endif
     case(2)
       CalcGaps => calcHFBgaps
     end select
-    !---------------------------------------------------------------------------
-    ! 
-    if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
-      print *, 'Invalid pairingscheme value.'
-      stop
+    
+    ! c) Fermisolver allocation
+    if(adjustl(FermiSolver).eq.'SECANT') then
+      FindFermi => FindFermi_secant
+    elseif(adjustl(FermiSolver).eq.'BRENT') then
+      FindFermi => FindFermi_brent
     endif
+    !---------------------------------------------------------------------------
+
   end subroutine initpairing
 
   subroutine printpairing_init
@@ -482,12 +520,6 @@ $VMICRO call print_micro_pairing_info(ptype, intertype)
         case(5)
             print 16, blockindices
             print 17, blockJ
-!        case(5)
-!            print 92
-!        case(6)
-!            print 93
-!            print 16
-!            print 17, adjustl(blockfname)
         end select
     endif
 
