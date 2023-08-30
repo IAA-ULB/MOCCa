@@ -2353,7 +2353,7 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     !                      HFINZ /     ,    HFIPZ,      
     &                      Bely_coll(3,1), Bely_coll(3,2),       &
     !                      HFJ2               HFE1  , HE2
-    &                      J2_coll(2,3),  totalE, 0.0
+    &                      J2_coll(3,3),  totalE, 0.0
 
     close(unit=6)
   end subroutine combi_output
