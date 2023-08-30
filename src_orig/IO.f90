@@ -2176,12 +2176,18 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
 
   subroutine combi_output(COMBI)
     !---------------------------------------------------------------------------
-    ! Write an extra file for input of the combinatorial level density code.
+    ! Write an extra file to serve as input to a combinatorial calculation 
+    ! of the nuclear level density.
     !
     ! ATTENTION: this output assumes an axial nucleus with a symmetry axis 
     !            along the z-axis. If the single-particle states are not  
     !            (at least approximately) eigenstates of J_z, then this output
     !            will effectively be nonsense.
+    !
+    ! Additional note: the MOI that are written are the "COLLECTIVE" Belyaev 
+    !                  values, i.e. those without the contributions from any
+    !                  blocked qps.
+    !
     !---------------------------------------------------------------------------
     type(moment), pointer        :: quadrupole
     character(len=*), intent(in) :: combi
@@ -2341,13 +2347,13 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     !                      HFLN, HFLP, 
     &                      FermiEnergy(1), FermiEnergy(2),  &
     !                      HFINX /     ,    HFIPX
-    &                      Belyaev(1,1), Belyaev(1,2),       &
+    &                      Bely_coll(1,1), Bely_coll(1,2),       &
     !                      HFINY /     ,    HFIPY,      
-    &                      Belyaev(2,1), Belyaev(2,2),       &
+    &                      Bely_coll(2,1), Bely_coll(2,2),       &
     !                      HFINZ /     ,    HFIPZ,      
-    &                      Belyaev(3,1), Belyaev(3,2),       &
+    &                      Bely_coll(3,1), Bely_coll(3,2),       &
     !                      HFJ2               HFE1  , HE2
-    &                       J2(2,3),  totalE, 0.0
+    &                      J2_coll(2,3),  totalE, 0.0
 
     close(unit=6)
   end subroutine combi_output
