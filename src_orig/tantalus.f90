@@ -108,8 +108,8 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !------------------------------------------------------------------------------
  ! starting all timers 
  ! (disabled for now as I'm not sure how this interacts with MPI)
- !call initialize_all_timers
- !call start_timer(T_tantalus)
+ call initialize_all_timers
+ call start_timer(T_tantalus)
 
  !------------------------------------------------------------------------------
  ! Printing information to STDOUT on the run
@@ -148,11 +148,6 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !------------------------------------------------------------------------------
  ! Read input from STDIN
  call ReadInput(file_number, input_file)
-
-#if(USE_MPI > 0) 
-  call mpi_finalize(mpi_err)
-#endif
- stop
  !------------------------------------------------------------------------------
  ! Initalize relevant matrices throughout the code.
  call inilag() ! Derivative matrices. 
@@ -162,6 +157,10 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !------------------------------------------------------------------------------
  ! Print all relevant input gleaned from STDIN and the wf file.
  call PrintInput(file_number, input_file)
+#if(USE_MPI > 0) 
+  call mpi_finalize(mpi_err)
+#endif
+ stop
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
  call ReachForWaterAndFood()
@@ -172,8 +171,8 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! end the processes across MPI ranks
  !------------------------------------------------------------------------------
  ! Print all timing info
- !call stop_timer(T_tantalus)
- !call print_all_timers()
+ call stop_timer(T_tantalus)
+ call print_all_timers()
 
  ! end of one mean-field calculation..;
 end subroutine Run_Tantalus

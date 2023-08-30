@@ -37,31 +37,28 @@ module GenInfo
   integer, parameter                     :: reduX      = $REDUX
   integer, parameter                     :: reduY      = $REDUY
   integer, parameter                     :: reduZ      = $REDUZ
-  !---------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   !Number of points in every direction and total number of points
   integer :: nx=30,ny=30,nz=30, mv
-  !---------------------------------------------------------------------------
-  ! Total number of single-particle wave-functions
-  integer :: nwt=12
-  !---------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   !Number of protons and neutrons in the nucleus
   real(KIND=dp) :: Neutrons=10, Protons=10
   ! .... or alternatively a fixed chemical potential/fermi energy
   real(KIND=dp) :: mun = -10d8, mup = -10d8
   ! .... which is signalled by this particular flag
   logical       :: fixfermi = .false.
-  !---------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! Line element and volume element of the box. dx is in fm, dv in fm^3.
   real(KIND=dp)  :: dx=0.8_dp
   real(KIND=dp)  :: dv=(0.8_dp**3)*(2**$NUMSYM)
-  !---------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! Pi is always practical (delicious) to have.
   real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
-  !---------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! Maximum number of iterations and number of iterations to skip printing of
   ! the code in the evolve subroutine
   integer :: MaxIter=100, PrintIter=10
-  !---------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! Coordinates of the mesh points for the calculation as well as the 
   ! coulomb calculation
   real(KIND=dp), allocatable         :: meshx(:), meshy(:), meshz(:)
@@ -71,11 +68,11 @@ module GenInfo
   real(KIND=dp), allocatable         :: meshx_shifted(:), meshy_shifted(:)     
   real(KIND=dp), allocatable         :: meshz_shifted(:)
   real(KIND=dp), allocatable, target :: meshgrid_shifted(:,:)  
-  !---------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! Inverse temperature Beta = (k_b T)^{-1}.
   ! Negative values are used to indicate an infinite value, i.e. T = 0.
   real(KIND=dp) :: inversetemp = -1
-  !---------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! Convergence criteria. See the module convergence for additional remarks.
   !
   !   Keyword         Default    Quantity
@@ -96,7 +93,7 @@ module GenInfo
   !
   !   angmom_prec     1d-3     abs(<J_mu>^(i) - <J_mu>^(i-1)) < angmom_prec
   !                                    for all cartesian directions
-  !---------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   real(KIND=dp) :: energy_prec = 1d-11, moment_prec = 1d-5, disp_prec = 1d-5
   real(KIND=dp) :: fermi_prec = 1d-3, angmom_prec   = 1d-3, gradient_prec=1d+0
   !-----------------------------------------------------------------------------
@@ -108,20 +105,25 @@ module GenInfo
   ! Be very careful if you change this, as reducing this precision can lead to
   ! nonconverging calculations, especially when doing blocked calculations.
   real(KIND=dp) :: pairing_prec = 1d-15
-  !------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! Minimum number of iterations to perform before the code can stop itself
   ! for convergence detection. Default value = -1, in which case the multipole
   ! moments module modifies this number.
   integer :: min_iter_conv = -1
-  !------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! MPI parallelization variables
   !  NCORES   = the number of cores we are working with
   !  MPI_RANK = the rank of the current core
   ! Note that MPI_ranks are indexed starting at zero. 
   !
   ! NCORES=1, MPI_RANK= 0 corresponds to a sequential calculation.
-  !------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   integer :: NCORES = 1, MPI_RANK    = 0 
+  !-----------------------------------------------------------------------------
+  ! Load balancing strategy for the MPI ranks
+  ! (0) : naive 1d block distribution of spwfs among ranks
+  ! (1) : give entire symmetry blocks to MPI ranks
+  integer :: balancing_strategy = 1
 
 contains
 
@@ -138,7 +140,7 @@ contains
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
-    &                  fermi_prec
+    &                  fermi_prec, balancing_strategy
     Namelist /mesh/    nx,ny,nz, dx
 
     if(MPI_rank .eq. 0) then    
@@ -163,6 +165,11 @@ contains
       else
         read (unit=*, nml=mesh)
       endif   
+      
+      if((balancing_strategy .ne. 0) .and. (balancing_strategy .ne. 1)) then
+        print *, 'Invalid value for balancing_strategy.'
+        stop
+      endif
       
       ! Sanity check on the number of mesh points
       if(redux .eq. 0) then
@@ -215,6 +222,8 @@ contains
     call MPI_BCAST(disp_prec   , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(pairing_prec, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(fermi_prec  , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_BCAST(balancing_strategy,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
   
     ! Some bookkeeping operations, to be executed by all MPIranks 

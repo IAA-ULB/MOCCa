@@ -93,7 +93,8 @@ implicit none
   !-----------------------------------------------------------------------------
   ! Characteristics of the calculation stored on the .wf file
   integer       :: filenx, fileny, filenz, filenwn, filenwp, filepairing
-  integer       :: filenwt, fileneutrons, fileprotons, fileblocks(8)
+  integer       :: filenwt, fileneutrons, fileprotons
+  integer       :: fileblocks_global(8), fileblocks(8)
   real(KIND=dp) :: filedx
   !-----------------------------------------------------------------------------
   ! Did we succeed in reading a HFB configuration from file? 
@@ -244,6 +245,10 @@ contains
   !-----------------------------------------------------------------------------
   ! This subroutine prints all relevant information of the input, both from the
   ! user and from the wavefunction file.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Input: 
+  !  file_number : integer, only used for printing
+  !  input_file  : character, only used for printing 
   !-----------------------------------------------------------------------------
    
     use wavefunctions
@@ -252,6 +257,8 @@ contains
 
     integer*8, intent(in), optional     :: file_number
     character(11), intent(in), optional :: input_file 
+    integer, allocatable                :: spwf_count(:)
+    integer                             :: tcount, rank, mpi_err
    
     1 format ( 30('-'), 'General Information ', 30('-'))
     2 format ( ' Mesh parameters' )
@@ -300,59 +307,84 @@ contains
     &          '  Fermi energy convergence     < ', es8.1, / &
     &          '  Angular momentum convergence < ', es8.1)
    13 format ( ' Inverse temperature Beta = ', f14.9)
-
-    print *
-    print 1
-    print 2
-
-    print 3 , nx, ny, nz, mv
-    print 4 , dx
-    print 5 , dv
-    print 6
-    print 7 , neutrons, protons
-    print 8
-    print 9 , nwt,nwn,nwp
-    if(trim(to_upper(inputfilename)).eq.'INIT') print 99, osc_freq
-
-    print 13, inversetemp
-    print 10, inputfilename, outputfilename
-    if(trim(to_upper(inputfilename)).ne.'INIT') then
-      print 101
-      print 102, file_version
-      print 1021, ini_name_param
-      print 103, readHFBinfofile
-      print 1031, Bogofromfile
-      
-      print 104, fileblocktype
-      select case (fileblocktype)
-        case(0)
-        case(1,3,5)
-          print 105, fileblocknumber
-          print 106, fileblockindices
-        case(2,4,6)
-          print 105, fileblocknumber
-          print 107, fileblocklowest
-      end select
-      print 108, passed_block_test
-    endif 
-
-    print 112, checkpointiter
+   14 format ( ' MPI information '     ,    /  &
+   &           '   number of ranks         = ', i5 )
+   15 format ( '   load balancing strategy = ', a30)
+   16 format ( '   rank ', i4, ' has ', i4, ' spwfs')
 
 
-    print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE
-    if(present(file_number)) then
-      print 1111,  adjustl(trim(input_file)), file_number
-    endif
-    print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
-    &         angmom_prec
-    
-    call printevolution
-    call printscfiteration
-    call printpairing_init
-    call printmoment_init
-    call printcranking_init
-    call printfunctional  
-    
+      tcount = sum(HFBlocks)
+      if(MPI_rank .eq. 0) allocate(spwf_count(Ncores))  
+#if(USE_MPI>0)
+      call MPI_gather(tcount,1,MPI_INTEGER,spwf_count,1,MPI_Integer, & 
+      &                      0,MPI_COMM_WORLD, mpi_err)
+#else
+      spwf_count = tcount
+#endif
+
+    if(MPI_rank .eq. 0) then 
+      ! Only one MPI rank needs to print information
+      print *
+      print 1
+      print 2
+
+      print 3 , nx, ny, nz, mv
+      print 4 , dx
+      print 5 , dv
+      print 6
+      print 7 , neutrons, protons
+      print 8
+      print 9 , nwt,nwn,nwp
+      if(trim(to_upper(inputfilename)).eq.'INIT') print 99, osc_freq
+
+      print 13, inversetemp
+      print 10, inputfilename, outputfilename
+      if(trim(to_upper(inputfilename)).ne.'INIT') then
+        print 101
+        print 102, file_version
+        print 1021, ini_name_param
+        print 103, readHFBinfofile
+        print 1031, Bogofromfile
+        
+        print 104, fileblocktype
+        select case (fileblocktype)
+          case(0)
+          case(1,3,5)
+            print 105, fileblocknumber
+            print 106, fileblockindices
+          case(2,4,6)
+            print 105, fileblocknumber
+            print 107, fileblocklowest
+        end select
+        print 108, passed_block_test
+      endif 
+
+      print 112, checkpointiter
+
+      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE
+      if(present(file_number)) then
+        print 1111,  adjustl(trim(input_file)), file_number
+      endif
+      print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
+      &         angmom_prec
+
+      print 14, Ncores
+
+      print 15, adjustl('Symmetry-wise')
+      do rank=1, NCORES
+        print 16, rank, spwf_count(rank)
+      enddo
+  
+      call printevolution
+      call printscfiteration
+      call printpairing_init
+      call printmoment_init
+      call printcranking_init
+      call printfunctional  
+    endif    
+
+    if(MPI_rank .eq. 0) deallocate(spwf_count)  
+
   end subroutine PrintInput
   
   subroutine Readwavefunction()
@@ -388,7 +420,7 @@ contains
       ! Option 1) generate starting point with Nilsson wavefunctions.
       call iniwavefunctions($ININX, $ININY, $ININZ, $ININWN, $ININWP)
       guessgaps         = .true.
-      fileblocks        = HFBlocks
+      fileblocks_global = HFBlocks
 
       if( SYM_CODE .ne. "0 1 001 000 10 000 010 111" ) then
         ! Initialisation with nil8 wavefunctions is always EV8-style
@@ -448,12 +480,10 @@ contains
       ! Guess some pairing gaps if asked for (always if starting from INIT)
       call initializeGaps(gapvalue)
     endif
-    
     !---------------------------------------------------------------------------
     ! Checking the blocking options: making sure things on the file are in line 
     ! with what the user asked for
     if(Bogofromfile .and. readHFBinfofile .and. pairingscheme.eq.1) then
-    
       if(.not.allocated(fileblocklowest)) then
           ! This is the one case which we will accept: no blocking on the file, 
           ! but blocking in the input. In this case, we need to do an 
@@ -464,7 +494,6 @@ contains
           passed_block_test =  check_blocking_structure()      
       endif
     endif
-    
   end subroutine ReadWaveFunction
 
   subroutine ReadTantalus(chan, ifn)
@@ -526,9 +555,9 @@ contains
     character(len=*), intent(in) :: ifn
     character(len=20)            :: func_name_check
     character(len=26)            :: SYM_CODE_CHECK
-    integer                      :: io,i
+    integer                      :: io,i, fileoffset, dsize
     logical                      :: exists
-    real(KIND=dp)                :: Omega_file(3)
+    real(KIND=dp)                :: Omega_file(3), dummy
     real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
     logical                      :: filediagsphamil 
     logical                      :: check_x, check_y, check_z
@@ -590,19 +619,24 @@ contains
     !Number of protons and neutrons
     read(Chan,iostat=io) fileneutrons, fileprotons
     ! HFBLocks information 
-    read(Chan,iostat=io) filenwn, filenwp, fileblocks
+    read(Chan,iostat=io) filenwn, filenwp, fileblocks_global
     filenwt = filenwn + filenwp
+    
+    !---------------------------------------------------------------------------
+    ! We have read the dimensions of the symmetry blocks from file...
+    ! .. now we have to decide how to divide them across all mpi_ranks
+    call loadbalance(fileblocks_global,balancing_strategy,fileblocks,fileoffset)
+    !---------------------------------------------------------------------------
     ! Wavefunctions
-    !- - - - - - - - - - - - - - - -
+    !---------------------------------------------------------------------------
     ! First allocate the needed space
-    allocate(HFPsi(filenx*fileny*filenz,4, filenwn+filenwp))
-    allocate(spenergies(filenwn+filenwp))
-    allocate(dispersions(filenwn+filenwp))
+    ! wavefunctions are distributed across ranks ....
+    allocate(HFPsi(filenx*fileny*filenz,4, sum(fileblocks)))
+    ! .... but arrays like these are stored on all ranks
+    allocate(spenergies(filenwn+filenwp)) 
+    allocate(dispersions(filenwn+filenwp)) 
 
-    if (allocated(rho_can)) then 
-      deallocate(rho_can)        
-    end if                       
-
+    if (allocated(rho_can)) deallocate(rho_can)        
     allocate(rho_can(filenwn + filenwp))
     
     read(chan,iostat=io) spenergies, dispersions    
@@ -613,7 +647,11 @@ contains
       read(chan,iostat=io) HFtransfo
     endif
     
-    read(chan,iostat=io) HFPsi    
+    ! Read the appropriate spwfs  by first skipping over a bunch of them
+    dsize = 4*filenx*fileny*filenz*fileoffset
+    read(chan,iostat=io) (dummy, i=1,dsize), (HFPsi(:,:,i), i=1,sum(fileblocks))
+
+    !--------------------------------------------------------------------------- 
     ! Name of the force and functional
     read(chan, iostat=io) ini_name_param, func_name_check
     ! Single-particle hamiltonian

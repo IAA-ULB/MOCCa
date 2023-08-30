@@ -855,14 +855,6 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
           print 10, stabfactor
         endif
-        if(blocktype.ge.5) then
-            print 11, blockoverlap
-        endif
-!        
-!$NTR    nb = number_parity_throughU(Bogoliubov, configmatrix, grad_blocks)        
-!$NTR    print 12
-!$NTR    print 13, nb(1:4)
-!$NTR    print 14, nb(5:8)
 
         if(pairingtype.eq.2) then
           call PrintHFBConvergence(rho_pairing, kappa_pairing, Bogoliubov)
@@ -1160,117 +1152,117 @@ $NTR      endif
     enddo
    end function identify_blocked_particle
 
-  subroutine read_modelwf(fname)
-      !-------------------------------------------------------------------------
-      !
-      !-------------------------------------------------------------------------
-      logical                       :: exists = .true.
-      character(len=40), intent(in) :: fname 
-      integer                       :: io, filenx,fileny,filenz,fileit,filepar
-      integer                       :: i,j,k,l !, sxh(4), syh(4), szh(4)
-      real(KIND=dp)                 :: filedx
-      real(KIND=dp), pointer        :: model3d(:,:,:) 
-      !real(KIND=dp), allocatable    :: dmodel3d(:,:,:), ddmodel3d(:,:,:)
+!  subroutine read_modelwf(fname)
+!      !-------------------------------------------------------------------------
+!      !
+!      !-------------------------------------------------------------------------
+!      logical                       :: exists = .true.
+!      character(len=40), intent(in) :: fname 
+!      integer                       :: io, filenx,fileny,filenz,fileit,filepar
+!      integer                       :: i,j,k,l !, sxh(4), syh(4), szh(4)
+!      real(KIND=dp)                 :: filedx
+!      real(KIND=dp), pointer        :: model3d(:,:,:) 
+!      !real(KIND=dp), allocatable    :: dmodel3d(:,:,:), ddmodel3d(:,:,:)
 
-      1 format (3i3, f8.3, 2i3)
-      2 format (99f18.15)
+!      1 format (3i3, f8.3, 2i3)
+!      2 format (99f18.15)
 
 
-      inquire(file=fname, EXIST = exists)
+!      inquire(file=fname, EXIST = exists)
 
-      if( .not. exists) then
-        print *, 'File for model spwf does not exist.'
-        stop
-      else
-        allocate(modelspwf(nx*ny*nz,4,2)) ; modelspwf = 0
-        open(unit = 12, file=fname, iostat=io)
-        !-----------------------------------------------------------------------
-        ! Read the header:
-        ! nx ny nz dx it parity 
-        read(unit=12, fmt=1) filenx, fileny, filenz,filedx, fileit, filepar
-        ! Sanity checks
-        if((filenx .ne. nx) .or. &
-        &  (fileny .ne. ny) .or. & 
-        &  (filenz .ne. nz) .or. &
-        &  (filedx .ne. dx)) then
-          print *, 'Mesh of the model spwf does not match the calculation.'
-          stop
-        endif
-
-        !-----------------------------------------------------------------------
-        ! Read U(r)
-        do l=1,4
-          model3d(1:nx, 1:ny, 1:nz) => modelspwf(1:nx*ny*nz,l,1)
-          do k=1,nz
-            do j=1,ny
-              do i=1,nx
-               read(unit=12,fmt=2) model3d(i,j,k)
-              enddo
-            enddo
-          enddo
-        enddo
-        ! Read V(r)
-        do l=1,4
-          model3d(1:nx, 1:ny, 1:nz) => modelspwf(1:nx*ny*nz,l,2)
-          do k=1,nz
-            do j=1,ny
-              do i=1,nx
-               read(unit=12,fmt=2) model3d(i,j,k) 
-              enddo
-            enddo
-          enddo
-        enddo
-
-        !-----------------------------------------------------------------------
-        ! Some lines of code for checking the correct construction of the 
-        ! model spwfs on the mesh.
-        !
-        !-----------------------------------------------------------------------
-        
-!       sxh(1) =  1 ; syh(1) = +1 ; szh(1) = -1
-!        sxh(2) = -1 ; syh(2) = -1 ; szh(2) = -1 
-!        sxh(3) = -1 ; syh(3) = +1 ; szh(3) = +1
-!        sxh(4) =  1 ; syh(4) = -1 ; szh(4) = +1
-
-!        allocate(dmodel3d(nx*ny*nz,3,4)) ; dmodel3d = 0.0
-!        allocate(ddmodel3d(nx*ny*nz,6,4)) ; ddmodel3d = 0.0
-
-!        call inilag
-!        do l=1, 4
-!          call derive_tot_1D(modelspwf(:,l,1),sxh(l), syh(l), szh(l), &
-!                                             dmodel3d(:,:,l),ddmodel3d(:,:,l))
-!        enddo
-!        print *
-!        print *, 'Jz', &
-!                angmom_z_real(modelspwf(:,:,1),modelspwf(:,:,1), dmodel3d) & 
-!                &                                /(sum(modelspwf(:,:,1)**2)*dv)
-!        do l=1, 4
-!          call derive_tot_1D(modelspwf(:,l,2),-sxh(l), syh(l), -szh(l), &
-!                &                             dmodel3d(:,:,l),ddmodel3d(:,:,l))
-!        enddo
-!        print *
-!        print *, 'Jz',  & 
-!               &  angmom_z_real(modelspwf(:,:,2),modelspwf(:,:,2), dmodel3d) & 
-!               &  /(sum(modelspwf(:,:,2)**2)*dv)
+!      if( .not. exists) then
+!        print *, 'File for model spwf does not exist.'
 !        stop
-        !-----------------------------------------------------------------------
-        ! Assigning the right blocking blocks
-        if(fileit .eq. 1) then
-            if (filepar.gt.0) then
-              modelblock = 1
-            else
-              modelblock = 3
-            endif            
-        else
-            if (filepar.gt.0) then
-              modelblock = 5
-            else
-              modelblock = 7
-            endif            
-        endif
+!      else
+!        allocate(modelspwf(nx*ny*nz,4,2)) ; modelspwf = 0
+!        open(unit = 12, file=fname, iostat=io)
+!        !-----------------------------------------------------------------------
+!        ! Read the header:
+!        ! nx ny nz dx it parity 
+!        read(unit=12, fmt=1) filenx, fileny, filenz,filedx, fileit, filepar
+!        ! Sanity checks
+!        if((filenx .ne. nx) .or. &
+!        &  (fileny .ne. ny) .or. & 
+!        &  (filenz .ne. nz) .or. &
+!        &  (filedx .ne. dx)) then
+!          print *, 'Mesh of the model spwf does not match the calculation.'
+!          stop
+!        endif
 
-      endif 
-  end subroutine read_modelwf
+!        !-----------------------------------------------------------------------
+!        ! Read U(r)
+!        do l=1,4
+!          model3d(1:nx, 1:ny, 1:nz) => modelspwf(1:nx*ny*nz,l,1)
+!          do k=1,nz
+!            do j=1,ny
+!              do i=1,nx
+!               read(unit=12,fmt=2) model3d(i,j,k)
+!              enddo
+!            enddo
+!          enddo
+!        enddo
+!        ! Read V(r)
+!        do l=1,4
+!          model3d(1:nx, 1:ny, 1:nz) => modelspwf(1:nx*ny*nz,l,2)
+!          do k=1,nz
+!            do j=1,ny
+!              do i=1,nx
+!               read(unit=12,fmt=2) model3d(i,j,k) 
+!              enddo
+!            enddo
+!          enddo
+!        enddo
+
+!        !-----------------------------------------------------------------------
+!        ! Some lines of code for checking the correct construction of the 
+!        ! model spwfs on the mesh.
+!        !
+!        !-----------------------------------------------------------------------
+!        
+!!       sxh(1) =  1 ; syh(1) = +1 ; szh(1) = -1
+!!        sxh(2) = -1 ; syh(2) = -1 ; szh(2) = -1 
+!!        sxh(3) = -1 ; syh(3) = +1 ; szh(3) = +1
+!!        sxh(4) =  1 ; syh(4) = -1 ; szh(4) = +1
+
+!!        allocate(dmodel3d(nx*ny*nz,3,4)) ; dmodel3d = 0.0
+!!        allocate(ddmodel3d(nx*ny*nz,6,4)) ; ddmodel3d = 0.0
+
+!!        call inilag
+!!        do l=1, 4
+!!          call derive_tot_1D(modelspwf(:,l,1),sxh(l), syh(l), szh(l), &
+!!                                             dmodel3d(:,:,l),ddmodel3d(:,:,l))
+!!        enddo
+!!        print *
+!!        print *, 'Jz', &
+!!                angmom_z_real(modelspwf(:,:,1),modelspwf(:,:,1), dmodel3d) & 
+!!                &                                /(sum(modelspwf(:,:,1)**2)*dv)
+!!        do l=1, 4
+!!          call derive_tot_1D(modelspwf(:,l,2),-sxh(l), syh(l), -szh(l), &
+!!                &                             dmodel3d(:,:,l),ddmodel3d(:,:,l))
+!!        enddo
+!!        print *
+!!        print *, 'Jz',  & 
+!!               &  angmom_z_real(modelspwf(:,:,2),modelspwf(:,:,2), dmodel3d) & 
+!!               &  /(sum(modelspwf(:,:,2)**2)*dv)
+!!        stop
+!        !-----------------------------------------------------------------------
+!        ! Assigning the right blocking blocks
+!        if(fileit .eq. 1) then
+!            if (filepar.gt.0) then
+!              modelblock = 1
+!            else
+!              modelblock = 3
+!            endif            
+!        else
+!            if (filepar.gt.0) then
+!              modelblock = 5
+!            else
+!              modelblock = 7
+!            endif            
+!        endif
+
+!      endif 
+!  end subroutine read_modelwf
 
   subroutine clean_pairing()
     !---------------------------------------------------------------------------

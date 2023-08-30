@@ -13,8 +13,22 @@ module wavefunctions
  !
  !==============================================================================
  !
- ! Module containing the single-particle wave-functions (spwfs for short)
- ! for the Tantalus program.
+ ! Module containing the single-particle wave-functions (spwfs for short).
+ !
+ !==============================================================================
+ ! Some notes on the current MPI implementation
+ ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ ! All large arrays, meaning those with a dimension of at least
+ !
+ !    mesh-points * number of wavefunctions = mv * nwt
+ !
+ ! are spread between MPI ranks in a naive block-distribution. These are the 
+ ! spwfs, their derivatives and momentum_updates.
+ !
+ ! All other quantities with smaller dimensions (such as the spenergies etc.)
+ ! are broadcast to all MPI ranks. Their memory requirements are comparatively
+ ! small and simply having access to them everywhere will hopefully avoid 
+ ! future bugs.
  !
  !==============================================================================
  ! Hephaestos keywords:
@@ -98,6 +112,43 @@ module wavefunctions
  ! (Stored here such that they can be basis-transformed by other modules)
  real(KIND = dp), allocatable :: Momentum_Updates(:,:,:)  
  !------------------------------------------------------------------------------
+ ! Number of the blocks with the same quantum numbers that divide up the 
+ ! the single-particle wavefunctions.
+ ! 
+ ! Any of the possible symmetry combinations give rise to at most eight 
+ ! different symmetry blocks.
+ ! 
+ !   2 for protons <-> neutrons
+ !   2 for a hermitian, linear operator      ( parity      in EV8) 
+ !   2 for an antihermitian, linear operator ( z-signature in EV8)
+ ! 
+ ! If symmetries are not conserved, we can simply eliminate blocks by setting 
+ ! their size to zero.
+ !
+ ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ ! Explanation of the bookkeeping
+ !   --------------------------
+ ! HFBlocks_local : number of spwfs in a given symmetry-block stored LOCALLY, 
+ !                  i.e. on the current MPI rank
+ ! HFBlocks_global: number of spwfs in a given symmetry-block stored GLOBALLY,
+ !                  i.e. across all MPI ranks
+ ! nwn, nwp       : TOTAL number of neutron/proton spwfs across all MPI ranks
+ ! nwt            : TOTAL number of wavefunctions across all MPI ranks
+ ! 
+ ! spwf_min       : offset of the spwfs of the current rank.
+ !                  A rank gets wavefunctions : spwf_min, spwf_min+1,...
+ ! spwf_rank      : identifies the rank that holds a given spwf
+ !------------------------------------------------------------------------------
+ integer, parameter   :: Blocks                  = 8  ! This can always be fixed
+ integer              :: HFBlocks(Blocks)  = 0
+ integer              :: HFBlocks_global(Blocks) = 0
+ integer              :: nwn = 6, nwp = 6, nwt = 12, spwf_min = 0
+ integer, allocatable :: spwf_rank(:)
+ !------------------------------------------------------------------------------
+ ! Properties of the single-particle wave-functions with regard to reflections
+ ! of the axes.
+ integer, allocatable :: sx(:,:), sy(:,:), sz(:,:)
+ !------------------------------------------------------------------------------
  ! Single-particle energies, 
  ! Either:
  ! (i)  diagonal elements of the single-particle hamiltonian: 
@@ -143,36 +194,9 @@ module wavefunctions
  ! print information in the actual HF basis.  
  !------------------------------------------------------------------------------
  !------------------------------------------------------------------------------
- ! Number of the blocks with the same quantum numbers that divide up the 
- ! the single-particle wavefunctions.
- ! 
- ! Any of the possible symmetry combinations give rise to at most eight 
- ! different symmetry blocks.
- ! 
- !   2 for protons <-> neutrons
- !   2 for a hermitian, linear operator      ( parity      in EV8) 
- !   2 for an antihermitian, linear operator ( z-signature in EV8)
- ! 
- ! If symmetries are not conserved, we can simply eliminate blocks by setting 
- ! their size to zero.
- !------------------------------------------------------------------------------
- integer, parameter   :: Blocks          =8 ! This can always be fixed
- integer              :: HFBlocks(Blocks)=0
- integer              :: nwn, nwp
- !------------------------------------------------------------------------------
- ! Properties of the single-particle wave-functions with regard to reflections
- ! of the axes.
- integer, allocatable :: sx(:,:), sy(:,:), sz(:,:)
- !------------------------------------------------------------------------------
  ! Oscillator frequencies to use for the initialization with a Nilsson  
  ! hamiltonian.
  real(KIND=dp) :: osc_freq(3) = (/ 0.2125, 0.2125, 0.175 /)
- !------------------------------------------------------------------------------
- ! Filename to read the values on the mesh of a "model"-swpf for blocking. 
- character(len=40)                  :: blockfname = ''
- integer                            :: modelblock = 0
- real(KIND=dp)                      :: blockoverlap = 0.0
- real(KIND=dp), allocatable, target :: modelspwf(:,:,:)
  !------------------------------------------------------------------------------
  ! Tell Tantalus to either 
  !  (i)  diagonalise the sp hamiltonian the ordinary way, i.e. using an
@@ -224,6 +248,90 @@ contains
     ! Bookkeeping for all MPI ranks
     nwt = nwn + nwp
   end subroutine ReadWFdata
+
+  subroutine loadbalance(blocks_global, balancing, blocks_local, offset)
+    !---------------------------------------------------------------------------
+    ! Balance the loading of large arrays across MPI ranks in a 1D fashion.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   blocks_global : integer (8)
+    !                   TOTAL size of all symmetry blocks, i.e. the total number
+    !                   of spwfs in each block.
+    !
+    !   balancing     : integer.
+    !                   0 => load balance purely on a spwf-by-spwf basis
+    !                   1 => balance the load HFBLock-wise, i.e. assign 
+    !                        spwfs per symmetry block. The number of MPI ranks
+    !                        should be a multiple of the actually non-zero
+    !                        symmetry blocks.
+    ! Output:
+    !   blocks_local  : integer(8)
+    !                   LOCAL size of the symmetry blocks, i.e. the total number
+    !                   of spwfs in each block FOR THIS MPI RANK.
+    !   offset        : integer
+    !                   LOCAL offset of the spwfs, i.e. this MPI rank has
+    !                   wavefunctions 
+    !                          offset, offset+1, ....
+    !---------------------------------------------------------------------------
+    integer, intent(in)  :: balancing
+    integer, intent(in)  :: blocks_global(blocks)
+    integer, intent(out) :: blocks_local(blocks), offset
+    
+    integer              :: B, activeblocks, ranks_per_block, blocks_per_rank, M
+    integer              :: block_count, mpi_err
+  
+    allocate(spwf_rank(nwt)) ; spwf_rank = 0
+  
+    select case(balancing)
+    case (0)
+      ! Naive balancing
+      stop    
+    case (1)
+      !-------------------------------------------------------------------------
+      ! Balancing per symmetry block
+      !-------------------------------------------------------------------------
+      ! Count the number of active blocks      
+      activeblocks = 0
+      do B=1,8
+        if(blocks_global(B) .ne. 0) activeblocks = activeblocks + 1                 
+      enddo
+
+      if(activeblocks .ge. Ncores) then
+        ! More symmetry blocks than MPI ranks, i.e. we assign each rank
+        ! one or more entire symmetry blocks
+        if(mod(activeblocks, Ncores) .ne. 0) then
+          print *, 'Incompatible number of MPI ranks for this load balancing strategy.'
+          stop
+        endif
+        blocks_per_rank = activeblocks/Ncores
+
+        block_count = -1 ! unintuitive starting point: first block will be '0'
+        do B=1,8
+          if(blocks_global(B) .eq. 0) cycle
+          block_count = block_count + 1
+          
+          if( block_count / blocks_per_rank .eq. MPI_rank) then
+            ! attention, INTEGER division in the line above
+            blocks_local(B) = blocks_global(B)
+          endif
+        enddo
+        
+        ! Find the first non-zero size in blocks_local
+        do B=1,8
+          if(blocks_local(B) .ne. 0) exit
+        enddo
+        offset = sum(blocks_global(1:B-1))
+        
+      else
+        ! More ranks than blocks
+        ranks_per_block = Ncores/activeblocks
+      endif
+    case DEFAULT
+      print *, 'Unknown type of load balancing.'
+      stop
+    end select
+
+  end subroutine loadbalance
 
   subroutine iniwavefunctions(ininx,ininy, ininz, ininwn, ininwp)   
     !---------------------------------------------------------------------------
