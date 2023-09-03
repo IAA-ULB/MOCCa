@@ -154,11 +154,6 @@ contains
         read (unit=*, nml=nucleus, iostat=io)
       endif
 
-      if(fixfermi .and. (mun.eq.-10d8 .or.mup.eq.-10d8) )then
-          print *, 'You should fix an appropriate Lambda_N and Lambda_P'
-          stop
-      endif
-
       ! Reading information on the mesh
       if(present(file_number)) then
         read (unit=file_number, nml=mesh)
@@ -167,31 +162,23 @@ contains
       endif   
       
       if((balancing_strategy .ne. 0) .and. (balancing_strategy .ne. 1)) then
-        print *, 'Invalid value for balancing_strategy.'
+        call stp('Invalid value for balancing_strategy.')
+      endif
+
+      if(fixfermi .and. (mun.eq.-10d8 .or.mup.eq.-10d8) )then
+        call stp( 'You should fix an appropriate Lambda_N and Lambda_P.')
         stop
       endif
       
       ! Sanity check on the number of mesh points
-      if(redux .eq. 0) then
-        if(mod(nx,2) .ne. 0) then
-          print *, 'An even number of mesh points in the x-direction is required'
-          print *, 'if we deal with the entire x-axis.'
-          stop
-        endif 
+      if(mod(nx,2) .ne. 0) then
+        call stp('NX must be even')
+      endif 
+      if(mod(ny,2) .ne. 0) then
+        call stp('NY must be even')
       endif
-      if(reduy .eq. 0) then
-        if(mod(ny,2) .ne. 0) then
-          print *, 'An even number of mesh points in the y-direction is required'
-          print *, 'if we deal with the entire y-axis.'
-          stop
-        endif 
-      endif
-      if(reduz .eq. 0) then
-        if(mod(nz,2) .ne. 0) then
-          print *, 'An even number of mesh points in the z-direction is required'
-          print *, 'if we deal with the entire z-axis.'
-          stop
-        endif 
+      if(mod(nz,2) .ne. 0) then
+        call stp('NZ must be even')
       endif
     endif
 
@@ -261,9 +248,6 @@ contains
     case(3)
       ! (v1 x v2)_z = v1_x v2_y - v1_y v2_z
       indices = (/ 1, 2 /)
-    case DEFAULT
-      print *, 'Unknown value for mu in vector_prod.'
-      stop
     end select
 
   end function vector_product
@@ -347,8 +331,9 @@ contains
   subroutine find_nml_error(nmlname, iunit)
     !---------------------------------------------------------------------------
     ! Complain about an error in a namelist input, using the backspace command
-    ! to find the offending line.
-    !
+    ! to find the offending line in an opened file. Note: this means this cannot
+    ! be used to find errors in STDINPUT.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input: 
     !     nmlname : namelist name, to tell the user.
     !     iunit   : unit of the opened file to backspace.
@@ -370,8 +355,37 @@ contains
     print *, '--------------------------------------------------------------'
     
     ! Stop the program
-    stop
+    call stp('')
   end subroutine find_nml_error 
+
+  subroutine stp(msg, routine)
+    !---------------------------------------------------------------------------
+    ! A routine for stopping the entire code elegantly. For a single-core run
+    ! it is somewhat trivial to type "print *, 'some error' ; stop" but this 
+    ! does not translate well to MPI runs.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !     msg    : character, message to display.
+    !     routine: character, optional. Name of the routine from which stp 
+    !              was called.
+    !---------------------------------------------------------------------------
+    character(len=*), intent(in)           :: msg
+    character(len=*), intent(in), optional :: routine
+    
+    integer :: mpi_err
+
+    if(MPI_RANK.eq.0) then
+      print *, msg
+    endif
+
+#if(USE_MPI > 0)
+    call MPI_ABORT(MPI_COMM_WORLD,1,mpi_err) ! force all MPI ranks to stop
+                                             ! with error code 1
+#else
+    stop ! simple stop
+#endif
+
+  end subroutine stp
 
   pure integer function LeviCivita(i,j,k)
     !---------------------------------------------------------------------------

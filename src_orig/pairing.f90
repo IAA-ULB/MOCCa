@@ -206,8 +206,7 @@ contains
       elseif('' .eq. adjustl(type)) then
         pairingtype = 0
       else
-        print *, 'This type of pairing is not implemented yet.'
-        stop
+        call stp('Unknown pairing type.')
       endif
 
       ! Transfer to uppercase and sanity check
@@ -215,45 +214,37 @@ contains
       if((adjustl(FermiSolver) .ne. 'SECANT') &
       &                        .AND.          & 
       &  (adjustl(FermiSolver).ne. 'BRENT')) then
-        print *, 'Unknown FermiSolver', FermiSolver, ' selected.'
-        stop
+          call stp('Unknown FermiSolver routine selected.')
       endif 
 $FORBIDBCS if( pairingtype .eq. 1) then
-$FORBIDBCS    print *, "BCS pairing treatment not allowed."
-$FORBIDBCS    stop
-  $FORBIDBCS endif
+$FORBIDBCS    call stp('BCS not allowed when breaking T.')
+$FORBIDBCS endif
       
       if(Blocktype.lt.0 .or. BlockType.gt.5) then
-          print *, 'This value of BlockType is not accepted.'
-          stop
+        call stp('Invalid value for BlockType')
       endif
       
       if(blocktype.eq.5 .and. pairingscheme.eq.1) then
-        print *, 'Cannot combine forced-spherical symmetry blocking and the gradient solver.'
-        stop
+        call stp('Cannot combine forced-spherical symmetry blocking and the gradient solver.')
       endif 
       
       if(particles_in_gas .lt. 0 .or. particles_in_gas .gt. 2) then
-        print *, 'This value for particles_in_gas is not accepted.'
-        stop
+        call stp('Invalid value for particles_in_gas.')
       endif
 
       if(particles_in_gas .ne. 0 .and. inversetemp .eq. -1) then
-         print *, 'Particles_in_gas should be zero for T=0 calculations.'
-        stop
+        call stp('Particles_in_gas=1 requires finite-T calculation.')
       endif
 
       if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
-        print *, 'Invalid pairingscheme value.'
-        stop
+        call stp('Invalid value for pairingscheme.')
       endif
       !---------------------------------------------------------------------------
       ! Reading information on the blocking if needed.
       if(BlockNumber.ne.0) then
           ! Sanity check: only allow for blocking in HFB mode
           if(pairingtype.ne.2) then 
-            print *, 'Blocking only allowed when doing HFB calculations.'
-            stop
+            call stp('Blocking only allowed when doing HFB calculations.'-
           endif
 
           allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
@@ -268,17 +259,14 @@ $FORBIDBCS    stop
             do i=1, blocknumber
               select case(blocklowest(i))
               case('n+', 'n-')
-  $PBROKEN              print *, 'Cannot block a neutron qp with definite parity.'
-  $PBROKEN              stop
+$PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
               case('p+', 'p-')
-  $PBROKEN              print *, 'Cannot block a proton qp with definite parity.'
-  $PBROKEN              stop
+$PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
               case('n0', 'p0')
-                ! allowed
+                 ! allowed
               case DEFAULT
-                ! something else went wrong
-                print *, 'Did not read all elements in blocklowest correctly.'
-                stop
+                 ! something else went wrong
+                 call stp('Did not read all elements in blocklowest correctly.')
               end select
             enddo
           endif
@@ -288,8 +276,7 @@ $FORBIDBCS    stop
           if(blocktype.eq.1 .or. blocktype.eq.3) then
             do i=1,blocknumber
               if(blockindices(i) .eq.0) then
-                print *, 'Did not read all elements in blockindices correctly.'
-                stop
+                call stp('Did not read all elements in blockindices correctly.')
               endif
             enddo
           endif
@@ -297,15 +284,13 @@ $FORBIDBCS    stop
           ! Sanity check on the useage of time-reversal conservation and EFA
   $NTR    if( blocktype.eq.3 .or. blocktype.eq.4) then        
   $NTR      if(pairingscheme.eq.1) then
-  $NTR        print *, 'Cannot do EFA blocking with gradient solver when time-reversal is broken.'
-  $NTR        stop
+  $NTR        call stp('Cannot do EFA blocking with gradient solver when time-reversal is broken.')
   $NTR      endif
   $NTR    endif
           
           ! Sanity check: cannot do full blocking if time-reversal is not broken
   $TR     if(blocktype.eq.1 .or. Blocktype.eq.2) then
-  $TR       print *, 'Cannot do true blocking when time-reversal is conserved.'
-  $TR       stop
+  $TR       call stp('Cannot do true blocking when time-reversal is conserved.')
   $TR     endif
 
       endif
@@ -354,8 +339,7 @@ $FORBIDBCS    stop
     case(4)
        PairingCutoff => SymmetricFermizero
     case DEFAULT
-       print *, 'Unknown cutoff type CutType. Valid options are 1-4.'
-       stop
+       call stp('Unknown cutoff type CutType. Valid options are 1-4.')
     end select
     pairingcut(1) = cutneutron
     pairingcut(2) = cutproton
@@ -457,9 +441,7 @@ $FORBIDBCS    stop
     case(4)
        print 6, 'Sym. Fermi + Heaviside'
     case DEFAULT
-       print *, 'Unrecognized type of pairing cutoff.'
-       print *, 'Accepted values are 1-4.'
-       stop
+       call stp('Unrecognized type of pairing cutoff. Accepted values are 1-4.')
     end select
 
     print 7, pairingcut

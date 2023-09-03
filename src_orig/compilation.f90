@@ -1,8 +1,10 @@
 module compilation
   !-----------------------------------------------------------------------------
   ! Module to propagate 
+  !
   ! a) the definition of a double and single precision real
-  ! b) MPI utilities
+  ! b) MPI utilities (i.e. the USE MPI statement)
+  !
   ! throughout the entire code.
   !-----------------------------------------------------------------------------
 

@@ -300,8 +300,7 @@ contains
         ! More symmetry blocks than MPI ranks, i.e. we assign each rank
         ! one or more entire symmetry blocks
         if(mod(activeblocks, Ncores) .ne. 0) then
-          print *, 'Incompatible number of MPI ranks for this load balancing strategy.'
-          stop
+          call stp('Incompatible number of MPI ranks for balancing_strategy=1.')
         endif
         blocks_per_rank = activeblocks/Ncores
 
@@ -327,8 +326,7 @@ contains
         ranks_per_block = Ncores/activeblocks
       endif
     case DEFAULT
-      print *, 'Unknown type of load balancing.'
-      stop
+      call stp('Unknown type of load balancing.')
     end select
 
   end subroutine loadbalance

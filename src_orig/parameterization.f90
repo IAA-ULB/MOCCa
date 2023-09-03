@@ -135,6 +135,7 @@ contains
     !---------------------------------------------------------------------------
     
     character(len=20) :: name, func_file, toopen
+    character(len=100):: param_string
     character(len=*), intent(in) :: name_param, func_name
     integer           :: io, mpi_err
     logical           :: exists
@@ -169,12 +170,13 @@ contains
             toopen = trim('forces.param')  
             inquire(exist=exists, file=toopen)
             if(.not.exists) then
-              print *, 'No parameterization file found.'
-              print *, 'Valid filenames: - {param}.param (as-is)'
-              print *, '                 - {PARAM}.param (all uppercase)'
-              print *, '                 - {param}.param (all lowercase)'
-              print *, '                 - forces.param'
-              stop
+              param_string = 'No parameterization file found. \n &
+                           &  Valid filenames: &
+                           & - {param}.param (as-is)          \n &
+                           & - {PARAM}.param (all uppercase)  \n &
+                           & - {param}.param (all lowercase)  \n &
+                           & - forces.param'
+              call stp(param_string)
             endif
           endif
         endif
@@ -183,9 +185,7 @@ contains
       open(unit=12, file=toopen,iostat=io)
 
       if (io.ne.0) then
-        print *, "Problem opening the parameterization file!"
-        print *, 'iostat = ', io
-        stop
+        call stp("Problem opening the parameterization file!")
       endif
 
       do 
@@ -202,8 +202,7 @@ contains
           call resetparameterization()
           cycle
         elseif(io.eq.iostat_end) then
-          print *, 'Parameterization not found on .param file.'
-          stop
+          call stp('Parameterization not found on .param file.')
         endif
           
         name = to_upper(name)  ; func_file = to_upper(func_file)
@@ -223,7 +222,7 @@ contains
         print *, ' .func file used for compilation      = ', adjustl(func_name)
         print *, ' .func file for this parameterization = ', adjustl(func_file)
         print *, '============================================================='
-        stop
+        call stp('')
       endif 
       ! b) does the name of the parameterization match the file?
       if(adjustl(to_upper(name_param)) .ne. adjustl(name)) then
@@ -231,7 +230,7 @@ contains
         print *, ' .param asked for = ', adjustl(name_param)
         print *, ' .param read      = ', adjustl(name)
         print *, '============================================================='
-        stop
+        call stp('')
       endif 
       ! c) Have all requested parameters been read?
       !    Hephaestos generates a list of 'if' conditions to check what 
@@ -482,9 +481,8 @@ $PRINTPARAMS
       print 1051, printiter
     case(2)
       print 96
-      print *, 'Self-consistent inclusion of the two-body center of mass',  &
-      &        ' correction is not available.'
-      stop
+      call stp('Self-consistent inclusion of the two-body center of mass',  &
+      &        ' correction is not available.')
     end select
   
     print 4
@@ -509,8 +507,7 @@ $PRINTPARAMS
           print 109
       endif      
     case DEFAULT
-      print *, 'Illegal value of RotCorr = ', Rotcorr
-      stop
+      call stp( 'Illegal value of RotCorr')
     end select
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     ! Constants
