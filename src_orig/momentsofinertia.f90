@@ -854,12 +854,13 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
             Belyaev(:,it) = Belyaev(:,it) + &
             &       fac*J11(ii,jj,:)**2 /(Qpenergies(iii)-Qpenergies(jjj))  
           elseif(inversetemp .gt. 0) then
-           stop
            ! 28/12/2020, WR: I'm unsure whether there should be a factor 2
            ! here or not.... To be doublechecked.
            ! degen = inversetemp * configmatrix(sb+i)**2 *                     &
            ! &                                 exp(inversetemp * Qpenergies(ii))
            ! Belyaev(:,it) = Belyaev(:,it) +   J11(ii,jj,:)**2 * degen   	
+           call stp('The calculation of moments of the inertia at finite T is &
+           &         not supported yet.')
           endif 
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! Collective Belyaev calculation  

@@ -128,7 +128,7 @@ contains
         print 3, 2*sum(blocks(1:4)), 2*sum(blocks(5:8))
         print 4, nwn, nwp
         print 1
-        stop
+        call stp('')
       endif
   
       si = 0
@@ -301,11 +301,9 @@ contains
     
     if( $SPATIAL ) then
       if($EXPANDX) then
-          print *, 'Extending to the full X-axis not implemented yet'
-          stop
+          call stp('Extending to the full X-axis not implemented yet')
       elseif($EXPANDY) then   
-          print *, 'Extending to the full Y-axis not implemented yet'
-          stop
+          call stp('Extending to the full Y-axis not implemented yet')
       elseif($EXPANDZ) then
           sb = 0
           do B=1,8,4 ! This is essentially an isospin loop now
@@ -567,8 +565,6 @@ contains
      &   /,8x,'|    (p+,p-)       = (', 4i5, ')                |', &
      &   /,8x,'|__________________________________________________________|')
 
-  2 format (' Interpolation (changing of dx) not yet allowed.')
-
     integer, intent(in)        :: filenx,fileny,filenz,filenwn, filenwp
     integer, intent(in)        :: fileblocks(8),extraspwfs(8)
     integer, intent(in)        :: file_HFB_blocks(8)
@@ -596,8 +592,7 @@ contains
         ChangeBoxSize = .true.
       endif
     else 
-      print 2
-      stop
+      call stp(' Interpolation (changing of dx) not yet allowed.')
     endif    
 
     if ( ChangeBoxSize ) then
@@ -616,35 +611,29 @@ contains
           !---------------------------------------------------------------------
           !  First a bunch of sanity checks
           if(nwn .ne. sum(fileblocks(1:4)) + sum(extraspwfs(1:4)) ) then
-            print *, 'Inconsistent number of neutron wavefunctions.'
-            stop
+            call stp('Inconsistent number of neutron wavefunctions.')
           endif
           if(nwp .ne. sum(fileblocks(5:8)) + sum(extraspwfs(5:8)) ) then
-            print *, 'Inconsistent number of proton wavefunctions.'
-            stop
+            call stp('Inconsistent number of proton wavefunctions.')
           endif
           if(nwn .lt. filenwn) then
-            print *, ' Nwn lower than nwn on file.'
-            stop
+            call stp(' Nwn lower than nwn on file.')
           endif  
           if(nwp .lt. filenwp) then
-            print *, ' Nwp lower than nwp on file.'
-            stop
+            call stp(' Nwp lower than nwp on file.')
           endif 
 
 $TR       if((extraspwfs(2).ne.0) .or. &
-$TR          &  (extraspwfs(4).ne.0) .or. & 
-$TR          &  (extraspwfs(6).ne.0) .or. &
-$TR          &  (extraspwfs(8).ne.0) ) then
-$TR          print *, 'Blocks 2,4,6,8 not allowed with time-reversal conserved.'
-$TR          stop
+$TR         &  (extraspwfs(4).ne.0) .or. & 
+$TR         &  (extraspwfs(6).ne.0) .or. &
+$TR         &  (extraspwfs(8).ne.0) ) then
+$TR         call stp('Blocks 2,4,6,8 not allowed with time-reversal conserved.')
 $TR       endif
 
 $NTR      do b=1,8,2
 $NTR        if(extraspwfs(b) .ne. extraspwfs(b+1)) then
-$NTR         print *, 'Spwf number with Rz = +i needs to match the number with Rz = -i.'
-$NTR         print *, 'Block = ', B, ' extraspwfs = ', extraspwfs(b), extraspwfs(b+1)
-$NTR         stop
+$NTR         call stp('Spwf number with Rz = +i needs to match the number  &
+$NTR                &  with Rz = -i.')
 $NTR        endif
 $NTR      enddo
 
@@ -654,7 +643,7 @@ $PBROKEN      print *, 'Parity is broken, so spwfs can only be added in the firs
 $PBROKEN      print *, 'Valid input is thus of the form'
 $PBROKEN      print *, ' extraspwfs = a, b, 0, 0 , c, d, 0 ,0'
 $PBROKEN      print *, extraspwfs
-$PBROKEN      stop
+$PBROKEN      call stp('')
 $PBROKEN    endif
 $PBROKEN  enddo
 

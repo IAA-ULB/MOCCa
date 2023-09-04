@@ -152,11 +152,7 @@ contains
             Nmax = FToccupations(Fmax, energies(1:nw,it), particles_in_gas) - N
         
             if(Nmin .gt. 0 .or. Nmax .lt. 0) then
-                print *, 'Bracketing of Fermi energy is wrong.'
-                print *, Fmin, Nmin
-                print *, Fmax, Nmax
-                print *, spenergies(Order(1,it)),spenergies(Order(nw,it)) 
-                stop
+              call stp('The Fermi energy was not correctly bracketed')
             endif
               
             select case (particles_in_gas)

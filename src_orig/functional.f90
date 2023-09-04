@@ -771,9 +771,8 @@ $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
     
     ! The calculations is not yet implemented for Hartree-Fock calculations
 $NTR    if(COM2body .ne. 0 .and. pairingtype .eq. 0) then
-$NTR      print *, 'Two-body COM not implemented yet for Hartree-Fock calculations '
-$NTR      print *, 'with time-reversal breaking.'
-$NTR      stop
+$NTR      call stp('Two-body COM not implemented yet for Hartree-Fock &
+$NTR             & calculations with time-reversal breaking.')
 $NTR    endif
     
     if(COM2body .eq. 1 .and. do_2body) then
@@ -931,8 +930,7 @@ $TR   COM2pp = 2*COM2pp
       ! Sanity check: no collective sense of rotational correction implemented
       !               yet for HF/BCStype calculations
       if(blocktype.ne.0) then
-          print *, 'Rotational correction for odd nuclei not incorporated into HF/BCS.'      
-          stop
+        call stp('Rotational correction for odd nuclei not incorporated into HF/BCS.')
       endif
     case (2)
       ! HFB
@@ -1037,8 +1035,7 @@ $CALCFIELDS
           ! Note that both protons and neutrons feel a Coulomb force if their
           ! charge form factor is taken into account.
           if(.not. allocated(foldedcoul)) then
-            print *, 'Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.'      
-            stop
+            call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
           endif 
           do it=1, 2
             do k=1,nz

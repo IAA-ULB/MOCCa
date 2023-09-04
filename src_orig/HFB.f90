@@ -688,9 +688,8 @@ $TR    endif
     logical                   :: check
     
     if(blocktype.ne.2 .and. blocktype.ne.0) then
-      print *, 'The blocking identification for the gradient solver is not '
-      print *, 'yet capable of dealing with blocktype != 0,2.'
-      stop
+      call stp('The blocking identification for the gradient solver is not &
+             &  yet capable of dealing with blocktype != 0,2.')
     endif
     if(.not.allocated(blocklowest)) return
     
@@ -769,9 +768,8 @@ $TR    endif
         ! If parity is conserved, the code does not know how to deal with 
         ! the possibility of the blocking option being in either of both 
         ! parity blocks. 
-$PCONSERVED        print *, 'The blocking identification for the gradient solver is not '
-$PCONSERVED        print *, 'yet capable of dealing with "n0", "p0" blocking options.'
-$PCONSERVED        stop
+$PCONSERVED call stp('The blocking identification for the gradient solver is &
+$PCONSERVED        &  yet capable of dealing with "n0", "p0" blocking options.')
 
         ! If parity is broken, then there is only one possible block for 
         ! the neutron qp excitation to be in 
@@ -781,9 +779,8 @@ $PBROKEN blockblock(i) = 1
         ! If parity is conserved, the code does not know how to deal with 
         ! the possibility of the blocking option being in either of both 
         ! parity blocks. 
-$PCONSERVED        print *, 'The blocking identification for the gradient solver is not '
-$PCONSERVED        print *, 'yet capable of dealing with "n0", "p0" blocking options.'
-$PCONSERVED        stop
+$PCONSERVED call stp('The blocking identification for the gradient solver is &
+$PCONSERVED        &  yet capable of dealing with "n0", "p0" blocking options.')
       
         ! If parity is broken, then there is only one possible block for 
         ! the proton qp excitation to be in 
@@ -935,9 +932,8 @@ $PBROKEN blockblock(i) = 5
     NB = size(blocklowest)
 
     if(blocktype.ne.4) then
-      print *, 'figure_out_blocking_structure_EFA should only be called for'
-      print *, 'blocktype.eq.40'
-      stop
+      call stp(' The routine figure_out_blocking_structure_EFA should only be &
+             &   called for blocktype = 4.')
     endif
 
     allocate(bl_qps(NB))    ; bl_qps     = 0
@@ -1577,8 +1573,6 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     val = Fermi ! To avoid the unused dummy argument warning from the compiler
 
     call start_timer(T_gaps)
-
-    if(.not.associated(Delta_action_HFB)) stop
 
     !---------------------------------------------------------------------------
     ! Use the delta_action to calculate the elements in the gaps

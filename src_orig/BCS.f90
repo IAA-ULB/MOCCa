@@ -227,9 +227,7 @@ contains
             else
                 iso = +1
             endif
-            
-            if(.not.associated(Delta_action_BCS)) stop
-             
+                         
             deltapsi = delta_action_BCS(  hfpsi(:,:,wave)  ,                   &
             &                            hfdpsi(:,:,:,wave),                   &
             &                           hfddpsi(:,:,:,wave),                   &
@@ -319,8 +317,7 @@ contains
         return
       case(1,2,5)
         ! Time-reversal breaking blocking asked for, impossible to do in BCS
-        print *, 'Cannot perform true blocking in BCS.'
-        stop
+        call stp('The code cannot perform true blocking in BCS.')
       case(3,4,6)
         ! Equal filling blocking
         occ = 0.5d0
@@ -448,8 +445,7 @@ contains
     ! Finite-temperature
     else
       if(blocktype.ne. 0) then
-          print *, 'Cannot do finite-temperature BCS with blocking.'
-          stop
+        call stp('Cannot do finite-temperature BCS with blocking.')
       endif
       
       ! Select occupations based on the type of treatment of the gas
@@ -457,10 +453,9 @@ contains
       case(0)
         ! No special treatment of the gas
         f = 1./(1. + exp(inversetemp * BCSqps))
-      
       case(1)
         ! Not implemented!
-        stop
+        call stp('gastype = 1 is not implemented in the BCS module.')
       case(2)
         ! Only take into account the bound states
         do wave=1,nwt
@@ -471,8 +466,7 @@ contains
           endif
         enddo
       case DEFAULT
-        print *, 'Gas treatment option undefined.'
-        stop
+        call stp('Unknown value for "gas" in the BCS module.')
       end select
     endif
     return

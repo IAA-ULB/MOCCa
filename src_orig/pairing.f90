@@ -239,12 +239,12 @@ $FORBIDBCS endif
       if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
         call stp('Invalid value for pairingscheme.')
       endif
-      !---------------------------------------------------------------------------
+      !-------------------------------------------------------------------------
       ! Reading information on the blocking if needed.
       if(BlockNumber.ne.0) then
           ! Sanity check: only allow for blocking in HFB mode
           if(pairingtype.ne.2) then 
-            call stp('Blocking only allowed when doing HFB calculations.'-
+            call stp('Blocking only allowed when doing HFB calculations.')
           endif
 
           allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
@@ -798,8 +798,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     9 format ('  nucleus           ', 2x, f13.8, 2x, f13.8)
 
    10 format (' Stab. factor       ', 2x, f13.8, 2x, f13.8)
-   11 format (' Overlap with model ', 2x, f13.8)
- 
+!   11 format (' Overlap with model ', 2x, f13.8)
 !   12 format ('                               ++  +-  -+  --')
 !   13 format (' Number parity    n:', 2x, 4i3)
 !   14 format (' Number parity    p:', 2x, 4i3)

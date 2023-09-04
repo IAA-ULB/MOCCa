@@ -53,8 +53,7 @@ contains
 
       ! Sanity checks
       if((scfscheme .ne. 0) .and. (scfscheme.ne.1)) then
-        print *, 'Invalid scfscheme value.'
-        stop
+        call stp('Invalid scfscheme value.')
       endif
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

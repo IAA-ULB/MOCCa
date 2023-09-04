@@ -376,6 +376,7 @@ contains
 
     if(MPI_RANK.eq.0) then
       print *, msg
+      if(present(routine)) print *, "Error occurred in routine ", routine
     endif
 
 #if(USE_MPI > 0)

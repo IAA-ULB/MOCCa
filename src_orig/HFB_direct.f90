@@ -154,8 +154,7 @@ contains
         ! No blocking asked for. 
     case(1,3,5)
 $NTR    if(blocktype.eq.3) then
-$NTR     print *, 'Can not do EFA blocking when time-reversal is not conserved.'   
-$NTR     stop
+$NTR     call stp('Can not do EFA blocking when T is broken.')
 $NTR    endif
         !-----------------------------------------------------------------------
         ! The user asked for a specific configuration that needs to be 

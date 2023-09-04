@@ -135,7 +135,7 @@ contains
     !---------------------------------------------------------------------------
     
     character(len=20) :: name, func_file, toopen
-    character(len=100):: param_string
+    character(len=200):: param_string
     character(len=*), intent(in) :: name_param, func_name
     integer           :: io, mpi_err
     logical           :: exists

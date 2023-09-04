@@ -99,11 +99,15 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  320 format ( 8x,'|__________________________________________________________|')
  
  !------------------------------------------------------------------------------
- ! Start the different processes across MPI ranks and doMPI bookkeeping
+ ! Start the different processes across MPI ranks and do MPI bookkeeping
 #if(USE_MPI > 0) 
   call mpi_init(mpi_err)
   call MPI_COMM_SIZE(MPI_COMM_WORLD, NCORES  , mpi_err)
   call MPI_COMM_RANK(MPI_COMM_WORLD, MPI_RANK, mpi_err)
+  
+  ! Set MPI errors to be fatal. This is the default setting, but it doesn't
+  ! hurt to be verbose, precise and future-flexible.
+  CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL,mpi_err)
 #endif
  !------------------------------------------------------------------------------
  ! starting all timers 
@@ -157,10 +161,17 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !------------------------------------------------------------------------------
  ! Print all relevant input gleaned from STDIN and the wf file.
  call PrintInput(file_number, input_file)
+
+ !------------------------------------------------------------------------------
+ ! Print all timing info
+ call stop_timer(T_tantalus)
+ call print_all_timers()
+
 #if(USE_MPI > 0) 
   call mpi_finalize(mpi_err)
 #endif
  stop
+ call stp('')
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
  call ReachForWaterAndFood()

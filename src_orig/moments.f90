@@ -990,9 +990,7 @@ $NTR    enddo
     !        Tocalculate :  mass/electric multipole moment to be calculated
     !---------------------------------------------------------------------------
     use Densities, only : D_I_I, chargedensity
-  
-    1 format ('Nan in Q_{ ,' i2, ' ', i2, '}')
-    
+   
     class(Moment),        intent(inout) :: ToCalculate
     integer                             :: it
 
@@ -1014,8 +1012,7 @@ $NTR    enddo
 
     ! Check for problems
     if(any(ToCalculate%Value.eq.ToCalculate%Value+1)) then
-      print 1, ToCalculate%l, ToCalculate%m
-      stop
+      call stp('NaN inside a multipole moment.')
     endif
 
     ! Set the deviation
@@ -1119,8 +1116,6 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     use Densities, only : divJ
     use derivatives
   
-    1 format ('Nan in Q_{ ,' i2, ' ', i2, '}')
-    
     class(Moment),        intent(inout) :: ToCalculate
     integer                             :: it
 
@@ -1139,12 +1134,6 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     ! Not sure what a "charge density" J_mn would be, set to zero for now
     ToCalculate%ChargeValue      =  0.0d0
     
-    ! Check for problems
-    if(any(ToCalculate%Value.eq.ToCalculate%Value+1)) then
-      print 1, ToCalculate%l, ToCalculate%m
-      stop
-    endif
-
     return
   end subroutine Calculate_multipole_divJ
 
@@ -1340,8 +1329,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
    16 format ( ' Final value:', 1es12.5)
 
     if(ToReadjust%ConstraintType.eq.0) then
-      print *, 'Moment is not constrained, but still gets readjusted!'
-      stop
+      call stp('Moment is not constrained, but still gets readjusted!')
     endif
 
     ! Augmented Lagrangian readjustment
@@ -1435,13 +1423,11 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       endif
 
       if(QuantisationAxis.le.0 .or. QuantisationAxis .gt. 3) then
-        print *, 'Illegal value of quantisation axis!'
-        stop
+        call stp('Illegal value of quantisation axis!')
       endif
 
       if(SecondaryAxis .le. 0 .or. SecondaryAxis .gt. 2) then
-        print *, 'Illegal value of secondary axis!'
-        stop
+        call stp('Illegal value of secondary axis!')
       endif
     endif
 
@@ -1478,8 +1464,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
         !Spherical cutoff
         CompCutoff => StandardCutoff
       case default
-        print *, 'Invalid choice of cutofftype. It can either be 0 or 1.'
-        stop
+        call stp('Invalid choice of cutofftype. It can either be 0 or 1.')
     end select
     
     ! Constraining the non-physical degrees of freedom, if present
@@ -1487,138 +1472,130 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 
     ! Loop exits when MoreConstraints = .false. 
     do while(MoreConstraints)
-        !-----------------------------------------------------------------------
-        ! Initialisation
-        l=0; m=0; Impart=.false.  ; Intensity      = 0.0_dp
-        Constraint=0.0_dp         ; MoreConstraints=.false.   
-        ConstraintType=2          ; MultfromFile   =.false. ; continue = .false.
-        iq1=-1000000_dp           ; iq2=-1000000_dp ; iteration = -1 
-        scalefactor = 1.0d0       ; intensityfactor = 1.0d0
-        isoswitch   = 0
-        !-----------------------------------------------------------------------
-        ! Actual reading (and checking) of info
-        if(MPI_RANK .eq. 0) then
-          ! Only the very first MPI rank reads stuff
-          if(present(file_number)) then
-            read(unit=file_number, NML=MomentConstraint, IOSTAT=iostat)
-          else
-            read(unit=*          , NML=MomentConstraint, IOSTAT=iostat)
-          endif
-
-          if(iostat .ne. 0) then
-            print *, "Input error for moment constraints." 
-            stop
-          endif
-          
-          ! ... and performs some consistency checks          
-          if(isoswitch.lt.0 .or. isoswitch.gt.2) then
-            print *, 'ISOSWITCH must be either 0,1 or 2.'
-            stop
-          endif
-          
-          if(constrainttype .ne. 2) then
-            if(l .eq. -2) then
-             print *, 'A constraint on the RMS radius is not (yet) implemented.'
-             stop
-            elseif(l .eq. -4) then
-             print *, 'A constraint on fourth radial moment is not implemented.'
-             stop
-            elseif(l .eq. 0) then
-             print *, 'You cannot constrain the number of particles this way!'
-             stop
-            endif
-          endif          
+      !-----------------------------------------------------------------------
+      ! Initialisation
+      l=0; m=0; Impart=.false.  ; Intensity      = 0.0_dp
+      Constraint=0.0_dp         ; MoreConstraints=.false.   
+      ConstraintType=2          ; MultfromFile   =.false. ; continue = .false.
+      iq1=-1000000_dp           ; iq2=-1000000_dp ; iteration = -1 
+      scalefactor = 1.0d0       ; intensityfactor = 1.0d0
+      isoswitch   = 0
+      !-----------------------------------------------------------------------
+      ! Actual reading (and checking) of info
+      if(MPI_RANK .eq. 0) then
+        ! Only the very first MPI rank reads stuff
+        if(present(file_number)) then
+          read(unit=file_number, NML=MomentConstraint, IOSTAT=iostat)
+        else
+          read(unit=*          , NML=MomentConstraint, IOSTAT=iostat)
         endif
+
+        if(iostat .ne. 0) then
+          call stp("Input error for moment constraints.")
+        endif
+        
+        ! ... and performs some consistency checks          
+        if(isoswitch.lt.0 .or. isoswitch.gt.2) then
+          call stp('ISOSWITCH must be either 0,1 or 2.')
+        endif
+        
+        if(constrainttype .ne. 2) then
+          if(l .eq. -2) then
+           call stp('A constraint on the RMS radius is not (yet) implemented.')
+          elseif(l .eq. -4) then
+           call stp('A constraint on fourth radial moment is not implemented.')
+          elseif(l .eq. 0) then
+           call stp('You cannot constrain the number of particles this way!')
+          endif
+        endif          
+      endif
 
 #if(USE_MPI > 0)
-        !-----------------------------------------------------------------------
-        ! Broadcasting all relevant info        
-        ! a) identity of the multipole moment
-        call MPI_Bcast(l     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-        call MPI_Bcast(m     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-        call MPI_Bcast(Impart, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+      !-----------------------------------------------------------------------
+      ! Broadcasting all relevant info        
+      ! a) identity of the multipole moment
+      call MPI_Bcast(l     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+      call MPI_Bcast(m     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+      call MPI_Bcast(Impart, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
 
-        ! b) constraints
-        call MPI_Bcast(constraint     , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
-        call MPI_Bcast(intensity      , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
-        call MPI_Bcast(iq1            , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
-        call MPI_Bcast(iq2            , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
-        call MPI_Bcast(scalefactor    , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
-        call MPI_Bcast(intensityfactor, 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+      ! b) constraints
+      call MPI_Bcast(constraint     , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+      call MPI_Bcast(intensity      , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+      call MPI_Bcast(iq1            , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+      call MPI_Bcast(iq2            , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+      call MPI_Bcast(scalefactor    , 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+      call MPI_Bcast(intensityfactor, 1, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
 
-        call MPI_Bcast(constrainttype, 1, MPI_INTEGER,0,MPI_COMM_WORLD, mpi_err)
-        call MPI_Bcast(iteration     , 1, MPI_INTEGER,0,MPI_COMM_WORLD, mpi_err)
-        call MPI_Bcast(isoswitch     , 1, MPI_INTEGER,0,MPI_COMM_WORLD, mpi_err)
+      call MPI_Bcast(constrainttype, 1, MPI_INTEGER,0,MPI_COMM_WORLD, mpi_err)
+      call MPI_Bcast(iteration     , 1, MPI_INTEGER,0,MPI_COMM_WORLD, mpi_err)
+      call MPI_Bcast(isoswitch     , 1, MPI_INTEGER,0,MPI_COMM_WORLD, mpi_err)
 
-        call MPI_Bcast(multfromfile   , 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
-        call MPI_Bcast(continue       , 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
-        call MPI_Bcast(MoreConstraints, 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
+      call MPI_Bcast(multfromfile   , 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
+      call MPI_Bcast(continue       , 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
+      call MPI_Bcast(MoreConstraints, 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
 #endif    
-        !-----------------------------------------------------------------------
-        ! ... and now we can act on the information
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Finding the Correct Moment to constrain
-        Current => FindMoment(l,m,Impart)
+      !-----------------------------------------------------------------------
+      ! ... and now we can act on the information
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Finding the Correct Moment to constrain
+      Current => FindMoment(l,m,Impart)
 
-        if(.not.associated(Current)) then
-          print *, "MOCCa can't find this moment!", 'l= ', l, ' m= ', m
-          stop
+      if(.not.associated(Current)) then
+        call stp("MOCCa can't find this multipole moment!")
+      endif
+
+      !-----------------------------------------------------------------------
+      if((iq1.ne.-1000000_dp) .or. (iq2.ne.-1000000_dp)) then       
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Consistency checks
+        ! a) Make sure iq1 and iq2 are specified for *QUADRUPOLE* constraints      
+        if((l.ne.2) .or. (m.ne.2 .and. m .ne. 0)) then
+          call stp('You specified legacy iq1,iq2 input for multipoles that &
+                 & are not Q20 or Q22.')
         endif
-  
-        !-----------------------------------------------------------------------
-        if((iq1.ne.-1000000_dp) .or. (iq2.ne.-1000000_dp)) then       
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! Consistency checks
-          ! a) Make sure iq1 and iq2 are specified for *QUADRUPOLE* constraints      
-          if((l.ne.2) .or. (m.ne.2 .and. m .ne. 0)) then
-            print *, 'You specified legacy iq1,iq2 input for multipoles that ' &
-            &        ,'are not Q20 or Q22.'
-            stop
+        ! b) Make sure iq1 *AND* iq2 are both specified
+        if((iq1.eq.-1000000_dp) .or. (iq2.eq.-1000000_dp) ) then
+          call stp('You specified only one of (iq1, iq2). &
+                 &  A correct run requires setting both.')
+        endif
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Convert (iq1, iq2) input into Q20, Q22
+        allocate(LegacyCon(2))
+        LegacyCon = LegacyQuad(iq1,iq2)
+      endif
+      !-----------------------------------------------------------------------
+      ! Setting the parameters of this multipole moment
+      Current%ConstraintType = ConstraintType
+      Current%iteration      = iteration
+      if ( iteration + 5 .gt. Min_iter_conv ) then
+          ! If some temporary constraint is active, we force the code to
+          ! perform at the very least "iteration+5" iterations
+          Min_iter_conv = iteration + 5
+      endif
+      Current%Intensity      = Intensity
+      Current%scalefactor    = scalefactor
+      Current%intensityfactor= intensityfactor
+      Current%Isoswitch      = isoswitch
+      
+      ! Reading the values for the constraints
+      if(ConstraintType.ne.0) then
+          !-------------------------------------------------------------------
+          ! Deal with legacy input
+          if( allocated(LegacyCon)                                       &
+          &  .and. l.eq. 2 .and. m.eq.2 .and. .not. Impart) then
+             ! Constraint on Q22 as dictated by iq1/iq2
+             Current%Constraint    = LegacyCon(2)
+          elseif(allocated(LegacyCon)                                    &
+          &  .and. l.eq. 2 .and. m.eq.0 .and. .not. Impart) then
+            ! Constraint on Q20 as dictated by iq1/iq2
+            Current%Constraint     = LegacyCon(1)
+          else
+            Current%Constraint = Constraint
           endif
-          ! b) Make sure iq1 *AND* iq2 are both specified
-          if((iq1.eq.-1000000_dp) .or. (iq2.eq.-1000000_dp) ) then
-            print *, 'You specified only one of (iq1, iq2).'
-            print *, 'A correct run requires setting both.'
-            stop
-          endif
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! Convert (iq1, iq2) input into Q20, Q22
-          allocate(LegacyCon(2))
-          LegacyCon = LegacyQuad(iq1,iq2)
-        endif
-        !-----------------------------------------------------------------------
-        ! Setting the parameters of this multipole moment
-        Current%ConstraintType = ConstraintType
-        Current%iteration      = iteration
-        if ( iteration + 5 .gt. Min_iter_conv ) then
-            ! If some temporary constraint is active, we force the code to
-            ! perform at the very least "iteration+5" iterations
-            Min_iter_conv = iteration + 5
-        endif
-        Current%Intensity      = Intensity
-        Current%scalefactor    = scalefactor
-        Current%intensityfactor= intensityfactor
-        Current%Isoswitch      = isoswitch
-        
-        ! Reading the values for the constraints
-        if(ConstraintType.ne.0) then
-            !-------------------------------------------------------------------
-            ! Deal with legacy input
-            if( allocated(LegacyCon)                                       &
-            &  .and. l.eq. 2 .and. m.eq.2 .and. .not. Impart) then
-               ! Constraint on Q22 as dictated by iq1/iq2
-               Current%Constraint    = LegacyCon(2)
-            elseif(allocated(LegacyCon)                                    &
-            &  .and. l.eq. 2 .and. m.eq.0 .and. .not. Impart) then
-              ! Constraint on Q20 as dictated by iq1/iq2
-              Current%Constraint     = LegacyCon(1)
-            else
-              Current%Constraint = Constraint
-            endif
-            Current%MultFromFile = MultFromFile
-            Current%Continue     = Continue
-            !-------------------------------------------------------------------
-        endif
+          Current%MultFromFile = MultFromFile
+          Current%Continue     = Continue
+          !-------------------------------------------------------------------
+      endif
      enddo
      nullify(Current)
      return
@@ -2489,8 +2466,7 @@ $NTR    print 102
     &                           Mom%multiplier, Mom%Intensity       
     
     if(io.ne.0) then
-      print *, 'Error while writing multipole moment to file!'
-      stop
+      call stp('Error while writing multipole moment to file!')
     endif
   end subroutine WriteMoment
 

@@ -77,8 +77,7 @@ contains
 
     ! Sanity check    
     if(N_inertia .lt. 0) then
-      print *, 'Wrong value for N_inertia.'
-      stop
+      call stp('N_inertia cannot be negative.')
     else if (N_inertia .eq. 0) then
       ! do nothing
       return
@@ -98,25 +97,19 @@ contains
       ! Some sanity checks
       do k=1, N_inertia
         if(inertia_l(k) .eq. -1) then 
-          print *, inertia_l
-          print *, 'Number of elements in inertia_l does not match N_inertia.'
-          stop
+          call stp('Number of elements in inertia_l does not match N_inertia.')
         endif
         
         if(inertia_l(k) .gt. maxmoment) then
-          print *, 'Cannot compute inertia for Qlm with l > Maxmoment.'
-          stop
+          call stp('Cannot compute inertia for Qlm with l > Maxmoment.')
         endif
         
         if(inertia_m(k) .eq. -1) then 
-          print *, inertia_m
-          print *, 'Number of elements in inertia_m does not match N_inertia.'
-          stop
+          call stp('Number of elements in inertia_m does not match N_inertia.')
         endif
 
         if(inertia_m(k) .gt. inertia_l(k)) then
-          print *, 'Cannot compute inertia for Qlm with m > l.'
-          stop
+          call stp('Cannot compute inertia for Qlm with m > l.')
         endif
       enddo
     endif
@@ -485,9 +478,6 @@ contains
         case(2)
           ! HFB summation
           Mat(i,j,:,:) = Ksum_Mij(Q20(:,:,i), Q20(:,:,j), la, lb,  (/1,3/))
-        case DEFAULT
-          print *, 'NOT IMPLEMENTED.'
-          stop
         end select
       enddo
     enddo
@@ -520,9 +510,7 @@ contains
       call dsytri('U', N_inertia, M1_inv(:,:,it), N_inertia,ipiv,work, info)
 
       if(info.ne.0) then
-         print *, 'Problem for DSYTRI during the calculation of collective inertia.'
-         print *, 'INFO = ', info
-         stop
+         call stp('Problem for DSYTRI during the calculation of collective inertia.')
       endif
       deallocate(work, ipiv)
 

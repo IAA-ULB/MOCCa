@@ -148,7 +148,7 @@ contains
       inquire(file=input_file, exist=exists)
       if(.not. exists) then
         print *, 'Specified input file does not exist!'
-        stop
+        call stp('')
       endif
       open(unit=file_number, file=input_file) 
     endif
@@ -431,7 +431,7 @@ contains
           print *, "| Calculations cannot be initialized from scratch |"
           print *, "| for this particular symmetry option.            |"
           print *, "---------------------------------------------------"
-          stop        
+          call stp('')
         endif
       endif
       filenx = $ININX ; fileny = $ININY ; filenz = $ININZ ; filedx = dx
@@ -440,7 +440,7 @@ contains
       call ReadTantalus(12, inputfilename)
       ! No need to guess gaps by default (unless the user asked for it)
     endif
-    !---------------------------------------------------------------------------  
+    !---------------------------------------------------------------------------
     ! Transformation options
     if(allowtransform ) then
       if(  symtransfo_needed ) then 
@@ -459,8 +459,7 @@ contains
       ! We still need to set this particular information
       HFblocks = fileblocks
       if(symtransfo_needed) then
-        print *, 'Symmetry transformation needed, but not allowed by user.'
-        stop
+        call stp('Symmetry transformation needed, but not allowed by user.')
       endif
     endif
     
@@ -578,17 +577,14 @@ contains
     ! First check if the file exists.
     inquire(file=inputfilename, exist=exists)
     if(.not.exists) then
-      print *, 'Input file specified does not exist!'
-      stop
+      call stp('Input file specified does not exist!')
     endif
     !---------------------------------------------------------------------------
     open (chan,form='unformatted',file=ifn)
     
     read(chan, iostat=io) file_version
     if(file_version .gt. version_number) then
-      print *, 'Unsupported version number of the .wf file.'
-      print *, 'Maximum current version: ', version_number
-      stop
+      call stp('Unsupported version number of the .wf file.')
     endif
 
     ! Convergence information                                  (NOT IMPLEMENTED)
@@ -612,7 +608,7 @@ contains
         print 4, SYM_CODE 
         print 5, TRANS_CODE
         print 6, SYM_CODE_CHECK
-        stop  
+        call stp('')
       endif
     endif
 
@@ -740,8 +736,7 @@ contains
         !-----------------------------------------------------------------------        
 
         if (io.ne.0) then
-          print *, 'ERROR in reading the gaps from file.'
-          stop
+          call stp('ERROR in reading the gaps from file.')
         endif
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! For late-enough versions, we can  read also the full Bogoliubov 
@@ -756,13 +751,11 @@ contains
           ! we will deal with it elsewhere.
           read(chan, iostat=io) Bogoliubov
           if (io.ne.0) then
-            print *, 'ERROR in reading the Bogoliubov transformation from file.'
-            stop
+            call stp('ERROR in reading the Bogoliubov transformation from file.')
           endif
           read(chan, iostat=io) configmatrix
           if (io.ne.0) then
-            print *, 'ERROR in reading the configuration matrix from file.'
-            stop
+            call stp('ERROR in reading the configuration matrix from file.')
           endif
         endif
 
@@ -785,8 +778,7 @@ contains
           HFBGaps = filegaps(1:filenwt, 1:filenwt)  
         end select
     case DEFAULT
-      print *, 'Something is seriously wrong with the .wf file.'
-      stop
+      call stp('Something is seriously wrong with the .wf file.')
     end select   
     ! Cranking information       
     if(file_version .gt. 4 ) then                              
@@ -797,8 +789,7 @@ contains
       omega_file = 0.0d0
     endif
     if(io.ne.0) then
-        print *, 'ERROR in reading cranking line of the wf file.'
-        stop
+      call stp('ERROR in reading cranking line of the wf file.')
     endif
     
     if(continueCrank) then
@@ -824,11 +815,11 @@ contains
       ! Sanity checks if transformation is not allowed
       if((filenx.ne.nx).or. (fileny.ne.ny) .or. (filenz.ne.nz)) then
           print 1, filenx, fileny, filenz, nx,ny,nz
-          stop
+          call stp('')
       endif
       if(filenwn.ne.nwn .or. filenwp.ne.nwp) then
           print 2, filenwn, filenwp, nwn, nwp
-          stop
+          call stp('')
       endif
     else
       ! We do not allow modification of the mesh, s.p. wavefunctions and 
@@ -841,14 +832,12 @@ contains
       check_nwp = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
 
       if(symtransfo_needed) then
-         if(check_x .or. check_y .or. check_z) then 
-          print *, "Please don't combine symmetry transformations and mesh modifications."
-          stop
-         endif  
-         if(check_nwn .or. check_nwp ) then 
-          print *, "Please don't combine symmetry transformations and adding wavefunctions."
-          stop
-         endif  
+       if(check_x .or. check_y .or. check_z) then 
+        call stp("Please don't combine symmetry transformations and mesh modifications.")
+       endif  
+       if(check_nwn .or. check_nwp ) then 
+        call stp("Please don't combine symmetry transformations and adding wavefunctions.")
+       endif  
       endif
     endif
 
@@ -1035,8 +1024,7 @@ contains
       call write_densities(DENFILE)
     endif
     if(TOFILE .ne. '') then
-$TR   print *, 'Time-odd densities do not figure in a calculation that assumes time-reversal.'
-$TR   stop
+$TR   call stp('Time-odd densities do not figure in a calculation that assumes time-reversal.')
       call write_timeodd_densities(TOFILE)
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1205,27 +1193,24 @@ $TR   stop
     !---------------------------------------------------------------------------
     ! # 1 : no blocktypes that are not 0/2/4.
     if(blocktype.ne.0 .and. blocktype.ne.2 .and. blocktype.ne. 4) then
-      print *, 'Subroutine check_blocking_structure cannot deal (yet) with'
-      print *, 'blocktypes that are not 0/2/4.'
-      stop
+      call stp('Subroutine check_blocking_structure cannot deal (yet) with &
+             &  blocktypes that are not 0/2/4.')
     endif    
     !---------------------------------------------------------------------------
     ! # 2 :  blocklowest on file == blocklowest input by the user 
     !        modulo permutations 
     if(allocated(fileblocklowest) .and. (.not. allocated(blocklowest))) then
-      print *, 'Blocklowest not allocated, while fileblocklowest is.'
-      stop      
+      call stp('Blocklowest not allocated, while fileblocklowest is.')
     endif
 
     if(allocated(blocklowest) .and. (.not. allocated(fileblocklowest))) then
-      print *, 'Blocklowest allocated, while fileblocklowest is not.'
-      stop      
+      call stp('Blocklowest allocated, while fileblocklowest is not.')
     endif
     
     if(size(fileblocklowest).ne.size(blocklowest)) then
       print *, ' Size of blocklowest on file:  ', size(fileblocklowest)
       print *, ' Size of blocklowest in input: ', size(blocklowest)
-      stop
+      call stp('')
     endif 
     
     NB = size(fileblocklowest)
@@ -1249,7 +1234,7 @@ $TR   stop
       print *, 'Blocklowest on file : ', fileblocklowest
       print *, 'Blocklowest on input: ', blocklowest
       print *, 'These are not identical.'
-      stop
+      call stp('')
     endif
     !---------------------------------------------------------------------------
     ! # 3: Check if the blocking structure on file actually matches the 
@@ -1317,7 +1302,7 @@ $TR   stop
           print *, 'does not match that reported by the file.'
           print *, ' Block structure of Bogoliubov matrix: ', file_HFB_blocks      
           print *, ' Block structure asked for           : ', check_blocks      
-          stop
+          call stp('')
         endif
       enddo
     endif
@@ -1367,8 +1352,7 @@ $TR   stop
         case('p-')
           B = 7
         case('n0', 'p0')
-          print *, 'Tantalus cannot handle FILEFROMBOGO=.true. with n0 or p0'
-          stop
+          call stp('Tantalus cannot handle FILEFROMBOGO=.true. with n0 or p0')
         end select
         
         undo(i) = B     
@@ -1389,8 +1373,7 @@ $TR   stop
         case('p-')
           B = 7
         case('n0', 'p0')
-          print *, 'Tantalus cannot handle FILEFROMBOGO=.true. with n0 or p0'
-          stop
+          call stp('Tantalus cannot handle FILEFROMBOGO=.true. with n0 or p0')
         end select
       
         dodo(i) = B     
@@ -1537,7 +1520,7 @@ $TR   stop
     if(io.ne.0) then    
       print *, 'Something went wrong with writing a density to file.'
       print *, 'filename = ', fname
-      stop
+      call stp('')
     endif
 
     rhon(1:nx,1:ny,1:nz)  => D_I_I(:,1)
@@ -1577,7 +1560,7 @@ $TR   stop
     if(io.ne.0) then    
       print *, 'Something went wrong with writing a density to file.'
       print *, 'filename = ', fname
-      stop
+      call stp('')
     endif
     
     do it=1,2
@@ -1684,7 +1667,7 @@ $NTR integer                         :: it
     if(io.ne.0) then    
       print *, 'Something went wrong with writing a density to file.'
       print *, 'filename = ', fname
-      stop
+      call stp('')
     endif
 
 $NTR    Sxn(1:nx,1:ny,1:nz)  => D_I_S(:,1,1) ; Sxp(1:nx,1:ny,1:nz)  => D_I_S(:,1,2)
@@ -1798,7 +1781,7 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     if(io.ne.0) then    
       print *, 'Something went wrong with writing a potential to file.'
       print *, 'filename = ', fname
-      stop
+      call stp('')
     endif
 
     call write_header(1)
@@ -1900,7 +1883,7 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     if(io.ne.0) then    
       print *, 'Something went wrong with the sp. info to file.'
       print *, 'filename = ', fname
-      stop
+      call stp('')
     endif
     call write_header(1)
     write(1, fmt=4)
@@ -1998,7 +1981,7 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     if(io.ne.0) then    
       print *, 'Something went wrong with the sp. info to file.'
       print *, 'filename = ', fname
-      stop
+      call stp('')
     endif
     
     call write_header(1)
@@ -2074,7 +2057,7 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     if(io.ne.0) then    
       print *, 'Something went wrong with writing blocked states to file.'
       print *, 'filename = ', fname
-      stop
+      call stp('')
     endif
     
     call write_header(1)
@@ -2160,7 +2143,7 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     if(io.ne.0) then    
       print *, 'Something went wrong with writing collective inertias to file.'
       print *, 'filename = ', fname
-      stop
+      call stp('')
     endif
     
     call write_header(1)

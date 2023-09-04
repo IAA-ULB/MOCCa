@@ -145,7 +145,7 @@ contains
         elseif(adjustl(Strategy) .eq. 'HEAVYBALL') then
             Evolve => Evolve_momentum
         else
-            stop ('STRATEGY NOT RECOGNIZED.')
+            call stp('STRATEGY NOT RECOGNIZED.')
         endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! c) set diagsphamil 

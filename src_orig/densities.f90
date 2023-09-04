@@ -54,7 +54,7 @@ module densities
 !                                                     (n, p, 0, 1)
 !                                                  2 for pairing densities
 !                                                     (n,p)
-
+!
 !=============================================================================== 
 ! Some technical notes:
 !
@@ -611,8 +611,7 @@ function couple_iso(density, iso) result(coupled)
       ! Isovector = neutron - proton
       coupled = density(:,1) - density(:,2)
     case DEFAULT
-      print *, 'Invalid iso argument to couple_iso. iso = ', iso
-      stop    
+      call stp('Invalid iso argument to couple_iso.')
     end select
 
 end function couple_iso

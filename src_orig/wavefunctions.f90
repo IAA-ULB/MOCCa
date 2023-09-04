@@ -277,8 +277,8 @@ contains
     integer, intent(in)  :: blocks_global(blocks)
     integer, intent(out) :: blocks_local(blocks), offset
     
-    integer              :: B, activeblocks, ranks_per_block, blocks_per_rank, M
-    integer              :: block_count, mpi_err
+    integer              :: B, activeblocks, ranks_per_block, blocks_per_rank
+    integer              :: block_count
   
     allocate(spwf_rank(nwt)) ; spwf_rank = 0
   
@@ -2140,37 +2140,39 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
           enddo
         endif
         
-        ! For the HFbasis, things are more involved.....
-        if(.not. allocated(spwf_r2_HF))  allocate(spwf_r2_HF(nwt))
-        si = 0
-        do B=1,8  
-          N = HFBlocks(B) ; if(N.eq.0) cycle
-          allocate(rme(N,N))
-          
-          !... we need to calculate all matrix elements of r^2
-          do wave=1, N
-            do wave2=wave,N
-              rme(wave, wave2) = dv*sum(sum( &
-              &                               HFpsi(:,:,si+wave) *   &
-              &                               HFpsi(:,:,si+wave2),2) &
-              &                                 *sum(meshgrid,2)**2)
-              ! This matrix is symmetric
-              rme(wave2, wave) = rme(wave, wave2)
+        if(fullmatrices) then
+          ! For the HFbasis, things are more involved.....
+          if(.not. allocated(spwf_r2_HF))  allocate(spwf_r2_HF(nwt))
+          si = 0
+          do B=1,8  
+            N = HFBlocks(B) ; if(N.eq.0) cycle
+            allocate(rme(N,N))
+            
+            !... we need to calculate all matrix elements of r^2
+            do wave=1, N
+              do wave2=wave,N
+                rme(wave, wave2) = dv*sum(sum( &
+                &                               HFpsi(:,:,si+wave) *   &
+                &                               HFpsi(:,:,si+wave2),2) &
+                &                                 *sum(meshgrid,2)**2)
+                ! This matrix is symmetric
+                rme(wave2, wave) = rme(wave, wave2)
+              enddo
             enddo
-          enddo
 
-          ! .... and then transform to the real Hartree-Fock basis
-          rme = matmul(transpose(HFtransfo(si+1:si+N, si+1:si+N)), rme)
-          rme = matmul(            rme,HFtransfo(si+1:si+N, si+1:si+N))
-          
-          ! and store the diagonal matrix elements!
-          do wave=1,N
-            spwf_r2_hf(si+wave) = rme(wave, wave)
+            ! .... and then transform to the real Hartree-Fock basis
+            rme = matmul(transpose(HFtransfo(si+1:si+N, si+1:si+N)), rme)
+            rme = matmul(            rme,HFtransfo(si+1:si+N, si+1:si+N))
+            
+            ! and store the diagonal matrix elements!
+            do wave=1,N
+              spwf_r2_hf(si+wave) = rme(wave, wave)
+            enddo
+                    
+            si = si + N
+            deallocate(rme)
           enddo
-                  
-          si = si + N
-          deallocate(rme)
-        enddo
+        endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       endif
       
