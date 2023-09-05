@@ -1344,39 +1344,52 @@ $WRITEPOTENTIALS
   subroutine ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed)
     !---------------------------------------------------------------------------
     ! Subroutine that reads the different mean-field potentials from file.
-    !
+    ! Note: this does not rely on MPI I/O and simply reads everything with
+    !       rank 0 and then does a bunch of MPI_BCASTS.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   chan                  : integer, channel number for input
     !   filenx, fileny,filenz : integers, number of mesh points in every 
     !                           direction for the quantities on file
     !   symtransfo_needed     : logical, if a symmetry transformation is 
     !                           needed (.true.) or not (.false.)
-    !                           If .false., use the potentials as read from 
-    !                           file. If .true., don't use the potentials as 
-    !                           read from file and simply set them to zero.
-    !                           This is currently done like this, as I am not
-    !                           motivated to write all the necessary routines
-    !                           to transform the potentials.
+    !                  .false.: use the potentials as read from 
+    !                           file, transforming only the number of mesh 
+    !                           points if needed. 
+    !                  .true. : use the potentials from file for further 
+    !                           calculations. This means just reading them here
+    !                           and trusting the rest of the program to do the
+    !                           the rest.
     !---------------------------------------------------------------------------
     integer, intent(in) :: chan, filenx, fileny, filenz
     logical, intent(in) :: symtransfo_needed
     integer             :: io, fieldnumber, fieldcount, it, filemv
     character(len=30)   :: fieldname
 
+#if(USE_MPI > 0)
+    integer             :: mpi_err
+#endif
+
     filemv = filenx * fileny * filenz
 
     ! Checking how many fields have been stored
-    read(chan, iostat=io) fieldnumber
+    if(MPI_RANK .eq. 0) read(chan, iostat=io) fieldnumber
+#if(USE_MPI > 0)
+    call MPI_BCAST(fieldnumber, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+#endif
 
     do fieldcount = 1,fieldnumber
         ! Read the fieldname
-        read(chan, iostat=io) fieldname   
+        if(MPI_RANK .eq. 0) read(chan, iostat=io) fieldname
+#if(USE_MPI > 0)
+        call MPI_BCAST(fieldname,30, MPI_CHARACTER, 0, MPI_COMM_WORLD, mpi_err)
+#endif
         ! Then select which field we are going to be reading
         select case(trim(fieldname))
 $READPOTENTIALS
         CASE DEFAULT
           ! The potential is not in this program, forget about it
-          read(chan, iostat=io)
+          if(MPI_RANK .eq. 0 ) read(chan, iostat=io)
         end select
     enddo
 

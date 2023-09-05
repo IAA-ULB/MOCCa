@@ -31,19 +31,20 @@ contains
     ! Print the info of the (physical) Hartree-Fock basis.
     !---------------------------------------------------------------------------
 
-    10 format (42 ('-'), ' Hartree-Fock basis', 67('-'))
-    12 format (42 ('-'), ' Canonical    basis', 67('-'))
-    20 format (118 ('-'))
-    30 format (118 ('_'),/,3x , 'Neutron wavefunctions')
-    40 format (118 ('_'),/,3x , 'Proton  wavefunctions')
+    10 format (42 ('-'), ' Hartree-Fock basis', 78('-'))
+    12 format (42 ('-'), ' Canonical    basis', 78('-'))
+    20 format (129 ('-'))
+    30 format (129 ('_'),/,3x , 'Neutron wavefunctions')
+    40 format (129 ('_'),/,3x , 'Proton  wavefunctions')
     60 format (1x,' n ', 2x 'i', 4x,'P',4x, 'Rz', 3x,'occ',10x,'E',7x,       &
     &             'd2h',4x,'Delta', 1x,                                      &
     &             ' | ', 2x, 'JxT',4x, 'JyT', 4x,'Jz', 6x, 'J', 2x,          &
-    &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz', '   | r_rms ' )    
+    &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz', '   | r_rms ',        &
+    &             ' | MPI_RANK ' )    
 
     11 format (1x, i3, 1x, i3, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, &
     &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(2x, f5.2), 1x, '|',   &
-    &          3(2x, f5.2), ' | ', f6.2 )
+    &          3(2x, f5.2), ' | ', f6.2 , ' | ', i4)
 
     integer       :: wave,k, B, si, N, T, wavebar, l
     integer       :: ProtonOrder(nwp), NeutronOrder(nwn), sumocc
@@ -108,15 +109,15 @@ $TR     sumocc = 2*k
         if(pairingtype.eq.1) then
           print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), BCSgaps(wave),                    &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
         elseif(pairingtype.eq.2) then
           print 11, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),   &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
         else
           print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &              
-          &               r2
+          &               r2, rank_map(wave)
         endif
     enddo
     
@@ -152,15 +153,15 @@ $TR     sumocc = 2*k
         if(pairingtype.eq.1) then
           print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), BCSgaps(wave),                    &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
         elseif(pairingtype.eq.2) then
           print 11, sumocc, wave, p, s,  rho_HF(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
         else
           print 11, sumocc, wave, p, s, rho_can(wave),' ',  spenergies(wave),  &
           &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ,              &
-          &               Sx, Sy, Sz, r2
+          &               Sx, Sy, Sz, r2, rank_map(wave)
         endif
     enddo
     print 20

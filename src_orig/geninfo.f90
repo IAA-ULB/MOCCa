@@ -374,11 +374,9 @@ contains
     
     integer :: mpi_err
 
-    if(MPI_RANK.eq.0) then
-      print *, msg
-      if(present(routine)) print *, "Error occurred in routine ", routine
-    endif
-
+    print *, 'RANK ', MPI_RANK, ' reports the following error.'
+    print *, msg
+    if(present(routine)) print *, "Error occurred in routine ", routine
 #if(USE_MPI > 0)
     call MPI_ABORT(MPI_COMM_WORLD,1,mpi_err) ! force all MPI ranks to stop
                                              ! with error code 1

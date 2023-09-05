@@ -1601,7 +1601,6 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
      return
   end subroutine ReadMomentData
 
-
 !===============================================================================
 ! Printing routines
 !
@@ -2416,8 +2415,14 @@ $NTR    print 102
 !===============================================================================
   subroutine ReadMoment(IChan, ioerror)
     !---------------------------------------------------------------------------
-    ! Subroutine to read information on a multipole moment from the 
-    ! next line. 
+    ! Subroutine to read information on a multipole moment from the next line.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !   IChan : integer, channel on which the file containing the data is opened
+    !
+    ! Output:
+    !   ioerror : integer, error code signalling succesfull (0) or problematic
+    !             exit(0) of this routine.
     !---------------------------------------------------------------------------
     integer, intent(in)    :: IChan
     integer, intent(inout) :: ioerror
@@ -2428,24 +2433,49 @@ $NTR    print 102
     real(KIND=dp)          :: Value(2), Intensity, Constraint, Multiplier 
     real(KIND=dp)          :: deviation
     logical                :: impart
+#if(USE_MPI > 0)
+    integer :: mpi_err 
+#endif
 
-    read(IChan, iostat=ioerror) l,m,impart, ConstraintType, Value,Constraint,  &
-    &                           Deviation,Multiplier,Intensity
+    if(MPI_RANK .eq. 0) then
+      read(IChan, iostat=ioerror) l,m,impart, ConstraintType, Value,Constraint,&
+      &                           Deviation,Multiplier,Intensity
+    endif
+#if(USE_MPI>0)
+    ! We broadcast ioerror to make sure every MPI rank gets the message that 
+    ! something is wrong.
+    call MPI_BCAST(ioerror, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err )
+#endif
     if(ioerror.ne.0) return
+
+#if(USE_MPI>0)
+    ! Things are okay: so we can BCAST the rest of the information
+    call MPI_BCAST( l            ,1,MPI_INTEGER,0,MPI_COMM_WORLD,mpi_err )
+    call MPI_BCAST( m            ,1,MPI_INTEGER,0,MPI_COMM_WORLD,mpi_err )
+
+    call MPI_BCAST( impart       ,1,MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err )
+
+    call MPI_BCAST(constrainttype,1,MPI_INTEGER,0,MPI_COMM_WORLD,mpi_err )
+
+    call MPI_BCAST(value         ,2,MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err )
+    call MPI_BCAST(constraint    ,1,MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err )
+    call MPI_BCAST(deviation     ,1,MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err )
+    call MPI_BCAST(multiplier    ,1,MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err )
+    call MPI_BCAST(intensity     ,1,MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err )
+#endif
+
     !---------------------------------------------------------------------------
     ! Finding moment.
     Mom => FindMoment(l,m,Impart)
     !---------------------------------------------------------------------------
     ! Assigning correct values
-   
     if(ContinueAll  .or. mom%continue) then    
       Mom%ConstraintType = ConstraintType
       Mom%Value          = Value    
-    
       Mom%Constraint     = Constraint
       Mom%Intensity      = Intensity
     endif
-  
+
     if(Mom%multfromfile .or. ContinueAll) then        
       Mom%Multiplier     = Multiplier
       Mom%mult_hist   = 0.0

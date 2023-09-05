@@ -71,8 +71,12 @@ implicit none
   !               (March 2021 - November 2021)
   !   version 5 :  inclusion of 
   !               * cranking frequencies omega_x/y/z
+  !               (until September 2023)
+  !   version 6 : separation of the HFPsi array from one read/write
+  !               to "nwt" x read/writes for easier MPI useage
+  !               (from September 2023)
   !-----------------------------------------------------------------------------
-  integer, parameter  :: version_number = 5
+  integer, parameter  :: version_number = 6
   integer             :: file_version = 0
   !-----------------------------------------------------------------------------
   ! Filenames for in- and output of the code with respect to spwfs.
@@ -95,7 +99,7 @@ implicit none
   integer              :: filenx, fileny, filenz, filenwn, filenwp, filepairing
   integer              :: filenwt, fileneutrons, fileprotons, fileoffset
   integer              :: fileblocks_global(8), fileblocks(8)
-  integer, allocatable :: file_spwf_map(:)
+  integer, allocatable :: file_spwf_map(:), file_rank_map(:)
   real(KIND=dp) :: filedx
   !-----------------------------------------------------------------------------
   ! Did we succeed in reading a HFB configuration from file? 
@@ -467,6 +471,7 @@ contains
 #endif
       spwf_min  = fileoffset
       spwf_map  = file_spwf_map
+      rank_map  = file_rank_map
     else  
       ! Sanity check
       if(symtransfo_needed) then
@@ -487,6 +492,7 @@ contains
       ! Offset in the spwf-size
       spwf_min  = fileoffset
       spwf_map  = file_spwf_map
+      rank_map  = file_rank_map
     endif
     
     ! Failsafe for the HF transformation
@@ -523,32 +529,39 @@ contains
 
   subroutine ReadTantalus(chan, ifn)
     !---------------------------------------------------------------------------
-    ! Reading all information from a previous Tantalus run. 
-    ! Heavily based on the MOCCa input routine.
+    ! Reading all information from a previous Tantalus run stored in a .wf file.
+    ! It does not (yet) exploit MPI I/O; reading is essentially done by rank 0
+    ! and then broadcasted to the rest of the ranks.
     !
-    ! Also performs a few sanity checks. 
+    ! This routine also performs a few sanity checks. 
     ! Currently:
     !   
     !   *) equality of (nx,ny,nz) between data and file
     !   *) equality of (nwn,nwp) between data and file
     !   *) the symmetry encoding matches either SYM_CODE or TRANS_CODE
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   chan : integer, channel to open the file ifn on
+    !   ifn  : character, name of the input file. 
+    !          The code will first check for its existence.
     !---------------------------------------------------------------------------
     ! 
     ! Things read from file. (Not yet implemented ones are indicated by *)
     !
     ! Version
     ! Convergence information: E, dE                         (*)
-    ! nx,ny,nz,dx,dt                    
-    ! Symmetry information                                   (1)    
+    ! nx,ny,nz,dx,dt
+    ! Symmetry information                                   (1)
     ! neutrons,protons
     ! nwn, nwp, Number of wavefunctions in every block
     ! spenergies, dispersions
     ! diagsphamil
     ! HFtransfo 
-    ! (nwt) Wavefunctions                                    
-    ! Forcename     
-    ! single-particle hamiltonian                                           
-    ! Pairing information                                    
+    ! (nwt) Wavefunctions
+    ! Forcename
+    ! single-particle hamiltonian
+    ! Pairing information
     !    - Pairingtype
     !    - Rho_can = occupation factors 
     !      (HF)  nothing
@@ -565,11 +578,11 @@ contains
     !        |   HFBgaps      
     !        |   Bogoliubov transformation 
     !        |   Configuration matrix      
-    ! CrankingInfo                                                                 
-    ! Potentials                                             (2)                
-    ! Multipole Moments                                                 
+    ! CrankingInfo
+    ! Potentials                                             (2)
+    ! Multipole Moments
     !     | The code writes the data on ALL the multipole moments.
-    !     | For the format of the lines, see the Moments module.                                               
+    !     | For the format of the lines, see the Moments module.
     !
     !---------------------------------------------------------------------------    
     use functional
@@ -580,13 +593,18 @@ contains
     character(len=*), intent(in) :: ifn
     character(len=20)            :: func_name_check
     character(len=26)            :: SYM_CODE_CHECK
-    integer                      :: io,i, dsize
+    integer                      :: io,i, wave, wfcounter, targetrank
     logical                      :: exists
-    real(KIND=dp)                :: Omega_file(3), dummy
+    real(KIND=dp)                :: Omega_file(3)
     real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
     logical                      :: filediagsphamil 
     logical                      :: check_x, check_y, check_z
     logical                      :: check_nwn, check_nwp
+
+#if(USE_MPI>0)
+    integer :: mpi_err
+#endif   
+    
     
     1 format ('Number of mesh points does not correspond to file.', / &
     &         'On file: nx= ', i3, ' ny= ', i3, ' nz= ',i3,            / &
@@ -599,205 +617,313 @@ contains
     4 format (' SYM_CODE   = ', a26)
     5 format (' TRANS_CODE = ', a26)
     6 format (' ON FILE    = ', a26)
-    !---------------------------------------------------------------------------
-    ! First check if the file exists.
-    inquire(file=inputfilename, exist=exists)
-    if(.not.exists) then
-      call stp('Input file specified does not exist!')
-    endif
-    !---------------------------------------------------------------------------
-    open (chan,form='unformatted',file=ifn)
-    
-    read(chan, iostat=io) file_version
-    if(file_version .gt. version_number) then
-      call stp('Unsupported version number of the .wf file.')
-    endif
+ 
+    if(MPI_RANK.eq.0) then
+      !-------------------------------------------------------------------------
+      ! First check if the file exists.
+      inquire(file=inputfilename, exist=exists)
+      if(.not.exists) then
+        call stp('Input file specified does not exist!')
+      endif
+ 
+      open (chan,form='unformatted',file=ifn)
 
-    ! Convergence information                                  (NOT IMPLEMENTED)
-    read(chan,iostat=io) 
-    !Parameters of the mesh
-    read(Chan,iostat=io) filenx,fileny,filenz, filedx
+      read(chan, iostat=io) file_version
+      if(file_version .gt. version_number) then
+        call stp('Unsupported version number of the .wf file.')
+      endif
 
-    ! Symmetry information       
-    if(file_version .eq. 1) then 
-      ! No symmetry information in version 1, only EV8-style calculations  
-      read(Chan,iostat=io) 
-    else                          
-      read(Chan,iostat=io) SYM_CODE_CHECK
-      
-      if(SYM_CODE_CHECK .eq. SYM_CODE) then
-        symtransfo_needed = .false.
-      elseif(SYM_CODE_CHECK .eq. TRANS_CODE) then
-        symtransfo_needed = .true.
+      ! Convergence information                                (NOT IMPLEMENTED)
+      read(chan,iostat=io) 
+      !Parameters of the mesh
+      read(Chan,iostat=io) filenx,fileny,filenz, filedx
+
+      ! Symmetry information       
+      if(file_version .eq. 1) then 
+        ! No symmetry information in version 1, only EV8-style calculations  
+        read(Chan,iostat=io) 
       else
-        print 3
-        print 4, SYM_CODE 
-        print 5, TRANS_CODE
-        print 6, SYM_CODE_CHECK
-        call stp('')
+        read(Chan,iostat=io) SYM_CODE_CHECK
+
+        if(SYM_CODE_CHECK .eq. SYM_CODE) then
+          symtransfo_needed = .false.
+        elseif(SYM_CODE_CHECK .eq. TRANS_CODE) then
+          symtransfo_needed = .true.
+        else
+          print 3
+          print 4, SYM_CODE 
+          print 5, TRANS_CODE
+          print 6, SYM_CODE_CHECK
+          call stp('')
+        endif
+      endif
+
+      !Number of protons and neutrons
+      read(Chan,iostat=io) fileneutrons, fileprotons
+      ! HFBLocks information 
+      read(Chan,iostat=io) filenwn, filenwp, fileblocks_global
+      filenwt = filenwn + filenwp
+    endif
+
+    !---------------------------------------------------------------------------
+    ! Rank 0 now has a ton of information read from file, including the 
+    ! dimensions of the symmetry blocks on the file.
+#if(USE_MPI)
+    ! First, we broadcast this information
+    call MPI_BCAST(filenx, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(fileny, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(filenz, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(filedx, 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_BCAST(fileprotons , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(fileneutrons, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_BCAST(filenwn           ,1, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(filenwp           ,1, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(filenwt           ,1, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(fileblocks_global ,8, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
+
+    ! Seemingly useless to BCAST fileversion, but this is necessary for further
+    ! logic further down in this routine
+    call MPI_BCAST(file_version , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+#endif    
+    ! .. now we have each rank decide what spwfs to take from file
+    call loadbalance(fileblocks_global,balancing_strategy, &
+    &                 fileblocks,fileoffset, file_spwf_map, file_rank_map)
+
+    ! Arrays like these are stored on all ranks, hence "filenwt"
+    allocate(spenergies (filenwt))
+    allocate(dispersions(filenwt))
+    allocate(HFtransfo  (filenwt,filenwt)) ; HFtransfo   = 0.0d0
+    allocate(current_sph(filenwt,filenwt)) ; current_sph = 0.0d0
+
+    if (allocated(rho_can)) deallocate(rho_can)
+    allocate(rho_can(filenwt))
+
+    if(MPI_RANK.eq.0) then
+      read(chan,iostat=io) spenergies, dispersions
+      if(file_version .ge. 3) then
+        read(chan,iostat=io) filediagsphamil
+        read(chan,iostat=io) HFtransfo
       endif
     endif
-
-    !Number of protons and neutrons
-    read(Chan,iostat=io) fileneutrons, fileprotons
-    ! HFBLocks information 
-    read(Chan,iostat=io) filenwn, filenwp, fileblocks_global
-    filenwt = filenwn + filenwp
-    
+#if(USE_MPI>0)
+    call MPI_BCAST(spenergies ,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(dispersions,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(dispersions,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(HFTRANSFO  ,filenwt**2, MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
+#endif
     !---------------------------------------------------------------------------
-    ! We have read the dimensions of the symmetry blocks from file...
-    ! .. now we have to decide how to divide them across all mpi_ranks
-    call loadbalance(fileblocks_global,balancing_strategy, &
-    &                 fileblocks,fileoffset, file_spwf_map)
-    !---------------------------------------------------------------------------
-    ! Wavefunctions
+    ! Reading the spwfs from file
     !---------------------------------------------------------------------------
     ! First allocate the needed space
     ! wavefunctions are distributed across ranks ....
     allocate(HFPsi(filenx*fileny*filenz,4, sum(fileblocks)))
-    ! .... but arrays like these are stored on all ranks
-    allocate(spenergies(filenwn+filenwp)) 
-    allocate(dispersions(filenwn+filenwp)) 
+    if(file_version .gt. 5) then
+      if(MPI_RANK.eq.0) allocate(temp(mv,4)) ! creating some space
 
-    if (allocated(rho_can)) deallocate(rho_can)        
-    allocate(rho_can(filenwn + filenwp))
-    
-    read(chan,iostat=io) spenergies, dispersions    
-    
-    if(file_version .ge. 3) then
-      read(chan,iostat=io) filediagsphamil
-      allocate(HFtransfo(filenwt,filenwt)) 
-      read(chan,iostat=io) HFtransfo
+      wfcounter = 0 ! this is the counter tracking how much spwfs each 
+                    ! INDIVIDUAL rank has stored so far
+
+      do wave=1, filenwt
+        ! Read the spwf into dummy storage
+        if(MPI_RANK.eq.0) read(chan,iostat=io) temp
+        targetrank = file_rank_map(wave) ! rank to communicate the spwf to
+        print *, 'W', wave, ' T ', targetrank
+        if(targetrank .eq. 0 .and. MPI_RANK.eq.0) then
+            ! No communication is necessary for the spwfs stored on rank 0
+            ! This case is ALWAYS executed for serial calculations.
+            wfcounter = wfcounter + 1
+            if(MPI_rank.eq.0) HFPsi(:,:,wfcounter) = temp
+#if(USE_MPI > 0)
+        else
+          if(MPI_RANK.eq.0) then
+            ! rank 0 sends the spwf to targetrank
+            call MPI_SEND(temp, 4*mv, MPI_REAL8, targetrank, 2,                &
+            &                                           MPI_COMM_WORLD, mpi_err)
+          else if(MPI_RANK .eq. targetrank) then
+            ! ... which receives and stores in HFPSI
+            wfcounter = wfcounter + 1
+            call MPI_RECV(HFpsi(:,:,wfcounter), 4*mv, MPI_REAL8, 0, 2, &
+              &                      MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+          endif
+#endif
+        endif
+        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+      enddo
+    else
+      ! Originally, the .wf files contained the HFPsi array as one unformatted
+      ! record. This is kind of unpractical for MPI applications.
+      if(NCores .gt. 1) call stp('Old .wf files cannot be read with MPI runs.')
+
+      ! We can safely read this in one go; a single rank is present
+      read(chan,iostat=io) HFPsi
     endif
-    
-    ! Read the appropriate spwfs  by first skipping over a bunch of them
-    dsize = 4*filenx*fileny*filenz*fileoffset
-    read(chan,iostat=io) (dummy, i=1,dsize), (HFPsi(:,:,i), i=1,sum(fileblocks))
+#if(USE_MPI > 0)    
+    ! Possibly a superfluous barrier call, but good for my peace of mind
+    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+#endif
+    ! End of the most complicated part of this routine; back to easy sequential
+    ! reads and some MPI broadcasting
+    !---------------------------------------------------------------------------
 
     !--------------------------------------------------------------------------- 
-    ! Name of the force and functional
-    read(chan, iostat=io) ini_name_param, func_name_check
-    ! Single-particle hamiltonian
-    if(file_version.ge.4) then
-      allocate(current_sph(filenwt,filenwt))
-      read(chan, iostat=io) current_sph
+    ! Name of the force and functional and full s.p. hamiltonian matrix
+    if(MPI_RANK.eq.0) then
+      read(chan, iostat=io) ini_name_param, func_name_check
+      ! Single-particle hamiltonian
+      if(file_version.ge.4) then
+        read(chan, iostat=io) current_sph
+      endif
     endif
+#if(USE_MPI > 0)
+    call MPI_BCAST(ini_name_param , len(ini_name_param) , MPI_CHARACTER,0,     &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(func_name_check, len(func_name_check), MPI_CHARACTER,0,     &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+
+    call MPI_BCAST(current_sph, filenwt**2, MPI_REAL8,0,MPI_COMM_WORLD, mpi_err)
+#endif
+
     !---------------------------------------------------------------------------
     ! Pairing information
-    read(chan, iostat=io) filepairing
-    ! Write the occupation factors in all cases
-    read(chan, iostat=io) rho_can
+    if(MPI_RANK.EQ.0) then
+      read(chan, iostat=io) filepairing
+      ! Write the occupation factors in all cases
+      read(chan, iostat=io) rho_can
+    endif
+
+#if(USE_MPI > 0) 
+    call MPI_BCAST(filepairing,      1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(rho_can    ,filenwt, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+#endif
 
     select case (filepairing)
-    case(0)
+    case(0) !-------------------------------------------------------------------
         ! HF: nothing to read
-    case(1)
-        ! BCS: read the gaps
-        allocate(filegaps(filenwn+filenwp,1))
-        read(chan, iostat=io) FermiEnergy       ! Lambda
-        read(chan, iostat=io) filegaps
+    case(1) !-------------------------------------------------------------------
+        ! BCS calculation: read the gaps
+        allocate(filegaps(filenwt,1))
+        if(MPI_RANK .eq. 0) then
+          read(chan, iostat=io) FermiEnergy       ! Lambda
+          read(chan, iostat=io) filegaps
+        endif
+
+#if(USE_MPI > 0)
+        call MPI_BCAST(Fermienergy,      2, MPI_REAL8,0, MPI_COMM_WORLD,mpi_err)
+        call MPI_BCAST(filegaps  ,filenwt, MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
+#endif
 
         ! Simply copy the gaps for now
         select case(pairingtype)
         case(0)
-        ! Do nothing      
+          ! Do nothing
         case(1)
-          allocate(BCSGaps(filenwt)) ;  BCSGaps = filegaps(:,1)        
+          allocate(BCSGaps(filenwt)) ;  BCSGaps = filegaps(:,1)
         case(2)
           allocate(HFBgaps(filenwt, filenwt)) ; HFBgaps = 0
           do i=1, filenwt
               HFBgaps(i,i) = filegaps(i,1)
           enddo
         end select
-    case(2)
-        ! HFB
-        if (allocated(filegaps)) then 
-          deallocate(filegaps)        
-        end if                       
+    case(2) !-------------------------------------------------------------------
+        ! HFB calculation
+        if (allocated(filegaps)) deallocate(filegaps)
 
         allocate(filegaps(filenwt, filenwt)) 
         allocate(kappa_pairing(filenwt, filenwt)) 
         allocate(rho_pairing(filenwt, filenwt)) 
 
         if(file_version .gt. 3 ) then
-          read(chan, iostat=io) fileblocktype, fileblocknumber
-          read(chan, iostat=io) file_HFB_blocks
+          if(MPI_RANK .eq. 0) then
+            read(chan, iostat=io) fileblocktype, fileblocknumber
+            read(chan, iostat=io) file_HFB_blocks
+          endif
+#if(USE_MPI > 0)
+          call MPI_BCAST(fileblocktype  , 1, MPI_INTEGER, 0, MPI_COMM_WORLD,   &
+          &                                                             mpi_err)
+          call MPI_BCAST(fileblocknumber, 1, MPI_INTEGER, 0, MPI_COMM_WORLD,   &
+          &                                                             mpi_err)
+          call MPI_BCAST(file_HFB_blocks, 8, MPI_INTEGER, 0, MPI_COMM_WORLD,   &
+          &                                                            mpi_err)
+#endif
+          ! Depending on the type of blocking, we read and BCAST different
           select case(fileblocktype) 
-            case(0)
-              read(chan, iostat = io)
-            case(1,3,5)
-              allocate(fileblockindices(fileblocknumber))
-              read(chan, iostat = io) fileblockindices
-            case(2,4,6)
-              allocate(fileblocklowest(fileblocknumber))
-              read(chan, iostat = io) fileblocklowest
+          case(0)
+            if(MPI_RANK .eq. 0) read(chan, iostat = io)
+          case(1,3,5)
+            allocate(fileblockindices(fileblocknumber))
+            if(MPI_RANK.eq.0) read(chan, iostat = io) fileblockindices
+#if(USE_MPI > 0)
+            call MPI_BCAST(fileblockindices,fileblocknumber, MPI_INTEGER, 0,   &
+            &                                            MPI_COMM_WORLD,mpi_err)
+#endif
+          case(2,4,6)
+            allocate(fileblocklowest(fileblocknumber))
+            if(MPI_RANK .eq. 0) read(chan, iostat = io) fileblocklowest
+#if(USE_MPI > 0)
+            call MPI_BCAST(fileblocklowest,fileblocknumber, MPI_INTEGER, 0,    &
+            &                                            MPI_COMM_WORLD,mpi_err)
+#endif
           end select
         endif
 
-        read(chan, iostat=io) FermiEnergy       ! Lambda
-        read(chan, iostat=io) rho_pairing
-        read(chan, iostat=io) kappa_pairing     ! kappa
-        read(chan, iostat=io) ! Canonical transformation
-
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Do some gymnastics to read the gaps
-        allocate(temp(filenwt, filenwt))
-        io = 0
-        read(chan, iostat=io) temp ! HFBGaps
-        filegaps = temp(1:filenwt, 1:filenwt)
-
-        !-----------------------------------------------------------------------        
-        ! We no longer do these gymnastics, which were only necessary to support
-        ! old .wf files, none of which still exist (I think/hope).
-!        if(io.ne.0) then
-!          rewind(chan)
-!          
-!          rewindc=17
-!          if(file_version.lt.3) rewindc=15
-!          do c=1,rewindc
-!                read(chan, iostat=io)
-!          enddo
-!          deallocate(temp) ; allocate(temp(filenwt, filenwt))
-!          read(chan, iostat=io) temp
-!        endif    
-        !-----------------------------------------------------------------------        
-
-        if (io.ne.0) then
-          call stp('ERROR in reading the gaps from file.')
+        if(MPI_RANK .eq. 0) then
+          read(chan, iostat=io) FermiEnergy       ! Lambda
+          read(chan, iostat=io) rho_pairing
+          read(chan, iostat=io) kappa_pairing     ! kappa
+          read(chan, iostat=io) ! Canonical transformation
+          read(chan, iostat=io) filegaps
         endif
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! For late-enough versions, we can  read also the full Bogoliubov 
+
+#if(USE_MPI>0)
+        call MPI_BCAST(FermiEnergy  ,          2, MPI_REAL8, 0,MPI_COMM_WORLD, &
+        &                                                               mpi_err)
+        call MPI_BCAST(rho_pairing  , filenwt**2, MPI_REAL8, 0,MPI_COMM_WORLD, &
+        &                                                               mpi_err)
+        call MPI_BCAST(kappa_pairing, filenwt**2, MPI_REAL8, 0,MPI_COMM_WORLD, & 
+        &                                                               mpi_err)
+        call MPI_BCAST(filegaps     , filenwt**2, MPI_REAL8, 0,MPI_COMM_WORLD, & 
+        &                                                               mpi_err)
+#endif
+        ! For late-enough versions, we also read the full Bogoliubov 
         ! transformation and the associated configuration matrix.
         if(file_version .ge. 3) then
-        
           readHFBinfofile = .true.
           allocate(Bogoliubov(2*filenwt, 2*filenwt)) 
           allocate(configmatrix(2*filenwt)) 
 
           ! We simply read these arrays here. If a transformation is needed,
           ! we will deal with it elsewhere.
-          read(chan, iostat=io) Bogoliubov
+          if(MPI_RANK .eq. 0) read(chan, iostat=io) Bogoliubov
           if (io.ne.0) then
-            call stp('ERROR in reading the Bogoliubov transformation from file.')
+            call stp('ERROR: reading Bogoliubov transformation from file.')
           endif
-          read(chan, iostat=io) configmatrix
+          if(MPI_RANK .eq. 0)read(chan, iostat=io) configmatrix
           if (io.ne.0) then
-            call stp('ERROR in reading the configuration matrix from file.')
+            call stp('ERROR: reading the configuration matrix from file.')
           endif
+
+#if(USE_MPI > 0)
+          call MPI_BCAST(Bogoliubov, 4*filenwt**2, MPI_REAL8,0, MPI_COMM_WORLD,&
+          &                                                             mpi_err)
+          call MPI_BCAST(configmatrix, 2*filenwt , MPI_REAL8,0, MPI_COMM_WORLD,&
+          &                                                             mpi_err)
+#endif
         endif
 
         select case(pairingtype)
-        case(0)
-          ! Do nothing
-        case(1)
-          ! Use the diagonal HFBgaps for the BCSgaps
-          ! If a transformation is needed we will deal with it elsewhere
+        case(0) !---------------------------------------------------------------
+          ! This calculation is HF: Do nothing
+        case(1) !---------------------------------------------------------------
+          ! This calculation is HFB: use the diagonal matrix elements of 
+          ! filegaps as BCSgaps. 
           allocate(BCSgaps(filenwt)) 
           do i=1, filenwt
             BCSgaps(i) = filegaps(i,i)
           enddo
-        case(2)
-          ! Simply copy the gaps for now
+        case(2) !---------------------------------------------------------------
+          ! This calculation is HFB: simply copy the gaps for now
           if (allocated(HFBGaps)) then   
             deallocate(HFBGaps)        
           end if                       
@@ -806,40 +932,46 @@ contains
         end select
     case DEFAULT
       call stp('Something is seriously wrong with the .wf file.')
-    end select   
-    ! Cranking information       
-    if(file_version .gt. 4 ) then                              
-      read(chan, iostat=io) omega_file(1:3)
-    else
-      ! File-versions < 4 do not have this line
-      read(chan, iostat=io) 
-      omega_file = 0.0d0
-    endif
-    if(io.ne.0) then
-      call stp('ERROR in reading cranking line of the wf file.')
-    endif
-    
-    if(continueCrank) then
-      ! Using the cranking frequencies read from file
-      omega = omega_file
-    endif
-    
+    end select 
+
     !---------------------------------------------------------------------------
-    ! Potentials                                               
+    ! Cranking information
+    if(MPI_RANK.eq.0) then
+      if(file_version .gt. 4 ) then
+        read(chan, iostat=io) omega_file
+      else
+        ! File-versions < 4 do not have this line
+        read(chan, iostat=io) 
+        omega_file = 0.0d0
+      endif
+      if(io.ne.0) then
+        call stp('ERROR in reading cranking line of the wf file.')
+      endif
+    endif
+#if(USE_MPI > 0)
+    call MPI_BCAST(omega_file, 3, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+#endif
+    ! Using the cranking frequencies read from file
+    if(continueCrank) omega = omega_file
+
+    !---------------------------------------------------------------------------
+    ! Potentials: note that readpotentials handles all MPI affairs itself
     call readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
-    !---------------------------------------------------------------------------
-    ! Multipole moment information                             
+
+    !-------------------------------------------------------------------------
+    ! Multipole moment information
+    ! Note: ReadMoment handles all MPI affairs itself
     io = 0
-    do while(io.eq.0)
+    do while(io.eq.0) 
       call ReadMoment(chan,io)
     enddo
-    
+
+    !-------------------------------------------------------------------------
     ! End of reading
-    close(chan)
-    !---------------------------------------------------------------------------
+    if(MPI_RANK.EQ. 0) close(chan)
+    !-------------------------------------------------------------------------
+    ! Sanity checks if transformation is not allowed
     if(.not.  AllowTransform) then
-      !-------------------------------------------------------------------------
-      ! Sanity checks if transformation is not allowed
       if((filenx.ne.nx).or. (fileny.ne.ny) .or. (filenz.ne.nz)) then
           print 1, filenx, fileny, filenz, nx,ny,nz
           call stp('')
@@ -854,7 +986,7 @@ contains
       check_x = (nx .ne. filenx) .and. (nx .ne. 2*filenx)
       check_y = (ny .ne. fileny) .and. (ny .ne. 2*fileny)
       check_z = (nz .ne. filenz) .and. (nz .ne. 2*filenz)
-      
+
       check_nwn = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
       check_nwp = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
 
@@ -867,28 +999,34 @@ contains
        endif  
       endif
     endif
-
   end subroutine ReadTantalus
 
   subroutine WriteTantalus(chan, ofn)
     !---------------------------------------------------------------------------
     ! Subroutine that dumps all information to a .wf file for future runs.
+    ! Note: this does not (yet) use any MPI I/O operations, it simply relies on
+    !       transferring all data to rank 0 and having it do the writing.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   chan : integer, channel to open file ofn on
+    !   ofn  : character, filename to write to. 
+    !          If it does not exist, will get created.
     !---------------------------------------------------------------------------
     ! Things written to file. (Not yet implemented ones are indicated by (*) )
     !
     ! Version
     ! Convergence information: E, dE                         (*)
     ! nx,ny,nz,dx,dt                    
-    ! Symmetry information                                   (1)    
+    ! Symmetry information                                   (1)
     ! neutrons,protons
     ! nwn, nwp, Number of wavefunctions in every block
     ! spenergies, dispersions
     ! diagsphamil
     ! HFtransfo 
-    ! (nwt) Wavefunctions                                    
-    ! Forcename              
-    ! Single-particle hamiltonian                                
-    ! Pairing information                                    
+    ! (nwt) Wavefunctions
+    ! Forcename
+    ! Single-particle hamiltonian
+    ! Pairing information 
     !    - Pairingtype
     !    - Rho_can = occupation factors 
     !      (HF)  
@@ -907,9 +1045,9 @@ contains
     !        |   HFBgaps      
     !        |   Bogoliubov transformation 
     !        |   Configuration matrix   
-    ! CrankingInfo                                                                 
-    ! Potentials                                             (2)                
-    ! Multipole Moments                                                 
+    ! CrankingInfo
+    ! Potentials                                             (2)
+    ! Multipole Moments
     !     | The code writes the data on ALL the multipole moments.
     !     | For the format of the lines, see the Moments module.
     !
@@ -925,102 +1063,156 @@ contains
 
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ofn
-    integer                      :: io
+    integer                      :: io, wave
+#if(USE_MPI > 0)
+    integer                      :: mpi_err, rank, nwt_rank
+    real(KIND=dp), allocatable   :: tempwf(:,:)
+#endif
     type(moment), pointer        :: mom
 
     open (chan,form='unformatted',file=ofn)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Purely sequential part of the writing
+    if(MPI_RANK .EQ. 0) then
+      write(chan, iostat=io) version_number
+      ! Convergence information                                (NOT IMPLEMENTED)
+      write(chan,iostat=io) 
+      !Parameters of the mesh
+      write(Chan,iostat=io) nx,ny,nz, dx
+      ! Symmetry information                                   
+      write(Chan,iostat=io) SYM_CODE
+      !Number of protons and neutrons
+      write(Chan,iostat=io) neutrons,protons
+      ! HFBLocks information (NOTE: this should be the GLOBAL information)
+      write(Chan,iostat=io) nwn, nwp, hfblocks_global 
+      ! Wavefunctions  
+      write(chan,iostat=io) spenergies, dispersions
+      ! information on the HF transformation
+      write(chan, iostat=io) diagsphamil
+      write(chan, iostat=io) HFtransfo
+    endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Parallel part of the writing
+    ! a) Rank 0 writes its own wavefunctions
+    if(MPI_RANK .eq. 0) then
+      do wave=1,nwt_local
+        write(chan,iostat=io) HFPsi(:,:,wave)
+      enddo
+    endif
 
-    write(chan, iostat=io) version_number
-    ! Convergence information                                  (NOT IMPLEMENTED)
-    write(chan,iostat=io) 
-    !Parameters of the mesh
-    write(Chan,iostat=io) nx,ny,nz, dx
-    ! Symmetry information                                   
-    write(Chan,iostat=io) SYM_CODE
-    !Number of protons and neutrons
-    write(Chan,iostat=io) neutrons,protons
-    ! HFBLocks information 
-    write(Chan,iostat=io) nwn, nwp, hfblocks
-    ! Wavefunctions  
-    write(chan,iostat=io) spenergies, dispersions
-    ! information on the HF transformation
-    write(chan, iostat=io) diagsphamil
-    write(chan, iostat=io) HFtransfo
-    
-    write(chan,iostat=io) HFPsi                              
-    ! Name of the force.
-    write(chan, iostat=io) name_param, func_name
-    ! Single-particle hamiltonian
-    write(chan, iostat=io) current_sph
-    !---------------------------------------------------------------------------
-    ! Pairing information                                      
-    write(chan, iostat=io) PairingType
+#if(USE_MPI > 0)
+    ! > make sure the team is complete before proceeding
+    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err) 
+    !b)! making space to receive spwfs from the other ranks
+    if(MPI_RANK .eq.0) allocate(tempwf(mv,4))
 
-    ! Write the occupation factors in all cases
-    write(chan, iostat=io) rho_can
+    do rank=1,NCORES-1 
+      ! this loop starts at 1, rank 0 has already written everything to file
 
-    select case (PairingType)
-    case(0)
-        ! HF: nothing to write
-    case(1)
-        ! BCS
-        write(chan, iostat=io) FermiEnergy
-        write(chan, iostat=io) BCSGaps 
-    case(2)
-        ! HFB
-        write(chan, iostat=io) blocktype, blocknumber
-        if(pairingscheme.eq.1) then
-          write(chan, iostat=io) grad_blocks
-        else
-          write(chan, iostat=io) HFBlocks
-        endif
+      if(MPI_RANK .eq. 0) then
+        call MPI_RECV(nwt_rank, 1, MPI_INTEGER, rank, 1, MPI_COMM_WORLD,       &
+        &                                            MPI_STATUS_IGNORE, mpi_err)
+      elseif(MPI_RANK .eq. rank) then
+        ! this rank should also know the dimensions of the loop below
+        nwt_rank = nwt_local 
+        call MPI_SEND(nwt_local, 1, MPI_INTEGER, 0, 1, MPI_COMM_WORLD, mpi_err)
+      endif
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
 
-        select case( blocktype)
-        case(0)
-          write(chan, iostat=io) 
-        case(2,4,6)
-          write(chan, iostat=io) blocklowest
-        case(1,3,5)
-          write(chan, iostat=io) blockindices
-        end select
+      do wave = 1, nwt_rank
+         if(MPI_RANK .eq. 0) then
+            call MPI_RECV(        tempwf, 4*mv, MPI_REAL8, rank, 2, &
+            &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+            ! writing the received spwf to file
+            write(chan,iostat=io) tempwf
+         else if(MPI_RANK .eq. rank) then
+            call MPI_SEND(hfpsi(:,:,wave), 4*mv, MPI_REAL8, 0, 2,              &
+            &                                           MPI_COMM_WORLD, mpi_err)
+         endif
+      enddo
 
-        write(chan, iostat=io) FermiEnergy       ! Lambda
-        write(chan, iostat=io) rho_pairing       ! rho
-        write(chan, iostat=io) kappa_pairing     ! kappa
-        write(chan, iostat=io) Cantransfo        ! Canonical transformation
-        write(chan, iostat=io) HFBgaps           ! Full matrix of gaps
-        write(chan, iostat=io) Bogoliubov        ! Bogoliubov transformation
-        write(chan, iostat=io) configmatrix      ! Configuration matrix
-        
-    end select
-    ! Cranking information: frequencies in all Cartesian directions                                     
-    write(chan, iostat=io) Omega(1:3)
-    !---------------------------------------------------------------------------
-    ! Potentials on file
-    call writepotentials(chan)
-    !---------------------------------------------------------------------------
-    ! Multipole moment information                             
-    !
-    ! The Cray compilers on LUCIA want to inline the WriteMoment function while
-    ! also flattening the linked list of multipole moments when optimisation 
-    ! options -O2 or above are used. For reasons I do not understand, this 
-    ! makes the executable segfault. Since this routine has absolutely no impact
-    ! on execution time, I simply forbid the CRAY compiler to inline this function. 
-    ! This magically solves the issue (which does not exist for ifort or gnu compilers) 
-    ! 
-    ! Cray version on LUCIA at the time of writing:
-    ! Cray Fortran : Version 14.0.3
-    ! 
-    ! Note the double dollar-sign, to make sure Hephaestos does not replace these
-    ! compiler directives. 
-    ! 
-    mom => root
-    do while(associated(mom%next))
-      mom => mom%next
-      !DIR$$ NOINLINE
-      call Writemoment(mom,chan)
-      !DIR$$ INLINE
+      ! Wait until all spwfs of this rank have been written to file
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
     enddo
+    ! e) freeing up the space
+    if(MPI_RANK .eq.0) deallocate(tempwf)
+#endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Back to the sequential part of the writing
+    if(MPI_RANK .EQ. 0) then
+      ! Name of the force.
+      write(chan, iostat=io) name_param, func_name
+      ! Single-particle hamiltonian
+      write(chan, iostat=io) current_sph
+      !-------------------------------------------------------------------------
+      ! Pairing information 
+      write(chan, iostat=io) PairingType
+
+      ! Write the occupation factors in all cases
+      write(chan, iostat=io) rho_can
+
+      select case (PairingType)
+      case(0)
+          ! HF: nothing to write
+      case(1)
+          ! BCS
+          write(chan, iostat=io) FermiEnergy
+          write(chan, iostat=io) BCSGaps 
+      case(2)
+          ! HFB
+          write(chan, iostat=io) blocktype, blocknumber
+          if(pairingscheme.eq.1) then
+            write(chan, iostat=io) grad_blocks
+          else
+            write(chan, iostat=io) HFBlocks_global
+          endif
+
+          select case( blocktype)
+          case(0)
+            write(chan, iostat=io) 
+          case(2,4,6)
+            write(chan, iostat=io) blocklowest
+          case(1,3,5)
+            write(chan, iostat=io) blockindices
+          end select
+
+          write(chan, iostat=io) FermiEnergy       ! Lambda
+          write(chan, iostat=io) rho_pairing       ! rho
+          write(chan, iostat=io) kappa_pairing     ! kappa
+          write(chan, iostat=io) Cantransfo        ! Canonical transformation
+          write(chan, iostat=io) HFBgaps           ! Full matrix of gaps
+          write(chan, iostat=io) Bogoliubov        ! Bogoliubov transformation
+          write(chan, iostat=io) configmatrix      ! Configuration matrix
+      end select
+      ! Cranking information: frequencies in all Cartesian directions 
+      write(chan, iostat=io) Omega(1:3)
+      !-------------------------------------------------------------------------
+      ! Potentials on file
+      call writepotentials(chan)
+      !-------------------------------------------------------------------------
+      ! Multipole moment information                             
+      !
+      ! The Cray compilers on LUCIA want to inline the WriteMoment function while
+      ! also flattening the linked list of multipole moments when optimisation 
+      ! options -O2 or above are used. For reasons I do not understand, this 
+      ! makes the executable segfault. Since this routine has absolutely no impact
+      ! on execution time, I simply forbid the CRAY compiler to inline this function. 
+      ! This magically solves the issue (which does not exist for ifort or gnu compilers) 
+      ! 
+      ! Cray version on LUCIA at the time of writing:
+      ! Cray Fortran : Version 14.0.3
+      ! 
+      ! Note the double dollar-sign, to make sure Hephaestos does not replace these
+      ! compiler directives. 
+      ! 
+      mom => root
+      do while(associated(mom%next))
+        mom => mom%next
+        !DIR$$ NOINLINE
+        call Writemoment(mom,chan)
+        !DIR$$ INLINE
+      enddo
+    endif
     close(chan)
 
   end subroutine WriteTantalus
