@@ -30,7 +30,7 @@ contains
     !---------------------------------------------------------------------------
     ! Print the info of the (physical) Hartree-Fock basis.
     !---------------------------------------------------------------------------
-    
+
     10 format (42 ('-'), ' Hartree-Fock basis', 67('-'))
     12 format (42 ('-'), ' Canonical    basis', 67('-'))
     20 format (118 ('-'))
@@ -50,7 +50,7 @@ contains
     real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz, r2
     real(KIND=dp), allocatable :: HF_gaps(:,:), can_gaps(:,:)
     character(len=1) :: blo
-    
+
     ! We transform the gaps to the Hartree-Fock basis for printing
     if(pairingtype.eq.2) then
       si = 0
@@ -58,7 +58,7 @@ contains
       do B=1,8,2
         N = HFblocks(B) ; if(N.eq.0) cycle
         T = HFBlocks(B+1) + N
-        
+
         HF_gaps(si+1:si+T, si+1:si+T) = &
         & matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)),&
         &                                          HFBgaps(si+1:si+T,si+1:si+T))
@@ -85,14 +85,14 @@ $TR     sumocc = 2*k
 
         P = P_hf(wave)        
 
-        if(wave .le. sum(HFBlocks(1:2))) then
-            if(wave .le. HFBlocks(1)) then
+        if(wave .le. sum(HFBlocks_global(1:2))) then
+            if(wave .le. HFBlocks_global(1)) then
                s = +1
             else
                s = -1
             endif
         else
-            if(wave .le. sum(HFBlocks(1:3))) then
+            if(wave .le. sum(HFBlocks_global(1:3))) then
                s = +1
             else
                s = -1
@@ -129,14 +129,14 @@ $NTR    sumocc = k
 $TR     sumocc = 2*k
 
         P = P_hf(wave)        
-        if(wave .le. sum(HFBlocks(1:6))) then
-            if(wave .le. sum(HFBlocks(1:5))) then
+        if(wave .le. sum(HFBlocks_global(1:6))) then
+            if(wave .le. sum(HFBlocks_global(1:5))) then
                s = +1
             else
                s = -1
             endif
         else
-            if(wave .le. sum(HFBlocks(1:7))) then
+            if(wave .le. sum(HFBlocks_global(1:7))) then
                s = +1
             else
                s = -1

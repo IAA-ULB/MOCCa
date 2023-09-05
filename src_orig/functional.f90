@@ -244,7 +244,7 @@ $PRINTCOEF_PAIR
     ! Print all of the information on the energy.
     !---------------------------------------------------------------------------
     use Coulombmod
-    
+
     1 format (80('-'))
     5 format (30x, '       neutron        proton         total')
     6 format (15x, ' Kinetic Energy:', 3f15.6)
@@ -285,6 +285,9 @@ $PRINTCOEF_PAIR
 
     real(KIND=dp) :: temp
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Only the very first MPI rank needs to print to STDOUT
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     call printSkyrme
 
     print 1
@@ -351,8 +354,8 @@ $PRINTCOEF_PAIR
     endif
     print 105, Routhian
 
-    print 104, TotalE   - Ehistory(1)
-    print 106, Routhian - Rhistory(1)
+    print 104,  TotalE   - Ehistory(1)
+    print 106,  Routhian - Rhistory(1)
 
     print 1
  end subroutine PrintEnergy
@@ -583,37 +586,18 @@ $PRINT
     !---------------------------------------------------------------------------
     use Constants
 
-    integer          :: wave, it,k,i
+    integer          :: wave, it,k,i, wave_global, mpi_err
     real(KIND=dp)    :: Inproduct
     real(KIND=dp)    :: Kinetic(2)
-    
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Correctly set the pointers to the spwfs
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! W.R. 03/04/22 : This is superfluous, as this is done in the pairing
-    !                 module. Unsure why I wrote this.
-!    select case(PairingType)
-!    case(0,1)
-!      ! HF or BCS Calculation
-!      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
-!      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
-!    case(2)
-!      ! HFB calculation
-!      if(.not. efficientHFB) then
-!        DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
-!        DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
-!      else
-!        DenPsi    => HFPsi    ; DenDPsi   => HFDPsi 
-!        DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
-!      endif
-!    end select
 
     ! Kinetic Energy
     Kinetic = 0.0_dp
-    do wave=1,nwt
+    do wave=1,nwt_local              ! local spwf index
+        wave_global = spwf_map(wave) ! global spwf index
+
         ! Isospin is neutron in the first half of blocks, proton in the rest
         it = 2
-        if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
+        if(wave_global.le.nwn) it = 1
 
         Inproduct = 0.0_dp
         do k=1,4          
@@ -624,8 +608,14 @@ $PRINT
                        &    DenddPsi(i,6,k,wave))
                 enddo
         enddo
-        Kinetic(it)= Kinetic(it) + rho_can(wave)*Inproduct
+        Kinetic(it)= Kinetic(it) + rho_can(wave_global)*Inproduct
     enddo
+#if(USE_MPI > 0)
+    ! Sum the contributions across all MPI ranks
+    call MPI_ALLREDUCE(MPI_IN_PLACE, Kinetic, 2, MPI_REAL8, MPI_SUM,           &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+#endif
+
     Kinetic=-Kinetic * hbm * dv
     return
   end function CompKinetic

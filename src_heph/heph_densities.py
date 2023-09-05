@@ -226,6 +226,7 @@ def ProcessDensities(fname, src, target, so):
     Isospincoupl   = ''
     Zeroing        = ''
     Cleaning       = ''
+    MPI_REDUCE     = ''
 
     print (line)
     print (' Densities necessary for the functional                                    ')
@@ -250,7 +251,7 @@ def ProcessDensities(fname, src, target, so):
       den = Densities_needed[i]
 
       # Summation with leftwf = rightwf
-      (e,dec,ini,der,isoi,zeroi,cleani)  = \
+      (e,dec,ini,der,isoi,mpii,zeroi,cleani)  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],'wave','wave',so)
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
@@ -262,7 +263,7 @@ def ProcessDensities(fname, src, target, so):
         # But we also need the HFB expression 
         # So we recall the routine with different 'wave' indices
         # This summation is blockwise, hence the 'si+'
-        (e,dec,ini,der,isoi,zeroi,cleani)  = \
+        (e,dec,ini,der,isoi,mpii,zeroi,cleani)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],\
                                          'si+wave2', 'si+wave', so, silent=True)
         HFBExpression = HFBExpression + '\n' + e
@@ -272,6 +273,7 @@ def ProcessDensities(fname, src, target, so):
       Initialisation = Initialisation + '\n' + ini
       Derivation     = Derivation     + '\n' + der
       Isospincoupl   = Isospincoupl   + '\n' + isoi
+      MPI_REDUCE     = MPI_REDUCE     + '\n' + mpii
       Zeroing        = Zeroing        + '\n' + zeroi
       Cleaning       = Cleaning       + '\n' + cleani
     print (line)
@@ -287,6 +289,7 @@ def ProcessDensities(fname, src, target, so):
     dic['ZEROING'       ] = Zeroing 
     dic['CLEANING'      ] = Cleaning 
     dic['ISOSPINCOUPL'  ] = Isospincoupl
+    dic['MPIDEN']         = MPI_REDUCE
   
     if(so.timelike):
       dic['TR']  = ''
@@ -507,13 +510,17 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     
     totalind=''
     dim     =''
+    sizecount = 1
     for r in range(ndim):
-        totalind = totalind + ',:' 
-        dim      = dim      + ',3'
-    
+        totalind   = totalind + ',:' 
+        dim        = dim      + ',3'
+        sizecount  = sizecount * 3
     dic['TOTALIND']= totalind
     dic['DIM']     = dim
-
+    # SIZE of the density to pass onto the MPI_ALLREDUCE call
+    # the factor two reflects isospin
+    dic['TRANS_SIZE'] = '%d*mv'%(sizecount*2) 
+    
     if('P' not in density):
       dic['ISOSIZE'] = 4 # Full complement of neutron, proton, isoscalar, isovector
     else:
@@ -522,6 +529,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     #---------------------------------------------------------------------------
     # Get the declaration of the density and its derivatives right
     Declaration    = ta.Dec.substitute(dic)
+    MPI_reduce     = ta.mpi.substitute(dic)
     Initialisation = ta.Ini.substitute(dic)
     Zeroing        = ta.Zero_template.substitute(dic)
     Cleaning       = ta.Clean_template.substitute(dic)
@@ -880,7 +888,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     
     
     return (Expression, Declaration, Initialisation, Derivation, Isospincoupl,\
-                                                              Zeroing, Cleaning)
+                                                  MPI_reduce, Zeroing, Cleaning)
     
 def GenVecProd(density, coupling):
     #---------------------------------------------------------------------------

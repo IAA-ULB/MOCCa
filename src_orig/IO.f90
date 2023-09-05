@@ -92,9 +92,10 @@ implicit none
   character(len=26), parameter :: TRANS_CODE = "$TRANS_CODE"
   !-----------------------------------------------------------------------------
   ! Characteristics of the calculation stored on the .wf file
-  integer       :: filenx, fileny, filenz, filenwn, filenwp, filepairing
-  integer       :: filenwt, fileneutrons, fileprotons
-  integer       :: fileblocks_global(8), fileblocks(8)
+  integer              :: filenx, fileny, filenz, filenwn, filenwp, filepairing
+  integer              :: filenwt, fileneutrons, fileprotons, fileoffset
+  integer              :: fileblocks_global(8), fileblocks(8)
+  integer, allocatable :: file_spwf_map(:)
   real(KIND=dp) :: filedx
   !-----------------------------------------------------------------------------
   ! Did we succeed in reading a HFB configuration from file? 
@@ -413,7 +414,7 @@ contains
     ! None of a) or b) is allowed if the user does not set the AllowTransform
     ! flag to .true. This behavior is coded like that as a general safeguard.
     !---------------------------------------------------------------------------
-    integer :: i
+    integer :: i, mpi_err
     !---------------------------------------------------------------------------
     ! Input options 
     if(trim(to_upper(inputfilename)).eq.'INIT') then
@@ -438,7 +439,7 @@ contains
     else
       ! Option 2) start from a previous calculation.
       call ReadTantalus(12, inputfilename)
-      ! No need to guess gaps by default (unless the user asked for it)
+      ! No need to guess gaps every time (unless the user asked for it)
     endif
     !---------------------------------------------------------------------------
     ! Transformation options
@@ -455,12 +456,37 @@ contains
           ! The added spwfs are added somewhat randomly, hence we add an extra
           ! orthonormalisation in the mix.
       endif
+      ! summing the total number of spwfs on this rank
+      nwt_local = sum(HFBlocks)
+#if(USE_MPI>0)
+      HFblocks_global = 0
+      call MPI_ALLREDUCE(HFblocks,HFBlocks_global,8, MPI_INTEGER,MPI_SUM,      &
+      &                                                 MPI_COMM_WORLD, mpi_err)
+#else
+      HFBlocks_global = HFBlocks
+#endif
+      spwf_min  = fileoffset
+      spwf_map  = file_spwf_map
     else  
-      ! We still need to set this particular information
-      HFblocks = fileblocks
+      ! Sanity check
       if(symtransfo_needed) then
         call stp('Symmetry transformation needed, but not allowed by user.')
       endif
+
+      ! We still need to set this particular information
+      HFblocks  = fileblocks
+      ! summing the total number of spwfs on this rank
+      nwt_local = sum(HFBlocks)
+#if(USE_MPI>0)
+      HFblocks_global = 0
+      call MPI_ALLREDUCE(HFblocks,HFBlocks_global,8, MPI_INTEGER,MPI_SUM,      &
+      &                                                 MPI_COMM_WORLD, mpi_err)
+#else
+      HFBlocks_global = HFBlocks
+#endif
+      ! Offset in the spwf-size
+      spwf_min  = fileoffset
+      spwf_map  = file_spwf_map
     endif
     
     ! Failsafe for the HF transformation
@@ -554,7 +580,7 @@ contains
     character(len=*), intent(in) :: ifn
     character(len=20)            :: func_name_check
     character(len=26)            :: SYM_CODE_CHECK
-    integer                      :: io,i, fileoffset, dsize
+    integer                      :: io,i, dsize
     logical                      :: exists
     real(KIND=dp)                :: Omega_file(3), dummy
     real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
@@ -621,7 +647,8 @@ contains
     !---------------------------------------------------------------------------
     ! We have read the dimensions of the symmetry blocks from file...
     ! .. now we have to decide how to divide them across all mpi_ranks
-    call loadbalance(fileblocks_global,balancing_strategy,fileblocks,fileoffset)
+    call loadbalance(fileblocks_global,balancing_strategy, &
+    &                 fileblocks,fileoffset, file_spwf_map)
     !---------------------------------------------------------------------------
     ! Wavefunctions
     !---------------------------------------------------------------------------
@@ -656,7 +683,7 @@ contains
       read(chan, iostat=io) current_sph
     endif
     !---------------------------------------------------------------------------
-    ! Pairing information                                      
+    ! Pairing information
     read(chan, iostat=io) filepairing
     ! Write the occupation factors in all cases
     read(chan, iostat=io) rho_can
@@ -669,7 +696,7 @@ contains
         allocate(filegaps(filenwn+filenwp,1))
         read(chan, iostat=io) FermiEnergy       ! Lambda
         read(chan, iostat=io) filegaps
-        
+
         ! Simply copy the gaps for now
         select case(pairingtype)
         case(0)
@@ -691,7 +718,7 @@ contains
         allocate(filegaps(filenwt, filenwt)) 
         allocate(kappa_pairing(filenwt, filenwt)) 
         allocate(rho_pairing(filenwt, filenwt)) 
-        
+
         if(file_version .gt. 3 ) then
           read(chan, iostat=io) fileblocktype, fileblocknumber
           read(chan, iostat=io) file_HFB_blocks

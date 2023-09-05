@@ -128,26 +128,35 @@ module wavefunctions
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! Explanation of the bookkeeping
  !   --------------------------
- ! HFBlocks_local : number of spwfs in a given symmetry-block stored LOCALLY, 
+ ! HFBlocks       : number of spwfs in a given symmetry-block stored LOCALLY, 
  !                  i.e. on the current MPI rank
  ! HFBlocks_global: number of spwfs in a given symmetry-block stored GLOBALLY,
  !                  i.e. across all MPI ranks
  ! nwn, nwp       : TOTAL number of neutron/proton spwfs across all MPI ranks
  ! nwt            : TOTAL number of wavefunctions across all MPI ranks
- ! 
- ! spwf_min       : offset of the spwfs of the current rank.
- !                  A rank gets wavefunctions : spwf_min, spwf_min+1,...
- ! spwf_rank      : identifies the rank that holds a given spwf
+ ! nwt_local      : LOCAL number of wavefunctions on the current MPI rank
+ ! spwf_rank      : identifies the MPI rank that holds a given spwf
+ ! spwf_map       : identifies the index of a (locally stored) spwf in the 
+ !                  TOTAL calculation. I.E. this maps
+ !                       spwf  1,  2, 3, ....,  nwt_local
+ !                             |   |  |          |
+ !                       spwf  X,  Y, Z, ....., nwt
  !------------------------------------------------------------------------------
  integer, parameter   :: Blocks                  = 8  ! This can always be fixed
  integer              :: HFBlocks(Blocks)  = 0
  integer              :: HFBlocks_global(Blocks) = 0
- integer              :: nwn = 6, nwp = 6, nwt = 12, spwf_min = 0
- integer, allocatable :: spwf_rank(:)
+ integer              :: nwn = 6, nwp = 6, nwt = 12, nwt_local =12, spwf_min = 0
+ integer, allocatable :: spwf_rank(:), spwf_map(:)
  !------------------------------------------------------------------------------
  ! Properties of the single-particle wave-functions with regard to reflections
- ! of the axes.
+ ! of the axes. Note that these are properties of the LOCALLY stored spwfs, 
+ ! i.e. they are allocated as sx(4,nwt_loc)
  integer, allocatable :: sx(:,:), sy(:,:), sz(:,:)
+ ! Except for this one particular spwf: the one we use to estimate the maximal
+ ! s.p. energy available on the grid in evolution.f90. When doing an MPI 
+ ! calculation, this needs to be implemented separately such that all ranks
+ ! use the same set symmetries to propagate it.
+ integer              :: sx_max(4), sy_max(4), sz_max(4)
  !------------------------------------------------------------------------------
  ! Single-particle energies, 
  ! Either:
@@ -249,7 +258,7 @@ contains
     nwt = nwn + nwp
   end subroutine ReadWFdata
 
-  subroutine loadbalance(blocks_global, balancing, blocks_local, offset)
+  subroutine loadbalance(blocks_global,balancing,blocks_local,offset,spwf_map)
     !---------------------------------------------------------------------------
     ! Balance the loading of large arrays across MPI ranks in a 1D fashion.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -268,17 +277,18 @@ contains
     !   blocks_local  : integer(8)
     !                   LOCAL size of the symmetry blocks, i.e. the total number
     !                   of spwfs in each block FOR THIS MPI RANK.
-    !   offset        : integer
-    !                   LOCAL offset of the spwfs, i.e. this MPI rank has
-    !                   wavefunctions 
-    !                          offset, offset+1, ....
+    !   offset        : integer, offset of the calculations for this block
+    !   spwf_map      : integer(:)
+    !                   mapping of the spwfs on this MPI rank to the whole
+    !                   calculation
     !---------------------------------------------------------------------------
     integer, intent(in)  :: balancing
     integer, intent(in)  :: blocks_global(blocks)
     integer, intent(out) :: blocks_local(blocks), offset
+    integer, intent(out), allocatable :: spwf_map(:)
     
     integer              :: B, activeblocks, ranks_per_block, blocks_per_rank
-    integer              :: block_count
+    integer              :: block_count, i
   
     allocate(spwf_rank(nwt)) ; spwf_rank = 0
   
@@ -293,7 +303,7 @@ contains
       ! Count the number of active blocks      
       activeblocks = 0
       do B=1,8
-        if(blocks_global(B) .ne. 0) activeblocks = activeblocks + 1                 
+        if(blocks_global(B) .ne. 0) activeblocks = activeblocks + 1
       enddo
 
       if(activeblocks .ge. Ncores) then
@@ -308,19 +318,24 @@ contains
         do B=1,8
           if(blocks_global(B) .eq. 0) cycle
           block_count = block_count + 1
-          
           if( block_count / blocks_per_rank .eq. MPI_rank) then
             ! attention, INTEGER division in the line above
             blocks_local(B) = blocks_global(B)
           endif
         enddo
-        
+
         ! Find the first non-zero size in blocks_local
         do B=1,8
           if(blocks_local(B) .ne. 0) exit
         enddo
         offset = sum(blocks_global(1:B-1))
-        
+
+        ! Calculate the spwf mapping
+        allocate(spwf_map(sum(blocks_local)))
+
+        do i=1,sum(blocks_local)
+          spwf_map(i) = offset + i
+        enddo
       else
         ! More ranks than blocks
         ranks_per_block = Ncores/activeblocks
@@ -435,17 +450,15 @@ contains
     call start_timer(T_derivatives)
 
     if(.not.allocated(HFdPsi)) then
-        allocate(HFdPsi(nx*ny*nz,3,4,nwt))
-        allocate(HFddPsi(nx*ny*nz,6,4,nwt))
+        allocate(HFdPsi(nx*ny*nz,3,4,nwt_local))
+        allocate(HFddPsi(nx*ny*nz,6,4,nwt_local))
     endif
 
 $N3    if(.not.allocated(HFdddpsi)) then
-$N3        allocate(HFdddPsi(nx*ny*nz,10,4,nwt))
+$N3        allocate(HFdddPsi(nx*ny*nz,10,4,nwt_local))
 $N3    endif
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Currently EV8 symmetries are hardcoded.
-    do wave=1,nwt
+    do wave=1,nwt_local
         do k=1,4
 $N2        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
 $N2        &                                           HFdPsi(:,:,k,wave),     &
@@ -455,7 +468,6 @@ $N3        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
 $N3        &                                           HFdPsi(:,:,k,wave),     &
 $N3        &                                           HFddPsi(:,:,k,wave),    &
 $N3        &                                           HFdddPsi(:,:,k,wave))
-
         enddo
     enddo
     call stop_timer(T_derivatives)
@@ -610,9 +622,16 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
   function OrderSpwfsSym(block) result(indices)
     !---------------------------------------------------------------------------
     ! Sort the single-particle wave-functions in the given symmetry-block 
-    ! by single-particle energy.
+    ! by single-particle energy. Note, this routine works with the indices 
+    ! LOCAL to any given MPI rank.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !      block   : integer
+    !                index of the symmetry block to consider.
+    ! Output:
+    !      indices : allocatable, integer.
+    !                indices of the spwfs, in increasing order
     !---------------------------------------------------------------------------
-    
     integer, intent(in)        :: block
     integer, allocatable       :: Indices(:)
     real(KIND=dp), allocatable :: Energies(:)
@@ -629,9 +648,9 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     if(allocated(Energies))  deallocate(energies)
     allocate(Indices(nwf), Energies(nwf))
     do i=1,nwf
-       Indices(i) = startind + i 
+       Indices(i)  = startind + i 
+       Energies(i) = spwf_map(i) 
     enddo
-    Energies = spenergies(startind+1:startind+nwf)
     
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Sort the energies
@@ -760,38 +779,61 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       si = si + sum(blocks(B:B+3))
     enddo 
 
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Also set the symmetry properties of the max_spwf employed in evolution.f90
+    ! These are simply a copy of those in the very first symmetry block
+    sx_max(1) =  $SX11 ; sy_max(1) = $SY11 ; sz_max(1) = $SZ11
+    sx_max(2) =  $SX12 ; sy_max(2) = $SY12 ; sz_max(2) = $SZ12
+    sx_max(3) =  $SX13 ; sy_max(3) = $SY13 ; sz_max(3) = $SZ13
+    sx_max(4) =  $SX14 ; sy_max(4) = $SY14 ; sz_max(4) = $SZ14
+
   end subroutine set_spwf_symmetries
 
   subroutine GramSchmidt
     !---------------------------------------------------------------------------
-    ! This subroutine uses a Gram-Schmidt scheme to orthonormalise the Spwfs 
-    ! in the array HFPsi. The orthonormalisation proceeds per symmetry block, 
-    ! as this saves precious CPU cycles/
+    ! This subroutine uses a (modified) Gram-Schmidt scheme to orthonormalise 
+    ! the spwfs in the array HFPsi. The orthonormalisation proceeds per 
+    ! symmetry block, as this saves precious CPU cycles.
     !
     ! In the interest of convergence speed, the orthogonalisation is done in 
     ! order of ascending single-particle energy if this is possible, i.e. if
     ! diagsphamil == .true..
     ! 
+    ! The current implementation of this routine relies CRUCIALLY on the fact
+    ! that all spwfs in a given symmetry block are LOCALLY stored on the same
+    ! MPI rank. In this case, no intra-rank communication is necessary. 
+    ! For a more general situation, this routine will need serious modification.
     !---------------------------------------------------------------------------
     integer  :: b, i,j,nw, mw,l, si, N
     integer  :: indices(maxval(HFBlocks)), spatial_size
     real(KIND=dp) ::  norm
-    
+
+#if(USE_MPI>0)
+    if(balancing_strategy.ne.1) then
+      call stp('Balancing_strategy should be 1 for GramSchmidt to work.')
+    endif
+#endif
+
     call start_timer(T_ortho)
-    
+
     ! We ask for the spatial extent of the wavefunctions here, as this routine
     ! could be called for wavefunctions only defined on parts of the mesh, such
-    ! as when initializing new wavefunctions with nilsson in only part of the
-    ! box.
+    ! as when initializing new wavefunctions with the nilsson module in only 
+    ! part of the simulation volume.
     spatial_size = size(HFPsi(:,:,1))
+    ! .... however, this routine has no way of knowing what the volume element
+    ! dv should be. Hence the NORMALIZATION of the resulting wavefunctions
+    ! might not yet be right. 
     
     si = 0
     do b = 1, Blocks 
-        N = HFBlocks(b) ; if(N.eq.0) cycle
+        N = HFBlocks(B) ; if(N.eq.0) cycle
 
         indices = 0
         if(diagsphamil) then
           indices(1:HFblocks(b)) = OrderSpwfsSym(b)
+          ! Note, in the case of MPI calculations OrderSpwfsSym deals with
+          !       LOCAL indices already.
         else
           do i=1, N
             indices(i) = si + i
@@ -804,7 +846,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             nw = indices(i)
             norm = sum(HFpsi(:,:,nw)**2) * dv
             HFPsi(:,:,nw) = (sqrt(1.0/norm)) * HFPsi(:,:,nw) 
-            
             !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Then subtract the projection on \Psi_{nw} from all the following
             ! Spwf.
@@ -833,6 +874,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
                   HFPsi(l,1,mw) = HFPsi(l,1,mw) - norm * HFPsi(l,1,nw)
               enddo
             enddo
+            norm = sum(HFpsi(:,:,nw)**2) * dv
         enddo
         si = si + N
     enddo
@@ -951,6 +993,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
      allocate(HF_STI (3,nwt)); HF_STI = 0.0
     endif
 
+#if(USE_MPI>0)
+    call stop_timer(T_spwfangmom)
+    return
+#endif
     si = 0
     do B=1,8
       N = HFBlocks(B) ; if(N.eq.0) cycle
@@ -2099,6 +2145,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
       real(KIND=dp), allocatable :: rme(:,:)
       integer                    :: wave, wave2, B, N, si
+      integer                    :: wave_global, mpi_err
       
      
       if(diagsphamil) then
@@ -2106,10 +2153,18 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         ! This is easy: both HFBasis and canbasis are explicitly stored
         if(.not. allocated(spwf_r2_HF))  allocate(spwf_r2_HF(nwt))
 
-        do wave=1, nwt
-          spwf_r2_HF(wave) = &
+        spwf_r2_HF = 0.0d0
+        do wave=1, nwt_local           ! local spwf_index
+          wave_global = spwf_map(wave) ! global spwf index 
+          spwf_r2_HF(wave_global) = &    
           &             sum(sum(HFpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
         enddo
+#if(USE_MPI > 0)
+        ! This call to allreduce is valid; all entries spwf_r2_HF that were 
+        ! not explicitly calculated by this rank were set to 0 explicitly
+        call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_r2_hf, nwt, MPI_REAL8, MPI_SUM,  &
+        &                                               MPI_COMM_WORLD, mpi_err)
+#endif
 
         if(allocated(canpsi)) then
           if(.not. allocated(spwf_r2_can))  allocate(spwf_r2_can(nwt))
@@ -2121,6 +2176,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         endif
       else
+
+#if(USE_MPI > 0)
+        call stp('update_spwf_r2 has not properly been parallelized yet with HFB' )
+#endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! The canonical basis is still trivial, but is now stored in HFPSI
         ! Note: it is safe to assume the calculation is a HFB one; this is the
@@ -2212,11 +2271,11 @@ $PBROKEN      real(KIND=dp), pointer             :: spwf(:,:,:,:),spwf2(:,:,:,:)
 
 $PCON      P = 0 
 $PCON      do wave=1,nwt
-$PCON         if    (wave .le. sum(HFBlocks(1:2))) then
+$PCON         if    (wave .le. sum(HFBlocks_global(1:2))) then
 $PCON               P(wave,wave) = +1
-$PCON         elseif(wave .le. sum(HFBlocks(1:4))) then
+$PCON         elseif(wave .le. sum(HFBlocks_global(1:4))) then
 $PCON               P(wave,wave) = -1
-$PCON         elseif(wave .le. sum(HFBlocks(1:6))) then
+$PCON         elseif(wave .le. sum(HFBlocks_global(1:6))) then
 $PCON               P(wave,wave) = +1
 $PCON         else  
 $PCON               P(wave,wave) = -1

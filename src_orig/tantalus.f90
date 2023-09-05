@@ -161,17 +161,6 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !------------------------------------------------------------------------------
  ! Print all relevant input gleaned from STDIN and the wf file.
  call PrintInput(file_number, input_file)
-
- !------------------------------------------------------------------------------
- ! Print all timing info
- call stop_timer(T_tantalus)
- call print_all_timers()
-
-#if(USE_MPI > 0) 
-  call mpi_finalize(mpi_err)
-#endif
- stop
- call stp('')
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
  call ReachForWaterAndFood()
@@ -180,10 +169,13 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call Cleanupthemess()
  !------------------------------------------------------------------------------
  ! end the processes across MPI ranks
+#if(USE_MPI > 0) 
+  call mpi_finalize(mpi_err)
+#endif
  !------------------------------------------------------------------------------
  ! Print all timing info
  call stop_timer(T_tantalus)
- call print_all_timers()
+! call print_all_timers()
 
  ! end of one mean-field calculation..;
 end subroutine Run_Tantalus
@@ -251,21 +243,19 @@ subroutine ReachForWaterAndFood()
     8 format('| Ending the iterative proces.   |')
 
     9 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
-    
    10 format(86('-'))  
    11 format(30x, 'Iteration = ', i5, /)   
    12 format(24x, 'FINAL Iteration = ', i5, /)
-   
-    integer :: iter, iprint, scheme
-    integer :: ifail
+
+    integer :: iter, iprint, scheme, ifail, mpi_err
     logical :: ConvergenceAchieved, calc_expensive
     ! Logical to see if any moments with projection are necessary
     logical :: projectpresent = .false.
     ! Message for the output of the code, useful for the Brussels group.
     character(len=99) :: iomsg = 'START'
-    
+
     ifail = 0
-    ConvergenceAchieved = .false.   
+    ConvergenceAchieved = .false.
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
@@ -290,11 +280,11 @@ subroutine ReachForWaterAndFood()
       ! We perform a few extra calls to solvepairing to take a few gradient
       ! steps, with finite values for Delta.
       call SolvePairing(pairingscheme, ifail)
-    endif    
+    endif
 
     ! Construct the canonical basis    
     if(pairingtype.eq. 2) call ConstructCanonicalBasis()
-    
+
     ! Derive all the single-particle wavefunctions in the HFPsi array
     call deriveHF()
 
@@ -328,24 +318,29 @@ subroutine ReachForWaterAndFood()
     call calc_avg_gap()
 
     ! Initial printout
-    call printSpwfs
-    call printQps
-    call printallmoments
-    call print_boxsize_check
-    call PrintMomentsofInertia
-    call printcranking  
-    call printpairing(pairstabfactor)
-    call PrintEnergy 
+    if(MPI_RANK .eq. 0) then
+      ! only the very first MPI RANK prints all of this output
+      call printSpwfs
+      call printQps
+      call printallmoments
+      call print_boxsize_check
+      call PrintMomentsofInertia
+      call printcranking  
+      call printpairing(pairstabfactor)
+      call PrintEnergy 
+    endif
+
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
+        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
         call update_E_history()
-    
+
         projectpresent   = checkconstraints() .or. check_cranking()    
         if(projectpresent) call feasibleproject()
-        
-        ! One heavy-ball step.
+
+        ! One evolution step for the spwfs
         call Evolve(iter)
 
         ! Calculate the gaps Delta with the current 
@@ -354,7 +349,7 @@ subroutine ReachForWaterAndFood()
         ! c) Fermi-energy
         PairStabfactor = CompStabilisingFactor(PairDenEnergy)
         call CalcGaps(FermiEnergy, PairStabFactor)
-       
+
         ! Save Fermi energy
         FermiHistory   = FermiEnergy
 
@@ -380,8 +375,8 @@ subroutine ReachForWaterAndFood()
         call updateAM
         call ReadjustCranking
         !-----------------------------------------------------------------------
-        ! Above: actual evolution
-        ! Below: administration
+        ! Above: actual evolution of physical quantities
+        ! Below: administration/bookkeeping
         !-----------------------------------------------------------------------
         !See if some moments were temporary
         call TurnOffConstraints(iter)
@@ -394,14 +389,14 @@ subroutine ReachForWaterAndFood()
           iprint = 0
           calc_expensive = .false.
         endif
-        
+
         call CalcEnergy(calc_expensive)
         call calc_avg_gap()
 
         ! Check for convergence or a failed calculation
         if (ifail .ne. 0) then  
-          iomsg               = 'FERMI'  
-          ConvergenceAchieved = .false.  
+          iomsg               = 'FERMI'
+          ConvergenceAchieved = .false.
           exit
         else  
           call Converged(ConvergenceAchieved, iter)  
@@ -415,41 +410,45 @@ subroutine ReachForWaterAndFood()
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
         if(iprint .eq.1) then
-            ! Update all spwf properties
+            ! ... but update all spwf properties first to ensure correct prints
             call update_spwf_properties( .true. ) ! expensive version
             call updateAM 
             call ReadjustCranking
-            print 10
-            
-            if((iter .eq. maxiter) .or. ConvergenceAchieved) then
-              ! Add a clear indication this is the FINAL iteration
-              print 12, iter  
-            else
-              print 11, iter
-            endif
 
-            call PrintSpwfs
-            call PrintQps
-            call printallmoments
-            call print_boxsize_check
-            call PrintMomentsofInertia
-            call printcranking
-            call printpairing(PairStabfactor)
-            call printEnergy()
-        else
+            if(MPI_RANK.eq.0) then
+              print 10
+              if((iter .eq. maxiter) .or. ConvergenceAchieved) then
+                ! Add a clear indication this is the FINAL iteration
+                print 12, iter  
+              else
+                print 11, iter
+              endif
+              call PrintSpwfs
+              call PrintQps
+              call printallmoments
+              call print_boxsize_check
+              call PrintMomentsofInertia
+              call printcranking
+              call printpairing(PairStabfactor)
+              call printEnergy()
+            endif
+        elseif(MPI_RANK.eq.0) then
+             ! ..... else print a summary
             call printsummary(iter)
         endif
+
         !-----------------------------------------------------------------------
         ! Write a wavefunction file according to checkpointiter
         if(checkpointiter.ne.0) then
           if(mod(iter,checkpointiter) .eq. 0) then
-            print 9, iter, outputfilename
+            if(MPI_RANK.eq.0) print 9, iter, outputfilename
             iomsg='CHECKPOINT'
             call WriteTantalus(12, outputfilename)     
-          endif          
+          endif
         endif
         !-----------------------------------------------------------------------
         if(ConvergenceAchieved) then
+          if(MPI_RANK .eq. 0) then
             print 1
             print 2
             print 3, iter
@@ -461,24 +460,31 @@ subroutine ReachForWaterAndFood()
             print 71, angmom_prec
             print 8
             print 1
-
-            iomsg='CONVERGED'
-            exit
+          endif
+          iomsg='CONVERGED'
+          exit
         endif
-    enddo    
-    if(inversetemp .ne. -1) then
-        call projectThermal
-    endif    
+    enddo
+!    if(inversetemp .ne. -1) then
+!        call projectThermal
+!    endif    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate and print the collective moment of inertias    
     if(N_inertia .gt. 0) then
       call calc_collective_inertia
-      call print_collective_inertia
+      if(MPI_RANK.eq.0) then
+        call print_collective_inertia
+      endif
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     if(iter.eq.maxiter+1) then
       iomsg='MAXITER'  
     endif
+!    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!#if(USE_MPI > 0) 
+!  call mpi_finalize(mpi_err)
+!#endif
+!    stop
     !---------------------------------------------------------------------------
     ! Write output to the outputfile, i.e. the full wavefunction file
     call WriteTantalus(12, outputfilename)     

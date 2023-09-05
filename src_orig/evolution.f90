@@ -29,10 +29,7 @@ module evolution
     use timing
 
     implicit none
-    
-    ! Since ddot is a LAPACK function (as opposed to a subroutine), it needs
-    ! to be declared explicitly.    
-    !real*8, external :: ddot
+
     !---------------------------------------------------------------------------
     ! Parameters of the iteration scheme
     real(KIND=dp):: dt    =  0.01
@@ -124,6 +121,7 @@ contains
         call MPI_BCAST(strategy  ,len(strategy), MPI_CHARACTER, 0, & 
         &                                               MPI_COMM_WORLD, mpi_err)
 
+        call MPI_BCAST(maxiter   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         call MPI_BCAST(printiter , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         !-----------------------------------------------------------------------
 #endif
@@ -180,7 +178,7 @@ contains
 !        5 format(' Preconditioning   : ', a20 )
         6 format(' Diagonalise the s.p. hamiltonian: ', a3)
         7 format(' EfficientHFB : ACTIVE! ')
-           
+
         print 1
         print 2, adjustl(Strategy)
         print 31, maxiter, printiter
@@ -190,7 +188,7 @@ contains
           print 4, ' NO'
           print 3, dt, momentum
         endif
-        
+
         if( EstimateGRADParams) then
           print 41, 'YES'
           print 42, gradient_safety
@@ -224,19 +222,23 @@ contains
         ! c) Orthonormalize within symmetry blocks
         !
         !-----------------------------------------------------------------------
-        
+
         use wavefunctions
-        
+
         integer, intent(in) :: iteration
         integer             :: wave, iso, iter
         real(KIND = dp)     :: hpsi(nx*ny*nz,4)
-        
+
         gradientnorm = 0.0_dp
         d2h          = 0.0_dp
 
         iter = iteration      ! To get around the unused variable warnings
                               ! from compilers. Note that the variable needs to
                               ! be declared for the procedure pointers to work.
+
+#if(USE_MPI > 0)
+        call stp('Subroutine evolve_graddesc is not ready for use in MPI calculations.')
+#endif
         do wave=1,nwt
             if(wave .le. nwn) then
                 iso = -1
@@ -338,18 +340,20 @@ contains
         !       Weighted dispersion of the spwfs, only calculated when
         !       diagsphamil = .true.
         !-----------------------------------------------------------------------
-        
+
         use wavefunctions
-        
+
         integer, intent(in)   :: iteration
         integer               :: wave, iso, B, si, N, wave2, lwork, ifail
+        integer               :: mpi_err, wg, wg2
         real(KIND=dp), allocatable :: work(:)
         real(KIND=dp)              :: hpsi(nx*ny*nz,4) 
 
         call start_timer(T_evolution)
 
         if(.not.allocated(Momentum_Updates)) then
-            allocate(Momentum_Updates(nx*ny*nz,4,nwt))
+            ! we only store the history for the LOCALLY stored wavefunctions
+            allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
             Momentum_Updates = 0.0_dp
         endif
 
@@ -359,15 +363,19 @@ contains
 
         if(EstimateParams) call IterativeEstimation(iteration)
 
+        si           = 0
         gradientnorm = 0.0_dp
         d2h          = 0.0_dp
-        si        = 0
-        hftransfo = 0.0d0
+        hftransfo    = 0.0d0
+        spenergies   = 0.0d0
+        dispersions  = 0.0d0
+        current_sph  = 0.0d0
         do B=1,8
           N = HFblocks(B) ; if(N.eq.0) cycle
           iso = -1
           if(B.gt.4) iso = +1
-          do wave=si+1,si+N
+          do wave=si+1,si+N     ! = local index of the spwf
+            wg = spwf_map(wave) ! = global index of the spwf
             !-------------------------------------------------------------------
             ! Calculate the action of the single-particle hamiltonian.
             hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
@@ -375,35 +383,56 @@ contains
             &              hfddpsi(:,:,:,wave)  ,                              &
             &              hfdddpsi(:,:,:,wave) ,                              &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
-          
+
             if(diagsphamil) then
               ! If we are diagonalising the s.p. hamiltonian, we use hpsi to
               ! calculate
               !       spenergies  : <psi|h  | psi> 
               !       dispersions : <psi|h h| psi> - spenergies**2       
-              spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
-              dispersions(wave) = sum(hpsi(:,:)**2)*dv - spenergies(wave)**2              
+              spenergies(wg)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
+              dispersions(wg) = sum(hpsi(:,:)**2)*dv - spenergies(wg)**2              
               ! d2h can be calculated as a convergence measure in this case
               select case(pairingtype)
               case(0,1)
-                d2h          = d2h + rho_can(wave)*dispersions(wave)
+                d2h          = d2h + rho_can(wg)*dispersions(wg)
               case(2) 
-                d2h          = d2h + rho_pairing(wave,wave)*dispersions(wave)
+                d2h          = d2h + rho_pairing(wg,wg)*dispersions(wg)
               end select
             endif
             !-------------------------------------------------------------------
             ! We always construct the matrix elements of the single-particle
             ! hamiltonian in the basis of s.p. wavefunctions in memory.
-            do wave2=wave,si+N
-                current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
-                current_sph(wave ,wave2) = current_sph(wave2,wave)
+#if(USE_MPI>0)
+            do wave2=wave,si+N           ! local index
+                wg2 = spwf_map(wave2)    ! global index
+
+                select case (balancing_strategy)
+                case(1)
+                  ! In the case of symmetry-block-wise load balancing, we can
+                  ! safely assume all relevant wavefunctions are represented
+                  ! on the current MPI rank and we do not need more complicated
+                  !  things.
+                  current_sph(wg2,wg)  = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+                  current_sph(wg ,wg2) = current_sph(wg2,wg)
+                case DEFAULT
+                  call stp('Subroutine evolve_momentum is not yet ready for &
+                  &         MPI calculations with balancing_strategy different &
+                  &         from 1.')
+                end select
             enddo
+#else
+            do wave2=wave,si+N           ! local index
+                wg2 = spwf_map(wave2)    ! global index
+                current_sph(wg2,wg)  = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+                current_sph(wg ,wg2) = current_sph(wg2,wg)
+            enddo
+#endif
             !-------------------------------------------------------------------
             if(diagsphamil) then
               ! We are diagonalising the s.p. hamiltonian completely, i.e.
               ! also in the space spanned by the s.p. wavefunctions in memory
               ! We simply move in the direction of h|psi\rangle
-              hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
+              hpsi =   hpsi - spenergies(wg) * hfpsi(:,:,wave)
             else
               ! We do not diagonalise the s.p. hamiltonian, we only try to 
               ! construct the subspace spanned by its lowest eigenstates. 
@@ -411,8 +440,9 @@ contains
               ! So, we orthogonalise the update direction to all spwfs in
               ! storage.
               call start_timer(T_Hortho)
-              do wave2=si+1,si+N
-                 hpsi = hpsi-current_sph(wave,wave2)*hfpsi(:,:,wave2)
+              do wave2=si+1,si+N          ! local index
+                wg2 = spwf_map(wave2)     ! global index
+                hpsi = hpsi - current_sph(wg,wg2)*hfpsi(:,:,wave2)
               enddo
               call stop_timer(T_Hortho)
               ! The norm of the gradient can always be calculated as a 
@@ -425,13 +455,18 @@ contains
             momentum_updates(:,:,wave) = &
             &               momentum*momentum_updates(:,:,wave) - dt/hbar * hpsi
           enddo
-          
+
           do wave=si+1, si+N
             !-------------------------------------------------------------------
             ! Update the wavefunctions.
             hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
           enddo
-          
+
+          !---------------------------------------------------------------------
+          ! Treatment of the HF transformation
+          ! Note: no MPI-parallelization yet, since the current loadbalancing
+          !       strategy is symmetry-block-wise anyway.
+          !---------------------------------------------------------------------
           if(diagsphamil) then
               ! The HF-transfo we use is trivial, i.e. the s.p. wavefunctions
               ! in memory constitute the HF basis.
@@ -447,7 +482,7 @@ contains
               ! (*) Actually, the single-particle hamiltonian BEFORE the 
               !     heavy-ball evolution.
               call start_timer(T_HFdiag)
-              
+
               HFtransfo(si+1:si+N,si+1:si+N) = current_sph(si+1:si+N, si+1:si+N)
 
               lwork = -1; allocate(work(1))
@@ -459,22 +494,46 @@ contains
               deallocate(work)
 
               call stop_timer(T_HFdiag)
-              !-----------------------------------------------------------------
           endif
+          !-----------------------------------------------------------------
 
           si = si + N
         enddo
-    
+        
+#if(USE_MPI > 0)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Collecting all arrays on all MPI ranks. The ALLREDUCE calls are valid, 
+        ! since we zeroed the initial arrays at the top of this routine.
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! nwt-scalars
+        call MPI_ALLREDUCE(MPI_IN_PLACE,d2h         , 1, MPI_REAL8, MPI_SUM, &
+        &                                                MPI_COMM_WORLD,mpi_err)
+        call MPI_ALLREDUCE(MPI_IN_PLACE,gradientnorm, 1, MPI_REAL8, MPI_SUM, &
+        &                                                MPI_COMM_WORLD,mpi_err)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! nwt-vectors
+        call MPI_ALLREDUCE(MPI_IN_PLACE,spenergies  , nwt, MPI_REAL8,          &
+        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+        call MPI_ALLREDUCE(MPI_IN_PLACE,dispersions , nwt, MPI_REAL8,          &
+        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! nwt-Matrices
+        call MPI_ALLREDUCE(MPI_IN_PLACE,current_sph , nwt**2, MPI_REAL8,       &
+        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+#endif
+
         gradientnorm = sqrt(gradientnorm) 
         d2h          = d2h/(neutrons+protons)
 
-        ! Orthonormalize the new s.p.w.f. basis.
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Orthonormalize the new spwf basis.
         call GramSchmidt
-    
+
         call stop_timer(T_evolution)
 
     end subroutine Evolve_momentum
-    
+
     subroutine evolve_partial(maxiter, extraspwfs)
       !-------------------------------------------------------------------------
       ! Perform some gradient evolution with a fixed single-particle hamiltonian 
@@ -590,26 +649,29 @@ contains
 
     subroutine IterativeEstimation(Iteration)
       !-------------------------------------------------------------------------
-      ! Estimate optimum parameters (dt,mu) of the iterative process to try and
-      ! achieve optimal convergence. 
+      ! Estimate optimum parameters (dt,mu) of the heavy-ball iterative process
+      ! to try and achieve optimal convergence rate.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Input:
+      !   Iteration : integer, outer iteration counter. Used  
       !-------------------------------------------------------------------------
-            
+
       use wavefunctions
-      
+
       1 format (a20, 99f10.3)
       2 format ('-----------------------------------------------------------')
       3 format (' Warning: maximum value on the mesh could not be estimated.')
       4 format (' maxE = ', f10.3,  ' convergence =', es10.3)
-     
+
       integer, intent(in)              :: iteration
-      
+
       real(KIND=dp), allocatable, save :: maxspwf(:,:)
       real(KIND=dp), allocatable, save :: update(:,:), actionofh(:,:)
       real(KIND=dp), allocatable, save ::   dmax(:,:,:)
       real(KIND=dp), allocatable, save ::  ddmax(:,:,:)
       real(KIND=dp), allocatable, save :: dddmax(:,:,:)
-      
-      integer       :: estiter, iter, sxm(4), sym(4), szm(4), ii, i
+
+      integer       :: estiter, iter, ii, i
       real(KIND=dp) :: con, maxE, compare, relE, kappa
       !-------------------------------------------------------------------------
       ! Step 1: Solve the auxiliary problem for the largest single-particle 
@@ -629,7 +691,7 @@ contains
           allocate(dmax(nx*ny*nz,3,4))
           allocate(ddmax(nx*ny*nz,6,4))
           allocate(dddmax(nx*ny*nz,10,4))
-            
+
           call random_number(maxspwf)                        ! randomize
           maxspwf = 1.0/sqrt(sum(maxspwf**2)*dv) * maxspwf   ! normalize
       endif
@@ -638,16 +700,18 @@ contains
       update  = 0.0
       maxE    = 100.0 ! Initialize some value to avoid compiler complaints
 
-      ! For now, assume the symmetries of the very first neutron state
-      sxm(:) = sx(1,:) ; sym(:) = sy(1,:) ; szm(:) = sz(1,:) 
       !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Iterative estimation of the maximal energy
       con = 1
       do iter=1,estiter
           !---------------------------------------------------------------------
-          ! Note that onthefly = .true., making sphamil take care of the 
-          ! derivatives itself
-          actionofh = sphamil(maxspwf, dmax, ddmax, dddmax,sxm,sym,szm,1,.true.)
+          ! Two notes on this call to sphamil
+          ! - onthefly = .true., such that derivatives are calculated
+          ! - sx/y/z_max are set in the set_spwf_symmetries routine and are
+          !   assumed to be the reflection quantum numbers of the very first
+          !   symmetry block.
+          actionofh = sphamil(maxspwf, dmax, ddmax, dddmax,                    &
+          &                                      sx_max,sy_max,sz_max,1,.true.)
           con       = maxE
           maxE      = sum(actionofh * maxspwf) * dv
           con       = con - maxE
@@ -662,7 +726,6 @@ contains
           ! good enough.
           if(abs(con).lt. 1d-2) exit
       enddo
-
       if(iter.eq.estiter+1) then
        print 1
        print 2

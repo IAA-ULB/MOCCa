@@ -26,6 +26,7 @@ module densities
 ! DERIVATION      : [WAY too long to include here]
 ! ISOSPINCOUPL    : [WAY too long to include here]
 ! CLEANING        : [WAY too long to include here]
+! MPIDEN          : [WAY too long to include here]
 !
 ! TR              : $TR
 ! NTR             : $NTR 
@@ -213,10 +214,13 @@ contains
  subroutine densit(SaveRho)
     !---------------------------------------------------------------------------
     ! Calculate all of the densities. 
-    ! If SaveRho=.false., do not save the previous values to history!
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !    SaveRho : logical. If .true., save the values of the densities on input
+    !                       to their respective histories. If .false., do not
+    !                       keep this information.
     !---------------------------------------------------------------------------
-
-    integer      :: i, it, wave, wave2, B, N, si, N2, T
+    integer      :: i, it, wave, wave2, wave_global, B, N, si, N2, T, mpi_err
     real(KIND=dp):: weight
     logical      :: SaveRho
     real(KIND=dp), allocatable :: kappa_cut(:,:)
@@ -277,22 +281,21 @@ $ZEROING
     call start_timer(T_den_ph)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! PARTICLE-HOLE DENSITIES
-    do wave=1,nwt
+    do wave=1,nwt_local              ! Loop over the local spwf index
+        wave_global = spwf_map(wave) ! Global spwf index
+    
         ! Isospin is neutron in the first half of blocks, proton in the rest
         it = 2
-        if(wave.le.nwn) it = 1
+        if(wave_global.le.nwn) it = 1
         
         ! For ordinary densities
-        weight  = rho_can(wave) 
+        weight  = rho_can(wave_global) 
 
         do i=1,mv
 $EXPRESSION
         enddo
     enddo
     call stop_timer(T_den_ph)
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Construct the basis where kappa (with cutoffs) is canonical 
 
     call start_timer(T_den_pp)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -306,11 +309,12 @@ $EXPRESSION
       !----------------------------------------------
       ! BCS calculation, the sums are over i == ibar.
       !----------------------------------------------
-      do wave=1,nwt
+      do wave=1,nwt                    ! local index of the spwf
+          wave_global = spwf_map(wave) ! global index of the spwf
           ! Isospin is neutron in the first half of blocks, proton in the rest
           it = 2
-          if(wave.le.nwn) it = 1
-          weight  = 2 * kappa_can(wave) * Pcutoffs(wave)**2
+          if(wave_global.le.nwn) it = 1
+          weight  = 2 * kappa_can(wave_global) * Pcutoffs(wave_global)**2
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! Note about the factor two in the weight:
           ! 
@@ -339,7 +343,10 @@ $BCSEXPRESSION
       !------------------------------------
       ! HFB calculations: full summations.
       !------------------------------------
-      
+
+#if(USE_MPI > 0)      
+      call stp('Calculation of kappa_weights to be parallelized.')
+#endif      
       ! Temporary fix: sum the pairing densities in the HFbasis, not the 
       !                canonical basis, althought it would be easy to change.
       DenPsi    => HFPsi   ; DenDPsi   => HFdPsi 
@@ -450,6 +457,12 @@ $HFBEXPRESSION
       end select
     end select
     call stop_timer(T_den_pp)
+    
+#if(USE_MPI > 0)
+   ! Sum the density over all processes
+$MPIDEN
+#endif
+    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! The asked for mixing+preconditioning scheme.
     call MassageDensity()
