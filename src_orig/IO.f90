@@ -688,8 +688,8 @@ contains
     call MPI_BCAST(file_version , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
 #endif    
     ! .. now we have each rank decide what spwfs to take from file
-    call loadbalance(fileblocks_global,balancing_strategy, &
-    &                 fileblocks,fileoffset, file_spwf_map, file_rank_map)
+    call loadbalance(fileblocks_global,balancing_strategy, &  ! input arguments
+    &                fileblocks, file_spwf_map, file_rank_map)! output arguments
 
     ! Arrays like these are stored on all ranks, hence "filenwt"
     allocate(spenergies (filenwt))
@@ -729,7 +729,6 @@ contains
         ! Read the spwf into dummy storage
         if(MPI_RANK.eq.0) read(chan,iostat=io) temp
         targetrank = file_rank_map(wave) ! rank to communicate the spwf to
-        print *, 'W', wave, ' T ', targetrank
         if(targetrank .eq. 0 .and. MPI_RANK.eq.0) then
             ! No communication is necessary for the spwfs stored on rank 0
             ! This case is ALWAYS executed for serial calculations.
@@ -1063,9 +1062,9 @@ contains
 
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ofn
-    integer                      :: io, wave
+    integer                      :: io, wave, j, wave_local
 #if(USE_MPI > 0)
-    integer                      :: mpi_err, rank, nwt_rank
+    integer                      :: mpi_err, rank
     real(KIND=dp), allocatable   :: tempwf(:,:)
 #endif
     type(moment), pointer        :: mom
@@ -1093,50 +1092,48 @@ contains
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Parallel part of the writing
-    ! a) Rank 0 writes its own wavefunctions
-    if(MPI_RANK .eq. 0) then
-      do wave=1,nwt_local
-        write(chan,iostat=io) HFPsi(:,:,wave)
-      enddo
-    endif
-
+    ! First, make sure the team is complete before proceeding
 #if(USE_MPI > 0)
-    ! > make sure the team is complete before proceeding
     call MPI_BARRIER(MPI_COMM_WORLD, mpi_err) 
-    !b)! making space to receive spwfs from the other ranks
+#endif
+    ! b) making space to receive spwfs from the other ranks
     if(MPI_RANK .eq.0) allocate(tempwf(mv,4))
 
-    do rank=1,NCORES-1 
-      ! this loop starts at 1, rank 0 has already written everything to file
+    do wave = 1, nwt
+        ! spwf wave is stored on which MPI rank?
+        rank = rank_map(wave)
 
-      if(MPI_RANK .eq. 0) then
-        call MPI_RECV(nwt_rank, 1, MPI_INTEGER, rank, 1, MPI_COMM_WORLD,       &
-        &                                            MPI_STATUS_IGNORE, mpi_err)
-      elseif(MPI_RANK .eq. rank) then
-        ! this rank should also know the dimensions of the loop below
-        nwt_rank = nwt_local 
-        call MPI_SEND(nwt_local, 1, MPI_INTEGER, 0, 1, MPI_COMM_WORLD, mpi_err)
-      endif
-      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+        if(MPI_RANK.eq.rank) then
+          ! this MPI rank should figure out which of its stored spwfs
+          ! is actually the 'wave'-th one in the total calculation
+          wave_local = 0
+          do j=1,nwt_local
+            if( spwf_map(j) .eq. wave) wave_local = j
+          enddo
+        endif
 
-      do wave = 1, nwt_rank
-         if(MPI_RANK .eq. 0) then
+        if(rank.eq.0) then
+          ! ------ Rank 0 writes its own wavefunctions ----------------
+          if(MPI_RANK.eq.0) write(chan,iostat=io) HFPsi(:,:,wave_local)
+#if(USE_MPI > 0)
+        else
+          ! ...  otherwise there is communication involved ....
+          if(MPI_RANK .eq. 0) then
+            ! -------rank 0 receives and writes -----------------------
             call MPI_RECV(        tempwf, 4*mv, MPI_REAL8, rank, 2, &
             &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
-            ! writing the received spwf to file
             write(chan,iostat=io) tempwf
-         else if(MPI_RANK .eq. rank) then
-            call MPI_SEND(hfpsi(:,:,wave), 4*mv, MPI_REAL8, 0, 2,              &
+          elseif(MPI_RANK .eq. rank) then
+            ! -------rank "rank" sends ------- -----------------------
+            call MPI_SEND(hfpsi(:,:,wave_local), 4*mv, MPI_REAL8, 0, 2,        &
             &                                           MPI_COMM_WORLD, mpi_err)
-         endif
-      enddo
-
-      ! Wait until all spwfs of this rank have been written to file
-      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+          endif
+        endif
+#endif
     enddo
+
     ! e) freeing up the space
     if(MPI_RANK .eq.0) deallocate(tempwf)
-#endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Back to the sequential part of the writing
     if(MPI_RANK .EQ. 0) then

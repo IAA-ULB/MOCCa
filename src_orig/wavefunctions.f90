@@ -258,8 +258,7 @@ contains
     nwt = nwn + nwp
   end subroutine ReadWFdata
 
-  subroutine loadbalance(blocks_global,balancing,blocks_local,offset,spwf_map,&
-  &                                                                  rank_map)
+  subroutine loadbalance(blocks_global,balancing,blocks_local,spwf_map,rank_map)
     !---------------------------------------------------------------------------
     ! Balance the loading of large arrays across MPI ranks in a 1D fashion.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -278,7 +277,6 @@ contains
     !   blocks_local  : integer(8)
     !                   LOCAL size of the symmetry blocks, i.e. the total number
     !                   of spwfs in each block FOR THIS MPI RANK.
-    !   offset        : integer, offset of the calculations for this block
     !   spwf_map      : integer(:)
     !                   mapping of the spwfs on this MPI rank to the whole
     !                   calculation
@@ -288,11 +286,11 @@ contains
     !---------------------------------------------------------------------------
     integer, intent(in)  :: balancing
     integer, intent(in)  :: blocks_global(blocks)
-    integer, intent(out) :: blocks_local(blocks), offset
+    integer, intent(out) :: blocks_local(blocks)
     integer, intent(out), allocatable :: spwf_map(:), rank_map(:)
 
     integer              :: B, activeblocks, ranks_per_block, blocks_per_rank
-    integer              :: block_count, mpi_err, i
+    integer              :: block_count, mpi_err, i, offset
 
     allocate(rank_map(sum(blocks_global)))
     rank_map = 0
@@ -357,7 +355,6 @@ contains
   call MPI_ALLREDUCE(MPI_IN_PLACE, rank_map, sum(blocks_global),& 
   &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
 #endif
-  print *, 'RANK MAP', MPI_RANK, RANK_MAP
   end subroutine loadbalance
 
   subroutine iniwavefunctions(ininx,ininy, ininz, ininwn, ininwp)   
