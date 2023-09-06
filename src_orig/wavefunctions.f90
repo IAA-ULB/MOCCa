@@ -145,7 +145,7 @@ module wavefunctions
  integer, parameter   :: Blocks                  = 8  ! This can always be fixed
  integer              :: HFBlocks(Blocks)  = 0
  integer              :: HFBlocks_global(Blocks) = 0
- integer              :: nwn = 6, nwp = 6, nwt = 12, nwt_local =12, spwf_min = 0
+ integer              :: nwn = 6, nwp = 6, nwt = 12, nwt_local =12
  integer, allocatable :: rank_map(:), spwf_map(:)
  !------------------------------------------------------------------------------
  ! Properties of the single-particle wave-functions with regard to reflections
@@ -369,56 +369,64 @@ contains
     ! Not initialized here:
     !  *) Delta for the gaps. Since this module can not know what kind of 
     !     pairing is needed, it cannot correctly guess a structure. 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !    ininx/y/z : number of mesh points in 1/8th of the box
+    !    ininwn    : number of neutron wavefunctions
+    !    ininwp    : number of proton wavefunctions
     !---------------------------------------------------------------------------
-    
-    integer                   :: i,j
+
+    integer                   :: i,j, B, si
     integer, intent(in)       :: ininx, ininy, ininz, ininwn, ininwp
     integer                   :: ininwt
     integer, allocatable      :: kparz(:)
-    
+
     ininwt = ininwn + ininwp
-    allocate(hfpsi(ININX*ININY*ININZ,4,ININWT)) ; hfpsi = 0.0d0
-    if (allocated(kparz))  deallocate(kparz)       
+    
+    ! The actual allocation of the spwfs cannot be done here when using MPI.
+    ! The reason is that the routine nilsson only decides on the symmetry
+    ! blocks AFTER the diagonalisation of the Nilsson Hamiltonian.
+!    allocate(hfpsi(ININX*ININY*ININZ,4,ININWT)) ; hfpsi = 0.0d0
+    ! but since our routine nilsson is an adaptation of a very old FORTRAN code,
+    ! I preferred to make this complicated construction involving two nilsson
+    ! calls instead of modifying nilsson.
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
-    call nilsson (HFPsi,kparz,spenergies,8,7,ININWT,ININWP,ININWN,          &
-    &           floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq)
+    if(allocated(spwf_map)) deallocate(spwf_map)
+    ! First call of subroutine nilsson: do everything BUT construct spwfs
+    call nilsson (HFPsi,kparz,spenergies,11,10,ININWT,ININWP,ININWN,           &
+    &     floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,spwf_map)
 
-
-    allocate(dispersions(ININWT)) ; dispersions  = 0
-    allocate(sx(4,ININWT), sy(4,ININWT), sz(4,ININWT))
-
-    if(.not.allocated(hftransfo)) allocate(hftransfo(nwt,nwt))
-    do i=1, nwt
-      hftransfo(i,i) = 1.0d0
-      do j=i+1,nwt
-        hftransfo(i,j) = 0.0d0 
-        hftransfo(j,i) = 0.0d0 
-      enddo
-    enddo
-
-    if(.not.allocated(current_sph)) allocate(current_sph(nwt,nwt))
-    do i=1, nwt
-      current_sph(i,i) = spenergies(i)
-      do j=i+1,nwt
-        current_sph(i,j) = 0.0d0 
-        current_sph(j,i) = 0.0d0 
-      enddo
-    enddo
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-    ! b) fill in the right symmetry properties for the wavefunctions
-    hfblocks = 0
+    ! Based on this information, we construct the correct symmetry properties
+    ! and initialize the GLOBAL sizes of the symmetry blocks
+    hfblocks_global = 0
     do i=1,ININWN
-        if(kparz(i) .gt. 0) HFBlocks(1) = HFBlocks(1) +1
-        if(kparz(i) .lt. 0) HFBlocks(3) = HFBlocks(3) +1
+        if(kparz(i) .gt. 0) HFBlocks_global(1) = HFBlocks_global(1) +1
+        if(kparz(i) .lt. 0) HFBlocks_global(3) = HFBlocks_global(3) +1
     enddo
     do i=ININWN+1,ININWT
-        if(kparz(i) .gt. 0) HFBlocks(5) = HFBlocks(5) +1
-        if(kparz(i) .lt. 0) HFBlocks(7) = HFBlocks(7) +1
+        if(kparz(i) .gt. 0) HFBlocks_global(5) = HFBlocks_global(5) +1
+        if(kparz(i) .lt. 0) HFBlocks_global(7) = HFBlocks_global(7) +1
     enddo
-    
+    ! using this information, we are capable of figuring out the way to 
+    ! balance the (still unconstructed) spwfs.
+    call loadbalance(HFblocks_global,balancing_strategy,& 
+    &                        HFblocks,spwf_map,rank_map)
+    ! now each MPI rank knows which spwfs it should grab and can make the space
+    allocate(HFPSI(ININX*ININY*ININZ,4,sum(HFblocks))); hfpsi = 0.0d0
+    ! second call of subroutine nilsson: construct the part of the nilsson 
+    ! spectrum that should be stored on this rank.
+    call nilsson (HFPsi,kparz,spenergies,11,10,ININWT,ININWP,ININWN,           &
+    &     floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,spwf_map)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! b) we orthonormalize for good measure
+    call GramSchmidt
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! c) and now we go on to populate more symmetry information
+    allocate(sx(4,sum(hfblocks)), sy(4,sum(hfblocks)), sz(4,sum(hfblocks)))
     do i=1, HFBlocks(1)
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
         sx(2,i) = -1 ; sy(2,i) = -1 ; sz(2,i) = +1 
@@ -446,11 +454,29 @@ contains
         sx(3,i) = -1 ; sy(3,i) = +1 ; sz(3,i) = +1
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
-    deallocate(kparz)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! d) and perform some other initializations
+    allocate(dispersions(ININWT)) ; dispersions  = 0
+    if(.not.allocated(hftransfo)) allocate(hftransfo(nwt,nwt))
+    do i=1, nwt
+      hftransfo(i,i) = 1.0d0
+      do j=i+1,nwt
+        hftransfo(i,j) = 0.0d0 
+        hftransfo(j,i) = 0.0d0 
+      enddo
+    enddo
 
-    call GramSchmidt
+    if(.not.allocated(current_sph)) allocate(current_sph(nwt,nwt))
+    do i=1, nwt
+      current_sph(i,i) = spenergies(i)
+      do j=i+1,nwt
+        current_sph(i,j) = 0.0d0 
+        current_sph(j,i) = 0.0d0 
+      enddo
+    enddo
+
   end subroutine iniwavefunctions
-  
+
   subroutine deriveHF()
     !---------------------------------------------------------------------------
     ! Derives all of the single-particle wave-functions in the basis in memory

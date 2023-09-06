@@ -97,7 +97,7 @@ implicit none
   !-----------------------------------------------------------------------------
   ! Characteristics of the calculation stored on the .wf file
   integer              :: filenx, fileny, filenz, filenwn, filenwp, filepairing
-  integer              :: filenwt, fileneutrons, fileprotons, fileoffset
+  integer              :: filenwt, fileneutrons, fileprotons
   integer              :: fileblocks_global(8), fileblocks(8)
   integer, allocatable :: file_spwf_map(:), file_rank_map(:)
   real(KIND=dp) :: filedx
@@ -424,8 +424,6 @@ contains
     if(trim(to_upper(inputfilename)).eq.'INIT') then
       ! Option 1) generate starting point with Nilsson wavefunctions.
       call iniwavefunctions($ININX, $ININY, $ININZ, $ININWN, $ININWP)
-      guessgaps         = .true.
-      fileblocks_global = HFBlocks
 
       if( SYM_CODE .ne. "0 1 001 000 10 000 010 111" ) then
         ! Initialisation with nil8 wavefunctions is always EV8-style
@@ -439,7 +437,16 @@ contains
           call stp('')
         endif
       endif
+
+      ! ... and then make the code think these things were read from file
+      ! by setting all file_X quantities to those initialized
+      guessgaps         = .true.
+
       filenx = $ININX ; fileny = $ININY ; filenz = $ININZ ; filedx = dx
+      fileblocks_global = HFBlocks_global
+      fileblocks        = HFBlocks
+      file_spwf_map     = spwf_map
+      file_rank_map     = rank_map
     else
       ! Option 2) start from a previous calculation.
       call ReadTantalus(12, inputfilename)
@@ -460,28 +467,18 @@ contains
           ! The added spwfs are added somewhat randomly, hence we add an extra
           ! orthonormalisation in the mix.
       endif
-      ! summing the total number of spwfs on this rank
-      nwt_local = sum(HFBlocks)
-#if(USE_MPI>0)
-      HFblocks_global = 0
-      call MPI_ALLREDUCE(HFblocks,HFBlocks_global,8, MPI_INTEGER,MPI_SUM,      &
-      &                                                 MPI_COMM_WORLD, mpi_err)
-#else
-      HFBlocks_global = HFBlocks
-#endif
-      spwf_min  = fileoffset
-      spwf_map  = file_spwf_map
-      rank_map  = file_rank_map
     else  
       ! Sanity check
       if(symtransfo_needed) then
         call stp('Symmetry transformation needed, but not allowed by user.')
       endif
-
       ! We still need to set this particular information
       HFblocks  = fileblocks
-      ! summing the total number of spwfs on this rank
-      nwt_local = sum(HFBlocks)
+    endif
+  
+    !---------------------------------------------------------------------------
+    ! The following information needs to be transferred in every case
+    nwt_local = sum(HFBlocks)
 #if(USE_MPI>0)
       HFblocks_global = 0
       call MPI_ALLREDUCE(HFblocks,HFBlocks_global,8, MPI_INTEGER,MPI_SUM,      &
@@ -489,12 +486,9 @@ contains
 #else
       HFBlocks_global = HFBlocks
 #endif
-      ! Offset in the spwf-size
-      spwf_min  = fileoffset
-      spwf_map  = file_spwf_map
-      rank_map  = file_rank_map
-    endif
-    
+    spwf_map  = file_spwf_map
+    rank_map  = file_rank_map
+    !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
     if(.not.allocated(HFTransfo)) then
         allocate(HFTransfo(nwt,nwt)) 
@@ -503,7 +497,7 @@ contains
             HFtransfo(i,i) = 1.0d0
         enddo
     endif
-    
+    !---------------------------------------------------------------------------
     call set_spwf_symmetries(sx, sy, sz, HFblocks)
     call update_spwf_symmetries(.true.)
     !---------------------------------------------------------------------------
