@@ -155,9 +155,10 @@ contains
     !   file_number : optional integer. If present, read from (open) channel
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-    
     integer(dp), intent(in), optional   :: file_number 
+#if(USE_MPI>0)
     integer                             :: mpi_err
+#endif
 
     namelist /func/ name_param
     
@@ -586,9 +587,12 @@ $PRINT
     !---------------------------------------------------------------------------
     use Constants
 
-    integer          :: wave, it,k,i, wave_global, mpi_err
+    integer          :: wave, it,k,i, wave_global
     real(KIND=dp)    :: Inproduct
     real(KIND=dp)    :: Kinetic(2)
+#if(USE_MPI>0)
+    integer          :: mpi_err
+#endif
 
     ! Kinetic Energy
     Kinetic = 0.0_dp

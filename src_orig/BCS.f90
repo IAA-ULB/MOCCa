@@ -377,7 +377,7 @@ contains
             si    = 0
             qpb   = 0
             do B=1,4
-              N = HFblocks(B) ; if (N.eq.0) cycle
+              N = HFBlocks_global(B) ; if (N.eq.0) cycle
               if(bcsqps(si+toblock(B)+1) .lt. qpmin) then
                 qpmin = bcsqps(si+toblock(B)+1)
                 qpb   = B
@@ -391,10 +391,10 @@ contains
         if(proton_block(5).ne.0) then
           do i = 1, proton_block(5)
             qpmin = 10000000
-            si    = sum(HFBlocks(1:4)) 
+            si    = sum(HFBlocks_global(1:4)) 
             qpb   = 0
             do B=5,8
-              N = HFblocks(B) ; if (N.eq.0) cycle
+              N = HFBlocks_global(B) ; if (N.eq.0) cycle
 
               if(bcsqps(si+toblock(B)+1) .lt. qpmin) then
                 qpmin = bcsqps(si+toblock(B)+1)
@@ -410,7 +410,7 @@ contains
         si = 0
         c  = 0
         do B=1,8
-            N = HFblocks(B) ; if(N.eq.0) cycle
+            N = HFBlocks_global(B) ; if(N.eq.0) cycle
             indices = Order(BCSqps(si+1:si+N))
             do i=1, toblock(B)
               f(si+indices(i)) = occ
@@ -430,11 +430,11 @@ contains
 
       !  B = modelblock
       !  if(B.gt.1) then
-      !    si = sum(HFblocks(1:B-1))
+      !    si = sum(HFBlocks_global(1:B-1))
       !  else
       !    si = 0
       !  endif
-      !  N       = HFblocks(B)
+      !  N       = HFBlocks_global(B)
       !  maxover = -10
       !  indover =   0
       !  do i=1, N

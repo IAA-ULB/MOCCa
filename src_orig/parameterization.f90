@@ -137,9 +137,12 @@ contains
     character(len=20) :: name, func_file, toopen
     character(len=200):: param_string
     character(len=*), intent(in) :: name_param, func_name
-    integer           :: io, mpi_err
+    integer           :: io
     logical           :: exists
-    
+#if(USE_MPI>0)
+    integer                             :: mpi_err
+#endif
+
     ! predefined options
     namelist /skf/ name, func_file, hbm, e2, COM1body, COM2body, coultreatment,&
     &              protonsize, nucleonsize_selfconsistent, neutronsize,        &
@@ -423,7 +426,7 @@ $PRINTPARAMS
     
     print 4
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! All coulomb options
     print 7, coultreatment
     select case(Coultreatment)
@@ -462,7 +465,7 @@ $PRINTPARAMS
     if(neutroncoulomberror .and. nucleonsize_selfconsistent) then
       print 999
     endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     print 4
     print 9
     select case (COM1body)

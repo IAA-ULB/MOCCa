@@ -156,7 +156,7 @@ contains
     integer :: ifail, wave
 
     call start_timer(T_den_can)
-    
+
     if(.not.allocated(Canenergies)) allocate(Canenergies(nwt)) 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -164,7 +164,6 @@ contains
     !    canonical basis by diagonalizing rho
     call Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,             &
     &              cantransfo,cancuttransfo,ifail)
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! b. use this transformation to construct the physical wavefunctions
     if(efficientHFB) then
@@ -177,7 +176,6 @@ contains
        ! Full-on transformation, we have memory to burn
        call transform_spwfs(hfpsi, canpsi, cantransfo)
     endif
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! c. Transform all relevant matrices into the new basis
     if(efficientHFB) then
@@ -220,10 +218,15 @@ contains
     !                       to their respective histories. If .false., do not
     !                       keep this information.
     !---------------------------------------------------------------------------
-    integer      :: i, it, wave, wave2, wave_global, B, N, si, N2, T, mpi_err
+    integer      :: i, it, wave, wave2, B, N, si, N2, T
+    integer      ::  wave_global, wave2_global
     real(KIND=dp):: weight
     logical      :: SaveRho
     real(KIND=dp), allocatable :: kappa_cut(:,:)
+#if(USE_MPI>0)
+    integer      :: mpi_err
+#endif
+
 
     call start_timer(T_densities)
 
@@ -339,35 +342,39 @@ $BCSEXPRESSION
           enddo
       enddo
     case(2)
-      !------------------------------------
+      !-------------------------------------------------------------------------
       ! HFB calculations: full summations.
-      !------------------------------------
-
-#if(USE_MPI > 0)      
-      call stp('Calculation of kappa_weights to be parallelized.')
-#endif      
-      ! Temporary fix: sum the pairing densities in the HFbasis, not the 
-      !                canonical basis, althought it would be easy to change.
+      !-------------------------------------------------------------------------
+      ! Sum the pairing densities in the HFbasis. This could be done in the 
+      ! canonical basis, but this would surely be less straightforward because
+      ! of the presence of pairing cutoffs.
       DenPsi    => HFPsi   ; DenDPsi   => HFdPsi 
       DenddPsi  => HFddPsi ; DendddPsi => HFdddpsi
-      
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Tricky loop-structure due to MPI implementation. 
+      ! The previous implementation for kappa_cut did not generalize easily, 
+      ! since it was constructed for each symmetry-block separately.
+      ! The new implementation just constructs kappa_cut completely before 
+      ! summing any of the pairing densities.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+      ! a) start out by "just" copying kappa
+      kappa_cut = kappa_pairing
+      if((.not. diagsphamil)) then
+        kappa_cut = transform_mat(kappa_cut, HFTransfo)
+      endif
+
       si = 0
-      do B=1,8,2
-        N = HFBlocks(B) ;  if (N.eq.0) cycle
-        N2= HFBlocks(B+1)
+      do B=1,8,2  ! <------- this loop ranges over the global set of spwfs
+        N = HFBlocks_global(B) ;  if (N.eq.0) cycle
+        N2= HFBlocks_global(B+1)
         T = N+N2
         it = 2          
         if( B.le. 4) it = 1
 
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Calculation of the pairing cutoffs * kappa
-        kappa_cut = kappa_pairing(si+1:si+T,si+1:si+T)
-        if ((.not. diagsphamil)) then  
-          ! Transform to the HF-basis
-          kappa_cut =matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)),kappa_cut)
-          kappa_cut =matmul(          kappa_cut, HFtransfo(si+1:si+T,si+1:si+T))
-        endif
-        ! Multiply with the cutoffs
         !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! W.R. Nasty bug 07/04/'22
         ! The multiplication by the cutoffs needs to happen for ALL matrix
@@ -375,25 +382,38 @@ $BCSEXPRESSION
         ! pairing densities. The reason is that the HFTransfo multiplication 
         ! does see all of them, at least as it is coded at the moment.
         ! We could use the symmetries of kappa to reduce the workload, but 
-        ! this is O(nwt**2) effort and it depends on T-breaking.
+        ! this is only O(nwt**2) effort and the implementation would depend on 
+        ! whether or not Timereversal is broken.
         do wave=1,T
           do wave2=1,T
-            kappa_cut(wave, wave2) = kappa_cut(wave,wave2) &
+            kappa_cut(si+wave,si+wave2) = kappa_cut(si+wave,si+wave2) &
             &                     *Pcutoffs(si+wave)*Pcutoffs(si+wave2)
           enddo
         enddo
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        if((.not. diagsphamil) ) then 
-          ! Transform back to the basis in memory
-          kappa_cut=matmul(HFtransfo(si+1:si+T,si+1:si+T), kappa_cut)
-          kappa_cut=matmul( kappa_cut,transpose(HFtransfo(si+1:si+T,si+1:si+T)))
-        endif
+        si = si + N + N2
+      enddo
 
-        do wave=1,N
-$TR          do wave2=wave,N      
+      ! transform back to the HFbasis
+      if((.not. diagsphamil)) then
+        kappa_cut = transform_mat(kappa_cut, transpose(HFTransfo))
+      endif
+
+      ! with kappa_cut in hand, we can turn to the summation of the densities.
+      si = 0
+      do B=1,8,2  ! <------- this loop ranges over the LOCAL set of spwfs
+        N = HFBlocks(B) ;  if (N.eq.0) cycle
+        N2= HFBlocks(B+1)
+        T = N+N2
+        it = 2          
+        if( B.le. 4) it = 1
+
+        do wave=1,N                         ! local index of the spwf
+          wave_global = spwf_map(si+wave)   ! global index of the spwf
+$TR          do wave2=wave,N               
 $NTR          do wave2=N+1,N+N2      
+                wave2_global = spwf_map(si+wave2)
 
-            weight=2*kappa_cut(wave,wave2)
+            weight=2*kappa_cut(wave_global,wave2_global)
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
             ! Note about the factor two in the weight:
             ! 
@@ -483,8 +503,12 @@ $ISOSPINCOUPL
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Sum DivJ from the spwfs separately
     divJ = sum_divJ_spwf()
-    
+
     call stop_timer(T_densities)
+
+!#if(USE_MPI > 0)      
+!      call stp('End of densit')
+!#endif      
 
 end subroutine densit
 

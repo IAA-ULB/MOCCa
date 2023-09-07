@@ -155,11 +155,12 @@ contains
     real(KIND=dp)       :: CrankX, CrankY, CrankZ
     real(KIND=dp)       :: IntensityX, IntensityY, IntensityZ
     real(KIND=dp)       :: ScaleX, ScaleY, ScaleZ
-    integer             :: CrankTypeX, CrankTypeY, CrankTypeZ
-    
-    integer             :: i, mpi_err
-$NTR  integer             :: j,c
+    integer             :: CrankTypeX, CrankTypeY, CrankTypeZ, i
     logical             :: NotFound
+$NTR  integer             :: j,c
+#if(USE_MPI>0)
+    integer             :: mpi_err
+#endif
 
     namelist /cranking/ OmegaX, OmegaY, OmegaZ,             &
     &                   CrankX, CrankY, CrankZ,             & 

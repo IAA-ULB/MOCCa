@@ -179,8 +179,11 @@ contains
     !---------------------------------------------------------------------------
     character(len=20)                   :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
-    integer                             :: i, mpi_err
-    
+    integer                             :: i
+#if(USE_MPI>0)
+    integer                             :: mpi_err
+#endif
+
     NameList /Pairing/ Type, Constantgap,                                      &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
     &                  FermiSolver, guessgaps,  pairingscheme,                 &
@@ -309,12 +312,15 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
     call MPI_Bcast(gradient_precon,  1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(bogofromfile   ,  1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
 
-    call MPI_Bcast(pairingscheme ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(Blocktype     ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(Blocknumber   ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(maxhfbiter    ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(gapvalue      ,  2, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(pairingscheme  ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(Blocktype      ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(Blocknumber    ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(maxhfbiter     ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err) 
 
+    call MPI_Bcast(gapvalue       ,  2, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_Bcast(FermiSolver   , len(FermiSolver), MPI_CHARACTER, 0,        &
+    &                                                   MPI_COMM_WORLD, mpi_err)
     ! /blocking/ namelist variables
     if(BlockNumber.ne.0) then
       call MPI_Bcast(blockJ, 1, MPI_REAL8, MPI_COMM_WORLD, mpi_err)
@@ -523,13 +529,13 @@ $VMICRO call print_micro_pairing_info(ptype, intertype)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !
     ! Input:
-    !   gapvalue :  values to assign to the pairing gaps for neutrons and protons
-    !               in MeV. If gapvalue < 0, use the default value, 1.5 MeV.
+    !  gapvalue :  values to assign to the pairing gaps for neutrons and protons
+    !              in MeV. If gapvalue < 0, use the default value, 1.5 MeV.
     !---------------------------------------------------------------------------
     integer                   :: wave, wave2, si, B, N, s, N2, it
     real(KIND=dp), intent(in) :: gapvalue(2) 
     real(KIND=dp)             :: fill(2)
-    
+
     do it=1,2
       if(gapvalue(it) .lt. 0) then
         fill(it) = 1.5
@@ -537,8 +543,6 @@ $VMICRO call print_micro_pairing_info(ptype, intertype)
         fill(it) = gapvalue(it)
       endif
     enddo
-    
-    
 
     select case (PairingType)
     case(0)
@@ -560,19 +564,19 @@ $VMICRO call print_micro_pairing_info(ptype, intertype)
       if(.not.allocated(HFBGaps)) then
         allocate(HFBGaps(nwt,nwt)) ; HFBGaps = 0.0
       endif
-  
+
       HFBGaps = 0.0
       si = 0 
       do B= 1,8,2 ! Loop over only half of the blocks
-        N = HFBlocks(B) ; if(N.eq.0) cycle
-        N2= HFblocks(B+1)
-        
+        N = HFBlocks_global(B) ; if(N.eq.0) cycle
+        N2= HFBlocks_global(B+1)
+
         if(B .ge. 5) then
           it = 2
         else
           it = 1
         endif
-        
+
         do wave=si+1,si+N
              !------------------------------------------------------------------
              ! If there is a conserved time-like symmetry, then we store only
@@ -733,7 +737,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     ! Compute the cutoffs
     call ComputePairingCutoffs(fermienergy)
     call stop_timer(T_pairing)
-   
+
     if(blocknumber.ne.0) then
       blocked_sps = identify_blocked_particle(Bogoliubov) 
     endif   
@@ -1099,8 +1103,8 @@ $NTR      endif
     sb  = 0
     ind = 0
     do B=1,8,2
-      N = HFBlocks(B) ; if(N.eq.0) cycle
-      N2= HFBlocks(B+1)
+      N = HFBlocks_global(B) ; if(N.eq.0) cycle
+      N2= HFBlocks_global(B+1)
       
       do k=1,blocknumber
         qp = blocked_qps(k)

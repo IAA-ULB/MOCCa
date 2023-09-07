@@ -147,7 +147,9 @@ contains
     character(26), intent(in), optional :: input_file 
 
     logical :: exists
+#if(USE_MPI>0)
     integer :: mpi_err
+#endif
     
     if(present(file_number)) then
       inquire(file=input_file, exist=exists)
@@ -191,12 +193,14 @@ contains
     use fission_moi,   only : N_inertia
 
     integer(dp), intent(in), optional   :: file_number   
+#if(USE_MPI>0)
     integer                             :: mpi_err
-  
+#endif
+
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
     &           tofile, blockfile, inertfile, N_inertia
-  
+
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
       if(present(file_number)) then
@@ -205,7 +209,7 @@ contains
         read (unit=*          , nml=IO)
       endif
     endif
-    
+
     ! ... and then broadcasts information
     !      ( I am aware that these variables are likely to be useful only to 
     !        rank 0 core, but this might avoid future errors )
@@ -263,8 +267,11 @@ contains
     integer*8, intent(in), optional     :: file_number
     character(11), intent(in), optional :: input_file 
     integer, allocatable                :: spwf_count(:)
-    integer                             :: tcount, rank, mpi_err
-   
+    integer                             :: tcount, rank
+#if(USE_MPI>0)
+    integer                             :: mpi_err
+#endif
+
     1 format ( 30('-'), 'General Information ', 30('-'))
     2 format ( ' Mesh parameters' )
     3 format ( '   nx = ', i5 , ' ny = ' , i5 , ' nz = ' , i5, ' mv = ' , i5)
@@ -418,7 +425,10 @@ contains
     ! None of a) or b) is allowed if the user does not set the AllowTransform
     ! flag to .true. This behavior is coded like that as a general safeguard.
     !---------------------------------------------------------------------------
-    integer :: i, mpi_err
+    integer :: i
+#if(USE_MPI>0)
+    integer :: mpi_err
+#endif
     !---------------------------------------------------------------------------
     ! Input options 
     if(trim(to_upper(inputfilename)).eq.'INIT') then
@@ -742,7 +752,9 @@ contains
           endif
 #endif
         endif
+#if(USE_MPI > 0)
         call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+#endif
       enddo
     else
       ! Originally, the .wf files contained the HFPsi array as one unformatted
@@ -1056,9 +1068,9 @@ contains
 
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ofn
-    integer                      :: io, wave, j, wave_local
+    integer                      :: io, wave, j, wave_local, rank
 #if(USE_MPI > 0)
-    integer                      :: mpi_err, rank
+    integer                      :: mpi_err
     real(KIND=dp), allocatable   :: tempwf(:,:)
 #endif
     type(moment), pointer        :: mom
@@ -1089,9 +1101,9 @@ contains
     ! First, make sure the team is complete before proceeding
 #if(USE_MPI > 0)
     call MPI_BARRIER(MPI_COMM_WORLD, mpi_err) 
-#endif
     ! b) making space to receive spwfs from the other ranks
     if(MPI_RANK .eq.0) allocate(tempwf(mv,4))
+#endif
 
     do wave = 1, nwt
         ! spwf wave is stored on which MPI rank?
@@ -1122,12 +1134,14 @@ contains
             call MPI_SEND(hfpsi(:,:,wave_local), 4*mv, MPI_REAL8, 0, 2,        &
             &                                           MPI_COMM_WORLD, mpi_err)
           endif
-        endif
 #endif
+        endif
     enddo
 
     ! e) freeing up the space
+#if(USE_MPI > 0)
     if(MPI_RANK .eq.0) deallocate(tempwf)
+#endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Back to the sequential part of the writing
     if(MPI_RANK .EQ. 0) then

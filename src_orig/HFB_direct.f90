@@ -441,7 +441,6 @@ $NTR    endif
         &               blocked_qp, partner_qp, qp_overlap, ifail)
         ! Return if we do not want to readjust the Fermi energy
         if(MaxHFBiter.eq.1) return
-        
         !-----------------------------------------------------------------------
         ! Readjust the Fermi energy based on the number of particles.
         ! We use the secant method.
@@ -449,7 +448,7 @@ $NTR    endif
         dn(1) = particles - targetparticles
 
         if(abs(dn(1)).lt.pairing_prec) return
-          
+
         if(iter.eq.1) then
           ! We try lambda + 0.1 for the first iteration
           lambda = lambda + 0.1
@@ -578,7 +577,6 @@ $NTR    endif
       enddo
       ! When Time-reversal is conserved, we need an extra factor of two
 $TR   particles = 2 * particles                 
-
       deallocate(eigen)
   end function diagbyblock
 
@@ -665,7 +663,7 @@ $TR   particles = 2 * particles
 
       do while(.not. Success)
         FailCount = FailCount + 1
-        
+
         ! update moving boundary and recalculate particle numbers at both.
         InitialBracket(idir) = &
         &                 InitialBracket(idir) + idirsig * 0.01_dp*(FailCount+1)
@@ -961,7 +959,7 @@ $TR   particles = 2 * particles
     !  (i)  QPenergies
     !  (ii) Configmatrix
     ! 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Almost(!) all of these matrices are ordered by increasing value of 
     ! quasi-particle energy. So, in the Bogoliubov transformation at (*),
     ! the columns correspond to the following ordering of qp energies   
@@ -1012,7 +1010,7 @@ $TR   particles = 2 * particles
 
     si = 0 ; sb = 0
     do B=1,8,2
-      N = HFBlocks(B) ; N2 = HFBlocks(B+1)
+      N = HFBlocks_global(B) ; N2 = HFBlocks_global(B+1)
 
       !-------------------------------------------------------------------------
       ! Moving the first block

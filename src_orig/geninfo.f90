@@ -136,7 +136,10 @@ contains
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
     integer(dp), intent(in), optional   :: file_number   
-    integer                             :: io, mpi_err
+    integer                             :: io
+#if(USE_MPI>0)
+     integer                            :: mpi_err
+#endif
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
@@ -371,10 +374,11 @@ contains
     !---------------------------------------------------------------------------
     character(len=*), intent(in)           :: msg
     character(len=*), intent(in), optional :: routine
-    
-    integer :: mpi_err
 
+#if(USE_MPI>0)    
+    integer :: mpi_err
     print *, 'RANK ', MPI_RANK, ' reports the following error.'
+#endif
     print *, msg
     if(present(routine)) print *, "Error occurred in routine ", routine
 #if(USE_MPI > 0)

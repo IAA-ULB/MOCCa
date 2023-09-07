@@ -84,7 +84,9 @@ contains
         use geninfo
 
         integer(dp), intent(in), optional   :: file_number   
+#if(USE_MPI>0)
         integer                             :: mpi_err
+#endif
 
         namelist /evolution/ dt, momentum,                                     &
         &                    gradient_stepsize, gradient_mu,                   &
@@ -345,7 +347,10 @@ contains
 
         integer, intent(in)   :: iteration
         integer               :: wave, iso, B, si, N, wave2, lwork, ifail
-        integer               :: mpi_err, wg, wg2
+        integer               :: wg, wg2
+#if(USE_MPI>0)
+        integer               :: mpi_err
+#endif
         real(KIND=dp), allocatable :: work(:)
         real(KIND=dp)              :: hpsi(nx*ny*nz,4) 
 
@@ -370,7 +375,7 @@ contains
         spenergies   = 0.0d0
         dispersions  = 0.0d0
         current_sph  = 0.0d0
-        do B=1,8
+        do B=1,8                       !<---- this loops over local spwf indices
           N = HFblocks(B) ; if(N.eq.0) cycle
           iso = -1
           if(B.gt.4) iso = +1
@@ -461,16 +466,57 @@ contains
             ! Update the wavefunctions.
             hfpsi(:,:,wave) = hfpsi(:,:,wave) + momentum_updates(:,:,wave)
           enddo
+          si = si + N
+        enddo                     !<---- end of the loop over local spwf indices
 
-          !---------------------------------------------------------------------
-          ! Treatment of the HF transformation
-          ! Note: no MPI-parallelization yet, since the current loadbalancing
-          !       strategy is symmetry-block-wise anyway.
-          !---------------------------------------------------------------------
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Bookkeeping for convergence criteria
+        gradientnorm = sqrt(gradientnorm) 
+        d2h          = d2h/(neutrons+protons)
+
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Orthonormalize the new spwf basis.
+        call GramSchmidt
+
+
+#if(USE_MPI > 0)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Collecting all arrays on all MPI ranks. The ALLREDUCE calls are valid, 
+        ! since we zeroed the initial arrays at the top of this routine.
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! nwt-scalars
+        call MPI_ALLREDUCE(MPI_IN_PLACE,d2h         , 1, MPI_REAL8, MPI_SUM, &
+        &                                                MPI_COMM_WORLD,mpi_err)
+        call MPI_ALLREDUCE(MPI_IN_PLACE,gradientnorm, 1, MPI_REAL8, MPI_SUM, &
+        &                                                MPI_COMM_WORLD,mpi_err)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! nwt-vectors
+        call MPI_ALLREDUCE(MPI_IN_PLACE,dispersions , nwt, MPI_REAL8,          &
+        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! nwt-Matrices
+        ! Note, this can be done block-wise in order to save on communication
+        !       it CANNOT be included in the previous loop since it relies on 
+        !       global indices
+        call MPI_ALLREDUCE(MPI_IN_PLACE,current_sph , nwt**2, MPI_REAL8,       &
+        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+#endif
+
+        !-----------------------------------------------------------------------
+        ! Treatment of the HF transformation
+        ! Note: this has been separated from the previous loop since it really
+        !       needs to consider the entire sphamiltonian in a given subblock.
+        !       Hence a new loop over symmetry blocks.
+        !-----------------------------------------------------------------------
+        si = 0
+        do B=1,8                      !<---- this loops over global spwf indices
+          N = HFblocks_global(B) ; if(N.eq.0) cycle
+          iso = -1
+          if(B.gt.4) iso = +1
           if(diagsphamil) then
               ! The HF-transfo we use is trivial, i.e. the s.p. wavefunctions
               ! in memory constitute the HF basis.
-              hftransfo(si+1:si+N,si+1:si+N) = 0.0d0
               do wave=1,N
                   hftransfo(si+wave,si+wave) = 1.0d0
               enddo
@@ -492,43 +538,16 @@ contains
               call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
               &                       spenergies(si+1:si+N),work,lwork,ifail)
               deallocate(work)
-
+          
               call stop_timer(T_HFdiag)
           endif
-          !-----------------------------------------------------------------
-
+#if(USE_MPI>0)
+          ! ... and always communicate spenergies to all ranks
+          call MPI_ALLREDUCE(MPI_IN_PLACE,spenergies(si+1:si+N),           &
+          &                 N  , MPI_REAL8,MPI_SUM, MPI_COMM_WORLD,mpi_err)
+#endif
           si = si + N
         enddo
-        
-#if(USE_MPI > 0)
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Collecting all arrays on all MPI ranks. The ALLREDUCE calls are valid, 
-        ! since we zeroed the initial arrays at the top of this routine.
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! nwt-scalars
-        call MPI_ALLREDUCE(MPI_IN_PLACE,d2h         , 1, MPI_REAL8, MPI_SUM, &
-        &                                                MPI_COMM_WORLD,mpi_err)
-        call MPI_ALLREDUCE(MPI_IN_PLACE,gradientnorm, 1, MPI_REAL8, MPI_SUM, &
-        &                                                MPI_COMM_WORLD,mpi_err)
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! nwt-vectors
-        call MPI_ALLREDUCE(MPI_IN_PLACE,spenergies  , nwt, MPI_REAL8,          &
-        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
-        call MPI_ALLREDUCE(MPI_IN_PLACE,dispersions , nwt, MPI_REAL8,          &
-        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! nwt-Matrices
-        call MPI_ALLREDUCE(MPI_IN_PLACE,current_sph , nwt**2, MPI_REAL8,       &
-        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-#endif
-
-        gradientnorm = sqrt(gradientnorm) 
-        d2h          = d2h/(neutrons+protons)
-
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Orthonormalize the new spwf basis.
-        call GramSchmidt
 
         call stop_timer(T_evolution)
 

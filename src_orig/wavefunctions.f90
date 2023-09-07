@@ -235,10 +235,12 @@ contains
     !---------------------------------------------------------------------------
 
     integer(dp), intent(in), optional   :: file_number   
+#if(USE_MPI>0)
     integer                             :: mpi_err
+#endif
 
     namelist /wfs/ nwn, nwp, osc_freq
-    
+
     ! Only the first MPI rank reads input
     if(MPI_rank .eq. 0) then
       if(present(file_number)) then
@@ -290,7 +292,11 @@ contains
     integer, intent(out), allocatable :: spwf_map(:), rank_map(:)
 
     integer              :: B, activeblocks, ranks_per_block, blocks_per_rank
-    integer              :: block_count, mpi_err, i, offset
+    integer              :: block_count, i, offset
+    
+#if(USE_MPI>0)
+    integer              :: mpi_err
+#endif
 
     allocate(rank_map(sum(blocks_global)))
     rank_map = 0
@@ -376,13 +382,13 @@ contains
     !    ininwp    : number of proton wavefunctions
     !---------------------------------------------------------------------------
 
-    integer                   :: i,j, B, si
+    integer                   :: i,j
     integer, intent(in)       :: ininx, ininy, ininz, ininwn, ininwp
     integer                   :: ininwt
     integer, allocatable      :: kparz(:)
 
     ininwt = ininwn + ininwp
-    
+
     ! The actual allocation of the spwfs cannot be done here when using MPI.
     ! The reason is that the routine nilsson only decides on the symmetry
     ! blocks AFTER the diagonalisation of the Nilsson Hamiltonian.
@@ -545,26 +551,25 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
     ! Derives all of the single-particle wave-functions in the canonical basis.
     !---------------------------------------------------------------------------
     integer :: wave,k
-      
+
     call start_timer(T_derivatives_can)
 
     if(allocated(CanPsi)) then
       if(.not.allocated(CANdPsi)) then
-          allocate( CANdPsi(nx*ny*nz,3,4,nwt))
-          allocate(CANddPsi(nx*ny*nz,6,4,nwt))
+          allocate( CANdPsi(nx*ny*nz,3,4,nwt_local))
+          allocate(CANddPsi(nx*ny*nz,6,4,nwt_local))
       endif
     endif
 
 $N3    if(allocated(CanPsi)) then
 $N3       if(.not.allocated(CANdddpsi)) then
-$N3         allocate(CandddPsi(nx*ny*nz,10,4,nwt))
+$N3         allocate(CandddPsi(nx*ny*nz,10,4,nwt_local))
 $N3       endif
 $N3    endif
 
     if(allocated(CanPsi)) then
-      do wave=1,nwt
+      do wave=1,nwt_local
         do k=1,4
-
 $N2        call Derive_tot(CANPsi(:,k,wave), sx(k,wave),sy(k,wave), sz(k,wave),&
 $N2        &                                           CANdPsi(:,:,k,wave),    &
 $N2        &                                           CANddPsi(:,:,k,wave))
@@ -602,8 +607,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     endif
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices
-!    print *, nwf
-!    stop
 
     if(allocated(indices))  deallocate(indices)
     if(allocated(Energies)) deallocate(Energies)
@@ -2010,7 +2013,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
  
   end function AngMomOperator
   
-  function Orbital(dpsi, direction) result(Lpsi)
+  pure function Orbital(dpsi, direction) result(Lpsi)
     !---------------------------------------------------------------------------
     ! Calculate the action of the orbital momentum operator on a spwf.
     !
@@ -2098,7 +2101,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
           SPsi(i,3) = Psi(i,1)
           SPsi(i,4) = Psi(i,2)   
         enddo      
-    elseif(Direction.eq.2) then                
+    elseif(Direction.eq.2) then
         !\sigma_y = ( 0 -i )
         !           ( i  0 )
         do i=1,mv          
@@ -2181,10 +2184,11 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       logical, intent(in) :: fullmatrices
 
       real(KIND=dp), allocatable :: rme(:,:)
-      integer                    :: wave, wave2, B, N, si
-      integer                    :: wave_global, mpi_err
-      
-     
+      integer                    :: wave, wave2, B, N, si, wave_global
+#if(USE_MPI>0)
+      integer                    :: mpi_err
+#endif
+
       if(diagsphamil) then
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! This is easy: both HFBasis and canbasis are explicitly stored
@@ -2206,12 +2210,18 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         if(allocated(canpsi)) then
           if(.not. allocated(spwf_r2_can))  allocate(spwf_r2_can(nwt))
 
-          do wave=1, nwt
-            spwf_r2_can(wave) = &
+          spwf_r2_can = 0.0d0
+          do wave=1, nwt_local
+            wave_global = spwf_map(wave)
+            spwf_r2_can(wave_global) = &
             &             sum(sum(canpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
           enddo
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#if(USE_MPI > 0)
+        call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_r2_can, nwt, MPI_REAL8, MPI_SUM, &
+        &                                               MPI_COMM_WORLD, mpi_err)
+#endif
         endif
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       else
 
 #if(USE_MPI > 0)
@@ -2222,31 +2232,40 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         ! Note: it is safe to assume the calculation is a HFB one; this is the
         !       only case when diagsphamil should be set to false.
         if(.not. allocated(spwf_r2_can))  allocate(spwf_r2_can(nwt))
+        spwf_r2_can = 0.0d0
 
         if(.not. allocated(canpsi)) then
           ! gradient solver is active
-          do wave=1, nwt
-            spwf_r2_can(wave) = &
+          do wave=1, nwt_local
+            wave_global = spwf_map(wave)
+            spwf_r2_can(wave_global) = &
             &             sum(sum(HFpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
           enddo
         else
-          do wave=1, nwt
-            spwf_r2_can(wave) = &
+          do wave=1, nwt_local
+            wave_global = spwf_map(wave)
+            spwf_r2_can(wave_global) = &
             &             sum(sum(canpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
           enddo
         endif
-        
+#if(USE_MPI > 0)
+        call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_r2_can, nwt, MPI_REAL8, MPI_SUM, &
+        &                                               MPI_COMM_WORLD, mpi_err)
+#endif
+
         if(fullmatrices) then
           ! For the HFbasis, things are more involved.....
           if(.not. allocated(spwf_r2_HF))  allocate(spwf_r2_HF(nwt))
+          spwf_r2_HF = 0.0d0
+
           si = 0
           do B=1,8  
             N = HFBlocks(B) ; if(N.eq.0) cycle
             allocate(rme(N,N))
-            
+
             !... we need to calculate all matrix elements of r^2
-            do wave=1, N
-              do wave2=wave,N
+            do wave=1, N        ! the local index is si+wave
+              do wave2=wave,N   ! the local index is si+wave2
                 rme(wave, wave2) = dv*sum(sum( &
                 &                               HFpsi(:,:,si+wave) *   &
                 &                               HFpsi(:,:,si+wave2),2) &
@@ -2259,12 +2278,16 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             ! .... and then transform to the real Hartree-Fock basis
             rme = matmul(transpose(HFtransfo(si+1:si+N, si+1:si+N)), rme)
             rme = matmul(            rme,HFtransfo(si+1:si+N, si+1:si+N))
-            
+
+            ! ATTENTION: this routine will no longer work when symmetry blocks
+            !            are not allocated to MPI ranks in their entirety
+
             ! and store the diagonal matrix elements!
-            do wave=1,N
-              spwf_r2_hf(si+wave) = rme(wave, wave)
+            do wave=1,N ! the local index is si+wave
+              wave_global = spwf_map(si + wave)
+              spwf_r2_hf(wave_global) = rme(wave, wave)
             enddo
-                    
+
             si = si + N
             deallocate(rme)
           enddo

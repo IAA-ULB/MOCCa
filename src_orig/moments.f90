@@ -1385,14 +1385,17 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     !---------------------------------------------------------------------------
     integer(dp), intent(in), optional   :: file_number   
   
-    integer             :: iostat, iteration, mpi_err
+    integer             :: iostat, iteration
     integer             :: l,m, ConstraintType, isoswitch
     real(KIND=dp)       :: Constraint, iq1=-1000000, iq2=-1000000, Intensity
     real(KIND=dp)       :: scalefactor = 1.0d0, intensityfactor = 1.0d0
     logical             :: MoreConstraints=.false., Impart, MultfromFile
     logical             :: continue
-    type(Moment),pointer::  Current
+    type(Moment),pointer      ::  Current
     real(KIND=dp), allocatable:: LegacyCon(:)
+#if(USE_MPI>0)
+    integer                   :: mpi_err
+#endif
 
     NameList /MomentParam/                                                     &
     &           MaxMoment,                                  &  ! General options

@@ -69,9 +69,11 @@ contains
     !   file_number : optional integer. If present, read from (open) channel
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-    
     integer(dp), intent(in), optional   :: file_number   
-    integer :: k, mpi_err
+    integer :: k
+#if(USE_MPI>0)
+    integer :: mpi_err
+#endif
 
     NameList /inertia/ inertia_l, inertia_m
 

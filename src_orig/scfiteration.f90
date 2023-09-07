@@ -36,9 +36,10 @@ contains
     !   file_number : optional integer. If present, read from (open) channel
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-          
     integer(dp), intent(in), optional   :: file_number   
+#if(USE_MPI>0)
     integer                             :: mpi_err
+#endif
 
     namelist /scfiteration/ scfscheme, denmix, preconfactor
 

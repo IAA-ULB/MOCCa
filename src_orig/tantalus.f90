@@ -247,7 +247,7 @@ subroutine ReachForWaterAndFood()
    11 format(30x, 'Iteration = ', i5, /)   
    12 format(24x, 'FINAL Iteration = ', i5, /)
 
-    integer :: iter, iprint, scheme, ifail, mpi_err
+    integer :: iter, iprint, scheme, ifail
     logical :: ConvergenceAchieved, calc_expensive
     ! Logical to see if any moments with projection are necessary
     logical :: projectpresent = .false.
@@ -291,7 +291,7 @@ subroutine ReachForWaterAndFood()
     ! Calculate the initial densities and the charge density (separately)
     call densit(SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
-  
+
     ! Adopt the relevant quantities to the centre-of-mass of the nucleus
     call adapt_com()
 
@@ -334,7 +334,6 @@ subroutine ReachForWaterAndFood()
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
-        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
         call update_E_history()
 
         projectpresent   = checkconstraints() .or. check_cranking()    
@@ -480,11 +479,6 @@ subroutine ReachForWaterAndFood()
     if(iter.eq.maxiter+1) then
       iomsg='MAXITER'  
     endif
-!    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!#if(USE_MPI > 0) 
-!  call mpi_finalize(mpi_err)
-!#endif
-!    stop
     !---------------------------------------------------------------------------
     ! Write output to the outputfile, i.e. the full wavefunction file
     call WriteTantalus(12, outputfilename)     

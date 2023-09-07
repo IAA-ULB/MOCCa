@@ -57,8 +57,8 @@ contains
       si = 0
       allocate(HF_gaps(nwt,nwt)) ; HF_gaps = 0.0d0
       do B=1,8,2
-        N = HFblocks(B) ; if(N.eq.0) cycle
-        T = HFBlocks(B+1) + N
+        N = HFblocks_global(B) ; if(N.eq.0) cycle
+        T = HFBlocks_global(B+1) + N
 
         HF_gaps(si+1:si+T, si+1:si+T) = &
         & matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)),&
@@ -120,7 +120,7 @@ $TR     sumocc = 2*k
           &               r2, rank_map(wave)
         endif
     enddo
-    
+
     print 40  
     print 60
     print 20
@@ -179,7 +179,7 @@ $TR     sumocc = 2*k
     ! Prepare by calculating the gaps in the canonical basis  
     can_gaps = matmul(transpose(cantransfo), HFBgaps)
     can_gaps = matmul(can_gaps, cantransfo)
-  
+
     ! Order the canonical basis, not the HF one
     ProtonOrder = OrderSpwfsISO(+1, .true.) 
     NeutronOrder= OrderSpwfsISO(-1, .true.)
@@ -189,33 +189,39 @@ $TR     sumocc = 2*k
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-      P = P_can(wave)        
+      P = P_can(wave)
 
-      if(wave .le. sum(HFBlocks(1:2))) then
-          if(wave .le. HFBlocks(1)) then
+      if(wave .le. sum(HFBlocks_global(1:2))) then
+          if(wave .le. HFBlocks_global(1)) then
              s = +1
           else
              s = -1
           endif
       else
-          if(wave .le. sum(HFBlocks(1:3))) then
+          if(wave .le. sum(HFBlocks_global(1:3))) then
              s = +1
           else
              s = -1
           endif
       endif
 
-      if(allocated(canpsi)) then
-        Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
-        Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
-        Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
-        JJ = can_JJ(wave)
-      else
-        Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
-        Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
-        Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
-        JJ = spwf_JJ(wave)     
-      endif    
+!      if(allocated(canpsi)) then
+!        Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
+!        Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
+!        Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
+!        JJ = can_JJ(wave)
+!      else
+!        Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
+!        Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
+!        Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
+!        JJ = spwf_JJ(wave)     
+!      endif    
+
+      Jx = 0 ; JY = 0 ; JZ = 0
+      JJ = 0
+      SX = 0
+      SY = 0
+      SZ = 0
       r2 = sqrt(spwf_r2_can(wave))
 
       if(allocated(conjugp)) then
@@ -228,7 +234,7 @@ $TR     sumocc = 2*k
       else
           Delta = can_gaps(wave, wavebar)
       endif    
-      
+
       blo = ' ' 
       if(allocated(blocked_sps)) then
         do l = 1, blocknumber
@@ -236,43 +242,51 @@ $TR     sumocc = 2*k
         enddo
       endif    
       print 11, sumocc, wave, p,  s,   rho_can(wave), blo , canenergies(wave), &
-      &               0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+      &              0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
     enddo
     print 40  
     print 60
     print 20
+
     do k=1,nwp 
       wave = ProtonOrder(k) 
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-      P = P_can(wave)        
+      P = P_can(wave)
 
-      if(wave .le. sum(HFBlocks(1:6))) then
-          if(wave .le. sum(HFBlocks(1:5))) then
+      if(wave .le. sum(HFBlocks_global(1:6))) then
+          if(wave .le. sum(HFBlocks_global(1:5))) then
              s = +1
           else
              s = -1
           endif
       else
-          if(wave .le. sum(HFBlocks(1:7))) then
+          if(wave .le. sum(HFBlocks_global(1:7))) then
              s = +1
           else
              s = -1
           endif
       endif
 
-      if(allocated(canpsi)) then
-        Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
-        Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
-        Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
-        JJ = can_JJ(wave)
-      else
-        Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
-        Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
-        Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
-        JJ = spwf_JJ(wave)     
-      endif    
+!      if(allocated(canpsi)) then
+!        Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
+!        Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
+!        Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
+!        JJ = can_JJ(wave)
+!      else
+!        Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
+!        Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
+!        Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
+!        JJ = spwf_JJ(wave)     
+!      endif    
+
+      Jx = 0 ; JY = 0 ; JZ = 0
+      JJ = 0
+      SX = 0
+      SY = 0
+      SZ = 0
+
       r2 = sqrt(spwf_r2_can(wave))
       
       if(allocated(conjugp)) then
@@ -294,7 +308,7 @@ $TR     sumocc = 2*k
       endif   
 
       print 11, sumocc, wave, p, s,   rho_can(wave),  blo, canenergies(wave),  &
-      &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+      &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
     enddo
     print 20
 
