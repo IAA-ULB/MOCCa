@@ -265,16 +265,16 @@ subroutine ReachForWaterAndFood()
       ! Only allowed of course if we have actually read a Bogoliubov transfo.
       scheme = -1
     else
-      scheme = 0
+      scheme =  0
     endif
     call SolvePairing(scheme, ifail)
     if(ifail.ne.0) then
-        ! Solve the pairing, with the current values of <h> and the pairing gaps.
-        ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB 
-        ! Hamiltonian with a LAPACK call. We do this if the code did not receive
-        ! explicit instructions to start from the Bogoliubov transformation on 
-        ! file. 
-        print *, 'WARNING! Pairing solver failed.'
+       ! Solve the pairing, with the current values of <h> and the pairing gaps.
+       ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB 
+       ! Hamiltonian with a LAPACK call. We do this if the code did not receive
+       ! explicit instructions to start from the Bogoliubov transformation on 
+       ! file. 
+       print *, 'WARNING! Pairing solver failed.'
     endif
     if(bogofromfile .and. guessgaps .and. pairingscheme.eq.1) then
       ! We perform a few extra calls to solvepairing to take a few gradient

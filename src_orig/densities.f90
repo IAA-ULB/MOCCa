@@ -309,7 +309,7 @@ $EXPRESSION
       !----------------------------------------------
       ! BCS calculation, the sums are over i == ibar.
       !----------------------------------------------
-      do wave=1,nwt                    ! local index of the spwf
+      do wave=1,nwt_local              ! local index of the spwf
           wave_global = spwf_map(wave) ! global index of the spwf
           ! Isospin is neutron in the first half of blocks, proton in the rest
           it = 2
@@ -333,7 +333,6 @@ $EXPRESSION
           ! Historically in MOCCa and this code, this factor two was absorbed 
           ! in the definition of the pairing strengths, but no longer.
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
 
           do i=1,mv
 $BCSEXPRESSION

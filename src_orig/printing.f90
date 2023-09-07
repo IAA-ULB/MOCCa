@@ -302,14 +302,13 @@ $TR     sumocc = 2*k
 
   subroutine printqps
     !---------------------------------------------------------------------------
-    ! Print all relevant info on quasiparticles.
-    ! This routine has no side-effects.
+    ! Print all relevant info on quasiparticles, without any side-effects.
     !---------------------------------------------------------------------------
     integer              :: i, N, B, si, sb, ind, N2, k, U(1),V(1), T
     integer, allocatable :: indices(:)
     real(KIND=dp)        :: ov, v2, u2
     character(len=1)     :: Bstr, Pstr
-    
+
     1  format (48 ('-'), 'Quasiparticles',48('-'))
     2  format ( i3, 1f10.2, 2x, 1es12.2, 1es12.2, ' | ', 2i4,  2x, 2f8.5,  &
     &           ' | ', 2x, a1,   &
@@ -317,18 +316,18 @@ $TR     sumocc = 2*k
 
     11  format(110('-'))
     if(PairingType.eq.0) return
-    
+
     if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
 
     print 1
-    
+
     si = 0
     sb = 0
     do B=1,8,2
-        N = HFblocks(B) ;      if(N.eq.0) cycle
-        N2 = HFBlocks(B+1)
-
+        N = HFblocks_global(B) ;      if(N.eq.0) cycle
+        N2 = HFBlocks_global(B+1)
         T = N + N2
+        ! ^------ these are all global indices, i.e. spanning all MPI ranks
 
         call print_qp_header(B)
         select case(pairingtype)
@@ -352,7 +351,7 @@ $TR     sumocc = 2*k
 
             u2 = sum(Bogoliubov(sb  +1:sb+  T,sb+i)**2) 
             v2 = sum(Bogoliubov(sb+T+1:sb+2*T,sb+i)**2) 
-          
+
             print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*T-i+1),          &
             &           qpdispersions(sb+i),                                   &
             &           U(1), V(1), u2, v2, '-', '-', 0.0d0,                   &
@@ -420,8 +419,8 @@ $TR     sumocc = 2*k
           indices = order(BCSqps(si+1:si+N))
           do i=1, N
             ind  = indices(i)
-            print 2, i, BCSqps(si+ind), BCSf(si+ind),0.0d0, 0,0,'-', '-',0.0d0,&
-            &        0.0d0, 0.0d0,0.0d0
+            print 2, i, BCSqps(si+ind), BCSf(si+ind),0.0d0, 0,0, 0.0d0,0.0d0,  &
+            &        '-', '-',0.0d0, 0.0d0, 0.0d0,0.0d0
           enddo
         end select
         si = si +   T

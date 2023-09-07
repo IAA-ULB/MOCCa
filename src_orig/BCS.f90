@@ -16,7 +16,7 @@ module BCS
  ! Module implementing the routines for the solution of the BCS equations.
  !
  !==============================================================================
-  
+
  use compilation
  use geninfo
  use wavefunctions
@@ -60,7 +60,7 @@ module BCS
     ! Dummy function to allow this module to acces the functional.f90 module 
     ! to acces the information on the acces of deltas.
     !---------------------------------------------------------------------------
-    
+
     real*8, intent(in)    :: psi(:,:)  
     real*8, intent(inout) :: dpsi(:,:,:),ddpsi(:,:,:), dddpsi(:,:,:)
     integer, intent(in)   :: sx(:),sy(:),sz(:),iso
@@ -83,10 +83,10 @@ contains
   ! Output:
   !      u, v : bcs factors
   !-----------------------------------------------------------------------------
-  
+
   real(KIND=dp), intent(in) :: occ
   real(KIND=dp), intent(out) :: u,v
-  
+
   if(occ/2 .gt. 0.0d0) then
     v = sqrt(occ/2)
   else
@@ -199,17 +199,18 @@ contains
   ! Side effect: calculate the dispersion 
   call calcBCSdispersion(rho_can, kappa_can)
 
-
  end subroutine solvepairing_BCS
  
  subroutine CalcBCSGaps(fermi, stabfactor)
     !---------------------------------------------------------------------------
     ! Calculate the BCS pairing gaps.
     !---------------------------------------------------------------------------
-    integer                      :: wave, iso
+    integer                      :: wave, iso, wave_global
     real(KIND=dp)                :: deltapsi(mv,4), trash(2)
     real(KIND=dp), intent(in)    :: fermi(2), stabfactor(2)
-      
+#if(USE_MPI>0)
+    integer                      :: mpi_err
+#endif
     ! trash statement to stop the compiler complaining about unused dummy 
     ! variables
     trash = fermi
@@ -220,23 +221,29 @@ contains
           BCSGaps(wave) = 2.0 * PCutoffs(wave)**2
       enddo
     else
-      ! Use the delta_action to calculate the elements in the gaps
-       do wave=1,nwt
-            if(wave .le. nwn) then
+       ! Use the delta_action function to calculate the matrix elements
+       BCSgaps = 0.0d0 ! zeroing to be able to call MPI_ALLREDUCE later
+       do wave=1,nwt_local
+            wave_global = spwf_map(wave)
+            if(wave_global .le. nwn) then
                 iso = -1
             else
                 iso = +1
             endif
-                         
-            deltapsi = delta_action_BCS(  hfpsi(:,:,wave)  ,                   &
-            &                            hfdpsi(:,:,:,wave),                   &
-            &                           hfddpsi(:,:,:,wave),                   &
-            &                          hfdddpsi(:,:,:,wave),                   &
+
+            deltapsi = delta_action_BCS(  hfpsi(:,:,wave) ,             &
+            &                            hfdpsi(:,:,:,wave),            &
+            &                           hfddpsi(:,:,:,wave),            &
+            &                          hfdddpsi(:,:,:,wave),            &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
  
-            BCSgaps(wave) =     sum(hfpsi(:,:,wave)*deltapsi)*dv*              &
-            &               Pcutoffs(wave)**2 * (1 + stabfactor((iso+3)/2))
+            BCSgaps(wave_global) =  sum(hfpsi(:,:,wave)*deltapsi)*dv*          &
+            &             Pcutoffs(wave_global)**2 * (1 + stabfactor((iso+3)/2))
        enddo
+#if(USE_MPI>0)
+       call MPI_ALLREDUCE(MPI_IN_PLACE, BCSgaps,nwt,MPI_REAL8,MPI_SUM,         &
+       &                                                 MPI_COMM_WORLD,mpi_err)
+#endif
     endif
   end subroutine CalcBCSGaps
 
@@ -627,13 +634,18 @@ contains
    function Order(energies) result(Indices)
     !---------------------------------------------------------------------------
     ! Returns the indices for an ordered traversal of the input array.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !  energies :  real*8, a set of energies to be ordered
+    ! Output:
+    !  indices  :  integer, the indices to get the energies in ascending order  
     !---------------------------------------------------------------------------
     integer, allocatable       :: Indices(:)
     real(Kind=dp),intent(in)   :: Energies(:)
     real(Kind=dp),allocatable  :: Eswap(:)
     integer                    :: i, nwf,  HolePos, ToInsertIndex
     real(Kind=dp)              :: ToInsert
-    
+
     nwf = size(energies)
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices
