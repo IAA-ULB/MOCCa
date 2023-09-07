@@ -51,6 +51,14 @@ module functional
  ! N2               : $N2
  ! N3               : $N3
  !
+ ! D2TEMPSPH        : $D2TEMPSPH
+ ! D3TEMPSPH        : $D3TEMPSPH
+ ! LAPTEMPSPH       : $LAPTEMPSPH
+ !
+ ! D1TEMPDELTA      : $D1TEMPDELTA
+ ! D2TEMPDELTA      : $D2TEMPDELTA
+ ! D3TEMPDELTA      : $D3TEMPDELTA
+ ! LAPTEMPDELTA     : $LAPTEMPDELTA
  !------------------------------------------------------------------------------
  ! A density F_L_R is stored as
  !
@@ -1127,9 +1135,9 @@ $NTR    G_I_N = G_I_N + crank_current_potential()
     real(KIND=dp)             :: hpsi(mv,4)
     real(KIND=dp)             :: temp(mv,4)
     real(KIND=dp)             ::   dtemp(mv,3,4)
-    real(KIND=dp)             ::  ddtemp(mv,3,3,4)
-    real(KIND=dp)             :: dddtemp(mv,3,3,3,4)
-    real(KIND=dp)             :: laptemp(mv,4)
+$D2TEMPSPH    real(KIND=dp)   ::  ddtemp(mv,3,3,4)
+$D3TEMPSPH    real(KIND=dp)   :: dddtemp(mv,3,3,3,4)
+$LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
     
     real(KIND=dp)             :: ReducedMass, Butler_t, Butler_f
     
@@ -1210,9 +1218,9 @@ $SKYRMEACTION
     real(KIND=dp), allocatable :: deltapsi(:,:)
     real(KIND=dp)              ::    temp(mv,4)
     real(KIND=dp)              ::   dtemp(mv,3,4)
-    real(KIND=dp)              ::  ddtemp(mv,3,3,4)
-    real(KIND=dp)              :: dddtemp(mv,3,3,3,4)
-    real(KIND=dp)              :: laptemp(mv,4)
+$D2TEMPDELTA    real(KIND=dp)  ::  ddtemp(mv,3,3,4)
+$D3TEMPDELTA    real(KIND=dp)  :: dddtemp(mv,3,3,3,4)
+$LAPTEMPDELTA   real(KIND=dp)  :: laptemp(mv,4)
     integer                    :: it,i
     
     !---------------------------------------------------------------------------

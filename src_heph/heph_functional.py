@@ -792,6 +792,38 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
     dic['WRITEPOTENTIALS']= writing
     dic['READPOTENTIALS'] = reading
     dic['CLEANING']       = cleaning
+
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    # Removing some superfluous arrays for the routines sphamil & delta_action
+    if('ddtemp' in SkyrmeAction):
+      dic['D2TEMPSPH'] = ' '
+    else:
+      dic['D2TEMPSPH'] = '!'
+    if('dddtemp' in SkyrmeAction):
+      dic['D3TEMPSPH'] = ' '
+    else:
+      dic['D3TEMPSPH'] = '!'
+    if('laptemp' in SkyrmeAction):
+      dic['LAPTEMPSPH'] = ' '
+    else:
+      dic['LAPTEMPSPH'] = '!'
+
+    if('dtemp' in PairingAction):
+      dic['D1TEMPDELTA'] = ' '
+    else:
+      dic['D1TEMPDELTA'] = '!'
+    if('ddtemp' in PairingAction):
+      dic['D2TEMPDELTA'] = ' '
+    else:
+      dic['D2TEMPDELTA'] = '!'
+    if('dddtemp' in PairingAction):
+      dic['D3TEMPDELTA'] = ' '
+    else:
+      dic['D3TEMPDELTA'] = '!'
+    if('laptemp' in PairingAction):
+      dic['LAPTEMPDELTA'] = ' '
+    else:
+      dic['LAPTEMPDELTA'] = '!'
     
     if(Quadri):
       dic['QUADRI'] = ' '
