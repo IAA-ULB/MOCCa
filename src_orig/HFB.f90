@@ -32,6 +32,11 @@ module HFB
  ! PCONSERVED : $PCONSERVED
  !    PBROKEN : $PBROKEN
  !
+ !   N1DELTA  : $N1DELTA
+ !   N2DELTA  : $N2DELTA
+ !   N3DELTA  : $N3DELTA
+ !   SYMDELTA : $SYMDELTA
+ !
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  !
  ! Implemented routines: 
@@ -90,15 +95,26 @@ module HFB
   real(KIND=dp), parameter            :: rho_cutoff = 1e-12
 
   interface
-   function delta_action_dummy(psi,dpsi,ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
+   function delta_action_dummy(psi,&
+$N1DELTA                    &      dpsi, &
+$N2DELTA                    &            ddpsi, &
+$N3DELTA                    &                   dddpsi, &
+$SYMDELTA                   &                          sx,sy,sz, &
+&                                                               iso, onthefly) &
                                                                 result(deltapsi)
       !-------------------------------------------------------------------------
       ! Dummy function to allow this module to acces the functional.f90 module 
       ! to acces the information on the acces of deltas.
+      ! Note that the actual delta_action routine's interface is decided by 
+      ! Hephaestos at compiletime, and as such this dummy interface has to also
+      ! be decided at that time.
       !-------------------------------------------------------------------------
       real*8, intent(in)    :: psi(:,:)  
-      real*8, intent(inout) :: dpsi(:,:,:),ddpsi(:,:,:), dddpsi(:,:,:)
-      integer, intent(in)   :: sx(:),sy(:),sz(:),iso
+$N1DELTA      real*8, intent(inout) ::   dpsi(:,:,:)
+$N2DELTA      real*8, intent(inout) ::  ddpsi(:,:,:)
+$N3DELTA      real*8, intent(inout) :: dddpsi(:,:,:)
+$SYMDELTA     integer, intent(in)   :: sx(:),sy(:),sz(:)
+      integer, intent(in)   :: iso
       real*8, allocatable   :: deltapsi(:,:)
       logical, intent(in)   :: onthefly
    end function
@@ -1609,10 +1625,11 @@ $TR        inda = si + wave1
         inda_global = spwf_map(inda)
 
         deltapsi = delta_action_HFB(  hfpsi(:,:,  inda),                       &
-        &                            hfdpsi(:,:,:,inda),                       &
-        &                           hfddpsi(:,:,:,inda),                       &
-        &                          hfdddpsi(:,:,:,inda),                       &
-        &                        sx(:,inda), sy(:,inda), sz(:,inda),iso,.false.)
+$N1DELTA  &                            hfdpsi(:,:,:,inda),                     &
+$N2DELTA  &                           hfddpsi(:,:,:,inda),                     &
+$N3DELTA  &                          hfdddpsi(:,:,:,inda),                     &
+$SYMDELTA &                        sx(:,inda), sy(:,inda), sz(:,inda),         &
+                                                                    iso,.false.)
         
 $NTR        do wave2=1,N
 $TR         do wave2=wave1,N

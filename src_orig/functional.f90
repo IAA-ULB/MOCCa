@@ -50,6 +50,10 @@ module functional
  ! NTR              : $NTR
  ! N2               : $N2
  ! N3               : $N3
+ ! N1DELTA          : $N1DELTA
+ ! N2DELTA          : $N2DELTA
+ ! N3DELTA          : $N3DELTA
+ ! SYMDELTA         : $SYMDELTA
  !
  ! D2TEMPSPH        : $D2TEMPSPH
  ! D3TEMPSPH        : $D3TEMPSPH
@@ -1113,24 +1117,49 @@ $NTR    G_I_N = G_I_N + crank_current_potential()
       pf = (f)**(alpha)
     endif
   end function pow
-  
-  function sphamil(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
-                                                                  & result(hpsi)
+
+  function sphamil(psi, dpsi, ddpsi, &
+$N3                                 dddpsi, &
+&                                          sx,sy,sz,iso, onthefly) result(hpsi)
     !---------------------------------------------------------------------------
-    ! Apply the action of the single-particle hamiltonian to the 
-    ! single-particle wave-functions.
+    ! Apply the single-particle hamiltonian to a single-particle wavefunction.
+    ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !          psi : spwf to act on with h
+    !  d/dd/dddpsi : arrays containing the first, second and third derivatives 
+    !                of the spwf. ddpsi does not need to be a "full" matrix 
+    !                when dealing with standard NLO EDFs. dddpsi is only used 
+    !                when dealing with N3LO EDFs.
+    ! sx/sy/sz     : signs under reflection symmetry for this particular spwf
+    !                not referenced when onthefly = .false.
+    ! onthefly     : if .true., recalculate the derivatives of psi and store
+    !                them in the array psi.
+    ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Output:
+    !    hpsi      : h | psi >
+    !  d/dd/dddpsi : arrays containing the derivatives of psi
+    !                if onthefly = .true.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Important notes:
+    ! - the input values of the derivative matrices dpsi/ddpsi/dddpsi are not
+    !   relevant if onthefly=.true. These arrays will be overwritten on output
+    !   in case the derivatives can serve afterwards.
+    ! - the array of third derivatives is only necessary for N3LO calculation, a
+    !   and Hephaestos comments them out of the interface of this function when
+    !   possible. This is why the function declaration above is spread across
+    !   a few lines.
     !---------------------------------------------------------------------------
-    
+
     use derivatives
-    
+
     ! Logical indicating if the derivatives need to be calculated before
     ! applying h.
     ! If false, the derivatives are passed in. If True, the derivatives are not
     ! passed in and need to be calculated.
     logical, intent(in)       :: onthefly 
-    
     real(KIND=dp), intent(in)    :: psi(mv,4)  
-    real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4), dddpsi(mv,10,4)
+    real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4)
+$N3 real(KIND=dp), intent(inout) :: dddpsi(mv,10,4)
     integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
     real(KIND=dp)             :: hpsi(mv,4)
     real(KIND=dp)             :: temp(mv,4)
@@ -1201,8 +1230,12 @@ $SKYRMEACTION
 
   end function sphamil
   
-  function delta_action(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly)      &
-  &                                                             result(deltapsi)
+  function delta_action(        psi,   &
+$N1DELTA                   &   dpsi,   &
+$N2DELTA                   &  ddpsi,   &
+$N3DELTA                   & dddpsi,   &
+$SYMDELTA                  & sx,sy,sz, &
+&                                         iso, onthefly) result(deltapsi)
     !---------------------------------------------------------------------------
     !
     ! onthefly:
@@ -1210,23 +1243,28 @@ $SKYRMEACTION
     !   applying delta. If false, the derivatives are passed in. If True, the 
     !   derivatives are not passed in and need to be calculated.
     !---------------------------------------------------------------------------
-    logical, intent(in)       :: onthefly 
-    
+    logical, intent(in)          :: onthefly 
+    integer, intent(in)          :: iso
     real(KIND=dp), intent(in)    :: psi(:,:)  
-    real(KIND=dp), intent(inout) :: dpsi(:,:,:),ddpsi(:,:,:), dddpsi(:,:,:)
-    integer, intent(in)        :: sx(:),sy(:),sz(:),   iso
-    real(KIND=dp), allocatable :: deltapsi(:,:)
-    real(KIND=dp)              ::    temp(mv,4)
-    real(KIND=dp)              ::   dtemp(mv,3,4)
-$D2TEMPDELTA    real(KIND=dp)  ::  ddtemp(mv,3,3,4)
-$D3TEMPDELTA    real(KIND=dp)  :: dddtemp(mv,3,3,3,4)
-$LAPTEMPDELTA   real(KIND=dp)  :: laptemp(mv,4)
-    integer                    :: it,i
+$N1DELTA    real(KIND=dp), intent(inout) :: dpsi(:,:,:)
+$N2DELTA    real(KIND=dp), intent(inout) :: ddpsi(:,:,:)
+$N3DELTA    real(KIND=dp), intent(inout) :: dddpsi(:,:,:)
+$SYMDELTA    integer, intent(in)          :: sx(:),sy(:),sz(:)
+    real(KIND=dp), allocatable   :: deltapsi(:,:)
+    real(KIND=dp)                ::    temp(mv,4)
+$D1TEMPDELTA    real(KIND=dp)    ::   dtemp(mv,3,4)
+$D2TEMPDELTA    real(KIND=dp)    ::  ddtemp(mv,3,3,4)
+$D3TEMPDELTA    real(KIND=dp)    :: dddtemp(mv,3,3,3,4)
+$LAPTEMPDELTA   real(KIND=dp)    :: laptemp(mv,4)
+    integer                      :: it,i
     
     !---------------------------------------------------------------------------
     ! Determine the isospin index
     it = (iso + 3)/2
     
+    if(onthefly) then
+      call stp('On the fly calculation of derivatives in delta_action not implemented.')
+    endif
     !---------------------------------------------------------------------------
     ! Zero the action of Delta. 
     ! This is the place to include contributions to the pairing that should 

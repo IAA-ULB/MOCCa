@@ -52,22 +52,31 @@ module BCS
  !------------------------------------------------------------------------------
  procedure(delta_action_dummy), pointer :: delta_action_BCS
 
- interface
-
-  function delta_action_dummy(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly)&
+  interface
+   function delta_action_dummy(psi,&
+$N1DELTA                    &      dpsi, &
+$N2DELTA                    &            ddpsi, &
+$N3DELTA                    &                   dddpsi, &
+$SYMDELTA                   &                          sx,sy,sz, &
+&                                                               iso, onthefly) &
                                                                 result(deltapsi)
-    !---------------------------------------------------------------------------
-    ! Dummy function to allow this module to acces the functional.f90 module 
-    ! to acces the information on the acces of deltas.
-    !---------------------------------------------------------------------------
-
-    real*8, intent(in)    :: psi(:,:)  
-    real*8, intent(inout) :: dpsi(:,:,:),ddpsi(:,:,:), dddpsi(:,:,:)
-    integer, intent(in)   :: sx(:),sy(:),sz(:),iso
-    logical, intent(in)   :: onthefly
-    real*8, allocatable   :: deltapsi(:,:)
+      !-------------------------------------------------------------------------
+      ! Dummy function to allow this module to acces the functional.f90 module 
+      ! to acces the information on the acces of deltas.
+      ! Note that the actual delta_action routine's interface is decided by 
+      ! Hephaestos at compiletime, and as such this dummy interface has to also
+      ! be decided at that time.
+      !-------------------------------------------------------------------------
+      real*8, intent(in)    :: psi(:,:)  
+$N1DELTA      real*8, intent(inout) ::   dpsi(:,:,:)
+$N2DELTA      real*8, intent(inout) ::  ddpsi(:,:,:)
+$N3DELTA      real*8, intent(inout) :: dddpsi(:,:,:)
+$SYMDELTA     integer, intent(in)   :: sx(:),sy(:),sz(:)
+      integer, intent(in)   :: iso
+      real*8, allocatable   :: deltapsi(:,:)
+      logical, intent(in)   :: onthefly
    end function
- end interface
+  end interface
 
 contains
  
@@ -232,10 +241,12 @@ contains
             endif
 
             deltapsi = delta_action_BCS(  hfpsi(:,:,wave) ,             &
-            &                            hfdpsi(:,:,:,wave),            &
-            &                           hfddpsi(:,:,:,wave),            &
-            &                          hfdddpsi(:,:,:,wave),            &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+$N1DELTA    &                            hfdpsi(:,:,:,wave),            &
+$N2DELTA    &                           hfddpsi(:,:,:,wave),            &
+$N3DELTA    &                          hfdddpsi(:,:,:,wave),            &
+$SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
+            &                                                iso,.false.)
+ 
  
             BCSgaps(wave_global) =  sum(hfpsi(:,:,wave)*deltapsi)*dv*          &
             &             Pcutoffs(wave_global)**2 * (1 + stabfactor((iso+3)/2))

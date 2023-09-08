@@ -99,7 +99,7 @@ def initfunctional(fname, so):
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     """
     global Functional_terms, Densities_needed, derivative_order, func_name
-    global extra_calls, vmicro_found
+    global extra_calls, vmicro_found, pairing_action_derorder
     
     #---------------------------------------------------------------------------
     # Read the functional from a given file
@@ -186,14 +186,20 @@ def initfunctional(fname, so):
                 add = add.replace(derstring + l + '_','')
             Densities_needed.append(add)
 
-    #---------------------------------------------------------------------------     
+    #---------------------------------------------------------------------------
     # Finding out how many derivatives we need to take of the spwfs
     derivative_order = 1    
     for den in Densities_needed:
         (der, lap, left, right, cpl, cross) = ParseOperators(den,so.timelike)
         ders = right.count('N')
         derivative_order = max(derivative_order, ders)
-
+    # ... but also how much figure in the delta_action routine(s)
+    pairing_action_derorder = 0
+    for den in Densities_needed:
+      if('P' not in den):
+        continue
+      (der, lap, left, right, cpl, cross) = ParseOperators(den,so.timelike)
+      pairing_action_derorder = max(pairing_action_derorder, right.count('N'))
     #---------------------------------------------------------------------------
     # Finding out whether this functional file places calls to subroutine vmicro
     vmicro_found = False
@@ -265,7 +271,7 @@ def regroup_terms():
   for k,aterm in enumerate(Functional_terms):
     for l,bterm in enumerate(Functional_terms[:k]):
       if(bterm == aterm):
-        term_grouping[k] = term_grouping[k] +1          
+        term_grouping[k] = term_grouping[k] +1
 
 def PruneDeriv_needed():
     """
@@ -593,6 +599,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
     """
      Master routine calling the other ones to generate a functional.
     """
+
     declaration   = ''
     calculation   = ''
     form          = ''
@@ -726,10 +733,10 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
 
     #---------------------------------------------------------------------------
     # Generate the expressions for the actions of the pairing fields.
-    PairingAction = ''
+    PairingAction           = ''
     for field in  Pairing_Fields_needed:
       (left,right,coupling,cross) = ParseOperatorsField(field, so.timelike)
-      PairingAction =PairingAction + GenerateAction(field, 0, so)
+      PairingAction = PairingAction + GenerateAction(field, 0, so)
 
     #---------------------------------------------------------------------------
     # Now make sure all of the lines are not too long for compilation.
@@ -794,7 +801,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
     dic['CLEANING']       = cleaning
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    # Removing some superfluous arrays for the routines sphamil & delta_action
+    # Making sure to (un)comment the parts of the interfaces of the routines of
+    #  sphamil, delta_action and the derivative routines. 
     if('ddtemp' in SkyrmeAction):
       dic['D2TEMPSPH'] = ' '
     else:
@@ -839,6 +847,27 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
     elif(derivative_order == 3):
       dic['N2'] = '!'
       dic['N3'] = ' '
+
+    if(pairing_action_derorder == 0):
+      dic['N1DELTA']  = '!'
+      dic['N2DELTA']  = '!'
+      dic['N3DELTA']  = '!'
+      dic['SYMDELTA'] = '!'
+    elif(pairing_action_derorder == 1):
+      dic['N1DELTA']  = ' '
+      dic['N2DELTA']  = '!'
+      dic['N3DELTA']  = '!'
+      dic['SYMDELTA'] = ''
+    elif(pairing_action_derorder == 2):
+      dic['N1DELTA']  = ' '
+      dic['N2DELTA']  = ' '
+      dic['N3DELTA']  = '!'
+      dic['SYMDELTA'] = ' '
+    elif(pairing_action_derorder == 3):
+      dic['N1DELTA']  = ' '
+      dic['N2DELTA']  = ' '
+      dic['N3DELTA']  = ' '
+      dic['SYMDELTA'] = ' '
    
     if(so.timelike):
       dic['NTR'] = '!'

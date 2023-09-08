@@ -20,7 +20,12 @@ module evolution
 !
 ! IMTIME => Gradient Descent/Imaginary Time
 ! HEAVYB => Heavy-ball dynamics
-! 
+!
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Hephaestos keywords
+!
+! N2               : $N2
+! N3               : $N3
 !===============================================================================
 
     use wavefunctions
@@ -251,7 +256,7 @@ contains
             hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
             &              hfdpsi(:,:,:,wave)   ,                              &
             &              hfddpsi(:,:,:,wave),                                &
-            &              hfdddpsi(:,:,:,wave),                               &
+$N3         &              hfdddpsi(:,:,:,wave),                               &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
 
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
@@ -386,7 +391,7 @@ contains
             hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
             &              hfdpsi(:,:,:,wave)   ,                              &
             &              hfddpsi(:,:,:,wave)  ,                              &
-            &              hfdddpsi(:,:,:,wave) ,                              &
+$N3         &              hfdddpsi(:,:,:,wave) ,                              &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
 
             if(diagsphamil) then
@@ -581,12 +586,12 @@ contains
             hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
             &              hfdpsi(:,:,:,wave)   ,                              &
             &              hfddpsi(:,:,:,wave)  ,                              &
-            &              hfdddpsi(:,:,:,wave) ,                              &
+$N3         &              hfdddpsi(:,:,:,wave) ,                              &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
-            
+
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
-      
+
             ! Evolve 
             hfpsi(:,:,wave) = hfpsi(:,:,wave)  - dt/hbar* hpsi
             do wave2=wave,si+N
@@ -631,7 +636,7 @@ contains
           ! Calculate the action of the single-particle hamiltonian.
           hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
           &              hfdpsi(:,:,:,wave)   ,                              &
-          &              hfddpsi(:,:,:,wave)  ,                              &
+$N3       &              hfddpsi(:,:,:,wave)  ,                              &
           &              hfdddpsi(:,:,:,wave) ,                              &
           &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
           !-------------------------------------------------------------------
@@ -729,7 +734,8 @@ contains
           ! - sx/y/z_max are set in the set_spwf_symmetries routine and are
           !   assumed to be the reflection quantum numbers of the very first
           !   symmetry block.
-          actionofh = sphamil(maxspwf, dmax, ddmax, dddmax,                    &
+          actionofh = sphamil(maxspwf, dmax, ddmax,                            &
+$N3       &                                        dddmax,                     &
           &                                      sx_max,sy_max,sz_max,1,.true.)
           con       = maxE
           maxE      = sum(actionofh * maxspwf) * dv
