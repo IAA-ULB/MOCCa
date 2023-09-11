@@ -99,7 +99,7 @@ implicit none
   integer              :: filenx, fileny, filenz, filenwn, filenwp, filepairing
   integer              :: filenwt, fileneutrons, fileprotons
   integer              :: fileblocks_global(8), fileblocks(8)
-  integer, allocatable :: file_spwf_map(:), file_rank_map(:)
+  integer, allocatable :: file_spwf_map(:),file_rank_map(:),file_spwf_inverse(:)
   real(KIND=dp) :: filedx
   !-----------------------------------------------------------------------------
   ! Did we succeed in reading a HFB configuration from file? 
@@ -457,6 +457,7 @@ contains
       fileblocks        = HFBlocks
       file_spwf_map     = spwf_map
       file_rank_map     = rank_map
+      file_spwf_inverse = spwf_inverse
     else
       ! Option 2) start from a previous calculation.
       call ReadTantalus(12, inputfilename)
@@ -496,8 +497,10 @@ contains
 #else
       HFBlocks_global = HFBlocks
 #endif
-    spwf_map  = file_spwf_map
-    rank_map  = file_rank_map
+    spwf_map     = file_spwf_map
+    rank_map     = file_rank_map
+    spwf_inverse = file_spwf_inverse
+
     !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
     if(.not.allocated(HFTransfo)) then
@@ -692,8 +695,8 @@ contains
     call MPI_BCAST(file_version , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
 #endif    
     ! .. now we have each rank decide what spwfs to take from file
-    call loadbalance(fileblocks_global,balancing_strategy, &  ! input arguments
-    &                fileblocks, file_spwf_map, file_rank_map)! output arguments
+    call loadbalance(fileblocks_global,balancing_strategy, &           ! inputs
+    &       fileblocks, file_spwf_map, file_rank_map,file_spwf_inverse)! outputs
 
     ! Arrays like these are stored on all ranks, hence "filenwt"
     allocate(spenergies (filenwt))
@@ -1106,17 +1109,8 @@ contains
 #endif
 
     do wave = 1, nwt
-        ! spwf wave is stored on which MPI rank?
-        rank = rank_map(wave)
-
-        if(MPI_RANK.eq.rank) then
-          ! this MPI rank should figure out which of its stored spwfs
-          ! is actually the 'wave'-th one in the total calculation
-          wave_local = 0
-          do j=1,nwt_local
-            if( spwf_map(j) .eq. wave) wave_local = j
-          enddo
-        endif
+        rank = rank_map(wave)           ! spwf wave is stored on which MPI rank?
+        wave_local = spwf_inverse(wave) ! ... and has which local index? 
 
         if(rank.eq.0) then
           ! ------ Rank 0 writes its own wavefunctions ----------------

@@ -370,9 +370,9 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
 
   subroutine calcJ2andBelyaev_HFB
     !---------------------------------------------------------------------------
-    ! NOTE: this routine should be double-checked in the case of T!=0
-    !       calculations. many elements are there, but it should be 
-    !       thoroughly checked.
+    ! NOTE
+    ! This routine should be double-checked in the case of T!=0 calculations. 
+    ! Many elements are present, but little has been tested...
     !---------------------------------------------------------------------------
     ! This routine calculates the 
     !

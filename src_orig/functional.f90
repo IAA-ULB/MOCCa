@@ -789,7 +789,7 @@ $NTR    endif
 
       NablaMElements = compNablaMelements()
       COMCorrection(2,:) = 0.0
-        
+
       COM2pp = 0.0 ; COM2ph = 0.0
 
       tempph = 0.0 ; temppp = 0.0

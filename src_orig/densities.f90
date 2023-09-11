@@ -652,6 +652,94 @@ function couple_iso(density, iso) result(coupled)
 
 end function couple_iso
 
+subroutine Transfer_psi(psi,send_rank, calc_rank, wave)
+    !---------------------------------------------------------------------------
+    ! Transfer the wavefunction  
+    !        denpsi(:,:,wave)   
+    ! from the sending MPI_rank to a rank fit for calculations. 
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input : 
+    !   send_rank : MPI rank storing the requested wavefunction
+    !   calc_rank : MPI rank supposed to be doing calculations with the 
+    !               requested wavefunction.
+    !   wave      : LOCAL index of the requested spwf on the send_rank
+    ! Output:
+    !  psi        : the requested spwf, but only on CALC_RANK. For all 
+    !               other MPI ranks, the result will be unallocated. 
+    !---------------------------------------------------------------------------
+    real(KIND=dp),  intent(out) :: psi(mv,4)
+    integer, intent(in)         :: send_rank, calc_rank, wave
+#if(USE_MPI>0)
+    integer                     :: mpi_err
+
+    if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+        ! nothing to send or receive
+        psi   = DenPsi(:,:,wave)
+    elseif(MPI_RANK.eq.calc_rank) then
+        ! calc_rank receives
+        call MPI_RECV(            psi, 4*mv, MPI_REAL8, send_rank, 2, &
+        &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+    else if(MPI_RANK .eq. send_rank)  then
+        ! send_rank sends the wavefunction
+        call MPI_SEND(denpsi(:,:,wave), 4*mv, MPI_REAL8, calc_rank, 2,&
+        &                                           MPI_COMM_WORLD, mpi_err)
+    endif
+#else 
+    psi   = DenPsi(:,:,wave)
+#endif
+
+end subroutine Transfer_psi
+
+subroutine Transfer_derpsi(derpsi,send_rank, calc_rank, wave, direction, TR)
+    !---------------------------------------------------------------------------
+    ! Transfer the (possibly time-reversed) derivative of a wavefunction  
+    !        dendpsi(:,:,direction,wave)   
+    ! from the sending MPI_rank to a rank fit for calculations. 
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input : 
+    !   send_rank : MPI rank storing the requested wavefunction
+    !   calc_rank : MPI rank supposed to be doing calculations with the 
+    !               requested wavefunction.
+    !   wave      : LOCAL index of the requested spwf on the send_rank
+    !   direction : direction of the derivative (x/y/z = 1/2/3) of the 
+    !               requested spwf
+    !   TR        : logical, whether or not to apply a time-reversal operation
+    !               before returning.
+    ! Output:
+    !  derpsi     : the requested derivative of an spwf, but only on CALC_RANK.
+    !               For all other MPI ranks, the array is not changed.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(out) :: derpsi(mv,4)
+    integer, intent(in)        :: send_rank, calc_rank, wave
+    integer, intent(in)        :: direction
+    logical, intent(in)        :: TR
+#if(USE_MPI>0)
+    integer                    :: mpi_err
+
+    if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+        ! nothing to send or receive
+        derpsi   = DendPsi(:,:,direction,wave)
+        if(TR)   derpsi = TimeReverse(derpsi)
+    elseif(MPI_RANK.eq.calc_rank) then
+        ! calc_rank receives
+        call MPI_RECV(                     derpsi, 4*mv, MPI_REAL8,send_rank,2,&
+        &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+        ! and time-reverses if needed
+        if(TR)   derpsi = TimeReverse(derpsi)
+    else if(MPI_RANK .eq. send_rank)  then
+        ! ranki sends the wavefunction
+        call MPI_SEND(DendPsi(:,:,direction,wave), 4*mv, MPI_REAL8,calc_rank,2,&
+        &                                           MPI_COMM_WORLD, mpi_err)
+    endif
+#else 
+    derpsi   = DendPsi(:,:,direction,wave)
+    if(TR)   derpsi = TimeReverse(derpsi)
+#endif
+
+end subroutine Transfer_derpsi
+
 function CompNablaMelements() result(NablaMelements)
     !---------------------------------------------------------------------------
     ! Computes the matrix elements of Nabla
@@ -661,9 +749,27 @@ function CompNablaMelements() result(NablaMelements)
     ! In the basis from which the densities are constructed:
     !    (a) HF-basis for HF and BCS calculations
     !    (b) Canonical basis for HFB calculations
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! The current MPI parallelization strategy to calculate a given matrix 
+    ! element is simple: transfer all relevant spwfs to an indicated rank.
+    !    1) find out the MPI ranks that store psi_i and psi_j, rank_i and rank_j
+    !    2) send both to the designated rank
+    !    3) which integrates psi_i \nabla_mu psi_j 
+    !    4) at this point we use the symmetry of the operator, I.e.
+    !          <psi_i |\nabla_mu |psi_j> = <psi_j| \nabla_mu| psi_i>^*
     !
+    ! This does not load balance very well, but at least we take the effort of
+    ! load balancing the protons and neutrons. 
+    !    Sequential : everything done by rank 0 
+    !    Parallel   : everything done by rank 0 (neutrons)
+    !                 and the last rank. These should in all realistic cases 
+    !                 only store neutron/proton spwfs respectively and should
+    !                 hence never communicate.
+    !    5) MPI_BCAST creates the complete array for all ranks
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Some notes:
-    ! 1) These are, in general, complex numbers!
+    ! 1) These matrix elements are, in general, complex numbers!
     ! 2) Symmetries restrict them in weird ways:
     !    Same p             => <Nx> = <Ny> = <Nz> = 0
     !    Same signature     => <Nx> = <Ny> = 0
@@ -671,147 +777,256 @@ function CompNablaMelements() result(NablaMelements)
     !    Different isospin  => <Nx> = <Ny> = <Nz> = 0
     ! 3) We must not forget the time-reversed states when time reversal is
     !    conserved!
+    ! 4) This correction is a nightmare to efficiently parallelize using MPI.
+    !    The reason is that all matrix elements that are not zero involve 
+    !    spwfs with different parity and often opposite signature. These spwfs
+    !    are unlikely to be found on the same MPI rank => massive communication 
+    !    costs. I have at the moment not made any effort to be clever. The 
+    !    implementation below is naive but works and can serve as benchmark
+    !    to future implementations that are more clever.
+    ! 5) This routine is NOT ready for generalization beyond a CR4 (PT-broken)
+    !    context.
+    !
+    ! Luckily, these matrix elements are not necessary in the most demanding 
+    ! case with respect to scaling with the number of spwfs: nuclear pasta 
+    ! calculations describe essentially infinite systems which are well-located
+    ! in space.
     !---------------------------------------------------------------------------
-    integer       :: i,j, B, N, si, N2, N3, N4, wave, wave2
+    integer       :: i,         j, B, N, si, N2, N3, N4, wave, wave2
+    integer       :: ranki, rankj, wave_global, wave2_global
+    integer       :: designated_rank(2), calc_rank, T
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt), psi(mv,4)
     real(KIND=dp) :: derx(mv,4), dery(mv,4), derz(mv,4)
-
+#if(USE_MPI>0)
+    integer       :: mpi_err
+#endif
     !---------------------------------------------------------------------------
     NablaMElements= 0.0_dp
 
+    designated_rank(1) = 0
+    designated_rank(2) = Ncores - 1
+
+#if(USE_MPI>0)
+    ! Verify that both designated ranks should have no communications; if they
+    ! do this calculation will take very long.
+    if((MPI_RANK.eq.designated_rank(1)) &
+    &          .and.                    &
+    &        (sum(HFBlocks(5:8)).gt. 0)) then
+      call stp('This load balancing cannot be used in CompNablaMelements.')
+    else if((MPI_RANK.eq.designated_rank(2)) &
+    &          .and.                         &
+    &            (sum(HFBlocks(1:4)).gt. 0)) then
+      call stp('This load balancing cannot be used in CompNablaMelements.') 
+    endif
+#endif
     si = 0 
     do B=1,8,4 ! This loop is essentially over protons vs neutrons
-      N = HFblocks(B)  ;  N2= HFBlocks(B+1)
-      N3= HFBlocks(B+2);  N4= HFBlocks(B+3)
+      N = HFblocks_global(B)  ;  N2= HFBlocks_global(B+1)
+      N3= HFBlocks_global(B+2);  N4= HFBlocks_global(B+3)
+
+      calc_rank = designated_rank(mod(B,5) + 1)
 
       !-------------------------------------------------------------------------
       ! Re < p_z > : only non-zero matrix elements when equal signature
       !              and opposite parity (if it is conserved)
-      
+      !-------------------------------------------------------------------------
       ! Block 1 with block 3
       do i=1,N
-        wave  = si+i
-        psi   = DenPsi(:,:,wave)
+        wave_global = si+i  ! this is the global index of the spwf
+        ! .... and we have to find the MPI RANK and the index it is on
+        ranki = rank_map(wave_global)
+        wave  = spwf_inverse(wave_global)
+        ! sending, receing, copying etc to the array psi for calc_rank only 
+        call transfer_psi(psi, ranki, calc_rank, wave)
+
         do j=1,N3
-          wave2 = si+N+N2+j
-          Derz  =  DendPsi(:,3,:,wave2)
+          wave2_global = si+N+N2+j
+          rankj        = rank_map(wave2_global)
+          wave2        = spwf_inverse(wave2_global)
 
-          NablaMElements(3,1,wave,wave2) = dv*                                 &
-          & sum(                    derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
-          &                      +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+          ! sending, receing, copying etc to the array psi for calc_rank only 
+          call transfer_derpsi(derz, rankj, calc_rank, wave2, 3,.false.)
 
-          NablaMElements(3,1,wave2,wave) =   NablaMElements(3,1,wave,wave2)
+          if(MPI_RANK .eq. calc_rank) then
+            ! Perform the calculation with the rank designated to calculate
+            NablaMElements(3,1,wave_global,wave2_global) = dv*                 &
+            & sum(                  derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
+            &                    +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+
+            NablaMElements(3,1,wave2_global,wave_global) =&
+            &                       NablaMElements(3,1,wave_global,wave2_global)
+          endif
         enddo
       enddo
       
       ! Block 1 with block 1 (parity broken)
-$PBROKEN      do i=1,N
-$PBROKEN        wave  = si+i
-$PBROKEN        psi   = DenPsi(:,:,wave)
-$PBROKEN        do j=1,N
-$PBROKEN          wave2 = si+j
-$PBROKEN          Derz  =  DendPsi(:,3,:,wave2)
+$PBROKEN   do i=1,N
+$PBROKEN     wave_global = si+i  ! this is the global index of the spwf
+$PBROKEN     ! .... and we have to find the MPI RANK and the index it is on
+$PBROKEN     ranki = rank_map(wave_global)
+$PBROKEN     wave  = spwf_inverse(wave_global)
+$PBROKEN     call transfer_psi(psi, ranki, calc_rank, wave)
 $PBROKEN
-$PBROKEN          NablaMElements(3,1,wave,wave2) = dv*                                 &
-$PBROKEN          & sum(                    derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
-$PBROKEN          &                      +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+$PBROKEN     do j=1,N
+$PBROKEN       wave2_global = si+j
+$PBROKEN       rankj        = rank_map(wave2_global)
+$PBROKEN       wave2        = spwf_inverse(wave2_global)
 $PBROKEN
-$PBROKEN          NablaMElements(3,1,wave2,wave) =   NablaMElements(3,1,wave,wave2)
-$PBROKEN        enddo
-$PBROKEN      enddo
-  
+$PBROKEN       ! sending, receing, copying etc to the array psi for calc_rank only 
+$PBROKEN       call transfer_derpsi(derz, rankj, calc_rank, wave2, 3,.false.)
+$PBROKEN
+$PBROKEN       if(MPI_RANK .eq. calc_rank) then
+$PBROKEN         NablaMElements(3,1,wave_global,wave2_global) = dv*            &
+$PBROKEN         & sum(             derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
+$PBROKEN         &               +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+$PBROKEN
+$PBROKEN         NablaMElements(3,1,wave2_global,wave_global) = &
+$PBROKEN         &                  NablaMElements(3,1,wave_global,wave2_global)
+$PBROKEN        endif
+$PBROKEN     enddo
+$PBROKEN   enddo
+
       ! Block 2 with block 4
       do i=1,N2
-        wave  = si+N+i
-        psi   = DenPsi(:,:,wave)
-        do j=1,N4
-          wave2 = si+N+N2+N3+j
-          Derz  =  DendPsi(:,3,:,wave2)
-          ! Re < p_z > 
-          NablaMElements(3,1,wave,wave2) = dv*                                 &
-          & sum(                    derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
-          &                      +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+        wave_global  = si+N+i
+        ranki        = rank_map(wave_global)
+        wave         = spwf_inverse(wave_global)
+        ! sending, receing, copying etc to the array psi for calc_rank only 
+        call transfer_psi(psi, ranki, calc_rank, wave)
 
-          NablaMElements(3,1,wave2,wave) =   NablaMElements(3,1,wave,wave2)
+        do j=1,N4
+          wave2_global = si+N+N2+N3+j
+          rankj        = rank_map(wave2_global)
+          wave2        = spwf_inverse(wave2_global)
+
+          ! sending, receing, copying etc to the array psi for calc_rank only 
+          call transfer_derpsi(derz, rankj, calc_rank, wave2, 3, .false.)
+
+          if(MPI_RANK.eq.calc_rank) then
+          ! Re < p_z > 
+            NablaMElements(3,1,wave_global,wave2_global) = dv*                 &
+            & sum(                  derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
+            &                    +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+
+            NablaMElements(3,1,wave2_global,wave_global) = &
+            &                       NablaMElements(3,1,wave_global,wave2_global)
+          endif
         enddo
       enddo
       
       ! Block 2 with block 2 (parity broken)
-$PBROKEN      do i=1,N2
-$PBROKEN        wave  = si+N+i
-$PBROKEN        psi   = DenPsi(:,:,wave)
-$PBROKEN        do j=1,N2
-$PBROKEN          wave2 = si+N+j
-$PBROKEN          Derz  =  DendPsi(:,3,:,wave2)
-$PBROKEN          ! Re < p_z > 
-$PBROKEN          NablaMElements(3,1,wave,wave2) = dv*                                 &
-$PBROKEN          & sum(                    derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
-$PBROKEN          &                      +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+$PBROKEN   do i=1,N2
+$PBROKEN     wave_global = si+i  ! this is the global index of the spwf
+$PBROKEN     ! .... and we have to find the MPI RANK and the index it is on
+$PBROKEN     ranki = rank_map(wave_global)
+$PBROKEN     wave  = spwf_inverse(wave_global)
+$PBROKEN     call transfer_psi(psi, ranki, calc_rank, wave)
+$PBROKEN 
+$PBROKEN     do j=1,N2
+$PBROKEN       wave2_global = si+N+j
+$PBROKEN       rankj        = rank_map(wave2_global)
+$PBROKEN       wave2        = spwf_inverse(wave2_global)
 $PBROKEN
-$PBROKEN          NablaMElements(3,1,wave2,wave) =   NablaMElements(3,1,wave,wave2)
-$PBROKEN        enddo
-$PBROKEN      enddo
+$PBROKEN       call transfer_derpsi(derz, rankj, calc_rank, wave2, 3, .false.)
+$PBROKEN       if(MPI_RANK.eq.calc_rank) then
+$PBROKEN         ! Re < p_z > 
+$PBROKEN         NablaMElements(3,1,wave_global,wave2_global) = dv*            &
+$PBROKEN         & sum(             derz(:,1) * psi(:,1) + derz(:,2) * psi(:,2)&
+$PBROKEN         &               +  derz(:,3) * psi(:,3) + derz(:,4) * psi(:,4))
+$PBROKEN
+$PBROKEN         NablaMElements(3,1,wave2_global,wave_global) = &
+$PBROKEN         &                  NablaMElements(3,1,wave_global,wave2_global)
+$PBROKEN       endif
+$PBROKEN     enddo
+$PBROKEN   enddo
 
       !-------------------------------------------------------------------------
       ! Re < p_x >, Im <p_y> 
 
       do i=1,N
-        wave  = si+i
-        psi   = DenPsi(:,:,wave)
+        wave_global  = si+i
+        ranki        = rank_map(wave_global)
+        wave         = spwf_inverse(wave_global)        
+        ! sending, receing, copying etc to the array psi for calc_rank only 
+        call transfer_psi(psi, ranki, calc_rank, wave)
            ! Block 1 with block 4  (T-broken)    
 $NTR       do j=1, N4
-$NTR          wave2 = si+N+N2+N3+j
+$NTR          wave2_global = si+N+N2+N3+j
 $NTR          Derx  =  DendPsi(:,1,:,wave2)
 $NTR          Dery  =  DendPsi(:,2,:,wave2)
            ! Block 1 with block 3  (T-conserved)    
 $TR        do j=1, N3
-$TR           wave2 = si+N+j
-$TR           Derx  =  TimeReverse(DendPsi(:,1,:,wave2))
-$TR           Dery  =  TimeReverse(DendPsi(:,2,:,wave2))
+$TR           wave2_global = si+N+j
+$TR           rankj        = rank_map(wave2_global)
+$TR           wave2        = spwf_inverse(wave2_global)
+$TR           ! There is a timereversal operation hidden behind the .true. in
+$TR           ! the lines below!
+$TR           call transfer_derpsi(derx, rankj, calc_rank, wave2, 1, .true.)
+$TR           call transfer_derpsi(dery, rankj, calc_rank, wave2, 2, .true.)
 
-          NablaMElements(1,1,wave,wave2) = dv*                                 &
-          & sum(                 derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
-          &                   +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+          if(MPI_RANK.eq.calc_rank) then
 
-          NablaMElements(2,2,wave,wave2) = dv*                                 &
-          & sum(                  dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
-          &                    -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+            NablaMElements(1,1,wave_global,wave2_global) = dv*                 &
+            & sum(                 derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2) &
+            &                   +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+  
+            NablaMElements(2,2,wave_global,wave2_global) = dv*                 &
+            & sum(                  dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)&
+            &                    -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
 
-          NablaMElements(1,1,wave2,wave) = - NablaMElements(1,1,wave,wave2)
-          NablaMElements(2,2,wave2,wave) =   NablaMElements(2,2,wave,wave2)
+            ! Attention to the signs here
+            NablaMElements(1,1,wave2_global,wave_global) = &
+            &                     - NablaMElements(1,1,wave_global,wave2_global)
+            NablaMElements(2,2,wave2_global,wave_global) = &
+            &                       NablaMElements(2,2,wave_global,wave2_global)
+         endif
         enddo
       enddo
       
-$PBROKEN      do i=1,N
-$PBROKEN        wave  = si+i
-$PBROKEN        psi   = DenPsi(:,:,wave)
-                    ! Block 1 with block 2  (T-broken, P-broken)    
-$PBROKEN $NTR       do j=1, N2
-$PBROKEN $NTR          wave2 = si+N+j
-$PBROKEN $NTR          Derx  =  DendPsi(:,1,:,wave2)
-$PBROKEN $NTR          Dery  =  DendPsi(:,2,:,wave2)
-                    ! Block 1 with block 1  (T-conserved, P-broken)    
-$PBROKEN $TR        do j=1, N
-$PBROKEN $TR           wave2 = si+j
-$PBROKEN $TR           Derx  =  TimeReverse(DendPsi(:,1,:,wave2))
-$PBROKEN $TR           Dery  =  TimeReverse(DendPsi(:,2,:,wave2))
+$PBROKEN   do i=1,N
+$PBROKEN     wave_global  = si+i
+$PBROKEN     ranki        = rank_map(wave_global)
+$PBROKEN     wave         = spwf_inverse(wave_global)        
+$PBROKEN     ! sending, receing, copying etc to the array psi for calc_rank only 
+$PBROKEN     call transfer_psi(psi, ranki, calc_rank, wave)
+                ! Block 1 with block 2  (T-broken, P-broken)    
+$PBROKEN $NTR do j=1, N2
+$PBROKEN $NTR   wave2_global = si+N+j
+$PBROKEN $NTR   rankj        = rank_map(wave2_global)
+$PBROKEN $NTR   wave2        = spwf_inverse(wave2_global)
+$PBROKEN $NTR   call transfer_derpsi(derx, rankj, calc_rank, wave2, 1, .false.)
+$PBROKEN $NTR   call transfer_derpsi(dery, rankj, calc_rank, wave2, 2, .false.)
+                ! Block 1 with block 1  (T-conserved, P-broken)    
+$PBROKEN $TR  do j=1, N
+$PBROKEN $TR    wave2_global = si+j
+$PBROKEN $TR    rankj        = rank_map(wave2_global)
+$PBROKEN $TR    wave2        = spwf_inverse(wave2_global)
+$PBROKEN $TR    call transfer_derpsi(derx, rankj, calc_rank, wave2, 1, .true.)
+$PBROKEN $TR    call transfer_derpsi(dery, rankj, calc_rank, wave2, 2, .true.)
 
-$PBROKEN          NablaMElements(1,1,wave,wave2) = dv*                                 &
-$PBROKEN          & sum(                 derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
-$PBROKEN          &                   +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+$PBROKEN        if(MPI_RANK .eq. calc_rank) then
+$PBROKEN          NablaMElements(1,1,wave_global,wave2_global) = dv*           &
+$PBROKEN          & sum(         derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+$PBROKEN          &           +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
 
-$PBROKEN          NablaMElements(2,2,wave,wave2) = dv*                                 &
-$PBROKEN          & sum(                  dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
-$PBROKEN          &                    -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+$PBROKEN          NablaMElements(2,2,wave_global,wave2_global) = dv*           &
+$PBROKEN          & sum(         dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)   &
+$PBROKEN          &           -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
 
-$PBROKEN          NablaMElements(1,1,wave2,wave) = - NablaMElements(1,1,wave,wave2)
-$PBROKEN          NablaMElements(2,2,wave2,wave) =   NablaMElements(2,2,wave,wave2)
-$PBROKEN        enddo
-$PBROKEN      enddo
+$PBROKEN          NablaMElements(1,1,wave2_global,wave_global) =               &
+$PBROKEN          &               - NablaMElements(1,1,wave_global,wave2_global)
+$PBROKEN          NablaMElements(2,2,wave2_global,wave_global) =               &
+$PBROKEN          &                 NablaMElements(2,2,wave_global,wave2_global)
+$PBROKEN        endif
+$PBROKEN     enddo
+$PBROKEN   enddo
 
       do i=1,N2
-        wave  = si+N+i
-        psi   = DenPsi(:,:,wave)
+        wave_global  = si+N+i
+        ranki        = rank_map(wave_global)
+        wave         = spwf_inverse(wave_global)
+        ! sending, receing, copying etc to the array psi for calc_rank only 
+        call transfer_psi(psi, ranki, calc_rank, wave)
            ! Block 2 with block 3  (T-broken)    
 $NTR       do j=1, N3
 $NTR          wave2 = si+N+N2+j
@@ -819,56 +1034,90 @@ $NTR          Derx  =  DendPsi(:,1,:,wave2)
 $NTR          Dery  =  DendPsi(:,2,:,wave2)
            ! Block 2 with block 4  (T-conserved)    
 $TR        do j=1, N4
-$TR           wave2 = si+N+N2+N3+j
-$TR           Derx  =  TimeReverse(DendPsi(:,1,:,wave2))
-$TR           Dery  =  TimeReverse(DendPsi(:,2,:,wave2))
+$TR           wave2_global = si+N+N2+N3+j
+$TR           rankj        = rank_map(wave2_global)
+$TR           wave2        = spwf_inverse(wave2_global)
+$TR           ! There is a timereversal operation hidden behind the .true. in
+$TR           ! the lines below!
+$TR           call transfer_derpsi(derx, rankj, calc_rank, wave2, 1, .true.)
+$TR           call transfer_derpsi(dery, rankj, calc_rank, wave2, 2, .true.)
 
-          NablaMElements(1,1,wave,wave2) = dv*                                 &
-          & sum(                 derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
-          &                   +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+          if(MPI_RANK.eq.calc_rank) then
+            NablaMElements(1,1,wave_global,wave2_global) = dv*                 &
+            & sum(                 derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2) &
+            &                   +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
 
-          NablaMElements(2,2,wave,wave2) = dv*                                 &
-          & sum(                  dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
-          &                    -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
-
-          NablaMElements(1,1,wave2,wave) = - NablaMElements(1,1,wave,wave2)
-          NablaMElements(2,2,wave2,wave) =   NablaMElements(2,2,wave,wave2)
+            NablaMElements(2,2,wave_global,wave2_global) = dv*                 &
+            & sum(                  dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)&
+            &                    -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+            ! Attention to the signs below
+            NablaMElements(1,1,wave2_global,wave_global) = &
+            &                     - NablaMElements(1,1,wave_global,wave2_global)
+            NablaMElements(2,2,wave2_global,wave_global) = &
+            &                       NablaMElements(2,2,wave_global,wave2_global)
+          endif
         enddo
       enddo
-      
-$PBROKEN      do i=1,N2
-$PBROKEN        wave  = si+N+i
-$PBROKEN        psi   = DenPsi(:,:,wave)
 
-                    ! Block 2 with block 1 (P-broken, T-broken)
-                    ! This one is likely superfluous, as we have this 
-                    ! combination already once above
-$PBROKEN $NTR       do j=1, N
-$PBROKEN $NTR          wave2 = si+j
-$PBROKEN $NTR          Derx  =  DendPsi(:,1,:,wave2)
-$PBROKEN $NTR          Dery  =  DendPsi(:,2,:,wave2)
+$PBROKEN   do i=1,N2
+$PBROKEN      wave_global  = si+N+i
+$PBROKEN      ranki        = rank_map(wave_global)
+$PBROKEN      wave         = spwf_inverse(wave_global)
+              ! Block 2 with block 1 (P-broken, T-broken)
+              ! This one is likely superfluous, as we have this 
+              ! combination already once above
+$PBROKEN $NTR do j=1, N
+$PBROKEN $NTR    wave2_global = si+j
+$PBROKEN $NTR    rankj        = rank_map(wave2_global)
+$PBROKEN $NTR    wave2        = spwf_inverse(wave2_global)
+$PBROKEN $NTR    call transfer_derpsi(derx, rankj, calc_rank, wave2, 1, .false.)
+$PBROKEN $NTR    call transfer_derpsi(dery, rankj, calc_rank, wave2, 2, .false.)
 
-                    ! Block 2 with block 2 (P-broken, T-conserved)
-$PBROKEN $TR        do j=1, N2
-$PBROKEN $TR           wave2 = si+N+j
-$PBROKEN $TR           Derx  =  TimeReverse(DendPsi(:,1,:,wave2))
-$PBROKEN $TR           Dery  =  TimeReverse(DendPsi(:,2,:,wave2))
+              ! Block 2 with block 2 (P-broken, T-conserved)
+$PBROKEN $TR   do j=1, N2
+$PBROKEN $TR    wave2_global = si+N+j
+$PBROKEN $TR    rankj        = rank_map(wave2_global)
+$PBROKEN $TR    wave2        = spwf_inverse(wave2_global)
+$PBROKEN $TR    call transfer_derpsi(derx, rankj, calc_rank, wave2, 1, .false.)
+$PBROKEN $TR    call transfer_derpsi(dery, rankj, calc_rank, wave2, 2, .false.)
 
-$PBROKEN          NablaMElements(1,1,wave,wave2) = dv*                                 &
-$PBROKEN          & sum(                 derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
-$PBROKEN          &                   +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+$PBROKEN        if(MPI_RANK.eq.calc_rank) then
+$PBROKEN          NablaMElements(1,1,wave_global,wave2_global) = dv*           &
+$PBROKEN          & sum(         derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+$PBROKEN          &           +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
 
-$PBROKEN          NablaMElements(2,2,wave,wave2) = dv*                                 &
-$PBROKEN          & sum(                  dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
-$PBROKEN          &                    -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+$PBROKEN          NablaMElements(2,2,wave_global,wave2_global) = dv*           &
+$PBROKEN          & sum(          dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
+$PBROKEN          &            -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
 
-$PBROKEN          NablaMElements(1,1,wave2,wave) = - NablaMElements(1,1,wave,wave2)
-$PBROKEN          NablaMElements(2,2,wave2,wave) =   NablaMElements(2,2,wave,wave2)
-$PBROKEN        enddo
+$PBROKEN          NablaMElements(1,1,wave2_global,wave_global) = &
+$PBROKEN          &               - NablaMElements(1,1,wave_global,wave2_global)
+$PBROKEN          NablaMElements(2,2,wave2_global,wave_global) = &
+$PBROKEN          &                 NablaMElements(2,2,wave_global,wave2_global)
+$PBROKEN        endif
 $PBROKEN      enddo
+$PBROKEN    enddo
+      T = N + N2 + N3 + N4 
+      si = si + T 
+    enddo
 
-      si = si + N + N2 + N3 + N4 
-    enddo    
+#if(USE_MPI>0)
+    ! Broadcast all calculated matrix elements to all ranks. 
+    ! Note that this is an explicit, separate, loop such that the parallel 
+    ! structure of the loop above does not get disturbed
+    si = 0 
+    do B=1,8,4 ! This loop is essentially over protons vs neutrons
+      N = HFblocks_global(B)  ;  N2= HFBlocks_global(B+1)
+      N3= HFBlocks_global(B+2);  N4= HFBlocks_global(B+3)
+      T = N + N2 + N3 + N4 
+      calc_rank = designated_rank(mod(B,5) + 1)
+
+      ! Broadcast all matrix elements from the calculating rank t all the rest
+      call MPI_BCAST(NablaMElements(:,:,si+1:si+T, si+1:si+T), 6*T**2, &
+      &              MPI_REAL8, calc_rank, MPI_COMM_WORLD, mpi_err)
+      si = si + T 
+    enddo
+#endif
     !---------------------------------------------------------------------------
 end function CompNablaMelements
 

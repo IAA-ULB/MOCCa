@@ -140,13 +140,21 @@ module wavefunctions
  !                  TOTAL calculation. I.E. this maps
  !                       spwf  1,  2, 3, ....,  nwt_local
  !                             |   |  |          |
- !                       spwf  X,  Y, Z, ....., nwt
+ !                       spwf  X,  Y, Z, ....., AAA , AAA+1, ..... ,nwt
+ ! spwf_inverse   : the LOCAL index of a given spwf on its MPI rank.
+ !                     spwf   1, 2, 3,...., X,  X+1, ......, nwt 
+ !                            |  |  |       |   |
+ !                            1  2  3, ..., X,  1 , 2, .....
+ !                  this will have many repeating entries; starting from a
+ !                  global index X, one needs both (!)
+ !                       rank_map(X) and spwf_inverse(X)
+ !                  to uniquely find its location in memory
  !------------------------------------------------------------------------------
  integer, parameter   :: Blocks                  = 8  ! This can always be fixed
  integer              :: HFBlocks(Blocks)  = 0
  integer              :: HFBlocks_global(Blocks) = 0
  integer              :: nwn = 6, nwp = 6, nwt = 12, nwt_local =12
- integer, allocatable :: rank_map(:), spwf_map(:)
+ integer, allocatable :: rank_map(:), spwf_map(:), spwf_inverse(:)
  !------------------------------------------------------------------------------
  ! Properties of the single-particle wave-functions with regard to reflections
  ! of the axes. Note that these are properties of the LOCALLY stored spwfs, 
@@ -260,7 +268,8 @@ contains
     nwt = nwn + nwp
   end subroutine ReadWFdata
 
-  subroutine loadbalance(blocks_global,balancing,blocks_local,spwf_map,rank_map)
+  subroutine loadbalance(blocks_global,balancing,blocks_local,spwf_map,        &
+  &                                                       rank_map,spwf_inverse)
     !---------------------------------------------------------------------------
     ! Balance the loading of large arrays across MPI ranks in a 1D fashion.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -282,14 +291,17 @@ contains
     !   spwf_map      : integer(:)
     !                   mapping of the spwfs on this MPI rank to the whole
     !                   calculation
-    !   rank_map      : integer(:)
+    !   rank_map      : integer(nwt)
     !                   mapping of the ranks for each spwf, i.e. spwf X is 
     !                   stored on MPI_RANK rank_map(X). 
+    !   spwf_inverse  : integer(nwt)
+    !                   index of the wavefunction defined by a global index on
+    !                   the LOCAL MPI rank
     !---------------------------------------------------------------------------
     integer, intent(in)  :: balancing
     integer, intent(in)  :: blocks_global(blocks)
     integer, intent(out) :: blocks_local(blocks)
-    integer, intent(out), allocatable :: spwf_map(:), rank_map(:)
+    integer, intent(out), allocatable :: spwf_map(:),rank_map(:),spwf_inverse(:)
 
     integer              :: B, activeblocks, ranks_per_block, blocks_per_rank
     integer              :: block_count, i, offset
@@ -298,8 +310,8 @@ contains
     integer              :: mpi_err
 #endif
 
-    allocate(rank_map(sum(blocks_global)))
-    rank_map = 0
+    allocate(rank_map(sum(blocks_global)), spwf_inverse(sum(blocks_global)))
+    rank_map = 0 ; spwf_inverse = 0
 
     select case(balancing)
     case (0)
@@ -341,12 +353,13 @@ contains
         offset = sum(blocks_global(1:B-1))
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Calculate the spwf <-> rank mappings
+        ! Calculate the spwf <-> rank mapping and its inverse
         allocate(spwf_map(sum(blocks_local)))
 
         do i=1,sum(blocks_local)
-          spwf_map(i)         = offset + i
-          rank_map(offset+i)  = MPI_RANK
+          spwf_map(i)            = offset + i
+          spwf_inverse(offset+i) = i
+          rank_map(offset+i)     = MPI_RANK
         enddo
       else
         ! More ranks than blocks
@@ -357,8 +370,10 @@ contains
     end select
 
 #if(USE_MPI>0)
-  ! this call to allreduce is valid since we took care to zero it at the start
-  call MPI_ALLREDUCE(MPI_IN_PLACE, rank_map, sum(blocks_global),& 
+  ! these calls to allreduce is valid since we took care to zero things above
+  call MPI_ALLREDUCE(MPI_IN_PLACE, rank_map, sum(blocks_global),     & 
+  &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
+  call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_inverse, sum(blocks_global), & 
   &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
 #endif
   end subroutine loadbalance
@@ -418,7 +433,7 @@ contains
     ! using this information, we are capable of figuring out the way to 
     ! balance the (still unconstructed) spwfs.
     call loadbalance(HFblocks_global,balancing_strategy,& 
-    &                        HFblocks,spwf_map,rank_map)
+    &                        HFblocks,spwf_map,rank_map, spwf_inverse)
     ! now each MPI rank knows which spwfs it should grab and can make the space
     allocate(HFPSI(ININX*ININY*ININZ,4,sum(HFblocks))); hfpsi = 0.0d0
     ! second call of subroutine nilsson: construct the part of the nilsson 
