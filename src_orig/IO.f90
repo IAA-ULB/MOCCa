@@ -1071,7 +1071,7 @@ contains
 
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ofn
-    integer                      :: io, wave, j, wave_local, rank
+    integer                      :: io, wave, wave_local, rank
 #if(USE_MPI > 0)
     integer                      :: mpi_err
     real(KIND=dp), allocatable   :: tempwf(:,:)

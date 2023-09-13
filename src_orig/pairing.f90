@@ -222,15 +222,15 @@ contains
 $FORBIDBCS if( pairingtype .eq. 1) then
 $FORBIDBCS    call stp('BCS not allowed when breaking T.')
 $FORBIDBCS endif
-      
+
       if(Blocktype.lt.0 .or. BlockType.gt.5) then
         call stp('Invalid value for BlockType')
       endif
-      
+
       if(blocktype.eq.5 .and. pairingscheme.eq.1) then
         call stp('Cannot combine forced-spherical symmetry blocking and the gradient solver.')
       endif 
-      
+
       if(particles_in_gas .lt. 0 .or. particles_in_gas .gt. 2) then
         call stp('Invalid value for particles_in_gas.')
       endif
@@ -273,7 +273,6 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
               end select
             enddo
           endif
-          
           ! Sanity checks on the BlockIndices array:
           ! (a) check if everything was read
           if(blocktype.eq.1 .or. blocktype.eq.3) then
@@ -290,7 +289,6 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
   $NTR        call stp('Cannot do EFA blocking with gradient solver when time-reversal is broken.')
   $NTR      endif
   $NTR    endif
-          
           ! Sanity check: cannot do full blocking if time-reversal is not broken
   $TR     if(blocktype.eq.1 .or. Blocktype.eq.2) then
   $TR       call stp('Cannot do true blocking when time-reversal is conserved.')
@@ -323,13 +321,13 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
     &                                                   MPI_COMM_WORLD, mpi_err)
     ! /blocking/ namelist variables
     if(BlockNumber.ne.0) then
-      call MPI_Bcast(blockJ, 1, MPI_REAL8, MPI_COMM_WORLD, mpi_err)
-      allocate(blockindices(blocknumber)) ; allocate(blocklowest(blocknumber))
-      call MPI_Bcast(blockindices, blocknumber, MPI_INTEGER, MPI_COMM_WORLD, mpi_err)
-      ! blocklowest is an array of strings, so it is complicated to transfer...
-      do i=1,blocknumber
-        call MPI_Bcast(blocklowest(i), 2,MPI_CHARACTER,MPI_COMM_WORLD,mpi_err) 
-      enddo
+     call MPI_Bcast(blockJ, 1, MPI_REAL8, MPI_COMM_WORLD, mpi_err)
+     allocate(blockindices(blocknumber)) ; allocate(blocklowest(blocknumber))
+     call MPI_Bcast(blockindices,blocknumber,MPI_INTEGER,MPI_COMM_WORLD,mpi_err)
+     ! blocklowest is an array of strings, so it is complicated to transfer...
+     do i=1,blocknumber
+      call MPI_Bcast(blocklowest(i), 2,MPI_CHARACTER,MPI_COMM_WORLD,mpi_err) 
+     enddo
     endif
 #endif
     !---------------------------------------------------------------------------
@@ -349,7 +347,7 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
     end select
     pairingcut(1) = cutneutron
     pairingcut(2) = cutproton
-    
+
     ! b) Gaps calculation decision
     select case(PairingType)
     case(0)
@@ -359,7 +357,7 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
     case(2)
       CalcGaps => calcHFBgaps
     end select
-    
+
     ! c) Fermisolver allocation
     if(adjustl(FermiSolver).eq.'SECANT') then
       FindFermi => FindFermi_secant

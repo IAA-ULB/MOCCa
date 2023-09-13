@@ -498,6 +498,10 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         ! nwt-vectors
         call MPI_ALLREDUCE(MPI_IN_PLACE,dispersions , nwt, MPI_REAL8,          &
         &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+        if(diagsphamil) then
+          call MPI_ALLREDUCE(MPI_IN_PLACE,spenergies,                          &
+          &                  nwt, MPI_REAL8,MPI_SUM, MPI_COMM_WORLD,mpi_err)
+        endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! nwt-Matrices
         ! Note, this can be done block-wise in order to save on communication
@@ -543,14 +547,10 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
               call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
               &                       spenergies(si+1:si+N),work,lwork,ifail)
               deallocate(work)
-          
+
               call stop_timer(T_HFdiag)
           endif
-#if(USE_MPI>0)
-          ! ... and always communicate spenergies to all ranks
-          call MPI_ALLREDUCE(MPI_IN_PLACE,spenergies(si+1:si+N),           &
-          &                 N  , MPI_REAL8,MPI_SUM, MPI_COMM_WORLD,mpi_err)
-#endif
+
           si = si + N
         enddo
 

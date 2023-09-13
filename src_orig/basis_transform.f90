@@ -164,9 +164,9 @@ contains
 
     si = si +  T
   enddo  
-  
+
  end function transform_mat 
- 
+
  function transform_vec(V, transfo) result(Vc)
   !-----------------------------------------------------------------------------
   ! Transform a set of vectors V with the orthonormal transformation C=transfo.

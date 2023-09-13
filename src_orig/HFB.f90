@@ -232,7 +232,7 @@ contains
           np = np + 1
         endif
       enddo
-        
+
       allocate(proton_block(np))
       allocate(neutron_block(nn))
 
@@ -459,10 +459,10 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
 
 
     integer :: si,sb, B, N, N2, T,i, j, stind,endind !,NB ,X(1),Y(1)
-  
+
     ! Statement to stop the compiler complaining about this dummy variable
     if(allocated(blockindices)) trash = 0.0d0
-  
+
     if(.not.allocated(rho_history)) then
       allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
       allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0
@@ -481,7 +481,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     Bogoliubov_history   = Bogo
     rho_history          = rho_pairing
     kappa_history        = kappa_pairing 
-    
+
     ! Guess a new Fermi energy if none is there
     if(all(Fermi.eq.0.0))   Fermi = -5
     ! Reorganise the Bogoliubov transformation if needed
@@ -491,10 +491,10 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       ! Obtain an estimate for the quasi-particle energies to estimate the 
       ! evolution parameters
       full_eqp      = obtain_eqp(sphamil, gaps, Fermi, HFBlocks_global)
-      
+
       minqp = +100000
       maxqp = -100000
-      
+
       do i=1,2*nwt
        if(i.gt.2*nwn) then
         stind = 2*nwn+1
@@ -541,20 +541,20 @@ $TR    endif
       !-------------------------------------------------------------------------
       ! For clarity, build the occupation factors for the gradient routines
       allocate(occ(nwt)) ; occ = 0.0
-    
+
       si = 0 ; sb = 0
       do B=1,8,2
         N = HFBlocks_global(B)   ; if(N.eq.0) cycle
         N2= HFBlocks_global(B+1)
         T = N + N2
-        
+
         do i=1,T
           occ(si+i) = 1.0d0 - configmatrix(sb+T+i)
         enddo
         si = si +  T
         sb = sb +2*T
-      enddo    
-    
+      enddo
+
       !-------------------------------------------------------------------------
       ! Heavy-ball stepping for the neutrons
       call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),               & 
@@ -1194,7 +1194,7 @@ $TR   HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = +gaps(si+1:si+T,si+1:si+T)
 
     !---------------------------------------------------------------------------
     ! For time-reversal invariant calculations, no further work is necessary
-$TR effblocks = HFBlocks_global    
+$TR effblocks = HFBlocks_global
 $TR return
   
     !---------------------------------------------------------------------------

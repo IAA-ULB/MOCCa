@@ -67,7 +67,7 @@ module wavefunctions
  use derivatives
  use geninfo
  use nil8
- use timing 
+ use timing
 
  implicit none
  
@@ -226,10 +226,11 @@ module wavefunctions
  ! Use (or not) the more efficient implementation of the two-basis method
  logical :: efficientHFB = .false.
  !------------------------------------------------------------------------------
- ! The contribution of each individual spwf (in the HF or canonical basis)
- ! to <r^2> for printing purposes. These get explicitly saved here because, 
- ! if efficientHFB = .true., the HF basis is never explicitly constructed.
- real(KIND=dp), allocatable :: spwf_r2_hf(:), spwf_r2_can(:)
+ ! The full matrix elements of <r^2> in the HF and canonical basis
+ real(KIND=dp), allocatable, target :: spwf_r2_hf(:,:), spwf_r2_can(:,:)
+ ! Important note: in many types of calculations, only the diagonal elements of
+ ! this matrices will be calculated.
+ !------------------------------------------------------------------------------
 
 contains 
 
@@ -1019,9 +1020,11 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !                         diagonal matrix elements. 
     !
     !---------------------------------------------------------------------------
-    integer             :: wave, wave2, si, B, N, startind, endind, i,j,l,k
-    logical, intent(in) :: fullmatrices
-    
+    logical, intent(in)        :: fullmatrices
+    logical                    :: diag
+    integer                    :: k, wave
+    real(KIND=dp), allocatable :: temp(:,:)
+
     call start_timer(T_spwfangmom)
 
     if(.not.allocated(spwf_J)) then
@@ -1048,116 +1051,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
      allocate(HF_STI (3,nwt)); HF_STI = 0.0
     endif
 
-#if(USE_MPI>0)
-    call stop_timer(T_spwfangmom)
-    return
-#endif
-    si = 0
-    do B=1,8
-      N = HFBlocks(B) ; if(N.eq.0) cycle
-      !------------------------------------------------------------------------
-      ! spwf_[...] quantities
-      do wave=si+1,si+N        
-        if(fullmatrices .and. (.not. diagsphamil)) then
-          startind = wave ; endind = si+N
-        else
-          startind = wave ; endind = wave
-        endif
-        do wave2=startind, endind
-          spwf_JTR(1,wave, wave2) = & 
-          & angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
-          spwf_JTI(2,wave, wave2) = &
-          & angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
-          spwf_J  (3,wave, wave2) = & 
-          & angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2))
-
-          spwf_STR (1,wave,wave2)=spin_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave2))
-          spwf_STI (2,wave,wave2)=spin_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave2))
-          spwf_spin(3,wave,wave2)=spin_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave2))
-
-          spwf_J2(1,wave, wave2)  = &
-            &   angmom_x_quad(HFPsi(:,:,wave ),HFdPsi(:,:,:,wave ), &
-            &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
-          spwf_J2(2,wave, wave2)  = &
-            &   angmom_y_quad(HFPsi(:,:,wave ),HFdPsi(:,:,:,wave),  &
-            &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
-          spwf_J2(3,wave,wave2)   = &
-            &   angmom_z_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave),   &
-            &                 HFPsi(:,:,wave2),HFdPsi(:,:,:,wave2)) 
-
-          ! Symmetry properties of these things
-          spwf_JTR(1,wave2,wave) =+spwf_JTR(1,wave,wave2)
-          spwf_JTI(2,wave2,wave) =+spwf_JTI(2,wave,wave2)
-          spwf_J  (3,wave2,wave) =+spwf_J  (3,wave,wave2)
-
-          spwf_STR (1,wave2,wave) =+spwf_STR(1,wave,wave2)
-          spwf_STI (2,wave2,wave) =+spwf_STI(2,wave,wave2)
-          spwf_spin(3,wave2,wave) =+spwf_spin(3,wave,wave2)
-
-          spwf_J2 (1,wave2,wave)  =+spwf_J2(1,wave,wave2)
-          spwf_J2 (2,wave2,wave)  =+spwf_J2(2,wave,wave2)
-          spwf_J2 (3,wave2,wave)  =+spwf_J2(3,wave,wave2)
-        enddo
-       spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave,wave))))/2.        
-      enddo      
-      !-------------------------------------------------------------------------
-      ! HF_[...] quantities
-      if(fullmatrices .and. (.not.diagsphamil)) then
-         do k=1,3
-            HF_J  (k,si+1:si+N) = 0.0
-            HF_J2 (k,si+1:si+N) = 0.0
-            HF_JTR(k,si+1:si+N) = 0.0
-            HF_JTI(k,si+1:si+N) = 0.0
-
-            HF_spin(k,si+1:si+N) = 0.0
-            HF_STR (k,si+1:si+N) = 0.0
-            HF_STI (k,si+1:si+N) = 0.0
-
-            do i=si+1,si+N
-             do j=si+1,si+N
-              do l=si+1,si+N
-               HF_J  (k,i)  = HF_J  (k,i) &
-               &            + HFtransfo(l,i) * spwf_J  (k,l,j)  * HFtransfo(j,i)                   
-               HF_J2 (k,i)  = HF_J2 (k,i) &
-               &            + HFtransfo(l,i) * spwf_J2 (k,l,j)  * HFtransfo(j,i)                   
-               HF_JTR(k,i)  = HF_JTR(k,i) &
-               &            + HFtransfo(l,i) * spwf_JTR(k,l,j)  * HFtransfo(j,i)                   
-               HF_JTI(k,i)  = HF_JTI(k,i) &
-               &            + HFtransfo(l,i) * spwf_JTI(k,l,j)  * HFtransfo(j,i)                   
-
-               HF_spin(k,i) = HF_spin  (k,i) &
-               &            + HFtransfo(l,i) * spwf_spin(k,l,j) * HFtransfo(j,i)                   
-               HF_STR(k,i)  = HF_STR(k,i) &
-               &            + HFtransfo(l,i) * spwf_STR(k,l,j)  * HFtransfo(j,i)                   
-               HF_STI(k,i)  = HF_STI(k,i) &
-               &            + HFtransfo(l,i) * spwf_STI(k,l,j)  * HFtransfo(j,i)                   
-              enddo
-             enddo
-            enddo
-         enddo
-         do wave=si+1,si+N
-          HF_JJ(wave) = (-1. + sqrt(1. + 4*sum(HF_J2(:,wave))))/2.
-         enddo
-      elseif(diagsphamil) then
-        do k=1,3
-          do i=si+1,si+N
-            HF_J   (k,i) = spwf_J   (k,i,i)
-            HF_J2  (k,i) = spwf_J2  (k,i,i)
-            HF_JTR (k,i) = spwf_JTR (k,i,i)
-            HF_JTI (k,i) = spwf_JTI (k,i,i)
-            HF_spin(k,i) = spwf_spin(k,i,i)
-            HF_STR (k,i) = spwf_STR (k,i,i)
-            HF_STI (k,i) = spwf_STI (k,i,i)
-
-            HF_JJ(i) = (-1. + sqrt(1. + 4*sum(HF_J2(:,i))))/2.    
-          enddo
-        enddo
-      endif
-      si = si + N
-    enddo
-
-    !-------------------------------------------------------------------------
-    ! can_[...] quantities
     if(.not.allocated(can_J)) then
       allocate(can_J(3,nwt))   ; can_J  = 0.0
       allocate(can_JTR(3,nwt)) ; can_JTR= 0.0
@@ -1165,40 +1058,115 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       allocate(can_J2(3,nwt))  ; can_J2 = 0.0
       allocate(can_JJ(nwt))    ; can_JJ = 0.0
 
-      allocate(can_spin(3,nwt)); can_J  = 0.0
-      allocate(can_STR(3,nwt)) ; can_JTR= 0.0
-      allocate(can_STI(3,nwt)) ; can_JTI= 0.0
+      allocate(can_spin(3,nwt)); can_spin = 0.0
+      allocate(can_STR(3,nwt)) ; can_STR  = 0.0
+      allocate(can_STI(3,nwt)) ; can_STI  = 0.0
     endif
-    
+
+    diag = (.not. fullmatrices)
+    ! Operators for which we need no derivatives
+    call ME_function(spwf_STR (1,:,:),spin_xt_real,+1,diag,'HF')
+    call ME_function(spwf_STI (2,:,:),spin_yt_imag,+1,diag,'HF')
+    call ME_function(spwf_spin(3,:,:),spin_z_real, +1,diag,'HF')
+    ! Operators for which we need one set of derivatives
+    call ME_function_deriv1(spwf_J   (3,:,:),angmom_z_real, +1,diag,'HF')
+    call ME_function_deriv1(spwf_JTR (1,:,:),angmom_xt_real,+1,diag,'HF')
+    call ME_function_deriv1(spwf_JTI (2,:,:),angmom_yt_imag,+1,diag,'HF')
+    ! Operators for which we need two sets of derivatives
+    call ME_function_deriv2(spwf_J2  (1,:,:),angmom_x_quad,+1,diag,'HF')
+    call ME_function_deriv2(spwf_J2  (2,:,:),angmom_y_quad,+1,diag,'HF')
+    call ME_function_deriv2(spwf_J2  (3,:,:),angmom_z_quad,+1,diag,'HF')
+
+    do wave=1,nwt
+       spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave,wave))))/2.
+    enddo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Quantities in the canonical basis 
     if(allocated(CANPSI)) then
-      do wave=1,nwt
-        can_JTR(1,wave) = & 
-        & angmom_xt_real(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-        can_JTI(2,wave) = &
-        & angmom_yt_imag(CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
-        can_J(3,wave)   = & 
-        & angmom_z_real (CanPsi(:,:,wave),CanPsi(:,:,wave),CanDPsi(:,:,:,wave))
+      ! Note: we NEVER need the full matrix of angular momenta in the canonica
+      ! basis To save on memory, we pass through intermediate arrays.
+      allocate(temp(nwt,nwt))
 
-        can_STR(1,wave) = spin_xt_real(CanPsi(:,:,wave),CanPsi(:,:,wave))
-        can_STI(2,wave) = spin_yt_imag(CanPsi(:,:,wave),CanPsi(:,:,wave))
-        can_spin(3,wave)= spin_z_real (CanPsi(:,:,wave),CanPsi(:,:,wave))
+      can_spin = 0.0d0; can_J   = 0.0d0 ; can_J2 = 0.0d0
+      can_STR  = 0.0d0; can_JTR = 0.0d0 
+      can_STI  = 0.0d0; can_JTI = 0.0d0
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Operators for which we need no derivatives
+      call ME_function(temp,spin_xt_real,+1,.true.,'CAN')
+      can_STR(1,:)  = diag_of_mat(temp)
+      call ME_function(temp,spin_yt_imag,+1,.true.,'CAN')
+      can_STI(2,:)  = diag_of_mat(temp)
+      call ME_function(temp,spin_z_real, +1,.true.,'CAN')
+      can_spin(3,:) = diag_of_mat(temp)
 
-        can_J2(1,wave)  = &
-          &   angmom_x_quad(CanPsi(:,:,wave),CandPsi(:,:,:,wave), &
-          &                 CanPsi(:,:,wave),CandPsi(:,:,:,wave)) 
-        can_J2(2,wave)  = &
-          &   angmom_y_quad(CanPsi(:,:,wave),CandPsi(:,:,:,wave), &
-          &                 CanPsi(:,:,wave),CandPsi(:,:,:,wave)) 
-        can_J2(3,wave)  = &
-          &   angmom_z_quad(CanPsi(:,:,wave),CandPsi(:,:,:,wave), &
-          &                 CanPsi(:,:,wave),CandPsi(:,:,:,wave)) 
-    
-        can_JJ(wave) = (-1. + sqrt(1. + 4*sum(can_J2(:,wave))))/2.
-      enddo
+      ! Operators for which we need one set of derivatives
+      call ME_function_deriv1(temp,angmom_z_real, +1,.true.,'CAN')
+      can_J   (3,:) = diag_of_mat(temp)
+      call ME_function_deriv1(temp,angmom_xt_real,+1,.true.,'CAN')
+      can_JTR (1,:) = diag_of_mat(temp)
+      call ME_function_deriv1(temp,angmom_yt_imag,+1,.true.,'CAN')
+      can_JTI (2,:) = diag_of_mat(temp)
+
+      ! Operators for which we need two sets of derivatives
+      call ME_function_deriv2(temp,angmom_x_quad,+1,.true.,'CAN')
+      can_J2  (1,:) = diag_of_mat(temp)
+      call ME_function_deriv2(temp,angmom_y_quad,+1,.true.,'CAN')
+      can_J2  (2,:) = diag_of_mat(temp)
+      call ME_function_deriv2(temp,angmom_z_quad,+1,.true.,'CAN')
+      can_J2  (3,:) = diag_of_mat(temp)
+
+      deallocate(temp)
     endif
-    call stop_timer(T_spwfangmom)
+    can_JJ = (-1. + sqrt(1. + 4*sum(can_J2,1)))/2.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Quantities in the HF basis 
+    if(fullmatrices .and. (.not.diagsphamil)) then
+     do k=1,3
+        HF_J   (k,:) = transform_mat_diag(spwf_J   (k,:,:), HFtransfo)
+        HF_J2  (k,:) = transform_mat_diag(spwf_J2  (k,:,:), HFtransfo)
+        HF_JTR (k,:) = transform_mat_diag(spwf_JTR (k,:,:), HFtransfo)
+        HF_JTI (k,:) = transform_mat_diag(spwf_JTI (k,:,:), HFtransfo)
+        HF_JTI (k,:) = transform_mat_diag(spwf_JTI (k,:,:), HFtransfo)
+        HF_spin(k,:) = transform_mat_diag(spwf_spin(k,:,:), HFtransfo)
+        HF_STR (k,:) = transform_mat_diag(spwf_STR (k,:,:), HFtransfo)
+        HF_STI (k,:) = transform_mat_diag(spwf_STI (k,:,:), HFtransfo)
+     enddo
+   else
+     do k=1,3
+       HF_J   (k,:) = diag_of_mat(spwf_J   (k,:,:))
+       HF_J2  (k,:) = diag_of_mat(spwf_J2  (k,:,:))
+       HF_JTR (k,:) = diag_of_mat(spwf_JTR (k,:,:))
+       HF_JTI (k,:) = diag_of_mat(spwf_JTI (k,:,:))
+       HF_spin(k,:) = diag_of_mat(spwf_spin(k,:,:))
+       HF_STR (k,:) = diag_of_mat(spwf_STR (k,:,:))
+       HF_STI (k,:) = diag_of_mat(spwf_STI (k,:,:))
+     enddo
+   endif
+   do wave=1,nwt
+     HF_JJ(wave) = (-1. + sqrt(1. + 4*sum(HF_J2(:,wave))))/2.0d0
+   enddo
+   call stop_timer(T_spwfangmom)
 
   end subroutine update_spwf_angmom
+
+  function diag_of_mat(A) result(diag)
+    !---------------------------------------------------------------------------
+    ! Simple function assigning the diagonal matrix elements of a matrix into
+    ! a vector.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input: 
+    !   A   :  real matrix whose diagonal matrix elements are extracted
+    ! Output:
+    !   diag:  real vector such that diag(i) = A(i,i)
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: A(nwt,nwt)
+    real(KIND=dp)             :: diag(nwt)
+    integer                   :: i
+
+    do i=1,nwt
+      diag(i) = A(i,i)
+    enddo
+  end function diag_of_mat
   
   pure function angmom_x_real(wf2, wf1, dwf1) result(angmom)
     !---------------------------------------------------------------------------
@@ -1357,7 +1325,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !                 ( 1  0 )
     !---------------------------------------------------------------------------
 
-    real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:)
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4)
     integer                   :: i
     real(KIND=dp)             :: angmom
 
@@ -1398,7 +1366,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !                 ( 1  0 )
     !---------------------------------------------------------------------------
 
-    real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:)
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4)
     integer                   :: i
     real(KIND=dp)             :: sx
 
@@ -1426,7 +1394,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !                 ( 1  0 )
     !---------------------------------------------------------------------------
     
-    real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:), dwf2(:,:,:)
+    real(KIND=dp), intent(in) :: wf1(mv,4),wf2(mv,4),dwf1(mv,3,4),dwf2(mv,3,4)
     integer                   :: i
     real(KIND=dp)             :: angmom, l1,l2,l3,l4, r1,r2,r3,r4
 
@@ -1700,8 +1668,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !       J_y = 1/2*( 0 -i ) + i x \partial_z - i z\partial_x
     !                 ( i  0 )    
     !---------------------------------------------------------------------------
-    
-    real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:), dwf2(:,:,:)
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4),dwf2(mv,3,4)
     integer                   :: i
     real(KIND=dp)             :: angmom, l1,l2,l3,l4, r1,r2,r3,r4
 
@@ -1952,8 +1919,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !       J_z = 1/2*( 1  0 ) + i y \partial_x - i x\partial_y
     !                 ( 0 -1 ) 
     !---------------------------------------------------------------------------
-    
-    real(KIND=dp), intent(in) :: wf1(:,:), wf2(:,:), dwf1(:,:,:), dwf2(:,:,:)
+    real(KIND=dp), intent(in) :: wf1(mv,4), wf2(mv,4), dwf1(mv,3,4),dwf2(mv,3,4)
     integer                   :: i
     real(KIND=dp)             :: angmom, l1,l2,l3,l4, r1,r2,r3,r4
 
@@ -2155,7 +2121,11 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     enddo
 
   end function ImagMultiplySpinor
-  
+
+!===============================================================================
+! Routines for calculating diverse properties of the spwfs
+!===============================================================================
+
   subroutine update_spwf_properties( fullmatrices )
       !-------------------------------------------------------------------------
       ! Wrapper function to update all spwf information that needs to be
@@ -2178,13 +2148,13 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! option to skip the expensive calculation by setting fullmatrices=.false.
       ! Ofcourse, this means that HFbasis values should not be trusted....
       !-------------------------------------------------------------------------
-      
+
       logical, intent(in) :: fullmatrices
-      
+
       call update_spwf_symmetries(fullmatrices) ! <symmetry operators>
       call update_spwf_angmom(fullmatrices)     ! angular momentum
       call update_spwf_r2(fullmatrices)         ! <r^2> 
-           
+
   end subroutine update_spwf_properties
   
   subroutine update_spwf_r2(fullmatrices)
@@ -2198,113 +2168,42 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       !-------------------------------------------------------------------------
       logical, intent(in) :: fullmatrices
 
-      real(KIND=dp), allocatable :: rme(:,:)
-      integer                    :: wave, wave2, B, N, si, wave_global
-#if(USE_MPI>0)
-      integer                    :: mpi_err
-#endif
+      real(KIND=dp), pointer     :: rme(:,:)
+      real(KIND=dp)              :: r2(mv)
+      integer                    :: B, N, si
+
+      ! Value of r^2 = X^2 + Y^2 + Z^2 on the mesh
+      r2 = sum(meshgrid,2)**2
 
       if(diagsphamil) then
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! This is easy: both HFBasis and canbasis are explicitly stored
-        if(.not. allocated(spwf_r2_HF))  allocate(spwf_r2_HF(nwt))
-
-        spwf_r2_HF = 0.0d0
-        do wave=1, nwt_local           ! local spwf_index
-          wave_global = spwf_map(wave) ! global spwf index 
-          spwf_r2_HF(wave_global) = &    
-          &             sum(sum(HFpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
-        enddo
-#if(USE_MPI > 0)
-        ! This call to allreduce is valid; all entries spwf_r2_HF that were 
-        ! not explicitly calculated by this rank were set to 0 explicitly
-        call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_r2_hf, nwt, MPI_REAL8, MPI_SUM,  &
-        &                                               MPI_COMM_WORLD, mpi_err)
-#endif
-
+        call ME_scalar(spwf_r2_HF, r2, .true., 'HF')
         if(allocated(canpsi)) then
-          if(.not. allocated(spwf_r2_can))  allocate(spwf_r2_can(nwt))
-
-          spwf_r2_can = 0.0d0
-          do wave=1, nwt_local
-            wave_global = spwf_map(wave)
-            spwf_r2_can(wave_global) = &
-            &             sum(sum(canpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
-          enddo
-#if(USE_MPI > 0)
-        call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_r2_can, nwt, MPI_REAL8, MPI_SUM, &
-        &                                               MPI_COMM_WORLD, mpi_err)
-#endif
+          call ME_scalar(spwf_r2_can, r2, .true., 'CAN')
         endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       else
-
-#if(USE_MPI > 0)
-        call stp('update_spwf_r2 has not properly been parallelized yet with HFB' )
-#endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! The canonical basis is still trivial, but is now stored in HFPSI
         ! Note: it is safe to assume the calculation is a HFB one; this is the
         !       only case when diagsphamil should be set to false.
-        if(.not. allocated(spwf_r2_can))  allocate(spwf_r2_can(nwt))
-        spwf_r2_can = 0.0d0
-
-        if(.not. allocated(canpsi)) then
-          ! gradient solver is active
-          do wave=1, nwt_local
-            wave_global = spwf_map(wave)
-            spwf_r2_can(wave_global) = &
-            &             sum(sum(HFpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
-          enddo
-        else
-          do wave=1, nwt_local
-            wave_global = spwf_map(wave)
-            spwf_r2_can(wave_global) = &
-            &             sum(sum(canpsi(:,:,wave)**2,2)*sum(meshgrid,2)**2)*dv
-          enddo
-        endif
-#if(USE_MPI > 0)
-        call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_r2_can, nwt, MPI_REAL8, MPI_SUM, &
-        &                                               MPI_COMM_WORLD, mpi_err)
-#endif
+        call ME_scalar(spwf_r2_can, r2, .true., 'HF')
 
         if(fullmatrices) then
           ! For the HFbasis, things are more involved.....
-          if(.not. allocated(spwf_r2_HF))  allocate(spwf_r2_HF(nwt))
-          spwf_r2_HF = 0.0d0
+          ! a) calculate the entire matrix of r2
+          call ME_scalar(spwf_r2_HF, r2, .false., 'HF')
 
+          ! b) transform the matrix elements to the HF basis
           si = 0
           do B=1,8  
-            N = HFBlocks(B) ; if(N.eq.0) cycle
-            allocate(rme(N,N))
-
-            !... we need to calculate all matrix elements of r^2
-            do wave=1, N        ! the local index is si+wave
-              do wave2=wave,N   ! the local index is si+wave2
-                rme(wave, wave2) = dv*sum(sum( &
-                &                               HFpsi(:,:,si+wave) *   &
-                &                               HFpsi(:,:,si+wave2),2) &
-                &                                 *sum(meshgrid,2)**2)
-                ! This matrix is symmetric
-                rme(wave2, wave) = rme(wave, wave2)
-              enddo
-            enddo
-
+            N = HFBlocks_global(B) ! <---- This loop is over global spwf indices
+            rme => spwf_r2_hf(si+1:si+N, si+1:si+N)
             ! .... and then transform to the real Hartree-Fock basis
             rme = matmul(transpose(HFtransfo(si+1:si+N, si+1:si+N)), rme)
             rme = matmul(            rme,HFtransfo(si+1:si+N, si+1:si+N))
-
-            ! ATTENTION: this routine will no longer work when symmetry blocks
-            !            are not allocated to MPI ranks in their entirety
-
-            ! and store the diagonal matrix elements!
-            do wave=1,N ! the local index is si+wave
-              wave_global = spwf_map(si + wave)
-              spwf_r2_hf(wave_global) = rme(wave, wave)
-            enddo
-
             si = si + N
-            deallocate(rme)
           enddo
         endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2392,6 +2291,736 @@ $PBROKEN      si = si + N
 $PBROKEN   enddo
   
   end function spwf_parities
+
+!===============================================================================
+! Routines useful to simplify the parallelization of the calculation of 
+! complete-matrices of the expectation values of single-particle operators in
+! the case of MPI calculations.
+!===============================================================================
+
+subroutine ME_scalar(ME, oper, diag, basis)
+  !-----------------------------------------------------------------------------
+  ! Evaluate the matrix elements of a simple position-dependent operator 
+  ! for all spwfs in memory. This routine is valid for operators whose only 
+  ! non-zero matrix elements are to be found within symmetry blocks.
+  ! - - - - - - - - - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - -
+  ! Input: 
+  !     oper : value of an operator on all mesh points
+  !     diag : if .true., only compute the diagonal matrix elements
+  ! Output:
+  !     ME   : matrix elements such that
+  !               M(i,j) = <i|oper|j> = int d^3 psi_i^*(r) oper(r) psi_j(r)
+  !
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Important note: in the case of MPI calculations, this implementation is
+  !                 naive and requires quite a bunch of communications between
+  !                 ranks. For now, the load balancing is made simply on 
+  !                 protons vs. neutrons.
+  !-----------------------------------------------------------------------------
+  
+  real(KIND=dp), intent(out), allocatable :: ME(:,:)
+  real(KIND=dp), intent(in)   :: oper(mv)
+  character(len=*), intent(in):: basis
+  logical, intent(in)         :: diag
+
+  integer                :: B, si, N
+  integer                :: wave, wave_global, wave2, wave2_global
+  integer                :: designated_rank(8), calc_rank, ranki, rankj
+  real(KIND=dp), pointer :: psi(:,:,:)
+  real(KIND=dp)          :: psi_i(mv,4), psi_j(mv,4)
+#if(USE_MPI>0)
+  integer :: mpi_err
+#endif
+
+  if(.not.allocated(ME)) allocate(ME(nwt,nwt))
+  ME = 0.0d0 ! clearly zero everything for the allreduce call later
+
+  if(diag) then
+    ! We calculate only diagonal matrix elements; we thus need no additional
+    ! communications as each rank can just do its own calculation.
+    if(to_upper(adjustl(basis)) .eq. 'HF') then
+      psi => HFpsi
+    elseif(to_upper(adjustl(basis)) .eq. 'CAN') then
+      psi => canpsi
+    elseif(to_upper(adjustl(basis)) .eq. 'DEN') then
+      psi => denpsi
+    endif
+
+    do wave=1,nwt_local
+      wave_global  = spwf_map(wave)
+
+      ME(wave_global,wave_global) = dv * sum(oper*sum(psi(:,:,wave)**2,2))
+    enddo
+  else
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! We have to calculate the full matrix
+    do B=1,8
+      ! First, we designate a rank to do the calculations
+      !    = the first rank storing spwfs in a symmetry block
+      designated_rank(B) = rank_map(sum(HFBlocks_global(1:B-1))+1)
+    enddo
+
+    si = 0
+    do B=1,8
+      N = HFBlocks_global(B)  ! <= this loops over global spwfs
+      if(N.eq.0) cycle
+      calc_rank = designated_rank(B) !  This is the rank doing the integrations
+
+      do wave_global=si+1,si+N
+        ! Find the rank storing psi_i and its local index
+        ranki = rank_map(wave_global)
+        wave  = spwf_inverse(wave_global)
+        ! transfer psi_i to the calculating rank
+#if(USE_MPI>0)
+        call Transfer_psi(psi_i, wave, basis,ranki, calc_rank)
+#else
+        call Transfer_psi(psi_i, wave, basis)
+#endif
+        do wave2_global=wave_global,si+N
+          ! Find the rank storing psi_j and its local index
+          rankj = rank_map(wave2_global)
+          wave2 = spwf_inverse(wave2_global)
+          ! transfer psi_j to the calculating rank
+#if(USE_MPI>0)
+          call Transfer_psi(psi_j, wave2, basis, rankj, calc_rank)
+#else
+          call Transfer_psi(psi_j, wave2, basis)
+#endif
+          if(MPI_RANK.eq.calc_rank) then
+            ! Perform the integration.....
+            ME(wave_global,wave2_global) = dv*sum(oper*sum(psi_i*psi_j,2))
+            ! this type of matrix elements are always symmetric ....
+            ME(wave2_global, wave_global) = ME(wave_global , wave2_global)
+          endif
+        enddo
+      enddo
+      si = si + N
+    enddo
+  endif
+#if(USE_MPI>0) 
+  ! Transferring results to all ranks
+  call MPI_ALLREDUCE(MPI_IN_PLACE, ME, nwt**2, MPI_REAL8, MPI_SUM, &
+  &                                                      MPI_COMM_WORLD,mpi_err)
+#endif 
+
+end subroutine ME_scalar
+
+subroutine ME_function(ME, f, sym, diag, basis)
+  !-----------------------------------------------------------------------------
+  ! Evaluate the matrix elements of an operator on the spwfs using a function  
+  ! defined for its evaluation between any two. I.e. given 
+  !
+  !      f(psi_i, psi_j) = < psi_i | O | psi_j >
+  !
+  ! this function evaluates either the full matrix M_ij = f(psi_i, psi_j) or
+  ! just its diagonal elements. 
+  !
+  ! Assumptions:
+  ! 1) A symmetry with sign sym, meaning that 
+  !      f(psi_j, psi_i) = sym * f(psi_i , psi_j)
+  ! 2) ALL matrix elements are real, hence f should return real values.
+  ! 3) No derivatives are involved in f, i.e. that procedure takes as arguemts
+  !    only the values of the spwfs; f(psi_i, psi_j)
+  ! 4) the matrix elements are only calculated within symmetry blocks. 
+  ! - - - - - - - - - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - -
+  ! Input: 
+  !     f    : function procedure, with the interface of spin_z_real
+  !     sym  : 
+  !     diag : if .true., only compute the diagonal matrix elements
+  ! Output:
+  !     ME   : matrix elements such that
+  !               M(i,j) = <i|oper|j> = int d^3 psi_i^*(r) oper(r) psi_j(r)
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Important note
+  !    in the case of MPI calculations, this implementation is naive and 
+  !    requires quite a bunch of communications between ranks. For now, the 
+  !    load balancing is made simply on protons vs. neutrons.
+  !-----------------------------------------------------------------------------
+  
+  real(KIND=dp), intent(out)  :: ME(:,:)
+  procedure (spin_z_real)     :: f
+  integer, intent(in)         :: sym
+  character(len=*), intent(in):: basis
+  logical, intent(in)         :: diag
+
+  integer                :: B, si, N
+  integer                :: wave, wave_global, wave2, wave2_global
+  integer                :: designated_rank(8), calc_rank, ranki, rankj
+  real(KIND=dp), pointer :: psi(:,:,:)
+  real(KIND=dp)          :: psi_i(mv,4), psi_j(mv,4)
+#if(USE_MPI>0)
+  integer :: mpi_err
+#endif
+
+  ME = 0.0d0 ! clearly zero everything for the allreduce call later
+
+  if(diag) then
+    ! We calculate only diagonal matrix elements; we thus need no additional
+    ! communications as each rank can just do its own calculation.
+    if(to_upper(adjustl(basis)) .eq. 'HF') then
+      psi => HFpsi
+    elseif(to_upper(adjustl(basis)) .eq. 'CAN') then
+      psi => canpsi
+    elseif(to_upper(adjustl(basis)) .eq. 'DEN') then
+      psi => denpsi
+    endif
+
+    do wave=1,nwt_local
+      wave_global  = spwf_map(wave)
+
+      ME(wave_global,wave_global) = f(psi(:,:,wave),psi(:,:,wave))
+    enddo
+  else
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! We have to calculate the full matrix
+    designated_rank = -1 
+    do B=1,8
+      ! First, we designate a rank to do the calculations
+      !    = the first rank storing spwfs in a symmetry block
+      N = HFBlocks_global(B) ;  if(N.eq.0) cycle
+      designated_rank(B) = rank_map(sum(HFBlocks_global(1:B-1))+1)
+    enddo
+
+    si = 0
+    do B=1,8
+      N = HFBlocks_global(B)  ! <= this loops over global spwfs
+      if(N.eq.0) cycle
+      calc_rank = designated_rank(B) !  This is the rank doing the integrations
+
+      do wave_global=si+1,si+N
+        ! Find the rank storing psi_i and its local index
+        ranki = rank_map(wave_global)
+        wave  = spwf_inverse(wave_global)
+        ! transfer psi_i to the calculating rank
+#if(USE_MPI>0)
+        call Transfer_psi(psi_i, wave, basis,ranki, calc_rank)
+#else
+        call Transfer_psi(psi_i, wave, basis)
+#endif
+        do wave2_global=wave_global,si+N
+          ! Find the rank storing psi_j and its local index
+          rankj = rank_map(wave2_global)
+          wave2 = spwf_inverse(wave2_global)
+          ! transfer psi_j to the calculating rank
+#if(USE_MPI>0)
+          call Transfer_psi(psi_j, wave2, basis,rankj, calc_rank)
+#else
+          call Transfer_psi(psi_j, wave2, basis)
+#endif
+
+          if(MPI_RANK.eq.calc_rank) then
+            ! Perform the integration.....
+            ME(wave_global,wave2_global) = f(psi_i, psi_j)
+            ! .... and use the symmetry
+            if(wave_global .ne. wave2_global) then
+              ME(wave2_global, wave_global) = sym* ME(wave_global, wave2_global)
+            endif
+          endif
+        enddo
+      enddo
+      si = si + N
+    enddo
+  endif
+
+#if(USE_MPI>0) 
+  ! Transferring results to all ranks
+  call MPI_ALLREDUCE(MPI_IN_PLACE, ME, nwt**2, MPI_REAL8, MPI_SUM, &
+  &                                                      MPI_COMM_WORLD,mpi_err)
+#endif 
+
+end subroutine ME_function
+
+subroutine ME_function_deriv1(ME, f, sym, diag, basis)
+  !-----------------------------------------------------------------------------
+  ! Evaluate the matrix elements of an operator on the spwfs using a function  
+  ! defined for its evaluation between any two. i.e. given 
+  !
+  !      f(psi_i, psi_j) = < psi_i | O | psi_j >
+  !
+  ! this function evaluates either the full matrix M_ij = f(psi_i, psi_j) or
+  ! just its diagonal elements. 
+  !
+  ! Assumptions:
+  ! 1) A symmetry with sign sym, meaning that 
+  !      f(psi_j, psi_i) = sym * f(psi_i , psi_j)
+  ! 2) ALL matrix elements are real, hence f should return real values.
+  ! 3) One derivative is involved in f, i.e. that procedure takes as arguments
+  !       f(psi_i, psi_j, der_j)
+  ! 4) the matrix elements are only calculated within symmetry blocks. 
+  ! - - - - - - - - - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - -
+  ! Input: 
+  !     f    : function procedure, with the interface of spin_z_real
+  !     sym  : 
+  !     diag : if .true., only compute the diagonal matrix elements
+  ! Output:
+  !     ME   : matrix elements such that
+  !               M(i,j) = <i|oper|j> = int d^3 psi_i^*(r) oper(r) psi_j(r)
+  !
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Important note
+  !    in the case of MPI calculations, this implementation is naive and 
+  !    requires quite a bunch of communications between ranks. For now, the 
+  !    load balancing is made simply on protons vs. neutrons.
+  !-----------------------------------------------------------------------------
+  
+  real(KIND=dp), intent(out)  :: ME(:,:)
+  procedure (angmom_z_real)   :: f
+  integer, intent(in)         :: sym
+  character(len=*), intent(in):: basis
+  logical, intent(in)         :: diag
+
+  integer                :: B, si, N
+  integer                :: wave, wave_global, wave2, wave2_global
+  integer                :: designated_rank(8), calc_rank, ranki, rankj
+  real(KIND=dp), pointer :: psi(:,:,:), dpsi(:,:,:,:)
+  real(KIND=dp)          :: psi_i(mv,4), psi_j(mv,4), der_j(mv,3,4)
+#if(USE_MPI>0)
+  integer :: mpi_err
+#endif
+
+  ME = 0.0d0 ! clearly zero everything for the allreduce call later
+
+  if(diag) then
+    ! We calculate only diagonal matrix elements; we thus need no additional
+    ! communications as each rank can just do its own calculation.
+    if(to_upper(adjustl(basis)) .eq. 'HF') then
+      psi  => HFpsi
+      dpsi => HFdpsi 
+    elseif(to_upper(adjustl(basis)) .eq. 'CAN') then
+      psi  => canpsi
+      dpsi => candpsi 
+    elseif(to_upper(adjustl(basis)) .eq. 'DEN') then
+      psi  => denpsi
+      dpsi => dendpsi 
+    endif
+
+    do wave=1,nwt_local
+      wave_global  = spwf_map(wave)
+
+      ME(wave_global,wave_global) = &
+      &                          f(psi(:,:,wave),psi(:,:,wave),dpsi(:,:,:,wave))
+    enddo
+  else
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! We have to calculate the full matrix
+    designated_rank = -1 
+    do B=1,8
+      ! First, we designate a rank to do the calculations
+      !    = the first rank storing spwfs in a symmetry block
+      N = HFBlocks_global(B) ;  if(N.eq.0) cycle
+      designated_rank(B) = rank_map(sum(HFBlocks_global(1:B-1))+1)
+    enddo
+
+    si = 0
+    do B=1,8
+      N = HFBlocks_global(B)  ! <= this loops over global spwfs
+      if(N.eq.0) cycle
+      calc_rank = designated_rank(B) !  This is the rank doing the integrations
+
+      do wave_global=si+1,si+N
+        ! Find the rank storing psi_i and its local index
+        ranki = rank_map(wave_global)
+        wave  = spwf_inverse(wave_global)
+        ! transfer psi_i to the calculating rank
+#if(USE_MPI>0)
+        call Transfer_psi(psi_i, wave, basis,ranki, calc_rank)
+#else
+        call Transfer_psi(psi_i, wave, basis)
+#endif
+        do wave2_global=wave_global,si+N
+          ! Find the rank storing psi_j and its local index
+          rankj = rank_map(wave2_global)
+          wave2 = spwf_inverse(wave2_global)
+
+          ! transfer psi_j and its derivative to the calculating rank
+#if(USE_MPI>0)
+          call Transfer_psi(psi_j,wave2,basis,rankj,calc_rank)
+          call Transfer_derpsi_complete(der_j, wave2, basis,rankj,calc_rank)
+#else
+          call Transfer_psi(psi_j,wave2,basis)
+          call Transfer_derpsi_complete(der_j, wave2, basis)
+#endif
+
+          if(MPI_RANK.eq.calc_rank) then
+            ! Perform the integration.....
+            ME(wave_global,wave2_global) = f(psi_i, psi_j, der_j)
+            ! .... and use the symmetry
+            if(wave_global .ne. wave2_global) then
+              ME(wave2_global, wave_global) = sym* ME(wave_global, wave2_global)
+            endif
+          endif
+        enddo
+      enddo
+      si = si + N
+    enddo
+  endif
+
+#if(USE_MPI>0) 
+  ! Transferring results to all ranks
+  call MPI_ALLREDUCE(MPI_IN_PLACE, ME, nwt**2, MPI_REAL8, MPI_SUM, &
+  &                                                      MPI_COMM_WORLD,mpi_err)
+#endif
+end subroutine ME_function_deriv1
+
+subroutine ME_function_deriv2(ME, f, sym, diag, basis)
+  !-----------------------------------------------------------------------------
+  ! Evaluate the matrix elements of an operator on the spwfs using a function  
+  ! defined for its evaluation between any two. i.e. given 
+  !
+  !      f(psi_i, psi_j) = < psi_i | O | psi_j >
+  !
+  ! this function evaluates either the full matrix M_ij = f(psi_i, psi_j) or
+  ! just its diagonal elements. 
+  !
+  ! Assumptions:
+  ! 1) A symmetry with sign sym, meaning that 
+  !      f(psi_j, psi_i) = sym * f(psi_i , psi_j)
+  ! 2) ALL matrix elements are real, hence f should return real values.
+  ! 3) Two derivatives are involved in f, i.e. that procedure takes as arguments
+  !       f(psi_i, der_i, psi_j, der_j)
+  ! 4) the matrix elements are only calculated within symmetry blocks. 
+  ! - - - - - - - - - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - -
+  ! Input: 
+  !     f    : function procedure, with the interface of spin_z_real
+  !     sym  : 
+  !     diag : if .true., only compute the diagonal matrix elements
+  ! Output:
+  !     ME   : matrix elements such that
+  !               M(i,j) = <i|oper|j> = int d^3 psi_i^*(r) oper(r) psi_j(r)
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Important note
+  !    in the case of MPI calculations, this implementation is naive and 
+  !    requires quite a bunch of communications between ranks. For now, the 
+  !    load balancing is made simply on protons vs. neutrons.
+  !-----------------------------------------------------------------------------
+  
+  real(KIND=dp), intent(out)  :: ME(:,:)
+  procedure (angmom_z_quad)   :: f
+  integer, intent(in)         :: sym
+  character(len=*), intent(in):: basis
+  logical, intent(in)         :: diag
+
+  integer                :: B, si, N
+  integer                :: wave, wave_global, wave2, wave2_global
+  integer                :: designated_rank(8), calc_rank, ranki, rankj
+  real(KIND=dp), pointer :: psi(:,:,:), dpsi(:,:,:,:)
+  real(KIND=dp)          :: psi_i(mv,4), psi_j(mv,4)
+  real(KIND=dp)          :: der_i(mv,3,4), der_j(mv,3,4)
+#if(USE_MPI>0)
+  integer :: mpi_err
+#endif
+
+  ME = 0.0d0 ! clearly zero everything for the allreduce call later
+
+  if(diag) then
+    ! We calculate only diagonal matrix elements; we thus need no additional
+    ! communications as each rank can just do its own calculation.
+    if(to_upper(adjustl(basis)) .eq. 'HF') then
+      psi  => HFpsi
+      dpsi => HFdpsi 
+    elseif(to_upper(adjustl(basis)) .eq. 'CAN') then
+      psi  => canpsi
+      dpsi => candpsi 
+    elseif(to_upper(adjustl(basis)) .eq. 'DEN') then
+      psi => denpsi
+      dpsi => dendpsi 
+    endif
+
+    do wave=1,nwt_local
+      wave_global  = spwf_map(wave)
+
+      ME(wave_global,wave_global) = &
+      &                          f(psi(:,:,wave),dpsi(:,:,:,wave), &
+      &                            psi(:,:,wave),dpsi(:,:,:,wave))
+    enddo
+  else
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! We have to calculate the full matrix
+    designated_rank = -1 
+    do B=1,8
+      ! First, we designate a rank to do the calculations
+      !    = the first rank storing spwfs in a symmetry block
+      N = HFBlocks_global(B) ;  if(N.eq.0) cycle
+      designated_rank(B) = rank_map(sum(HFBlocks_global(1:B-1))+1)
+    enddo
+
+    si = 0
+    do B=1,8
+      N = HFBlocks_global(B)  ! <= this loops over global spwfs
+      if(N.eq.0) cycle
+      calc_rank = designated_rank(B) !  This is the rank doing the integrations
+
+      do wave_global=si+1,si+N
+        ! Find the rank storing psi_i and its local index
+        ranki = rank_map(wave_global)
+        wave  = spwf_inverse(wave_global)
+        ! transfer psi_i and its derivative to the calculating rank
+#if(USE_MPI>0)
+        call Transfer_psi(psi_i,wave, basis,ranki, calc_rank)
+        call Transfer_derpsi_complete(der_i, wave, basis,ranki, calc_rank)
+#else
+        call Transfer_psi(psi_i,wave, basis)
+        call Transfer_derpsi_complete(der_i, wave, basis)
+#endif
+        do wave2_global=wave_global,si+N
+          ! Find the rank storing psi_j and its local index
+          rankj = rank_map(wave2_global)
+          wave2 = spwf_inverse(wave2_global)
+          
+          ! transfer psi_j and its derivative to the calculating rank
+#if(USE_MPI>0)
+          call Transfer_psi(psi_j,wave2,basis,rankj,calc_rank)
+          call Transfer_derpsi_complete(der_j, wave2, basis,rankj, calc_rank)
+#else
+          call Transfer_psi(psi_j,wave2,basis)
+          call Transfer_derpsi_complete(der_j,wave2, basis)
+#endif
+          if(MPI_RANK.eq.calc_rank) then
+            ! Perform the integration.....
+            ME(wave_global,wave2_global) = f(psi_i, der_i, psi_j, der_j)
+            ! .... and use the symmetry
+            if(wave_global .ne. wave2_global) then
+              ME(wave2_global, wave_global) = sym* ME(wave_global, wave2_global)
+            endif
+          endif
+        enddo
+      enddo
+      si = si + N
+    enddo
+  endif
+
+#if(USE_MPI>0) 
+  ! Transferring results to all ranks
+  call MPI_ALLREDUCE(MPI_IN_PLACE, ME, nwt**2, MPI_REAL8, MPI_SUM, &
+  &                                                      MPI_COMM_WORLD,mpi_err)
+#endif
+end subroutine ME_function_deriv2
+
+subroutine Transfer_psi(psi,wave, basis &
+#if(USE_MPI>0)
+&                       , send_rank, calc_rank)
+#else
+&                       )
+#endif
+    !---------------------------------------------------------------------------
+    ! Transfer the wavefunction  
+    !        denpsi(:,:,wave)   
+    ! from the sending MPI_rank to a rank fit for calculations. 
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input : 
+    !   send_rank : MPI rank storing the requested wavefunction
+    !   calc_rank : MPI rank supposed to be doing calculations with the 
+    !               requested wavefunction.
+    !   wave      : LOCAL index of the requested spwf on the send_rank
+    !   basis     : spwf in which basis to send; 'HF', 'CAN' or 'DEN'
+    ! Output:
+    !  psi        : the requested spwf, but only on CALC_RANK. For all 
+    !               other MPI ranks, the result will be unallocated. 
+    !---------------------------------------------------------------------------
+    real(KIND=dp),  intent(out)  :: psi(mv,4)
+    integer, intent(in)          :: wave
+    real(KIND=dp), pointer       :: psis(:,:,:)
+    character(len=*), intent(in) :: basis
+#if(USE_MPI>0)
+    integer, intent(in)          :: send_rank, calc_rank
+    integer                      :: mpi_err
+#endif    
+
+    if(to_upper(adjustl(basis))     .eq. 'HF') then
+      psis => HFpsi
+    elseif(to_upper(adjustl(basis)) .eq. 'CAN') then
+      psis => canpsi
+    elseif(to_upper(adjustl(basis)) .eq. 'DEN') then
+      psis => denpsi
+    endif
+
+#if(USE_MPI>0)
+    if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+        ! nothing to send or receive
+        psi   = psis(:,:,wave)
+    elseif(MPI_RANK.eq.calc_rank) then
+        ! calc_rank receives
+        call MPI_RECV(            psi, 4*mv, MPI_REAL8, send_rank, 2, &
+        &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+    else if(MPI_RANK .eq. send_rank)  then
+        ! send_rank sends the wavefunction
+        call MPI_SEND(psis(:,:,wave), 4*mv, MPI_REAL8, calc_rank, 2,&
+        &                                           MPI_COMM_WORLD, mpi_err)
+    endif
+#else 
+    psi   = psis(:,:,wave)
+#endif
+
+end subroutine Transfer_psi
+
+subroutine Transfer_derpsi(derpsi,wave,direction, basis, TR &
+#if(USE_MPI>0)
+&                       , send_rank, calc_rank)
+#else
+&                       )
+#endif
+    !---------------------------------------------------------------------------
+    ! Transfer the (possibly time-reversed) derivative of a wavefunction  
+    !        dendpsi(:,:,direction,wave)   
+    ! from the sending MPI_rank to a rank fit for calculations. 
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input : 
+    !   send_rank : MPI rank storing the requested wavefunction
+    !   calc_rank : MPI rank supposed to be doing calculations with the 
+    !               requested wavefunction.
+    !   wave      : LOCAL index of the requested spwf on the send_rank
+    !   direction : direction of the derivative (x/y/z = 1/2/3) of the 
+    !               requested spwf
+    !   basis     : character, 
+    !   TR        : logical, whether or not to apply a time-reversal operation
+    !               before returning.
+    ! Output:
+    !  derpsi     : the requested derivative of an spwf, but only on CALC_RANK.
+    !               For all other MPI ranks, the array is not changed.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(out)   :: derpsi(mv,4)
+    integer, intent(in)          :: wave
+    integer, intent(in)          :: direction
+    logical, intent(in)          :: TR
+    real(KIND=dp), pointer       :: psis(:,:,:,:)
+    character(len=*), intent(in) :: basis
+#if(USE_MPI>0)
+    integer, intent(in)          :: send_rank, calc_rank
+    integer                      :: mpi_err
+#endif    
+
+    if(to_upper(adjustl(basis))     .eq. 'HF') then
+      psis => HFdpsi
+    elseif(to_upper(adjustl(basis)) .eq. 'CAN') then
+      psis => candpsi
+    elseif(to_upper(adjustl(basis)) .eq. 'DEN') then
+      psis => dendpsi
+    endif
+
+#if(USE_MPI>0)
+    if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+        ! nothing to send or receive
+        derpsi   = psis(:,:,direction,wave)
+        if(TR)   derpsi = TimeReverse(derpsi)
+    elseif(MPI_RANK.eq.calc_rank) then
+        ! calc_rank receives
+        call MPI_RECV(                     derpsi, 4*mv, MPI_REAL8,send_rank,2,&
+        &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+        ! and time-reverses if needed
+        if(TR)   derpsi = TimeReverse(derpsi)
+    else if(MPI_RANK .eq. send_rank)  then
+        ! ranki sends the wavefunction
+        call MPI_SEND(psis(:,:,direction,wave), 4*mv, MPI_REAL8,calc_rank,2,&
+        &                                           MPI_COMM_WORLD, mpi_err)
+    endif
+#else 
+    derpsi   = psis(:,:,direction,wave)
+    if(TR)   derpsi = TimeReverse(derpsi)
+#endif
+
+end subroutine Transfer_derpsi
+
+subroutine Transfer_derpsi_complete(derpsi, wave, basis &
+#if(USE_MPI>0)
+&                       , send_rank, calc_rank)
+#else
+&                       )
+#endif
+    !---------------------------------------------------------------------------
+    ! Transfer the complere gradient of a wavefunction  
+    !        HFdpsi/candpsi/dendpsi(:,:,:,wave)   
+    ! from the sending MPI_rank to a rank fit for calculations. 
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input : 
+    !   send_rank : MPI rank storing the requested wavefunction
+    !   calc_rank : MPI rank supposed to be doing calculations with the 
+    !               requested wavefunction.
+    !   wave      : LOCAL index of the requested spwf on the send_rank
+    !   basis     : spwf in which basis to send; 'HF', 'CAN' or 'DEN'
+    ! Output:
+    !  derpsi     : the requested derivative of an spwf, but only on CALC_RANK.
+    !               For all other MPI ranks, the array is not changed.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(out)   :: derpsi(mv,3,4)
+    integer, intent(in)          ::  wave
+    character(len=*), intent(in) :: basis
+    real(KIND=dp), pointer       :: psis(:,:,:,:)
+#if(USE_MPI>0)
+    integer, intent(in)          :: send_rank, calc_rank
+    integer                      :: mpi_err
+#endif
+
+    if(to_upper(adjustl(basis))     .eq. 'HF') then
+      psis => HFdpsi
+    elseif(to_upper(adjustl(basis)) .eq. 'CAN') then
+      psis => candpsi
+    elseif(to_upper(adjustl(basis)) .eq. 'DEN') then
+      psis => dendpsi
+    endif
+
+#if(USE_MPI>0)
+    if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+        ! nothing to send or receive
+        derpsi   = psis(:,:,:,wave)
+    elseif(MPI_RANK.eq.calc_rank) then
+        ! calc_rank receives
+        call MPI_RECV(derpsi          , 12*mv, MPI_REAL8,send_rank,2,&
+        &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+    else if(MPI_RANK .eq. send_rank)  then
+        ! ranki sends the wavefunction
+        call MPI_SEND(psis(:,:,:,wave), 12*mv, MPI_REAL8,calc_rank,2,&
+        &                                           MPI_COMM_WORLD, mpi_err)
+    endif
+#else 
+    derpsi   = psis(:,:,:,wave)
+#endif
+
+end subroutine Transfer_derpsi_complete
+
+!-------------------------------------------------------------------------------
+! A natural place for this routine would be in basis_transform.f90, but it is 
+! needed in this module....
+!-------------------------------------------------------------------------------
+ 
+function transform_mat_diag(M, transfo) result(Mc)
+  !-----------------------------------------------------------------------------
+  ! Identical to transform_mat, but only calculate the diagonal matrix elements.
+  ! 
+  ! Input:
+  !     M    : matrix to transform
+  !  transfo : unitary transformation C to employ 
+  !            (in the conventions of this module)
+  !
+  ! Output:
+  !     the diagonal elements of Mc = C^T M C
+  !-----------------------------------------------------------------------------
+  real(KIND=dp), intent(in)    :: M(nwt,nwt)
+  real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
+  real(KIND=dp)                :: Mc(nwt)
+  integer                      :: B, N, si,i,j,l
+
+  si = 0
+  Mc = 0.0d0
+  do B=1,8
+    N = HFBlocks_global(B)  ;  if(N .eq. 0) cycle 
+
+    do i=si+1,si+N
+      do j=si+1,si+N
+        do l=si+1,si+N
+          !                     c^T           M         C
+           Mc(i)  = Mc(i) + transfo(l,i) * M (l,j) * HFtransfo(j,i)
+        enddo
+      enddo
+    enddo
+
+    si = si +  N
+  enddo  
+
+ end function transform_mat_diag 
+ 
 
   subroutine clean_wavefunctions()
 
