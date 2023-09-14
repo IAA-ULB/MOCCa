@@ -79,7 +79,7 @@ contains
     enddo
 
     xs = xs * dv ; ys = ys *dv ; zs = zs * dv
-      
+
     Rigid(1,1:2) = nucleonmass * (ys + zs)
     Rigid(2,1:2) = nucleonmass * (xs + zs)
     Rigid(3,1:2) = nucleonmass * (xs + ys)
@@ -105,9 +105,8 @@ contains
 
       Up   =   2*  (eps - FermiEnergy(it) - RotCutWindow(it))/RotCutMu(it)
       cut  = sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
-    
   end function rotcut
-  
+
   subroutine calcJ2andBelyaev_HF
     !---------------------------------------------------------------------------
     !
@@ -282,7 +281,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !  *) The formulas correctly produce 0 for spherical configurations at
     !     zero temperature.
     !---------------------------------------------------------------------------
-    integer       :: i,j, b, it, ii, jj, si
+    integer       :: i,j, b, it, ii, jj, si, N
     real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj
     real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde
 
@@ -290,20 +289,21 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
  
     si = 0  
     do b = 1, Blocks
-      do i=1, HFBlocks(b)
+      N = HFBlocks(B)
+      do i=1, N
         ii = si + i
         it = 1
         if(ii.gt.nwn) it = 2
-        do j=1,HFblocks(b)
+        do j=1, N
           jj = si + j
-        
+
           ! BCS --------------------------------------------------------------
           ! |< k | j_x | -l >|^2  
-          ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2 
+          ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
           ! |< k | j_y | -l >|^2 
-          ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+          ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
           ! |< k | j_z |  l >|^2 
-          ME(3)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+          ME(3)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
 
           ! The factor two is because of the presence of the four terms in 
           ! ME_{kl}, which are pair-wise equal when J_i = J_j.
@@ -353,16 +353,16 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
           endif
           ! (u_k u_l + v_k v_l)**2 * (f_l - f_k)/(E_k - E_l)  (Ba)
           Ba = (ui*uj + vi*vj + 2*uvi*uvj) * dfdE 
-          
+
           dfdE = (1 - fi - fj)/(BCSqps(ii) + BCSqps(jj))
 
           ! (u_k v_l - v_k u_l)**2 * (1-f_k-f_l)/(E_k + E_l)  (Bb)
           Bb = (ui*vj + uj*vi - 2*uvi*uvj) * dfde
-    
+
           Belyaev(:,it) =  Belyaev(:,it) + ME * (Ba + Bb)
         enddo
       enddo
-      si = si +   HFBlocks(b)
+      si = si + N
     enddo
     !  Sum for the total
     J2(:,3) = sum(J2(:,1:2),2) ; Belyaev(:,3) = sum(Belyaev(:,1:2),2)
@@ -581,22 +581,22 @@ $NTR  enddo
              jx(si+1:si+T,si+1:si+T) = &
              &  matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)), &
              &                   jx(si+1:si+T,si+1:si+T))
-             
+
              jy(si+1:si+T,si+1:si+T) = &
              &    matmul(        jy(si+1:si+T,si+1:si+T),          &
              &                   HFtransfo(si+1:si+T,si+1:si+T))
              jy(si+1:si+T,si+1:si+T) = &
              &  matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)), &
              &                   jy(si+1:si+T,si+1:si+T))
-             
+
              jz(si+1:si+T,si+1:si+T) = &
              &    matmul(        jz(si+1:si+T,si+1:si+T),          &
              &                   HFtransfo(si+1:si+T,si+1:si+T))
              jz(si+1:si+T,si+1:si+T) = &
              &  matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)), &
              &                   jz(si+1:si+T,si+1:si+T))           
-        endif      
-        
+        endif
+
         ! Apply the cutoff in the HF basis
         do i=1,T
           do j=1,T
@@ -628,7 +628,7 @@ $NTR  enddo
              jz(si+1:si+T,si+1:si+T) = &
              &  matmul(            HFtransfo(si+1:si+T,si+1:si+T), &
              &                     jz(si+1:si+T,si+1:si+T))           
-        endif    
+        endif
       endif
       !-------------------------------------------------------------------------
       ! Transform the sp. matrix elements into the canonical basis.
@@ -796,7 +796,6 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             !       sp-basis summation when the blocked QPS are not ommitted.
             fac=  configmatrix(jjj)*(1 - configmatrix(iii))
             ME = ME + J11(ii,jj,:)**2  * fac
-            
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             J2_coll(:,it) = J2_coll(:,it) + ME      
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -805,8 +804,8 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
         si = si +   N +   N2
         sb = sb + 2*N + 2*N2
       enddo
-$TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two           
-      J2_coll(:,3) = sum(J2_coll(:,1:2), 2)  
+$TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two 
+      J2_coll(:,3) = sum(J2_coll(:,1:2), 2)
     endif
     !---------------------------------------------------------------------------
     ! Then the Belyaev moment of inertia in the ordinary sp. basis.
@@ -836,7 +835,7 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
         iii= sb + N + N2 + i
         it = 1
         if(ii.gt.nwn) it = 2
-          
+
         do j=1, N + N2
           jj = si + j
           jjj= sb + N + N2 + j
