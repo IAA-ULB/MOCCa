@@ -115,7 +115,7 @@ contains
     !---------------------------------------------------------------------------
 
     integer       :: i,j, b, it, ii, jj, si, N, N2
-    real(KIND=dp) :: ME(3), fi, fj, dfde
+    real(KIND=dp) :: ME(3), fi, fj, dfde, cut_cr
 
     J2 = 0  ;  Belyaev = 0
  
@@ -134,12 +134,19 @@ $TR       fi = rho_can(ii)/2.0 ; fj = rho_can(jj)/2.
 $NTR      fi = rho_can(ii)     ; fj = rho_can(jj)
           ! |< k | j_z |  l >|^2 
           ME(3)= angmom_z_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
-          J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
-
 $TR       ! |< k | j_x | -l >|^2  
 $TR       ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2 
 $TR       ! |< k | j_y | -l >|^2 
 $TR       ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
+
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Add a cutoff if part of the definition of the parameterization
+          if(rotcorr_cut) then
+            cut_cr = rotcut(spenergies(ii),it)*rotcut(spenergies(jj), it)
+            ME = ME * cut_cr**2
+          endif
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          J2(3,it)   = J2(  3,it) +  ME(3)   * fi*(1-fj)
 $TR       J2(1:2,it) = J2(1:2,it) +  ME(1:2) * fi*(1-fj)
 
           if(inversetemp.eq.-1) then
@@ -167,9 +174,15 @@ $NTR     if(ii.gt.nwn) it = 2
 $NTR     do j=1,N2
 $NTR       jj = si + N + j
 $NTR       fi = rho_can(ii)     ; fj = rho_can(jj)
-$NTR       ME(3)= angmom_z_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
-$NTR       J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
+$NTR       ME(3)= angmom_z_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
+$NTR       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+$NTR       ! Add a cutoff if part of the definition of the parameterization
+$NTR       if(rotcorr_cut) then
+$NTR        cut_cr = rotcut(spenergies(ii),it)*rotcut(spenergies(jj), it)
+$NTR        ME(3) = ME(3) * cut_cr**2
+$NTR       endif
 $NTR
+$NTR       J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
 $NTR
 $NTR       if(inversetemp.eq.-1) then
 $NTR         dfdE = fj - fi
@@ -194,8 +207,14 @@ $NTR     if(ii.gt.nwn) it = 2
 $NTR     do j=1,N2
 $NTR       jj = si + N + j
 $NTR       fi = rho_can(ii)     ; fj = rho_can(jj)
-$NTR       ME(1)= angmom_x_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
-$NTR       ME(2)= angmom_y_imag( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+$NTR       ME(1)= angmom_x_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
+$NTR       ME(2)= angmom_y_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
+$NTR       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+$NTR       ! Add a cutoff if part of the definition of the parameterization
+$NTR       if(rotcorr_cut) then
+$NTR        cut_cr = rotcut(spenergies(ii),it)*rotcut(spenergies(jj), it)
+$NTR        ME(1:2) = ME(1:2) * cut_cr**2
+$NTR       endif
 $NTR       J2(1:2,it) = J2(1:2,it) + ME(1:2) * fi*(1-fj) +  ME(1:2) * fj*(1-fi)
 $NTR
 $NTR       if(inversetemp.eq.-1) then
@@ -284,7 +303,7 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !---------------------------------------------------------------------------
     integer       :: i,j, b, it, ii, jj, si
     real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj
-    real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde
+    real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde, cut_cr
 
     J2 = 0  ;  Belyaev = 0
  
@@ -304,6 +323,12 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
           ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
           ! |< k | j_z |  l >|^2 
           ME(3)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
+
+          ! Add a cutoff if part of the definition of the parameterization
+          if(rotcorr_cut) then
+            cut_cr = rotcut(spenergies(ii),it)*rotcut(spenergies(jj), it)
+            ME = ME * cut_cr**2
+          endif
 
           ! The factor two is because of the presence of the four terms in 
           ! ME_{kl}, which are pair-wise equal when J_i = J_j.
