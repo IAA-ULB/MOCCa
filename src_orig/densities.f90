@@ -540,56 +540,56 @@ function sum_divJ_spwf() result(divJ)
     select case(PairingType)
     case(0,1)
       ! HF or BCS Calculation
-      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
+      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi
       DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
     case(2)
       ! HFB calculation
       if(.not. efficientHFB) then
-        DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
+        DenPsi    => CanPsi   ; DenDPsi   => CanDPsi
         DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
       else
-        DenPsi    => HFPsi    ; DenDPsi   => HFDPsi 
-        DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
+        DenPsi    => HFPsi    ; DenDPsi   => HFDPsi
+        DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi
       endif
     end select
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    do wave=1,nwt
-        ! Isospin is neutron in the first half of blocks, proton in the rest
-        it = 2
-        if(wave.le.nwn) it = 1
-        
-        ! For ordinary densities
-        weight  = rho_can(wave) 
+!    do wave=1,nwt
+!        ! Isospin is neutron in the first half of blocks, proton in the rest
+!        it = 2
+!        if(wave.le.nwn) it = 1
 
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! I code this with calls to the Pauli and ImagMultiplySpinor functions 
-        ! to make no mistakes
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! x y z
-        temp = Pauli(DenDPsi(:,2,:,wave), 3)
-        divJ(:,it) = divJ(:,it) &
-        &            + weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
-        ! y x z
-        temp = Pauli(DenDPsi(:,1,:,wave), 3)
-        divJ(:,it) = divJ(:,it) &
-        &            - weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
-        ! x z y 
-        temp = Pauli(DenDPsi(:,3,:,wave), 2)
-        divJ(:,it) = divJ(:,it) &
-        &            - weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
-        ! z x y 
-        temp = Pauli(DenDPsi(:,1,:,wave), 2)
-        divJ(:,it) = divJ(:,it) &
-        &            + weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
-        ! y z x 
-        temp = Pauli(DenDPsi(:,3,:,wave), 1)
-        divJ(:,it) = divJ(:,it) &
-        &            + weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
-        ! z y x 
-        temp = Pauli(DenDPsi(:,2,:,wave), 1)
-        divJ(:,it) = divJ(:,it) &
-        &            - weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
-    enddo
+!        ! For ordinary densities
+!        weight  = rho_can(wave)
+
+!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!        ! I code this with calls to the Pauli and ImagMultiplySpinor functions 
+!        ! to make no mistakes
+!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!        ! x y z
+!        temp = Pauli(DenDPsi(:,2,:,wave), 3)
+!        divJ(:,it) = divJ(:,it) &
+!        &            + weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
+!        ! y x z
+!        temp = Pauli(DenDPsi(:,1,:,wave), 3)
+!        divJ(:,it) = divJ(:,it) &
+!        &            - weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
+!        ! x z y 
+!        temp = Pauli(DenDPsi(:,3,:,wave), 2)
+!        divJ(:,it) = divJ(:,it) &
+!        &            - weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
+!        ! z x y 
+!        temp = Pauli(DenDPsi(:,1,:,wave), 2)
+!        divJ(:,it) = divJ(:,it) &
+!        &            + weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
+!        ! y z x 
+!        temp = Pauli(DenDPsi(:,3,:,wave), 1)
+!        divJ(:,it) = divJ(:,it) &
+!        &            + weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
+!        ! z y x 
+!        temp = Pauli(DenDPsi(:,2,:,wave), 1)
+!        divJ(:,it) = divJ(:,it) &
+!        &            - weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
+!    enddo
     ! Taking isospin combinations
     divJ(:,3) = divJ(:,1) + divJ(:,2)
     divJ(:,4) = divJ(:,1) - divJ(:,2)
