@@ -13,7 +13,8 @@ module wavefunctions
  !
  !==============================================================================
  !
- ! Module containing the single-particle wave-functions (spwfs for short).
+ ! Module containing the single-particle wave-functions (spwfs for short) and 
+ ! many routines to calculate their properties.
  !
  !==============================================================================
  ! Some notes on the current MPI implementation
@@ -29,7 +30,12 @@ module wavefunctions
  ! are broadcast to all MPI ranks. Their memory requirements are comparatively
  ! small and simply having access to them everywhere will hopefully avoid 
  ! future bugs.
- !
+ !==============================================================================
+ ! TODO: 
+ ! 1. The routines transfer_psi and its colleagues offer an interface that is
+ !    too complicated. The argument send_rank can be figured out INSIDE the 
+ !    routine; it is superfluous. The argument wave would be easier to use if
+ !    it referred to the GLOBAL index of the spwf.
  !==============================================================================
  ! Hephaestos keywords:
  ! 
