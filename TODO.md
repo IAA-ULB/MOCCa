@@ -39,8 +39,6 @@
     >      !$OMP PARALLEL shared(jx, jy, jz) private(i,ii,si,jj,j)  
     >pour que cela marche mieux.   
 
-
-
 ### Hephaestos/Python 
 
 * Densities identification:
@@ -73,7 +71,7 @@
  2. Implement lowest-qp style blocking also for T-broken calculations: the code does not distinguish between signatures yet.
  3. Test (and almost certainly correct) T-broken finite-temperature implementation
     * This requires for sure looking into P. Fanto's Pfaffian formula for the finite-T particle number projection.
- 4. We should redo the Moments.f90 module to emphasize the role of the Lagrange multiplier more. After all, *all* constraints can be written as  
+ 4. We should redo the Moments.f90 module to emphasize the role of the Lagrange multiplier more. After all, *all* constraints can be written as
 	  	R = E - \lambda \langle \hat{O} \rangle.
     Different constraints (quadratic, linear, augmented, .....) are simply different ways to calculate \lambda.
 
@@ -91,4 +89,8 @@
  	* This requires elimination of the delta_action routine.
  	* See email conversation with M. Bender on 07/11/2020.
 
-
+ 2. While the chain (P-broken => PT-broken) works well for symmetry breaking, 
+    there is something fishy about the chain (T-broken => PT-broken) which seems
+    to fail. If (bogofromfile), then the checking of the qp blocking options is
+    broken. If (not bogofromfile), then the calculations seem to immediately
+    diverge.
