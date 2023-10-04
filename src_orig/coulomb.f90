@@ -120,27 +120,43 @@ contains
     call start_timer(T_coulomb)
     
     if(.not.allocated(CoulCoefs)) then
-       ! Determine the coefficients of the finite difference scheme
-       select case(coulorder)
-         case(1)
-          BC = 1
-          allocate(CoulCoefs(3)) ; CoulCoefs = CoulCoefs_3
-         case(2)
-          BC = 2
-          allocate(CoulCoefs(5)) ; CoulCoefs = CoulCoefs_5
-         case(3)
-          BC = 3
-          allocate(CoulCoefs(7)) ; CoulCoefs = CoulCoefs_7
-         case(4)
-          BC = 4
-          allocate(CoulCoefs(9)) ; CoulCoefs = CoulCoefs_9 
-          CoulCoefs = Coulcoefs * (8064.0_dp)/(5040.0_dp) !Legacy from CR8
-         case DEFAULT
-          print *, 'This order for the Coulomb discretisation is not supported.'
-          stop
-       end select
+     ! Determine the coefficients of the finite difference scheme
+     select case(coulorder)
+       case(1)
+        BC = 1
+        allocate(CoulCoefs(3)) ; CoulCoefs = CoulCoefs_3
+       case(2)
+        BC = 2
+        allocate(CoulCoefs(5)) ; CoulCoefs = CoulCoefs_5
+       case(3)
+        BC = 3
+        allocate(CoulCoefs(7)) ; CoulCoefs = CoulCoefs_7
+       case(4)
+        BC = 4
+        allocate(CoulCoefs(9)) ; CoulCoefs = CoulCoefs_9 
+        CoulCoefs = Coulcoefs * (8064.0_dp)/(5040.0_dp) !Legacy from CR8
+       case DEFAULT
+        call stp('This order for the Coulomb discretisation is not supported.')
+     end select
     endif
 
+    ! Determine the offsets of the original mesh inside the larger Coulomb mesh    
+    coul_offset_x = BC ; coul_offset_Y = BC ; coul_offset_z = BC
+    
+    
+    ! If any given axis is not represented, the offset of the mesh in that
+    ! direction is zero.
+$REDUX  coul_offset_x = 0
+$REDUY  coul_offset_y = 0
+$REDUZ  coul_offset_z = 0
+
+    if(.not.allocated(Source)) then
+        allocate(Source(nx+BC+coul_offset_x, &
+        &               ny+BC+coul_offset_y, &
+        &               nz+BC+coul_offset_z))           
+        Source = 0.0_dp
+    endif
+    
     !---------------------------------------------------------------------------
     ! Initialize all of the arrays.
     if(.not.allocated(SpherHarmCoulomb)) then

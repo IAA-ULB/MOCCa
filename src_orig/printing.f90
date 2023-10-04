@@ -30,35 +30,36 @@ contains
     !---------------------------------------------------------------------------
     ! Print the info of the (physical) Hartree-Fock basis.
     !---------------------------------------------------------------------------
-    
-    10 format (42 ('-'), ' Hartree-Fock basis', 67('-'))
-    12 format (42 ('-'), ' Canonical    basis', 67('-'))
-    20 format (118 ('-'))
-    30 format (118 ('_'),/,3x , 'Neutron wavefunctions')
-    40 format (118 ('_'),/,3x , 'Proton  wavefunctions')
+
+    10 format (42 ('-'), ' Hartree-Fock basis', 78('-'))
+    12 format (42 ('-'), ' Canonical    basis', 78('-'))
+    20 format (129 ('-'))
+    30 format (129 ('_'),/,3x , 'Neutron wavefunctions')
+    40 format (129 ('_'),/,3x , 'Proton  wavefunctions')
     60 format (1x,' n ', 2x 'i', 4x,'P',4x, 'Rz', 3x,'occ',10x,'E',7x,       &
     &             'd2h',4x,'Delta', 1x,                                      &
     &             ' | ', 2x, 'JxT',4x, 'JyT', 4x,'Jz', 6x, 'J', 2x,          &
-    &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz', '   | r_rms ' )    
+    &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz', '   | r_rms ',        &
+    &             ' | MPI_RANK ' )    
 
     11 format (1x, i3, 1x, i3, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, &
     &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(2x, f5.2), 1x, '|',   &
-    &          3(2x, f5.2), ' | ', f6.2 )
+    &          3(2x, f5.2), ' | ', f6.2 , ' | ', i4)
 
     integer       :: wave,k, B, si, N, T, wavebar, l
     integer       :: ProtonOrder(nwp), NeutronOrder(nwn), sumocc
     real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz, r2
     real(KIND=dp), allocatable :: HF_gaps(:,:), can_gaps(:,:)
     character(len=1) :: blo
-    
+
     ! We transform the gaps to the Hartree-Fock basis for printing
     if(pairingtype.eq.2) then
       si = 0
       allocate(HF_gaps(nwt,nwt)) ; HF_gaps = 0.0d0
       do B=1,8,2
-        N = HFblocks(B) ; if(N.eq.0) cycle
-        T = HFBlocks(B+1) + N
-        
+        N = HFblocks_global(B) ; if(N.eq.0) cycle
+        T = HFBlocks_global(B+1) + N
+
         HF_gaps(si+1:si+T, si+1:si+T) = &
         & matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)),&
         &                                          HFBgaps(si+1:si+T,si+1:si+T))
@@ -85,14 +86,14 @@ $TR     sumocc = 2*k
 
         P = P_hf(wave)        
 
-        if(wave .le. sum(HFBlocks(1:2))) then
-            if(wave .le. HFBlocks(1)) then
+        if(wave .le. sum(HFBlocks_global(1:2))) then
+            if(wave .le. HFBlocks_global(1)) then
                s = +1
             else
                s = -1
             endif
         else
-            if(wave .le. sum(HFBlocks(1:3))) then
+            if(wave .le. sum(HFBlocks_global(1:3))) then
                s = +1
             else
                s = -1
@@ -103,27 +104,23 @@ $TR     sumocc = 2*k
         Jy = HF_JTI(2,wave) ; SY = HF_STI (2,wave)
         Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
         JJ = HF_JJ(wave)
-        
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        !Quickly calculate sqrt(<psi|r^2|psi>)
-        r2 = sum(sum(HFpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
-        r2 = sqrt(r2)
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        r2 = sqrt(spwf_r2_hf(wave, wave))
         if(pairingtype.eq.1) then
           print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), BCSgaps(wave),                    &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
         elseif(pairingtype.eq.2) then
           print 11, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),   &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
         else
           print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &              
-          &               r2
+          &               r2, rank_map(wave)
         endif
     enddo
-    
+
     print 40  
     print 60
     print 20
@@ -133,14 +130,14 @@ $NTR    sumocc = k
 $TR     sumocc = 2*k
 
         P = P_hf(wave)        
-        if(wave .le. sum(HFBlocks(1:6))) then
-            if(wave .le. sum(HFBlocks(1:5))) then
+        if(wave .le. sum(HFBlocks_global(1:6))) then
+            if(wave .le. sum(HFBlocks_global(1:5))) then
                s = +1
             else
                s = -1
             endif
         else
-            if(wave .le. sum(HFBlocks(1:7))) then
+            if(wave .le. sum(HFBlocks_global(1:7))) then
                s = +1
             else
                s = -1
@@ -152,24 +149,19 @@ $TR     sumocc = 2*k
         Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
         JJ = HF_JJ(wave)
 
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        !Quickly calculate sqrt(<psi|r^2|psi>)
-        r2 = sum(sum(HFpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
-        r2 = sqrt(r2)
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+        r2 = sqrt(spwf_r2_hf(wave,wave))
         if(pairingtype.eq.1) then
           print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), BCSgaps(wave),                    &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
         elseif(pairingtype.eq.2) then
           print 11, sumocc, wave, p, s,  rho_HF(wave), ' ', spenergies(wave),  &
           &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
         else
           print 11, sumocc, wave, p, s, rho_can(wave),' ',  spenergies(wave),  &
           &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ,              &
-          &               Sx, Sy, Sz, r2
+          &               Sx, Sy, Sz, r2, rank_map(wave)
         endif
     enddo
     print 20
@@ -187,7 +179,7 @@ $TR     sumocc = 2*k
     ! Prepare by calculating the gaps in the canonical basis  
     can_gaps = matmul(transpose(cantransfo), HFBgaps)
     can_gaps = matmul(can_gaps, cantransfo)
-  
+
     ! Order the canonical basis, not the HF one
     ProtonOrder = OrderSpwfsISO(+1, .true.) 
     NeutronOrder= OrderSpwfsISO(-1, .true.)
@@ -197,33 +189,36 @@ $TR     sumocc = 2*k
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-      P = P_can(wave)        
+      P = P_can(wave)
 
-      if(wave .le. sum(HFBlocks(1:2))) then
-          if(wave .le. HFBlocks(1)) then
+      if(wave .le. sum(HFBlocks_global(1:2))) then
+          if(wave .le. HFBlocks_global(1)) then
              s = +1
           else
              s = -1
           endif
       else
-          if(wave .le. sum(HFBlocks(1:3))) then
+          if(wave .le. sum(HFBlocks_global(1:3))) then
              s = +1
           else
              s = -1
           endif
       endif
 
-      Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
-      Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
-      Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
-      JJ = can_JJ(wave)
-      
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !Quickly calculate sqrt(<psi|r^2|psi>)
-      r2 = sum(sum(canpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
-      r2 = sqrt(r2)
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    
+      if(allocated(canpsi)) then
+        Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
+        Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
+        Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
+        JJ = can_JJ(wave)
+      else
+        Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
+        Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
+        Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
+        JJ = spwf_JJ(wave)     
+      endif    
+
+      r2 = sqrt(spwf_r2_can(wave, wave))
+
       if(allocated(conjugp)) then
        wavebar  = conjugp(wave)
       else
@@ -234,7 +229,7 @@ $TR     sumocc = 2*k
       else
           Delta = can_gaps(wave, wavebar)
       endif    
-      
+
       blo = ' ' 
       if(allocated(blocked_sps)) then
         do l = 1, blocknumber
@@ -242,42 +237,45 @@ $TR     sumocc = 2*k
         enddo
       endif    
       print 11, sumocc, wave, p,  s,   rho_can(wave), blo , canenergies(wave), &
-      &               0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+      &              0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
     enddo
     print 40  
     print 60
     print 20
+
     do k=1,nwp 
       wave = ProtonOrder(k) 
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-      P = P_can(wave)        
+      P = P_can(wave)
 
-      if(wave .le. sum(HFBlocks(1:6))) then
-          if(wave .le. sum(HFBlocks(1:5))) then
+      if(wave .le. sum(HFBlocks_global(1:6))) then
+          if(wave .le. sum(HFBlocks_global(1:5))) then
              s = +1
           else
              s = -1
           endif
       else
-          if(wave .le. sum(HFBlocks(1:7))) then
+          if(wave .le. sum(HFBlocks_global(1:7))) then
              s = +1
           else
              s = -1
           endif
       endif
 
-      Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
-      Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
-      Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
-      JJ = can_JJ(wave)
-      
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !Quickly calculate sqrt(<psi|r^2|psi>)
-      r2 = sum(sum(canpsi(:,:,wave)**2,2) * sum(meshgrid,2)**2)*dv
-      r2 = sqrt(r2)
-      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      if(allocated(canpsi)) then
+        Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
+        Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
+        Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
+        JJ = can_JJ(wave)
+      else
+        Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
+        Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
+        Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
+        JJ = spwf_JJ(wave)     
+      endif    
+      r2 = sqrt(spwf_r2_can(wave, wave))
       
       if(allocated(conjugp)) then
         wavebar  = conjugp(wave)
@@ -298,7 +296,7 @@ $TR     sumocc = 2*k
       endif   
 
       print 11, sumocc, wave, p, s,   rho_can(wave),  blo, canenergies(wave),  &
-      &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2
+      &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
     enddo
     print 20
 
@@ -306,14 +304,13 @@ $TR     sumocc = 2*k
 
   subroutine printqps
     !---------------------------------------------------------------------------
-    ! Print all relevant info on quasiparticles.
-    ! This routine has no side-effects.
+    ! Print all relevant info on quasiparticles, without any side-effects.
     !---------------------------------------------------------------------------
     integer              :: i, N, B, si, sb, ind, N2, k, U(1),V(1), T
     integer, allocatable :: indices(:)
     real(KIND=dp)        :: ov, v2, u2
     character(len=1)     :: Bstr, Pstr
-    
+
     1  format (48 ('-'), 'Quasiparticles',48('-'))
     2  format ( i3, 1f10.2, 2x, 1es12.2, 1es12.2, ' | ', 2i4,  2x, 2f8.5,  &
     &           ' | ', 2x, a1,   &
@@ -321,18 +318,18 @@ $TR     sumocc = 2*k
 
     11  format(110('-'))
     if(PairingType.eq.0) return
-    
+
     if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
 
     print 1
-    
+
     si = 0
     sb = 0
     do B=1,8,2
-        N = HFblocks(B) ;      if(N.eq.0) cycle
-        N2 = HFBlocks(B+1)
-
+        N = HFblocks_global(B) ;      if(N.eq.0) cycle
+        N2 = HFBlocks_global(B+1)
         T = N + N2
+        ! ^------ these are all global indices, i.e. spanning all MPI ranks
 
         call print_qp_header(B)
         select case(pairingtype)
@@ -356,7 +353,7 @@ $TR     sumocc = 2*k
 
             u2 = sum(Bogoliubov(sb  +1:sb+  T,sb+i)**2) 
             v2 = sum(Bogoliubov(sb+T+1:sb+2*T,sb+i)**2) 
-          
+
             print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*T-i+1),          &
             &           qpdispersions(sb+i),                                   &
             &           U(1), V(1), u2, v2, '-', '-', 0.0d0,                   &
@@ -424,8 +421,8 @@ $TR     sumocc = 2*k
           indices = order(BCSqps(si+1:si+N))
           do i=1, N
             ind  = indices(i)
-            print 2, i, BCSqps(si+ind), BCSf(si+ind),0.0d0, 0,0,'-', '-',0.0d0,&
-            &        0.0d0, 0.0d0,0.0d0
+            print 2, i, BCSqps(si+ind), BCSf(si+ind),0.0d0, 0,0, 0.0d0,0.0d0,  &
+            &        '-', '-',0.0d0, 0.0d0, 0.0d0,0.0d0
           enddo
         end select
         si = si +   T

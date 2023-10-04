@@ -41,11 +41,11 @@ contains
     ! Note that this does not necessarily play well near spherical symmetry for
     ! non-magic numbers of nucleons.
     !---------------------------------------------------------------------------
-    
+
     integer :: i,j,n,p, ProtonUpperBound, NeutronUpperBound
     integer :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp), intent(out) :: occupations(nwt)
-        
+
     n=0; p=0
     !---------------------------------------------------------------------------
     !Setting all occupation numbers to Zero
@@ -86,11 +86,11 @@ contains
     ! but I fear for rounding errors and instability with exp() of either large
     ! or small numbers.
     !---------------------------------------------------------------------------
-  
+
     use parameterization, only : hbm
 
     real(KIND=dp), intent(out) :: occupations(nwt)
-    integer, intent(in)        :: particles_in_gas      
+    integer, intent(in)        :: particles_in_gas
     real(KIND=dp)              :: energies(nwt,2), N
     real(KIND=dp)              :: Fermi(2), Fmin, Fmax, betaE, Nmin, Nmax
     integer                    :: Order(nwt,2), nw, nwn_alt, nwp_alt, nw_alt
@@ -103,7 +103,7 @@ contains
     do i=nwn+1,nwt
         if(spenergies(i).lt.0) nwp_alt = nwp_alt+1  
     enddo
-  
+
     if( fixfermi ) then
         !-----------------------------------------------------------------------
         ! We perform a calculation at fixed chemical potential
@@ -111,12 +111,12 @@ contains
     else
         !-----------------------------------------------------------------------
         ! We fix the particle number to <N> = neutrons, <Z> = protons.
-    
+
         ! Finding the order of the spwfs, in terms of energy
         Order = 0    
         Order(1:nwn,1) = OrderSpwfsISO(-1)
         Order(1:nwp,2) = OrderSpwfsISO(+1)
-        
+
         do i=1,nwn
             energies(i,1) = spenergies(Order(i,1))
         enddo
@@ -125,13 +125,11 @@ contains
         enddo      
 
         do it=1,2
-            
             if(it .eq. 1) then
                 N = neutrons ; nw = nwn ; nw_alt = nwn_alt
             else 
                 N = protons  ; nw = nwp ; nw_alt = nwp_alt
             endif
-            
             !-------------------------------------------------------------------
             ! Establish a search interval
             select case(particles_in_gas)
@@ -143,22 +141,17 @@ contains
             case(2)
               ! But the upper bound is no longer good if we are only occupying
               ! bound states.
-              
               Fmin = minval(spenergies) - log(2*nw_alt/N - 1)/inversetemp
               Fmax =                    - log(2*nw_alt/N - 1)/inversetemp
             end select 
 
             Nmin = FToccupations(Fmin, energies(1:nw,it), particles_in_gas) - N
             Nmax = FToccupations(Fmax, energies(1:nw,it), particles_in_gas) - N
-        
+
             if(Nmin .gt. 0 .or. Nmax .lt. 0) then
-                print *, 'Bracketing of Fermi energy is wrong.'
-                print *, Fmin, Nmin
-                print *, Fmax, Nmax
-                print *, spenergies(Order(1,it)),spenergies(Order(nw,it)) 
-                stop
+              call stp('The Fermi energy was not correctly bracketed')
             endif
-              
+
             select case (particles_in_gas)
             case(0,2)
               ! Ordinary case & only bound states case
@@ -179,9 +172,8 @@ contains
               Fermi(it) = FermiBisection(Fmin,Nmin,Fmax,Nmax, energies(1:nw,it)& 
               &                                    ,N,particles_in_gas, hbm(it))
             end select
-        enddo       
+        enddo
     endif
-
     !---------------------------------------------------------------------------
     ! Actually calculate the occupations for the fixed chemical potential
     do i = 1,nwt

@@ -1,19 +1,19 @@
 #-------------------------------------------------------------------------------
-# 
+#
 # Makefile for the succesfull compilation of different Tantalus executables.
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # For succesful compilation, one needs
 #
-# * a complete copy of the Tantalus repository, including 
+# * a complete copy of the Tantalus repository, including
 #   - a working Hephaestos version
 #   - a correct set of Tantalus source code template files
 #
 # * a working installation of some version of Python3 to run Hephaestos
 #   - which should have access to basic Python libraries and numpy in particular
-# 
+#
 # * a configuration file to run Hephaestos with; a ton are provided in configs/.
-# 
+#
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #
 # Basic useage:
@@ -24,13 +24,13 @@
 # using gfortran (provided it is installed).
 #
 # For more control, specify additional options either in this Makefile itself
-# or on the command line. For example: 
+# or on the command line. For example:
 #
-#   > make CONFIG=BXL CXX=ifort  
-# 
-# will compile a Tantalus executable based on the BXL.py configuration file 
-# (look in the configs/ folder) using the Intel ifort compiler. 
-# 
+#   > make CONFIG=BXL COMPILER=ifort
+#
+# will compile a Tantalus executable based on the BXL.py configuration file
+# (look in the configs/ folder) using the Intel ifort compiler.
+#
 # The option to specify compiler and CONFIG file should be sufficient for most
 # users; changing any other options is at your own risk.
 #
@@ -39,13 +39,13 @@
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # OPTIONS
-# - - - - -                                                    
-#  CXX      : compiler to use                        
-#  CONFIG   : name of configutation file in the config/ folder 
+# - - - - -
+#  CXX      : compiler to use
+#  CONFIG   : name of configutation file in the config/ folder
 #            (without trailing .py)
-#  OPTFLAGS : optimisation compiler flags            
-#  CXXFLAGS : other compiler flags                   
-#  PRE      : steps to do before compilation         
+#  OPTFLAGS : optimisation compiler flags
+#  CXXFLAGS : other compiler flags
+#  PRE      : steps to do before compilation
 #  DEBUG    : 0 => no debugging options
 #             1 => full debugging options
 #  USE_MPI  : 0 => no MPI
@@ -57,7 +57,7 @@
 #
 # Notes
 # - - - -
-# 1. this is a Makefile, so you can essentially override ANY AND ALL 
+# 1. this is a Makefile, so you can essentially override ANY AND ALL
 #    variables from the command line by simply passing them as argument to
 #    make. The options I document above are only the ones that I think are
 #    relevant to normal useage.
@@ -66,22 +66,23 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Compilers that are currently "pre-configured" with appropriate optimisation
 # flags etc.
-# 
+#
 # 1. gfortran
-#    optimisation: -O3    
-#    versions tested: 9.4.0
-# 
+#    optimisation: -O3, -O3 -ffast-math, -Ofast, -O3 -funroll-loops,
+#                  -Ofast -funroll-loops
+#    versions tested: 8.5.0, 9.4.0
+#
 # 2. ifort
-#    optimisation: -Ofast
-#    versions tested: 2021.1 
+#    optimisation: -Ofast, -O3, -O3 -xhost
+#    versions tested: 2021.1
 #
 # 3. cray compilers
-#    optimisation: -O2
-#
+#    optimisation: -O2, -O3, -O3 -hfp3
+#    versions tested: 14.0.3
 #-------------------------------------------------------------------------------
-# Acknowledgment: 
-#   the organisation of this Makefile as well as a bunch of options are 
-#   inspired by the Makefile of the HFBTHO v4 code, see the repository of 
+# Acknowledgment:
+#   the organisation of this Makefile as well as a bunch of options are
+#   inspired by the Makefile of the HFBTHO v4 code, see the repository of
 #   P. Marević et al., Computer Physics Communications 276, 108367 (2022).
 #-------------------------------------------------------------------------------
 
@@ -95,18 +96,62 @@ EXENAME := Tantalus.$(CONFIG).exe
 # Compilation details (this section should be modified as you see fit)
 ################################################################################
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# Compiler executable
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Compiler type 
+COMPILER      :=  gfortran
 #
-# Options are present for 
-# - gfortran  by GNU
-# - ifort     by Intel
-# - ftn       (which should be a wrapper for a compiler) by Cray 
-CXX      :=  gfortran
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+# Note: this is NOT the compiler wrapper that will get invoked for execution
+#       it is rather the "type" of compiler (or the organisation behind it)
+#       this variable is used to set different compilation options for which
+#       syntax and/or linking might not be identical
+#       A set of default options are present for
+#         - gfortran  by GNU
+#         - ifort     by Intel
+#         - cray      by Cray
+#
+#       The primary reason that COMPILER and CXX are different is because 
+#       vendors have different compiler wrappers for different modes 
+#       (i.e. with or without MPI) but which nevertheless have similar options.
+#       A bonus reason is that this can easily account for versions, i.e. 
+#       compilation with gfortran-9.3 will get the right options set.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# USE_MPI
+#  => 0 if inactive
+#  => 1 if active
+USE_MPI := 0
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Actual compiler wrapper that gets invoked
+#  I provide default options based on the USE_MPI and COMPILER options
+#  but it is up to the user to make sure that CXX and COMPILER match. The 
+#  compilation will obviously fail if, say, an INTEL compiler gets invoked with 
+#  GNU options. If you want to specify a specific wrapper, fill the following 
+#  line
+CXX :=
+ifeq ($(CXX), )
+ifeq ($(COMPILER),gfortran)
+  ifeq ($(USE_MPI),1)
+    CXX := mpifort 
+    # on the systems available to me, this is the wrapper for
+    # MPI-enabled GFORTRAN
+  else
+    CXX := gfortran
+endif
+else ifeq ($(COMPILER),ifort)
+  ifeq ($(USE_MPI),1)
+    CXX := mpiifort # on the systems available to me, this is the wrapper for
+                   # MPI-enabled IFORT
+  else
+    CXX := ifort
+  endif
+else ifeq ($(COMPILER), cray)
+  CXX := ftn
+  # I have yet to figure out MPI with CRAY compilers
+endif
+endif
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Directory names  (will be created if they don't exist)
-# 
+#
 # - EXECDIR = directory for storage of the final executables
 # - SRCDIR  = source code as processed by Hephaestos
 # - OBJDIR  = storage for intermediate object files
@@ -116,33 +161,28 @@ SRCDIR  :=   src
 OBJDIR  :=   obj
 MODDIR  :=   mod
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# USE_MPI 
-#  => 0 if inactive
-#  => 1 if active
-USE_MPI := 0
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# DEBUG 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# DEBUG
 # => 0 : compile without debugging options
 # => 1 : compile with debugging options for each compiler
 DEBUG   := 0
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Libraries for linear algebra
 # This can be specified on the command line, but is in practice compiler based
-ifneq (,$(findstring gfortran,$(CXX))) 
+ifeq ($(COMPILER),gfortran)
 	# versions of gfortran should link to OPENBLAS
-	LIBS := -lopenblas                   
-else ifeq ($(CXX),ifort)               
+	LIBS := -lopenblas
+else ifeq ($(COMPILER),ifort)
   # ifort compiler should link to the new Intel math library
-	LIBS := -qmkl                       
-else ifeq ($(CXX), ftn)                
+	LIBS := -mkl
+else ifeq ($(COMPILER), cray)
   # Cray compilers don't need specific linking to my knowledge
-	LIBS :=                              
+	LIBS :=
 endif
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Python interpreter with which to invoke Hephaestos
 PYTHON_CMD := python3
 
@@ -152,30 +192,30 @@ PYTHON_CMD := python3
 ################################################################################
 
 # 1. set some compiler-specific options concerning storage etc.
-ifneq (,$(findstring gfortran,$(CXX)))
-	CXXFLAGS := -J$(MODDIR) 
-else ifeq ($(CXX),ifort)
-	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin 
+ifeq ($(COMPILER),gfortran)
+	CXXFLAGS := -J$(MODDIR)
+else ifeq ($(COMPILER),ifort)
+	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin
 else ifeq ($(CXX),ftn)
 	CXXFLAGS := -J$(MODDIR)
 endif
 
-# 2. set compiler-specific optimisation level 
+# 2. set compiler-specific optimisation level
 # .... when in production mode
 ifeq ($(DEBUG),0)
-  ifneq (,$(findstring gfortran,$(CXX)))
+  ifeq ($(COMPILER),gfortran)
 	  OPTFLAGS := -O3
-  else ifeq ($(CXX),ifort)
+  else ifeq ($(COMPILER),ifort)
 	  OPTFLAGS := -Ofast
-  else ifeq ($(CXX),ftn)
-	  OPTFLAGS := -O2 # to be tested if optimal
+  else ifeq ($(COMPILER),ftn)
+	  OPTFLAGS := -O3 # to be tested if optimal
   endif
 else
-  ifneq (,$(findstring gfortran,$(CXX)))
-	  OPTFLAGS := -O0 -g -Wall -Wno-uninitialized -traceback 
-  else ifeq ($(CXX),ifort)
+  ifeq ($(COMPILER),gfortran)
+	  OPTFLAGS := -O0 -g -Wall -Wno-uninitialized -fbacktrace
+  else ifeq ($(COMPILER),ifort)
 	  OPTFLAGS := -g -traceback
-  else ifeq ($(CXX),ftn)
+  else ifeq ($(COMPILER),ftn)
 	  OPTFLAGS := -e c -e D # to be tested if optimal
   endif
 endif
@@ -185,7 +225,7 @@ endif
 
 # 1. Check if compiler exists
 ifeq (, $(shell which $(CXX)))
- $(error "The compiler CXX=$(CXX) cannot be invoked. Is it installed?")
+ $(error "The compiler wrapper CXX=$(CXX) cannot be invoked. Is it installed?")
 endif
 
 # 2. Check if config file exists
@@ -232,7 +272,7 @@ SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
 NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
 
 ################################################################################
-# Precompilation steps 
+# Explicit precompilation steps 
 #
 # 1) Run Hephaestos to preprocess the entire code
 # 2) Get version information from git
@@ -242,6 +282,11 @@ NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRE         :=  run_heph getgitinfo getcompilerinfo setversioninfo 
 PRE_NIL     :=  cp_nil 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Internal (to the compiler) preprocessing directives
+#    -cpp      => explicitly enable preprocessing
+#    -DUSE_MPI => enable (1) or disable (0) MPI (see above) 
+PREPROCESSOR :=  -cpp -DUSE_MPI=$(USE_MPI)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 ################################################################################
@@ -263,7 +308,7 @@ $(MODDIR)/:
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 single: $(PRE) $(SINGLE_OBJ)
-	$(CXX) $(OPTFLAGS) $(CXXFLAGS) -o $@ $(SINGLE_OBJ) $(LIBS)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(SINGLE_OBJ) $(LIBS)
 	mv single exec/$(EXENAME)
 
 run_heph:
@@ -271,7 +316,7 @@ run_heph:
 	python3 Hephaestos.py $(CONFIG) 
 
 gen_nilsson: $(PRE_NIL) $(NIL_OBJ)
-	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) -o $@ $(NIL_OBJ) $(LIBS)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LIBS)
 	mv gen_nilsson exec/$(EXENAME)
 
 clean:
@@ -279,21 +324,19 @@ clean:
 	rm  -f $(MODDIR)/*.mod
 
 $(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/ 
-	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) -c  $< -o $@ 
+	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  $< -o $@ 
 
 setversioninfo:
-  
 # Copy the git information into the main code, so it can be printed
 	@cp $(SRCDIR)/tantalus.f90 $(SRCDIR)/tantalus.version.f90
-	@sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' $(SRCDIR)/tantalus.version.f90 
-	@sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' $(SRCDIR)/tantalus.version.f90 
-	@sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' $(SRCDIR)/tantalus.version.f90 
-	@sed -i.bak 's/VERSION4/"${GIT_INFO4}"/' $(SRCDIR)/tantalus.version.f90 
+	@sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' $(SRCDIR)/tantalus.version.f90
+	@sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' $(SRCDIR)/tantalus.version.f90
+	@sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' $(SRCDIR)/tantalus.version.f90
+	@sed -i.bak 's/VERSION4/"${GIT_INFO4}"/' $(SRCDIR)/tantalus.version.f90
 #Copy the compiler information
-	@sed -i.bak 's/COMPCOMP/"${COMPVERSION}"/' $(SRCDIR)/tantalus.version.f90 
-	@sed -i.bak 's/CFLAGS/"${CXXFLAGS}"/'      $(SRCDIR)/tantalus.version.f90 
-	@sed -i.bak 's/OPTFLAGS/"${OPTFLAGS}"/'    $(SRCDIR)/tantalus.version.f90 
-	
+	@sed -i.bak 's/COMPCOMP/"${COMPVERSION}"/' $(SRCDIR)/tantalus.version.f90
+	@sed -i.bak 's/CFLAGS/"${CXXFLAGS}"/'      $(SRCDIR)/tantalus.version.f90
+	@sed -i.bak 's/OPTFLAGS/"${OPTFLAGS}"/'    $(SRCDIR)/tantalus.version.f90
 	@rm $(SRCDIR)/tantalus.version.f90.bak
 
 getgitinfo:
@@ -306,7 +349,7 @@ getgitinfo:
 getcompilerinfo:
   # Get information from 'CXX --version'
 	$(eval COMPVERSION=$(shell $(CXX) --version | head -1))
-	
+
 cp_nil:
 	cp src_orig/gennilsson.f90 $(SRCDIR)/gennilsson.f90
 

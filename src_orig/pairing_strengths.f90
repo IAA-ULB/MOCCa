@@ -73,8 +73,7 @@ contains
   case(0)
     print 2, 'Cao et al., PRC 74 064301 (2006)'
   case DEFAULT
-    print *, 'PTYPE not recognized in print_micro_pairing_info'
-    stop
+    call stp('PTYPE not recognized in pring_micro_pairing_info.')
   end select 
 
   select case(intertype)
@@ -85,8 +84,7 @@ contains
     print 3, ' Linear interpolation '
     print *, '     Delta_q = (1 - |eta|) Delta_sym + |eta| Delta_{q,pure}'
   case DEFAULT
-    print *, 'intertype not recognized in print_micro_pairing_info'
-    stop
+    call stp('intertype not recognized in print_micro_pairing_info.')
   end select 
 
  end subroutine print_micro_pairing_info
@@ -122,18 +120,14 @@ contains
   case(1)
     interpolation => linear_interpolation
   case DEFAULT
-    print *, 'Unrecognised option for intertype.'
-    print *, 'INTERTYPE = ', intertype
-    stop    
+    call stp('Unrecognised option for intertype.')
   end select
  
   select case(ptype) 
   case(0) 
     vmicro = Cao(rho, F_Nm_Nm, iso, interpolation)
   case DEFAULT
-    print *, 'Unrecognized ptype option.'
-    print *, 'PTYPE = ', ptype
-    stop    
+    call stp('Unrecognized ptype option.')
   end select
 
   call stop_timer(T_microscopic_pairing)
@@ -335,8 +329,7 @@ contains
     ! protons
     Delta = Delta + eta * (eta - 1.0d0)/2.0d0 * deltanp
   case DEFAULT
-    print *, 'Unrecognised input value for iso in standard_interpolation.'
-    stop   
+    call stp('Unrecognised input value for iso in standard_interpolation.')
   end select
 
  end function standard_interpolation
@@ -372,8 +365,7 @@ contains
     ! protons
     Delta = Delta + abs(eta) * deltanp
   case DEFAULT
-    print *, 'Unrecognised input value for iso in standard_interpolation.'
-    stop   
+    call stp('Unrecognised input value for iso in standard_interpolation.')
   end select
 
  end function linear_interpolation
