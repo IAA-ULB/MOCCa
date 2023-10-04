@@ -31,7 +31,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  use IO
  use temperature_projection 
  use timing
-!$ USE OMP_LIB
+
  implicit none
  !------------------------------------------------------------------------------
  ! These inputs control where the code will look for its input. Leaving them 
@@ -52,6 +52,12 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  character(len=57), parameter        :: compiler =COMPCOMP
  character(len=57), parameter        :: cflags   =CFLAGS
  character(len=57), parameter        :: optflags =OPTFLAGS
+
+ !------------------------------------------------------------------------------
+ ! MPI error code
+#if(USE_MPI > 0)
+ integer :: mpi_err
+#endif
 
  100 format &
      &  (/,8x,' ___________________________________________________________', &
@@ -82,8 +88,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  308 format ( 8x,'| SYM_CODE               = ', a26, 6x, '|')
  309 format ( 8x,'| TRANS_CODE             = ', a26, 6x, '|')
  310 format ( 8x,'|-------------- Environment Information -------------------|')
- !$ 311 format ( 8x,'| OpenMP threads         = ', i5, 26x, '|')
- !$ 312 format ( 8x,'| OpenMP disabled                                          |')
+ 311 format ( 8x,'|  Number of MPI_ranks   = ', i6, 26x, '|')
  313 format ( 8x,'|-------------- Compilation Information -------------------|')
  314 format ( 8x,'| Compiled with:                                           |')
  315 format ( 8x,'| ', a57, '|')
@@ -92,42 +97,57 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  318 format ( 8x,'| Optimisation flags reported:                             |')
  319 format ( 8x,'| ', a57, '|')
  320 format ( 8x,'|__________________________________________________________|')
-
+ 
+ !------------------------------------------------------------------------------
+ ! Start the different processes across MPI ranks and do MPI bookkeeping
+#if(USE_MPI > 0) 
+  call mpi_init(mpi_err)
+  call MPI_COMM_SIZE(MPI_COMM_WORLD, NCORES  , mpi_err)
+  call MPI_COMM_RANK(MPI_COMM_WORLD, MPI_RANK, mpi_err)
+  
+  ! Set MPI errors to be fatal. This is the default setting, but it doesn't
+  ! hurt to be verbose, precise and future-flexible.
+  CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL,mpi_err)
+#endif
+ !------------------------------------------------------------------------------
+ ! starting all timers 
+ ! (disabled for now as I'm not sure how this interacts with MPI)
  call initialize_all_timers
  call start_timer(T_tantalus)
 
- print *
- print 100
- write(mode_print, '(a43)') run_mode
- print 200, adjustl(mode_print)
- print 299
- print 304
- print 300, version1
- print 301, version2
- print 302, version3
- print 303, version4
- print 304
- print 305
- print 304
- symprint = adjustl(SYMSTRING)
- print 306, symprint
- print 307, reduX, reduY, reduZ
- print 308, SYM_CODE
- print 309, TRANS_CODE
- print 310
- printed = .false.
-!$ print 311, OMP_GET_MAX_THREADS()
-!$ printed = .true.
-!$ if(.not. printed) print 312
-
- print 313
- print 314
- print 315, compiler
- print 316
- print 317, cflags
- print 318
- print 319, optflags
- print 320
+ !------------------------------------------------------------------------------
+ ! Printing information to STDOUT on the run
+ if(MPI_RANK .eq. 0) then
+   print *
+   print 100
+   write(mode_print, '(a43)') run_mode
+   print 200, adjustl(mode_print)
+   print 299
+   print 304
+   print 300, version1
+   print 301, version2
+   print 302, version3
+   print 303, version4
+   print 304
+   print 305
+   print 304
+   symprint = adjustl(SYMSTRING)
+   print 306, symprint
+   print 307, reduX, reduY, reduZ
+   print 308, SYM_CODE
+   print 309, TRANS_CODE
+   print 310
+   print 311, NCORES
+   printed = .false.
+   print 313
+   print 314
+   print 315, compiler
+   print 316
+   print 317, cflags
+   print 318
+   print 319, optflags
+   print 320
+ endif
 
  !------------------------------------------------------------------------------
  ! Read input from STDIN
@@ -148,10 +168,16 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! Clean up after running, just in case we need to run again.
  call Cleanupthemess()
  !------------------------------------------------------------------------------
+ ! end the processes across MPI ranks
+#if(USE_MPI > 0) 
+  call mpi_finalize(mpi_err)
+#endif
+ !------------------------------------------------------------------------------
  ! Print all timing info
  call stop_timer(T_tantalus)
- call print_all_timers()
+! call print_all_timers()
 
+ ! end of one mean-field calculation..;
 end subroutine Run_Tantalus
 
 subroutine ReachForWaterAndFood()
@@ -217,21 +243,19 @@ subroutine ReachForWaterAndFood()
     8 format('| Ending the iterative proces.   |')
 
     9 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
-    
    10 format(86('-'))  
    11 format(30x, 'Iteration = ', i5, /)   
    12 format(24x, 'FINAL Iteration = ', i5, /)
-   
-    integer :: iter, iprint, scheme
-    integer :: ifail
+
+    integer :: iter, iprint, scheme, ifail
     logical :: ConvergenceAchieved, calc_expensive
     ! Logical to see if any moments with projection are necessary
     logical :: projectpresent = .false.
     ! Message for the output of the code, useful for the Brussels group.
     character(len=99) :: iomsg = 'START'
-    
+
     ifail = 0
-    ConvergenceAchieved = .false.   
+    ConvergenceAchieved = .false.
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
@@ -241,32 +265,33 @@ subroutine ReachForWaterAndFood()
       ! Only allowed of course if we have actually read a Bogoliubov transfo.
       scheme = -1
     else
-      scheme = 0
+      scheme =  0
     endif
     call SolvePairing(scheme, ifail)
     if(ifail.ne.0) then
-        ! Solve the pairing, with the current values of <h> and the pairing gaps.
-        ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB 
-        ! Hamiltonian with a LAPACK call. We do this if the code did not receive
-        ! explicit instructions to start from the Bogoliubov transformation on 
-        ! file. 
-        print *, 'WARNING! Pairing solver failed.'
+       ! Solve the pairing, with the current values of <h> and the pairing gaps.
+       ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB 
+       ! Hamiltonian with a LAPACK call. We do this if the code did not receive
+       ! explicit instructions to start from the Bogoliubov transformation on 
+       ! file. 
+       print *, 'WARNING! Pairing solver failed.'
     endif
     if(bogofromfile .and. guessgaps .and. pairingscheme.eq.1) then
       ! We perform a few extra calls to solvepairing to take a few gradient
       ! steps, with finite values for Delta.
       call SolvePairing(pairingscheme, ifail)
-    endif    
+    endif
 
     ! Construct the canonical basis    
     if(pairingtype.eq. 2) call ConstructCanonicalBasis()
+
     ! Derive all the single-particle wavefunctions in the HFPsi array
     call deriveHF()
 
     ! Calculate the initial densities and the charge density (separately)
     call densit(SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
-  
+
     ! Adopt the relevant quantities to the centre-of-mass of the nucleus
     call adapt_com()
 
@@ -285,10 +310,8 @@ subroutine ReachForWaterAndFood()
     ! wavefunction file or a potential file. 
     call calcFields(calcall=.false.,precon= .false.)
 
-    call update_spwf_symmetries()
-    ! Update the angular momentum information of the spwfs
-    call update_spwf_angmom(.true.)
-    call updateAM 
+    ! Update all spwf properties
+    call update_spwf_properties( .true. ) ! expensive version
 
     call setBelyaevProcedure()
     call CalcEnergy(.true.)      ! Calculate the energy WITH all the expensive
@@ -296,24 +319,28 @@ subroutine ReachForWaterAndFood()
     call calc_avg_gap()
 
     ! Initial printout
-    call printSpwfs
-    call printQps
-    call printallmoments
-    call print_boxsize_check
-    call PrintMomentsofInertia
-    call printcranking  
-    call printpairing(pairstabfactor)
-    call PrintEnergy 
+    if(MPI_RANK .eq. 0) then
+      ! only the very first MPI RANK prints all of this output
+      call printSpwfs
+      call printQps
+      call printallmoments
+      call print_boxsize_check
+      call PrintMomentsofInertia
+      call printcranking  
+      call printpairing(pairstabfactor)
+      call PrintEnergy 
+    endif
+
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
         call update_E_history()
-    
+
         projectpresent   = checkconstraints() .or. check_cranking()    
         if(projectpresent) call feasibleproject()
-        
-        ! One heavy-ball step.
+
+        ! One evolution step for the spwfs
         call Evolve(iter)
 
         ! Calculate the gaps Delta with the current 
@@ -322,7 +349,7 @@ subroutine ReachForWaterAndFood()
         ! c) Fermi-energy
         PairStabfactor = CompStabilisingFactor(PairDenEnergy)
         call CalcGaps(FermiEnergy, PairStabFactor)
-       
+
         ! Save Fermi energy
         FermiHistory   = FermiEnergy
 
@@ -345,13 +372,15 @@ subroutine ReachForWaterAndFood()
         if(iter .gt. freezeiter) then
           call calcFields(calcall=.true.,precon=.true.)
         endif
-        
-        call update_spwf_angmom(.false.)
+
+        ! Update all spwf properties
+        call update_spwf_properties( .false. ) ! nonexpensive version
+
         call updateAM
         call ReadjustCranking
         !-----------------------------------------------------------------------
-        ! Above: actual evolution
-        ! Below: administration
+        ! Above: actual evolution of physical quantities
+        ! Below: administration/bookkeeping
         !-----------------------------------------------------------------------
         !See if some moments were temporary
         call TurnOffConstraints(iter)
@@ -364,14 +393,14 @@ subroutine ReachForWaterAndFood()
           iprint = 0
           calc_expensive = .false.
         endif
-        
+
         call CalcEnergy(calc_expensive)
         call calc_avg_gap()
 
         ! Check for convergence or a failed calculation
         if (ifail .ne. 0) then  
-          iomsg               = 'FERMI'  
-          ConvergenceAchieved = .false.  
+          iomsg               = 'FERMI'
+          ConvergenceAchieved = .false.
           exit
         else  
           call Converged(ConvergenceAchieved, iter)  
@@ -385,41 +414,45 @@ subroutine ReachForWaterAndFood()
         !-----------------------------------------------------------------------
         ! Decide between full or partial printout.
         if(iprint .eq.1) then
-            call update_spwf_symmetries()
-            call update_spwf_angmom(.true.)
+            ! ... but update all spwf properties first to ensure correct prints
+            call update_spwf_properties( .true. ) ! expensive version
             call updateAM 
             call ReadjustCranking
-            print 10
-            
-            if((iter .eq. maxiter) .or. ConvergenceAchieved) then
-              ! Add a clear indication this is the FINAL iteration
-              print 12, iter  
-            else
-              print 11, iter
-            endif
 
-            call PrintSpwfs
-            call PrintQps
-            call printallmoments
-            call print_boxsize_check
-            call PrintMomentsofInertia
-            call printcranking
-            call printpairing(PairStabfactor)
-            call printEnergy()
-        else
+            if(MPI_RANK.eq.0) then
+              print 10
+              if((iter .eq. maxiter) .or. ConvergenceAchieved) then
+                ! Add a clear indication this is the FINAL iteration
+                print 12, iter  
+              else
+                print 11, iter
+              endif
+              call PrintSpwfs
+              call PrintQps
+              call printallmoments
+              call print_boxsize_check
+              call PrintMomentsofInertia
+              call printcranking
+              call printpairing(PairStabfactor)
+              call printEnergy()
+            endif
+        elseif(MPI_RANK.eq.0) then
+             ! ..... else print a summary
             call printsummary(iter)
         endif
+
         !-----------------------------------------------------------------------
         ! Write a wavefunction file according to checkpointiter
         if(checkpointiter.ne.0) then
           if(mod(iter,checkpointiter) .eq. 0) then
-            print 9, iter, outputfilename
+            if(MPI_RANK.eq.0) print 9, iter, outputfilename
             iomsg='CHECKPOINT'
             call WriteTantalus(12, outputfilename)     
-          endif          
+          endif
         endif
         !-----------------------------------------------------------------------
         if(ConvergenceAchieved) then
+          if(MPI_RANK .eq. 0) then
             print 1
             print 2
             print 3, iter
@@ -431,19 +464,21 @@ subroutine ReachForWaterAndFood()
             print 71, angmom_prec
             print 8
             print 1
-
-            iomsg='CONVERGED'
-            exit
+          endif
+          iomsg='CONVERGED'
+          exit
         endif
-    enddo    
-    if(inversetemp .ne. -1) then
-        call projectThermal
-    endif    
+    enddo
+!    if(inversetemp .ne. -1) then
+!        call projectThermal
+!    endif    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate and print the collective moment of inertias    
     if(N_inertia .gt. 0) then
       call calc_collective_inertia
-      call print_collective_inertia
+      if(MPI_RANK.eq.0) then
+        call print_collective_inertia
+      endif
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     if(iter.eq.maxiter+1) then
@@ -605,8 +640,8 @@ subroutine initialize_all_timers()
    call add_timer('Charge density folding'     , T_chargedensity)  
    call add_timer('Collective MOIs'            , T_collective_moi)  
    call add_timer('Microscopic pairing'        , T_microscopic_pairing)  
-   call add_timer('Orthogonalisation of h\psi' , T_Hortho)  
-   call add_timer('Construction HF transo'     , T_HFDiag)  
+   call add_timer('Orthogonalisation of h|psi>', T_Hortho)  
+   call add_timer('Construction HF transfo'    , T_HFDiag)  
 
 end subroutine initialize_all_timers
 

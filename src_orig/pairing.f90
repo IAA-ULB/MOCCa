@@ -27,6 +27,7 @@ module pairing
  !==============================================================================
 
  use compilation
+ use geninfo
  use wavefunctions
  use hartreefock
  use BCS
@@ -171,145 +172,167 @@ contains
     ! Read and initialize pairing options from the namelists
     !   /Pairing/
     !   /Indices/
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
     character(len=20)                   :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
     integer                             :: i
-    
+#if(USE_MPI>0)
+    integer                             :: mpi_err
+#endif
+
     NameList /Pairing/ Type, Constantgap,                                      &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
     &                  FermiSolver, guessgaps,  pairingscheme,                 &
     &                  gradient_precon, bogofromfile, gapvalue
 
-    NameList /Indices/ BlockIndices, blocklowest, blockfname, blockJ
+    NameList /Indices/ BlockIndices, blocklowest, blockJ
 
-    if(present(file_number)) then
-      read(unit=file_number, NML=Pairing)
-    else
-      read(unit=*, NML=Pairing)
-    endif  
+    ! Only the very first MPI rank reads input
+    if(MPI_RANK .eq. 0) then
+      if(present(file_number)) then
+        read(unit=file_number, NML=Pairing)
+      else
+        read(unit=*, NML=Pairing)
+      endif  
 
-    Type        = to_upper(Type)
-    if('HF' .eq.adjustl(type)) then
-      pairingtype = 0
-    elseif('BCS' .eq. adjustl(type)) then
-      pairingtype = 1
-    elseif('HFB' .eq. adjustl(type)) then
-      pairingtype = 2
-    elseif('' .eq. adjustl(type)) then
-      pairingtype = 0
-    else
-      print *, 'This type of pairing is not implemented yet.'
-      stop
-    endif
+      Type        = to_upper(Type)
+      if('HF' .eq.adjustl(type)) then
+        pairingtype = 0
+      elseif('BCS' .eq. adjustl(type)) then
+        pairingtype = 1
+      elseif('HFB' .eq. adjustl(type)) then
+        pairingtype = 2
+      elseif('' .eq. adjustl(type)) then
+        pairingtype = 0
+      else
+        call stp('Unknown pairing type.')
+      endif
 
+      ! Transfer to uppercase and sanity check
+      FermiSolver = to_upper(FermiSolver)    
+      if((adjustl(FermiSolver) .ne. 'SECANT') &
+      &                        .AND.          & 
+      &  (adjustl(FermiSolver).ne. 'BRENT')) then
+          call stp('Unknown FermiSolver routine selected.')
+      endif 
 $FORBIDBCS if( pairingtype .eq. 1) then
-$FORBIDBCS    print *, "BCS pairing treatment not allowed."
-$FORBIDBCS    stop
+$FORBIDBCS    call stp('BCS not allowed when breaking T.')
 $FORBIDBCS endif
 
-    FermiSolver = to_upper(FermiSolver)    
-    if(adjustl(FermiSolver).eq.'SECANT') then
-      FindFermi => FindFermi_secant
-    elseif(adjustl(FermiSolver).eq.'BRENT') then
-      FindFermi => FindFermi_brent
-    else
-      print *, 'Unknown FermiSolver', FermiSolver, ' selected.'
-      stop
-    endif
-    
-    if(Blocktype.lt.0 .or. BlockType.gt.5) then
-        print *, 'This value of BlockType is not accepted.'
-        stop
-    endif
-    
-    if(blocktype.eq.5 .and. pairingscheme.eq.1) then
-      print *, 'Cannot combine forced-spherical symmetry blocking and the gradient solver.'
-      stop
-    endif 
-    
-    if(particles_in_gas .lt. 0 .or. particles_in_gas .gt. 2) then
-      print *, 'This value for particles_in_gas is not accepted.'
-      stop
-    endif
+      if(Blocktype.lt.0 .or. BlockType.gt.5) then
+        call stp('Invalid value for BlockType')
+      endif
 
-    if(particles_in_gas .ne. 0 .and. inversetemp .eq. -1) then
-       print *, 'Particles_in_gas should be zero for T=0 calculations.'
-      stop
+      if(blocktype.eq.5 .and. pairingscheme.eq.1) then
+        call stp('Cannot combine forced-spherical symmetry blocking and the gradient solver.')
+      endif 
+
+      if(particles_in_gas .lt. 0 .or. particles_in_gas .gt. 2) then
+        call stp('Invalid value for particles_in_gas.')
+      endif
+
+      if(particles_in_gas .ne. 0 .and. inversetemp .eq. -1) then
+        call stp('Particles_in_gas=1 requires finite-T calculation.')
+      endif
+
+      if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
+        call stp('Invalid value for pairingscheme.')
+      endif
+      !-------------------------------------------------------------------------
+      ! Reading information on the blocking if needed.
+      if(BlockNumber.ne.0) then
+          ! Sanity check: only allow for blocking in HFB mode
+          if(pairingtype.ne.2) then 
+            call stp('Blocking only allowed when doing HFB calculations.')
+          endif
+
+          allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
+          allocate(BlockLowest(BlockNumber))  ; BlockLowest  = ' ' 
+          read(unit=*, nml=Indices)
+
+          ! Sanity checks on the BlockLowest array: 
+          ! (a) do not proceed with empty list
+          ! (b) do not allow for selection on parity of the blocked state if
+          !  parity is broken
+          if(blocktype.eq.2 .or. blocktype .eq. 4) then
+            do i=1, blocknumber
+              select case(blocklowest(i))
+              case('n+', 'n-')
+$PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
+              case('p+', 'p-')
+$PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
+              case('n0', 'p0')
+                 ! allowed
+              case DEFAULT
+                 ! something else went wrong
+                 call stp('Did not read all elements in blocklowest correctly.')
+              end select
+            enddo
+          endif
+          ! Sanity checks on the BlockIndices array:
+          ! (a) check if everything was read
+          if(blocktype.eq.1 .or. blocktype.eq.3) then
+            do i=1,blocknumber
+              if(blockindices(i) .eq.0) then
+                call stp('Did not read all elements in blockindices correctly.')
+              endif
+            enddo
+          endif
+
+          ! Sanity check on the useage of time-reversal conservation and EFA
+  $NTR    if( blocktype.eq.3 .or. blocktype.eq.4) then        
+  $NTR      if(pairingscheme.eq.1) then
+  $NTR        call stp('Cannot do EFA blocking with gradient solver when time-reversal is broken.')
+  $NTR      endif
+  $NTR    endif
+          ! Sanity check: cannot do full blocking if time-reversal is not broken
+  $TR     if(blocktype.eq.1 .or. Blocktype.eq.2) then
+  $TR       call stp('Cannot do true blocking when time-reversal is conserved.')
+  $TR     endif
+
+      endif
     endif
     !---------------------------------------------------------------------------
-    ! Reading information on the blocking if needed.
+    ! Broadcasting of values
+#if(USE_MPI > 0)
+    ! Don't forget about pairingtype, the most important integer in this module!    
+    call MPI_Bcast(pairingtype, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+
+    ! namelist /pairing/ variables
+    call MPI_Bcast(Type, len(type), MPI_CHARACTER, 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_Bcast(Constantgap    ,  1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(guessgaps      ,  1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(gradient_precon,  1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(bogofromfile   ,  1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_Bcast(pairingscheme  ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(Blocktype      ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(Blocknumber    ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(maxhfbiter     ,  1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err) 
+
+    call MPI_Bcast(gapvalue       ,  2, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_Bcast(FermiSolver   , len(FermiSolver), MPI_CHARACTER, 0,        &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    ! /blocking/ namelist variables
     if(BlockNumber.ne.0) then
-        ! Sanity check: only allow for blocking in HFB mode
-        if(pairingtype.ne.2) then 
-          print *, 'Blocking only allowed when doing HFB calculations.'
-          stop
-        endif
-
-        allocate(BlockIndices(BlockNumber)) ; BlockIndices = 0
-        allocate(BlockLowest(BlockNumber))  ; BlockLowest  = ' ' 
-        read(unit=*, nml=Indices)
-
-        ! Sanity checks on the BlockLowest array: 
-        ! (a) do not proceed with empty list
-        ! (b) do not allow for selection on parity of the blocked state if
-        !  parity is broken
-        if(blocktype.eq.2 .or. blocktype .eq. 4) then
-          do i=1, blocknumber
-            select case(blocklowest(i))
-            case('n+', 'n-')
-$PBROKEN              print *, 'Cannot block a neutron qp with definite parity.'
-$PBROKEN              stop
-            case('p+', 'p-')
-$PBROKEN              print *, 'Cannot block a proton qp with definite parity.'
-$PBROKEN              stop
-            case('n0', 'p0')
-              ! allowed
-            case DEFAULT
-              ! something else went wrong
-              print *, 'Did not read all elements in blocklowest correctly.'
-              stop
-            end select
-          enddo
-        endif
-        
-        ! Sanity checks on the BlockIndices array:
-        ! (a) check if everything was read
-        if(blocktype.eq.1 .or. blocktype.eq.3) then
-          do i=1,blocknumber
-            if(blockindices(i) .eq.0) then
-              print *, 'Did not read all elements in blockindices correctly.'
-              stop
-            endif
-          enddo
-        endif
-
-        ! Sanity check on the useage of time-reversal conservation and EFA
-$NTR    if( blocktype.eq.3 .or. blocktype.eq.4) then        
-$NTR      if(pairingscheme.eq.1) then
-$NTR        print *, 'Cannot do EFA blocking with gradient solver when time-reversal is broken.'
-$NTR        stop
-$NTR      endif
-$NTR    endif
-        
-        ! Sanity check: cannot do full blocking if time-reversal is not broken
-$TR     if(blocktype.eq.1 .or. Blocktype.eq.2) then
-$TR       print *, 'Cannot do true blocking when time-reversal is conserved.'
-$TR       stop
-$TR     endif
-
-        ! Reading model spwf to block
-        if(blockfname .ne. "") then
-           call read_modelwf(blockfname)
-           if(blocknumber.gt. 1) then
-              print *, 'Cannot block more than one modelspwf.'
-              stop
-           endif
-        endif
+     call MPI_Bcast(blockJ, 1, MPI_REAL8, MPI_COMM_WORLD, mpi_err)
+     allocate(blockindices(blocknumber)) ; allocate(blocklowest(blocknumber))
+     call MPI_Bcast(blockindices,blocknumber,MPI_INTEGER,MPI_COMM_WORLD,mpi_err)
+     ! blocklowest is an array of strings, so it is complicated to transfer...
+     do i=1,blocknumber
+      call MPI_Bcast(blocklowest(i), 2,MPI_CHARACTER,MPI_COMM_WORLD,mpi_err) 
+     enddo
     endif
-
+#endif
     !---------------------------------------------------------------------------
-    ! Cutoff decision
+    ! Bookkeeping to be done by all MPI ranks
+    ! a) Cutoff decision
     select case(CutType)
     case(1)
        PairingCutoff => SymmetricFermi
@@ -320,12 +343,12 @@ $TR     endif
     case(4)
        PairingCutoff => SymmetricFermizero
     case DEFAULT
-       print *, 'Unknown cutoff type CutType. Valid options are 1-4.'
-       stop
+       call stp('Unknown cutoff type CutType. Valid options are 1-4.')
     end select
     pairingcut(1) = cutneutron
     pairingcut(2) = cutproton
-    !---------------------------------------------------------------------------
+
+    ! b) Gaps calculation decision
     select case(PairingType)
     case(0)
       CalcGaps => calcHFgaps
@@ -334,12 +357,15 @@ $TR     endif
     case(2)
       CalcGaps => calcHFBgaps
     end select
-    !---------------------------------------------------------------------------
-    ! 
-    if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
-      print *, 'Invalid pairingscheme value.'
-      stop
+
+    ! c) Fermisolver allocation
+    if(adjustl(FermiSolver).eq.'SECANT') then
+      FindFermi => FindFermi_secant
+    elseif(adjustl(FermiSolver).eq.'BRENT') then
+      FindFermi => FindFermi_brent
     endif
+    !---------------------------------------------------------------------------
+
   end subroutine initpairing
 
   subroutine printpairing_init
@@ -419,9 +445,7 @@ $TR     endif
     case(4)
        print 6, 'Sym. Fermi + Heaviside'
     case DEFAULT
-       print *, 'Unrecognized type of pairing cutoff.'
-       print *, 'Accepted values are 1-4.'
-       stop
+       call stp('Unrecognized type of pairing cutoff. Accepted values are 1-4.')
     end select
 
     print 7, pairingcut
@@ -482,12 +506,6 @@ $VMICRO call print_micro_pairing_info(ptype, intertype)
         case(5)
             print 16, blockindices
             print 17, blockJ
-!        case(5)
-!            print 92
-!        case(6)
-!            print 93
-!            print 16
-!            print 17, adjustl(blockfname)
         end select
     endif
 
@@ -509,13 +527,13 @@ $VMICRO call print_micro_pairing_info(ptype, intertype)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !
     ! Input:
-    !   gapvalue :  values to assign to the pairing gaps for neutrons and protons
-    !               in MeV. If gapvalue < 0, use the default value, 1.5 MeV.
+    !  gapvalue :  values to assign to the pairing gaps for neutrons and protons
+    !              in MeV. If gapvalue < 0, use the default value, 1.5 MeV.
     !---------------------------------------------------------------------------
     integer                   :: wave, wave2, si, B, N, s, N2, it
     real(KIND=dp), intent(in) :: gapvalue(2) 
     real(KIND=dp)             :: fill(2)
-    
+
     do it=1,2
       if(gapvalue(it) .lt. 0) then
         fill(it) = 1.5
@@ -523,8 +541,6 @@ $VMICRO call print_micro_pairing_info(ptype, intertype)
         fill(it) = gapvalue(it)
       endif
     enddo
-    
-    
 
     select case (PairingType)
     case(0)
@@ -546,19 +562,19 @@ $VMICRO call print_micro_pairing_info(ptype, intertype)
       if(.not.allocated(HFBGaps)) then
         allocate(HFBGaps(nwt,nwt)) ; HFBGaps = 0.0
       endif
-  
+
       HFBGaps = 0.0
       si = 0 
       do B= 1,8,2 ! Loop over only half of the blocks
-        N = HFBlocks(B) ; if(N.eq.0) cycle
-        N2= HFblocks(B+1)
-        
+        N = HFBlocks_global(B) ; if(N.eq.0) cycle
+        N2= HFBlocks_global(B+1)
+
         if(B .ge. 5) then
           it = 2
         else
           it = 1
         endif
-        
+
         do wave=si+1,si+N
              !------------------------------------------------------------------
              ! If there is a conserved time-like symmetry, then we store only
@@ -719,7 +735,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     ! Compute the cutoffs
     call ComputePairingCutoffs(fermienergy)
     call stop_timer(T_pairing)
-   
+
     if(blocknumber.ne.0) then
       blocked_sps = identify_blocked_particle(Bogoliubov) 
     endif   
@@ -784,8 +800,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     9 format ('  nucleus           ', 2x, f13.8, 2x, f13.8)
 
    10 format (' Stab. factor       ', 2x, f13.8, 2x, f13.8)
-   11 format (' Overlap with model ', 2x, f13.8)
- 
+!   11 format (' Overlap with model ', 2x, f13.8)
 !   12 format ('                               ++  +-  -+  --')
 !   13 format (' Number parity    n:', 2x, 4i3)
 !   14 format (' Number parity    p:', 2x, 4i3)
@@ -823,14 +838,6 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         if(abs(Estabp).gt.1d-10 .or. abs(Estabn).gt.1d-10) then
           print 10, stabfactor
         endif
-        if(blocktype.ge.5) then
-            print 11, blockoverlap
-        endif
-!        
-!$NTR    nb = number_parity_throughU(Bogoliubov, configmatrix, grad_blocks)        
-!$NTR    print 12
-!$NTR    print 13, nb(1:4)
-!$NTR    print 14, nb(5:8)
 
         if(pairingtype.eq.2) then
           call PrintHFBConvergence(rho_pairing, kappa_pairing, Bogoliubov)
@@ -1094,8 +1101,8 @@ $NTR      endif
     sb  = 0
     ind = 0
     do B=1,8,2
-      N = HFBlocks(B) ; if(N.eq.0) cycle
-      N2= HFBlocks(B+1)
+      N = HFBlocks_global(B) ; if(N.eq.0) cycle
+      N2= HFBlocks_global(B+1)
       
       do k=1,blocknumber
         qp = blocked_qps(k)
@@ -1128,117 +1135,117 @@ $NTR      endif
     enddo
    end function identify_blocked_particle
 
-  subroutine read_modelwf(fname)
-      !-------------------------------------------------------------------------
-      !
-      !-------------------------------------------------------------------------
-      logical                       :: exists = .true.
-      character(len=40), intent(in) :: fname 
-      integer                       :: io, filenx,fileny,filenz,fileit,filepar
-      integer                       :: i,j,k,l !, sxh(4), syh(4), szh(4)
-      real(KIND=dp)                 :: filedx
-      real(KIND=dp), pointer        :: model3d(:,:,:) 
-      !real(KIND=dp), allocatable    :: dmodel3d(:,:,:), ddmodel3d(:,:,:)
+!  subroutine read_modelwf(fname)
+!      !-------------------------------------------------------------------------
+!      !
+!      !-------------------------------------------------------------------------
+!      logical                       :: exists = .true.
+!      character(len=40), intent(in) :: fname 
+!      integer                       :: io, filenx,fileny,filenz,fileit,filepar
+!      integer                       :: i,j,k,l !, sxh(4), syh(4), szh(4)
+!      real(KIND=dp)                 :: filedx
+!      real(KIND=dp), pointer        :: model3d(:,:,:) 
+!      !real(KIND=dp), allocatable    :: dmodel3d(:,:,:), ddmodel3d(:,:,:)
 
-      1 format (3i3, f8.3, 2i3)
-      2 format (99f18.15)
+!      1 format (3i3, f8.3, 2i3)
+!      2 format (99f18.15)
 
 
-      inquire(file=fname, EXIST = exists)
+!      inquire(file=fname, EXIST = exists)
 
-      if( .not. exists) then
-        print *, 'File for model spwf does not exist.'
-        stop
-      else
-        allocate(modelspwf(nx*ny*nz,4,2)) ; modelspwf = 0
-        open(unit = 12, file=fname, iostat=io)
-        !-----------------------------------------------------------------------
-        ! Read the header:
-        ! nx ny nz dx it parity 
-        read(unit=12, fmt=1) filenx, fileny, filenz,filedx, fileit, filepar
-        ! Sanity checks
-        if((filenx .ne. nx) .or. &
-        &  (fileny .ne. ny) .or. & 
-        &  (filenz .ne. nz) .or. &
-        &  (filedx .ne. dx)) then
-          print *, 'Mesh of the model spwf does not match the calculation.'
-          stop
-        endif
-
-        !-----------------------------------------------------------------------
-        ! Read U(r)
-        do l=1,4
-          model3d(1:nx, 1:ny, 1:nz) => modelspwf(1:nx*ny*nz,l,1)
-          do k=1,nz
-            do j=1,ny
-              do i=1,nx
-               read(unit=12,fmt=2) model3d(i,j,k)
-              enddo
-            enddo
-          enddo
-        enddo
-        ! Read V(r)
-        do l=1,4
-          model3d(1:nx, 1:ny, 1:nz) => modelspwf(1:nx*ny*nz,l,2)
-          do k=1,nz
-            do j=1,ny
-              do i=1,nx
-               read(unit=12,fmt=2) model3d(i,j,k) 
-              enddo
-            enddo
-          enddo
-        enddo
-
-        !-----------------------------------------------------------------------
-        ! Some lines of code for checking the correct construction of the 
-        ! model spwfs on the mesh.
-        !
-        !-----------------------------------------------------------------------
-        
-!       sxh(1) =  1 ; syh(1) = +1 ; szh(1) = -1
-!        sxh(2) = -1 ; syh(2) = -1 ; szh(2) = -1 
-!        sxh(3) = -1 ; syh(3) = +1 ; szh(3) = +1
-!        sxh(4) =  1 ; syh(4) = -1 ; szh(4) = +1
-
-!        allocate(dmodel3d(nx*ny*nz,3,4)) ; dmodel3d = 0.0
-!        allocate(ddmodel3d(nx*ny*nz,6,4)) ; ddmodel3d = 0.0
-
-!        call inilag
-!        do l=1, 4
-!          call derive_tot_1D(modelspwf(:,l,1),sxh(l), syh(l), szh(l), &
-!                                             dmodel3d(:,:,l),ddmodel3d(:,:,l))
-!        enddo
-!        print *
-!        print *, 'Jz', &
-!                angmom_z_real(modelspwf(:,:,1),modelspwf(:,:,1), dmodel3d) & 
-!                &                                /(sum(modelspwf(:,:,1)**2)*dv)
-!        do l=1, 4
-!          call derive_tot_1D(modelspwf(:,l,2),-sxh(l), syh(l), -szh(l), &
-!                &                             dmodel3d(:,:,l),ddmodel3d(:,:,l))
-!        enddo
-!        print *
-!        print *, 'Jz',  & 
-!               &  angmom_z_real(modelspwf(:,:,2),modelspwf(:,:,2), dmodel3d) & 
-!               &  /(sum(modelspwf(:,:,2)**2)*dv)
+!      if( .not. exists) then
+!        print *, 'File for model spwf does not exist.'
 !        stop
-        !-----------------------------------------------------------------------
-        ! Assigning the right blocking blocks
-        if(fileit .eq. 1) then
-            if (filepar.gt.0) then
-              modelblock = 1
-            else
-              modelblock = 3
-            endif            
-        else
-            if (filepar.gt.0) then
-              modelblock = 5
-            else
-              modelblock = 7
-            endif            
-        endif
+!      else
+!        allocate(modelspwf(nx*ny*nz,4,2)) ; modelspwf = 0
+!        open(unit = 12, file=fname, iostat=io)
+!        !-----------------------------------------------------------------------
+!        ! Read the header:
+!        ! nx ny nz dx it parity 
+!        read(unit=12, fmt=1) filenx, fileny, filenz,filedx, fileit, filepar
+!        ! Sanity checks
+!        if((filenx .ne. nx) .or. &
+!        &  (fileny .ne. ny) .or. & 
+!        &  (filenz .ne. nz) .or. &
+!        &  (filedx .ne. dx)) then
+!          print *, 'Mesh of the model spwf does not match the calculation.'
+!          stop
+!        endif
 
-      endif 
-  end subroutine read_modelwf
+!        !-----------------------------------------------------------------------
+!        ! Read U(r)
+!        do l=1,4
+!          model3d(1:nx, 1:ny, 1:nz) => modelspwf(1:nx*ny*nz,l,1)
+!          do k=1,nz
+!            do j=1,ny
+!              do i=1,nx
+!               read(unit=12,fmt=2) model3d(i,j,k)
+!              enddo
+!            enddo
+!          enddo
+!        enddo
+!        ! Read V(r)
+!        do l=1,4
+!          model3d(1:nx, 1:ny, 1:nz) => modelspwf(1:nx*ny*nz,l,2)
+!          do k=1,nz
+!            do j=1,ny
+!              do i=1,nx
+!               read(unit=12,fmt=2) model3d(i,j,k) 
+!              enddo
+!            enddo
+!          enddo
+!        enddo
+
+!        !-----------------------------------------------------------------------
+!        ! Some lines of code for checking the correct construction of the 
+!        ! model spwfs on the mesh.
+!        !
+!        !-----------------------------------------------------------------------
+!        
+!!       sxh(1) =  1 ; syh(1) = +1 ; szh(1) = -1
+!!        sxh(2) = -1 ; syh(2) = -1 ; szh(2) = -1 
+!!        sxh(3) = -1 ; syh(3) = +1 ; szh(3) = +1
+!!        sxh(4) =  1 ; syh(4) = -1 ; szh(4) = +1
+
+!!        allocate(dmodel3d(nx*ny*nz,3,4)) ; dmodel3d = 0.0
+!!        allocate(ddmodel3d(nx*ny*nz,6,4)) ; ddmodel3d = 0.0
+
+!!        call inilag
+!!        do l=1, 4
+!!          call derive_tot_1D(modelspwf(:,l,1),sxh(l), syh(l), szh(l), &
+!!                                             dmodel3d(:,:,l),ddmodel3d(:,:,l))
+!!        enddo
+!!        print *
+!!        print *, 'Jz', &
+!!                angmom_z_real(modelspwf(:,:,1),modelspwf(:,:,1), dmodel3d) & 
+!!                &                                /(sum(modelspwf(:,:,1)**2)*dv)
+!!        do l=1, 4
+!!          call derive_tot_1D(modelspwf(:,l,2),-sxh(l), syh(l), -szh(l), &
+!!                &                             dmodel3d(:,:,l),ddmodel3d(:,:,l))
+!!        enddo
+!!        print *
+!!        print *, 'Jz',  & 
+!!               &  angmom_z_real(modelspwf(:,:,2),modelspwf(:,:,2), dmodel3d) & 
+!!               &  /(sum(modelspwf(:,:,2)**2)*dv)
+!!        stop
+!        !-----------------------------------------------------------------------
+!        ! Assigning the right blocking blocks
+!        if(fileit .eq. 1) then
+!            if (filepar.gt.0) then
+!              modelblock = 1
+!            else
+!              modelblock = 3
+!            endif            
+!        else
+!            if (filepar.gt.0) then
+!              modelblock = 5
+!            else
+!              modelblock = 7
+!            endif            
+!        endif
+
+!      endif 
+!  end subroutine read_modelwf
 
   subroutine clean_pairing()
     !---------------------------------------------------------------------------

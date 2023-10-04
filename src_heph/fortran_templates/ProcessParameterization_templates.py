@@ -23,3 +23,6 @@ check_a = T(  tab + 'if($PARAM .eq. -123456789) then \n')
 check_b = T(2*tab + '   print *, "$PARAM not read from .param file." \n')
 check_c = T(2*tab + '   stop \n')        
 check_d = T(  tab + 'endif \n')
+
+bcast_param_real = T( tab + 'call MPI_BCAST($PARAM, 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err) \n')
+bcast_param_int  = T( tab + 'call MPI_BCAST($PARAM, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err) \n')

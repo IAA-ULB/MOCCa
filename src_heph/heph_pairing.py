@@ -56,8 +56,11 @@ def ProcessPairing(fname, src, target, so):
 
 def ProcessHFB(fname, src, target, so):
   """  
-   We process HFB.f90, depending on the symmetries imposed.
+   We process HFB.f90, depending on the symmetries imposed and some choices
+   made for the pairing functional.
   """
+
+  from src_heph.heph_functional  import pairing_action_derorder
 
   dic = {}
 
@@ -67,7 +70,28 @@ def ProcessHFB(fname, src, target, so):
   else:
     dic["TR"]  = '!'
     dic["NTR"] = ' '
-    
+
+  if(pairing_action_derorder == 0):
+    dic['N1DELTA']  = '!'
+    dic['N2DELTA']  = '!'
+    dic['N3DELTA']  = '!'
+    dic['SYMDELTA'] = '!'
+  elif(pairing_action_derorder == 1):
+    dic['N1DELTA']  = ' '
+    dic['N2DELTA']  = '!'
+    dic['N3DELTA']  = '!'
+    dic['SYMDELTA'] = ''
+  elif(pairing_action_derorder == 2):
+    dic['N1DELTA']  = ' '
+    dic['N2DELTA']  = ' '
+    dic['N3DELTA']  = '!'
+    dic['SYMDELTA'] = ' '
+  elif(pairing_action_derorder == 3):
+    dic['N1DELTA']  = ' '
+    dic['N2DELTA']  = ' '
+    dic['N3DELTA']  = ' '
+    dic['SYMDELTA'] = ' '
+
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   # Ugly manual checking if parity is part of the generator set and 
   #  signalling this to the FORTRAN code

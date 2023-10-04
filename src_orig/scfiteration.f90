@@ -31,24 +31,41 @@ contains
   subroutine readscfiteration(file_number)
     !---------------------------------------------------------------------------
     ! Read the namelist determining the SCF-update.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-          
     integer(dp), intent(in), optional   :: file_number   
+#if(USE_MPI>0)
+    integer                             :: mpi_err
+#endif
 
     namelist /scfiteration/ scfscheme, denmix, preconfactor
-    
-    if(present(file_number)) then
-      read (unit=file_number, nml=scfiteration)
-    else
-      read (unit=*, nml=scfiteration)
-    endif
-    ! Sanity checks
-    if((scfscheme .ne. 0) .and. (scfscheme.ne.1)) then
-      print *, 'Invalid scfscheme value.'
-      stop
-    endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Only the very first MPI rank reads the input
+    if(MPI_RANK.eq.0) then
+      if(present(file_number)) then
+        read (unit=file_number, nml=scfiteration)
+      else
+        read (unit=*, nml=scfiteration)
+      endif
+
+      ! Sanity checks
+      if((scfscheme .ne. 0) .and. (scfscheme.ne.1)) then
+        call stp('Invalid scfscheme value.')
+      endif
+    endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Broadcasting the MPI information
+#if(USE_MPI > 0)
+    call MPI_BCAST(scfscheme   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(denmix      , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(preconfactor, 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+#endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Bookkeeping for all MPI ranks
     ! Interpreting the scfscheme choice in terms of densities and potentials
     select case(scfscheme)
     case(0)

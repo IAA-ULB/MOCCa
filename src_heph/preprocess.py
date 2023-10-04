@@ -102,7 +102,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl):
         return
         return
     if(fname=='evolution.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessGeneric(fname, src, target, so)
         return
     if(fname=='IO.f90'):
         ProcessIO(fname, src, target, so, oldso)
@@ -116,9 +116,9 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl):
     if(fname=='pairing_strengths.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
-    if(fname=='BCS.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-        return
+#    if(fname=='BCS.f90'):
+#        os.system('cp ' + src + fname + ' ' + target + fname)
+#        return
     if(fname=='pairingcutoffs.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
         return
@@ -131,7 +131,9 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl):
     if(fname=='HFB_direct.f90'):
         ProcessGeneric(fname, src, target, so)
         return
-    if(fname=='HFB.f90'):
+    if(fname=='HFB.f90' or fname == 'BCS.f90'): 
+        #BCS.f90 and HFB.f90 have exactly the same needs in terms of 
+        # preprocessing by Hephaestos
         ProcessHFB(fname, src, target, so)
         return
     if(fname=='hartree-fock.f90'):
@@ -192,15 +194,28 @@ def ProcessGeneric(fname, src, target, so):
     """
 
     """
+    from src_heph.heph_functional import derivative_order 
+    
+    global derivative_order
 
     dic = {}
-      
+
     if(so.timelike):
       dic['TR'] = ''
       dic['NTR']= '!'
     else:
       dic['TR'] = '!'
       dic['NTR']= ''
+
+    if(derivative_order == 1):
+      dic['N2'] = ' '    
+      dic['N3'] = '!'
+    elif(derivative_order == 2): 
+      dic['N2'] = ' '
+      dic['N3'] = '!'
+    elif(derivative_order == 3):
+      dic['N2'] = '!'
+      dic['N3'] = ' '
 
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
