@@ -1,0 +1,63 @@
+!-------------------------------------------------------------------------------
+! SN2LO1 parameterization of the N2LO functional using the original parameter
+! values of 
+!
+!    P. Becker, D. Davesne, J. Meyer, J. Navarro and A. Pastore,
+!    Phys. Rev. C 96, 044330 (2017).
+!
+! The functional form is however the more optimal one shown of   
+!    W. Ryssens and M. Bender, 
+!    Skyrme pseudopotentials at next-to-next-to-leading order: 
+!    Construction of local densities and first symmetry-breaking calculations. 
+!    Phys. Rev. C 104, 044308 (2021). 
+!    https://doi.org/10.1103/PhysRevC.104.044308
+!
+! This version of the SN2LO1 parameters is intended for use with the BXL-N2LO
+! configuration compilation options.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SN2LO1-BXL" 
+func_file= 'BXL-N2LO.func'
+!-------------------------------------------------------------------------------
+! particle-hole parameters
+! standard NLO Skyrme
+! - - - - - - - - - - - -
+t0       =  -2486.90786,
+t1       =    497.51821,
+t2       =   -451.60715,
+t3       =  13707.18320,
+x0       =      0.57160369,
+x1       =     -0.05521333,
+x2       =     -0.99803779,
+x3       =      0.88704830,
+sigma    =      0.166666666666666666667 
+wso      =    117.904418,
+wsoq     =    117.904418, 
+! - - - - - - - - - - - -
+! N2LO Skyrme
+! - - - - - - - - - - - -
+t1n2     =    -11.95063,
+t2n2     =    -15.04405,
+x1n2     =      0.10279808,
+x2n2     =     -0.93024200,
+!-------------------------------------------------------------------------------
+! particle-particle parameters
+Vn       =  -1250.00000
+Vp       =  -1250.00000
+Vnm      =      0.00,               ! Microscopic pairing terms inactive 
+Vpm      =      0.00, 
+kappa_n  =      0.0, 
+kappa_p  =      0.0, 
+alpha    =      1.0
+sigmap   =      1.0
+ptype       = 0  
+intertype   = 1  
+!-------------------------------------------------------------------------------
+! Options for the treatment of collective motion
+COM1Body    = 2
+COM2Body    = 0
+!-------------------------------------------------------------------------------
+! Numerical constants
+hbm(1)   = 20.73553,20.73553
+e2       = 1.43996446, 
+/ 
