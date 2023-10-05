@@ -1,17 +1,26 @@
 #-----------------------------------------------------------------------------------------------------------------------
-# Functional file for the fits in Brussels.
-# Based on the standard Skyrme NLO functional, with a few noteworthy things
-#   *) Two spin-orbit strengths
-#   *) Optional JmnJmn terms and s Delta s terms for the standard EDF
-#   *) ATTENTION: No implementation of density-dependent J^2, s Delta s and 
-#                (nabla s)^2 terms.
+# Functional file for the NLO fits in Brussels.
+# Things to be noted
+#   - Two spin-orbit strengths
+#   - Optional JmnJmn terms and s Delta s terms for the standard EDF
+#   - Optional microscopic pairing treatment (see BSkG3 publication)
+#   - ATTENTION: there is no implementation at all of the density-dependent 
+#      J^2, s Delta s and (nabla s)^2 terms.
 # 
 # BSkG1 : G. Scamps, S. Goriely, E. Olsen, M. Bender, W. Ryssens 
 #         Skyrme-Hartree-Fock-Bogoliubov mass models on a 3D mesh: effect of triaxial shape. 
 #         European Physical Journal A, 57(12), 333 (2021). 
 #         https://doi.org/10.1140/epja/s10050-021-00642-1
 #
-# t4/t5 extension taken from:
+# BSkG2 : W. Ryssens, G. Scamps, S. Goriely and M. Bender
+#         Skyrme-Hartree-Fock-Bogoliubov mass models on a 3D mesh: II. Time-reversal symmetry breaking.
+#         European Physical Journal A 58, 246 (2022).
+#         https://doi.org/10.1140/epja/s10050-022-00894-5
+# 
+# BSkG3 : G. Grams, W. Ryssens, G. Scamps, S. Goriely and N. Chamel
+#         Skyrme-Hartree-Fock-Bogoliubov mass models on a 3D mesh: III. From atomic nuclei to neutron stars.
+#         
+#         The formulas for the t4/t5 extension of the standard EDF were taken from:
 #         A. Pastore, M. Martini, D. Davesne, J. Navarro, S. Goriely and N. Chamel,
 #         Linear response theory and neutrino mean free path using Brussels-Montreal Skyrme functionals,
 #         Physical Review C 90, 025804 (2014)
