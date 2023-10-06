@@ -1,97 +1,34 @@
 #-------------------------------------------------------------------------------
 # Small bash script that generates the public version of Tantalus for the 
-# Brussels group with the Brussels EDFs.
+# BXL group with NLO and N2LO EDFs.
 #-------------------------------------------------------------------------------
+for subscript in '' '_T' '_P' '_TP'
+do
+for EDF       in 'NLO' 'N2LO'
+do
 
-CONFIG=BXL
-CONFIG_T=BXL-T
-CONFIG_P=BXL-P
-CONFIG_TP=BXL-TP
-CONFIG_crankX=BXL-crank
-CONFIG_T_crankX=BXL-T-crank
+EDFSTR="_$EDF"
+#echo $EDFSTR$subscript
 
-SRCPUBLIC=$HOME/Documents/Codes/tantalus_public/src
-SRCPUBLIC_T=$HOME/Documents/Codes/tantalus_public/src_T
-SRCPUBLIC_P=$HOME/Documents/Codes/tantalus_public/src_P
-SRCPUBLIC_TP=$HOME/Documents/Codes/tantalus_public/src_TP
+SRC=$HOME/Documents/Codes/tantalus_public/src$EDFSTR$subscript
+echo SRC=$SRC
+mkdir -p $SRC
 
-SRCPUBLIC_crankX=$HOME/Documents/Codes/tantalus_public/src_crankX
-SRCPUBLIC_T_crankX=$HOME/Documents/Codes/tantalus_public/src_T_crankX
+config="BXL-$EDF$subscript$crankX"
+config=${config//_/-}
+config=${config/'-NLO'/}
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-# Time-reversal conserved version; traditional orientation of Qlm
+#echo $config
+ls configs/$config.py
 
-python3 Hephaestos.py $CONFIG &>  /dev/null
-
+python3 Hephaestos.py $config &> /dev/null
 cp src/tantalus.f90 src/tantalus.version.f90
 sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' src/tantalus.version.f90 
 sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' src/tantalus.version.f90 
 sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' src/tantalus.version.f90 
 rm src/tantalus.version.f90.bak
 
-cp src/*.f90 $SRCPUBLIC/
+cp src/*.f90 $SRC/
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-# Time-reversal conserved version; X-orientation of Qlm
-
-python3 Hephaestos.py $CONFIG_crankX &>  /dev/null
-
-cp src/tantalus.f90 src/tantalus.version.f90
-sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' src/tantalus.version.f90 
-sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' src/tantalus.version.f90 
-sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' src/tantalus.version.f90 
-rm src/tantalus.version.f90.bak
-
-cp src/*.f90 $SRCPUBLIC_crankX/
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-# Time-reversal broken version; traditional orientation of Qlm
-
-python3 Hephaestos.py $CONFIG_T &>  /dev/null
-
-cp src/tantalus.f90 src/tantalus.version.f90
-sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' src/tantalus.version.f90 
-sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' src/tantalus.version.f90 
-sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' src/tantalus.version.f90 
-rm src/tantalus.version.f90.bak
-
-cp src/*.f90 $SRCPUBLIC_T/
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-# Time-reversal broken version; traditional orientation of Qlm
-
-python3 Hephaestos.py $CONFIG_T_crankX &>  /dev/null
-
-cp src/tantalus.f90 src/tantalus.version.f90
-sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' src/tantalus.version.f90 
-sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' src/tantalus.version.f90 
-sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' src/tantalus.version.f90 
-rm src/tantalus.version.f90.bak
-
-cp src/*.f90 $SRCPUBLIC_T_crankX/
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-# Parity broken version; traditional orientation of Qlm
-
-python3 Hephaestos.py $CONFIG_P &>  /dev/null
-
-cp src/tantalus.f90 src/tantalus.version.f90
-sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' src/tantalus.version.f90 
-sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' src/tantalus.version.f90 
-sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' src/tantalus.version.f90 
-rm src/tantalus.version.f90.bak
-
-cp src/*.f90 $SRCPUBLIC_P/
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-# PT-broken version; traditional orientation of Qlm
-
-python3 Hephaestos.py $CONFIG_TP &>  /dev/null
-
-cp src/tantalus.f90 src/tantalus.version.f90
-sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' src/tantalus.version.f90 
-sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' src/tantalus.version.f90 
-sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' src/tantalus.version.f90 
-rm src/tantalus.version.f90.bak
-
-cp src/*.f90 $SRCPUBLIC_TP/
-
+done
+done
