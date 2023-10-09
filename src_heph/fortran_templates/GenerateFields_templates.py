@@ -67,8 +67,8 @@ field_read_b  = T(3*tab +  'if(MPI_RANK .eq. 0) read(chan, iostat=io)  ${FIELD}_
                   '#endif \n')
 
 field_read_c  = T(3*tab +  'if(symtransfo_needed) then    \n')
-field_read_d  = T(4*tab + '$FIELD = ${FIELD}_hist \n'                  \
-                            +   4*tab + '$UNDOREAD deallocate($FIELD, ${FIELD}_hist) \n')
+field_read_d  = T(4*tab + '$POTREAD $FIELD = ${FIELD}_hist \n'                  \
+                + 4*tab + '$UNDOREAD deallocate($FIELD, ${FIELD}_hist) \n')
 field_read_e  = T(3*tab +  'else \n')
 field_read_f  = T(3*tab +  'endif \n')
 # ..... and to transform fields with different symmetries

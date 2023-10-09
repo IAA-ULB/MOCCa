@@ -1428,6 +1428,7 @@ $WRITEPOTENTIALS
     call MPI_BCAST(fieldnumber, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
 
+
     do fieldcount = 1,fieldnumber
         ! Read the fieldname
         if(MPI_RANK .eq. 0) read(chan, iostat=io) fieldname

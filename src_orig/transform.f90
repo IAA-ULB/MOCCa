@@ -43,10 +43,39 @@ module transform
 
 contains
 
-  subroutine Transformspwfs( wfs , blocks, oldnx, oldny, oldnz)
+  subroutine Transformspwfs(wfs,oldnx, oldny, oldnz,                          &
+  &                       blocks, blocks_local, old_rank_map, old_spwf_inverse)
     !---------------------------------------------------------------------------
-    ! Transform a set of spwfs, in a blockstructure dictated by blocks, into
-    ! a set of spwfs with less symmetries.
+    ! Transform a set of spwfs (wfs) with a given set of symmetries as 
+    ! characterized by a set of symmetry classes (blocks) that are defined on 
+    ! a mesh with (oldnx,oldny,oldnz) points into a set of spwfs with the 
+    ! symmetry choices of the calculation on the new mesh.
+    !
+    ! This routine performs EXACTLY ONE of the following actions:
+    !  (1) Breaks a single non-spatial symmetry (like T-reversal)
+    !  (2) Breaks a single spatial symmetry (like P)
+    ! but it cannot do more in a single go.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !
+    ! Input:
+    !   wfs          : set of old spwfs to be transformed
+    !   oldnx/y/z    : parameters of the original mesh
+    !   blocks       : symmetry blocks of the old spwfs. These need to be GLOBAL
+    !                  values, i.e. the total number of spwfs in a block across
+    !                  all MPI ranks. 
+    !   blocks_local : symmetry blocks of the old spwfs. 
+    !   old_rank_map     : MPI rank mapping for the old spwfs
+    !   old_spwf_inverse : inverse mapping for the old spwfs
+    !
+    ! Output:
+    !   wfs       : set of transformed spwfs
+    !
+    ! Side-effects:
+    !   The code effects a new load balancing of the spwfs among the available
+    !   MPI ranks. At the start of this routine, there is a set of wfs that are
+    !   dispersed in a certain way among the available MPI ranks. The new set
+    !   of symmetry blocks is determined, prompting another look at the 
+    !   load balancing and a reshuffling of the spwfs among the ranks.
     !---------------------------------------------------------------------------
   1 format("------------------------------------------------------------------")
   2 format(" Number of spwfs on STDIN does not match what is required.")
@@ -71,8 +100,18 @@ contains
 
 
     real(KIND=dp), intent(inout), allocatable, target :: wfs(:,:,:)
-    integer, intent(inout)                    :: blocks(8)
+    integer, intent(inout)                    :: blocks(8), blocks_local(8)
     integer, intent(in)                       :: oldnx, oldny, oldnz
+    integer, intent(in)                       :: old_rank_map(:)
+    integer, intent(in)                       :: old_spwf_inverse(:)
+
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - -
+!    ! Variable declaration for the load rebalancing
+!    integer              :: new_blocks(8)
+!    integer, allocatable :: new_spwf_map(:) 
+!    integer, allocatable :: new_rank_map(:) 
+!    integer, allocatable :: new_spwf_inverse(:) 
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - -
 
     real(KIND=dp), allocatable                :: temp(:,:,:), tempe(:)
     real(KIND=dp), allocatable                :: tempd(:), tempr(:)
@@ -87,6 +126,10 @@ contains
 
 
     integer  :: wave, N, B, si, sb,i, wave2, offset_left, offset_right, j, k, sc
+    integer  :: recv_rank, send_rank, tempind, wfind
+#if(USE_MPI>0)
+    integer :: mpi_err
+#endif
 
     if(.not. allocated(rho_can)) then
         ! There is one case where this array might not be allocated upon entry
@@ -94,11 +137,62 @@ contains
         allocate(rho_can(sum(blocks))) ; rho_can = 0.0d0
     endif
 
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Decide on what the new block structure will be
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    if( $NONSPATIAL ) then
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! We will be using an antilinear, antihermitian symmetry operator to 
+      ! double the total number of spwfs and construct partner states.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! A sanity check
+      if((2*sum(blocks(1:4)) .ne. nwn)  .or. (2*sum(blocks(5:8)) .ne. nwp)) then
+        print 1
+        print 2
+        print 3, 2*sum(blocks(1:4)), 2*sum(blocks(5:8))
+        print 4, nwn, nwp
+        print 1
+        call stp('')
+      endif
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Create the second block in every pair
+      HFBlocks_global(1) = blocks(1) ; HFBlocks_global(2) = blocks(1)
+      HFBlocks_global(3) = blocks(3) ; HFBlocks_global(4) = blocks(3)
+      HFBlocks_global(5) = blocks(5) ; HFBlocks_global(6) = blocks(5)
+      HFBlocks_global(7) = blocks(7) ; HFBlocks_global(8) = blocks(7)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    endif 
+    if( $SPATIAL ) then 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Merge the blocks associated with a linear, hermitian symmetry
+      HFBlocks_global(1) = blocks(1) + blocks(3)
+      HFBlocks_global(2) = blocks(2) + blocks(4)
+      HFBlocks_global(5) = blocks(5) + blocks(7)
+      HFBlocks_global(6) = blocks(6) + blocks(8)
+      ! Remove the old blocks
+      HFBlocks_global(3:4) = 0
+      HFBlocks_global(7:8) = 0
+    endif
+
+    print *, 'GLOBAL', HFBLOCKS_GLOBAL
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! .. and now we have each rank decide what (transformed) spwfs to take 
+    !    from file
+    call loadbalance(HFBlocks_global,balancing_strategy, &            ! inputs
+    &       HFblocks, spwf_map, rank_map, spwf_inverse)               ! outputs
+    ! this particular will hold nwt_local spwfs at the end of the transformation
+    nwt_local = sum(HFblocks)
+
+    print *, MPI_RANK, 'loadbalanced', HFBLocks
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Copying old information into temporary arrays
     temp        = wfs         ; tempe   = spenergies
     tempd       = dispersions ; tempr   = rho_can
     temptransfo = hftransfo   ; tempsph = current_sph
-
-    deallocate(wfs)         ; allocate(wfs(nx*ny*nz,4,nwt))
+    !... and making space for the new set of date
+    deallocate(wfs)         ; allocate(wfs(nx*ny*nz,4,nwt_local))
     deallocate(dispersions) ; allocate(dispersions(nwt))    ; dispersions  = 0
     deallocate(spenergies)  ; allocate(spenergies(nwt))     ; spenergies   = 0
     deallocate(rho_can)     ; allocate(rho_can(nwt))        ; rho_can      = 0
@@ -121,184 +215,169 @@ contains
     ! Use an antilinear, antihermitian symmetry operator (usually time-reversal)
     ! to double the total number of spwfs and construct the partner states.
     !---------------------------------------------------------------------------
-    if( $NONSPATIAL ) then
+!    if( $NONSPATIAL ) then
 
-      ! A more elegant way of stopping if the number of spwfs does not match
-      if((2*sum(blocks(1:4)) .ne. nwn)  .or. (2*sum(blocks(5:8)) .ne. nwp)) then
-        print 1
-        print 2
-        print 3, 2*sum(blocks(1:4)), 2*sum(blocks(5:8))
-        print 4, nwn, nwp
-        print 1
-        call stp('')
-      endif
+!      si = 0
+!      sb = 0
+!      do B = 1,8
+!        !-----------------------------------------------------------------------
+!        ! Loop over the blocks.
+!        !- - - - - - - - - - - -
+!        ! Note that blocks = 2,4,6,8 are always of zero size in this loop, as we
+!        ! are breaking the antilinear, antihermitian conserved symmetry
+!        N = blocks(B); if(N .eq. 0) cycle
 
-      si = 0
-      sb = 0
-      do B = 1,8
-        !-----------------------------------------------------------------------
-        ! Loop over the blocks.
-        !- - - - - - - - - - - -
-        ! Note that blocks = 2,4,6,8 are always of zero size in this loop, as we
-        ! are breaking the antilinear, antihermitian conserved symmetry
-        N = blocks(B); if(N .eq. 0) cycle
+!        ! Copy the wavefunctions that were already in storage
+!        wfs(:,:,sb+1:sb+N)    = temp(:,:,si+1:si+N)
+!        dispersions(sb+1:sb+N)= tempd(si+1:si+N)
+!        spenergies(sb+1:sb+N) = tempe(si+1:si+N)
+!        rho_can(sb+1:sb+N)    = tempr(si+1:si+N) /2.0 ! Note the factor 1/2
 
-        ! Copy the wavefunctions that were already in storage
-        wfs(:,:,sb+1:sb+N)    = temp(:,:,si+1:si+N)
-        dispersions(sb+1:sb+N)= tempd(si+1:si+N)
-        spenergies(sb+1:sb+N) = tempe(si+1:si+N)
-        rho_can(sb+1:sb+N)    = tempr(si+1:si+N) /2.0 ! Note the factor 1/2
+!        ! Use the antilinear, antihermitian symmetry to obtain the transformed
+!        ! spwfs. The remapping into 3D functions is superfluous here, but
+!        ! it makes the Hephaestos coding more flexible.
+!        do wave = 1, N
+!         wftarget = temp(:,:,si+wave)
+!         right3D(1:oldnx,1:oldny, 1:oldnz,1:4) => wftarget(:,:)
+!         left3D(1:nx, 1:ny, 1:nz,1:4)          => wfs(:,:,sb+N+wave)
+!         do k=1, oldnz
+!          do j=1,oldny
+!           do i=1, oldnx
+!             left3D(i,j,k,1) = $TRANSFO_NONSPATIAL_1
+!             left3D(i,j,k,2) = $TRANSFO_NONSPATIAL_2
+!             left3D(i,j,k,3) = $TRANSFO_NONSPATIAL_3
+!             left3D(i,j,k,4) = $TRANSFO_NONSPATIAL_4
+!           enddo
+!          enddo
+!         enddo
+!        enddo
+!        dispersions(sb+N+1:sb+2*N)  = tempd(si+1:si+N)
+!        spenergies(sb+N+1 :sb+2*N)  = tempe(si+1:si+N)
+!        rho_can(sb+N+1:sb+2*N)      = tempr(si+1:si+N)/2.0 ! Note the factor 1/2
 
-        ! Use the antilinear, antihermitian symmetry to obtain the transformed
-        ! spwfs. The remapping into 3D functions is superfluous here, but
-        ! it makes the Hephaestos coding more flexible.
-        do wave = 1, N
-         wftarget = temp(:,:,si+wave)
-         right3D(1:oldnx,1:oldny, 1:oldnz,1:4) => wftarget(:,:)
-         left3D(1:nx, 1:ny, 1:nz,1:4)          => wfs(:,:,sb+N+wave)
-         do k=1, oldnz
-          do j=1,oldny
-           do i=1, oldnx
-             left3D(i,j,k,1) = $TRANSFO_NONSPATIAL_1
-             left3D(i,j,k,2) = $TRANSFO_NONSPATIAL_2
-             left3D(i,j,k,3) = $TRANSFO_NONSPATIAL_3
-             left3D(i,j,k,4) = $TRANSFO_NONSPATIAL_4
-           enddo
-          enddo
-         enddo
-        enddo
-        dispersions(sb+N+1:sb+2*N)  = tempd(si+1:si+N)
-        spenergies(sb+N+1 :sb+2*N)  = tempe(si+1:si+N)
-        rho_can(sb+N+1:sb+2*N)      = tempr(si+1:si+N)/2.0 ! Note the factor 1/2
+!        !-------------------------------------------------------------------
+!        ! (6) The current HF transformation
+!        hftransfo(sb  +1:sb+  N,sb  +1:sb+  N) = &
+!        &                                   temptransfo(si+1:si+N,si+1:si+N)
+!        hftransfo(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
+!        &                                   temptransfo(si+1:si+N,si+1:si+N)
+!        !-------------------------------------------------------------------
+!        ! (7) The current single-particle hamiltonian
+!        current_sph(sb  +1:sb+  N,sb  +1:sb  +N) = &
+!        &                                       tempsph(si+1:si+N,si+1:si+N)
+!        current_sph(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
+!        &                                       tempsph(si+1:si+N,si+1:si+N)
 
-        !-------------------------------------------------------------------
-        ! (6) The current HF transformation
-        hftransfo(sb  +1:sb+  N,sb  +1:sb+  N) = &
-        &                                   temptransfo(si+1:si+N,si+1:si+N)
-        hftransfo(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
-        &                                   temptransfo(si+1:si+N,si+1:si+N)
-        !-------------------------------------------------------------------
-        ! (7) The current single-particle hamiltonian
-        current_sph(sb  +1:sb+  N,sb  +1:sb  +N) = &
-        &                                       tempsph(si+1:si+N,si+1:si+N)
-        current_sph(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
-        &                                       tempsph(si+1:si+N,si+1:si+N)
+!        si = si +   N
+!        sb = sb + 2*N
+!      enddo
 
-        si = si +   N
-        sb = sb + 2*N
-      enddo
-      !-------------------------------------------------------------------------
-      ! Create the second block in every pair
-      HFBlocks(1) = blocks(1) ; HFBlocks(2) = blocks(1)
-      HFBlocks(3) = blocks(3) ; HFBlocks(4) = blocks(3)
-      HFBlocks(5) = blocks(5) ; HFBlocks(6) = blocks(5)
-      HFBlocks(7) = blocks(7) ; HFBlocks(8) = blocks(7)
-      !-------------------------------------------------------------------------
-      ! Transformation of pairing quantities
-      ! (1)  the pairing gaps
-      ! (2)  the density matrix rho
-      ! (3)  the anomalous density matrix
-      ! (4)  the Bogoliubov transformation
-      ! (5)  the configuration matrix
-      ! (6)  the HF transformation
-      ! (7)  the current single-particle hamiltonian
-      !
-      ! Note that (6) and (7) have been moved above, since they need to always
-      ! be performed, even if we are having new gaps initialized.
-      if(pairingtype.eq.2) then
-        ! Only do this if HFB gaps have been read from file, otherwise we rely
-        ! on the initialization routine for gaps
-        if(allocated(HFBgaps)) then
-          tempgaps = HFBgaps
-          tempkap  = kappa_pairing
-          tempbogo = Bogoliubov
-          temprho  = rho_pairing
+!      !-------------------------------------------------------------------------
+!      ! Transformation of pairing quantities
+!      ! (1)  the pairing gaps
+!      ! (2)  the density matrix rho
+!      ! (3)  the anomalous density matrix
+!      ! (4)  the Bogoliubov transformation
+!      ! (5)  the configuration matrix
+!      ! (6)  the HF transformation
+!      ! (7)  the current single-particle hamiltonian
+!      !
+!      ! Note that (6) and (7) have been moved above, since they need to always
+!      ! be performed, even if we are having new gaps initialized.
+!      if(pairingtype.eq.2) then
+!        ! Only do this if HFB gaps have been read from file, otherwise we rely
+!        ! on the initialization routine for gaps
+!        if(allocated(HFBgaps)) then
+!          tempgaps = HFBgaps
+!          tempkap  = kappa_pairing
+!          tempbogo = Bogoliubov
+!          temprho  = rho_pairing
 
-          deallocate(HFBgaps)       ; allocate(HFBgaps(nwt, nwt))
-          deallocate(kappa_pairing) ; allocate(kappa_pairing(nwt,nwt))
-          deallocate(Bogoliubov)    ; allocate(Bogoliubov(2*nwt,2*nwt))
-          deallocate(rho_pairing)   ; allocate(rho_pairing(nwt,nwt))
+!          deallocate(HFBgaps)       ; allocate(HFBgaps(nwt, nwt))
+!          deallocate(kappa_pairing) ; allocate(kappa_pairing(nwt,nwt))
+!          deallocate(Bogoliubov)    ; allocate(Bogoliubov(2*nwt,2*nwt))
+!          deallocate(rho_pairing)   ; allocate(rho_pairing(nwt,nwt))
 
-          HFBgaps = 0; rho_pairing = 0 ; kappa_pairing = 0 ; Bogoliubov = 0
+!          HFBgaps = 0; rho_pairing = 0 ; kappa_pairing = 0 ; Bogoliubov = 0
 
-          si = 0  ; sb = 0 ; sc = 0
-          do B = 1,8
-            N = blocks(B) ; if(N .eq. 0) cycle
-            !-------------------------------------------------------------------
-            ! (1)  the pairing gaps
-            ! (2)  the density matrix rho
-            ! (3)  the anomalous density matrix
-            do wave=1,N
-              do wave2=1,N
-                HFBgaps(sb + wave     , sb + wave2 + N)  = &
-                &                                     tempgaps(si+wave,si+wave2)
-                HFBgaps(sb + wave  + N, sb + wave2    )  = &
-                &                                    -tempgaps(si+wave,si+wave2)
+!          si = 0  ; sb = 0 ; sc = 0
+!          do B = 1,8
+!            N = blocks(B) ; if(N .eq. 0) cycle
+!            !-------------------------------------------------------------------
+!            ! (1)  the pairing gaps
+!            ! (2)  the density matrix rho
+!            ! (3)  the anomalous density matrix
+!            do wave=1,N
+!              do wave2=1,N
+!                HFBgaps(sb + wave     , sb + wave2 + N)  = &
+!                &                                     tempgaps(si+wave,si+wave2)
+!                HFBgaps(sb + wave  + N, sb + wave2    )  = &
+!                &                                    -tempgaps(si+wave,si+wave2)
 
-                rho_pairing(sb+wave  , sb+wave2)    = &
-                &                                      temprho(si+wave,si+wave2)
-                rho_pairing(sb+wave+N, sb+wave2+N)  = &
-                &                                      temprho(si+wave,si+wave2)
+!                rho_pairing(sb+wave  , sb+wave2)    = &
+!                &                                      temprho(si+wave,si+wave2)
+!                rho_pairing(sb+wave+N, sb+wave2+N)  = &
+!                &                                      temprho(si+wave,si+wave2)
 
-                kappa_pairing(sb + wave    , sb + wave2 + N) = &
-                &                                      tempkap(si+wave,si+wave2)
-                kappa_pairing(sb + wave+ N , sb + wave2     ) = &
-                &                                     -tempkap(si+wave,si+wave2)
-              enddo
-            enddo
-            !-------------------------------------------------------------------
-            ! (4) The current Bogoliubov transformation
-            do wave=1,N
-                ! On file, the Bogoliubov transformation has the following form
-                !
-                !  W =   ( V^T,+  U^+)     => time-reversal invariant, i.e.
-                !        ( U^T,+  V^+)        half of all columns
-                !
-                ! but we need to produce a Bogoliubov transform that reads
-                ! (in every pair of blocks linked by an antihermitian, linear
-                !  symmetry)
-                !
-                !
-                !       (  V^*+   0     U+  0   )
-                !  W =  (  0      V^*-  0   U-  )
-                !       (  0      U^*-  0   V-  )
-                !       (  U^*+   0     V+  0   )
-                !
-                ! with U^+ = U^- and V^- = - V^+.
+!                kappa_pairing(sb + wave    , sb + wave2 + N) = &
+!                &                                      tempkap(si+wave,si+wave2)
+!                kappa_pairing(sb + wave+ N , sb + wave2     ) = &
+!                &                                     -tempkap(si+wave,si+wave2)
+!              enddo
+!            enddo
+!            !-------------------------------------------------------------------
+!            ! (4) The current Bogoliubov transformation
+!            do wave=1,N
+!                ! On file, the Bogoliubov transformation has the following form
+!                !
+!                !  W =   ( V^T,+  U^+)     => time-reversal invariant, i.e.
+!                !        ( U^T,+  V^+)        half of all columns
+!                !
+!                ! but we need to produce a Bogoliubov transform that reads
+!                ! (in every pair of blocks linked by an antihermitian, linear
+!                !  symmetry)
+!                !
+!                !
+!                !       (  V^*+   0     U+  0   )
+!                !  W =  (  0      V^*-  0   U-  )
+!                !       (  0      U^*-  0   V-  )
+!                !       (  U^*+   0     V+  0   )
+!                !
+!                ! with U^+ = U^- and V^- = - V^+.
 
-                ! We start by getting the r.h.s. columns correct
-                ! - - - - - - - - - - - - - - - - - - - - - - - -
-                ! U^+
-                Bogoliubov(sc    +1:sc+  N, sc+2*N+wave) = &
-                &                              tempbogo(sb  +1:sb+  N,sb+N+wave)
-                ! V^+ (note the minus sign!)
-                Bogoliubov(sc+3*N+1:sc+4*N, sc+2*N+wave) = &
-                &                            - tempbogo(sb+N+1:sb+2*N,sb+N+wave)
-                ! U^-
-                Bogoliubov(sc+  N+1:sc+2*N, sc+3*N+wave) = &
-                &                              tempbogo(sb  +1:sb+  N,sb+N+wave)
-                ! V^-
-                Bogoliubov(sc+2*N+1:sc+3*N, sc+3*N+wave) = &
-                &                              tempbogo(sb+N+1:sb+2*N,sb+N+wave)
-                ! - - - - - - - - - - - - - - - - - - - - - - - -
-                ! and then we could construct the l.h.s. columns by symmetry ,
-                ! but this is never used by the code.
-            enddo
+!                ! We start by getting the r.h.s. columns correct
+!                ! - - - - - - - - - - - - - - - - - - - - - - - -
+!                ! U^+
+!                Bogoliubov(sc    +1:sc+  N, sc+2*N+wave) = &
+!                &                              tempbogo(sb  +1:sb+  N,sb+N+wave)
+!                ! V^+ (note the minus sign!)
+!                Bogoliubov(sc+3*N+1:sc+4*N, sc+2*N+wave) = &
+!                &                            - tempbogo(sb+N+1:sb+2*N,sb+N+wave)
+!                ! U^-
+!                Bogoliubov(sc+  N+1:sc+2*N, sc+3*N+wave) = &
+!                &                              tempbogo(sb  +1:sb+  N,sb+N+wave)
+!                ! V^-
+!                Bogoliubov(sc+2*N+1:sc+3*N, sc+3*N+wave) = &
+!                &                              tempbogo(sb+N+1:sb+2*N,sb+N+wave)
+!                ! - - - - - - - - - - - - - - - - - - - - - - - -
+!                ! and then we could construct the l.h.s. columns by symmetry ,
+!                ! but this is never used by the code.
+!            enddo
 
-            !-------------------------------------------------------------------
-            ! (5) The configuration matrix
-            configmatrix(sc    +1:sc  +N) = tempconfig(sb+1:sb+N)
-            configmatrix(sc+  N+1:sc+2*N) = tempconfig(sb+1:sb+N)
-            configmatrix(sc+2*N+1:sc+3*N) = tempconfig(sb+N+1:sb+2*N)
-            configmatrix(sc+3*N+1:sc+4*N) = tempconfig(sb+N+1:sb+2*N)
+!            !-------------------------------------------------------------------
+!            ! (5) The configuration matrix
+!            configmatrix(sc    +1:sc  +N) = tempconfig(sb+1:sb+N)
+!            configmatrix(sc+  N+1:sc+2*N) = tempconfig(sb+1:sb+N)
+!            configmatrix(sc+2*N+1:sc+3*N) = tempconfig(sb+N+1:sb+2*N)
+!            configmatrix(sc+3*N+1:sc+4*N) = tempconfig(sb+N+1:sb+2*N)
 
-            si = si +   N
-            sb = sb + 2*N
-            sc = sc + 4*N
-          enddo
-        endif
-      endif
-    endif
+!            si = si +   N
+!            sb = sb + 2*N
+!            sc = sc + 4*N
+!          enddo
+!        endif
+!      endif
+!    endif
     !---------------------------END OF NONSPATIAL TRANSFORMATION ---------------
 
     !---------------------------------------------------------------------------
@@ -394,11 +473,16 @@ contains
             &                 sb+offset_right+1:sb+offset_right+blocks(b+3)) &
             &   = tempsph    (sb+offset_right+1:sb+offset_right+blocks(b+3), &
             &                 sb+offset_right+1:sb+offset_right+blocks(b+3))
+
+            !-------------------------------------------------------------------
+            ! ... and then start operations on the spwfs
+            ! Step 1 = do all the symmetry transformations locally, i.e. on the 
+            !          MPI rank containing the spwf.
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! First block is not modified
             offset_left = 0
             offset_right= 0
-            do wave=1,Blocks(B)
+            do wave=1,Blocks_local(B)  !  Local index
               wftarget = temp(:,:,sb+offset_right+wave)
               right3D(1:oldnx,1:oldny, 1:oldnz,1:4) &
               &                                 => wftarget(:,:)
@@ -427,9 +511,9 @@ contains
             enddo
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! What was the 3rd block on file, now becomes part of the 1st block
-            offset_right = Blocks(B) + Blocks(B+1) ! Block B+2 from file
-            offset_left  = Blocks(B)
-            do wave=1,Blocks(B+2)
+            offset_right= Blocks_local(B)+Blocks_local(B+1) ! Block B+2 from file
+            offset_left = Blocks_local(B)
+            do wave=1,Blocks_local(B+2) !  Local index
               wftarget = temp(:,:,sb+offset_right+wave)
               right3D(1:oldnx,1:oldny, 1:oldnz,1:4) &
               &                                 => wftarget(:,:)
@@ -459,9 +543,9 @@ contains
             enddo
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Second block on file stays the second block
-            offset_right = Blocks(B)                    ! Block B+1 from file
-            offset_left  = Blocks(B) + Blocks(B+2)
-            do wave=1,Blocks(B+1)
+            offset_right = Blocks_local(B)                 ! Block B+1 from file
+            offset_left  = Blocks_local(B) + Blocks_local(B+2)
+            do wave=1,Blocks_local(B+1) !  Local index
               wftarget = temp(:,:,sb+offset_right+wave)
               right3D(1:oldnx,1:oldny, 1:oldnz,1:4) &
               &                                 => wftarget(:,:)
@@ -491,9 +575,9 @@ contains
             enddo
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Fourth block on file becomes part of the second block
-            offset_right = sum(Blocks(B:B+2))         ! Block B+3 from file
-            offset_left  = sum(Blocks(B:B+2))
-            do wave=1,Blocks(B+3)
+            offset_right = sum(Blocks_local(B:B+2))        ! Block B+3 from file
+            offset_left  = sum(Blocks_local(B:B+2))
+            do wave=1,Blocks(B+3) !  Local index
               wftarget = temp(:,:,sb+offset_right+wave)
               right3D(1:oldnx,1:oldny, 1:oldnz,1:4) &
               &                                 => wftarget(:,:)
@@ -520,24 +604,51 @@ contains
                enddo
             enddo
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            sb = sb + sum(Blocks(B:B+3))
+            sb = sb + sum(Blocks_local(B:B+3))
           enddo
       endif
-      !-------------------------------------------------------------------------
-      ! Merge the blocks associated with a linear, hermitian symmetry
-      HFBlocks(1) = blocks(1) + blocks(3)
-      HFBlocks(2) = blocks(2) + blocks(4)
-      HFBlocks(5) = blocks(5) + blocks(7)
-      HFBlocks(6) = blocks(6) + blocks(8)
-      ! Remove the old blocks
-      HFBlocks(3:4) = 0
-      HFBlocks(7:8) = 0
     endif
     !---------------------------END OF SPATIAL TRANSFORMATION ---------------
 
+!    call stp('end of transfo')
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Load rebalancing
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    deallocate(temp) ; temp = wfs ! copy again to the temp array
+    deallocate(wfs)  ; allocate(wfs(mv,4,nwt_local))
+    do i=1,nwt ! Loop over all wavefunctions
+      send_rank = old_rank_map(i)
+      recv_rank =     rank_map(i)
+
+      wfind     =     spwf_inverse(i)
+      tempind   = old_spwf_inverse(i)
+#if(USE_MPI>0)
+      if((MPI_RANK .eq. recv_rank) .AND. (send_rank .eq. recv_rank)) then
+          ! nothing to send or receive; a simple copy will work
+          wfs(:,:,wfind) = temp(:,:,tempind)
+      elseif(MPI_RANK.eq.recv_rank) then
+          ! recv_rank receives a message into the wfs array
+          print *, 'SEND ', i, MPI_RANK, recv_rank, send_rank
+          call MPI_RECV(wfs(:,:,wfind), 4*mv, MPI_REAL8, send_rank,  &
+          &                        1,MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+      else if(MPI_RANK .eq. send_rank)  then
+          print *, 'RECV ', i, MPI_RANK, recv_rank, send_rank
+          ! send_rank sends an spwf from the temp array
+          call MPI_SEND(temp(:,:,tempind), 4*mv, MPI_REAL8, recv_rank, &
+          &                                         1, MPI_COMM_WORLD, mpi_err)
+      endif
+#else
+      ! No MPI shenanigans
+      wfs(:,:,wfind) = temp(:,:,tempind)
+#endif
+    enddo
+
+    !---------------------------------------------------------------------------
     print 5, oldnx, oldny, oldnz, dx, sum(blocks(1:4)), sum(blocks(5:8)),      &
     &       blocks, nx,ny,nz,dx,nwn,nwp, hfblocks
 
+!    call stp('Symtransfo complete')
+    deallocate(temp)
   end subroutine Transformspwfs
 
   subroutine TransformInput(filenx,fileny,filenz,filenwn,filenwp, filedx,      &

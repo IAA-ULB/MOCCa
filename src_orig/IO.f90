@@ -96,7 +96,8 @@ implicit none
   character(len=26), parameter :: TRANS_CODE = "$TRANS_CODE"
   !-----------------------------------------------------------------------------
   ! Characteristics of the calculation stored on the .wf file
-  integer              :: filenx, fileny, filenz, filenwn, filenwp, filepairing
+  integer              :: filenx, fileny, filenz, filemv
+  integer              :: filenwn, filenwp, filepairing
   integer              :: filenwt, fileneutrons, fileprotons
   integer              :: fileblocks_global(8), fileblocks(8)
   integer, allocatable :: file_spwf_map(:),file_rank_map(:),file_spwf_inverse(:)
@@ -423,7 +424,21 @@ contains
     ! be achieved by running the code twice. 
     !
     ! None of a) or b) is allowed if the user does not set the AllowTransform
-    ! flag to .true. This behavior is coded like that as a general safeguard.
+    ! flag to .true. This is coded like that as a general safeguard.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Important note: MPI load balancing for the single-particle wavefunctions
+    ! is rather complicated with respect to applying symmetry transformations 
+    ! etc and is for this reason no performed "centrally". Rather, it is done
+    ! within each kind of subroutine. 
+    !    - iniwavefunctions => load balance based on the EV8 symmetries
+    !    - readtantalus     => load balance based on the symmetries on file
+    !    - transformspwfs   => load balance based on the actual symmetries
+    !                          of the calculation.
+    ! This kind of approach incurs some communication overheads that can 
+    ! possibly be eliminated with a whole bunch of coding work, but this seems
+    ! like an inefficient use of human time since it concerns only the set-up
+    ! of a given calculation.
     !---------------------------------------------------------------------------
     integer :: i
 #if(USE_MPI>0)
@@ -453,6 +468,7 @@ contains
       guessgaps         = .true.
 
       filenx = $ININX ; fileny = $ININY ; filenz = $ININZ ; filedx = dx
+      filemv = filenx*fileny*filenz
       fileblocks_global = HFBlocks_global
       fileblocks        = HFBlocks
       file_spwf_map     = spwf_map
@@ -468,8 +484,9 @@ contains
     if(allowtransform ) then
       if(  symtransfo_needed ) then 
           ! Option a): break a symmetry and transform the spwfs appropriately
-          call  Transformspwfs( HFPsi, fileblocks, filenx, fileny, filenz)
-          call  GramSchmidt  
+          call Transformspwfs( HFPsi, filenx, fileny, filenz,fileblocks_global,&
+          &                    fileblocks, file_rank_map, file_spwf_inverse)
+          call GramSchmidt
       else
           ! Option b): add points and/or add spwfs
           call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,    & 
@@ -644,6 +661,7 @@ contains
       read(chan,iostat=io) 
       !Parameters of the mesh
       read(Chan,iostat=io) filenx,fileny,filenz, filedx
+      filemv = filenx*fileny*filenz
 
       ! Symmetry information       
       if(file_version .eq. 1) then 
@@ -680,6 +698,7 @@ contains
     call MPI_BCAST(filenx, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(fileny, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(filenz, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(filemv, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(filedx, 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
 
     call MPI_BCAST(fileprotons , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
@@ -693,6 +712,8 @@ contains
     ! Seemingly useless to BCAST fileversion, but this is necessary for further
     ! logic further down in this routine
     call MPI_BCAST(file_version , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_BCAST(symtransfo_needed,1,MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
 #endif    
     ! .. now we have each rank decide what spwfs to take from file
     call loadbalance(fileblocks_global,balancing_strategy, &           ! inputs
@@ -727,14 +748,14 @@ contains
     ! wavefunctions are distributed across ranks ....
     allocate(HFPsi(filenx*fileny*filenz,4, sum(fileblocks)))
     if(file_version .gt. 5) then
-      if(MPI_RANK.eq.0) allocate(temp(mv,4)) ! creating some space
-
+      if(MPI_RANK.eq.0) allocate(temp(filenx*fileny*filenz,4)) ! create space
       wfcounter = 0 ! this is the counter tracking how much spwfs each 
                     ! INDIVIDUAL rank has stored so far
 
       do wave=1, filenwt
         ! Read the spwf into dummy storage
         if(MPI_RANK.eq.0) read(chan,iostat=io) temp
+        if(MPI_RANK.eq.0) print *, wave, ' / ', filenwt
         targetrank = file_rank_map(wave) ! rank to communicate the spwf to
         if(targetrank .eq. 0 .and. MPI_RANK.eq.0) then
             ! No communication is necessary for the spwfs stored on rank 0
@@ -745,19 +766,16 @@ contains
         else
           if(MPI_RANK.eq.0) then
             ! rank 0 sends the spwf to targetrank
-            call MPI_SEND(temp, 4*mv, MPI_REAL8, targetrank, 2,                &
+            call MPI_SEND(temp, 4*filemv, MPI_REAL8, targetrank, 2,            &
             &                                           MPI_COMM_WORLD, mpi_err)
           else if(MPI_RANK .eq. targetrank) then
             ! ... which receives and stores in HFPSI
             wfcounter = wfcounter + 1
-            call MPI_RECV(HFpsi(:,:,wfcounter), 4*mv, MPI_REAL8, 0, 2, &
+            call MPI_RECV(HFpsi(:,:,wfcounter), 4*filemv, MPI_REAL8, 0, 2,     &
               &                      MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
           endif
 #endif
         endif
-#if(USE_MPI > 0)
-        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-#endif
       enddo
     else
       ! Originally, the .wf files contained the HFPsi array as one unformatted
@@ -965,7 +983,6 @@ contains
     !---------------------------------------------------------------------------
     ! Potentials: note that readpotentials handles all MPI affairs itself
     call readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
-
     !-------------------------------------------------------------------------
     ! Multipole moment information
     ! Note: ReadMoment handles all MPI affairs itself

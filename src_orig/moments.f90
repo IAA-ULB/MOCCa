@@ -1387,7 +1387,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
   
     integer             :: iostat, iteration
     integer             :: l,m, ConstraintType, isoswitch
-    real(KIND=dp)       :: Constraint, iq1=-1000000, iq2=-1000000, Intensity
+    real(KIND=dp)       :: Constraint, iq1=-1000000d0, iq2=-1000000d0, Intensity
     real(KIND=dp)       :: scalefactor = 1.0d0, intensityfactor = 1.0d0
     logical             :: MoreConstraints=.false., Impart, MultfromFile
     logical             :: continue
@@ -1438,11 +1438,12 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Broadcasting to the other MPI ranks
     ! a) general parameters
-    call MPI_Bcast(MaxMoment     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(MaxMoment_mag , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(MaxMoment_divJ, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(ContinueAll   , 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(Follow_COM    , 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(MaxMoment      , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(MaxMoment_mag  , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(MaxMoment_divJ , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(ContinueAll    , 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(Follow_COM     , 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(MoreConstraints, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
 
     ! b) cutoff parameters
     call MPI_Bcast(radd      , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
@@ -1517,6 +1518,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       !-----------------------------------------------------------------------
       ! Broadcasting all relevant info        
       ! a) identity of the multipole moment
+      print *, 'BCAST', MPI_RANK, l, m
       call MPI_Bcast(l     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
       call MPI_Bcast(m     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
       call MPI_Bcast(Impart, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
@@ -1536,7 +1538,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       call MPI_Bcast(multfromfile   , 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
       call MPI_Bcast(continue       , 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
       call MPI_Bcast(MoreConstraints, 1, MPI_LOGICAL,0,MPI_COMM_WORLD,mpi_err)
-#endif    
+#endif
       !-----------------------------------------------------------------------
       ! ... and now we can act on the information
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1579,7 +1581,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       Current%scalefactor    = scalefactor
       Current%intensityfactor= intensityfactor
       Current%Isoswitch      = isoswitch
-      
+
       ! Reading the values for the constraints
       if(ConstraintType.ne.0) then
           !-------------------------------------------------------------------
