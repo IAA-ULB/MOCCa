@@ -486,7 +486,7 @@ contains
           ! Option a): break a symmetry and transform the spwfs appropriately
           call Transformspwfs( HFPsi, filenx, fileny, filenz,fileblocks_global,&
           &                    fileblocks, file_rank_map, file_spwf_inverse)
-          call GramSchmidt
+          call GramSchmidt ! safety : extra orthonormalization
       else
           ! Option b): add points and/or add spwfs
           call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,    & 
@@ -514,9 +514,14 @@ contains
 #else
       HFBlocks_global = HFBlocks
 #endif
-    spwf_map     = file_spwf_map
-    rank_map     = file_rank_map
-    spwf_inverse = file_spwf_inverse
+    ! ... and these if (and only if) transformspwfs was not called above
+    ! If transformspwfs was called, this assignment was taken care of inside 
+    ! that routine.
+    if(.not. symtransfo_needed) then
+      spwf_map     = file_spwf_map
+      rank_map     = file_rank_map
+      spwf_inverse = file_spwf_inverse
+    endif
 
     !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
@@ -755,7 +760,6 @@ contains
       do wave=1, filenwt
         ! Read the spwf into dummy storage
         if(MPI_RANK.eq.0) read(chan,iostat=io) temp
-        if(MPI_RANK.eq.0) print *, wave, ' / ', filenwt
         targetrank = file_rank_map(wave) ! rank to communicate the spwf to
         if(targetrank .eq. 0 .and. MPI_RANK.eq.0) then
             ! No communication is necessary for the spwfs stored on rank 0

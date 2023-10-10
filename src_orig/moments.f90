@@ -1335,7 +1335,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     ! Augmented Lagrangian readjustment
     if(ToReadjust%Intensity .eq. 0.0) then
           ! Find suitable intensity, if none was found before
-          
+
           select case(ToReadjust%isoswitch)
           case(0)
             ToReadjust%Intensity = 1d0/sum(ToReadjust%Squared) 
@@ -1343,14 +1343,20 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
             it = ToReadjust%isoswitch
             ToReadjust%Intensity = 1d0/ToReadjust%Squared(it) 
           end select
-          print 11
-          print 12, ToReadjust%l,ToReadjust%m
-          print 13
-          print 14, ToReadjust%Intensity
-          print 15, ToReadjust%intensityfactor
+          if(MPI_RANK.eq.0) then
+            print 11
+            print 12, ToReadjust%l,ToReadjust%m
+            print 13
+            print 14, ToReadjust%Intensity
+            print 15, ToReadjust%intensityfactor
+          endif
+          
           ToReadjust%Intensity = ToReadjust%Intensity*ToReadjust%intensityfactor
-          print 16, ToReadjust%Intensity
-          print 11
+
+          if(MPI_RANK.eq.0) then
+            print 16, ToReadjust%Intensity
+            print 11
+          endif
     endif
     
     slow = ReadjustSlowdown
@@ -1518,7 +1524,6 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       !-----------------------------------------------------------------------
       ! Broadcasting all relevant info        
       ! a) identity of the multipole moment
-      print *, 'BCAST', MPI_RANK, l, m
       call MPI_Bcast(l     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
       call MPI_Bcast(m     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
       call MPI_Bcast(Impart, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
