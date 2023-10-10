@@ -23,8 +23,6 @@ module parameterization
  !==============================================================================
  
  use iso_fortran_env
- use compilation
- use geninfo
  use pairingcutoffs
  
  implicit none

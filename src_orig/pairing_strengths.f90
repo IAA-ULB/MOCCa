@@ -20,9 +20,7 @@ module pairing_strengths
  !
  !==============================================================================
  
- use geninfo
  use parameterization
- use pairingcutoffs
 
  implicit none
 

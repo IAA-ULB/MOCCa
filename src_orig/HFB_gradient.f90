@@ -62,7 +62,6 @@ module HFB_gradient
  !
  !==============================================================================
  
-  use geninfo
   use wavefunctions
 
   implicit none

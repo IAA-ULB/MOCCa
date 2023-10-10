@@ -6,6 +6,7 @@
 ! Yale SMMC code in 2010/2014.
 !-------------------------------------------------------------------------------
 module timing
+
   use compilation
 
   implicit none

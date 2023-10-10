@@ -197,7 +197,7 @@ ifeq ($(COMPILER),gfortran)
 else ifeq ($(COMPILER),ifort)
 	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin
 else ifeq ($(CXX),ftn)
-	CXXFLAGS := -J$(MODDIR)
+	CXXFLAGS := -J$(MODDIR) 
 endif
 
 # 2. set compiler-specific optimisation level
@@ -286,7 +286,12 @@ PRE_NIL     :=  cp_nil
 # Internal (to the compiler) preprocessing directives
 #    -cpp      => explicitly enable preprocessing
 #    -DUSE_MPI => enable (1) or disable (0) MPI (see above) 
-PREPROCESSOR :=  -cpp -DUSE_MPI=$(USE_MPI)
+
+ifeq ($(COMPILER),cray)
+  PREPROCESSOR :=  -e Z -DUSE_MPI=$(USE_MPI)
+else
+  PREPROCESSOR :=  -cpp -DUSE_MPI=$(USE_MPI)
+endif
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 ################################################################################

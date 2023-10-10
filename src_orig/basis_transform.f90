@@ -19,7 +19,6 @@ module basis_transform
  !             the old basis. 
  !
  !============================================================================== 
- use compilation
  use geninfo
  use wavefunctions, only : HFblocks, nwt, spwf_map, nwt_local, hfblocks_global
  

@@ -8,7 +8,7 @@ module compilation
   ! throughout the entire code.
   !-----------------------------------------------------------------------------
 
-#if (USE_MPI > 0)
+#if(USE_MPI > 0)
   use MPI
 #endif
   

@@ -17,8 +17,6 @@ module BCS
  !
  !==============================================================================
 
- use compilation
- use geninfo
  use wavefunctions
  use pairingcutoffs
 

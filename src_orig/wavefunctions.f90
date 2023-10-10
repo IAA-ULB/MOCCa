@@ -69,9 +69,7 @@ module wavefunctions
  !    -----------------------------------------
  ! 
  !==============================================================================
- use compilation
  use derivatives
- use geninfo
  use nil8
  use timing
 

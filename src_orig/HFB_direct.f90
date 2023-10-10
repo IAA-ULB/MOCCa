@@ -13,7 +13,6 @@ module HFB_direct
  !
  !==============================================================================
 
-  use geninfo
   use wavefunctions
   use parameterization
 
