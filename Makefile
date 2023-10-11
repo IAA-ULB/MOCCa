@@ -207,13 +207,13 @@ ifeq ($(DEBUG),0)
 	  OPTFLAGS := -O3
   else ifeq ($(COMPILER),ifort)
 	  OPTFLAGS := -Ofast
-  else ifeq ($(COMPILER),ftn)
+  else ifeq ($(COMPILER),cray)
 	  OPTFLAGS := -O3 # to be tested if optimal
   endif
 else
   ifeq ($(COMPILER),gfortran)
 	  OPTFLAGS := -O0 -g -Wall -Wno-uninitialized -fbacktrace
-  else ifeq ($(COMPILER),ifort)
+  else ifeq ($(COMPILER),cray)
 	  OPTFLAGS := -g -traceback
   else ifeq ($(COMPILER),ftn)
 	  OPTFLAGS := -e c -e D # to be tested if optimal
