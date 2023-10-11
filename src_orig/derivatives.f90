@@ -51,7 +51,6 @@ module derivatives
  !   things.
  !==============================================================================
  
- use compilation
  use geninfo
  
  implicit none

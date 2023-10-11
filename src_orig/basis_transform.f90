@@ -19,9 +19,8 @@ module basis_transform
  !             the old basis. 
  !
  !============================================================================== 
- use compilation
  use geninfo
- use wavefunctions, only : HFblocks, nwt
+ use wavefunctions, only : HFblocks, nwt, spwf_map, nwt_local, hfblocks_global
  
  implicit none
 
@@ -50,32 +49,31 @@ contains
   !               psi' = C^T psi 
   !-----------------------------------------------------------------------------
   integer                      :: wave1, wave2, B, N, si
-  real(KIND=dp), intent(inout) :: psi(mv,4,nwt)
+  integer                      :: wave1_global, wave2_global
+  real(KIND=dp), intent(inout) :: psi(mv,4,nwt_local)
   real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
   real(KIND=dp), allocatable   :: temp(:,:,:)
 
-  si      = 0   
+  si  = 0
   do B=1,8
     N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
-    
+
     allocate(temp(mv,4,N)) 
     temp = 0.0
-    do wave1=1,N 
-      do wave2=1,N
-        ! Don't bother if the wavefunction is not important enough
-        if(abs(Transfo(si+wave2,si+wave1)).lt.basis_cut) cycle
-        temp(:,:,wave1) = temp(:,:,wave1) +                                    &
-        &                     Transfo(si+wave2,si+wave1) * psi(:,:,si+wave2) 
+    do wave1=1,N    ! The local index of this spwf is si+wave1
+      do wave2=1,N  ! The local index of this spwf is si+wave2
+        wave1_global = spwf_map(si+wave1) ! Global index
+        wave2_global = spwf_map(si+wave2) ! Global index      
 
-        ! Initial tests seem to show that daxpy is more efficient than an 
-        ! implicit simple implementation
-!        call daxpy(4*mv, Transfo(si+wave2,si+wave1), &
-!        &                 psi(:,1,si+wave2), 1, temp(:,1,wave1), 1 )
+        ! Don't bother if the wavefunction is not important enough
+        if(abs(Transfo(wave2_global,wave1_global)).lt.basis_cut) cycle
+        temp(:,:,wave1) = temp(:,:,wave1) +                                    &
+        &                 Transfo(wave2_global,wave1_global) * psi(:,:,si+wave2) 
       enddo 
     enddo
     psi(:,:,si+1:si+N) =  temp
     deallocate(temp)
-    
+
     si = si +  N
   enddo
  end subroutine transform_spwfs_inplace
@@ -92,32 +90,39 @@ contains
   !  psi_out : transformed set of spwfs
   !               psi' = C^T psi 
   !-----------------------------------------------------------------------------
-  real(KIND=dp), intent(in)                :: psi_in(mv,4,nwt),transfo(nwt,nwt)
+  real(KIND=dp), intent(in)                :: psi_in(mv,4,nwt_local)
+  real(KIND=dp), intent(in)                :: transfo(nwt,nwt)
   real(KIND=dp), intent(out), allocatable  :: psi_out(:,:,:)
   integer                                  :: wave1, wave2, B, N, si
-  
+  integer                                  :: wave1_global, wave2_global
+ 
   if(.not.allocated(psi_out)) then
-    allocate(psi_out(mv,4,nwt))
+    allocate(psi_out(mv,4,nwt_local))
   endif
 
-  si      = 0   
+  si      = 0
   psi_out = 0.0
   do B=1,8
     N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
-    do wave1=1, N 
-      do wave2=1,N
+    do wave1=1,N      ! The local index of this spwf is si + wave1
+      do wave2=1,N    ! The local index of this spwf is si + wave2
+
+        wave1_global = spwf_map(si+wave1) ! Global index
+        wave2_global = spwf_map(si+wave2) ! Global index
         ! Don't bother if the wavefunction is not important enough
-        if(abs(Transfo(si+wave2,si+wave1)).lt.basis_cut) cycle
+        if(abs(Transfo(wave2_global,wave1_global)).lt.basis_cut) cycle
 
         psi_out(:,:,si+wave1)  = psi_out(:,:,si+wave1) +                       &
-        &                     Transfo(si+wave2,si+wave1) * psi_in(:,:,si+wave2) 
-
-        ! Initial tests seem to show that daxpy is more efficient than an 
-        ! implicit simple implementation
-!        call daxpy(4*mv, Transfo(si+wave2,si+wave1), &
-!        &                 psi_in(:,1,si+wave2), 1, psi_out(:,1,si+wave1), 1 )
+        &              Transfo(wave2_global,wave1_global) * psi_in(:,:,si+wave2) 
       enddo 
     enddo
+!    do wave1=1,N      ! The local index of this spwf is si + wave1
+!      do wave2=1,N    ! The local index of this spwf is si + wave2
+!        print *, wave1, wave2, sum(psi_out(:,:,si+wave1)*psi_out(:,:,si+wave2))*dv
+!      enddo
+!    enddo
+!    print *
+!    call stp('Canbasis built')
     si = si +  N
   enddo
  end subroutine transform_spwfs
@@ -147,8 +152,8 @@ contains
   si      = 0   
   Mc = 0.0d0
   do B=1,8,2
-    N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
-    N2= HFBlocks(B+1)
+    N = HFBlocks_global(B)  ;  if(N .eq. 0) cycle 
+    N2= HFBlocks_global(B+1)
     T = N + N2
 
     Mc(si+1:si+T, si+1:si+T) =&
@@ -158,9 +163,9 @@ contains
 
     si = si +  T
   enddo  
-  
+
  end function transform_mat 
- 
+
  function transform_vec(V, transfo) result(Vc)
   !-----------------------------------------------------------------------------
   ! Transform a set of vectors V with the orthonormal transformation C=transfo.
@@ -180,7 +185,7 @@ contains
   si = 0   
   Vc = 0.0d0
   do B=1,8
-    N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
+    N = HFBlocks_global(B)  ;  if(N .eq. 0) cycle 
 
     Vc(si+1:si+N, si+1:si+N) =&
     & matmul( transpose(transfo(si+1:si+N, si+1:si+N)),V(si+1:si+N, si+1:si+N))
@@ -210,7 +215,7 @@ contains
   
   si = 0   
   do B=1,8
-    N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
+    N = HFBlocks_global(B)  ;  if(N .eq. 0) cycle 
     do wave1=1,N
       Hc(si+wave1) = 0
       do wave2=1,N
@@ -243,8 +248,8 @@ contains
   sb = 0
   Bc = 0.0
   do B=1,8,2
-    N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
-    N2= HFblocks(B+1) 
+    N = HFBlocks_global(B)  ;  if(N .eq. 0) cycle 
+    N2= HFblocks_global(B+1) 
 
     T = N+N2 
     

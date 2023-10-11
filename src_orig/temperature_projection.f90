@@ -430,8 +430,7 @@ contains
             ! in matrix and tau via 'reflectors' and stuff...
 
             if(info.ne.0) then
-              print *, 'ZGERQF failed. Error=' , info
-              stop
+              call stp('ZGERQF failed')
             endif
 
             ! We obtain the unitary matrix Q
@@ -439,8 +438,7 @@ contains
             call zungqr(2*N, 2*N, 2*N, un, 2*N, tau, work, 4*N,info)
 
             if(info.ne.0) then
-              print *, 'ZUNGQR failed. Error=' , info
-              stop
+              call stp('ZUNGQR failed.')
             endif
 
             deallocate(work)
@@ -452,8 +450,7 @@ contains
             &                                                   rwork,8*N, info)
 
             if(info.ne.0) then
-              print *, 'ZGEEV failed. Error=' , info
-              stop
+              call stp('ZGEEV failed.')
             endif
 
             ! Logarithm of the determinant

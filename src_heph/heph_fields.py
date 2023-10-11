@@ -128,10 +128,12 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       if(spatial):
         # Tantalus will essentially not read potentials from file
         dic['UNDOREAD'] = ' '
+        dic['POTREAD']  = '!'
       else:
         # Tantalus will read potentials correctly from file
         dic['UNDOREAD'] = '!'
-      
+        dic['POTREAD']  = ' '
+
       if('P' not in den): 
         Fields_needed.append(dic['FIELD'])
       else:

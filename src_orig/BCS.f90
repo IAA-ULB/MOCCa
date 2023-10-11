@@ -16,9 +16,7 @@ module BCS
  ! Module implementing the routines for the solution of the BCS equations.
  !
  !==============================================================================
-  
- use compilation
- use geninfo
+
  use wavefunctions
  use pairingcutoffs
 
@@ -52,22 +50,31 @@ module BCS
  !------------------------------------------------------------------------------
  procedure(delta_action_dummy), pointer :: delta_action_BCS
 
- interface
-
-  function delta_action_dummy(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly)&
+  interface
+   function delta_action_dummy(psi,&
+$N1DELTA                    &      dpsi, &
+$N2DELTA                    &            ddpsi, &
+$N3DELTA                    &                   dddpsi, &
+$SYMDELTA                   &                          sx,sy,sz, &
+&                                                               iso, onthefly) &
                                                                 result(deltapsi)
-    !---------------------------------------------------------------------------
-    ! Dummy function to allow this module to acces the functional.f90 module 
-    ! to acces the information on the acces of deltas.
-    !---------------------------------------------------------------------------
-    
-    real*8, intent(in)    :: psi(:,:)  
-    real*8, intent(inout) :: dpsi(:,:,:),ddpsi(:,:,:), dddpsi(:,:,:)
-    integer, intent(in)   :: sx(:),sy(:),sz(:),iso
-    logical, intent(in)   :: onthefly
-    real*8, allocatable   :: deltapsi(:,:)
+      !-------------------------------------------------------------------------
+      ! Dummy function to allow this module to acces the functional.f90 module 
+      ! to acces the information on the acces of deltas.
+      ! Note that the actual delta_action routine's interface is decided by 
+      ! Hephaestos at compiletime, and as such this dummy interface has to also
+      ! be decided at that time.
+      !-------------------------------------------------------------------------
+      real*8, intent(in)    :: psi(:,:)  
+$N1DELTA      real*8, intent(inout) ::   dpsi(:,:,:)
+$N2DELTA      real*8, intent(inout) ::  ddpsi(:,:,:)
+$N3DELTA      real*8, intent(inout) :: dddpsi(:,:,:)
+$SYMDELTA     integer, intent(in)   :: sx(:),sy(:),sz(:)
+      integer, intent(in)   :: iso
+      real*8, allocatable   :: deltapsi(:,:)
+      logical, intent(in)   :: onthefly
    end function
- end interface
+  end interface
 
 contains
  
@@ -83,10 +90,10 @@ contains
   ! Output:
   !      u, v : bcs factors
   !-----------------------------------------------------------------------------
-  
+
   real(KIND=dp), intent(in) :: occ
   real(KIND=dp), intent(out) :: u,v
-  
+
   if(occ/2 .gt. 0.0d0) then
     v = sqrt(occ/2)
   else
@@ -199,17 +206,18 @@ contains
   ! Side effect: calculate the dispersion 
   call calcBCSdispersion(rho_can, kappa_can)
 
-
  end subroutine solvepairing_BCS
  
  subroutine CalcBCSGaps(fermi, stabfactor)
     !---------------------------------------------------------------------------
     ! Calculate the BCS pairing gaps.
     !---------------------------------------------------------------------------
-    integer                      :: wave, iso
+    integer                      :: wave, iso, wave_global
     real(KIND=dp)                :: deltapsi(mv,4), trash(2)
     real(KIND=dp), intent(in)    :: fermi(2), stabfactor(2)
-      
+#if(USE_MPI>0)
+    integer                      :: mpi_err
+#endif
     ! trash statement to stop the compiler complaining about unused dummy 
     ! variables
     trash = fermi
@@ -220,25 +228,31 @@ contains
           BCSGaps(wave) = 2.0 * PCutoffs(wave)**2
       enddo
     else
-      ! Use the delta_action to calculate the elements in the gaps
-       do wave=1,nwt
-            if(wave .le. nwn) then
+       ! Use the delta_action function to calculate the matrix elements
+       BCSgaps = 0.0d0 ! zeroing to be able to call MPI_ALLREDUCE later
+       do wave=1,nwt_local
+            wave_global = spwf_map(wave)
+            if(wave_global .le. nwn) then
                 iso = -1
             else
                 iso = +1
             endif
-            
-            if(.not.associated(Delta_action_BCS)) stop
-             
-            deltapsi = delta_action_BCS(  hfpsi(:,:,wave)  ,                   &
-            &                            hfdpsi(:,:,:,wave),                   &
-            &                           hfddpsi(:,:,:,wave),                   &
-            &                          hfdddpsi(:,:,:,wave),                   &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+
+            deltapsi = delta_action_BCS(  hfpsi(:,:,wave) ,             &
+$N1DELTA    &                            hfdpsi(:,:,:,wave),            &
+$N2DELTA    &                           hfddpsi(:,:,:,wave),            &
+$N3DELTA    &                          hfdddpsi(:,:,:,wave),            &
+$SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
+            &                                                iso,.false.)
  
-            BCSgaps(wave) =     sum(hfpsi(:,:,wave)*deltapsi)*dv*              &
-            &               Pcutoffs(wave)**2 * (1 + stabfactor((iso+3)/2))
+ 
+            BCSgaps(wave_global) =  sum(hfpsi(:,:,wave)*deltapsi)*dv*          &
+            &             Pcutoffs(wave_global)**2 * (1 + stabfactor((iso+3)/2))
        enddo
+#if(USE_MPI>0)
+       call MPI_ALLREDUCE(MPI_IN_PLACE, BCSgaps,nwt,MPI_REAL8,MPI_SUM,         &
+       &                                                 MPI_COMM_WORLD,mpi_err)
+#endif
     endif
   end subroutine CalcBCSGaps
 
@@ -319,8 +333,7 @@ contains
         return
       case(1,2,5)
         ! Time-reversal breaking blocking asked for, impossible to do in BCS
-        print *, 'Cannot perform true blocking in BCS.'
-        stop
+        call stp('The code cannot perform true blocking in BCS.')
       case(3,4,6)
         ! Equal filling blocking
         occ = 0.5d0
@@ -373,7 +386,7 @@ contains
             si    = 0
             qpb   = 0
             do B=1,4
-              N = HFblocks(B) ; if (N.eq.0) cycle
+              N = HFBlocks_global(B) ; if (N.eq.0) cycle
               if(bcsqps(si+toblock(B)+1) .lt. qpmin) then
                 qpmin = bcsqps(si+toblock(B)+1)
                 qpb   = B
@@ -387,10 +400,10 @@ contains
         if(proton_block(5).ne.0) then
           do i = 1, proton_block(5)
             qpmin = 10000000
-            si    = sum(HFBlocks(1:4)) 
+            si    = sum(HFBlocks_global(1:4)) 
             qpb   = 0
             do B=5,8
-              N = HFblocks(B) ; if (N.eq.0) cycle
+              N = HFBlocks_global(B) ; if (N.eq.0) cycle
 
               if(bcsqps(si+toblock(B)+1) .lt. qpmin) then
                 qpmin = bcsqps(si+toblock(B)+1)
@@ -406,7 +419,7 @@ contains
         si = 0
         c  = 0
         do B=1,8
-            N = HFblocks(B) ; if(N.eq.0) cycle
+            N = HFBlocks_global(B) ; if(N.eq.0) cycle
             indices = Order(BCSqps(si+1:si+N))
             do i=1, toblock(B)
               f(si+indices(i)) = occ
@@ -426,11 +439,11 @@ contains
 
       !  B = modelblock
       !  if(B.gt.1) then
-      !    si = sum(HFblocks(1:B-1))
+      !    si = sum(HFBlocks_global(1:B-1))
       !  else
       !    si = 0
       !  endif
-      !  N       = HFblocks(B)
+      !  N       = HFBlocks_global(B)
       !  maxover = -10
       !  indover =   0
       !  do i=1, N
@@ -448,8 +461,7 @@ contains
     ! Finite-temperature
     else
       if(blocktype.ne. 0) then
-          print *, 'Cannot do finite-temperature BCS with blocking.'
-          stop
+        call stp('Cannot do finite-temperature BCS with blocking.')
       endif
       
       ! Select occupations based on the type of treatment of the gas
@@ -457,10 +469,9 @@ contains
       case(0)
         ! No special treatment of the gas
         f = 1./(1. + exp(inversetemp * BCSqps))
-      
       case(1)
         ! Not implemented!
-        stop
+        call stp('gastype = 1 is not implemented in the BCS module.')
       case(2)
         ! Only take into account the bound states
         do wave=1,nwt
@@ -471,8 +482,7 @@ contains
           endif
         enddo
       case DEFAULT
-        print *, 'Gas treatment option undefined.'
-        stop
+        call stp('Unknown value for "gas" in the BCS module.')
       end select
     endif
     return
@@ -633,13 +643,18 @@ contains
    function Order(energies) result(Indices)
     !---------------------------------------------------------------------------
     ! Returns the indices for an ordered traversal of the input array.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !  energies :  real*8, a set of energies to be ordered
+    ! Output:
+    !  indices  :  integer, the indices to get the energies in ascending order  
     !---------------------------------------------------------------------------
     integer, allocatable       :: Indices(:)
     real(Kind=dp),intent(in)   :: Energies(:)
     real(Kind=dp),allocatable  :: Eswap(:)
     integer                    :: i, nwf,  HolePos, ToInsertIndex
     real(Kind=dp)              :: ToInsert
-    
+
     nwf = size(energies)
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices

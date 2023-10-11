@@ -2,6 +2,7 @@ src/*
 obj/*
 mod/*
 *exe
+*i
 # Do not track compiled python modules
 *.pyc
 src_heph/*.pyc

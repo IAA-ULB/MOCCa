@@ -159,10 +159,6 @@ $REDUZ  coul_offset_z = 0
         &                                          nz+BC+coul_offset_z, &
         &                                          coulgrid,0.0d0,0.0d0,0.0d0)
     endif
-
-!    print *, coul_offset_x, coul_offset_y, coul_offset_z
-!    print *, maxval(coulmeshx), maxval(coulmeshy), maxval(coulmeshz)
-!    stop
     !---------------------------------------------------------------------------
     ! Initialize all of the arrays.
     if(.not.allocated(CoulombPotential)) then
@@ -615,7 +611,6 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
 
     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
 
-    print *, 'CMAX',  maxval(abs(Coulombpotential))
     CEnergy = 0.0_dp
     do k=1,nz
         do j=1,ny

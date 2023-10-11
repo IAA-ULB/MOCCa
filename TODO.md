@@ -27,17 +27,6 @@
     meaning that rho is diagonal in the basis defined by D. However, if the f are different from zero (or rather, not all equal) then C doesn't drop out. The Bogoliubov transformation is still "at its core" a BCS transformation, but \rho and \kappa can not trivially be diagonalized as in the T=0 case. 
 
     I did not realize this when implementing finite T calculations in Tantalus, and currently the code naively diagonalizes rho. This is (I think at the moment of writing) not strictly wrong: Tantalus uses this diagonalization only to  efficiently sum the ordinary densities. For the pairing densities, Tantalus does the summation of the pairing densities in the HF basis. So, while the comments and intent was wrong, the final result and implementation should be right.
-    
-*  Angular momentum correction and HFB diagonalization
-   The calculation of $$\langle J^2 \rangle$$ and the Belyaev moment of inertia  are unreliable, as figured out by G. Scamps and E. Olsen.   
-
-   First, the openmp parallelization is buggy.
-
-    >Dans la subroutine calcJ2andBelyaev_HFB, il faut remplacer :  
-    >      !$OMP PARALLEL  
-    >par  
-    >      !$OMP PARALLEL shared(jx, jy, jz) private(i,ii,si,jj,j)  
-    >pour que cela marche mieux.   
 
 ### Hephaestos/Python 
 

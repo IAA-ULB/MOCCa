@@ -155,11 +155,12 @@ contains
     real(KIND=dp)       :: CrankX, CrankY, CrankZ
     real(KIND=dp)       :: IntensityX, IntensityY, IntensityZ
     real(KIND=dp)       :: ScaleX, ScaleY, ScaleZ
-    integer             :: CrankTypeX, CrankTypeY, CrankTypeZ
-    
-    integer             :: i
-$NTR  integer             :: j,c
+    integer             :: CrankTypeX, CrankTypeY, CrankTypeZ, i
     logical             :: NotFound
+$NTR  integer             :: j,c
+#if(USE_MPI>0)
+    integer             :: mpi_err
+#endif
 
     namelist /cranking/ OmegaX, OmegaY, OmegaZ,             &
     &                   CrankX, CrankY, CrankZ,             & 
@@ -174,19 +175,30 @@ $NTR  integer             :: j,c
     ScaleX     = 1 ; ScaleY     = 1 ; ScaleZ     = 1
     IntensityX = 0 ; IntensityY = 0 ; IntensityZ = 0
 
-    if(present(file_number)) then
-      read (unit=file_number, nml=cranking)
-    else
-      read (unit=*, nml=cranking)
-    endif    
+    if(MPI_RANK.eq.0) then
+      ! Reading information with the very first MPI rank
+      if(present(file_number)) then
+        read (unit=file_number, nml=cranking)
+      else
+        read (unit=*, nml=cranking)
+      endif
+      
+      !----------------- Assigning Constants based on Input --------------------
+      CrankValues      = (/ CrankX,CrankY,CrankZ/)
+      Omega            = (/ OmegaX,OmegaY,OmegaZ/)
+      CrankType        = (/ CrankTypeX, CrankTypeY, CrankTypeZ/)
+      CrankScaleFactor = (/ ScaleX, ScaleY, ScaleZ/)
+      CrankIntensity   = (/ IntensityX, IntensityY, IntensityZ/)
+    endif
+    
+#if(USE_MPI > 0)
+    call MPI_Bcast(CrankValues       , 3, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+    call MPI_Bcast(Omega             , 3, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
+    call MPI_Bcast(CrankType         , 3, MPI_INTEGER,0,MPI_COMM_WORLD,mpi_err)
+    call MPI_Bcast(CrankScaleFactor  , 3, MPI_INTEGER,0,MPI_COMM_WORLD,mpi_err)
+    call MPI_Bcast(CrankIntensity    , 3, MPI_INTEGER,0,MPI_COMM_WORLD,mpi_err)
+#endif
 
-    !----------------- Assigning Constants based on Input ----------------------
-    CrankValues      = (/ CrankX,CrankY,CrankZ/)
-    Omega            = (/ OmegaX,OmegaY,OmegaZ/)
-    CrankType        = (/ CrankTypeX, CrankTypeY, CrankTypeZ/)
-    CrankScaleFactor = (/ ScaleX, ScaleY, ScaleZ/)
-    CrankIntensity   = (/ IntensityX, IntensityY, IntensityZ/)
-        
     ! Check if the asked for cranking options are allowed by the CONFIG file.
     do i=1,3
       if(Omega(i) .ne. 0.0d0 .or. CrankValues(i) .ne.  0.0d0) then

@@ -26,7 +26,7 @@ module nil8
 contains
 
 subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
- &                   dx,osc_freq)
+ &                   dx,osc_freq, spwf_map)
     !---------------------------------------------------------------------------
     ! Subroutine taken from nil8.1.0.0.f, written by 
     !         Bonche, Flocard and Heenen 
@@ -57,14 +57,18 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     ! |          hermite functions constructed before.
     ! |- Isospin loop.
     !
-    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   wfs:   
     !       allocatable array containing the constructed wave-functions on exit
+    !       if spwf_map is allocated on entry. not referenced if spwf_map is 
+    !       not allocated.
     !   kparz:
     !       allocatable array containing the parities on exit
+    !       will be re-allocated to match the rest of the input
     !   esp1  :
     !       single-particle energies on exit
+    !       will be re-allocated to match the rest of the input
     !   meven, modd:
     !       the number of oscillator shells with even/odd parity
     !   nwt, nwn, nwp:
@@ -78,6 +82,12 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     !       mesh spacing on the EV8 mesh
     !   homegax,homegay,homegaz
     !       harmonic oscillator parameters
+    !   spwf_map
+    !       allocatable, integer 
+    !       This controls the construction of spwfs. If allocated, it will
+    !       construct the 'spwf_map(i)'-th spwf in the Nilsson spectrum 
+    !       and store it in the i-th entry in the wfs array. Obviously
+    !       len(spwf_map) <= nwt.
     !---------------------------------------------------------------------------
     implicit real*8 (a-h,o-z)
 !    
@@ -94,8 +104,9 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     integer, allocatable, intent(inout)      :: kparz(:)
     real(KIND=dp), allocatable, intent(inout):: wfs(:,:,:), esp1(:)
     real(KIND=dp), intent(in)                :: osc_freq(3)
-    real(KIND=dp)                            :: hox, hoy, hoz
+    integer, allocatable, intent(in)         :: spwf_map(:)
 
+    real(KIND=dp)              :: hox, hoy, hoz
     real(KIND=dp), allocatable :: h(:,:), s(:,:), d(:), wd(:), e(:)
     real(KIND=dp), allocatable :: he(:,:,:) , a(:), work(:)
     real(KIND=dp)              :: psi(mx,my,mz,4)
@@ -105,7 +116,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     integer                    :: nij,i,i1,ia,ii,it, iwave,ix, nb, n, kk, iy, iz
     integer                    :: j,ja, k, nw, neven, ni, ni1, np, nvec, ind
     integer                    :: mblc, mq, mqa, ms, nblc, ndd, ndim, ifail
-    integer                    :: lwork
+    integer                    :: lwork, store_counter
     integer, allocatable       :: nsi(:,:),ns(:), nx(:), ny(:), nz(:), irep(:)
     integer, allocatable       :: nor(:), npa(:), ntrs(:)
 
@@ -137,16 +148,18 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     allocate(nsi(mblc+1,4),ns(mblc+1))
     allocate(nx(ms),ny(ms), nz(ms), e(ms), nor(ms),npa(ms))
     allocate(he(mblc,max(mx,my,mz),3), a(mqa))
-    allocate(irep(mblc+1), ntrs(ms),kparz(nwt),esp1(nwt))
+    allocate(irep(mblc+1), ntrs(ms))
     
+    if(allocated(kparz)) deallocate(kparz)
+    if(allocated(esp1))  deallocate(esp1)
+    allocate(kparz(nwt),esp1(nwt))
+
     irep = 0 ; ntrs = 0
     h = 0.0d0 ; s = 0.0d0 ; d = 0.0d0 ; wf = 0.0d0
     nsi = 0 ; ns = 0
     nx = 0 ; ny = 0 ; nz = 0 ; e = 0.0d0; nor =0 ; npa =0 
     he = 0.0d0 ; kparz=0; a= 0.0d0
-    
-!    allocate(wfs(mx*my*mz,4,nwt)) ; wfs = 0.0d0
-    
+
     ! In order for the compiler not to complain about non-initialised stuff.
     nvv = 0
 !c......................... mz must be larger or equal than both mx and my
@@ -306,7 +319,8 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
       cf(2) = ca   -cb*xis
       cf(1) = 1.0d0+cb*xis
 !c.................................................... loop on the isospin
-  nwave = 0
+  nwave         = 0
+  store_counter = 1
   do it=1,2
     nn = max(mx,my,mz)
 
@@ -504,9 +518,6 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     npar(2,it) = j - npar(1,it)
 
     do iwave=1,nw
-        do ix=1,mq
-            psi(ix,1,1,1) = 0.0d0
-        enddo
         nwave = nwave + 1
         if (iwave.le.npar(1,it)) go to 49
 
@@ -531,61 +542,69 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
             if (j.le.ns(nn+1)) go to 45
         enddo
         45 nn  = ns(nvv)
-        
-        ny2 = 0
-        kk  = 0
-        do k=1,4
-            if (nsi(nvv,k).eq.0) go to 46
-            nx2 = ny2 + 1
-            ny2 = ny2 + nsi(nvv,k)
-            nz2 = 0
-            if (k.eq.1.or.k.eq.3) nz2=3
-            do i=nx2,ny2
-                nx1 = nx(nn+i) + 1
-                ny1 = ny(nn+i) + 1
-                nz1 = nz(nn+i) + 1
-                xph = s(i,j-nn)
-                
-                if (mod(ny1,4).eq.nz2) xph =-xph
-                do ix=1,mx
-                    hex = he(nx1,ix,1)
-                    do iy=1,my
-                        hey = he(ny1,iy,2)
-                        do iz=1,mz
-                          hez = he(nz1,iz,3)
-                          psi(ix,iy,kk+iz,1) = psi(ix,iy,kk+iz,1) + xph*hex*hey*hez
+
+        if(allocated(spwf_map)) then 
+          ! Only construct the spwfs if the user asks for it
+          !         => allocated status of spwf_map
+
+          ! we have constructed all spwfs for this particular MPI rank
+          if(store_counter.gt.size(spwf_map)) cycle
+
+          ! This is an spwf we want to store
+          if(spwf_map(store_counter) .eq. nwave) then
+            ! construct the spwf in the array psi
+            do ix=1,mq
+              psi(ix,1,1,1) = 0.0d0
+            enddo
+
+            ny2 = 0
+            kk  = 0
+            do k=1,4
+                if (nsi(nvv,k).eq.0) go to 46
+                nx2 = ny2 + 1
+                ny2 = ny2 + nsi(nvv,k)
+                nz2 = 0
+                if (k.eq.1.or.k.eq.3) nz2=3
+                do i=nx2,ny2
+                    nx1 = nx(nn+i) + 1
+                    ny1 = ny(nn+i) + 1
+                    nz1 = nz(nn+i) + 1
+                    xph = s(i,j-nn)
+
+                    if (mod(ny1,4).eq.nz2) xph =-xph
+                    do ix=1,mx
+                        hex = he(nx1,ix,1)
+                        do iy=1,my
+                            hey = he(ny1,iy,2)
+                            do iz=1,mz
+                              hez = he(nz1,iz,3)
+                              psi(ix,iy,kk+iz,1) = psi(ix,iy,kk+iz,1) + xph*hex*hey*hez
+                            enddo
                         enddo
                     enddo
                 enddo
+                46 kk = kk + mz
             enddo
-            46 kk = kk + mz
-        enddo
-        
-        ny2 = 0
-        kk  = 0
-        
-        ind = 0
-        do k = 1,mz
-          do j=1,my
-            do i=1,mx
+            ! ... and copy it.
+            ind = 0
+            do k = 1,mz
+              do j = 1,my
+                do i = 1,mx
 
-              ind = ind + 1
-              wfs(ind,1,nwave) = psi(i,j,k,1)
-              wfs(ind,2,nwave) = psi(i,j,k,2)
-              wfs(ind,3,nwave) = psi(i,j,k,3)
-              wfs(ind,4,nwave) = psi(i,j,k,4)
-
-!              wfs(i+(j-1)*mx+(k-1)*my*mx,1,nwave) = psi(i,j,k,1)
-!              wfs(i+(j-1)*mx+(k-1)*my*mx,2,nwave) = psi(i,j,k,2)
-!              wfs(i+(j-1)*mx+(k-1)*my*mx,3,nwave) = psi(i,j,k,3)
-!              wfs(i+(j-1)*mx+(k-1)*my*mx,4,nwave) = psi(i,j,k,4)
+                  ind = ind + 1
+                  wfs(ind,1,store_counter) = psi(i,j,k,1)
+                  wfs(ind,2,store_counter) = psi(i,j,k,2)
+                  wfs(ind,3,store_counter) = psi(i,j,k,3)
+                  wfs(ind,4,store_counter) = psi(i,j,k,4)
+                enddo
+              enddo
             enddo
-          enddo
-        enddo
-
+            store_counter = store_counter + 1
+          endif
+        endif
     enddo
   enddo
-!  stop
+
   deallocate(h,s,d,wd) 
   deallocate(nsi,ns)
   deallocate(nx,ny, nz, e, nor,npa)

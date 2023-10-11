@@ -62,7 +62,6 @@ module HFB_gradient
  !
  !==============================================================================
  
-  use geninfo
   use wavefunctions
 
   implicit none
@@ -1245,9 +1244,7 @@ $TR  part = 2.0d0 * part
         deallocate(work)
 
         if(ifail.ne.0) then
-          print *, 'Issue with DSYEV call in diagonalise_H_free.'
-          print *, 'IFAIL = ', ifail
-          stop
+          call stp('Issue with DSYEV call in diagonalise_H_free.')
         endif
         ! Populate the transformation in this subblock        
         transfo(s  +1:s  +NB,s  +1:s  +NB) =  A11(s+1:s+NB,s+1:s+NB)
@@ -1501,10 +1498,7 @@ $TR  part = 2.0d0 * part
           sizes(3,1)             = sizes(3,1) + 1
           indices(sizes(3,1), 3) = i 
       else
-          print *, 'Gradient solver only knows how to handle f=0, 0.5 or 1.'
-          print ('(a20, f10.3)'), 'Offending entry = ', occ(i)
-          print ('(99f10.3)'), occ(:)
-          stop
+          call stp('Gradient solver only knows how to handle f=0, 0.5 or 1.')
       endif
     enddo
     !---------------------------------------------------------------------------  
@@ -1524,10 +1518,7 @@ $TR  part = 2.0d0 * part
             sizes(3,1)                        = sizes(3,2) + 1
             indices(sizes(3,1)+sizes(3,2), 3) = i 
         else
-            print *, 'Gradient solver only knows how to handle f=0, 0.5 or 1.'
-            print ('(a20, f10.3)'), 'Offending entry = ', occ(i)
-            print ('(99f10.3)'), occ(:)
-            stop
+          call stp('Gradient solver only knows how to handle f=0, 0.5 or 1.')
         endif
       enddo    
     endif

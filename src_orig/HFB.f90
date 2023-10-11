@@ -32,6 +32,11 @@ module HFB
  ! PCONSERVED : $PCONSERVED
  !    PBROKEN : $PBROKEN
  !
+ !   N1DELTA  : $N1DELTA
+ !   N2DELTA  : $N2DELTA
+ !   N3DELTA  : $N3DELTA
+ !   SYMDELTA : $SYMDELTA
+ !
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  !
  ! Implemented routines: 
@@ -90,15 +95,26 @@ module HFB
   real(KIND=dp), parameter            :: rho_cutoff = 1e-12
 
   interface
-   function delta_action_dummy(psi,dpsi,ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
+   function delta_action_dummy(psi,&
+$N1DELTA                    &      dpsi, &
+$N2DELTA                    &            ddpsi, &
+$N3DELTA                    &                   dddpsi, &
+$SYMDELTA                   &                          sx,sy,sz, &
+&                                                               iso, onthefly) &
                                                                 result(deltapsi)
       !-------------------------------------------------------------------------
       ! Dummy function to allow this module to acces the functional.f90 module 
       ! to acces the information on the acces of deltas.
+      ! Note that the actual delta_action routine's interface is decided by 
+      ! Hephaestos at compiletime, and as such this dummy interface has to also
+      ! be decided at that time.
       !-------------------------------------------------------------------------
       real*8, intent(in)    :: psi(:,:)  
-      real*8, intent(inout) :: dpsi(:,:,:),ddpsi(:,:,:), dddpsi(:,:,:)
-      integer, intent(in)   :: sx(:),sy(:),sz(:),iso
+$N1DELTA      real*8, intent(inout) ::   dpsi(:,:,:)
+$N2DELTA      real*8, intent(inout) ::  ddpsi(:,:,:)
+$N3DELTA      real*8, intent(inout) :: dddpsi(:,:,:)
+$SYMDELTA     integer, intent(in)   :: sx(:),sy(:),sz(:)
+      integer, intent(in)   :: iso
       real*8, allocatable   :: deltapsi(:,:)
       logical, intent(in)   :: onthefly
    end function
@@ -178,7 +194,7 @@ contains
     integer, allocatable         :: blocked_qps(:), partner_qps(:)
     integer, allocatable         :: n_partners(:), p_partners(:)
     real(KIND=dp), allocatable   :: p_overlaps(:), n_overlaps(:)
-    
+
     integer                     :: si, sb, N, N2, B, it, i, np, nn
     integer                     :: n_ind, p_ind, NB
     !-----------------END OF DECLARATIONS --------------------------------------
@@ -203,8 +219,8 @@ contains
     ! Preparation for blocking, we need to separate configurations by isospin.
     select case (Blocktype)
     case(0)
-      allocate(proton_block(1))
-      allocate(neutron_block(1))
+      allocate(proton_block(1)) ; proton_block = 0
+      allocate(neutron_block(1)) ; neutron_block = 0
     case(1,3,5)
       ! We pass to the configuration routine the indices of all quasiparticles
       ! to excite.
@@ -216,7 +232,7 @@ contains
           np = np + 1
         endif
       enddo
-        
+
       allocate(proton_block(np))
       allocate(neutron_block(nn))
 
@@ -275,10 +291,12 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     ! a) We construct the HFB-hamiltonian for every block. 
     !    We pass in everything to the routine by PAIRS of blocks
     si      = 0 ; sb = 0
+    HFBHamil = 0.0d0 ! Make sure everything outside of the right blocks is zero
     do B=1,8,2
-      N  = HFBlocks(B)    ! Size of the first partner block
-      N2 = HFBlocks(B+1)  ! Size of the second partner block
-      
+      N  = HFBlocks_global(B)    ! Size of the first partner block
+      N2 = HFBlocks_global(B+1)  ! Size of the second partner block
+      if(N.eq.0) cycle
+
       it = 1 ; if (B .gt. 4) it = 2
 
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
@@ -288,29 +306,25 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2
     enddo
-
     !---------------------------------------------------------------------------
     !    We repeatedly diagonalize the matrix to find a suitable Fermi energy, 
     !    for every isospin. 
-    call FindFermi(HFBHamil(      1:2*nwn,      1:2*nwn), HFBlocks(1:4),       &
+    call FindFermi(HFBHamil(      1:2*nwn,      1:2*nwn), HFBlocks_global(1:4),&
     &              neutrons, configmatrix(  1:2*nwn),                          &
     &              Bogoliubov(1:2*nwn, 1:2*nwn),                               &
     &              qpenergies(1:2*nwn),  Fermi(1), maxhfbiter,                 &
     &              blocktype, neutron_block, n_blocked, n_partners, n_overlaps,&
-    &              ifail)   
-
-    call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBlocks(5:8),       &
+    &              ifail)
+    call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBlocks_global(5:8),&
     &              protons, configmatrix(2*nwn+1:2*nwt),                       &
     &              Bogoliubov(2*nwn+1:2*nwt, 2*nwn+1:2*nwt),                   &
     &              qpenergies(2*nwn+1:2*nwt),Fermi(2), maxhfbiter,             &
     &              blocktype, proton_block, p_blocked, p_partners, p_overlaps, &
-    &              ifail)     
+    &              ifail)
 
-    ! 
-    
     if(allocated(blocked_qps)) deallocate(blocked_qps)
     if(allocated(partner_qps)) deallocate(partner_qps)
-    
+
     NB = 0 ;  NN = 0 ; NP = 0
     if(allocated(n_blocked)) NN = size(n_blocked)
     if(allocated(p_blocked)) NP = size(p_blocked)
@@ -326,8 +340,8 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       if(allocated(p_blocked)) then
          ! We need to offset stuff by the number of neutron qps
          do i=1, NP
-           blocked_qps(NN+i) = p_blocked(i)  + sum(HFBlocks(1:4))
-           partner_qps(NN+i) = p_partners(i) + sum(HFBlocks(1:4))
+           blocked_qps(NN+i) = p_blocked(i)  + sum(HFBlocks_global(1:4))
+           partner_qps(NN+i) = p_partners(i) + sum(HFBlocks_global(1:4))
            qp_overlaps(NN+i) = p_overlaps(i)
          enddo
       endif
@@ -445,10 +459,10 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
 
 
     integer :: si,sb, B, N, N2, T,i, j, stind,endind !,NB ,X(1),Y(1)
-  
+
     ! Statement to stop the compiler complaining about this dummy variable
     if(allocated(blockindices)) trash = 0.0d0
-  
+
     if(.not.allocated(rho_history)) then
       allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
       allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0
@@ -467,7 +481,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     Bogoliubov_history   = Bogo
     rho_history          = rho_pairing
     kappa_history        = kappa_pairing 
-    
+
     ! Guess a new Fermi energy if none is there
     if(all(Fermi.eq.0.0))   Fermi = -5
     ! Reorganise the Bogoliubov transformation if needed
@@ -476,11 +490,11 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     if(estimategradparams) then     
       ! Obtain an estimate for the quasi-particle energies to estimate the 
       ! evolution parameters
-      full_eqp      = obtain_eqp(sphamil, gaps, Fermi, HFblocks)
-      
+      full_eqp      = obtain_eqp(sphamil, gaps, Fermi, HFBlocks_global)
+
       minqp = +100000
       maxqp = -100000
-      
+
       do i=1,2*nwt
        if(i.gt.2*nwn) then
         stind = 2*nwn+1
@@ -527,20 +541,20 @@ $TR    endif
       !-------------------------------------------------------------------------
       ! For clarity, build the occupation factors for the gradient routines
       allocate(occ(nwt)) ; occ = 0.0
-    
+
       si = 0 ; sb = 0
       do B=1,8,2
-        N = HFblocks(B)   ; if(N.eq.0) cycle
-        N2= HFblocks(B+1)
+        N = HFBlocks_global(B)   ; if(N.eq.0) cycle
+        N2= HFBlocks_global(B+1)
         T = N + N2
-        
+
         do i=1,T
           occ(si+i) = 1.0d0 - configmatrix(sb+T+i)
         enddo
         si = si +  T
         sb = sb +2*T
-      enddo    
-    
+      enddo
+
       !-------------------------------------------------------------------------
       ! Heavy-ball stepping for the neutrons
       call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),               & 
@@ -569,8 +583,8 @@ $TR    endif
     ! W.R. 29/07/'22 : this is now handled inside the gradient_step routine.
     !    sb = 0
     !    do B=1,8,2
-    !      N = HFblocks(B)   ; if(N.eq.0) cycle
-    !      N2= HFblocks(B+1)
+    !      N = HFBlocks_global(B)   ; if(N.eq.0) cycle
+    !      N2= HFBlocks_global(B+1)
     !      T = N + N2
     !  
     !      do i=1,T
@@ -588,7 +602,7 @@ $TR    endif
     call PairingMatrices(configmatrix, bogo, rho_pairing, kappa_pairing)
     !---------------------------------------------------------------------------
     ! Final organisation of the Bogoliubov transformation B and QP energies. 
-    call correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFblocks, &
+    call correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFBlocks_global, &
     &                                                  qpenergies,qpdispersions)
 
     if(blocktype .ne. 4) then
@@ -688,9 +702,8 @@ $TR    endif
     logical                   :: check
     
     if(blocktype.ne.2 .and. blocktype.ne.0) then
-      print *, 'The blocking identification for the gradient solver is not '
-      print *, 'yet capable of dealing with blocktype != 0,2.'
-      stop
+      call stp('The blocking identification for the gradient solver is not &
+             &  yet capable of dealing with blocktype != 0,2.')
     endif
     if(.not.allocated(blocklowest)) return
     
@@ -712,8 +725,8 @@ $TR    endif
     ! Build the full HFB-hamiltonian
     si      = 0 ; sb = 0
     do B=1,8,2
-      N  = HFBlocks(B)    ! Size of the first partner block
-      N2 = HFBlocks(B+1)  ! Size of the second partner block
+      N  = HFBlocks_global(B)    ! Size of the first partner block
+      N2 = HFBlocks_global(B+1)  ! Size of the second partner block
       
       it = 1 ; if (B .gt. 4) it = 2
 
@@ -731,12 +744,14 @@ $TR    endif
     !      be correct.
     
     lambda_copy = lambda
-    part = Diagbyblock(HFBHamil(1:2*nwn,1:2*nwn), HFblocks(1:4),               &
+    part = Diagbyblock(HFBHamil(1:2*nwn,1:2*nwn),                              &
+    &                  HFBlocks_global(1:4),                                   &
     &                  config(1:2*nwn),                                        &
     &                  Bogo(1:2*nwn,1:2*nwn),Eqp(1:2*nwn),      &
     &                  lambda_copy(1), 0 , (/0/), blocked_qp, pqp, qpover,ifail)
     
-    part = Diagbyblock(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFblocks(5:8),   &
+    part = Diagbyblock(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt),                  &
+    &                  HFBlocks_global(5:8),                                   &
     &                  config(2*nwn+1:2*nwt),                                  &
     &                  Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt), Eqp(2*nwn+1:2*nwt),  &
     &                  lambda_copy(2), 0 , (/0/), blocked_qp, pqp, qpover,ifail)
@@ -769,9 +784,8 @@ $TR    endif
         ! If parity is conserved, the code does not know how to deal with 
         ! the possibility of the blocking option being in either of both 
         ! parity blocks. 
-$PCONSERVED        print *, 'The blocking identification for the gradient solver is not '
-$PCONSERVED        print *, 'yet capable of dealing with "n0", "p0" blocking options.'
-$PCONSERVED        stop
+$PCONSERVED call stp('The blocking identification for the gradient solver is &
+$PCONSERVED        &  yet capable of dealing with "n0", "p0" blocking options.')
 
         ! If parity is broken, then there is only one possible block for 
         ! the neutron qp excitation to be in 
@@ -781,9 +795,8 @@ $PBROKEN blockblock(i) = 1
         ! If parity is conserved, the code does not know how to deal with 
         ! the possibility of the blocking option being in either of both 
         ! parity blocks. 
-$PCONSERVED        print *, 'The blocking identification for the gradient solver is not '
-$PCONSERVED        print *, 'yet capable of dealing with "n0", "p0" blocking options.'
-$PCONSERVED        stop
+$PCONSERVED call stp('The blocking identification for the gradient solver is &
+$PCONSERVED        &  yet capable of dealing with "n0", "p0" blocking options.')
       
         ! If parity is broken, then there is only one possible block for 
         ! the proton qp excitation to be in 
@@ -793,8 +806,8 @@ $PBROKEN blockblock(i) = 5
   
     si      = 0 ; sb = 0 ; ind = 1
     do B=1,8,2
-      N  = HFBlocks(B)    ! Size of the first partner block
-      N2 = HFBlocks(B+1)  ! Size of the second partner block
+      N  = HFBlocks_global(B)    ! Size of the first partner block
+      N2 = HFBlocks_global(B+1)  ! Size of the second partner block
       
       it = 1 ; if (B .gt. 4) it = 2
 
@@ -830,19 +843,19 @@ $PBROKEN blockblock(i) = 5
     do k=1,NB
       si = 0 ; sb = 0
       do B=1,8,2
-        N = HFBlocks(B)  ; if(N.eq.0) cycle
-        N2= HFBlocks(B+1)
+        N = HFBlocks_global(B)  ; if(N.eq.0) cycle
+        N2= HFBlocks_global(B+1)
         if( bl_qps(k) .lt. si+N+N2 ) exit
       
         si = si +  N+  N2
         sb = sb +2*N+2*N2
       enddo     
 
-      si =   sum(HFBlocks(1:B-1))
-      sb = 2*sum(HFBlocks(1:B-1))
+      si =   sum(HFBlocks_global(1:B-1))
+      sb = 2*sum(HFBlocks_global(1:B-1))
 
-      N  = HFBlocks(B)
-      N2 = HFBlocks(B+1)
+      N  = HFBlocks_global(B)
+      N2 = HFBlocks_global(B+1)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! At this point:  
       !   bl_qps(k) :  index of the blocked qp
@@ -935,9 +948,8 @@ $PBROKEN blockblock(i) = 5
     NB = size(blocklowest)
 
     if(blocktype.ne.4) then
-      print *, 'figure_out_blocking_structure_EFA should only be called for'
-      print *, 'blocktype.eq.40'
-      stop
+      call stp(' The routine figure_out_blocking_structure_EFA should only be &
+             &   called for blocktype = 4.')
     endif
 
     allocate(bl_qps(NB))    ; bl_qps     = 0
@@ -946,8 +958,8 @@ $PBROKEN blockblock(i) = 5
     
     si      = 0 ; sb = 0 ; ind = 0
     do B=1,8,2
-      N  = HFBlocks(B)    ! Size of the first partner block
-      N2 = HFBlocks(B+1)  ! Size of the second partner block
+      N  = HFBlocks_global(B)    ! Size of the first partner block
+      N2 = HFBlocks_global(B+1)  ! Size of the second partner block
       T  = N + N2
       
       do i=1,T
@@ -1162,7 +1174,7 @@ $TR   HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = +gaps(si+1:si+T,si+1:si+T)
     !    config    : trivial configuration matrix, i.e. (0,0,...,0,1,1,....,1)
     !                in every symmetry block
     !    effblocks : modified block sizes to pass into the gradient solver, 
-    !                which might be larger or smaller than the HFBlocks.
+    !                which might be larger or smaller than the HFBlocks_global.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(inout) :: Bogo(:,:)
     real(KIND=dp), intent(inout) :: config(:)
@@ -1182,17 +1194,17 @@ $TR   HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = +gaps(si+1:si+T,si+1:si+T)
 
     !---------------------------------------------------------------------------
     ! For time-reversal invariant calculations, no further work is necessary
-$TR effblocks = HFblocks    
+$TR effblocks = HFBlocks_global
 $TR return
   
     !---------------------------------------------------------------------------
     ! If some qp excitations were made, then we need to move things around
     ! in the Bogoliubov transformation
-    effblocks = HFblocks
+    effblocks = HFBlocks_global
     sb = 0
     do B=1,8,2
-      N = HFBlocks(B)   ; if(N.eq.0) cycle
-      N2= HFBlocks(B+1)
+      N = HFBlocks_global(B)   ; if(N.eq.0) cycle
+      N2= HFBlocks_global(B+1)
       T = N+N2
 
       ! Counting the number of positive signature states
@@ -1257,8 +1269,8 @@ $TR return
     ! gradient solver the right structure of U and V matrices.
     sb = 0
     do B=1,8,2
-      N = HFBlocks(B)   ; if(N.eq.0) cycle
-      N2= HFBlocks(B+1)
+      N = HFBlocks_global(B)   ; if(N.eq.0) cycle
+      N2= HFBlocks_global(B+1)
       T = N+N2
       
       Np = 0
@@ -1289,8 +1301,8 @@ $TR return
     sb = 0
     config = 0.0d0
     do B=1,8,2
-      N = HFBlocks(B)   ; if(N.eq.0) cycle
-      N2= HFBlocks(B+1)
+      N = HFBlocks_global(B)   ; if(N.eq.0) cycle
+      N2= HFBlocks_global(B+1)
       T = N+N2
 
       do i=1, T
@@ -1338,8 +1350,8 @@ $NTR real(KIND=dp), allocatable  :: k2(:,:)
     dispersion = 0.0
     allocate(chi(nwt, nwt))
     do B=1,8,2 
-      N  = HFBlocks(B)  ;  if(N .eq. 0) cycle 
-      N2 = HFBlocks(B+1) 
+      N  = HFBlocks_global(B)  ;  if(N .eq. 0) cycle 
+      N2 = HFBlocks_global(B+1) 
       
       T = N + N2
 
@@ -1400,8 +1412,8 @@ $TR    dispersion = 2 * dispersion
 
     si = 0 ; sb = 0 ; kappa = 0.0d0 ; rho = 0.0d0
     do B=1,8,2
-      N = HFBlocks(B)   ;  if(N .eq. 0) cycle 
-      N2= HFBlocks(B+1)
+      N = HFBlocks_global(B)   ;  if(N .eq. 0) cycle 
+      N2= HFBlocks_global(B+1)
       do i=1,N+N2
         do j=1,N+N2
           do k=1,N+N2
@@ -1571,31 +1583,37 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     ! is stored. This full matrix is antisymmetric, not symmetric!
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: Fermi(2), stabfactor(2)
-    integer                   :: wave1, wave2, iso, si,  B, N, inda, indb, N2,T
+    integer                   :: wave1, wave2, iso, si,  B, N, N2,T
+    integer                   :: inda, indb, inda_global, indb_global
     real(KIND=dp)             :: deltapsi(mv,4), val(2), stabfac
+#if(USE_MPI>0)
+    integer                   :: mpi_err
+#endif
     
     val = Fermi ! To avoid the unused dummy argument warning from the compiler
 
     call start_timer(T_gaps)
 
-    if(.not.associated(Delta_action_HFB)) stop
-
     !---------------------------------------------------------------------------
     ! Use the delta_action to calculate the elements in the gaps
     si      = 0
-    HFBgaps = 0
+    HFBgaps = 0 ! ----> set everything to zero such that can safely use 
+                !       MPI_ALLREDUCE below
 
     ! Loop over the first of all blocks linked by the antihermitian symmetry
     ! 1,3,5,7
-    do B=1,8,2   
+    do B=1,8,2   ! <-------------- this loop ranges over the local set of spwfs
       N   = HFBlocks(B)  ; if(N .eq. 0) cycle
       N2  = HFBlocks(B+1)
       T   = N + N2
       iso = -1
       if(B .gt. 4) iso = 1
-    
-      do wave1=1,N
-        
+
+      ! Add the stabilisation factor
+      ! (1 if the pairing functional is not stabilized)
+      stabfac = 1 + stabfactor((iso+3)/2)
+
+      do wave1=1,N   ! <---------- local index of the spwf
         ! If time-reversal is not conserved:
         !     The first index comes from the second symmetry block.
 $NTR        inda = si + wave1 + N
@@ -1604,37 +1622,64 @@ $NTR        inda = si + wave1 + N
         !     time-like symmetry operation is performed in delta_action_HFB.
 $TR        inda = si + wave1
 
+        inda_global = spwf_map(inda)
+
         deltapsi = delta_action_HFB(  hfpsi(:,:,  inda),                       &
-        &                            hfdpsi(:,:,:,inda),                       &
-        &                           hfddpsi(:,:,:,inda),                       &
-        &                          hfdddpsi(:,:,:,inda),                       &
-        &                        sx(:,inda), sy(:,inda), sz(:,inda),iso,.false.)
+$N1DELTA  &                            hfdpsi(:,:,:,inda),                     &
+$N2DELTA  &                           hfddpsi(:,:,:,inda),                     &
+$N3DELTA  &                          hfdddpsi(:,:,:,inda),                     &
+$SYMDELTA &                        sx(:,inda), sy(:,inda), sz(:,inda),         &
+                                                                    iso,.false.)
         
 $NTR        do wave2=1,N
 $TR         do wave2=wave1,N
           ! The second index is always in the first block. 
           indb = si + wave2 
+          indb_global = spwf_map(indb)
 
-          ! Add the stabilisation factor
-          ! (1 if the pairing functional is not stabilized)
-          stabfac = 1 + stabfactor((iso+3)/2)
-
-          HFBgaps(inda,indb) =     sum(hfpsi(:,:,indb)*deltapsi)*dv *stabfac
+          HFBgaps(inda_global,indb_global) = &
+          &                           sum(hfpsi(:,:,indb)*deltapsi)*dv *stabfac
 
           ! The full matrix Delta is antisymmetric...
-$NTR      HFBgaps(indb,inda) =  - HFBgaps(inda,indb)
+$NTR      HFBgaps(indb_global,inda_global) =  - HFBgaps(inda_global,indb_global)
           ! ... but the stored matrix is symmetric when time-reversal is 
           ! conserved; but this is not exploited at the moment!
-$TR       HFBgaps(indb,inda) = HFBgaps(inda,indb)
+$TR       HFBgaps(indb_global,inda_global) = HFBgaps(inda_global,indb_global)
         enddo
       enddo
-      !-------------------------------------------------------------------------      
-      ! We have now calculated the gaps (without cutoffs) in the basis that 
-      ! is currently in storage. This can either be the HF basis or not, but
-      ! we need the gaps in the HF-basis to calculate the cutoffs. 
+      si = si + N + N2
+   enddo
+
+#if(USE_MPI>0)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Make sure that all MPI_RANKS have the gaps in storage. 
+    ! To save on communication time, this ALLREDUCE call is done blockwise.
+    ! It CANNOT be included in the above loop, since that ranges over LOCAL 
+    ! wavefunctions but we wish to BCAST GLOBAL values.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    si = 0
+    do B=1,8,2
+      N   = HFBlocks_global(B)  ; if(N .eq. 0) cycle
+      N2  = HFBlocks_global(B+1)
+      T   = N + N2
+      call MPI_ALLREDUCE(MPI_IN_PLACE, HFBgaps(si+1:si+T,si+1:si+T), T**2, &
+      &                  MPI_REAL8,MPI_SUM, MPI_COMM_WORLD, mpi_err)
+      si = si + N + N2
+    enddo
+#endif
+    !---------------------------------------------------------------------------
+    ! We have now calculated the gaps (without cutoffs) in the basis that 
+    ! is currently in storage. This can either be the HF basis or not, but
+    ! we need the gaps in the HF-basis to calculate the cutoffs. 
+    !---------------------------------------------------------------------------
+    si = 0
+    do B=1,8,2
+      N   = HFBlocks_global(B)  ; if(N .eq. 0) cycle
+      N2  = HFBlocks_global(B+1)
+      T   = N + N2
       !-------------------------------------------------------------------------      
       ! I could do this transformation with the transformation routine below, 
-      ! but this was  historically first and block-wise, so I keep it. 
+      ! but this was historically first and block-wise, so I keep it. 
       if(.not.diagsphamil .and. allocated(HFtransfo)) then
         ! Transform to the HF basis
         HFBgaps(si+1:si+T,si+1:si+T) = &
@@ -1662,7 +1707,6 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
         & matmul(HFBgaps(si+1:si+T,si+1:si+T),                                 &
         &                             transpose(HFtransfo(si+1:si+T,si+1:si+T)))
       endif
-
       si = si + N + N2
     enddo
     
@@ -1690,8 +1734,8 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     
     si = 0
     do B=1,8,2
-      N = HFblocks(B)         ; if(N.eq.0) cycle
-      T = HFBlocks(B+1) + N
+      N = HFBlocks_global(B)         ; if(N.eq.0) cycle
+      T = HFBlocks_global(B+1) + N
         
       gaps(si+1:si+T, si+1:si+T) = &
       & matmul(transpose(transfo(si+1:si+T,si+1:si+T)),&
@@ -1737,8 +1781,8 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     
     si = 0
     do B=1,8,2
-        N = HFBlocks(B) ; if (N.eq. 0) cycle
-        N2= HFBlocks(B+1)
+        N = HFBlocks_global(B) ; if (N.eq. 0) cycle
+        N2= HFBlocks_global(B+1)
 
         T = N + N2
         allocate(A(T,T), r(T,T), k(T,T))
@@ -1763,8 +1807,8 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     si = 0 ; sb = 0
     test3 = 0.0d0 
     do B=1,8,2
-        N = HFBlocks(B) ; if (N.eq. 0) cycle
-        N2= HFBlocks(B+1)
+        N = HFBlocks_global(B) ; if (N.eq. 0) cycle
+        N2= HFBlocks_global(B+1)
 
         T = N + N2
         check = matmul(transpose(Bogo(sb+1:sb+2*T,sb+1:sb+2*T)), &
@@ -1815,7 +1859,7 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     si         = 0
     rhotransfo = 0 ; kappatransfo = 0
     do B=1,8
-      N =HFBlocks(B) ;  if(N .eq. 0) cycle 
+      N =HFBlocks_global(B) ;  if(N .eq. 0) cycle 
       
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Search for all the states in the Hartree-Fock basis that don't 
@@ -1902,8 +1946,8 @@ $NTR conjugp = 0
 
     do B=1,8,2
     
-      N  = HFBlocks(B)   ;  if(N .eq. 0) cycle
-      N2 = HFBlocks(B+1)
+      N  = HFBlocks_global(B)   ;  if(N .eq. 0) cycle
+      N2 = HFBlocks_global(B+1)
 
       allocate(tmp(N+N2,N+N2))
       tmp = kappa_pairing(si+1:si+N+N2, si+1:si+N+N2)   
@@ -2033,8 +2077,8 @@ $NTR     enddo
     
     si = 0 ; sb = 0
     do B=1,8,2
-      N = HFBlocks(B)   ; if(N.eq.0) cycle
-      N2= HFBlocks(B+1)
+      N = HFBlocks_global(B)   ; if(N.eq.0) cycle
+      N2= HFBlocks_global(B+1)
       do wave=1,2*N+2*N2
         do k=1,3
           qp_J(k,sb+wave)   = 0.0d0

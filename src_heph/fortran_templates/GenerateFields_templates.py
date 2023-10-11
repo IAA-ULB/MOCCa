@@ -61,10 +61,14 @@ field_write_a = T(tab + ('write(chan, iostat=io) "$FIELDFILLED" \n'))
 field_write_b = T(tab + ('write(chan, iostat=io)  $FIELD  \n'))
 # ... and to read it from file
 field_read_a  = T(2*tab + ('case("$FIELD") \n'))
-field_read_b  = T(3*tab +  'read(chan, iostat=io)  ${FIELD}_hist \n')
+field_read_b  = T(3*tab +  'if(MPI_RANK .eq. 0) read(chan, iostat=io)  ${FIELD}_hist \n' + 
+                  '#if (USE_MPI > 0) \n' +
+                  3*tab +  'call MPI_BCAST(${FIELD}_hist,size(${FIELD}_hist),MPI_REAL8,0,MPI_COMM_WORLD,mpi_err) \n' + 
+                  '#endif \n')
+
 field_read_c  = T(3*tab +  'if(symtransfo_needed) then    \n')
-field_read_d  = T(4*tab + '$FIELD = ${FIELD}_hist \n'                  \
-                            +   4*tab + '$UNDOREAD deallocate($FIELD, ${FIELD}_hist) \n')
+field_read_d  = T(4*tab + '$POTREAD $FIELD = ${FIELD}_hist \n'                  \
+                + 4*tab + '$UNDOREAD deallocate($FIELD, ${FIELD}_hist) \n')
 field_read_e  = T(3*tab +  'else \n')
 field_read_f  = T(3*tab +  'endif \n')
 # ..... and to transform fields with different symmetries

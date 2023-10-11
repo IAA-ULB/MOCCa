@@ -113,7 +113,7 @@ contains
                   phi      =atan2(X,Y)
                 end select
           case DEFAULT
-                stop ('Quantisationaxis is not valid in GenSphericalHarmonics.')
+            call stp('Quantisationaxis is not valid in GenSphericalHarmonics.')
           end select
 
           !Calculating the values of the spherical harmonics

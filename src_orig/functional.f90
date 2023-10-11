@@ -50,7 +50,19 @@ module functional
  ! NTR              : $NTR
  ! N2               : $N2
  ! N3               : $N3
+ ! N1DELTA          : $N1DELTA
+ ! N2DELTA          : $N2DELTA
+ ! N3DELTA          : $N3DELTA
+ ! SYMDELTA         : $SYMDELTA
  !
+ ! D2TEMPSPH        : $D2TEMPSPH
+ ! D3TEMPSPH        : $D3TEMPSPH
+ ! LAPTEMPSPH       : $LAPTEMPSPH
+ !
+ ! D1TEMPDELTA      : $D1TEMPDELTA
+ ! D2TEMPDELTA      : $D2TEMPDELTA
+ ! D3TEMPDELTA      : $D3TEMPDELTA
+ ! LAPTEMPDELTA     : $LAPTEMPDELTA
  !------------------------------------------------------------------------------
  ! A density F_L_R is stored as
  !
@@ -150,22 +162,40 @@ contains
     ! Initializes the functional
     ! a) read the details of the parameterization from file
     ! b) calculate the coupling constants
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_number : optional integer. If present, read from (open) channel
+    !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-    
     integer(dp), intent(in), optional   :: file_number 
+#if(USE_MPI>0)
+    integer                             :: mpi_err
+#endif
 
     namelist /func/ name_param
     
-    if(present(file_number)) then
-      read(unit=file_number, nml=func) 
-    else
-      read(unit=*, nml=func) 
+    if(MPI_RANK.eq.0) then
+      ! Only the very first MPI rank reads stuff
+      if(present(file_number)) then
+        read(unit=file_number, nml=func) 
+      else
+        read(unit=*, nml=func) 
+      endif
     endif
+#if(USE_MPI > 0)
+    ! broadcasting the name of the parameterization for consistency
+    call MPI_Bcast(name_param, len(name_param), MPI_CHARACTER, 0, &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+#endif
 
+    ! Only the very first MPI rank goes on to read the .param file, but this
+    ! is handled inside the readparameterization subroutine
     call readparameterization(name_param, func_name)
-    call calcedfcoefs()
 
-    !---------------------------------------------------------------------------
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Bookkeeping operations, including the calculation of the coupling 
+    ! coefficients, that are to be executed by all MPI ranks 
+    call calcedfcoefs()
     ! Put the pairing routines pointers to the action of Delta
     delta_action_BCS => delta_action
     delta_action_HFB => delta_action
@@ -227,7 +257,7 @@ $PRINTCOEF_PAIR
     ! Print all of the information on the energy.
     !---------------------------------------------------------------------------
     use Coulombmod
-    
+
     1 format (80('-'))
     5 format (30x, '       neutron        proton         total')
     6 format (15x, ' Kinetic Energy:', 3f15.6)
@@ -268,6 +298,9 @@ $PRINTCOEF_PAIR
 
     real(KIND=dp) :: temp
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Only the very first MPI rank needs to print to STDOUT
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     call printSkyrme
 
     print 1
@@ -334,8 +367,8 @@ $PRINTCOEF_PAIR
     endif
     print 105, Routhian
 
-    print 104, TotalE   - Ehistory(1)
-    print 106, Routhian - Rhistory(1)
+    print 104,  TotalE   - Ehistory(1)
+    print 106,  Routhian - Rhistory(1)
 
     print 1
  end subroutine PrintEnergy
@@ -566,37 +599,21 @@ $PRINT
     !---------------------------------------------------------------------------
     use Constants
 
-    integer          :: wave, it,k,i
+    integer          :: wave, it,k,i, wave_global
     real(KIND=dp)    :: Inproduct
     real(KIND=dp)    :: Kinetic(2)
-    
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Correctly set the pointers to the spwfs
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! W.R. 03/04/22 : This is superfluous, as this is done in the pairing
-    !                 module. Unsure why I wrote this.
-!    select case(PairingType)
-!    case(0,1)
-!      ! HF or BCS Calculation
-!      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi 
-!      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
-!    case(2)
-!      ! HFB calculation
-!      if(.not. efficientHFB) then
-!        DenPsi    => CanPsi   ; DenDPsi   => CanDPsi 
-!        DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
-!      else
-!        DenPsi    => HFPsi    ; DenDPsi   => HFDPsi 
-!        DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
-!      endif
-!    end select
+#if(USE_MPI>0)
+    integer          :: mpi_err
+#endif
 
     ! Kinetic Energy
     Kinetic = 0.0_dp
-    do wave=1,nwt
+    do wave=1,nwt_local              ! local spwf index
+        wave_global = spwf_map(wave) ! global spwf index
+
         ! Isospin is neutron in the first half of blocks, proton in the rest
         it = 2
-        if(wave.le.sum(HFBlocks(1:Blocks/2))) it = 1
+        if(wave_global.le.nwn) it = 1
 
         Inproduct = 0.0_dp
         do k=1,4          
@@ -607,8 +624,14 @@ $PRINT
                        &    DenddPsi(i,6,k,wave))
                 enddo
         enddo
-        Kinetic(it)= Kinetic(it) + rho_can(wave)*Inproduct
+        Kinetic(it)= Kinetic(it) + rho_can(wave_global)*Inproduct
     enddo
+#if(USE_MPI > 0)
+    ! Sum the contributions across all MPI ranks
+    call MPI_ALLREDUCE(MPI_IN_PLACE, Kinetic, 2, MPI_REAL8, MPI_SUM,           &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+#endif
+
     Kinetic=-Kinetic * hbm * dv
     return
   end function CompKinetic
@@ -754,9 +777,8 @@ $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
     
     ! The calculations is not yet implemented for Hartree-Fock calculations
 $NTR    if(COM2body .ne. 0 .and. pairingtype .eq. 0) then
-$NTR      print *, 'Two-body COM not implemented yet for Hartree-Fock calculations '
-$NTR      print *, 'with time-reversal breaking.'
-$NTR      stop
+$NTR      call stp('Two-body COM not implemented yet for Hartree-Fock &
+$NTR             & calculations with time-reversal breaking.')
 $NTR    endif
     
     if(COM2body .eq. 1 .and. do_2body) then
@@ -767,7 +789,7 @@ $NTR    endif
 
       NablaMElements = compNablaMelements()
       COMCorrection(2,:) = 0.0
-        
+
       COM2pp = 0.0 ; COM2ph = 0.0
 
       tempph = 0.0 ; temppp = 0.0
@@ -914,8 +936,7 @@ $TR   COM2pp = 2*COM2pp
       ! Sanity check: no collective sense of rotational correction implemented
       !               yet for HF/BCStype calculations
       if(blocktype.ne.0) then
-          print *, 'Rotational correction for odd nuclei not incorporated into HF/BCS.'      
-          stop
+        call stp('Rotational correction for odd nuclei not incorporated into HF/BCS.')
       endif
     case (2)
       ! HFB
@@ -1020,8 +1041,7 @@ $CALCFIELDS
           ! Note that both protons and neutrons feel a Coulomb force if their
           ! charge form factor is taken into account.
           if(.not. allocated(foldedcoul)) then
-            print *, 'Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.'      
-            stop
+            call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
           endif 
           do it=1, 2
             do k=1,nz
@@ -1097,31 +1117,56 @@ $NTR    G_I_N = G_I_N + crank_current_potential()
       pf = (f)**(alpha)
     endif
   end function pow
-  
-  function sphamil(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly) &
-                                                                  & result(hpsi)
+
+  function sphamil(psi, dpsi, ddpsi, &
+$N3                                 dddpsi, &
+&                                          sx,sy,sz,iso, onthefly) result(hpsi)
     !---------------------------------------------------------------------------
-    ! Apply the action of the single-particle hamiltonian to the 
-    ! single-particle wave-functions.
+    ! Apply the single-particle hamiltonian to a single-particle wavefunction.
+    ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !          psi : spwf to act on with h
+    !  d/dd/dddpsi : arrays containing the first, second and third derivatives 
+    !                of the spwf. ddpsi does not need to be a "full" matrix 
+    !                when dealing with standard NLO EDFs. dddpsi is only used 
+    !                when dealing with N3LO EDFs.
+    ! sx/sy/sz     : signs under reflection symmetry for this particular spwf
+    !                not referenced when onthefly = .false.
+    ! onthefly     : if .true., recalculate the derivatives of psi and store
+    !                them in the array psi.
+    ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Output:
+    !    hpsi      : h | psi >
+    !  d/dd/dddpsi : arrays containing the derivatives of psi
+    !                if onthefly = .true.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Important notes:
+    ! - the input values of the derivative matrices dpsi/ddpsi/dddpsi are not
+    !   relevant if onthefly=.true. These arrays will be overwritten on output
+    !   in case the derivatives can serve afterwards.
+    ! - the array of third derivatives is only necessary for N3LO calculation, a
+    !   and Hephaestos comments them out of the interface of this function when
+    !   possible. This is why the function declaration above is spread across
+    !   a few lines.
     !---------------------------------------------------------------------------
-    
+
     use derivatives
-    
+
     ! Logical indicating if the derivatives need to be calculated before
     ! applying h.
     ! If false, the derivatives are passed in. If True, the derivatives are not
     ! passed in and need to be calculated.
     logical, intent(in)       :: onthefly 
-    
     real(KIND=dp), intent(in)    :: psi(mv,4)  
-    real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4), dddpsi(mv,10,4)
+    real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4)
+$N3 real(KIND=dp), intent(inout) :: dddpsi(mv,10,4)
     integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
     real(KIND=dp)             :: hpsi(mv,4)
     real(KIND=dp)             :: temp(mv,4)
     real(KIND=dp)             ::   dtemp(mv,3,4)
-    real(KIND=dp)             ::  ddtemp(mv,3,3,4)
-    real(KIND=dp)             :: dddtemp(mv,3,3,3,4)
-    real(KIND=dp)             :: laptemp(mv,4)
+$D2TEMPSPH    real(KIND=dp)   ::  ddtemp(mv,3,3,4)
+$D3TEMPSPH    real(KIND=dp)   :: dddtemp(mv,3,3,3,4)
+$LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
     
     real(KIND=dp)             :: ReducedMass, Butler_t, Butler_f
     
@@ -1185,8 +1230,12 @@ $SKYRMEACTION
 
   end function sphamil
   
-  function delta_action(psi, dpsi, ddpsi, dddpsi, sx,sy,sz,iso, onthefly)      &
-  &                                                             result(deltapsi)
+  function delta_action(        psi,   &
+$N1DELTA                   &   dpsi,   &
+$N2DELTA                   &  ddpsi,   &
+$N3DELTA                   & dddpsi,   &
+$SYMDELTA                  & sx,sy,sz, &
+&                                         iso, onthefly) result(deltapsi)
     !---------------------------------------------------------------------------
     !
     ! onthefly:
@@ -1194,23 +1243,28 @@ $SKYRMEACTION
     !   applying delta. If false, the derivatives are passed in. If True, the 
     !   derivatives are not passed in and need to be calculated.
     !---------------------------------------------------------------------------
-    logical, intent(in)       :: onthefly 
-    
+    logical, intent(in)          :: onthefly 
+    integer, intent(in)          :: iso
     real(KIND=dp), intent(in)    :: psi(:,:)  
-    real(KIND=dp), intent(inout) :: dpsi(:,:,:),ddpsi(:,:,:), dddpsi(:,:,:)
-    integer, intent(in)        :: sx(:),sy(:),sz(:),   iso
-    real(KIND=dp), allocatable :: deltapsi(:,:)
-    real(KIND=dp)              ::    temp(mv,4)
-    real(KIND=dp)              ::   dtemp(mv,3,4)
-    real(KIND=dp)              ::  ddtemp(mv,3,3,4)
-    real(KIND=dp)              :: dddtemp(mv,3,3,3,4)
-    real(KIND=dp)              :: laptemp(mv,4)
-    integer                    :: it,i
+$N1DELTA    real(KIND=dp), intent(inout) :: dpsi(:,:,:)
+$N2DELTA    real(KIND=dp), intent(inout) :: ddpsi(:,:,:)
+$N3DELTA    real(KIND=dp), intent(inout) :: dddpsi(:,:,:)
+$SYMDELTA    integer, intent(in)          :: sx(:),sy(:),sz(:)
+    real(KIND=dp), allocatable   :: deltapsi(:,:)
+    real(KIND=dp)                ::    temp(mv,4)
+$D1TEMPDELTA    real(KIND=dp)    ::   dtemp(mv,3,4)
+$D2TEMPDELTA    real(KIND=dp)    ::  ddtemp(mv,3,3,4)
+$D3TEMPDELTA    real(KIND=dp)    :: dddtemp(mv,3,3,3,4)
+$LAPTEMPDELTA   real(KIND=dp)    :: laptemp(mv,4)
+    integer                      :: it,i
     
     !---------------------------------------------------------------------------
     ! Determine the isospin index
     it = (iso + 3)/2
     
+    if(onthefly) then
+      call stp('On the fly calculation of derivatives in delta_action not implemented.')
+    endif
     !---------------------------------------------------------------------------
     ! Zero the action of Delta. 
     ! This is the place to include contributions to the pairing that should 
@@ -1340,39 +1394,53 @@ $WRITEPOTENTIALS
   subroutine ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed)
     !---------------------------------------------------------------------------
     ! Subroutine that reads the different mean-field potentials from file.
-    !
+    ! Note: this does not rely on MPI I/O and simply reads everything with
+    !       rank 0 and then does a bunch of MPI_BCASTS.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   chan                  : integer, channel number for input
     !   filenx, fileny,filenz : integers, number of mesh points in every 
     !                           direction for the quantities on file
     !   symtransfo_needed     : logical, if a symmetry transformation is 
     !                           needed (.true.) or not (.false.)
-    !                           If .false., use the potentials as read from 
-    !                           file. If .true., don't use the potentials as 
-    !                           read from file and simply set them to zero.
-    !                           This is currently done like this, as I am not
-    !                           motivated to write all the necessary routines
-    !                           to transform the potentials.
+    !                  .false.: use the potentials as read from 
+    !                           file, transforming only the number of mesh 
+    !                           points if needed. 
+    !                  .true. : use the potentials from file for further 
+    !                           calculations. This means just reading them here
+    !                           and trusting the rest of the program to do the
+    !                           the rest.
     !---------------------------------------------------------------------------
     integer, intent(in) :: chan, filenx, fileny, filenz
     logical, intent(in) :: symtransfo_needed
     integer             :: io, fieldnumber, fieldcount, it, filemv
     character(len=30)   :: fieldname
 
+#if(USE_MPI > 0)
+    integer             :: mpi_err
+#endif
+
     filemv = filenx * fileny * filenz
 
     ! Checking how many fields have been stored
-    read(chan, iostat=io) fieldnumber
+    if(MPI_RANK .eq. 0) read(chan, iostat=io) fieldnumber
+#if(USE_MPI > 0)
+    call MPI_BCAST(fieldnumber, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+#endif
+
 
     do fieldcount = 1,fieldnumber
         ! Read the fieldname
-        read(chan, iostat=io) fieldname   
+        if(MPI_RANK .eq. 0) read(chan, iostat=io) fieldname
+#if(USE_MPI > 0)
+        call MPI_BCAST(fieldname,30, MPI_CHARACTER, 0, MPI_COMM_WORLD, mpi_err)
+#endif
         ! Then select which field we are going to be reading
         select case(trim(fieldname))
 $READPOTENTIALS
         CASE DEFAULT
           ! The potential is not in this program, forget about it
-          read(chan, iostat=io)
+          if(MPI_RANK .eq. 0 ) read(chan, iostat=io)
         end select
     enddo
 

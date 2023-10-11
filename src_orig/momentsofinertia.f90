@@ -12,9 +12,14 @@ module momentsofinertia
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
- !
- !
- !
+ ! TODO: 
+ !    (1) improve on the efficiency of calcJ2andBelyaev routines through 
+ !        switching the looping structure. The inner (j) loop currently has
+ !        more communication/calculation to do and should be exchanged with 
+ !        the outer (i) loop.
+ !    (2) improve on the documentation of these routines; develop notes.
+ !    (3) improve on the "transfer everything" MPI_ALLREDUCE calls, these can
+ !        likely be exchanged with MPI_BCASTs per symmetry block. 
  !------------------------------------------------------------------------------
 
   use geninfo
@@ -79,7 +84,7 @@ contains
     enddo
 
     xs = xs * dv ; ys = ys *dv ; zs = zs * dv
-      
+
     Rigid(1,1:2) = nucleonmass * (ys + zs)
     Rigid(2,1:2) = nucleonmass * (xs + zs)
     Rigid(3,1:2) = nucleonmass * (xs + ys)
@@ -105,136 +110,207 @@ contains
 
       Up   =   2*  (eps - FermiEnergy(it) - RotCutWindow(it))/RotCutMu(it)
       cut  = sqrt(sqrt(1.0_dp/(1.0_dp + exp(Up))))
-    
   end function rotcut
-  
+
   subroutine calcJ2andBelyaev_HF
     !---------------------------------------------------------------------------
+    ! Calculate the expectation value of J^2_mu in the many-body state and the
+    ! Belyaev moment of inertia in the case of a Hartree-Fock calculation.
     !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Note for the future: I suspect this routine can be sped up by switching 
+    ! the loops over i <-> j, since the latter needs more communication.
     !
+    ! In case of time-reversal breaking, I suspect the loops for the Z
+    ! and (X,Y) matrix elements can be combined. 
     !---------------------------------------------------------------------------
+    integer       :: i,j, b, it, ii, jj, si, N, N2, locali, localj
+    integer       :: calc_rank, ranki, rankj, designated_rank(8)
+    real(KIND=dp) :: ME(3), fi, fj, dfde
+    real(KIND=dp) :: psi_i(mv,4), psi_j(mv,4), der_psi_j(mv,3,4)
+#if(USE_MPI>0)
+    integer :: mpi_err
+#endif
 
-    integer       :: i,j, b, it, ii, jj, si, N, N2
-    real(KIND=dp) :: ME(3), fi, fj, dfde, cut_cr
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    designated_rank = -1 
+    do B=1,8
+      ! First, we designate a rank to do the calculations
+      !    = the first rank storing spwfs in a symmetry block
+      N = HFBlocks_global(B) ;  if(N.eq.0) cycle
+      designated_rank(B) = rank_map(sum(HFBlocks_global(1:B-1))+1)
+    enddo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     J2 = 0  ;  Belyaev = 0
  
     si = 0  
-    do b = 1,8,2
-      N = HFBlocks(b) ; if(N.eq.0) cycle 
-      N2= HFBlocks(b+1)
+    do B = 1,8,2                     ! <----- loop over global indices of spwfs
+      N = HFBlocks_global(B) ; if(N.eq.0) cycle 
+      N2= HFBlocks_global(B+1)
+
+      it = 1
+      if(B.gt.4) it = 2
+
+      calc_rank = designated_rank(B) ! <---- this rank will do the integrations
+                                     !       of the spwf matrix elements
       do i=1,N
-        ii = si + i
-        it = 1
-        if(ii.gt.nwn) it = 2
-        do j=1,N
-          jj = si + j
+        ii    = si + i            ! global index of the spwf
+        locali= spwf_inverse(ii)  ! local index of the spwf
+        ranki = rank_map(ii)      ! MPI rank storing the spwf
 
-$TR       fi = rho_can(ii)/2.0 ; fj = rho_can(jj)/2.
-$NTR      fi = rho_can(ii)     ; fj = rho_can(jj)
-          ! |< k | j_z |  l >|^2 
-          ME(3)= angmom_z_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
-$TR       ! |< k | j_x | -l >|^2  
-$TR       ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2 
-$TR       ! |< k | j_y | -l >|^2 
-$TR       ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
+#if(USE_MPI>0)
+        call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+#else
+        call Transfer_psi(psi_i, locali, 'HF')
+#endif
 
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! Add a cutoff if part of the definition of the parameterization
-          if(rotcorr_cut) then
-            cut_cr = rotcut(spenergies(ii),it)*rotcut(spenergies(jj), it)
-            ME = ME * cut_cr**2
-          endif
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          J2(3,it)   = J2(  3,it) +  ME(3)   * fi*(1-fj)
-$TR       J2(1:2,it) = J2(1:2,it) +  ME(1:2) * fi*(1-fj)
+        do j=1, N
+          jj    = si + j            ! global index of the spwf
+          localj= spwf_inverse(jj)  ! local index of the spwf
+          rankj = rank_map(jj)      ! MPI rank storing the spwf
 
-          if(inversetemp.eq.-1) then
-            dfdE = fj - fi
-            if(abs(dfdE).gt.0) then
-                dfdE = dfdE/(spenergies(ii) - spenergies(jj))
+#if(USE_MPI>0)
+          call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+          call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+#else
+          call Transfer_psi(psi_j, localj, 'HF')
+          call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+#endif
+
+          if(MPI_RANK.eq.calc_rank) then
+            ! Only one rank should do the integration of the matrix elements
+$TR         fi = rho_can(ii)/2.0 ; fj = rho_can(jj)/2.
+$NTR        fi = rho_can(ii)     ; fj = rho_can(jj)
+            ! |< k | j_z |  l >|^2 
+            ME(3)= angmom_z_real(psi_i,psi_j,der_psi_j)**2  
+            J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
+
+$TR         ! |< k | j_x | -l >|^2  
+$TR         ME(1)= angmom_xt_real(psi_i,psi_j,der_psi_j)**2 
+$TR         ! |< k | j_y | -l >|^2 
+$TR         ME(2)= angmom_yt_imag(psi_i,psi_j,der_psi_j)**2
+$TR         J2(1:2,it) = J2(1:2,it) +  ME(1:2) * fi*(1-fj)
+
+            if(inversetemp.eq.-1) then
+              dfdE = fj - fi
+              if(abs(dfdE).gt.0) then
+                  dfdE = dfdE/(spenergies(ii) - spenergies(jj))
+              endif
+            else
+              if(abs(spenergies(ii) - spenergies(jj)).gt.1d-8) then
+                dfdE = (fj - fi)/(spenergies(ii) - spenergies(jj))
+              else                
+                dfdE = fi**2 * inversetemp                                     &
+                &            * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
+              endif
             endif
-          else
-            if(abs(spenergies(ii) - spenergies(jj)).gt.1d-8) then
-              dfdE = (fj - fi)/(spenergies(ii) - spenergies(jj))
-            else                
-              dfdE = fi**2 * inversetemp                                     &
-              &            * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
-            endif
+            Belyaev(3,it)   = Belyaev(3,it)   + ME(3)   * dfde
+$TR         Belyaev(1:2,it) = Belyaev(1:2,it) + ME(1:2) * dfde
           endif
-          Belyaev(3,it)   = Belyaev(3,it)   + ME(3)   * dfde
-$TR       Belyaev(1:2,it) = Belyaev(1:2,it) + ME(1:2) * dfde
         enddo
       enddo
 
 $NTR  do i=1,N2
-$NTR    ii = si + N+ i
-$NTR    it = 1
-$NTR     if(ii.gt.nwn) it = 2
-$NTR     do j=1,N2
-$NTR       jj = si + N + j
-$NTR       fi = rho_can(ii)     ; fj = rho_can(jj)
-$NTR       ME(3)= angmom_z_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
-$NTR       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-$NTR       ! Add a cutoff if part of the definition of the parameterization
-$NTR       if(rotcorr_cut) then
-$NTR        cut_cr = rotcut(spenergies(ii),it)*rotcut(spenergies(jj), it)
-$NTR        ME(3) = ME(3) * cut_cr**2
-$NTR       endif
+$NTR    ii    = si + i            ! global index of the spwf
+$NTR    locali= spwf_inverse(ii)  ! local index of the spwf
+$NTR    ranki = rank_map(ii)      ! MPI rank storing the spwf
 $NTR
 $NTR       J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
 $NTR
-$NTR       if(inversetemp.eq.-1) then
-$NTR         dfdE = fj - fi
-$NTR         if(abs(dfdE).gt.0) then
-$NTR            dfdE = dfdE/(spenergies(ii) - spenergies(jj))
+#if(USE_MPI>0)
+$NTR    call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+#else
+$NTR    call Transfer_psi(psi_i, locali, 'HF')
+#endif
+$NTR    do j=1,N2
+$NTR       jj = si + N + j           ! global index of the spwf
+$NTR       localj= spwf_inverse(jj)  ! local index of the spwf
+$NTR       rankj = rank_map(jj)      ! MPI rank storing the spwf
+$NTR
+#if(USE_MPI>0)
+$NTR       call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+#else
+$NTR       call Transfer_psi(psi_j, localj, 'HF')
+$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+#endif
+$NTR       if(MPI_RANK.eq.calc_rank) then
+$NTR         ME(3)= angmom_z_real(psi_i,psi_j,der_psi_j)**2  
+$NTR         fi = rho_can(ii)     ; fj = rho_can(jj)
+$NTR         J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
+$NTR
+$NTR         if(inversetemp.eq.-1) then
+$NTR           dfdE = fj - fi
+$NTR           if(abs(dfdE).gt.0) then
+$NTR              dfdE = dfdE/(spenergies(ii) - spenergies(jj))
+$NTR           endif
+$NTR         else
+$NTR           if(abs(spenergies(ii) - spenergies(jj)).gt.1d-8) then
+$NTR             dfdE = (fj - fi)/(spenergies(ii) - spenergies(jj))
+$NTR           else                
+$NTR             dfdE = fi**2 * inversetemp                                   &
+$NTR             &          * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
+$NTR           endif
 $NTR         endif
-$NTR       else
-$NTR         if(abs(spenergies(ii) - spenergies(jj)).gt.1d-8) then
-$NTR           dfdE = (fj - fi)/(spenergies(ii) - spenergies(jj))
-$NTR         else                
-$NTR           dfdE = fi**2 * inversetemp                                   &
-$NTR           &          * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
-$NTR         endif
+$NTR         Belyaev(3,it) = Belyaev(3,it) + ME(3) * dfde
 $NTR       endif
-$NTR       Belyaev(3,it) = Belyaev(3,it) + ME(3) * dfde
 $NTR     enddo
 $NTR   enddo
 $NTR   do i=1,N
-$NTR     ii = si + i
-$NTR     it = 1
-$NTR     if(ii.gt.nwn) it = 2
+$NTR    ii    = si + i            ! global index of the spwf
+$NTR    locali= spwf_inverse(ii)  ! local index of the spwf
+$NTR    ranki = rank_map(ii)      ! MPI rank storing the spwf
+#if(USE_MPI>0)
+$NTR    call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+#else
+$NTR    call Transfer_psi(psi_i, locali, 'HF')
+#endif
 $NTR     do j=1,N2
-$NTR       jj = si + N + j
-$NTR       fi = rho_can(ii)     ; fj = rho_can(jj)
-$NTR       ME(1)= angmom_x_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
-$NTR       ME(2)= angmom_y_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2
-$NTR       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-$NTR       ! Add a cutoff if part of the definition of the parameterization
-$NTR       if(rotcorr_cut) then
-$NTR        cut_cr = rotcut(spenergies(ii),it)*rotcut(spenergies(jj), it)
-$NTR        ME(1:2) = ME(1:2) * cut_cr**2
-$NTR       endif
-$NTR       J2(1:2,it) = J2(1:2,it) + ME(1:2) * fi*(1-fj) +  ME(1:2) * fj*(1-fi)
+$NTR       jj = si + N + j           ! global index of the spwf
+$NTR       localj= spwf_inverse(jj)  ! local index of the spwf
+$NTR       rankj = rank_map(jj)      ! MPI rank storing the spwf
 $NTR
-$NTR       if(inversetemp.eq.-1) then
-$NTR         dfdE = fj - fi
-$NTR         if(abs(dfdE).gt.0) then
-$NTR            dfdE = dfdE/(spenergies(ii) - spenergies(jj))
+#if(USE_MPI>0)
+$NTR       call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+#else
+$NTR       call Transfer_psi(psi_j, localj, 'HF')
+$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+#endif
+$NTR       if(MPI_RANK.eq.calc_rank) then
+$NTR         fi = rho_can(ii)     ; fj = rho_can(jj)
+$NTR         ME(1)= angmom_x_real( psi_i,psi_j,der_psi_j)**2  
+$NTR         ME(2)= angmom_y_imag( psi_i,psi_j,der_psi_j)**2  
+$NTR         J2(1:2,it) = J2(1:2,it) + ME(1:2) * fi*(1-fj) +  ME(1:2)*fj*(1-fi)
+$NTR
+$NTR         if(inversetemp.eq.-1) then
+$NTR           dfdE = fj - fi
+$NTR           if(abs(dfdE).gt.0) then
+$NTR              dfdE = dfdE/(spenergies(ii) - spenergies(jj))
+$NTR           endif
+$NTR         else
+$NTR           if(abs(spenergies(ii) - spenergies(jj)).gt.1d-8) then
+$NTR             dfdE = (fj - fi)/(spenergies(ii) - spenergies(jj))
+$NTR           else                
+$NTR             dfdE = fi**2 * inversetemp                                   &
+$NTR             &          * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
+$NTR           endif
 $NTR         endif
-$NTR       else
-$NTR         if(abs(spenergies(ii) - spenergies(jj)).gt.1d-8) then
-$NTR           dfdE = (fj - fi)/(spenergies(ii) - spenergies(jj))
-$NTR         else                
-$NTR           dfdE = fi**2 * inversetemp                                   &
-$NTR           &          * exp(inversetemp*(spenergies(ii)-FermiEnergy(it)))
-$NTR         endif
+$NTR         Belyaev(1:2,it) = Belyaev(1:2,it) +  2*ME(1:2) * dfde
 $NTR       endif
-$NTR       Belyaev(1:2,it) = Belyaev(1:2,it) +  2*ME(1:2) * dfde
 $NTR     enddo
 $NTR   enddo
       si = si + N + N2
     enddo
+    
+#if(USE_MPI>0)
+    call MPI_ALLREDUCE(MPI_IN_PLACE, Belyaev(:,1:2), 6, MPI_REAL8, MPI_SUM,    &
+    &                  MPI_COMM_WORLD, MPI_ERR)
+    call MPI_ALLREDUCE(MPI_IN_PLACE, J2(:,1:2)     , 6, MPI_REAL8, MPI_SUM,    &
+    &                  MPI_COMM_WORLD, MPI_ERR)
+#endif
+
     ! Factor 2 for time-reversal
 $TR J2(:,1:2)      = 2 * J2(:,1:2)
 $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
@@ -301,103 +377,150 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !  *) The formulas correctly produce 0 for spherical configurations at
     !     zero temperature.
     !---------------------------------------------------------------------------
-    integer       :: i,j, b, it, ii, jj, si
+    integer       :: i,j, b, it, ii, jj, si, N, locali, localj
+    integer       :: calc_rank, ranki, rankj, designated_rank(8)
     real(KIND=dp) :: ME(3), uvi, uvj, ui, uj, vi, vj, fi, fj
-    real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde, cut_cr
+    real(KIND=dp) :: wa, wb, wc, wd, Ba, Bb, dfde
+    real(KIND=dp) :: psi_i(mv,4), psi_j(mv,4), der_psi_j(mv,3,4)
+#if(USE_MPI>0)
+    integer :: mpi_err
+#endif
 
     J2 = 0  ;  Belyaev = 0
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    designated_rank = -1 
+    do B=1,8
+      ! First, we designate a rank to do the calculations
+      !    = the first rank storing spwfs in a symmetry block
+      N = HFBlocks_global(B) ;  if(N.eq.0) cycle
+      designated_rank(B) = rank_map(sum(HFBlocks_global(1:B-1))+1)
+    enddo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
  
     si = 0  
-    do b = 1, Blocks
-      do i=1, HFBlocks(b)
-        ii = si + i
+    do B = 1, Blocks   ! <----- loop over global indices of spwfs
+      N = HFBlocks_global(B); if(N.eq.0) cycle
+      calc_rank = designated_rank(B) ! <---- this rank will do the integrations
+                                     !       of the spwf matrix elements
+      do i=1, N
+        ii    = si + i            ! global index of the spwf
+        locali= spwf_inverse(ii)  ! local index of the spwf
+        ranki = rank_map(ii)      ! MPI rank storing the spwf
         it = 1
-        if(ii.gt.nwn) it = 2
-        do j=1,HFblocks(b)
-          jj = si + j
-        
-          ! BCS --------------------------------------------------------------
-          ! |< k | j_x | -l >|^2  
-          ME(1)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2 
-          ! |< k | j_y | -l >|^2 
-          ME(2)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
-          ! |< k | j_z |  l >|^2 
-          ME(3)= angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))**2  
 
-          ! Add a cutoff if part of the definition of the parameterization
-          if(rotcorr_cut) then
-            cut_cr = rotcut(spenergies(ii),it)*rotcut(spenergies(jj), it)
-            ME = ME * cut_cr**2
-          endif
+        if(B.gt.4) it = 2
 
-          ! The factor two is because of the presence of the four terms in 
-          ! ME_{kl}, which are pair-wise equal when J_i = J_j.
-          ME = 2 * ME 
+#if(USE_MPI>0)
+        call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+#else
+        call Transfer_psi(psi_i, locali, 'HF')
+#endif
 
-          vi  = BCSOccupations(ii)/2. ; vj  = BCSOccupations(jj)/2.
-          ui  = 1 - vi                ; uj  = 1 - vj
-          fi  = BCSf(ii)              ; fj  = BCSf(jj)
-          uvi = ui*vi                 ; uvj = uj*vj         
+        do j=1, N
+          jj    = si + j            ! global index of the spwf
+          localj= spwf_inverse(jj)  ! local index of the spwf
+          rankj = rank_map(jj)      ! MPI rank storing the spwf
 
-          ! Take the square root, but take care for numerical errors producing 
-          ! small negative numbers.
-          if(uvi .gt. 0) then
-            uvi = sqrt(uvi) 
-          else
-            uvi = 0
-          endif
-          if(uvj .gt. 0) then
-             uvj = sqrt(uvj)
-          else
-             uvj = 0
-          endif
+#if(USE_MPI>0)
+          call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+          call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+#else
+          call Transfer_psi(psi_j, localj, 'HF')
+          call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+#endif
+          if(MPI_RANK.eq.calc_rank) then
+            ! ^------ only one rank needs to to this calculation.
 
-          !---------------------------------------------------------------------
-          ! <J^2>
-          ! [u^2_k u_l^2 + u_k v_k u_l v_l] * f_k (1-f_l)                  (a)
-          wa = (ui*uj + uvi*uvj) * fi * (1-fj)
-          ! [v^2_k v_l^2 + u_k v_k u_l v_l] * (1-f_k) f_l                  (b)
-          wb = (vi*vj + uvi*uvj) * (1-fi) * fj
-          ! [u_k^2 v_l^2 - u_k v_k u_l v_l] * f_k f_l                      (c)
-          wc = (ui*vj - uvi*uvj) * fi * fj
-          ! [v_k^2 u_l^2 - u_k v_k u_l v_l] * (1-f_k) (1-f_l)              (d)
-          wd = (vi*uj - uvi*uvj) * (1-fi) *(1-fj)
+            ! BCS matrix elements ----------------------------------------------
+            ! |< k | j_x | -l >|^2  
+            ME(1)= angmom_xt_real(psi_i, psi_j, der_psi_j)**2
+            ! |< k | j_y | -l >|^2 
+            ME(2)= angmom_yt_imag(psi_i, psi_j, der_psi_j)**2
+            ! |< k | j_z |  l >|^2 
+            ME(3)= angmom_z_real (psi_i, psi_j, der_psi_j)**2
+            !-------------------------------------------------------------------
 
-          J2(:,it) = J2(:,it) + ME * (wa+wb+wc+wd)
-          !---------------------------------------------------------------------
-          ! I_xx, I_yy and I_zz
-          if(abs(BCSqps(ii) - BCSqps(jj)).gt.1d-5) then            
-            dfde = (fj - fi)/(BCSqps(ii) - BCSqps(jj))
-          else
-            if(inversetemp.gt.0) then
-              ! beta exp(beta * E_k)* f_k^2
-              dfde = inversetemp * exp(inversetemp*BCSqps(ii)) * fi**2
+            ! The factor two is because of the presence of the four terms in 
+            ! ME_{kl}, which are pair-wise equal when J_i = J_j.
+            ME = 2 * ME 
+
+            vi  = BCSOccupations(ii)/2. ; vj  = BCSOccupations(jj)/2.
+            ui  = 1 - vi                ; uj  = 1 - vj
+            fi  = BCSf(ii)              ; fj  = BCSf(jj)
+            uvi = ui*vi                 ; uvj = uj*vj         
+
+            ! Take the square root, but take care for numerical errors producing 
+            ! small negative numbers.
+            if(uvi .gt. 0) then
+              uvi = sqrt(uvi) 
             else
-              dfde = 0 ! All QPS are unoccupied for T=0 calculation
+              uvi = 0
             endif
-          endif
-          ! (u_k u_l + v_k v_l)**2 * (f_l - f_k)/(E_k - E_l)  (Ba)
-          Ba = (ui*uj + vi*vj + 2*uvi*uvj) * dfdE 
-          
-          dfdE = (1 - fi - fj)/(BCSqps(ii) + BCSqps(jj))
+            if(uvj .gt. 0) then
+               uvj = sqrt(uvj)
+            else
+               uvj = 0
+            endif
 
-          ! (u_k v_l - v_k u_l)**2 * (1-f_k-f_l)/(E_k + E_l)  (Bb)
-          Bb = (ui*vj + uj*vi - 2*uvi*uvj) * dfde
-    
-          Belyaev(:,it) =  Belyaev(:,it) + ME * (Ba + Bb)
+            !-------------------------------------------------------------------
+            ! <J^2>
+            ! [u^2_k u_l^2 + u_k v_k u_l v_l] * f_k (1-f_l)                  (a)
+            wa = (ui*uj + uvi*uvj) * fi * (1-fj)
+            ! [v^2_k v_l^2 + u_k v_k u_l v_l] * (1-f_k) f_l                  (b)
+            wb = (vi*vj + uvi*uvj) * (1-fi) * fj
+            ! [u_k^2 v_l^2 - u_k v_k u_l v_l] * f_k f_l                      (c)
+            wc = (ui*vj - uvi*uvj) * fi * fj
+            ! [v_k^2 u_l^2 - u_k v_k u_l v_l] * (1-f_k) (1-f_l)              (d)
+            wd = (vi*uj - uvi*uvj) * (1-fi) *(1-fj)
+
+            J2(:,it) = J2(:,it) + ME * (wa+wb+wc+wd)
+            !-------------------------------------------------------------------
+            ! I_xx, I_yy and I_zz
+            if(abs(BCSqps(ii) - BCSqps(jj)).gt.1d-5) then            
+              dfde = (fj - fi)/(BCSqps(ii) - BCSqps(jj))
+            else
+              if(inversetemp.gt.0) then
+                ! beta exp(beta * E_k)* f_k^2
+                dfde = inversetemp * exp(inversetemp*BCSqps(ii)) * fi**2
+              else
+                dfde = 0 ! All QPS are unoccupied for T=0 calculation
+              endif
+            endif
+            ! (u_k u_l + v_k v_l)**2 * (f_l - f_k)/(E_k - E_l)  (Ba)
+            Ba = (ui*uj + vi*vj + 2*uvi*uvj) * dfdE 
+
+            dfdE = (1 - fi - fj)/(BCSqps(ii) + BCSqps(jj))
+
+            ! (u_k v_l - v_k u_l)**2 * (1-f_k-f_l)/(E_k + E_l)  (Bb)
+            Bb = (ui*vj + uj*vi - 2*uvi*uvj) * dfde
+
+            Belyaev(:,it) =  Belyaev(:,it) + ME * (Ba + Bb)
+          endif
         enddo
       enddo
-      si = si +   HFBlocks(b)
+      si = si + N
     enddo
+#if(USE_MPI>0)
+    call MPI_ALLREDUCE(MPI_IN_PLACE, Belyaev(:,1:2), 6, MPI_REAL8, MPI_SUM,    &
+    &                  MPI_COMM_WORLD, MPI_ERR)
+    call MPI_ALLREDUCE(MPI_IN_PLACE, J2(:,1:2)     , 6, MPI_REAL8, MPI_SUM,    &
+    &                  MPI_COMM_WORLD, MPI_ERR)
+#endif
     !  Sum for the total
     J2(:,3) = sum(J2(:,1:2),2) ; Belyaev(:,3) = sum(Belyaev(:,1:2),2)
   end subroutine calcJ2andBelyaev_BCS
 
   subroutine calcJ2andBelyaev_HFB
     !---------------------------------------------------------------------------
-    ! NOTE: this routine should be double-checked in the case of T!=0
-    !       calculations. many elements are there, but it should be 
-    !       thoroughly checked.
+    ! NOTES 
+    !  - This routine should be double-checked in the case of T!=0 calculations. 
+    !    Many elements are present, but little has been tested...
+    !
+    !  - The way this routine is parallelized is simple: parallel calculation
+    !    of all relevant matrix elements of the angular momentum operators
+    !    followed by a calculation of Belyaev by ALL MPI ranks.
     !---------------------------------------------------------------------------
     ! This routine calculates the 
     !
@@ -489,7 +612,8 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !
     !---------------------------------------------------------------------------
     integer       :: i,j, b, it, ii, iii, jjj, jj, si, N,k, sb, ibar, jbar, N2,T
-    real(KIND=dp) :: ME(3),  fac
+    integer       :: locali, localj, ranki, rankj, calc_rank, designated_rank(8)
+    real(KIND=dp) :: ME(3),  fac, psi_i(mv,4), psi_j(mv,4), der_psi_j(mv,3,4)
 
     real(KIND=dp) :: jx(nwt,nwt), jy(nwt,nwt), jz(nwt,nwt)
     real(KIND=dp) :: jx_can(nwt,nwt), jy_can(nwt,nwt), jz_can(nwt,nwt)
@@ -497,8 +621,24 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     real(KIND=dp) :: J20(nwt,nwt, 3), J11(nwt,nwt,3) , cut_cr
     logical       ::  blocked
 
+#if(USE_MPI>0)
+    integer       :: mpi_err
+#endif
+
     J2 = 0  ; Belyaev = 0 ; J2_coll = 0 ; Bely_coll = 0
     jx = 0  ; jy = 0      ; jz = 0
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    designated_rank = -1 
+    do B=1,8
+      ! First, we designate a rank to do the calculations
+      !    = the first rank storing spwfs in a symmetry block
+      N = HFBlocks_global(B) ;  if(N.eq.0) cycle
+      designated_rank(B) = rank_map(sum(HFBlocks_global(1:B-1))+1)
+    enddo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    ! ------------------- START of all things parallel -------------------------
 
     !---------------------------------------------------------------------------
     ! First, we calculate the full matrix elements of jx, jy and jz in the  
@@ -534,67 +674,134 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
 
-    si = 0  
-    do B = 1, 8,2
-      N = HFBlocks(b)   ; if(N.eq.0) cycle
-      N2= HFBlocks(b+1)
+    si = 0
+    do B = 1,8,2
+      N = HFBlocks_global(B)   ; if(N.eq.0) cycle   !<--- this is a loop over
+      N2= HFBlocks_global(B+1)                      !     global indices
       T = N + N2
-
       it = 1 ; if(B.gt.4) it=2
-
+      calc_rank = designated_rank(B) ! this is the rank doing the calculation
       !-------------------------------------------------------------------------
       ! If time-reversal is conserved, we can treat all directions equally:
       ! both the inner and outer summation are over the same symmetry block    
       ! for all directions.
       !-------------------------------------------------------------------------
       do i=1,N
-        ii = si + i
+        ii    = si + i            ! global index of the spwf
+        locali= spwf_inverse(ii)  ! local index of the spwf
+        ranki = rank_map(ii)      ! MPI rank storing the spwf
+#if(USE_MPI>0)
+        call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+#else
+        call Transfer_psi(psi_i, locali, 'HF')
+#endif
+
         do j=i,N
-          jj = si + j
+          jj    = si + j            ! global index of the spwf
+          localj= spwf_inverse(jj)  ! local index of the spwf
+          rankj = rank_map(jj)      ! MPI rank storing the spwf
 
-$TR       ! |< k | j_x | -l >|^2            
-$TR       jx(ii,jj)= angmom_xt_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
-$TR       jx(jj,ii)= jx(ii,jj)
-$TR       ! |< k | j_y | -l >|^2 
-$TR       jy(ii,jj)= angmom_yt_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
-$TR       jy(jj,ii)= jy(ii,jj)
+#if(USE_MPI>0)
+          call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+          call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+#else
+          call Transfer_psi(psi_j, localj, 'HF')
+          call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+#endif
 
-          ! |< k | j_z |  l >|^2 
-          jz(ii  ,jj  ) = angmom_z_real( hfpsi(:,:,ii),hfpsi(:,:,jj),          &
-          &                              hfdpsi(:,:,:,jj))
-          jz(jj  ,ii  ) = jz(ii,jj)
+          if(MPI_rank.eq.calc_rank) then
+$TR         ! |< k | j_x | -l >|^2            
+$TR         jx(ii,jj)= angmom_xt_real(psi_i,psi_j,der_psi_j) 
+$TR         jx(jj,ii)= jx(ii,jj)
+$TR         ! |< k | j_y | -l >|^2 
+$TR         jy(ii,jj)= angmom_yt_imag(psi_i,psi_j,der_psi_j) 
+$TR         jy(jj,ii)= jy(ii,jj)
+
+            ! |< k | j_z |  l >|^2 
+            jz(ii  ,jj  ) = angmom_z_real(psi_i,psi_j,der_psi_j) 
+            jz(jj  ,ii  ) = jz(ii,jj)
+          endif
         enddo
       enddo
       ! If time-reversal is not conserved, we have only calculated half of the 
       ! necessary matrix elements of jz above
+$NTR  calc_rank = designated_rank(B+1) ! this is the rank doing the calculation
 $NTR  do i=1,N2
 $NTR     ii = si + N + i
+$NTR     locali= spwf_inverse(ii)  ! local index of the spwf
+$NTR     ranki = rank_map(ii)      ! MPI rank storing the spwf
+#if(USE_MPI>0)
+$NTR     call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+#else
+$NTR     call Transfer_psi(psi_i, locali, 'HF')
+#endif
 $NTR     do j=i,N2
-$NTR      jj = si + N + j
-$NTR
-$NTR      jz(ii,jj)= angmom_z_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
-$NTR      jz(jj,ii)= jz(ii,jj)
+$NTR      jj = si + N + j           ! global index of the spwf
+$NTR      localj= spwf_inverse(jj)  ! local index of the spwf
+$NTR      rankj = rank_map(jj)      ! MPI rank storing the spwf
+#if(USE_MPI>0)
+$NTR      call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+$NTR      call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+#else
+$NTR      call Transfer_psi(psi_j, localj, 'HF')
+$NTR      call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+#endif
+$NTR      if(calc_rank.eq.MPI_RANK) then
+$NTR        jz(ii,jj)= angmom_z_real(psi_i,psi_j,der_psi_j)
+$NTR        jz(jj,ii)= jz(ii,jj)
+$NTR      endif
 $NTR     enddo
 $NTR  enddo
       !-------------------------------------------------------------------------
       ! If time-reversal is not conserved, the inner and outer loops for the 
       ! jx and jy matrix elements are not the same.
       !-------------------------------------------------------------------------
+$NTR  calc_rank = designated_rank(B) ! this is the rank doing the calculation
 $NTR  do i=1,N
-$NTR    ii = si + i
+$NTR    ii = si + i               ! global index of the spwf
+$NTR    locali= spwf_inverse(ii)  ! local index of the spwf
+$NTR    ranki = rank_map(ii)      ! MPI rank storing the spwf
+#if(USE_MPI>0)
+$NTR    call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+#else
+$NTR    call Transfer_psi(psi_i, locali, 'HF')
+#endif
 $NTR    do j=1, N2
-$NTR       jj = si + N +  j
-$NTR
-$NTR       !|< k | j_x | l >|^2            
-$NTR       jx(ii,jj)=angmom_x_real(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj)) 
-$NTR       ! |< k | j_y | l >|^2 
-$NTR       jy(ii,jj)=angmom_y_imag(hfpsi(:,:,ii),hfpsi(:,:,jj),hfdpsi(:,:,:,jj))
-$NTR 
-$NTR       jx(jj,ii) =  jx(ii,jj)
-$NTR       jy(jj,ii) = -jy(ii,jj)
+$NTR       jj = si + N +  j          ! global index of the spwf
+$NTR       localj= spwf_inverse(jj)  ! local index of the spwf
+$NTR       rankj = rank_map(jj)      ! MPI rank storing the spwf
+$NTR       if(calc_rank.eq.MPI_RANK) then
+$NTR         !|< k | j_x | l >|^2            
+$NTR         jx(ii,jj)=angmom_x_real(psi_i, psi_j, der_psi_j) 
+$NTR         ! |< k | j_y | l >|^2 
+$NTR         jy(ii,jj)=angmom_y_imag(psi_i, psi_j, der_psi_j) 
+$NTR         jx(jj,ii) =  jx(ii,jj)
+$NTR         jy(jj,ii) = -jy(ii,jj)  ! attention to the sign(s)!
+$NTR       endif
 $NTR    enddo
 $NTR  enddo
 
+      si = si + N + N2
+    enddo
+#if(USE_MPI>0)
+    ! These MPI ALLREDUCE calls can be improved upon:
+    !   by using BCAST from each calc_rank and restricting to symmetry blocks
+    call MPI_ALLREDUCE(MPI_IN_PLACE, jx, nwt**2, MPI_REAL8, MPI_SUM,    &
+    &                  MPI_COMM_WORLD, MPI_ERR)
+    call MPI_ALLREDUCE(MPI_IN_PLACE, jy, nwt**2, MPI_REAL8, MPI_SUM,    &
+    &                  MPI_COMM_WORLD, MPI_ERR)
+    call MPI_ALLREDUCE(MPI_IN_PLACE, jz, nwt**2, MPI_REAL8, MPI_SUM,    &
+    &                  MPI_COMM_WORLD, MPI_ERR)
+#endif
+
+    ! ------------------- END of all things parallel ---------------------------
+
+    si = 0
+    do B = 1,8,2
+      N = HFBlocks_global(B)   ; if(N.eq.0) cycle   !<--- this is a loop over
+      N2= HFBlocks_global(B+1)                      !     global indices
+      T = N + N2
+      it = 1 ; if(B.gt.4) it=2
       if(rotcorr_cut) then
         !-----------------------------------------------------------------------
         ! The matrix elements computed above are the matrix elements in the 
@@ -606,22 +813,22 @@ $NTR  enddo
              jx(si+1:si+T,si+1:si+T) = &
              &  matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)), &
              &                   jx(si+1:si+T,si+1:si+T))
-             
+
              jy(si+1:si+T,si+1:si+T) = &
              &    matmul(        jy(si+1:si+T,si+1:si+T),          &
              &                   HFtransfo(si+1:si+T,si+1:si+T))
              jy(si+1:si+T,si+1:si+T) = &
              &  matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)), &
              &                   jy(si+1:si+T,si+1:si+T))
-             
+
              jz(si+1:si+T,si+1:si+T) = &
              &    matmul(        jz(si+1:si+T,si+1:si+T),          &
              &                   HFtransfo(si+1:si+T,si+1:si+T))
              jz(si+1:si+T,si+1:si+T) = &
              &  matmul(transpose(HFtransfo(si+1:si+T,si+1:si+T)), &
              &                   jz(si+1:si+T,si+1:si+T))           
-        endif      
-        
+        endif
+
         ! Apply the cutoff in the HF basis
         do i=1,T
           do j=1,T
@@ -653,7 +860,7 @@ $NTR  enddo
              jz(si+1:si+T,si+1:si+T) = &
              &  matmul(            HFtransfo(si+1:si+T,si+1:si+T), &
              &                     jz(si+1:si+T,si+1:si+T))           
-        endif    
+        endif
       endif
       !-------------------------------------------------------------------------
       ! Transform the sp. matrix elements into the canonical basis.
@@ -695,8 +902,8 @@ $NTR  enddo
     !---------------------------------------------------------------------------
     si = 0 
     do b = 1, Blocks,2
-      N  = HFBlocks(b)   ; if(N.eq.0) cycle
-      N2 = HFBlocks(b+1)
+      N  = HFBlocks_global(b)   ; if(N.eq.0) cycle
+      N2 = HFBlocks_global(b+1)
 
       it = 1 ; if(B.gt.4) it = 2
 
@@ -752,14 +959,14 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
     !---------------------------------------------------------------------------
     ! I also calculate some approximation for the collective angular momentum, 
     ! which I define as <J^2> without the contribution from the blocked qps. 
-    !
-    ! To safely remove contributions of individual qps, this calculation is 
-    ! done in the qp basis. 
     ! 
+    !  To safely remove contributions of individual qps, this calculation is 
+    !  done in the qp basis. 
+    !  
     !  <J^2> = 1/2 sum_{ab} (1-f_a)(1-f_b) |J^20_ab|^2
     !        +     sum_{ab}  f_a (1-f_b)   |J^11_ab|^2     
-    !
-    ! where the sum simply does not include the blocked qps, but in general
+    ! 
+    !  where the sum simply does not include the blocked qps, but in general
     ! ranges over all possible other combinations.
     !   
     ! This in addition serves as an additional sanity check: without blocking 
@@ -779,13 +986,13 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
     if(inversetemp .lt. 0) then
       si = 0 ; sb = 0
       do b=1,Blocks,2
-        N  = hfblocks(b)    ; if(N .eq. 0) cycle
-        N2 = hfblocks(b+1)
+        N  = hfblocks_global(b)    ; if(N .eq. 0) cycle
+        N2 = hfblocks_global(b+1)
+        
+        it = 1 ; if(B.gt.4) it = 2
         do i=1, N + N2
           ii = si + i
           iii= sb + N + N2 + i
-          it = 1
-          if(ii.gt.nwn) it = 2
 
           do j=1,N+N2
             jj = si + j
@@ -821,7 +1028,6 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
             !       sp-basis summation when the blocked QPS are not ommitted.
             fac=  configmatrix(jjj)*(1 - configmatrix(iii))
             ME = ME + J11(ii,jj,:)**2  * fac
-            
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             J2_coll(:,it) = J2_coll(:,it) + ME      
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -830,38 +1036,37 @@ $NTR      J2(:,it) = J2(:,it) + ME(:) * fac
         si = si +   N +   N2
         sb = sb + 2*N + 2*N2
       enddo
-$TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two           
-      J2_coll(:,3) = sum(J2_coll(:,1:2), 2)  
+$TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two 
+      J2_coll(:,3) = sum(J2_coll(:,1:2), 2)
     endif
     !---------------------------------------------------------------------------
     ! Then the Belyaev moment of inertia in the ordinary sp. basis.
-    !
-    ! From expanding the many-body wave-function around the HFB minimum for 
-    ! small rotational frequency omega, we get the following expression
-    !
-    !    I_mm = \sum_{ab} (1 - f_a  - f_b) (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
-    !         + \sum_{ab} (f_b - f_a)      (E_a - E_b)^{-1} |J^{11}|^2_{m,ab}
-    !
+    ! 
+    !  From expanding the many-body wave-function around the HFB minimum for 
+    !  small rotational frequency omega, we get the following expression
+    ! 
+    !     I_mm = \sum_{ab} (1 - f_a  - f_b) (E_a + E_b)^{-1} |J^{20}|^2_{m,ab}
+    !          + \sum_{ab} (f_b - f_a)      (E_a - E_b)^{-1} |J^{11}|^2_{m,ab}
+    ! 
     ! based on (the generalisation of) equation 3.92 on pg 131 in Ring and 
     ! Schuck, . In the case of time-reversal conservation (and no blocking), 
     ! the sum over (ab) gets restricted and the f_a vanish. We have 
-    !
-    !  I_{mm} = 2 \sum_{ab>0}  (|J^{20}|^2_{m,ab} + |J^{20}|^2_{m,a\bar{b}})
-    !                          ---------------------------------------------
-    !                                              E_a + E_b
+    ! 
+    !   I_{mm} = 2 \sum_{ab>0}  (|J^{20}|^2_{m,ab} + |J^{20}|^2_{m,a\bar{b}})
+    !                           ---------------------------------------------
+    !                                               E_a + E_b
     !---------------------------------------------------------------------------
 
     si = 0 ; sb = 0
     do b = 1, Blocks, 2
-      N = HFBlocks(b)   ; if(N.eq.0) cycle
-      N2= HFBlocks(b+1)
+      N = HFBlocks_global(b)   ; if(N.eq.0) cycle
+      N2= HFBlocks_global(b+1)
+      it = 1 ; if(B.gt.4) it = 2
 
       do i=1, N + N2
         ii = si + i
         iii= sb + N + N2 + i
-        it = 1
-        if(ii.gt.nwn) it = 2
-          
+
         do j=1, N + N2
           jj = si + j
           jjj= sb + N + N2 + j
@@ -879,12 +1084,13 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
             Belyaev(:,it) = Belyaev(:,it) + &
             &       fac*J11(ii,jj,:)**2 /(Qpenergies(iii)-Qpenergies(jjj))  
           elseif(inversetemp .gt. 0) then
-           stop
            ! 28/12/2020, WR: I'm unsure whether there should be a factor 2
            ! here or not.... To be doublechecked.
            ! degen = inversetemp * configmatrix(sb+i)**2 *                     &
            ! &                                 exp(inversetemp * Qpenergies(ii))
            ! Belyaev(:,it) = Belyaev(:,it) +   J11(ii,jj,:)**2 * degen   	
+           call stp('The calculation of moments of the inertia at finite T is &
+           &         not supported yet.')
           endif 
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! Collective Belyaev calculation  
@@ -892,7 +1098,7 @@ $TR   J2_coll(:,1:2) = 2 * J2_coll(:,1:2)   ! Time-reversal factor two
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Don't include the blocked_qps and their partner qps
             blocked= .false.
-            
+
             if(allocated(blocked_qps)) then
               do k=1,size(blocked_qps)
                 if(ii.eq.blocked_qps(k) .or.  jj.eq.blocked_qps(k)) then
@@ -981,9 +1187,9 @@ $TR Bely_coll(:,1:2) = 2*Bely_coll(:,1:2) ! Time-reversal factor 2's
     integer :: N, N2, si, sb, b, T
 
     si = 0 ; sb = 0
-    do b = 1, 8, 2
-      N = HFBlocks(b)   ; if(N.eq.0) cycle
-      N2= HFblocks(b+1)
+    do B = 1, 8, 2
+      N = HFBlocks_global(B)   ; if(N.eq.0) cycle
+      N2= HFblocks_global(B+1)
 
       T =  N + N2
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -994,7 +1200,7 @@ $TR Bely_coll(:,1:2) = 2*Bely_coll(:,1:2) ! Time-reversal factor 2's
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! U^\dagger j V^*
       j20(si+1:si+T, si+1:si+T) = &
-      & matmul( j20(si+1:si+T, si+1:si+T), (bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)))
+      & matmul( j20(si+1:si+T, si+1:si+T), bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T))
 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! V^\dagger j^t 
@@ -1005,12 +1211,11 @@ $TR Bely_coll(:,1:2) = 2*Bely_coll(:,1:2) ! Time-reversal factor 2's
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! V^\dagger j^T U
       j20(si+1:si+T, si+1:si+T) = j20(si+1:si+T, si+1:si+T) - &
-      &  matmul( tmp(si+1:si+T, si+1:si+T), (bogo(sb+1:sb+T, sb+T+1:sb+2*T)))
+      &  matmul( tmp(si+1:si+T, si+1:si+T), bogo(sb+1:sb+T, sb+T+1:sb+2*T))
 
       si = si +   T 
       sb = sb + 2*T 
     enddo
-
   end subroutine calcJ20
 
   subroutine calcJ11(j,bogo, j11)
@@ -1061,9 +1266,9 @@ $TR Bely_coll(:,1:2) = 2*Bely_coll(:,1:2) ! Time-reversal factor 2's
 
     si = 0 ; sb = 0
     do b = 1, Blocks,2 
-      N = HFBlocks(b)    ; if(N.eq.0) cycle
-      N2 = HFBlocks(b+1)
-       
+      N = HFBlocks_global(b)    ; if(N.eq.0) cycle
+      N2 = HFBlocks_global(b+1)
+
       T = N + N2
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! U^\dagger j 
@@ -1072,21 +1277,21 @@ $TR Bely_coll(:,1:2) = 2*Bely_coll(:,1:2) ! Time-reversal factor 2's
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! U^\dagger j U
       j11(si+1:si+T, si+1:si+T) = &
-      & matmul( j11(si+1:si+T, si+1:si+T), (bogo(sb+1:sb+T, sb+T+1:sb+2*T)))
+      & matmul( j11(si+1:si+T, si+1:si+T), bogo(sb+1:sb+T, sb+T+1:sb+2*T))
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! V^\dagger j^t 
       tmp(si+1:si+T, si+1:si+T) = transpose(j(si+1:si+T, si+1:si+T))
       tmp(si+1:si+T, si+1:si+T) = &
       & matmul(transpose(bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)),                  &
       &                             tmp(si+1:si+T,si+1:si+T))
-      
+
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! V^\dagger j^T V
       ! Here we take care of the hidden minus sign as commented above.
 $TR   s = -1
 $NTR  s = +1
       j11(si+1:si+T, si+1:si+T) = j11(si+1:si+T, si+1:si+T) - s * &
-      &  matmul( tmp(si+1:si+T, si+1:si+T),(bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)))
+      &  matmul( tmp(si+1:si+T, si+1:si+T), bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T))
 
       si = si +   N +   N2
       sb = sb + 2*N + 2*N2

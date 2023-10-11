@@ -27,6 +27,9 @@ iso_der      =  T( tab +'Der_$NAME(:$DERIND,3) = Der_$NAME(:$DERIND,1) + Der_$NA
                   +tab +'Der_$NAME(:$DERIND,4) = Der_$NAME(:$DERIND,1) - Der_$NAME(:$DERIND,2) \n' )
 iso_lap      =  T( tab +'Lap_$NAME(:$IND,3) = Lap_$NAME(:$IND,1) + Lap_$NAME(:$IND,2) \n' \
                   +tab +'Lap_$NAME(:$IND,4) = Lap_$NAME(:$IND,1) - Lap_$NAME(:$IND,2) \n' )
+
+mpi          =  T( tab + 'call MPI_ALLREDUCE(MPI_IN_PLACE,$NAME(:$TOTALIND,1:2),$TRANS_SIZE, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, mpi_err)')
+
 #-------------------------------------------------------------------------------
 # Some templates for comments to put into the densities file
 Den_comment          = T(2*tab+'! Calculation of density $NAME \n')
