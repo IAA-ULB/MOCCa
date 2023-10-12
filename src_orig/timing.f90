@@ -7,7 +7,7 @@
 !-------------------------------------------------------------------------------
 module timing
 
-  use compilation
+  use geninfo
 
   implicit none
 
@@ -283,42 +283,52 @@ contains
     !---------------------------------------------------------------------------
     !
     !---------------------------------------------------------------------------
-    integer :: id, ic
+    integer :: id, ic, r
     type(timer), pointer   :: t
     type(context), pointer :: c
     real(KIND=DP)          :: time, total
     integer(8)             :: ncalls
+#if(USE_MPI>0)
+    integer :: mpi_err
+#endif
+    do r=1, NCORES
+      if(MPI_RANK .eq. r) then
+        if (current_context .ne. 0) then
+           write (*,*) "WARNING: There are timers still running. They should be &
+                &stopped"
+           write (*,*) "before printing out the timers. Some numbers may be&
+                & incorrect."
+        end if
+  
+        call calc_total_time(total)
+  
+        print *, 'Timers of MPI-rank ', r
+        write (*,'(a2,tr1,a46,tr2,a10,tr2,a12,tr2,a7)') &
+             "id", "Timer name                                    ", &
+             "# of calls", "time (s)", "% total"
+        write (*,'(2("*"),tr1,46("*"),tr2,10("*"),tr2,12("*"),tr2,7("*"))')
+        write (*,'(2x,tr1,a,tr41,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
+                "TOTAL", "-", total, 100.d0
 
-    if (current_context .ne. 0) then
-       write (*,*) "WARNING: There are timers still running. They should be &
-            &stopped"
-       write (*,*) "before printing out the timers. Some numbers may be&
-            & incorrect."
-    end if
-
-    call calc_total_time(total)
-
-    write (*,'(a2,tr1,a46,tr2,a10,tr2,a12,tr2,a7)') &
-         "id", "Timer name                                    ", &
-         "# of calls", "time (s)", "% total"
-    write (*,'(2("*"),tr1,46("*"),tr2,10("*"),tr2,12("*"),tr2,7("*"))')
-    write (*,'(2x,tr1,a,tr41,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
-            "TOTAL", "-", total, 100.d0
-
-    do id=1,ntimers
-       t => timers(id)
-       time = 0.d0
-       ncalls = 0
-       do ic=1,size(t%contexts)
-          c => t%contexts(ic)
-          if (c%key >= 0) then
-             time = time + c%tsum
-             ncalls = ncalls + c%ncalls
-          end if
-       end do
-       write (*,'(i2,tr1,a46,tr2,i10,tr2,f12.4,tr2,f6.2,"%")') &
-            t%id, t%name, ncalls, time, time/total * 100.d0
-    end do
+        do id=1,ntimers
+           t => timers(id)
+           time = 0.d0
+           ncalls = 0
+           do ic=1,size(t%contexts)
+              c => t%contexts(ic)
+              if (c%key >= 0) then
+                 time = time + c%tsum
+                 ncalls = ncalls + c%ncalls
+              end if
+           end do
+           write (*,'(i2,tr1,a46,tr2,i10,tr2,f12.4,tr2,f6.2,"%")') &
+                t%id, t%name, ncalls, time, time/total * 100.d0
+        end do
+      endif
+#if(USE_MPI>0)
+      call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
+#endif
+    enddo
   end subroutine print_all_timers_flat
 
   recursive subroutine print_all_timers_aux(icontext,depth,nsub,tsub,&
@@ -334,7 +344,7 @@ contains
     logical,    intent(in)        :: prnt
 
     integer(8)                    :: isubcontext
-    integer                       :: id, ic, nsub1
+    integer                       :: id, ic, nsub1, r
     real(KIND=DP)                 :: tsub1, tinternal, tpercent
     type(timer),   pointer        :: t
     type(context), pointer        :: c
@@ -373,26 +383,40 @@ contains
              call print_all_timers_aux(isubcontext,depth+1,nsub1,tsub1,&
                   total,prnt)
           end if
-       end do
-    end do
+       enddo
+    enddo
+
   end subroutine print_all_timers_aux
 
   subroutine print_all_timers()
 
-    integer :: nsub
+    integer :: nsub, r
     real(8) :: tsub, total
+#if(USE_MPI>0)
+    integer :: mpi_err
+#endif
+
 
     call calc_total_time(total)
 
-    write (*,'(a2,tr1,a40,tr2,a10,tr2,a12,tr2,a7)') &
-         "id", "Timer name                                    ", &
-         "# of calls", "time (s)", "% total"
-    write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
-    write (*,'(2x,tr1,a,tr35,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
-            "TOTAL", "-", total, 100.d0
-
-    call print_all_timers_aux(0_8,0,nsub,tsub,total,.true.)
-    write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
+    do r=0,NCORES-1
+      if(MPI_RANK.eq.r) then
+        print *, '-------------------------------------------------------------'
+        print *, 'Timers of rank ', r
+        print *, '-------------------------------------------------------------'
+        write (*,'(a2,tr1,a40,tr2,a10,tr2,a12,tr2,a7)') &
+             "id", "Timer name                                    ", &
+             "# of calls", "time (s)", "% total"
+        write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
+        write (*,'(2x,tr1,a,tr35,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
+                "TOTAL", "-", total, 100.d0
+        call print_all_timers_aux(0_8,0,nsub,tsub,total,.true.)
+        write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
+      endif
+#if(USE_MPI>0)
+      call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
+#endif
+    enddo
 
   end subroutine print_all_timers
 

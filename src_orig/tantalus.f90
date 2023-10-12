@@ -168,14 +168,14 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! Clean up after running, just in case we need to run again.
  call Cleanupthemess()
  !------------------------------------------------------------------------------
+ ! Print all timing info
+ call stop_timer(T_tantalus)
+ call print_all_timers()
+ !------------------------------------------------------------------------------
  ! end the processes across MPI ranks
 #if(USE_MPI > 0) 
   call mpi_finalize(mpi_err)
 #endif
- !------------------------------------------------------------------------------
- ! Print all timing info
- call stop_timer(T_tantalus)
-! call print_all_timers()
 
  ! end of one mean-field calculation..;
 end subroutine Run_Tantalus
