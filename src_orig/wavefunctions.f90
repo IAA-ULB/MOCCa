@@ -863,9 +863,17 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! that all spwfs in a given symmetry block are LOCALLY stored on the same
     ! MPI rank. In this case, no intra-rank communication is necessary. 
     ! For a more general situation, this routine will need serious modification.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Note: this routine is written in a way such that it does not care about
+    !       the spatial dimensions of the HFPSI array. This way, it can be 
+    !       called both during a calculation and/or during its set-up when
+    !       HFPsi can perhaps be defined on a smaller mesh. Since this routine
+    !       cannot infer the value of dv in the latter case, it might be that
+    !       the resulting spwfs are not completely normalized.
+    !
     !---------------------------------------------------------------------------
-    integer  :: b, i,j,nw, mw,l, si, N
-    integer  :: indices(maxval(HFBlocks)), spatial_size
+    integer  :: b, i,j,nw, mw, si, N
+    integer  :: indices(maxval(HFBlocks))
     real(KIND=dp) ::  norm
 
 #if(USE_MPI>0)
@@ -876,15 +884,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
     call start_timer(T_ortho)
 
-    ! We ask for the spatial extent of the wavefunctions here, as this routine
-    ! could be called for wavefunctions only defined on parts of the mesh, such
-    ! as when initializing new wavefunctions with the nilsson module in only 
-    ! part of the simulation volume.
-    spatial_size = size(HFPsi(:,:,1))
-    ! .... however, this routine has no way of knowing what the volume element
-    ! dv should be. Hence the NORMALIZATION of the resulting wavefunctions
-    ! might not yet be right. 
-    
     si = 0
     do b = 1, Blocks 
         N = HFBlocks(B) ; if(N.eq.0) cycle
@@ -893,7 +892,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         if(diagsphamil) then
           indices(1:HFblocks(b)) = OrderSpwfsSym(b)
           ! Note, in the case of MPI calculations OrderSpwfsSym deals with
-          !       LOCAL indices already.
+          !       indices that are local to an MPI-rank already.
         else
           do i=1, N
             indices(i) = si + i
@@ -930,9 +929,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
               mw = indices(j)    
               ! Real part of the inproduct
               norm = sum(HFpsi(:,:,nw)*HFpsi(:,:,mw)) * dv
-              do l=1,spatial_size
-                  HFPsi(l,1,mw) = HFPsi(l,1,mw) - norm * HFPsi(l,1,nw)
-              enddo
+              HFPsi(:,:,mw) = HFPsi(:,:,mw) - norm * HFPsi(:,:,nw)
             enddo
             norm = sum(HFpsi(:,:,nw)**2) * dv
         enddo

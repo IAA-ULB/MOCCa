@@ -992,7 +992,7 @@ $NTR    enddo
     use Densities, only : D_I_I, chargedensity
    
     class(Moment),        intent(inout) :: ToCalculate
-    integer                             :: it
+    integer                             :: it,i,j,k
 
     ! Save the history
     Tocalculate%history = tocalculate%value
@@ -1007,8 +1007,17 @@ $NTR    enddo
       ToCalculate%Value(it)      = sum(ToCalculate%SpherHarm*D_I_I(:,it))   * dv
       ToCalculate%Squared(it)    = sum(ToCalculate%SpherHarm**2*D_I_I(:,it))* dv
     enddo
-    ToCalculate%ChargeValue      =  &
-    &             dv*sum(ToCalculate%SpherHarm*   chargedensity(1:nx*ny*nz,1,1))
+    
+    ToCalculate%ChargeValue      =  0
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          ToCalculate%ChargeValue  = ToCalculate%ChargeValue + &
+          &  ToCalculate%SpherHarm(i+(j-1)*nx+(k-1)*ny*nx)*chargedensity(i,j,k)
+        enddo
+      enddo
+    enddo
+    ToCalculate%ChargeValue      = ToCalculate%ChargeValue * dv
 
     ! Check for problems
     if(any(ToCalculate%Value.eq.ToCalculate%Value+1)) then

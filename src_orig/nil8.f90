@@ -553,10 +553,8 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
           ! This is an spwf we want to store
           if(spwf_map(store_counter) .eq. nwave) then
             ! construct the spwf in the array psi
-            do ix=1,mq
-              psi(ix,1,1,1) = 0.0d0
-            enddo
-
+            psi = 0.0d0
+            
             ny2 = 0
             kk  = 0
             do k=1,4
@@ -578,7 +576,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
                             hey = he(ny1,iy,2)
                             do iz=1,mz
                               hez = he(nz1,iz,3)
-                              psi(ix,iy,kk+iz,1) = psi(ix,iy,kk+iz,1) + xph*hex*hey*hez
+                              psi(ix,iy,iz,k) = psi(ix,iy,iz,k) + xph*hex*hey*hez
                             enddo
                         enddo
                     enddo

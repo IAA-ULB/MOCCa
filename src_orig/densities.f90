@@ -242,8 +242,8 @@ $INITIALIZATION
     ! Note that this is only necessary at the moment for the ordinary rho
     ! density, it is the one that can make calculations unstable.
     if(.not. allocated(D_I_I_hist)) then
-        allocate(D_I_I_hist(nx*ny*nz,2,memory)) ; D_I_I_hist = 0.0_dp
-$NTR    allocate(D_I_S_hist(nx*ny*nz,3,2,memory)) ; D_I_S_hist = 0.0_dp
+        allocate(D_I_I_hist(nx*ny*nz,4,memory)) ; D_I_I_hist = 0.0_dp
+$NTR    allocate(D_I_S_hist(nx*ny*nz,3,4,memory)) ; D_I_S_hist = 0.0_dp
     endif   
     if(SaveRho) then
       do i=1,memory-1
@@ -532,9 +532,9 @@ function sum_divJ_spwf() result(divJ)
     ! in the calculation of any energy for consistency reasons.
     !---------------------------------------------------------------------------
     real(KIND=dp) :: divJ(nx*ny*nz,4)
-    real(KIND=dp) :: temp(nx*ny*nz,4)
-    real(KIND=dp) :: weight
-    integer       :: wave,it
+!    real(KIND=dp) :: temp(nx*ny*nz,4)
+!    real(KIND=dp) :: weight
+!    integer       :: wave,it
 
     divJ = 0.0d0
     select case(PairingType)
@@ -600,8 +600,8 @@ subroutine MassageDensity()
     !---------------------------------------------------------------------------
     ! Operate on the density before feeding it into the rest of the program.
     !---------------------------------------------------------------------------
-    real(KIND=dp), target :: resid(nx*ny*nz,2)
-$NTR real(KIND=dp), target :: sresid(nx*ny*nz,3,2)
+    real(KIND=dp), target  :: resid(nx*ny*nz,4)
+$NTR real(KIND=dp), target :: sresid(nx*ny*nz,3,4)
     if(all(D_I_I_hist.eq.0.0)) return
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Compute the residual

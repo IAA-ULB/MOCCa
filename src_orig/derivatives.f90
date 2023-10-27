@@ -265,9 +265,11 @@ $N2DIAG        enddo
 $N2DIAG    enddo
 $N2DIAG
 $N2DIAG    A = derZ(:,:,sz) ; B = laplaZ(:,:,sz)
-$N2DIAG    do i=1,nx*ny
-$N2DIAG        df(i,1,:,3) =        matmul(A,f(i,1,:))
-$N2DIAG       ddf(i,1,:,6) =        matmul(B,f(i,1,:))
+$N2DIAG    do j=1,ny
+$N2DIAG     do i=1,nx
+$N2DIAG        df(i,j,:,3) =        matmul(A,f(i,j,:))
+$N2DIAG       ddf(i,j,:,6) =        matmul(B,f(i,j,:))
+$N2DIAG     enddo
 $N2DIAG    enddo
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    deallocate(A,B)  
@@ -367,9 +369,11 @@ $N2ALL        enddo
 $N2ALL    enddo
 $N2ALL
 $N2ALL    A = derZ  (:,:,sz) ; B = laplaZ(:,:,sz)
-$N2ALL    do i=1,nx*ny
-$N2ALL           df(i,1,:,3) =    matmul(A,f(i,1,:))
-$N2ALL          ddf(i,1,:,6) =    matmul(B,f(i,1,:))
+$N2ALL    do j=1,ny
+$N2ALL      do i=1,nx
+$N2ALL           df(i,j,:,3) =    matmul(A,f(i,j,:))
+$N2ALL          ddf(i,j,:,6) =    matmul(B,f(i,j,:))
+$N2ALL      enddo
 $N2ALL    enddo
 $N2ALL
 $N2ALL    !---------------------------------------------------------------------------
@@ -382,9 +386,11 @@ $N2ALL      enddo
 $N2ALL    enddo
 $N2ALL
 $N2ALL    A = derZ  (:,:,sz)
-$N2ALL    do i=1,nx*ny
-$N2ALL          ddf(i,1,:,3) =      matmul(A,df(i,1,:,1))
-$N2ALL          ddf(i,1,:,5) =      matmul(A,df(i,1,:,2))
+$N2ALL    do j=1,ny
+$N2ALL      do i=1,nx
+$N2ALL          ddf(i,j,:,3) =      matmul(A,df(i,j,:,1))
+$N2ALL          ddf(i,j,:,5) =      matmul(A,df(i,j,:,2))
+$N2ALL      enddo
 $N2ALL    enddo
 $N2ALL    deallocate(A,B)
 $N2ALL end subroutine Derive_tot_3D
@@ -440,9 +446,11 @@ $N3ALL               df(i,:,k,2) =    matmul(derY  (:,:,sy),f(i,:,k))
 $N3ALL              ddf(i,:,k,4) =    matmul(laplaY(:,:,sy),f(i,:,k))                        
 $N3ALL        enddo
 $N3ALL    enddo
-$N3ALL    do i=1,nx*ny
-$N3ALL               df(i,1,:,3) =    matmul(derZ  (:,:,sz),f(i,1,:))
-$N3ALL              ddf(i,1,:,6) =    matmul(laplaZ(:,:,sz),f(i,1,:))
+$N3ALL    do j=1,ny
+$N3ALL      do i=1,nx
+$N3ALL               df(i,j,:,3) =    matmul(derZ  (:,:,sz),f(i,j,:))
+$N3ALL              ddf(i,j,:,6) =    matmul(laplaZ(:,:,sz),f(i,j,:))
+$N3ALL      enddo
 $N3ALL    enddo
 $N3ALL    !---------------------------------------------------------------------------
 $N3ALL    ! Off-diagonal second order derivatives
@@ -452,11 +460,12 @@ $N3ALL              ddf(i,:,k,2) =    matmul(derY  (:,:,sy),df(i,:,k,1))
 $N3ALL      enddo
 $N3ALL    enddo
 $N3ALL    
-$N3ALL    do i=1,nx*ny
-$N3ALL              ddf(i,1,:,3) =    matmul(derZ  (:,:,sz),df(i,1,:,1))
-$N3ALL              ddf(i,1,:,5) =    matmul(derZ  (:,:,sz),df(i,1,:,2))
+$N3ALL    do j=1,ny
+$N3ALL      do i=1,nx
+$N3ALL              ddf(i,j,:,3) =    matmul(derZ  (:,:,sz),df(i,j,:,1))
+$N3ALL              ddf(i,j,:,5) =    matmul(derZ  (:,:,sz),df(i,j,:,2))
+$N3ALL      enddo
 $N3ALL    enddo
-$N3ALL
 $N3ALL    !---------------------------------------------------------------------------
 $N3ALL    ! Third order derivatives
 $N3ALL    do k=1,nz
@@ -660,22 +669,26 @@ $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(A,f3($SYMPARTNERZ))
     real(KIND=dp), intent(out) ::  df(:,:,:)
     integer, intent(in)        :: px,py,pz
     
-    integer                    :: i,k, sx, sy,sz
+    integer                    :: i,j,k, sx, sy,sz
     
     sx = (px + 3)/2 ! These are equal to 
     sy = (py + 3)/2 !    1    if pi =   -1  or 0
     sz = (pz + 3)/2 !    2    if pi =   +1 
     
-    do i=1,ny*nz
-        df(:,i,1) =                 matmul(laplaX(:,:,sx),f(:,i,1))
-    enddo   
+    do k=1,nz
+      do j=1,ny
+        df(:,j,k) =                 matmul(laplaX(:,:,sx),f(:,j,k))
+      enddo
+    enddo
     do k=1,nz
         do i=1,nx
             df(i,:,k) = df(i,:,k) + matmul(laplaY(:,:,sy),f(i,:,k))
         enddo
     enddo
-    do i=1,nx*ny
-        df(i,1,:) = df(i,1,:) +     matmul(laplaZ(:,:,sz),f(i,1,:))
+    do j=1,ny
+      do i=1,nx
+        df(i,j,:) = df(i,j,:) +     matmul(laplaZ(:,:,sz),f(i,j,:))
+      enddo
     enddo
     
  end subroutine Derive_lap_3D

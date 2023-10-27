@@ -344,7 +344,7 @@ contains
     logical,    intent(in)        :: prnt
 
     integer(8)                    :: isubcontext
-    integer                       :: id, ic, nsub1, r
+    integer                       :: id, ic, nsub1
     real(KIND=DP)                 :: tsub1, tinternal, tpercent
     type(timer),   pointer        :: t
     type(context), pointer        :: c

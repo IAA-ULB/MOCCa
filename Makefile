@@ -40,7 +40,10 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # OPTIONS
 # - - - - -
-#  CXX      : compiler to use
+#  COMPILER : compiler family (gfortran, ifort, cray) to be used.
+#  CXX      : compiler invokation to be used. In most cases automatically
+#             adapted based on the value of COMPILER. Recommended to not
+#             set by hand.
 #  CONFIG   : name of configutation file in the config/ folder
 #            (without trailing .py)
 #  OPTFLAGS : optimisation compiler flags
@@ -97,7 +100,7 @@ EXENAME := Tantalus.$(CONFIG).exe
 ################################################################################
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Compiler type 
+# Compiler type
 COMPILER      :=  gfortran
 #
 # Note: this is NOT the compiler wrapper that will get invoked for execution
@@ -109,10 +112,10 @@ COMPILER      :=  gfortran
 #         - ifort     by Intel
 #         - cray      by Cray
 #
-#       The primary reason that COMPILER and CXX are different is because 
-#       vendors have different compiler wrappers for different modes 
+#       The primary reason that COMPILER and CXX are different is because
+#       vendors have different compiler wrappers for different modes
 #       (i.e. with or without MPI) but which nevertheless have similar options.
-#       A bonus reason is that this can easily account for versions, i.e. 
+#       A bonus reason is that this can easily account for versions, i.e.
 #       compilation with gfortran-9.3 will get the right options set.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # USE_MPI
@@ -123,15 +126,15 @@ USE_MPI := 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Actual compiler wrapper that gets invoked
 #  I provide default options based on the USE_MPI and COMPILER options
-#  but it is up to the user to make sure that CXX and COMPILER match. The 
-#  compilation will obviously fail if, say, an INTEL compiler gets invoked with 
-#  GNU options. If you want to specify a specific wrapper, fill the following 
+#  but it is up to the user to make sure that CXX and COMPILER match. The
+#  compilation will obviously fail if, say, an INTEL compiler gets invoked with
+#  GNU options. If you want to specify a specific wrapper, fill the following
 #  line
 CXX :=
 ifeq ($(CXX), )
 ifeq ($(COMPILER),gfortran)
   ifeq ($(USE_MPI),1)
-    CXX := mpifort 
+    CXX := mpifort
     # on the systems available to me, this is the wrapper for
     # MPI-enabled GFORTRAN
   else
@@ -197,7 +200,7 @@ ifeq ($(COMPILER),gfortran)
 else ifeq ($(COMPILER),ifort)
 	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin
 else ifeq ($(CXX),ftn)
-	CXXFLAGS := -J$(MODDIR) 
+	CXXFLAGS := -J$(MODDIR)
 endif
 
 # 2. set compiler-specific optimisation level
@@ -208,14 +211,14 @@ ifeq ($(DEBUG),0)
   else ifeq ($(COMPILER),ifort)
 	  OPTFLAGS := -Ofast
   else ifeq ($(COMPILER),cray)
-	  OPTFLAGS := -O3 # to be tested if optimal
+	  OPTFLAGS := -O2 # -O3 produces NaN results
   endif
 else
   ifeq ($(COMPILER),gfortran)
-	  OPTFLAGS := -O0 -g -Wall -Wno-uninitialized -fbacktrace
+	  OPTFLAGS := -O0 -g -Wall -Wno-uninitialized -fbacktrace -fbounds-check
+  else ifeq ($(COMPILER),ifort)
+	  OPTFLAGS := -g -traceback -check bounds
   else ifeq ($(COMPILER),cray)
-	  OPTFLAGS := -g -traceback
-  else ifeq ($(COMPILER),ftn)
 	  OPTFLAGS := -e c -e D # to be tested if optimal
   endif
 endif
@@ -246,23 +249,23 @@ endif
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Tantalus source files
 TARGET :=   Tantalus.exe
-SRC    :=   compilation.f90 geninfo.f90 timing.f90 constants.f90 
-SRC    +=   sphericalharmonics.f90 folding.f90   
+SRC    :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
+SRC    +=   sphericalharmonics.f90 folding.f90
 SRC    +=   nil8.f90 derivatives.f90 precondition.f90 wavefunctions.f90
 SRC    +=   pairingcutoffs.f90 parameterization.f90
-SRC    +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90 
+SRC    +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90
 SRC    +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
-SRC    +=   pairing.f90 densities.f90 moments.f90 
-SRC    +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90  
-SRC    +=   functional.f90 fission_MOI.f90  evolution.f90 scfiteration.f90 
-SRC    +=   IO.f90 temperature_projection.f90 convergence.f90 printing.f90 
+SRC    +=   pairing.f90 densities.f90 moments.f90
+SRC    +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
+SRC    +=   functional.f90 fission_MOI.f90  evolution.f90 scfiteration.f90
+SRC    +=   IO.f90 temperature_projection.f90 convergence.f90 printing.f90
 SRC    +=   tantalus.version.f90
 SINGLE_SRC = $(SRC) run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Nilsson source files
-NIL_SRC := compilation.f90 timing.f90 geninfo.f90 derivatives.f90 nil8.f90   
+NIL_SRC := compilation.f90 timing.f90 geninfo.f90 derivatives.f90 nil8.f90
 NIL_SRC += wavefunctions.f90 gennilsson.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -272,20 +275,20 @@ SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
 NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
 
 ################################################################################
-# Explicit precompilation steps 
+# Explicit precompilation steps
 #
 # 1) Run Hephaestos to preprocess the entire code
 # 2) Get version information from git
-# 3) Get compiler information 
+# 3) Get compiler information
 # 4) set the version and compiler info in the source code
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-PRE         :=  run_heph getgitinfo getcompilerinfo setversioninfo 
-PRE_NIL     :=  cp_nil 
+PRE         :=  run_heph getgitinfo getcompilerinfo setversioninfo
+PRE_NIL     :=  cp_nil
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Internal (to the compiler) preprocessing directives
 #    -cpp      => explicitly enable preprocessing
-#    -DUSE_MPI => enable (1) or disable (0) MPI (see above) 
+#    -DUSE_MPI => enable (1) or disable (0) MPI (see above)
 
 ifeq ($(COMPILER),cray)
   PREPROCESSOR :=  -e Z -DUSE_MPI=$(USE_MPI)
@@ -301,7 +304,7 @@ endif
 all: single
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Creation of required directories 
+# Creation of required directories
 $(EXECDIR)/:
 	mkdir -p $(EXECDIR)/
 
@@ -318,7 +321,7 @@ single: $(PRE) $(SINGLE_OBJ)
 
 run_heph:
   # Run Hephaestos with the correct configuration file
-	python3 Hephaestos.py $(CONFIG) 
+	python3 Hephaestos.py $(CONFIG)
 
 gen_nilsson: $(PRE_NIL) $(NIL_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LIBS)
@@ -328,8 +331,8 @@ clean:
 	rm  -f $(OBJDIR)/*.o
 	rm  -f $(MODDIR)/*.mod
 
-$(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/ 
-	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  $< -o $@ 
+$(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/
+	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  $< -o $@
 
 setversioninfo:
 # Copy the git information into the main code, so it can be printed

@@ -45,13 +45,13 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !------------------------------------------------------------------------------
  ! Information gleaned from git and the Makefile, to be used to identify the 
  ! executable
- character(len=57), parameter        :: version1 =VERSION1
- character(len=57), parameter        :: version2 =VERSION2
- character(len=57), parameter        :: version3 =VERSION3
- character(len=57), parameter        :: version4 =VERSION4
- character(len=57), parameter        :: compiler =COMPCOMP
- character(len=57), parameter        :: cflags   =CFLAGS
- character(len=57), parameter        :: optflags =OPTFLAGS
+ character(len=58), parameter        :: version1 =VERSION1
+ character(len=58), parameter        :: version2 =VERSION2
+ character(len=58), parameter        :: version3 =VERSION3
+ character(len=58), parameter        :: version4 =VERSION4
+ character(len=58), parameter        :: compiler =COMPCOMP
+ character(len=58), parameter        :: cflags   =CFLAGS
+ character(len=58), parameter        :: optflags =OPTFLAGS
 
  !------------------------------------------------------------------------------
  ! MPI error code
@@ -60,43 +60,43 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
 #endif
 
  100 format &
-     &  (/,8x,' ___________________________________________________________', &
-     &   /,8x,'|                                                          |', &
-     &   /,8x,'| MOCCa v2.0 =                                             |', &
-     &   /,8x,'|                                                          |', &
-     &   /,8x,'|  #######   ##   #    # #####   ##   #      #    #  ####  |', &
-     &   /,8x,'|     #     #  #  ##   #   #    #  #  #      #    # #      |', &
-     &   /,8x,'|     #    #    # # #  #   #   #    # #      #    #  ####  |', &
-     &   /,8x,'|     #    ###### #  # #   #   ###### #      #    #      # |', &
-     &   /,8x,'|     #    #    # #   ##   #   #    # #      #    # #    # |', &
-     &   /,8x,'|     #    #    # #    #   #   #    # ######  ####   ####  |', &
-     &   /,8x,'|                                                          |', &
-     &   /,8x,'|  Copyright  P.-H. Heenen, M. Bender & W. Ryssens         |', &
-     &   /,8x,'|                                                          |')
+     &  (/,8x,' ____________________________________________________________', &
+     &   /,8x,'|                                                           |', &
+     &   /,8x,'| MOCCa v2.0 =                                              |', &
+     &   /,8x,'|                                                           |', &
+     &   /,8x,'|  #######   ##   #    # #####   ##   #      #    #  ####   |', &
+     &   /,8x,'|     #     #  #  ##   #   #    #  #  #      #    # #       |', &
+     &   /,8x,'|     #    #    # # #  #   #   #    # #      #    #  ####   |', &
+     &   /,8x,'|     #    ###### #  # #   #   ###### #      #    #      #  |', &
+     &   /,8x,'|     #    #    # #   ##   #   #    # #      #    # #    #  |', &
+     &   /,8x,'|     #    #    # #    #   #   #    # ######  ####   ####   |', &
+     &   /,8x,'|                                                           |', &
+     &   /,8x,'|  Copyright  P.-H. Heenen, M. Bender & W. Ryssens          |', &
+     &   /,8x,'|                                                           |')
  
- 200 format ( 8x, '|', 58('-'), '|'  ,/,8x, '| Runtype = ', a43, 4x, '|')
+ 200 format ( 8x, '|', 59('-'), '|'  ,/,8x, '| Runtype = ', a44, 4x, '|')
 
- 299 format ( 8x,'|-------------- Version Information -----------------------|')
- 300 format ( 8x,'| ', a57, '|') ! Git commit
- 301 format ( 8x,'| ', a57, '|') ! Author of commit
- 302 format ( 8x,'| ', a57, '|') ! Date
- 303 format ( 8x,'| Branch: ', a49, '|') ! Branch
- 304 format ( 8x,'|                                                          |')
- 305 format ( 8x,'|-------------- Symmetry Information ----------------------|')
- 306 format ( 8x,'| S.p. generators        = ', a26, 6x, '|')
- 307 format ( 8x,'| Axis reduction  X Y Z  = ', 3i2, 26x, '|')
- 308 format ( 8x,'| SYM_CODE               = ', a26, 6x, '|')
- 309 format ( 8x,'| TRANS_CODE             = ', a26, 6x, '|')
- 310 format ( 8x,'|-------------- Environment Information -------------------|')
- 311 format ( 8x,'|  Number of MPI_ranks   = ', i6, 26x, '|')
- 313 format ( 8x,'|-------------- Compilation Information -------------------|')
- 314 format ( 8x,'| Compiled with:                                           |')
- 315 format ( 8x,'| ', a57, '|')
- 316 format ( 8x,'| Compilation flags reported:                              |')
- 317 format ( 8x,'| ', a57, '|')
- 318 format ( 8x,'| Optimisation flags reported:                             |')
- 319 format ( 8x,'| ', a57, '|')
- 320 format ( 8x,'|__________________________________________________________|')
+ 299 format ( 8x,'|--------------- Version Information -----------------------|')
+ 300 format ( 8x,'| ', a58, '|') ! Git commit
+ 301 format ( 8x,'| ', a58, '|') ! Author of commit
+ 302 format ( 8x,'| ', a58, '|') ! Date
+ 303 format ( 8x,'| Branch: ', a50, '|') ! Branch
+ 304 format ( 8x,'|                                                           |')
+ 305 format ( 8x,'|-------------- Symmetry Information -----------------------|')
+ 306 format ( 8x,'| S.p. generators        = ', a26, 7x, '|')
+ 307 format ( 8x,'| Axis reduction  X Y Z  = ', 3i2, 27x, '|')
+ 308 format ( 8x,'| SYM_CODE               = ', a26, 7x, '|')
+ 309 format ( 8x,'| TRANS_CODE             = ', a26, 7x, '|')
+ 310 format ( 8x,'|-------------- Environment Information --------------------|')
+ 311 format ( 8x,'|  Number of MPI_ranks   = ', i6, 27x, '|')
+ 313 format ( 8x,'|-------------- Compilation Information --------------------|')
+ 314 format ( 8x,'| Compiled with:                                            |')
+ 315 format ( 8x,'| ', a58, '|')
+ 316 format ( 8x,'| Compilation flags reported:                               |')
+ 317 format ( 8x,'| ', a58, '|')
+ 318 format ( 8x,'| Optimisation flags reported:                              |')
+ 319 format ( 8x,'| ', a58, '|')
+ 320 format ( 8x,'|___________________________________________________________|')
  
  !------------------------------------------------------------------------------
  ! Start the different processes across MPI ranks and do MPI bookkeeping
