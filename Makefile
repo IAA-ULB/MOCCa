@@ -219,7 +219,7 @@ else
   else ifeq ($(COMPILER),ifort)
 	  OPTFLAGS := -g -traceback -check bounds
   else ifeq ($(COMPILER),cray)
-	  OPTFLAGS := -e c -e D # to be tested if optimal
+	  OPTFLAGS := -g -h bounds
   endif
 endif
 ################################################################################
