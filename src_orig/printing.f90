@@ -31,18 +31,18 @@ contains
     ! Print the info of the (physical) Hartree-Fock basis.
     !---------------------------------------------------------------------------
 
-    10 format (42 ('-'), ' Hartree-Fock basis', 78('-'))
-    12 format (42 ('-'), ' Canonical    basis', 78('-'))
-    20 format (129 ('-'))
-    30 format (129 ('_'),/,3x , 'Neutron wavefunctions')
-    40 format (129 ('_'),/,3x , 'Proton  wavefunctions')
-    60 format (1x,' n ', 2x 'i', 4x,'P',4x, 'Rz', 3x,'occ',10x,'E',7x,       &
+    10 format (42 ('-'), ' Hartree-Fock basis', 80('-'))
+    12 format (42 ('-'), ' Canonical    basis', 80('-'))
+    20 format (133 ('-'))
+    30 format (133 ('_'),/,3x , 'Neutron wavefunctions')
+    40 format (133 ('_'),/,3x , 'Proton  wavefunctions')
+    60 format (3x,' n ', 4x 'i', 4x,'P',4x, 'Rz', 3x,'occ',10x,'E',7x,       &
     &             'd2h',4x,'Delta', 1x,                                      &
     &             ' | ', 2x, 'JxT',4x, 'JyT', 4x,'Jz', 6x, 'J', 2x,          &
     &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz', '   | r_rms ',        &
     &             ' | MPI_RANK ' )    
 
-    11 format (1x, i3, 1x, i3, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, &
+    11 format (1x, i5, 1x, i5, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, &
     &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(2x, f5.2), 1x, '|',   &
     &          3(2x, f5.2), ' | ', f6.2 , ' | ', i4)
 
@@ -311,8 +311,8 @@ $TR     sumocc = 2*k
     real(KIND=dp)        :: ov, v2, u2
     character(len=1)     :: Bstr, Pstr
 
-    1  format (48 ('-'), 'Quasiparticles',48('-'))
-    2  format ( i3, 1f10.2, 2x, 1es12.2, 1es12.2, ' | ', 2i4,  2x, 2f8.5,  &
+    1  format (48 ('-'), 'Quasiparticles',50('-'))
+    2  format ( i5, 1f10.2, 2x, 1es12.2, 1es12.2, ' | ', 2i4,  2x, 2f8.5,  &
     &           ' | ', 2x, a1,   &
     &           2x, a1,  2x, 1f5.3, ' | ',  3(2x,f5.2))
 
