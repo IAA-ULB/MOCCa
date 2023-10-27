@@ -309,8 +309,10 @@ contains
     integer, intent(out), allocatable :: spwf_map(:),rank_map(:),spwf_inverse(:)
 
     integer              :: B, activeblocks, ranks_per_block, blocks_per_rank
-    integer              :: block_count, i, offset
-    
+    integer              :: block_count, i, offset, spwfs_per_rank, remainder
+    integer              :: local_ind, N, si
+
+    integer, allocatable :: local_count(:)
 #if(USE_MPI>0)
     integer              :: mpi_err
 #endif
@@ -320,8 +322,47 @@ contains
 
     select case(balancing)
     case (0)
-      ! Naive balancing
-      stop    
+      !-------------------------------------------------------------------------
+      ! Naive balancing: simply distribute the spwfs among all ranks.
+      !-------------------------------------------------------------------------
+      spwfs_per_rank = nwt/Ncores       ! Integer division
+      remainder      = mod(nwt, Ncores) ! Perhaps nwt is not precisely divisible
+                                        ! by the number of MPI ranks we have
+
+      allocate(local_count(Ncores)) 
+      local_count = spwfs_per_rank
+      local_count(1:remainder) = local_count(1:remainder) + 1
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Constructing the bookkeeping on each rank
+      allocate(spwf_map(local_count(MPI_RANK))); spwf_map = 0
+
+      local_ind = 0
+      si        = 0
+      do B=1,8
+        N = blocks_global(B); if(N.eq.0) cycle
+        
+        do i=si+1,si+N
+          if( i .gt. sum(local_count(1:MPI_RANK)) ) then
+            if(MPI_RANK .ne. NCORES) then
+               if (i .le. sum(local_count(1:MPI_RANK+1))) then
+                  local_ind                = local_ind + 1
+                  spwf_map(local_ind)      = i
+                  spwf_inverse(i)          = local_ind
+                  rank_map(i)              = MPI_RANK
+                  blocks_local(B)          = blocks_local(B) + 1
+               endif
+            else
+              local_ind                    = local_ind + 1
+              spwf_map(local_ind)          = i
+              spwf_inverse(i)              = local_ind
+              rank_map(i)                  = MPI_RANK
+              blocks_local(B)              = blocks_local(B) + 1
+            endif
+          endif
+        enddo
+        si = si + N
+      enddo
+      
     case (1)
       !-------------------------------------------------------------------------
       ! Balancing per symmetry block
@@ -336,7 +377,7 @@ contains
         ! More symmetry blocks than MPI ranks, i.e. we assign each rank
         ! one or more entire symmetry blocks
         if(mod(activeblocks, Ncores) .ne. 0) then
-          call stp('Incompatible number of MPI ranks for balancing_strategy=1.')
+          call stp('Incompatible number of MPI ranks for balancing_strategy = 1.')
         endif
         blocks_per_rank = activeblocks/Ncores
 
@@ -381,6 +422,7 @@ contains
   call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_inverse, sum(blocks_global), & 
   &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
 #endif
+
   end subroutine loadbalance
 
   subroutine iniwavefunctions(ininx,ininy, ininz, ininwn, ininwp)   
@@ -864,8 +906,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! MPI rank. In this case, no intra-rank communication is necessary. 
     ! For a more general situation, this routine will need serious modification.
     !---------------------------------------------------------------------------
-    integer  :: b, i,j,nw, mw,l, si, N
-    integer  :: indices(maxval(HFBlocks)), spatial_size
+    integer       :: b, i,j,nw, mw,l, si, N
+    integer       :: indices(maxval(HFBlocks)), spatial_size
     real(KIND=dp) ::  norm
 
 #if(USE_MPI>0)
