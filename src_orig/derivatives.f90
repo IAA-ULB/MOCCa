@@ -347,7 +347,7 @@ $N2ALL    real(KIND=dp), intent(in)  :: f(:,:,:)
 $N2ALL    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:)
 $N2ALL    integer, intent(in)        :: px,py,pz
 $N2ALL    real(KIND=dp), allocatable :: A(:,:), B(:,:)
-$N2ALL    integer                    :: i,k, sx, sy,sz
+$N2ALL    integer                    :: i,j,k, sx, sy,sz
 $N2ALL    
 $N2ALL    sx = (px + 3)/2 ! These are equal to 
 $N2ALL    sy = (py + 3)/2 !    1    if pi =   -1  or 0
