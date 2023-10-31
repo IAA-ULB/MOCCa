@@ -235,6 +235,14 @@ module wavefunctions
  ! Important note: in many types of calculations, only the diagonal elements of
  ! this matrices will be calculated.
  !------------------------------------------------------------------------------
+ ! Procedure to call to orthonormalize the s.p. wavefunctions in HFPSI.
+ ! The code offers several strategies, hence the need for a procedure pointer.
+ ! This pointer is set in the subroutine readevolution in the evolution module,
+ ! depending on the input parameter 'ortho_strategy'.
+ !
+ ! 1. GramSchmidt :  (modified) Gram-Schmitdt
+ !
+ procedure(GramSchmidt), pointer :: Orthonormalize
 
 contains 
 
@@ -894,17 +902,12 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
   subroutine GramSchmidt
     !---------------------------------------------------------------------------
     ! This subroutine uses a (modified) Gram-Schmidt scheme to orthonormalise 
-    ! the spwfs in the array HFPsi. The orthonormalisation proceeds per 
-    ! symmetry block, as this saves precious CPU cycles.
+    ! the spwfs in the array HFPsi. The orthonormalisation proceeds per symmetry
+    ! block, as this saves precious CPU cycles.
     !
     ! In the interest of convergence speed, the orthogonalisation is done in 
     ! order of ascending single-particle energy if this is possible, i.e. if
     ! diagsphamil == .true..
-    ! 
-    ! The current implementation of this routine relies CRUCIALLY on the fact
-    ! that all spwfs in a given symmetry block are LOCALLY stored on the same
-    ! MPI rank. In this case, no intra-rank communication is necessary. 
-    ! For a more general situation, this routine will need serious modification.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Note: this routine is written in a way such that it does not care about
     !       the spatial dimensions of the HFPSI array. This way, it can be 
@@ -912,7 +915,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !       HFPsi can perhaps be defined on a smaller mesh. Since this routine
     !       cannot infer the value of dv in the latter case, it might be that
     !       the resulting spwfs are not completely normalized.
-    !
     !---------------------------------------------------------------------------
     integer  :: b, i,j,nw, mw, si, N
     integer  :: indices(maxval(HFBlocks))

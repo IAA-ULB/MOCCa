@@ -97,8 +97,7 @@ contains
         &                    gradient_stepsize, gradient_mu,                   &
         &                    maxiter, printiter, strategy,                     &
         &                    estimateparams, estimategradparams,               &
-        &                    gradient_safety, efficientHFB                            
-        
+        &                    gradient_safety, efficientHFB, ortho_strategy     
         !-----------------------------------------------------------------------
         ! Only the very first MPI rank reads the input
         if(MPI_RANK.eq.0) then
