@@ -486,14 +486,10 @@ contains
           ! Option a): break a symmetry and transform the spwfs appropriately
           call Transformspwfs( HFPsi, filenx, fileny, filenz,fileblocks_global,&
           &                    fileblocks, file_rank_map, file_spwf_inverse)
-          call GramSchmidt ! safety : extra orthonormalization
       else
           ! Option b): add points and/or add spwfs
           call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,    & 
           &                               fileblocks,file_HFB_blocks,extraspwfs)
-          call  GramSchmidt  
-          ! The added spwfs are added somewhat randomly, hence we add an extra
-          ! orthonormalisation in the mix.
       endif
     else  
       ! Sanity check
@@ -523,6 +519,10 @@ contains
       spwf_inverse = file_spwf_inverse
     endif
 
+    !---------------------------------------------------------------------------
+    ! with everything safely in memory, we add in an orthonormalisation to 
+    ! guarantee we can start calculating stuff.
+    call  orthonormalize
     !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
     if(.not.allocated(HFTransfo)) then

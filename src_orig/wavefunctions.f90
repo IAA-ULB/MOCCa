@@ -237,12 +237,14 @@ module wavefunctions
  !------------------------------------------------------------------------------
  ! Procedure to call to orthonormalize the s.p. wavefunctions in HFPSI.
  ! The code offers several strategies, hence the need for a procedure pointer.
- ! This pointer is set in the subroutine readevolution in the evolution module,
- ! depending on the input parameter 'ortho_strategy'.
+ ! This pointer is assigned based on the input parameter 'ortho_strategy' of the
+ ! evolution module.
  !
- ! 1. GramSchmidt :  (modified) Gram-Schmitdt
+ ! 1. GramSchmidt :  (modified) Gram-Schmidt process
+ ! 2. Loewdin     :  Loewdin (symmetric) orthonormalisation
  !
- procedure(GramSchmidt), pointer :: Orthonormalize
+ ! Note: this input parameter is not case-sensitive.
+  procedure(GramSchmidt), pointer :: Orthonormalize
 
 contains 
 
@@ -497,11 +499,7 @@ contains
     &     floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,spwf_map)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! b) we orthonormalize for good measure
-    call GramSchmidt
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! c) and now we go on to populate more symmetry information
+    ! b) and now we go on to populate more symmetry information
     allocate(sx(4,sum(hfblocks)), sy(4,sum(hfblocks)), sz(4,sum(hfblocks)))
     do i=1, HFBlocks(1)
         sx(1,i) =  1 ; sy(1,i) = +1 ; sz(1,i) = +1
@@ -531,7 +529,7 @@ contains
         sx(4,i) =  1 ; sy(4,i) = -1 ; sz(4,i) = +1
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! d) and perform some other initializations
+    ! c) and perform some other initializations
     allocate(dispersions(ININWT)) ; dispersions  = 0
     if(.not.allocated(hftransfo)) allocate(hftransfo(nwt,nwt))
     do i=1, nwt
@@ -899,6 +897,9 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
   end subroutine set_spwf_symmetries
 
+!===============================================================================
+! Orthonormalisation routines
+! 
   subroutine GramSchmidt
     !---------------------------------------------------------------------------
     ! This subroutine uses a (modified) Gram-Schmidt scheme to orthonormalise 
@@ -983,7 +984,85 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     call stop_timer(T_ortho)
 
   end subroutine GramSchmidt
-  
+
+  subroutine Loewdin
+    !---------------------------------------------------------------------------
+    ! Loewdin symmetric orthonormalisation of the wavefunctions in HFPsi.
+    !
+    ! Step 1: calculate the overlap matrix
+    ! Step 2: calculate the square root of its inverse
+    !         through diagonalisation and taking the diagonal elements to ^-1/2
+    ! Step 3: transform the spwfs
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Some remarks:
+    ! - in a completely symmetry-unrestricted calculation, these overlaps are
+    !   COMPLEX and not real numbers. This routine is not suited to that 
+    !   calculation yet, as is the GramSchmidt routine.
+    ! - this routine is much more easily scalable to multiple cores than is
+    !   the GramSchmidt strategy.
+    !---------------------------------------------------------------------------
+    use basis_transform, only : transform_spwfs_inplace
+    
+    integer                    :: b, i,j,k,si, N, ifail, lwork
+    real(KIND=dp), allocatable :: overlap(:,:), norms(:), work(:), transfo(:,:)
+
+    ! Build the transformation in the complete set of wavefunctions, since the
+    ! basis transformation routines expect that.
+    allocate(transfo(nwt,nwt)) ; transfo = 0.0d0
+
+    si = 0
+    do B=1,8
+      N = HFBlocks(B) ; if (N.eq.0) cycle
+
+      allocate(overlap(N,N), norms(N))
+     
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Build overlaps within this symmetry block 
+      do j=1,N
+        do i=j,N
+          overlap(i,j) = sum(HFPsi(:,:,si+i) * HFPsi(:,:,si+j))*dv ! overlap
+          overlap(j,i) = overlap(i,j)                     ! exploiting symmetry
+        enddo
+      enddo
+      
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! diagonalise the overlap matrix
+      lwork = -1; allocate(work(1))
+      call DSYEV( 'V', 'U', N, overlap, N, norms,work,lwork,ifail)
+      lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
+      call DSYEV( 'V', 'U', N, overlap, N, norms,work,lwork,ifail)
+      deallocate(work)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! construct the Loewdin transformation
+      norms = 1.0d0/sqrt(norms) ! there are currently no safeguards in place for
+                                ! this (a priori) dangerous numerical activity
+      do j=1,N
+        do i=1,N
+          do k=1,N
+            ! transfo = U s^-1/2 U^dagger
+            transfo(si+i,si+j) = transfo(si+i,si+j) +                          &
+            &                             overlap(i,k) * norms(k) * overlap(j,k)
+          enddo
+        enddo
+      enddo
+      
+      ! clean up
+      deallocate(overlap, norms)
+      si = si + N
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Transfo currently holds the entire transformation to an orthogonormalised
+    ! set of spwfs. We use now the dedicated basis transformation routine to 
+    ! apply it symmetry-block-by-symmetry-block.
+    call transform_spwfs_inplace(HFpsi, transpose(transfo))
+    
+    deallocate(transfo)
+  end subroutine Loewdin
+
+!===============================================================================
+
   function TimeReverse(psi) result(Tpsi)
     !---------------------------------------------------------------------------
     ! Perform a time-reversal on the input spinor.
@@ -2230,28 +2309,30 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       else
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! The canonical basis is still trivial, but is now stored in HFPSI
-        ! Note: it is safe to assume the calculation is a HFB one; this is the
-        !       only case when diagsphamil should be set to false.
-        call ME_scalar(spwf_r2_can, r2, .true., 'HF')
+       if(.not.allocated(spwf_r2_HF )) allocate(spwf_r2_HF(nwt,nwt)) ; spwf_r2_HF = 0.0d0
+       if(.not.allocated(spwf_r2_can)) allocate(spwf_r2_can(nwt,nwt)) ; spwf_r2_HF = 0.0d0
+!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!        ! The canonical basis is still trivial, but is now stored in HFPSI
+!        ! Note: it is safe to assume the calculation is a HFB one; this is the
+!        !       only case when diagsphamil should be set to false.
+!        call ME_scalar(spwf_r2_can, r2, .true., 'HF')
 
-        if(fullmatrices) then
-          ! For the HFbasis, things are more involved.....
-          ! a) calculate the entire matrix of r2
-          call ME_scalar(spwf_r2_HF, r2, .false., 'HF')
+!        if(fullmatrices) then
+!          ! For the HFbasis, things are more involved.....
+!          ! a) calculate the entire matrix of r2
+!          call ME_scalar(spwf_r2_HF, r2, .false., 'HF')
 
-          ! b) transform the matrix elements to the HF basis
-          si = 0
-          do B=1,8  
-            N = HFBlocks_global(B) ! <---- This loop is over global spwf indices
-            rme => spwf_r2_hf(si+1:si+N, si+1:si+N)
-            ! .... and then transform to the real Hartree-Fock basis
-            rme = matmul(transpose(HFtransfo(si+1:si+N, si+1:si+N)), rme)
-            rme = matmul(            rme,HFtransfo(si+1:si+N, si+1:si+N))
-            si = si + N
-          enddo
-        endif
+!          ! b) transform the matrix elements to the HF basis
+!          si = 0
+!          do B=1,8  
+!            N = HFBlocks_global(B) ! <---- This loop is over global spwf indices
+!            rme => spwf_r2_hf(si+1:si+N, si+1:si+N)
+!            ! .... and then transform to the real Hartree-Fock basis
+!            rme = matmul(transpose(HFtransfo(si+1:si+N, si+1:si+N)), rme)
+!            rme = matmul(            rme,HFtransfo(si+1:si+N, si+1:si+N))
+!            si = si + N
+!          enddo
+!        endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       endif
       
