@@ -1378,11 +1378,19 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     b20 = Q20%beta(4)
     b22 = Q22%beta(4)    
     rms     =     r2%chargevalue
-    
+
     if(associated(Q30)) then
       b30 = Q30%beta(4)
-      b32 = Q32%beta(4)
+    else
+      b30 = 0.0d0
     endif
+
+    if(associated(Q32)) then
+      b32 = Q32%beta(4)
+    else
+      b32 = 0.0d0
+    endif
+    
     b40 = Q40%beta(4)
 
     select case(pairingtype)
