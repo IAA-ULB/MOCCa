@@ -26,13 +26,18 @@ module Printing
  
 contains
 
-  subroutine PrintSpwfs
+  subroutine PrintSpwfs(print_advanced)
     !---------------------------------------------------------------------------
     ! Print the info of the (physical) Hartree-Fock basis.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   print_advanced : logical, if .true. print ALL details of the spwfs
+    !                             if .false., skip some properties
     !---------------------------------------------------------------------------
 
     10 format (42 ('-'), ' Hartree-Fock basis', 80('-'))
-    12 format (42 ('-'), ' Canonical    basis', 80('-'))
+    13 format (42 ('-'), ' Canonical    basis', 80('-'))
     20 format (133 ('-'))
     30 format (133 ('_'),/,3x , 'Neutron wavefunctions')
     40 format (133 ('_'),/,3x , 'Proton  wavefunctions')
@@ -45,6 +50,12 @@ contains
     11 format (1x, i5, 1x, i5, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, &
     &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(2x, f5.2), 1x, '|',   &
     &          3(2x, f5.2), ' | ', f6.2 , ' | ', i4)
+
+    12 format (1x, i5, 1x, i5, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, &
+    &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(3x, '*', 3x), 1x, '|',   &
+    &          3(3x, '*', 3x), ' | ', 3x, '*', 2x , ' | ', i4)
+
+    logical, intent(in) ::  print_advanced
 
     integer       :: wave,k, B, si, N, T, wavebar, l
     integer       :: ProtonOrder(nwp), NeutronOrder(nwn), sumocc
@@ -100,24 +111,37 @@ $TR     sumocc = 2*k
             endif
         endif
 
-        Jx = HF_JTR(1,wave) ; SX = HF_STR (1,wave)
-        Jy = HF_JTI(2,wave) ; SY = HF_STI (2,wave)
-        Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
-        JJ = HF_JJ(wave)
+        if(print_advanced) then
+          Jx = HF_JTR(1,wave) ; SX = HF_STR (1,wave)
+          Jy = HF_JTI(2,wave) ; SY = HF_STI (2,wave)
+          Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
+          JJ = HF_JJ(wave)
 
-        r2 = sqrt(spwf_r2_hf(wave, wave))
-        if(pairingtype.eq.1) then
-          print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
-          &               dispersions(wave), BCSgaps(wave),                    &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
-        elseif(pairingtype.eq.2) then
-          print 11, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),   &
-          &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+          r2 = sqrt(spwf_r2_hf(wave, wave))
+          if(pairingtype.eq.1) then
+            print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
+            &               dispersions(wave), BCSgaps(wave),                    &
+            &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+          elseif(pairingtype.eq.2) then
+            print 11, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),   &
+            &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
+            &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+          else
+            print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
+            &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &              
+            &               r2, rank_map(wave)
+          endif
         else
-          print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
-          &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &              
-          &               r2, rank_map(wave)
+          if(pairingtype.eq.1) then
+            print 12, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
+            &               dispersions(wave), BCSgaps(wave), rank_map(wave)
+          elseif(pairingtype.eq.2) then
+            print 12, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),  &
+            &               dispersions(wave), maxval(abs(HF_gaps(wave,:))), rank_map(wave)
+          else
+            print 12, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
+            &               dispersions(wave), 0.0, rank_map(wave)
+          endif
         endif
     enddo
 
@@ -144,24 +168,37 @@ $TR     sumocc = 2*k
             endif
         endif
 
-        Jx = HF_JTR(1,wave) ; SX = HF_STR (1,wave)
-        Jy = HF_JTI(2,wave) ; SY = HF_STI (2,wave)
-        Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
-        JJ = HF_JJ(wave)
+        if(print_advanced) then
+          Jx = HF_JTR(1,wave) ; SX = HF_STR (1,wave)
+          Jy = HF_JTI(2,wave) ; SY = HF_STI (2,wave)
+          Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
+          JJ = HF_JJ(wave)
 
-        r2 = sqrt(spwf_r2_hf(wave,wave))
-        if(pairingtype.eq.1) then
-          print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
-          &               dispersions(wave), BCSgaps(wave),                    &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
-        elseif(pairingtype.eq.2) then
-          print 11, sumocc, wave, p, s,  rho_HF(wave), ' ', spenergies(wave),  &
-          &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
-          &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+          r2 = sqrt(spwf_r2_hf(wave, wave))
+          if(pairingtype.eq.1) then
+            print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
+            &               dispersions(wave), BCSgaps(wave),                    &
+            &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+          elseif(pairingtype.eq.2) then
+            print 11, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),   &
+            &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),     &
+            &               Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+          else
+            print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
+            &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ, Sx, Sy, Sz,  &              
+            &               r2, rank_map(wave)
+          endif
         else
-          print 11, sumocc, wave, p, s, rho_can(wave),' ',  spenergies(wave),  &
-          &               dispersions(wave), 0.0, Jx, Jy, Jz, JJ,              &
-          &               Sx, Sy, Sz, r2, rank_map(wave)
+          if(pairingtype.eq.1) then
+            print 12, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
+            &               dispersions(wave), BCSgaps(wave), rank_map(wave)
+          elseif(pairingtype.eq.2) then
+            print 12, sumocc, wave, p, s, rho_HF(wave), ' ', spenergies(wave),  &
+            &               dispersions(wave), maxval(abs(HF_gaps(wave,:))),rank_map(wave)
+          else
+            print 12, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
+            &               dispersions(wave), 0.0, rank_map(wave)
+          endif
         endif
     enddo
     print 20
@@ -171,7 +208,7 @@ $TR     sumocc = 2*k
     if(PairingType.ne.2) return
     !---------------------------------------------------------------------------
     ! Otherwise, print the properties of the canonical basis
-    print 12
+    print 13
     print 30
     print 60
     print 20
@@ -205,24 +242,10 @@ $TR     sumocc = 2*k
           endif
       endif
 
-      if(allocated(canpsi)) then
-        Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
-        Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
-        Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
-        JJ = can_JJ(wave)
-      else
-        Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
-        Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
-        Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
-        JJ = spwf_JJ(wave)     
-      endif    
-
-      r2 = sqrt(spwf_r2_can(wave, wave))
-
       if(allocated(conjugp)) then
-       wavebar  = conjugp(wave)
+         wavebar  = conjugp(wave)
       else
-       wavebar  = wave     
+         wavebar  = wave     
       endif
       if(wavebar .eq.0) then
           Delta = 0.0
@@ -236,8 +259,28 @@ $TR     sumocc = 2*k
           if(wave.eq.blocked_sps(l)) blo = '*'
         enddo
       endif    
-      print 11, sumocc, wave, p,  s,   rho_can(wave), blo , canenergies(wave), &
-      &              0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+
+      if(print_advanced) then
+          if(allocated(canpsi)) then
+            Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
+            Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
+            Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
+            JJ = can_JJ(wave)
+          else
+            Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
+            Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
+            Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
+            JJ = spwf_JJ(wave)     
+          endif    
+
+          r2 = sqrt(spwf_r2_can(wave, wave))
+
+          print 11, sumocc, wave, p,  s,   rho_can(wave), blo , canenergies(wave), &
+          &              0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+      else
+          print 12, sumocc, wave, p,  s,   rho_can(wave), blo , canenergies(wave), &
+          &              0.0, Delta, rank_map(wave)
+      endif
     enddo
     print 40  
     print 60
@@ -264,19 +307,6 @@ $TR     sumocc = 2*k
           endif
       endif
 
-      if(allocated(canpsi)) then
-        Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
-        Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
-        Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
-        JJ = can_JJ(wave)
-      else
-        Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
-        Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
-        Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
-        JJ = spwf_JJ(wave)     
-      endif    
-      r2 = sqrt(spwf_r2_can(wave, wave))
-      
       if(allocated(conjugp)) then
         wavebar  = conjugp(wave)
       else
@@ -295,8 +325,26 @@ $TR     sumocc = 2*k
         enddo
       endif   
 
-      print 11, sumocc, wave, p, s,   rho_can(wave),  blo, canenergies(wave),  &
-      &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+      if(print_advanced) then
+        if(allocated(canpsi)) then
+          Jx = can_JTR(1,wave) ; SX = can_STR (1,wave)
+          Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
+          Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
+          JJ = can_JJ(wave)
+        else
+          Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
+          Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
+          Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
+          JJ = spwf_JJ(wave)     
+        endif    
+        r2 = sqrt(spwf_r2_can(wave, wave))
+
+        print 11, sumocc, wave, p, s,   rho_can(wave),  blo, canenergies(wave),  &
+        &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
+      else
+        print 12, sumocc, wave, p, s,   rho_can(wave),  blo, canenergies(wave),  &
+        &               0.0, Delta, rank_map(wave)
+      endif
     enddo
     print 20
 

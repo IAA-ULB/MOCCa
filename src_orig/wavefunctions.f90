@@ -187,6 +187,18 @@ module wavefunctions
  ! canonical basis
  real(KIND=dp), allocatable :: P_hf(:), P_can(:)
  !------------------------------------------------------------------------------
+ ! Flag indicating whether or not to print advanced properties of the spwfs
+ ! DURING the iterations. Their properties are calculated and printed for the 
+ ! first and final iteration, but it can save quite some CPU time if they are 
+ ! not calculated during the iterations in some conditions. Since this 
+ ! information is not useful in the vast majority of cases, so we set this to 
+ ! false by default. 
+ ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ ! Advanced properties:
+ !   - expectation values of different angular momentum operators
+ !   - r^2 
+ logical :: print_adv_spwf_properties = .false.
+ !------------------------------------------------------------------------------
  ! Angular momentum properties of the spwfs in
  !  (i)   the ordinary basis, i.e. the spwfs in storage: spwf_[...]
  !  (ii)  the Hartree-Fock basis                       :   HF_[...]
@@ -262,7 +274,7 @@ contains
     integer                             :: mpi_err
 #endif
 
-    namelist /wfs/ nwn, nwp, osc_freq
+    namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties
 
     ! Only the first MPI rank reads input
     if(MPI_rank .eq. 0) then
@@ -278,6 +290,8 @@ contains
     call MPI_Bcast(nwn     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(nwp     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(osc_freq, 3, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(print_adv_spwf_properties, 1, MPI_LOGICAL  , 0,             &
+    &                                                   MPI_COMM_WORLD, mpi_err)
 #endif    
     ! Bookkeeping for all MPI ranks
     nwt = nwn + nwp

@@ -312,6 +312,7 @@ contains
  1111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
   112 format ( ' Checkpointiter =', i10)
+  113 format (' Printing spwf details during iterations: ', l5)
    12 format ( ' Convergence required', / &
     &          '  Energy convergence           < ', es8.1, / & 
     &          '  Multipole moment convergence < ', es8.1, / &
@@ -373,6 +374,7 @@ contains
       endif 
 
       print 112, checkpointiter
+      print 113, print_adv_spwf_properties
 
       print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE
       if(present(file_number)) then
