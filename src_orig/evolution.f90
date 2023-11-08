@@ -39,6 +39,7 @@ module evolution
     ! Parameters of the iteration scheme
     real(KIND=dp):: dt    =  0.01
     real(KIND=dp):: hbar  =  6.58211928_dp
+    real(KIND=dp):: stepsize_safety = 0.9
     !---------------------------------------------------------------------------
     ! Default value of the momentum factor.
     real(KIND=dp) :: momentum=0.0
@@ -89,7 +90,7 @@ contains
         !-----------------------------------------------------------------------
         use geninfo
 
-        integer(dp), intent(in), optional   :: file_number   
+        integer(dp), intent(in), optional   :: file_number
 #if(USE_MPI>0)
         integer                             :: mpi_err
 #endif
@@ -98,7 +99,8 @@ contains
         &                    gradient_stepsize, gradient_mu,                   &
         &                    maxiter, printiter, strategy,                     &
         &                    estimateparams, estimategradparams,               &
-        &                    gradient_safety, efficientHFB, ortho_strategy     
+        &                    gradient_safety, efficientHFB, ortho_strategy,    &
+        &                    stepsize_safety
         !-----------------------------------------------------------------------
         ! Only the very first MPI rank reads the input
         if(MPI_RANK.eq.0) then
@@ -116,6 +118,8 @@ contains
         call MPI_BCAST(gradient_stepsize, 1, MPI_REAL8, 0, &
         &                                               MPI_COMM_WORLD, mpi_err)
         call MPI_BCAST(gradient_safety  , 1, MPI_REAL8, 0, &
+        &                                               MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(stepsize_safety  , 1, MPI_REAL8, 0, &
         &                                               MPI_COMM_WORLD, mpi_err)
 
         call MPI_BCAST(estimateparams,     1, MPI_LOGICAL, 0, &
@@ -191,8 +195,9 @@ contains
         3 format('   dt= ', f7.4, ' mu= ', f7.4 )
        31 format('   maxiter =', i5, ' printiter = ', i5)        
         4 format('   Estimate (dt,mu) linear subproblem  : ', a3)
-       41 format('   Estimate (dt,mu) pairing subproblem : ', a3)
-       42 format('   Safety HFB-gradient                 : ', f7.4)
+       41 format('   Safety factor for linear subproblem : ', f7.4)
+       42 format('   Estimate (dt,mu) pairing subproblem : ', a3)
+       43 format('   Safety HFB-gradient                 : ', f7.4)
 
 !        5 format(' Preconditioning   : ', a20 )
         6 format(' Diagonalise the s.p. hamiltonian: ', a3)
@@ -204,16 +209,17 @@ contains
         print 31, maxiter, printiter
         if( EstimateParams) then
           print 4, 'YES'
+          print 41, stepsize_safety
         else 
           print 4, ' NO'
           print 3, dt, momentum
         endif
 
         if( EstimateGRADParams) then
-          print 41, 'YES'
-          print 42, gradient_safety
+          print 42, 'YES'
+          print 43, gradient_safety
         else 
-          print 41, ' NO'
+          print 42, ' NO'
           print 3, gradient_stepsize, gradient_mu
         endif
 !        print 5, adjustl(Precondition)
@@ -801,11 +807,11 @@ $N3       &                                        dddmax,                     &
       
       if(Iteration.eq.1) then
         ! Don't mess up with a too large step at the start of the iterations
-        dt = 2.0/maxE*hbar* 0.90
+        dt = 2.0/maxE*hbar * stepsize_safety
         momentum = 0.0
       else        
         momentum = ((sqrt(kappa) - 1)/(sqrt(kappa)+1))**2
-        dt    = 4.0/(maxE+relE+2*sqrt(maxE*relE))*hbar*0.90
+        dt    = 4.0/(maxE+relE+2*sqrt(maxE*relE))*hbar *  stepsize_safety
       endif  
   end subroutine IterativeEstimation
 !===============================================================================
