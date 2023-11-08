@@ -3043,7 +3043,7 @@ subroutine Transfer_derpsi(derpsi,wave,direction, basis, TR &
 #if(USE_MPI>0)
     if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
         ! nothing to send or receive
-        derpsi   = psis(:,:,direction,wave)
+        derpsi   = psis(:,direction,:,wave)
         if(TR)   derpsi = TimeReverse(derpsi)
     elseif(MPI_RANK.eq.calc_rank) then
         ! calc_rank receives
@@ -3053,11 +3053,11 @@ subroutine Transfer_derpsi(derpsi,wave,direction, basis, TR &
         if(TR)   derpsi = TimeReverse(derpsi)
     else if(MPI_RANK .eq. send_rank)  then
         ! ranki sends the wavefunction
-        call MPI_SEND(psis(:,:,direction,wave), 4*mv, MPI_REAL8,calc_rank,2,&
+        call MPI_SEND(psis(:,direction,:,wave), 4*mv, MPI_REAL8,calc_rank,2,&
         &                                           MPI_COMM_WORLD, mpi_err)
     endif
 #else 
-    derpsi   = psis(:,:,direction,wave)
+    derpsi   = psis(:,direction,:,wave)
     if(TR)   derpsi = TimeReverse(derpsi)
 #endif
 
