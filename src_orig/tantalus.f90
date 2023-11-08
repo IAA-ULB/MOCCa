@@ -320,7 +320,7 @@ subroutine ReachForWaterAndFood()
     ! Initial printout
     if(MPI_RANK .eq. 0) then
       ! only the very first MPI RANK prints all of this output
-      call printSpwfs
+      call printSpwfs(.true.) ! Always include all details on start
       call printQps
       call printallmoments
       call print_boxsize_check
@@ -369,8 +369,7 @@ subroutine ReachForWaterAndFood()
         call calcFields(calcall=.true.,precon=.true.)
 
         ! Update all spwf properties
-        call update_spwf_properties( .false. ) ! nonexpensive version
-
+!        call update_spwf_properties( .false. ) ! nonexpensive version
         call updateAM
         call ReadjustCranking
         !-----------------------------------------------------------------------
@@ -410,7 +409,12 @@ subroutine ReachForWaterAndFood()
         ! Decide between full or partial printout.
         if(iprint .eq.1) then
             ! ... but update all spwf properties first to ensure correct prints
-            call update_spwf_properties( .true. ) ! expensive version
+            if(print_adv_spwf_properties .or. &
+            &              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then 
+              print *, 'STARTING', MPI_RANK
+              call update_spwf_properties( .true. ) ! expensive version
+              print *, 'ENDING', MPI_RANK
+            endif
             call updateAM 
             call ReadjustCranking
 
@@ -419,10 +423,12 @@ subroutine ReachForWaterAndFood()
               if((iter .eq. maxiter) .or. ConvergenceAchieved) then
                 ! Add a clear indication this is the FINAL iteration
                 print 12, iter  
+                call PrintSpwfs(.True.) ! always include all details in the 
+                                        ! printing
               else
                 print 11, iter
+                call PrintSpwfs(print_adv_spwf_properties)
               endif
-              call PrintSpwfs
               call PrintQps
               call printallmoments
               call print_boxsize_check

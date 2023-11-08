@@ -313,9 +313,14 @@ $REDUZ  coul_offset_z = 0
       return
     endif
 
-    do i=1, mv
-        temp(i,1,1) = D_I_I(i,1)
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+           temp(i,j,k) = D_I_I(i+(j-1)*nx+(k-1)*ny*nx,1)
+        enddo
+      enddo
     enddo
+    
     if(neutronsize(1).gt.0.0) then
         ! Fold the source with a Gaussian
         rho_charge = rho_charge + &

@@ -71,11 +71,12 @@ module evolution
     ! Procedure pointer for the preconditioning
     !procedure(Precondition_PG),pointer :: Precon 
     !---------------------------------------------------------------------------
+    character(len=20)               :: ortho_strategy = 'GramSchmidt'
+    !---------------------------------------------------------------------------
     ! Inverse of the second order derivative matrices with appropriate constants
     real*8, allocatable :: preconX(:,:,:,:)
     real*8, allocatable :: preconY(:,:,:,:)
     real*8, allocatable :: preconZ(:,:,:,:) 
-
 contains
     
     subroutine ReadEvolution(file_number)
@@ -97,8 +98,7 @@ contains
         &                    gradient_stepsize, gradient_mu,                   &
         &                    maxiter, printiter, strategy,                     &
         &                    estimateparams, estimategradparams,               &
-        &                    gradient_safety, efficientHFB                            
-        
+        &                    gradient_safety, efficientHFB, ortho_strategy     
         !-----------------------------------------------------------------------
         ! Only the very first MPI rank reads the input
         if(MPI_RANK.eq.0) then
@@ -126,6 +126,8 @@ contains
         &                                               MPI_COMM_WORLD, mpi_err)
         
         call MPI_BCAST(strategy  ,len(strategy), MPI_CHARACTER, 0, & 
+        &                                               MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(ortho_strategy, len(ortho_strategy), MPI_CHARACTER, 0, &
         &                                               MPI_COMM_WORLD, mpi_err)
 
         call MPI_BCAST(maxiter   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
@@ -165,13 +167,23 @@ contains
         endif
         ! - if efficientHFB is true, we also do not diagonalise h
         if(efficientHFB) diagsphamil = .false.
-
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! d) assign the correct orthonormalisation routine
+        ortho_strategy = to_upper(ortho_strategy)
+        if(adjustl(ortho_strategy) .eq. 'GRAMSCHMIDT' ) then
+            Orthonormalize => GramSchmidt
+        elseif(adjustl(ortho_strategy) .eq. 'LOEWDIN') then
+            Orthonormalize => Loewdin
+        else
+            call stp('Orthonormalisation strategy not recognized.')
+        endif
+        ! - - - 
     end subroutine ReadEvolution
 
     subroutine PrintEvolution
         !-----------------------------------------------------------------------
-        ! Print the information on the evolution strategy.
-        !
+        ! Print the information on the way the spwfs are evolved in this 
+        ! calculation.
         !-----------------------------------------------------------------------
 
         1 format(80('-'))
@@ -185,6 +197,7 @@ contains
 !        5 format(' Preconditioning   : ', a20 )
         6 format(' Diagonalise the s.p. hamiltonian: ', a3)
         7 format(' EfficientHFB : ACTIVE! ')
+        8 format(' Orthonormalisation strategy: ', a20)
 
         print 1
         print 2, adjustl(Strategy)
@@ -211,6 +224,7 @@ contains
         else
             print 6, 'NO'
         endif
+        print 8, ortho_strategy
 
     end subroutine PrintEvolution
 
@@ -280,7 +294,9 @@ $N3         &              hfdddpsi(:,:,:,wave),                               &
         enddo
     
         gradientnorm = sqrt(gradientnorm)/(neutrons + protons)  
-        call GramSchmidt
+
+        call orthonormalize
+
     end subroutine Evolve_graddesc
 
     subroutine Evolve_momentum(iteration)
@@ -481,8 +497,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Orthonormalize the new spwf basis.
-        call GramSchmidt
-
+        call orthonormalize
 
 #if(USE_MPI > 0)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -603,7 +618,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
           si = si + N
         enddo
         ! orthonormalize
-        call GramSchmidt
+        call orthonormalize
         ! derive those that were evolved
         call derive_extra_spwfs(extraspwfs)
       enddo
@@ -913,7 +928,8 @@ $N3       &                                        dddmax,                     &
    enddo
    !---------------------------------------------------------------------------
    ! Finally, orthonormalisation
-   call Gramschmidt
+   call orthonormalize
+
    call stop_timer(T_feasible)
 
   end subroutine feasibleproject
