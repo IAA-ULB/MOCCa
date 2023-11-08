@@ -177,7 +177,8 @@ contains
         if(adjustl(ortho_strategy) .eq. 'GRAMSCHMIDT' ) then
             Orthonormalize => GramSchmidt
         elseif(adjustl(ortho_strategy) .eq. 'LOEWDIN') then
-            Orthonormalize => Loewdin
+            call stp('Implementation error')
+!            Orthonormalize => Loewdin
         else
             call stp('Orthonormalisation strategy not recognized.')
         endif
