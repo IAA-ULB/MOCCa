@@ -169,6 +169,10 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call Cleanupthemess()
  !------------------------------------------------------------------------------
  ! Print all timing info
+#if(USE_MPI > 0) 
+ ! guarantee that timing info is only at the very end
+ call MPI_Barrier(MPI_COMM_WORLD, mpi_err) 
+#endif
  call stop_timer(T_tantalus)
  call print_all_timers()
  !------------------------------------------------------------------------------
