@@ -415,9 +415,7 @@ subroutine ReachForWaterAndFood()
             ! ... but update all spwf properties first to ensure correct prints
             if(print_adv_spwf_properties .or. &
             &              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then 
-              print *, 'STARTING', MPI_RANK
               call update_spwf_properties( .true. ) ! expensive version
-              print *, 'ENDING', MPI_RANK
             endif
             call updateAM 
             call ReadjustCranking

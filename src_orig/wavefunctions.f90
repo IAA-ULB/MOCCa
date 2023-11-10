@@ -342,7 +342,8 @@ contains
 #endif
 
     allocate(rank_map(sum(blocks_global)), spwf_inverse(sum(blocks_global)))
-    rank_map = 0 ; spwf_inverse = 0
+    rank_map     = 0 ; spwf_inverse = 0
+    blocks_local = 0
 
     select case(balancing)
     case (0)
@@ -2309,7 +2310,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
       real(KIND=dp), pointer     :: rme(:,:)
       real(KIND=dp)              :: r2(mv)
-      integer                    :: B, N, si
+!      integer                    :: B, N, si
 
       ! Value of r^2 = X^2 + Y^2 + Z^2 on the mesh
       r2 = sum(meshgrid,2)**2
@@ -2367,8 +2368,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       !     P    : set of parities
       !
       ! Currently, this routine is somewhat hardcoded for the symmetry options
-      ! corresponding to EV8/CR8/EV4. In time, Hephaestos should be able to deal
-      ! more properly with all these things. 
+      ! corresponding to EV8/CR8/EV4; in particular it assumes the conservation
+      ! of z-signature. 
+      ! 
+      ! In time, Hephaestos should be able to deal more properly with this.
       !-------------------------------------------------------------------------
       real(KIND=dp), allocatable         :: P(:,:)
       real(KIND=dp), intent(in), target  :: basis(nx*ny*nz,4,nwt)
@@ -2377,7 +2380,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       real(KIND=dp)                      :: trash
       
 $PBROKEN      integer :: B, N, i, j,k, si, wave2, startind, endind
-$PBROKEN      real(KIND=dp), pointer             :: spwf(:,:,:,:),spwf2(:,:,:,:)
+$PBROKEN      real(KIND=dp), pointer             :: left1(:,:,:), right1(:,:,:)
+$PBROKEN      real(KIND=dp), pointer             :: left2(:,:,:), right2(:,:,:)
+$PBROKEN      real(KIND=dp), pointer             :: left3(:,:,:), right3(:,:,:)
+$PBROKEN      real(KIND=dp), pointer             :: left4(:,:,:), right4(:,:,:)
         
       ! A statement to stop the compiler complaining about unused variables
       if(fullmatrices) trash = basis(1,1,1)
@@ -2402,7 +2408,13 @@ $PBROKEN   do B=1,8
 $PBROKEN      N = HFBlocks(B) ; if(N.eq.0) cycle
 $PBROKEN        
 $PBROKEN      do wave = si+1, si+N
-$PBROKEN        spwf(1:nx,1:ny,1:nz,1:4) => Basis(1:4*nx*ny*nz,1,wave)
+$PBROKEN        ! This is ugly, because the FORTRAN standard does not allow
+$PBROKEN        ! for sufficiently general pointer remapping....
+$PBROKEN        left1(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,1,wave)
+$PBROKEN        left2(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,2,wave)
+$PBROKEN        left3(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,3,wave)
+$PBROKEN        left4(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,4,wave)
+$PBROKEN
 $PBROKEN        startind   = si + wave
 $PBROKEN        if(fullmatrices) then
 $PBROKEN          endind   = si + N
@@ -2410,16 +2422,20 @@ $PBROKEN        else
 $PBROKEN          endind   = wave
 $PBROKEN        endif
 $PBROKEN        do wave2 = wave,endind
-$PBROKEN         spwf2(1:nx,1:ny,1:nz,1:4) => Basis(1:4*nx*ny*nz,1,wave2)
+$PBROKEN
+$PBROKEN         right1(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,1,wave2)
+$PBROKEN         right2(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,2,wave2)
+$PBROKEN         right3(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,3,wave2)
+$PBROKEN         right4(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,4,wave2)
 $PBROKEN
 $PBROKEN         P(wave,wave2) = 0
 $PBROKEN         do k=1,nz
 $PBROKEN          do j=1,ny
 $PBROKEN            do i=1,nx
-$PBROKEN             P(wave,wave2) = P(wave,wave2) + spwf(i,j,k,1) * spwf2(i,j,nz-k+1,1)
-$PBROKEN             P(wave,wave2) = P(wave,wave2) + spwf(i,j,k,2) * spwf2(i,j,nz-k+1,2)
-$PBROKEN             P(wave,wave2) = P(wave,wave2) - spwf(i,j,k,3) * spwf2(i,j,nz-k+1,3)
-$PBROKEN             P(wave,wave2) = P(wave,wave2) - spwf(i,j,k,4) * spwf2(i,j,nz-k+1,4)
+$PBROKEN             P(wave,wave2)=P(wave,wave2)+left1(i,j,k)*right1(i,j,nz-k+1)
+$PBROKEN             P(wave,wave2)=P(wave,wave2)+left2(i,j,k)*right2(i,j,nz-k+1)
+$PBROKEN             P(wave,wave2)=P(wave,wave2)-left3(i,j,k)*right3(i,j,nz-k+1)
+$PBROKEN             P(wave,wave2)=P(wave,wave2)-left4(i,j,k)*right4(i,j,nz-k+1)
 $PBROKEN            enddo
 $PBROKEN          enddo
 $PBROKEN         enddo
