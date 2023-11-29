@@ -1790,66 +1790,66 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
   end subroutine write_densities
   
   subroutine write_nablaJ(fname)
-    !---------------------------------------------------------------------------
-    ! Debugging routine that can be used to write both
-    !    (1)  the vector component of Jmunu 
-    !    (2)  the distinct components of the divergence of this vector
-    ! to file.
-    !---------------------------------------------------------------------------
-    real(KIND=dp), pointer           :: dxn(:,:,:), dxp(:,:,:), lapdn(:,:,:)
-    real(KIND=dp), pointer           :: dyn(:,:,:), dyp(:,:,:), lapdp(:,:,:)
-    real(KIND=dp), pointer           :: dzn(:,:,:), dzp(:,:,:)
+!    !---------------------------------------------------------------------------
+!    ! Debugging routine that can be used to write both
+!    !    (1)  the vector component of Jmunu 
+!    !    (2)  the distinct components of the divergence of this vector
+!    ! to file.
+!    !---------------------------------------------------------------------------
+!    real(KIND=dp), pointer           :: dxn(:,:,:), dxp(:,:,:), lapdn(:,:,:)
+!    real(KIND=dp), pointer           :: dyn(:,:,:), dyp(:,:,:), lapdp(:,:,:)
+!    real(KIND=dp), pointer           :: dzn(:,:,:), dzp(:,:,:)
     character(len=*), intent(in)     :: fname
-    integer                          :: io, i,j,k, it
-    real(KIND=dp), target             :: divJ(nx*ny*nz,3,2), lapd(nx*ny*nz,2)
-    real(KIND=dp), target             :: Jmn(nx*ny*nz,3,2)
+!    integer                          :: io, i,j,k, it
+!    real(KIND=dp), target             :: divJ(nx*ny*nz,3,2), lapd(nx*ny*nz,2)
+!    real(KIND=dp), target             :: Jmn(nx*ny*nz,3,2)
 
-    1 format('#  X[fm]   Y[fm]   Z[fm]       ')
-    open(1,file=fname, iostat=io)
-    if(io.ne.0) then    
-      print *, 'Something went wrong with writing a density to file.'
-      print *, 'filename = ', fname
-      call stp('')
-    endif
-    
-    do it=1,2
-      Jmn(:,1,it) = C_I_NS(:,2,3,it) - C_I_NS(:,3,2,it) 
-      Jmn(:,2,it) = C_I_NS(:,3,1,it) - C_I_NS(:,1,3,it) 
-      Jmn(:,3,it) = C_I_NS(:,1,2,it) - C_I_NS(:,2,1,it) 
-    enddo
+!    1 format('#  X[fm]   Y[fm]   Z[fm]       ')
+!    open(1,file=fname, iostat=io)
+!    if(io.ne.0) then    
+!      print *, 'Something went wrong with writing a density to file.'
+!      print *, 'filename = ', fname
+!      call stp('')
+!    endif
+!    
+!    do it=1,2
+!      Jmn(:,1,it) = C_I_NS(:,2,3,it) - C_I_NS(:,3,2,it) 
+!      Jmn(:,2,it) = C_I_NS(:,3,1,it) - C_I_NS(:,1,3,it) 
+!      Jmn(:,3,it) = C_I_NS(:,1,2,it) - C_I_NS(:,2,1,it) 
+!    enddo
 
-    do it=1,2
-      call Derive_X(Jmn(:,1,it), -1, divJ(:,1,it)) 
-      call Derive_Y(Jmn(:,2,it), -1, divJ(:,2,it)) 
-      call Derive_Z(Jmn(:,3,it), -1, divJ(:,3,it)) 
-    enddo
+!    do it=1,2
+!      call Derive_X(Jmn(:,1,it), -1, divJ(:,1,it)) 
+!      call Derive_Y(Jmn(:,2,it), -1, divJ(:,2,it)) 
+!      call Derive_Z(Jmn(:,3,it), -1, divJ(:,3,it)) 
+!    enddo
 
-    dxn(1:nx,1:ny,1:nz)  => Jmn(:,1,1)
-    dxp(1:nx,1:ny,1:nz)  => divJ(:,1,1)
-    dyn(1:nx,1:ny,1:nz)  => Jmn(:,2,1)
-    dyp(1:nx,1:ny,1:nz)  => divJ(:,2,1)
-    dzn(1:nx,1:ny,1:nz)  => Jmn(:,3,1)
-    dzp(1:nx,1:ny,1:nz)  => divJ(:,3,1)
-    
-    lapd  = LAP_D_I_I
-    lapdn(1:nx,1:ny,1:nz) => LAP_D_I_I(:,1)
-    lapdp(1:nx,1:ny,1:nz) => LAP_D_I_I(:,2)
-    
-    call write_header(1)
-    write(1, fmt=1) 
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          write(1, fmt='(3f8.3, 8es25.12E3)') meshx(i), meshx(j), meshz(k),      &
-          &                           dxn(i,j,k), dxp(i,j,k), &
-          &                           dyn(i,j,k), dyp(i,j,k), &
-          &                           dzn(i,j,k), dzp(i,j,k), &
-          &                           lapdn(i,j,k), lapdp(i,j,k)
-        enddo
-      enddo
-    enddo
+!    dxn(1:nx,1:ny,1:nz)  => Jmn(:,1,1)
+!    dxp(1:nx,1:ny,1:nz)  => divJ(:,1,1)
+!    dyn(1:nx,1:ny,1:nz)  => Jmn(:,2,1)
+!    dyp(1:nx,1:ny,1:nz)  => divJ(:,2,1)
+!    dzn(1:nx,1:ny,1:nz)  => Jmn(:,3,1)
+!    dzp(1:nx,1:ny,1:nz)  => divJ(:,3,1)
+!    
+!    lapd  = LAP_D_I_I
+!    lapdn(1:nx,1:ny,1:nz) => LAP_D_I_I(:,1)
+!    lapdp(1:nx,1:ny,1:nz) => LAP_D_I_I(:,2)
+!    
+!    call write_header(1)
+!    write(1, fmt=1) 
+!    do k=1,nz
+!      do j=1,ny
+!        do i=1,nx
+!          write(1, fmt='(3f8.3, 8es25.12E3)') meshx(i), meshx(j), meshz(k),      &
+!          &                           dxn(i,j,k), dxp(i,j,k), &
+!          &                           dyn(i,j,k), dyp(i,j,k), &
+!          &                           dzn(i,j,k), dzp(i,j,k), &
+!          &                           lapdn(i,j,k), lapdp(i,j,k)
+!        enddo
+!      enddo
+!    enddo
 
-    close(1)
+!    close(1)
   end subroutine write_nablaJ
 
   subroutine write_timeodd_densities(fname)
