@@ -1,0 +1,42 @@
+!-------------------------------------------------------------------------------
+! SLy4D parameterization
+!
+! Skyrme parameters from
+!     Ka-Hae Kim et al.J. Phys. G: Nucl. Part. Phys. 23 1267 (1997).
+!
+! Pairing parameters and values of natural constants as communicated to me by
+! P. Marevic on 11/23/2023.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "SLy4D" 
+func_file= 'NLO.func'
+t0       =  -2479.662
+t1       =    473.216,
+t2       =   -333.654,
+t3       =  13487.0, 
+x0       =      0.8122,
+x1       =     -0.7228,
+x2       =     -1.0,
+x3       =      1.3980,
+sigma    =      0.166666666666666666667 
+x3b      =      0.0
+t3b      =      0.0
+sigma_b  =      0.0
+wso      =    128.0,
+wsoq     =    128.0 
+Vp       =   -252.619
+Vn       =   -252.619
+alpha    =      0.0
+sigmap   =      1.0
+cutneutron =    3.0
+cutproton  =    3.0
+cuttype    =    2 
+hbm(1)   = 20.753159, 20.753159    
+COM1Body = 0
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+/
+
+
