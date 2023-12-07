@@ -569,6 +569,13 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     start[1,0] = 2  
     start[2,0] = 3 
     start[3,0] = 4     
+
+    #---------------------------------------------------------------------------
+    # TODO: define a dedicated function for this next particular piece of 
+    #       code. It is highly complex, yet identical to the one in the 
+    #       src_heph/heph_fields module. It should be put in one spot
+    #       and abstracted.
+    #---------------------------------------------------------------------------
     
     # Construct an iterator with all possible combinations of uncontracted 
     # indices. Note that the ordering is [scalar indices, vector_indices]

@@ -91,6 +91,21 @@ T( \
 #       + 4*tab + '${FIELD}_hist = 0.0d0 \n' )
 
 #-------------------------------------------------------------------------------
+# Templates for preconditioning 
+
+field_precon_start= \
+T( 1*tab + '! Preconditioning of the field ${FIELD} \n' \
+  +1*tab + 'if(.not.all(${FIELD}_hist.eq.0.0_dp) .and. potentialpreconditioning.eq.1) then \n')
+field_precon_update = \
+T( 2*tab +  'update=  ${FIELD}(:$IND,:) - ${FIELD}_hist(:$IND,:) \n')
+field_precon_call = \
+T( 2*tab +  'update=  PreconditionPotential(update,-preconfactor,1.0_dp, $PX,$PY,$PZ) \n')
+field_precon_add  = \
+T( 2*tab +  '${FIELD}(:$IND,:) =  ${FIELD}_hist(:$IND,:) + update \n')
+field_precon_end= \
+T( 1*tab +  'endif \n')
+
+#-------------------------------------------------------------------------------
 # Template for cleaning fields after a run
 clean   = T(   tab+'if(allocated($FIELD)) deallocate($FIELD)')
 clean_b = T(   tab+'if(allocated(${FIELD}_hist)) deallocate(${FIELD}_hist)')

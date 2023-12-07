@@ -242,7 +242,7 @@ $INITIALIZATION
     ! Note that this is only necessary at the moment for the ordinary rho
     ! density, it is the one that can make calculations unstable.
     if(.not. allocated(D_I_I_hist)) then
-        allocate(D_I_I_hist(nx*ny*nz,4,memory)) ; D_I_I_hist = 0.0_dp
+        allocate(D_I_I_hist(nx*ny*nz,4,memory))   ; D_I_I_hist = 0.0_dp
 $NTR    allocate(D_I_S_hist(nx*ny*nz,3,4,memory)) ; D_I_S_hist = 0.0_dp
     endif   
     if(SaveRho) then

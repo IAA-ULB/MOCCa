@@ -85,6 +85,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
    
     declaration:
     FIELDCALC  : 
+    fieldprecon:
     fieldwrite :
     fieldread  :
     fieldclean :
@@ -101,6 +102,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   # For every unique density encountered, we need to figure out the field
   # and the action of the field. 
   FIELDCALC   = ''
+  fieldprecon = ''
   declaration = ''
 
   fieldread = ''
@@ -108,6 +110,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   fieldtransfo = ''
       
   fieldclean= '' 
+  #---------------------------------------------------------------------------
   for den in src_heph.heph_functional.Densities_needed:
       #-----------------------------------------------------------------------
       # Name the field correctly
@@ -139,8 +142,45 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       else:
         Pairing_Fields_needed.append(dic['FIELD'])
       #-----------------------------------------------------------------------
-      #  Get the operator structure of the density correctly                                
+      #  Get the operator structure of the density correctly                    
       (der,lap,left, right, coupling,cross) = ParseOperators(den,so.timelike) 
+
+      # Construct the left/right operators
+      operatordic = {}
+      operatordic['I'] = Identity
+      operatordic['N'] = Nabla
+      operatordic['S'] = Sigma
+      operatordic['C'] = Current
+      operatordic['T'] = TR
+      
+      LeftOperator = Identity
+      for i in range(len(left)):
+          # this needs to be done in reverse order
+          l = left[len(left) - i -1 ] 
+          LeftOperator  = Combine(operatordic[l], LeftOperator)
+          
+      RightOperator = Identity
+      for i in range(len(right)):
+          r = right[(len(right)) -i -1] 
+          RightOperator = Combine(operatordic[r], RightOperator)
+
+      #-------------------------------------------------------------------------
+      # Find the correct dimensions
+      ndim = LeftOperator.dimension + RightOperator.dimension 
+      # Subtract two dimensions for every summation, and only one for every 
+      # vector product    
+      ndim = ndim - 2*len(coupling) - len(cross)
+  
+      # But we have double-counted possible contractions of vector products,
+      # couplings of length 3
+      threedim=0
+      threecoupl = []
+      for c in coupling:
+          if(len(c) == 3):
+              threedim = threedim + 1
+              threecoupl.append(c)
+      ndim = ndim - threedim
+      
       #-----------------------------------------------------------------------
       # Check all of the terms if they depend on the density
       fieldlist = {}
@@ -459,6 +499,10 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
       
       FIELDCALC    = FIELDCALC + ts.field_condition_start.substitute(dic)
+      
+      #-------------------------------------------------------------------------
+      # Code generation for the calculation of the fields. 
+      #
       # Isospin loop:
       for iso in ['0','1', 'n', 'p']:        
       
@@ -596,7 +640,149 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       FIELDCALC    = FIELDCALC + ts.field_condition_end.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic) + '\n'
 
-  return(declaration, FIELDCALC, fieldwrite, fieldread, fieldclean)
+      #-------------------------------------------------------------------------
+      # Code generation for the preconditioning of the fields
+      #
+      # Current strategy: precondition ALL potentials, irrespective of their 
+      #                   content in terms of gradients. This should remove
+      #                   all potential for surprises and makes sure that 
+      #                   the parameter preconfactor influences ALL potentials.
+      # 
+      fieldprecon  = fieldprecon + ts.field_precon_start.substitute(dic)
+
+      # TODO: define a dedicated function for this next particular piece of 
+      #       code. It is highly complex, yet identical to the one in the 
+      #       src_heph/heph_densities module. It should be put in one spot
+      #       and abstracted.
+
+      args = list(itertools.product(range(3), repeat=ndim))
+      # Outer loop over all possible indices
+
+      for arg in args:
+        # We have the uncontracted indices. Now construct the combinations of
+        # indices, including contracted ones, that correspond to this. 
+        uncontracted = []
+        if(len(coupling) + len(cross) == 0):
+            # Nothing to do if no couplings needed
+            uncontracted = [arg]
+        else:
+            #-------------------------------------------------------------------
+            # These are all of the combinations needed for the summation indices
+            cont  = itertools.product(range(3), repeat=len(coupling))
+            # All of the possibilities for the vector products
+            crossind = []
+            for i in range(len(cross)):
+                crossind = crossind  + (Rot_ind(arg[len(coupling) + i]))    
+
+            # Combine all possibilities
+            if(len(crossind) != 0):
+                # all the combinations , including scalar and vector products
+                fullcont = []
+                for s in cont: 
+                    for r in crossind:            
+                        fullcont.append(s + r)
+            elif (threedim != 0 and len(crossind) == 0):
+                fullcont = []
+                for s in cont: 
+                    # Modify the number of possibilities for couplings between vector
+                    # products and scalar products. 
+                    threeopt = itertools.product(range(2), repeat=threedim)
+                    for r in threeopt:            
+                        fullcont.append(s + r)
+            elif (threedim != 0 and len(crossind) != 0):
+                fullcont = []
+                for s in cont: 
+                   for r in crossind: 
+                    threeopt = itertools.product(range(2), repeat=threedim)
+                    for t in threeopt:            
+                        fullcont.append(s + r + t)
+            else:
+                # No vector indices, and no scalar-vector
+                fullcont = cont
+              
+            #-------------------------------------------------------------------
+            # Note that now fullcont contains all of the terms needed for the
+            # particular argument of the left-hand side. 
+            #
+            #  The ordering of the indices is:
+            #    
+            #  ( mu, nu, ...., xsi , mx, nx, ....,zx  ,  ex, ey, ....., ez )  
+            #   < scalar indices >  < vector indices >  < contracted vectors)
+            #
+            #  corresponding to things of the form
+            #
+            #  coupling, (0,1)        cross (0,1)         coupling (0,1,2)
+            #
+            #  meaning 
+            #
+            #  the value of the   | the values of the  |  whether it is the 
+            #  indices in the     | vector indices     |  first term or the 
+            #  summation          |                    |  second in the vector
+            #                     |                    |  product
+            #-------------------------------------------------------------------
+            for c in fullcont:
+                p  = ()   
+                ii = 0
+                for i in range(LeftOperator.dimension + RightOperator.dimension):
+                    found = False                   
+                    for combination in coupling:
+                        if(i in combination): 
+                            if(len(combination) == 2):
+                                p = p + (c[coupling.index(combination)],)
+                                found = True
+                            elif(len(combination) == 3):    
+                                found = True
+                                if( i == combination[0] ):
+                                    p = p + (c[coupling.index(combination)],)
+                                elif( i == combination[1]):
+                                    rot = Rot_ind(c[coupling.index(combination)])
+                                    o = threecoupl.index(combination)
+                                    p = p + (rot[c[-1 -o]][0],)
+                                elif( i == combination[2]):
+                                    rot = Rot_ind(c[coupling.index(combination)])
+                                    o   = threecoupl.index(combination)
+                                    p = p + (rot[c[-1 -o]][1],)
+                    for combination in cross:
+                        if(i==combination[0]): 
+                                p = p + (c[cross.index(combination) + len(coupling)],)
+                                found = True
+                        if(i==combination[1]): 
+                                p = p + (c[cross.index(combination) + len(coupling) +1 ],)
+                                found = True    
+                    if(not found): 
+                            p = p + (arg[ii],)
+                            ii = ii +1
+                uncontracted.append(p)
+
+        IND = ''
+        for mu in arg: 
+            IND = IND + ',' + str(int(abs(mu)+1)) # Python indexes 0:N-1
+
+        dic['IND'] = IND
+
+
+        fieldprecon  = fieldprecon + ts.field_precon_update.substitute(dic)
+
+        for true_arg in uncontracted: 
+          # We do the whole loop but only use the values for the final set of
+          # indices: all terms in a given contraction should have the same 
+          # behaviour under symmetry.
+
+          # The ugly tuple(np.abs( construction is simply because abs doesn't 
+          # accept tuples as arguments, for whatever reasons.
+          larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
+          rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
+
+          (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in den)
+          dic['PX'] = str(px)
+          dic['PY'] = str(py)
+          dic['PZ'] = str(pz)
+        fieldprecon  = fieldprecon + ts.field_precon_call.substitute(dic)
+        fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
+      fieldprecon  = fieldprecon + ts.field_precon_end.substitute(dic)
+  #-----------------------------------------------------------------------------
+
+  return(declaration, FIELDCALC, fieldprecon, fieldwrite, fieldread, fieldclean)
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
   """

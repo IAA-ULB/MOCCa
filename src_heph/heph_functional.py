@@ -614,6 +614,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
     sumtotal_quad = ''
     sumtotal_dd   = ''
     fieldcalc     = ''
+    precond       = ''
     erear         = ''
     writing       = ''
     reading       = ''
@@ -705,11 +706,12 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
 
     #---------------------------------------------------------------------------
     # Generate the fields of the single-particle hamiltonian
-    (fielddec, fieldcalc, fieldwrite,fieldread, fieldclean) =              \
+    (fielddec, fieldcalc, fieldprecon, fieldwrite,fieldread, fieldclean) =     \
                                          GenerateFields(so,oldso, ph_pp_decoupl)
     declaration = declaration + fielddec   + '\n'
     writing     = writing     + fieldwrite 
     reading     = reading     + fieldread 
+    precond     = precond     + fieldprecon
     cleaning    = cleaning    + fieldclean
     #---------------------------------------------------------------------------
     # Generate the expressions for the actions of the Skyrme fields
@@ -748,6 +750,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
     sumtotal_even = LineFormat(sumtotal_even)
     sumtotal_odd  = LineFormat(sumtotal_odd)
     fieldcalc     = LineFormat(fieldcalc)
+    precond       = LineFormat(precond)
     SkyrmeAction  = LineFormat(SkyrmeAction)
     PairingAction = LineFormat(PairingAction)
     erear         = LineFormat(erear)
@@ -791,6 +794,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
     dic['TOTALPAIR_PROTON'] = pairtotal_proton
     
     dic['CALCFIELDS']     = fieldcalc
+    dic['FIELDPRECON']    = precond
     dic['SKYRMEACTION']   = SkyrmeAction
     dic['PAIRINGACTION']  = PairingAction
     dic['EREAR']          = erear
