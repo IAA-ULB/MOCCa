@@ -143,6 +143,10 @@ contains
         Residual         = pot(:,it) 
         Direction        = Residual
         newresnorm       = sum(direction**2)*dv
+        if(abs(newresnorm).lt.1e-8) cycle  ! Don't iterate if we are already
+                                           ! good enough. This also takes care
+                                           ! of the possible explosion of this
+                                           ! subroutine if pot is zero everywhere. 
         !-----------------------------------------------------------------------
         do iter=1,300
           update   = preconoperator(direction,a,b,sx,sy,sz)
