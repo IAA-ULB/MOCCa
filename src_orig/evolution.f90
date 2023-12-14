@@ -699,26 +699,27 @@ $N3       &              hfddpsi(:,:,:,wave)  ,                              &
       ! to try and achieve optimal convergence rate.
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Input:
-      !   Iteration : integer, outer iteration counter. Used  
+      !   Iteration : integer, outer iteration counter. Used to decide whether 
+      !               to allocate things, yes or no. 
       !-------------------------------------------------------------------------
 
       use wavefunctions
 
       1 format (a20, 99f10.3)
-      2 format ('-----------------------------------------------------------')
-      3 format (' Warning: maximum value on the mesh could not be estimated.')
-      4 format (' maxE = ', f10.3,  ' convergence =', es10.3)
+      2 format ('-------------------------------------------------------------')
+      3 format (' Warning: maximum eigenvalue of h could not be estimated.  ')
+      4 format (' Isospin = ', i2, 'maxE = ', f10.3,  ' convergence =', es10.3)
 
       integer, intent(in)              :: iteration
 
-      real(KIND=dp), allocatable, save :: maxspwf(:,:)
+      real(KIND=dp), allocatable, save :: maxspwf(:,:,:)
       real(KIND=dp), allocatable, save :: update(:,:), actionofh(:,:)
       real(KIND=dp), allocatable, save ::   dmax(:,:,:)
       real(KIND=dp), allocatable, save ::  ddmax(:,:,:)
       real(KIND=dp), allocatable, save :: dddmax(:,:,:)
 
-      integer       :: estiter, iter, ii, i
-      real(KIND=dp) :: con, maxE, compare, relE, kappa
+      integer       :: estiter, iter, ii, i, it, iso
+      real(KIND=dp) :: con(2), maxE, compare, relE, kappa, Es(2)
       !-------------------------------------------------------------------------
       ! Step 1: Solve the auxiliary problem for the largest single-particle 
       !         energy on the mesh
@@ -732,53 +733,66 @@ $N3       &              hfddpsi(:,:,:,wave)  ,                              &
           if(allocated(dddmax))    deallocate(dddmax)
 
           ! Initialize with a random spwf at the start.
-          allocate(maxspwf(nx*ny*nz,4)) 
+          allocate(maxspwf(nx*ny*nz,4,2)) 
           allocate(update(nx*ny*nz,4)) ; allocate(actionofh(nx*ny*nz,4))
           allocate(dmax(nx*ny*nz,3,4))
           allocate(ddmax(nx*ny*nz,6,4))
           allocate(dddmax(nx*ny*nz,10,4))
 
           call random_number(maxspwf)                        ! randomize
-          maxspwf = 1.0/sqrt(sum(maxspwf**2)*dv) * maxspwf   ! normalize
+          do it=1,2
+            maxspwf(:,:,it) = &                                      ! normalize
+                        & 1.0/sqrt(sum(maxspwf(:,:,it)**2)*dv) * maxspwf(:,:,it)
+          enddo
       endif
 
       estiter = 500
       update  = 0.0
       maxE    = 100.0 ! Initialize some value to avoid compiler complaints
-
+      Es      = 100.0
       !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Iterative estimation of the maximal energy
-      con = 1
-      do iter=1,estiter
+      ! Iterative estimation of the maximal energy: evolve two single-particle
+      ! wavefunctions (one for each isospin) to guess at the maximal eigenvalue
+      ! of the single-particle hamiltonian.
+      Es(2) = 0.0d0
+      do it = 1,2
+        con(it) = 1
+        iso     = 2*it-3
+        do iter=1,estiter
           !---------------------------------------------------------------------
           ! Two notes on this call to sphamil
           ! - onthefly = .true., such that derivatives are calculated
           ! - sx/y/z_max are set in the set_spwf_symmetries routine and are
           !   assumed to be the reflection quantum numbers of the very first
           !   symmetry block.
-          actionofh = sphamil(maxspwf, dmax, ddmax,                            &
+          actionofh = sphamil(maxspwf(:,:,it), dmax, ddmax,                    &
 $N3       &                                        dddmax,                     &
-          &                                      sx_max,sy_max,sz_max,1,.true.)
-          con       = maxE
-          maxE      = sum(actionofh * maxspwf) * dv
-          con       = con - maxE
+          &                                     sx_max,sy_max,sz_max,iso,.true.)
+          con(it)   = Es(it)
+          Es(it)    = sum(actionofh * maxspwf(:,:,it)) * dv
+          con(it)   = con(it) - Es(it)
           !---------------------------------------------------------------------
           ! Simple power iteration seems to better than gradient descent          
-          maxspwf  = actionofh 
+          maxspwf(:,:,it)  = actionofh 
           !---------------------------------------------------------------------
           ! Normalize
-          maxspwf = 1.0/sqrt(sum(maxspwf**2)*dv) * maxspwf   ! normalize
+          maxspwf(:,:,it) = 1.0/sqrt(sum(maxspwf(:,:,it)**2)*dv)*maxspwf(:,:,it)
           !---------------------------------------------------------------------
           ! Don't be to picky about convergence, within the order of an MeV is
           ! good enough.
-          if(abs(con).lt. 1d-2) exit
+          if(abs(con(it)).lt. 1d-2) exit
+        enddo
       enddo
-      if(iter.eq.estiter+1) then
-       print 1
-       print 2
-       print 3
-       print 4, maxE, con
+      
+      if(any(abs(con) .gt. 1d-2)) then
+          print 1
+          print 2
+          print 3
+          print 4, -1, Es(1), con(1)
+          print 4, +1, Es(2), con(2)
       endif
+      ! Take the maximum value of both isospins
+      maxE = maxval(Es)
       !-------------------------------------------------------------------------
       ! Step 2: estimate the minimal relevant energy
       relE = 100000000
