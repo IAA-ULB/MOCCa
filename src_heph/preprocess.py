@@ -183,6 +183,41 @@ def ProcessGeninfo(fname, src, target, so):
     dic['REDUX'] = str(so.ReduceAxes[0])
     dic['REDUY'] = str(so.ReduceAxes[1])
     dic['REDUZ'] = str(so.ReduceAxes[2])
+    
+    #NS: provides symmetry information to
+    #    geninfo to calculate k_sh
+    if(so.ReduceAxes[0] == 1):
+       dic['LINESIZEX']    = '2*nx'
+       dic['DERX_ONE']     = 'C + D'
+       dic['DERX_TWO']     = 'C - D'
+       dic['SYMPARTNERX']  = ''  
+    else:
+       dic['LINESIZEX']    = 'nx'
+       dic['DERX_ONE']     = 'C'
+       dic['DERX_TWO']     = '0'  
+       dic['SYMPARTNERX']  = ''          
+
+    if(so.ReduceAxes[1] == 1):
+       dic['LINESIZEY']    = '2*ny'
+       dic['DERY_ONE']     = 'C + D'
+       dic['DERY_TWO']     = 'C - D'
+       dic['SYMPARTNERY']  = ''  
+    else:
+       dic['LINESIZEY']    = 'ny'
+       dic['DERY_ONE']     = 'C'
+       dic['DERY_TWO']     = '0'
+       dic['SYMPARTNERY']  = ''  
+    
+    if(so.ReduceAxes[2] == 1):
+       dic['LINESIZEZ']    = '2*nz'
+       dic['DERZ_ONE']     = 'C + D'
+       dic['DERZ_TWO']     = 'C - D'
+       dic['SYMPARTNERZ']  = ''  
+    else:
+       dic['LINESIZEZ']    = 'nz'
+       dic['DERZ_ONE']     = 'C'
+       dic['DERZ_TWO']     = '0'
+       dic['SYMPARTNERZ']  = ''  
         
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
