@@ -26,6 +26,13 @@ module GenInfo
   !   REDUY    : $REDUY
   !   REDUZ    : $REDUZ
   !     Integers indicating the reduction of the Cartesian axes.
+  !
+  !   LINESIZEX : $LINESIZEX
+  !   LINESIZEY : $LINESIZEY
+  !   LINESIZEZ : $LINESIZEZ
+  !     Relations between nx/ny/nz and the actual number of mesh points in the 
+  !     simulated system. This information is relevant here when using 
+  !     periodic boundary conditions.
   !=============================================================================
 
   use compilation

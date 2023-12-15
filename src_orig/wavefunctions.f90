@@ -583,7 +583,10 @@ contains
 $N3    if(.not.allocated(HFdddpsi)) then
 $N3        allocate(HFdddPsi(nx*ny*nz,10,4,nwt_local))
 $N3    endif
+
 #if(USE_Periodic==0)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Original Lagrange mesh derivatives
     do wave=1,nwt_local
         do k=1,4
 $N2        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
@@ -599,23 +602,21 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
     
 #else    
     !---------------------------------------------------------------------------
-    ! Derives all of the single-particle wave-functions in the basis in memory
-    ! (which is not always the actual HF basis) for periodic boundary conditions
-    ! NS:for periodic boundary conditions w.f. are submitted in pairs (re+im)
-    ! Not ready for N3 
+    ! NS: for periodic boundary conditions the spwfs can no longer be derived
+    !     component-by-component. Real and imaginary parts of spin-up and 
+    !     spin-down are connected!
+    ! Not ready for N3LO calculations
     !---------------------------------------------------------------------------
     do wave=1,nwt_local
         do k=1,2
-$N2        call derive_tot_periodic(HFPsi(:,(2*k-1):2*k,wave),                 &
-$N2        &                        sx((2*k-1):2*k,wave),                      &
-$N2        &                        sy((2*k-1):2*k,wave), sz((2*k-1):2*k,wave),&
+$N2        call derive_tot_periodic(HFPsi(:,   (2*k-1):2*k,wave),              &
+$N2        &                                sx((2*k-1):2*k,wave),              &
+$N2        &                                sy((2*k-1):2*k,wave),              &
+$N2        &                                sz((2*k-1):2*k,wave),              &
 $N2        &                          HFdPsi(:,:,(2*k-1):2*k,wave),            &
 $N2        &                            HFddPsi(:,:,(2*k-1):2*k,wave))
-           !NS:Modify!
-$N3        call Derive_tot(HFPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
-$N3        &                                           HFdPsi(:,:,k,wave),     &
-$N3        &                                           HFddPsi(:,:,k,wave),    &
-$N3        &                                           HFdddPsi(:,:,k,wave))
+
+$N3        call stp('N3LO functionals not yet supported for periodic BCs.')
         enddo
     enddo
 #endif

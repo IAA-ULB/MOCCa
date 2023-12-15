@@ -242,6 +242,12 @@ $FORBIDBCS endif
       if((pairingscheme .ne. 0) .and. (pairingscheme.ne.1)) then
         call stp('Invalid value for pairingscheme.')
       endif
+
+#if(USE_periodic > 0)
+      if(pairingtype.eq.2) then
+        call stp('HFB calculations are not compatible yet with periodic boundary conditions.')
+      endif
+#endif      
       !-------------------------------------------------------------------------
       ! Reading information on the blocking if needed.
       if(BlockNumber.ne.0) then

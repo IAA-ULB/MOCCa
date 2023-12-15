@@ -110,7 +110,11 @@ contains
     !---------------------------------------------------------------------------
 
     integer       :: i,j, linX, linY, linZ
-    real(KIND=dp) :: sinA, A, B, sinB, C, D, E, F
+    real(KIND=dp) :: sinA, A, B, sinB, C, D
+    
+#if(USE_Periodic>0)
+    real(KIND=dp) :: E, F
+#endif 
 
     ! Allocate the arrays
     allocate(derX(nx,nx,4), laplaX(nx,nx,4))
@@ -412,8 +416,8 @@ contains
       LaplaZ(:,:,3) = 0.d0
       LaplaZ(:,:,4) = 0.d0
     endif           
-
 #endif  
+
  end subroutine inilag   
  
 
@@ -551,13 +555,14 @@ $N2DIAG    !NS: Now d_re f=derX_re*f_re-derX_im*f_im
 $N2DIAG    !sx accounts for the parity
 $N2DIAG    do j=1,nz
 $N2DIAG       do i=1,ny
-$N2DIAG         df(1:nx,i,j,1,1) = matmul(derX(:,:,1+sx(1)),f(1:nx,i,j,1)) -          &
+$N2DIAG         df(1:nx,i,j,1,1) = matmul(derX(:,:,1+sx(1)),f(1:nx,i,j,1)) -   &
 $N2DIAG                          & matmul(derX(:,:,2+sx(2)),f(1:nx,i,j,2)) 
-$N2DIAG         df(1:nx,i,j,1,2) = matmul(derX(:,:,2+sx(1)),f(1:nx,i,j,1)) +          &
-$N2DIAG                          & matmul(derX(:,:,1+sx(2)),f(1:nx,i,j,2))         
-$N2DIAG        ddf(1:nx,i,j,1,1) = matmul(laplaX(:,:,1+sx(1)),f(1:nx,i,j,1)) -        &
+$N2DIAG         df(1:nx,i,j,1,2) = matmul(derX(:,:,2+sx(1)),f(1:nx,i,j,1)) +   &
+$N2DIAG                          & matmul(derX(:,:,1+sx(2)),f(1:nx,i,j,2))    
+$N2DIAG
+$N2DIAG        ddf(1:nx,i,j,1,1) = matmul(laplaX(:,:,1+sx(1)),f(1:nx,i,j,1)) - &
 $N2DIAG                          & matmul(laplaX(:,:,2+sx(2)),f(1:nx,i,j,2)) 
-$N2DIAG        ddf(1:nx,i,j,1,2) = matmul(laplaX(:,:,2+sx(1)),f(1:nx,i,j,1)) +        &
+$N2DIAG        ddf(1:nx,i,j,1,2) = matmul(laplaX(:,:,2+sx(1)),f(1:nx,i,j,1)) + &
 $N2DIAG                          & matmul(laplaX(:,:,1+sx(2)),f(1:nx,i,j,2)) 
 $N2DIAG       enddo
 $N2DIAG    enddo   
@@ -565,28 +570,30 @@ $N2DIAG
 $N2DIAG    !A = derY(:,:,sy) ; B = laplaY(:,:,sy)
 $N2DIAG    do k=1,nz
 $N2DIAG        do i=1,nx
-$N2DIAG          df(i,:,k,2,1) = matmul(derY(:,:,1+sy(1)),f(i,:,k,1)) -               &
+$N2DIAG          df(i,:,k,2,1) = matmul(derY(:,:,1+sy(1)),f(i,:,k,1)) -        &
 $N2DIAG                        & matmul(derY(:,:,2+sy(2)),f(i,:,k,2)) 
-$N2DIAG          df(i,:,k,2,2) = matmul(derY(:,:,2+sy(1)),f(i,:,k,1)) +               &
+$N2DIAG          df(i,:,k,2,2) = matmul(derY(:,:,2+sy(1)),f(i,:,k,1)) +        &
 $N2DIAG                        & matmul(derY(:,:,1+sy(2)),f(i,:,k,2))         
-$N2DIAG         ddf(i,:,k,4,1) = matmul(laplaY(:,:,1+sy(1)),f(i,:,k,1)) -             &
+$N2DIAG
+$N2DIAG         ddf(i,:,k,4,1) = matmul(laplaY(:,:,1+sy(1)),f(i,:,k,1)) -      &
 $N2DIAG                        & matmul(laplaY(:,:,2+sy(2)),f(i,:,k,2)) 
-$N2DIAG         ddf(i,:,k,4,2) = matmul(laplaY(:,:,2+sy(1)),f(i,:,k,1)) +             &
-$N2DIAG                        & matmul(laplaY(:,:,1+sy(2)),f(i,:,k,2))                
+$N2DIAG         ddf(i,:,k,4,2) = matmul(laplaY(:,:,2+sy(1)),f(i,:,k,1)) +      &
+$N2DIAG                        & matmul(laplaY(:,:,1+sy(2)),f(i,:,k,2))         
 $N2DIAG        enddo
 $N2DIAG    enddo
 $N2DIAG
 $N2DIAG    !A = derZ(:,:,sz) ; B = laplaZ(:,:,sz)
 $N2DIAG    do k=1,ny
 $N2DIAG        do i=1,nx
-$N2DIAG          df(i,k,:,3,1) = matmul(derZ(:,:,1+sz(1)),f(i,k,:,1)) -               &
+$N2DIAG          df(i,k,:,3,1) = matmul(derZ(:,:,1+sz(1)),f(i,k,:,1)) -        &
 $N2DIAG                        & matmul(derZ(:,:,2+sz(2)),f(i,k,:,2)) 
-$N2DIAG          df(i,k,:,3,2) = matmul(derZ(:,:,2+sz(1)),f(i,k,:,1)) +               &
+$N2DIAG          df(i,k,:,3,2) = matmul(derZ(:,:,2+sz(1)),f(i,k,:,1)) +        &
 $N2DIAG                        & matmul(derZ(:,:,1+sz(2)),f(i,k,:,2))         
-$N2DIAG         ddf(i,k,:,6,1) = matmul(laplaZ(:,:,1+sz(1)),f(i,k,:,1)) -             &
+$N2DIAG
+$N2DIAG         ddf(i,k,:,6,1) = matmul(laplaZ(:,:,1+sz(1)),f(i,k,:,1)) -      &
 $N2DIAG                        & matmul(laplaZ(:,:,2+sz(2)),f(i,k,:,2)) 
-$N2DIAG         ddf(i,k,:,6,2) = matmul(laplaZ(:,:,2+sz(1)),f(i,k,:,1)) +             &
-$N2DIAG                        & matmul(laplaZ(:,:,1+sz(2)),f(i,k,:,2))                
+$N2DIAG         ddf(i,k,:,6,2) = matmul(laplaZ(:,:,2+sz(1)),f(i,k,:,1)) +      &
+$N2DIAG                        & matmul(laplaZ(:,:,1+sz(2)),f(i,k,:,2))            
 $N2DIAG        enddo
 $N2DIAG    enddo
 $N2DIAG    !---------------------------------------------------------------------------

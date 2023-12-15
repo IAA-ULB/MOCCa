@@ -1179,29 +1179,28 @@ $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
     end select
     
     if(OnTheFly) then
-      ! Calculate the derivatives
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Calculate the derivatives of this spwf on the fly
 #if(USE_Periodic==0)
+      ! Original Lagrange mesh boundary conditions
       do k=1,4
-!-------------------------------------------------------------------------------
 $N2        call Derive_tot(psi(:,k),sx(k),sy(k),sz(k),dpsi(:,:,k),ddpsi(:,:,k))
 $N3        call Derive_tot(psi(:,k),sx(k),sy(k),sz(k),dpsi(:,:,k),ddpsi(:,:,k),&
 $N3        &                                     dddpsi(:,:,k))
-!-------------------------------------------------------------------------------
       enddo
 #else  
-      !NS:for periodic boundary conditions
+      !NS: for periodic boundary conditions
       do k=1,2
-!-------------------------------------------------------------------------------
-$N2        call Derive_tot_periodic(psi(:,(2*k-1):2*k),sx((2*k-1):2*k),        &
-$N2             & sy((2*k-1):2*k),sz((2*k-1):2*k),dpsi(:,:,(2*k-1):2*k),       &
-$N2             & ddpsi(:,:,(2*k-1):2*k))
-           !Not ready for N3
-$N3        call Derive_tot(psi(:,k),sx(k),sy(k),sz(k),dpsi(:,:,k),ddpsi(:,:,k),&
-$N3        &                                     dddpsi(:,:,k))
-!-------------------------------------------------------------------------------
+$N2        call Derive_tot_periodic(psi(:,   (2*k-1):2*k), &
+$N2             &                         sx((2*k-1):2*k), &
+$N2             &                         sy((2*k-1):2*k), & 
+$N2             &                         sz((2*k-1):2*k), & 
+$N2             &                   dpsi(:,:,(2*k-1):2*k), &
+$N2             &                  ddpsi(:,:,(2*k-1):2*k))
       enddo
 #endif
     endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     !---------------------------------------------------------------------------
     ! Action of the kinetic energy
     do k=1,4

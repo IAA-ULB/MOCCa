@@ -387,9 +387,9 @@ subroutine ReachForWaterAndFood()
         !-----------------------------------------------------------------------
         !See if some moments were temporary
         call TurnOffConstraints(iter)
-		
-		    !NS: Recalculate the Coulomb field at the last iteration
-		    if(iter .eq. freezeiter) call solvecoulomb(D_I_I(:,2))
+
+        !NS: Recalculate the Coulomb field at the last iteration
+        if(iter .eq. freezeiter) call solvecoulomb(D_I_I(:,2))
 
         ! Recalculate the energy
         if((mod(iter,PrintIter).eq.0) .or. (iter.eq.maxiter)) then
