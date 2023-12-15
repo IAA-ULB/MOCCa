@@ -154,7 +154,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call ReadInput(file_number, input_file)
  !------------------------------------------------------------------------------
  ! Initalize relevant matrices throughout the code.
- call inilag() ! Derivative matrices. 
+  call inilag()
  !------------------------------------------------------------------------------
  ! Read wavefunctions
  call ReadWavefunction()
@@ -287,7 +287,6 @@ subroutine ReachForWaterAndFood()
 
     ! Derive all the single-particle wavefunctions in the HFPsi array
     call deriveHF()
-
     ! Calculate the initial densities and the charge density (separately)
     call densit(SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
@@ -295,7 +294,8 @@ subroutine ReachForWaterAndFood()
     ! Adopt the relevant quantities to the centre-of-mass of the nucleus
     call adapt_com()
 
-    call CalculateMoments()   !=> vital to be called here, 
+    !NS: try to avoid problems for the hom matter
+    !call CalculateMoments()   !=> vital to be called here, 
                               !    (a) before the calculation of the fields
                               !    (b) after construction of the charge density
                               ! as
@@ -385,8 +385,8 @@ subroutine ReachForWaterAndFood()
         !See if some moments were temporary
         call TurnOffConstraints(iter)
 		
-		!Recalculate the Coulomb field at the last iteration (Nick)
-		if(iter .eq. freezeiter) call solvecoulomb(D_I_I(:,2))
+		    !NS: Recalculate the Coulomb field at the last iteration
+		    if(iter .eq. freezeiter) call solvecoulomb(D_I_I(:,2))
 
         ! Recalculate the energy
         if((mod(iter,PrintIter).eq.0) .or. (iter.eq.maxiter)) then

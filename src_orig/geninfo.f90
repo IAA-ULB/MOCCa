@@ -55,6 +55,9 @@ module GenInfo
   ! Pi is always practical (delicious) to have.
   real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
   !-----------------------------------------------------------------------------
+  ! k_sh -- shift of the wavefunctions to be periodic
+  real(KIND=dp) :: k_shx, k_shy, k_shz 
+  !-----------------------------------------------------------------------------
   ! Maximum number of iterations and number of iterations to skip printing of
   ! the code in the evolve subroutine
   integer :: MaxIter=100, PrintIter=10
@@ -224,6 +227,11 @@ contains
     ! Some bookkeeping operations, to be executed by all MPIranks 
     mv = nx * ny * nz
     dv = (dx**3)*(2**$NUMSYM)    
+    ! NS: Shift of the wavefunctions applied
+    k_shx=pi/($LINESIZEX*dx)
+    k_shy=pi/($LINESIZEY*dx)
+    k_shz=pi/($LINESIZEZ*dx)        
+    
     call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid,0.0d0,0.0d0,0.0d0)
         
   end subroutine ReadGenInfo

@@ -1011,9 +1011,10 @@ $NTR    enddo
     &             dv*sum(ToCalculate%SpherHarm*   chargedensity(1:nx*ny*nz,1,1))
 
     ! Check for problems
-    if(any(ToCalculate%Value.eq.ToCalculate%Value+1)) then
-      call stp('NaN inside a multipole moment.')
-    endif
+    !NS: for hom matter commented
+    !if(any(ToCalculate%Value.eq.ToCalculate%Value+1)) then
+    !  call stp('NaN inside a multipole moment.')
+    !endif
 
     ! Set the deviation
     if(ToCalculate%ConstraintType.ne.0) then

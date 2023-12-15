@@ -90,6 +90,11 @@ module derivatives
     module procedure derive_tot_1D
     module procedure derive_tot_3D
  end interface
+
+ interface derive_tot_periodic 
+    module procedure Derive_tot_periodic_1D
+    module procedure Derive_tot_periodic_3D
+ end interface
  
  interface derive_lap
     module procedure derive_lap_1D
@@ -102,10 +107,11 @@ contains
     !---------------------------------------------------------------------------
     ! Computes the Lagrange derivative coefficients for this particular 
     ! symmetry combination.
+    ! NS: modified for correct sign 
     !---------------------------------------------------------------------------
 
     integer       :: i,j, linX, linY, linZ
-    real(KIND=dp) :: sinA, A, B, sinB, C, D
+    real(KIND=dp) :: sinA, A, B, sinB, C, D, E, F
 
     ! Allocate the arrays
     allocate(derX(nx,nx,4), laplaX(nx,nx,4))
@@ -118,16 +124,17 @@ contains
     linX = $LINESIZEX
     linY = $LINESIZEY
     linZ = $LINESIZEZ
-    
+
+#if(USE_Periodic==0)    
     do i=1,nx
         do j=1,nx
             A           = (pi * (i - j))/linX
             sinA        = sin(A)
-            B           = (pi * (i - linX + j-1))/linX 
+            B           = (pi * (i + j-1))/linX 
             sinB        = sin(B)
             
-            C = (-1)**(i-j)       *pi/(linX*dx*sinA)
-            D = (-1)**(i-linX+j-1)*pi/(linX*dx*sinB)
+            C = (-1)**(i-j)  *pi/(linX*dx*sinA)
+            D = (-1)**(i+j-1)*pi/(linX*dx*sinB) !check the sign
             
             if(i.eq.j) C = 0
             
@@ -156,11 +163,11 @@ contains
             
             A           = (pi * (i - j))/linY
             sinA        = sin(A)
-            B           = (pi * (i - linY + j-1))/linY 
+            B           = (pi * (i + j-1))/linY 
             sinB        = sin(B)
             
             C = (-1)**(i-j)       *pi/(linY*dx*sinA)
-            D = (-1)**(i-linY+j-1)*pi/(linY*dx*sinB)
+            D = (-1)**(i+j-1)*pi/(linY*dx*sinB)
                       
             if(i.eq.j) C = 0
             
@@ -185,11 +192,11 @@ contains
         do j=1,nz
             A           = (pi * (i - j))/linZ
             sinA        = sin(A)
-            B           = (pi * (i - linZ + j-1))/linZ 
+            B           = (pi * (i + j-1))/linZ 
             sinB        = sin(B)
             
             C = (-1)**(i-j)       *pi/(linZ*dx*sinA)
-            D = (-1)**(i-linZ+j-1)*pi/(linZ*dx*sinB)
+            D = (-1)**(i+j-1)*pi/(linZ*dx*sinB)
             
           
             if(i.eq.j) C = 0
@@ -209,9 +216,207 @@ contains
       ! Z-axis is not symmetry reduced: Delta_zz = Nabla_z * Nabla_z
       LaplaZ(:,:,1) = matmul(derZ(:,:,1),derZ(:,:,1))
       LaplaZ(:,:,2) = 0.0    
+    endif      
+    
+
+#else    
+    !---------------------------------------------------------------------------
+    !NS:
+    ! This part acts in case of periodic boundary conditions
+    ! Computes the Lagrange derivative coefficients for this particular 
+    ! symmetry combination.
+    ! Employs phase shift to make even-N LF functions strictly periodic
+    ! So now the derivative matrices are complex
+    ! Therefore for reduced symmetries:
+    !          der(:,:,1)-real part with even proj
+    !          der(:,:,2)-imag part with even proj
+    !          der(:,:,3)-ireal part with odd proj
+    !          der(:,:,4)-imag part with odd proj
+    ! else:     
+    !          der(:,:,1)-real part
+    !          der(:,:,2)-imag part
+    !---------------------------------------------------------------------------
+    do i=1,nx
+        do j=1,nx
+            A           = (pi * (i-j))  /linX
+            sinA        = sin(A)
+            B           = (pi * (i+j-1))/linX 
+            sinB        = sin(B)
+            
+            E = (-1)**(i-j)  *pi/(linX*dx*sinA)
+            F = (-1)**(i+j-1)*pi/(linX*dx*sinB)
+            
+            !adding phase shifts reals
+            C=E*cos(k_shx*(i-j)  *dx)
+            D=F*cos(k_shx*(i+j-1)*dx)
+          
+            if(i.eq.j) C = 0
+            
+            derX(i,j,1) = $DERX_ONE
+            derX(i,j,3) = $DERX_TWO
+            
+            !adding phase shifts imag
+            C=E*sin(k_shx*(i-j)  *dx)
+            D=F*sin(k_shx*(i+j-1)*dx)
+          
+            if(i.eq.j) C = k_shx
+            
+            derX(i,j,2) = $DERX_ONE
+            derX(i,j,4) = $DERX_TWO
+
+        enddo
+    enddo
+    
+    !---------------------------------------------------------------------------
+    ! Attention: this construction for the laplacian needs doublechecking for 
+    ! non-local derivative combinations
+    if(linX .eq. 2*nx) then
+      ! X-axis is symmetry reduced:
+      !e.g., for even wf f(x)=f*(-x): 
+      !     Re{Delta^+_xx} = Re{Nabla^-_x} \cdot Re{Nabla^+_x} - 
+      !     Im{Nabla^+_x} \cdot Im{ Nabla^+_x}
+      !     Im{Delta^+_xx} = Re{Nabla^+_x} \cdot Im{Nabla^+_x} + 
+      !     Im{Nabla^-_x} \cdot Re{ Nabla^+_x}
+      LaplaX(:,:,1) = matmul(derX(:,:,3),derX(:,:,1)) -                        &
+      &               matmul(derX(:,:,2),derX(:,:,2))
+      LaplaX(:,:,2) = matmul(derX(:,:,1),derX(:,:,2)) +                        &
+      &               matmul(derX(:,:,4),derX(:,:,1))
+      LaplaX(:,:,3) = matmul(derX(:,:,1),derX(:,:,3)) -                        &
+      &               matmul(derX(:,:,4),derX(:,:,4))
+      LaplaX(:,:,4) = matmul(derX(:,:,2),derX(:,:,3)) +                        &
+      &               matmul(derX(:,:,3),derX(:,:,4))    
+    else
+      ! X-axis is not symmetry reduced: Delta_xx = Nabla_x * Nabla_x
+      LaplaX(:,:,1) = matmul(derX(:,:,1),derX(:,:,1)) -                        &
+      &               matmul(derX(:,:,2),derX(:,:,2))
+      LaplaX(:,:,2) = matmul(derX(:,:,2),derX(:,:,1)) +                        &
+      &               matmul(derX(:,:,1),derX(:,:,2))
+      LaplaX(:,:,3) = 0.d0
+      LaplaX(:,:,4) = 0.d0
     endif        
-  
+   
+    do i=1,ny
+        do j=1,ny
+            A           = (pi * (i - j))  /linY
+            sinA        = sin(A)
+            B           = (pi * (i + j-1))/linY 
+            sinB        = sin(B)
+            
+            E = (-1)**(i-j)  *pi/(linY*dx*sinA)
+            F = (-1)**(i+j-1)*pi/(linY*dx*sinB)
+            
+            !adding phase shifts reals
+            C=E*cos(k_shy*(i-j)  *dx)
+            D=F*cos(k_shy*(i+j-1)*dx)
+          
+            if(i.eq.j) C = 0
+            
+            derY(i,j,1) = $DERY_ONE
+            derY(i,j,3) = $DERY_TWO
+            
+            !adding phase shifts imag
+            C=E*sin(k_shy*(i-j)  *dx)
+            D=F*sin(k_shy*(i+j-1)*dx)
+          
+            if(i.eq.j) C = k_shy
+            
+            derY(i,j,2) = $DERY_ONE
+            derY(i,j,4) = $DERY_TWO
+
+        enddo
+    enddo
+    
+    !---------------------------------------------------------------------------
+    ! Attention: this construction for the laplacian needs doublechecking for 
+    ! non-local derivative combinations
+    if(linY .eq. 2*ny) then
+      ! Y-axis is symmetry reduced:
+      !e.g., for even wf f(y)=f*(-y): 
+      !     Re{Delta^+_yy} = Re{Nabla^-_y} \cdot Re{Nabla^+_y} - 
+      !     Im{Nabla^+_y} \cdot Im{ Nabla^+_y}
+      !     Im{Delta^+_yy} = Re{Nabla^+_y} \cdot Im{Nabla^+_y} + 
+      !     Im{Nabla^-_y} \cdot Re{ Nabla^+_y}
+      LaplaY(:,:,1) = matmul(derY(:,:,3),derY(:,:,1)) -                        &
+      &               matmul(derY(:,:,2),derY(:,:,2))
+      LaplaY(:,:,2) = matmul(derY(:,:,1),derY(:,:,2)) +                        &
+      &               matmul(derY(:,:,4),derY(:,:,1))
+      LaplaY(:,:,3) = matmul(derY(:,:,1),derY(:,:,3)) -                        &
+      &               matmul(derY(:,:,4),derY(:,:,4))
+      LaplaY(:,:,4) = matmul(derY(:,:,2),derY(:,:,3)) +                        &
+      &               matmul(derY(:,:,3),derY(:,:,4))    
+    else
+      ! X-axis is not symmetry reduced: Delta_xx = Nabla_x * Nabla_x
+      LaplaY(:,:,1) = matmul(derY(:,:,1),derY(:,:,1)) -                        &
+      &               matmul(derY(:,:,2),derY(:,:,2))
+      LaplaY(:,:,2) = matmul(derY(:,:,2),derY(:,:,1)) +                        &
+      &               matmul(derY(:,:,1),derY(:,:,2))
+      LaplaY(:,:,3) = 0.d0
+      LaplaY(:,:,4) = 0.d0
+    endif       
+    
+    
+    do i=1,nz
+        do j=1,nz
+            A           = (pi * (i - j))  /linZ
+            sinA        = sin(A)
+            B           = (pi * (i + j-1))/linZ 
+            sinB        = sin(B)
+            
+            E = (-1)**(i-j)  *pi/(linZ*dx*sinA)
+            F = (-1)**(i+j-1)*pi/(linZ*dx*sinB)
+            
+            !adding phase shifts reals
+            C=E*cos(k_shz*(i-j)  *dx)
+            D=F*cos(k_shz*(i+j-1)*dx)
+          
+            if(i.eq.j) C = 0
+            
+            derZ(i,j,1) = $DERZ_ONE
+            derZ(i,j,3) = $DERZ_TWO
+            
+            !adding phase shifts imag
+            C=E*sin(k_shz*(i-j)  *dx)
+            D=F*sin(k_shz*(i+j-1)*dx)
+          
+            if(i.eq.j) C = k_shz
+            
+            derZ(i,j,2) = $DERZ_ONE
+            derZ(i,j,4) = $DERZ_TWO
+
+        enddo
+    enddo
+    
+    !---------------------------------------------------------------------------
+    ! Attention: this construction for the laplacian needs doublechecking for 
+    ! non-local derivative combinations
+    if(linZ .eq. 2*nz) then
+      ! Z-axis is symmetry reduced:
+      !e.g., for even wf f(z)=f*(-z): 
+      !     Re{Delta^+_zz} = Re{Nabla^-_z} \cdot Re{Nabla^+_z} - 
+      !     Im{Nabla^+_z} \cdot Im{ Nabla^+_z}
+      !     Im{Delta^+_zz} = Re{Nabla^+_z} \cdot Im{Nabla^+_z} + 
+      !     Im{Nabla^-_z} \cdot Re{ Nabla^+_z}
+      LaplaZ(:,:,1) = matmul(derZ(:,:,3),derZ(:,:,1)) -                        &
+      &               matmul(derZ(:,:,2),derZ(:,:,2))
+      LaplaZ(:,:,2) = matmul(derZ(:,:,1),derZ(:,:,2)) +                        &
+      &               matmul(derZ(:,:,4),derZ(:,:,1))
+      LaplaZ(:,:,3) = matmul(derZ(:,:,1),derZ(:,:,3)) -                        &
+      &               matmul(derZ(:,:,4),derZ(:,:,4))
+      LaplaZ(:,:,4) = matmul(derZ(:,:,2),derZ(:,:,3)) +                        &
+      &               matmul(derZ(:,:,3),derZ(:,:,4))    
+    else
+      ! X-axis is not symmetry reduced: Delta_xx = Nabla_x * Nabla_x
+      LaplaZ(:,:,1) = matmul(derZ(:,:,1),derZ(:,:,1)) -                        &
+      &               matmul(derZ(:,:,2),derZ(:,:,2))
+      LaplaZ(:,:,2) = matmul(derZ(:,:,2),derZ(:,:,1)) +                        &
+      &               matmul(derZ(:,:,1),derZ(:,:,2))
+      LaplaZ(:,:,3) = 0.d0
+      LaplaZ(:,:,4) = 0.d0
+    endif           
+
+#endif  
  end subroutine inilag   
+ 
 
 $N2DIAG subroutine Derive_tot_3D(f, px, py, pz, df, ddf)
 $N2DIAG    !---------------------------------------------------------------------------
@@ -244,12 +449,14 @@ $N2DIAG
 $N2DIAG    integer                    :: i,k, sx, sy,sz,j
 $N2DIAG    real(KIND=dp), allocatable :: A(:,:), B(:,:)
 $N2DIAG    
-$N2DIAG    sx = (px + 3)/2 ! These are equal to 
-$N2DIAG    sy = (py + 3)/2 !    1    if pi =   -1  or 0
-$N2DIAG    sz = (pz + 3)/2 !    2    if pi =   +1 
+$N2DIAG    sx = (-px + 3)/2 ! These are equal to !NS:check the sign
+$N2DIAG    sy = (-py + 3)/2 !    1    if pi =   -1  or 0
+$N2DIAG    sz = (-pz + 3)/2 !    2    if pi =   +1 
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    !  First order derivatives and diagonal second-order ones
 $N2DIAG    A = derX(:,:,sx) ; B = laplaX(:,:,sx)
+$N2DIAG    
+$N2DIAG    
 $N2DIAG    do j=1,nz
 $N2DIAG       do i=1,ny
 $N2DIAG         df(1:nx,i,j,1) =        matmul(A,f(1:nx,i,j))
@@ -295,6 +502,117 @@ $N2DIAG
 $N2DIAG    call Derive_tot_3d(f3, px,py,pz,df3, ddf3)
 $N2DIAG    
 $N2DIAG end subroutine Derive_tot_1d
+
+
+$N2DIAG subroutine Derive_tot_periodic_3D(f, px, py, pz, df, ddf)
+$N2DIAG    !---------------------------------------------------------------------------
+$N2DIAG    ! Subroutine that computes the following derivatives on the mesh
+$N2DIAG    ! 
+$N2DIAG    ! NS:
+$N2DIAG    ! first order derivatives: x,y,z 
+$N2DIAG    ! diagonal second order derivatives :: xx, yy, zz
+$N2DIAG    !
+$N2DIAG    ! df(:,1,1)    = Real first order derivative in the x direction
+$N2DIAG    ! df(:,1,2)    = Imag first order derivative in the x direction
+$N2DIAG    ! df(:,2,:)    = First order derivative in the y direction
+$N2DIAG    ! df(:,3,:)    = First order derivative in the z direction
+$N2DIAG    ! ddf(:,1,:) = Second order derivative in the xx direction.
+$N2DIAG    ! ddf(:,4,:) = Second order derivative in the yy direction.
+$N2DIAG    ! ddf(:,6,:) = Second order derivative in the zz direction. 
+$N2DIAG    !
+$N2DIAG    ! px = sign of the symmetry transformation in the x-direction
+$N2DIAG    ! py = sign of the symmetry transformation in the y-direction
+$N2DIAG    ! pz = sign of the symmetry transformation in the z-direction
+$N2DIAG    !
+$N2DIAG    ! Note that higher-order derivative tensors are stored in lexicographical order
+$N2DIAG    ! in order to cut down on the number of indices and wasted computation.
+$N2DIAG    !            1    2    3    4    5    6    7    8    9    10
+$N2DIAG    ! 1st order: Dx   Dy   Dz
+$N2DIAG    ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
+$N2DIAG    ! 3rd order: Dxxx Dxxy Dxxz Dxyy Dxyz Dxzz Dyyy Dyyz Dyzz Dzz
+$N2DIAG    !---------------------------------------------------------------------------
+$N2DIAG    
+$N2DIAG    real(KIND=dp), intent(in)  :: f(:,:,:,:)
+$N2DIAG    real(KIND=dp), intent(out) :: df(:,:,:,:,:), ddf(:,:,:,:,:)
+$N2DIAG    integer, intent(in)        :: px(:),py(:),pz(:)
+$N2DIAG    
+$N2DIAG    integer                    :: i,k,j
+$N2DIAG    integer, allocatable       :: sx(:), sy(:),sz(:)
+$N2DIAG    !real(KIND=dp), allocatable :: A(:,:,:), B(:,:,:)
+$N2DIAG    
+$N2DIAG    sx = (-px + 1)/2*2 ! These are equal to 
+$N2DIAG    sy = (-py + 1)/2*2 !    0    if pi =   +1  or 0
+$N2DIAG    sz = (-pz + 1)/2*2 !    2    if pi =   -1 
+$N2DIAG    !---------------------------------------------------------------------------
+$N2DIAG    !  First order derivatives and diagonal second-order ones
+$N2DIAG    !A = derX(:,:,sx) ; B = laplaX(:,:,sx) !old prescroption
+$N2DIAG    !NS: Now d_re f=derX_re*f_re-derX_im*f_im
+$N2DIAG    !sx accounts for the parity
+$N2DIAG    do j=1,nz
+$N2DIAG       do i=1,ny
+$N2DIAG         df(1:nx,i,j,1,1) = matmul(derX(:,:,1+sx(1)),f(1:nx,i,j,1)) -          &
+$N2DIAG                          & matmul(derX(:,:,2+sx(2)),f(1:nx,i,j,2)) 
+$N2DIAG         df(1:nx,i,j,1,2) = matmul(derX(:,:,2+sx(1)),f(1:nx,i,j,1)) +          &
+$N2DIAG                          & matmul(derX(:,:,1+sx(2)),f(1:nx,i,j,2))         
+$N2DIAG        ddf(1:nx,i,j,1,1) = matmul(laplaX(:,:,1+sx(1)),f(1:nx,i,j,1)) -        &
+$N2DIAG                          & matmul(laplaX(:,:,2+sx(2)),f(1:nx,i,j,2)) 
+$N2DIAG        ddf(1:nx,i,j,1,2) = matmul(laplaX(:,:,2+sx(1)),f(1:nx,i,j,1)) +        &
+$N2DIAG                          & matmul(laplaX(:,:,1+sx(2)),f(1:nx,i,j,2)) 
+$N2DIAG       enddo
+$N2DIAG    enddo   
+$N2DIAG
+$N2DIAG    !A = derY(:,:,sy) ; B = laplaY(:,:,sy)
+$N2DIAG    do k=1,nz
+$N2DIAG        do i=1,nx
+$N2DIAG          df(i,:,k,2,1) = matmul(derY(:,:,1+sy(1)),f(i,:,k,1)) -               &
+$N2DIAG                        & matmul(derY(:,:,2+sy(2)),f(i,:,k,2)) 
+$N2DIAG          df(i,:,k,2,2) = matmul(derY(:,:,2+sy(1)),f(i,:,k,1)) +               &
+$N2DIAG                        & matmul(derY(:,:,1+sy(2)),f(i,:,k,2))         
+$N2DIAG         ddf(i,:,k,4,1) = matmul(laplaY(:,:,1+sy(1)),f(i,:,k,1)) -             &
+$N2DIAG                        & matmul(laplaY(:,:,2+sy(2)),f(i,:,k,2)) 
+$N2DIAG         ddf(i,:,k,4,2) = matmul(laplaY(:,:,2+sy(1)),f(i,:,k,1)) +             &
+$N2DIAG                        & matmul(laplaY(:,:,1+sy(2)),f(i,:,k,2))                
+$N2DIAG        enddo
+$N2DIAG    enddo
+$N2DIAG
+$N2DIAG    !A = derZ(:,:,sz) ; B = laplaZ(:,:,sz)
+$N2DIAG    do k=1,ny
+$N2DIAG        do i=1,nx
+$N2DIAG          df(i,k,:,3,1) = matmul(derZ(:,:,1+sz(1)),f(i,k,:,1)) -               &
+$N2DIAG                        & matmul(derZ(:,:,2+sz(2)),f(i,k,:,2)) 
+$N2DIAG          df(i,k,:,3,2) = matmul(derZ(:,:,2+sz(1)),f(i,k,:,1)) +               &
+$N2DIAG                        & matmul(derZ(:,:,1+sz(2)),f(i,k,:,2))         
+$N2DIAG         ddf(i,k,:,6,1) = matmul(laplaZ(:,:,1+sz(1)),f(i,k,:,1)) -             &
+$N2DIAG                        & matmul(laplaZ(:,:,2+sz(2)),f(i,k,:,2)) 
+$N2DIAG         ddf(i,k,:,6,2) = matmul(laplaZ(:,:,2+sz(1)),f(i,k,:,1)) +             &
+$N2DIAG                        & matmul(laplaZ(:,:,1+sz(2)),f(i,k,:,2))                
+$N2DIAG        enddo
+$N2DIAG    enddo
+$N2DIAG    !---------------------------------------------------------------------------
+$N2DIAG    !deallocate(A,B)  
+$N2DIAG end subroutine Derive_tot_periodic_3D
+
+$N2DIAG subroutine Derive_tot_periodic_1d(f, px, py, pz, df, ddf)
+$N2DIAG    !---------------------------------------------------------------------------
+$N2DIAG    ! Subroutine that computes the gradient of a function on the mesh, but on
+$N2DIAG    ! one that is stored as a vector of nx*ny*nz points.
+$N2DIAG    !
+$N2DIAG    ! We use a dirty trick here, by simply reshaping with pointers, which should
+$N2DIAG    ! avoid copying matrices and not impact the speed. (Let's see in practice.)
+$N2DIAG    !----------------------------------------------------------------------------
+$N2DIAG    
+$N2DIAG    real(KIND=dp), intent(in),target,contiguous  :: f(:,:)
+$N2DIAG    real(KIND=dp), intent(out),target,contiguous :: df(:,:,:), ddf(:,:,:)
+$N2DIAG    integer, intent(in)        :: px(:),py(:),pz(:)
+$N2DIAG    real(KIND=dp), pointer     :: f3(:,:,:,:), df3(:,:,:,:,:), ddf3(:,:,:,:,:)
+$N2DIAG    
+$N2DIAG    f3(1:nx,1:ny,1:nz,1:2)      => f(:,:)
+$N2DIAG    df3(1:nx,1:ny,1:nz,1:3,1:2)  => df(:,:,:)
+$N2DIAG    ddf3(1:nx,1:ny,1:nz,1:6,1:2) => ddf(:,:,:)
+$N2DIAG    
+$N2DIAG    call Derive_tot_periodic_3d(f3, px,py,pz,df3, ddf3)
+$N2DIAG    
+$N2DIAG end subroutine Derive_tot_periodic_1d
 
 $N2ALL subroutine Derive_tot_1d(f, px, py, pz, df, ddf)
 $N2ALL    !---------------------------------------------------------------------------
@@ -525,9 +843,9 @@ $N3ALL end subroutine Derive_tot_1D
     
     integer                    :: i,j,k, sx, sy,sz
     
-    sx = (px + 3)/2 ! These are equal to 
-    sy = (py + 3)/2 !    1    if pi =   -1  or 0
-    sz = (pz + 3)/2 !    2    if pi =   +1 
+    sx = (-px + 3)/2 ! These are equal to 
+    sy = (-py + 3)/2 !    1    if pi =   -1  or 0
+    sz = (-pz + 3)/2 !    2    if pi =   +1 
     
     do k=1,nz
         do j=1,ny
@@ -567,7 +885,7 @@ $DERSYMZ        fz(i,j,:) = fz(i,j,:) + matmul(derZ  (:,:,sz),f($SYMPARTNERZ))
     real(KIND=dp), pointer     :: f3(:,:,:), fx3(:,:,:)
     real(KIND=dp), allocatable :: A(:,:)
 
-    sx = (px + 3)/2 
+    sx = (-px + 3)/2 
         
     f3(1:nx,1:ny,1:nz)  => f
     fx3(1:nx,1:ny,1:nz) => fx
@@ -598,7 +916,7 @@ $DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(A,f3($SYMPARTNERX))
     real(KIND=dp), pointer     :: f3(:,:,:), fy3(:,:,:)
     real(KIND=dp), allocatable :: A(:,:)
     
-    sy = (py + 3)/2 !    1    if pi =   -1  or 0
+    sy = (-py + 3)/2 !    1    if pi =   -1  or 0
     
     f3(1:nx,1:ny,1:nz)  => f
     fy3(1:nx,1:ny,1:nz) => fy
@@ -628,7 +946,7 @@ $DERSYMY       fy3(i,:,k) = fy3(i,:,k) + matmul(A,f3($SYMPARTNERY))
     real(KIND=dp), allocatable :: A(:,:)
     integer                    :: i,j,sz
     
-    sz = (pz + 3)/2 !    2    if pi =   +1 
+    sz = (-pz + 3)/2 !    2    if pi =   +1 
     
     f3(1:nx,1:ny,1:nz)  => f
     fz3(1:nx,1:ny,1:nz) => fz
@@ -663,9 +981,9 @@ $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(A,f3($SYMPARTNERZ))
     
     integer                    :: i,k, sx, sy,sz
     
-    sx = (px + 3)/2 ! These are equal to 
-    sy = (py + 3)/2 !    1    if pi =   -1  or 0
-    sz = (pz + 3)/2 !    2    if pi =   +1 
+    sx = (-px + 3)/2 ! These are equal to 
+    sy = (-py + 3)/2 !    1    if pi =   -1  or 0
+    sz = (-pz + 3)/2 !    2    if pi =   +1 
     
     do i=1,ny*nz
         df(:,i,1) =                 matmul(laplaX(:,:,sx),f(:,i,1))
