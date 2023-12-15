@@ -55,10 +55,18 @@ module GenInfo
   ! Pi is always practical (delicious) to have.
   real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
   !-----------------------------------------------------------------------------
+  ! k_sh -- shift of the wavefunctions to be periodic
+  real(KIND=dp) :: k_shx, k_shy, k_shz 
+  !-----------------------------------------------------------------------------
   ! Maximum number of iterations and number of iterations to skip printing of
   ! the code in the evolve subroutine
   integer :: MaxIter=100, PrintIter=10
-  !-----------------------------------------------------------------------------
+  !---------------------------------------------------------------------------
+  ! This is the number of iterations during which the selfconsistent 
+  ! potentials are not changed. The TOTAL number of iterations remains
+  ! MaxIter; (MaxIter - FreezeIter) iterations DO change the potentials.
+  integer :: FreezeIter = 0
+  !---------------------------------------------------------------------------
   ! Coordinates of the mesh points for the calculation as well as the 
   ! coulomb calculation
   real(KIND=dp), allocatable         :: meshx(:), meshy(:), meshz(:)
@@ -219,6 +227,11 @@ contains
     ! Some bookkeeping operations, to be executed by all MPIranks 
     mv = nx * ny * nz
     dv = (dx**3)*(2**$NUMSYM)    
+    ! NS: Shift of the wavefunctions applied
+    k_shx=pi/($LINESIZEX*dx)
+    k_shy=pi/($LINESIZEY*dx)
+    k_shz=pi/($LINESIZEZ*dx)        
+    
     call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid,0.0d0,0.0d0,0.0d0)
         
   end subroutine ReadGenInfo
@@ -330,6 +343,33 @@ contains
     enddo
     
   end subroutine inimesh
+  
+  integer function meshindex(i,j,k)
+      !-------------------------------------------------------------------------
+      ! The code relies on two types of mesh storage
+      !   1) (i,j,k): indices used for arrays stored on a three-dimensional 
+      !               mesh such as for example the Coulomb potential. 
+      !               we have 1 <= i <= nx
+      !                       1 <= j <= ny
+      !                       1 <= k <= nz
+      !   2) (i)    : one-dimensional indices that are used for efficiency
+      !               to index the whole mesh.
+      !                       1 <= i <= nx*ny*nz
+      ! 
+      ! This routine translates a set of indices (i,j,k) into the corresponding
+      ! index in a one-dimensional mapping. 
+      ! 
+      ! Input:
+      !   i,j,k : x/y/z mesh-indices in a three-dimensional mapping
+      ! Output:
+      !   meshindex : the equivalent index in a 1D mapping in FORTRAN order
+      !               i+(j-1)*nx+(k-1)*ny*nx 
+      !-------------------------------------------------------------------------
+      integer, intent(in) :: i,j,k
+      
+      meshindex = i+(j-1)*nx+(k-1)*ny*nx
+  
+  end function meshindex
 
   subroutine find_nml_error(nmlname, iunit)
     !---------------------------------------------------------------------------

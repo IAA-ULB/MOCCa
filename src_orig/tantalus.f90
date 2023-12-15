@@ -154,7 +154,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call ReadInput(file_number, input_file)
  !------------------------------------------------------------------------------
  ! Initalize relevant matrices throughout the code.
- call inilag() ! Derivative matrices. 
+  call inilag()
  !------------------------------------------------------------------------------
  ! Read wavefunctions
  call ReadWavefunction()
@@ -291,7 +291,6 @@ subroutine ReachForWaterAndFood()
 
     ! Derive all the single-particle wavefunctions in the HFPsi array
     call deriveHF()
-
     ! Calculate the initial densities and the charge density (separately)
     call densit(SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
@@ -299,7 +298,8 @@ subroutine ReachForWaterAndFood()
     ! Adopt the relevant quantities to the centre-of-mass of the nucleus
     call adapt_com()
 
-    call CalculateMoments()   !=> vital to be called here, 
+    !NS: try to avoid problems for the hom matter
+    !call CalculateMoments()   !=> vital to be called here, 
                               !    (a) before the calculation of the fields
                               !    (b) after construction of the charge density
                               ! as
@@ -310,7 +310,8 @@ subroutine ReachForWaterAndFood()
                               !      requires the charge density to be 
                               !      constructed
 
-    ! Only calculate the fields that have not been initialized from file.
+    ! Only calculate the fields that have not been read from either a 
+    ! wavefunction file or a potential file. 
     call calcFields(calcall=.false.,precon= .false.)
 
     ! Update all spwf properties
@@ -370,7 +371,11 @@ subroutine ReachForWaterAndFood()
         call ReadjustAllMoments(1)
         call ReadjustAllMoments(2)
         call Sphamilcontribution()
-        call calcFields(calcall=.true.,precon=.true.)
+
+        ! Recalculate the fields, but only if MaxIter > FreezeIter
+        if(iter .gt. freezeiter) then
+          call calcFields(calcall=.true.,precon=.true.)
+        endif
 
         ! Update all spwf properties
 !        call update_spwf_properties( .false. ) ! nonexpensive version
@@ -382,6 +387,9 @@ subroutine ReachForWaterAndFood()
         !-----------------------------------------------------------------------
         !See if some moments were temporary
         call TurnOffConstraints(iter)
+		
+		    !NS: Recalculate the Coulomb field at the last iteration
+		    if(iter .eq. freezeiter) call solvecoulomb(D_I_I(:,2))
 
         ! Recalculate the energy
         if((mod(iter,PrintIter).eq.0) .or. (iter.eq.maxiter)) then
@@ -515,6 +523,7 @@ subroutine printsummary(iter)
 
     1 format (86('-'))
     2 format (' Iteration = ',i4)
+   21 format (' Potentials frozen.')
     3 format (' dt    = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
    31 format (' dtg   = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
     4 format (' E     = ', f10.3,2x, '  DE   = ', e12.5)
@@ -533,6 +542,7 @@ subroutine printsummary(iter)
 
     if(iter.eq.1) print 1
     print 2, iter
+    if(freezeiter .gt. iter) print 21
     print 3, dt, momentum, gradientnorm, d2h
     if(pairingscheme.eq.1) then
       print 31, gradient_stepsize, gradient_mu, sqrt(sum(HFBGradnorm**2))

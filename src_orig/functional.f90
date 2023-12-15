@@ -983,7 +983,7 @@ $TR   COM2pp = 2*COM2pp
     ! Includes preconditioning of F_I_I at the moment only.
     !---------------------------------------------------------------------------
     use Coulombmod , only : SolveCoulomb, CoulombPotential, Exchangepotential
-    use Coulombmod , only : Foldedcoul,  FoldedExchange
+    use Coulombmod , only : Foldedcoul,  FoldedExchange, Coulomb_read_from_file
     use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
     
     use pairing_strengths, only : vmicro
@@ -1013,10 +1013,6 @@ $TR   COM2pp = 2*COM2pp
 $CALCFIELDS
     
     !---------------------------------------------------------------------------
-    ! Solve for the Coulomb Potential
-    call SolveCoulomb(D_I_I(:,2))
-
-    !---------------------------------------------------------------------------
     ! Additions to the field F_I_I associated with the density
     ! (1) Coulomb potential, direct and exchange
     ! (2) Constraints
@@ -1024,6 +1020,9 @@ $CALCFIELDS
     ! and to F_I_S and G_I_N: 
     ! (1) cranking potential
     !---------------------------------------------------------------------------
+    if(calcall .or. (.not. Coulomb_read_from_file)) then
+      call SolveCoulomb(D_I_I(:,2))
+    endif
     if(.not. rhoread) then    
         !-----------------------------------------------------------------------
         ! Add the Coulomb contribution to the field corresponding to rho.
@@ -1031,14 +1030,11 @@ $CALCFIELDS
         ! potential has a different size than the Lagrange mesh.
         if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
           &                             (.not. nucleonsize_selfconsistent)) then
-          ! We simply put the coulomb potential, "as is"
-
           ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-          
           do k=1,nz
             do j=1,ny
               do i=1,nx
-                F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)=F_I_I(i+(j-1)*nx+(k-1)*ny*nx,2)&
+                F_I_I(meshindex(i,j,k),2)=F_I_I(meshindex(i,j,k),2)           &
                 &                       + CoulombPotential(i+ox,j+oy,k+oz)    &
                 &                       + ExchangePotential(i,j,k)
               enddo
@@ -1056,8 +1052,7 @@ $CALCFIELDS
             do k=1,nz
               do j=1,ny
                 do i=1,nx
-                  F_I_I(i+(j-1)*nx+(k-1)*ny*nx,it)=  &
-                  &                 F_I_I(i+(j-1)*nx+(k-1)*ny*nx,it)           &
+                  F_I_I(meshindex(i,j,k),it)= F_I_I(meshindex(i,j,k),it)       &
                   &                              + FoldedCoul(i,j,k,it)        &
                   &                              + FoldedExchange(i,j,k,it)
                 enddo
@@ -1185,13 +1180,27 @@ $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
     
     if(OnTheFly) then
       ! Calculate the derivatives
+#if(USE_Periodic==0)
       do k=1,4
 !-------------------------------------------------------------------------------
 $N2        call Derive_tot(psi(:,k),sx(k),sy(k),sz(k),dpsi(:,:,k),ddpsi(:,:,k))
 $N3        call Derive_tot(psi(:,k),sx(k),sy(k),sz(k),dpsi(:,:,k),ddpsi(:,:,k),&
 $N3        &                                     dddpsi(:,:,k))
 !-------------------------------------------------------------------------------
-        enddo
+      enddo
+#else  
+      !NS:for periodic boundary conditions
+      do k=1,2
+!-------------------------------------------------------------------------------
+$N2        call Derive_tot_periodic(psi(:,(2*k-1):2*k),sx((2*k-1):2*k),        &
+$N2             & sy((2*k-1):2*k),sz((2*k-1):2*k),dpsi(:,:,(2*k-1):2*k),       &
+$N2             & ddpsi(:,:,(2*k-1):2*k))
+           !Not ready for N3
+$N3        call Derive_tot(psi(:,k),sx(k),sy(k),sz(k),dpsi(:,:,k),ddpsi(:,:,k),&
+$N3        &                                     dddpsi(:,:,k))
+!-------------------------------------------------------------------------------
+      enddo
+#endif
     endif
     !---------------------------------------------------------------------------
     ! Action of the kinetic energy

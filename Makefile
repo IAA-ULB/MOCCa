@@ -124,6 +124,12 @@ COMPILER      :=  gfortran
 USE_MPI := 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# USE_Periodic
+#  => 0 if inactive
+#  => 1 if active
+USE_Periodic := 0
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Actual compiler wrapper that gets invoked
 #  I provide default options based on the USE_MPI and COMPILER options
 #  but it is up to the user to make sure that CXX and COMPILER match. The
@@ -176,7 +182,7 @@ DEBUG   := 0
 # This can be specified on the command line, but is in practice compiler based
 ifeq ($(COMPILER),gfortran)
 	# versions of gfortran should link to OPENBLAS
-	LIBS := -lopenblas
+	LIBS := -llapack -lblas
 else ifeq ($(COMPILER),ifort)
   # ifort compiler should link to the new Intel math library
 	LIBS := -mkl
@@ -291,10 +297,11 @@ PRE_NIL     :=  cp_nil
 #    -DUSE_MPI => enable (1) or disable (0) MPI (see above)
 
 ifeq ($(COMPILER),cray)
-  PREPROCESSOR :=  -e Z -DUSE_MPI=$(USE_MPI)
+  PREPROCESSOR :=  -e Z -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic)
 else
-  PREPROCESSOR :=  -cpp -DUSE_MPI=$(USE_MPI)
+  PREPROCESSOR :=  -cpp -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic)
 endif
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 ################################################################################
