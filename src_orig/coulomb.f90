@@ -307,10 +307,14 @@ $REDUZ  coul_offset_z = 0
     !---------------------------------------------------------------------------
     ! Proton contributions to the charge density.    
     ! We start from the proton point density
-    do i=1, mv
-        temp(i,1,1) = D_I_I(i,2)
-    enddo       
-
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+            temp(i,1,1) = D_I_I(meshindex(i,j,k),2)
+        enddo       
+      enddo
+    enddo
+    
     if(protonsize(1).gt.0.0) then
         ! Fold the source with a Gaussian
         rho_charge = rho_charge + &
@@ -338,7 +342,7 @@ $REDUZ  coul_offset_z = 0
     do k=1,nz
       do j=1,ny
         do i=1,nx
-           temp(i,j,k) = D_I_I(i+(j-1)*nx+(k-1)*ny*nx,1)
+           temp(i,j,k) = D_I_I(meshindex(i,j,k),1)
         enddo
       enddo
     enddo
@@ -681,7 +685,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     do k=1,nz
         do j=1,ny
             do i=1,nx
-                CEnergy = CEnergy + rhop(i + nx*(j-1) + ny*nx*(k-1)) *         &
+                CEnergy = CEnergy + rhop( meshindex(i,j,k)) *         &
                 &                   CoulombPotential(i+ox,j+oy,k+oz)
             enddo
         enddo
