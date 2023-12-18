@@ -298,8 +298,7 @@ subroutine ReachForWaterAndFood()
     ! Adopt the relevant quantities to the centre-of-mass of the nucleus
     call adapt_com()
 
-    !NS: try to avoid problems for the hom matter
-    !call CalculateMoments()   !=> vital to be called here, 
+    call CalculateMoments()   !=> vital to be called here, 
                               !    (a) before the calculation of the fields
                               !    (b) after construction of the charge density
                               ! as
