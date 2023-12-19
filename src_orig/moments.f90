@@ -308,6 +308,11 @@ module moments
   ! If .true., redefine the spherical harmonics of all Qlm (l>1) at every 
   ! iteration to follow the movement of the centre-of-mass of the nucleus.
   logical :: follow_COM = .false.
+  !-----------------------------------------------------------------------------
+  ! Numerical parameter used in the definition of the neck operator. 
+  real(KIND=dp) :: neck_length = 1.0d0
+  ! Saving the location of the neck for printing purposes 
+  real(KIND=dp) :: neck_location = 0.0d0
 
 contains
   
@@ -421,10 +426,11 @@ contains
     ! 
     ! 4) Tantalus here detects the nonphysical moments. 
     !
-    ! 5) After all this, a final addition to the linked list for the 
-    !    mass/electric multipole moments is made: the radius squared. 
-    !    This is implemented as a multipole moment with l = -2. 
-    !
+    ! 5) After all this, we add a few additional "multipole moments" with 
+    !    negative values for l.
+    !    -2 => radius squared
+    !    -4 => radius to the fourth power
+    !    -6 => neck operator
     ! --------------------------------------------------------------------------
 
     integer :: l,m,ImPart,i,j,k
@@ -506,7 +512,9 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
         enddo
       enddo
     enddo
-   ! We append the radius squared to the ordinary list...
+    !---------------------------------------------------------------------------
+    ! Appending special "multipole moments" to the linked list
+    ! 1. we append the radius squared to the ordinary list. (ell = -2)
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_electric 
@@ -522,7 +530,9 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     Current%Next    => NextMoment
     NextMoment%Prev => Current
     Current         => NextMoment
-    ! .... as well as the fourth radial moment for good measure
+    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 2. and the fourth radial moment (ell = -4)
     NextMoment   => NewMoment_electric(-4,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_electric
@@ -537,6 +547,19 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     
     Current%Next    => NextMoment
     NextMoment%Prev => Current
+    Current         => NextMoment
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 3. the neck operator (ell = -6)
+    NextMoment              => NewMoment_electric(-6,0,0)
+    harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
+    NextMoment%Calculate    => Calculate_neckoperator
+    ! We don't initialize the mesh-representation of the neck operator, 
+    ! because its definition is involved
+
+    
+    Current%Next    => NextMoment
+    NextMoment%Prev => Current
+
 
     ! End of the chain
     nullify(Current)
@@ -587,7 +610,9 @@ $NTR    enddo
         enddo
       enddo
     enddo
-    ! We append the radius squared to the ordinary list...
+    !---------------------------------------------------------------------------
+    ! Appending special "multipole moments" to the linked list
+    ! 1. we append the radius squared to the ordinary list...
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_multipole_divJ 
@@ -604,7 +629,8 @@ $NTR    enddo
     Current%Next    => NextMoment
     NextMoment%Prev => Current
     Current         => NextMoment
-    ! .... as well as the fourth radial moment for good measure
+    !---------------------------------------------------------------------------
+    ! 2. .... as well as the fourth radial moment for good measure
     NextMoment   => NewMoment_electric(-4,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_multipole_divJ 
@@ -617,9 +643,6 @@ $NTR    enddo
         enddo
       enddo
     enddo
-    
-    Current%Next    => NextMoment
-    NextMoment%Prev => Current
 
     ! End of the chain
     nullify(Current)
@@ -1153,6 +1176,282 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     return
   end subroutine Calculate_multipole_divJ
 
+  subroutine Calculate_neckoperator(ToCalculate)
+    !---------------------------------------------------------------------------
+    ! This subroutine calculates the expectation of the neck operator
+    ! 
+    !  Q_N = min_{z_0} int d^3 r exp( - (z - z_0)^2 / a^2 ) rho(x,y,z)
+    !
+    ! where min_{z_0} indicates that z_0 is chosen such that Q_N is minimal,  
+    ! and a is a numerical parameter.
+    !
+    ! TODO: generalize this routine to work for different axes!
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !
+    ! Input:
+    !        Tocalculate :  multipole moment to be calculated
+    !---------------------------------------------------------------------------
+    use Densities, only : D_I_I, chargedensity
+    use derivatives
+  
+    class(Moment),        intent(inout) :: ToCalculate
+    integer                             :: it, k, maxind(1)
+    real(KIND=dp)                       :: z0, maxz0, minz0, neck, min_neck,ztry
+    real(KIND=dp), pointer              :: den(:,:,:)
+    real(KIND=dp), allocatable          :: linear_den(:)
+
+    ! Save the history
+    Tocalculate%history = tocalculate%value
+
+    !Initialise
+    ToCalculate%Value      = 0.0_dp
+    ToCalculate%Squared    = 0.0_dp  !Unused, but zeroed anyway
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 1. Setting up things
+    !
+    ! Do the integration of the matter density over x and y
+    allocate(linear_den(nz), den(nx,ny,nz))
+    ! isoscalar density pointer remapping
+    den(1:nx,1:ny,1:nz) => D_I_I(1:nx*ny*nz,3) 
+    ! Integrate for each point along z
+    do k=1,nz
+      linear_den(k) = sum(den(:,:,k))
+    enddo
+    ! Volume element is dx^2  * factors 2 for symmetry
+    linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
+    
+    ! Determine limits for z_0: between the maxima of the density along the 
+    !  negative and positive z-axis
+    if(reduZ .eq. 1) then
+      ! The z-axis is represented symmetrically
+      maxind = maxloc(linear_den)
+      ! The following is maximum of the density along the positive z-axis
+      maxz0 =  meshz(maxind(1))
+      minz0 = -maxz0
+    else
+      ! The z-axis is fully represented
+      ! z > 0
+      maxind = maxloc(linear_den(nz/2+1:nz))
+      maxz0  = meshz(nz/2 + maxind(1))
+      ! z < 0
+      maxind = maxloc(linear_den(1:nz/2))
+      minz0  = meshz(maxind(1))
+    endif
+  
+    do k=1,nz
+      print *, meshz(k), linear_den(k)
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
+    ! 2. Determine z_0 from the matter density by minimization by brute force
+    z0       = maxz0
+    min_neck = calc_neck(linear_den, z0)
+    do k=1,1000
+      ztry = minz0 + (k-1)*(maxz0-minz0)/1000.0d0
+      neck = calc_neck(linear_den, ztry)
+      if(neck .lt. min_neck)then
+        min_neck = neck
+        z0       = ztry
+      endif
+    enddo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
+    ! 3. Use this value of z0 to calculate all values 
+    !    Neutron and proton densities
+    do it=1,2
+      den(1:nx,1:ny,1:nz) => D_I_I(1:nx*ny*nz,it) 
+      do k=1,nz
+        linear_den(k) = sum(den(:,:,k))
+      enddo
+      ! Volume element is dx^2  * factors 2 for symmetry
+      linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
+      Tocalculate%value(it) = calc_neck(linear_den, z0)
+    enddo
+    ! Charge density
+    do k=1,nz
+      linear_den(k) = sum(chargedensity(:,:,k))
+    enddo
+    ! Volume element is dx^2  * factors 2 for symmetry
+    linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
+
+    ToCalculate%ChargeValue = calc_neck(linear_den, z0)
+    !---------------------------------------------------------------------------
+    ! Set the spherical harmonic" variable for this moment in order to 
+    ! facilitate future implementation of constraints on this quantity.
+    ToCalculate%Spherharm = exp(-(meshgrid(:,3) - z0)**2/(neck_length**2))
+    if(reduZ .eq. 1) then
+      ! Explicitly
+      ToCalculate%Spherharm = ToCalculate%Spherharm + &
+      &                     exp(-(meshgrid(:,3) + z0)**2/(neck_length**2))
+      ToCalculate%Spherharm = ToCalculate%Spherharm/2 ! because we have 
+                                                      ! symmetrized!
+    endif
+    !---------------------------------------------------------------------------
+    ! Saving the location of the neck for printing purposes
+    neck_location = z0
+    return
+  end subroutine Calculate_neckoperator
+  
+  function calc_neck(linear_den, z0) result(neck)
+    !---------------------------------------------------------------------------
+    ! Calculate the expectation value of a neck operator centered at z0 
+    ! for a given linear density.
+    ! 
+    !  Q_N =  int dz exp(-[z - z0]^2/a^2) rho(z)
+    !
+    ! This is a separate function, because there is a gotcha: even if the 
+    ! nuclear configuration is symmetric, the Gaussian factor is not when 
+    ! z_0 is different from zero. Hence the need to explicitly integrate 
+    ! over both the part of the axis that is represented (positive z) and the
+    ! part that is not (negative z).
+    ! 
+    ! Input :
+    !   linear_den : linear density
+    !   z0         : location of the neck
+    !
+    ! Output:
+    !   neck       : <Q_N>
+    !---------------------------------------------------------------------------
+    real(KIND=dp)              :: neck
+    real(KIND=dp), allocatable :: gauss1(:), gauss2(:)
+    real(KIND=dp), intent(in)  :: z0, linear_den(:)
+  
+    gauss1   = exp(-(meshz - z0)**2/(neck_length**2))
+    neck =        sum(linear_den * gauss1) 
+    if(reduz .eq. 1) then
+      gauss2 = exp(-(meshz + z0)**2/(neck_length**2))
+      neck   = neck + sum(linear_den * gauss2) 
+    endif
+    neck = neck * dx ! Volume element
+  end function calc_neck
+!-------------------------------------------------------------------------------
+! These routines were nice in theory, but in practice often fail to converge.
+!-------------------------------------------------------------------------------
+!    function minimize_z0(linear_den, zmin, zmax) result(z0)
+!      !-------------------------------------------------------------------------
+!      ! Find the parameter z0  such that 
+!      !       int dz exp(-[z - z0]^2/a^2) rho(z)
+!      ! is minimal. 
+!      !  a            ->  neck_length, a parameter.
+!      !  rho(z)       ->  a 'linear' density
+!      !  [zmin, zmax] ->  interval to search for
+!      !
+!      ! Input:
+!      !   linear_den :  linear density
+!      !   zmin, zmax : bounds on the interval
+!      !-------------------------------------------------------------------------
+!      integer       :: iter
+!      real(KIND=dp) :: z0, grad, neck, hess, stepsize
+!      real(KIND=dp), intent(in) :: linear_den(:), zmin, zmax
+
+!      print *, 'ENTRY', zmax, zmin
+!      print *, 'LINEAR DEN', linear_den
+!      print *, sum(linear_den) *dx * 2
+!      z0 = zmax ! starting point
+
+!      do iter=1,100
+!        grad = grad_z0(linear_den, z0)
+!        neck = calc_neck(linear_den, z0)
+!        hess = hess_z0(linear_den,z0)
+
+!        print *, 'ITER', iter, z0, grad, hess, neck
+!        if(hess .gt. 0 .and. abs(grad/hess).lt.0.2) then
+!          z0  = z0 - grad/hess
+!        else
+!          z0  = z0 - 0.1*grad
+!        endif
+!        print *, z0
+!        if(abs(grad).lt. 1e-9) exit     ! converge to within 0.01 fm
+!        if(z0 .ge. zmax ) exit    
+!!        if(z0 .le. zmin ) exit    
+!      enddo
+!      if(iter.eq.101) then  
+!        print *, "Minimization of z0 did not succeed."
+!        print *, "Calculation of expectation value of neck operator compromised."
+!      endif
+
+!  end function minimize_z0
+!  function grad_z0(linear_den, z0)
+!    !---------------------------------------------------------------------------
+!    ! Calculate the gradient of the expectation value of a neck operator 
+!    ! centered at z0 for a given linear density with respect to z0.
+!    ! 
+!    !  \nabla_{z0} <Q_N> = 2 a^{-2} int dz (z-z0) exp(-[z - z0]^2/a^2) rho(z)
+!    !
+!    ! This is a separate function, because there is a gotcha: even if the 
+!    ! nuclear configuration is symmetric, the integrand is not when z_0 is 
+!    ! different from zero. Hence the need to explicitly integrate over both the 
+!    ! part of the axis that is represented (positive z) and the part that is 
+!    ! not (negative z).
+!    ! 
+!    ! Input :
+!    !   linear_den : linear density
+!    !   z0         : location of the neck
+!    !
+!    ! Output:
+!    !   grad_z0    : \nabla_{z0} <Q_N>
+!    !---------------------------------------------------------------------------
+!    real(KIND=dp)              :: grad_z0
+!    real(KIND=dp), allocatable :: gauss1(:), gauss2(:)
+!    real(KIND=dp), intent(in)  :: z0, linear_den(:)
+!  
+!    gauss1   = exp(-(meshz - z0)**2/(neck_length**2))
+!    if(reduz .eq. 1) then
+!      gauss2 = exp(-(meshz + z0)**2/(neck_length**2))
+!    else
+!      gauss2 = 0.0
+!    endif
+!    grad_z0 = &
+!    &         2.0/(neck_length**2) * sum(linear_den * gauss1 * ( meshz - z0)) 
+!    grad_z0 = grad_z0 + &
+!    &         2.0/(neck_length**2) * sum(linear_den * gauss2 * (-meshz - z0)) 
+!    grad_z0 = grad_z0 * dx 
+!  
+!  end function grad_z0
+
+!  function hess_z0(linear_den, z0)
+!    !---------------------------------------------------------------------------
+!    ! Calculate the second derivative of the expectation value of a neck 
+!    ! operator centered at z0 for a given linear density with respect to z0.
+!    ! 
+!    ! \nabla^2_{z0} <Q_N> = - 2 a^{-2} int dz          exp(-[z - z0]^2/a^2) rho(z)
+!    !                     +   4 a^{-4} int dz (z-z0)^2 exp(-[z - z0]^2/a^2) rho(z)
+!    !
+!    ! This is a separate function, because there is a gotcha: even if the 
+!    ! nuclear configuration is symmetric, the integrand is not when z_0 is 
+!    ! different from zero. Hence the need to explicitly integrate over both the 
+!    ! part of the axis that is represented (positive z) and the part that is 
+!    ! not (negative z).
+!    ! 
+!    ! Input :
+!    !   linear_den : linear density
+!    !   z0         : location of the neck
+!    !
+!    ! Output:
+!    !   hess_z0    : \nabla^2_{z0} <Q_N>
+!    !---------------------------------------------------------------------------
+!    real(KIND=dp)              :: hess_z0
+!    real(KIND=dp), allocatable :: gauss1(:), gauss2(:)
+!    real(KIND=dp), intent(in)  :: z0, linear_den(:)
+!  
+!    gauss1   = exp(-(meshz - z0)**2/(neck_length**2))
+!    if(reduz .eq. 1) then
+!      gauss2 = exp(-(meshz + z0)**2/(neck_length**2))
+!    else
+!      gauss2 = 0.0
+!    endif
+!    hess_z0 =        -2.0/(neck_length**2) * sum(linear_den * gauss1) 
+!    hess_z0 =hess_z0 -2.0/(neck_length**2) * sum(linear_den * gauss2) 
+
+!    hess_z0 = hess_z0 + &
+!    &         4.0/(neck_length**4) * sum(linear_den * gauss1 * ( meshz - z0)**2)
+!    hess_z0 = hess_z0 + & 
+!    &         4.0/(neck_length**4) * sum(linear_den * gauss2 * (-meshz - z0)**2)
+
+!    hess_z0 = hess_z0 * dx  
+!  end function hess_z0
+  
   subroutine CalcBeta(Mom)
   !-----------------------------------------------------------------------------
   ! Function that calculates the beta_lm deformation parameters associated with
@@ -1424,6 +1723,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     &           radd, acut, cutfac, cutofftype,             &  ! Cutoff options
     &           ContinueAll,                                &
     &           follow_COM, maxmoment_mag, maxmoment_divJ,  &
+    &           neck_length,                                &  
     &           MoreConstraints            ! Signal that constraints will follow
       
     NameList /MomentConstraint/                                                &
@@ -1732,7 +2032,7 @@ $NTR     &          '   phys:             mu_N fm^(l-1)'  )
     do while(associated(Current%Next))
       Current => Current%Next
       !Print a new line when getting new l.
-      if(currentl .ne. Current%l) print *
+      if(currentl .ne. Current%l .and. (Current%l.gt.0) ) print *
       currentl = Current%l
 
       if(Current%l.gt.1 ) then
@@ -1848,7 +2148,11 @@ $NTR    print 102
       6 format (A2, ' De_{',i2,i2,'}',   49x,  e15.7) 
      61 format (A2, ' De_{',i2,i2,'}',    1x,  e15.7) 
      62 format (A2, ' De_{',i2,i2,'}',   17x,  e15.7) 
-
+     
+      7 format (' Neck (z)   ',  4(1x, f15.4) )
+     71 format ('    at z_0 =',  49x, f15.4)
+   
+    100 format ('Special values')
     select case(ToPrint%l)
     !---------------------------------------------------------------------------
     case(0)
@@ -1859,6 +2163,7 @@ $NTR    print 102
     case(-2)
       ! Printing RMS charge radii
       ! Avoid division by 0 in case of one nucleon number being zero
+      print 100
       printedValue(:) = 0.0_dp
       if ( neutrons .gt. 0.0_dp ) then
         printedValue(1) = sqrt(ToPrint%Value(1)/Neutrons)
@@ -1883,6 +2188,11 @@ $NTR    print 102
       printedValue(4) = (sum(ToPrint%Value)/(Protons+Neutrons))**(1.0d0/4.0d0)
       print 41, printedValue(1:4)
 
+    case(-6)
+      ! Printing expectation value of neck operator
+      print 7, Toprint%Value(1), Toprint%Value(2), &
+      &        Toprint%ChargeValue, sum(Toprint%Value)
+      print 71, neck_location
     !---------------------------------------------------------------------------
     case DEFAULT
       !All other "normal" multipole moments
