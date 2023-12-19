@@ -258,6 +258,7 @@ module moments
   ! CutoffType
   ! 0 : Density-dependent cutoff
   ! 1 : Spherical cut-off
+  ! 2 : No cutoff => for pasta calculations with periodic boundary conditions
   !-----------------------------------------------------------------------------
   integer       :: CutoffType=0
   !-----------------------------------------------------------------------------
@@ -330,6 +331,7 @@ contains
     7 format ('  CutoffType = ', i2)
    71 format ('  Spherical cutoff' )
    72 format ('  Density dependent cutoff')
+   73 format ('  No cutoff')
     8 format ('  radd       = ', e9.2,/, &
     &         '  acut       = ', e9.2,/, &
     &         '  cutfac     = ', e9.2)
@@ -386,12 +388,15 @@ contains
     print 6
     print 7, cutofftype
     select case(Cutofftype)
-    case(1)
+    case(0)
       print 71
-    case(2)
+      print 8, radd, acut, cutfac
+    case(1)
       print 72
+      print 8, radd, acut, cutfac
+    case(2)
+      print 73
     end select
-    print 8, radd, acut, cutfac
 
     
   end subroutine PrintMoment_init
@@ -944,10 +949,11 @@ $FILL_LIST
     type(Moment), pointer :: Current
 
     call start_timer(T_moments)
-
     !---------------------------------------------------------------------------
     ! First, we need to calculate the cutoff function
+    call start_timer(T_moment_cutoff)
     call CompCutoff
+    call stop_timer(T_moment_cutoff)
 
     !---------------------------------------------------------------------------
     ! Calculate the electric multipole moments
@@ -974,7 +980,7 @@ $NTR    enddo
        Current => Current%Next
        call Current%Calculate(Current)
     enddo
-    
+
     call CalcQuadrupoleAlt()
 
     call stop_timer(T_moments)
@@ -1449,7 +1455,11 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
         call stp('Illegal value of secondary axis!')
       endif
     endif
-
+    
+    if(cutofftype.lt.0 .or. cutofftype.gt.2) then
+      call stp('Illegal value of cutofftype.')
+    endif
+    
 #if(USE_MPI > 0)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Broadcasting to the other MPI ranks
@@ -1483,6 +1493,9 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       case(1)
         !Spherical cutoff
         CompCutoff => StandardCutoff
+      case(2)
+        !Spherical cutoff
+        CompCutoff => NoCutoff
       case default
         call stp('Invalid choice of cutofftype. It can either be 0 or 1.')
     end select
@@ -2430,6 +2443,19 @@ $NTR    print 102
 
   end subroutine StandardCutoff
 
+  subroutine NoCutoff
+    !---------------------------------------------------------------------------
+    ! This subroutine sets the cutoff function to 1 everywhere.
+    !---------------------------------------------------------------------------
+
+    real(kind=dp) :: X,Y,Z,d
+    integer :: i,j,k
+    real(KIND=dp), pointer     :: cut_3D(:,:,:,:)
+
+    if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
+    Cutoff = 1.0d0
+    
+  end subroutine NoCutoff
 !===============================================================================
 ! Read/write moments from file
 !===============================================================================
