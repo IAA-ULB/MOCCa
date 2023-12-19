@@ -1239,10 +1239,6 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
       maxind = maxloc(linear_den(1:nz/2))
       minz0  = meshz(maxind(1))
     endif
-  
-    do k=1,nz
-      print *, meshz(k), linear_den(k)
-    enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
     ! 2. Determine z_0 from the matter density by minimization by brute force
