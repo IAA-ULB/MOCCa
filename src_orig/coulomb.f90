@@ -310,7 +310,7 @@ $REDUZ  coul_offset_z = 0
     do k=1,nz
       do j=1,ny
         do i=1,nx
-            temp(i,1,1) = D_I_I(meshindex(i,j,k),2)
+            temp(i,j,k) = D_I_I(meshindex(i,j,k),2)
         enddo       
       enddo
     enddo

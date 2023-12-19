@@ -2447,14 +2447,8 @@ $NTR    print 102
     !---------------------------------------------------------------------------
     ! This subroutine sets the cutoff function to 1 everywhere.
     !---------------------------------------------------------------------------
-
-    real(kind=dp) :: X,Y,Z,d
-    integer :: i,j,k
-    real(KIND=dp), pointer     :: cut_3D(:,:,:,:)
-
     if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
     Cutoff = 1.0d0
-    
   end subroutine NoCutoff
 !===============================================================================
 ! Read/write moments from file

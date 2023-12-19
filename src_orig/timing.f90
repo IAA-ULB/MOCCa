@@ -392,14 +392,17 @@ contains
 
     integer :: nsub, r
     real(8) :: tsub, total
+
 #if(USE_MPI>0)
     integer :: mpi_err
 #endif
 
-
     call calc_total_time(total)
 
     do r=0,NCORES-1
+#if(USE_MPI>0)
+      call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
+#endif
       if(MPI_RANK.eq.r) then
         print *, '-------------------------------------------------------------'
         print *, 'Timers of rank ', r
