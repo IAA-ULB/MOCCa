@@ -416,10 +416,11 @@ contains
     ! 
     ! 4) Tantalus here detects the nonphysical moments. 
     !
-    ! 5) After all this, a final addition to the linked list for the 
-    !    mass/electric multipole moments is made: the radius squared. 
-    !    This is implemented as a multipole moment with l = -2. 
-    !
+    ! 5) After all this, we add a few additional "multipole moments" with 
+    !    negative values for l.
+    !    -2 => radius squared
+    !    -4 => radius to the fourth power
+    !    -6 => neck operator
     ! --------------------------------------------------------------------------
 
     integer :: l,m,ImPart,i,j,k
@@ -501,7 +502,9 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
         enddo
       enddo
     enddo
-   ! We append the radius squared to the ordinary list...
+    !---------------------------------------------------------------------------
+    ! Appending special "multipole moments" to the linked list
+    ! 1. we append the radius squared to the ordinary list. (ell = -2)
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_electric 
@@ -517,7 +520,9 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     Current%Next    => NextMoment
     NextMoment%Prev => Current
     Current         => NextMoment
-    ! .... as well as the fourth radial moment for good measure
+    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 2. and the fourth radial moment (ell = -4)
     NextMoment   => NewMoment_electric(-4,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_electric
@@ -532,6 +537,19 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     
     Current%Next    => NextMoment
     NextMoment%Prev => Current
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! 3. the neck operator (ell = -6)
+    NextMoment              => NewMoment_electric(-6,0,0)
+    harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
+    NextMoment%Calculate    => Calculate_neckoperator
+    ! We don't initialize the mesh-representation of the neck operator, 
+    ! because its definition is involved
+
+    
+    Current%Next    => NextMoment
+    NextMoment%Prev => Current
+
 
     ! End of the chain
     nullify(Current)
@@ -582,7 +600,9 @@ $NTR    enddo
         enddo
       enddo
     enddo
-    ! We append the radius squared to the ordinary list...
+    !---------------------------------------------------------------------------
+    ! Appending special "multipole moments" to the linked list
+    ! 1. we append the radius squared to the ordinary list...
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_multipole_divJ 
@@ -599,7 +619,8 @@ $NTR    enddo
     Current%Next    => NextMoment
     NextMoment%Prev => Current
     Current         => NextMoment
-    ! .... as well as the fourth radial moment for good measure
+    !---------------------------------------------------------------------------
+    ! 2. .... as well as the fourth radial moment for good measure
     NextMoment   => NewMoment_electric(-4,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_multipole_divJ 
@@ -612,9 +633,6 @@ $NTR    enddo
         enddo
       enddo
     enddo
-    
-    Current%Next    => NextMoment
-    NextMoment%Prev => Current
 
     ! End of the chain
     nullify(Current)
