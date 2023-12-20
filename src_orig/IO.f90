@@ -961,15 +961,16 @@ contains
 
           ! We simply read these arrays here. If a transformation is needed,
           ! we will deal with it elsewhere.
-          if(MPI_RANK .eq. 0) read(chan, iostat=io) Bogoliubov
-          if (io.ne.0) then
-            call stp('ERROR: reading Bogoliubov transformation from file.')
+          if(MPI_RANK .eq. 0) then
+            read(chan, iostat=io) Bogoliubov
+            if (io.ne.0) then
+              call stp('ERROR: reading Bogoliubov transformation from file.')
+            endif
+            read(chan, iostat=io) configmatrix
+            if (io.ne.0) then
+              call stp('ERROR: reading the configuration matrix from file.')
+            endif
           endif
-          if(MPI_RANK .eq. 0)read(chan, iostat=io) configmatrix
-          if (io.ne.0) then
-            call stp('ERROR: reading the configuration matrix from file.')
-          endif
-
 #if(USE_MPI > 0)
           call MPI_BCAST(Bogoliubov, 4*filenwt**2, MPI_REAL8,0, MPI_COMM_WORLD,&
           &                                                             mpi_err)
