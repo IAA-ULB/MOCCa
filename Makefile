@@ -124,10 +124,37 @@ COMPILER      :=  gfortran
 USE_MPI := 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Type of calculation aimed at: 
+#    'NUCLEI':  finite nuclei
+#    'PASTA' : nuclear pasta
+CALC_TYPE := NUCLEI
+ifeq ($(CALCTYPE),PASTA)
+  PASTA := 1
+else
+ifeq ($(CALCTYPE),NUCLEI)
+  PASTA := 0
+else
+  $(error "Invalid value of CALCTYPE.")
+endif
+endif
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # USE_Periodic
 #  => 0 if inactive
 #  => 1 if active
-USE_Periodic := 0
+# Forced to be active if CALC_TYPE == 'PASTA'
+# 
+ifeq ($(CALCTYPE),PASTA)
+  USE_Periodic := 1
+else
+  USE_Periodic := 0
+endif
+
+ifeq ($(CALCTYPE),PASTA)
+ifeq ($(USE_Periodic),0)
+    $(error "Periodic boundary conditions should be enforced when attempting pasta calculations.")
+endif
+endif
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Actual compiler wrapper that gets invoked
@@ -155,7 +182,6 @@ else ifeq ($(COMPILER),ifort)
   endif
 else ifeq ($(COMPILER), cray)
   CXX := ftn
-  # I have yet to figure out MPI with CRAY compilers
 endif
 endif
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -296,10 +322,11 @@ PRE_NIL     :=  cp_nil
 #    -cpp      => explicitly enable preprocessing
 #    -DUSE_MPI => enable (1) or disable (0) MPI (see above)
 
+DIRECTIVES := -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic) -DPASTA=$(PASTA)
 ifeq ($(COMPILER),cray)
-  PREPROCESSOR :=  -e Z -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic)
+  PREPROCESSOR :=  -e Z $(DIRECTIVES)
 else
-  PREPROCESSOR :=  -cpp -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic)
+  PREPROCESSOR :=  -cpp $(DIRECTIVES)
 endif
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -1229,6 +1229,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       allocate(can_STI(3,nwt)) ; can_STI  = 0.0
     endif
 
+#if(PASTA == 1)
+    ! This is a waste of CPU time for pasta calculations. 
+    ! This return is ugly and will require more elegant inclusion later on.
+    call stop_timer(T_spwfangmom)
+    return
+#endif
+
+
     diag = (.not. fullmatrices)
     ! Operators for which we need no derivatives
     call ME_function(spwf_STR (1,:,:),spin_xt_real,+1,diag,'HF')
@@ -2320,7 +2328,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       call update_spwf_symmetries(fullmatrices) ! <symmetry operators>
       call update_spwf_angmom(fullmatrices)     ! angular momentum
       call update_spwf_r2(fullmatrices)         ! <r^2> 
-
   end subroutine update_spwf_properties
   
   subroutine update_spwf_r2(fullmatrices)

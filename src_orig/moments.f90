@@ -256,11 +256,15 @@ module moments
   real(KIND=dp), parameter :: g_orbit(2)= (/    0.d0, 1.d0   /)!Orbital-coupling
   !-----------------------------------------------------------------------------
   ! CutoffType
-  ! 0 : Density-dependent cutoff
+  ! 0 : Density-dependent cutoff => default for nuclei
   ! 1 : Spherical cut-off
-  ! 2 : No cutoff => for pasta calculations with periodic boundary conditions
+  ! 2 : No cutoff                => default for pasta calculations
   !-----------------------------------------------------------------------------
+#if(PASTA == 1)
+  integer       :: CutoffType=2
+#elif
   integer       :: CutoffType=0
+#endif
   !-----------------------------------------------------------------------------
   !Parameters of the cutoff function.
   ! 1 + exp[(\DeltaR - radd)/acut]

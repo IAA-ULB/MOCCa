@@ -422,7 +422,12 @@ $PRINTCOEF_PAIR
     Kinetic = CompKinetic()
     ! COM correction 
     ! (pass signal if we want to skip the calculation of the two-body part)
+#if(PASTA == 0)
     call CompCOMCorrection(calc_expensive)
+#else
+    ! A waste of CPU time for pasta calculations
+    COMCorrection = 0.0d0
+#endif
     ! Skyrme functional
     call compSkyrme()
 
@@ -479,11 +484,16 @@ $PRINTCOEF_PAIR
 
     call calcrigid()
     if(calc_expensive) then
-      ! Rotational co
+#if(PASTA == 0)
+      ! Collective correction
       call start_timer(T_MOI)  
       call calcJ2andBelyaev()
       call stop_timer(T_MOI)  
       call calcRotationalCorrection()
+#else
+      Vibcorrection = 0.0d0
+      Rotcorrection = 0.0d0
+#endif
     endif
     ! Entropy calculation when temperature is finite
     call calcentropy()
