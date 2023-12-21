@@ -127,14 +127,14 @@ USE_MPI := 0
 # Type of calculation aimed at: 
 #    'NUCLEI':  finite nuclei
 #    'PASTA' : nuclear pasta
-CALC_TYPE := NUCLEI
+CALCTYPE :=NUCLEI
 ifeq ($(CALCTYPE),PASTA)
   PASTA := 1
 else
 ifeq ($(CALCTYPE),NUCLEI)
   PASTA := 0
 else
-  $(error "Invalid value of CALCTYPE.")
+  $(error "Invalid value of CALCTYPE. $(CALCTYPE)")
 endif
 endif
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
