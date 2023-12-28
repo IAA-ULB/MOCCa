@@ -109,8 +109,11 @@ def ProcessTransform(fname, src, target, so, oldso):
       # conserved in old-symmetry-options, but is broken in new-symmetry-options
       s = symmetry([+1,+2,+3,+4],[+1,+1,+1], True, True)
       c = []
+#      print (so.syms, oldso.syms)
       for i,sym in enumerate(oldso.syms):
         Found = True
+        if(sym is None):
+          continue
         for newsym in so.syms:
           if(not(newsym is None)):
             if(newsym == sym):
@@ -118,13 +121,12 @@ def ProcessTransform(fname, src, target, so, oldso):
         if(Found):
           s = sym
           c = oldso.combs[i]
-          
       if(len(c) == 0):
         print ("Big problem in ProcessTransform.")
         quit()
             
-      print (s)
-      print (s.coord)
+#      print (s)
+#      print (s.coord)
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # Now to figure out how to do the actual expansion in the requested axis
       for block in range(1,5):
