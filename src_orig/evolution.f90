@@ -434,8 +434,10 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
                 d2h          = d2h + rho_pairing(wg,wg)*dispersions(wg)
               end select
             endif
+
+#if(PASTA == 0)
             !-------------------------------------------------------------------
-            ! We always construct the matrix elements of the single-particle
+            ! We construct the matrix elements of the single-particle 
             ! hamiltonian in the basis of s.p. wavefunctions in memory.
 #if(USE_MPI>0)
             do wave2=wave,si+N           ! local index
@@ -461,6 +463,13 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
                 current_sph(wg2,wg)  = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
                 current_sph(wg ,wg2) = current_sph(wg2,wg)
             enddo
+#endif
+#else 
+            !-------------------------------------------------------------------
+            ! ... but this is very costly when nwt is large, i.e. when doing 
+            ! pasta  calculations, so we do something simple instead.
+            !-------------------------------------------------------------------
+            current_sph(wg,wg) = spenergies(wg)
 #endif
             !-------------------------------------------------------------------
             if(diagsphamil) then
