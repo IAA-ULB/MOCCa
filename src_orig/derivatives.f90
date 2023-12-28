@@ -145,7 +145,7 @@ contains
             derX(i,j,2) = $DERX_TWO
         enddo
     enddo
-    
+
     !---------------------------------------------------------------------------
     ! Attention: this construction for the laplacian needs doublechecking for 
     ! non-local derivative combinations
@@ -449,39 +449,59 @@ $N2DIAG    real(KIND=dp), intent(in)  :: f(:,:,:)
 $N2DIAG    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:)
 $N2DIAG    integer, intent(in)        :: px,py,pz
 $N2DIAG    
-$N2DIAG    integer                    :: i,k, sx, sy,sz,j
+$N2DIAG    integer                    :: i,j,k,l, sx, sy,sz
 $N2DIAG    real(KIND=dp), allocatable :: A(:,:), B(:,:)
 $N2DIAG    
 $N2DIAG    sx = (-px + 3)/2 ! These are equal to !NS:check the sign
 $N2DIAG    sy = (-py + 3)/2 !    1    if pi =   -1  or 0
 $N2DIAG    sz = (-pz + 3)/2 !    2    if pi =   +1 
+$N2DIAG
+$N2DIAG    df = 0.0d0 ; ddf = 0.0d0
+$N2DIAG
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    !  First order derivatives and diagonal second-order ones
 $N2DIAG    A = derX(:,:,sx) ; B = laplaX(:,:,sx)
-$N2DIAG    
-$N2DIAG    
-$N2DIAG    do j=1,nz
-$N2DIAG       do i=1,ny
-$N2DIAG         df(1:nx,i,j,1) =        matmul(A,f(1:nx,i,j))
-$N2DIAG        ddf(1:nx,i,j,1) =        matmul(B,f(1:nx,i,j)) 
-$N2DIAG       enddo
-$N2DIAG    enddo   
-$N2DIAG
-$N2DIAG    A = derY(:,:,sy) ; B = laplaY(:,:,sy)
 $N2DIAG    do k=1,nz
-$N2DIAG        do i=1,nx
-$N2DIAG            df(i,:,k,2) =    matmul(A,f(i,:,k))
-$N2DIAG           ddf(i,:,k,4) =    matmul(B,f(i,:,k))                        
-$N2DIAG        enddo
-$N2DIAG    enddo
-$N2DIAG
-$N2DIAG    A = derZ(:,:,sz) ; B = laplaZ(:,:,sz)
-$N2DIAG    do j=1,ny
-$N2DIAG     do i=1,nx
-$N2DIAG        df(i,j,:,3) =        matmul(A,f(i,j,:))
-$N2DIAG       ddf(i,j,:,6) =        matmul(B,f(i,j,:))
+$N2DIAG     do j=1,ny
+$N2DIAG      do l=1,nx
+$N2DIAG       do i=1,nx
+$N2DIAG         df(i,j,k,1) =  df(i,j,k,1) + A(i,l)*f(l,j,k)
+$N2DIAG        ddf(i,j,k,1) = ddf(i,j,k,1) + B(i,l)*f(l,j,k)
+$N2DIAG       enddo
+$N2DIAG      enddo
 $N2DIAG     enddo
 $N2DIAG    enddo
+$N2DIAG
+!           call dgemm('N','N',  nx,ny*nz,nx,1.0d0,A,nx,f(1:nx,1:ny*nz,1),nx,0.0d0, df(1:nx,1:ny*nz,1,1),nx)           
+!           call dsymm('L','U',  nx,ny*nz,   1.0d0,B,nx,f(1:nx,1:ny*nz,1),nx,0.0d0,ddf(1:nx,1:ny*nz,1,1),nx)           
+           
+$N2DIAG    A = derY(:,:,sy) ; B = laplaY(:,:,sy)
+$N2DIAG    do k=1,nz
+$N2DIAG     do j=1,ny
+$N2DIAG      do l=1,ny
+$N2DIAG       do i=1,nx
+$N2DIAG             df(i,j,k,2) =  df(i,j,k,2) + A(j,l)*f(i,l,k)
+$N2DIAG            ddf(i,j,k,4) = ddf(i,j,k,4) + B(j,l)*f(i,l,k)
+$N2DIAG       enddo
+$N2DIAG      enddo
+$N2DIAG     enddo
+$N2DIAG    enddo
+$N2DIAG
+!               
+$N2DIAG    A = derZ(:,:,sz) ; B = laplaZ(:,:,sz)
+$N2DIAG    do k=1,nz
+$N2DIAG     do l=1,nz
+$N2DIAG      do j=1,ny
+$N2DIAG        do i=1,nx
+$N2DIAG             df(i,j,k,3) =  df(i,j,k,3) + A(k,l)*f(i,j,l)
+$N2DIAG            ddf(i,j,k,6) = ddf(i,j,k,6) + B(k,l)*f(i,j,l)
+$N2DIAG          enddo
+$N2DIAG        enddo
+$N2DIAG      enddo
+$N2DIAG    enddo
+!           call dgemm('N','T',  nx*ny,nz,nz,1.0d0,f(1:nx*ny,1,1:nz),nx*ny,A,nz,0.0d0, df(1:nx*ny,1,1:nz,3),nx*ny)           
+!           call dsymm('R','U',  nx*ny,   nz,1.0d0,B,nz,f(1:nx*ny,1,1:nz),nx*ny,0.0d0,ddf(1:nx*ny,1,1:nz,6),nx*ny)   
+
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    deallocate(A,B)  
 $N2DIAG end subroutine Derive_tot_3D
