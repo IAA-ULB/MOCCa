@@ -174,7 +174,6 @@ contains
     
  end function Preconditionpotential
 
-
  function preconoperator(f,a,b,sx,sy,sz) result(Pf)
     !---------------------------------------------------------------------------
     ! Implement the preconditioning operator
