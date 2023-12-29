@@ -799,6 +799,8 @@ $NTR    endif
       call start_timer(T_com2)
 
       NablaMElements = compNablaMelements()
+      call start_timer(T_com2_summation)
+
       COMCorrection(2,:) = 0.0
 
       COM2pp = 0.0 ; COM2ph = 0.0
@@ -861,6 +863,7 @@ $NTR        enddo
 $NTR        si = si + N + N2 + N3 + N4
 $NTR      enddo
     
+      call stop_timer(T_com2_summation)
       ! Summing the three directions
       do it=1,2
         COM2ph(it) = sum(tempph(:,it))

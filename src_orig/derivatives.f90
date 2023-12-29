@@ -874,8 +874,8 @@ $N3ALL end subroutine Derive_tot_1D
     fx3 = 0.0d0
     do k=1,nz
      do j=1,ny
-      do i=1,nx
-       do l=1,nx
+      do l=1,nx
+       do i=1,nx
         fx3(i,j,k) = fx3(i,j,k) + A(i,l) * f3(l,j,k)
        enddo
       enddo
