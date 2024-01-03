@@ -95,6 +95,21 @@ module derivatives
     module procedure derive_lap_3D
  end interface
 
+ interface derive_X
+    module procedure derive_X_single
+    module procedure derive_X_spwf
+ end interface
+
+ interface derive_Y
+    module procedure derive_Y_single
+    module procedure derive_Y_spwf
+ end interface
+
+ interface derive_Z
+    module procedure derive_Z_single
+    module procedure derive_Z_spwf
+ end interface
+
 contains
 
  subroutine inilag
@@ -849,14 +864,13 @@ $N3ALL    call Derive_tot_3D(f3, px, py, pz, df3, ddf3, dddf3)
 $N3ALL
 $N3ALL end subroutine Derive_tot_1D
 
- subroutine Derive_X(f, px, fx)
+ subroutine Derive_X_single(f, px, fx)
     !---------------------------------------------------------------------------
-    ! Subroutine that computes the gradient of a function on the mesh.
+    ! Compute the X-derivative of a single function on the mesh.
     !
     ! fx = First order derivative in the x direction
     ! px = sign of the symmetry transformation in the x-direction
     !---------------------------------------------------------------------------
-
     real(KIND=dp), intent(in), target  :: f(:)
     real(KIND=dp), intent(out),target  :: fx(:)
     integer, intent(in)        :: px
@@ -886,11 +900,48 @@ $N3ALL end subroutine Derive_tot_1D
     ! Old code line, not updated when loops got rewritten.
     ! $DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(A,f3($SYMPARTNERX))
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- end subroutine Derive_X
-
-  subroutine Derive_Y(f, py, fy)
+ end subroutine Derive_X_single
+ 
+ subroutine Derive_X_spwf(f, px, fx)
     !---------------------------------------------------------------------------
-    ! Subroutine that computes the gradient of a function on the mesh.
+    ! Compute the X-derivative of four functions on the mesh.
+    !
+    ! fx = First order derivative in the x direction
+    ! px = sign of the symmetry transformation in the x-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in), target  :: f(:,:)
+    real(KIND=dp), intent(out),target  :: fx(:,:)
+    integer, intent(in)        :: px(4)
+    integer                    :: i,j,k,l,m,sx(4)
+
+    real(KIND=dp), pointer     :: f3(:,:,:), fx3(:,:,:)
+
+    sx = (-px + 3)/2
+
+    do m=1,4
+     f3(1:nx,1:ny,1:nz)  =>  f(1:nx*ny*nz,m)
+     fx3(1:nx,1:ny,1:nz) => fx(1:nx*ny*nz,m)
+
+     fx3 = 0.0d0
+     do k=1,nz
+      do j=1,ny
+       do l=1,nx
+        do i=1,nx
+         fx3(i,j,k) = fx3(i,j,k) + derX(i,l,sx(m)) * f3(l,j,k)
+        enddo
+       enddo
+      enddo
+     enddo
+    enddo
+    ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Old code line, not updated when loops got rewritten.
+    ! $DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(A,f3($SYMPARTNERX))
+    ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ end subroutine Derive_X_spwf
+
+  subroutine Derive_Y_single(f, py, fy)
+    !---------------------------------------------------------------------------
+    ! Compute the Y-derivative of a single functions on the mesh.
     !
     ! fy = First order derivative in the y direction
     ! py = sign of the symmetry transformation in the y-direction
@@ -926,11 +977,48 @@ $N3ALL end subroutine Derive_tot_1D
     ! Old code line, not updated when loops got rewritten.
     ! $DERSYMY       fy3(i,:,k) = fy3(i,:,k) + matmul(A,f3($SYMPARTNERY))
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- end subroutine Derive_Y
-
-  subroutine Derive_Z(f, pz, fz)
+ end subroutine Derive_Y_single
+ 
+ subroutine Derive_Y_spwf(f, py, fy)
     !---------------------------------------------------------------------------
-    ! Subroutine that computes the gradient of a function on the mesh.
+    ! Compute the Y-derivative of four functions on the mesh.
+    !
+    ! fy = First order derivative in the y direction
+    ! py = sign of the symmetry transformation in the y-direction
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in), target  :: f(:,:)
+    real(KIND=dp), intent(out), target :: fy(:,:)
+    integer, intent(in)                :: py(4)
+    integer                            :: i,j,k,l,m,sy(4)
+    real(KIND=dp), pointer     :: f3(:,:,:), fy3(:,:,:)
+
+    sy = (-py + 3)/2 !    1    if pi =   -1  or 0
+
+    do m=1,4
+     f3(1:nx,1:ny,1:nz)  => f(1:nx*ny*nz,m)
+     fy3(1:nx,1:ny,1:nz) => fy(1:nx*ny*nz,m)
+
+     fy3 = 0.0d0
+     do k=1,nz
+      do j=1,ny
+       do l=1,ny
+        do i=1,nx
+         fy3(i,j,k) = fy3(i,j,k) + derY(j,l,sy(m)) * f3(i,l,k)
+        enddo
+       enddo
+      enddo
+     enddo
+    enddo
+    ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Old code line, not updated when loops got rewritten.
+    ! $DERSYMY       fy3(i,:,k) = fy3(i,:,k) + matmul(A,f3($SYMPARTNERY))
+    ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ end subroutine Derive_Y_spwf
+
+  subroutine Derive_Z_single(f, pz, fz)
+    !---------------------------------------------------------------------------
+    ! Compute the Z-derivative of a single functions on the mesh.
     ! fz = First order derivative in the z direction
     ! pz = sign of the symmetry transformation in the z-direction
     !---------------------------------------------------------------------------
@@ -965,7 +1053,42 @@ $N3ALL end subroutine Derive_tot_1D
     ! Old code line, not updated when loops got rewritten.
     ! $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(A,f3($SYMPARTNERZ))
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- end subroutine Derive_Z
+ end subroutine Derive_Z_single
+
+ subroutine Derive_Z_spwf(f, pz, fz)
+    !---------------------------------------------------------------------------
+    ! Compute the Z-derivative of four functions functions on the mesh.
+    ! fz = First order derivative in the z direction
+    ! pz = sign of the symmetry transformation in the z-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) , target :: f(:,:)
+    real(KIND=dp), intent(out), target :: fz(:,:)
+    integer, intent(in)        :: pz(4)
+   real(KIND=dp), pointer     :: f3(:,:,:), fz3(:,:,:)
+    integer                    :: i,j,k,l,sz(4),m
+
+    sz = (-pz + 3)/2 !    2    if pi =   +1
+
+    do m=1,4
+     f3 (1:nx,1:ny,1:nz) =>  f(1:nx*ny*nz,m)
+     fz3(1:nx,1:ny,1:nz) => fz(1:nx*ny*nz,m)
+
+     fz3 = 0.0d0
+     do k=1,nz
+      do l=1,nz
+       do j=1,ny
+        do i=1,nx
+         fz3(i,j,k) = fz3(i,j,k) + derZ(k,l,sz(m)) * f3(i,j,l)
+        enddo
+       enddo
+      enddo
+     enddo
+    enddo
+    ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Old code line, not updated when loops got rewritten.
+    ! $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(A,f3($SYMPARTNERZ))
+    ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ end subroutine Derive_Z_spwf
 
  subroutine Derive_lap_3D(f, px, py, pz, df)
     !---------------------------------------------------------------------------

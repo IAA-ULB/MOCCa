@@ -1158,7 +1158,8 @@ $N3                                 dddpsi, &
     real(KIND=dp), intent(in)    :: psi(mv,4)  
     real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4)
 $N3 real(KIND=dp), intent(inout) :: dddpsi(mv,10,4)
-    integer, intent(in)       :: sx(4),sy(4),sz(4),   iso
+    integer, intent(in)       :: sx(4),sy(4),sz(4), iso
+    integer                   :: sym(4)
     real(KIND=dp)             :: hpsi(mv,4)
     real(KIND=dp)             :: temp(mv,4)
     real(KIND=dp)             ::   dtemp(mv,3,4)

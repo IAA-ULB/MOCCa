@@ -1292,8 +1292,8 @@ def GenerateAction(field, symmetrize, so):
                         dic['SYM']    = '+s' + Direction[direc-1] + '(%d)'%(k+1)
                     else:
                         dic['SYM']    = '-s' + Direction[direc-1] + '(%d)'%(k+1)   
-                    
-                    expression = expression + ts.derive.substitute(dic)
+                    expression = expression + ts.sym.substitute(dic) 
+                expression = expression + ts.derive.substitute(dic)
                 lasttemp = (lorder+1) * 'd' + 'temp'
         #-----------------------------------------------------------------------
         # Add final result to hpsi
