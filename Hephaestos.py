@@ -30,11 +30,22 @@ heph_name= \
 
 print (heph_name)
 #-------------------------------------------------------------------------------
-# Dealing with the input: importing a configuration file
-if(len(sys.argv) == 1):
-  print ("Hephaestos needs a configuration file.")
+# Dealing with the input:
+# a) checking for existence
+# b) importing a configuration file
+# c) specifying density summation option
+#-------------------------------------------------------------------------------
+if(len(sys.argv) != 3):
+  print ("Running Hephaestos requires specifying two arguments.")
+  print (' a) specifying a configuration file')
+  print (' b) specifying the chosen option regarding density summation')
+  print (' Example:')
+  print ('    python Hephaestos.py NLO 1')
+  
   sys.exit(1)
+
 config = sys.argv[1]
+DENSITY_SPWF_SUMMATION = int(sys.argv[2])
 
 if( not os.path.isfile('configs/' + config + '.py')):
   print ("Config file '%s' does not exist."%config)
@@ -81,23 +92,26 @@ try:
   SECOND_AXIS = configmod.SECOND_AXIS
 except AttributeError:
   SECOND_AXIS = 1
-  
+
 try:
   PH_PP_DECOUPL = configmod.PH_PP_DECOUPL
 except AttributeError:
   PH_PP_DECOUPL = True
 
+
 print (line)
-print (' Configuration file         : %s'%config)
-print ('    Functional file         : %s'%FUNC_FILE)
-print ('    PH-PP channel decoupling: %s'%PH_PP_DECOUPL)
-print ('    Symmetry string         : %s'%SYMSTRING)
-print ('    Axis reduction          : %s'%REDUCE)
-print ('    Symmetry string         : %s'%INSYM)
-print ('    Axis reduction          : %s'%INREDUCE)
-print ('    Quantisation axis       : %s'%QUANT_AXIS)
-print ('    Secondary    axis       : %s'%SECOND_AXIS)
+print (' Configuration file                    : %s'%config)
+print ('    Functional file                    : %s'%FUNC_FILE)
+print ('    PH-PP channel decoupling           : %s'%PH_PP_DECOUPL)
+print ('    Symmetry string                    : %s'%SYMSTRING)
+print ('    Axis reduction                     : %s'%REDUCE)
+print ('    Symmetry string                    : %s'%INSYM)
+print ('    Axis reduction                     : %s'%INREDUCE)
+print ('    Quantisation axis                  : %s'%QUANT_AXIS)
+print ('    Secondary    axis                  : %s'%SECOND_AXIS)
+print ('    Sum density derivatives from spwfs : %s'%DENSITY_SPWF_SUMMATION)
 print (line)
+#-------------------------------------------------------------------------------
 
 #-------------------------------------------------------------------------------
 # Path to the original FORTRAN source
@@ -148,16 +162,16 @@ print(line)
 heph_densities.initdensities()
 #-------------------------------------------------------------------------------
 # Next, we read all the functional information
-description = heph_functional.initfunctional(FUNC_FILE, so)
+description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATION)
 # ... and initialize the fields module
 heph_fields.initfields(so)
 #-------------------------------------------------------------------------------
 # On to the real business: generating Fortran code.
 for fname in FORTRANFILES:
 #     print ("Preprocessing " + fname)
-     pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL)
+     pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL, 
+                   DENSITY_SPWF_SUMMATION)
 
-exit()
 #-------------------------------------------------------------------------------
 # Output all of the relevant things into .tex files.
 #latex.Build(FUNC_FILE, description)

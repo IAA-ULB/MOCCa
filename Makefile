@@ -129,10 +129,12 @@ USE_MPI := 0
 #    'PASTA' : nuclear pasta
 CALCTYPE :=NUCLEI
 ifeq ($(CALCTYPE),PASTA)
-  PASTA := 1
+  PASTA  := 1
+  DENSUM := 1
 else
 ifeq ($(CALCTYPE),NUCLEI)
-  PASTA := 0
+  PASTA  := 0
+  DENSUM := 0
 else
   $(error "Invalid value of CALCTYPE. $(CALCTYPE)")
 endif
@@ -354,8 +356,9 @@ single: $(PRE) $(SINGLE_OBJ)
 	mv single exec/$(EXENAME)
 
 run_heph:
-  # Run Hephaestos with the correct configuration file
-	python3 Hephaestos.py $(CONFIG)
+  # Run Hephaestos with the correct configuration file and information from 
+  # the Makefile
+	python3 Hephaestos.py $(CONFIG) $(DENSUM)
 
 gen_nilsson: $(PRE_NIL) $(NIL_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LIBS)

@@ -81,7 +81,7 @@ vmicro_found          = False # Whether or not this functional file will
 #-------------------------------------------------------------------------------
 #assume_locality = 0
 
-def initfunctional(fname, so):
+def initfunctional(fname, so, density_spwf_summation):
     """
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       Initialize everything relevant about this module
@@ -93,9 +93,12 @@ def initfunctional(fname, so):
       5) Print some output to STDOUT
       
       Input: 
-        fname : filename containing the functional description 
-        so    : set of symmetry-options, determining whether time-odd terms
-                get kept or not.
+        fname                  : filename containing the functional description 
+        so                     : set of symmetry-options, determining whether 
+                                 time-odd terms get kept or not.
+        density_spwf_summation : logical determining whether derivatives of 
+                                 densities get calculated through summation 
+                                 over spwfs or derivative calls.
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     """
     global Functional_terms, Densities_needed, derivative_order, func_name
@@ -126,6 +129,46 @@ def initfunctional(fname, so):
         for den in densities:
             tempden.append(den)
     #---------------------------------------------------------------------------
+    # If density_spwf_summation is true, we have to add a bunch of densities
+    # to the list of needed ones.
+    # 
+    # We use the identities:
+    # 
+    #       nabla D^L,R = D^nablaL, R + D^L, nablaR 
+    #       Delta D^L,R = D^DeltaL, R + D^L, DeltaR + D^nabla L, nabla R 
+    # 
+    # and similar for C-like objects.
+    #
+    if(density_spwf_summation):
+      for den in tempden:
+        # Note: because we add to the end of this list while traversing it, we
+        #       automatically do the entire process recursively.
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        (der, lap, left, right, coup, cross) = \
+                        ParseOperators(den,so.timelike)
+        if(der != 0):
+        
+          lleft = 'N' + left.replace('I','')
+          tempden.append(ReconstructDensity(der-1, lap, lleft, right))
+          rright = 'N' + right.replace('I','')
+          tempden.append(ReconstructDensity(der-1, lap,      left, rright))
+
+        if(lap != 0):
+          # Add in all densities needed for the Laplacian ....
+          lleft  =  'NN' + left.replace('I','')
+          tempden.append(ReconstructDensity(der, lap-1, lleft, right))
+          rright =  'NN' + right.replace('I','')
+          tempden.append(ReconstructDensity(der, lap-1, left, rright))
+          lleft  =  'N' + left.replace('I','')
+          rright =  'N' + right.replace('I','')
+          tempden.append(ReconstructDensity(der, lap-1, lleft, rright))
+
+          # ... but also the external order one derivative
+          lleft = 'N' + left.replace('I','')
+          tempden.append(ReconstructDensity(der, lap-1, lleft, right))
+          rright = 'N' + right.replace('I','')
+          tempden.append(ReconstructDensity(der, lap-1,  left, rright))
+    #---------------------------------------------------------------------------
     # Pruning the list
     # A) removing duplicates
     # B) removing contractions when the full density will be calculated
@@ -141,17 +184,17 @@ def initfunctional(fname, so):
             (derj, lapj, leftj, rightj, coupj, crossj, foundind) = \
                ParseOperators(Densities_needed[j],so.timelike, findindices=True)
             #-------------------------------------------------------------------
-            # Two densities are identical if the left- and right-operators
-            # are the same.
+            # Two densities are identical if the left- and right-operators are 
+            # the same.
+            # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+            # TODO: expand this detection to also check if two densities are the
+            #       same up to symmetry transformations. 
+            #       Example: D_I_NN = D_NN_I 
+            #-------------------------------------------------------------------
             if(leftj == lefti and rightj == righti):
                 # Signal that the density is already present
                 Found = True
-                # However, if there is a vector coupling in one, that is not in 
-                # other, just calculate both. 
-#                if(crossj != crossi):
-#                    Found = False
-                # However, check that we don't need any new derivatives
-                # If so, add them
+                # Add the possibility of new derivatives
                 deriv_needed[j].append((lapi, deri))
                 # then check if the coupling of the indices is the same
                 # Note that the loop starts over coupj, since that one has by
@@ -164,10 +207,9 @@ def initfunctional(fname, so):
                             Found_coup = True
                     for ci in crossi:
                         if(cj == ci ):
-                            Found_coup = True   
+                            Found_coup = True
                     if(not Found_coup):
-                            
-                        try:                        
+                        try:
                             l = foundind[coupj.index(cj)]
                         except ValueError:  
                             l = foundind[len(coupj) + crossj.index(cj)]
@@ -177,14 +219,20 @@ def initfunctional(fname, so):
             #-------------------------------------------------------------------
         if(not Found):
             add = tempden[i] 
-            # Getting the duplicates out of the derivatives
+            # Getting the duplicates out of the derivatives by adding these
+            # explicitly to deriv_needed 
             deriv_needed.append([(lapi,deri)])
-            
             # Remove all of the derivatives from the top
             add = add.replace(derstring + '_','').replace(lapstring+'_', '')
             for l in sumindices:
                 add = add.replace(derstring + l + '_','')
             Densities_needed.append(add)
+
+    # Clean up the deriv_needed array and add all combinations that might be 
+    # necessary for calculating fields etc. This call is not strictly needed 
+    # here, but it will become so later for the setting up the fields (where 
+    # it will be called again).
+    src_heph.heph_functional.PruneDeriv_needed()
 
     #---------------------------------------------------------------------------
     # Finding out how many derivatives we need to take of the spwfs
@@ -278,6 +326,7 @@ def PruneDeriv_needed():
       Add all of the possible combinations with less derivatives and laplacians,
       so that we can build the eventually needed combinations.
     """
+
     for i in range(len(deriv_needed)):
         newderiv=[]
         for j in deriv_needed[i]:
@@ -595,7 +644,8 @@ def ProcessParameterization(fname, src, target):
             for line in template:
                 generated.write(Template(line).substitute(dic))  
 
-def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl):
+def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl, 
+                      density_spwf_summation):
     """
      Master routine calling the other ones to generate a functional.
     """

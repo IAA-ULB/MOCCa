@@ -259,7 +259,6 @@ $NTR      D_I_S_hist(:,:,:,1) = D_I_S
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Zero the current density
 $ZEROING
-
     divJ = 0.0d0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Correctly set the pointers to the spwfs

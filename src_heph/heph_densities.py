@@ -210,7 +210,7 @@ def initdensities():
     TR.signature_z  = np.array([-1])
     TR.name         = 'T'
     
-def ProcessDensities(fname, src, target, so):
+def ProcessDensities(fname, src, target, so, density_spwf_summation):
     """
      Master routine calling the other routines based on a list of densities.
      Also prints output.
@@ -252,7 +252,8 @@ def ProcessDensities(fname, src, target, so):
 
       # Summation with leftwf = rightwf
       (e,dec,ini,der,isoi,mpii,zeroi,cleani)  = \
-      GenDensityExpression(Densities_needed[i],deriv_needed[i],'wave','wave',so)
+      GenDensityExpression(Densities_needed[i],deriv_needed[i],'wave','wave',so,
+                           density_spwf_summation)
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       Declaration    = Declaration    + '\n' + dec
@@ -265,16 +266,17 @@ def ProcessDensities(fname, src, target, so):
         # This summation is blockwise, hence the 'si+'
         (e,dec,ini,der,isoi,mpii,zeroi,cleani)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],\
-                                         'si+wave2', 'si+wave', so, silent=True)
+                                         'si+wave2', 'si+wave', so,            \
+                                         density_spwf_summation, silent=False)
         HFBExpression = HFBExpression + '\n' + e
       else:
         Expression    = Expression     + '\n' + e
           
       Initialisation = Initialisation + '\n' + ini
-      Derivation     = Derivation     + '\n' + der
-      Isospincoupl   = Isospincoupl   + '\n' + isoi
+      Derivation     = Derivation            + der
+      Isospincoupl   = Isospincoupl          + isoi
       MPI_REDUCE     = MPI_REDUCE     + '\n' + mpii
-      Zeroing        = Zeroing        + '\n' + zeroi
+      Zeroing        = Zeroing        +        zeroi
       Cleaning       = Cleaning       + '\n' + cleani
     print (line)
 
@@ -339,6 +341,7 @@ def ParseOperators(density, timelike, findindices=False):
      timelike :  logical indicating if there is an antilinear, antihermitian 
                  symmetry that is conserved. If so, the pairing densities get
                  an EXTRA T on the left, on top of the one they already have.
+     findices :  TO BE DOCUMENTED
     """
     left  = ''
     right = '' 
@@ -409,8 +412,54 @@ def ParseOperators(density, timelike, findindices=False):
     else:
         return(der, lap, left, right, coupling, cross)
 
+def ReconstructDensity(der, lap, left, right):
+  """
+    Reconstruct the string for a density starting from its decomposition.
+    
+    Example:
+        der = 1, lap = 0, left = 'I', right = 'CNS'
+
+        should be translated to
+        
+        Der_C_I_NS
+        
+    Attention: this function silently assumes that there is no index coupling 
+               going on, i.e. there are no contractions or vector products
+               involved.
+    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Input:
+      der  : number of external (single) derivatives
+      lap  : number of external laplacians
+      left : left operators
+      right: right operators
+
+      These are identical to the output of ParseOperators.
+
+    Output:
+      density : string representing the density
+    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  """
+
+  # Derivatives  
+  density = der * 'Der_' + lap * 'Lap_'
+  # Dealing with a current?
+  if('C' in right or 'C' in left):
+    density = density + 'C'
+  else:
+    density = density + 'D'
+  
+  # Dealing with a pairing density?
+  if('T' in right or 'T' in left):
+    density = density + 'P'
+    
+  #Adding in the operators
+  density = density + '_' + left.replace('T', '').replace('C', '')
+  density = density + '_' + right.replace('T', '').replace('C', '')
+  
+  return density
+
 def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
-                         silent=False):
+                         density_spwf_summation, silent=False):
     """
       Generate all the necessary strings to plug into FORTRAN source code 
       template Densities.f90.
@@ -424,6 +473,8 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
       * leftwave, rightwave    : Strings indicating to the summation what the 
                                  left and right spwf is.
       * so                     : a set of symmetry options
+      * density_spwf_summation : if True, calculate derivatives of densities 
+                                 through summation over spwfs
       * silent                 : If True  => don't print the symmetry output 
                                  If False => print symmetry output for the 
                                              reflection symmetries of the 
@@ -785,17 +836,14 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
         if('P' not in density): 
           Isospincoupl = Isospincoupl + ta.Den_iso_comment.substitute(dic) 
           Isospincoupl = Isospincoupl + ta.iso_normal.substitute(dic) 
-        #----------------------------------------------------------------------- 
-        # Add the derivatives of the original density
-        #
-        # Note that larg and rarg need not be redefined here. They take the 
-        # value of the last combination of uncontracted indices. This is 
-        # sufficient, because necessarily all of the combinations need to 
-        # exhibit the same symmetries. 
+          
+          
         #-----------------------------------------------------------------------
+        # Generate expressions for the calculation of derivatives of densities
         if(len(derivative_combinations)> 1):
             Derivation = Derivation + ta.Den_line.substitute(dic)
             Derivation = Derivation + ta.Den_comment_deriv.substitute(dic)
+
         for c in derivative_combinations:
              #print (denin,so.ReduceAxes, c, len(derivative_combinations))
 
@@ -811,83 +859,169 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                 dic['NAME'] = (c[1]-1)*'Der_' + density
             else:
                 dic['NAME'] = (c[0]-1)*'Lap_' + (c[1])*'Der_' + density
-            if(c[1] != 0):
+
+            if(density_spwf_summation):
+              # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+              # Add the calculation of derivatives through summation of
+              # the extra densities.
+              # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+              if(c[1] != 0): # There is a gradient here
                 # Get only the independent derivative operations
                 deriv_args= sorted(list(set([tuple(sorted(da)) for da in deriv_args])))
-                
                 for darg in deriv_args: 
-                    
-                    directions = ['X', 'Y', 'Z']
-                    dic['DIR'] = directions[darg[0]]
-                    
-                    # Note that the symmetries put into a certain call to the 
-                    # derivatives are determined by 
-                    # a) left- and right-operator
-                    # b) indices (arguments) of these
-                    # c) but also all the arguments of previously applied
-                    #    derivatives.
-                    # 
-                    # This makes this particular bit of code rather complicated.
-                    
-                    # Decide if we need to use a gradient or a laplacian routine
-                    if(c[0] > 0):
-                        # There is a Laplacian involved, and we first calculate
-                        # all derivatives, and then only afterwards laplacians.
+                  directions = ['X', 'Y', 'Z']
+                  dic['DIR'] = directions[darg[0]]
 
-                        (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin,darg)
-                        dic['PX']    = str(px)
-                        dic['PY']    = str(py)
-                        dic['PZ']    = str(pz) 
+                  if(c[0] > 0):
+                    continue
+                  else:
+                    # There is no laplacian.
+                    lleft  = 'N' + left.replace('I','')
+                    rright = 'N' + right.replace('I','')
 
-                        if(len(darg) > 0):
-                            dic['IND'] = ',' + str(int(Storage_Mapping(darg)+1)) + IND
-                        else:
-                            dic['IND'] = IND     
-                        Derivation     = Derivation + ta.Lap.substitute(dic)
+                    # nabla D^L,R = D^nabla L, R + D^L, nabla R 
+                    #   Den       = LEFTDEN      + RIGHTDEN
+                    dic['LEFTDEN']   = ReconstructDensity(c[1]-1, c[0], lleft, right)
+                    dic['RIGHTDEN']  = ReconstructDensity(c[1]-1, c[0], left, rright)
 
-                        # Add a line for the isospin coupling while we are here
-                        if('P' not in density):
-                          Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic) 
+                    # DERIND       , DERLIND, DERRIND
+                    # Note that the first uses reduced storage mapping due to 
+                    # symmetries of multiple derivative operators.
+                    # LEFTIND and RIGHTIND do not use this yet!
+                    dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
 
-                    else:
-                        # There is no laplacian, so we only calculate partial
-                        # derivatives
-
-                        (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin,darg[1:])
-                        dic['PX']    = str(px)
-                        dic['PY']    = str(py)
-                        dic['PZ']    = str(pz) 
-                                
-                        syms = (px,py,pz)
-                        dic['PS'] = syms[darg[0]]
-                        
-                        dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
-                        if(len(darg) > 1):
-                            dic['IND'] =  ',' + str(int(Storage_Mapping(darg[1:])+1)) + IND
-                        else:
-                            dic['IND'] = IND     
-                        Derivation     = Derivation  + ta.Der_indep.substitute(dic)
-                        
-                        # Add a line for the isospin coupling while we are here
-                        if('P' not in density):
-                          dic['DARG'] = str(darg)
-                          dic['DC'] = str(c)
-                          Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic) 
-            else:
-                    (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin)
-                    dic['PX']    = str(px) #+ 'd0'
-                    dic['PY']    = str(py) #+ 'd0'
-                    dic['PZ']    = str(pz) #+ 'd0'
+                    dargstring=','
+                    for dargind in darg:
+                      dargstring = dargstring + str(dargind+1) + ','
+                    dargstring = dargstring[:-1]
                     
-                    dic['IND']  =  IND  
-                    Derivation  = Derivation + ta.Lap.substitute(dic)
+                    # The nabla operator is added to the start of left, i.e.
+                    # it can be added to the left of the indices string.
+                    dic['DERLIND'] =  dargstring + IND
+                    # The nabla operator is added to the start of right; we 
+                    # have to find out which indices are "left" and "right"
+                    # and insert the dargstring in between
+                    ldim = LeftOperator.dimension
+                    dic['DERRIND'] = IND[:ldim] + dargstring + IND[ldim:]
                     
+                    Derivation     = Derivation + ta.Der_sum.substitute(dic)
                     # Add a line for the isospin coupling while we are here
                     if('P' not in density):
-                      Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic) 
+                        Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic)
+                        
+              else: # there is only a Laplacian here
+                lleft  = 'NN' + left.replace('I','')
+                rright = 'NN' + right.replace('I','')
 
-            Derivation  = Derivation   + '\n'
-            Isospincoupl= Isospincoupl + '\n'
+                # Delta D^L,R = D^Delta L, R + D^L, Delta R + 2 D^Nabla L, Nabla R 
+                #   Den       = LEFTDEN      + RIGHTDEN
+                dic['LEFTDEN']    = ReconstructDensity(c[1]-1, 0, lleft, right)
+                dic['RIGHTDEN']   = ReconstructDensity(c[1]-1, 0, left, rright)
+ 
+                lleft  = 'N' + left.replace('I','')
+                rright = 'N' + right.replace('I','')
+                dic['CENTRALDEN'] = ReconstructDensity(c[1]-1, 0, lleft, rright)
+
+                dic['IND']      =  IND
+                Derivation  = Derivation + ta.Lap_sum_a.substitute(dic)
+                for k in range(3):
+                  dic['DERLIND']  =  ',' + str(k+1)+',' + str(k+1) + IND 
+                  dic['DERRIND']  =  ',' + str(k+1)+',' + str(k+1) + IND 
+                  dic['DERCIND']  =  ',' + str(k+1)+',' + str(k+1) + IND 
+                  Derivation  = Derivation + ta.Lap_sum_b.substitute(dic)
+                Derivation = Derivation[:-2]
+                
+                # Add a line for the isospin coupling while we are here
+                if('P' not in density):
+                    Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic) 
+            else:
+              # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+              # Add the calculation of the derivatives of the original  
+              # density through calls to derivative routines.
+              #
+              # Note that larg and rarg need not be redefined here. They 
+              # take the value of the last combination of uncontracted 
+              # indices. This is sufficient, because necessarily all of the 
+              # combinations of larg and rarg need to exhibit the same 
+              # symmetries. 
+              # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+              if(c[1] != 0):
+               # Get only the independent derivative operations
+               deriv_args= sorted(list(set([tuple(sorted(da)) for da in deriv_args])))
+               for darg in deriv_args: 
+                  directions = ['X', 'Y', 'Z']
+                  dic['DIR'] = directions[darg[0]]
+                  
+                  # Note that the symmetries put into a certain call to the 
+                  # derivatives are determined by 
+                  # a) left- and right-operator
+                  # b) indices (arguments) of these
+                  # c) but also all the arguments of previously applied
+                  #    derivatives.
+                  # 
+                  # This makes this particular bit of code rather complicated.
+                  
+                  # Decide if we need to use a gradient or a laplacian routine
+                  if(c[0] > 0):
+                      # There is a Laplacian involved, and we first calculate
+                      # all derivatives, and then only afterwards laplacians.
+
+                      (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin,darg)
+                      dic['PX']    = str(px)
+                      dic['PY']    = str(py)
+                      dic['PZ']    = str(pz) 
+
+                      if(len(darg) > 0):
+                          dic['IND'] = ',' + str(int(Storage_Mapping(darg)+1)) + IND
+                      else:
+                          dic['IND'] = IND     
+                      Derivation     = Derivation + ta.Lap.substitute(dic)
+
+                      # Add a line for the isospin coupling while we are here
+                      if('P' not in density):
+                        Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic) 
+
+                  else:
+                      # There is no laplacian, so we only calculate partial
+                      # derivatives
+
+                      (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin,darg[1:])
+                      dic['PX']    = str(px)
+                      dic['PY']    = str(py)
+                      dic['PZ']    = str(pz) 
+                              
+                      syms = (px,py,pz)
+                      dic['PS'] = syms[darg[0]]
+                      
+                      dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
+                      if(len(darg) > 1):
+                          dic['IND'] =  ',' + str(int(Storage_Mapping(darg[1:])+1)) + IND
+                      else:
+                          dic['IND'] = IND     
+                      Derivation     = Derivation  + ta.Der_indep.substitute(dic)
+                      
+                      # Add a line for the isospin coupling while we are here
+                      if('P' not in density):
+                        dic['DARG'] = str(darg)
+                        dic['DC'] = str(c)
+                        Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic) 
+              else:
+                  # Pure Laplacian operators
+                  (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin)
+                  dic['PX']    = str(px) #+ 'd0'
+                  dic['PY']    = str(py) #+ 'd0'
+                  dic['PZ']    = str(pz) #+ 'd0'
+                  
+                  dic['IND']  =  IND  
+                  Derivation  = Derivation + ta.Lap.substitute(dic)
+                  
+                  # Add a line for the isospin coupling while we are here
+                  if('P' not in density):
+                    Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic) 
+
+        if(len(derivative_combinations)> 1):
+          Derivation  = Derivation   + '\n'
+          Isospincoupl= Isospincoupl + '\n'
         
         dic['NAME'] = density
         

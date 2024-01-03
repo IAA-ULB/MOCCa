@@ -29,7 +29,8 @@ from src_heph.heph_cranking      import ProcessCranking
 from src_heph.heph_multipoles    import ProcessMoments, ProcessFission_MOI
 from src_heph.heph_coulomb       import ProcessCoulomb
 
-def preprocess(fname, src, target, so , oldso, ph_pp_decoupl):
+def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
+               density_spwf_summation):
     """
       Dispatching routine that selects the right preprocessing routine and
       additional info for every source code file.
@@ -44,6 +45,8 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl):
       ph_pp_decouple: Boolean. If True, do not include contributions of 
                       density-dependent pairing interactions to the potentials
                       associated with normal densities
+      density_spwf_summation: Boolean. If .True., calculate the derivatives of
+                              densities by summing 
     """
       
     if(fname=='compilation.f90'):
@@ -80,7 +83,8 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl):
         ProcessParameterization(fname, src, target)
         return
     if(fname=='functional.f90'):
-        ProcessFunctional(fname, src, target,so, oldso, ph_pp_decoupl)
+        ProcessFunctional(fname, src, target,so, oldso, ph_pp_decoupl, 
+                          density_spwf_summation)
         return
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -161,7 +165,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl):
         ProcessTransform(fname, src, target, so, oldso)
         return
     if(fname=='densities.f90'):
-        ProcessDensities(fname, src, target, so)
+        ProcessDensities(fname, src, target, so, density_spwf_summation)
         return
     if(fname=='cranking.f90'):
         ProcessCranking(fname, src, target, so)

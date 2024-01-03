@@ -21,6 +21,11 @@ Der_indep = T( 2*tab + \
 Lap   = T( 2*tab + \
        'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ, lap_$NAME(:$IND,it)) \n')
 
+Der_sum = T( 2*tab + 'der_$NAME(:$DERIND,it) = $LEFTDEN(:$DERLIND,it) + $RIGHTDEN(:$DERRIND,it) \n') 
+Lap_sum_a = T( 2*tab + 'lap_$NAME(:$IND,it) = & \n') 
+Lap_sum_b = T( 3*tab + '& +  $LEFTDEN(:$DERLIND,it) + 2*$CENTRALDEN(:$DERCIND,it) + $RIGHTDEN(:$DERRIND,it) &\n') 
+
+
 iso_normal   =  T( tab +'$NAME(:$IND,3) = $NAME(:$IND,1) + $NAME(:$IND,2) \n' \
                   +tab +'$NAME(:$IND,4) = $NAME(:$IND,1) - $NAME(:$IND,2) \n' )
 iso_der      =  T( tab +'Der_$NAME(:$DERIND,3) = Der_$NAME(:$DERIND,1) + Der_$NAME(:$DERIND,2) \n' \
