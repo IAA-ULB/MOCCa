@@ -32,6 +32,7 @@ module derivatives
  !      N3ALL   = $N3ALL
  !==============================================================================
  ! Technical notes:
+ ! - - - - - - - - - - -
  !
  ! * At the moment Tantalus will only allow you to use symmetry combinations 
  !   that give rise to 'local' derivatives, i.e. symmetry combinations that will
@@ -50,8 +51,50 @@ module derivatives
  !   speed reasons and to keep the number of indices down. This disparity is 
  !   currently solved using pointer remapping.
  !
- ! * However, the previous point places []
- ! * allocatables in routines
+ ! * However, the previous point places some constraints on the structure of 
+ !   routines in terms of the vectorisation that can be achieved by compilers.
+ !   In particular, pointer remapping can "break" intent statements. 
+ !   Consider for example:
+ ! 
+ !     function example(f)
+ !        real(KIND=dp),intent(in), target:: f(:)
+ !        real(KIND=dp),pointer           :: f3(:,:,:)
+ !        f3(1:nx,1:ny,1:nz) => f(1:nx*ny*nz)
+ !
+ !        [some loop over f3]
+ !     end function
+ ! 
+ !   Compilers will not know that f3 will not be changed during the execution
+ !   of the function, even if f was declared as "intent(in)". The gotcha is 
+ !   of course that the pointer can still be reassigned ....
+ !   
+ !   For CRAY compilers at least, and possibly for other compilers as well, 
+ !   this kind of structure makes vectorization of the loop impossible. 
+ !    
+ !   One can avoid this issue by adding an extra layer, i.e. do the pointer
+ !   remapping in one routine, which then calls a second routine to actually
+ !   perform the loop. This can be vectorized, since now we can declare the 
+ !   inputs to the second routine (=the remapped pointers) to be "intent(in)"
+ !   themselves, allowing for easy vectorisation! This is the reason the
+ !   derive_X/Y/Z functions come in triplets.
+ !  
+ !
+ ! * Another optimisation trick is to avoid any explicit allocatable arrays 
+ !   inside "small" routines. If there are such explicit allocates, then 
+ !   CRAY compilers (and likely others too) can refuse to inline such routines.
+ !   Don't write
+ !       A = derX(:,:,sx)
+ !       [Some loop involving A]
+ !   But rather write the loop explicitly with derX; the compiler will be more
+ !   free to inline.
+ !
+ !==============================================================================
+ ! Further thoughts on optimisation, not implemented yet
+ ! 
+ ! 1. add explicit contiguous statements in more places, perhaps it will help
+ !    the compilers optimize.
+ ! 2. add explicit call to BLAS routines (DAXPY notably, possibly DGEM)
+ !
  !==============================================================================
 
  use geninfo
@@ -64,7 +107,7 @@ module derivatives
  !
  ! There are two matrices for every direction.
  !   When the direction is not affected by any symmetry
- !       A(:,:,1) => derivation matrix
+ !       A(:,:,1) => derivative matrix
  !       A(:,:,2) => 0, and never used
  !
  !   When symmetry is relevant, but derivatives are 'local'
@@ -909,7 +952,7 @@ $N3ALL end subroutine Derive_tot_1D
     real(KIND=dp), intent(in), target  :: f(:)
     real(KIND=dp), intent(out),target  :: fx(:)
     integer, intent(in)                :: px
-    real(KIND=dp), pointer, contiguous :: f3(:,:,:), fx3(:,:,:)
+    real(KIND=dp), pointer             :: f3(:,:,:), fx3(:,:,:)
   
     f3 (1:nx,1:ny,1:nz) => f (1:nx*ny*nz)
     fx3(1:nx,1:ny,1:nz) => fx(1:nx*ny*nz)
@@ -975,7 +1018,7 @@ $N3ALL end subroutine Derive_tot_1D
     real(KIND=dp), intent(in), target  :: f(:)
     real(KIND=dp), intent(out),target  :: fy(:)
     integer, intent(in)                :: py
-    real(KIND=dp), pointer, contiguous :: f3(:,:,:), fy3(:,:,:)
+    real(KIND=dp), pointer             :: f3(:,:,:), fy3(:,:,:)
   
     f3 (1:nx,1:ny,1:nz) => f (1:nx*ny*nz)
     fy3(1:nx,1:ny,1:nz) => fy(1:nx*ny*nz)
@@ -1039,7 +1082,7 @@ $N3ALL end subroutine Derive_tot_1D
     real(KIND=dp), intent(in), target  :: f(:)
     real(KIND=dp), intent(out),target  :: fz(:)
     integer, intent(in)                :: pz
-    real(KIND=dp), pointer, contiguous :: f3(:,:,:), fz3(:,:,:)
+    real(KIND=dp), pointer             :: f3(:,:,:), fz3(:,:,:)
   
     f3 (1:nx,1:ny,1:nz) => f (1:nx*ny*nz)
     fz3(1:nx,1:ny,1:nz) => fz(1:nx*ny*nz)
