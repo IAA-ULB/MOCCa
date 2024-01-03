@@ -85,6 +85,11 @@ module derivatives
     module procedure derive_grad_3D
  end interface
 
+ interface derive_tot
+    module procedure Derive_tot_1D
+    module procedure Derive_tot_3D
+ end interface
+
  interface derive_tot_periodic 
     module procedure Derive_tot_periodic_1D
     module procedure Derive_tot_periodic_3D

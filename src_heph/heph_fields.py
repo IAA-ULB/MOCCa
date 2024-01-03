@@ -113,6 +113,9 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   #---------------------------------------------------------------------------
   for den in src_heph.heph_functional.Densities_needed:
       #-----------------------------------------------------------------------
+      #  Get the operator structure of the density correctly                    
+      (der,lap,left, right, coupling,cross) = ParseOperators(den,so.timelike) 
+      #-----------------------------------------------------------------------
       # Name the field correctly
       dic = {}
       dic['FIELD'] = den.replace('D', 'F').replace('C', 'G')
@@ -137,13 +140,31 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         dic['UNDOREAD'] = '!'
         dic['POTREAD']  = ' '
 
+      #-------------------------------------------------------------------------
+      # Check if this particular density is truly a relevant one, i.e. does it
+      # occur in at least one term of the functional? This is not guaranteed, 
+      # since setting DENSITY_SPWF_SUMMATION generates additional intermediate
+      # densities.
+      found = False
+      for term in src_heph.heph_functional.Functional_terms:
+        (densities,coup) = src_heph.heph_functional.ParseDensities(term)
+        for test in densities:
+          (derj, lapj, leftj, rightj, coupj, crossj) = \
+                                                ParseOperators(test,so.timelike)
+          if(leftj == left and rightj == right):
+            found = True
+
+      if(not found):
+        # If the density is not a relevant one, we don't define the associated
+        # field and hence save a ton of CPU time.
+        continue
+      #-------------------------------------------------------------------------
       if('P' not in den): 
         Fields_needed.append(dic['FIELD'])
       else:
         Pairing_Fields_needed.append(dic['FIELD'])
       #-----------------------------------------------------------------------
-      #  Get the operator structure of the density correctly                    
-      (der,lap,left, right, coupling,cross) = ParseOperators(den,so.timelike) 
+
 
       # Construct the left/right operators
       operatordic = {}

@@ -147,7 +147,6 @@ ArrayNames=['DenPsi', 'DendPsi', 'DenddPsi', 'DendddPsi']
 # and NOT tau_mn fully. 
 Densities_needed   = []
 deriv_needed       = []
-
 #-------------------------------------------------------------------------------
 # Indices over which sums are supposed to go in both the FORTRAN code and the 
 # naming scheme.
