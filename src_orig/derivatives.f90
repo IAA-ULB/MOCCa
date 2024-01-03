@@ -96,7 +96,8 @@ module derivatives
  end interface
 
  interface derive_X
-    module procedure derive_X_single
+    module procedure derive_X_single_1D
+    module procedure derive_X_single_3D
     module procedure derive_X_spwf
  end interface
 
@@ -864,33 +865,28 @@ $N3ALL    call Derive_tot_3D(f3, px, py, pz, df3, ddf3, dddf3)
 $N3ALL
 $N3ALL end subroutine Derive_tot_1D
 
- subroutine Derive_X_single(f, px, fx)
+ subroutine Derive_X_single_3D(f, px, fx)
     !---------------------------------------------------------------------------
     ! Compute the X-derivative of a single function on the mesh.
     !
     ! fx = First order derivative in the x direction
     ! px = sign of the symmetry transformation in the x-direction
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in), target  :: f(:)
-    real(KIND=dp), intent(out),target  :: fx(:)
+    real(KIND=dp), intent(in)  :: f(:,:,:)
+    real(KIND=dp), intent(out) :: fx(:,:,:)
     integer, intent(in)        :: px
     integer                    :: i,j,k,l,sx
-
-    real(KIND=dp), pointer     :: f3(:,:,:), fx3(:,:,:)
     real(KIND=dp), allocatable :: A(:,:)
 
     sx = (-px + 3)/2
-
-    f3(1:nx,1:ny,1:nz)  => f
-    fx3(1:nx,1:ny,1:nz) => fx
-
     A   = derX  (1:nx,1:nx,sx)
-    fx3 = 0.0d0
+    fx  = 0.0d0
+    
     do k=1,nz
      do j=1,ny
       do l=1,nx
        do i=1,nx
-        fx3(i,j,k) = fx3(i,j,k) + A(i,l) * f3(l,j,k)
+        fx(i,j,k) = fx(i,j,k) + A(i,l) * f(l,j,k)
        enddo
       enddo
      enddo
@@ -900,7 +896,25 @@ $N3ALL end subroutine Derive_tot_1D
     ! Old code line, not updated when loops got rewritten.
     ! $DERSYMX      fx3(:,j,k) = fx3(:,j,k) + matmul(A,f3($SYMPARTNERX))
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- end subroutine Derive_X_single
+ end subroutine Derive_X_single_3D
+ 
+ subroutine Derive_X_single_1D(f, px, fx)
+    !---------------------------------------------------------------------------
+    ! Compute the X-derivative of a single function on the mesh.
+    !
+    ! fx = First order derivative in the x direction
+    ! px = sign of the symmetry transformation in the x-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in), target  :: f(:)
+    real(KIND=dp), intent(out),target  :: fx(:)
+    integer, intent(in)                :: px
+    real(KIND=dp), pointer, contiguous :: f3(:,:,:), fx3(:,:,:)
+  
+    f3 (1:nx,1:ny,1:nz) => f (1:nx*ny*nz)
+    fx3(1:nx,1:ny,1:nz) => fx(1:nx*ny*nz)
+
+    call Derive_X_single_3D(f3, px, fx3)
+ end subroutine Derive_X_single_1D
  
  subroutine Derive_X_spwf(f, px, fx)
     !---------------------------------------------------------------------------
