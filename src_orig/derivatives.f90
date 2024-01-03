@@ -917,12 +917,11 @@ $N3ALL end subroutine Derive_tot_1D
     real(KIND=dp), pointer     :: f3(:,:,:), fx3(:,:,:)
 
     sx = (-px + 3)/2
+    fx = 0.0d0
 
     do m=1,4
      f3(1:nx,1:ny,1:nz)  =>  f(1:nx*ny*nz,m)
      fx3(1:nx,1:ny,1:nz) => fx(1:nx*ny*nz,m)
-
-     fx3 = 0.0d0
      do k=1,nz
       do j=1,ny
        do l=1,nx
@@ -994,12 +993,11 @@ $N3ALL end subroutine Derive_tot_1D
     real(KIND=dp), pointer     :: f3(:,:,:), fy3(:,:,:)
 
     sy = (-py + 3)/2 !    1    if pi =   -1  or 0
+    fy = 0.0d0
 
     do m=1,4
      f3(1:nx,1:ny,1:nz)  => f(1:nx*ny*nz,m)
      fy3(1:nx,1:ny,1:nz) => fy(1:nx*ny*nz,m)
-
-     fy3 = 0.0d0
      do k=1,nz
       do j=1,ny
        do l=1,ny
@@ -1068,12 +1066,11 @@ $N3ALL end subroutine Derive_tot_1D
     integer                    :: i,j,k,l,sz(4),m
 
     sz = (-pz + 3)/2 !    2    if pi =   +1
+    fz = 0.0d0
 
     do m=1,4
      f3 (1:nx,1:ny,1:nz) =>  f(1:nx*ny*nz,m)
      fz3(1:nx,1:ny,1:nz) => fz(1:nx*ny*nz,m)
-
-     fz3 = 0.0d0
      do k=1,nz
       do l=1,nz
        do j=1,ny
