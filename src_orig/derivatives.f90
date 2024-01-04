@@ -131,10 +131,10 @@ module derivatives
     module procedure derive_tot_3D
  end interface
 
- interface derive_tot_periodic
-    module procedure Derive_tot_periodic_1D
-    module procedure Derive_tot_periodic_3D
- end interface
+! interface derive_tot_periodic
+!    module procedure Derive_tot_periodic_1D
+!    module procedure Derive_tot_periodic_3D
+! end interface
 
  interface derive_lap
     module procedure derive_lap_1D
@@ -567,9 +567,6 @@ $N2DIAG subroutine Derive_tot_1d(f, px, py, pz, df, ddf)
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    ! Subroutine that computes the gradient of a function on the mesh, but on
 $N2DIAG    ! one that is stored as a vector of nx*ny*nz points.
-$N2DIAG    !
-$N2DIAG    ! We use a dirty trick here, by simply reshaping with pointers, which should
-$N2DIAG    ! avoid copying matrices and not impact the speed. (Let's see in practice.)
 $N2DIAG    !----------------------------------------------------------------------------
 $N2DIAG
 $N2DIAG    real(KIND=dp), intent(in),target  :: f(:)
@@ -680,13 +677,10 @@ $N2DIAG subroutine Derive_tot_periodic_1d(f, px, py, pz, df, ddf)
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    ! Subroutine that computes the gradient of a function on the mesh, but on
 $N2DIAG    ! one that is stored as a vector of nx*ny*nz points.
-$N2DIAG    !
-$N2DIAG    ! We use a dirty trick here, by simply reshaping with pointers, which should
-$N2DIAG    ! avoid copying matrices and not impact the speed. (Let's see in practice.)
 $N2DIAG    !----------------------------------------------------------------------------
 $N2DIAG
-$N2DIAG    real(KIND=dp), intent(in),target,contiguous  :: f(:,:)
-$N2DIAG    real(KIND=dp), intent(out),target,contiguous :: df(:,:,:), ddf(:,:,:)
+$N2DIAG    real(KIND=dp), intent(in) ,target,contiguous  :: f(:,:)
+$N2DIAG    real(KIND=dp), intent(out),target,contiguous  :: df(:,:,:), ddf(:,:,:)
 $N2DIAG    integer, intent(in)        :: px(:),py(:),pz(:)
 $N2DIAG    real(KIND=dp), pointer     :: f3(:,:,:,:), df3(:,:,:,:,:), ddf3(:,:,:,:,:)
 $N2DIAG
@@ -702,12 +696,8 @@ $N2ALL subroutine Derive_tot_1d(f, px, py, pz, df, ddf)
 $N2ALL    !---------------------------------------------------------------------------
 $N2ALL    ! Subroutine that computes the gradient of a function on the mesh, but on
 $N2ALL    ! one that is stored as a vector of nx*ny*nz points.
-$N2ALL    !
-$N2ALL    ! We use a dirty trick here, by simply reshaping with pointers, which should
-$N2ALL    ! avoid copying matrices and not impact the speed. (Let's see in practice.)
 $N2ALL    !----------------------------------------------------------------------------
-$N2ALL
-$N2ALL    real(KIND=dp), intent(in),target  :: f(:)
+$N2ALL    real(KIND=dp), intent(in),target             :: f(:)
 $N2ALL    real(KIND=dp), intent(out),target,contiguous :: df(:,:), ddf(:,:)
 $N2ALL    integer, intent(in)        :: px,py,pz
 $N2ALL    real(KIND=dp), pointer     :: f3(:,:,:), df3(:,:,:,:), ddf3(:,:,:,:)
@@ -748,32 +738,50 @@ $N2ALL    real(KIND=dp), intent(in)  :: f(:,:,:)
 $N2ALL    real(KIND=dp), intent(out) :: df(:,:,:,:), ddf(:,:,:,:)
 $N2ALL    integer, intent(in)        :: px,py,pz
 $N2ALL    real(KIND=dp), allocatable :: A(:,:), B(:,:)
-$N2ALL    integer                    :: i,j,k, sx, sy,sz
+$N2ALL    integer                    :: i,j,k,l, sx, sy,sz
 $N2ALL
-$N2ALL    sx = (px + 3)/2 ! These are equal to
-$N2ALL    sy = (py + 3)/2 !    1    if pi =   -1  or 0
-$N2ALL    sz = (pz + 3)/2 !    2    if pi =   +1
+$N2ALL    sx = (-px + 3)/2 ! These are equal to
+$N2ALL    sy = (-py + 3)/2 !    1    if pi =   -1  or 0
+$N2ALL    sz = (-pz + 3)/2 !    2    if pi =   +1
+$N2ALL    
+$N2ALL    df = 0.0d0 ; ddf = 0.0d0
 $N2ALL    !---------------------------------------------------------------------------
 $N2ALL    !  First order derivatives and diagonal second-order ones
-$N2ALL    A = derX  (:,:,sx) ; B = laplaX(:,:,sx)
-$N2ALL    do i=1,ny*nz
-$N2ALL           df(:,i,1,1) =    matmul(A,f(:,i,1))
-$N2ALL          ddf(:,i,1,1) =    matmul(B,f(:,i,1))
-$N2ALL    enddo
-$N2ALL
-$N2ALL    A = derY  (:,:,sy) ; B = laplaY(:,:,sy)
+$N2ALL    A = derX(:,:,sx) ; B = laplaX(:,:,sx)
 $N2ALL    do k=1,nz
-$N2ALL        do i=1,nx
-$N2ALL           df(i,:,k,2) =    matmul(A,f(i,:,k))
-$N2ALL          ddf(i,:,k,4) =    matmul(B,f(i,:,k))
-$N2ALL        enddo
+$N2ALL     do j=1,ny
+$N2ALL      do l=1,nx
+$N2ALL       do i=1,nx
+$N2ALL         df(i,j,k,1) =  df(i,j,k,1) + A(i,l)*f(l,j,k)
+$N2ALL        ddf(i,j,k,1) = ddf(i,j,k,1) + B(i,l)*f(l,j,k)
+$N2ALL       enddo
+$N2ALL      enddo
+$N2ALL     enddo
 $N2ALL    enddo
 $N2ALL
-$N2ALL    A = derZ  (:,:,sz) ; B = laplaZ(:,:,sz)
-$N2ALL    do j=1,ny
-$N2ALL      do i=1,nx
-$N2ALL           df(i,j,:,3) =    matmul(A,f(i,j,:))
-$N2ALL          ddf(i,j,:,6) =    matmul(B,f(i,j,:))
+$N2ALL
+$N2ALL    A = derY(:,:,sy) ; B = laplaY(:,:,sy)
+$N2ALL    do k=1,nz
+$N2ALL     do j=1,ny
+$N2ALL      do l=1,ny
+$N2ALL       do i=1,nx
+$N2ALL             df(i,j,k,2) =  df(i,j,k,2) + A(j,l)*f(i,l,k)
+$N2ALL            ddf(i,j,k,4) = ddf(i,j,k,4) + B(j,l)*f(i,l,k)
+$N2ALL       enddo
+$N2ALL      enddo
+$N2ALL     enddo
+$N2ALL    enddo
+$N2ALL
+$N2ALL
+$N2ALL    A = derZ(:,:,sz) ; B = laplaZ(:,:,sz)
+$N2ALL    do k=1,nz
+$N2ALL     do l=1,nz
+$N2ALL      do j=1,ny
+$N2ALL        do i=1,nx
+$N2ALL             df(i,j,k,3) =  df(i,j,k,3) + A(k,l)*f(i,j,l)
+$N2ALL            ddf(i,j,k,6) = ddf(i,j,k,6) + B(k,l)*f(i,j,l)
+$N2ALL          enddo
+$N2ALL        enddo
 $N2ALL      enddo
 $N2ALL    enddo
 $N2ALL
@@ -781,17 +789,25 @@ $N2ALL    !---------------------------------------------------------------------
 $N2ALL    ! Off-diagonal second order derivatives
 $N2ALL    A = derY  (:,:,sy)
 $N2ALL    do k=1,nz
-$N2ALL      do i=1,nx
-$N2ALL          ddf(i,:,k,2) =      matmul(A,df(i,:,k,1))
+$N2ALL     do j=1,ny
+$N2ALL      do l=1,ny
+$N2ALL       do i=1,nx
+$N2ALL          ddf(i,j,k,2) = ddf(i,j,k,2) + A(j,l) * df(i,l,k,1)
+$N2ALL       enddo
 $N2ALL      enddo
+$N2ALL     enddo
 $N2ALL    enddo
 $N2ALL
 $N2ALL    A = derZ  (:,:,sz)
-$N2ALL    do j=1,ny
-$N2ALL      do i=1,nx
-$N2ALL          ddf(i,j,:,3) =      matmul(A,df(i,j,:,1))
-$N2ALL          ddf(i,j,:,5) =      matmul(A,df(i,j,:,2))
+$N2ALL    do k=1,nz
+$N2ALL     do l=1,nz
+$N2ALL      do j=1,ny
+$N2ALL       do i=1,nx
+$N2ALL          ddf(i,j,k,3) = ddf(i,j,k,3) + A(k,l) * df(i,j,l,1)
+$N2ALL          ddf(i,j,k,5) = ddf(i,j,k,3) + A(k,l) * df(i,j,l,2)
+$N2ALL       enddo
 $N2ALL      enddo
+$N2ALL     enddo
 $N2ALL    enddo
 $N2ALL    deallocate(A,B)
 $N2ALL end subroutine Derive_tot_3D
@@ -829,9 +845,9 @@ $N3ALL    integer, intent(in)        :: px,py,pz
 $N3ALL
 $N3ALL    integer                    :: i,j,k, sx, sy,sz, ax, ay, az
 $N3ALL
-$N3ALL    sx = (px + 3)/2 ! These are equal to
-$N3ALL    sy = (py + 3)/2 !    1    if pi =   -1  or 0
-$N3ALL    sz = (pz + 3)/2 !    2    if pi =   +1
+$N3ALL    sx = (-px + 3)/2 ! These are equal to
+$N3ALL    sy = (-py + 3)/2 !    1    if pi =   -1  or 0
+$N3ALL    sz = (-pz + 3)/2 !    2    if pi =   +1
 $N3ALL    ax = 3 - sx ! These are equal to
 $N3ALL    ay = 3 - sy !    2    if si =    1
 $N3ALL    az = 3 - sz !    1    if si =    2
