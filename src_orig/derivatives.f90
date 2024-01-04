@@ -126,6 +126,13 @@ module derivatives
  !------------------------------------------------------------------------------
  real*8, allocatable :: laplaX(:,:,:),laplaY(:,:,:),laplaZ(:,:,:)
 
+ !------------------------------------------------------------------------------
+ ! Interfaces to the different derivative routines. 
+ ! derive_tot & derive_tot_periodic: calculate all relevant derivatives of 
+ !                                   single-particle wavefunctions
+ ! derive_X/Y/Z                    : calculate one specific derivative of a
+ !                                   single function on the mesh OR a spwf.
+ !------------------------------------------------------------------------------
  interface derive_tot
     module procedure derive_tot_1D
     module procedure derive_tot_3D
@@ -966,6 +973,34 @@ $N3ALL end subroutine Derive_tot_1D
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  end subroutine Derive_X_single_3D
  
+ subroutine Derive_X_3D_periodic(f, px, fx)
+    !---------------------------------------------------------------------------
+    ! Compute the X-derivative of a single complex function on the mesh.
+    !
+    ! fx = First order derivative in the x direction
+    ! px = sign of the symmetry transformation in the x-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  ::  f(:,:,:,:)
+    real(KIND=dp), intent(out) :: fx(:,:,:,:)
+    integer, intent(in)        :: px(2)
+    integer                    :: i,j,k,l,sx(2)
+
+    sx = (-px + 1)/2*2
+    fx  = 0.0d0
+    do k=1,nz
+     do j=1,ny
+      do l=1,nx
+       do i=1,nx
+         fx(i,j,k,1) = fx(i,j,k,1) + derX  (i,l,1+sx(1))*f(l,j,k,1) & 
+                       &           - derX  (i,l,2+sx(2))*f(l,j,k,2)
+         fx(i,j,k,2) = fx(i,j,k,2) + derX  (i,l,2+sx(1))*f(l,j,k,1) & 
+                       &           + derX  (i,l,1+sx(2))*f(l,j,k,2)
+       enddo
+      enddo
+     enddo
+    enddo
+ end subroutine Derive_X_3D_periodic
+ 
  subroutine Derive_X_single_1D(f, px, fx)
     !---------------------------------------------------------------------------
     ! Compute the X-derivative of a single 1D-function on the mesh.
@@ -984,6 +1019,24 @@ $N3ALL end subroutine Derive_tot_1D
     call Derive_X_single_3D(f3, px, fx3)
  end subroutine Derive_X_single_1D
  
+ subroutine Derive_X_1D_periodic(f, px, fx)
+    !---------------------------------------------------------------------------
+    ! Compute the X-derivative of a single 1D-function on the mesh.
+    !
+    ! fx = First order derivative in the x direction
+    ! px = sign of the symmetry transformation in the x-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in), target, contiguous  :: f(:,:)
+    real(KIND=dp), intent(out),target, contiguous  :: fx(:,:)
+    integer, intent(in)                :: px(2)
+    real(KIND=dp), pointer             :: f3(:,:,:,:), fx3(:,:,:,:)
+  
+    f3 (1:nx,1:ny,1:nz,1:2) => f (:,:)
+    fx3(1:nx,1:ny,1:nz,1:2) => fx(:,:)
+
+    call Derive_X_3D_periodic(f3, px, fx3)
+ end subroutine Derive_X_1D_periodic
+ 
  subroutine Derive_X_spwf(f, px, fx)
     !---------------------------------------------------------------------------
     ! Compute the X-derivative of four 1D-functions on the mesh.
@@ -996,9 +1049,15 @@ $N3ALL end subroutine Derive_tot_1D
     integer, intent(in)        :: px(4)
     integer                    :: m
 
+#if(USE_Periodic>0) 
+    do m=1,2
+     call Derive_X_1D_periodic(f(:,2*m-1:2*m), px(2*m-1:2*m), fx(:,2*m-1:2*m))
+    enddo
+#else
     do m=1,4
      call Derive_X_single_1D(f(:,m), px(m), fx(:,m))
     enddo
+#endif
  end subroutine Derive_X_spwf
 
   subroutine Derive_Y_single_3D(f, py, fy)
@@ -1032,6 +1091,34 @@ $N3ALL end subroutine Derive_tot_1D
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  end subroutine Derive_Y_single_3D
 
+ subroutine Derive_Y_3D_periodic(f, py, fy)
+    !---------------------------------------------------------------------------
+    ! Compute the Y-derivative of a single complex function on the mesh.
+    !
+    ! fy = First order derivative in the x direction
+    ! py = sign of the symmetry transformation in the x-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  ::  f(:,:,:,:)
+    real(KIND=dp), intent(out) :: fy(:,:,:,:)
+    integer, intent(in)        :: py(2)
+    integer                    :: i,j,k,l,sy(2)
+
+    sy = (-py + 1)/2*2
+    fy  = 0.0d0
+    do k=1,nz
+     do j=1,ny
+      do l=1,nx
+       do i=1,nx
+         fy(i,j,k,1) = fy(i,j,k,1) + derY  (j,l,1+sy(1))*f(i,l,k,1) & 
+                       &           - derY  (j,l,2+sy(2))*f(i,l,k,2)
+         fy(i,j,k,2) = fy(i,j,k,2) + derY  (j,l,2+sy(1))*f(i,l,k,1) & 
+                       &           + derY  (j,l,1+sy(2))*f(i,l,k,2)
+       enddo
+      enddo
+     enddo
+    enddo
+ end subroutine Derive_Y_3D_periodic
+
  subroutine Derive_Y_single_1D(f, py, fy)
     !---------------------------------------------------------------------------
     ! Compute the Y-derivative of a single 1D-function on the mesh.
@@ -1050,6 +1137,24 @@ $N3ALL end subroutine Derive_tot_1D
     call Derive_y_single_3D(f3, py, fy3)
  end subroutine Derive_Y_single_1D
  
+ subroutine Derive_Y_1D_periodic(f, py, fy)
+    !---------------------------------------------------------------------------
+    ! Compute the Y-derivative of a single 1D-function on the mesh.
+    !
+    ! fy = First order derivative in the y direction
+    ! py = sign of the symmetry transformation in the y-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in), target, contiguous  :: f(:,:)
+    real(KIND=dp), intent(out),target, contiguous  :: fy(:,:)
+    integer, intent(in)                :: py(2)
+    real(KIND=dp), pointer             :: f3(:,:,:,:), fy3(:,:,:,:)
+  
+    f3 (1:nx,1:ny,1:nz,1:2) => f (:,:)
+    fy3(1:nx,1:ny,1:nz,1:2) => fy(:,:)
+
+    call Derive_y_3D_periodic(f3, py, fy3)
+ end subroutine Derive_Y_1D_periodic
+ 
  subroutine Derive_Y_spwf(f, py, fy)
     !---------------------------------------------------------------------------
     ! Compute the Y-derivative of four 1D-functions on the mesh.
@@ -1062,9 +1167,16 @@ $N3ALL end subroutine Derive_tot_1D
     integer, intent(in)                :: py(4)
     integer                            :: m
 
+#if(USE_Periodic>0) 
+    do m=1,2
+     call Derive_Y_1D_periodic(f(:,2*m-1:2*m), py(2*m-1:2*m), fy(:,2*m-1:2*m))
+    enddo
+#else
     do m=1,4
      call Derive_Y_single_1D(f(:,m), py(m), fy(:,m))
     enddo
+#endif
+
  end subroutine Derive_Y_spwf
 
   subroutine Derive_Z_single_3D(f, pz, fz)
@@ -1096,6 +1208,34 @@ $N3ALL end subroutine Derive_tot_1D
     ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  end subroutine Derive_Z_single_3D
 
+ subroutine Derive_Z_3D_periodic(f, pz, fz)
+    !---------------------------------------------------------------------------
+    ! Compute the Z-derivative of a single complex function on the mesh.
+    !
+    ! fz = First order derivative in the x direction
+    ! pz = sign of the symmetry transformation in the x-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  ::  f(:,:,:,:)
+    real(KIND=dp), intent(out) :: fz(:,:,:,:)
+    integer, intent(in)        :: pz(2)
+    integer                    :: i,j,k,l,sz(2)
+
+    sz = (-pz + 1)/2*2
+    fz  = 0.0d0
+    do k=1,nz
+     do l=1,nz
+      do j=1,ny
+       do i=1,nx
+         fz(i,j,k,1) = fz(i,j,k,1) + derZ  (k,l,1+sz(1))*f(i,j,l,1) & 
+                       &           - derZ  (k,l,2+sz(2))*f(i,j,l,2)
+         fz(i,j,k,2) = fz(i,j,k,2) + derZ  (k,l,2+sz(1))*f(i,j,l,1) & 
+                       &           + derZ  (k,l,1+sz(2))*f(i,j,l,2)
+       enddo
+      enddo
+     enddo
+    enddo
+ end subroutine Derive_Z_3D_periodic
+
  subroutine Derive_Z_single_1D(f, pz, fz)
     !---------------------------------------------------------------------------
     ! Compute the Z-derivative of a single 1D-function on the mesh.
@@ -1113,6 +1253,24 @@ $N3ALL end subroutine Derive_tot_1D
 
     call Derive_z_single_3D(f3, pz, fz3)
  end subroutine Derive_Z_single_1D
+ 
+ subroutine Derive_Z_1D_periodic(f, pz, fz)
+    !---------------------------------------------------------------------------
+    ! Compute the Z-derivative of a single complex 1D-function on the mesh.
+    !
+    ! fz = First order derivative in the y direction
+    ! pz = sign of the symmetry transformation in the y-direction
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in), target, contiguous  :: f(:,:)
+    real(KIND=dp), intent(out),target, contiguous  :: fz(:,:)
+    integer, intent(in)                :: pz(2)
+    real(KIND=dp), pointer             :: f3(:,:,:,:), fz3(:,:,:,:)
+  
+    f3 (1:nx,1:ny,1:nz,1:2) => f (:,:)
+    fz3(1:nx,1:ny,1:nz,1:2) => fz(:,:)
+
+    call Derive_Z_3D_periodic(f3, pz, fz3)
+ end subroutine Derive_Z_1D_periodic
 
  subroutine Derive_Z_spwf(f, pz, fz)
     !---------------------------------------------------------------------------
@@ -1125,13 +1283,15 @@ $N3ALL end subroutine Derive_tot_1D
     integer, intent(in)        :: pz(4)
     integer                    :: m
 
-    do m=1,4
-      call Derive_Z_single_1D(f(:,m), pz(m), fz(:,m))
+#if(USE_Periodic>0) 
+    do m=1,2
+     call Derive_Z_1D_periodic(f(:,2*m-1:2*m), pz(2*m-1:2*m), fz(:,2*m-1:2*m))
     enddo
-    ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Old code line, not updated when loops got rewritten.
-    ! $DERSYMZ      fz3(i,j,:) = fz3(i,j,:) + matmul(A,f3($SYMPARTNERZ))
-    ! - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#else
+    do m=1,4
+     call Derive_Z_single_1D(f(:,m), pz(m), fz(:,m))
+    enddo
+#endif
  end subroutine Derive_Z_spwf
 
  subroutine Derive_lap_3D(f, px, py, pz, df)
