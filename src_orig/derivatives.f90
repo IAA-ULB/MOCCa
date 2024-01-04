@@ -131,10 +131,10 @@ module derivatives
     module procedure derive_tot_3D
  end interface
 
-! interface derive_tot_periodic
-!    module procedure Derive_tot_periodic_1D
-!    module procedure Derive_tot_periodic_3D
-! end interface
+ interface derive_tot_periodic
+    module procedure Derive_tot_periodic_1D
+    module procedure Derive_tot_periodic_3D
+ end interface
 
  interface derive_lap
     module procedure derive_lap_1D
@@ -614,63 +614,69 @@ $N2DIAG    real(KIND=dp), intent(in)  :: f(:,:,:,:)
 $N2DIAG    real(KIND=dp), intent(out) :: df(:,:,:,:,:), ddf(:,:,:,:,:)
 $N2DIAG    integer, intent(in)        :: px(:),py(:),pz(:)
 $N2DIAG
-$N2DIAG    integer                    :: i,k,j
+$N2DIAG    integer                    :: i,k,j,l
 $N2DIAG    integer, allocatable       :: sx(:), sy(:),sz(:)
-$N2DIAG    !real(KIND=dp), allocatable :: A(:,:,:), B(:,:,:)
 $N2DIAG
 $N2DIAG    sx = (-px + 1)/2*2 ! These are equal to
 $N2DIAG    sy = (-py + 1)/2*2 !    0    if pi =   +1  or 0
 $N2DIAG    sz = (-pz + 1)/2*2 !    2    if pi =   -1
+$N2DIAG
+$N2DIAG    df = 0.0d0 ; ddf = 0.0d0
 $N2DIAG    !---------------------------------------------------------------------------
 $N2DIAG    !  First order derivatives and diagonal second-order ones
-$N2DIAG    !A = derX(:,:,sx) ; B = laplaX(:,:,sx) !old prescroption
 $N2DIAG    !NS: Now d_re f=derX_re*f_re-derX_im*f_im
-$N2DIAG    !sx accounts for the parity
-$N2DIAG    do j=1,nz
-$N2DIAG       do i=1,ny
-$N2DIAG         df(1:nx,i,j,1,1) = matmul(derX(:,:,1+sx(1)),f(1:nx,i,j,1)) -   &
-$N2DIAG                          & matmul(derX(:,:,2+sx(2)),f(1:nx,i,j,2))
-$N2DIAG         df(1:nx,i,j,1,2) = matmul(derX(:,:,2+sx(1)),f(1:nx,i,j,1)) +   &
-$N2DIAG                          & matmul(derX(:,:,1+sx(2)),f(1:nx,i,j,2))
-$N2DIAG
-$N2DIAG        ddf(1:nx,i,j,1,1) = matmul(laplaX(:,:,1+sx(1)),f(1:nx,i,j,1)) - &
-$N2DIAG                          & matmul(laplaX(:,:,2+sx(2)),f(1:nx,i,j,2))
-$N2DIAG        ddf(1:nx,i,j,1,2) = matmul(laplaX(:,:,2+sx(1)),f(1:nx,i,j,1)) + &
-$N2DIAG                          & matmul(laplaX(:,:,1+sx(2)),f(1:nx,i,j,2))
-$N2DIAG       enddo
-$N2DIAG    enddo
-$N2DIAG
-$N2DIAG    !A = derY(:,:,sy) ; B = laplaY(:,:,sy)
+$N2DIAG    !   sx accounts for the parity
 $N2DIAG    do k=1,nz
-$N2DIAG        do i=1,nx
-$N2DIAG          df(i,:,k,2,1) = matmul(derY(:,:,1+sy(1)),f(i,:,k,1)) -        &
-$N2DIAG                        & matmul(derY(:,:,2+sy(2)),f(i,:,k,2))
-$N2DIAG          df(i,:,k,2,2) = matmul(derY(:,:,2+sy(1)),f(i,:,k,1)) +        &
-$N2DIAG                        & matmul(derY(:,:,1+sy(2)),f(i,:,k,2))
-$N2DIAG
-$N2DIAG         ddf(i,:,k,4,1) = matmul(laplaY(:,:,1+sy(1)),f(i,:,k,1)) -      &
-$N2DIAG                        & matmul(laplaY(:,:,2+sy(2)),f(i,:,k,2))
-$N2DIAG         ddf(i,:,k,4,2) = matmul(laplaY(:,:,2+sy(1)),f(i,:,k,1)) +      &
-$N2DIAG                        & matmul(laplaY(:,:,1+sy(2)),f(i,:,k,2))
-$N2DIAG        enddo
+$N2DIAG     do j=1,ny
+$N2DIAG      do l=1,nx
+$N2DIAG       do i=1,nx
+$N2DIAG         df(i,j,k,1,1) = df(i,j,k,1,1) + derX  (i,l,1+sx(1))*f(l,j,k,1) & 
+$N2DIAG                       &               - derX  (i,l,2+sx(2))*f(l,j,k,2)
+$N2DIAG         df(i,j,k,1,2) = df(i,j,k,1,2) + derX  (i,l,2+sx(1))*f(l,j,k,1) & 
+$N2DIAG                       &               + derX  (i,l,1+sx(2))*f(l,j,k,2)
+$N2DIAG        ddf(i,j,k,1,1) = ddf(i,j,k,1,1)+ laplaX(i,l,1+sx(1))*f(l,j,k,1) &
+$N2DIAG                       &               - laplaX(i,l,2+sx(2))*f(l,j,k,2)
+$N2DIAG        ddf(i,j,k,1,2) = ddf(i,j,k,1,2)+ laplaX(i,l,2+sx(1))*f(l,j,k,1) &
+$N2DIAG                       &               + laplaX(i,l,1+sx(2))*f(l,j,k,2)
+$N2DIAG       enddo
+$N2DIAG      enddo
+$N2DIAG    enddo
 $N2DIAG    enddo
 $N2DIAG
-$N2DIAG    !A = derZ(:,:,sz) ; B = laplaZ(:,:,sz)
-$N2DIAG    do k=1,ny
-$N2DIAG        do i=1,nx
-$N2DIAG          df(i,k,:,3,1) = matmul(derZ(:,:,1+sz(1)),f(i,k,:,1)) -        &
-$N2DIAG                        & matmul(derZ(:,:,2+sz(2)),f(i,k,:,2))
-$N2DIAG          df(i,k,:,3,2) = matmul(derZ(:,:,2+sz(1)),f(i,k,:,1)) +        &
-$N2DIAG                        & matmul(derZ(:,:,1+sz(2)),f(i,k,:,2))
+$N2DIAG    do k=1,nz
+$N2DIAG     do j=1,ny
+$N2DIAG      do l=1,ny
+$N2DIAG       do i=1,nx
+$N2DIAG         df(i,j,k,2,1) = df(i,j,k,2,1) + derY  (j,l,1+sy(1))*f(i,l,k,1) &
+$N2DIAG                       &               - derY  (j,l,2+sy(2))*f(i,l,k,2)
+$N2DIAG         df(i,j,k,2,2) = df(i,j,k,2,2) + derY  (j,l,2+sy(1))*f(i,l,k,1) &
+$N2DIAG                       &               + derY  (j,l,1+sy(2))*f(i,l,k,2)
+$N2DIAG        ddf(i,j,k,4,1) = ddf(i,j,k,4,1)+ laplaY(j,l,1+sy(1))*f(i,l,k,1) &
+$N2DIAG                       &               - laplaY(j,l,2+sy(2))*f(i,l,k,2)
+$N2DIAG        ddf(i,j,k,4,2) = ddf(i,j,k,4,2)+ laplaY(j,l,2+sy(1))*f(i,l,k,1) &
+$N2DIAG                       &               + laplaY(j,l,1+sy(2))*f(i,l,k,2)
+$N2DIAG       enddo
+$N2DIAG      enddo
+$N2DIAG     enddo
+$N2DIAG    enddo
 $N2DIAG
-$N2DIAG         ddf(i,k,:,6,1) = matmul(laplaZ(:,:,1+sz(1)),f(i,k,:,1)) -      &
-$N2DIAG                        & matmul(laplaZ(:,:,2+sz(2)),f(i,k,:,2))
-$N2DIAG         ddf(i,k,:,6,2) = matmul(laplaZ(:,:,2+sz(1)),f(i,k,:,1)) +      &
-$N2DIAG                        & matmul(laplaZ(:,:,1+sz(2)),f(i,k,:,2))
-$N2DIAG        enddo
+$N2DIAG    do k=1,nz
+$N2DIAG     do l=1,nz
+$N2DIAG      do j=1,ny
+$N2DIAG       do i=1,nx
+$N2DIAG         df(i,j,k,3,1) = df(i,j,k,3,1) + derZ  (k,l,1+sz(1))*f(i,j,l,1) &
+$N2DIAG                       &               - derZ  (k,l,2+sz(2))*f(i,j,l,2)
+$N2DIAG         df(i,j,k,3,2) = df(i,j,k,3,2) + derZ  (k,l,2+sz(1))*f(i,j,l,1) &
+$N2DIAG                       &               + derZ  (k,l,1+sz(2))*f(i,j,l,2)
+$N2DIAG        ddf(i,j,k,6,1) = ddf(i,j,k,6,1)+ laplaZ(k,l,1+sz(1))*f(i,j,l,1) &
+$N2DIAG                       &               - laplaZ(k,l,2+sz(2))*f(i,j,l,2)
+$N2DIAG        ddf(i,j,k,6,2) = ddf(i,j,k,6,2)+ laplaZ(k,l,2+sz(1))*f(i,j,l,1) &
+$N2DIAG                       &               + laplaZ(k,l,1+sz(2))*f(i,j,l,2)
+$N2DIAG       enddo
+$N2DIAG      enddo
+$N2DIAG     enddo
 $N2DIAG    enddo
 $N2DIAG    !---------------------------------------------------------------------------
-$N2DIAG    !deallocate(A,B)
 $N2DIAG end subroutine Derive_tot_periodic_3D
 
 $N2DIAG subroutine Derive_tot_periodic_1d(f, px, py, pz, df, ddf)
@@ -680,11 +686,13 @@ $N2DIAG    ! one that is stored as a vector of nx*ny*nz points.
 $N2DIAG    !----------------------------------------------------------------------------
 $N2DIAG
 $N2DIAG    real(KIND=dp), intent(in) ,target,contiguous  :: f(:,:)
-$N2DIAG    real(KIND=dp), intent(out),target,contiguous  :: df(:,:,:), ddf(:,:,:)
+$N2DIAG    real(KIND=dp), intent(out),target,contiguous  :: df(:,:,:)
+$N2DIAG    real(KIND=dp), intent(out),target,contiguous  :: ddf(:,:,:)
 $N2DIAG    integer, intent(in)        :: px(:),py(:),pz(:)
-$N2DIAG    real(KIND=dp), pointer     :: f3(:,:,:,:), df3(:,:,:,:,:), ddf3(:,:,:,:,:)
+$N2DIAG    real(KIND=dp), pointer     :: f3(:,:,:,:), df3(:,:,:,:,:)
+$N2DIAG    real(KIND=dp), pointer     :: ddf3(:,:,:,:,:)
 $N2DIAG
-$N2DIAG    f3(1:nx,1:ny,1:nz,1:2)      => f(:,:)
+$N2DIAG    f3(1:nx,1:ny,1:nz,1:2)       => f(:,:)
 $N2DIAG    df3(1:nx,1:ny,1:nz,1:3,1:2)  => df(:,:,:)
 $N2DIAG    ddf3(1:nx,1:ny,1:nz,1:6,1:2) => ddf(:,:,:)
 $N2DIAG
