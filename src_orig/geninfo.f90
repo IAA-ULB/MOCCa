@@ -67,7 +67,7 @@ module GenInfo
   !-----------------------------------------------------------------------------
   ! Maximum number of iterations and number of iterations to skip printing of
   ! the code in the evolve subroutine
-  integer :: MaxIter=100, PrintIter=10
+  integer :: MaxIter=100, PrintIter=100
   !---------------------------------------------------------------------------
   ! This is the number of iterations during which the selfconsistent 
   ! potentials are not changed. The TOTAL number of iterations remains
