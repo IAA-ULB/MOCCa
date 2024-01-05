@@ -2,7 +2,7 @@ from string import Template as T
 tab = '   '
 
 action_final            = T(  tab + \
-'hpsi(:,$IND) =  hpsi(:,$IND) $SIGN $LMULT $TEMP(:$LIND,$RCOMP)\n')
+'hpsi(:,$IND) =  hpsi(:,$IND) $SIGN $LMULT $TEMP(:,$RCOMP$LIND)\n')
 action_final_pairing    = T(  tab + \
 'deltapsi(:,$IND) =  deltapsi(:,$IND) $SIGN $LMULT $TEMP(:$LIND,$RCOMP)\n')
 
@@ -14,7 +14,7 @@ action    = T(2*tab + \
 #derive     = T(tab + \
 #'call Derive_$DIR($DNUMBER(:,$RCOMP), $SYM, d$DNUMBER(:,$DIRIND,$RCOMP)) \n')
 derive     = T(tab + \
-'call Derive_$DIR($DNUMBER(:,:), sym, d$DNUMBER(:,$DIRIND,:)) \n')
+'call Derive_$DIR($DNUMBER(:,:), sym, d$DNUMBER(:,:,$DIRIND)) \n')
 lap        = T(tab + \
 'call Derive_lap(temp(:,$RCOMP), $SYMX, $SYMY, $SYMZ, laptemp(:,$RCOMP)) \n')
 sym        = T(tab + \

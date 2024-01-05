@@ -1162,9 +1162,16 @@ $N3 real(KIND=dp), intent(inout) :: dddpsi(mv,10,4)
     integer                   :: sym(4)
     real(KIND=dp)             :: hpsi(mv,4)
     real(KIND=dp)             :: temp(mv,4)
-    real(KIND=dp)             ::   dtemp(mv,3,4)
-$D2TEMPSPH    real(KIND=dp)   ::  ddtemp(mv,3,3,4)
-$D3TEMPSPH    real(KIND=dp)   :: dddtemp(mv,3,3,3,4)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Declaration of temporary spinors 
+    !
+    ! Technical note: these arrays are declared with the spinor indices (1-4)
+    !                 BEFORE the derivative indices (3). This is to aid the 
+    !                 memory locality of operations in this particular function
+    !                 and is OPPOSITE the conventions of the rest of the code.
+    real(KIND=dp)             ::   dtemp(mv,4,3)
+$D2TEMPSPH    real(KIND=dp)   ::  ddtemp(mv,4,3,3)
+$D3TEMPSPH    real(KIND=dp)   :: dddtemp(mv,4,3,3,3)
 $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
     
     real(KIND=dp)             :: ReducedMass, Butler_t, Butler_f
