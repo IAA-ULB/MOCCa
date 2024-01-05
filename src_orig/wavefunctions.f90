@@ -473,6 +473,7 @@ contains
     integer, intent(in)       :: ininx, ininy, ininz, ininwn, ininwp
     integer                   :: ininwt
     integer, allocatable      :: kparz(:)
+    integer                   :: nshells_ev
 
     ininwt = ininwn + ininwp
 
@@ -488,8 +489,11 @@ contains
     ! a) Generating the nilsson wave-functions in an EV8-box   
     if(allocated(spwf_map)) deallocate(spwf_map)
     ! First call of subroutine nilsson: do everything BUT construct spwfs
-    call nilsson (HFPsi,kparz,spenergies,11,10,ININWT,ININWP,ININWN,           &
-    &     floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,spwf_map)
+    !NS: number of shells is increased for pasta
+    nshells_ev=max(11,int(max(ININWN,ININWP)**(1.d0/3.d0)))
+    call nilsson (HFPsi,kparz,spenergies,nshells_ev,nshells_ev-1,ININWT,ININWP,&
+    &ININWN,floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,      &
+    &                                                                  spwf_map)
 
     ! Based on this information, we construct the correct symmetry properties
     ! and initialize the GLOBAL sizes of the symmetry blocks
@@ -510,8 +514,9 @@ contains
     allocate(HFPSI(ININX*ININY*ININZ,4,sum(HFblocks))); hfpsi = 0.0d0
     ! second call of subroutine nilsson: construct the part of the nilsson 
     ! spectrum that should be stored on this rank.
-    call nilsson (HFPsi,kparz,spenergies,11,10,ININWT,ININWP,ININWN,           &
-    &     floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,spwf_map)
+    call nilsson (HFPsi,kparz,spenergies,nshells_ev,nshells_ev-1,ININWT,ININWP,&
+    &ININWN,floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,      &
+    &                                                                  spwf_map)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! b) and now we go on to populate more symmetry information
