@@ -122,52 +122,82 @@ def initfunctional(fname, so, density_spwf_summation):
     func_name = '"%s"'%fname.split('/')[-1].upper()
 
     #---------------------------------------------------------------------------
-    # Generating the list of all densities
+    # Generating the list of all densities and the total number of derivatives
     tempden     = []
+    minder      = []
     for term in Functional_terms:
-        (densities,coup) = ParseDensities(term)
-        for den in densities:
-            tempden.append(den)
+       (densities,coup) = ParseDensities(term)
+       totalder = 0
+       totallap = 0
+       for den in densities:
+           (der,lap,left,right, coupling, cross) = \
+                                                 ParseOperators(den,so.timelike)
+           # Count the total number of derivatives present in this term
+           totalder = totalder + der
+           totallap = totallap + lap
+
+       # add density and set minimum number of derivatives for this term
+       for den in densities:
+           tempden.append(den)
+           if(len(densities)<=2):
+             minder.append((totallap, totalder))
+           else:
+             # For trilinear and quadrilinear terms, we will need 
+             # more derivatives, as the laplacians can "uncouple"
+             # for the calculation of the fields
+             minder.append((0, totalder+2*totallap))
+
     #---------------------------------------------------------------------------
     # If density_spwf_summation is true, we have to add a bunch of densities
     # to the list of needed ones.
     # 
     # We use the identities:
     # 
-    #       nabla D^L,R = D^nablaL, R + D^L, nablaR 
-    #       Delta D^L,R = D^DeltaL, R + D^L, DeltaR + D^nabla L, nabla R 
+    #       N D^L,R  = D^NL, R  + D^L, NR 
+    #       NN D^L,R = D^NNL, R + D^L, NNR + D^NL,NR 
     # 
     # and similar for C-like objects.
-    #
+    #---------------------------------------------------------------------------
     if(density_spwf_summation):
-      for den in tempden:
+      for j,den in enumerate(tempden):
         # Note: because we add to the end of this list while traversing it, we
         #       automatically do the entire process recursively.
         # - - - - - - - - - - - - - - - - - - - - - - - - - - -
         (der, lap, left, right, coup, cross) = \
                         ParseOperators(den,so.timelike)
-        if(der != 0):
-        
+        if(minder[j][1] > 0):
           lleft = 'N' + left.replace('I','')
           tempden.append(ReconstructDensity(der-1, lap, lleft, right))
+          minder.append((0,0))
           rright = 'N' + right.replace('I','')
           tempden.append(ReconstructDensity(der-1, lap,      left, rright))
-
-        if(lap != 0):
+          minder.append((0,0))
+        if(minder[j][0] != 0 or minder[j][1] == 2):
           # Add in all densities needed for the Laplacian ....
           lleft  =  'NN' + left.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, lleft, right))
+          minder.append((0,0))
           rright =  'NN' + right.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, left, rright))
+          minder.append((0,0))
           lleft  =  'N' + left.replace('I','')
           rright =  'N' + right.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, lleft, rright))
+          minder.append((0,0))
 
           # ... but also the external order one derivative
           lleft = 'N' + left.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, lleft, right))
+          minder.append((0,0))
           rright = 'N' + right.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1,  left, rright))
+          minder.append((0,0))
+        elif(minder[j][1]>2):
+          print ("Hephaestos cannot combine DENSUM=1 with high order derivatives yet.")
+          exit()
+          
+    # Complete the needed derivatives from the "maximal" number of derivatives
+    temp_deriv_needed = PopulateDeriv(minder)
     #---------------------------------------------------------------------------
     # Pruning the list
     # A) removing duplicates
@@ -195,7 +225,7 @@ def initfunctional(fname, so, density_spwf_summation):
                 # Signal that the density is already present
                 Found = True
                 # Add the possibility of new derivatives
-                deriv_needed[j].append((lapi, deri))
+                deriv_needed[j] = deriv_needed[j] + temp_deriv_needed[i]
                 # then check if the coupling of the indices is the same
                 # Note that the loop starts over coupj, since that one has by
                 # definition more couplings than coupi in it. Thus, this 
@@ -221,7 +251,7 @@ def initfunctional(fname, so, density_spwf_summation):
             add = tempden[i] 
             # Getting the duplicates out of the derivatives by adding these
             # explicitly to deriv_needed 
-            deriv_needed.append([(lapi,deri)])
+            deriv_needed.append(temp_deriv_needed[i])
             # Remove all of the derivatives from the top
             add = add.replace(derstring + '_','').replace(lapstring+'_', '')
             for l in sumindices:
@@ -232,8 +262,7 @@ def initfunctional(fname, so, density_spwf_summation):
     # necessary for calculating fields etc. This call is not strictly needed 
     # here, but it will become so later for the setting up the fields (where 
     # it will be called again).
-    src_heph.heph_functional.PruneDeriv_needed()
-
+    src_heph.heph_functional.PruneDeriv(deriv_needed)
     #---------------------------------------------------------------------------
     # Finding out how many derivatives we need to take of the spwfs
     derivative_order = 1    
@@ -321,27 +350,31 @@ def regroup_terms():
       if(bterm == aterm):
         term_grouping[k] = term_grouping[k] +1
 
-def PruneDeriv_needed():
+def PopulateDeriv(minder):
+    """
+      Complete the set of derivatives needed by populating an array with all
+      lower order derivative combinations.
+    """
+    
+    derivs = []
+    for j,combo in enumerate(minder):
+      derivs.append([])
+      options = itertools.product(range(combo[0]+1), range(combo[1]+1))
+      for opt in options:
+          derivs[j].append(opt)
+    
+    return derivs
+    
+def PruneDeriv(derivs):
     """
       Add all of the possible combinations with less derivatives and laplacians,
       so that we can build the eventually needed combinations.
     """
-
-    for i in range(len(deriv_needed)):
-        newderiv=[]
-        for j in deriv_needed[i]:
-            newderiv.append(j)
-            
-            options = itertools.product(range(j[0]+1), range(j[1]+1))
-            for opt in options:
-                newderiv.append(opt)
-                
-        deriv_needed[i] = newderiv
-    # b) remove duplicates in the list of needed derivative combinations
-    # c) Order the list in increasing level of operations
-    for i in range(len(deriv_needed)):
-        deriv_needed[i] = list(set(deriv_needed[i]))
-        deriv_needed[i] = sorted(deriv_needed[i])
+    # a) remove duplicates in the list of needed derivative combinations
+    # b) Order the list in increasing level of operations
+    for i in range(len(derivs)):
+        derivs[i] = list(set(derivs[i]))
+        derivs[i] = sorted(derivs[i])
 
 def ReadFunctional(fname):
   """

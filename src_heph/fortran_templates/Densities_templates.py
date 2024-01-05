@@ -22,6 +22,9 @@ Lap   = T( 2*tab + \
        'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ, lap_$NAME(:$IND,it)) \n')
 
 Der_sum = T( 2*tab + 'der_$NAME(:$DERIND,it) = $LEFTDEN(:$DERLIND,it) + $RIGHTDEN(:$DERRIND,it) \n') 
+Der_der_sum_a = T( 2*tab + 'Der_$NAME(:$DERIND,it) = & \n') 
+Der_der_sum_b = T( 3*tab + '&  $LEFTDEN(:$DERLIND,it) + 2*$CENTRALDEN(:$DERCIND,it) + $RIGHTDEN(:$DERRIND,it) \n') 
+
 Lap_sum_a = T( 2*tab + 'lap_$NAME(:$IND,it) = & \n') 
 Lap_sum_b = T( 3*tab + '& +  $LEFTDEN(:$DERLIND,it) + 2*$CENTRALDEN(:$DERCIND,it) + $RIGHTDEN(:$DERRIND,it) &\n') 
 

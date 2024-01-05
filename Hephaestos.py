@@ -163,8 +163,8 @@ heph_densities.initdensities()
 #-------------------------------------------------------------------------------
 # Next, we read all the functional information
 description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATION)
-# ... and initialize the fields module
-heph_fields.initfields(so)
+## ... and initialize the fields module
+#heph_fields.initfields(so)
 #-------------------------------------------------------------------------------
 # On to the real business: generating Fortran code.
 for fname in FORTRANFILES:

@@ -27,41 +27,41 @@ from src_heph.heph_densities    import *
 Fields_needed         = []
 Pairing_Fields_needed = []
 
-def initfields(so):
-  """
-    Go over the needed densities and the functional terms and check whether
-    we have enough derivatives of the spwfs to calculate the fields.
-  """ 
-  for term in src_heph.heph_functional.Functional_terms:
-      (densities, cpl) = src_heph.heph_functional.ParseDensities(term)
-      # Count the number of derivatives needed in this term
-      totalder = 0
-      totallap = 0
-      for den in densities:
-          (der,lap,left,right, coupling, cross) = \
-                                                 ParseOperators(den,so.timelike)
-          totalder = totalder + der
-          totallap = totallap + lap
-      
-      # Now see that for all densities in this term, the minimum number
-      # of derivatives is the total one 
-      for i in range(len(densities)):
-          den = densities[i]
-          (der,lap,left,right,coupling,cross) = ParseOperators(den,so.timelike)
-          for j in range(len(Densities_needed)):
-              altden = Densities_needed[j]
-              (altder, altlap, altleft, altright, altcoupling, altcross)     \
-                                            = ParseOperators(altden,so.timelike)    
-              if(altleft == left and altright == right):
-                  # Set minimum derivatives
-                  deriv_needed[j].append((totallap, totalder))
-                  if(len(densities)>2):
-                    # For trilinear and quadrilinear terms, we will need 
-                    # more derivatives, as the laplacians can "uncouple"
-                    # for the calculation of the fields
-                    deriv_needed[j].append((0, totalder+totallap))
+#def initfields(so):
+#  """
+#    Go over the needed densities and the functional terms and check whether
+#    we have enough derivatives of the spwfs to calculate the fields.
+#  """ 
+#  for term in src_heph.heph_functional.Functional_terms:
+#      (densities, cpl) = src_heph.heph_functional.ParseDensities(term)
+#      # Count the number of derivatives needed in this term
+#      totalder = 0
+#      totallap = 0
+#      for den in densities:
+#          (der,lap,left,right, coupling, cross) = \
+#                                                 ParseOperators(den,so.timelike)
+#          totalder = totalder + der
+#          totallap = totallap + lap
+#      
+#      # Now see that for all densities in this term, the minimum number
+#      # of derivatives is the total one 
+#      for i in range(len(densities)):
+#          den = densities[i]
+#          (der,lap,left,right,coupling,cross) = ParseOperators(den,so.timelike)
+#          for j in range(len(Densities_needed)):
+#              altden = Densities_needed[j]
+#              (altder, altlap, altleft, altright, altcoupling, altcross)     \
+#                                            = ParseOperators(altden,so.timelike)    
+#              if(altleft == left and altright == right):
+#                  # Set minimum derivatives
+#                  deriv_needed[j].append((totallap, totalder))
+#                  if(len(densities)>2):
+#                    # For trilinear and quadrilinear terms, we will need 
+#                    # more derivatives, as the laplacians can "uncouple"
+#                    # for the calculation of the fields
+#                    deriv_needed[j].append((0, totalder+totallap))
 
-  src_heph.heph_functional.PruneDeriv_needed()
+#  src_heph.heph_functional.PruneDeriv_needed()
       
 def GenerateFields(so, oldso, ph_pp_decoupl):
   """

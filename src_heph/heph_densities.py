@@ -584,7 +584,6 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     Zeroing        = ta.Zero_template.substitute(dic)
     Cleaning       = ta.Clean_template.substitute(dic)
 
-
     for c in derivative_combinations:
         l = c[0]
         d = c[1]
@@ -844,8 +843,6 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
             Derivation = Derivation + ta.Den_comment_deriv.substitute(dic)
 
         for c in derivative_combinations:
-             #print (denin,so.ReduceAxes, c, len(derivative_combinations))
-
             if(c == (0,0)):
                 continue
             Derivation = Derivation + ta.Den_comment_deriv_b%(c[0], c[1])
@@ -872,41 +869,85 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                   dic['DIR'] = directions[darg[0]]
 
                   if(c[0] > 0):
-                    continue
+                    print ("HEPHAESTOS cannot yet combine laplacians and gradients with DENSUM=1.")
                   else:
-                    # There is no laplacian.
-                    lleft  = 'N' + left.replace('I','')
-                    rright = 'N' + right.replace('I','')
+                    if(c[1] == 1):
+                      # - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                      # There is no laplacian and but a single gradient.
+                      lleft  = 'N' + left.replace('I','')
+                      rright = 'N' + right.replace('I','')
 
-                    # nabla D^L,R = D^nabla L, R + D^L, nabla R 
-                    #   Den       = LEFTDEN      + RIGHTDEN
-                    dic['LEFTDEN']   = ReconstructDensity(c[1]-1, c[0], lleft, right)
-                    dic['RIGHTDEN']  = ReconstructDensity(c[1]-1, c[0], left, rright)
+                      # nabla D^L,R = D^nabla L, R + D^L, nabla R 
+                      #   Den       = LEFTDEN      + RIGHTDEN
+                      dic['LEFTDEN']   = ReconstructDensity(c[1]-1, c[0], lleft, right)
+                      dic['RIGHTDEN']  = ReconstructDensity(c[1]-1, c[0], left, rright)
 
-                    # DERIND       , DERLIND, DERRIND
-                    # Note that the first uses reduced storage mapping due to 
-                    # symmetries of multiple derivative operators.
-                    # LEFTIND and RIGHTIND do not use this yet!
-                    dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
+                      # DERIND       , DERLIND, DERRIND
+                      # Note that the first uses reduced storage mapping due to 
+                      # symmetries of multiple derivative operators.
+                      # LEFTIND and RIGHTIND do not use this yet!
+                      dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
 
-                    dargstring=','
-                    for dargind in darg:
-                      dargstring = dargstring + str(dargind+1) + ','
-                    dargstring = dargstring[:-1]
-                    
-                    # The nabla operator is added to the start of left, i.e.
-                    # it can be added to the left of the indices string.
-                    dic['DERLIND'] =  dargstring + IND
-                    # The nabla operator is added to the start of right; we 
-                    # have to find out which indices are "left" and "right"
-                    # and insert the dargstring in between
-                    ldim = LeftOperator.dimension
-                    dic['DERRIND'] = IND[:ldim] + dargstring + IND[ldim:]
-                    
-                    Derivation     = Derivation + ta.Der_sum.substitute(dic)
-                    # Add a line for the isospin coupling while we are here
-                    if('P' not in density):
-                        Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic)
+                      dargstring=','
+                      for dargind in darg:
+                        dargstring = dargstring + str(dargind+1) + ','
+                      dargstring = dargstring[:-1]
+                      
+                      # The nabla operator is added to the start of left, i.e.
+                      # it can be added to the left of the indices string.
+                      dic['DERLIND'] =  dargstring + IND
+                      # The nabla operator is added to the start of right; we 
+                      # have to find out which indices are "left" and "right"
+                      # and insert the dargstring in between
+                      ldim = LeftOperator.dimension
+                      dic['DERRIND'] = IND[:ldim] + dargstring + IND[ldim:]
+                      
+                      Derivation     = Derivation + ta.Der_sum.substitute(dic)
+                      # Add a line for the isospin coupling while we are here
+                      if('P' not in density):
+                          Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic)
+                    elif(c[1] == 2):
+                      # - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                      # There is no laplacian but a double gradient.
+                      lleft  = 'NN' + left.replace('I','')
+                      rright = 'NN' + right.replace('I','')
+
+                      # NN D^L,R = D^NN L, R + D^L, NN R + 2 D^N L, N R 
+                      #   Den       = LEFTDEN      + RIGHTDEN
+                      dic['LEFTDEN']    = ReconstructDensity(0, 0, lleft, right)
+                      dic['RIGHTDEN']   = ReconstructDensity(0, 0, left, rright)
+       
+                      lleft  = 'N' + left.replace('I','')
+                      rright = 'N' + right.replace('I','')
+                      dic['CENTRALDEN'] = ReconstructDensity(0, 0, lleft, rright)
+
+                      # DERIND       , DERLIND, DERRIND
+                      # Note that the first uses reduced storage mapping due to 
+                      # symmetries of multiple derivative operators.
+                      # LEFTIND and RIGHTIND do not use this yet!
+                      dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
+
+                      Derivation  = Derivation + ta.Der_der_sum_a.substitute(dic)
+                      # On the left, the new Nabla's precede all other arguments
+                      dic['DERLIND']  =  ',' + str(darg[0]+1)+',' + str(darg[1]+1) + IND
+                      # On the right, the new Nabla's precede only the indices of the right operator
+                      ldim = LeftOperator.dimension
+                      dic['DERRIND']  =     IND[0:ldim]+',' \
+                                       + str(darg[0]+1)+',' \
+                                       + str(darg[1]+1)+    \
+                                             IND[ldim:]
+                      # In the center, one nabla is on the left
+                      dic['DERCIND']  =  ',' + str(darg[0]+1)    \
+                                             + IND[0:ldim]   +','\
+                                             + str(darg[1]+1) + IND[ldim:]
+                      Derivation  = Derivation + ta.Der_der_sum_b.substitute(dic)
+                      
+                      # Add a line for the isospin coupling while we are here
+                      if('P' not in density):
+                          Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic) 
+                    else:
+                      print ('Hephaestos cannot yet handle more than 2 gradients with DENSYM!')
+                      exit()
                         
               else: # there is only a Laplacian here
                 lleft  = 'NN' + left.replace('I','')
