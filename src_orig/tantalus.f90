@@ -623,7 +623,7 @@ subroutine initialize_all_timers()
    !       NONE
    !----------------------------------------------------------------------------
    use timing
-   
+
    call add_timer('Tantalus'                   , T_tantalus)  
    call add_timer('HF-basis Derivatives'       , T_derivatives)  
    call add_timer('Canonical basis Derivatives', T_derivatives_can)  
@@ -634,6 +634,7 @@ subroutine initialize_all_timers()
    call add_timer('Density: ph'                , T_den_ph)  
    call add_timer('Density: derivatives'       , T_den_der)  
    call add_timer('Field calculations'         , T_fields)  
+   call add_timer('Field preconditioning'      , T_F_precon)  
    call add_timer('Energy calculations'        , T_energy)  
    call add_timer('Pairing solver '            , T_pairing)  
    call add_timer('Sp. Hamiltonian '           , T_sphamil)  
@@ -643,7 +644,9 @@ subroutine initialize_all_timers()
    call add_timer('Centre-of-mass correction ' , T_COM)  
    call add_timer('COM one-body '              , T_COM1)  
    call add_timer('COM two-body '              , T_COM2)  
-   call add_timer('Pairing gaps '              , T_gaps)  
+   call add_timer('Matrix elements summation'  , T_COM2_summation)  
+   call add_timer('Matrix elements of \nabla ' , T_NablaMElements)
+   call add_timer('Pairing gaps '              , T_gaps)
    call add_timer('Multipole moments '         , T_moments)  
    call add_timer('Multipole moments cutoff'   , T_moment_cutoff)  
    call add_timer('Feas. Proj. step '          , T_feasible)  
@@ -651,8 +654,9 @@ subroutine initialize_all_timers()
    call add_timer('Charge density folding'     , T_chargedensity)  
    call add_timer('Collective MOIs'            , T_collective_moi)  
    call add_timer('Microscopic pairing'        , T_microscopic_pairing)  
-   call add_timer('Orthogonalisation of h|psi>', T_Hortho)  
+   call add_timer('Subspace rotation          ', T_Hortho)  
    call add_timer('Construction HF transfo'    , T_HFDiag)  
+   call add_timer('Basis transformation'       , T_Basistransfo)  
 
 end subroutine initialize_all_timers
 

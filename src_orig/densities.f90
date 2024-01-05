@@ -711,6 +711,8 @@ function CompNablaMelements() result(NablaMelements)
 #if(USE_MPI>0)
     integer       :: mpi_err
 #endif
+
+    call start_timer(T_NablaMElements)
     !---------------------------------------------------------------------------
     NablaMElements= 0.0_dp
 
@@ -1100,6 +1102,8 @@ $PBROKEN    enddo
     enddo
 #endif
     !---------------------------------------------------------------------------
+    call stop_timer(T_NablaMElements)
+
 end function CompNablaMelements
 
 subroutine print_boxsize_check()

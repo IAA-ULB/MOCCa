@@ -19,6 +19,7 @@ module timing
   integer :: T_COM, T_COM1, T_COM2, T_gaps, T_moments, T_feasible, T_spwfangmom
   integer :: T_chargedensity, T_collective_moi, T_microscopic_pairing
   integer :: T_HFdiag, T_Hortho, T_moment_cutoff
+  integer :: T_NablaMElements, T_basistransfo, T_COM2_summation, T_F_precon
   !-----------------------------------------------------------------------------
   ! There are two ways to record the time:
   !  1. cpu_time measures CPU time (excludes time spent in other programs)
@@ -151,7 +152,11 @@ contains
     type(context), pointer :: contexts(:), c
     integer :: i, nc
 
-    if (id < 1 .or. id > ntimers) stop "Error: invalid timer id"
+    if (id < 1 .or. id > ntimers) then
+      print *, "Error: invalid timer id"
+      print *, id
+      stop
+    endif
     t => timers(id)
     if (btest(current_context,id-1)) then
        write (0,*) "Error: timer ", trim(adjustl(t%name)), " Already running"

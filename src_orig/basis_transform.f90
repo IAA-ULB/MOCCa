@@ -21,6 +21,7 @@ module basis_transform
  !============================================================================== 
  use geninfo
  use wavefunctions, only : HFblocks, nwt, spwf_map, nwt_local, hfblocks_global
+ use timing
  
  implicit none
 
@@ -54,6 +55,8 @@ contains
   real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
   real(KIND=dp), allocatable   :: temp(:,:,:)
 
+  call start_timer(T_Basistransfo)
+
   si  = 0
   do B=1,8
     N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
@@ -76,6 +79,9 @@ contains
 
     si = si +  N
   enddo
+
+  call stop_timer(T_Basistransfo)
+
  end subroutine transform_spwfs_inplace
 
  subroutine transform_spwfs(psi_in, psi_out, transfo)
@@ -100,6 +106,8 @@ contains
     allocate(psi_out(mv,4,nwt_local))
   endif
 
+  call start_timer(T_Basistransfo)
+  
   si      = 0
   psi_out = 0.0
   do B=1,8
@@ -125,6 +133,9 @@ contains
 !    call stp('Canbasis built')
     si = si +  N
   enddo
+
+  call stop_timer(T_Basistransfo)
+
  end subroutine transform_spwfs
 
  function transform_mat(M, transfo) result(Mc)
