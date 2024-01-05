@@ -324,7 +324,7 @@ PRE_NIL     :=  cp_nil
 #    -cpp      => explicitly enable preprocessing
 #    -DUSE_MPI => enable (1) or disable (0) MPI (see above)
 
-DIRECTIVES := -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic) -DPASTA=$(PASTA)
+DIRECTIVES := -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic) -DPASTA=$(PASTA) -DDENSUM=$(DENSUM)
 ifeq ($(COMPILER),cray)
   PREPROCESSOR :=  -e Z $(DIRECTIVES)
 else

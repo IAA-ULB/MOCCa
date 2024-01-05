@@ -385,7 +385,7 @@ $RESETPARAMS
     96 format ('   Two-body: self-consistent')
     95 format ('   Two-body: perturbative')
     94 format ('   Two-body: not included')
-
+    97 format ('   Nuclear pasta calculation: all COM1/2BODY options inactive')
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     103 format(' Rotational & vibrational correction ')
     104 format('    Not included.')
@@ -485,6 +485,9 @@ $PRINTPARAMS
       call stp('Self-consistent inclusion of the two-body center of mass',  &
       &        ' correction is not available.')
     end select
+#if(PASTA > 0)
+    print 97
+#endif
   
     print 4
     print 103

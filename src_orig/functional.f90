@@ -1177,7 +1177,9 @@ $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
     it = (iso + 3)/2
     !---------------------------------------------------------------------------
     ! Reduced mass in case of self-consistent 1-body COM correction
+    ! If doing pasta calculations, just skip.
     Reducedmass = 1.0_dp
+#if(PASTA == 0)
     select case(COM1Body)
     case(0,1)      
       Reducedmass = 1.0_dp
@@ -1185,13 +1187,14 @@ $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
       Reducedmass = (1.0_dp-nucleonmass(it)/                                   &
       &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
     case(3)
-      
       Butler_t = (1.5 * (neutrons + protons))**(1./3.)
       Butler_f = 2./(Butler_t + 1./(3*Butler_t))
       Reducedmass = (1.0_dp-nucleonmass(it) * Butler_f/                        &
       &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
     end select
-    
+#endif
+    !---------------------------------------------------------------------------
+
     if(OnTheFly) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Calculate the derivatives of this spwf on the fly

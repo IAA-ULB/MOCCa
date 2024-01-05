@@ -195,7 +195,7 @@ contains
         2 format(' Evolution strategy: ', a20 )
         3 format('   dt= ', f7.4, ' mu= ', f7.4 )
        31 format('   maxiter =', i5, ' printiter = ', i5)        
-       32 format('   of which freezeiter= ', i5, 'do change the potentials.')
+       32 format('   of which freezeiter= ', i5, ' do change the potentials.')
         4 format('   Estimate (dt,mu) linear subproblem  : ', a3)
        41 format('   Safety factor for linear subproblem : ', f7.4)
        42 format('   Estimate (dt,mu) pairing subproblem : ', a3)

@@ -8,42 +8,42 @@ contains
 
 subroutine Run_Tantalus(run_mode, file_number,input_file)
  !==============================================================================
- !_________ _______  _       _________ _______  _                 _______ 
+ !_________ _______  _       _________ _______  _                 _______
  !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
  !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
- !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
+ !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____
  !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
  !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
  !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
  !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
- !                                                                       
+ !
  !  Copyright W. Ryssens & M. Bender
  !
  !------------------------------------------------------------------------------
- ! While I (W.R.) like to think about Tantalus as a standalone code, this 
+ ! While I (W.R.) like to think about Tantalus as a standalone code, this
  ! 'main' routine is now written as a subroutine (with inputs!) to accomodate
- ! meta-codes that want to run Tantalus multiple times. 
+ ! meta-codes that want to run Tantalus multiple times.
  !==============================================================================
 
  use compilation
  use geninfo
  use wavefunctions
  use IO
- use temperature_projection 
+ use temperature_projection
  use timing
 
  implicit none
  !------------------------------------------------------------------------------
- ! These inputs control where the code will look for its input. Leaving them 
+ ! These inputs control where the code will look for its input. Leaving them
  ! empty will have the code rely on STDIN for input.
- integer(dp), intent(in), optional   :: file_number   
- character(*), intent(in), optional  :: input_file 
- character(len=*), intent(in)        :: run_mode 
+ integer(dp), intent(in), optional   :: file_number
+ character(*), intent(in), optional  :: input_file
+ character(len=*), intent(in)        :: run_mode
  character(len=43)                   :: mode_print
  character(len=26)                   :: symprint
  logical                             :: printed
  !------------------------------------------------------------------------------
- ! Information gleaned from git and the Makefile, to be used to identify the 
+ ! Information gleaned from git and the Makefile, to be used to identify the
  ! executable
  character(len=58), parameter        :: version1 =VERSION1
  character(len=58), parameter        :: version2 =VERSION2
@@ -73,7 +73,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
      &   /,8x,'|                                                           |', &
      &   /,8x,'|  Copyright  P.-H. Heenen, M. Bender & W. Ryssens          |', &
      &   /,8x,'|                                                           |')
- 
+
  200 format ( 8x, '|', 59('-'), '|'  ,/,8x, '| Runtype = ', a44, 4x, '|')
 
  299 format ( 8x,'|--------------- Version Information -----------------------|')
@@ -87,6 +87,22 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  307 format ( 8x,'| Axis reduction  X Y Z  = ', 3i2, 27x, '|')
  308 format ( 8x,'| SYM_CODE               = ', a26, 7x, '|')
  309 format ( 8x,'| TRANS_CODE             = ', a26, 7x, '|')
+ 321 format ( 8x,'|-------------- Compilation choices ------------------------|')
+#if(PASTA > 0)
+ 322 format ( 8x,'| Calculation type    = PASTA                               |')
+#else
+ 322 format ( 8x,'| Calculation type    = NUCLEI                              |')
+#endif
+#if(USE_Periodic > 0)
+ 323 format ( 8x,'| Boundary conditions = periodic                            |')
+#else
+ 323 format ( 8x,'| Boundary conditions = anti-periodic                       |')
+#endif
+#if(DENSUM == 1)
+ 324 format ( 8x,'| Derivatives of densities via density summation            |')
+#else
+ 324 format ( 8x,'| Derivatives of densities via derivative routines          |')
+#endif
  310 format ( 8x,'|-------------- Environment Information --------------------|')
  311 format ( 8x,'|  Number of MPI_ranks   = ', i6, 27x, '|')
  313 format ( 8x,'|-------------- Compilation Information --------------------|')
@@ -97,20 +113,20 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  318 format ( 8x,'| Optimisation flags reported:                              |')
  319 format ( 8x,'| ', a58, '|')
  320 format ( 8x,'|___________________________________________________________|')
- 
+
  !------------------------------------------------------------------------------
  ! Start the different processes across MPI ranks and do MPI bookkeeping
-#if(USE_MPI > 0) 
+#if(USE_MPI > 0)
   call mpi_init(mpi_err)
   call MPI_COMM_SIZE(MPI_COMM_WORLD, NCORES  , mpi_err)
   call MPI_COMM_RANK(MPI_COMM_WORLD, MPI_RANK, mpi_err)
-  
+
   ! Set MPI errors to be fatal. This is the default setting, but it doesn't
   ! hurt to be verbose, precise and future-flexible.
   CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL,mpi_err)
 #endif
  !------------------------------------------------------------------------------
- ! starting all timers 
+ ! starting all timers
  ! (disabled for now as I'm not sure how this interacts with MPI)
  call initialize_all_timers
  call start_timer(T_tantalus)
@@ -129,6 +145,8 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
    print 302, version3
    print 303, version4
    print 304
+   !----------------------------------------------------------------------------
+   ! Information about symmetry choices
    print 305
    print 304
    symprint = adjustl(SYMSTRING)
@@ -136,10 +154,23 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
    print 307, reduX, reduY, reduZ
    print 308, SYM_CODE
    print 309, TRANS_CODE
+   !----------------------------------------------------------------------------
+   ! Other information about compile-time choices
+   print 321
+   print 304
+   print 322
+   print 323
+   print 324
+   !----------------------------------------------------------------------------
+   ! Environment information
    print 310
+   print 304
    print 311, NCORES
    printed = .false.
+   !----------------------------------------------------------------------------
+   ! Technical details about compilation
    print 313
+   print 304
    print 314
    print 315, compiler
    print 316
@@ -169,15 +200,15 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call Cleanupthemess()
  !------------------------------------------------------------------------------
  ! Print all timing info
-#if(USE_MPI > 0) 
+#if(USE_MPI > 0)
  ! guarantee that timing info is only at the very end
- call MPI_Barrier(MPI_COMM_WORLD, mpi_err) 
+ call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
 #endif
  call stop_timer(T_tantalus)
  call print_all_timers()
  !------------------------------------------------------------------------------
  ! end the processes across MPI ranks
-#if(USE_MPI > 0) 
+#if(USE_MPI > 0)
   call mpi_finalize(mpi_err)
 #endif
 
@@ -188,7 +219,7 @@ subroutine ReachForWaterAndFood()
     !---------------------------------------------------------------------------
     ! Evolve the single-particle wavefunctions and densities.
     !
-    ! 
+    !
     ! The overall iterative scheme is as explained in
     !   W. Ryssens, M. Bender, M. and P.-H. Heenen,
     !   Eur. Phys. J. A, 55, 93. https://doi.org/10.1140/epja/i2019-12766-6
@@ -196,7 +227,7 @@ subroutine ReachForWaterAndFood()
     ! Which is
     !
     !   Initialization
-    ! 
+    !
     !   Until convergence do
     !   |  1. Calculate matrix elements of h and Delta
     !   |  2. Evolve the HF-basis with the heavy-ball method
@@ -223,11 +254,11 @@ subroutine ReachForWaterAndFood()
     use IO
     use moments
     use coulombmod
-    use pairing 
+    use pairing
     use printing
     use temperature_projection
-    use momentsofinertia  
-    use cranking  
+    use momentsofinertia
+    use cranking
     use convergence
     use scfiteration
     use timing
@@ -243,12 +274,12 @@ subroutine ReachForWaterAndFood()
     6 format('| d2H   < ', es10.3, 12x, ' | ')
    61 format('| |spg| < ', es10.3, 12x, ' | ')
     7 format('| dmu   < ', es10.3, 12x, ' | ')
-   71 format('| dJz   < ', es10.3, 12x, ' | ')    
+   71 format('| dJz   < ', es10.3, 12x, ' | ')
     8 format('| Ending the iterative proces.   |')
 
     9 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
-   10 format(86('-'))  
-   11 format(30x, 'Iteration = ', i5, /)   
+   10 format(86('-'))
+   11 format(30x, 'Iteration = ', i5, /)
    12 format(24x, 'FINAL Iteration = ', i5, /)
 
     integer :: iter, iprint, scheme, ifail
@@ -265,7 +296,7 @@ subroutine ReachForWaterAndFood()
     !---------------------------------------------------------------------------
 
     if( (Bogofromfile.and.readHFBinfofile) .and. pairingscheme.eq.1) then
-      ! If using a gradient strategy and we want to continue from file.  
+      ! If using a gradient strategy and we want to continue from file.
       ! Only allowed of course if we have actually read a Bogoliubov transfo.
       scheme = -1
     else
@@ -274,10 +305,10 @@ subroutine ReachForWaterAndFood()
     call SolvePairing(scheme, ifail)
     if(ifail.ne.0) then
        ! Solve the pairing, with the current values of <h> and the pairing gaps.
-       ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB 
+       ! Note that this is ALWAYS a direct solve, i.e. we diagonalise the HFB
        ! Hamiltonian with a LAPACK call. We do this if the code did not receive
-       ! explicit instructions to start from the Bogoliubov transformation on 
-       ! file. 
+       ! explicit instructions to start from the Bogoliubov transformation on
+       ! file.
        print *, 'WARNING! Pairing solver failed.'
     endif
     if(bogofromfile .and. guessgaps .and. pairingscheme.eq.1) then
@@ -286,7 +317,7 @@ subroutine ReachForWaterAndFood()
       call SolvePairing(pairingscheme, ifail)
     endif
 
-    ! Construct the canonical basis    
+    ! Construct the canonical basis
     if(pairingtype.eq. 2) call ConstructCanonicalBasis()
 
     ! Derive all the single-particle wavefunctions in the HFPsi array
@@ -298,7 +329,7 @@ subroutine ReachForWaterAndFood()
     ! Adopt the relevant quantities to the centre-of-mass of the nucleus
     call adapt_com()
 
-    call CalculateMoments()   !=> vital to be called here, 
+    call CalculateMoments()   !=> vital to be called here,
                               !    (a) before the calculation of the fields
                               !    (b) after construction of the charge density
                               ! as
@@ -306,11 +337,11 @@ subroutine ReachForWaterAndFood()
                               !      process, and is needed for the calculation
                               !      of the cranking fields
                               !  (b) the calculations of the charge rms radius
-                              !      requires the charge density to be 
+                              !      requires the charge density to be
                               !      constructed
 
-    ! Only calculate the fields that have not been read from either a 
-    ! wavefunction file or a potential file. 
+    ! Only calculate the fields that have not been read from either a
+    ! wavefunction file or a potential file.
     call calcFields(calcall=.false.,precon= .false.)
 
     ! Update all spwf properties
@@ -318,7 +349,7 @@ subroutine ReachForWaterAndFood()
 
     call setBelyaevProcedure()
     call CalcEnergy(.true.)      ! Calculate the energy WITH all the expensive
-                                 !   parts included. 
+                                 !   parts included.
     call calc_avg_gap()
 
     ! Initial printout
@@ -329,9 +360,9 @@ subroutine ReachForWaterAndFood()
       call printallmoments
       call print_boxsize_check
       call PrintMomentsofInertia
-      call printcranking  
+      call printcranking
       call printpairing(pairstabfactor)
-      call PrintEnergy 
+      call PrintEnergy
     endif
 
     !---------------------------------------------------------------------------
@@ -340,15 +371,15 @@ subroutine ReachForWaterAndFood()
     do iter=1,maxiter
         call update_E_history()
 
-        projectpresent   = checkconstraints() .or. check_cranking()    
+        projectpresent   = checkconstraints() .or. check_cranking()
         if(projectpresent) call feasibleproject()
 
         ! One evolution step for the spwfs
         call Evolve(iter)
 
-        ! Calculate the gaps Delta with the current 
-        ! a) fields 
-        ! b) density matrix and anomalous density matrix 
+        ! Calculate the gaps Delta with the current
+        ! a) fields
+        ! b) density matrix and anomalous density matrix
         ! c) Fermi-energy
         PairStabfactor = CompStabilisingFactor(PairDenEnergy)
         call CalcGaps(FermiEnergy, PairStabFactor)
@@ -403,17 +434,17 @@ subroutine ReachForWaterAndFood()
         call calc_avg_gap()
 
         ! Check for convergence or a failed calculation
-        if (ifail .ne. 0) then  
+        if (ifail .ne. 0) then
           iomsg               = 'FERMI'
           ConvergenceAchieved = .false.
           exit
-        else  
-          call Converged(ConvergenceAchieved, iter)  
-        end if 
+        else
+          call Converged(ConvergenceAchieved, iter)
+        end if
 
         if(convergenceAchieved) then
           iprint = 1
-          ! Recalculate the energy with all parts included at the end 
+          ! Recalculate the energy with all parts included at the end
           call CalcEnergy(.true.)
         endif
         !-----------------------------------------------------------------------
@@ -421,18 +452,18 @@ subroutine ReachForWaterAndFood()
         if(iprint .eq.1) then
             ! ... but update all spwf properties first to ensure correct prints
             if(print_adv_spwf_properties .or. &
-            &              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then 
+            &              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then
               call update_spwf_properties( .true. ) ! expensive version
             endif
-            call updateAM 
+            call updateAM
             call ReadjustCranking
 
             if(MPI_RANK.eq.0) then
               print 10
               if((iter .eq. maxiter) .or. ConvergenceAchieved) then
                 ! Add a clear indication this is the FINAL iteration
-                print 12, iter  
-                call PrintSpwfs(.True.) ! always include all details in the 
+                print 12, iter
+                call PrintSpwfs(.True.) ! always include all details in the
                                         ! printing
               else
                 print 11, iter
@@ -457,7 +488,7 @@ subroutine ReachForWaterAndFood()
           if(mod(iter,checkpointiter) .eq. 0) then
             if(MPI_RANK.eq.0) print 9, iter, outputfilename
             iomsg='CHECKPOINT'
-            call WriteTantalus(12, outputfilename)     
+            call WriteTantalus(12, outputfilename)
           endif
         endif
         !-----------------------------------------------------------------------
@@ -481,22 +512,22 @@ subroutine ReachForWaterAndFood()
     enddo
 !    if(inversetemp .ne. -1) then
 !        call projectThermal
-!    endif    
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Calculate and print the collective moment of inertias    
+!    endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculate and print the collective moment of inertias
     if(N_inertia .gt. 0) then
       call calc_collective_inertia
       if(MPI_RANK.eq.0) then
         call print_collective_inertia
       endif
     endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(iter.eq.maxiter+1) then
-      iomsg='MAXITER'  
+      iomsg='MAXITER'
     endif
     !---------------------------------------------------------------------------
     ! Write output to the outputfile, i.e. the full wavefunction file
-    call WriteTantalus(12, outputfilename)     
+    call WriteTantalus(12, outputfilename)
     !---------------------------------------------------------------------------
     ! Write other, advanced, output
     call write_advanced_output(iter-1,iomsg)
@@ -506,13 +537,13 @@ end subroutine ReachForWaterAndFood
 subroutine printsummary(iter)
     !---------------------------------------------------------------------------
     ! Short printout after an iteration.
-    ! 
+    !
     !---------------------------------------------------------------------------
     use functional
-    use evolution 
-    use moments    
+    use evolution
+    use moments
     use pairing
-    
+
     implicit none
 
     integer, intent(in)   :: iter
@@ -526,14 +557,14 @@ subroutine printsummary(iter)
     3 format (' dt    = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
    31 format (' dtg   = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
     4 format (' E     = ', f10.3,2x, '  DE   = ', e12.5)
-   41 format (' R     = ', f10.3,2x, '  DR   = ', e12.5)  
-   42 format (' R-E   = ', f10.3,2x, 'D(R-E) = ', e12.5)  
+   41 format (' R     = ', f10.3,2x, '  DR   = ', e12.5)
+   42 format (' R-E   = ', f10.3,2x, 'D(R-E) = ', e12.5)
 
     5 format (' ',a1, 'Q', 2i1,a1,' = ',f12.4, 3x, 'dQ = ', es8.1, 2x,         &
     &          'L = ',f12.4,2x,' dL = ', es8.1, 2x, 'dev = ', es8.1)
 
     6 format (' dmun  = ', es8.1, 4x, '  dmup= ', es8.1)
-    7 format (' dN    = ', es8.1, 4x, '  dZ  = ', es8.1)  
+    7 format (' dN    = ', es8.1, 4x, '  dZ  = ', es8.1)
     8 format (' Jz    = ', f12.4,  2x, ' dJZ= ', es8.1,  &
     &         ' Om = ' , f12.4,  2x ' dO = ', e8.1, 2x, 'dev = ', es8.1)
 
@@ -549,19 +580,19 @@ subroutine printsummary(iter)
     print 4, totalE,     (totalE - Ehistory(1))/abs(totalE)
     print 41, Routhian,  (Routhian - Rhistory(1))/abs(Routhian)
     print 42, Routhian-totalE, &
-    &  ((Routhian - Rhistory(1)) - (totalE - Ehistory(1)))/abs(totalE) 
+    &  ((Routhian - Rhistory(1)) - (totalE - Ehistory(1)))/abs(totalE)
     if(fixfermi) then
-        dN = part%value - part%history 
+        dN = part%value - part%history
         print 7, dN
     else
         dF   = FermiEnergy - FermiHistory
         print 6, dF
     endif
-    
+
     Current => Root
     do while (associated(Current%next))
       Current => Current%next
-      
+
       if((Current%constrainttype .ne. 0) .or. (Current%l .eq. 2)) then
         dL = Current%multiplier - Current%mult_hist
         if(Current%Impart) then
@@ -569,19 +600,19 @@ subroutine printsummary(iter)
         else
           t = 'R'
         endif
-        
+
         if(Current%constrainttype.ne.0) then
           dev = Current%deviation
         else
           dev = 0
         endif
-        
+
         if(current%l.eq.2 .and. current%isoswitch .ne. 0) then
           dQ = sum(Current%value) - sum(Current%history)
           print 5, t, Current%l, Current%m, 't', sum(Current%value), dQ, &
           &              0.0d0, 0.0d0, 0.0d0
         endif
-                
+
         select case(Current%isoswitch)
         case(0)
           dQ   = sum(Current%value) - sum(Current%history)
@@ -589,20 +620,20 @@ subroutine printsummary(iter)
           val  = sum(Current%value)
         case(1,2)
           dQ = Current%value(Current%isoswitch)&
-           & - Current%history(Current%isoswitch)     
-          val =  Current%value(Current%isoswitch)   
+           & - Current%history(Current%isoswitch)
+          val =  Current%value(Current%isoswitch)
           select case(Current%isoswitch)
           case(1)
             spec = 'n'
           case(2)
             spec = 'p'
           end select
-        end select        
+        end select
         print 5, t, Current%l, Current%m, spec, val, &
           &         dQ, Current%multiplier, dL, dev
       endif
-    enddo    
-    
+    enddo
+
     if(cranktype(3) .eq. 1) then
       devJ = TotalAngMom(3) - CrankValues(3)
     else
@@ -611,59 +642,59 @@ subroutine printsummary(iter)
     print 8, totalangmom(3), totalangmom(3) - angmomold(3), &
     &        omega(3), omega(3)-omega_prev(3), devJ
     print 1
-        
+
 end subroutine printsummary
 
 subroutine initialize_all_timers()
    !----------------------------------------------------------------------------
    ! Initialize all the timers that have been defined.
-   ! Input: 
+   ! Input:
    !       NONE
    ! Output:
    !       NONE
    !----------------------------------------------------------------------------
    use timing
 
-   call add_timer('Tantalus'                   , T_tantalus)  
-   call add_timer('HF-basis Derivatives'       , T_derivatives)  
-   call add_timer('Canonical basis Derivatives', T_derivatives_can)  
-   call add_timer('Spwf evolution'             , T_evolution)  
-   call add_timer('Orthonormalization'         , T_ortho)  
-   call add_timer('Density calculations'       , T_densities)  
+   call add_timer('Tantalus'                   , T_tantalus)
+   call add_timer('HF-basis Derivatives'       , T_derivatives)
+   call add_timer('Canonical basis Derivatives', T_derivatives_can)
+   call add_timer('Spwf evolution'             , T_evolution)
+   call add_timer('Orthonormalization'         , T_ortho)
+   call add_timer('Density calculations'       , T_densities)
    call add_timer('Density: pp'                , T_den_pp)
-   call add_timer('Density: ph'                , T_den_ph)  
-   call add_timer('Density: derivatives'       , T_den_der)  
-   call add_timer('Field calculations'         , T_fields)  
-   call add_timer('Field preconditioning'      , T_F_precon)  
-   call add_timer('Energy calculations'        , T_energy)  
-   call add_timer('Pairing solver '            , T_pairing)  
-   call add_timer('Sp. Hamiltonian '           , T_sphamil)  
-   call add_timer('Coulomb solver'             , T_coulomb)  
-   call add_timer('Can. basis construction'    , T_den_can)  
-   call add_timer('Moments of inertia '        , T_MOI)  
-   call add_timer('Centre-of-mass correction ' , T_COM)  
-   call add_timer('COM one-body '              , T_COM1)  
-   call add_timer('COM two-body '              , T_COM2)  
-   call add_timer('Matrix elements summation'  , T_COM2_summation)  
+   call add_timer('Density: ph'                , T_den_ph)
+   call add_timer('Density: derivatives'       , T_den_der)
+   call add_timer('Field calculations'         , T_fields)
+   call add_timer('Field preconditioning'      , T_F_precon)
+   call add_timer('Energy calculations'        , T_energy)
+   call add_timer('Pairing solver '            , T_pairing)
+   call add_timer('Sp. Hamiltonian '           , T_sphamil)
+   call add_timer('Coulomb solver'             , T_coulomb)
+   call add_timer('Can. basis construction'    , T_den_can)
+   call add_timer('Moments of inertia '        , T_MOI)
+   call add_timer('Centre-of-mass correction ' , T_COM)
+   call add_timer('COM one-body '              , T_COM1)
+   call add_timer('COM two-body '              , T_COM2)
+   call add_timer('Matrix elements summation'  , T_COM2_summation)
    call add_timer('Matrix elements of \nabla ' , T_NablaMElements)
    call add_timer('Pairing gaps '              , T_gaps)
-   call add_timer('Multipole moments '         , T_moments)  
-   call add_timer('Multipole moments cutoff'   , T_moment_cutoff)  
-   call add_timer('Feas. Proj. step '          , T_feasible)  
-   call add_timer('Spwf angular momentum '     , T_spwfangmom)  
-   call add_timer('Charge density folding'     , T_chargedensity)  
-   call add_timer('Collective MOIs'            , T_collective_moi)  
-   call add_timer('Microscopic pairing'        , T_microscopic_pairing)  
-   call add_timer('Subspace rotation          ', T_Hortho)  
-   call add_timer('Construction HF transfo'    , T_HFDiag)  
-   call add_timer('Basis transformation'       , T_Basistransfo)  
+   call add_timer('Multipole moments '         , T_moments)
+   call add_timer('Multipole moments cutoff'   , T_moment_cutoff)
+   call add_timer('Feas. Proj. step '          , T_feasible)
+   call add_timer('Spwf angular momentum '     , T_spwfangmom)
+   call add_timer('Charge density folding'     , T_chargedensity)
+   call add_timer('Collective MOIs'            , T_collective_moi)
+   call add_timer('Microscopic pairing'        , T_microscopic_pairing)
+   call add_timer('Subspace rotation          ', T_Hortho)
+   call add_timer('Construction HF transfo'    , T_HFDiag)
+   call add_timer('Basis transformation'       , T_Basistransfo)
 
 end subroutine initialize_all_timers
 
 subroutine cleanupthemess()
   !-----------------------------------------------------------------------------
   !
-  ! 
+  !
   !-----------------------------------------------------------------------------
   use geninfo
   use derivatives

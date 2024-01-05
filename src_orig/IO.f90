@@ -278,11 +278,7 @@ contains
     3 format ( '   nx = ', i5 , ' ny = ' , i5 , ' nz = ' , i5, ' mv = ' , i5)
     4 format ( '   dx = ', f20.10,' (fm  ) ')
     5 format ( '   dv = ', f5.2,' (fm^3) ')
-#if(USE_Periodic==0)
-   55 format ( ' Boundary conditions: anti-periodic')
-#else 
-   55 format ( ' Boundary conditions: periodic')
-#endif 
+
     6 format ( ' Nucleus')
     7 format ( '    N = ', f10.5  ,'  Z = ', f10.5)
     8 format ( ' Wavefunctions')
@@ -350,7 +346,6 @@ contains
       print 3 , nx, ny, nz, mv
       print 4 , dx
       print 5 , dv
-      print 55
       print 6
       print 7 , neutrons, protons
       print 8
