@@ -14,12 +14,27 @@ module evolution
 !==============================================================================
 !
 ! Module that governs the evolution of the single-particle wavefunctions from 
-! one iteration to the next. 
+! one SCF iteration to the next. This evolution is determined principally by
+! one single keyword in the Evolution namelist.
+! 
+! This can currently take the following values:
+!     IMTIME => Gradient Descent/Imaginary Time
+!     HEAVYB => Heavy-ball dynamics
 !
-! Currently possible are 
+! Note that setting these keywords has many consequences, from convergence speed
+! to memory requirements, the way a calculation scales to multiple MPI ranks 
+! up to the very definition of what constitutes an "iteration". Be sure to 
+! spend some time thinking about what option to choose!
 !
-! IMTIME => Gradient Descent/Imaginary Time
-! HEAVYB => Heavy-ball dynamics
+! These settings are "catch-all" and by default define many things about the 
+! evolution, althought several other flags can determine specific aspects of 
+! evolution. 
+!
+! 1. ortho_strategy      : 
+! 2. subspace_rotation   :
+! 3. spwf_preconditioning:
+! 
+! Not all combinations of options are valid inputs!
 !
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Hephaestos keywords
@@ -50,16 +65,20 @@ module evolution
 !    ! Precondition, whether to use the PG preconditioner
 !    character(len=20) :: Precondition = 'None'
     !---------------------------------------------------------------------------
-    ! Strategy for evolution of the spwfs
-    ! Valid choices: 
+    ! Strategy determination for the evolution of the spwfs
+    ! Strategy = the "global" selection of algorithm 
     !   IMTIME    => Gradient Descent/Imaginary Time
     !   HEAVYBALL => Heavy-ball dynamics
     character(len=20) :: Strategy = 'HEAVYBALL'
-    !---------------------------------------------------------------------------
-    ! Allow Tantalus to estimate the runtime parameters of the heavy-ball 
-    ! algorithm for the linear subproblem or stay faithful to those specified 
-    ! by the user. 
-    logical :: EstimateParams     = .true.
+    ! Orthonormalisation strategy
+    !   GRAMSCHMIDT => Gram-Schmidt "sequential" orthonormalisation
+    !   CHOLESKY    => Cholesky decomposition
+    character(len=20)               :: ortho_strategy = 'GramSchmidt'
+    ! Subspace rotation 
+    !    whether or not to throw in an explicit diagonalisation of the 
+    !    single-particle hamiltonian in the subspace spanned by the spwfs
+    !    in memory.
+    logical :: subspace_rotation = .false.
     !---------------------------------------------------------------------------
     !Procedure that determines the evolution of a Spwf under imaginary time.
     abstract interface
@@ -69,10 +88,13 @@ module evolution
     end interface
     procedure(Evolve_Interface),pointer :: Evolve    
     !---------------------------------------------------------------------------
+    ! Allow Tantalus to estimate the runtime parameters of the heavy-ball 
+    ! algorithm for the linear subproblem or stay faithful to those specified 
+    ! by the user. 
+    logical :: EstimateParams     = .true.
+    !---------------------------------------------------------------------------
     ! Procedure pointer for the preconditioning
     !procedure(Precondition_PG),pointer :: Precon 
-    !---------------------------------------------------------------------------
-    character(len=20)               :: ortho_strategy = 'GramSchmidt'
     !---------------------------------------------------------------------------
     ! Inverse of the second order derivative matrices with appropriate constants
     real*8, allocatable :: preconX(:,:,:,:)
@@ -236,6 +258,10 @@ contains
         print 8, ortho_strategy
 
     end subroutine PrintEvolution
+
+!===============================================================================
+! Evolution routines 
+!===============================================================================
 
     subroutine Evolve_graddesc(iteration)
         !-----------------------------------------------------------------------
@@ -590,58 +616,49 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         call stop_timer(T_evolution)
 
     end subroutine Evolve_momentum
+!===============================================================================
+! Utility routines 
+!===============================================================================
 
-    subroutine evolve_partial(maxiter, extraspwfs)
+    subroutine apply_sphamil_block(m, x,ax,sx,sy,sz,iso)
       !-------------------------------------------------------------------------
-      ! Perform some gradient evolution with a fixed single-particle hamiltonian 
-      ! for the BONUS spwfs, i.e. the ones that were added through the keyword
-      ! extraspwfs. As these are randomly initialized, such evolution brings 
-      ! them (hopefully) rather quickly to some "reasonable form".
-      !  
+      ! Apply the single-particle hamiltonian as specified by the potentials  
+      ! currently in memory to a set of vectors in single-particle space with 
+      ! common symmetry properties.
+      !
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !
       ! Input:
-      !    maxiter    :  # of evolutions to perform
-      !    extraspwfs :  number of extra spwfs that were added
+      !       m :  number of vectors to compute h|psi> for
+      !       x :  a set of vectors in s.p. space, i.e. a matrix of dimension
+      !         (nx*ny*nz,4,m)
+      ! sx/sy/sz:  the symmetries under plane reflections of the vectors, i.e.
+      !            4 integers in each case.
+      !      iso:  the isospin of the vectors.
+      ! Output: 
+      !   ax :  the application of the s.p. hamiltonian to the vectors, a new
+      !         matrix of dimension (nx*ny*nz,4,m)
+      !
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Important to note: this routine does NOT reuse derivatives, i.e. it 
+      ! tells the sphamiltonian to apply all derivative matrix multiplications 
+      ! on the fly. 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Optional TODO: write an additional routine that takes as input the
+      ! fully vectorized spwfs, i.e. psi(4*nx*ny*nz,m).
       !-------------------------------------------------------------------------
-      integer, intent(in) :: maxiter, extraspwfs(8)
-      integer :: B, N, iso, wave, iter, si, wave2
-      real(KIND=dp), allocatable :: hpsi(:,:)
-      
-      if(EstimateParams) call IterativeEstimation(1)
-      
-      do iter=1, maxiter
-        si = 0
-        do B=1,8
-          N = HFblocks(B) ; if(N.eq.0) cycle
-          iso = -1
-          if(B.gt.4) iso = +1
-          do wave=si+N-extraspwfs(B)+1,si+N
-            ! Calculate the action of the single-particle hamiltonian.
-            hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
-            &              hfdpsi(:,:,:,wave)   ,                              &
-            &              hfddpsi(:,:,:,wave)  ,                              &
-$N3         &              hfdddpsi(:,:,:,wave) ,                              &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
-
-            spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
-            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
-
-            ! Evolve 
-            hfpsi(:,:,wave) = hfpsi(:,:,wave)  - dt/hbar* hpsi
-            do wave2=wave,si+N
-              current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
-              current_sph(wave ,wave2) = current_sph(wave2,wave)
-            enddo
-          enddo
-
-          si = si + N
-        enddo
-        ! orthonormalize
-        call orthonormalize
-        ! derive those that were evolved
-        call derive_extra_spwfs(extraspwfs)
+      integer, intent(in)                  ::  m, sx(4), sy(4), sz(4), iso
+      real(KIND=dp), intent(in), target    ::  x(mv,4,m)
+      real(KIND=dp), intent(out), target   :: ax(mv,4,m)
+      integer                              :: wave
+      real(KIND=dp)                        :: dummy_d (mv,3,4)
+      real(KIND=dp)                        :: dummy_dd(mv,6,4)
+ 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      do wave=1,m
+        ax(:,:,wave)=sphamil(x(:,:,wave),dummy_d, dummy_dd, sx,sy,sz,iso,.true.)
       enddo
-      
-    end subroutine evolve_partial
+    end subroutine apply_sphamil_block
 
     subroutine eval_sph(diag)
       !------------------------------------------------------------------------
