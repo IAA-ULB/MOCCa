@@ -1031,6 +1031,66 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
   end subroutine GramSchmidt
 
+  subroutine Cholesky_orthonormalisation
+    !---------------------------------------------------------------------------
+    !
+    !
+    !
+    !
+    !---------------------------------------------------------------------------
+    real(KIND=dp), allocatable :: overlaps(:,:)
+    real(KIND=dp), pointer     :: u(:,:)
+    integer                    :: N, i, si, B, info
+ 
+    call start_timer(T_ortho)
+ 
+    si = 0
+    do B=1,8
+      N = HFBlocks(B) ; if (N.eq.0) cycle
+ 
+      allocate(overlaps(N,N))
+      
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Build overlaps within this symmetry block 
+      call dgemm('t','n',N,N,4*mv,   dv,hfpsi(1:4*mv,1,si+1:si+N), 4*mv, &
+      &                                 hfpsi(1:4*mv,1,si+1:si+N), 4*mv, &
+      &                                 0.0d0,                        &
+      &                                 overlaps,N)
+ 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Calculate the cholesky decomposition
+      call dpotrf('l',N,overlaps,N,info)
+ 
+      if(info.ne.0) then
+        print *, 'Issue with the Cholesky decomposition.'
+        print *, 'INFO = ', info
+      endif
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Apply the transformation
+      call dtrsm('r','l','t','n',&
+      &               4*mv,N,1.0d0,overlaps,N,hfpsi(1:4*mv,1,si+1:si+N),4*mv)
+ 
+      !-------------------------------------------------------------------------
+      ! Bugchecking the work: calculating and printing overlaps
+!       call dgemm('t','n',N,N,4*mv,   dv,hfpsi(1:4*mv,1,si+1:si+N), 4*mv, &
+!       &                                 hfpsi(1:4*mv,1,si+1:si+N), 4*mv, &
+!       &                                 0.0d0,                        &
+!       &                                 overlaps,N)
+!       print *, B
+!       do i=1,N
+!          print ('(99f10.3)'), overlaps(i, 1:N)
+!       enddo
+!       print *
+      !-------------------------------------------------------------------------
+ 
+      deallocate(overlaps)
+      si = si +N
+    enddo
+    
+    call stop_timer(T_ortho)
+  end subroutine Cholesky_orthonormalisation
+
+
 !  subroutine Loewdin
 !    !---------------------------------------------------------------------------
 !    ! Loewdin symmetric orthonormalisation of the wavefunctions in HFPsi.

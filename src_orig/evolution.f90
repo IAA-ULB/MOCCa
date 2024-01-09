@@ -204,6 +204,8 @@ contains
         elseif(adjustl(ortho_strategy) .eq. 'LOEWDIN') then
             call stp('Implementation error')
 !            Orthonormalize => Loewdin
+        elseif(adjustl(ortho_strategy) .eq. 'CHOLESKY') then
+            Orthonormalize => Cholesky_orthonormalisation
         else
             call stp('Orthonormalisation strategy not recognized.')
         endif
