@@ -69,6 +69,7 @@ module evolution
     ! Strategy = the "global" selection of algorithm 
     !   IMTIME    => Gradient Descent/Imaginary Time
     !   HEAVYBALL => Heavy-ball dynamics
+    !   HBSANE    => "Sane" heavy-ball dynamics
     character(len=20) :: Strategy = 'HEAVYBALL'
     ! Orthonormalisation strategy
     !   GRAMSCHMIDT => Gram-Schmidt "sequential" orthonormalisation
@@ -177,6 +178,8 @@ contains
             Evolve => Evolve_graddesc
         elseif(adjustl(Strategy) .eq. 'HEAVYBALL') then
             Evolve => Evolve_momentum
+        elseif(adjustl(Strategy) .eq. 'HBSANE') then
+            Evolve => Evolve_momentum_sane
         else
             call stp('STRATEGY NOT RECOGNIZED.')
         endif
@@ -616,6 +619,91 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         call stop_timer(T_evolution)
 
     end subroutine Evolve_momentum
+    
+    subroutine Evolve_momentum_sane(iteration)
+    !
+    !
+    !
+    !
+    !
+      use wavefunctions
+
+      integer, intent(in)        :: iteration
+
+      integer                    :: si, m, B, N, iso
+      real(KIND=dp), allocatable :: hpsi(:,:,:)
+
+      call start_timer(T_evolution)
+
+      if(.not.allocated(Momentum_Updates)) then
+          ! we only store the history for the LOCALLY stored wavefunctions
+          allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
+          Momentum_Updates = 0.0_dp
+      endif
+
+      if(.not.allocated(current_sph)) then 
+          allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
+      endif
+
+      if(EstimateParams) call IterativeEstimation(iteration)
+
+      !-------------------------------------------------------------------------
+      ! Step 1: construct all updates
+      si = 0
+      do B=1,8
+        N = HFBlocks(B) ; if(N.eq.0) cycle
+        iso = -1        ; if(B.gt.4) iso = +1
+
+        allocate(hpsi(mv,4,N))
+
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Obtain the action of the s.p.h. on the spwfs
+        call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
+        &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Construct the residual
+        do m=1,N
+          hpsi(:,:,m)=hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m)
+        enddo
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Add some history and 'momentum' to the update. 
+        momentum_updates(:,:,si+1:si+N) = & 
+        &     - dt/hbar * hpsi      +  momentum*momentum_updates(:,:,si+1:si+N) 
+        ! actual update
+        deallocate(hpsi)
+        si = si + N
+      enddo
+      !-------------------------------------------------------------------------
+      ! Step 2: perform the update
+      HFPSI = HFPSI + momentum_updates
+      !-------------------------------------------------------------------------
+      ! Step 3: orthonormalize
+      call orthonormalize
+      !-------------------------------------------------------------------------
+      ! Step 4: diagonalize the s.p. hamiltonian block-by-block
+      si = 0
+      do B=1,8
+        N = HFBlocks(B) ; if(N.eq.0) cycle
+        iso = -1        ; if(B.gt.4) iso = +1
+
+        allocate(hpsi(mv,4,N))
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Obtain the action of the s.p.h. on the spwfs
+        call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
+        &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Actually diagonalize
+        call diag_sph(N,N,HFPsi(:,:,si+1:si+N),hpsi, &
+        &             momentum_updates(:,:,si+1:si+N), &
+        &             sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,&
+        &             spenergies(si+1:si+N),dispersions(si+1:si+N))
+        deallocate(hpsi)
+        si = si + N
+      enddo
+
+      call stop_timer(T_evolution)
+    end subroutine Evolve_momentum_sane 
+    
 !===============================================================================
 ! Utility routines 
 !===============================================================================
@@ -661,7 +749,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       enddo
     end subroutine apply_sphamil_block
 
-    subroutine eval_sph(m,n,x,hx,sx,sy,sz,iso, eigenvalues,dispersions)
+    subroutine diag_sph(m,n,x,hx,upd,sxb,syb,szb,iso,eigenvalues,dispersions)
       !------------------------------------------------------------------------
       ! 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -673,80 +761,79 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       !           i.e. a matrix of dimension (nx*ny*nz,4,m)
       !      hx : the application of h on the vectors x, 
       !           i.e. another matrix of dimension (nx*ny*nz,4,m)
-      ! sx/sy/sz:  the symmetries under plane reflections of the vectors,
+      !      upd: a set of vectors that needs to undergo the same unitary 
+      !           transformation as x
+      ! sx/y/zb :  the symmetries under plane reflections of the vectors,
       !            i.e. 4 integers in each case.
       !      iso:  the isospin of the vectors.
       !
       ! Output: 
-      !             x: the first n columns are the lowest n eigenstates of h 
-      !                in the reduced space
-      !            hx: the first n columns are the application of h on the 
-      !                lowest n eigenvectors.
-      !   eigenvalues: eigenvalues of the s.p. hamiltonian in the reduced space
-      !   dispersions: dispersions of h for the lowest eigenvectors in the full
-      !                space
+      !           x: the first n columns are the lowest n eigenstates of h 
+      !              in the reduced space
+      !          hx: the first n columns are the application of h on the 
+      !              lowest n eigenvectors.
+      ! eigenvalues: eigenvalues of the s.p. hamiltonian in the reduced space
+      ! dispersions: dispersions of h for the lowest eigenvectors in the full
+      !              space
+      !
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Technical notes:
+      !  This routine accepts spinors on the mesh in the format
+      !      x(4*mv, m)
+      !  while the rest of the code operates
+      !      x(mv, 4,m)
+      !  The reason is to (i) make the Lapack calls more transparent and (ii)
+      !  to aid compiler vectorisation.
       !------------------------------------------------------------------------
-      use wavefunctions
 
-      integer, intent(in)          ::  m, n, sx(4), sy(4), sz(4), iso
-      real(KIND=dp), intent(inout) ::  x(mv,4,m)
-      real(KIND=dp), intent(inout) :: hx(mv,4,m)
-      real(KIND=dp), intent(inout) :: hx(mv,4,m)
-      real(KIND=dp)                :: eigenvalues(n), dispersions(n)
-      
-      integer               :: wave, iso, B, si, N, wave2, lwork, ifail
-      real(KIND = dp)       :: hpsi(nx*ny*nz,4)
-      real(KIND = dp), allocatable :: work(:), temp(:,:,:)
-      logical, intent(in)   :: diag
+      integer, intent(in)          ::  m, n, sxb(4), syb(4), szb(4), iso
+      real(KIND=dp), intent(inout) ::  x(mv*4,m)
+      real(KIND=dp), intent(inout) :: hx(mv*4,m), upd(mv*4,m)
+      real(KIND=dp), intent(out)   :: eigenvalues(n), dispersions(n)
+      real(KIND=dp)                :: sph(m,m), temp(4*mv,m), tempe(m)
 
-      if(.not.allocated(current_sph)) then 
-          allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
+      integer                      :: lwork, info
+      real(KIND=dp), allocatable   :: work(:)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Populate the full matrix sph 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! This BLAS call does not exploit the symmetry of the problem, it 
+      ! explicitly computes all elements of sph even though we know that 
+      !    sph(i,j) = sph(j,i)^*
+      ! TODO: figure out whether this BLAS call outperforms a symmetric 
+      !       implementation with many matrix-vector calls. 
+      !
+      call DGEMM('t', 'n', m, m, 4*mv, dv, x(:,:), 4*mv, &
+      &                                   hx(:,:), 4*mv,0.0d0,sph,m)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Diagonalise the sphamiltonian
+      ! 
+      ! First inquire about working memory
+      allocate(work(1))
+      call DSYEV('V','L', m ,sph,m,tempe,work,-1,info)
+      lwork=work(1)
+      deallocate(work)
+      allocate(work(lwork))
+      ! ..... and now do the actual work
+      call DSYEV('V','L', m ,sph,m,tempe,work,lwork,info)
+      if(info.ne.0) then
+        call stp('Issue with diagonalising in eval_sph.')
       endif
-
-      si  = 0
-      do B=1,8
-        N = HFblocks(B) ; if(N.eq.0) cycle
-        iso = -1
-        if(B.gt.4) iso = +1
-        do wave=si+1,si+N
-          !-------------------------------------------------------------------
-          ! Calculate the action of the single-particle hamiltonian.
-          hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
-          &              hfdpsi(:,:,:,wave)   ,                              &
-$N3       &              hfddpsi(:,:,:,wave)  ,                              &
-          &              hfdddpsi(:,:,:,wave) ,                              &
-          &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
-          !-------------------------------------------------------------------
-          ! Save the current estimate for the single-particle hamiltonian
-          do wave2=wave,si+N
-              current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
-              current_sph(wave ,wave2) = current_sph(wave2,wave)
-          enddo
-        enddo
-        if(diag) then
-            lwork = -1; allocate(work(1))
-            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, &
-            &                       spenergies(si+1:si+N),work,lwork,ifail)
-            lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
-            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, &
-            &                       spenergies(si+1:si+N),work,lwork,ifail)
-            deallocate(work)
-            temp = hfpsi(:,:,si+1:si+N)
-            do wave=1,N
-              hfpsi(:,:,si+wave) = 0
-              do wave2=1,N
-                hfpsi(:,:,si+wave) = hfpsi(:,:,si+wave) + &
-                &                current_sph(si+wave,si+wave2) * temp(:,:,wave2)
-              enddo
-            enddo
-        else
-          do wave=si+1,si+N
-            spenergies(wave) = current_sph(wave,wave)
-          enddo
-        endif
-        si = si + N
-      enddo
-    end subroutine eval_sph
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Now we construct the n lowest eigenvectors
+      temp = x! temporary copy
+      call DGEMM('n','n',4*mv,n,m, 1.0d0,temp, 4*mv,sph(:,1:n), m, 0.0d0, & 
+      &                                        x(:,1:n), 4*mv)
+      ! ... and aply the same transformation to upd
+      temp = upd ! temporary copy
+      call DGEMM('n','n',4*mv,n,m, 1.0d0,temp, 4*mv,sph(:,1:n), m, 0.0d0, & 
+      &                                        upd(:,1:n), 4*mv)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Bookkeeping
+      eigenvalues = tempe(1:n)
+      dispersions = 0.0d0
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    end subroutine diag_sph
 
     subroutine IterativeEstimation(Iteration)
       !-------------------------------------------------------------------------
