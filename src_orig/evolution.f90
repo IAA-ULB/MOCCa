@@ -647,6 +647,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
           allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
       endif
 
+      d2h = 0.0d0
       if(EstimateParams) call IterativeEstimation(iteration)
 
       !-------------------------------------------------------------------------
@@ -693,15 +694,23 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         ! Obtain the action of the s.p.h. on the spwfs
         call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
         &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso)
+        
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Calculate the norm of the residuals
+        do m=1,N
+          dispersions(si+m) = sum((hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m))**2)*dv
+          d2h          = d2h + rho_can(si+m)*dispersions(si+m)
+       enddo
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Actually diagonalize
         call diag_sph(N,N,HFPsi(:,:,si+1:si+N),hpsi, &
         &             momentum_updates(:,:,si+1:si+N), &
         &             sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,&
-        &             spenergies(si+1:si+N),dispersions(si+1:si+N))
+        &             spenergies(si+1:si+N))
         deallocate(hpsi)
         si = si + N
       enddo
+      d2h          = d2h/(neutrons+protons)
 
       call stop_timer(T_evolution)
     end subroutine Evolve_momentum_sane 
@@ -751,7 +760,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       enddo
     end subroutine apply_sphamil_block
 
-    subroutine diag_sph(m,n,x,hx,upd,sxb,syb,szb,iso,eigenvalues,dispersions)
+    subroutine diag_sph(m,n,x,hx,upd,sxb,syb,szb,iso,eigenvalues)
       !------------------------------------------------------------------------
       ! 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -775,9 +784,6 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       !          hx: the first n columns are the application of h on the 
       !              lowest n eigenvectors.
       ! eigenvalues: eigenvalues of the s.p. hamiltonian in the reduced space
-      ! dispersions: dispersions of h for the lowest eigenvectors in the full
-      !              space
-      !
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Technical notes:
       !  This routine accepts spinors on the mesh in the format
@@ -791,7 +797,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       integer, intent(in)          ::  m, n, sxb(4), syb(4), szb(4), iso
       real(KIND=dp), intent(inout) ::  x(mv*4,m)
       real(KIND=dp), intent(inout) :: hx(mv*4,m), upd(mv*4,m)
-      real(KIND=dp), intent(out)   :: eigenvalues(n), dispersions(n)
+      real(KIND=dp), intent(out)   :: eigenvalues(n)
       real(KIND=dp)                :: sph(m,m), temp(4*mv,m), tempe(m)
 
       integer                      :: lwork, info
@@ -833,7 +839,6 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Bookkeeping
       eigenvalues = tempe(1:n)
-      dispersions = 0.0d0
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     end subroutine diag_sph
 
