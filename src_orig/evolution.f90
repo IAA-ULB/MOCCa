@@ -716,6 +716,9 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         do m=1,N
           current_sph(si+m, si+m) = spenergies(si+m)
           hftransfo(si+m,si+m)    = 1.0d0
+        enddo
+
+        si = si + N
       enddo
       d2h          = d2h/(neutrons+protons)
 
