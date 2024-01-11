@@ -648,6 +648,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       endif
 
       current_sph = 0.0d0
+      hftransfo   = 0.0d0
       d2h         = 0.0d0
       if(EstimateParams) call IterativeEstimation(iteration)
 
@@ -711,10 +712,10 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         deallocate(hpsi)
         si = si + N
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Populate current_sph
+        ! Populate current_sph and hftransfo
         do m=1,N
           current_sph(si+m, si+m) = spenergies(si+m)
-        enddo 
+          hftransfo(si+m,si+m)    = 1.0d0
       enddo
       d2h          = d2h/(neutrons+protons)
 
