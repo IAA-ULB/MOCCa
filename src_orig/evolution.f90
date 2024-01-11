@@ -696,13 +696,12 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         ! Obtain the action of the s.p.h. on the spwfs
         call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
         &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso)
-        
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Calculate the norm of the residuals
         do m=1,N
           dispersions(si+m) = sum((hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m))**2)*dv
           d2h          = d2h + rho_can(si+m)*dispersions(si+m)
-       enddo
+        enddo
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Actually diagonalize
         call diag_sph(N,N,HFPsi(:,:,si+1:si+N),hpsi, &
@@ -710,14 +709,12 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         &             sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,&
         &             spenergies(si+1:si+N))
         deallocate(hpsi)
-        si = si + N
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Populate current_sph and hftransfo
         do m=1,N
           current_sph(si+m, si+m) = spenergies(si+m)
           hftransfo(si+m,si+m)    = 1.0d0
         enddo
-
         si = si + N
       enddo
       d2h          = d2h/(neutrons+protons)
