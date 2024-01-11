@@ -647,7 +647,8 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
           allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
       endif
 
-      d2h = 0.0d0
+      current_sph = 0.0d0
+      d2h         = 0.0d0
       if(EstimateParams) call IterativeEstimation(iteration)
 
       !-------------------------------------------------------------------------
