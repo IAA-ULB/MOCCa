@@ -709,6 +709,11 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         &             spenergies(si+1:si+N))
         deallocate(hpsi)
         si = si + N
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Populate current_sph
+        do m=1,N
+          current_sph(si+m, si+m) = spenergies(si+m)
+        enddo 
       enddo
       d2h          = d2h/(neutrons+protons)
 
