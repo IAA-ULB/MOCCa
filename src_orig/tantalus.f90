@@ -372,10 +372,10 @@ subroutine ReachForWaterAndFood()
         call update_E_history()
 
         projectpresent   = checkconstraints() .or. check_cranking()
-        if(projectpresent) call feasibleproject()
+!        if(projectpresent) call feasibleproject()
 
         ! One evolution step for the spwfs
-        call Evolve(iter)
+        call Evolve(iter, projectpresent)
 
         ! Calculate the gaps Delta with the current
         ! a) fields

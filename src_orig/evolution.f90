@@ -83,8 +83,9 @@ module evolution
     !---------------------------------------------------------------------------
     !Procedure that determines the evolution of a Spwf under imaginary time.
     abstract interface
-      subroutine Evolve_interface(Iteration)
+      subroutine Evolve_interface(Iteration, constraints_active)
         integer, intent(in)       :: iteration
+        logical, intent(in)       :: constraints_active
       end subroutine
     end interface
     procedure(Evolve_Interface),pointer :: Evolve    
@@ -268,7 +269,7 @@ contains
 ! Evolution routines 
 !===============================================================================
 
-    subroutine Evolve_graddesc(iteration)
+    subroutine Evolve_graddesc(iteration, constraints_active)
         !-----------------------------------------------------------------------
         ! 
         ! a) For every wave-function do a gradient step
@@ -287,6 +288,7 @@ contains
         use wavefunctions
 
         integer, intent(in) :: iteration
+        logical, intent(in) :: constraints_active
         integer             :: wave, iso, iter
         real(KIND = dp)     :: hpsi(nx*ny*nz,4)
 
@@ -339,7 +341,7 @@ $N3         &              hfdddpsi(:,:,:,wave),                               &
 
     end subroutine Evolve_graddesc
 
-    subroutine Evolve_momentum(iteration)
+    subroutine Evolve_momentum(iteration, constraints_active)
         !-----------------------------------------------------------------------
         ! 
         ! Evolution of the single-particle wavefunctions in memory through
@@ -407,6 +409,7 @@ $N3         &              hfdddpsi(:,:,:,wave),                               &
         use wavefunctions
 
         integer, intent(in)   :: iteration
+        logical, intent(in)   :: constraints_active
         integer               :: wave, iso, B, si, N, wave2, lwork, ifail
         integer               :: wg, wg2
 #if(USE_MPI>0)
@@ -544,10 +547,14 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         gradientnorm = sqrt(gradientnorm) 
         d2h          = d2h/(neutrons+protons)
 
+        !-----------------------------------------------------------------------
+        ! Do a feasible projection step
+        if(constraints_active) call Feasibleproject()
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Orthonormalize the new spwf basis.
         call orthonormalize
-
 #if(USE_MPI > 0)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Collecting all arrays on all MPI ranks. The ALLREDUCE calls are valid, 
@@ -622,7 +629,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
 
     end subroutine Evolve_momentum
     
-    subroutine Evolve_momentum_sane(iteration)
+    subroutine Evolve_momentum_sane(iteration, constraints_active)
     !
     !
     !
@@ -631,6 +638,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       use wavefunctions
 
       integer, intent(in)        :: iteration
+      logical, intent(in)        :: constraints_active
 
       integer                    :: si, m, B, N, iso
       real(KIND=dp), allocatable :: hpsi(:,:,:)
@@ -682,10 +690,13 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       ! Step 2: perform the update
       HFPSI = HFPSI + momentum_updates
       !-------------------------------------------------------------------------
-      ! Step 3: orthonormalize
+      ! Step 3: perform another update for the constraints
+      if(constraints_active) call Feasibleproject()
+      !-------------------------------------------------------------------------
+      ! Step 4: orthonormalize
       call orthonormalize
       !-------------------------------------------------------------------------
-      ! Step 4: diagonalize the s.p. hamiltonian block-by-block
+      ! Step 5: diagonalize the s.p. hamiltonian block-by-block
       si = 0
       do B=1,8
         N = HFBlocks(B) ; if(N.eq.0) cycle
@@ -1105,7 +1116,7 @@ $N3       &                                        dddmax,                     &
    enddo
    !---------------------------------------------------------------------------
    ! Finally, orthonormalisation
-   call orthonormalize
+!   call orthonormalize
 
    call stop_timer(T_feasible)
 
