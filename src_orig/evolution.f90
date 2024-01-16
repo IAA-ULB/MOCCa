@@ -710,8 +710,14 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Calculate the norm of the residuals
         do m=1,N
-          dispersions(si+m) = sum((hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m))**2)*dv
-          d2h          = d2h + rho_can(si+m)*dispersions(si+m)
+          dispersions(si+m) = dv * &
+          & sum((hpsi(:,:,m)-sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m))**2)
+          select case(pairingtype)
+          case(0,1)
+            d2h          = d2h + rho_can(si+m)         *dispersions(si+m)
+          case(2) 
+            d2h          = d2h + rho_pairing(si+m,si+m)*dispersions(si+m)
+          end select
         enddo
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Actually diagonalize

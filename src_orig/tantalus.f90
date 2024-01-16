@@ -448,7 +448,10 @@ subroutine ReachForWaterAndFood()
           call CalcEnergy(.true.)
         endif
         !-----------------------------------------------------------------------
-        ! Decide between full or partial printout.
+        ! Decide whether to do a full printout
+        ! .... but do a summary printout anyway to enable for "complete" output
+        !      when grepping on quantities included in the summary
+        if(MPI_RANK.eq.0) call printsummary(iter)
         if(iprint .eq.1) then
             ! ... but update all spwf properties first to ensure correct prints
             if(print_adv_spwf_properties .or. &
@@ -477,9 +480,6 @@ subroutine ReachForWaterAndFood()
               call printpairing(PairStabfactor)
               call printEnergy()
             endif
-        elseif(MPI_RANK.eq.0) then
-             ! ..... else print a summary
-            call printsummary(iter)
         endif
 
         !-----------------------------------------------------------------------
@@ -556,9 +556,9 @@ subroutine printsummary(iter)
    21 format (' Potentials frozen.')
     3 format (' dt    = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
    31 format (' dtg   = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
-    4 format (' E     = ', f10.3,2x, '  DE   = ', e12.5)
-   41 format (' R     = ', f10.3,2x, '  DR   = ', e12.5)
-   42 format (' R-E   = ', f10.3,2x, 'D(R-E) = ', e12.5)
+    4 format (' E     = ', f17.10,2x, '  DE   = ', e12.5)
+   41 format (' R     = ', f17.10,2x, '  DR   = ', e12.5)
+   42 format (' R-E   = ', f17.10,2x, 'D(R-E) = ', e12.5)
 
     5 format (' ',a1, 'Q', 2i1,a1,' = ',f12.4, 3x, 'dQ = ', es8.1, 2x,         &
     &          'L = ',f12.4,2x,' dL = ', es8.1, 2x, 'dev = ', es8.1)
