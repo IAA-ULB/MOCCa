@@ -311,13 +311,14 @@ NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
 ################################################################################
 # Explicit precompilation steps
 #
-# 1) Run Hephaestos to preprocess the entire code
-# 2) Get version information from git
-# 3) Get compiler information
-# 4) set the version and compiler info in the source code
+# 1) Check for the existence of all directories
+# 2) Run Hephaestos to preprocess the entire code
+# 3) Get version information from git
+# 4) Get compiler information
+# 5) set the version and compiler info in the source code
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-PRE         :=  run_heph getgitinfo getcompilerinfo setversioninfo
+PRE         :=  $(SRCDIR)/ $(OBJDIR)/ $(MODDIR)/ $(EXECDIR)/ run_heph getgitinfo getcompilerinfo setversioninfo
 PRE_NIL     :=  cp_nil
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Internal (to the compiler) preprocessing directives
@@ -349,6 +350,9 @@ $(OBJDIR)/:
 
 $(MODDIR)/:
 	mkdir -p  $(MODDIR)/
+
+$(SRCDIR)/:
+	mkdir -p  $(SRCDIR)/
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 single: $(PRE) $(SINGLE_OBJ)
