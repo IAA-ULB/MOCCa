@@ -828,7 +828,6 @@ $PBROKEN   enddo
 #endif
         do j=1,N4
           wave2_global = si+N+N2+N3+j
-          print *, 'LOL', wave_global, wave2_global
           rankj        = rank_map(wave2_global)
           wave2        = spwf_inverse(wave2_global)
 
