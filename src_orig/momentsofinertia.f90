@@ -770,6 +770,13 @@ $NTR    do j=1, N2
 $NTR       jj = si + N +  j          ! global index of the spwf
 $NTR       localj= spwf_inverse(jj)  ! local index of the spwf
 $NTR       rankj = rank_map(jj)      ! MPI rank storing the spwf
+#if(USE_MPI>0)
+$NTR       call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+#else
+$NTR       call Transfer_psi(psi_j, localj, 'HF')
+$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+#endif
 $NTR       if(calc_rank.eq.MPI_RANK) then
 $NTR         !|< k | j_x | l >|^2            
 $NTR         jx(ii,jj)=angmom_x_real(psi_i, psi_j, der_psi_j) 

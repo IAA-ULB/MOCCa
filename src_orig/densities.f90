@@ -828,6 +828,7 @@ $PBROKEN   enddo
 #endif
         do j=1,N4
           wave2_global = si+N+N2+N3+j
+          print *, 'LOL', wave_global, wave2_global
           rankj        = rank_map(wave2_global)
           wave2        = spwf_inverse(wave2_global)
 
@@ -899,8 +900,8 @@ $PBROKEN   enddo
            ! Block 1 with block 4  (T-broken)    
 $NTR       do j=1, N4
 $NTR          wave2_global = si+N+N2+N3+j
-$NTR          Derx  =  DendPsi(:,1,:,wave2)
-$NTR          Dery  =  DendPsi(:,2,:,wave2)
+$NTR          Derx         =  DendPsi(:,1,:,wave2_global)
+$NTR          Dery         =  DendPsi(:,2,:,wave2_global)
            ! Block 1 with block 3  (T-conserved)    
 $TR        do j=1, N3
 $TR           wave2_global = si+N+j
@@ -998,9 +999,9 @@ $PBROKEN   enddo
 #endif
            ! Block 2 with block 3  (T-broken)    
 $NTR       do j=1, N3
-$NTR          wave2 = si+N+N2+j
-$NTR          Derx  =  DendPsi(:,1,:,wave2)
-$NTR          Dery  =  DendPsi(:,2,:,wave2)
+$NTR          wave2_global = si+N+N2+j
+$NTR          Derx  =  DendPsi(:,1,:,wave2_global)
+$NTR          Dery  =  DendPsi(:,2,:,wave2_global)
            ! Block 2 with block 4  (T-conserved)    
 $TR        do j=1, N4
 $TR           wave2_global = si+N+N2+N3+j
