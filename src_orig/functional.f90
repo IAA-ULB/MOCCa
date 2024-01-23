@@ -472,7 +472,7 @@ $PRINTCOEF_PAIR
 
     if( all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0) ) then
       ! Direct contribution of the Coulomb potential
-      CoulombDirect   = CoulombEnergy_Direct(D_I_I(:,2))
+      CoulombDirect   = CoulombEnergy_Direct(ChargeDensity)
       ! Exchange contribution
       CoulombExchange = CoulombEnergy_Exchange(D_I_I(:,2)) 
     else

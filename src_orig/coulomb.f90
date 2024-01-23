@@ -138,6 +138,10 @@ contains
        case DEFAULT
         call stp('This order for the Coulomb discretisation is not supported.')
      end select
+     !NS: no offset for pasta
+#if(PASTA==1)
+     BC=0
+#endif
     endif
 
     ! Determine the offsets of the original mesh inside the larger Coulomb mesh    
@@ -196,11 +200,12 @@ $REDUZ  coul_offset_z = 0
     !---------------------------------------------------------------------------
     ! Set the boundary conditions.
     call CoulombBound(Source)
-    
+
     ! Solve for the direct coulomb potential  
     ! Note that the symmetry properties (+1,+1,+1) are never changed: 
     ! Hephaestos modifies directly the Coulomb_Laplacian routine when necessary 
     call ConjugGrad (CoulombPotential,Source, +1,+1,+1,1000,.false.,prec)
+    
 
     if(Coultreatment.eq.1) then
       !-------------------------------------------------------------------------
@@ -274,6 +279,8 @@ $REDUZ  coul_offset_z = 0
     real(KIND=dp), allocatable :: rho_charge(:,:,:)
     real(KIND=dp)              :: temp(nx,ny,nz)
     integer                    :: i,j,k
+    real(KIND=dp)              :: rho_el, linX, linY, linZ, volume
+    !real(KIND=dp)              :: rrr,xx,yy,zz
     
     call start_timer(T_chargedensity)
     
@@ -328,13 +335,39 @@ $REDUZ  coul_offset_z = 0
         &                                                            nx, ny, nz)
     endif
 
+    !do k=1,nz
+    !  do j=1,ny
+    !    do i=1,nx
+    !        xx=dx/2.d0+(i-1)*dx
+    !        yy=dx/2.d0+(j-1)*dx
+    !        zz=dx/2.d0+(k-1)*dx
+    !        rrr=sqrt(xx**2 + yy**2 + zz**2)
+    !        temp(i,j,k)=0.070679973d0/(1.d0+exp((rrr-4.d0)/0.3d0))
+    !    enddo       
+    !  enddo
+    !enddo
+
     if(all(protonsize.eq.0.0)) then
         rho_charge = temp
     endif
+   
         
     !---------------------------------------------------------------------------
     ! Neutron contributions to the charge density.
     if(all(neutronsize.eq.0.0)) then
+    !NS: subtruct electron background
+#if(PASTA==1)
+      linX=nx
+      linY=ny
+      linZ=nz
+$REDUX     linX=2*nx
+$REDUY     linY=2*ny
+$REDUZ     linZ=2*nz
+      volume=linx*dx*linY*dx*linZ*dx
+      rho_el=protons/volume
+      rho_charge=rho_charge-rho_el
+      !print *,'rho_el=',rho_el
+#endif
       call stop_timer(T_chargedensity)
       return
     endif
@@ -360,6 +393,24 @@ $REDUZ  coul_offset_z = 0
         &                                                            nx, ny, nz)
     endif
     !---------------------------------------------------------------------------
+
+    !NS: subtruct electron background
+#if(PASTA==1)
+    
+    linX=nx
+    linY=ny
+    linZ=nz
+
+$REDUX   linX=2*nx
+$REDUY   linY=2*ny
+$REDUZ   linZ=2*nz
+
+    volume=linx*dx*linY*dx*linZ*dx
+    rho_el=protons/volume
+    rho_charge=rho_charge-rho_el
+    !print *,'rho_el2=',rho_el
+#endif
+
     
     call stop_timer(T_chargedensity)
  end subroutine ConstructChargeDensity
@@ -443,7 +494,7 @@ $REDUZ  coul_offset_z = 0
     ExchangePotential = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
-    Prec = 1.d-12/(dx**3*nx*ny*nz)
+    Prec = 1.d-12/(dx**3)
 
     !---------------------------------------------------------------------------
     ! Set-up the values of r and spherharmcoulomb on the Coulomb mesh.
@@ -678,6 +729,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     real(KIND=dp) :: CEnergy
     real(KIND=dp), intent(in) :: rhop(mv)
     integer       :: i,j,k, ox, oy, oz
+    !real(KIND=dp)              :: rho_el, linX, linY, linZ, volume
     
     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
     
@@ -687,10 +739,12 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
             do i=1,nx
                 CEnergy = CEnergy + rhop( meshindex(i,j,k)) *         &
                 &                   CoulombPotential(i+ox,j+oy,k+oz)
+                !print *,i,j,k,rhop(meshindex(i,j,k)),CoulombPotential(i+ox,j+oy,k+oz)
             enddo
         enddo
     enddo
     CEnergy = CEnergy * dv * 0.5_dp
+    !print *, 'CEnergy=',CEnergy,ox,oy,oz,dv
  end function CoulombEnergy_Direct
  
  function CoulombEnergy_Exchange(rhop) result(CEnergy)
@@ -830,6 +884,8 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
 
     allocate(lf(nx+BC+ox, ny+BC+oy, nz+BC+oz)) ;  lf = 0.0_dp
+
+#if(PASTA==0)
     !---------------------------------------------------------------------------
     ! X-direction
     do k=oz+1,oz+nz
@@ -911,6 +967,89 @@ $REDUZ          enddo
 $REDUZ        enddo
 $REDUZ      enddo
 $REDUZ    enddo
+
+#elif(PASTA==1)
+    !NS: impose periodic BC of order=coulorder
+    !---------------------------------------------------------------------------
+    ! X-direction
+    do k=1,nz
+        do j=1,ny
+            do i=1+coulorder,nx-coulorder
+              do l=-coulorder,+coulorder
+                lf(i,j,k) = lf(i,j,k) + CoulCoefs(l+coulorder+1) * f(i+l,j,k)
+              enddo   
+            enddo
+            do i=1,coulorder
+              !derivatives without extrapoints from boundary conditions
+              do l=-i+1,coulorder
+                lf(i,j,k)     =     lf(i,j,k)+CoulCoefs(l+coulorder+1) *f(i+l,j,k)
+                lf(nx+1-i,j,k)=lf(nx+1-i,j,k)+CoulCoefs(-l+coulorder+1)*f(nx+1-i-l,j,k)
+              enddo
+              !Boundary conditions
+              do l=-coulorder,-i
+$REDUX               lf(i,j,k)     =     lf(i,j,k)+CoulCoefs(l+coulorder+1) *f(1-i-l,j,k)
+$REDUX               lf(nx+1-i,j,k)=lf(nx+1-i,j,k)+CoulCoefs(-l+coulorder+1)*f(nx+i+l,j,k)
+$REDUX               cycle
+                lf(i,j,k)     =     lf(i,j,k)+CoulCoefs(l+coulorder+1) *f(nx+i+l,j,k)
+                lf(nx+1-i,j,k)=lf(nx+1-i,j,k)+CoulCoefs(-l+coulorder+1)*f(1-i-l,j,k)
+              enddo
+            enddo
+        enddo
+    enddo
+
+
+    !---------------------------------------------------------------------------
+    ! Y-direction
+    do k=1,nz
+        do i=1,nx
+            do j=1+coulorder,ny-coulorder
+              do l=-coulorder,+coulorder
+                 lf(i,j,k) = lf(i,j,k) + CoulCoefs(l+coulorder+1) * f(i,j+l,k)
+              enddo
+            enddo
+            do j=1,coulorder
+              do l=-j+1,coulorder
+                lf(i,j,k)     =     lf(i,j,k)+CoulCoefs(l+coulorder+1) *f(i,j+l,k)
+                lf(i,ny+1-j,k)=lf(i,ny+1-j,k)+CoulCoefs(-l+coulorder+1)*f(i,ny+1-j-l,k)
+              enddo
+              do l=-coulorder,-j
+$REDUY               lf(i,j,k)     =     lf(i,j,k)+CoulCoefs(l+coulorder+1) *f(i,1-j-l,k)
+$REDUY               lf(i,ny+1-j,k)=lf(i,ny+1-j,k)+CoulCoefs(-l+coulorder+1)*f(i,ny+j+l,k)
+$REDUY               cycle
+                lf(i,j,k)     =     lf(i,j,k)+CoulCoefs(l+coulorder+1) *f(i,ny+j+l,k)
+                lf(i,ny+1-j,k)=lf(i,ny+1-j,k)+CoulCoefs(-l+coulorder+1)*f(i,1-j-l,k)
+              enddo
+            enddo
+        enddo
+    enddo
+
+
+    !---------------------------------------------------------------------------
+    ! Z-direction
+    !---------------------------------------------------------------------------
+    do j=1,ny
+        do i=1,nx
+            do k=1+coulorder,nz-coulorder
+              do l=-coulorder,+coulorder
+                 lf(i,j,k) = lf(i,j,k) + CoulCoefs(l+coulorder+1) * f(i,j,k+l)
+              enddo
+            enddo
+            do k=1,coulorder
+              do l=-k+1,coulorder
+                lf(i,j,k)     =     lf(i,j,k)+CoulCoefs(l+coulorder+1) *f(i,j,k+l)
+                lf(i,j,nz+1-k)=lf(i,j,nz+1-k)+CoulCoefs(-l+coulorder+1)*f(i,j,nz+1-k-l)
+              enddo
+              do l=-coulorder,-k
+$REDUZ               lf(i,j,k)     =     lf(i,j,k)+CoulCoefs(l+coulorder+1) *f(i,j,1-k-l)
+$REDUZ               lf(i,j,nz+1-k)=lf(i,j,nz+1-k)+CoulCoefs(-l+coulorder+1)*f(i,j,nz+k+l)    
+$REDUZ               cycle             
+                lf(i,j,k)     =     lf(i,j,k)+CoulCoefs(l+coulorder+1) *f(i,j,nz+k+l)
+                lf(i,j,nz+1-k)=lf(i,j,nz+1-k)+CoulCoefs(-l+coulorder+1)*f(i,j,1-k-l)
+              enddo
+            enddo
+        enddo
+    enddo
+#endif
 
     !---------------------------------------------------------------------------
     lf = lf/(dx**2)
