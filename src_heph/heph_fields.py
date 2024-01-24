@@ -164,8 +164,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       else:
         Pairing_Fields_needed.append(dic['FIELD'])
       #-----------------------------------------------------------------------
-
-
       # Construct the left/right operators
       operatordic = {}
       operatordic['I'] = Identity
@@ -222,7 +220,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
           
           #-------------------------------------------------------------------
           # Replace the densities in the list by the ones actually calculated
-          
           newden = densities.copy()
           for i, d in enumerate(densities):
               (x,y,l2,r2,c2,cr2) = ParseOperators(d,so.timelike)
@@ -255,8 +252,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
 #                    tryout = densities[i].replace(s1, s2)
 #                    nosum  = densities[i].replace(s1, '')
 #                    altterm = altterm.replace(tryout, nosum)
-
-
           (rubbish, cpl) = src_heph.heph_functional.ParseDensities(altterm)
 
           #---------------------------------------------------------------------
@@ -447,7 +442,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                     altcpl  = cplct + ' * (' +  dden + ')' 
                     isoc    = iso_ind.copy()
                     #-----------------------------------------------------------
-
                     # When terms are trilinear or quadrilinear, every partial 
                     # integration generates MORE THAN ONE TERM in the 
                     # calculation of the field. Example:
@@ -783,7 +777,27 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
 
           dic['IND'] = IND
 
-
+          #--------------------------------------------------------------------
+          # Add the actual call(s) to precondition this potential to the code.
+          # First we coun the number of external derivatives that occurs in the 
+          # field, such that we know how often to apply the preconditioner.
+          extder = 0
+          for iso in ['0','1', 'n', 'p']:        
+            if(len(fieldlist[iso]) == 0):
+              continue
+            for fieldterm in fieldlist[iso]:
+              nder = 0 ; nlap = 0
+              # Number of external derivatives in the "density", i.e. not incurred by 
+              # partial integration
+              for tempden in fieldterm[0]:
+                  nder = nder + tempden.count('Der')
+                  nlap = nlap + tempden.count('Lap')
+              # extra derivatives incurred by partial integration
+              nder = nder + len(fieldterm[1])
+              nlap = nlap + len(fieldterm[2])
+              # Every laplacian counts for two derivatives of course!
+              extder = max(extder, nder + 2 * nlap)
+          
           fieldprecon  = fieldprecon + ts.field_precon_update.substitute(dic)
 
           for true_arg in uncontracted: 
@@ -800,7 +814,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
             dic['PX'] = str(px)
             dic['PY'] = str(py)
             dic['PZ'] = str(pz)
-          fieldprecon  = fieldprecon + ts.field_precon_call.substitute(dic)
+          # Every two external derivatives get one preconditioning run.
+          fieldprecon  = fieldprecon + + (extder//2) * ts.field_precon_call.substitute(dic)
           fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
         fieldprecon  = fieldprecon + ts.field_precon_end.substitute(dic)
   #-----------------------------------------------------------------------------
