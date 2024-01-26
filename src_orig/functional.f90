@@ -105,6 +105,7 @@ module functional
     !---------------------------------------------------------------------------
     ! Definition of global contributions to the energy
     real(KIND=dp) :: Kinetic(2), Skyrme, TotalE, Ehistory(5)
+    real(KIND=dp) :: ElectronEnergyKin, ElectronEnergyExch
     real(KIND=dp) :: tot_even  , tot_odd
     real(KIND=dp) :: bilinear, trilinear, quadrilinear, densitydependent
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
@@ -278,7 +279,9 @@ $PRINTCOEF_PAIR
     7 format (15x, ' Coulomb Direct:', 3f15.6)
    71 format (15x, '   Dir. (point):', 3f15.6)
     8 format (15x, '       Exchange:', 3f15.6)
-   81 format (15x, '   Exc. (point):', 3f15.6)  
+   81 format (15x, '   Exc. (point):', 3f15.6) 
+   82 format (15x, '   Electron kin:', 3f15.6) 
+   83 format (15x, '  Electron exch:', 3f15.6)  
 
     9 format (15x, 'Pairing (delta):', 3f15.6)
    91 format (15x, 'Pairing (densi):', 30x, f15.6)
@@ -296,6 +299,7 @@ $PRINTCOEF_PAIR
   104 format (15x, '          dE   :', 30x, e15.6)
   105 format (15x, '       Routhian:', 30x, f15.6)
   106 format (15x, '          dR   :', 30x, e15.6)
+  107 format (15x, ' Total energy/A:', 30x, f15.6)
 
     real(KIND=dp) :: temp
 
@@ -340,6 +344,11 @@ $PRINTCOEF_PAIR
       temp = CoulombEnergy_Exchange(D_I_I(:,2))
       print 81, 0.0, temp, temp
     endif
+#if(PASTA==1)
+    print *
+    print 82, 0.0, 0.0, ElectronEnergyKin
+    print 83, 0.0, 0.0, ElectronEnergyExch
+#endif
     print *
     if( abs(Estabp).lt.1d-10 .and. abs(Estabn).lt.1d-10) then
       print 9 , PairingEnergy, sum(PairingEnergy)
@@ -370,6 +379,9 @@ $PRINTCOEF_PAIR
 
     print 104,  TotalE   - Ehistory(1)
     print 106,  Routhian - Rhistory(1)
+#if(PASTA==1)
+    print 107, TotalE/dble(protons+neutrons)
+#endif
 
     print 1
  end subroutine PrintEnergy
@@ -497,6 +509,14 @@ $PRINTCOEF_PAIR
     endif
     ! Entropy calculation when temperature is finite
     call calcentropy()
+    
+    !NS: Calculate electrons energy
+#if(PASTA==0)
+    ElectronEnergyKin=0.0d0
+    ElectronEnergyExch=0.0d0
+#else
+    call calcElectronEnergy()
+#endif
 
     ! The total energy is comprised of 
     !      Kinetic part + Skyrme part + corrections + Coulomb energy
@@ -504,6 +524,8 @@ $PRINTCOEF_PAIR
     TotalE = TotalE + CoulombDirect + CoulombExchange 
     ! Plus schematic corrections for the collective energy
     TotalE = TotalE + sum(Rotcorrection) + sum(Vibcorrection)
+    !NS: Plus energy of electrons if they are
+    TotalE= TotalE+ElectronEnergyKin+ElectronEnergyExch
 
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
@@ -1359,6 +1381,8 @@ $EREAR
     Spwfenergy = Spwfenergy + sum(Rotcorrection)
     ! And the vibrational correction
     Spwfenergy = Spwfenergy + sum(vibcorrection)
+    !NS:Add electrons
+    SpwfEnergy= SpwfEnergy+ElectronEnergyKin+ElectronEnergyExch
   end function calcspwfenergy
   
   subroutine output_Edensity(Edensity, N)
@@ -1393,6 +1417,35 @@ $EREAR
     $CLEANING
 
   end subroutine clean_potentials
+  
+  subroutine calcElectronEnergy()
+  !NS: calculate kinetic energy of relativistic electron gas including exchange
+  !(but latter in ultrarelativistic limit)
+  
+  real(KIND=dp) :: lamce, pfermi, xx, xx2, hi_x, E_rel, E_ultrarel, ne
+  real(KIND=dp),parameter :: cc=2.99792458d23     !codata speed of light fm/s
+  real(KIND=dp),parameter :: me=0.510998950d0 !codata electron mass in MeV
+  real(KIND=dp),parameter :: hh=4.135667696d-21/(2.d0*pi) !codata h dirac MeV*s
+  real(KIND=dp),parameter :: alphaem=7.2973525693d-3 !Codata fine structure
+  
+  ne=protons/(mv*dv)
+  
+  !Relativistic electrons
+  lamce=hh*cc/me
+  pfermi=(3.d0*(hh*2.d0*pi)**3.d0/(8.d0*pi)*ne)**(1.d0/3.d0)
+  xx=pfermi*cc/me
+  xx2=xx*xx
+  hi_x=1.d0/(8.d0*pi*pi)*(xx*sqrt(1.d0+xx2)*(1.d0+2.d0*xx2)-log(xx+sqrt(1.d0+xx2)))
+  E_rel= me/(lamce**3.d0)*hi_x
+  
+  !Ultrarelativistic electrons
+  E_ultrarel=0.75d0*(3.d0*pi*pi)**(1.d0/3.d0)*hh*cc*ne**(4.d0/3.d0)
+  
+  ElectronEnergyKin=E_rel*mv*dv
+  !Electron exchange energy
+  ElectronEnergyExch=E_ultrarel*alphaem/2.d0/pi*mv*dv
+  
+  end subroutine calcElectronEnergy
 
   subroutine WritePotentials(chan)
     !---------------------------------------------------------------------------
