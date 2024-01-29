@@ -630,17 +630,63 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
     end subroutine Evolve_momentum
     
     subroutine Evolve_momentum_sane(iteration, constraints_active)
-    !
-    !
-    !
-    !
-    !
+      !-------------------------------------------------------------------------
+      ! Evolution of the single-particle wavefunctions in memory with 
+      ! MODIFIED heavy-ball evolution.
+      !
+      ! Step 0: If asked for, estimate the evolution parameters dt and mu.
+      ! Step 1: construct the updates of all spwfs
+      !           d|psi>^(i)  = -dt/hbar * h |psi>^(i) + mu d |\psi>^(i-1)
+      ! Step 2: apply the updates
+      !            |phi>^(i+1)= |psi>^(i) + d|psi>^(i)  
+      ! Step 3: if required, perform an additional update to improve on
+      !         the constraints
+      ! Step 4: orthonormalise, move from the |phi>^(i+1) -> |psi>^(i+1)
+      ! Step 5: subspace rotation, i.e. diagonalise the s.p. hamiltonian 
+      !          within the subspace spanned by the |psi>^(i+1).
+      !
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !
+      ! As side-effects, the code calculates 
+      !
+      !   (a) spenenergies array: 
+      !       eigenvalues of the s.p. hamiltonian obtained from the subspace
+      !       rotation in step 5.
+      !   (b) dispersions: 
+      !       norm of the residual of each spwf, i.e. the square of the norm
+      !       of the following vector
+      !         h | psi >^(i+1) - | psi >^(i+1) < psi^(i+1) | h | psi^(i+1) >
+      !   (c) d2H: 
+      !       occupation-weighted sum of the norm of the residuals.
+      !
+      !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Other notes:
+      !  
+      !  1. Dispersions are calculated AFTER orthonormalisation, but BEFORE
+      !     the subspace rotation. We could do better by also transforming 
+      !     the residuals with the linear transformation resulting from the 
+      !     subspace rotation. This will be tricky to get in view of point 4.
+      !   
+      !  2. This evolution routine is not yet compatible with the HFB gradient
+      !     solver; one would need orthonormalisation of the updates w.r.t. 
+      !     to the original spwfs (which is costly for pasta calculations).
+      !
+      !  3. It is ENORMOUSLY important that the updates d |\psi>^(i-1) get
+      !     transformed during the subspace transformation; otherwise updates
+      !     from previous iterations get wrongly matched with spwfs.
+      !
+      !  4. By construction, this routine ensures that HFBasis contains the 
+      !     actual Hartree-Fock basis at the end of the day, meaning that 
+      !     HFTransfo has become a trivial transformation.
+      !
+      !-------------------------------------------------------------------------
+
       use wavefunctions
 
       integer, intent(in)        :: iteration
       logical, intent(in)        :: constraints_active
 
-      integer                    :: si, m, B, N, iso
+      integer                    :: si, m, B, N, iso, wave2, inproduct
       real(KIND=dp), allocatable :: hpsi(:,:,:)
 
       call start_timer(T_evolution)
@@ -682,7 +728,6 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         ! Add some history and 'momentum' to the update. 
         momentum_updates(:,:,si+1:si+N) = & 
         &     - dt/hbar * hpsi      +  momentum*momentum_updates(:,:,si+1:si+N) 
-        ! actual update
         deallocate(hpsi)
         si = si + N
       enddo
