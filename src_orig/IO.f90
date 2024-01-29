@@ -759,7 +759,7 @@ contains
     allocate(spenergies (filenwt))
     allocate(dispersions(filenwt))
     allocate(HFtransfo  (filenwt,filenwt)) ; HFtransfo   = 0.0d0
-    allocate(current_sph(filenwt,filenwt)) ; current_sph = 0.0d0
+    allocate(sphamil(filenwt,filenwt)) ; sphamil = 0.0d0
 
     if (allocated(rho_can)) deallocate(rho_can)
     allocate(rho_can(filenwt))
@@ -834,7 +834,7 @@ contains
       read(chan, iostat=io) ini_name_param, func_name_check
       ! Single-particle hamiltonian
       if(file_version.ge.4) then
-        read(chan, iostat=io) current_sph
+        read(chan, iostat=io) sphamil
       endif
     endif
 #if(USE_MPI > 0)
@@ -843,7 +843,7 @@ contains
     call MPI_BCAST(func_name_check, len(func_name_check), MPI_CHARACTER,0,     &
     &                                                   MPI_COMM_WORLD, mpi_err)
 
-    call MPI_BCAST(current_sph, filenwt**2, MPI_REAL8,0,MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(sphamil, filenwt**2, MPI_REAL8,0,MPI_COMM_WORLD, mpi_err)
 #endif
 
     !---------------------------------------------------------------------------
@@ -1195,7 +1195,7 @@ contains
       ! Name of the force.
       write(chan, iostat=io) name_param, func_name
       ! Single-particle hamiltonian
-      write(chan, iostat=io) current_sph
+      write(chan, iostat=io) sphamil
       !-------------------------------------------------------------------------
       ! Pairing information 
       write(chan, iostat=io) PairingType
@@ -1522,7 +1522,7 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     !---------------------------------------------------------------------------
     ! This method has turned out to NOT be a reliable indicator.
 !    blocked_blocks =  figure_out_blocking_structure_agnostic(                  &
-!    &                             current_sph, HFBgaps, FermiEnergy, Bogoliubov)
+!    &                             sphamil, HFBgaps, FermiEnergy, Bogoliubov)
 !  
 !    check_blocks = 0
 !    do i=1,NB

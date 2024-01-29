@@ -176,8 +176,9 @@ module wavefunctions
  !      \langle psi_i | h | psi_i \rangle
  ! (ii) eigenvalues of the single-particle hamiltonian when restricted to the
  !      subspace being iterated
- real(KIND=dp), allocatable :: spenergies(:) 
- real(KIND=dp), allocatable :: current_sph(:,:)
+ real(KIND=dp), allocatable :: spenergies(:)
+ ! Complete single-particle hamiltonian 
+ real(KIND=dp), allocatable :: sphamil(:,:)
  ! Dispersions of the spwfs with respect to h
  real(KIND=dp), allocatable :: dispersions(:)
  ! expectation values of the single-particle hamiltonian in the canonical basis
@@ -456,7 +457,7 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Also initialized:
     !  *) Diagonal matrix elements of <h> = spenergies
-    !  *) A default value for the current_sph as a diagonal matrix
+    !  *) A default value for the sphamil as a diagonal matrix
     !  *) A default value for the hf_transfo as a trivial identity matrix
     ! 
     ! Not initialized here:
@@ -560,12 +561,12 @@ contains
       enddo
     enddo
 
-    if(.not.allocated(current_sph)) allocate(current_sph(nwt,nwt))
+    if(.not.allocated(sphamil)) allocate(sphamil(nwt,nwt))
     do i=1, nwt
-      current_sph(i,i) = spenergies(i)
+      sphamil(i,i) = spenergies(i)
       do j=i+1,nwt
-        current_sph(i,j) = 0.0d0 
-        current_sph(j,i) = 0.0d0 
+        sphamil(i,j) = 0.0d0 
+        sphamil(j,i) = 0.0d0 
       enddo
     enddo
 

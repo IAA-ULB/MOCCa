@@ -126,7 +126,7 @@ $SYMDELTA     integer, intent(in)   :: sx(:),sy(:),sz(:)
 
 contains
     
-  subroutine solvepairing_HFB_direct(sphamil, gaps, fermi, Bogoliubov,         & 
+  subroutine solvepairing_HFB_direct(sph, gaps, fermi, Bogoliubov,         & 
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType,Blockindices,               &
   &                          blocklowest, blocked_qps, partner_qps,qp_overlaps,&
@@ -138,7 +138,7 @@ contains
     ! the desired Bogoliubov vacuum state out of its eigenvectors.
     !
     ! Input: 
-    !    sphamil      : matrix of the single-particle hamiltonian
+    !    sph      : matrix of the single-particle hamiltonian
     !    gaps         : matrix of the pairing gaps
     !    fermi        : initial guess for the Fermi energies of both nucleon 
     !                   species
@@ -179,7 +179,7 @@ contains
     real(KIND=dp), intent(inout) :: kappa_pairing(:,:), rho_pairing(:,:)
     real(KIND=dp), intent(inout) :: configmatrix(:), qpenergies(:)
     ! Quantities for the HFB hamiltonian
-    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
+    real(KIND=dp), intent(in)    :: sph(:,:),gaps(:,:)
     real(KIND=dp)                :: HFBHamil(2*nwt, 2*nwt)
     
     ! Configuration for the blocking
@@ -300,7 +300,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
       it = 1 ; if (B .gt. 4) it = 2
 
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
-      &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
+      &                           sph(si+1:si+N+N2,si+1:si+N+N2),          &
       &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)
 
       si = si +   N +   N2
@@ -359,7 +359,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
 
   end subroutine solvepairing_HFB_direct
 
-  subroutine solvepairing_HFB_gradient( sphamil, gaps, fermi,  Bogo,           & 
+  subroutine solvepairing_HFB_gradient( sph, gaps, fermi,  Bogo,           & 
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType, Blockindices,              &
   &                          blocklowest, blocked_qps, partner_qps,            & 
@@ -371,7 +371,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! 
     ! Input:
-    !   sphamil      : single-particle hamiltonian
+    !   sph      : single-particle hamiltonian
     !   gaps         : pairing gaps Delta
     !   fermi        : current guess for the Fermi energy of both isospins
     !   lambda       : Lagrange multiplier for the constraint on the particle
@@ -443,7 +443,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     real(KIND=dp), intent(inout) :: Fermi(2)          , Bogo(:,:)
     real(KIND=dp), intent(inout) :: kappa_pairing(:,:), rho_pairing(:,:)
     real(KIND=dp), intent(inout) :: configmatrix(:)   , qpenergies(:) 
-    real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
+    real(KIND=dp), intent(in)    :: sph(:,:),gaps(:,:)
     integer, intent(inout)       :: ifail
     integer, intent(in)          :: maxhfbiter
     logical, intent(in)          :: move
@@ -490,7 +490,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     if(estimategradparams) then     
       ! Obtain an estimate for the quasi-particle energies to estimate the 
       ! evolution parameters
-      full_eqp      = obtain_eqp(sphamil, gaps, Fermi, HFBlocks_global)
+      full_eqp      = obtain_eqp(sph, gaps, Fermi, HFBlocks_global)
 
       minqp = +100000
       maxqp = -100000
@@ -557,7 +557,7 @@ $TR    endif
 
       !-------------------------------------------------------------------------
       ! Heavy-ball stepping for the neutrons
-      call gradient_step(sphamil(1:nwn,1:nwn),gaps(1:nwn,1:nwn),               & 
+      call gradient_step(sph(1:nwn,1:nwn),gaps(1:nwn,1:nwn),               & 
       &                  neutrons, Bogo(1:2*nwn,1:2*nwn),                      &
       &                  occ(1:nwn),                                           &
       &                  tempEqp(1:nwn),Fermi(1),                              &
@@ -566,7 +566,7 @@ $TR    endif
       &                  gradient_precon, HFBgradnorm(1), grad_blocks(1:4),    &
       &                  maxhfbiter, ifail)
       ! and for the protons
-      call gradient_step(sphamil(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt),& 
+      call gradient_step(sph(nwn+1:nwt,nwn+1:nwt),gaps(nwn+1:nwt,nwn+1:nwt),& 
       &                  protons,Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt),            &
       &                  occ(nwn+1:nwt),                                       &
       &                  tempEqp(nwn+1:nwt),Fermi(2),                          &
@@ -602,11 +602,11 @@ $TR    endif
     call PairingMatrices(configmatrix, bogo, rho_pairing, kappa_pairing)
     !---------------------------------------------------------------------------
     ! Final organisation of the Bogoliubov transformation B and QP energies. 
-    call correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFBlocks_global, &
+    call correct_ordering_eqp(sph,gaps,Fermi,bogo,HFBlocks_global, &
     &                                                  qpenergies,qpdispersions)
 
     if(blocktype .ne. 4) then
-      call figure_out_blocking_structure(sphamil, gaps, Fermi, bogo, &
+      call figure_out_blocking_structure(sph, gaps, Fermi, bogo, &
       &              blocked_qps,partner_qps, p_overlaps,blocktype, blocklowest)
     else
       call figure_out_blocking_structure_EFA( &
@@ -619,7 +619,7 @@ $TR    endif
     deallocate(tempEqp)
   end subroutine solvepairing_HFB_gradient
   
-  subroutine figure_out_blocking_structure(sphamil , gaps, lambda,             &
+  subroutine figure_out_blocking_structure(sph , gaps, lambda,             &
   &                                             Bogo_ref, bl_qps, part_qps,    &
   &                                             p_overlaps,                    &
   &                                             BlockType, blocklowest) 
@@ -669,7 +669,7 @@ $TR    endif
     !---------------------------------------------------------------------------
     ! Input:
     ! ------
-    !     sphamil     : matrix of the single-particle hamiltonian
+    !     sph     : matrix of the single-particle hamiltonian
     !     gaps        : matrix of the pairing gaps
     !     lambda      : fermi energies of both nucleon species
     !     Bogo_ref    : Bogoliubov transformation to be investigated. 
@@ -686,7 +686,7 @@ $TR    endif
     !                   (detected) partner
     !---------------------------------------------------------------------------
   
-    real(KIND=dp), intent(in) :: sphamil(:,:), gaps(:,:), lambda(2)
+    real(KIND=dp), intent(in) :: sph(:,:), gaps(:,:), lambda(2)
     real(KIND=dp), intent(in) :: bogo_ref(:,:)
     integer, intent(in)                            :: BlockType
     character(len=2), intent(in), allocatable      :: BlockLowest(:)
@@ -731,7 +731,7 @@ $TR    endif
       it = 1 ; if (B .gt. 4) it = 2
 
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
-      &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
+      &                           sph(si+1:si+N+N2,si+1:si+N+N2),          &
       &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)
 
       si = si +   N +   N2
@@ -977,13 +977,13 @@ $PBROKEN blockblock(i) = 5
 
   end subroutine figure_out_blocking_structure_EFA
   
-  function obtain_eqp(sphamil, gaps, lambda, blocks) result(eigen)
+  function obtain_eqp(sph, gaps, lambda, blocks) result(eigen)
     !---------------------------------------------------------------------------
     ! Obtain the quasiparticle energies by constructing and diagonalizing the 
     ! HFB hamiltonian. 
     !
     ! Input :
-    !  sphamil : matrix of the single-particle hamiltonian
+    !  sph : matrix of the single-particle hamiltonian
     !  gaps    : matrix of the pairing gaps
     !  lambda  : Fermi energies of both nucleon species
     !  blocks  : size of the symmetry blocks of the HFB Hamiltonian
@@ -1000,7 +1000,7 @@ $PBROKEN blockblock(i) = 5
     !     Hamiltonian, as opposed to the subroutine correct_ordering_eqp
     !---------------------------------------------------------------------------
 
-    real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), lambda(2)
+    real(KIND=dp), intent(in)   :: sph(:,:), gaps(:,:), lambda(2)
     real(KIND=dp), allocatable  :: HFBhamil(:,:), work(:), A(:,:)
     integer, intent(in)         :: blocks(8)
     real(KIND=dp),allocatable   :: eigen(:)
@@ -1016,7 +1016,7 @@ $PBROKEN blockblock(i) = 5
       N2 = Blocks(B+1)  ! Size of the second partner block
         
       HFBHamil(sb+1:sb+2*N+2*N2, sb+1:sb+2*N+2*N2) = ConstructHFBHamil(        &
-      &                           sphamil(si+1:si+N+N2,si+1:si+N+N2),          &
+      &                           sph(si+1:si+N+N2,si+1:si+N+N2),          &
       &                           gaps(si+1:si+N+N2,si+1:si+N+N2), N, N2)
 
       si = si +   N +   N2
@@ -1048,7 +1048,7 @@ $PBROKEN blockblock(i) = 5
   
   end function obtain_eqp
   
-  subroutine correct_ordering_eqp(sphamil,gaps,lambda,bogo,blocks, eigen,disp) 
+  subroutine correct_ordering_eqp(sph,gaps,lambda,bogo,blocks, eigen,disp) 
     !---------------------------------------------------------------------------
     ! This routine obtains estimates of the qp-energies of the HFB Hamiltonian H
     ! by taking the diagonal matrix elements of
@@ -1064,7 +1064,7 @@ $PBROKEN blockblock(i) = 5
     !
     ! Input : 
     ! -------
-    !   sphamil : matrix of the single-particle hamiltonian
+    !   sph : matrix of the single-particle hamiltonian
     !   gaps    : matrix of the pairing gaps
     !   lambda  : Fermi energies for both nucleon species
     !   blocks  : sizes of the symmetry blocks of the HFB Hamiltonian
@@ -1074,7 +1074,7 @@ $PBROKEN blockblock(i) = 5
     !   eigen   : the diagonal matrix elements of W^T H W
     !   disp    : the dispersion of the vectors in W
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), lambda(2), bogo(:,:)
+    real(KIND=dp), intent(in)   :: sph(:,:), gaps(:,:), lambda(2), bogo(:,:)
     real(KIND=dp), allocatable  :: HFBhamil(:,:)
     integer, intent(in)         :: blocks(8)
     real(KIND=dp),  intent(out) :: eigen(:), disp(:)
@@ -1101,8 +1101,8 @@ $PBROKEN blockblock(i) = 5
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! I construct the HFB Hamiltonian by hand as it needs to have the right 
       ! structure from the start
-      HFBHamil(sb  +1:sb+  T,sb  +1:sb+  T) = +sphamil(si+1:si+T,si+1:si+T)
-      HFBHamil(sb+T+1:sb+2*T,sb+T+1:sb+2*T) = -sphamil(si+1:si+T,si+1:si+T)
+      HFBHamil(sb  +1:sb+  T,sb  +1:sb+  T) = +sph(si+1:si+T,si+1:si+T)
+      HFBHamil(sb+T+1:sb+2*T,sb+T+1:sb+2*T) = -sph(si+1:si+T,si+1:si+T)
   
 $NTR  HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = -gaps(si+1:si+T,si+1:si+T)
 $TR   HFBHamil(sb+T+1:sb+2*T,sb  +1:sb  +T) = +gaps(si+1:si+T,si+1:si+T)
@@ -1447,7 +1447,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
 
   end subroutine PairingMatrices
 
-  function ConstructHFBHamil(sphamil, gaps, N, N2) result(H)
+  function ConstructHFBHamil(sph, gaps, N, N2) result(H)
     !---------------------------------------------------------------------------
     !  Construction of the HFB Hamiltonian in the form
     !   
@@ -1492,7 +1492,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !
     ! Input:   
-    !   sphamil: single-particle hamiltonian; in block-structure, i.e.
+    !   sph: single-particle hamiltonian; in block-structure, i.e.
     !   
     !               h = ( h+ 0 )
     !                   ( 0  h-)
@@ -1515,7 +1515,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     !   
     !  gauge   : real parameter alpha
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:)
+    real(KIND=dp), intent(in)   :: sph(:,:), gaps(:,:)
     real(KIND=dp), allocatable  :: H(:,:)
     integer, intent(in)         :: N, N2
     integer                     :: T
@@ -1527,12 +1527,12 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     !---------------------------------------------------------------------------
     ! SP hamil
     ! Block 1
-    H(  1:N   ,  1:N)    =  sphamil(  1:N   ,   1:N)    
-    H(N+1:N+N2,N+1:N+N2) = -sphamil(N+1:N+N2, N+1:N+N2) 
+    H(  1:N   ,  1:N)    =  sph(  1:N   ,   1:N)    
+    H(N+1:N+N2,N+1:N+N2) = -sph(N+1:N+N2, N+1:N+N2) 
 
     ! Block 2
-    H(N+  N2+1:  N+2*N2,N+  N2+1:  N+2*N2) =  sphamil(N+1:N+N2,N+1:N+N2)
-    H(N+2*N2+1:2*N+2*N2,N+2*N2+1:2*N+2*N2) = -sphamil(  1:N   ,   1:N)  
+    H(N+  N2+1:  N+2*N2,N+  N2+1:  N+2*N2) =  sph(N+1:N+N2,N+1:N+N2)
+    H(N+2*N2+1:2*N+2*N2,N+2*N2+1:2*N+2*N2) = -sph(  1:N   ,   1:N)  
 
     !---------------------------------------------------------------------------
     ! Gaps

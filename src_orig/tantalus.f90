@@ -31,8 +31,16 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  use IO
  use temperature_projection
  use timing
+ use fission_MOI
+
 
  implicit none
+ !------------------------------------------------------------------------------
+ ! Convergence signals
+ ! Iteration counter
+ integer           :: iteration
+ ! Message for the output of the code, useful for the Brussels group.
+ character(len=99) :: iomsg = 'START'
  !------------------------------------------------------------------------------
  ! These inputs control where the code will look for its input. Leaving them
  ! empty will have the code rely on STDIN for input.
@@ -187,14 +195,29 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! Initalize relevant matrices throughout the code.
   call inilag()
  !------------------------------------------------------------------------------
- ! Read wavefunctions
+ ! Read all information from a wf file
  call ReadWavefunction()
  !------------------------------------------------------------------------------
  ! Print all relevant input gleaned from STDIN and the wf file.
  call PrintInput(file_number, input_file)
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
- call ReachForWaterAndFood()
+ call ReachForWaterAndFood(iteration, iomsg)
+ !------------------------------------------------------------------------------
+ ! Perform analysis on the final many-body state
+ ! (i) calculate and print the collective moment of inertias
+ if(N_inertia .gt. 0) then
+   call calc_collective_inertia
+   if(MPI_RANK.eq.0) then
+     call print_collective_inertia
+    endif
+ endif
+ !---------------------------------------------------------------------------
+ ! Write other (optional) output files
+ call write_advanced_output(iteration-1,iomsg)
+ !---------------------------------------------------------------------------
+ ! Write output to the outputfile, i.e. the full wavefunction file
+ call WriteTantalus(12, outputfilename)
  !------------------------------------------------------------------------------
  ! Clean up after running, just in case we need to run again.
  call Cleanupthemess()
@@ -215,10 +238,9 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! end of one mean-field calculation..;
 end subroutine Run_Tantalus
 
-subroutine ReachForWaterAndFood()
+subroutine ReachForWaterAndFood(iter, iomsg)
     !---------------------------------------------------------------------------
     ! Evolve the single-particle wavefunctions and densities.
-    !
     !
     ! The overall iterative scheme is as explained in
     !   W. Ryssens, M. Bender, M. and P.-H. Heenen,
@@ -243,6 +265,14 @@ subroutine ReachForWaterAndFood()
     !   |     (including Coulomb and potential constraint contribution)
     !   |  7. Print iteration info
     !   |_____________________________
+    !
+    ! TODO: correct this documentation
+    !
+    ! Input:
+    !   None.
+    ! Output:
+    !   iter  : number of iterations executed by this routine.
+    !   iomsg : message about convergence that can be included in output files. 
     !---------------------------------------------------------------------------
     use compilation
     use derivatives
@@ -262,7 +292,6 @@ subroutine ReachForWaterAndFood()
     use convergence
     use scfiteration
     use timing
-    use fission_MOI
 
     implicit none
 
@@ -282,12 +311,13 @@ subroutine ReachForWaterAndFood()
    11 format(30x, 'Iteration = ', i5, /)
    12 format(24x, 'FINAL Iteration = ', i5, /)
 
-    integer :: iter, iprint, scheme, ifail
+    integer, intent(out)           :: iter
+    character(len=99), intent(out) :: iomsg 
+    
+    integer ::  iprint, scheme, ifail
     logical :: ConvergenceAchieved, calc_expensive
     ! Logical to see if any moments with projection are necessary
     logical :: projectpresent = .false.
-    ! Message for the output of the code, useful for the Brussels group.
-    character(len=99) :: iomsg = 'START'
 
     ifail = 0
     ConvergenceAchieved = .false.
@@ -369,59 +399,105 @@ subroutine ReachForWaterAndFood()
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
+
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! First, do some bookkeeping 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! (1) update the arrays containing stuff at the last iteration
         call update_E_history()
-
-        projectpresent   = checkconstraints() .or. check_cranking()
-!        if(projectpresent) call feasibleproject()
-
-        ! One evolution step for the spwfs
-        call Evolve(iter, projectpresent)
-
-        ! Calculate the gaps Delta with the current
-        ! a) fields
-        ! b) density matrix and anomalous density matrix
-        ! c) Fermi-energy
-        PairStabfactor = CompStabilisingFactor(PairDenEnergy)
-        call CalcGaps(FermiEnergy, PairStabFactor)
-
-        ! Save Fermi energy
+        !     Save Fermi energy
         FermiHistory   = FermiEnergy
+        ! (2) check if some constraints should not be turned off
+        call TurnOffConstraints(iter)
+        ! (3) and decide whether we are constraining stuff or not
+        projectpresent   = checkconstraints() .or. check_cranking()
 
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Then, we update the reduced subspace spanned by our spwfs
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! TODO: include feasibleproject in the evolve_subspace code
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        if(projectpresent) call feasibleproject()
+        call Evolve_subspace(iter)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Calculate the single-particle hamiltonian ...
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        sphamil = Calc_Sphamil(.true.)      
+        ! ... optionally perform a subspace rotation...
+        if(subspace_rotation) then
+            call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+            call deriveHF() ! and update derivatives
+        endif
+        ! ..... and then calculate the pairing gaps
+        call CalcGaps(FermiEnergy, PairStabFactor)
+        ! ... and use these matrices to build a new many-body state!
         call SolvePairing(pairingscheme,ifail)
         if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-        ! Derive all spwfs in the HF-basis
-        call deriveHF()
-        call densit(SaveRho=.true.)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! From the many-body state, we start calculating observables
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        call densit(SaveRho=.false.)
         call ConstructChargeDensity(ChargeDensity)
         if(follow_com) call adapt_com()
-        ! Calculate a) moments values, b) readjustment and c) finally their
-        ! contribution to the sphamiltonian.
+        ! Calculate the value of all multipole moments
         call CalculateMoments()
-        call ReadjustAllMoments(1)
+        ! ...and readjust any constraints on them 
+        call ReadjustAllMoments(1) ! TODO: remove the input dependence here...
         call ReadjustAllMoments(2)
-        call Sphamilcontribution()
+        ! Update value of the average angular momentum 
+        call updateAM              ! TODO: adapt the calculation of angular momentum
+                                   !       to only ever use densities...
+        ! .... and readjust any constraints on it
+        call ReadjustCranking
 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Do a double take when constraints are present: use the updated 
+        ! Lagrange multipliers to correct our many-body state
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        if(projectpresent) then
+            ! Update the single-particle hamiltonian 
+            call update_sphamil_constraints(sphamil)
+            if(subspace_rotation) then
+                call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+                call deriveHF() ! and update derivatives
+            endif
+            ! .... and recalculate the gaps ..... 
+            call CalcGaps(FermiEnergy, PairStabFactor)
+            ! ..... reconstruct a many-body state .....
+            call SolvePairing(pairingscheme,ifail)
+            if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
+            ! ..... reconstruct all densities ....             
+            call densit(SaveRho=.true.)
+            call ConstructChargeDensity(ChargeDensity)
+            if(follow_com) call adapt_com()
+            ! .... and recalculate constrained quantities
+            call CalculateMoments()        
+            call updateAM
+        endif
+
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
         ! Recalculate the fields, but only if MaxIter > FreezeIter
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         if(iter .gt. freezeiter) then
           call calcFields(calcall=.true.,precon=.true.)
         endif
 
-        ! Update all spwf properties
-!        call update_spwf_properties( .false. ) ! nonexpensive version
-        call updateAM
-        call ReadjustCranking
         !-----------------------------------------------------------------------
         ! Above: actual evolution of physical quantities
         ! Below: administration/bookkeeping
         !-----------------------------------------------------------------------
-        !See if some moments were temporary
-        call TurnOffConstraints(iter)
-
-        !NS: Recalculate the Coulomb field at the last iteration
+        ! NS: Recalculate the Coulomb field at the last iteration
         if(iter .eq. freezeiter) call solvecoulomb(D_I_I(:,2))
 
-        ! Recalculate the energy
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Recalculate the energy with one of two options:
+        ! - cheap calculation that omits the recalculation of some parts of the 
+        !   energy that are computationally intensive
+        ! - expensive, complete calculation
         if((mod(iter,PrintIter).eq.0) .or. (iter.eq.maxiter)) then
           iprint = 1
           calc_expensive = .true.
@@ -431,9 +507,13 @@ subroutine ReachForWaterAndFood()
         endif
 
         call CalcEnergy(calc_expensive)
+
+        ! Calculate the average pairing gap
         call calc_avg_gap()
 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Check for convergence or a failed calculation
+        ! TODO: what is this? 
         if (ifail .ne. 0) then
           iomsg               = 'FERMI'
           ConvergenceAchieved = .false.
@@ -444,7 +524,8 @@ subroutine ReachForWaterAndFood()
 
         if(convergenceAchieved) then
           iprint = 1
-          ! Recalculate the energy with all parts included at the end
+          ! Recalculate the energy with all parts included at the end, don't 
+          ! skimp on the expensive parts
           call CalcEnergy(.true.)
         endif
         !-----------------------------------------------------------------------
@@ -510,28 +591,7 @@ subroutine ReachForWaterAndFood()
           exit
         endif
     enddo
-!    if(inversetemp .ne. -1) then
-!        call projectThermal
-!    endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Calculate and print the collective moment of inertias
-    if(N_inertia .gt. 0) then
-      call calc_collective_inertia
-      if(MPI_RANK.eq.0) then
-        call print_collective_inertia
-      endif
-    endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    if(iter.eq.maxiter+1) then
-      iomsg='MAXITER'
-    endif
-    !---------------------------------------------------------------------------
-    ! Write output to the outputfile, i.e. the full wavefunction file
-    call WriteTantalus(12, outputfilename)
-    !---------------------------------------------------------------------------
-    ! Write other, advanced, output
-    call write_advanced_output(iter-1,iomsg)
-    !---------------------------------------------------------------------------
+
 end subroutine ReachForWaterAndFood
 
 subroutine printsummary(iter)

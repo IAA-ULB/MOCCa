@@ -635,7 +635,6 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
 
     integer, intent(in)        :: scheme
     integer, intent(out)       :: ifail
-    real(KIND=dp), allocatable :: sphamil(:,:)
 
     call start_timer(T_pairing)
 
@@ -700,7 +699,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       
       ! Depending on the algorithm in use, we build a different single-particle
       ! hamiltonian matrix.
-      sphamil = build_sph(scheme, efficientHFB)
+      !sphamil = build_sph(scheme, efficientHFB)
 
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
@@ -761,30 +760,30 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     end select
   end subroutine calc_avg_gap
 
-  function build_sph(pscheme, efficient) result(sph)
-    !---------------------------------------------------------------------------
-    !
-    !   
-    !---------------------------------------------------------------------------
-    real(KIND=dp), allocatable :: sph(:,:)
-    integer, intent(in)        :: pscheme
-    logical, intent(in)        :: efficient 
-    integer                    :: i
+!  function build_sph(pscheme, efficient) result(sph)
+!    !---------------------------------------------------------------------------
+!    !
+!    !   
+!    !---------------------------------------------------------------------------
+!    real(KIND=dp), allocatable :: sph(:,:)
+!    integer, intent(in)        :: pscheme
+!    logical, intent(in)        :: efficient 
+!    integer                    :: i
 
-    allocate(sph(nwt,nwt)) ; sph = 0.0d0
+!    allocate(sph(nwt,nwt)) ; sph = 0.0d0
 
-    if((pscheme.eq. 0 .and. (.not. efficient)) &
-    &   .or. (.not. allocated(current_sph))) then
-      ! Diagonal part
-      do i=1, nwt
-        sph(i,i) = spenergies(i)
-      enddo
-    else
-      ! Full matrix
-      sph = current_sph
-    endif
- 
-  end function build_sph
+!    if((pscheme.eq. 0 .and. (.not. efficient)) &
+!    &   .or. (.not. allocated(current_sph))) then
+!      ! Diagonal part
+!      do i=1, nwt
+!        sph(i,i) = spenergies(i)
+!      enddo
+!    else
+!      ! Full matrix
+!      sph = current_sph
+!    endif
+! 
+!  end function build_sph
 
   subroutine printpairing(stabfactor)
     !---------------------------------------------------------------------------

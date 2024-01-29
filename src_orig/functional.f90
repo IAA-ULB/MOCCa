@@ -142,6 +142,15 @@ module functional
     !    f = E_cut^2 / E_pair^2
     real(KIND=dp) :: pairstabfactor(2) = 0.0
     !===========================================================================
+    ! SINGLE-PARTICLE POTENTIALS associated with other parts of the code
+    ! W.R. 28/01/2023: moved here for consistency reasons.
+    !===========================================================================
+    !-----------------------------------------------------------------------------
+    ! Contribution to the single-particle Hamiltonian by the constraints
+    !  a) Electric multipole => Constraint_I_I => F_I_I
+    !-----------------------------------------------------------------------------
+    real(kind=dp), allocatable, target :: Constraint_I_I(:,:)
+    !===========================================================================
     ! AUTOMATICALLY GENERATED DECLARATIONS
     !===========================================================================
     !---------------------------------------------------------------------------
@@ -1076,7 +1085,8 @@ $CALCFIELDS
         !-----------------------------------------------------------------------
         ! Add the contribution from the constraints on the electric multipole 
         ! moments. 
-        F_I_I(:,1:2) =  F_I_I(:,1:2) + Constraint_I_I(:,1:2)
+        Constraint_I_I = constraints_sph_elmult(.false.)
+        F_I_I(:,1:2)   =  F_I_I(:,1:2) + Constraint_I_I(:,1:2)
         !-----------------------------------------------------------------------
         ! We added stuff to the proton and neutron fields, we should be 
         ! consistent with the isospin 0 and 1 fields
@@ -1116,7 +1126,7 @@ $FIELDPRECON
     endif
   end function pow
 
-  function sphamil(psi, dpsi, ddpsi, &
+  function apply_sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &
 &                                          sx,sy,sz,iso, onthefly) result(hpsi)
     !---------------------------------------------------------------------------
@@ -1250,7 +1260,7 @@ $SKYRMEACTION
 
     call stop_timer(T_sphamil)
 
-  end function sphamil
+  end function apply_sphamil
   
   function delta_action(        psi,   &
 $N1DELTA                   &   dpsi,   &
@@ -1344,6 +1354,7 @@ $EREAR
     endif
     
     ! Subtract contribution by multipole constraints
+    Constraint_I_I = constraints_sph_elmult(.false.)
     SpwfEnergy = SpwfEnergy - sum(Constraint_I_I(:,1:2) * D_I_I(:,1:2))*dv/2.0_dp
 
     ! Subtract contribution by cranking constraints

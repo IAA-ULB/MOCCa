@@ -14,9 +14,9 @@ module basis_transform
  !==============================================================================
  ! Module containing the routines to change from one spwf-basis to the next.
  !
- ! Convention: Here an orthonormal transformation means an orthonormal matrix 
- !             where each column represents a new basis vector, expressed in 
- !             the old basis. 
+ ! Note: this module assumes that transformation matrices are passed as 
+ !       orthonormal matrices where each column represents a basis vector of the
+ !       new basis expressed in the old basis. 
  !
  !============================================================================== 
  use geninfo

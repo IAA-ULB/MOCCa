@@ -300,11 +300,6 @@ module moments
   ! These are compilation-time parameters, and determined by Hephaestos.
   integer, parameter :: QuantisationAxis=$QUANT_AX, SecondaryAxis=$SECOND_AX
   !-----------------------------------------------------------------------------
-  ! Contribution to the single-particle Hamiltonian by the constraints
-  !  a) Electric multipole => Constraint_I_I => F_I_I
-  !-----------------------------------------------------------------------------
-  real(kind=dp), allocatable, target :: Constraint_I_I(:,:)
-  !-----------------------------------------------------------------------------
   ! If true, the code takes ALL of the information on the constrained moments
   ! from the read-in wavefunction file.
   logical :: ContinueAll = .false.
@@ -1571,43 +1566,68 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 ! Treatment of constraints, readjustment and contribution to sphamil. 
 !===============================================================================
   
-  subroutine Sphamilcontribution()
+  function constraints_sph_elmult(diff) result(pot)
     !---------------------------------------------------------------------------
-    ! This function calculates the energy contribution associated with the
-    ! constraints on the multipole moments.
+    ! Calculate the contribution to the single-particle potentials associated 
+    ! with the constraints on the multipole moments.
     !
-    ! For ordinary multipole constraints
-    !  h => h - \lambda * O 
-    ! where lambda is the current multiplier
+    !  F_I_I(r) = F_I_I(r) - sum_i \lambda_i  * O_i(r)
+    !
+    !  - lambda is the Lagrange multiplier
+    !  - O_i(r) is the spherical harmonic (with cutoff)
+    !  - i ranges over all constraints
+    ! 
+    ! This routine also offers the possibility to calculate the difference 
+    ! w.r.t. to the previous values of the multipole moments. If diff is set
+    ! to True, the routine instead returns
+    !
+    !   sum_i (\lambda^j_i - \lambda^(j-1)_i)  * O_i(r)
+    !
+    ! where lambda^j is the CURRENT Lagrange multiplier
+    ! and   lambda^j is the PREVIOUS one.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     - diff: logical
+    !             if .true., calculate the change of this quantity w.r.t. to the
+    !             previous iteration instead of the CURRENT value.
+    ! Ouput:
+    !     - pot : the contribution to the single-particle potentials
     !---------------------------------------------------------------------------
+    logical, intent(in)   :: diff
     integer               :: it
+    real(KIND=dp)         :: pot(mv,2), fac
     type(Moment), pointer :: Current
 
     Current => Root
     
-    Constraint_I_I = 0.0_dp
+    pot = 0.0_dp
     do while(associated(Current%Next))
       Current => Current%Next
 
       ! Go to the next moment if this moment is not constrained
       if(Current%constrainttype.eq.0) cycle
      
+      if(diff) then 
+        fac = Current%Multiplier - Current%mult_hist
+      else
+        fac = Current%Multiplier 
+      endif
+     
       if(Current%isoswitch .eq. 0) then
         ! Apply the constraint to all species
         do it=1,2
-          Constraint_I_I(:,it) = Constraint_I_I(:,it)                          &
-          &                - Current%Multiplier * Current%SpherHarm*Cutoff(:,it)
+          pot(:,it) = pot(:,it) - fac * Current%SpherHarm*Cutoff(:,it)
         enddo
       elseif(Current%isoswitch .le. 2) then
         ! Apply the constraint to only one species
         it = Current%isoswitch
-        Constraint_I_I(:,it) = Constraint_I_I(:,it)                            &
-        &                  - Current%Multiplier * Current%SpherHarm*Cutoff(:,it)
+        pot(:,it) = pot(:,it)   - fac * Current%SpherHarm*Cutoff(:,it)
       endif
     enddo
     nullify(Current)
     
-  end subroutine SpHamilcontribution
+  end function constraints_sph_elmult
   
   subroutine ReadjustAllMoments(ctype)
     !---------------------------------------------------------------------------
@@ -1780,9 +1800,6 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 
     !Initialising the linked list containing all multipole moments
     call IniMoments()
-
-    allocate(Constraint_I_I(nx*ny*nz,2))
-    Constraint_I_I = 0.0_dp
 
     ! Choosing cutoff
     nullify(CompCutoff)
@@ -3056,7 +3073,6 @@ $NTR    print 102
 
   subroutine clean_moments
 
-    if(allocated(Constraint_I_I)) deallocate(Constraint_I_I)
     if(allocated(Cutoff))         deallocate(Cutoff)
     nullify(Root)
 

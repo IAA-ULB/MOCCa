@@ -184,9 +184,9 @@ contains
       ! matrices this is largely irrelevant
       kappa_pairing = transform_mat(kappa_pairing, cantransfo)
 
-      current_sph   = transform_mat(current_sph, cantransfo)
+      sphamil   = transform_mat(sphamil, cantransfo)
       do wave=1,nwt
-        canenergies(wave) = current_sph(wave,wave)
+        canenergies(wave) = sphamil(wave,wave)
       enddo 
       HFBgaps    = transform_mat(HFBgaps, cantransfo)
 
@@ -200,7 +200,7 @@ contains
         cantransfo(wave,wave) = 1.0d0
       enddo 
     else
-      canenergies = transform_diag(current_sph, cantransfo) 
+      canenergies = transform_diag(sphamil, cantransfo) 
     endif
     call stop_timer(T_den_can)
 

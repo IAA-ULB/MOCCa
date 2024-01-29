@@ -71,11 +71,15 @@ module evolution
     !   HEAVYBALL => Heavy-ball dynamics
     !   HBSANE    => "Sane" heavy-ball dynamics
     character(len=20) :: Strategy = 'HEAVYBALL'
+    !
     ! Orthonormalisation strategy
+    ! - - - - - - - - - - - - - - -
     !   GRAMSCHMIDT => Gram-Schmidt "sequential" orthonormalisation
     !   CHOLESKY    => Cholesky decomposition
     character(len=20)               :: ortho_strategy = 'GramSchmidt'
+    ! 
     ! Subspace rotation 
+    ! - - - - - - - - - - -
     !    whether or not to throw in an explicit diagonalisation of the 
     !    single-particle hamiltonian in the subspace spanned by the spwfs
     !    in memory.
@@ -83,12 +87,11 @@ module evolution
     !---------------------------------------------------------------------------
     !Procedure that determines the evolution of a Spwf under imaginary time.
     abstract interface
-      subroutine Evolve_interface(Iteration, constraints_active)
+      subroutine Evolve_interface(Iteration)
         integer, intent(in)       :: iteration
-        logical, intent(in)       :: constraints_active
       end subroutine
     end interface
-    procedure(Evolve_Interface),pointer :: Evolve    
+    procedure(Evolve_Interface),pointer :: Evolve_subspace    
     !---------------------------------------------------------------------------
     ! Allow Tantalus to estimate the runtime parameters of the heavy-ball 
     ! algorithm for the linear subproblem or stay faithful to those specified 
@@ -123,8 +126,9 @@ contains
         &                    gradient_stepsize, gradient_mu,                   &
         &                    maxiter, printiter, strategy,                     &
         &                    estimateparams, estimategradparams,               &
-        &                    gradient_safety, efficientHFB, ortho_strategy,    &
-        &                    stepsize_safety, freezeiter
+        &                    gradient_safety, efficientHFB,                    &
+        &                    stepsize_safety, freezeiter,                      &
+        &                    ortho_strategy, subspace_rotation
         !-----------------------------------------------------------------------
         ! Only the very first MPI rank reads the input
         if(MPI_RANK.eq.0) then
@@ -176,11 +180,11 @@ contains
         ! b) assign the correct evolution routine
         Strategy = to_upper(Strategy)
         if(adjustl(Strategy) .eq. 'IMTIME' ) then
-            Evolve => Evolve_graddesc
+            Evolve_subspace => Evolve_graddesc
         elseif(adjustl(Strategy) .eq. 'HEAVYBALL') then
-            Evolve => Evolve_momentum
+            Evolve_subspace => Evolve_momentum
         elseif(adjustl(Strategy) .eq. 'HBSANE') then
-            Evolve => Evolve_momentum_sane
+            Evolve_subspace => Evolve_momentum_sane
         else
             call stp('STRATEGY NOT RECOGNIZED.')
         endif
@@ -210,7 +214,7 @@ contains
         else
             call stp('Orthonormalisation strategy not recognized.')
         endif
-        ! - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     end subroutine ReadEvolution
 
     subroutine PrintEvolution
@@ -269,7 +273,7 @@ contains
 ! Evolution routines 
 !===============================================================================
 
-    subroutine Evolve_graddesc(iteration, constraints_active)
+    subroutine Evolve_graddesc(iteration)
         !-----------------------------------------------------------------------
         ! 
         ! a) For every wave-function do a gradient step
@@ -288,7 +292,6 @@ contains
         use wavefunctions
 
         integer, intent(in) :: iteration
-        logical, intent(in) :: constraints_active
         integer             :: wave, iso, iter
         real(KIND = dp)     :: hpsi(nx*ny*nz,4)
 
@@ -309,10 +312,10 @@ contains
                 iso = +1
             endif
 
-            hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
-            &              hfdpsi(:,:,:,wave)   ,                              &
-            &              hfddpsi(:,:,:,wave),                                &
-$N3         &              hfdddpsi(:,:,:,wave),                               &
+            hpsi = apply_sphamil( hfpsi(:,:,wave),                           &
+            &              hfdpsi(:,:,:,wave)    ,                           &
+            &              hfddpsi(:,:,:,wave)   ,                           &
+$N3         &              hfdddpsi(:,:,:,wave)  ,                           &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
 
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
@@ -341,7 +344,7 @@ $N3         &              hfdddpsi(:,:,:,wave),                               &
 
     end subroutine Evolve_graddesc
 
-    subroutine Evolve_momentum(iteration, constraints_active)
+    subroutine Evolve_momentum(iteration)
         !-----------------------------------------------------------------------
         ! 
         ! Evolution of the single-particle wavefunctions in memory through
@@ -409,7 +412,6 @@ $N3         &              hfdddpsi(:,:,:,wave),                               &
         use wavefunctions
 
         integer, intent(in)   :: iteration
-        logical, intent(in)   :: constraints_active
         integer               :: wave, iso, B, si, N, wave2, lwork, ifail
         integer               :: wg, wg2
 #if(USE_MPI>0)
@@ -426,8 +428,8 @@ $N3         &              hfdddpsi(:,:,:,wave),                               &
             Momentum_Updates = 0.0_dp
         endif
 
-        if(.not.allocated(current_sph)) then 
-            allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
+        if(.not.allocated(sphamil)) then 
+            allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
         endif
 
         if(EstimateParams) call IterativeEstimation(iteration)
@@ -438,7 +440,7 @@ $N3         &              hfdddpsi(:,:,:,wave),                               &
         hftransfo    = 0.0d0
         spenergies   = 0.0d0
         dispersions  = 0.0d0
-        current_sph  = 0.0d0
+        sphamil  = 0.0d0
         do B=1,8                       !<---- this loops over local spwf indices
           N = HFblocks(B) ; if(N.eq.0) cycle
           iso = -1
@@ -447,10 +449,10 @@ $N3         &              hfdddpsi(:,:,:,wave),                               &
             wg = spwf_map(wave) ! = global index of the spwf
             !-------------------------------------------------------------------
             ! Calculate the action of the single-particle hamiltonian.
-            hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
-            &              hfdpsi(:,:,:,wave)   ,                              &
-            &              hfddpsi(:,:,:,wave)  ,                              &
-$N3         &              hfdddpsi(:,:,:,wave) ,                              &
+            hpsi = apply_sphamil( hfpsi(:,:,wave),                              &
+            &              hfdpsi(:,:,:,wave)    ,                              &
+            &              hfddpsi(:,:,:,wave)   ,                              &
+$N3         &              hfdddpsi(:,:,:,wave)  ,                              &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
 
             if(diagsphamil) then
@@ -483,8 +485,8 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
                   ! safely assume all relevant wavefunctions are represented
                   ! on the current MPI rank and we do not need more complicated
                   !  things.
-                  current_sph(wg2,wg)  = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
-                  current_sph(wg ,wg2) = current_sph(wg2,wg)
+                  sphamil(wg2,wg)  = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+                  sphamil(wg ,wg2) = sphamil(wg2,wg)
                 case DEFAULT
                   call stp('Subroutine evolve_momentum is not yet ready for &
                   &         MPI calculations with balancing_strategy different &
@@ -494,8 +496,8 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
 #else
             do wave2=wave,si+N           ! local index
                 wg2 = spwf_map(wave2)    ! global index
-                current_sph(wg2,wg)  = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
-                current_sph(wg ,wg2) = current_sph(wg2,wg)
+                sphamil(wg2,wg)  = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
+                sphamil(wg ,wg2) = sphamil(wg2,wg)
             enddo
 #endif
 #else 
@@ -503,7 +505,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
             ! ... but this is very costly when nwt is large, i.e. when doing 
             ! pasta  calculations, so we do something simple instead.
             !-------------------------------------------------------------------
-            current_sph(wg,wg) = spenergies(wg)
+            sphamil(wg,wg) = spenergies(wg)
 #endif
             !-------------------------------------------------------------------
             if(diagsphamil) then
@@ -520,7 +522,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
               call start_timer(T_Hortho)
               do wave2=si+1,si+N          ! local index
                 wg2 = spwf_map(wave2)     ! global index
-                hpsi = hpsi - current_sph(wg,wg2)*hfpsi(:,:,wave2)
+                hpsi = hpsi - sphamil(wg,wg2)*hfpsi(:,:,wave2)
               enddo
               call stop_timer(T_Hortho)
               ! The norm of the gradient can always be calculated as a 
@@ -546,10 +548,6 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         ! Bookkeeping for convergence criteria
         gradientnorm = sqrt(gradientnorm) 
         d2h          = d2h/(neutrons+protons)
-
-        !-----------------------------------------------------------------------
-        ! Do a feasible projection step
-        if(constraints_active) call Feasibleproject()
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -578,7 +576,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         ! Note, this can be done block-wise in order to save on communication
         !       it CANNOT be included in the previous loop since it relies on 
         !       global indices
-        call MPI_ALLREDUCE(MPI_IN_PLACE,current_sph , nwt**2, MPI_REAL8,       &
+        call MPI_ALLREDUCE(MPI_IN_PLACE,sphamil , nwt**2, MPI_REAL8,       &
         &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 #endif
@@ -609,7 +607,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
               !     heavy-ball evolution.
               call start_timer(T_HFdiag)
 
-              HFtransfo(si+1:si+N,si+1:si+N) = current_sph(si+1:si+N, si+1:si+N)
+              HFtransfo(si+1:si+N,si+1:si+N) = sphamil(si+1:si+N, si+1:si+N)
 
               lwork = -1; allocate(work(1))
               call DSYEV( 'V', 'U', N, HFtransfo(si+1:si+N,si+1:si+N), N, &
@@ -629,7 +627,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
 
     end subroutine Evolve_momentum
     
-    subroutine Evolve_momentum_sane(iteration, constraints_active)
+    subroutine Evolve_momentum_sane(iteration)
       !-------------------------------------------------------------------------
       ! Evolution of the single-particle wavefunctions in memory with 
       ! MODIFIED heavy-ball evolution.
@@ -639,52 +637,31 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       !           d|psi>^(i)  = -dt/hbar * h |psi>^(i) + mu d |\psi>^(i-1)
       ! Step 2: apply the updates
       !            |phi>^(i+1)= |psi>^(i) + d|psi>^(i)  
-      ! Step 3: if required, perform an additional update to improve on
-      !         the constraints
-      ! Step 4: orthonormalise, move from the |phi>^(i+1) -> |psi>^(i+1)
-      ! Step 5: subspace rotation, i.e. diagonalise the s.p. hamiltonian 
-      !          within the subspace spanned by the |psi>^(i+1).
+      ! Step 3: orthonormalise, move from the |phi>^(i+1) -> |psi>^(i+1)
       !
       !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       !
       ! As side-effects, the code calculates 
       !
-      !   (a) spenenergies array: 
-      !       eigenvalues of the s.p. hamiltonian obtained from the subspace
-      !       rotation in step 5.
-      !   (b) dispersions: 
+      !   (a) dispersions: 
       !       norm of the residual of each spwf, i.e. the square of the norm
       !       of the following vector
       !         h | psi >^(i+1) - | psi >^(i+1) < psi^(i+1) | h | psi^(i+1) >
-      !   (c) d2H: 
+      !   (b) d2H: 
       !       occupation-weighted sum of the norm of the residuals.
       !
       !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Other notes:
-      !  
-      !  1. Dispersions are calculated AFTER orthonormalisation, but BEFORE
-      !     the subspace rotation. We could do better by also transforming 
-      !     the residuals with the linear transformation resulting from the 
-      !     subspace rotation. This will be tricky to get in view of point 4.
       !   
-      !  2. This evolution routine is not yet compatible with the HFB gradient
+      !  1. This evolution routine is not yet compatible with the HFB gradient
       !     solver; one would need orthonormalisation of the updates w.r.t. 
       !     to the original spwfs (which is costly for pasta calculations).
-      !
-      !  3. It is ENORMOUSLY important that the updates d |\psi>^(i-1) get
-      !     transformed during the subspace transformation; otherwise updates
-      !     from previous iterations get wrongly matched with spwfs.
-      !
-      !  4. By construction, this routine ensures that HFBasis contains the 
-      !     actual Hartree-Fock basis at the end of the day, meaning that 
-      !     HFTransfo has become a trivial transformation.
       !
       !-------------------------------------------------------------------------
 
       use wavefunctions
 
       integer, intent(in)        :: iteration
-      logical, intent(in)        :: constraints_active
 
       integer                    :: si, m, B, N, iso, wave2, inproduct
       real(KIND=dp), allocatable :: hpsi(:,:,:)
@@ -697,11 +674,11 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
           Momentum_Updates = 0.0_dp
       endif
 
-      if(.not.allocated(current_sph)) then 
-          allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
+      if(.not.allocated(sphamil)) then 
+          allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
       endif
 
-      current_sph = 0.0d0
+      sphamil = 0.0d0
       hftransfo   = 0.0d0
       d2h         = 0.0d0
       if(EstimateParams) call IterativeEstimation(iteration)
@@ -715,14 +692,25 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
 
         allocate(hpsi(mv,4,N))
 
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Obtain the action of the s.p.h. on the spwfs
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Obtain the action of the s.p.h. on the spwfs using precomputed derivatives
         call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
-        &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso)
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
+        &                          HFdpsi(:,:,:,si+1:si+N),              &
+        &                          HFddpsi(:,:,:,si+1:si+N),.false.)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Construct the residual
         do m=1,N
+          ! TODO: replace by BLAS call
           hpsi(:,:,m)=hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m)
+          dispersions(si+m) =sum(hpsi(:,:,m)**2)*dv
+
+          select case(pairingtype)
+          case(0,1)
+              d2h          = d2h + rho_can(si+m)*dispersions(si+m)
+          case(2) 
+              d2h          = d2h + rho_pairing(si+m,si+m)*dispersions(si+m)
+          end select
         enddo
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Add some history and 'momentum' to the update. 
@@ -731,64 +719,76 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
         deallocate(hpsi)
         si = si + N
       enddo
+      d2h          = d2h/(neutrons+protons)
       !-------------------------------------------------------------------------
       ! Step 2: perform the update
       HFPSI = HFPSI + momentum_updates
       !-------------------------------------------------------------------------
-      ! Step 3: perform another update for the constraints
-      if(constraints_active) call Feasibleproject()
-      !-------------------------------------------------------------------------
-      ! Step 4: orthonormalize
+      ! Step 3: orthonormalize
       call orthonormalize
-      !-------------------------------------------------------------------------
-      ! Step 5: diagonalize the s.p. hamiltonian block-by-block
-      si = 0
-      do B=1,8
-        N = HFBlocks(B) ; if(N.eq.0) cycle
-        iso = -1        ; if(B.gt.4) iso = +1
-
-        allocate(hpsi(mv,4,N))
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Obtain the action of the s.p.h. on the spwfs
-        call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
-        &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso)
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Calculate the norm of the residuals
-        do m=1,N
-          dispersions(si+m) = dv * &
-          & sum((hpsi(:,:,m)-sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m))**2)
-          select case(pairingtype)
-          case(0,1)
-            d2h          = d2h + rho_can(si+m)         *dispersions(si+m)
-          case(2) 
-            d2h          = d2h + rho_pairing(si+m,si+m)*dispersions(si+m)
-          end select
-        enddo
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Actually diagonalize
-        call diag_sph(N,N,HFPsi(:,:,si+1:si+N),hpsi, &
-        &             momentum_updates(:,:,si+1:si+N), &
-        &             sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,&
-        &             spenergies(si+1:si+N))
-        deallocate(hpsi)
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Populate current_sph and hftransfo
-        do m=1,N
-          current_sph(si+m, si+m) = spenergies(si+m)
-          hftransfo(si+m,si+m)    = 1.0d0
-        enddo
-        si = si + N
-      enddo
-      d2h          = d2h/(neutrons+protons)
 
       call stop_timer(T_evolution)
     end subroutine Evolve_momentum_sane 
+
+    subroutine update_sphamil_constraints(sph)
+        !-----------------------------------------------------------------------
+        ! TODO: document & add cranking constraints
+        !
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Input:
+        !    sph : current matrix elements of the single-particle hamiltonian.
+        ! Output:
+        !    sph : updated matrix elements that now account for a change in 
+        !          the Lagrange multipliers of the constraints.
+        !-----------------------------------------------------------------------
+        use moments, only : constraints_sph_elmult
+        use wavefunctions
+
+        real(KIND=dp), intent(inout) :: sph(nwt,nwt)
+        integer                      :: si, it, m, k, B, N,i,j
+        real(KIND=dp), allocatable   :: hpsi(:,:,:), temp(:,:)
+        real(KIND=dp)                :: pot_elmult(mv,2)
+        
+        ! Obtain the difference in potential due to the multipole moments
+        pot_elmult = constraints_sph_elmult(.true.)
+        
+        si = 0
+        do B=1,8
+            N  = HFBlocks(B) ; if(N.eq.0) cycle
+            it = +1          ; if(B.gt.4) it = 2
+
+            allocate(hpsi(mv,4,N), temp(N,N))
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! Obtain the action of the new s.p.h. on the spwfs
+            !
+            !  h'_ij = \epilson \delta_ij + 
+            !       <\psi_j | (Constraint_I_I_new - Constraint_I_I_old)| psi_i>
+            !
+            ! TODO: rewrite with BLAS calls
+            do m=1,N
+              do k=1,4
+                hpsi(:,k,m) = pot_elmult(:,it)*HFPsi(:,k,si+m)
+              enddo
+            enddo
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! Calculate matrix elements by way of a BLAS call
+            call DGEMM('t', 'n', N, N, 4*mv, dv, hfpsi(:,:,si+1:si+N), 4*mv, &
+            &                                     hpsi(:,:,1:N), 4*mv, 0.0d0,& 
+            &                                     temp(1:N,1:N),N)
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! Perform the update
+            sph(si+1:si+N,si+1:si+N) = sph(si+1:si+N,si+1:si+N) + temp
+
+            deallocate(hpsi, temp)
+            si = si + N
+        enddo
+    end subroutine update_sphamil_constraints
     
 !===============================================================================
 ! Utility routines 
 !===============================================================================
 
-    subroutine apply_sphamil_block(m, x,hx,sx,sy,sz,iso)
+    subroutine apply_sphamil_block(m, x,hx,sx,sy,sz,iso, dx, ddx, onthefly)
       !-------------------------------------------------------------------------
       ! Apply the single-particle hamiltonian as specified by the potentials  
       ! currently in memory to a set of vectors in single-particle space with 
@@ -797,16 +797,24 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       !
       ! Input:
-      !       m :  number of vectors to compute h|psi> for
-      !       x :  a set of vectors in s.p. space, i.e. a matrix of dimension
-      !         (nx*ny*nz,4,m)
-      ! sx/sy/sz:  the symmetries under plane reflections of the vectors, i.e.
-      !            4 integers in each case.
-      !      iso:  the isospin of the vectors.
+      !        m :  number of vectors to compute h|psi> for
+      !        x :  a set of vectors in s.p. space, i.e. a matrix of dimension
+      !          (nx*ny*nz,4,m)
+      !  sx/sy/sz:  the symmetries under plane reflections of the vectors, i.e.
+      !             4 integers in each case.
+      !       iso:  the isospin of the vectors.
       !
+      !        dx: array containing the gradient of x, if precalculated
+      !       ddx: array containing the second derivative of x, if precalculated
+      !  onthefly: Recalculate derivatives inside apply_sphamil (.true.) or 
+      !            take precalculated derivatives (.false.)
       ! Output: 
-      !   hx :  the application of the s.p. hamiltonian to the vectors, a new
-      !         matrix of dimension (nx*ny*nz,4,m)
+      !      hx : the application of the s.p. hamiltonian to the vectors, a new
+      !           matrix of dimension (nx*ny*nz,4,m)
+      !       dx: array containing the gradient of x
+      !           (not overwritten from input if precalculated)
+      !      ddx: array containing the second derivative of x, if precalculated
+      !           (not overwritten from input if precalculated)
       !
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Important to note: this routine does NOT reuse derivatives, i.e. it 
@@ -818,18 +826,21 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       !-------------------------------------------------------------------------
       integer, intent(in)                  ::  m, sx(4), sy(4), sz(4), iso
       real(KIND=dp), intent(in), target    ::  x(mv,4,m)
+      real(KIND=dp), intent(inout)         :: dx(mv,3,4,m), ddx(mv,6,4,m)
       real(KIND=dp), intent(out), target   :: hx(mv,4,m)
+      logical, intent(in)                  :: onthefly
       integer                              :: wave
       real(KIND=dp)                        :: dummy_d (mv,3,4)
       real(KIND=dp)                        :: dummy_dd(mv,6,4)
  
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       do wave=1,m
-        hx(:,:,wave)=sphamil(x(:,:,wave),dummy_d, dummy_dd, sx,sy,sz,iso,.true.)
+        hx(:,:,wave)=apply_sphamil(x(:,:,wave),dx(:,:,:,wave),ddx(:,:,:,wave), &
+        &                          sx,sy,sz,iso,onthefly)
       enddo
     end subroutine apply_sphamil_block
 
-    subroutine diag_sph(m,n,x,hx,upd,sxb,syb,szb,iso,eigenvalues)
+    subroutine diag_sph(m,n,x,hx,upd,eigenvalues)
       !------------------------------------------------------------------------
       ! 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -842,11 +853,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       !      hx : the application of h on the vectors x, 
       !           i.e. another matrix of dimension (nx*ny*nz,4,m)
       !      upd: a set of vectors that needs to undergo the same unitary 
-      !           transformation as x
-      ! sx/y/zb :  the symmetries under plane reflections of the vectors,
-      !            i.e. 4 integers in each case.
-      !      iso:  the isospin of the vectors.
-      !
+      !           transformation as x      !
       ! Output: 
       !           x: the first n columns are the lowest n eigenstates of h 
       !              in the reduced space
@@ -863,7 +870,7 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       !  to aid compiler vectorisation.
       !------------------------------------------------------------------------
 
-      integer, intent(in)          ::  m, n, sxb(4), syb(4), szb(4), iso
+      integer, intent(in)          ::  m, n
       real(KIND=dp), intent(inout) ::  x(mv*4,m)
       real(KIND=dp), intent(inout) :: hx(mv*4,m), upd(mv*4,m)
       real(KIND=dp), intent(out)   :: eigenvalues(n)
@@ -910,6 +917,166 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
       eigenvalues = tempe(1:n)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     end subroutine diag_sph
+    
+    function calc_sphamil(onthefly) result(sph)
+        !------------------------------------------------------------------------
+        ! Calculate all matrix elements of the single-particle hamiltonian in the 
+        ! reduced subspace spanned by the single-particle wavefunctions in memory
+        ! using the mean-field potentials currently in memory.
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! 
+        ! Input:
+        !   Onthefly : use precalculated derivatives of spwfs to evaluate the 
+        !              action of the single-particle hamiltonian (.false.) or 
+        !              recalculate derivatives on the fly (.true.)
+        !
+        ! Output:
+        !   sphamil  : nwt x nwt matrix containing all matrix elements of the 
+        !              single-particle
+        ! 
+        ! Side-effects:
+        !         -  if onthefly == .true., then the derivatives of wavefunctions
+        !            are updated in memory. 
+        !
+        !------------------------------------------------------------------------
+        logical, intent(in)        :: onthefly
+        real(KIND=dp)              :: sph(nwt,nwt)
+        integer                    :: si, m, B, N, iso, i
+        real(KIND=dp), allocatable :: hpsi(:,:,:)
+
+        sph = 0.0d0
+
+        si = 0
+        do B=1,8
+            N = HFBlocks(B) ; if(N.eq.0) cycle
+            iso = -1        ; if(B.gt.4) iso = +1
+
+            allocate(hpsi(mv,4,N))
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+            ! Obtain the action of the s.p.h. on the spwfs in block-wise fashion
+            call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
+            &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,  &
+            &                          HFdpsi(:,:,:,si+1:si+N),               &
+            &                          HFddpsi(:,:,:,si+1:si+N),              &
+            &                          onthefly)
+
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+            ! Calculate matrix elements by way of a BLAS call
+            ! TODO: hide this behind interface to recast the (mv,4) vectors
+            !       into (4*mv) ones
+            call DGEMM('t', 'n', N, N, 4*mv, dv, hfpsi(:,:,si+1:si+N), 4*mv, &
+            &                                     hpsi(:,:,1:N), 4*mv, 0.0d0,& 
+            &                                     sph(si+1:si+N, si+1:si+N),N)
+        
+            deallocate(hpsi)
+            si = si + N
+        enddo 
+        
+    end function calc_sphamil
+    
+    subroutine apply_subspace_rotation(sph, transfo, eigenvalues) 
+        !--------------------------------------------------------------------------------
+        ! TODO: document
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! 
+        ! Input:
+        !   sph        : the full matrix of the single-particle hamiltonian in the  
+        !                reduced subspace.
+        ! Output:
+        !   sph        : the full matix of the single-particle hamiltonian i the 
+        !                reduced subspace; which is now diagonal.
+        !   transfo    : trivial HF transformation on output 
+        !   eigenvalues: single-particle energies resulting from the diagonalisation
+        !-------------------------------------------------------------------------------
+        real(KIND=dp), intent(inout) :: sph(nwt,nwt)
+        real(KIND=dp), intent(out)   :: transfo(nwt,nwt), eigenvalues(nwt)
+        integer                      :: si, m, B, N
+
+        transfo = 0.0d0 ;  eigenvalues=0.0d0
+
+        si = 0
+        do B=1,8
+            N = HFBlocks(B) ; if(N.eq.0) cycle
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! Diagonalize the sphamiltonian in this symmetry block
+            call diag_sph_block(N, sph(si+1:si+N,si+1:si+N), HFPsi(:,:,si+1:si+N), &
+            &             Momentum_updates(:,:,si+1:si+N), eigenvalues(si+1:si+N))
+
+            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ! Populate sphamil and hftransfo for future use
+            sph(si+1:si+N,si+1:si+N) = 0.0d0
+            do m=1,N
+              sph(si+m, si+m)     = eigenvalues(si+m)
+              transfo(si+m,si+m)  = 1.0d0
+            enddo
+        
+            si = si + N
+        enddo 
+    end subroutine apply_subspace_rotation
+    
+    subroutine diag_sph_block(m,sph,x,upd,eigenvalues)
+      !------------------------------------------------------------------------
+      ! TODO: document
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !
+      ! Input:
+      !       m : number of vectors passed in that span the reduced space
+      !      sph: matrix to diagonalize, dimension m x m
+      !       x : a set of vectors in s.p. space, 
+      !           i.e. a matrix of dimension (nx*ny*nz,4,m)
+      !      upd: a set of vectors that needs to undergo the same unitary 
+      !           transformation as x      
+      ! Output: 
+      !           x: the m eigenstates of h in the reduced space
+      !         sph: 
+      !         upd:
+      ! eigenvalues: eigenvalues of the s.p. hamiltonian in the reduced space
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Technical notes:
+      !  This routine accepts spinors on the mesh in the format
+      !      x(4*mv, m)
+      !  while the rest of the code operates
+      !      x(mv, 4,m)
+      !  Two reasons
+      !  (i)  make the Lapack calls more transparent
+      !  (ii) to aid compiler vectorisation.
+      !------------------------------------------------------------------------
+
+      integer, intent(in)          :: m
+      real(KIND=dp), intent(inout) :: x(mv*4,m), upd(mv*4,m), sph(m,m)
+      real(KIND=dp), intent(out)   :: eigenvalues(m)
+      real(KIND=dp)                :: temp(4*mv,m), tempe(m)
+      integer                      :: lwork, info
+      real(KIND=dp), allocatable   :: work(:)
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Diagonalise the sphamiltonian
+      ! 
+      ! First inquire about working memory
+      allocate(work(1))
+      call DSYEV('V','L', m ,sph,m,tempe,work,-1,info)
+      lwork=work(1)
+      deallocate(work)
+      allocate(work(lwork))
+      ! ..... and now do the actual work
+      call DSYEV('V','L', m ,sph,m,tempe,work,lwork,info)
+      if(info.ne.0) then
+        call stp('Issue with diagonalising in eval_sph.')
+      endif
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Now we construct the n lowest eigenvectors
+      temp = x! temporary copy
+      call DGEMM('n','n',4*mv,m,m, 1.0d0,temp, 4*mv,sph(:,1:m), m, 0.0d0, & 
+      &                                        x(:,1:m), 4*mv)
+      ! ... and aply the same transformation to upd
+      temp = upd ! temporary copy
+      call DGEMM('n','n',4*mv,m,m, 1.0d0,temp, 4*mv,sph(:,1:m), m, 0.0d0, & 
+      &                                        upd(:,1:m), 4*mv)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Bookkeeping
+      eigenvalues = tempe(1:m)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    end subroutine diag_sph_block
 
     subroutine IterativeEstimation(Iteration)
       !-------------------------------------------------------------------------
@@ -983,8 +1150,8 @@ $N3         &              hfdddpsi(:,:,:,wave) ,                              &
           ! - sx/y/z_max are set in the set_spwf_symmetries routine and are
           !   assumed to be the reflection quantum numbers of the very first
           !   symmetry block.
-          actionofh = sphamil(maxspwf(:,:,it), dmax, ddmax,                    &
-$N3       &                                        dddmax,                     &
+          actionofh = apply_sphamil(maxspwf(:,:,it), dmax, ddmax,              &
+$N3       &                                         dddmax,                    &
           &                                     sx_max,sy_max,sz_max,iso,.true.)
           con(it)   = Es(it)
           Es(it)    = sum(actionofh * maxspwf(:,:,it)) * dv
@@ -1167,7 +1334,7 @@ $N3       &                                        dddmax,                     &
    enddo
    !---------------------------------------------------------------------------
    ! Finally, orthonormalisation
-!   call orthonormalize
+   call orthonormalize
 
    call stop_timer(T_feasible)
 
