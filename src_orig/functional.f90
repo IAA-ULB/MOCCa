@@ -106,6 +106,7 @@ module functional
     ! Definition of global contributions to the energy
     real(KIND=dp) :: Kinetic(2), Skyrme, TotalE, Ehistory(5)
     real(KIND=dp) :: ElectronEnergyKin, ElectronEnergyExch
+    real(KIND=dp) :: ElectronChempotKin, ElectronChempotExch
     real(KIND=dp) :: tot_even  , tot_odd
     real(KIND=dp) :: bilinear, trilinear, quadrilinear, densitydependent
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
@@ -1442,9 +1443,12 @@ $EREAR
   E_ultrarel=0.75d0*(3.d0*pi*pi)**(1.d0/3.d0)*hh*cc*ne**(4.d0/3.d0)
   
   ElectronEnergyKin=E_rel*mv*dv
-  !Electron exchange energy
+  ElectronChempotKin=me*sqrt(1+xx2)
+
+  !Electron exchange energy and chempot
   ElectronEnergyExch=E_ultrarel*alphaem/2.d0/pi*mv*dv
-  
+  ElectronChempotExch=4.d0/3.d0*E_ultrarel*alphaem/2.d0/pi/ne
+
   end subroutine calcElectronEnergy
 
   subroutine WritePotentials(chan)
