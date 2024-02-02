@@ -194,7 +194,7 @@ def initfunctional(fname, so, density_spwf_summation):
           minder.append((0,0))
         elif(minder[j][1]>2):
           print ("Hephaestos cannot combine DENSUM=1 with high order derivatives yet.")
-          exit()
+          sys.exit(1)
           
     # Complete the needed derivatives from the "maximal" number of derivatives
     temp_deriv_needed = PopulateDeriv(minder)
@@ -491,7 +491,7 @@ def ReadFunctional(fname):
       except IndexError:
           print ('Problem reading the following line in the func file.')
           print (line)
-          exit()      
+          sys.exit(1)      
 
 
   return description  
@@ -519,7 +519,7 @@ def RemoveTimeOddTerms():
       if(totalt != +1):
         print (" A term in your functional is not time-even.")
         print ( term)
-        exit()
+        sys.exit(1)
       
       if(timeodd):
         toremove.append(i)
@@ -1224,7 +1224,7 @@ def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,
       print ('This term was not parsed correctly.')
       print (term)
       print (densities)
-      exit()
+      sys.exit(1)
     printing = ts.print.substitute(dic) 
     calculation = calculation + ts.end_comment 
     
@@ -1277,7 +1277,7 @@ def identify_param(paramstring):
   else:
     print ('Unrecognized parameter type.')
     print ('Offending entry: ', paramstring)
-    exit()
+    sys.exit(1)
 
   # cleaning routine, strips spaces and newlines
   param = paramstring[2:].replace(' ', '').replace('\n', '')

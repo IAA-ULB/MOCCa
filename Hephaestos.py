@@ -191,3 +191,4 @@ else :
     print ('     Ready for compilation.')
     print ('     Happy calculations!')
 print (line)
+sys.exit(0)

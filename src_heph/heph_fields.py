@@ -361,7 +361,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                         if(dcmb.count(0) == 1 and dden != '1'):
                           if(len(dcmb) !=  1):
                             print ("Hephaestos cannot yet deal with derivatives upon derivatives of density dependent terms!")
-                            exit()
+                            exit(1)
                           # The derivative falls on the density dependence!
                           # nabla_m rho^alpha = alpha rho^(alpha-1) nabla_m rho
                           cc      = '(%s) * '%(dden) + cplct
@@ -384,7 +384,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                           
                           if(len(lcmb)>1):
                             print ("Repeated derivatives of density dependence.")
-                            exit()
+                            exit(1)
 
                           lc = lcmb[0]                          
                           if( lc.count(0) == 1):

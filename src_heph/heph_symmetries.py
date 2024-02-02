@@ -330,14 +330,14 @@ def initsymmetries(SYMSTRING, REDUCE, QUANT_AXIS, SECOND_AXIS):
 
     if(len(generators)>4):
       print ('Maximum length of generators of the symmetry group = 4.')
-      exit()
+      sys.exit(1)
 
     independent = not CheckIndependency(generators)
     com         = not CheckGenerators(generators)
 
     if(not com or not independent):
       print ("Trouble with your choice of symmetry generators.")
-      exit()
+      sys.exit(1)
 
     # Generating all possible symmetry relations
     symrel, combs = gen_symrelations(generators )
@@ -357,18 +357,18 @@ def initsymmetries(SYMSTRING, REDUCE, QUANT_AXIS, SECOND_AXIS):
     if(c > sum(ReduceAxes)):
       print (" The chosen symmetries allow for the reduction of more axes.")  
       print ("  Stopping.")
-      exit()
+      sys.exit(1)
     elif(c < sum(ReduceAxes)):
       print (" The chosen symmetries do not allow for this reduction.")
       print ("  Stopping.")
-      exit()  
+      sys.exit(1)  
     syms, combs =  choose_symrelations(symrel, combs, ReduceAxes)
     # Some sanity checks
     for i in range(3):
       if(ReduceAxes[i] ==1 and (not syms[i])):
         print ("  Could not identify a relation to reduce axis %s."%direc[i])
         print ("  Stopping.")
-        exit()
+        sys.exit(1)
 
     so = symmetry_option(generators, syms, combs, ReduceAxes, SYMSTRING, QUANT_AXIS, SECOND_AXIS)
     return so
