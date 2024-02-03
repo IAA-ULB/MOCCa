@@ -107,6 +107,7 @@ module functional
     real(KIND=dp) :: Kinetic(2), Skyrme, TotalE, Ehistory(5)
     real(KIND=dp) :: ElectronEnergyKin, ElectronEnergyExch
     real(KIND=dp) :: ElectronChempotKin, ElectronChempotExch
+    real(KIND=dp), parameter :: Qnp=1.29335236 !Mn-Mp
     real(KIND=dp) :: tot_even  , tot_odd
     real(KIND=dp) :: bilinear, trilinear, quadrilinear, densitydependent
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
@@ -280,9 +281,7 @@ $PRINTCOEF_PAIR
     7 format (15x, ' Coulomb Direct:', 3f15.6)
    71 format (15x, '   Dir. (point):', 3f15.6)
     8 format (15x, '       Exchange:', 3f15.6)
-   81 format (15x, '   Exc. (point):', 3f15.6) 
-   82 format (15x, '   Electron kin:', 3f15.6) 
-   83 format (15x, '  Electron exch:', 3f15.6)  
+   81 format (15x, '   Exc. (point):', 3f15.6)  
 
     9 format (15x, 'Pairing (delta):', 3f15.6)
    91 format (15x, 'Pairing (densi):', 30x, f15.6)
@@ -299,8 +298,18 @@ $PRINTCOEF_PAIR
   103 format (15x, '    E_fu - E_sp:', 30x, e15.6)
   104 format (15x, '          dE   :', 30x, e15.6)
   105 format (15x, '       Routhian:', 30x, f15.6)
-  106 format (15x, '          dR   :', 30x, e15.6)
-  107 format (15x, ' Total energy/A:', 30x, f15.6)
+  106 format (15x, '          dR   :', 30x, e15.6)           
+  
+  107 format (30x, '         FOR PASTA CALCULATIONS    ')
+  108 format (15x, '        e_pasta=(Total energy + electrons + Z[Mn-Mp])/A - Mn')
+  109 format (15x, '        e_pasta:', 30x, f15.6)
+  110 format (15x, '   Electron kin:', 30x, f15.6) 
+  111 format (15x, '  Electron exch:', 30x, f15.6) 
+  112 format (15x, 'Chempot_e total:', 30x, f15.6)
+  113 format (15x, '      Chempot_n:', 30x, f15.6)
+  114 format (15x, '      Chempot_p:', 30x, f15.6)
+  115 format (15x, ' Chempot_p β-eq:', 30x, f15.6)
+  116 format (15x, '       Pressure:', 30x, f15.6)
 
     real(KIND=dp) :: temp
 
@@ -345,11 +354,7 @@ $PRINTCOEF_PAIR
       temp = CoulombEnergy_Exchange(D_I_I(:,2))
       print 81, 0.0, temp, temp
     endif
-#if(PASTA==1)
-    print *
-    print 82, 0.0, 0.0, ElectronEnergyKin
-    print 83, 0.0, 0.0, ElectronEnergyExch
-#endif
+
     print *
     if( abs(Estabp).lt.1d-10 .and. abs(Estabn).lt.1d-10) then
       print 9 , PairingEnergy, sum(PairingEnergy)
@@ -381,7 +386,23 @@ $PRINTCOEF_PAIR
     print 104,  TotalE   - Ehistory(1)
     print 106,  Routhian - Rhistory(1)
 #if(PASTA==1)
-    print 107, TotalE/dble(protons+neutrons)
+    print 1
+    print 107
+    print 1
+    print 108
+    print 109, (TotalE+ElectronEnergyKin+ElectronEnergyExch  &
+    &                   -protons*Qnp)/dble(protons+neutrons)
+    print 110, ElectronEnergyKin
+    print 111, ElectronEnergyExch
+    print 112, ElectronChempotKin+ElectronChempotExch
+    print 113, FermiEnergy(1)
+    print 114, FermiEnergy(2)
+    print 115, FermiEnergy(1)-ElectronChempotKin-            &
+    &                     ElectronChempotExch+Qnp
+    print 116, (-TotalE-ElectronEnergyKin-ElectronChempotExch&
+    &                          +dble(neutrons)*FermiEnergy(1)&
+    &                          +dble(protons)*(FermiEnergy(2)&
+    &       +ElectronChempotKin+ElectronChempotExch))/(mv*dv)
 #endif
 
     print 1
@@ -525,8 +546,6 @@ $PRINTCOEF_PAIR
     TotalE = TotalE + CoulombDirect + CoulombExchange 
     ! Plus schematic corrections for the collective energy
     TotalE = TotalE + sum(Rotcorrection) + sum(Vibcorrection)
-    !NS: Plus energy of electrons if they are
-    TotalE= TotalE+ElectronEnergyKin+ElectronEnergyExch
 
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
@@ -1382,8 +1401,6 @@ $EREAR
     Spwfenergy = Spwfenergy + sum(Rotcorrection)
     ! And the vibrational correction
     Spwfenergy = Spwfenergy + sum(vibcorrection)
-    !NS:Add electrons
-    SpwfEnergy= SpwfEnergy+ElectronEnergyKin+ElectronEnergyExch
   end function calcspwfenergy
   
   subroutine output_Edensity(Edensity, N)

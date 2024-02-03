@@ -813,8 +813,9 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
 
     select case(PairingType)
     case (0)
-        if(inversetemp .eq. -1) return
-        
+        !NS: remove to print Fermi energy in HF case
+        !if(inversetemp .eq. -1) return
+        FermiEnergy=FermiEnergyHF
         print 1
         print 2
         print 3, FermiEnergy
