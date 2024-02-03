@@ -99,7 +99,7 @@ T( 1*tab + '! Preconditioning of the field ${FIELD} \n' \
 field_precon_update = \
 T( 2*tab +  'update=  ${FIELD}(:$IND,:) - ${FIELD}_hist(:$IND,:) \n')
 field_precon_call = \
-T( 2*tab +  'update=  PreconditionPotential(update,-preconfactor,1.0_dp, $PX,$PY,$PZ) \n')
+T( 2*tab +  'update=  PreconditionPotential(update,-preconfactor/$DIVISOR,1.0_dp, $PX,$PY,$PZ) \n')
 field_precon_add  = \
 T( 2*tab +  '${FIELD}(:$IND,:) =  ${FIELD}_hist(:$IND,:) + update \n')
 field_precon_end= \

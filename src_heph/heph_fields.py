@@ -798,25 +798,27 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
               # Every laplacian counts for two derivatives of course!
               extder = max(extder, nder + 2 * nlap)
           
-          fieldprecon  = fieldprecon + ts.field_precon_update.substitute(dic)
+          if(extder != 0):
+            fieldprecon  = fieldprecon + ts.field_precon_update.substitute(dic)
 
-          for true_arg in uncontracted: 
-            # We do the whole loop but only use the values for the final set of
-            # indices: all terms in a given contraction should have the same 
-            # behaviour under symmetry.
+            for true_arg in uncontracted: 
+              # We do the whole loop but only use the values for the final set of
+              # indices: all terms in a given contraction should have the same 
+              # behaviour under symmetry.
 
-            # The ugly tuple(np.abs( construction is simply because abs doesn't 
-            # accept tuples as arguments, for whatever reasons.
-            larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
-            rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
+              # The ugly tuple(np.abs( construction is simply because abs doesn't 
+              # accept tuples as arguments, for whatever reasons.
+              larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
+              rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
 
-            (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in den)
-            dic['PX'] = str(px)
-            dic['PY'] = str(py)
-            dic['PZ'] = str(pz)
-          # Every two external derivatives get one preconditioning run.
-          fieldprecon  = fieldprecon + + (extder//2) * ts.field_precon_call.substitute(dic)
-          fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
+              (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in den)
+              dic['PX'] = str(px)
+              dic['PY'] = str(py)
+              dic['PZ'] = str(pz)
+            # Every two external derivatives get one preconditioning run.
+            dic['DIVISOR'] = (extder//2)**2 # ansatz for the appropriate preconfactor
+            fieldprecon  = fieldprecon + + (extder//2) * ts.field_precon_call.substitute(dic)
+            fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
         fieldprecon  = fieldprecon + ts.field_precon_end.substitute(dic)
   #-----------------------------------------------------------------------------
 
