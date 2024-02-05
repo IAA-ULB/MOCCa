@@ -272,7 +272,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     !   None.
     ! Output:
     !   iter  : number of iterations executed by this routine.
-    !   iomsg : message about convergence that can be included in output files. 
+    !   iomsg : message about convergence that can be included in output files.
     !---------------------------------------------------------------------------
     use compilation
     use derivatives
@@ -295,36 +295,22 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 
     implicit none
 
-    1 format('----------------------------------')
-    2 format('| Convergence criteria satisfied.|')
-    3 format('| Needed ', i4, ' iterations.', 8x,'|')
-    4 format('| dE    < ', es10.3, 12x, ' | ')
-    5 format('| dQ2   < ', es10.3, 12x, ' | ')
-    6 format('| d2H   < ', es10.3, 12x, ' | ')
-   61 format('| |spg| < ', es10.3, 12x, ' | ')
-    7 format('| dmu   < ', es10.3, 12x, ' | ')
-   71 format('| dJz   < ', es10.3, 12x, ' | ')
-    8 format('| Ending the iterative proces.   |')
-
     9 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
-   10 format(86('-'))
-   11 format(30x, 'Iteration = ', i5, /)
-   12 format(24x, 'FINAL Iteration = ', i5, /)
 
     integer, intent(out)           :: iter
-    character(len=99), intent(out) :: iomsg 
-    
-    integer ::  iprint, scheme, ifail
-    logical :: ConvergenceAchieved, calc_expensive
+    character(len=99), intent(out) :: iomsg
+
+    integer :: iprint, scheme, ifail
+    logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
     ! Logical to see if any moments with projection are necessary
     logical :: projectpresent = .false.
 
     ifail = 0
     ConvergenceAchieved = .false.
+
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
-
     if( (Bogofromfile.and.readHFBinfofile) .and. pairingscheme.eq.1) then
       ! If using a gradient strategy and we want to continue from file.
       ! Only allowed of course if we have actually read a Bogoliubov transfo.
@@ -382,26 +368,16 @@ subroutine ReachForWaterAndFood(iter, iomsg)
                                  !   parts included.
     call calc_avg_gap()
 
-    ! Initial printout
-    if(MPI_RANK .eq. 0) then
-      ! only the very first MPI RANK prints all of this output
-      call printSpwfs(.true.) ! Always include all details on start
-      call printQps
-      call printallmoments
-      call print_boxsize_check
-      call PrintMomentsofInertia
-      call printcranking
-      call printpairing(pairstabfactor)
-      call PrintEnergy
-    endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Initial printout with all possible details
+    call full_printout(0,.false.,.true.)
 
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
-
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! First, do some bookkeeping 
+        ! First, do some bookkeeping
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! (1) update the arrays containing stuff at the last iteration
         call update_E_history()
@@ -412,19 +388,19 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! (3) and decide whether we are constraining stuff or not
         projectpresent   = checkconstraints() .or. check_cranking()
 
-        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Then, we update the reduced subspace spanned by our spwfs
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! TODO: include feasibleproject in the evolve_subspace code
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         if(projectpresent) call feasibleproject()
         call Evolve_subspace(iter)
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Calculate the single-particle hamiltonian ...
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        sphamil = Calc_Sphamil(.true.)      
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        sphamil = Calc_Sphamil(.true.)
         ! ... optionally perform a subspace rotation...
         if(subspace_rotation) then
             call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
@@ -435,53 +411,53 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! ... and use these matrices to build a new many-body state!
         call SolvePairing(pairingscheme,ifail)
         if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! From the many-body state, we start calculating observables
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         call densit(SaveRho=.false.)
         call ConstructChargeDensity(ChargeDensity)
         if(follow_com) call adapt_com()
         ! Calculate the value of all multipole moments
         call CalculateMoments()
-        ! ...and readjust any constraints on them 
+        ! ...and readjust any constraints on them
         call ReadjustAllMoments(1) ! TODO: remove the input dependence here...
         call ReadjustAllMoments(2)
-        ! Update value of the average angular momentum 
+        ! Update value of the average angular momentum
         call updateAM              ! TODO: adapt the calculation of angular momentum
                                    !       to only ever use densities...
         ! .... and readjust any constraints on it
         call ReadjustCranking
 
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Do a double take when constraints are present: use the updated 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Do a double take when constraints are present: use the updated
         ! Lagrange multipliers to correct our many-body state
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         if(projectpresent) then
-            ! Update the single-particle hamiltonian 
+            ! Update the single-particle hamiltonian
             call update_sphamil_constraints(sphamil)
             if(subspace_rotation) then
                 call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
                 call deriveHF() ! and update derivatives
             endif
-            ! .... and recalculate the gaps ..... 
+            ! .... and recalculate the gaps .....
             call CalcGaps(FermiEnergy, PairStabFactor)
             ! ..... reconstruct a many-body state .....
             call SolvePairing(pairingscheme,ifail)
             if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
-            ! ..... reconstruct all densities ....             
+            ! ..... reconstruct all densities ....
             call densit(SaveRho=.true.)
             call ConstructChargeDensity(ChargeDensity)
             if(follow_com) call adapt_com()
             ! .... and recalculate constrained quantities
-            call CalculateMoments()        
+            call CalculateMoments()
             call updateAM
         endif
 
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Recalculate the fields, but only if MaxIter > FreezeIter
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         if(iter .gt. freezeiter) then
           call calcFields(calcall=.true.,precon=.true.)
         endif
@@ -493,27 +469,24 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! NS: Recalculate the Coulomb field at the last iteration
         if(iter .eq. freezeiter) call solvecoulomb(D_I_I(:,2))
 
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Recalculate the energy with one of two options:
-        ! - cheap calculation that omits the recalculation of some parts of the 
+        ! - cheap calculation that omits the recalculation of some parts of the
         !   energy that are computationally intensive
         ! - expensive, complete calculation
         if((mod(iter,PrintIter).eq.0) .or. (iter.eq.maxiter)) then
-          iprint = 1
-          calc_expensive = .true.
+          iprint = 1 ; calc_expensive = .true.
         else
-          iprint = 0
-          calc_expensive = .false.
+          iprint = 0 ; calc_expensive = .false.
         endif
 
         call CalcEnergy(calc_expensive)
-
         ! Calculate the average pairing gap
         call calc_avg_gap()
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Check for convergence or a failed calculation
-        ! TODO: what is this? 
+        ! TODO: what is this?
         if (ifail .ne. 0) then
           iomsg               = 'FERMI'
           ConvergenceAchieved = .false.
@@ -524,47 +497,34 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 
         if(convergenceAchieved) then
           iprint = 1
-          ! Recalculate the energy with all parts included at the end, don't 
+          ! Recalculate the energy with all parts included at the end, don't
           ! skimp on the expensive parts
           call CalcEnergy(.true.)
         endif
-        !-----------------------------------------------------------------------
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        !  update all spwf properties first to ensure correct printout of spwfs
+        print_all_spwf_properties = print_adv_spwf_properties .or. &
+        &                           (iter .eq. maxiter)       .or. &
+        &                           convergenceachieved
+        if(print_all_spwf_properties) call update_spwf_properties( .true. )
+
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Decide whether to do a full printout
         ! .... but do a summary printout anyway to enable for "complete" output
         !      when grepping on quantities included in the summary
         if(MPI_RANK.eq.0) call printsummary(iter)
-        if(iprint .eq.1) then
-            ! ... but update all spwf properties first to ensure correct prints
-            if(print_adv_spwf_properties .or. &
-            &              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then
-              call update_spwf_properties( .true. ) ! expensive version
-            endif
-            call updateAM
-            call ReadjustCranking
-
-            if(MPI_RANK.eq.0) then
-              print 10
-              if((iter .eq. maxiter) .or. ConvergenceAchieved) then
-                ! Add a clear indication this is the FINAL iteration
-                print 12, iter
-                call PrintSpwfs(.True.) ! always include all details in the
-                                        ! printing
-              else
-                print 11, iter
-                call PrintSpwfs(print_adv_spwf_properties)
-              endif
-              call PrintQps
-              call printallmoments
-              call print_boxsize_check
-              call PrintMomentsofInertia
-              call printcranking
-              call printpairing(PairStabfactor)
-              call printEnergy()
-            endif
+        if(iprint .eq.1)  then
+          call full_printout(iter,convergenceachieved,print_all_spwf_properties)
         endif
-
-        !-----------------------------------------------------------------------
-        ! Write a wavefunction file according to checkpointiter
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Exit the loop if convergence is achieved.
+        if(ConvergenceAchieved) then
+          call print_convergence_message(iter)
+          iomsg='CONVERGED'
+          exit
+        endif
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Write a wavefunction file at each multiple of checkpointiter
         if(checkpointiter.ne.0) then
           if(mod(iter,checkpointiter) .eq. 0) then
             if(MPI_RANK.eq.0) print 9, iter, outputfilename
@@ -572,32 +532,16 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             call WriteTantalus(12, outputfilename)
           endif
         endif
-        !-----------------------------------------------------------------------
-        if(ConvergenceAchieved) then
-          if(MPI_RANK .eq. 0) then
-            print 1
-            print 2
-            print 3, iter
-            print 4, energy_prec
-            print 5, moment_prec
-            print 6, disp_prec
-            print 61, gradient_prec
-            print 7, fermi_prec
-            print 71, angmom_prec
-            print 8
-            print 1
-          endif
-          iomsg='CONVERGED'
-          exit
-        endif
     enddo
-
 end subroutine ReachForWaterAndFood
 
 subroutine printsummary(iter)
     !---------------------------------------------------------------------------
-    ! Short printout after an iteration.
-    !
+    ! Short printout after an iteration with sufficient information to follow
+    ! somewhat the convergence of the calculation.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !    iter : iteration count
     !---------------------------------------------------------------------------
     use functional
     use evolution
@@ -705,9 +649,100 @@ subroutine printsummary(iter)
 
 end subroutine printsummary
 
+subroutine full_printout(iter, converged, print_all_spwf_properties)
+  !-----------------------------------------------------------------------------
+  ! Perform a complete print out of the entire state of the code
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Input:
+  !    iter                      : iteration count
+  !    converged                 : logical, if .true. the calculation converged
+  !    print_all_spwf_properties : logical, if .true. print ALL details on the
+  !                                spwf
+  ! Output:
+  !    NONE
+  !-----------------------------------------------------------------------------
+  use pairing,          only : printpairing
+  use moments,          only : printallmoments
+  use densities,        only : print_boxsize_check
+  use momentsofinertia, only : printMomentsOfInertia
+  use printing,         only : printqps, print_adv_spwf_properties, printspwfs
+  use cranking,         only : printcranking
+  use functional,       only : printenergy, PairStabFactor
+
+  1 format(86('-'))
+  2 format(30x, 'Iteration = ', i5, /)
+  3 format(24x, 'FINAL Iteration = ', i5, /)
+
+  integer, intent(in) :: iter
+  logical, intent(in) :: print_all_spwf_properties, converged
+
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Drive all routines to print their output to STDOUT
+  if(MPI_RANK.eq.0) then
+    print 1
+    if((iter .eq. maxiter) .or. converged) then
+      ! Add a clear indication this is the FINAL iteration
+      print 3, iter
+    else
+      print 2, iter
+    endif
+    call printspwfs(print_all_spwf_properties)
+    call printqps
+    call printallmoments
+    call print_boxsize_check
+    call printmomentsofinertia
+    call printcranking
+    call printpairing(pairstabfactor)
+    call printenergy()
+  endif
+
+end subroutine full_printout
+
+subroutine print_convergence_message(iter)
+  !-----------------------------------------------------------------------------
+  ! Print a convergence message if the calculation converged.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Input:
+  !    iter : iteration count
+  ! Output:
+  !    NONE
+  !-----------------------------------------------------------------------------
+
+  use geninfo
+
+  integer, intent(in) :: iter
+
+  1 format('----------------------------------')
+  2 format('| Convergence criteria satisfied.|')
+  3 format('| Needed ', i4, ' iterations.', 8x,'|')
+  4 format('| dE    < ', es10.3, 12x, ' | ')
+  5 format('| dQ2   < ', es10.3, 12x, ' | ')
+  6 format('| d2H   < ', es10.3, 12x, ' | ')
+ 61 format('| |spg| < ', es10.3, 12x, ' | ')
+  7 format('| dmu   < ', es10.3, 12x, ' | ')
+ 71 format('| dJz   < ', es10.3, 12x, ' | ')
+  8 format('| Ending the iterative proces.   |')
+
+  if(MPI_RANK .eq. 0) then
+    print 1
+    print 2
+    print 3, iter
+    print 4, energy_prec
+    print 5, moment_prec
+    print 6, disp_prec
+    print 61, gradient_prec
+    print 7, fermi_prec
+    print 71, angmom_prec
+    print 8
+    print 1
+  endif
+
+end subroutine print_convergence_message
+
 subroutine initialize_all_timers()
    !----------------------------------------------------------------------------
    ! Initialize all the timers that have been defined.
+   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    ! Input:
    !       NONE
    ! Output:
@@ -753,8 +788,12 @@ end subroutine initialize_all_timers
 
 subroutine cleanupthemess()
   !-----------------------------------------------------------------------------
-  !
-  !
+  ! Driver routine calling all routines to cleanup memory in different modules.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Input:
+  !       NONE
+  ! Output:
+  !       NONE
   !-----------------------------------------------------------------------------
   use geninfo
   use derivatives
