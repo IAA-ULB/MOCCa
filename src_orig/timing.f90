@@ -14,6 +14,7 @@ module timing
   !-----------------------------------------------------------------------------
   ! Timer IDs. These are set to values by add_timer().
   integer :: T_derivatives, T_derivatives_can, T_evolution, T_ortho, T_tantalus
+  integer :: T_subspace_rotation, T_calc_sph, T_update_sph
   integer :: T_densities, T_fields, T_energy, T_pairing, T_den_ph, T_den_pp
   integer :: T_den_der, T_sphamil, T_coulomb, T_den_can, T_MOI
   integer :: T_COM, T_COM1, T_COM2, T_gaps, T_moments, T_feasible, T_spwfangmom

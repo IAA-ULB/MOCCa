@@ -749,6 +749,8 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         real(KIND=dp), allocatable   :: hpsi(:,:,:), temp(:,:)
         real(KIND=dp)                :: pot_elmult(mv,2)
         
+        call start_timer(T_update_sph)
+        
         ! Obtain the difference in potential due to the multipole moments
         pot_elmult = constraints_sph_elmult(.true.)
         
@@ -782,6 +784,8 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
             deallocate(hpsi, temp)
             si = si + N
         enddo
+        call stop_timer(T_update_sph)
+
     end subroutine update_sphamil_constraints
     
 !===============================================================================
@@ -944,6 +948,8 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         integer                    :: si, m, B, N, iso, i
         real(KIND=dp), allocatable :: hpsi(:,:,:)
 
+        call start_timer(T_calc_sph)
+
         sph = 0.0d0
 
         si = 0
@@ -971,7 +977,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
             deallocate(hpsi)
             si = si + N
         enddo 
-        
+        call stop_timer(T_calc_sph)
     end function calc_sphamil
     
     subroutine apply_subspace_rotation(sph, transfo, eigenvalues) 
@@ -991,7 +997,9 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         real(KIND=dp), intent(inout) :: sph(nwt,nwt)
         real(KIND=dp), intent(out)   :: transfo(nwt,nwt), eigenvalues(nwt)
         integer                      :: si, m, B, N
-
+      
+        call start_timer(T_subspace_rotation)
+    
         transfo = 0.0d0 ;  eigenvalues=0.0d0
 
         si = 0
@@ -1012,6 +1020,9 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         
             si = si + N
         enddo 
+
+        call stop_timer(T_subspace_rotation)
+
     end subroutine apply_subspace_rotation
     
     subroutine diag_sph_block(m,sph,x,upd,eigenvalues)
