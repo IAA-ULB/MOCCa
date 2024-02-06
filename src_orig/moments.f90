@@ -1673,10 +1673,10 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 
           select case(ToReadjust%isoswitch)
           case(0)
-            ToReadjust%Intensity = 1d0/sum(ToReadjust%Squared) 
+            ToReadjust%Intensity = 5d0/sum(ToReadjust%Squared) 
           case(1,2)
             it = ToReadjust%isoswitch
-            ToReadjust%Intensity = 1d0/ToReadjust%Squared(it) 
+            ToReadjust%Intensity = 5d0/ToReadjust%Squared(it) 
           end select
           if(MPI_RANK.eq.0) then
             print 11
