@@ -161,6 +161,8 @@ contains
         &                                               MPI_COMM_WORLD, mpi_err)
         call MPI_BCAST(ortho_strategy, len(ortho_strategy), MPI_CHARACTER, 0, &
         &                                               MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(subspace_rotation, 1, MPI_LOGICAL, 0, &
+        &                                               MPI_COMM_WORLD, mpi_err)
 
         call MPI_BCAST(maxiter   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         call MPI_BCAST(printiter , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
@@ -662,9 +664,11 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       use wavefunctions
 
       integer, intent(in)        :: iteration
-
-      integer                    :: si, m, B, N, iso, wave2, inproduct
+      integer                    :: si, m, B, N, iso, wave
       real(KIND=dp), allocatable :: hpsi(:,:,:)
+#if(USE_MPI > 0)
+      integer                    :: mpi_err
+#endif
 
       call start_timer(T_evolution)
 
@@ -678,9 +682,9 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
       endif
 
-      sphamil = 0.0d0
-      hftransfo   = 0.0d0
+      sphamil     = 0.0d0
       d2h         = 0.0d0
+      dispersions = 0.0d0
       if(EstimateParams) call IterativeEstimation(iteration)
 
       !-------------------------------------------------------------------------
@@ -691,19 +695,20 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         iso = -1        ; if(B.gt.4) iso = +1
 
         allocate(hpsi(mv,4,N))
+        wave = spwf_map(si+1)-1 !  global index = wave +1 , local_index = si+1
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Obtain the action of the s.p.h. on the spwfs using precomputed derivatives
         call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
         &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
-        &                          HFdpsi(:,:,:,si+1:si+N),              &
+        &                          HFdpsi(:,:,:,si+1:si+N),                    &
         &                          HFddpsi(:,:,:,si+1:si+N),.false.)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Construct the residual
         do m=1,N
           ! TODO: replace by BLAS call
           hpsi(:,:,m)=hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m)
-          dispersions(si+m) =sum(hpsi(:,:,m)**2)*dv
+          dispersions(wave+m) =sum(hpsi(:,:,m)**2)*dv
 
           select case(pairingtype)
           case(0,1)
@@ -726,6 +731,21 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       !-------------------------------------------------------------------------
       ! Step 3: orthonormalize
       call orthonormalize
+      !-------------------------------------------------------------------------
+
+#if(USE_MPI > 0)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Collecting all arrays on all MPI ranks. The ALLREDUCE calls are valid, 
+      ! since we zeroed the initial arrays at the top of this routine.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! nwt-scalars
+      call MPI_ALLREDUCE(MPI_IN_PLACE,d2h         , 1, MPI_REAL8, MPI_SUM, &
+      &                                                MPI_COMM_WORLD,mpi_err)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! nwt-vectors
+      call MPI_ALLREDUCE(MPI_IN_PLACE,dispersions , nwt, MPI_REAL8,          &
+      &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+#endif
 
       call stop_timer(T_evolution)
     end subroutine Evolve_momentum_sane 
@@ -745,21 +765,29 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         use wavefunctions
 
         real(KIND=dp), intent(inout) :: sph(nwt,nwt)
-        integer                      :: si, it, m, k, B, N,i,j
+        real(KIND=dp)                :: update(nwt,nwt)
+        integer                      :: si, it, m, k, B, N, wave
         real(KIND=dp), allocatable   :: hpsi(:,:,:), temp(:,:)
         real(KIND=dp)                :: pot_elmult(mv,2)
+#if(USE_MPI > 0)
+        integer                    :: mpi_err
+#endif
         
         call start_timer(T_update_sph)
         
         ! Obtain the difference in potential due to the multipole moments
         pot_elmult = constraints_sph_elmult(.true.)
+
+        ! Work with this array to make the MPI-implementation easier
+        update = 0.0
         
         si = 0
         do B=1,8
             N  = HFBlocks(B) ; if(N.eq.0) cycle
             it = +1          ; if(B.gt.4) it = 2
+            wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
 
-            allocate(hpsi(mv,4,N), temp(N,N))
+            allocate(hpsi(mv,4,N))
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Obtain the action of the new s.p.h. on the spwfs
             !
@@ -776,14 +804,19 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
             ! Calculate matrix elements by way of a BLAS call
             call DGEMM('t', 'n', N, N, 4*mv, dv, hfpsi(:,:,si+1:si+N), 4*mv, &
             &                                     hpsi(:,:,1:N), 4*mv, 0.0d0,& 
-            &                                     temp(1:N,1:N),N)
-            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            ! Perform the update
-            sph(si+1:si+N,si+1:si+N) = sph(si+1:si+N,si+1:si+N) + temp
-
-            deallocate(hpsi, temp)
+            &                                     update(wave+1:wave+N,wave+1:wave+N),N)
+            deallocate(hpsi)
             si = si + N
         enddo
+
+#if(USE_MPI > 0)
+      call MPI_ALLREDUCE(MPI_IN_PLACE,update,nwt**2, MPI_REAL8, MPI_SUM, &
+      &                                                MPI_COMM_WORLD,mpi_err)
+#endif
+        ! Perform the update for ALL numbers; this is wasteful since we are
+        ! spending quite some effort adding zeros. TODO: update!
+        sph = sph + update
+
         call stop_timer(T_update_sph)
 
     end subroutine update_sphamil_constraints
@@ -834,8 +867,6 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       real(KIND=dp), intent(out), target   :: hx(mv,4,m)
       logical, intent(in)                  :: onthefly
       integer                              :: wave
-      real(KIND=dp)                        :: dummy_d (mv,3,4)
-      real(KIND=dp)                        :: dummy_dd(mv,6,4)
  
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       do wave=1,m
@@ -899,7 +930,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! First inquire about working memory
       allocate(work(1))
       call DSYEV('V','L', m ,sph,m,tempe,work,-1,info)
-      lwork=work(1)
+      lwork=int(work(1))
       deallocate(work)
       allocate(work(lwork))
       ! ..... and now do the actual work
@@ -945,17 +976,21 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         !------------------------------------------------------------------------
         logical, intent(in)        :: onthefly
         real(KIND=dp)              :: sph(nwt,nwt)
-        integer                    :: si, m, B, N, iso, i
+        integer                    :: si, B, N, iso, wave
         real(KIND=dp), allocatable :: hpsi(:,:,:)
+#if(USE_MPI > 0)
+        integer                    :: mpi_err
+#endif
 
         call start_timer(T_calc_sph)
 
         sph = 0.0d0
 
         si = 0
-        do B=1,8
+        do B=1,8                      !<---- this loops over local spwf indices
             N = HFBlocks(B) ; if(N.eq.0) cycle
             iso = -1        ; if(B.gt.4) iso = +1
+            wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
 
             allocate(hpsi(mv,4,N))
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -972,11 +1007,20 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
             !       into (4*mv) ones
             call DGEMM('t', 'n', N, N, 4*mv, dv, hfpsi(:,:,si+1:si+N), 4*mv, &
             &                                     hpsi(:,:,1:N), 4*mv, 0.0d0,& 
-            &                                     sph(si+1:si+N, si+1:si+N),N)
+            &                                     sph(wave+1:wave+N,wave+1:wave+N),N)
         
             deallocate(hpsi)
             si = si + N
         enddo 
+#if(USE_MPI > 0)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! Collecting all arrays on all MPI ranks. The ALLREDUCE callis valid, 
+          ! since we zeroed the initial array at the top of this routine.
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          call MPI_ALLREDUCE(MPI_IN_PLACE,sph, nwt**2, MPI_REAL8,               &
+          &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+#endif
+        
         call stop_timer(T_calc_sph)
     end function calc_sphamil
     
@@ -996,7 +1040,10 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         !-------------------------------------------------------------------------------
         real(KIND=dp), intent(inout) :: sph(nwt,nwt)
         real(KIND=dp), intent(out)   :: transfo(nwt,nwt), eigenvalues(nwt)
-        integer                      :: si, m, B, N
+        integer                      :: si, m, B, N, wave
+#if(USE_MPI > 0)
+        integer                      :: mpi_err
+#endif
       
         call start_timer(T_subspace_rotation)
     
@@ -1005,22 +1052,28 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         si = 0
         do B=1,8
             N = HFBlocks(B) ; if(N.eq.0) cycle
+            wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Diagonalize the sphamiltonian in this symmetry block
-            call diag_sph_block(N, sph(si+1:si+N,si+1:si+N), HFPsi(:,:,si+1:si+N), &
-            &             Momentum_updates(:,:,si+1:si+N), eigenvalues(si+1:si+N))
-
+            call diag_sph_block(N, sph(wave+1:wave+N,wave+1:wave+N), HFPsi(:,:,si+1:si+N), &
+            &             Momentum_updates(:,:,si+1:si+N), eigenvalues(wave+1:wave+N))
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ! Populate sphamil and hftransfo for future use
-            sph(si+1:si+N,si+1:si+N) = 0.0d0
+            sph(wave+1:wave+N,wave+1:wave+N) = 0.0d0
             do m=1,N
-              sph(si+m, si+m)     = eigenvalues(si+m)
-              transfo(si+m,si+m)  = 1.0d0
+              sph(wave+m,wave+m)     = eigenvalues(wave+m)
+              transfo(wave+m,wave+m) = 1.0d0
             enddo
-        
             si = si + N
         enddo 
-
+#if(USE_MPI > 0)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Collecting all arrays on all MPI ranks. The ALLREDUCE callis valid, 
+        ! since we zeroed the initial array at the top of this routine.
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        call MPI_ALLREDUCE(MPI_IN_PLACE,eigenvalues, nwt, MPI_REAL8,          &
+        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+#endif
         call stop_timer(T_subspace_rotation)
 
     end subroutine apply_subspace_rotation
@@ -1066,7 +1119,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! First inquire about working memory
       allocate(work(1))
       call DSYEV('V','L', m ,sph,m,tempe,work,-1,info)
-      lwork=work(1)
+      lwork=int(work(1))
       deallocate(work)
       allocate(work(lwork))
       ! ..... and now do the actual work

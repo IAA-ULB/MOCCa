@@ -163,7 +163,7 @@ contains
     if( all(abs(fermi - oldfermi).lt.FermiPrec)) then
       exit
     elseif(iter.eq.maxBCSiter) then
-      print 1, iter, oldfermi, fermi
+      if(MPI_RANK.eq.0) print 1, iter, oldfermi, fermi
     endif          
   enddo
   ! Iteration end  

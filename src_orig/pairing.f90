@@ -180,7 +180,7 @@ contains
     character(len=20)                   :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
     integer                             :: i
-#if(USE_MPI>0)
+#if(USE_MPI > 0)
     integer                             :: mpi_err
 #endif
 
@@ -327,12 +327,12 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
     &                                                   MPI_COMM_WORLD, mpi_err)
     ! /blocking/ namelist variables
     if(BlockNumber.ne.0) then
-     call MPI_Bcast(blockJ, 1, MPI_REAL8, MPI_COMM_WORLD, mpi_err)
+     call MPI_Bcast(blockJ, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
      allocate(blockindices(blocknumber)) ; allocate(blocklowest(blocknumber))
-     call MPI_Bcast(blockindices,blocknumber,MPI_INTEGER,MPI_COMM_WORLD,mpi_err)
+     call MPI_Bcast(blockindices,blocknumber,MPI_INTEGER,0,MPI_COMM_WORLD,mpi_err)
      ! blocklowest is an array of strings, so it is complicated to transfer...
      do i=1,blocknumber
-      call MPI_Bcast(blocklowest(i), 2,MPI_CHARACTER,MPI_COMM_WORLD,mpi_err) 
+      call MPI_Bcast(blocklowest(i), 2,MPI_CHARACTER,0,MPI_COMM_WORLD,mpi_err) 
      enddo
     endif
 #endif
