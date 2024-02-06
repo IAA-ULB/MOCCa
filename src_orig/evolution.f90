@@ -30,6 +30,8 @@ module evolution
 ! evolution, althought several other flags can determine specific aspects of 
 ! evolution. 
 !
+! TODO: complete documentation
+! 
 ! 1. ortho_strategy      : 
 ! 2. subspace_rotation   :
 ! 3. spwf_preconditioning:
@@ -70,20 +72,20 @@ module evolution
     !   IMTIME    => Gradient Descent/Imaginary Time
     !   HEAVYBALL => Heavy-ball dynamics
     !   HBSANE    => "Sane" heavy-ball dynamics
-    character(len=20) :: Strategy = 'HEAVYBALL'
+    character(len=20) :: Strategy = 'HBSANE'
     !
     ! Orthonormalisation strategy
     ! - - - - - - - - - - - - - - -
     !   GRAMSCHMIDT => Gram-Schmidt "sequential" orthonormalisation
     !   CHOLESKY    => Cholesky decomposition
-    character(len=20)               :: ortho_strategy = 'GramSchmidt'
+    character(len=20)               :: ortho_strategy = 'CHOLESKY'
     ! 
     ! Subspace rotation 
     ! - - - - - - - - - - -
     !    whether or not to throw in an explicit diagonalisation of the 
     !    single-particle hamiltonian in the subspace spanned by the spwfs
     !    in memory.
-    logical :: subspace_rotation = .false.
+    logical :: subspace_rotation = .true.
     !---------------------------------------------------------------------------
     !Procedure that determines the evolution of a Spwf under imaginary time.
     abstract interface
@@ -238,8 +240,11 @@ contains
 !        5 format(' Preconditioning   : ', a20 )
         6 format(' Diagonalise the s.p. hamiltonian: ', a3)
         7 format(' EfficientHFB : ACTIVE! ')
-        8 format(' Orthonormalisation strategy: ', a20)
 
+        8 format(' Orthonormalisation strategy: ', a20)
+        9 format(' Subspace rotation          :   ACTIVE')
+       10 format(' Subspace rotation          : INACTIVE')
+        
         print 1
         print 2, adjustl(Strategy)
         print 31, maxiter, printiter
@@ -268,6 +273,12 @@ contains
             print 6, 'NO'
         endif
         print 8, ortho_strategy
+        
+        if(subspace_rotation) then
+            print 9
+        else 
+            print 10
+        endif
 
     end subroutine PrintEvolution
 
