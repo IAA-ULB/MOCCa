@@ -1166,9 +1166,9 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       use wavefunctions
 
       1 format (a20, 99f10.3)
-      2 format ('-------------------------------------------------------------')
-      3 format (' Warning: maximum eigenvalue of h could not be estimated.  ')
-      4 format (' Isospin = ', i2, 'maxE = ', f10.3,  ' convergence =', es10.3)
+      2 format ('-------------------------------------------------------------------')
+      3 format (' Warning: maximum eigenvalue of h could not be estimated.          ')
+      4 format (' Isospin = ', i2, ' maxE = ', f20.3,  ' convergence =', es10.3)
 
       integer, intent(in)              :: iteration
 
@@ -1243,8 +1243,8 @@ $N3       &                                         dddmax,                    &
           if(abs(con(it)).lt. 1d-2) exit
         enddo
       enddo
-      
-      if(any(abs(con) .gt. 1d-2)) then
+           
+      if(MPI_RANK.eq.0 .and. any(abs(con) .gt. 1d-2)) then
           print 1
           print 2
           print 3
