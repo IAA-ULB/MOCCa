@@ -135,8 +135,8 @@ module functional
     ! NUMERICAL OPTIONS
     !===========================================================================
     !---------------------------------------------------------------------------
-    ! Factor in the preconditioning of the F_I_I potential
-    real(KIND=dp) :: preconfactor = 1.0_dp
+    ! Numerical parameter of the preconditioning of the potentials
+    real(KIND=dp) :: preconfactor = 4.0_dp
     !---------------------------------------------------------------------------
     ! Type of preconditioning to apply
     integer       :: potentialpreconditioning = 1
