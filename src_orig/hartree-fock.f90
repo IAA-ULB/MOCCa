@@ -70,10 +70,12 @@ contains
       i = i + 1
     enddo
     !NS: defining FermiEnergy even in HF case as right between last occupied
-    ! and unoccupied levels
-    jp1=ProtonOrder(i)
-    FermiEnergyHF(2)=spenergies(j)+(spenergies(jp1)-spenergies(j))/2.d0
-  
+    ! and the first unoccupied level.
+    if(ProtonUpperBound .gt. 0) then
+        jp1=ProtonOrder(i)
+        FermiEnergyHF(2)=spenergies(j)+(spenergies(jp1)-spenergies(j))/2.d0
+    endif
+    
     i=1
     do while(n.lt.NeutronUpperBound .and. i.le.nwn)
       j              = NeutronOrder(i)
@@ -82,9 +84,11 @@ contains
       n = n + int(occupations(j))
       i = i + 1
     enddo
-    jp1=NeutronOrder(i)
-    FermiEnergyHF(1)=spenergies(j)+(spenergies(jp1)-spenergies(j))/2.d0
-    
+    if(NeutronUpperBound .gt. 0) then
+        jp1=NeutronOrder(i)
+        FermiEnergyHF(1)=spenergies(j)+(spenergies(jp1)-spenergies(j))/2.d0
+    endif
+        
     return
   end subroutine NaiveFill
 

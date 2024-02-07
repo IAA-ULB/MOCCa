@@ -1448,34 +1448,40 @@ $EREAR
   end subroutine clean_potentials
   
   subroutine calcElectronEnergy()
-  !NS: calculate kinetic energy of relativistic electron gas including exchange
-  !(but latter in ultrarelativistic limit)
-  
-  real(KIND=dp) :: lamce, pfermi, xx, xx2, hi_x, E_rel, E_ultrarel, ne
-  real(KIND=dp),parameter :: cc=2.99792458d23     !codata speed of light fm/s
-  real(KIND=dp),parameter :: me=0.510998950d0 !codata electron mass in MeV
-  real(KIND=dp),parameter :: hh=4.135667696d-21/(2.d0*pi) !codata h dirac MeV*s
-  real(KIND=dp),parameter :: alphaem=7.2973525693d-3 !Codata fine structure
-  
-  ne=protons/(mv*dv)
-  
-  !Relativistic electrons
-  lamce=hh*cc/me
-  pfermi=(3.d0*(hh*2.d0*pi)**3.d0/(8.d0*pi)*ne)**(1.d0/3.d0)
-  xx=pfermi*cc/me
-  xx2=xx*xx
-  hi_x=1.d0/(8.d0*pi*pi)*(xx*sqrt(1.d0+xx2)*(1.d0+2.d0*xx2)-log(xx+sqrt(1.d0+xx2)))
-  E_rel= me/(lamce**3.d0)*hi_x
-  
-  !Ultrarelativistic electrons
-  E_ultrarel=0.75d0*(3.d0*pi*pi)**(1.d0/3.d0)*hh*cc*ne**(4.d0/3.d0)
-  
-  ElectronEnergyKin=E_rel*mv*dv
-  ElectronChempotKin=me*sqrt(1+xx2)
+      !NS: calculate kinetic energy of relativistic electron gas including exchange
+      !(but latter in ultrarelativistic limit)
+      
+      real(KIND=dp) :: lamce, pfermi, xx, xx2, hi_x, E_rel, E_ultrarel, ne
+      real(KIND=dp),parameter :: cc=2.99792458d23     !codata speed of light fm/s
+      real(KIND=dp),parameter :: me=0.510998950d0 !codata electron mass in MeV
+      real(KIND=dp),parameter :: hh=4.135667696d-21/(2.d0*pi) !codata h dirac MeV*s
+      real(KIND=dp),parameter :: alphaem=7.2973525693d-3 !Codata fine structure
 
-  !Electron exchange energy and chempot
-  ElectronEnergyExch=E_ultrarel*alphaem/2.d0/pi*mv*dv
-  ElectronChempotExch=4.d0/3.d0*E_ultrarel*alphaem/2.d0/pi/ne
+      if(protons .eq. 0.0d0) then
+         ElectronEnergyKin   = 0.0d0
+         ElectronChempotKin  = 0.0d0
+         ElectronEnergyExch  = 0.0d0
+         ElectronChempotExch = 0.0d0
+      else
+         ne=protons/(mv*dv)
+         !Relativistic electrons
+         lamce=hh*cc/me
+         pfermi=(3.d0*(hh*2.d0*pi)**3.d0/(8.d0*pi)*ne)**(1.d0/3.d0)
+         xx=pfermi*cc/me
+         xx2=xx*xx
+         hi_x=1.d0/(8.d0*pi*pi)*(xx*sqrt(1.d0+xx2)*(1.d0+2.d0*xx2)-log(xx+sqrt(1.d0+xx2)))
+         E_rel= me/(lamce**3.d0)*hi_x
+         
+         !Ultrarelativistic electrons
+         E_ultrarel=0.75d0*(3.d0*pi*pi)**(1.d0/3.d0)*hh*cc*ne**(4.d0/3.d0)
+         
+         ElectronEnergyKin=E_rel*mv*dv
+         ElectronChempotKin=me*sqrt(1+xx2)
+
+         !Electron exchange energy and chempot
+         ElectronEnergyExch=E_ultrarel*alphaem/2.d0/pi*mv*dv
+         ElectronChempotExch=4.d0/3.d0*E_ultrarel*alphaem/2.d0/pi/ne
+      endif
 
   end subroutine calcElectronEnergy
 
