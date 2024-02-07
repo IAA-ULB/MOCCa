@@ -29,6 +29,7 @@ module hartreefock
  implicit none
 
  real(KIND=dp) :: HFdispersion(2) = 0.0
+ real(KIND=dp) :: FermiEnergyHF(2)
  
 contains
  
@@ -42,7 +43,7 @@ contains
     ! non-magic numbers of nucleons.
     !---------------------------------------------------------------------------
 
-    integer :: i,j,n,p, ProtonUpperBound, NeutronUpperBound
+    integer :: i,j,jp1,n,p, ProtonUpperBound, NeutronUpperBound
     integer :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp), intent(out) :: occupations(nwt)
 
@@ -68,6 +69,11 @@ contains
       p = p + int(occupations(j))
       i = i + 1
     enddo
+    !NS: defining FermiEnergy even in HF case as right between last occupied
+    ! and unoccupied levels
+    jp1=ProtonOrder(i)
+    FermiEnergyHF(2)=spenergies(j)+(spenergies(jp1)-spenergies(j))/2.d0
+  
     i=1
     do while(n.lt.NeutronUpperBound .and. i.le.nwn)
       j              = NeutronOrder(i)
@@ -76,6 +82,9 @@ contains
       n = n + int(occupations(j))
       i = i + 1
     enddo
+    jp1=NeutronOrder(i)
+    FermiEnergyHF(1)=spenergies(j)+(spenergies(jp1)-spenergies(j))/2.d0
+    
     return
   end subroutine NaiveFill
 

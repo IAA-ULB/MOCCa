@@ -105,6 +105,9 @@ module functional
     !---------------------------------------------------------------------------
     ! Definition of global contributions to the energy
     real(KIND=dp) :: Kinetic(2), Skyrme, TotalE, Ehistory(5)
+    real(KIND=dp) :: ElectronEnergyKin, ElectronEnergyExch
+    real(KIND=dp) :: ElectronChempotKin, ElectronChempotExch
+    real(KIND=dp), parameter :: Qnp=1.29335236 !Mn-Mp
     real(KIND=dp) :: tot_even  , tot_odd
     real(KIND=dp) :: bilinear, trilinear, quadrilinear, densitydependent
     real(KIND=dp) :: COMCorrection(2,2), CoulombDirect, CoulombExchange
@@ -304,7 +307,18 @@ $PRINTCOEF_PAIR
   103 format (15x, '    E_fu - E_sp:', 30x, e15.6)
   104 format (15x, '          dE   :', 30x, e15.6)
   105 format (15x, '       Routhian:', 30x, f15.6)
-  106 format (15x, '          dR   :', 30x, e15.6)
+  106 format (15x, '          dR   :', 30x, e15.6)           
+  
+  107 format (30x, '         FOR PASTA CALCULATIONS    ')
+  108 format (15x, '        e_pasta=(Total energy + electrons + Z[Mn-Mp])/A - Mn')
+  109 format (15x, '        e_pasta:', 30x, f15.6)
+  110 format (15x, '   Electron kin:', 30x, f15.6) 
+  111 format (15x, '  Electron exch:', 30x, f15.6) 
+  112 format (15x, 'Chempot_e total:', 30x, f15.6)
+  113 format (15x, '      Chempot_n:', 30x, f15.6)
+  114 format (15x, '      Chempot_p:', 30x, f15.6)
+  115 format (15x, ' Chempot_p β-eq:', 30x, f15.6)
+  116 format (15x, '       Pressure:', 30x, f15.6)
 
     real(KIND=dp) :: temp
 
@@ -349,6 +363,7 @@ $PRINTCOEF_PAIR
       temp = CoulombEnergy_Exchange(D_I_I(:,2))
       print 81, 0.0, temp, temp
     endif
+
     print *
     if( abs(Estabp).lt.1d-10 .and. abs(Estabn).lt.1d-10) then
       print 9 , PairingEnergy, sum(PairingEnergy)
@@ -379,6 +394,25 @@ $PRINTCOEF_PAIR
 
     print 104,  TotalE   - Ehistory(1)
     print 106,  Routhian - Rhistory(1)
+#if(PASTA==1)
+    print 1
+    print 107
+    print 1
+    print 108
+    print 109, (TotalE+ElectronEnergyKin+ElectronEnergyExch  &
+    &                   -protons*Qnp)/dble(protons+neutrons)
+    print 110, ElectronEnergyKin
+    print 111, ElectronEnergyExch
+    print 112, ElectronChempotKin+ElectronChempotExch
+    print 113, FermiEnergy(1)
+    print 114, FermiEnergy(2)
+    print 115, FermiEnergy(1)-ElectronChempotKin-            &
+    &                     ElectronChempotExch+Qnp
+    print 116, (-TotalE-ElectronEnergyKin-ElectronChempotExch&
+    &                          +dble(neutrons)*FermiEnergy(1)&
+    &                          +dble(protons)*(FermiEnergy(2)&
+    &       +ElectronChempotKin+ElectronChempotExch))/(mv*dv)
+#endif
 
     print 1
  end subroutine PrintEnergy
@@ -481,7 +515,7 @@ $PRINTCOEF_PAIR
 
     if( all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0) ) then
       ! Direct contribution of the Coulomb potential
-      CoulombDirect   = CoulombEnergy_Direct(D_I_I(:,2))
+      CoulombDirect   = CoulombEnergy_Direct(ChargeDensity)
       ! Exchange contribution
       CoulombExchange = CoulombEnergy_Exchange(D_I_I(:,2)) 
     else
@@ -506,6 +540,14 @@ $PRINTCOEF_PAIR
     endif
     ! Entropy calculation when temperature is finite
     call calcentropy()
+    
+    !NS: Calculate electrons energy
+#if(PASTA==0)
+    ElectronEnergyKin=0.0d0
+    ElectronEnergyExch=0.0d0
+#else
+    call calcElectronEnergy()
+#endif
 
     ! The total energy is comprised of 
     !      Kinetic part + Skyrme part + corrections + Coulomb energy
@@ -1404,6 +1446,38 @@ $EREAR
     $CLEANING
 
   end subroutine clean_potentials
+  
+  subroutine calcElectronEnergy()
+  !NS: calculate kinetic energy of relativistic electron gas including exchange
+  !(but latter in ultrarelativistic limit)
+  
+  real(KIND=dp) :: lamce, pfermi, xx, xx2, hi_x, E_rel, E_ultrarel, ne
+  real(KIND=dp),parameter :: cc=2.99792458d23     !codata speed of light fm/s
+  real(KIND=dp),parameter :: me=0.510998950d0 !codata electron mass in MeV
+  real(KIND=dp),parameter :: hh=4.135667696d-21/(2.d0*pi) !codata h dirac MeV*s
+  real(KIND=dp),parameter :: alphaem=7.2973525693d-3 !Codata fine structure
+  
+  ne=protons/(mv*dv)
+  
+  !Relativistic electrons
+  lamce=hh*cc/me
+  pfermi=(3.d0*(hh*2.d0*pi)**3.d0/(8.d0*pi)*ne)**(1.d0/3.d0)
+  xx=pfermi*cc/me
+  xx2=xx*xx
+  hi_x=1.d0/(8.d0*pi*pi)*(xx*sqrt(1.d0+xx2)*(1.d0+2.d0*xx2)-log(xx+sqrt(1.d0+xx2)))
+  E_rel= me/(lamce**3.d0)*hi_x
+  
+  !Ultrarelativistic electrons
+  E_ultrarel=0.75d0*(3.d0*pi*pi)**(1.d0/3.d0)*hh*cc*ne**(4.d0/3.d0)
+  
+  ElectronEnergyKin=E_rel*mv*dv
+  ElectronChempotKin=me*sqrt(1+xx2)
+
+  !Electron exchange energy and chempot
+  ElectronEnergyExch=E_ultrarel*alphaem/2.d0/pi*mv*dv
+  ElectronChempotExch=4.d0/3.d0*E_ultrarel*alphaem/2.d0/pi/ne
+
+  end subroutine calcElectronEnergy
 
   subroutine WritePotentials(chan)
     !---------------------------------------------------------------------------
