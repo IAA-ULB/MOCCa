@@ -139,7 +139,7 @@ contains
         call stp('This order for the Coulomb discretisation is not supported.')
      end select
      !NS: no offset for pasta
-#if(PASTA==1)
+#if(USE_Periodic==1)
      BC=0
 #endif
     endif
@@ -407,8 +407,10 @@ $REDUZ   linZ=2*nz
 
     volume=linx*dx*linY*dx*linZ*dx
     rho_el=protons/volume
+    !print *, protons,sum(rho_charge)*dv
     rho_charge=rho_charge-rho_el
     !print *,'rho_el2=',rho_el
+    
 #endif
 
     
@@ -885,7 +887,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
 
     allocate(lf(nx+BC+ox, ny+BC+oy, nz+BC+oz)) ;  lf = 0.0_dp
 
-#if(PASTA==0)
+#if(USE_Periodic==0)
     !---------------------------------------------------------------------------
     ! X-direction
     do k=oz+1,oz+nz
@@ -968,7 +970,7 @@ $REDUZ        enddo
 $REDUZ      enddo
 $REDUZ    enddo
 
-#elif(PASTA==1)
+#else
     !NS: impose periodic BC of order=coulorder
     !---------------------------------------------------------------------------
     ! X-direction
