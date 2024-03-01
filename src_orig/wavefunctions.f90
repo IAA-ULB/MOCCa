@@ -1032,15 +1032,41 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
   end subroutine GramSchmidt
 
-  subroutine Cholesky_orthonormalisation
+  subroutine Cholesky_orthonormalisation()
     !---------------------------------------------------------------------------
+    ! Orthonormalize the single-particle wavefunctions in the hfpsi array 
+    ! through a Cholesky decomposition.
+    ! 
+    ! Let N be the real positive-definite matrix of the overlaps of the 
+    ! single-particle wavefunctions. Then we can write
+    !        N^T N = L L^T
+    ! where L is a real lower triangular matrix with positive diagonal entries.
     !
+    ! Then X = N (L^-1)^T is an orthonormal set of vectors, since 
     !
-    !
-    !
+    !  X^T X = L^-1 N^T N [L^-1]^T 
+    !        = L^-1 L L^T [L^-1]^T 
+    !        = (L^-1 L) (L^-1 L)^T
+    !        = identity matrix. 
+    ! 
+    ! Once L is constructed, one can obtain X easily through solving a set of 
+    ! linear equations:
+    !      X L^T = N 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Technical note: I am for now happily ignorant about any and all kind of
+    !                 numerical instabilities that Cholesky factorisation implies.
+    !                 I know these exist in theory, but have so far to the best
+    !                 of my knowledge not encountered them while running this code.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !    None
+    ! Output:
+    !    None
+    ! Sideeffects:
+    !    the contents of the array hfpsi get changed and now are orthonormal.
     !---------------------------------------------------------------------------
-    real(KIND=dp), allocatable :: overlaps(:,:)
-    real(KIND=dp), pointer     :: u(:,:)
+    real(KIND=dp), allocatable         :: overlaps(:,:)
+    real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:)
     integer                    :: N, i, si, B, info
  
     call start_timer(T_ortho)
@@ -1050,26 +1076,28 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       N = HFBlocks(B) ; if (N.eq.0) cycle
  
       allocate(overlaps(N,N))
-      
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Reshaping the wavefunctions by pointer in order to make the BLAS calls
+      ! as efficient and easy as possible. Note: the "contiguous" keyword for
+      ! this pointer array is crucial to make this trick work without tripping
+      ! boundary-checking by compilers. 
+      wfs_reshape(1:4*mv,1:N) => hfpsi(:,:,si+1:si+N)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Build overlaps within this symmetry block 
-      call dgemm('t','n',N,N,4*mv,   dv,hfpsi(1:4*mv,1,si+1:si+N), 4*mv, &
-      &                                 hfpsi(1:4*mv,1,si+1:si+N), 4*mv, &
-      &                                 0.0d0,                        &
-      &                                 overlaps,N)
- 
+      call dgemm('t','n',N,N,4*mv, dv,wfs_reshape,4*mv, wfs_reshape, 4*mv, &
+      &                            0.0d0, overlaps,N)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Calculate the cholesky decomposition
       call dpotrf('l',N,overlaps,N,info)
- 
+      ! overlaps now contains the factorisation L
       if(info.ne.0) then
         print *, 'Issue with the Cholesky decomposition.'
         print *, 'INFO = ', info
       endif
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Apply the transformation
-      call dtrsm('r','l','t','n',&
-      &               4*mv,N,1.0d0,overlaps,N,hfpsi(1:4*mv,1,si+1:si+N),4*mv)
+      ! Solve the linear equations
+      !    X L^T = N
+      call dtrsm('r','l','t','n',4*mv,N,1.0d0,overlaps,N,wfs_reshape,4*mv)
  
       !-------------------------------------------------------------------------
       ! Bugchecking the work: calculating and printing overlaps
