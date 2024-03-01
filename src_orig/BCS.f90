@@ -317,8 +317,8 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
 
     integer, intent(in)          :: Blockindices(:)
     integer, intent(in)          :: BlockType, gas
-    integer, allocatable         :: proton_block(:), neutron_block(:)
-    integer, allocatable         :: blocked_qps(:), indices(:), toblock(:)
+    integer, allocatable         :: proton_block(:), neutron_block(:), indices(:)
+    integer, allocatable         :: blocked_qps(:), toblock(:)
     character(len=2), intent(in) :: BlockLowest(:)
   
     f = 0 ; qpb = 0
@@ -420,6 +420,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         c  = 0
         do B=1,8
             N = HFBlocks_global(B) ; if(N.eq.0) cycle
+	    allocate(indices(N))
             indices = Order(BCSqps(si+1:si+N))
             do i=1, toblock(B)
               f(si+indices(i)) = occ
@@ -427,6 +428,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
               blocked_qps(c) = si+indices(i)
             enddo            
             si = si + N
+            deallocate(indices)
         enddo
         deallocate(proton_block, neutron_block) 
         !-----------------------------------------------------------------------
@@ -658,7 +660,6 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
     nwf = size(energies)
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices
-    if(allocated(indices))  deallocate(indices)
     allocate(Indices(nwf), Eswap(nwf))
     do i=1,nwf
        Indices(i) = i 

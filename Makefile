@@ -80,8 +80,17 @@
 #    versions tested: 2021.1
 #
 # 3. cray compilers
-#    optimisation: -O2, -O3, -O3 -hfp3
+#    optimisation: -O2
 #    versions tested: 14.0.3
+#    
+#    Notes:
+#       - -O3 and higher optimisations segfault for cray compilers
+#       - at the time of writing, the newest cray compilers issue several 
+#         types of warning when compiling the code. One is inconsequential, 
+#         but would take ages to fix: ftn-878, which complains about the 
+#         recursive loading of modules. This warning is currently explicitly
+#         disabled. 
+#
 #-------------------------------------------------------------------------------
 # Acknowledgment:
 #   the organisation of this Makefile as well as a bunch of options are
@@ -234,7 +243,7 @@ ifeq ($(COMPILER),gfortran)
 else ifeq ($(COMPILER),ifort)
 	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin
 else ifeq ($(CXX),ftn)
-	CXXFLAGS := -J$(MODDIR)
+	CXXFLAGS := -J$(MODDIR) -M 878
 endif
 
 # 2. set compiler-specific optimisation level
