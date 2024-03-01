@@ -29,7 +29,7 @@ module hartreefock
  implicit none
 
  real(KIND=dp) :: HFdispersion(2) = 0.0
- real(KIND=dp) :: FermiEnergyHF(2)
+ real(KIND=dp) :: FermiEnergyHF(2) = 0.0
  
 contains
  

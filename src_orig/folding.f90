@@ -89,6 +89,18 @@ contains
         enddo
     enddo
     !---------------------------------------------------------------------------
+    !NS: for periodic boundary conditions add contrubution from 2 (symmetric)
+    !neighboors. Should be enough for realistic box sizes due to rapid fall down
+    !of the exponent.
+#if(USE_Periodic==1) 
+    do i=1,m
+        do j=1,m          
+            G(i,j) = G(i,j) + Gaussian(mesh(i)-(1+p)*m*dx, mesh(j), r0)        &
+            &      +  Gaussian((1-2*p)*mesh(i)+(1+p)*m*dx, mesh(j), r0)
+        enddo
+    enddo
+#endif
+    !---------------------------------------------------------------------------
     ! Normalize, to avoid the numerical errors due to the mesh discretization.
     ! Technical note: we normalize all columns with the norm of ONE PARTICULAR
     !                 column, chosen "sufficiently far away" from the boundary
