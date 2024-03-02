@@ -19,7 +19,7 @@ module pairing_strengths
  ! Hephaestos keywords: [NONE at the moment]
  !
  !==============================================================================
- 
+ use geninfo
  use parameterization
 
  implicit none
@@ -30,11 +30,12 @@ module pairing_strengths
  ! GFORTRAN compiles fine, but for unknown reasons IFORT fails catastrophically
  ! when this is removed.
  abstract interface 
-    function inter_abstract(deltans, deltann, deltanp, eta, iso) result(Delta)
-      real*8, intent(in) :: deltans(:), deltann(:)
-      real*8, intent(in) :: deltanp(:), eta(:)
-      integer, intent(in):: iso 
-      real*8, allocatable:: delta(:)
+    function inter_abstract(delta_function, kfn, kfp, kf0, eta, iso) result(Delta)
+      procedure(cao_delta)      :: delta_function
+      real*8, intent(in)        :: kfn(:), kfp(:), kf0(:), eta(:)
+      integer, intent(in)       :: iso 
+      real*8, allocatable       :: Delta(:) 
+      real*8, allocatable       :: deltann(:), deltanp(:), deltans(:)
     end function
  end interface
  !------------------------------------------------------------------------------
@@ -57,8 +58,9 @@ contains
   !
   ! intertype   interpolation routine         Interpolation approach
   ! ---------   ----------------------       ---------------------------------
-  !  0          standard_interpolation  N. Chamel et al., PRC 80, 065804 (2009).
-  !  1          linear interpolation    D=(1-|eta|)D_sym + |eta|D_{q,pure}
+  !  0          standard_interpolation      N. Chamel et al., PRC 80, 065804 (2009).
+  !  1          linear interpolation        D=(1-|eta|)D_sym + |eta|D_{q,pure}
+  !  2          weak coupling interpolation [To be published]
   !-----------------------------------------------------------------------------
   integer, intent(in) :: ptype, intertype
   
@@ -77,10 +79,14 @@ contains
   select case(intertype)
   case(0)
     print 3, ' "Standard interpolation" from N. Chamel et al., PRC 80, 065804 (2009).'
-    print *, '     ATTENTION: this INM interpolation is NOT recommended. '
+    print *, '  ATTENTION: this INM interpolation is NOT recommended. '
   case (1)
     print 3, ' Linear interpolation '
-    print *, '     Delta_q = (1 - |eta|) Delta_sym + |eta| Delta_{q,pure}'
+    print *, '  Delta_q = (1 - |eta|) Delta_sym + |eta| Delta_{q,pure}'
+  case (2)
+    print 3, ' Weak coupling interpolation'
+    print *, '  Delta_n = Delta_NM(k_Fn)*[Delta_SM(k_F)/Delta_NM(k_F)]^{1-eta}'
+    print *, '  Delta_p = Delta_NM(k_Fp)*[Delta_SM(k_F)/Delta_NM(k_F)]^{1+eta}'
   case DEFAULT
     call stp('intertype not recognized in print_micro_pairing_info.')
   end select 
@@ -117,6 +123,8 @@ contains
     interpolation => standard_interpolation
   case(1)
     interpolation => linear_interpolation
+  case(2)
+    interpolation => weak_coupling_interpolation
   case DEFAULT
     call stp('Unrecognised option for intertype.')
   end select
@@ -203,18 +211,19 @@ contains
       eta(i) = 0.0d0
     endif
   enddo
-  
-  deltann = Cao_delta(kfn, 1) ! pairing gap in pure neutron matter
-  deltanp = Cao_delta(kfp, 2) !                pure proton  matter
-  deltans = Cao_delta(kf0, 3) !                symmetric    matter
 
-  ! Calculate the effective masses
+  ! Calculate the (local) effective mass
   effm = hbm(iso) + F_Nm_Nm(:,iso) 
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-  ! Calculating of gaps for each nucleon species using the interpolation 
-  ! routine selected
-  delta = interpolation(deltans, deltann, deltanp, eta, iso)  
 
+  
+!  delta_nn = Cao_delta(kfn, 1) ! pairing gap in pure neutron matter at k_Fn
+!  delta_pp = Cao_delta(kfp, 2) !                pure proton  matter at k_Fp
+!  delta_s0 = Cao_delta(kf0, 3) !                symmetric    matter at k_F
+
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+  ! Calculating of pairing gaps for each nucleon species using the interpolation 
+  ! routine selected
+  delta = interpolation(cao_delta, kfn, kfp, kf0, eta, iso)  
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculation of the Fermi energies using the position-dependent 
   ! effective masses
@@ -257,15 +266,7 @@ contains
       integral(i) = 1d99
     endif
   enddo
-  
-!  if(iso .eq.1) then
-!    open( unit=47 )
-!    do i=1,nx
-!      write(47,'(i3,1p,20e11.3)') iso, rho(i,1), mu(i), 6.5, eta(i), kf0(i), kfn(i), &
-!      & delta(i), deltans(i), deltann(i), lambda(x(i)), integral(i)
-!    enddo
-!    write(47, '()')
-!  endif
+
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Final results for the pairing strengths
   vp = - (8.*pi**2)  /integral*(effm)**1.5d0 
@@ -292,31 +293,44 @@ contains
 !                           while fitting BSkG3. NOT RECOMMENDED.
 !
 ! - linear_interpolation  : simpler recipe to correct for the deficiencies of
-!                           standard_inerpolation
+!                           standard_interpolation
 !
- function standard_interpolation(deltans, deltann, deltanp, eta, iso) &
+! - weak_coupling_interpolation: interpolation scheme designed by Nikolai
+!                                Shchechilin to match better the asymmetry-
+!                                dependence of papers like 
+!                                 S.S. Zhan et al., PRC 81(4):044313. (2010)
+ function standard_interpolation(delta_function, kfn, kfp, kf0, eta, iso) &
  &    result(Delta)
   !-----------------------------------------------------------------------------
-  !  
-  !     Delta_n = Delta_sym. (1 - abs(eta)) + eta (eta + 1)/2 Delta_{n, pure}
-  !     Delta_p = Delta_sym. (1 - abs(eta)) + eta (eta - 1)/2 Delta_{p, pure}
+  !
+  !  Delta_n = Delta_SM(k_F) (1 - abs(eta)) + eta (eta + 1)/2 Delta_NM(k_Fn)
+  !  Delta_p = Delta_SM(k_F) (1 - abs(eta)) + eta (eta - 1)/2 Delta_NM(k_Fp)
   !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   !
   ! Input:
-  !   deltans :  the gap in symmetric infinite matter
-  !   deltann :  the gap in pure neutron matter
-  !   deltanp :  the gap in pure proton matter
-  !   eta     :  local asymmetry
-  !   iso     :  for 1 (2) the code calculated the neutron (proton) gap by
-  !              interpolation.
+  !   delta_function : 
+  !   kfn            :  Fermi wavenumber for neutrons
+  !   kfp            :  Fermi wavenumber for protons
+  !   kf0            :  Fermi wavenumber for total density
+  !   eta            :  local asymmetry
+  !   iso            :  for 1 (2) the function calculates the neutron (proton) 
+  !                     gap by interpolation.
   ! Output:
   !   delta   : interpolated gap
   !
   !-----------------------------------------------------------------------------
-  real(KIND=dp), intent(in)  :: deltans(:), deltann(:), deltanp(:), eta(:)
-  integer, intent(in)        :: iso 
-  real(KIND=dp), allocatable :: Delta(:)
+  procedure(cao_delta)             :: delta_function
+  real(KIND=dp), intent(in)        :: kfn(:), kfp(:), kf0(:), eta(:)
+  integer, intent(in)              :: iso 
+  real(KIND=dp), allocatable       :: Delta(:) 
+  real(KIND=dp), allocatable       :: deltann(:), deltanp(:), deltans(:)
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ! Calculate all pairing gaps that occur in the interpolation formula
+  deltann = delta_function(kfn, 1) ! pairing gap in pure neutron matter at k_Fn
+  deltanp = delta_function(kfp, 2) !                pure proton  matter at k_Fp
+  deltans = delta_function(kf0, 3) !                symmetric    matter at k_F
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
  
   Delta = Deltans * (1-abs(eta))
   select case(iso)
@@ -332,27 +346,37 @@ contains
 
  end function standard_interpolation
  
- function linear_interpolation(deltans, deltann, deltanp, eta, iso) &
+ function linear_interpolation(delta_function, kfn, kfp, kf0, eta, iso) &
  &    result(Delta)
   !-----------------------------------------------------------------------------
-  !     Delta_n = Delta_sym. (1 - |eta|) + |eta| Delta_{n, pure}
-  !     Delta_p = Delta_sym. (1 - |eta|) + |eta| Delta_{p, pure}
+  !     Delta_n = Delta_SM(k_F) (1 - |eta|) + |eta| Delta_NM(k_Fn)
+  !     Delta_p = Delta_SM(k_F) (1 - |eta|) + |eta| Delta_NM(k_Fp)
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   !
   ! Input:
-  !   deltans :  the gap in symmetric infinite matter
-  !   deltann :  the gap in pure neutron matter
-  !   deltanp :  the gap in pure proton matter
-  !   eta     :  local asymmetry
-  !   iso     :  for 1 (2) the function calculates the neutron (proton) gap by
-  !              interpolation.
+  !   delta_function : 
+  !   kfn            :  Fermi wavenumber for neutrons
+  !   kfp            :  Fermi wavenumber for protons
+  !   kf0            :  Fermi wavenumber for total density
+  !   eta            :  local asymmetry
+  !   iso            :  for 1 (2) the function calculates the neutron (proton) 
+  !                     gap by interpolation.
   ! Output:
   !   delta   : interpolated gap
   !
   !-----------------------------------------------------------------------------
-  real(KIND=dp), intent(in)  :: deltans(:), deltann(:), deltanp(:), eta(:)
-  integer, intent(in)        :: iso 
-  real(KIND=dp), allocatable :: Delta(:)
+  procedure(cao_delta)             :: delta_function
+  real(KIND=dp), intent(in)        :: kfn(:), kfp(:), kf0(:), eta(:)
+  integer, intent(in)              :: iso 
+  real(KIND=dp), allocatable       :: Delta(:) 
+  real(KIND=dp), allocatable       :: deltann(:), deltanp(:), deltans(:)
+
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ! Calculate all pairing gaps that occur in the interpolation formula
+  deltann = delta_function(kfn, 1) ! pairing gap in pure neutron matter at k_Fn
+  deltanp = delta_function(kfp, 2) !                pure proton  matter at k_Fp
+  deltans = delta_function(kf0, 3) !                symmetric    matter at k_F
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
  
   Delta = Deltans * (1-abs(eta))
   select case(iso)
@@ -363,10 +387,68 @@ contains
     ! protons
     Delta = Delta + abs(eta) * deltanp
   case DEFAULT
-    call stp('Unrecognised input value for iso in standard_interpolation.')
+    call stp('Unrecognised input value for iso in linear_interpolation.')
   end select
 
  end function linear_interpolation
+ 
+ function weak_coupling_interpolation(delta_function, kfn, kfp, kf0, eta, iso) &
+ &    result(Delta)
+  !-----------------------------------------------------------------------------
+  !   Delta_n = Delta_NM(k_Fn)*[Delta_SM(k_F)/Delta_NM(k_F)]^{1-eta} 
+  !   Delta_p = Delta_NM(k_Fp)*[Delta_SM(k_F)/Delta_NM(k_F)]^{1+eta}
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ! Input:
+  !   delta_function : 
+  !   kfn            :  Fermi wavenumber for neutrons
+  !   kfp            :  Fermi wavenumber for protons
+  !   kf0            :  Fermi wavenumber for total density
+  !   eta            :  local asymmetry
+  !   iso            :  for 1 (2) the function calculates the neutron (proton) 
+  !                     gap by interpolation.
+  ! Output:
+  !   delta   : interpolated gap
+  !-----------------------------------------------------------------------------
+  procedure(cao_delta)             :: delta_function
+  real(KIND=dp), intent(in)        :: kfn(:), kfp(:), kf0(:), eta(:)
+  integer, intent(in)              :: iso 
+  real(KIND=dp), allocatable       :: Delta(:)
+  real(KIND=dp), allocatable       :: deltaq(:), deltaN0(:), deltaS0(:), fac(:)
+  integer                          ::i,Np
+
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ! Calculate gaps that occur in the interpolation formula for both cases
+  deltaN0 = delta_function(kf0, 1) ! pairing gap in pure neutron matter at k_F0
+  deltaS0 = delta_function(kf0, 3) !                symmetric    matter at k_F0
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  Np = size(kfn)
+  allocate(fac(Np))
+  do i=1,Np
+    ! Here we silently assume that (if delta_N0 is very small =>  delta_S0
+    ! is even smaller) to avoid numerical issues. This is certainly not 
+    ! universally true, but (almost everywhere) valid for the Cao gaps at least.
+    if(abs(deltaN0(i)) .lt. 1e-10 ) then
+      fac(i) = 0.0d0
+    else
+      fac(i) = deltaS0(i)/ deltaN0(i)
+    endif
+  enddo
+ 
+  select case(iso)
+  case(1)
+    ! neutrons
+    deltaq = delta_function(kfn, 1)
+    Delta = deltaq * fac **(1-eta)
+  case(2)
+    ! protons
+    deltaq = delta_function(kfp, 2)
+    Delta = deltaq * fac **(1+eta)
+  case DEFAULT
+    call stp('Unrecognised input value for iso in weak_coupling_interpolation.')
+  end select
+
+  deallocate(fac,deltaq, deltaN0, deltaS0)
+ end function weak_coupling_interpolation
 !-------------------------------------------------------------------------------
 
  pure function Lambda(x) result(l)
@@ -390,8 +472,20 @@ contains
  
  pure function Cao_delta(kf, iso) result(delta)
   !-----------------------------------------------------------------------------
-  ! Calculation of gaps in infinite neutron, proton and symmetric matter.
-  ! All expressions taken from the Brussels axial HFB code.
+  ! Calculation of gaps in infinite neutron, proton and symmetric matter through
+  ! functions fitted to data from 
+  !     L. G. Cao et al., Phys. Rev C., 74(6):06430 (2006).
+  !
+  ! All expressions coded were taken from the Brussels axial HFB code.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ! Input:
+  !   kf : Fermi wavelength
+  !   iso: 1 => neutrons
+  !        2 => protons
+  !        3 => symmetric matter
+  !
+  ! Output:
+  !  delta : gap for the given iso option at kf
   !-----------------------------------------------------------------------------
   real(KIND=dp), intent(in) :: kf(mv)
   integer, intent(in)       :: iso
@@ -400,6 +494,7 @@ contains
   
   select case(iso)
   case(1,2)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Neutron matter and proton matter have identical gaps for this prescription
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     xkfmax= 1.382d0
@@ -412,8 +507,9 @@ contains
     enddo
 
   case(3)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Symmetric matter
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     xkfmax=1.314d0
     xkfint=1.12
     delta =11.5586*kf**2*(kf-1.3142)**2/(kf**2+0.489932**2)/ & 
