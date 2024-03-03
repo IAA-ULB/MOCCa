@@ -36,11 +36,11 @@ module pairing_strengths
  abstract interface 
     function inter_abstract(delta_function, kfn, kfp, kf0, eta, iso) result(Delta)
       ! import statement to make this interface aware of the one above
-      import                    :: delta_abstract, mv, dp
-      procedure(delta_abstract) :: delta_function
-      real(KIND=dp), intent(in) :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
-      integer, intent(in)       :: iso 
-      real(KIND=dp)             :: Delta(mv) 
+      import                             :: delta_abstract, mv, dp
+      procedure(delta_abstract), pointer :: delta_function
+      real(KIND=dp), intent(in)          :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
+      integer, intent(in)                :: iso 
+      real(KIND=dp)                      :: Delta(mv) 
     end function inter_abstract
  end interface
  !------------------------------------------------------------------------------
@@ -163,6 +163,7 @@ contains
   !-----------------------------------------------------------------------------
   real(KIND=dp), intent(in)  :: rho(mv,4), F_Nm_Nm(mv,4)
   integer, intent(in)        :: iso
+  procedure(delta_abstract), pointer :: delta_function
   integer                    :: i
   real(KIND=dp)              :: vp(mv), kf0(mv), kfp(mv), kfn(mv), eta(mv)
   real(KIND=dp)              :: x(mv), mu(mv), effm(mv)
@@ -220,7 +221,10 @@ contains
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
   ! Calculating of pairing gaps for each nucleon species using the interpolation 
   ! routine selected
-  delta = interpolation(cao_delta, kfn, kfp, kf0, eta, iso)  
+  delta_function => cao_delta 
+  delta = interpolation(delta_function, kfn, kfp, kf0, eta, iso)
+  !This routine seems to need to take a procedure POINTER; cray compilers 
+  ! segfault if it is "ordinary routine"
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculation of the Fermi energies using the position-dependent 
   ! effective masses
@@ -315,11 +319,11 @@ contains
   !   delta   : interpolated gap
   !
   !-----------------------------------------------------------------------------
-  procedure(delta_abstract)        :: delta_function
-  real(KIND=dp), intent(in)        :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
-  integer, intent(in)              :: iso 
-  real(KIND=dp)                    :: Delta(mv) 
-  real(KIND=dp)                    :: deltann(mv), deltanp(mv), deltans(mv)
+  procedure(delta_abstract), pointer :: delta_function
+  real(KIND=dp), intent(in)          :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
+  integer, intent(in)                :: iso 
+  real(KIND=dp)                      :: Delta(mv) 
+  real(KIND=dp)                      :: deltann(mv), deltanp(mv), deltans(mv)
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculate all pairing gaps that occur in the interpolation formula
   deltann = delta_function(kfn, 1) ! pairing gap in pure neutron matter at k_Fn
@@ -360,11 +364,11 @@ contains
   !   delta   : interpolated gap
   !
   !-----------------------------------------------------------------------------
-  procedure(delta_abstract)        :: delta_function
-  real(KIND=dp), intent(in)        :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
-  integer, intent(in)              :: iso 
-  real(KIND=dp)                    :: Delta(mv) 
-  real(KIND=dp)                    :: deltann(mv), deltanp(mv), deltans(mv)
+  procedure(delta_abstract), pointer:: delta_function
+  real(KIND=dp), intent(in)         :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
+  integer, intent(in)               :: iso 
+  real(KIND=dp)                     :: Delta(mv) 
+  real(KIND=dp)                     :: deltann(mv), deltanp(mv), deltans(mv)
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculate all pairing gaps that occur in the interpolation formula
@@ -404,12 +408,12 @@ contains
   ! Output:
   !   delta   : interpolated gap
   !-----------------------------------------------------------------------------
-  procedure(delta_abstract)        :: delta_function
-  real(KIND=dp), intent(in)        :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
-  integer, intent(in)              :: iso 
-  real(KIND=dp)                    :: Delta(mv)
-  real(KIND=dp)                    :: deltaq(mv), deltaN0(mv), deltaS0(mv), fac(mv)
-  integer                          :: i
+  procedure(delta_abstract), pointer :: delta_function
+  real(KIND=dp), intent(in)          :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
+  integer, intent(in)                :: iso 
+  real(KIND=dp)                      :: Delta(mv), fac(mv)
+  real(KIND=dp)                      :: deltaq(mv), deltaN0(mv), deltaS0(mv)
+  integer                            :: i
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculate gaps that occur in the interpolation formula for both cases
