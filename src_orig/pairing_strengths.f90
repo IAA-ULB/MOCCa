@@ -24,19 +24,24 @@ module pairing_strengths
 
  implicit none
 
- !------------------------------------------------------------------------------
- ! This abstract interface should, I believe, not be necessary to give context
- ! to our interpolation routines since there are explicit interfaces around. 
- ! GFORTRAN compiles fine, but for unknown reasons IFORT fails catastrophically
- ! when this is removed.
+ abstract interface 
+    function delta_abstract(kf, iso) result(delta)
+      import :: mv, dp 
+      real(KIND=dp), intent(in)  :: kf(mv)
+      integer, intent(in)        :: iso
+      real(KIND=dp)              :: delta(mv)
+    end function delta_abstract
+ end interface
+
  abstract interface 
     function inter_abstract(delta_function, kfn, kfp, kf0, eta, iso) result(Delta)
-      procedure(cao_delta)      :: delta_function
-      real*8, intent(in)        :: kfn(:), kfp(:), kf0(:), eta(:)
+      ! import statement to make this interface aware of the one above
+      import                    :: delta_abstract, mv, dp
+      procedure(delta_abstract) :: delta_function
+      real(KIND=dp), intent(in) :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
       integer, intent(in)       :: iso 
-      real*8, allocatable       :: Delta(:) 
-      real*8, allocatable       :: deltann(:), deltanp(:), deltans(:)
-    end function
+      real(KIND=dp)             :: Delta(mv) 
+    end function inter_abstract
  end interface
  !------------------------------------------------------------------------------
 
@@ -131,7 +136,7 @@ contains
  
   select case(ptype) 
   case(0) 
-    vmicro = Cao(rho, F_Nm_Nm, iso, interpolation)
+    vmicro = Cao(rho, F_Nm_Nm, iso, interpolation,.false.)
   case DEFAULT
     call stp('Unrecognized ptype option.')
   end select
@@ -160,14 +165,13 @@ contains
   integer, intent(in)        :: iso
   integer                    :: i
   real(KIND=dp)              :: vp(mv), kf0(mv), kfp(mv), kfn(mv), eta(mv)
-  real(KIND=dp)              :: deltann(mv), deltanp(mv), deltans(mv)
   real(KIND=dp)              :: x(mv), mu(mv), effm(mv)
   real(KIND=dp)              :: integral(mv)
-  real(KIND=dp), allocatable :: Delta(:)
+  real(KIND=dp)              :: Delta(mv)
   
   ! I originally coded this routine as taking a procedure as input. 
   ! Turns out that IFORT puts out catastrophic errors at some points...
-  procedure(inter_abstract)  :: interpolation
+  procedure(inter_abstract), pointer  :: interpolation
  
   logical, optional, intent(in) :: debug
   logical                       :: debugflag
@@ -187,14 +191,12 @@ contains
     ! Opening the debugging file
     print 1
     print 2, iso
-
     if(iso .eq. 2) then
       open(10,file='Cao.debug.p.out')
     else
       open(10,file='Cao.debug.n.out')
     endif
   endif
-  
 
   vp = 0.0d0
 
@@ -214,11 +216,6 @@ contains
 
   ! Calculate the (local) effective mass
   effm = hbm(iso) + F_Nm_Nm(:,iso) 
-
-  
-!  delta_nn = Cao_delta(kfn, 1) ! pairing gap in pure neutron matter at k_Fn
-!  delta_pp = Cao_delta(kfp, 2) !                pure proton  matter at k_Fp
-!  delta_s0 = Cao_delta(kf0, 3) !                symmetric    matter at k_F
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
   ! Calculating of pairing gaps for each nucleon species using the interpolation 
@@ -273,12 +270,10 @@ contains
 
   if(debugflag) then
     do i=1,mv
-      write(10, fmt='(3f8.3, 13es25.12E3)') &
-        &                        meshgrid(i,1), meshgrid(i,2), meshgrid(i,3),  &
-        &                        eta(i), kf0(i), kfn(i), kfp(i), deltann(i),   &
-        &                        deltanp(i), deltans(i), delta(i), mu(i), vp(i)
+      write(10, fmt='(3f8.3, 10es25.12E3)') &
+        &           meshgrid(i,1), meshgrid(i,2), meshgrid(i,3),         &
+        &           eta(i), kf0(i), kfn(i), kfp(i), delta(i), mu(i), vp(i)
     enddo
-
     close(10)
   endif
  end function Cao
@@ -320,11 +315,11 @@ contains
   !   delta   : interpolated gap
   !
   !-----------------------------------------------------------------------------
-  procedure(cao_delta)             :: delta_function
-  real(KIND=dp), intent(in)        :: kfn(:), kfp(:), kf0(:), eta(:)
+  procedure(delta_abstract)        :: delta_function
+  real(KIND=dp), intent(in)        :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
   integer, intent(in)              :: iso 
-  real(KIND=dp), allocatable       :: Delta(:) 
-  real(KIND=dp), allocatable       :: deltann(:), deltanp(:), deltans(:)
+  real(KIND=dp)                    :: Delta(mv) 
+  real(KIND=dp)                    :: deltann(mv), deltanp(mv), deltans(mv)
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculate all pairing gaps that occur in the interpolation formula
   deltann = delta_function(kfn, 1) ! pairing gap in pure neutron matter at k_Fn
@@ -365,11 +360,11 @@ contains
   !   delta   : interpolated gap
   !
   !-----------------------------------------------------------------------------
-  procedure(cao_delta)             :: delta_function
-  real(KIND=dp), intent(in)        :: kfn(:), kfp(:), kf0(:), eta(:)
+  procedure(delta_abstract)        :: delta_function
+  real(KIND=dp), intent(in)        :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
   integer, intent(in)              :: iso 
-  real(KIND=dp), allocatable       :: Delta(:) 
-  real(KIND=dp), allocatable       :: deltann(:), deltanp(:), deltans(:)
+  real(KIND=dp)                    :: Delta(mv) 
+  real(KIND=dp)                    :: deltann(mv), deltanp(mv), deltans(mv)
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculate all pairing gaps that occur in the interpolation formula
@@ -409,21 +404,19 @@ contains
   ! Output:
   !   delta   : interpolated gap
   !-----------------------------------------------------------------------------
-  procedure(cao_delta)             :: delta_function
-  real(KIND=dp), intent(in)        :: kfn(:), kfp(:), kf0(:), eta(:)
+  procedure(delta_abstract)        :: delta_function
+  real(KIND=dp), intent(in)        :: kfn(mv), kfp(mv), kf0(mv), eta(mv)
   integer, intent(in)              :: iso 
-  real(KIND=dp), allocatable       :: Delta(:)
-  real(KIND=dp), allocatable       :: deltaq(:), deltaN0(:), deltaS0(:), fac(:)
-  integer                          ::i,Np
+  real(KIND=dp)                    :: Delta(mv)
+  real(KIND=dp)                    :: deltaq(mv), deltaN0(mv), deltaS0(mv), fac(mv)
+  integer                          :: i
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculate gaps that occur in the interpolation formula for both cases
   deltaN0 = delta_function(kf0, 1) ! pairing gap in pure neutron matter at k_F0
   deltaS0 = delta_function(kf0, 3) !                symmetric    matter at k_F0
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  Np = size(kfn)
-  allocate(fac(Np))
-  do i=1,Np
+  do i=1,mv
     ! Here we silently assume that (if delta_N0 is very small =>  delta_S0
     ! is even smaller) to avoid numerical issues. This is certainly not 
     ! universally true, but (almost everywhere) valid for the Cao gaps at least.
@@ -447,7 +440,6 @@ contains
     call stp('Unrecognised input value for iso in weak_coupling_interpolation.')
   end select
 
-  deallocate(fac,deltaq, deltaN0, deltaS0)
  end function weak_coupling_interpolation
 !-------------------------------------------------------------------------------
 
