@@ -1165,10 +1165,13 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
 
       use wavefunctions
 
-      1 format (a20, 99f10.3)
-      2 format ('-------------------------------------------------------------------')
-      3 format (' Warning: maximum eigenvalue of h could not be estimated.          ')
-      4 format (' Isospin = ', i2, ' maxE = ', f20.3,  ' convergence =', es10.3)
+      1 format ('-------------------------------------------------------------------')
+      2 format (' Warning: maximum eigenvalues of h could not be estimated.         ')
+      3 format (' Isospin = ', i3, ' maxE = ', f20.3,  ' convergence =', es10.3)
+
+      4 format (' Warning: at least on of the maximum eigenvalues of h is negative. ')
+      5 format ('          This probably means these potentials are not physical.   ')
+        
 
       integer, intent(in)              :: iteration
 
@@ -1243,14 +1246,22 @@ $N3       &                                         dddmax,                    &
           if(abs(con(it)).lt. 1d-2) exit
         enddo
       enddo
-           
+      !-------------------------------------------------------------------------
+      ! Convergence and sense check
       if(MPI_RANK.eq.0 .and. any(abs(con) .gt. 1d-2)) then
           print 1
           print 2
-          print 3
-          print 4, -1, Es(1), con(1)
-          print 4, +1, Es(2), con(2)
+          print 3, -1, Es(1), con(1)
+          print 3, +1, Es(2), con(2)
       endif
+      if(MPI_RANK.eq.0 .and. any(Es .lt. 0.0)) then
+          print 4
+          print 5
+          print 3, -1, Es(1), con(1)
+          print 3, +1, Es(2), con(2)
+          call stp('')
+      endif
+      !-------------------------------------------------------------------------
       ! Take the maximum value of both isospins
       maxE = maxval(Es)
       !-------------------------------------------------------------------------

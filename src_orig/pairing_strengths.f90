@@ -155,7 +155,7 @@ contains
   real(KIND=dp)              :: deltann(mv), deltanp(mv), deltans(mv)
   real(KIND=dp)              :: x(mv), mu(mv), effm(mv)
   real(KIND=dp)              :: integral(mv)
-  real(KIND=dp), allocatable :: Delta(:)
+  real(KIND=dp)              :: Delta(mv)
   
   ! I originally coded this routine as taking a procedure as input. 
   ! Turns out that IFORT puts out catastrophic errors at some points...

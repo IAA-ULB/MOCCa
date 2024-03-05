@@ -243,7 +243,7 @@ ifeq ($(COMPILER),gnu)
 else ifeq ($(COMPILER),intel)
 	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin
 else ifeq ($(CXX),cray)
-	CXXFLAGS := -J$(MODDIR)
+	CXXFLAGS := -J$(MODDIR) -M 878
 endif
 
 # 2. set compiler-specific optimisation level

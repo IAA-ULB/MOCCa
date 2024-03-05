@@ -263,7 +263,8 @@ contains
     N2= HFblocks_global(B+1) 
 
     T = N+N2 
-    
+     
+    allocate(A(T,T))
     A = transpose(transfo(si  +1:si+  T, si  +1:si  +T))
     
     Bc(sb  +1:sb+  T, sb+T+1:sb+2*T) = &
@@ -278,6 +279,7 @@ contains
 
     si = si +   T
     sb = sb + 2*T
+    deallocate(A)
   enddo
 
  end function transform_bogo

@@ -722,9 +722,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     endif
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices
-
-    if(allocated(indices))  deallocate(indices)
-    if(allocated(Energies)) deallocate(Energies)
     allocate(Indices(nwf), Energies(nwf))
     do i=1,nwf
        Indices(i) = i 
@@ -771,7 +768,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       Indices(HolePos)  = ToInsertIndex
     enddo
 
-    deallocate(Energies)
+    ! Making sure these are not saved for a next call
+    deallocate(Energies, indices)
   end function OrderSpwfsISO
   
   function OrderSpwfsSym(block) result(indices)
@@ -799,8 +797,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     startind = sum(HFBlocks(1:block-1))
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices
-    if(allocated(Indices))   deallocate(indices)
-    if(allocated(Energies))  deallocate(energies)
     allocate(Indices(nwf), Energies(nwf))
     do i=1,nwf
        Indices(i)  = startind + i 
@@ -825,7 +821,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       Energies(HolePos) = ToInsert
       Indices(HolePos)  = ToInsertIndex
     enddo
-    deallocate(energies)
+    deallocate(energies,indices)
   end function OrderSpwfsSym
 
   subroutine set_spwf_symmetries(sx, sy, sz, blocks)
@@ -1229,8 +1225,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       logical, intent(in)        :: fullmatrices
       integer                    :: i
   
-      if(.not.allocated(P_HF))                             allocate(P_HF (nwt))
-      if(.not.allocated(P_CAN).and.allocated(canenergies)) allocate(P_CAN(nwt))
+      allocate(P_HF(nwt), full_P(nwt,nwt))
+      if(allocated(canenergies)) allocate(P_CAN(nwt))
 
       full_P  = spwf_parities(HFPsi, fullmatrices)
       if(.not. diagsphamil) then
@@ -1248,7 +1244,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
           P_CAN(i) = full_P(i,i)
         enddo
       endif
-              
+    
+      deallocate(full_P)
+      if(allocated(P_CAN)) deallocate(full_P)        
+     
   end subroutine update_spwf_symmetries
 
   subroutine update_spwf_angmom(fullmatrices)
