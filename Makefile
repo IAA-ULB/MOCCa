@@ -26,12 +26,11 @@
 # For more control, specify additional options either in this Makefile itself
 # or on the command line. For example:
 #
-#   > make CONFIG=BXL COMPILER=ifort
+#   > make CONFIG=BXL COMPILER=intel
 #
 # will compile a Tantalus executable based on the BXL.py configuration file
-# (look in the configs/ folder) using the Intel ifort compiler.
-#
-# The option to specify compiler and CONFIG file should be sufficient for most
+# (look in the configs/ folder) using an Intel corporation compiler. The 
+# option to specify compiler and CONFIG file should be sufficient for most
 # users; changing any other options is at your own risk.
 #
 # Executables at the end will be named Tantalus.$(CONFIG).exe and be placed
@@ -40,10 +39,10 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # OPTIONS
 # - - - - -
-#  COMPILER : compiler family (gfortran, ifort, cray) to be used.
-#  CXX      : compiler invokation to be used. In most cases automatically
-#             adapted based on the value of COMPILER. Recommended to not
-#             set by hand.
+#  COMPILER : compiler family (gnu, intel or cray) to be used.
+#  CXX      : compiler invokation to be used. In most cases this gets 
+#             automatically adapted based on the value of COMPILER and USE_MPI. 
+#             Recommended to not set by hand.
 #  CONFIG   : name of configutation file in the config/ folder
 #            (without trailing .py)
 #  OPTFLAGS : optimisation compiler flags
@@ -70,18 +69,28 @@
 # Compilers that are currently "pre-configured" with appropriate optimisation
 # flags etc.
 #
-# 1. gfortran
+# 1. gfortran (COMPILER=gnu)
 #    optimisation: -O3, -O3 -ffast-math, -Ofast, -O3 -funroll-loops,
 #                  -Ofast -funroll-loops
 #    versions tested: 8.5.0, 9.4.0
 #
-# 2. ifort
-#    optimisation: -Ofast, -O3, -O3 -xhost
-#    versions tested: 2021.1
+# 2.a ifort (COMPILER=intel)
+#     optimisation: -Ofast, -O3, -O3 -xhost
+#     versions tested: 2021.1
+# 2.b ifx (COMPILER=intel)
+#     optimisations: -Ofast, -O2, -O3
+#     versions testes 2024.0.2 20231213
 #
-# 3. cray compilers
-#    optimisation: -O2, -O3, -O3 -hfp3
+# 3. cray (COMPILER=cray)
+#    optimisation: -O2
 #    versions tested: 14.0.3
+#
+# Known issues for CRAY compilers
+# 1. the optimisation level -O3 for cray compilers results in segfaults 
+#    that remain to be investigated.
+# 2. although the code is cray-compliant, newer versions of the cray compilers
+#    have become more pedantic in terms of the warnings thrown. None of these
+#    impact the working of the code; their clean-up is a work in progress.
 #-------------------------------------------------------------------------------
 # Acknowledgment:
 #   the organisation of this Makefile as well as a bunch of options are
@@ -101,16 +110,16 @@ EXENAME := Tantalus.$(CONFIG).exe
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Compiler type
-COMPILER      :=  gfortran
+COMPILER      :=  gnu
 #
 # Note: this is NOT the compiler wrapper that will get invoked for execution
 #       it is rather the "type" of compiler (or the organisation behind it)
 #       this variable is used to set different compilation options for which
 #       syntax and/or linking might not be identical
 #       A set of default options are present for
-#         - gfortran  by GNU
-#         - ifort     by Intel
-#         - cray      by Cray
+#         - gnu   (of gfortran)
+#         - intel (of ifort and ifx)
+#         - cray  (of the cray compilers)
 #
 #       The primary reason that COMPILER and CXX are different is because
 #       vendors have different compiler wrappers for different modes
@@ -167,7 +176,7 @@ endif
 #  line
 CXX :=
 ifeq ($(CXX), )
-ifeq ($(COMPILER),gfortran)
+ifeq ($(COMPILER),gnu)
   ifeq ($(USE_MPI),1)
     CXX := mpifort
     # on the systems available to me, this is the wrapper for
@@ -175,12 +184,13 @@ ifeq ($(COMPILER),gfortran)
   else
     CXX := gfortran
 endif
-else ifeq ($(COMPILER),ifort)
+else ifeq ($(COMPILER),intel)
   ifeq ($(USE_MPI),1)
     CXX := mpiifort # on the systems available to me, this is the wrapper for
-                   # MPI-enabled IFORT
+                    # MPI-enabled IFORT
   else
-    CXX := ifort
+    CXX := ifort # Since this compiler will be discontinued, this default 
+                 # should be replaced by ifx at some point
   endif
 else ifeq ($(COMPILER), cray)
   CXX := ftn
@@ -198,7 +208,6 @@ SRCDIR  :=   src
 OBJDIR  :=   obj
 MODDIR  :=   mod
 
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # DEBUG
 # => 0 : compile without debugging options
@@ -208,12 +217,12 @@ DEBUG   := 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Libraries for linear algebra
 # This can be specified on the command line, but is in practice compiler based
-ifeq ($(COMPILER),gfortran)
+ifeq ($(COMPILER),gnu)
 	# versions of gfortran should link to OPENBLAS
 	LIBS := -llapack -lblas
-else ifeq ($(COMPILER),ifort)
+else ifeq ($(COMPILER),intel)
   # ifort compiler should link to the new Intel math library
-	LIBS := -mkl
+	LIBS := -qmkl
 else ifeq ($(COMPILER), cray)
   # Cray compilers don't need specific linking to my knowledge
 	LIBS :=
@@ -229,28 +238,28 @@ PYTHON_CMD := python3
 ################################################################################
 
 # 1. set some compiler-specific options concerning storage etc.
-ifeq ($(COMPILER),gfortran)
+ifeq ($(COMPILER),gnu)
 	CXXFLAGS := -J$(MODDIR)
-else ifeq ($(COMPILER),ifort)
+else ifeq ($(COMPILER),intel)
 	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin
-else ifeq ($(CXX),ftn)
+else ifeq ($(CXX),cray)
 	CXXFLAGS := -J$(MODDIR)
 endif
 
 # 2. set compiler-specific optimisation level
 # .... when in production mode
 ifeq ($(DEBUG),0)
-  ifeq ($(COMPILER),gfortran)
+  ifeq ($(COMPILER),gnu)
 	  OPTFLAGS := -O3
-  else ifeq ($(COMPILER),ifort)
+  else ifeq ($(COMPILER),intel)
 	  OPTFLAGS := -Ofast
   else ifeq ($(COMPILER),cray)
 	  OPTFLAGS := -O2 # -O3 produces NaN results
   endif
 else
-  ifeq ($(COMPILER),gfortran)
+  ifeq ($(COMPILER),gnu)
 	  OPTFLAGS := -O0 -g -Wall -Wno-uninitialized -fbacktrace -fbounds-check
-  else ifeq ($(COMPILER),ifort)
+  else ifeq ($(COMPILER),intel)
 	  OPTFLAGS := -g -traceback -check bounds
   else ifeq ($(COMPILER),cray)
 	  OPTFLAGS := -g -h bounds
