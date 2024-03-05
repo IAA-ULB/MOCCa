@@ -1309,8 +1309,8 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     !   neck       : <Q_N>
     !---------------------------------------------------------------------------
     real(KIND=dp)              :: neck
-    real(KIND=dp), allocatable :: gauss1(:), gauss2(:)
     real(KIND=dp), intent(in)  :: z0, linear_den(:)
+    real(KIND=dp)              :: gauss1(size(linear_den)), gauss2(size(linear_den))
   
     gauss1   = exp(-(meshz - z0)**2/(neck_length**2))
     neck =        sum(linear_den * gauss1) 

@@ -1990,21 +1990,29 @@ $NTR    Typ(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,2)
 $NTR    Tzn(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,1) 
 $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
 
-    print *, 'TOTAL J_Z', sum(TotalAngmom(:,3,1)) * dv, sum(TotalAngmom(:,3,2)) * dv
-
     call write_header(1)
     write(1, fmt=2) 
     write(1, fmt=1) 
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
-          &                                Sxn(i,j,k), Syn(i,j,k), Szn(i,j,k), & 
-          &                                Sxp(i,j,k), Syp(i,j,k), Szp(i,j,k), & 
-          &                                Jxn(i,j,k), Jyn(i,j,k), Jzn(i,j,k), & 
-          &                                Jxp(i,j,k), Jyp(i,j,k), Jzp(i,j,k), &
-          &                                Txn(i,j,k), Tyn(i,j,k), Tzn(i,j,k), &
-          &                                Txp(i,j,k), Typ(i,j,k), Tzp(i,j,k)
+
+$NTR          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
+$NTR          &                                Sxn(i,j,k), Syn(i,j,k), Szn(i,j,k), & 
+$NTR          &                                Sxp(i,j,k), Syp(i,j,k), Szp(i,j,k), & 
+$NTR          &                                Jxn(i,j,k), Jyn(i,j,k), Jzn(i,j,k), & 
+$NTR          &                                Jxp(i,j,k), Jyp(i,j,k), Jzp(i,j,k), &
+$NTR          &                                Txn(i,j,k), Tyn(i,j,k), Tzn(i,j,k), &
+$NTR          &                                Txp(i,j,k), Typ(i,j,k), Tzp(i,j,k)
+
+$TR          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
+$TR          &                                0.0d0,0.0d0,0.0d0, &
+$TR          &                                0.0d0,0.0d0,0.0d0, &
+$TR          &                                0.0d0,0.0d0,0.0d0, &
+$TR          &                                0.0d0,0.0d0,0.0d0, &
+$TR          &                                0.0d0,0.0d0,0.0d0, &
+$TR          &                                0.0d0,0.0d0,0.0d0
+
         enddo
       enddo
     enddo
@@ -2543,8 +2551,11 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     1 format('#  X[fm]   Y[fm]   Z[fm]')
     2 format(7x, ' |Psi_', i1, '|^2' , 10x)
 
+    allocate(psis(nx,ny,nz,blocknumber)) ; psis = 0
+
     if(.not.allocated(blocked_sps)) then
       print *, 'Cannot write single-particle wavefunctions to file.'
+      deallocate(psis)
       return
     endif
 
@@ -2562,7 +2573,6 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     enddo
     write(1, fmt=*)
     
-    allocate(psis(nx,ny,nz,blocknumber)) ; psis = 0
     do wave=1,blocknumber
       tempwf_one(1:nx,1:ny,1:nz)   => canpsi(1:nx*ny*nz,1,wave)
       tempwf_two(1:nx,1:ny,1:nz)   => canpsi(1:nx*ny*nz,2,wave)

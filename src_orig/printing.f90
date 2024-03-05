@@ -365,8 +365,12 @@ $TR     sumocc = 2*k
     &           2x, a1,  2x, 1f5.3, ' | ',  3(2x,f5.2))
 
     11  format(110('-'))
-    if(PairingType.eq.0) return
+ 
+    ! Trash statement to stop the cray compiler complaining about non-allocated
+    ! arrays because of the (possible) early return below.
+    allocate(indices(1)) ; deallocate(indices)
 
+    if(PairingType.eq.0) return
     if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
 
     print 1
@@ -466,12 +470,14 @@ $TR     sumocc = 2*k
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! BCS case
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          allocate(indices(N))
           indices = order(BCSqps(si+1:si+N), N)
           do i=1, N
             ind  = indices(i)
             print 2, i, BCSqps(si+ind), BCSf(si+ind),0.0d0, 0,0, 0.0d0,0.0d0,  &
             &        '-', '-',0.0d0, 0.0d0, 0.0d0,0.0d0
           enddo
+          deallocate(indices)
         end select
         si = si +   T
         sb = sb + 2*T
