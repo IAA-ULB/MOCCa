@@ -1003,6 +1003,13 @@ $TR   particles = 2 * particles
     integer                      :: si, sb, B, N, N2
     real(KIND=dp), intent(inout) :: Bogo(:,:) , qpe(:), c(:)
     real(KIND=dp), allocatable   :: temp(:,:), tempqe(:), tempc(:) 
+ 
+    !---------------------------------------------------------------------------
+    ! Explicit allocation statements to satisfy high-level optimisations by 
+    ! recent CRAY compilers.    
+    allocate(temp(size(Bogo,1), size(Bogo,2)))
+    allocate(tempqe(size(qpe)))
+    allocate(tempc(size(c)))
 
     temp = Bogo ;  tempqe = qpe   ; tempc = c
     Bogo = 0    ; qpe     = 0.0d0 ; c     = 0.0

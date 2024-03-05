@@ -466,7 +466,7 @@ $TR     sumocc = 2*k
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! BCS case
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          indices = order(BCSqps(si+1:si+N))
+          indices = order(BCSqps(si+1:si+N), N)
           do i=1, N
             ind  = indices(i)
             print 2, i, BCSqps(si+ind), BCSf(si+ind),0.0d0, 0,0, 0.0d0,0.0d0,  &

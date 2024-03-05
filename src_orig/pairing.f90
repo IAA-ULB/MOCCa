@@ -1010,15 +1010,22 @@ $NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
      ! part.
      !--------------------------------------------------------------------------
 
-    real(KIND=dp) :: gap(2,2), norm(2,2), v2, uv
+    real(KIND=dp)              :: gap(2,2), norm(2,2), v2, uv
     real(KIND=dp), allocatable :: gaps_can(:,:)
-    integer       :: it1, wave,i
-$NTR integer      :: wavebar
+    integer                    :: it1, wave,i
+$NTR integer                   :: wavebar
 
     gap = 0 ; norm = 0
-    if(.not.allocated(HFBgaps)) return
 
-    allocate(gaps_can(nwt,nwt)) ; gaps_can = 0.0
+    allocate(gaps_can(nwt,nwt))
+   
+    if(.not.allocated(HFBgaps)) then
+	! This return is programmed AFTER the allocate, since CRAY compilers 
+        ! complain about things that might not be allocated at high optimisation
+        ! levels.
+	deallocate(gaps_can)
+	return
+    endif
     gaps_can = matmul(transpose(cantransfo), HFBgaps)
     gaps_can = matmul(gaps_can, cantransfo)
   

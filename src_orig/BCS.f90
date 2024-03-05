@@ -317,11 +317,23 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
 
     integer, intent(in)          :: Blockindices(:)
     integer, intent(in)          :: BlockType, gas
-    integer, allocatable         :: proton_block(:), neutron_block(:), indices(:)
-    integer, allocatable         :: blocked_qps(:), toblock(:)
     character(len=2), intent(in) :: BlockLowest(:)
+    integer, allocatable, intent(inout) :: blocked_qps(:)
+    integer, allocatable         :: proton_block(:), neutron_block(:)
+    integer, allocatable         :: indices(:), toblock(:)
   
     f = 0 ; qpb = 0
+    !---------------------------------------------------------------------------
+    ! Trash statements to fool CRAY compilers. If this is not here, the compiler
+    ! complains about the array being used before being allocated as soon as 
+    ! the optimisation level is equal to -O1 or above. I guess this is related 
+    ! to the highly-nested nature of this routine ...	
+    allocate(indices(1))       ; deallocate(indices)
+    allocate(proton_block(1))  ; deallocate(proton_block)
+    allocate(neutron_block(1)) ; deallocate(neutron_block)
+    allocate(toblock(1))       ; deallocate(toblock)
+    !--------------------------------------------------------------------------
+
     if(allocated(blocked_qps)) deallocate(blocked_qps)
     !---------------------------------------------------------------------------
     ! Zero-temperature
@@ -421,7 +433,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         do B=1,8
             N = HFBlocks_global(B) ; if(N.eq.0) cycle
 	    allocate(indices(N))
-            indices = Order(BCSqps(si+1:si+N))
+            indices = Order(BCSqps(si+1:si+N),N)
             do i=1, toblock(B)
               f(si+indices(i)) = occ
               c = c+1
@@ -642,25 +654,25 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
  
    end subroutine clean_BCS
 
-   function Order(energies) result(Indices)
+   function Order(energies, nwf) result(Indices)
     !---------------------------------------------------------------------------
     ! Returns the indices for an ordered traversal of the input array.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !  energies :  real*8, a set of energies to be ordered
+    !  nwf      :  size of the array to be ordered
     ! Output:
     !  indices  :  integer, the indices to get the energies in ascending order  
     !---------------------------------------------------------------------------
-    integer, allocatable       :: Indices(:)
-    real(Kind=dp),intent(in)   :: Energies(:)
-    real(Kind=dp),allocatable  :: Eswap(:)
-    integer                    :: i, nwf,  HolePos, ToInsertIndex
+    integer, intent(in)        :: nwf
+    real(Kind=dp),intent(in)   :: Energies(nwf)
+    real(Kind=dp)              :: Eswap(nwf)
+    integer                    :: Indices(nwf)
+    integer                    :: i, HolePos, ToInsertIndex
     real(Kind=dp)              :: ToInsert
 
-    nwf = size(energies)
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices
-    allocate(Indices(nwf), Eswap(nwf))
     do i=1,nwf
        Indices(i) = i 
     enddo
@@ -685,7 +697,6 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
       Indices(HolePos)  = ToInsertIndex
     enddo
 
-    deallocate(Eswap)
   end function Order
 !===============================================================================
 !  Never to be used function to define an interface for delta_action

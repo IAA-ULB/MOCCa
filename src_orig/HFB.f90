@@ -1729,6 +1729,7 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     real(KIND=dp), allocatable                :: temp(:,:)
     integer :: si, N, B, T
     
+    allocate(temp(size(gaps,1), size(gaps,2)))
     temp = gaps
     gaps = 0.0d0
     
@@ -1745,7 +1746,8 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
 
       si = si + T
     enddo
-  
+    deallocate(temp)  
+
   end subroutine calc_gaps_HF 
 
   subroutine PrintHFBconvergence(rho_pairing, kappa_pairing, Bogo)
