@@ -637,7 +637,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     integer, intent(out)       :: ifail
 
     call start_timer(T_pairing)
-
+ 
     if(.not.allocated(rho_can)) then
       allocate(rho_can(nwt))              ; rho_can    = 0.0
     endif
@@ -654,9 +654,9 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     if(.not.allocated(configmatrix)) then
        allocate(configmatrix(2*nwt))      ; configmatrix = 0.0
     endif
-        
-    select case (Pairingtype)
-    case(0)
+ 
+   select case (Pairingtype)
+   case(0)
         if(inversetemp .eq. -1) then
             call NaiveFill(rho_can)
         else

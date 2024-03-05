@@ -769,7 +769,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     enddo
 
     ! Making sure these are not saved for a next call
-    deallocate(Energies, indices)
+    deallocate(Energies)
   end function OrderSpwfsISO
   
   function OrderSpwfsSym(block) result(indices)
@@ -1225,8 +1225,9 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       logical, intent(in)        :: fullmatrices
       integer                    :: i
   
-      allocate(P_HF(nwt), full_P(nwt,nwt))
-      if(allocated(canenergies)) allocate(P_CAN(nwt))
+      allocate(full_P(nwt,nwt))
+      if(.not. allocated(P_HF))  allocate(P_HF(nwt))
+      if(allocated(canenergies) .and. (.not.allocated(P_CAN))) allocate(P_CAN(nwt))
 
       full_P  = spwf_parities(HFPsi, fullmatrices)
       if(.not. diagsphamil) then
@@ -1246,7 +1247,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       endif
     
       deallocate(full_P)
-      if(allocated(P_CAN)) deallocate(full_P)        
      
   end subroutine update_spwf_symmetries
 
