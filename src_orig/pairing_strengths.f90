@@ -70,8 +70,8 @@ contains
   integer, intent(in) :: ptype, intertype
   
   1 format (' Microscopic treatment of the pairing active')
-  2 format ('      Vmic prescription :  ', a20)
-  3 format ('      INM interpolation :  ', a20)
+  2 format ('      Vmic prescription :  ', a50)
+  3 format ('      INM interpolation :  ', a50)
  
   print 1
   select case(ptype)
@@ -90,8 +90,8 @@ contains
     print *, '  Delta_q = (1 - |eta|) Delta_sym + |eta| Delta_{q,pure}'
   case (2)
     print 3, ' Weak coupling interpolation'
-    print *, '  Delta_n = Delta_NM(k_Fn)*[Delta_SM(k_F)/Delta_NM(k_F)]^{1-eta}'
-    print *, '  Delta_p = Delta_NM(k_Fp)*[Delta_SM(k_F)/Delta_NM(k_F)]^{1+eta}'
+    print *, '      Delta_n = Delta_NM(k_Fn)*[Delta_SM(k_F)/Delta_NM(k_F)]^{1-eta}'
+    print *, '      Delta_p = Delta_NM(k_Fp)*[Delta_SM(k_F)/Delta_NM(k_F)]^{1+eta}'
   case DEFAULT
     call stp('intertype not recognized in print_micro_pairing_info.')
   end select 
@@ -147,8 +147,9 @@ contains
 
  function Cao(rho, F_Nm_Nm, iso, interpolation, debug) result (vp)
   !-----------------------------------------------------------------------------
-  ! Deduce the microscopic pairing strength (vp) from the density (rho).
-  !
+  ! Deduce the microscopic pairing strength (vp) from the density (rho) at all
+  ! mesh points, using the routine interpolation to obtain results away from
+  ! pure matter and symmetric matter.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Input:
   !   rho         : density D_I_I, including BOTH isospins
@@ -221,17 +222,18 @@ contains
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
   ! Calculating of pairing gaps for each nucleon species using the interpolation 
   ! routine selected
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   delta_function => cao_delta 
   delta = interpolation(delta_function, kfn, kfp, kf0, eta, iso)
   !This routine seems to need to take a procedure POINTER; cray compilers 
-  ! segfault if it is "ordinary routine"
+  ! segfault if it is not a pointer.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculation of the Fermi energies using the position-dependent 
   ! effective masses
   !
   ! mu_q = hbar^2/2M* k_f^2
   ! hbar^2/2M^* = hbar^2/2M + F_Nm_Nm(r)
-  ! 
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   select case(iso)
   case(1)
     mu = effm * kfn**2
@@ -254,7 +256,7 @@ contains
   ! \Delta_q is the gap for species q and epsilon_l is the pairing cutoff. 
   ! The function Lambda is 
   ! \Lambda(x) = log(16*x) + 2 * sqrt(1 + x) - 2 log(1 + sqrt{1 + x}) - 4.
-
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   x = pairingcut(iso)/mu
   do i=1,mv
     if(delta(i) .gt. 0) then
@@ -271,6 +273,7 @@ contains
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Final results for the pairing strengths
   vp = - (8.*pi**2)  /integral*(effm)**1.5d0 
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
   if(debugflag) then
     do i=1,mv
@@ -292,14 +295,14 @@ contains
 !                           while fitting BSkG3. NOT RECOMMENDED.
 !
 ! - linear_interpolation  : simpler recipe to correct for the deficiencies of
-!                           standard_interpolation
+!                           standard_interpolation.
 !
-! - weak_coupling_interpolation: interpolation scheme designed by Nikolai
-!                                Shchechilin to match better the asymmetry-
-!                                dependence of papers like 
+! - weak_coupling_interpolation: interpolation scheme designed by N. Shchechilin 
+!                                to match better the asymmetry-dependence 
+!                                predicted in: 
 !                                 S.S. Zhan et al., PRC 81(4):044313. (2010)
  function standard_interpolation(delta_function, kfn, kfp, kf0, eta, iso) &
- &    result(Delta)
+ &                               result(Delta)
   !-----------------------------------------------------------------------------
   !
   !  Delta_n = Delta_SM(k_F) (1 - abs(eta)) + eta (eta + 1)/2 Delta_NM(k_Fn)
@@ -308,7 +311,8 @@ contains
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   !
   ! Input:
-  !   delta_function : 
+  !   delta_function :  procedure pointer to the routine giving the gaps as 
+  !                     a function of Fermi wavenumber
   !   kfn            :  Fermi wavenumber for neutrons
   !   kfp            :  Fermi wavenumber for protons
   !   kf0            :  Fermi wavenumber for total density
@@ -353,7 +357,8 @@ contains
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   !
   ! Input:
-  !   delta_function : 
+  !   delta_function :  procedure pointer to the routine giving the gaps as 
+  !                     a function of Fermi wavenumber
   !   kfn            :  Fermi wavenumber for neutrons
   !   kfp            :  Fermi wavenumber for protons
   !   kf0            :  Fermi wavenumber for total density
@@ -398,7 +403,8 @@ contains
   !   Delta_p = Delta_NM(k_Fp)*[Delta_SM(k_F)/Delta_NM(k_F)]^{1+eta}
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Input:
-  !   delta_function : 
+  !   delta_function :  procedure pointer to the routine giving the gaps as 
+  !                     a function of Fermi wavenumber
   !   kfn            :  Fermi wavenumber for neutrons
   !   kfp            :  Fermi wavenumber for protons
   !   kf0            :  Fermi wavenumber for total density
