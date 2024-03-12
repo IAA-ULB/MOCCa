@@ -241,9 +241,9 @@ PYTHON_CMD := python3
 ifeq ($(COMPILER),gnu)
 	CXXFLAGS := -J$(MODDIR)
 else ifeq ($(COMPILER),intel)
-	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin
+	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin -heap-arrays
 else ifeq ($(COMPILER),cray)
-	CXXFLAGS := -J$(MODDIR) -M 878 
+	CXXFLAGS := -J$(MODDIR) -M 878
 endif
 
 # 2. set compiler-specific optimisation level

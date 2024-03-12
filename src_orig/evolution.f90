@@ -1141,12 +1141,10 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Now we construct the n lowest eigenvectors
       temp = x! temporary copy
-      call DGEMM('n','n',4*mv,m,m, 1.0d0,temp, 4*mv,sph(:,1:m), m, 0.0d0, & 
-      &                                        x(:,1:m), 4*mv)
+      call DGEMM('n','n',4*mv,m,m, 1.0d0,temp, 4*mv,sph, m, 0.0d0,   x, 4*mv)
       ! ... and aply the same transformation to upd
       temp = upd ! temporary copy
-      call DGEMM('n','n',4*mv,m,m, 1.0d0,temp, 4*mv,sph(:,1:m), m, 0.0d0, & 
-      &                                        upd(:,1:m), 4*mv)
+      call DGEMM('n','n',4*mv,m,m, 1.0d0,temp, 4*mv,sph, m, 0.0d0, upd, 4*mv)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Bookkeeping
       eigenvalues = tempe(1:m)
