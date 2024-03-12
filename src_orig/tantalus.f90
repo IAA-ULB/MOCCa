@@ -29,7 +29,6 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  use geninfo
  use wavefunctions
  use IO
- use temperature_projection
  use timing
  use fission_MOI
 
@@ -286,7 +285,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     use coulombmod
     use pairing
     use printing
-    use temperature_projection
     use momentsofinertia
     use cranking
     use convergence
