@@ -52,7 +52,7 @@ contains
     &          3(2x, f5.2), ' | ', f6.2 , ' | ', i4)
 
     12 format (1x, i5, 1x, i5, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, &
-    &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(3x, '*', 3x), 1x, '|',   &
+    &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(3x, '*', 3x), 1x, '|',  &
     &          3(3x, '*', 3x), ' | ', 3x, '*', 2x , ' | ', i4)
 
     logical, intent(in) ::  print_advanced
@@ -213,7 +213,9 @@ $TR     sumocc = 2*k
     print 60
     print 20
 
-    ! Prepare by calculating the gaps in the canonical basis  
+    ! Prepare by calculating the gaps in the canonical basis
+    allocate(can_gaps(nwt,nwt))
+    
     can_gaps = matmul(transpose(cantransfo), HFBgaps)
     can_gaps = matmul(can_gaps, cantransfo)
 
@@ -348,6 +350,7 @@ $TR     sumocc = 2*k
     enddo
     print 20
 
+    deallocate(can_gaps)
   end subroutine PrintSpwfs
 
   subroutine printqps

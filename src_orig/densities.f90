@@ -218,10 +218,10 @@ contains
     !                       to their respective histories. If .false., do not
     !                       keep this information.
     !---------------------------------------------------------------------------
-    integer      :: i, it, wave, wave2, B, N, si, N2, T
-    integer      ::  wave_global, wave2_global
-    real(KIND=dp):: weight
-    logical      :: SaveRho
+    integer                    :: i, it, wave, wave2, B, N, si, N2, T
+    integer                    ::  wave_global, wave2_global
+    real(KIND=dp)              :: weight
+    logical                    :: SaveRho
     real(KIND=dp), allocatable :: kappa_cut(:,:)
 #if(USE_MPI>0)
     integer      :: mpi_err
@@ -359,6 +359,7 @@ $BCSEXPRESSION
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
       ! a) start out by "just" copying kappa
+      allocate(kappa_cut(nwt,nwt))
       kappa_cut = kappa_pairing
       if((.not. diagsphamil)) then
         kappa_cut = transform_mat(kappa_cut, HFTransfo)
@@ -503,11 +504,11 @@ $ISOSPINCOUPL
     ! Sum DivJ from the spwfs separately
     divJ = sum_divJ_spwf()
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! clean up explicitly
+    deallocate(kappa_cut)
+    
     call stop_timer(T_densities)
-
-!#if(USE_MPI > 0)      
-!      call stp('End of densit')
-!#endif      
 
 end subroutine densit
 
