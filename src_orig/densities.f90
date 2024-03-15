@@ -474,6 +474,9 @@ $HFBEXPRESSION
           DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
         endif
       end select
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! clean up explicitly
+      deallocate(kappa_cut)
     end select
     call stop_timer(T_den_pp)
     
@@ -504,9 +507,6 @@ $ISOSPINCOUPL
     ! Sum DivJ from the spwfs separately
     divJ = sum_divJ_spwf()
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! clean up explicitly
-    deallocate(kappa_cut)
     
     call stop_timer(T_densities)
 

@@ -273,11 +273,14 @@ contains
     real(KIND=dp), intent(in) :: energies(:), N, hbm  
     integer, intent(in)       :: gas
 
-    if(abs(Nmin) .lt. pairing_prec) then
+    ! We allow a larger error here; in my experience there are calculations 
+    ! where this routine keeps on calling itself because differences get
+    ! smaller than machine precision...
+    if(abs(Nmin) .lt. 10 * pairing_prec) then 
         x = xmin        
         return 
     endif
-    if(abs(Nmax) .lt. pairing_prec) then
+    if(abs(Nmax) .lt. 10 * pairing_prec) then
         x = xmax
         return
     endif   
