@@ -82,13 +82,11 @@
 #     versions testes 2024.0.2 20231213
 #
 # 3. cray (COMPILER=cray)
-#    optimisation: -O2
+#    optimisation: -O3
 #    versions tested: 14.0.3
 #
 # Known issues for CRAY compilers
-# 1. the optimisation level -O3 for cray compilers results in segfaults 
-#    that remain to be investigated.
-# 2. although the code is cray-compliant, newer versions of the cray compilers
+# 1. although the code is cray-compliant, newer versions of the cray compilers
 #    have become more pedantic in terms of the warnings thrown. None of these
 #    impact the working of the code; their clean-up is a work in progress.
 #-------------------------------------------------------------------------------
@@ -254,7 +252,7 @@ ifeq ($(DEBUG),0)
   else ifeq ($(COMPILER),intel)
 	  OPTFLAGS := -Ofast
   else ifeq ($(COMPILER),cray)
-	  OPTFLAGS := -O2 # -O3 produces NaN results
+	  OPTFLAGS := -O3 
   endif
 else
   ifeq ($(COMPILER),gnu)
