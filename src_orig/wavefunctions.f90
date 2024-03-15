@@ -1282,7 +1282,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     logical, intent(in)        :: fullmatrices
     logical                    :: diag
     integer                    :: k, wave
-    real(KIND=dp), allocatable :: temp(:,:)
+    real(KIND=dp)              :: temp(nwt,nwt)
 
     call start_timer(T_spwfangmom)
 
@@ -1350,9 +1350,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Quantities in the canonical basis 
     if(allocated(CANPSI)) then
-      ! Note: we NEVER need the full matrix of angular momenta in the canonica
+      ! Note: we NEVER need the full matrix of angular momenta in the canonical
       ! basis To save on memory, we pass through intermediate arrays.
-      allocate(temp(nwt,nwt))
 
       can_spin = 0.0d0; can_J   = 0.0d0 ; can_J2 = 0.0d0
       can_STR  = 0.0d0; can_JTR = 0.0d0 
@@ -1381,8 +1380,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       can_J2  (2,:) = diag_of_mat(temp)
       call ME_function_deriv2(temp,angmom_z_quad,+1,.true.,'CAN')
       can_J2  (3,:) = diag_of_mat(temp)
-
-      deallocate(temp)
     endif
     can_JJ = (-1. + sqrt(1. + 4*sum(can_J2,1)))/2.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

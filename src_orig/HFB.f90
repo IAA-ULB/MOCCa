@@ -453,7 +453,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     character(len=2), intent(in), allocatable :: BlockLowest(:)
 
     real(KIND=dp)                :: minqp, maxqp, condi, trash
-    real(KIND=dp), allocatable   :: tempEqp(:), full_eqp(:), occ(:)
+    real(KIND=dp)                :: tempEqp(2*nwt), full_eqp(2*nwt), occ(2*nwt)
     integer, allocatable         :: blocked_qps(:), partner_qps(:)
     real(KIND=dp), allocatable   :: p_overlaps(:) 
 

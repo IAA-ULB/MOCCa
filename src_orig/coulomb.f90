@@ -814,11 +814,11 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     real(KIND=dp), intent(in),optional:: Precis
     logical, intent(in)               :: iprint
     
-    integer                    :: iteration
-    real(KIND=dp), allocatable :: p_k(:,:,:), Temp(:,:,:)
-    real(KIND=dp), allocatable :: Residual(:,:,:)
-    real(KIND=dp)              :: PoissonNorm, Integral, a_k, c_k
-    real(KIND=dp)              :: NewPoissonNorm
+    integer       :: iteration
+    real(KIND=dp) :: p_k(nx+BC+ox, ny+BC+oy, nz+BC+oz), Temp(nx+BC+ox, ny+BC+oy, nz+BC+oz)
+    real(KIND=dp) :: Residual(nx+BC+ox, ny+BC+oy, nz+BC+oz)
+    real(KIND=dp) :: PoissonNorm, Integral, a_k, c_k
+    real(KIND=dp) :: NewPoissonNorm
 
     Residual = - CoulombLaplacian(Solution,sx,sy,sz)   
     Residual = Residual + SourceTerm
