@@ -453,7 +453,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     character(len=2), intent(in), allocatable :: BlockLowest(:)
 
     real(KIND=dp)                :: minqp, maxqp, condi, trash
-    real(KIND=dp)                :: tempEqp(2*nwt), full_eqp(2*nwt), occ(2*nwt)
+    real(KIND=dp)                :: tempEqp(nwt), full_eqp(2*nwt), occ(nwt)
     integer, allocatable         :: blocked_qps(:), partner_qps(:)
     real(KIND=dp), allocatable   :: p_overlaps(:) 
 
@@ -473,7 +473,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     if(.not.allocated(Z_updates)) then
       allocate(Z_updates(nwt,nwt,2)) ; Z_updates = 0.0d0
     endif
-    allocate(tempEqp(nwt))  ; tempEqp = 0 
+    tempEqp = 0 
 
     ifail = 0
     !---------------------------------------------------------------------------
@@ -534,14 +534,12 @@ $TR    endif
         gradient_mu       = ((sqrt(condi)-1)/(sqrt(condi)+1))**2 
         gradient_stepsize =  2.0/maxqp * (  1 + gradient_mu)     * 0.9
       endif      
-      deallocate(full_eqp)
     endif    
 
     if(move) then
       !-------------------------------------------------------------------------
       ! For clarity, build the occupation factors for the gradient routines
-      allocate(occ(nwt)) ; occ = 0.0
-
+      occ = 0.0
       si = 0 ; sb = 0
       do B=1,8,2
         N = HFBlocks_global(B)   ; if(N.eq.0) cycle
@@ -574,8 +572,6 @@ $TR    endif
       &                  Z_updates(nwn+1:nwt,nwn+1:nwt,:),                     &
       &                  gradient_precon, HFBgradnorm(2), grad_blocks(5:8),    &
       &                  maxhfbiter, ifail)
-
-      deallocate(occ)
     endif
     !---------------------------------------------------------------------------
     ! Copying the Bogoliubov matrix into its 'left side'
@@ -616,7 +612,6 @@ $TR    endif
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
 
-    deallocate(tempEqp)
   end subroutine solvepairing_HFB_gradient
   
   subroutine figure_out_blocking_structure(sph , gaps, lambda,             &

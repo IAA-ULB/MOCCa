@@ -815,8 +815,9 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     logical, intent(in)               :: iprint
     
     integer       :: iteration
-    real(KIND=dp) :: p_k(nx+BC+ox, ny+BC+oy, nz+BC+oz), Temp(nx+BC+ox, ny+BC+oy, nz+BC+oz)
-    real(KIND=dp) :: Residual(nx+BC+ox, ny+BC+oy, nz+BC+oz)
+    real(KIND=dp) :: p_k(nx+BC+coul_offset_x, ny+BC+coul_offset_y, nz+BC+coul_offset_z)
+    real(KIND=dp) :: Temp(nx+BC+coul_offset_x, ny+BC+coul_offset_y, nz+BC+coul_offset_z)
+    real(KIND=dp) :: Residual(nx+BC+coul_offset_x, ny+BC+coul_offset_y, nz+BC+coul_offset_z)
     real(KIND=dp) :: PoissonNorm, Integral, a_k, c_k
     real(KIND=dp) :: NewPoissonNorm
 
