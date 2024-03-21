@@ -356,7 +356,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 
     ! Only calculate the fields that have not been read from either a
     ! wavefunction file or a potential file.
-    call calcFields(calcall=.false.,precon= .false.)
+    call calcFields(calcall=.false.)
 
     ! Update all spwf properties
     call update_spwf_properties( .true. ) ! expensive version
@@ -454,19 +454,25 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         endif
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Recalculate the fields, but only if MaxIter > FreezeIter
+        ! Construct new potentials, but only if MaxIter > FreezeIter
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         if(iter .gt. freezeiter) then
-          call calcFields(calcall=.true.,precon=.true.)
+          ! calculate new values for the potentials from the densities
+          call calcFields(calcall=.true.) 
+          ! precondition the updates
+          call preconditionpotentials()
+          ! and then mix them!
+          ! call AndersonMixPotentials()
+        elseif(iter.eq.freezeiter) then
+          ! Recalculate the Coulomb field at the last iteration for comparison
+          ! purposes with other codes.
+          call solvecoulomb(D_I_I(:,2))
         endif
 
         !-----------------------------------------------------------------------
         ! Above: actual evolution of physical quantities
         ! Below: administration/bookkeeping
         !-----------------------------------------------------------------------
-        ! NS: Recalculate the Coulomb field at the last iteration
-        if(iter .eq. freezeiter) call solvecoulomb(D_I_I(:,2))
-
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Recalculate the energy with one of two options:
         ! - cheap calculation that omits the recalculation of some parts of the
