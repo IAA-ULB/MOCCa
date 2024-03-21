@@ -876,13 +876,13 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     dic['TOTALPAIR_NEUTRON']= pairtotal_neutron
     dic['TOTALPAIR_PROTON'] = pairtotal_proton
     
-    dic['CALCFIELDS']     = fieldcalc
-    dic['FIELDPRECON']    = precond
+    dic['CALCPOTENTIALS'] = fieldcalc
+    dic['POTENTIALPRECON']= precond
     dic['SKYRMEACTION']   = SkyrmeAction
     dic['PAIRINGACTION']  = PairingAction
     dic['EREAR']          = erear
     dic['FUNC_NAME']      = func_name
-    dic['FIELDNUMBER']    = len(Densities_needed)
+    dic['POTENTIALNUMBER']= len(Densities_needed)
     dic['WRITEPOTENTIALS']= writing
     dic['READPOTENTIALS'] = reading
     dic['CLEANING']       = cleaning

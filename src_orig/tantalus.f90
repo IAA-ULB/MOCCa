@@ -260,13 +260,14 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     !   |  4. Perform feasible projection if asked for
     !   |  5. Construct the densities
     !   |    5b. Update the Lagrange multipliers of the constraints
-    !   |  6. Construct the fields
-    !   |     (including Coulomb and potential constraint contribution)
+    !   |  6. Construct the potentials
+    !   |     (including the contributions to F_I_I by Coulomb interaction 
+    !   |      and any multipole constraints)
     !   |  7. Print iteration info
     !   |_____________________________
     !
     ! TODO: correct this documentation
-    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   None.
     ! Output:
@@ -344,19 +345,19 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     call adapt_com()
 
     call CalculateMoments()   !=> vital to be called here,
-                              !    (a) before the calculation of the fields
+                              !    (a) before the calculation of the potentials
                               !    (b) after construction of the charge density
                               ! as
                               !  (a) the multipole cutoff is allocated in this
                               !      process, and is needed for the calculation
-                              !      of the cranking fields
+                              !      of the cranking potentials
                               !  (b) the calculations of the charge rms radius
                               !      requires the charge density to be
                               !      constructed
 
-    ! Only calculate the fields that have not been read from either a
+    ! Only calculate the potentials that have not been read from either a
     ! wavefunction file or a potential file.
-    call calcFields(calcall=.false.)
+    call calcPotentials(calcall=.false.)
 
     ! Update all spwf properties
     call update_spwf_properties( .true. ) ! expensive version
@@ -423,8 +424,8 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         call ReadjustAllMoments(1) ! TODO: remove the input dependence here...
         call ReadjustAllMoments(2)
         ! Update value of the average angular momentum
-        call updateAM              ! TODO: adapt the calculation of angular momentum
-                                   !       to only ever use densities...
+        call updateAM          ! TODO: adapt the calculation of angular momentum
+                               !       to only ever use densities...
         ! .... and readjust any constraints on it
         call ReadjustCranking
 
@@ -458,13 +459,13 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         if(iter .gt. freezeiter) then
           ! calculate new values for the potentials from the densities
-          call calcFields(calcall=.true.) 
+          call calcPotentials(calcall=.true.) 
           ! precondition the updates
           call preconditionpotentials()
           ! and then mix them!
           ! call AndersonMixPotentials()
         elseif(iter.eq.freezeiter) then
-          ! Recalculate the Coulomb field at the last iteration for comparison
+          ! Recalculate the Coulomb potential at the last iteration for comparison
           ! purposes with other codes.
           call solvecoulomb(D_I_I(:,2))
         endif
@@ -763,8 +764,8 @@ subroutine initialize_all_timers()
    call add_timer('Density: pp'                 , T_den_pp)
    call add_timer('Density: ph'                 , T_den_ph)
    call add_timer('Density: derivatives'        , T_den_der)
-   call add_timer('Field calculations'          , T_fields)
-   call add_timer('Field preconditioning'       , T_F_precon)
+   call add_timer('Potential calculations'      , T_potentials)
+   call add_timer('Potential preconditioning'   , T_pot_precon)
    call add_timer('Energy calculations'         , T_energy)
    call add_timer('Pairing solver '             , T_pairing)
    call add_timer('Sp. Hamiltonian '            , T_sphamil)

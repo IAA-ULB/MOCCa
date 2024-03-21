@@ -2101,9 +2101,9 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     enddo
     write(1, fmt='()')
     
-    ! The central nuclear potential is the field associated with D_I_I, but it
-    ! should not include the constraints, nor the contribution of the 
-    ! direct and exchange Coulomb potentials
+    ! The central nuclear potential is the potential associated with D_I_I, but 
+    ! it should not include the contribution of the constraints, nor the 
+    ! contribution of the direct and exchange Coulomb potentials
     allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
     
     temp = F_I_I(:,1:2) - constraint_I_I
@@ -2159,13 +2159,12 @@ $TR          &                                0.0d0,0.0d0,0.0d0
           ! we do not have this luxury for the following potentials
           mi = meshindex(i,j,k)
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The kinetic potential is the field F_Nm_Nm associated with D_Nm_Nm
+          ! The kinetic potential is the potential F_Nm_Nm
           !NS_t0t3:
           !write(1, fmt='(2es25.12)', advance='no') &
           !&         F_Nm_Nm(mi,1), F_Nm_Nm(mi,2)
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The spin-orbit potential is the field G_I_NS, associated with the
-          ! density C_I_NS
+          ! The spin-orbit potential is the potential G_I_NS
           !do mu=1,3
           !  do nu=1,3
           !    write(1, fmt='(2es25.12)', advance='no') &

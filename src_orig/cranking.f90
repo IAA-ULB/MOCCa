@@ -390,8 +390,8 @@ $NTR    print 5
 
   function crank_spin_potential() result(spot)
     !---------------------------------------------------------------------------
-    ! The cranking constraint contributes to the field F_I_S, associated with 
-    ! the spin density D_I_S:
+    ! The cranking constraint contributes to the potential F_I_S, associated 
+    ! with the spin density D_I_S:
     !
     !     F_I_S(r) => F_I_S(r) - \frac{1}{2} \omega f_cut(r)
     !
@@ -424,8 +424,8 @@ $NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
 
   function crank_current_potential() result(jpot)
     !---------------------------------------------------------------------------
-    ! The cranking constraint contributes to the field G_I_N, associated with 
-    ! the current density D_I_N:
+    ! The cranking constraint contributes to the potential G_I_N, associated
+    ! with the current density D_I_N:
     !
     !       G_I_N => G_I_N - f_cut(r) \vec{\omega} x \vec{r} 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
