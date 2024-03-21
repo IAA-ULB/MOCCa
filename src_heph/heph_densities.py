@@ -226,6 +226,8 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     Zeroing        = ''
     Cleaning       = ''
     MPI_REDUCE     = ''
+    Add            = ''
+    Multiply       = ''
 
     print (line)
     print (' Densities necessary for the functional                                    ')
@@ -250,7 +252,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       den = Densities_needed[i]
 
       # Summation with leftwf = rightwf
-      (e,dec,ini,der,isoi,mpii,zeroi,cleani)  = \
+      (e,dec,ini,der,isoi,mpii,zeroi,cleani,addi,multi)  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],'wave','wave',so,
                            density_spwf_summation)
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
@@ -263,7 +265,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         # But we also need the HFB expression 
         # So we recall the routine with different 'wave' indices
         # This summation is blockwise, hence the 'si+'
-        (e,dec,ini,der,isoi,mpii,zeroi,cleani)  = \
+        (e,dec,ini,der,isoi,mpii,zeroi,cleani,addi,multi)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],\
                                          'si+wave2', 'si+wave', so,            \
                                          density_spwf_summation, silent=False)
@@ -277,6 +279,9 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       MPI_REDUCE     = MPI_REDUCE     + '\n' + mpii
       Zeroing        = Zeroing        +        zeroi
       Cleaning       = Cleaning       + '\n' + cleani
+      Add            = Add            + '\n' + addi
+      Multiply       = Multiply       + '\n' + multi
+
     print (line)
 
     # Substitute into the densities.f90 file.        
@@ -291,6 +296,8 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     dic['CLEANING'      ] = Cleaning 
     dic['ISOSPINCOUPL'  ] = Isospincoupl
     dic['MPIDEN']         = MPI_REDUCE
+    dic['ADD'           ] = Add
+    dic['MULTIPLY'      ] = Multiply
   
     if(so.timelike):
       dic['TR']  = ''
@@ -331,6 +338,9 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         with open(target+fname, 'w') as generated:
             for line in template:
                 generated.write(Template(line).substitute(dic))  
+
+    # Return the declaration of all densities for use in vectors.f90
+    return Declaration
 
 def ParseOperators(density, timelike, findindices=False):    
     """    
@@ -504,6 +514,8 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     Zeroing       = ''
     Isospincoupl  = ''
     Cleaning      = ''
+    Add           = ''
+    Multiply      = ''
 
     #---------------------------------------------------------------------------
     # Parse the structure from the name
@@ -583,7 +595,9 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     Initialisation = ta.Ini.substitute(dic)
     Zeroing        = ta.Zero_template.substitute(dic)
     Cleaning       = ta.Clean_template.substitute(dic)
-
+    Add            = ta.Add_template.substitute(dic)
+    Multiply       = ta.Multiply_template.substitute(dic)
+    
     for c in derivative_combinations:
         l = c[0]
         d = c[1]
@@ -607,7 +621,8 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
         Declaration    = Declaration    + '\n' + ta.Dec.substitute(dic)
         Initialisation = Initialisation + '\n' + ta.Ini.substitute(dic)
         Cleaning       = Cleaning + '\n' + ta.Clean_template.substitute(dic)
-
+        Add            = Add      + '\n' + ta.Add_template.substitute(dic)
+        Multiply       = Multiply + '\n' + ta.Multiply_template.substitute(dic)
         dic['NAME']    = density
         
     #---------------------------------------------------------------------------
@@ -1069,7 +1084,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     
     
     return (Expression, Declaration, Initialisation, Derivation, Isospincoupl,\
-                                                  MPI_reduce, Zeroing, Cleaning)
+                                   MPI_reduce, Zeroing, Cleaning, Add, Multiply)
     
 def GenVecProd(density, coupling):
     #---------------------------------------------------------------------------

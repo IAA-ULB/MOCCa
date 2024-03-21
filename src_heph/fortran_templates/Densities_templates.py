@@ -15,7 +15,7 @@ Ini      = T(   tab+'if(.not.allocated($NAME)) then     \n' + \
 Zero_template  = T(   tab+'$NAME = 0.0d0 \n')
 Clean_template = T(   tab+'if(allocated($NAME)) deallocate($NAME)')
 
-Dec       = T(   tab + 'real*8, allocatable, target :: $NAME(:$TOTALIND,:)')
+Dec       = T(   tab + 'real*8, allocatable :: $NAME(:$TOTALIND,:)')
 Der_indep = T( 2*tab + \
              'call Derive_$DIR($NAME(:$IND,it), $PS,der_$NAME(:$DERIND,it)) \n') 
 Lap   = T( 2*tab + \
@@ -37,6 +37,9 @@ iso_lap      =  T( tab +'Lap_$NAME(:$IND,3) = Lap_$NAME(:$IND,1) + Lap_$NAME(:$I
                   +tab +'Lap_$NAME(:$IND,4) = Lap_$NAME(:$IND,1) - Lap_$NAME(:$IND,2) \n' )
 
 mpi          =  T( tab + 'call MPI_ALLREDUCE(MPI_IN_PLACE,$NAME(:$TOTALIND,1:2),$TRANS_SIZE, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, mpi_err)')
+
+Add_template        = T( tab + ' R%$NAME = R1%$NAME + R2%$NAME')
+Multiply_template   = T( tab + ' R%$NAME = a * R1%$NAME')
 
 #-------------------------------------------------------------------------------
 # Some templates for comments to put into the densities file
