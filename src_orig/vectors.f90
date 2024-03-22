@@ -29,20 +29,21 @@ module vectors
 
  implicit none
 
-  type DensityVector
+ type DensityVector
     !-------------------------------------------------------------------------
     ! Custom type for containing all Skyrme densities
     !
     !   \mathcal{R} = (D_I_I, D_N_N, ....)
     !
     ! but also their derivatives, as well as the charge density!
-$DECLARATION
     !-------------------------------------------------------------------------
-    ! Charge density of the protons, possibly including the correction for the
-    ! finite size of the proton. It is stored here, as both the moments module
-    ! and the coulomb module need it, even though Coulomb depends on the
-    ! moments module.
+$DECLARATION
     real(KIND=dp), allocatable :: chargedensity(:,:,:)
+
+    !---------------------------------------------------------------------------
+    ! Separate, manual, declaration of Div.J(r) as calculated from the spwfs
+    ! for the more accurate calculation of its multipole moments
+    real(KIND=dp), allocatable :: divJ(:,:)
   end type DensityVector
 
   type PotentialVector
@@ -50,18 +51,16 @@ $DECLARATION
     ! Custom type for containing all potentials
     !
     !   \mathcal{F} = (F_I_I, F_N_N, ....)
-$DECLARATION_POTENTIALS
     !-------------------------------------------------------------------------
-    ! Coulomb fields
-    ! Attention: CoulombPotential is defined on an EXTENDED box, see the
-    !            coulomb module
+$DECLARATION_POTENTIALS
+    ! Coulomb potentials
+    ! Attention: CoulombPotential is defined on a larger mesh!
     real(KIND=dp), allocatable :: CoulombPotential(:,:,:)
     real(KIND=dp), allocatable :: ExchangePotential(:,:,:)
-    ! Array with the folded Coulomb potential, necessary if we take the
+    ! Array with the folded Coulomb potentials, necessary if we take the
     ! finite size of the nucleons into account
-  real(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExchange(:,:,:,:)
-
-  end type PotentialVector
+    real(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExchange(:,:,:,:)
+ end type PotentialVector
 
 end module vectors
 

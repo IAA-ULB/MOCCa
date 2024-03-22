@@ -1,13 +1,9 @@
-#
-#
-#-------------------------------------------------------------------------------
-
 from string import Template as T    
 tab = '    '
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Declaration and allocation statements
-field_decl = T(tab + 'real(KIND=dp), allocatable, target :: $FIELD(:$DECLIND,:) \n')
+field_decl = T(tab + 'real(KIND=dp), allocatable :: $FIELD(:$DECLIND,:) \n')
 fhist_decl = T(tab + 'real(KIND=dp), allocatable :: ${FIELD}_hist(:$DECLIND,:) \n')
 
 field_allo = T( tab + 'if(.not.allocated($FIELD)) then\n'+\

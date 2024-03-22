@@ -105,17 +105,30 @@ module Coulombmod
 
 contains
 
- subroutine SolveCoulomb(rhop)
+ subroutine SolveCoulomb(R, F, guess)
     !---------------------------------------------------------------------------
     ! Master routine to solve the Coulomb problem for a given source-density.
-    ! Input is the point (!) proton density.
+    !
+    ! Input : 
+    !     R : density vector with a precalculated charge density
+    !     initial_guess :  optional initial guess for the Coulomb potential
+    ! Output:
+    !     F : potential vector; only the Coulomb fields are modified
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Note: this routine does not calculate the charge density based on the 
+    !       the proton and neutron densities. This is assumed to have been 
+    !       done before.
     !---------------------------------------------------------------------------
 
     use Folding    
 
-    real(KIND=dp), intent(in)  :: rhop(mv)
-    real(KIND=dp), allocatable :: source(:,:,:)
-    integer                    :: i,j,k,ii
+    type(DensityVector), intent(in)      :: R
+    type(PotentialVector), intent(inout) :: F
+    real(KIND=dp), intent(in), optional  :: guess(:,:,:)
+    real(KIND=dp), allocatable           :: initial_guess(:,:,:)
+
+    real(KIND=dp), allocatable      :: source(:,:,:)
+    integer                         :: i,j,k,ii, ox, oy, oz
     
     call start_timer(T_coulomb)
     
@@ -168,13 +181,17 @@ $REDUZ  coul_offset_z = 0
         ! Note: checking for the allocation of CoulombPotential would be more
         !       natural, but it is possible that the potentials have been read
         !       from file while nothing else in this module has been set up
-        call setupcoulomb
+        if(present(guess)) then
+          initial_guess = guess
+        else
+          allocate(initial_guess(nx+BC+coul_offset_x, &
+          &                      ny+BC+coul_offset_y, & 
+          &                      nz+BC+coul_offset_z))
+          initial_guess = 0.0d0
+        endif
+        call setupcoulomb(F, initial_guess)
     endif
-!    print *, coul_offset_x, coul_offset_y, coul_offset_z 
-!    print *, maxval(coulmeshx), maxval(coulmeshy), maxval(coulmeshz)
-!    stop
-    
-    if(coultreatment.eq.0) then
+      if(coultreatment.eq.0) then
        call stop_timer(T_coulomb)
        return
     endif        
@@ -193,19 +210,18 @@ $REDUZ  coul_offset_z = 0
       do j=1,ny
         do i=1,nx
           Source(i+coul_offset_x,j+coul_offset_y,k+coul_offset_z) = &
-          &                                  -4*pi*e2*Chargedensity(i,j,k)
+          &                                  -4*pi*e2*R%Chargedensity(i,j,k)
         enddo
       enddo
     enddo
     !---------------------------------------------------------------------------
     ! Set the boundary conditions.
-    call CoulombBound(Source)
-
+    call CoulombBound(Source, F)
+    
     ! Solve for the direct coulomb potential  
     ! Note that the symmetry properties (+1,+1,+1) are never changed: 
     ! Hephaestos modifies directly the Coulomb_Laplacian routine when necessary 
-    call ConjugGrad (CoulombPotential,Source, +1,+1,+1,1000,.false.,prec)
-    
+    call ConjugGrad (F%CoulombPotential,Source, +1,+1,+1,1000,.false.,prec)
 
     if(Coultreatment.eq.1) then
       !-------------------------------------------------------------------------
@@ -215,20 +231,20 @@ $REDUZ  coul_offset_z = 0
           do j=1,ny
               do i=1,nx
                ii = meshindex(i,j,k)
-               ExchangePotential(i,j,k) =                                      & 
-                 &        -(3.0/pi)**(1.0/3.0_dp)*e2*(rhop(ii)**(1.0_dp/3.0_dp))   
+               F%ExchangePotential(i,j,k) =                                    & 
+                 &   -(3.0/pi)**(1.0/3.0_dp)*e2*(R%D_I_I(ii,2)**(1.0_dp/3.0_dp))   
               enddo
           enddo
         enddo
       else
        ! Incorporating finite size effects
-       ExchangePotential =  &
-       &             -(3.0/pi)**(1.0/3.0_dp)*e2*(ChargeDensity**(1.0_dp/3.0_dp)) 
+       F%ExchangePotential =  &
+       &           -(3.0/pi)**(1.0/3.0_dp)*e2*(R%ChargeDensity**(1.0_dp/3.0_dp)) 
      endif
     else
       !-------------------------------------------------------------------------
       ! No Coulomb Exchange
-      ExchangePotential = 0.0
+      F%ExchangePotential = 0.0
     endif  
     
     ! This routine calculates FoldedCoul and FoldedExchange if required
@@ -268,7 +284,7 @@ $REDUZ  coul_offset_z = 0
  
  end subroutine Obtain_folded_potentials
 
- subroutine ConstructChargeDensity(rho_charge)
+ subroutine ConstructChargeDensity(R)
     !---------------------------------------------------------------------------
     ! Construct the charge density from the proton and neutron densities,  
     ! using various effective form
@@ -276,7 +292,8 @@ $REDUZ  coul_offset_z = 0
 
     use Folding
 
-    real(KIND=dp), allocatable :: rho_charge(:,:,:)
+    type(DensityVector),intent(inout) :: R
+    !real(KIND=dp), allocatable :: rho_charge(:,:,:)
     real(KIND=dp)              :: temp(nx,ny,nz)
     integer                    :: i,j,k
     real(KIND=dp)              :: rho_el, linX, linY, linZ, volume
@@ -285,13 +302,11 @@ $REDUZ  coul_offset_z = 0
     call start_timer(T_chargedensity)
     
     ! Deallocation that rho_charge does not have the wrong dimensions
-    if(allocated(rho_charge)) deallocate(rho_charge)
-    if(.not.allocated(rho_charge)) then
-        allocate(rho_charge(nx,ny,nz))
+    if(allocated(R%chargedensity)) deallocate(R%chargedensity)
+    if(.not.allocated(R%chargedensity)) then
+        allocate(R%chargedensity(nx,ny,nz))
     endif
-
-    rho_charge = 0.0
-    
+    R%chargedensity = 0.0
     !---------------------------------------------------------------------------
     ! If we account for the finite extent of the charge of the nucleus, then 
     ! we need to fold densities and potentials with gaussians. This sets up the 
@@ -317,20 +332,20 @@ $REDUZ  coul_offset_z = 0
     do k=1,nz
       do j=1,ny
         do i=1,nx
-            temp(i,j,k) = D_I_I(meshindex(i,j,k),2)
+            temp(i,j,k) = R%D_I_I(meshindex(i,j,k),2)
         enddo       
       enddo
     enddo
     
     if(protonsize(1).gt.0.0) then
         ! Fold the source with a Gaussian
-        rho_charge = rho_charge + &
+        R%chargedensity = R%chargedensity + &
         & FoldGaussian(temp, GaussX(:,:,1,2), GaussY(:,:,1,2), GaussZ(:,:,1,2),&
         &                                                            nx, ny, nz)
     endif
     if(protonsize(2).gt.0.0) then
         ! Fold the source with another Gaussian, this time with minus sign.
-        rho_charge = rho_charge - &
+        R%chargedensity = R%chargedensity + &
         & FoldGaussian(temp, GaussX(:,:,2,2), GaussY(:,:,2,2), GaussZ(:,:,2,2),&
         &                                                            nx, ny, nz)
     endif
@@ -348,7 +363,7 @@ $REDUZ  coul_offset_z = 0
     !enddo
 
     if(all(protonsize.eq.0.0)) then
-        rho_charge = temp
+        R%chargedensity = temp
     endif
    
         
@@ -375,26 +390,25 @@ $REDUZ     linZ=2*nz
     do k=1,nz
       do j=1,ny
         do i=1,nx
-           temp(i,j,k) = D_I_I(meshindex(i,j,k),1)
+           temp(i,j,k) = R%D_I_I(meshindex(i,j,k),1)
         enddo
       enddo
     enddo
           
     if(neutronsize(1).gt.0.0) then
         ! Fold the source with a Gaussian
-        rho_charge = rho_charge + &
+        R%chargedensity = R%chargedensity + & 
         & FoldGaussian(temp, GaussX(:,:,1,1), GaussY(:,:,1,1), GaussZ(:,:,1,1),&
         &                                                            nx, ny, nz)
     endif
     if(neutronsize(2).gt.0.0) then
         ! Fold the source with a Gaussian, minus sign this time
-        rho_charge = rho_charge - &
+        R%chargedensity = R%chargedensity + & 
         & FoldGaussian(temp, GaussX(:,:,2,1), GaussY(:,:,2,1), GaussZ(:,:,2,1),&
         &                                                            nx, ny, nz)
     endif
     !---------------------------------------------------------------------------
-
-    !NS: subtruct electron background
+    !NS: subtract electron background
 #if(PASTA==1)
     
     linX=nx
@@ -408,12 +422,8 @@ $REDUZ   linZ=2*nz
     volume=linx*dx*linY*dx*linZ*dx
     rho_el=protons/volume
     !print *, protons,sum(rho_charge)*dv
-    rho_charge=rho_charge-rho_el
-    !print *,'rho_el2=',rho_el
-    
+    R%chargedensity = R%chargedensity -rho_el
 #endif
-
-    
     call stop_timer(T_chargedensity)
  end subroutine ConstructChargeDensity
 
@@ -465,13 +475,19 @@ $REDUZ   linZ=2*nz
     
  end function FoldCoulombPotential
 
- subroutine SetupCoulomb
+ subroutine SetupCoulomb(F,initialguess)
     !---------------------------------------------------------------------------
-    ! Initialize the entire module. 
+    ! Initialize the entire module and the fields in the potentialvector
+    !
+    ! Input:
+    !    F : potentialvector to be initialized
     !---------------------------------------------------------------------------
     use sphericalharmonics
     use folding
+    use vectors
     
+    type(PotentialVector), intent(inout) :: F
+    real(KIND=dp), intent(in)            :: initialguess(:,:,:)
     integer       :: i,j,k, ox, oy, oz
 
     ! Determine the offsets of the original mesh inside the larger Coulomb mesh    
@@ -543,15 +559,23 @@ $REDUZ  coul_offset_z = 0
     
  end subroutine SetupCoulomb
     
- subroutine CoulombBound(source)
+ subroutine CoulombBound(source, F)
     !---------------------------------------------------------------------------
     ! Calculates the boundary conditions of the Coulomb potential based on the 
     ! multipole moments of the point charge density. 
+    !
+    ! Input:
+    !   source : source charge density to compute boundary conditions for
+    ! Output:
+    !   F      : potentialvector with boundary conditions applied to the 
+    !            CoulombPotential.
     !---------------------------------------------------------------------------
     
     use folding
+    use vectors
 
     real(KIND=dp), intent(in) :: source(:,:,:)
+    type(PotentialVector), intent(inout) :: F
     real(KIND=dp)             :: fac
     integer                   :: i,j,k,l,m, im, ox, oy, oz
     real(KIND=dp)             :: Qlm
@@ -588,7 +612,7 @@ $FULLZ     if(k.le.BC)    condition =.true.
 $FULLZ     if(k.gt.nz+BC) condition =.true.         
         
           if(condition) then
-              CoulombPotential(i,j,k) = 0.0d0
+              F%CoulombPotential(i,j,k) = 0.0d0
           endif
         enddo
       enddo
@@ -603,8 +627,16 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
       Im = 1
       if(Current%Impart) Im = 2
 
+      !------------------------------------------------------------------------
       ! Recalculate the multipole distribution, since source is not
       ! necessarily the point proton distribution.
+      !-------------------------------------------------------------------------
+      ! The source density is expanded into multipole moments for the boundary   
+      ! conditions. This is linked to the linked list of multipole moments, 
+      ! not because they are calculated with them, but simply to not have
+      ! another place in the code where decisions regarding symmetries need
+      ! to be chosen.
+      !-------------------------------------------------------------------------
       Qlm = 0
       do k=1,oz
         do j=1,oy
@@ -648,7 +680,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
           
             
             if(condition) then
-              CoulombPotential(i,j,k) = CoulombPotential(i,j,k) +             &
+              F%CoulombPotential(i,j,k) = F%CoulombPotential(i,j,k) +          &
               &       fac*Qlm*SpherHarmCoulomb(i,j,k,l,m,Im)/(r(i,j,k)**(2*l+1))
             endif
           enddo
@@ -720,18 +752,20 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     
  end subroutine ConstructFoldingMatrices
 
- function CoulombEnergy_direct(rhop) result(CEnergy)
+ function CoulombEnergy_direct(R, F) result(CEnergy)
     !---------------------------------------------------------------------------
     ! Calculate the (direct) electrostatic energy of the system.
     !
-    ! Note that rhop is not necessarily the point-proton density, it is the 
-    ! charge density which can contain effects of the finite size of both
-    ! protons and neutrons.
+    ! Input: 
+    !     R: Densityvector (which contains the charge density)
+    !     F: Potentialvector (which contains the Coulomp potential)
     !---------------------------------------------------------------------------
+        use vectors
+
+    type(DensityVector), intent(in)   :: R
+    type(PotentialVector), intent(in) :: F
     real(KIND=dp) :: CEnergy
-    real(KIND=dp), intent(in) :: rhop(mv)
     integer       :: i,j,k, ox, oy, oz
-    !real(KIND=dp)              :: rho_el, linX, linY, linZ, volume
     
     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
     
@@ -739,30 +773,30 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     do k=1,nz
         do j=1,ny
             do i=1,nx
-                CEnergy = CEnergy + rhop( meshindex(i,j,k)) *         &
-                &                   CoulombPotential(i+ox,j+oy,k+oz)
-                !print *,i,j,k,rhop(meshindex(i,j,k)),CoulombPotential(i+ox,j+oy,k+oz)
+                CEnergy = CEnergy + R%chargedensity(i,j,k) *   &
+                &                   F%CoulombPotential(i+ox,j+oy,k+oz)
             enddo
         enddo
     enddo
     CEnergy = CEnergy * dv * 0.5_dp
-    !print *, 'CEnergy=',CEnergy,ox,oy,oz,dv
  end function CoulombEnergy_Direct
  
- function CoulombEnergy_Exchange(rhop) result(CEnergy)
+ function CoulombEnergy_Exchange(R) result(CEnergy)
     !---------------------------------------------------------------------------
     ! Calculate the (exchange) electrostatic energy of the system in the 
     ! Slater approximation. Note that rhop is not necessarily the point-proton 
     ! density that is passed in.
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: rhop(mv)
+    use vectors
+    
+    type(DensityVector), intent(in) ::R
     real(KIND=dp) :: factor, Cenergy
     
     Cenergy = 0.0_dp
     if(coultreatment.ne.1) return
 
     factor  = -0.75_dp*(3/pi)**(1/3._dp)*e2*dv
-    Cenergy = factor*sum(rhop**(4.0/3.0))
+    Cenergy = factor*sum(R%chargedensity**(4.0/3.0))
     
  end function CoulombEnergy_Exchange
  

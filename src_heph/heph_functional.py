@@ -680,28 +680,41 @@ def ProcessParameterization(fname, src, target):
 def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl, 
                       density_spwf_summation):
     """
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
      Master routine calling the other ones to generate a functional.
+     
+     TODO: document this function
+     
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+     Input:
+     
+     Output:
+      - pot_declaration: a (large) string containing the fortran code for the
+                         declaration of mean-field potentials in vectors.f90
+
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     """
 
-    declaration   = ''
-    calculation   = ''
-    form          = ''
-    printing      = ''
-    calccoef      = ''
-    printcoef_ph  = ''
-    printcoef_pair= ''
-    sumtotal_even = ''
-    sumtotal_odd  = ''
-    sumtotal_bi   = ''
-    sumtotal_tri  = ''
-    sumtotal_quad = ''
-    sumtotal_dd   = ''
-    fieldcalc     = ''
-    precond       = ''
-    erear         = ''
-    writing       = ''
-    reading       = ''
-    cleaning      = ''
+    declaration     = ''
+    pot_declaration = ''
+    calculation     = ''
+    form            = ''
+    printing        = ''
+    calccoef        = ''
+    printcoef_ph    = ''
+    printcoef_pair  = ''
+    sumtotal_even   = ''
+    sumtotal_odd    = ''
+    sumtotal_bi     = ''
+    sumtotal_tri    = ''
+    sumtotal_quad   = ''
+    sumtotal_dd     = ''
+    fieldcalc       = ''
+    precond         = ''
+    erear           = ''
+    writing         = ''
+    reading         = ''
+    cleaning        = ''
 
     pairtotal_neutron = ''
     pairtotal_proton  = ''
@@ -791,7 +804,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     # Generate the fields of the single-particle hamiltonian
     (fielddec, fieldcalc, fieldprecon, fieldwrite,fieldread, fieldclean) =     \
                                          GenerateFields(so,oldso, ph_pp_decoupl)
-    declaration = declaration + fielddec   + '\n'
+    pot_declaration = pot_declaration + fielddec + '\n'
     writing     = writing     + fieldwrite 
     reading     = reading     + fieldread 
     precond     = precond     + fieldprecon
@@ -825,21 +838,22 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     #---------------------------------------------------------------------------
     # Now make sure all of the lines are not too long for compilation.
-    declaration   = LineFormat(declaration)
-    calculation   = LineFormat(calculation)
-    printing      = LineFormat(printing)
-    calccoef      = LineFormat(calccoef)
-    printcoef_ph  = LineFormat(printcoef_ph)
-    sumtotal_even = LineFormat(sumtotal_even)
-    sumtotal_odd  = LineFormat(sumtotal_odd)
-    fieldcalc     = LineFormat(fieldcalc)
-    precond       = LineFormat(precond)
-    SkyrmeAction  = LineFormat(SkyrmeAction)
-    PairingAction = LineFormat(PairingAction)
-    erear         = LineFormat(erear)
-    reading       = LineFormat(reading)
-    writing       = LineFormat(writing)
-    cleaning      = LineFormat(cleaning)
+    declaration       = LineFormat(declaration)
+    pot_declaration   = LineFormat(pot_declaration)
+    calculation       = LineFormat(calculation)
+    printing          = LineFormat(printing)
+    calccoef          = LineFormat(calccoef)
+    printcoef_ph      = LineFormat(printcoef_ph)
+    sumtotal_even     = LineFormat(sumtotal_even)
+    sumtotal_odd      = LineFormat(sumtotal_odd)
+    fieldcalc         = LineFormat(fieldcalc)
+    precond           = LineFormat(precond)
+    SkyrmeAction      = LineFormat(SkyrmeAction)
+    PairingAction     = LineFormat(PairingAction)
+    erear             = LineFormat(erear)
+    reading           = LineFormat(reading)
+    writing           = LineFormat(writing)
+    cleaning          = LineFormat(cleaning)
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Substitute into the functional.f90 file.  
     dic={}
@@ -966,9 +980,11 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     with open(src+fname, 'r') as template:
       with open(target+fname, 'w') as generated:
         for line in template:
-          generated.write(Template(line).substitute(dic))  
+          generated.write(Template(line).substitute(dic))
 
-def GenTermExpression( term, index, un_index, tnumber, ccoef, isoc, ddep, extra,so):
+    return pot_declaration
+
+def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so):
     """
      Generate the FORTRAN expressions to calculate the terms in the functional.
      

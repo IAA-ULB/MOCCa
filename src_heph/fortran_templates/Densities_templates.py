@@ -3,40 +3,40 @@ tab = '    '
 #-------------------------------------------------------------------------------
 # Density calculation template to fill in
 
-Den_1    = T( 2*tab+'$NAME(i$IND,it) = $NAME(i$IND,it) + $WEIGHT * (')
+Den_1    = T( 2*tab+'R%$NAME(i$IND,it) = R%$NAME(i$IND,it) + $WEIGHT * (')
 Den_diag = T( \
                     tab+'$SIGN $LEFTWF(i$LIND,$LCOMP,$LEFTWAVE) * ' + \
                         '$RIGHTWF(i$RIND,$RCOMP,$RIGHTWAVE)')
 
-Ini      = T(   tab+'if(.not.allocated($NAME)) then     \n' + \
-                           2*tab+'allocate($NAME(mv$DIM,$ISOSIZE)) \n'   + \
-                           2*tab+'$NAME = 0.0d0 \n'                      + \
+Ini      = T(   tab+'if(.not.allocated(R%$NAME)) then     \n' + \
+                           2*tab+'allocate(R%$NAME(mv$DIM,$ISOSIZE)) \n'   + \
+                           2*tab+'R%$NAME = 0.0d0 \n'                      + \
                              tab+'endif \n'                              ) 
-Zero_template  = T(   tab+'$NAME = 0.0d0 \n')
-Clean_template = T(   tab+'if(allocated($NAME)) deallocate($NAME)')
+Zero_template  = T(   tab+'R%$NAME = 0.0d0 \n')
+Clean_template = T(   tab+'if(allocated(R%$NAME)) deallocate(R%$NAME)')
 
 Dec       = T(   tab + 'real*8, allocatable :: $NAME(:$TOTALIND,:)')
 Der_indep = T( 2*tab + \
-             'call Derive_$DIR($NAME(:$IND,it), $PS,der_$NAME(:$DERIND,it)) \n') 
+             'call Derive_$DIR(R%$NAME(:$IND,it),$PS,R%der_$NAME(:$DERIND,it)) \n') 
 Lap   = T( 2*tab + \
-       'call Derive_lap ($NAME(:$IND,it), $PX,$PY,$PZ, lap_$NAME(:$IND,it)) \n')
+       'call Derive_lap(R%$NAME(:$IND,it), $PX,$PY,$PZ,R%lap_$NAME(:$IND,it)) \n')
 
-Der_sum = T( 2*tab + 'der_$NAME(:$DERIND,it) = $LEFTDEN(:$DERLIND,it) + $RIGHTDEN(:$DERRIND,it) \n') 
-Der_der_sum_a = T( 2*tab + 'Der_$NAME(:$DERIND,it) = & \n') 
-Der_der_sum_b = T( 3*tab + '&  $LEFTDEN(:$DERLIND,it) + 2*$CENTRALDEN(:$DERCIND,it) + $RIGHTDEN(:$DERRIND,it) \n') 
+Der_sum = T( 2*tab + 'R%der_$NAME(:$DERIND,it) = R%$LEFTDEN(:$DERLIND,it) + R%$RIGHTDEN(:$DERRIND,it) \n') 
+Der_der_sum_a = T( 2*tab + 'R%Der_$NAME(:$DERIND,it) = & \n') 
+Der_der_sum_b = T( 3*tab + '&  R%$LEFTDEN(:$DERLIND,it) + 2*R%$CENTRALDEN(:$DERCIND,it) + R%$RIGHTDEN(:$DERRIND,it) \n') 
 
-Lap_sum_a = T( 2*tab + 'lap_$NAME(:$IND,it) = & \n') 
-Lap_sum_b = T( 3*tab + '& +  $LEFTDEN(:$DERLIND,it) + 2*$CENTRALDEN(:$DERCIND,it) + $RIGHTDEN(:$DERRIND,it) &\n') 
+Lap_sum_a = T( 2*tab + 'R%lap_$NAME(:$IND,it) = & \n') 
+Lap_sum_b = T( 3*tab + '& +  R%$LEFTDEN(:$DERLIND,it) + 2*R%$CENTRALDEN(:$DERCIND,it) + R%$RIGHTDEN(:$DERRIND,it) &\n') 
 
 
-iso_normal   =  T( tab +'$NAME(:$IND,3) = $NAME(:$IND,1) + $NAME(:$IND,2) \n' \
-                  +tab +'$NAME(:$IND,4) = $NAME(:$IND,1) - $NAME(:$IND,2) \n' )
-iso_der      =  T( tab +'Der_$NAME(:$DERIND,3) = Der_$NAME(:$DERIND,1) + Der_$NAME(:$DERIND,2) \n' \
-                  +tab +'Der_$NAME(:$DERIND,4) = Der_$NAME(:$DERIND,1) - Der_$NAME(:$DERIND,2) \n' )
-iso_lap      =  T( tab +'Lap_$NAME(:$IND,3) = Lap_$NAME(:$IND,1) + Lap_$NAME(:$IND,2) \n' \
-                  +tab +'Lap_$NAME(:$IND,4) = Lap_$NAME(:$IND,1) - Lap_$NAME(:$IND,2) \n' )
+iso_normal   =  T( tab +'R%$NAME(:$IND,3) = R%$NAME(:$IND,1) + R%$NAME(:$IND,2) \n' \
+                  +tab +'R%$NAME(:$IND,4) = R%$NAME(:$IND,1) - R%$NAME(:$IND,2) \n' )
+iso_der      =  T( tab +'R%Der_$NAME(:$DERIND,3) = R%Der_$NAME(:$DERIND,1) + R%Der_$NAME(:$DERIND,2) \n' \
+                  +tab +'R%Der_$NAME(:$DERIND,4) = R%Der_$NAME(:$DERIND,1) - R%Der_$NAME(:$DERIND,2) \n' )
+iso_lap      =  T( tab +'R%Lap_$NAME(:$IND,3) = R%Lap_$NAME(:$IND,1) + R%Lap_$NAME(:$IND,2) \n' \
+                  +tab +'R%Lap_$NAME(:$IND,4) = R%Lap_$NAME(:$IND,1) - R%Lap_$NAME(:$IND,2) \n' )
 
-mpi          =  T( tab + 'call MPI_ALLREDUCE(MPI_IN_PLACE,$NAME(:$TOTALIND,1:2),$TRANS_SIZE, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, mpi_err)')
+mpi          =  T( tab + 'call MPI_ALLREDUCE(MPI_IN_PLACE,R%$NAME(:$TOTALIND,1:2),$TRANS_SIZE, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, mpi_err)')
 
 Add_template        = T( tab + ' R%$NAME = R1%$NAME + R2%$NAME')
 Multiply_template   = T( tab + ' R%$NAME = a * R1%$NAME')
