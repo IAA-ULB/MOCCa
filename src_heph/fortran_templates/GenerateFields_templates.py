@@ -4,18 +4,16 @@ tab = '    '
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Declaration and allocation statements
 field_decl = T(tab + 'real(KIND=dp), allocatable :: $FIELD(:$DECLIND,:) \n')
-fhist_decl = T(tab + 'real(KIND=dp), allocatable :: ${FIELD}_hist(:$DECLIND,:) \n')
+#fhist_decl = T(tab + 'real(KIND=dp), allocatable :: ${FIELD}_hist(:$DECLIND,:) \n')
 
-field_allo = T( tab + 'if(.not.allocated($FIELD)) then\n'+\
-               2*tab + 'allocate($FIELD(mv$ALLOCIND,$ISOSIZE)) \n'   +\
-               2*tab + 'allocate(${FIELD}_hist(mv$ALLOCIND,$ISOSIZE)) \n'+\
-               2*tab + '$FIELD = 0.0 ; ${FIELD}_hist = 0.0 \n' + \
+field_allo = T( tab + 'if(.not.allocated(F%$FIELD)) then\n'+\
+               2*tab + 'allocate(F%$FIELD(mv$ALLOCIND,$ISOSIZE)) \n'   +\
+               2*tab + 'F%$FIELD = 0.0 \n' + \
                  tab + 'endif \n')
 
-field_allo_b = T(3*tab + 'if(.not.allocated($FIELD)) then\n'+\
-                     4*tab + 'allocate($FIELD(mv$ALLOCIND,$ISOSIZE)) \n'   +\
-                     4*tab + 'allocate(${FIELD}_hist(filemv$ALLOCIND,$ISOSIZE)) \n'+\
-                     4*tab + '$FIELD = 0.0 ; ${FIELD}_hist = 0.0 \n' + \
+field_allo_b = T(3*tab + 'if(.not.allocated(F%$FIELD)) then\n'+\
+                     4*tab + 'allocate(F%$FIELD(mv$ALLOCIND,$ISOSIZE)) \n'   +\
+                     4*tab + 'F%$FIELD = 0.0 \n' + \
                      3*tab + 'endif \n')
 
 field_hist   = T(   tab + 'if(calcall) then \n' + 
@@ -23,7 +21,7 @@ field_hist   = T(   tab + 'if(calcall) then \n' +
                   2*tab + '$FIELD = 0.0 \n'           + 
                     tab + 'endif \n')
 
-field_condition_start = T( tab + 'if(calcall .or. (all($FIELD .eq. 0.0))) then \n')
+field_condition_start = T( tab + 'if(calcall .or. (all(F%$FIELD .eq. 0.0))) then \n')
 field_condition_end   = T( tab + 'endif \n')
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -37,6 +35,11 @@ field_calc_den       = T(' * $DENSITY(:$DENIND,$ISOALT)')
 field_calc_DD        = T(' * pow($DENSITY(:$DENIND,$ISOALT), $DD)')
 
 field_calc_full      = T(2*tab + '& $SIGN $CPLCTE $EXPR1 $EXTRA & \n') 
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+# Dealing with potential vectors
+Add       = T( tab + ' F%$FIELD = F1%$FIELD + F2%$FIELD')
+Multiply  = T( tab + ' F%$FIELD = a * F1%$FIELD')
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Recombination statements

@@ -716,6 +716,10 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     reading         = ''
     cleaning        = ''
 
+    init            = ''
+    add             = ''
+    multiply        = ''
+    
     pairtotal_neutron = ''
     pairtotal_proton  = ''
     #---------------------------------------------------------------------------
@@ -802,13 +806,16 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     #---------------------------------------------------------------------------
     # Generate the fields of the single-particle hamiltonian
-    (fielddec, fieldcalc, fieldprecon, fieldwrite,fieldread, fieldclean) =     \
-                                         GenerateFields(so,oldso, ph_pp_decoupl)
+    (fielddec, fieldini, fieldcalc,fieldprecon,fieldwrite,fieldread,fieldclean,\
+     fieldadd, fieldmultiply) =   GenerateFields(so, oldso,ph_pp_decoupl)
     pot_declaration = pot_declaration + fielddec + '\n'
     writing     = writing     + fieldwrite 
     reading     = reading     + fieldread 
     precond     = precond     + fieldprecon
     cleaning    = cleaning    + fieldclean
+    init        = init        + fieldini
+    add         = add         + fieldadd
+    multiply    = multiply    + fieldmultiply
     #---------------------------------------------------------------------------
     # Generate the expressions for the actions of the Skyrme fields
     SkyrmeAction = ''
@@ -854,17 +861,23 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     reading           = LineFormat(reading)
     writing           = LineFormat(writing)
     cleaning          = LineFormat(cleaning)
-    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    init              = LineFormat(init)
+    add               = LineFormat(add)
+    multiply          = LineFormat(multiply)    
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Substitute into the functional.f90 file.  
     dic={}
 
-    dic['NTERMS']         = len(Functional_terms)
-    dic['DECLARATION']    = declaration
-    dic['CALCULATION']    = calculation
-    dic['PRINT']          = printing
-    dic['CALCCOEF']       = calccoef   
-    dic['PRINTCOEF_PH']   = printcoef_ph
-    dic['PRINTCOEF_PAIR'] = printcoef_pair
+    dic['NTERMS']                 = len(Functional_terms)
+    dic['DECLARATION']            = declaration
+    dic['CALCULATION']            = calculation
+    dic['INIPOTENTIALS']          = init
+    dic['MULTIPLY_POTENTIALS']    = multiply
+    dic['ADD_POTENTIALS']         = add
+    dic['PRINT']                  = printing
+    dic['CALCCOEF']               = calccoef
+    dic['PRINTCOEF_PH']           = printcoef_ph
+    dic['PRINTCOEF_PAIR']         = printcoef_pair
 
     dic['TOTAL_EVEN']     = sumtotal_even
     if(len(sumtotal_odd)>1):

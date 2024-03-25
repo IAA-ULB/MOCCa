@@ -110,6 +110,11 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   fieldtransfo = ''
       
   fieldclean= '' 
+  
+  fieldini     = ''
+  fieldadd     = ''
+  fieldmultiply= ''
+ 
   #---------------------------------------------------------------------------
   for den in src_heph.heph_functional.Densities_needed:
       #-----------------------------------------------------------------------
@@ -487,7 +492,9 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         dic['ISOSIZE'] = 4
         
       declaration  = declaration + ts.field_decl.substitute(dic)
-      declaration  = declaration + ts.fhist_decl.substitute(dic)
+      # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      # Explicit declaration of the history is no longer needed
+      #declaration  = declaration + ts.fhist_decl.substitute(dic)
       
       # ... and the expression for reading/writing the fields from file
       #     NOTE THAT ONLY NEUTRON/PROTON FIELDS ARE WRITTEN/READ FROM FILE
@@ -513,6 +520,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         
       fieldwrite   = fieldwrite  + ts.field_write_a.substitute(dic)
       fieldwrite   = fieldwrite  + ts.field_write_b.substitute(dic)
+
+      fieldini     = fieldini  + ts.field_allo.substitute(dic)
 
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_calc_a_start.substitute(dic)
@@ -661,6 +670,9 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       FIELDCALC    = FIELDCALC + ts.field_condition_end.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic) + '\n'
 
+      # Add some lines for the multiplication and addition of potentialvectors!
+      fieldadd      = fieldadd      + '\n' +  ts.Add.substitute(dic)
+      fieldmultiply = fieldmultiply + '\n' +  ts.Multiply.substitute(dic)
       #-------------------------------------------------------------------------
       # Code generation for the preconditioning of the fields
       #
@@ -805,7 +817,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         fieldprecon  = fieldprecon + ts.field_precon_end.substitute(dic)
   #-----------------------------------------------------------------------------
 
-  return(declaration, FIELDCALC, fieldprecon, fieldwrite, fieldread, fieldclean)
+  return(declaration, fieldini, FIELDCALC, fieldprecon, fieldwrite, fieldread, \
+         fieldclean, fieldadd, fieldmultiply)
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
   """

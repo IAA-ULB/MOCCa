@@ -431,64 +431,83 @@ $PRINTCOEF_PAIR
 #endif
 
     print 1
- end subroutine PrintEnergy
+end subroutine PrintEnergy
 
 subroutine save_potential_history(F_in, F_out)
-  !-----------------------------------------------------------------------------
-  ! Update the history of the mean-field densities, before calculating an
-  ! updated version.
-  !-----------------------------------------------------------------------------
-  integer :: i
-  type(PotentialVector), intent(in) :: F_in, F_out
+    !---------------------------------------------------------------------------
+    ! Update the history of the mean-field densities, before calculating an
+    ! updated version.
+    !---------------------------------------------------------------------------
+    integer :: i
+    type(PotentialVector), intent(in) :: F_in, F_out
   
-  if(.not.allocated(Potential_updates)) allocate(Potential_updates(memory))
-  if(.not.allocated(Potential_iterates)) allocate(Potential_iterates(memory))
+    if(.not.allocated(Potential_updates)) allocate(Potential_updates(memory))
+    if(.not.allocated(Potential_iterates)) allocate(Potential_iterates(memory))
 
-  do i=1,memory-1
+    do i=1,memory-1
       Potential_updates(memory-i+1)  = Potential_updates(memory-i)
       Potential_iterates(memory-i+1) = Potential_iterates(memory-i)
-  enddo
-  Potential_iterates(1)  = F_in
-  Potential_updates(1)   = F_out + (-1.0d0) * F_in
+    enddo
+    Potential_iterates(1)  = F_in
+    Potential_updates(1)   = F_out + (-1.0d0) * F_in
 !  print *, 'SAVING', maxval(abs(Potential_updates(1)%F_I_I))
 !  print *,  maxval(abs(F_in%F_I_I))
 !  print *,  maxval(abs(F_out%F_I_I))
- end subroutine save_potential_history
+end subroutine save_potential_history
 
- function Add_potentialvector(F1, F2) result(F)
-  type(PotentialVector), intent(in) :: F1, F2
-  type(PotentialVector)             :: F
+function Add_potentialvector(F1, F2) result(F)
+    !---------------------------------------------------------------------------
+    ! Sum two potential-vectors F1 and F2 to get a new potential-vector F, so
+    ! that F_a = F1_a + F2_a for every potential with latin index a.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     F1, F2 : potential-vectors
+    ! Output:
+    !     F      : new potential vector
+    !---------------------------------------------------------------------------
+    type(PotentialVector), intent(in) :: F1, F2
+    type(PotentialVector)             :: F
 
+    ! Automatically generated expressions for all Skyrme potentials
 $INIPOTENTIALS
 $ADD_POTENTIALS
 
-  F%CoulombPotential  = F1%CoulombPotential + F2%CoulombPotential
-  F%ExchangePotential = F1%ExchangePotential + F2%ExchangePotential
+    ! Additions for the Coulomb potentials are always executed
+    F%CoulombPotential  = F1%CoulombPotential  + F2%CoulombPotential
+    F%ExchangePotential = F1%ExchangePotential + F2%ExchangePotential
   
-  if(allocated(F1%Foldedcoul)) then
-    F%Foldedcoul      = F1%Foldedcoul     + F2%Foldedcoul
-    F%Foldedexchange  = F1%Foldedexchange + F2%Foldedexchange
-  endif
+    if(allocated(F1%Foldedcoul)) then
+        F%Foldedcoul      = F1%Foldedcoul     + F2%Foldedcoul
+        F%Foldedexchange  = F1%Foldedexchange + F2%Foldedexchange
+    endif
+end function Add_potentialvector
 
- end function Add_potentialvector
-
- function multiply_potentialvector(a, F1) result(F)
-  type(PotentialVector), intent(in) :: F1
-  real(KIND=dp), intent(in)       :: a
-  type(PotentialVector)             :: F
+function multiply_potentialvector(a, F1) result(F)
+    !---------------------------------------------------------------------------
+    ! Multiply a potential-vector F1 with a scalar a such that 
+    ! F_b = a * F1_b for every potential with latin index b.
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     a      : scalar 
+    !     F1     : potential-vector
+    ! Output:
+    !     F      : new potential vector
+    !---------------------------------------------------------------------------
+    type(PotentialVector), intent(in) :: F1
+    real(KIND=dp), intent(in)         :: a
+    type(PotentialVector)             :: F
 
 $INIPOTENTIALS
 $MULTIPLY_POTENTIALS
 
-  F%CoulombPotential  = a*F1%CoulombPotential 
-  F%ExchangePotential = a*F1%ExchangePotential
-
-  if(allocated(F1%Foldedcoul)) then
-    F%Foldedcoul      = a*F1%Foldedcoul     
-    F%Foldedexchange  = a*F1%Foldedexchange 
-  endif
-  
- end function multiply_potentialvector
+    F%CoulombPotential  = a*F1%CoulombPotential 
+    F%ExchangePotential = a*F1%ExchangePotential
+ 
+    if(allocated(F1%Foldedcoul)) then
+      F%Foldedcoul      = a*F1%Foldedcoul     
+      F%Foldedexchange  = a*F1%Foldedexchange 
+    endif
+end function multiply_potentialvector
 
  function calcRouth_onthefly(Rin, Fin) result(routh)
     !---------------------------------------------------------------------------
@@ -1183,7 +1202,7 @@ $TR   COM2pp = 2*COM2pp
     use pairing_strengths, only : vmicro
     use moments
 
-   type(DensityVector), intent(in)              :: R
+    type(DensityVector), intent(in)             :: R
     type(PotentialVector), intent(in), optional :: Fread
     type(PotentialVector)                       :: F
     real(KIND=dp), intent(in), optional         :: Coulomb_guess(:,:,:)    
