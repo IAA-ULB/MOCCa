@@ -352,7 +352,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
                               !      requires the charge density to be
                               !      constructed
     ! Adopt the relevant quantities to the centre-of-mass of the nucleus
-    if(follow_com) call adapt_com(Density)
+    call adapt_com(Density)
 
     ! Only calculate the fields that have not been initialized from file.
     if(allocated(potentials_read%F_I_I)) then
@@ -451,7 +451,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             Density = densit(rho_can, kappa_pairing)
             ! ..... reconstruct all densities ....
             call ConstructChargeDensity(Density)
-            call ConstructChargeDensity(Density)
             if(follow_com) call adapt_com(Density)
             ! .... and recalculate constrained quantities
             call CalculateMoments(Density)
@@ -480,14 +479,14 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             !potentials_out = AndersonMixPotentials(Potential_iterates, &
             !&                                  Potential_updates,  &
             !&                                  mixstepsize, iter)
-            potentials = 0.5d0 * potentials + 0.5d0 * potentials_out
+            potentials =  potentials_out
           end select
+
         elseif(iter.eq.freezeiter) then
           ! Recalculate the Coulomb potential at the last iteration for comparison
           ! purposes with other codes.
           call solvecoulomb(Density, Potentials)
         endif
-
         !-----------------------------------------------------------------------
         ! Above: actual evolution of physical quantities
         ! Below: administration/bookkeeping

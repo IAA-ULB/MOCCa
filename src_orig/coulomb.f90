@@ -149,9 +149,8 @@ contains
 #endif
     endif
 
-    ! Determine the offsets of the original mesh inside the larger Coulomb mesh    
+    ! Determine the offsets of the original mesh inside the larger Coulomb mesh
     coul_offset_x = BC ; coul_offset_Y = BC ; coul_offset_z = BC
-    
     
     ! If any given axis is not represented, the offset of the mesh in that
     ! direction is zero.
@@ -162,23 +161,19 @@ $REDUZ  coul_offset_z = 0
     if(.not.allocated(Source)) then
         allocate(Source(nx+BC+coul_offset_x, &
         &               ny+BC+coul_offset_y, &
-        &               nz+BC+coul_offset_z))           
+        &               nz+BC+coul_offset_z))
         Source = 0.0_dp
     endif
     
     !---------------------------------------------------------------------------
     ! Initialize all of the arrays.
-    if(.not.allocated(SpherHarmCoulomb)) then
-        ! Check for all things that should have been setup
-        ! Note: checking for the allocation of CoulombPotential would be more
-        !       natural, but it is possible that the potentials have been read
-        !       from file while nothing else in this module has been set up
-        call setupcoulomb(F)
-    endif
-      if(coultreatment.eq.0) then
+    call setupcoulomb(F)
+    !---------------------------------------------------------------------------
+    ! Early return if possible
+    if(coultreatment.eq.0) then
        call stop_timer(T_coulomb)
        return
-    endif        
+    endif
     !---------------------------------------------------------------------------
     ! Set up the source term: - 4 * pi * charge_density
     ! Note that this is set up in the middle of the box, i.e. no source density
@@ -272,17 +267,17 @@ $REDUZ  coul_offset_z = 0
  subroutine ConstructChargeDensity(R)
     !---------------------------------------------------------------------------
     ! Construct the charge density from the proton and neutron densities,  
-    ! using various effective form
+    ! using various effective forms
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: document this routine!
     !---------------------------------------------------------------------------
 
     use Folding
 
     type(DensityVector),intent(inout) :: R
-    !real(KIND=dp), allocatable :: rho_charge(:,:,:)
     real(KIND=dp)              :: temp(nx,ny,nz)
     integer                    :: i,j,k
     real(KIND=dp)              :: rho_el, linX, linY, linZ, volume
-    !real(KIND=dp)              :: rrr,xx,yy,zz
     
     call start_timer(T_chargedensity)
     
@@ -292,6 +287,7 @@ $REDUZ  coul_offset_z = 0
         allocate(R%chargedensity(nx,ny,nz))
     endif
     R%chargedensity = 0.0
+    
     !---------------------------------------------------------------------------
     ! If we account for the finite extent of the charge of the nucleus, then 
     ! we need to fold densities and potentials with gaussians. This sets up the 
@@ -335,23 +331,9 @@ $REDUZ  coul_offset_z = 0
         &                                                            nx, ny, nz)
     endif
 
-    !do k=1,nz
-    !  do j=1,ny
-    !    do i=1,nx
-    !        xx=dx/2.d0+(i-1)*dx
-    !        yy=dx/2.d0+(j-1)*dx
-    !        zz=dx/2.d0+(k-1)*dx
-    !        rrr=sqrt(xx**2 + yy**2 + zz**2)
-    !        temp(i,j,k)=0.070679973d0/(1.d0+exp((rrr-4.d0)/0.3d0))
-    !    enddo       
-    !  enddo
-    !enddo
-
     if(all(protonsize.eq.0.0)) then
         R%chargedensity = temp
     endif
-   
-        
     !---------------------------------------------------------------------------
     ! Neutron contributions to the charge density.
     if(all(neutronsize.eq.0.0)) then
@@ -500,27 +482,28 @@ $REDUZ  coul_offset_z = 0
 
     !---------------------------------------------------------------------------
     ! Set-up the values of r and spherharmcoulomb on the Coulomb mesh.
-    call inimesh(coulmeshx,coulmeshy,coulmeshz,nx+BC+coul_offset_x, &
-    &                                          ny+BC+coul_offset_y, &
-    &                                          nz+BC+coul_offset_z, &
-    &                                          coulgrid,0.0d0,0.0d0,0.0d0)
+    if(.not. allocated(SpherHarmCoulomb)) then
+      call inimesh(coulmeshx,coulmeshy,coulmeshz,nx+BC+coul_offset_x, &
+      &                                          ny+BC+coul_offset_y, &
+      &                                          nz+BC+coul_offset_z, &
+      &                                          coulgrid,0.0d0,0.0d0,0.0d0)
 
-    allocate(r(ox,oy,oz))  ;  r = 0.0_dp
-    allocate(SpherHarmCoulomb(ox,oy,oz,0:maxm,0:maxm,2)) 
-    SpherHarmCoulomb = 0.0_dp
+      allocate(r(ox,oy,oz))  ;  r = 0.0_dp
+      allocate(SpherHarmCoulomb(ox,oy,oz,0:maxm,0:maxm,2)) 
+      SpherHarmCoulomb = 0.0_dp
     
-    do k=1,oz
-      do j=1,oy
-        do i=1,ox
-          r(i,j,k) = sqrt(coulmeshx(i)**2 + coulmeshy(j)**2 + coulmeshz(k)**2)
+      do k=1,oz
+        do j=1,oy
+          do i=1,ox
+            r(i,j,k) = sqrt(coulmeshx(i)**2 + coulmeshy(j)**2 + coulmeshz(k)**2)
+          enddo
         enddo
       enddo
-    enddo
     
-    call GenSphericalHarmonics(maxm,ox,oy,oz,                                  &
-    &                          coulmeshx,coulmeshy, coulmeshz,SpherHarmCoulomb,&
-    &                          QuantisationAxis,SecondaryAxis)
-    
+      call GenSphericalHarmonics(maxm,ox,oy,oz,                                &
+      &                          coulmeshx,coulmeshy, coulmeshz,SpherHarmCoulomb,&
+      &                          QuantisationAxis,SecondaryAxis)
+    endif
     !---------------------------------------------------------------------------
     ! If we account for the finite extent of the charge of the nucleus, then 
     ! we need to fold densities and potentials with gaussians. This sets up the 
@@ -744,13 +727,13 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     !     R: Densityvector (which contains the charge density)
     !     F: Potentialvector (which contains the Coulomp potential)
     !---------------------------------------------------------------------------
-        use vectors
+    use vectors
 
     type(DensityVector), intent(in)   :: R
     type(PotentialVector), intent(in) :: F
     real(KIND=dp) :: CEnergy
     integer       :: i,j,k, ox, oy, oz
-    
+
     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
     
     CEnergy = 0.0_dp
@@ -767,9 +750,11 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
  
  function CoulombEnergy_Exchange(R) result(CEnergy)
     !---------------------------------------------------------------------------
-    ! Calculate the (exchange) electrostatic energy of the system in the 
-    ! Slater approximation. Note that rhop is not necessarily the point-proton 
-    ! density that is passed in.
+    ! Calculate the (exchange) electrostatic energy of the system in the Slater 
+    ! approximation. 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !    R :  a set of mean-field densities
     !---------------------------------------------------------------------------
     use vectors
     

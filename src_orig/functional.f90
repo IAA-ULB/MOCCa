@@ -324,9 +324,9 @@ $PRINTCOEF_PAIR
    65 format (15x, '  Collective T: ',          30x, f15.6)
   
     7 format (15x, ' Coulomb Direct:', 3f15.6)
-   71 format (15x, '   Dir. (point):', 3f15.6)
+   !71 format (15x, '   Dir. (point):', 3f15.6)
     8 format (15x, '       Exchange:', 3f15.6)
-   81 format (15x, '   Exc. (point):', 3f15.6)  
+   !81 format (15x, '   Exc. (point):', 3f15.6)  
 
     9 format (15x, 'Pairing (delta):', 3f15.6)
    91 format (15x, 'Pairing (densi):', 30x, f15.6)
@@ -390,15 +390,15 @@ $PRINTCOEF_PAIR
   
     print *
     print 7, 0.0, CoulombDirect, CoulombDirect
-    if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
-      temp = CoulombEnergy_Direct(Density, Potentials)
-      print 71, 0.0, temp, temp
-    endif
+    !if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
+    !  temp = CoulombEnergy_Direct(Density, Potentials)
+    !  print 71, 0.0, temp, temp
+    !endif
     print 8, 0.0, CoulombExchange, CoulombExchange
-    if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
-      temp = CoulombEnergy_Exchange(Density)
-      print 81, 0.0, temp, temp
-    endif
+    !if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
+    !  temp = CoulombEnergy_Exchange(Density)
+    !  print 81, 0.0, temp, temp
+    !endif
 
     print *
     if( abs(Estabp).lt.1d-10 .and. abs(Estabn).lt.1d-10) then
@@ -667,6 +667,7 @@ end function multiply_potentialvector
 
     ! Direct contribution of the Coulomb potential
     CoulombDirect   = CoulombEnergy_Direct(Rin, Fin)
+    
     ! Exchange contribution
     CoulombExchange = CoulombEnergy_Exchange(Rin) 
 
@@ -869,11 +870,14 @@ $PRINT
     !---------------------------------------------------------------------------
     real(KIND=dp)                   :: Kinetic(2)
     type(DensityVector), intent(in) :: Rin
+    integer                         :: it
 
-$TAUSCALAR    Kinetic = hbm *dv * sum(Rin%D_Nm_Nm(:,:),1)
-$TAUTENSOR    Kinetic = hbm *dv * sum(Rin%D_N_N(:,1,1,:)  &
-$TAUTENSOR            &             + Rin%D_N_N(:,2,2,:)  &
-$TAUTENSOR            &             + Rin%D_N_N(:,3,3,:),1)
+    do it=1,2
+$TAUSCALAR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_Nm_Nm(:,it))
+$TAUTENSOR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_N_N(:,1,1,it)  &
+$TAUTENSOR            &                     + Rin%D_N_N(:,2,2,it)  &
+$TAUTENSOR            &                     + Rin%D_N_N(:,3,3,it),1)
+    enddo
   end function CompKinetic_density
 
 
@@ -1274,7 +1278,7 @@ $CALCPOTENTIALS
     ! and to F_I_S and G_I_N: 
     ! (1) cranking potential
     !---------------------------------------------------------------------------
-    if(present(Fread) .and. (.not. Coulomb_read_from_file)) then
+    if((.not. present(Fread)) .or. (.not. Coulomb_read_from_file)) then
       call SolveCoulomb(R,F)
     endif
     if(.not. present(Fread)) then    
@@ -1358,6 +1362,11 @@ $NTR    G_I_N = G_I_N + crank_current_potential()
 
     call start_timer(T_potentials)
     call start_timer(T_pot_precon)
+
+    ! Everything which is not specifically preconditioned below just gets 
+    ! explicitly copied from the new values.
+    F = F_out
+
 $POTENTIALPRECON
     call stop_timer(T_pot_precon)
     call stop_timer(T_potentials)

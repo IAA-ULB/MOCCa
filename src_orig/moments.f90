@@ -1266,7 +1266,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     enddo
     ! Charge density
     do k=1,nz
-      linear_den(k) = sum(chargedensity(:,:,k))
+      linear_den(k) = sum(R%chargedensity(:,:,k))
     enddo
     ! Volume element is dx^2  * factors 2 for symmetry
     linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)

@@ -122,12 +122,6 @@ implicit none
     ! This can be set in the scfiteration namelist in the scfiteration model.
     integer       :: densitymixing = 0
     !---------------------------------------------------------------------------
-    ! Charge density of the protons, possibly including the correction for the 
-    ! finite size of the proton. It is stored here, as both the moments module 
-    ! and the coulomb module need it, even though Coulomb depends on the moments
-    ! module.
-    real(KIND=dp), allocatable :: chargedensity(:,:,:)
-    !---------------------------------------------------------------------------
     ! The amount of iterations to keep in memory for the density mixing and 
     ! estimation of the convergence rate
     integer            :: memory = 3
