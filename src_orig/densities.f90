@@ -541,11 +541,6 @@ $HFBEXPRESSION
    ! Sum the density over all processes
 $MPIDEN
 #endif
-    
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! The asked for mixing+preconditioning scheme.
-    call MassageDensity()
-    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by 
     ! deriving other ones. 
