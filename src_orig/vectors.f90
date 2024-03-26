@@ -36,10 +36,12 @@ module vectors
     !   \mathcal{R} = (D_I_I, D_N_N, ....)
     !
     ! but also their derivatives, as well as the charge density!
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Note: chargedensity is defined on a (nx,ny,nz) mesh while all the others
+    !       are defined as a (nx*ny*nz) vector for storage efficiency
     !-------------------------------------------------------------------------
 $DECLARATION
     real(KIND=dp), allocatable :: chargedensity(:,:,:)
-
     !---------------------------------------------------------------------------
     ! Separate, manual, declaration of Div.J(r) as calculated from the spwfs
     ! for the more accurate calculation of its multipole moments

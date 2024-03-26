@@ -371,12 +371,12 @@ $PRINTCOEF_PAIR
     print *
     print 7, 0.0, CoulombDirect, CoulombDirect
     if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
-      temp = CoulombEnergy_Direct(D_I_I(:,2))
+      temp = CoulombEnergy_Direct(Density, Potentials)
       print 71, 0.0, temp, temp
     endif
     print 8, 0.0, CoulombExchange, CoulombExchange
     if(protonsize(1).ne.0 .and. (.not. nucleonsize_selfconsistent)) then
-      temp = CoulombEnergy_Exchange(D_I_I(:,2))
+      temp = CoulombEnergy_Exchange(Density)
       print 81, 0.0, temp, temp
     endif
 
@@ -533,7 +533,7 @@ end function multiply_potentialvector
     type(DensityVector), intent(in)   :: Rin
     type(PotentialVector), intent(in) :: Fin
     
-    real(KIND=dp) :: K(2), TE(2), TO(2), PE(2), S(2), C, CE, COM(2,2)
+    real(KIND=dp) :: K(2), TE, TO, PE(2), S, C, CE, COM(2,2)
 
     routh = 0.0d0
 
@@ -554,6 +554,7 @@ end function multiply_potentialvector
     ! Note again: no 2-body COM or rotational correction in here
 
     ! Addition of the various constraints
+    ! TODO: correct this!
     !routh = routh  + sum(Constraint_I_I * Rin%D_I_I)*dv/2.0_dp
     ! Missing = cranking contribution and correct multipole contribution
 
@@ -709,20 +710,37 @@ end function multiply_potentialvector
     call stop_timer(T_energy)
 
  end subroutine CalcEnergy
- 
 
- subroutine CompSkyrme()
+ subroutine CompSkyrme(R, S, T_even, T_odd, PE)
     !---------------------------------------------------------------------------
-    ! Calculate the Skyrme part to the functional.
+    ! Integrate the Skyrme energy density for the given set of densities.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !  R : a density-vector, i.e. a set of densities
+    ! Output:
+    !  S     : total Skyrme energy
+    !  T_even: contribution of time-even terms to S
+    !  T_odd : contribution of time-odd terms to S
+    !  PE    : pairing energy, separated by isospin
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! This routine has a ton of side-effects:
+    !  - sets of the values of the individual terms
+    !  - sets the bilinear, trilinear, quadrilinear and density-dependent 
+    !    partial symmations of the energy.
+    !
+    ! TODO: further 'functionalize' these routines, eliminate side-effects.
     !---------------------------------------------------------------------------
-    real(KIND=dp) :: Edensity(mv)
+    real(KIND=dp)                   :: Edensity(mv)
+    type(DensityVector), intent(in) :: R
+    real(KIND=dp), intent(out)      :: S, T_even, T_odd, PE(2)
+    integer                         :: m
     
 $CALCULATION    
 
-    tot_even = &
+    T_even = &
 $TOTAL_EVEN
 
-    tot_odd  = &
+    T_odd  = &
 $TOTAL_ODD
 
     bilinear = &
@@ -737,12 +755,12 @@ $TOTAL_QUAD
     densitydependent = &
 $TOTAL_DD
 
-    Skyrme = tot_even + tot_odd
+    S = tot_even + tot_odd
 
-    PairDenEnergy(1) = &
+    PE(1) = &
 $TOTALPAIR_NEUTRON
 
-    PairDenEnergy(2) = &
+    PE(2) = &
 $TOTALPAIR_PROTON
 
  end subroutine CompSkyrme
@@ -786,7 +804,7 @@ $PRINT
      print 1
  end subroutine PrintSkyrme
 
- function CompKinetic() result(kinetic)
+ function CompKinetic_spwfs() result(kinetic)
     !---------------------------------------------------------------------------
     ! This subroutine computes the total kinetic energy,
     ! according to the following formula:
@@ -831,19 +849,42 @@ $PRINT
 
     Kinetic=-Kinetic * hbm * dv
     return
-  end function CompKinetic
-  
-  subroutine CompCOMCorrection(do_2body)
+  end function CompKinetic_spwfs
+
+  function CompKinetic_density(Rin) result(kinetic)
     !---------------------------------------------------------------------------
+    ! This subroutine computes the total kinetic energy from the kinetic density
+    !    E_k = -\hbar/2m \int d^3x tau
+    !---------------------------------------------------------------------------
+    ! Note that the 1-body c.o.m. correction is not taken into account here!
+    !---------------------------------------------------------------------------
+    real(KIND=dp)                   :: Kinetic(2)
+    type(DensityVector), intent(in) :: Rin
+
+$TAUSCALAR    Kinetic = hbm *dv * sum(Rin%D_Nm_Nm(:,:),1)
+$TAUTENSOR    Kinetic = hbm *dv * sum(Rin%D_N_N(:,1,1,:)  &
+$TAUTENSOR            &             + Rin%D_N_N(:,2,2,:)  &
+$TAUTENSOR            &             + Rin%D_N_N(:,3,3,:),1)
+  end function CompKinetic_density
+
+
+  subroutine CompCOMCorrection(kin, override_2body, Comcorr)
+    !---------------------------------------------------------------------------
+    ! Calculation of the centre-of-mass correction, both one-body and two-body.
     ! General reference for the actual calculation of the entire correction
     !
     ! M. Bender et al., Eur. Phys. J. A 7, 467-478 (2000)
     !
-    ! Input:
-    !  do_2body: whether or not to calculate the two-body centre-of-mass
-    !            correction. This only has effect if we are employing a 
-    !            parameterisation that incorporates such correction of course.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !  Input:
+    ! -------- 
+    !  kin           : real     Kinetic energy for the scaling of the 1-body COM
     !
+    !  override_2body: logical. If true, skip the 2-body COM calculation, even 
+    !                           if the functional requires it.
+    !  Output:
+    ! --------
+    !  ComCorr : 2x2 array, 1/2-body centre-of-mass correction for p/n 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! REMARK FOR FUTURE GENERALISATIONS
     ! ----------------------------------
@@ -940,24 +981,27 @@ $PRINT
     !
     ! It is activated by putting COM1Body = 3, COM2BODY = 0. 
     !---------------------------------------------------------------------------
-    logical, intent(in) :: do_2body
-    integer             :: it, i,j
+    real(KIND=dp), intent(out)    :: comcorr(2,2)
+    logical, intent(in)           :: override_2body
+    real(KIND=dp), intent(in)     :: kin(2)
+
+    integer       :: it, i,j
 $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),tempph(3,2), temppp(3,2), fac
     real(KIND=dp) :: Butler_t, Butler_f, prefac(2)
-    
-    
+
     call start_timer(T_com)
     call start_timer(T_com1)
 
-    ! Reset the one-body COM
-    COMCorrection(1,:) = 0.0_dp
+    !Only reset the one-body part
+    COMCorr(1,:) = 0.0_dp
+
     select case(COM1Body)
     case(0)
       ! No contribution
     case(1,2)
       ! Deduce 1-body COM correction from the Kinetic Energy
-      COMCorrection(1,:) = - Kinetic(:) * nucleonmass/ &
+      COMCorr(1,:) = - Kin(:) * nucleonmass/ &
       &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
     case(3)
       ! Deduce 1-body COM correction from the Kinetic Energy with Butlers 
@@ -966,7 +1010,7 @@ $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
       Butler_t = (1.5 * (neutrons + protons))**(1./3.)
       Butler_f = 2./(Butler_t + 1./(3*Butler_t))
 
-      COMCorrection(1,:) = - Kinetic(:) * nucleonmass * Butler_f/ &
+      COMCorr(1,:) = - Kin(:) * nucleonmass * Butler_f/ &
       &                 (neutrons * nucleonmass(1) + protons * nucleonmass(2))
     end select    
 
@@ -978,7 +1022,7 @@ $NTR      call stp('Two-body COM not implemented yet for Hartree-Fock &
 $NTR             & calculations with time-reversal breaking.')
 $NTR    endif
     
-    if(COM2body .eq. 1 .and. do_2body) then
+    if((COM2body .eq. 1) .and. (.not. override_2body)) then
       !-------------------------------------------------------------------------
       ! The 2-body COM correction, calculated as discussed above
       !-------------------------------------------------------------------------
@@ -986,9 +1030,7 @@ $NTR    endif
 
       NablaMElements = compNablaMelements()
       call start_timer(T_com2_summation)
-
-      COMCorrection(2,:) = 0.0
-
+      COMCorr(2,:) = 0.0
       COM2pp = 0.0 ; COM2ph = 0.0
 
       tempph = 0.0 ; temppp = 0.0
@@ -1066,7 +1108,7 @@ $TR   COM2pp = 2*COM2pp
 
       COM2ph = prefac * COM2ph ; COM2pp = prefac * COM2pp
       do it=1,2
-          COMCorrection(2,it) = COM2ph(it) + COM2pp(it)   
+          COMCorr(2,it) = COM2ph(it) + COM2pp(it)   
       enddo
       call stop_timer(T_com2)
      endif      
@@ -1195,7 +1237,7 @@ $TR   COM2pp = 2*COM2pp
     !
     ! (2)  The Coulomb potential is part of the field-vector, and hence 
     !      gets calculated here as well. 
-    !---------------------------------------------------------------------------    !---------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     use Coulombmod , only : SolveCoulomb, CoulombPotential, Exchangepotential
     use Coulombmod , only : Foldedcoul, FoldedExchange, Coulomb_read_from_file
     use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
@@ -1209,20 +1251,9 @@ $TR   COM2pp = 2*COM2pp
     integer                                     :: it,i,j,k, ox, oy, oz
 
     call start_timer(T_potentials)
-  
-    <<<<<<<<<< ENDED UPDATING HERE <<<<<<<<<<<<<<<<<<<<
-    ! We need to determine if F_I_I was read from file or not. 
-    ! If it was, it already includes Coulomb and constraining potentials and we
-    ! should not add them again.
-    if(.not.calcall) then
-        if(allocated(F_I_I))then
-            rhoread = .true.
-        else
-            rhoread = .false.        
-        endif
-    else
-        rhoread = .false.
-    endif
+
+    ! Copy all the relevant information if this information was presented
+    if(present(Fread)) F = Fread
 
 $CALCPOTENTIALS
     
@@ -1234,31 +1265,34 @@ $CALCPOTENTIALS
     ! and to F_I_S and G_I_N: 
     ! (1) cranking potential
     !---------------------------------------------------------------------------
-    if(calcall .or. (.not. Coulomb_read_from_file)) then
-      call SolveCoulomb(D_I_I(:,2))
+    if(present(Fread) .and. (.not. Coulomb_read_from_file)) then
+      call SolveCoulomb(R,F)
     endif
-    if(.not. rhoread) then    
+    if(.not. present(Fread)) then    
         !-----------------------------------------------------------------------
         ! Add the Coulomb contribution to the potential F_I_I. The index 
         ! juggling is ugly, but necessary, because the Coulomb potential is
         ! defined on a larger mesh.
+        !-----------------------------------------------------------------------
         if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
           &                             (.not. nucleonsize_selfconsistent)) then
           ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
           do k=1,nz
             do j=1,ny
               do i=1,nx
-                F_I_I(meshindex(i,j,k),2)=F_I_I(meshindex(i,j,k),2)           &
-                &                       + CoulombPotential(i+ox,j+oy,k+oz)    &
-                &                       + ExchangePotential(i,j,k)
+                F%F_I_I(meshindex(i,j,k),2)=F%F_I_I(meshindex(i,j,k),2)        &
+                &                       + F%CoulombPotential(i+ox,j+oy,k+oz)   &
+                &                       + F%ExchangePotential(i,j,k)
               enddo
             enddo
           enddo
 
         else
-          ! Use the folded coulombpotential, for full self-consistency.
-          ! Note that both protons and neutrons feel a Coulomb force if their
-          ! charge form factor is taken into account.
+        !-----------------------------------------------------------------------
+        ! Use the folded coulombpotential, for full self-consistency.
+        ! Note that both protons and neutrons feel a Coulomb force if their
+        ! charge form factor is taken into account.
+        !-----------------------------------------------------------------------
           if(.not. allocated(foldedcoul)) then
             call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
           endif 
@@ -1266,9 +1300,9 @@ $CALCPOTENTIALS
             do k=1,nz
               do j=1,ny
                 do i=1,nx
-                  F_I_I(meshindex(i,j,k),it)= F_I_I(meshindex(i,j,k),it)       &
-                  &                              + FoldedCoul(i,j,k,it)        &
-                  &                              + FoldedExchange(i,j,k,it)
+                  F%F_I_I(meshindex(i,j,k),it)=F%F_I_I(meshindex(i,j,k),it)    &
+                  &                              + F%FoldedCoul(i,j,k,it)      &
+                  &                              + F%FoldedExchange(i,j,k,it)
                 enddo
               enddo
             enddo
@@ -1278,27 +1312,39 @@ $CALCPOTENTIALS
         ! Add the contribution from the constraints on the electric multipole 
         ! moments. 
         Constraint_I_I = constraints_sph_elmult(.false.)
-        F_I_I(:,1:2)   =  F_I_I(:,1:2) + Constraint_I_I(:,1:2)
+        F%F_I_I(:,1:2) = F%F_I_I(:,1:2) + Constraint_I_I(:,1:2)
         !-----------------------------------------------------------------------
         ! We added stuff to the proton and neutron potentials, we should be 
         ! consistent with the isospin 0 and 1 potentials
-        F_I_I(:,3) = F_I_I(:,1) + F_I_I(:,2)
-        F_I_I(:,4) = F_I_I(:,1) - F_I_I(:,2)
+        F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
+        F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
         !-----------------------------------------------------------------------
         ! Add the contribution of a cranking constraint to the 
         !    F_I_S and G_I_N potentials
-$NTR    F_I_S = F_I_S + crank_spin_potential()     
-$NTR    G_I_N = G_I_N + crank_current_potential() 
+$NTR    F_I_S = F_I_S + crank_spin_potential()
+$NTR    G_I_N = G_I_N + crank_current_potential()
     endif
     call stop_timer(T_potentials)
 
-  end subroutine calcPotentials
+  end function calcPotentials
   
-  subroutine preconditionpotentials()
+  function preconditionpotentials(F_in, F_out) result(F)
     !---------------------------------------------------------------------------
     ! Precondition the change in potentials from one iteration to the next. 
     ! All code generated by Hephaestos. 
-    !---------------------------------------------------------------------------
+    !
+    ! Input:
+    !   F_in : input potentials for an SCF iteration
+    !   F_out: output potentials for an SCF iteration
+    !
+    ! Output:
+    !   F    : set of preconditioned potentials. For every 
+    !            F_a = F_in,a + P_a [F_out,a - F_in,a]
+    !          where P_a is the preconditioning operator for µ
+    !          mean-field potential a.
+    !------------------------------------------ ---------------------------------
+    type(PotentialVector), intent(in) :: F_in, F_out
+    type(PotentialVector)             :: F
     real(KIND=dp), allocatable :: update(:,:)
 
     call start_timer(T_potentials)
@@ -1307,7 +1353,7 @@ $POTENTIALPRECON
     call stop_timer(T_pot_precon)
     call stop_timer(T_potentials)
  
-  end subroutine preconditionpotentials
+  end function preconditionpotentials
   
   pure function pow( f, alpha) result(pf)
     !---------------------------------------------------------------------------
@@ -1327,7 +1373,7 @@ $POTENTIALPRECON
 
   function apply_sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &
-&                                          sx,sy,sz,iso, onthefly) result(hpsi)
+&                                        sx,sy,sz,iso, onthefly, F) result(hpsi)
     !---------------------------------------------------------------------------
     ! Apply the single-particle hamiltonian to a single-particle wavefunction.
     ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1341,6 +1387,8 @@ $N3                                 dddpsi, &
     !                not referenced when onthefly = .false.
     ! onthefly     : if .true., recalculate the derivatives of psi and store
     !                them in the array psi.
+    ! F            : a set of mean-field potentials determining the 
+    !                singleparticle hamiltonian
     ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Output:
     !    hpsi      : h | psi >
@@ -1363,11 +1411,13 @@ $N3                                 dddpsi, &
     ! applying h.
     ! If false, the derivatives are passed in. If True, the derivatives are not
     ! passed in and need to be calculated.
-    logical, intent(in)       :: onthefly 
-    real(KIND=dp), intent(in)    :: psi(mv,4)  
-    real(KIND=dp), intent(inout) :: dpsi(mv,3,4),ddpsi(mv,6,4)
-$N3 real(KIND=dp), intent(inout) :: dddpsi(mv,10,4)
-    integer, intent(in)       :: sx(4),sy(4),sz(4), iso
+    logical, intent(in)               :: onthefly 
+    real(KIND=dp), intent(in)         :: psi(mv,4)
+    real(KIND=dp), intent(inout)      :: dpsi(mv,3,4),ddpsi(mv,6,4)
+$N3 real(KIND=dp), intent(inout)      :: dddpsi(mv,10,4)
+    integer, intent(in)               :: sx(4),sy(4),sz(4), iso
+    type(PotentialVector), intent(in) :: F
+
     integer                   :: sym(4)
     real(KIND=dp)             :: hpsi(mv,4)
     real(KIND=dp)             :: temp(mv,4)
@@ -1466,7 +1516,7 @@ $N1DELTA                   &   dpsi,   &
 $N2DELTA                   &  ddpsi,   &
 $N3DELTA                   & dddpsi,   &
 $SYMDELTA                  & sx,sy,sz, &
-&                                         iso, onthefly) result(deltapsi)
+&                                         iso, onthefly, F) result(deltapsi)
     !---------------------------------------------------------------------------
     !
     ! onthefly:
@@ -1474,9 +1524,10 @@ $SYMDELTA                  & sx,sy,sz, &
     !   applying delta. If false, the derivatives are passed in. If True, the 
     !   derivatives are not passed in and need to be calculated.
     !---------------------------------------------------------------------------
-    logical, intent(in)          :: onthefly 
-    integer, intent(in)          :: iso
-    real(KIND=dp), intent(in)    :: psi(:,:)  
+    logical, intent(in)               :: onthefly 
+    integer, intent(in)               :: iso
+    type(PotentialVector), intent(in) :: F
+    real(KIND=dp), intent(in)         :: psi(:,:)  
 $N1DELTA    real(KIND=dp), intent(inout) :: dpsi(:,:,:)
 $N2DELTA    real(KIND=dp), intent(inout) :: ddpsi(:,:,:)
 $N3DELTA    real(KIND=dp), intent(inout) :: dddpsi(:,:,:)
@@ -1554,7 +1605,8 @@ $EREAR
     
     ! Subtract contribution by multipole constraints
     Constraint_I_I = constraints_sph_elmult(.false.)
-    SpwfEnergy = SpwfEnergy - sum(Constraint_I_I(:,1:2) * D_I_I(:,1:2))*dv/2.0_dp
+    SpwfEnergy = SpwfEnergy - &
+    &                sum(Constraint_I_I(:,1:2) * Density%D_I_I(:,1:2))*dv/2.0_dp
 
     ! Subtract contribution by cranking constraints
     SpwfEnergy = SpwfEnergy - sum(crankenergy_cut)/2.0_dp
@@ -1600,7 +1652,6 @@ $EREAR
     !---------------------------------------------------------------------------
     ! Clean up the allocated potentials for multiple runs.
     !---------------------------------------------------------------------------
-    $CLEANING
 
   end subroutine clean_potentials
   
@@ -1642,10 +1693,11 @@ $EREAR
 
   end subroutine calcElectronEnergy
 
-  subroutine WritePotentials(chan)
+  subroutine WritePotentials(chan, F)
     !---------------------------------------------------------------------------
     !  Subroutine writing the different potentials to file.
     !---------------------------------------------------------------------------
+    type(PotentialVector), intent(in) :: F
     integer, intent(in) :: chan
     integer             :: io
 
@@ -1661,7 +1713,8 @@ $EREAR
 $WRITEPOTENTIALS
   end subroutine WritePotentials
 
-  subroutine ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed)
+  function ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed) &
+  & result(F)
     !---------------------------------------------------------------------------
     ! Subroutine that reads the different mean-field potentials from file.
     ! Note: this does not rely on MPI I/O and simply reads everything with
@@ -1680,11 +1733,14 @@ $WRITEPOTENTIALS
     !                           calculations. This means just reading them here
     !                           and trusting the rest of the program to do the
     !                           the rest.
+    ! Output:
+    !   F                      : a potential-vector, read from file
     !---------------------------------------------------------------------------
-    integer, intent(in) :: chan, filenx, fileny, filenz
-    logical, intent(in) :: symtransfo_needed
-    integer             :: io, potnumber, potcount, it, filemv
-    character(len=30)   :: potname
+    integer, intent(in)   :: chan, filenx, fileny, filenz
+    logical, intent(in)   :: symtransfo_needed
+    type(PotentialVector) :: F
+    integer               :: io, potnumber, potcount, it, filemv
+    character(len=30)     :: potname
 
 #if(USE_MPI > 0)
     integer             :: mpi_err
@@ -1713,7 +1769,7 @@ $READPOTENTIALS
         end select
     enddo
 
-  end subroutine ReadPotentials
+  end function ReadPotentials
 
   function CompStabilisingFactor(PairE) result(stab)
     !---------------------------------------------------------------------------

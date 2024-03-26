@@ -24,6 +24,7 @@ module hartreefock
  ! NTR: $NTR
  !==============================================================================
  
+ use vectors
  use wavefunctions
  
  implicit none
@@ -382,15 +383,16 @@ contains
     s= 2*s
   end function gasoccupations
 
-  subroutine CalcHFgaps(Fermi, stabfactor)
+  subroutine CalcHFgaps(Fermi, stabfactor, F)
     !---------------------------------------------------------------------------
     ! Dummy routine.
     !
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: Fermi(2), stabfactor(2)
-    real(KIND=dp)             :: trash(2) 
-    ! trash statement to stop the compiler complaining
-    trash = fermi ; trash=stabfactor
+    real(KIND=dp), intent(in)         :: Fermi(2), stabfactor(2)
+    type(PotentialVector), intent(in) :: F
+    real(KIND=dp)                     :: trash(2) 
+    ! trash statements to stop the compiler complaining about unused arguments
+    trash = fermi ; trash=stabfactor ; trash = F%F_I_I(1,1)
 
   end subroutine calcHFgaps
 

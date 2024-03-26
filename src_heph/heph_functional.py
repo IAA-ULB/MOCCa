@@ -806,13 +806,12 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     #---------------------------------------------------------------------------
     # Generate the fields of the single-particle hamiltonian
-    (fielddec, fieldini, fieldcalc,fieldprecon,fieldwrite,fieldread,fieldclean,\
+    (fielddec, fieldini, fieldcalc,fieldprecon,fieldwrite,fieldread,\
      fieldadd, fieldmultiply) =   GenerateFields(so, oldso,ph_pp_decoupl)
     pot_declaration = pot_declaration + fielddec + '\n'
     writing     = writing     + fieldwrite 
     reading     = reading     + fieldread 
     precond     = precond     + fieldprecon
-    cleaning    = cleaning    + fieldclean
     init        = init        + fieldini
     add         = add         + fieldadd
     multiply    = multiply    + fieldmultiply
@@ -860,7 +859,6 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     erear             = LineFormat(erear)
     reading           = LineFormat(reading)
     writing           = LineFormat(writing)
-    cleaning          = LineFormat(cleaning)
     init              = LineFormat(init)
     add               = LineFormat(add)
     multiply          = LineFormat(multiply)    
@@ -912,8 +910,6 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     dic['POTENTIALNUMBER']= len(Densities_needed)
     dic['WRITEPOTENTIALS']= writing
     dic['READPOTENTIALS'] = reading
-    dic['CLEANING']       = cleaning
-
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Making sure to (un)comment the parts of the interfaces of the routines of
     #  sphamil, delta_action and the derivative routines. 
@@ -951,6 +947,13 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       dic['QUADRI'] = ' '
     else:
       dic['QUADRI'] = '!'
+
+    if('D_Nm_Nm' not in Densities_needed):
+      dic['TAUSCALAR'] = '!'
+      dic['TAUTENSOR'] = ' '
+    else:
+      dic['TAUSCALAR'] = ' '
+      dic['TAUTENSOR'] = '!'
     
     if(derivative_order == 1):
       dic['N2'] = ' '    

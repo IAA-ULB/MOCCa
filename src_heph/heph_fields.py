@@ -88,7 +88,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
     fieldprecon:
     fieldwrite :
     fieldread  :
-    fieldclean :
 
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -109,8 +108,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   fieldwrite= ''
   fieldtransfo = ''
       
-  fieldclean= '' 
-  
   fieldini     = ''
   fieldadd     = ''
   fieldmultiply= ''
@@ -215,9 +212,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       fieldlist['p'] = []
       fieldlist['n'] = []        
       cpcte     = ''
-
-      fieldclean = fieldclean + '\n' + ts.clean.substitute(dic)
-      fieldclean = fieldclean + '\n' + ts.clean_b.substitute(dic)
 
       #-----------------------------------------------------------------------
       for nterm, term in enumerate(src_heph.heph_functional.Functional_terms): 
@@ -814,11 +808,10 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
             dic['PZ'] = str(pz)
           fieldprecon  = fieldprecon + ts.field_precon_call.substitute(dic)
           fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
-        fieldprecon  = fieldprecon + ts.field_precon_end.substitute(dic)
   #-----------------------------------------------------------------------------
 
   return(declaration, fieldini, FIELDCALC, fieldprecon, fieldwrite, fieldread, \
-         fieldclean, fieldadd, fieldmultiply)
+         fieldadd, fieldmultiply)
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
   """
