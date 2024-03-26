@@ -43,14 +43,6 @@ module Coulombmod
  implicit none
 
  public
- 
- !------------------------------------------------------------------------------
- ! The array containing the Coulomb Potential in the full Coulomb box
- real(KIND=dp), allocatable :: CoulombPotential(:,:,:)
- real(KIND=dp), allocatable :: ExchangePotential(:,:,:)
- ! Array with the folded Coulomb potential, necessary if we take the 
- ! finite size of the nucleons into account
- real(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExchange(:,:,:,:)
  !------------------------------------------------------------------------------
  !Precision required of the Coulomb Solvers
  real(KIND=dp)              :: Prec = 1e-10
@@ -181,15 +173,7 @@ $REDUZ  coul_offset_z = 0
         ! Note: checking for the allocation of CoulombPotential would be more
         !       natural, but it is possible that the potentials have been read
         !       from file while nothing else in this module has been set up
-        if(present(guess)) then
-          initial_guess = guess
-        else
-          allocate(initial_guess(nx+BC+coul_offset_x, &
-          &                      ny+BC+coul_offset_y, & 
-          &                      nz+BC+coul_offset_z))
-          initial_guess = 0.0d0
-        endif
-        call setupcoulomb(F, initial_guess)
+        call setupcoulomb(F)
     endif
       if(coultreatment.eq.0) then
        call stop_timer(T_coulomb)
@@ -248,36 +232,37 @@ $REDUZ  coul_offset_z = 0
     endif  
     
     ! This routine calculates FoldedCoul and FoldedExchange if required
-    call Obtain_folded_potentials()
+    call Obtain_folded_potentials(F)
 
     call stop_timer(T_coulomb)
     deallocate(source)
  end subroutine SolveCoulomb 
 
- subroutine Obtain_folded_potentials()
+ subroutine Obtain_folded_potentials(F)
     !---------------------------------------------------------------------------
     ! Obtain the folded Coulomb potentials (direct and exchange) if needed.
     ! It is a separate routine from SolveCoulomb because it should also be 
     ! callable from the routine to read potentials.
     !---------------------------------------------------------------------------
+    type(PotentialVector), intent(inout) :: F
 
     if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
       if(nucleonsize_selfconsistent) then
-         FoldedCoul    =FoldCoulombPotential(CoulombPotential(                 &
+         F%FoldedCoul    =FoldCoulombPotential(F%CoulombPotential(             &
          &                                    coul_offset_x+1:coul_offset_x+nx,&
          &                                    coul_offset_y+1:coul_offset_y+ny,&
          &                                    coul_offset_z+1:coul_offset_z+nz))
          
          if(coultreatment .eq. 1) then
-           FoldedExchange=FoldCoulombPotential(ExchangePotential(              &
+           F%FoldedExchange=FoldCoulombPotential(F%ExchangePotential(          &
            &                                  coul_offset_x+1:coul_offset_x+nx,&
            &                                  coul_offset_y+1:coul_offset_y+ny,&
            &                                  coul_offset_z+1:coul_offset_z+nz))
          else
-           if(.not. allocated(FoldedExchange)) then
-            allocate (FoldedExchange(nx,ny,nz,2))
+           if(.not. allocated(F%FoldedExchange)) then
+            allocate (F%FoldedExchange(nx,ny,nz,2))
            endif
-           foldedexchange = 0.0d0
+           F%foldedexchange = 0.0d0
          endif
       endif
     endif
@@ -475,7 +460,7 @@ $REDUZ   linZ=2*nz
     
  end function FoldCoulombPotential
 
- subroutine SetupCoulomb(F,initialguess)
+ subroutine SetupCoulomb(F)
     !---------------------------------------------------------------------------
     ! Initialize the entire module and the fields in the potentialvector
     !
@@ -487,7 +472,6 @@ $REDUZ   linZ=2*nz
     use vectors
     
     type(PotentialVector), intent(inout) :: F
-    real(KIND=dp), intent(in)            :: initialguess(:,:,:)
     integer       :: i,j,k, ox, oy, oz
 
     ! Determine the offsets of the original mesh inside the larger Coulomb mesh    
@@ -505,11 +489,11 @@ $REDUZ  coul_offset_z = 0
 
     !---------------------------------------------------------------------------
     ! Allocate the CoulombPotential array on the full Coulomb mesh
-    allocate(CoulombPotential(ox,oy,oz))
-    CoulombPotential = 0.0_dp
+    allocate(F%CoulombPotential(ox,oy,oz))
+    F%CoulombPotential = 0.0_dp
     ! The exchange potential is only defined on the original mesh
-    allocate(ExchangePotential(nx,ny,nz)) 
-    ExchangePotential = 0.0_dp
+    allocate(F%ExchangePotential(nx,ny,nz)) 
+    F%ExchangePotential = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
     Prec = 1.d-12/(dx**3)
@@ -1094,10 +1078,6 @@ $REDUZ               cycle
   end function Coulomblaplacian
 
   subroutine clean_coulomb()
-    if(allocated(CoulombPotential))  deallocate(CoulombPotential)
-    if(allocated(ExchangePotential)) deallocate(ExchangePotential)
-    if(allocated(FoldedCoul))        deallocate(FoldedCoul)
-    if(allocated(FoldedExchange))    deallocate(FoldedExchange)
     if(allocated(SpherHarmCoulomb))  deallocate(SpherHarmCoulomb)
     if(allocated(r))                 deallocate(r)
     if(allocated(Gaussx))            deallocate(Gaussx)
@@ -1105,7 +1085,6 @@ $REDUZ               cycle
     if(allocated(gaussz))            deallocate(gaussz)
     if(allocated(Coulcoefs))         deallocate(coulcoefs)
     if(allocated(coulmeshx))         deallocate(coulmeshx, coulmeshy, coulmeshz)
-
   end subroutine clean_coulomb
 
 end module Coulombmod

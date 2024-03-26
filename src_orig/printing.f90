@@ -523,33 +523,4 @@ $TR     sumocc = 2*k
     print 2
     print 3
   end subroutine print_qp_header
-
-  subroutine convergence_report()
-    !---------------------------------------------------------------------------
-    ! Print a report on the observed convergence.
-    !---------------------------------------------------------------------------
-
-    use functional
-
-    1 format (80('-'))
-    2 format ('Convergence report')
-    3 format (19x,'     Change^(i)     Change^(i-1)   rate (approx)')
-    4 format ('  Con.  Energy      :', 3es15.2)
-    5 format ('  Con.  Routhian    :', 3es15.2)
-    6 format ('  Con.  E_fu - E_sp :', 3es15.2)
-    7 format ('  Con.  |delta rho| :', 3es15.2)
-    
-    print 1
-    print 2
-    print 3
-    print 4, totalE   - Ehistory(1), Ehistory(1) - Ehistory(2), con_rates(1)
-    print 5, Routhian - Rhistory(1), Rhistory(1) - Rhistory(2), con_rates(2)
-    print 6, SpwfEnergy     - totalE      - SpwfHistory(1) + Ehistory(1), &
-    &        SpwfHistory(1) - Ehistory(1) - SpwfHistory(2) + Ehistory(2), &
-    &        con_rates(3)
-    print 7,  sqrt(sum((D_I_I - D_I_I_hist(:,:,1))**2)*dv) , 0.0 , con_rates(4)
-    print 1
-
-  end subroutine convergence_report
-
 end module

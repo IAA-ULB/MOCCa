@@ -476,7 +476,7 @@ contains
       fileblocks        = HFBlocks
       
       if(inputoption.eq.1) then
-        call read_potentials(12, inputfilename)
+        Potentials = read_potentials(12, inputfilename)
         Coulomb_read_from_file = .true. 
         ! Signalling that we have direct and Exchange potentials read
       endif
@@ -1018,7 +1018,7 @@ contains
 
     !---------------------------------------------------------------------------
     ! Potentials: note that readpotentials handles all MPI affairs itself
-    call readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
+    Potentials = readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
     !-------------------------------------------------------------------------
     ! Multipole moment information
     ! Note: ReadMoment handles all MPI affairs itself
@@ -1240,7 +1240,7 @@ contains
       write(chan, iostat=io) Omega(1:3)
       !-------------------------------------------------------------------------
       ! Potentials on file
-      call writepotentials(chan)
+      call writepotentials(chan,potentials)
       !-------------------------------------------------------------------------
       ! Multipole moment information                             
       !
@@ -1802,16 +1802,17 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
       call stp('')
     endif
 
-    rhon(1:nx,1:ny,1:nz)  => D_I_I(:,1)
-    rhop(1:nx,1:ny,1:nz)  => D_I_I(:,2)
+    rhon(1:nx,1:ny,1:nz)  => Density%D_I_I(:,1)
+    rhop(1:nx,1:ny,1:nz)  => Density%D_I_I(:,2)
 
     call write_header(1)
     write(1, fmt=1) 
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          write(1, fmt='(3f8.3, 3es25.12E3)') meshx(i), meshx(j), meshz(k),      &
-          &                        rhon(i,j,k), rhop(i,j,k), chargedensity(i,j,k) 
+          write(1, fmt='(3f8.3, 3es25.12E3)') meshx(i), meshx(j), meshz(k),    &
+          &                                   rhon(i,j,k), rhop(i,j,k),        &
+          &                                        Density%chargedensity(i,j,k)
         enddo
       enddo
     enddo
@@ -2106,7 +2107,7 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     ! contribution of the direct and exchange Coulomb potentials
     allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
     
-    temp = F_I_I(:,1:2) - constraint_I_I
+    temp = Potentials%F_I_I(:,1:2) - constraint_I_I
 
     Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
     Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
@@ -2127,8 +2128,8 @@ $TR          &                                0.0d0,0.0d0,0.0d0
         do j=1,ny
           do i=1,nx
             Vnucp(i,j,k)          =   Vnucp(i,j,k) &
-            &                       - CoulombPotential(i+ox,j+oy,k+oz)    &
-            &                       - ExchangePotential(i,j,k)
+            &                 - Potentials%CoulombPotential(i+ox,j+oy,k+oz)    &
+            &                 - Potentials%ExchangePotential(i,j,k)
           enddo
         enddo
       enddo
@@ -2138,13 +2139,15 @@ $TR          &                                0.0d0,0.0d0,0.0d0
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Note that there is no index juggling since these matrices are 
       ! conveniently defined on the ordinary mesh.
-      Vnucn = Vnucn - FoldedCoul(:,:,:,1)       - FoldedExchange(:,:,:,1)
-      Vnucp = Vnucp - FoldedCoul(:,:,:,2)       - FoldedExchange(:,:,:,2)
+      Vnucn = Vnucn - Potentials%FoldedCoul(:,:,:,1) &
+      &             - Potentials%FoldedExchange(:,:,:,1)
+      Vnucp = Vnucp - Potentials%FoldedCoul(:,:,:,2) &
+      &             - Potentials%FoldedExchange(:,:,:,2)
     endif
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! The potentials related to the charge density
-    Coulp = CoulombPotential (ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
-    Excp  = ExchangePotential(ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
+    Coulp = Potentials%CoulombPotential (ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
+    Excp  = Potentials%ExchangePotential(ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
     do k=1,nz
       do j=1,ny
         do i=1,nx
@@ -2179,13 +2182,16 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     close(1)
   end subroutine write_potentials
 
-  subroutine read_potentials(chan, ifn)
+  function read_potentials(chan, ifn) result(F)
     !---------------------------------------------------------------------------
     ! Read mean-field potentials from a separate file.
     !
     ! Input: 
     !  * chan : integer, channel number to read the file
     !  * ifn  : input filename (will be checked for existence)
+    !
+    ! Output:
+    !      F  : a set of mean-field potentials
     !
     ! Caution: this routine is currently foreseen for a specific application, 
     !          limited to maximally symmetric calculations and .func files
@@ -2195,14 +2201,15 @@ $TR          &                                0.0d0,0.0d0,0.0d0
                    ! values of the direct and exchange Coulomb potentials 
                    ! correctly on the mesh
   
+    type(PotentialVector)        :: F
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ifn
 
     logical :: exists
     integer :: i,j,k,io, it, mu, nu, ox, oy, oz, headercount
     real(KIND=dp), allocatable :: Vc(:), Ec(:)
-    real(KIND=dp) :: x,y,z
-    character(len=200) :: temp
+    real(KIND=dp)              :: x,y,z
+    character(len=200)         :: temp
      
     inquire(file=inputfilename, exist=exists)
     if(.not.exists) then
@@ -2229,12 +2236,11 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocate the relevant potentials    
-    allocate(F_I_I  (nx*ny*nz,4))     ; F_I_I   = 0.0d0
-    !NS_t0t3:
-    !allocate(F_Nm_Nm(nx*ny*nz,4))     ; F_Nm_Nm = 0.0d0
-    !allocate(G_I_NS (nx*ny*nz,3,3,4)) ; G_I_NS  = 0.0d0
-    allocate(Vc(nx*ny*nz))            ; VC      = 0.0d0
-    allocate(Ec(nx*ny*nz))            ; EC      = 0.0d0
+    allocate(F%F_I_I  (nx*ny*nz,4))     ; F%F_I_I   = 0.0d0
+    allocate(F%F_Nm_Nm(nx*ny*nz,4))     ; F%F_Nm_Nm = 0.0d0
+    allocate(F%G_I_NS (nx*ny*nz,3,3,4)) ; F%G_I_NS  = 0.0d0
+    allocate(Vc(nx*ny*nz))              ; VC        = 0.0d0
+    allocate(Ec(nx*ny*nz))              ; EC        = 0.0d0
 
     ! We assume the points on the file are correctly ordered in 
     ! FORTRAN fashion, such that we do not have to worry about looping 
@@ -2242,19 +2248,19 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     ! This also means the coordinate information is not used.
     do i=1,nx*ny*nz
       read(chan, fmt='(3f8.3, 4es25.12)', iostat=io, advance='no') & 
-      &                            x,y,z, & !unused
-      &                            F_I_I(i,1), F_I_I(i,2),     & ! U(r)
-      &                            Vc(i),  Ec(i)                 ! Coulomb
-      !!NS_t0t3:
-      !read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
-      !&                            F_Nm_Nm(i,1), F_Nm_Nm(i,2)    ! kinetic
+      &                            x,y,z,                          & !unused
+      &                            F%F_I_I(i,1),F%F_I_I(i,2),      & ! U(r)
+      &                            Vc(i),  Ec(i)                     ! Coulomb
 
-      !do mu=1,3
-      !  do nu=1,3
-      !    read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
-      !    &               G_I_NS(i,mu,nu,1), G_I_NS(i,mu,nu,2)
-      !  enddo
-      !enddo
+      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
+      &                            F%F_Nm_Nm(i,1), F%F_Nm_Nm(i,2)    ! kinetic
+
+      do mu=1,3
+        do nu=1,3
+          read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
+          &               F%G_I_NS(i,mu,nu,1), F%G_I_NS(i,mu,nu,2)
+        enddo
+      enddo
       read(chan, *) ! Advance to new line
       
       if(io.ne.0) then
@@ -2266,7 +2272,7 @@ $TR          &                                0.0d0,0.0d0,0.0d0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Make sure the Coulomb module is configured with the right array dimensions
-    call setupCoulomb
+    call setupCoulomb(F)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! The index juggling is ugly, but necessary, because the Coulomb 
     ! potential has a different size than the Lagrange mesh.
@@ -2276,8 +2282,8 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex(i,j,k))
-          ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex(i,j,k))
+          F%CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex(i,j,k))
+          F%ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex(i,j,k))
         enddo
       enddo
     enddo
@@ -2287,22 +2293,22 @@ $TR          &                                0.0d0,0.0d0,0.0d0
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! No finite size effects; correction is simple
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      F_I_I(:,2) = F_I_I(:,2) + Vc(:) + Ec(:)
+      F%F_I_I(:,2) = F%F_I_I(:,2) + Vc(:) + Ec(:)
     else
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Finite size effects taken into account
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Calculate folded potentials from the read-in potentials
-      call obtain_folded_potentials()
+      call obtain_folded_potentials(F)
       ! ... and correct F_I_I for them with ugly index juggling
       do it=1, 2
         do k=1,nz
           do j=1,ny
             do i=1,nx
 
-              F_I_I(meshindex(i,j,k),it)= F_I_I(meshindex(i,j,k),it)           &
-              &                              + FoldedCoul(i,j,k,it)            &
-              &                              + FoldedExchange(i,j,k,it)
+              F%F_I_I(meshindex(i,j,k),it)= F%F_I_I(meshindex(i,j,k),it)       &
+              &                           + F%FoldedCoul(i,j,k,it)             &
+              &                           + F%FoldedExchange(i,j,k,it)
             enddo
           enddo
         enddo
@@ -2311,24 +2317,23 @@ $TR          &                                0.0d0,0.0d0,0.0d0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Make sure isospin combinations are made correctly for all potentials
-    F_I_I(:,3) = F_I_I(:,1) + F_I_I(:,2)
-    F_I_I(:,4) = F_I_I(:,1) - F_I_I(:,2)
+    F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
+    F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
              
-    !NS_t0t3:
-    !F_Nm_Nm(:,3) = F_Nm_Nm(:,1) + F_Nm_Nm(:,2)
-    !F_Nm_Nm(:,4) = F_Nm_Nm(:,1) - F_Nm_Nm(:,2)
+    F%F_Nm_Nm(:,3) = F%F_Nm_Nm(:,1) + F%F_Nm_Nm(:,2)
+    F%F_Nm_Nm(:,4) = F%F_Nm_Nm(:,1) - F%F_Nm_Nm(:,2)
 
-    !do mu=1,3
-    !  do nu=1,3
-    !    G_I_NS(:,mu,nu,3) = G_I_NS(:,mu,nu,1) + G_I_NS(:,mu,nu,2)
-    !    G_I_NS(:,mu,nu,4) = G_I_NS(:,mu,nu,1) - G_I_NS(:,mu,nu,2)
-    !  enddo
-    !enddo
+    do mu=1,3
+      do nu=1,3
+        F%G_I_NS(:,mu,nu,3) = F%G_I_NS(:,mu,nu,1) + F%G_I_NS(:,mu,nu,2)
+        F%G_I_NS(:,mu,nu,4) = F%G_I_NS(:,mu,nu,1) - F%G_I_NS(:,mu,nu,2)
+      enddo
+    enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Close channel after succesfull IO operations.
     close(chan)
-  end subroutine read_potentials
+  end function read_potentials
 
   subroutine write_sp_info(fname)
     !---------------------------------------------------------------------------

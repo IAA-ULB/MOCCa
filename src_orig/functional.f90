@@ -1238,8 +1238,8 @@ $TR   COM2pp = 2*COM2pp
     ! (2)  The Coulomb potential is part of the field-vector, and hence 
     !      gets calculated here as well. 
     !---------------------------------------------------------------------------
-    use Coulombmod , only : SolveCoulomb, CoulombPotential, Exchangepotential
-    use Coulombmod , only : Foldedcoul, FoldedExchange, Coulomb_read_from_file
+    use Coulombmod , only : SolveCoulomb
+    use Coulombmod , only : Coulomb_read_from_file
     use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
     use pairing_strengths, only : vmicro
     use moments
@@ -1293,7 +1293,7 @@ $CALCPOTENTIALS
         ! Note that both protons and neutrons feel a Coulomb force if their
         ! charge form factor is taken into account.
         !-----------------------------------------------------------------------
-          if(.not. allocated(foldedcoul)) then
+          if(.not. allocated(F%foldedcoul)) then
             call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
           endif 
           do it=1, 2
