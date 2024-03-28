@@ -270,122 +270,15 @@ contains
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! rhs now contains the solution to the linear system, i.e. the mixing 
     ! values beta_i.
-    F = iterates(1) +  updates(1)
+    F = iterates(1) +  stepsize * updates(1)
     do i=1,N-1
-      F = F +  stepsize *( &
-        &                rhs(i) * (iterates(i+1) + (-1.0d0) * iterates(1)) &
-        &   +            rhs(i) * (updates(i+1)  + (-1.0d0) * updates(1)))
+      F = F +               rhs(i) * (iterates(i+1) + (-1.0d0) * iterates(1)) &
+       &    +   stepsize * (rhs(i) * (updates(i+1)  + (-1.0d0) * updates(1)))
     enddo
 
     return 
   end function AndersonMixPotentials
-  
-!  function AndersonMix(Fin, Fout, stepsize, maxmem) result(F)
-!    !---------------------------------------------------------------------------
-!    ! Alternative implementation that is a little easier to understand.
-!    !
-!    !
-!    type(Potentialvector), intent(in)  :: Fin, Fout
-!    real(KIND=dp), intent(in)  :: stepsize
-!    integer, intent(in)        :: maxmem
-!    type(Potentialvector)      :: F, residual
 
-!    type(PotentialVector), allocatable, save ::  iterates(:), residuals(:)
-!    type(PotentialVector), allocatable       ::  X(:)
-!    
-!    integer                    :: N, info, i, j, k, lwork, newsize
-!    integer, allocatable       :: ipiv(:)
-!    real(KIND=dp), allocatable :: beta(:), A(:,:), Acopy(:,:), eigval(:), rhs(:)
-!    real(KIND=dp), allocatable :: work(:)
-!    real(KIND=dp)              :: cond
-!    
-!    if(.not.allocated(iterates)) then
-!      allocate(iterates(1), residuals(1))
-!      N = 0
-!    else
-!      N = size(iterates)
-!    endif
-!    
-!    residual = Fout + (-1.0d0) * Fin
-!    F = Fin + stepsize * residual
-
-!    if(N.ne.0) then
-!      !-------------------------------------------------------------------------
-!      ! We can mix if we have some history    
-!      allocate(beta(N)) ; beta = 0.0d0
-!      allocate(A(N,N))  ; A    = 0.0d0
-!      allocate(X(N))
-!      
-!      !-------------------------------------------------------------------------
-!      ! We introduce the shorthand 
-!      ! X(i) = delta F(n-i) - delta F(n)
-!      do i=1,N
-!        X(i) = residuals(i) + (-1.0d0) * residual
-!      enddo    
-!  
-!      !-------------------------------------------------------------------------
-!      ! We build the complete matrix of the linear system
-!      do i=1,N
-!        do j=i,N
-!          A(i,j) = PVectorInproduct(X(i), X(j))
-!          A(j,i) = A(i,j)
-!        enddo
-!      enddo  
-!      Acopy = A ! Copy for diagonalisation
-
-!      !---------------------------------------------------------------------------
-!      ! And then we solve the linear system: 
-!      allocate(rhs(N-1)) ; rhs = 0.0d0  
-!      do i=1,N
-!        rhs(i) = - PVectorInproduct(X(i), residual)
-!      enddo
-!      
-!      allocate(Ipiv(N))
-!      allocate(work(1))
-!      call dsysv ('U', N, 1, A, N, ipiv, rhs, N, work, -1,info)
-!      lwork = int(work(1)) ; deallocate(work) ; allocate(work(lwork))
-!      call dsysv ('U', N, 1, A, N, ipiv, rhs, N, work, lwork,info)
-!      
-!      if(info .ne. 0) then
-!        print *, 'Problem with call to DSYSV in AndersonMix'
-!        print *, 'INFO = ', info      
-!        stop
-!      endif
-!      
-!      print *, 'MIXCOEFFS', rhs
-!    
-!      do i=1,N
-!        F = F + ( &
-!          &                rhs(i) * (iterates(i)   + (-1.0d0) * Fin     ) &
-!          &   + stepsize * rhs(i) * (residuals(i)  + (-1.0d0) * residual))
-!      enddo
-!    endif
-!    !---------------------------------------------------------------------------
-!    ! Save the output
-!    ! (i) using X as a temporary variable
-!    X = iterates
-!    newsize = min(N+1, maxmem)
-!    if(newsize .ne. size(iterates)) then
-!      deallocate(iterates) ; allocate(iterates(newsize))
-!    endif
-!    do i=1,newsize-1
-!      iterates(i+1) = X(i)
-!    enddo
-!        
-!    X = residuals
-!    if(newsize .ne. size(residuals)) then
-!      deallocate(residuals) ; allocate(residuals(newsize))
-!    endif  
-!    do i=1,newsize-1
-!      residuals(i+1) = X(i)
-!    enddo
-!    
-!    iterates(1)  = Fin
-!    residuals(1) = residual 
-!    !---------------------------------------------------------------------------
-!    
-!  end function Andersonmix
-  
   function PVectorInproduct(F1, F2) result(x)
     !---------------------------------------------------------------------------
     ! Define a basic inproduct on the space of the potential vectors.
