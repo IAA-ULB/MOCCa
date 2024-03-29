@@ -299,12 +299,22 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     dic['ADD'           ] = Add
     dic['MULTIPLY'      ] = Multiply
   
+    # Symmetry options
     if(so.timelike):
       dic['TR']  = ''
       dic['NTR'] = '!'
     else:
       dic['TR']  = '!'
       dic['NTR'] = ''
+
+    axes = ['X', 'Y', 'Z']
+    for k in range(3):
+     if(so.ReduceAxes[k] == 1):
+      dic['REDU%s'%axes[k]] = ' '
+      dic['FULL%s'%axes[k]] = '!'
+     else:
+      dic['REDU%s'%axes[k]] = '!'
+      dic['FULL%s'%axes[k]] = ' '
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Here we figure out the symmetries of the ordinary density rho = D_I_I

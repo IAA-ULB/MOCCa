@@ -288,6 +288,7 @@ function densit(rho, kappa) result(R)
     !   meaning that (if necessary) the canonical basis has already been 
     !   constructed.  
     !---------------------------------------------------------------------------
+    external construct_charge_density
     real(KIND=dp), intent(in) :: rho(:), kappa(:,:)
     type(DensityVector)       :: R
 
@@ -305,7 +306,7 @@ function densit(rho, kappa) result(R)
 $INITIALIZATION
 
     if(.not.allocated(R%divJ)) then
-      allocate(R%divJ(nx*ny*nz,4))    
+      allocate(R%divJ(nx*ny*nz,4))
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Zero the current density
@@ -547,15 +548,146 @@ $DERIVATION
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate the densities in isospin representation 
-$ISOSPINCOUPL    
+$ISOSPINCOUPL
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Sum DivJ from the spwfs separately
     call sum_divJ_spwf(R)
     
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Construct the charge density
+    call constructchargedensity(R)
+    
     call stop_timer(T_densities)
 
 end function densit
+
+ subroutine ConstructChargeDensity(R)
+    !---------------------------------------------------------------------------
+    ! Construct the charge density from the proton and neutron densities,
+    ! using various effective forms
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: document this routine!
+    !---------------------------------------------------------------------------
+    use Folding
+
+    type(DensityVector),intent(inout) :: R
+    real(KIND=dp)              :: temp(nx,ny,nz)
+    integer                    :: i,j,k
+    real(KIND=dp)              :: rho_el, linX, linY, linZ, volume
+
+    call start_timer(T_chargedensity)
+
+    ! Deallocation that rho_charge does not have the wrong dimensions
+    if(allocated(R%chargedensity)) deallocate(R%chargedensity)
+    if(.not.allocated(R%chargedensity)) then
+        allocate(R%chargedensity(nx,ny,nz))
+    endif
+    R%chargedensity = 0.0
+
+    !---------------------------------------------------------------------------
+    ! If we account for the finite extent of the charge of the nucleus, then
+    ! we need to fold densities and potentials with gaussians. This sets up the
+    ! required matrices.
+    !
+    ! Note: this little piece of code is duplicated, since in different
+    !       runmodes of the code different Coulomb routines get called in
+    !       different order; this makes sure we get no segfaults.
+    !---------------------------------------------------------------------------
+    if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
+      if(.not.allocated(Gaussx)) then
+          allocate(Gaussx(nx,nx,2,2), Gaussy(ny,ny,2,2), Gaussz(nz,nz,2,2))
+          Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
+      endif
+      call ConstructFoldingMatrices(Gaussx,Gaussy,Gaussz,sx_rho, sy_rho, sz_rho)
+    endif
+
+    !---------------------------------------------------------------------------
+    ! Proton contributions to the charge density.
+    ! We start from the proton point density
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+            temp(i,j,k) = R%D_I_I(meshindex(i,j,k),2)
+        enddo
+      enddo
+    enddo
+
+    if(protonsize(1).gt.0.0) then
+        ! Fold the source with a Gaussian
+        R%chargedensity = R%chargedensity + &
+        & FoldGaussian(temp, GaussX(:,:,1,2), GaussY(:,:,1,2), GaussZ(:,:,1,2),&
+        &                                                            nx, ny, nz)
+    endif
+    if(protonsize(2).gt.0.0) then
+        ! Fold the source with another Gaussian, this time with minus sign.
+        R%chargedensity = R%chargedensity + &
+        & FoldGaussian(temp, GaussX(:,:,2,2), GaussY(:,:,2,2), GaussZ(:,:,2,2),&
+        &                                                            nx, ny, nz)
+    endif
+
+    if(all(protonsize.eq.0.0)) then
+        R%chargedensity = temp
+    endif
+    !---------------------------------------------------------------------------
+    ! Neutron contributions to the charge density.
+    if(all(neutronsize.eq.0.0)) then
+    !NS: subtract electron background
+#if(PASTA==1)
+      linX=nx
+      linY=ny
+      linZ=nz
+$REDUX     linX=2*nx
+$REDUY     linY=2*ny
+$REDUZ     linZ=2*nz
+      volume=linx*dx*linY*dx*linZ*dx
+      rho_el=protons/volume
+      rho_charge=rho_charge-rho_el
+      !print *,'rho_el=',rho_el
+#endif
+      call stop_timer(T_chargedensity)
+      return
+    endif
+
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+           temp(i,j,k) = R%D_I_I(meshindex(i,j,k),1)
+        enddo
+      enddo
+    enddo
+
+    if(neutronsize(1).gt.0.0) then
+        ! Fold the source with a Gaussian
+        R%chargedensity = R%chargedensity + &
+        & FoldGaussian(temp, GaussX(:,:,1,1), GaussY(:,:,1,1), GaussZ(:,:,1,1),&
+        &                                                            nx, ny, nz)
+    endif
+    if(neutronsize(2).gt.0.0) then
+        ! Fold the source with a Gaussian, minus sign this time
+        R%chargedensity = R%chargedensity + &
+        & FoldGaussian(temp, GaussX(:,:,2,1), GaussY(:,:,2,1), GaussZ(:,:,2,1),&
+        &                                                            nx, ny, nz)
+    endif
+    !---------------------------------------------------------------------------
+    !NS: subtract electron background
+#if(PASTA==1)
+
+    linX=nx
+    linY=ny
+    linZ=nz
+
+$REDUX   linX=2*nx
+$REDUY   linY=2*ny
+$REDUZ   linZ=2*nz
+
+    volume=linx*dx*linY*dx*linZ*dx
+    rho_el=protons/volume
+    !print *, protons,sum(rho_charge)*dv
+    R%chargedensity = R%chargedensity -rho_el
+#endif
+    call stop_timer(T_chargedensity)
+ end subroutine ConstructChargeDensity
 
 subroutine sum_divJ_spwf(R)
     !---------------------------------------------------------------------------

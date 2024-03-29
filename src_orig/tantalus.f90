@@ -338,7 +338,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     ! Calculate the initial density vector
     call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
     Density = densit(rho_can, kappa_pairing)
-    call ConstructChargeDensity(Density)
 
     call CalculateMoments(Density)   
                               !=> vital to be called here, 
@@ -420,7 +419,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! From the many-body state, we start calculating observables
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         Density = densit(rho_can, kappa_pairing)
-        call ConstructChargeDensity(Density)
         if(follow_com) call adapt_com(Density)
         ! Calculate the value of all multipole moments
         call CalculateMoments(Density)
@@ -450,7 +448,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
             Density = densit(rho_can, kappa_pairing)
             ! ..... reconstruct all densities ....
-            call ConstructChargeDensity(Density)
             if(follow_com) call adapt_com(Density)
             ! .... and recalculate constrained quantities
             call CalculateMoments(Density)
