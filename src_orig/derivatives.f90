@@ -1053,7 +1053,7 @@ $N3ALL end subroutine Derive_tot_1D
     fy  = 0.0d0
     do k=1,nz
      do j=1,ny
-      do l=1,nx
+      do l=1,ny
        do i=1,nx
          fy(i,j,k,1) = fy(i,j,k,1) + derY  (j,l,1+sy(1))*f(i,l,k,1) &
                        &           - derY  (j,l,2+sy(2))*f(i,l,k,2)
