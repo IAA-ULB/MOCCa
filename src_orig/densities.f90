@@ -578,13 +578,9 @@ end function densit
 
     call start_timer(T_chargedensity)
 
-    ! Deallocation that rho_charge does not have the wrong dimensions
-    if(allocated(R%chargedensity)) deallocate(R%chargedensity)
-    if(.not.allocated(R%chargedensity)) then
-        allocate(R%chargedensity(nx,ny,nz))
-    endif
-    R%chargedensity = 0.0
-
+    ! Deallocation such that rho_charge does not have the wrong dimensions
+    if(allocated(R%chargedensity))      deallocate(R%chargedensity)
+    if(.not.allocated(R%chargedensity)) allocate(R%chargedensity(nx,ny,nz))
     !---------------------------------------------------------------------------
     ! If we account for the finite extent of the charge of the nucleus, then
     ! we need to fold densities and potentials with gaussians. This sets up the
@@ -615,7 +611,7 @@ end function densit
 
     if(protonsize(1).gt.0.0) then
         ! Fold the source with a Gaussian
-        R%chargedensity = R%chargedensity + &
+        R%chargedensity = &
         & FoldGaussian(temp, GaussX(:,:,1,2), GaussY(:,:,1,2), GaussZ(:,:,1,2),&
         &                                                            nx, ny, nz)
     endif
@@ -665,10 +661,11 @@ $REDUZ     linZ=2*nz
     endif
     if(neutronsize(2).gt.0.0) then
         ! Fold the source with a Gaussian, minus sign this time
-        R%chargedensity = R%chargedensity + &
+        R%chargedensity = R%chargedensity - &
         & FoldGaussian(temp, GaussX(:,:,2,1), GaussY(:,:,2,1), GaussZ(:,:,2,1),&
         &                                                            nx, ny, nz)
     endif
+
     !---------------------------------------------------------------------------
     !NS: subtract electron background
 #if(PASTA==1)
