@@ -114,7 +114,7 @@ contains
     real(KIND=dp), intent(in), optional  :: guess(:,:,:)
 
     real(KIND=dp), allocatable      :: source(:,:,:)
-    integer                         :: i,j,k,ii, ox, oy, oz
+    integer                         :: i,j,k,ii
 
     call start_timer(T_coulomb)
 

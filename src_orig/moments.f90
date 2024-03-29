@@ -1092,12 +1092,15 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     type(DensityVector), intent(in)   ,target :: R
     type(Moment),        intent(inout)        :: ToCalculate
+$TR     real(KIND=dp)                         :: trash
 $NTR    integer                               :: it,mu
 $NTR    real(KIND=dp)                         :: rj(nx*ny*nz,3)
 
     !Initialise
     ToCalculate%VectorValue     = 0.0_dp
     ToCalculate%PhysVectorValue = 0.0_dp
+
+$TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     
     !---------------------------------------------------------------------------
     ! Orbital function to integrate over
@@ -2777,9 +2780,13 @@ $NTR    print 102
     !---------------------------------------------------------------------------
     ! This subroutine sets the cutoff function to 1 everywhere.
     !---------------------------------------------------------------------------
-    type(DensityVector), intent(in), target :: R
+    type(DensityVector), intent(in), target  :: R
+    real(KIND=dp)                            :: trash
     if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
     Cutoff = 1.0d0
+
+    trash = R%D_I_I(1,1) ! statement to stop the compiler complaining about 
+                         ! unused variables.
   end subroutine NoCutoff
 !===============================================================================
 ! Read/write moments from file

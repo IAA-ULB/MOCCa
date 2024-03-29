@@ -173,7 +173,7 @@ contains
     integer, intent(in)                :: Nsaved
 
     type(PotentialVector), allocatable :: X(:)
-    integer                    :: N, info, i, j, k, lwork
+    integer                    :: N, info, i, j, lwork
     integer, allocatable       :: ipiv(:)
     real(KIND=dp), allocatable :: beta(:), A(:,:), Acopy(:,:), eigval(:), rhs(:)
     real(KIND=dp), allocatable :: work(:)
@@ -283,46 +283,15 @@ contains
     real(KIND=dp), allocatable :: temp1(:,:),temp2(:,:)
     real(KIND=dp) :: x
     
-    integer :: i,j,k, ox, oy, oz
-
-    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
       
     temp1 = F1%F_I_I
     temp2 = F2%F_I_I
 
-!    do k=1,nz
-!     do j=1,ny
-!      do i=1,nx
-!       temp1(i+(j-1)*nx+(k-1)*ny*nx,2)=temp1(i+(j-1)*nx+(k-1)*ny*nx,2)&
-!       &                       - F1%CoulombPotential(i+ox,j+oy,k+oz)    &
-!       &                       - F1%ExchangePotential(i,j,k)
-!      enddo
-!     enddo
-!    enddo
-!    
-!    do k=1,nz
-!     do j=1,ny
-!      do i=1,nx
-!       temp2(i+(j-1)*nx+(k-1)*ny*nx,2)=temp2(i+(j-1)*nx+(k-1)*ny*nx,2)&
-!       &                       - F2%CoulombPotential(i+ox,j+oy,k+oz)    &
-!       &                       - F2%ExchangePotential(i,j,k)
-!      enddo
-!     enddo
-!    enddo
-      
     x =     sum(temp1*temp2) * dv 
     x = x + sum(F1%F_Nm_Nm*F2%F_Nm_Nm) * dv 
     x = x + sum(F1%G_I_NS*F2%G_I_NS)   * dv 
     x = x + sum(F1%FP_I_I*F2%FP_I_I)   * dv 
     
-!    x = x+ sum(F1%coulombpotential*F2%coulombpotential) * dv 
-!    x = x+ sum(F1%exchangepotential*F2%exchangepotential) * dv 
-
-!    x = x + sum(F1%F_Nm_Nm  * F2%F_Nm_Nm ) * dv
-!    x = x + sum(F1%G_I_NS   * F2%G_I_Ns  ) * dv
-!    x = x + sum(F1%FP_I_I   * F2%FP_I_I  ) * dv  
-!    x = x+ sum(F1%G_I_NS*F2%G_I_NS) * dv 
-
  end function PVectorInproduct
 
 end module

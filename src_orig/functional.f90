@@ -341,7 +341,8 @@ $PRINTCOEF_PAIR
   104 format (15x, '          dE   :', 30x, e15.6)
   105 format (15x, '       Routhian:', 30x, f15.6)
   106 format (15x, '          dR   :', 30x, e15.6)           
-  
+
+#if(PASTA > 0)
   107 format (30x, '         FOR PASTA CALCULATIONS    ')
   108 format (15x, '        e_pasta=(Total energy + electrons + Z[Mn-Mp])/A - Mn')
   109 format (15x, '        e_pasta:', 30x, f15.6)
@@ -352,8 +353,7 @@ $PRINTCOEF_PAIR
   114 format (15x, '      Chempot_p:', 30x, f15.6)
   115 format (15x, ' Chempot_p β-eq:', 30x, f15.6)
   116 format (15x, '       Pressure:', 30x, f15.6)
-
-    real(KIND=dp) :: temp
+#endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Only the very first MPI rank needs to print to STDOUT
@@ -608,7 +608,6 @@ end function multiply_potentialvector
     use densities
 
     logical, intent(in) :: calc_expensive
-    integer                           :: i
     type(DensityVector), intent(in)   :: Rin
     type(PotentialVector), intent(in) :: Fin
 
@@ -740,7 +739,6 @@ end function multiply_potentialvector
     real(KIND=dp)                   :: Edensity(mv)
     type(DensityVector), intent(in) :: R
     real(KIND=dp), intent(out)      :: S, T_even, T_odd, PE(2)
-    integer                         :: m
     
 $CALCULATION    
 

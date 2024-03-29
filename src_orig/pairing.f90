@@ -1020,11 +1020,11 @@ $NTR integer                   :: wavebar
     allocate(gaps_can(nwt,nwt))
    
     if(.not.allocated(HFBgaps)) then
-	! This return is programmed AFTER the allocate, since CRAY compilers 
+        ! This return is programmed AFTER the allocate, since CRAY compilers 
         ! complain about things that might not be allocated at high optimisation
         ! levels.
-	deallocate(gaps_can)
-	return
+        deallocate(gaps_can)
+        return
     endif
     gaps_can = matmul(transpose(cantransfo), HFBgaps)
     gaps_can = matmul(gaps_can, cantransfo)

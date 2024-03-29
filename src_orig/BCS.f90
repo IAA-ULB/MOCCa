@@ -334,7 +334,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
     ! Trash statements to fool CRAY compilers. If this is not here, the compiler
     ! complains about the array being used before being allocated as soon as 
     ! the optimisation level is equal to -O1 or above. I guess this is related 
-    ! to the highly-nested nature of this routine ...	
+    ! to the highly-nested nature of this routine ...
     allocate(indices(1))       ; deallocate(indices)
     allocate(proton_block(1))  ; deallocate(proton_block)
     allocate(neutron_block(1)) ; deallocate(neutron_block)
@@ -439,7 +439,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         c  = 0
         do B=1,8
             N = HFBlocks_global(B) ; if(N.eq.0) cycle
-	    allocate(indices(N))
+            allocate(indices(N))
             indices = Order(BCSqps(si+1:si+N),N)
             do i=1, toblock(B)
               f(si+indices(i)) = occ

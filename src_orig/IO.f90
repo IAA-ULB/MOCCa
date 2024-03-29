@@ -1915,15 +1915,15 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     ! postprocessing to actually construct the densities in the entire box.
     !---------------------------------------------------------------------------
     
-    real(KIND=dp), pointer           :: Sxn(:,:,:), Sxp(:,:,:)
-    real(KIND=dp), pointer           :: Jxn(:,:,:), Jxp(:,:,:)
-    real(KIND=dp), pointer           :: Syn(:,:,:), Syp(:,:,:)
-    real(KIND=dp), pointer           :: Jyn(:,:,:), Jyp(:,:,:)
-    real(KIND=dp), pointer           :: Szn(:,:,:), Szp(:,:,:)
-    real(KIND=dp), pointer           :: Jzn(:,:,:), Jzp(:,:,:)
-    real(KIND=dp), pointer           :: Txn(:,:,:), Txp(:,:,:)
-    real(KIND=dp), pointer           :: Tyn(:,:,:), Typ(:,:,:)
-    real(KIND=dp), pointer           :: Tzn(:,:,:), Tzp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Sxn(:,:,:), Sxp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Jxn(:,:,:), Jxp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Syn(:,:,:), Syp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Jyn(:,:,:), Jyp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Szn(:,:,:), Szp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Jzn(:,:,:), Jzp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Txn(:,:,:), Txp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Tyn(:,:,:), Typ(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Tzn(:,:,:), Tzp(:,:,:)
 
     real(KIND=dp), allocatable, target  :: totalangmom(:,:,:)
   

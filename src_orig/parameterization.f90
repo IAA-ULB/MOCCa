@@ -385,7 +385,9 @@ $RESETPARAMS
     96 format ('   Two-body: self-consistent')
     95 format ('   Two-body: perturbative')
     94 format ('   Two-body: not included')
+#if(PASTA > 0)
     97 format ('   Nuclear pasta calculation: all COM1/2BODY options inactive')
+#endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
     103 format(' Rotational & vibrational correction ')
     104 format('    Not included.')

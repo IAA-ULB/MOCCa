@@ -792,7 +792,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         real(KIND=dp), intent(inout) :: sph(nwt,nwt)
         real(KIND=dp)                :: update(nwt,nwt)
         integer                      :: si, it, m, k, B, N, wave
-        real(KIND=dp), allocatable   :: hpsi(:,:,:), temp(:,:)
+        real(KIND=dp), allocatable   :: hpsi(:,:,:)
         real(KIND=dp)                :: pot_elmult(mv,2)
 #if(USE_MPI > 0)
         integer                    :: mpi_err

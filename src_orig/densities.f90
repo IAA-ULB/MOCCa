@@ -566,7 +566,9 @@ end function densit
     type(DensityVector),intent(inout) :: R
     real(KIND=dp)              :: temp(nx,ny,nz)
     integer                    :: i,j,k
+#if(PASTA==1)
     real(KIND=dp)              :: rho_el, volume
+#endif
 
     call start_timer(T_chargedensity)
 
@@ -678,9 +680,9 @@ subroutine sum_divJ_spwf(R)
     ! in the calculation of any energy for consistency reasons.
     !---------------------------------------------------------------------------
     type(DensityVector), intent(inout) :: R
-    real(KIND=dp) :: temp(nx*ny*nz,4)
-    real(KIND=dp) :: weight
-    integer       :: wave,it
+    !real(KIND=dp) :: temp(nx*ny*nz,4)
+    !real(KIND=dp) :: weight
+    !integer       :: wave,it
 
     R%divJ = 0.0d0
     select case(PairingType)
