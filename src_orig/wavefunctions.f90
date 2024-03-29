@@ -491,7 +491,7 @@ contains
     if(allocated(spwf_map)) deallocate(spwf_map)
     ! First call of subroutine nilsson: do everything BUT construct spwfs
     !NS: number of shells is increased for pasta
-    nshells_ev=max(11,int(max(ININWN,ININWP)**(1.d0/3.d0)))
+    nshells_ev=max(11,int(1.5d0*max(ININWN,ININWP)**(1.d0/3.d0)))
     call nilsson (HFPsi,kparz,spenergies,nshells_ev,nshells_ev-1,ININWT,ININWP,&
     &ININWN,floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,      &
     &                                                                  spwf_map)
