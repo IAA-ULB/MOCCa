@@ -460,11 +460,13 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         if(iter .gt. freezeiter) then
           ! calculate new values for the potentials from the densities
           potentials_out = calcPotentials(Density, coulomb_guess=potentials%CoulombPotential)
-          ! Precondition the new fields
-          ! TODO: add if statement on preconditioning
-          potentials_out = precondition_potentials(potentials, potentials_out)
+          
+          if(scfscheme .eq. 0) then
+            potentials_out = precondition_potentials(potentials, potentials_out)
+          endif
           ! Save the information to memory, throwing out older information.
-          ! This information is not used when mixingscheme = 0.
+          ! This information is not used in any further part of the evolution
+          ! if mixingscheme = 0.
           call save_potential_history(potentials, potentials_out)
 
           select case(mixingscheme)
@@ -473,15 +475,13 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             potentials = potentials_out
           case(1)
             ! Mixing with Anderson acceleration
-            !potentials_out = AndersonMixPotentials(Potential_iterates, &
-            !&                                  Potential_updates,  &
-            !&                                  mixstepsize, iter)
-            potentials =  potentials_out
+            potentials_out = AndersonMixPotentials(Potential_iterates, &
+            &                                      Potential_updates,  &
+            &                                      mixstepsize, iter)
           end select
-
         elseif(iter.eq.freezeiter) then
-          ! Recalculate the Coulomb potential at the last iteration for comparison
-          ! purposes with other codes.
+          ! Recalculate the Coulomb potential at the last iteration for 
+          ! comparison purposes with other codes.
           call solvecoulomb(Density, Potentials)
         endif
         !-----------------------------------------------------------------------

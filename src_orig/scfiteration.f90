@@ -25,7 +25,9 @@ module SCFiteration
   ! Determine the SCF-evolution scheme
   !  (0) => Preconditioning of necessary potentials  (here F_I_I)
   !  (1) => Linear mixing of the necessary densities (here D_I_I)
-  integer :: scfscheme = 0
+  !
+  ! Currently not changeable; only (0) is working.
+  integer, parameter :: scfscheme = 0
   !-----------------------------------------------------------------------------
   ! Determine what to do with mixing of the potentials
   integer       :: mixingscheme = 0
@@ -46,8 +48,7 @@ contains
     integer                             :: mpi_err
 #endif
 
-    namelist /scfiteration/ scfscheme, denmix, preconfactor, mixingscheme, &
-    &                       mixstepsize, memory
+    namelist /scfiteration/ preconfactor, mixingscheme,mixstepsize, memory
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Only the very first MPI rank reads the input
@@ -66,27 +67,13 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Broadcasting the MPI information
 #if(USE_MPI > 0)
-    call MPI_BCAST(scfscheme   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(denmix      , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    !call MPI_BCAST(scfscheme   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(preconfactor, 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(mixingscheme, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(mixstepsize , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(memory      , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Bookkeeping for all MPI ranks
-    ! Interpreting the scfscheme choice in terms of densities and potentials
-    select case(scfscheme)
-    case(0)
-      ! Potential preconditioning
-      densitymixing            = 0
-      potentialpreconditioning = 1
-    case(1)
-      ! Linear mixing of the densities
-      densitymixing            = 1
-      potentialpreconditioning = 0
-    end select
-
+  
   end subroutine readscfiteration
 
   subroutine printscfiteration
@@ -96,7 +83,7 @@ contains
     
     1 format(80('-'))
     2 format(' SCF iteration strategy: ',/, 2x, a30 )
-    3 format('   denmix= '            , f7.4)        
+    !3 format('   denmix= '            , f7.4)        
     4 format('   Preconfactor= '      , f7.4)
     6 format(' Potential mixing active!', /,     &  
     &        '                  memory:' 2x, i4, &
@@ -107,15 +94,14 @@ contains
     case(0)
       print 2, 'Potential preconditioning'
       print 4, preconfactor
-    case(1)
-      print 2, 'Linear mixing of densities'
-      print 3, denmix
+    !case(1)
+    !  print 2, 'Linear mixing of densities'
+    !  print 3, denmix
     end select
     if(mixingscheme.eq.1) then
       print 6, memory, mixstepsize
     endif
   end subroutine printscfiteration
-
   
   function AndersonMixPotentials( iterates, updates, stepsize, Nsaved) result(F)
     !---------------------------------------------------------------------------

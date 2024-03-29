@@ -114,16 +114,8 @@ implicit none
     type(DensityVector), target :: Density_out
     type(DensityVector), target, allocatable :: DensityHistory(:)
     !---------------------------------------------------------------------------
-    ! Density-mixing parameter default value.
-    ! This can be set in the scfiteration namelist in the scfiteration model.
-    real(KIND=dp) :: denmix = 0.75_dp
-    !---------------------------------------------------------------------------
-    ! Type of density mixing to perform. (Default = None)
-    ! This can be set in the scfiteration namelist in the scfiteration model.
-    integer       :: densitymixing = 0
-    !---------------------------------------------------------------------------
-    ! The amount of iterations to keep in memory for the density mixing and 
-    ! estimation of the convergence rate
+    ! The amount of iterations to keep in memory for the density and/or potential
+    ! mixing and estimation of the convergence rate
     integer            :: memory = 3
     !---------------------------------------------------------------------------
     ! As several other modules deal with the density D_I_I and its derivatives
@@ -749,35 +741,6 @@ subroutine sum_divJ_spwf(R)
     R%divJ(:,4) = R%divJ(:,1) - R%divJ(:,2)
   
 end subroutine sum_divJ_spwf
-
-!subroutine MassageDensity()
-!    !---------------------------------------------------------------------------
-!    ! Operate on the density before feeding it into the rest of the program.
-!    !---------------------------------------------------------------------------
-!    real(KIND=dp), target  :: resid(nx*ny*nz,4)
-!$NTR real(KIND=dp), target :: sresid(nx*ny*nz,3,4)
-!    if(all(D_I_I_hist.eq.0.0)) return
-!    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! Compute the residual
-!    resid = D_I_I - D_I_I_hist(:,:,1)
-!$NTR    sresid = D_I_S - D_I_S_hist(:,:,:,1)
-!    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! Perform mixing
-!    select case(densitymixing) 
-!    case(0)
-!        !-----------------------------------------------------------------------
-!        ! Precondition the potentials instead of the densities. 
-!        ! So do nothing to the densities.
-!    case(1)
-!        !-----------------------------------------------------------------------
-!        ! Simple linear mixing at the moment.
-!        D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * resid
-!$NTR    D_I_S = D_I_S_hist(:,:,:,1) + (1-denmix) * sresid
-!    end select
-!    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! Safeguard
-!    where(D_I_I.lt.1d-10) D_I_I = 0 
-!end subroutine MassageDensity
 
 function couple_iso(density, iso) result(coupled)
     !---------------------------------------------------------------------------

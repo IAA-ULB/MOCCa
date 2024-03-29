@@ -139,9 +139,6 @@ module functional
     ! Numerical parameter of the preconditioning of the potentials
     real(KIND=dp) :: preconfactor = 4.0_dp
     !---------------------------------------------------------------------------
-    ! Type of preconditioning to apply
-    integer       :: potentialpreconditioning = 1
-    !---------------------------------------------------------------------------
     ! Stabilisation factor for the pairing:
     !    f = E_cut^2 / E_pair^2
     real(KIND=dp) :: pairstabfactor(2) = 0.0
@@ -1266,10 +1263,7 @@ $TR   COM2pp = 2*COM2pp
     call start_timer(T_potentials)
 
     ! Copy all the relevant information if this information was presented
-    if(present(Fread)) then
-      F = Fread
-      print *, 'READ potentials'
-    endif
+    if(present(Fread)) F = Fread
 
 $CALCPOTENTIALS
     
