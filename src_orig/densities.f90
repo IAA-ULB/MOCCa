@@ -567,14 +567,14 @@ end function densit
     ! Construct the charge density from the proton and neutron densities,
     ! using various effective forms
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! TODO: document this routine!
+    ! TODO: document what this routine does precisely
     !---------------------------------------------------------------------------
     use Folding
 
     type(DensityVector),intent(inout) :: R
     real(KIND=dp)              :: temp(nx,ny,nz)
     integer                    :: i,j,k
-    real(KIND=dp)              :: rho_el, linX, linY, linZ, volume
+    real(KIND=dp)              :: rho_el, volume
 
     call start_timer(T_chargedensity)
 
@@ -627,58 +627,35 @@ end function densit
     endif
     !---------------------------------------------------------------------------
     ! Neutron contributions to the charge density.
-    if(all(neutronsize.eq.0.0)) then
-    !NS: subtract electron background
-#if(PASTA==1)
-      linX=nx
-      linY=ny
-      linZ=nz
-$REDUX     linX=2*nx
-$REDUY     linY=2*ny
-$REDUZ     linZ=2*nz
-      volume=linx*dx*linY*dx*linZ*dx
-      rho_el=protons/volume
-      rho_charge=rho_charge-rho_el
-      !print *,'rho_el=',rho_el
-#endif
-      call stop_timer(T_chargedensity)
-      return
-    endif
-
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-           temp(i,j,k) = R%D_I_I(meshindex(i,j,k),1)
+    if(any(neutronsize .gt. 0.0d0)) then 
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+             temp(i,j,k) = R%D_I_I(meshindex(i,j,k),1)
+          enddo
         enddo
       enddo
-    enddo
 
-    if(neutronsize(1).gt.0.0) then
-        ! Fold the source with a Gaussian
-        R%chargedensity = R%chargedensity + &
-        & FoldGaussian(temp, GaussX(:,:,1,1), GaussY(:,:,1,1), GaussZ(:,:,1,1),&
-        &                                                            nx, ny, nz)
+      if(neutronsize(1).gt.0.0) then
+          ! Fold the source with a Gaussian
+          R%chargedensity = R%chargedensity + &
+          & FoldGaussian(temp, GaussX(:,:,1,1), GaussY(:,:,1,1), GaussZ(:,:,1,1),&
+          &                                                            nx, ny, nz)
+      endif
+      if(neutronsize(2).gt.0.0) then
+          ! Fold the source with a Gaussian, minus sign this time
+          R%chargedensity = R%chargedensity - &
+          & FoldGaussian(temp, GaussX(:,:,2,1), GaussY(:,:,2,1), GaussZ(:,:,2,1),&
+          &                                                            nx, ny, nz)
+      endif
     endif
-    if(neutronsize(2).gt.0.0) then
-        ! Fold the source with a Gaussian, minus sign this time
-        R%chargedensity = R%chargedensity - &
-        & FoldGaussian(temp, GaussX(:,:,2,1), GaussY(:,:,2,1), GaussZ(:,:,2,1),&
-        &                                                            nx, ny, nz)
-    endif
-
     !---------------------------------------------------------------------------
-    !NS: subtract electron background
+    ! When performing simulations for nuclear pasta, one assumes the entire 
+    ! volume is charge neutral: a constant background of electrons floods the 
+    ! entire simulation volume. We subtract this backrgound here.
 #if(PASTA==1)
-
-    linX=nx
-    linY=ny
-    linZ=nz
-
-$REDUX   linX=2*nx
-$REDUY   linY=2*ny
-$REDUZ   linZ=2*nz
-
-    volume=linx*dx*linY*dx*linZ*dx
+    volume=nx*ny*nz*dv   ! simplification by WR: the physical volume simulated
+                         ! can just be gotten by the volume element...
     rho_el=protons/volume
     !print *, protons,sum(rho_charge)*dv
     R%chargedensity = R%chargedensity -rho_el
