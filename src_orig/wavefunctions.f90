@@ -1061,9 +1061,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! Sideeffects:
     !    the contents of the array hfpsi get changed and now are orthonormal.
     !---------------------------------------------------------------------------
-    real(KIND=dp), allocatable         :: overlaps(:,:)
+    real(KIND=dp), allocatable         :: overlaps(:,:), overlaps_copy(:,:)
+    real(KIND=dp), allocatable         :: work(:), eigv(:)
     real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:)
-    integer                    :: N, i, si, B, info
+    integer                    :: N, i, si, B, info, lwork
  
     call start_timer(T_ortho)
  
@@ -1082,6 +1083,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! Build overlaps within this symmetry block 
       call dgemm('t','n',N,N,4*mv, dv,wfs_reshape,4*mv, wfs_reshape, 4*mv, &
       &                            0.0d0, overlaps,N)
+      overlaps_copy = overlaps
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Calculate the cholesky decomposition
       call dpotrf('l',N,overlaps,N,info)
@@ -1090,6 +1092,13 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         print *, 'Issue with the Cholesky decomposition.'
         print *, 'INFO = ', info
       endif
+      allocate(work(1), eigv(N))
+      call DSYEV('N', 'U', N, overlaps_copy, N, eigv, work, -1, info)
+      lwork = int(work(1))
+      deallocate(work) 
+      allocate(work(lwork))
+      call DSYEV('N', 'U', N, overlaps_copy, N, eigv, work, lwork, info)
+      print *, "BLOCK = ", B, " min = ", eigv(1), " max = ", eigv(N)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Solve the linear equations
       !    X L^T = N
@@ -1108,7 +1117,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 !       print *
       !-------------------------------------------------------------------------
  
-      deallocate(overlaps)
+      deallocate(overlaps, eigv,work)
       si = si +N
     enddo
     
