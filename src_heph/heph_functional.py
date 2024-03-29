@@ -720,6 +720,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     add             = ''
     multiply        = ''
     
+    inproduct       = ''
+    
     pairtotal_neutron = ''
     pairtotal_proton  = ''
     #---------------------------------------------------------------------------
@@ -806,8 +808,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     #---------------------------------------------------------------------------
     # Generate the fields of the single-particle hamiltonian
-    (fielddec, fieldini, fieldcalc,fieldprecon,fieldwrite,fieldread,\
-     fieldadd, fieldmultiply) =   GenerateFields(so, oldso,ph_pp_decoupl)
+    (fielddec,fieldini,fieldcalc,fieldprecon,fieldwrite,fieldread, fieldadd, \
+     fieldmultiply, fieldinproduct) =  GenerateFields(so, oldso,ph_pp_decoupl)
     pot_declaration = pot_declaration + fielddec + '\n'
     writing     = writing     + fieldwrite 
     reading     = reading     + fieldread 
@@ -815,6 +817,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     init        = init        + fieldini
     add         = add         + fieldadd
     multiply    = multiply    + fieldmultiply
+    inproduct   = inproduct   + fieldinproduct
     #---------------------------------------------------------------------------
     # Generate the expressions for the actions of the Skyrme fields
     SkyrmeAction = ''
@@ -861,7 +864,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     writing           = LineFormat(writing)
     init              = LineFormat(init)
     add               = LineFormat(add)
-    multiply          = LineFormat(multiply)    
+    multiply          = LineFormat(multiply)
+    inproduct         = LineFormat(inproduct)
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Substitute into the functional.f90 file.  
     dic={}
@@ -992,6 +996,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     else:
       dic['NTR'] = ''
       dic['TR']  = '!'
+    
+    dic['PVECTORINPRODUCT'] = inproduct
     
     with open(src+fname, 'r') as template:
       with open(target+fname, 'w') as generated:

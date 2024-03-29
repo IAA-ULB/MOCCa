@@ -265,33 +265,4 @@ contains
     return 
   end function AndersonMixPotentials
 
-  function PVectorInproduct(F1, F2) result(x)
-    !---------------------------------------------------------------------------
-    ! Define a basic inproduct on the space of the potential vectors.
-    ! 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Input: 
-    !   F1, F2 : potentialvectors to calculate the inproduct of. 
-    !       
-    ! Output: 
-    !      x: inproduct value, i.e. < F_1 | F_2 >
-    !---------------------------------------------------------------------------
-
-    use Coulombmod
-    type(PotentialVector), intent(in) :: F1,F2
-    
-    real(KIND=dp), allocatable :: temp1(:,:),temp2(:,:)
-    real(KIND=dp) :: x
-    
-      
-    temp1 = F1%F_I_I
-    temp2 = F2%F_I_I
-
-    x =     sum(temp1*temp2) * dv 
-    x = x + sum(F1%F_Nm_Nm*F2%F_Nm_Nm) * dv 
-    x = x + sum(F1%G_I_NS*F2%G_I_NS)   * dv 
-    x = x + sum(F1%FP_I_I*F2%FP_I_I)   * dv 
-    
- end function PVectorInproduct
-
 end module

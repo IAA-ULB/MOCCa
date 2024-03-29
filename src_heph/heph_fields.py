@@ -112,6 +112,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   fieldadd     = ''
   fieldmultiply= ''
  
+  fieldinproduct = ''
   #---------------------------------------------------------------------------
   for den in src_heph.heph_functional.Densities_needed:
       #-----------------------------------------------------------------------
@@ -515,7 +516,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       fieldwrite   = fieldwrite  + ts.field_write_a.substitute(dic)
       fieldwrite   = fieldwrite  + ts.field_write_b.substitute(dic)
 
-      #fieldini     = fieldini  + ts.field_allo.substitute(dic)
+      fieldini     = fieldini  + ts.field_allo.substitute(dic)
 
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_calc_a_start.substitute(dic)
@@ -524,6 +525,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       
       FIELDCALC    = FIELDCALC + ts.field_condition_start.substitute(dic)
       
+      fieldinproduct = fieldinproduct + ts.field_inproduct.substitute(dic)
+
       #-------------------------------------------------------------------------
       # Code generation for the calculation of the fields. 
       #
@@ -811,7 +814,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   #-----------------------------------------------------------------------------
 
   return(declaration, fieldini, FIELDCALC, fieldprecon, fieldwrite, fieldread, \
-         fieldadd, fieldmultiply)
+         fieldadd, fieldmultiply, fieldinproduct)
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
   """

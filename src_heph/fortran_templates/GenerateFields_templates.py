@@ -5,6 +5,11 @@ tab = '    '
 # Declaration and allocation statements
 field_decl = T(tab + 'real(KIND=dp), allocatable :: $FIELD(:$DECLIND,:) \n')
 
+field_allo = T( tab + 'if(.not.allocated(F%$FIELD)) then\n'+\
+               2*tab + 'allocate(F%$FIELD(mv$ALLOCIND,$ISOSIZE)) \n'   +\
+               2*tab + 'F%$FIELD = 0.0 \n' + \
+                 tab + 'endif \n')
+
 field_condition_start = T(  \
                        tab + 'if(.not. allocated(F%$FIELD)) then\n'+ \
                      2*tab + 'allocate(F%$FIELD(mv$ALLOCIND,$ISOSIZE)) \n'+ \
@@ -81,6 +86,10 @@ field_precon_call = \
 T( 1*tab +  'update=  PreconditionPotential(update,-preconfactor,1.0_dp, $PX,$PY,$PZ) \n')
 field_precon_add  = \
 T( 1*tab +  'F%${FIELD}(:$IND,:) = F_in%${FIELD}(:$IND,:) + update \n')
+
+#-------------------------------------------------------------------------------
+# Template for inproduct
+field_inproduct = T(1*tab + 'x = x + sum(F1%$FIELD * F2%$FIELD)\n')
 #-------------------------------------------------------------------------------
 # Template for cleaning fields after a run
 clean   = T(   tab+'if(allocated($FIELD)) deallocate($FIELD)')

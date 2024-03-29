@@ -1837,4 +1837,24 @@ $READPOTENTIALS
 
   end function CompStabilisingFactor
 
+  function PVectorInproduct(F1, F2) result(x)
+    !---------------------------------------------------------------------------
+    ! Define a basic inproduct on the space of the potential vectors.
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input: 
+    !   F1, F2 : potentialvectors to calculate the inproduct of. 
+    !       
+    ! Output: 
+    !      x: inproduct value, i.e. < F_1 | F_2 >
+    !---------------------------------------------------------------------------
+    type(PotentialVector), intent(in) :: F1,F2
+    real(KIND=dp) :: x
+
+    x = 0.0d0
+$PVECTORINPRODUCT
+    
+ end function PVectorInproduct
+
+
 end module functional
