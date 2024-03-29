@@ -1276,7 +1276,12 @@ $CALCPOTENTIALS
     ! (1) cranking potential
     !---------------------------------------------------------------------------
     if((.not. present(Fread)) .or. (.not. Coulomb_read_from_file)) then
-      call SolveCoulomb(R,F)
+      if(present(Coulomb_guess)) then
+        call SolveCoulomb(R,F,Coulomb_guess)
+      else
+        ! Start solving from a zero'd initial Coulomb potentials
+        call SolveCoulomb(R,F)
+      endif
     endif
     if(.not. present(Fread)) then    
         !-----------------------------------------------------------------------

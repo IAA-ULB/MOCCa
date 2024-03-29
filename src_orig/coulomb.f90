@@ -97,8 +97,8 @@ contains
     ! Master routine to solve the Coulomb problem for a given source-density.
     !
     ! Input :
-    !     R : density vector with a precalculated charge density
-    !     initial_guess :  optional initial guess for the Coulomb potential
+    !     R     : density vector with a precalculated charge density
+    !     guess :  optional initial guess for the Coulomb potential
     ! Output:
     !     F : potential vector; only the Coulomb fields are modified
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -112,7 +112,6 @@ contains
     type(DensityVector), intent(in)      :: R
     type(PotentialVector), intent(inout) :: F
     real(KIND=dp), intent(in), optional  :: guess(:,:,:)
-    real(KIND=dp), allocatable           :: initial_guess(:,:,:)
 
     real(KIND=dp), allocatable      :: source(:,:,:)
     integer                         :: i,j,k,ii, ox, oy, oz
@@ -170,6 +169,10 @@ $REDUZ  coul_offset_z = 0
     if(coultreatment.eq.0) then
        call stop_timer(T_coulomb)
        return
+    endif
+    ! Only now set to an initial guess
+    if(present(guess)) then
+      F%Coulombpotential = guess
     endif
     !---------------------------------------------------------------------------
     ! Set up the source term: - 4 * pi * charge_density
