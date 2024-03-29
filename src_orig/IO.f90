@@ -1018,7 +1018,7 @@ contains
 
     !---------------------------------------------------------------------------
     ! Potentials: note that readpotentials handles all MPI affairs itself
-    Potentials = readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
+    potentials_read = readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
     !-------------------------------------------------------------------------
     ! Multipole moment information
     ! Note: ReadMoment handles all MPI affairs itself

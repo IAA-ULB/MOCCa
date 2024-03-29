@@ -493,7 +493,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       # ... and the expression for reading/writing the fields from file
       #     NOTE THAT ONLY NEUTRON/PROTON FIELDS ARE WRITTEN/READ FROM FILE
       fieldread    = fieldread   + ts.field_read_a.substitute(dic)
-      fieldread    = fieldread   + ts.field_allo_b.substitute(dic)
+      #fieldread    = fieldread   + ts.field_allo_b.substitute(dic)
       fieldread    = fieldread   + ts.field_read_b.substitute(dic)
       fieldread    = fieldread   + ts.field_read_c.substitute(dic)
       fieldread    = fieldread   + ts.field_read_d.substitute(dic)
@@ -515,12 +515,12 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       fieldwrite   = fieldwrite  + ts.field_write_a.substitute(dic)
       fieldwrite   = fieldwrite  + ts.field_write_b.substitute(dic)
 
-      fieldini     = fieldini  + ts.field_allo.substitute(dic)
+      #fieldini     = fieldini  + ts.field_allo.substitute(dic)
 
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_calc_a_start.substitute(dic)
-      FIELDCALC    = FIELDCALC + ts.field_allo.substitute(dic)
-      FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
+      #FIELDCALC    = FIELDCALC + ts.field_allo.substitute(dic)
+      #FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
       
       FIELDCALC    = FIELDCALC + ts.field_condition_start.substitute(dic)
       

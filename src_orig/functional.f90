@@ -1266,7 +1266,10 @@ $TR   COM2pp = 2*COM2pp
     call start_timer(T_potentials)
 
     ! Copy all the relevant information if this information was presented
-    if(present(Fread)) F = Fread
+    if(present(Fread)) then
+      F = Fread
+      print *, 'READ potentials'
+    endif
 
 $CALCPOTENTIALS
     
@@ -1734,9 +1737,13 @@ $WRITEPOTENTIALS
   function ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed) &
   & result(F)
     !---------------------------------------------------------------------------
-    ! Subroutine that reads the different mean-field potentials from file.
-    ! Note: this does not rely on MPI I/O and simply reads everything with
-    !       rank 0 and then does a bunch of MPI_BCASTS.
+    ! Subroutine that reads the different mean-field potentials from a 
+    ! wavefunction file created by a previous run of the code.
+    ! Notes:
+    !  1. this function does not rely on MPI I/O and simply reads everything 
+    !     with rank 0 and then does a bunch of MPI_BCASTS.
+    !  2. this function should not be confused with the read_potentials routine
+    !     from the IO module.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   chan                  : integer, channel number for input
@@ -1756,7 +1763,7 @@ $WRITEPOTENTIALS
     !---------------------------------------------------------------------------
     integer, intent(in)   :: chan, filenx, fileny, filenz
     logical, intent(in)   :: symtransfo_needed
-    type(PotentialVector) :: F
+    type(PotentialVector) :: F, F_temp
     integer               :: io, potnumber, potcount, it, filemv
     character(len=30)     :: potname
 
@@ -1766,14 +1773,14 @@ $WRITEPOTENTIALS
 
     filemv = filenx * fileny * filenz
 
-    ! Checking how many potentials have been stored
+    ! Checking how many potentials have been stored on file
     if(MPI_RANK .eq. 0) read(chan, iostat=io) potnumber
 #if(USE_MPI > 0)
     call MPI_BCAST(potnumber, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
 
     do potcount = 1,potnumber
-        ! Read the potname
+        ! Read the name of the potential stored
         if(MPI_RANK .eq. 0) read(chan, iostat=io) potname
 #if(USE_MPI > 0)
         call MPI_BCAST(potname,30, MPI_CHARACTER, 0, MPI_COMM_WORLD, mpi_err)
