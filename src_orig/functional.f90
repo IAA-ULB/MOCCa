@@ -875,6 +875,19 @@ $TAUTENSOR            &                     + Rin%D_N_N(:,3,3,it),1)
     enddo
   end function CompKinetic_density
 
+  function effective_mass_potential(F_in) result(em_pot)
+    !---------------------------------------------------------------------------
+    ! TODO: document!
+    !
+    !
+    !---------------------------------------------------------------------------
+    type(PotentialVector), intent(in) :: F_in
+    real(KIND=dp) :: em_pot(mv,4)
+    
+$TAUSCALAR em_pot = F_in%F_Nm_Nm
+$TAUTENSOR em_pot = F_in%F_N_N(:,1,1,:) + F_in%F_N_N(:,2,2,:) + F_in%F_N_N(:,3,3,:)
+    
+  end function effective_mass_potential
 
   subroutine CompCOMCorrection(kin, override_2body, Comcorr)
     !---------------------------------------------------------------------------
