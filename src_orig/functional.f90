@@ -1739,8 +1739,8 @@ $WRITEPOTENTIALS
     ! Notes:
     !  1. this function does not rely on MPI I/O and simply reads everything 
     !     with rank 0 and then does a bunch of MPI_BCASTS.
-    !  2. this function should not be confused with the read_potentials routine
-    !     from the IO module.
+    !  2. this function should not be confused with the readpotentials_separate
+    !     routine from the IO module.
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   chan                  : integer, channel number for input

@@ -476,7 +476,7 @@ contains
       fileblocks        = HFBlocks
       
       if(inputoption.eq.1) then
-        Potentials = read_potentials(12, inputfilename)
+        Potentials = readpotentials_separate(12, inputfilename)
         Coulomb_read_from_file = .true. 
         ! Signalling that we have direct and Exchange potentials read
       endif
@@ -1301,7 +1301,7 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Write the relevant potentials to a file for postprocessing
     if(POTFILE .ne. '') then
-      call write_potentials(POTFILE)
+      call write_potentialfile(POTFILE)
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Single-particle wave function information 
@@ -2023,7 +2023,7 @@ $TR          &                                0.0d0,0.0d0,0.0d0
 
   end subroutine write_timeodd_densities
 
-  subroutine write_potentials(fname)
+  subroutine write_potentialfile(fname)
     !---------------------------------------------------------------------------
     ! Write the following potentials to a file named "fname"
     !  F_I_I(n/p)    F_c       E_c      F_Nm_Nm (n/p)  G_I_NS(n/p) 
@@ -2180,12 +2180,14 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     enddo
 
     close(1)
-  end subroutine write_potentials
+  end subroutine write_potentialfile
 
-  function read_potentials(chan, ifn) result(F)
+  function readpotentials_separate(chan, ifn) result(F)
     !---------------------------------------------------------------------------
-    ! Read mean-field potentials from a separate file.
-    !
+    ! Read mean-field potentials from a separate user-provided file that is 
+    ! NOT a wavefunction file. This routine should not be confused with the 
+    ! readpotentials subroutine from the functional module.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input: 
     !  * chan : integer, channel number to read the file
     !  * ifn  : input filename (will be checked for existence)
@@ -2196,6 +2198,8 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     ! Caution: this routine is currently foreseen for a specific application, 
     !          limited to maximally symmetric calculations and .func files
     !          for which F_Nm_Nm and G_I_NS potentials are defined.
+    !
+    ! 
     !---------------------------------------------------------------------------
     use Coulombmod ! module explicitly 'used' in order to be able to place the 
                    ! values of the direct and exchange Coulomb potentials 
@@ -2333,7 +2337,7 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Close channel after succesfull IO operations.
     close(chan)
-  end function read_potentials
+  end function readpotentials_separate
 
   subroutine write_sp_info(fname)
     !---------------------------------------------------------------------------
