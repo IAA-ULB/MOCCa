@@ -885,7 +885,6 @@ $PBROKEN   enddo
 
       !-------------------------------------------------------------------------
       ! Re < p_x >, Im <p_y> 
-
       do i=1,N
         wave_global  = si+i
         ranki        = rank_map(wave_global)
@@ -899,21 +898,25 @@ $PBROKEN   enddo
            ! Block 1 with block 4  (T-broken)    
 $NTR       do j=1, N4
 $NTR          wave2_global = si+N+N2+N3+j
-$NTR          Derx         =  DendPsi(:,1,:,wave2_global)
-$NTR          Dery         =  DendPsi(:,2,:,wave2_global)
            ! Block 1 with block 3  (T-conserved)    
 $TR        do j=1, N3
 $TR           wave2_global = si+N+j
-$TR           rankj        = rank_map(wave2_global)
-$TR           wave2        = spwf_inverse(wave2_global)
-$TR           ! There is a timereversal operation hidden behind the .true. in
-$TR           ! the lines below!
+              rankj        = rank_map(wave2_global)
+              wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-$TR           call transfer_derpsi(derx, wave2, 1,'DEN',.true., rankj,calc_rank)
-$TR           call transfer_derpsi(dery, wave2, 2,'DEN',.true., rankj,calc_rank)
+              ! TR = .true. => Include a time-reversal operation
+$TR           call transfer_derpsi(derx, wave2, 1,'DEN',TR=.true.,rankj,calc_rank)
+$TR           call transfer_derpsi(dery, wave2, 2,'DEN',TR=.true.,rankj,calc_rank)
+              ! TR = .false. => Don't include a time-reversal operation
+$NTR          call transfer_derpsi(derx, wave2, 1,'DEN',TR=.false.,rankj,calc_rank)
+$NTR          call transfer_derpsi(dery, wave2, 2,'DEN',TR=.false.,rankj,calc_rank)
 #else
-$TR           call transfer_derpsi(derx, wave2, 1,'DEN',.true.)
-$TR           call transfer_derpsi(dery, wave2, 2,'DEN',.true.)
+              ! TR = .true. => Include a time-reversal operation
+$TR           call transfer_derpsi(derx, wave2, 1,'DEN',TR=.true.)
+$TR           call transfer_derpsi(dery, wave2, 2,'DEN',TR=.true.)
+              ! TR = .false. => Don't include a time-reversal operation
+$NTR          call transfer_derpsi(derx, wave2, 1,'DEN',TR=.false.)
+$NTR          call transfer_derpsi(dery, wave2, 2,'DEN',TR=.false.)
 #endif
           if(MPI_RANK.eq.calc_rank) then
 

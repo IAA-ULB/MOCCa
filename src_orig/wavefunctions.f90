@@ -3124,7 +3124,7 @@ subroutine Transfer_derpsi_complete(derpsi, wave, basis &
 &                       )
 #endif
     !---------------------------------------------------------------------------
-    ! Transfer the complere gradient of a wavefunction  
+    ! Transfer the complete gradient of a wavefunction  
     !        HFdpsi/candpsi/dendpsi(:,:,:,wave)   
     ! from the sending MPI_rank to a rank fit for calculations. 
     !

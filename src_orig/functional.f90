@@ -111,6 +111,9 @@ module functional
     ! Separation of 2-body Centre-of-mass correction into particle-hole 
     ! and pairing parts for diagnostic printing
     real(KIND=dp) :: COM2pp(2), COM2ph(2)
+    ! Debugging quantities for the COM2body correction: a separation of all
+    ! these energies according to Cartesian direction
+    real(KIND=dp) :: COM2_pp_debug(3,2), COM2_ph_debug(3,2)
     ! Two definitions of the pairingenergy: one obtained by summing the gaps
     ! and one by integrating the particle-particle part of the functional
     real(KIND=dp) :: PairingEnergy(2), PairDenEnergy(2)
@@ -312,6 +315,15 @@ $PRINTCOEF_PAIR
      print 62 , COMcorrection(2,:), sum(COMcorrection(2,:))
      print 621, COM2ph(:), sum(COM2ph(:))
      print 622, COM2pp(:), sum(COM2pp(:))
+
+     print *, 'DEBUG'
+     print ('(a3, 3f15.6)'), 'ph X',COM2_ph_debug(1,:)
+     print ('(a3, 3f15.6)'), 'ph Y',COM2_ph_debug(2,:)
+     print ('(a3, 3f15.6)'), 'ph Z',COM2_ph_debug(3,:)
+     print ('(a3, 3f15.6)'), 'pp X',COM2_pp_debug(1,:)
+     print ('(a3, 3f15.6)'), 'pp Y',COM2_pp_debug(2,:)
+     print ('(a3, 3f15.6)'), 'pp Z',COM2_pp_debug(3,:)
+     print *
     endif
 
     if(rotcorr .ne.  0) then  
@@ -757,7 +769,7 @@ $PRINT
     logical, intent(in) :: do_2body
     integer             :: it, i,j
 $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
-    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),tempph(3,2), temppp(3,2), fac
+    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt), fac
     real(KIND=dp) :: Butler_t, Butler_f, prefac(2)
     
     
@@ -802,10 +814,7 @@ $NTR    endif
       call start_timer(T_com2_summation)
 
       COMCorrection(2,:) = 0.0
-
-      COM2pp = 0.0 ; COM2ph = 0.0
-
-      tempph = 0.0 ; temppp = 0.0
+      COM2pp = 0.0 ; COM2ph = 0.0 ; COM2_pp_debug = 0.0 ; COM2_ph_debug=0.0
       do i=1,nwt
          ! We sum over all possible (i,j) pairs, the matrix elements are 
          ! correctly calculated either way.
@@ -816,18 +825,18 @@ $NTR    endif
             ! v^2 v^2 part
             fac = rho_can(i)*rho_can(j) 
 $TR         fac = fac / 4.0 ! rho_can is twice too large if T is conserved
-            tempph(1,it) = tempph(1,it) + fac*NablaMElements(1,1,i,j)**2
-            tempph(2,it) = tempph(2,it) + fac*NablaMElements(2,2,i,j)**2
-            tempph(3,it) = tempph(3,it) + fac*NablaMElements(3,1,i,j)**2
+            COM2_ph_debug(1,it) = COM2_ph_debug(1,it) + fac*NablaMElements(1,1,i,j)**2
+            COM2_ph_debug(2,it) = COM2_ph_debug(2,it) + fac*NablaMElements(2,2,i,j)**2
+            COM2_ph_debug(3,it) = COM2_ph_debug(3,it) + fac*NablaMElements(3,1,i,j)**2
 $TR         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 $TR         ! - sum_ij kappa^*{i ibar} kappa^*_{i ibar} kappa_{jbar j} 
 $TR         !                                    Nabla_{i j} \Nabla_{ibar jbar}
 $TR         ! uv uv part
 $TR         ! (in the case of conserved time-reversal)
 $TR         fac = kappa_can(i)*kappa_can(j)
-$TR         temppp(1,it) = temppp(1,it) + fac*NablaMElements(1,1,i,j)**2
-$TR         temppp(2,it) = temppp(2,it) + fac*NablaMElements(2,2,i,j)**2
-$TR         temppp(3,it) = temppp(3,it) + fac*NablaMElements(3,1,i,j)**2
+$TR         COM2_pp_debug(1,it) = COM2_pp_debug(1,it) + fac*NablaMElements(1,1,i,j)**2
+$TR         COM2_pp_debug(2,it) = COM2_pp_debug(2,it) + fac*NablaMElements(2,2,i,j)**2
+$TR         COM2_pp_debug(3,it) = COM2_pp_debug(3,it) + fac*NablaMElements(3,1,i,j)**2
          enddo
       enddo
 
@@ -851,36 +860,42 @@ $NTR            ! (in the case of broken time-reversal)
 $NTR            jj   = si +  j
 $NTR            jbar = conjugp(jj) ; if(jbar .eq.0) cycle
 $NTR            fac = -  kappa_can(ii)*kappa_can(jbar)
-$NTR            temppp(3,it) = temppp(3,it) + fac*NablaMElements(3,1,ii,jj)    &
-$NTR                                  &      *NablaMElements(3,1,ibar,jbar)
-$NTR            temppp(1,it) = temppp(1,it) + fac*NablaMElements(1,1,ii,jj)    &
-$NTR                                  &      *NablaMElements(1,1,ibar,jbar)
-$NTR            temppp(2,it) = temppp(2,it) - fac*NablaMElements(2,2,ii,jj)    &
-$NTR                                  &      *NablaMElements(2,2,ibar,jbar)
+$NTR            COM2_pp_debug(3,it) = COM2_pp_debug(3,it) &
+$NTR            &                   + fac * NablaMElements(3,1,ii,jj)          &
+$NTR            &                         * NablaMElements(3,1,ibar,jbar)
+$NTR            COM2_pp_debug(1,it) = COM2_pp_debug(1,it) &
+$NTR            &                   + fac * NablaMElements(1,1,ii,jj)          &
+$NTR            &                         * NablaMElements(1,1,ibar,jbar)
+$NTR            COM2_pp_debug(2,it) = COM2_pp_debug(2,it) &
+$NTR            &                   - fac * NablaMElements(2,2,ii,jj)          &
+$NTR            &                         * NablaMElements(2,2,ibar,jbar)
 $NTR            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 $NTR          enddo
 $NTR        enddo
 $NTR        si = si + N + N2 + N3 + N4
 $NTR      enddo
-    
       call stop_timer(T_com2_summation)
-      ! Summing the three directions
-      do it=1,2
-        COM2ph(it) = sum(tempph(:,it))
-        COM2pp(it) = sum(temppp(:,it))       
-      enddo
-      
-      ! In the case of Time-reversal conservation, we summed over only half 
-      ! the states
-$TR   COM2ph = 2*COM2ph   
-$TR   COM2pp = 2*COM2pp 
 
       ! The prefactor f
       prefac=hbm*nucleonmass/(neutrons*nucleonmass(1) + protons*nucleonmass(2))
-
-      COM2ph = prefac * COM2ph ; COM2pp = prefac * COM2pp
       do it=1,2
-          COMCorrection(2,it) = COM2ph(it) + COM2pp(it)   
+        COM2_ph_debug(:,it) = prefac(it) * COM2_ph_debug(:,it)
+        COM2_pp_debug(:,it) = prefac(it) * COM2_pp_debug(:,it)
+      enddo
+      ! In the case of Time-reversal conservation, we summed over only half 
+      ! the states
+$TR   COM2_ph_debug = 2*COM2_ph_debug
+$TR   COM2_pp_debug = 2*COM2_pp_debug
+
+      ! Summing the three directions
+      do it=1,2
+        COM2ph(it) = sum(COM2_ph_debug(:,it))
+        COM2pp(it) = sum(COM2_pp_debug(:,it))
+      enddo
+
+      ! The final relevant energy is the sum of ph and pp contributions
+      do it=1,2
+        COMCorrection(2,it) = COM2ph(it) + COM2pp(it)
       enddo
       call stop_timer(T_com2)
      endif      
