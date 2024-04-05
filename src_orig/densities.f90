@@ -908,7 +908,6 @@ $TR           wave2_global = si+N+j
 $TR           call transfer_derpsi(derx, wave2, 1,'DEN',.true.,rankj,calc_rank)
 $TR           call transfer_derpsi(dery, wave2, 2,'DEN',.true.,rankj,calc_rank)
               ! TR = .false. => Don't include a time-reversal operation
-              print *, MPI_RANK, j, wave2_global, rankj, wave2
 $NTR          call transfer_derpsi(derx, wave2, 1,'DEN',.false.,rankj,calc_rank)
 $NTR          call transfer_derpsi(dery, wave2, 2,'DEN',.false.,rankj,calc_rank)
 #else
