@@ -316,14 +316,14 @@ $PRINTCOEF_PAIR
      print 621, COM2ph(:), sum(COM2ph(:))
      print 622, COM2pp(:), sum(COM2pp(:))
 
-     print *, 'DEBUG'
-     print ('(a3, 3f15.6)'), 'ph X',COM2_ph_debug(1,:)
-     print ('(a3, 3f15.6)'), 'ph Y',COM2_ph_debug(2,:)
-     print ('(a3, 3f15.6)'), 'ph Z',COM2_ph_debug(3,:)
-     print ('(a3, 3f15.6)'), 'pp X',COM2_pp_debug(1,:)
-     print ('(a3, 3f15.6)'), 'pp Y',COM2_pp_debug(2,:)
-     print ('(a3, 3f15.6)'), 'pp Z',COM2_pp_debug(3,:)
-     print *
+     !print *, 'DEBUG'
+     !print ('(a3, 3f15.6)'), 'ph X',COM2_ph_debug(1,:)
+     !print ('(a3, 3f15.6)'), 'ph Y',COM2_ph_debug(2,:)
+     !print ('(a3, 3f15.6)'), 'ph Z',COM2_ph_debug(3,:)
+     !print ('(a3, 3f15.6)'), 'pp X',COM2_pp_debug(1,:)
+     !print ('(a3, 3f15.6)'), 'pp Y',COM2_pp_debug(2,:)
+     !print ('(a3, 3f15.6)'), 'pp Z',COM2_pp_debug(3,:)
+     !print *
     endif
 
     if(rotcorr .ne.  0) then  
@@ -842,10 +842,10 @@ $TR         COM2_pp_debug(3,it) = COM2_pp_debug(3,it) + fac*NablaMElements(3,1,i
 
 $NTR      si = 0
 $NTR      do B=1,8,4 ! This is essentially an isospin loop now
-$NTR        N = HFblocks(B) ; if(N.eq.0) cycle
-$NTR        N2 = HFblocks(B+1)
-$NTR        N3 = HFblocks(B+2)
-$NTR        N4 = HFblocks(B+3)
+$NTR        N  = HFblocks_global(B) ; if(N.eq.0) cycle
+$NTR        N2 = HFblocks_global(B+1)
+$NTR        N3 = HFblocks_global(B+2)
+$NTR        N4 = HFblocks_global(B+3)
 $NTR        it = 1  ; if(B .eq.5) it = 2
 $NTR        ! We simply loop over all possible combinations of spwfs
 $NTR        ! as the NablaMElements array is zero in the right places

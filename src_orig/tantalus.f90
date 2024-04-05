@@ -103,6 +103,11 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
 #else
  324 format ( 8x,'| Derivatives of densities via derivative routines          |')
 #endif
+#if(USE_MPI > 0)
+ 325 format ( 8x,'| MPI enabled                                               |')
+#else
+ 325 format ( 8x,'| MPI disabled                                              |')
+#endif
  310 format ( 8x,'|-------------- Environment Information --------------------|')
  311 format ( 8x,'|  Number of MPI_ranks   = ', i6, 27x, '|')
  313 format ( 8x,'|-------------- Compilation Information --------------------|')
@@ -161,6 +166,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
    print 322
    print 323
    print 324
+   print 325
    !----------------------------------------------------------------------------
    ! Environment information
    print 310
