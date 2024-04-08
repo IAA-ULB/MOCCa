@@ -63,9 +63,6 @@ module evolution
     !---------------------------------------------------------------------------
     ! Norm of the gradient and weighted sum of the dispersions
     real(KIND=dp) :: gradientnorm, d2h
-!    !---------------------------------------------------------------------------
-!    ! Precondition, whether to use the PG preconditioner
-!    character(len=20) :: Precondition = 'None'
     !---------------------------------------------------------------------------
     ! Strategy determination for the evolution of the spwfs
     ! Strategy = the "global" selection of algorithm 
@@ -101,9 +98,6 @@ module evolution
     ! algorithm for the linear subproblem or stay faithful to those specified 
     ! by the user. 
     logical :: EstimateParams     = .true.
-    !---------------------------------------------------------------------------
-    ! Procedure pointer for the preconditioning
-    !procedure(Precondition_PG),pointer :: Precon 
     !---------------------------------------------------------------------------
     ! Inverse of the second order derivative matrices with appropriate constants
     real*8, allocatable :: preconX(:,:,:,:)
@@ -1447,124 +1441,6 @@ $N3       &                                         dddmax,                    &
    call stop_timer(T_feasible)
 
   end subroutine feasibleproject
-  
-!===============================================================================
-! Preconditioning routines
-!===============================================================================
-
-!    function Precondition_PG(psi, px, py, pz, iso) result(Ppsi)
-!        !-----------------------------------------------------------------------
-!        ! Apply a suitable preconditioner to the spwf.
-!        !-----------------------------------------------------------------------
-
-!        use functional
-
-!        real(KIND=dp), intent(in), target  :: psi(nx*ny*nz,4)
-!        real(KIND=dp), target              :: Ppsi(nx*ny*nz,4)
-!    
-!        integer, intent(in)   :: px(4),py(4),pz(4), iso
-!        integer               :: i,j,k, l, sx, sy, sz,  it
-!        real(KIND=dp),pointer :: p3(:,:,:,:), Pp3(:,:,:,:)
-!        
-!        it = (iso+3)/2
-!        
-!        p3(1:nx,1:ny,1:nz,1:4) => psi
-!        Pp3(1:nx,1:ny,1:nz,1:4) => Ppsi
-
-!        do l=1,4
-!            sx = (px(l) + 3)/2 ! These are equal to 
-!            sy = (py(l) + 3)/2 !    1    if pi =   -1  or 0
-!            sz = (pz(l) + 3)/2 !    2    if pi =   +1 
-!            
-!            do i=1,ny*nz
-!                Pp3(:,i,1,l) =                                                 &
-!                &                       matmul(preconX(:,:,sx,it),p3(:,i,1,l))
-!            enddo   
-!            do k=1,nz
-!                do i=1,nx
-!                    Pp3(i,:,k,l) = Pp3(i,:,k,l) +                              &
-!                    &                   matmul(preconY(:,:,sy,it),p3(i,:,k,l))
-!                enddo
-!            enddo
-!            do i=1,nx*ny
-!                Pp3(i,1,:,l) = Pp3(i,1,:,l) +                                  &
-!                &                       matmul(preconZ(:,:,sz,it),p3(i,1,:,l))
-!            enddo
-!        enddo
-!    end function Precondition_PG
-
-!    function Precondition_None(psi, px, py, pz, iso) result(Ppsi)
-!        !-----------------------------------------------
-!        ! Apply a suitable preconditioner to the spwf.
-!        !----------------------------------------------
-
-!        real(KIND=dp), intent(in), target :: psi(nx*ny*nz,4)
-!        real(KIND=dp)                     :: Ppsi(nx*ny*nz,4)
-!        integer, intent(in)               :: px(4),py(4),pz(4), iso
-!        
-!        Ppsi = psi
-!    end function Precondition_None
-    
-!    subroutine CalculatePreconditioners
-!        !-----------------------------------------------------------------------
-!        ! Find suitable constants for use in the preconditioners and employ
-!        ! to calculate the preconditioning matrices.
-!        !-----------------------------------------------------------------------
-!    
-!        integer       :: i, loca,k, it, startind, endind
-!        real(KIND=dp) :: epsilon0, inproduct
-!        
-!        if(.not.allocated(preconx)) then
-!            allocate(preconx(nx,nx,2,2))
-!            allocate(precony(ny,ny,2,2))
-!            allocate(preconz(nz,nz,2,2))
-!        endif
-!    
-!        do it=1,2
-!            !-------------------------------------------------------------------
-!            ! Find a proper value for epsilon0
-!            epsilon0 = 0.0_dp
-!            
-!            if (it .eq. 1) then
-!                startind = 1
-!                endind   = nwn
-!            else
-!                startind = nwn+1
-!                endind   = nwt
-!            endif
-!            !-------------------------------------------------------------------
-!            ! Find the minimum sp. energy for this nucleon species.
-!            do i=startind, endind
-!                if(spenergies(i) .lt.  epsilon0) then
-!                    epsilon0 = spenergies(i)
-!                    loca = i
-!                endif
-!            enddo
-!            !-------------------------------------------------------------------
-!            ! Calculate the kinetic energy of this particular level.
-!            Inproduct = 0.0_dp
-!            do k=1,4          
-!                    do i=1,mv
-!                           Inproduct = Inproduct + HFPsi(i,k,loca) *  & 
-!                           &  ( HFddPsi(i,1,k,loca) + &
-!                           &    HFddPsi(i,4,k,loca) + &
-!                           &    HFddPsi(i,6,k,loca))
-!                    enddo
-!            enddo
-!            ! Epsilon is the potential energy, i.e. E_spwf - E_kin
-!            epsilon0 =   epsilon0 + hbm(it) * Inproduct * dv
-!            !-------------------------------------------------------------------
-!            ! Precalculate the inverse of the matrices
-!            !
-!            !  ( epsilon - hbar/2m * Delta)^{-1}
-!            ! 
-!            call InvertDerivatives(epsilon0, -hbm(it),preconX(:,:,:,it),       &
-!            &                                         preconY(:,:,:,it),       &
-!            &                                         preconZ(:,:,:,it))
-!                                           
-!        enddo
-!        
-!    end subroutine CalculatePreconditioners
 
     subroutine clean_evolution()
       if(allocated(preconx)) deallocate(preconx)

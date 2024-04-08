@@ -129,24 +129,24 @@ E_Derm_C_I_Nm_Derk_C_I_Nk      ; -1.0/ 2.0*Cc(t1n2,x1n2,+1,0,1)-1.0/ 2.0*Cc(t2n2
 E_C_I_Nm_C_NkNk_Nm             ; +1.0     *Cc(t1n2,x1n2,+1,0,0)+1.0     *Cc(t2n2,x2n2,-1,0,0) ;   1   ; 0 ; 0
 E_C_I_Nm_C_NkNk_Nm             ; +1.0     *Cc(t1n2,x1n2,+1,0,1)+1.0     *Cc(t2n2,x2n2,-1,0,1) ;   1   ; 1 ; 1
 !---------------------------------------------------------------------------------------------------------------
-! Pairing terms
+! Pairing interaction 
 ! Time-even pairing density
 ! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
-E_DP_I_I_DP_I_I                ; +Vn/4                                              ;   1   ; n ; n
-E_DP_I_I_DP_I_I                ; +Vp/4                                              ;   1   ; p ; p
+E_DP_I_I_DP_I_I                ; +Vn/4                                              ;   1   ; n ; n   
+E_DP_I_I_DP_I_I                ; +Vp/4                                              ;   1   ; p ; p   
 E_D_I_I_DP_I_I_DP_I_I          ; -Vn/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; n ; n
 E_D_I_I_DP_I_I_DP_I_I          ; -Vp/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; p ; p
-E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_n/4.0                        ;   1   ; 0 ; 0 ; n ; n ;  vmicro(D_I_I, F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:),1,ptype,intertype)
-E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_p/4.0                        ;   1   ; 0 ; 0 ; p ; p ;  vmicro(D_I_I, F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:),2,ptype,intertype)
-E_DP_I_I_DP_I_I                ; +Vnm/4.0d0                                         ;   1   ; n ; n ;  vmicro(D_I_I, F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:) ,1,ptype,intertype)
-E_DP_I_I_DP_I_I                ; +Vpm/4.0d0                                         ;   1   ; p ; p ;  vmicro(D_I_I, F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:) ,2,ptype,intertype)
-! Time-odd pairing density
+E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_n/4.0                        ;   1   ; 0 ; 0 ; n ; n ;  vmicro(R%D_I_I, effmass_pot(F),1,ptype,intertype)
+E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_p/4.0                        ;   1   ; 0 ; 0 ; p ; p ;  vmicro(R%D_I_I, effmass_pot(F),2,ptype,intertype)
+E_DP_I_I_DP_I_I                ; +Vnm/4.0d0                                         ;   1   ; n ; n ;          vmicro(R%D_I_I, effmass_pot(F),1,ptype,intertype)
+E_DP_I_I_DP_I_I                ; +Vpm/4.0d0                                         ;   1   ; p ; p ;          vmicro(R%D_I_I, effmass_pot(F),2,ptype,intertype)
+! Time-odd pairing density                  
 ! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
 E_CP_I_I_CP_I_I                ; +Vn/4                                              ;   1   ; n ; n
 E_CP_I_I_CP_I_I                ; +Vp/4                                              ;   1   ; p ; p
 E_D_I_I_CP_I_I_CP_I_I          ; -Vn/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; n ; n
 E_D_I_I_CP_I_I_CP_I_I          ; -Vp/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; p ; p
-E_Derm_D_I_I_Derm_D_I_I_CP_I_I_CP_I_I          ; kappa_n/4.0                        ;   1   ; 0 ; 0 ; n ; n ;  vmicro(D_I_I, F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:),1,ptype,intertype)
-E_Derm_D_I_I_Derm_D_I_I_CP_I_I_CP_I_I          ; kappa_p/4.0                        ;   1   ; 0 ; 0 ; p ; p ;  vmicro(D_I_I, F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:),2,ptype,intertype)
-E_CP_I_I_CP_I_I                                ; +Vnm/4.0d0                         ;   1   ; n ; n ;  vmicro(D_I_I, F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:) ,1,ptype,intertype)
-E_CP_I_I_CP_I_I                                ; +Vpm/4.0d0                         ;   1   ; p ; p ;  vmicro(D_I_I, F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:) ,2,ptype,intertype)
+E_Derm_D_I_I_Derm_D_I_I_CP_I_I_CP_I_I          ; kappa_n/4.0                        ;   1   ; 0 ; 0 ; n ; n ;  vmicro(R%D_I_I, effmass_pot(F),1,ptype,intertype)
+E_Derm_D_I_I_Derm_D_I_I_CP_I_I_CP_I_I          ; kappa_p/4.0                        ;   1   ; 0 ; 0 ; p ; p ;  vmicro(R%D_I_I, effmass_pot(F),2,ptype,intertype)
+E_CP_I_I_CP_I_I                                ; +Vnm/4.0d0                         ;   1   ; n ; n ;          vmicro(R%D_I_I, effmass_pot(F),1,ptype,intertype)
+E_CP_I_I_CP_I_I                                ; +Vpm/4.0d0                         ;   1   ; p ; p ;          vmicro(R%D_I_I, effmass_pot(F),2,ptype,intertype)

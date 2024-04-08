@@ -764,34 +764,9 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     end select
   end subroutine calc_avg_gap
 
-!  function build_sph(pscheme, efficient) result(sph)
-!    !---------------------------------------------------------------------------
-!    !
-!    !   
-!    !---------------------------------------------------------------------------
-!    real(KIND=dp), allocatable :: sph(:,:)
-!    integer, intent(in)        :: pscheme
-!    logical, intent(in)        :: efficient 
-!    integer                    :: i
-
-!    allocate(sph(nwt,nwt)) ; sph = 0.0d0
-
-!    if((pscheme.eq. 0 .and. (.not. efficient)) &
-!    &   .or. (.not. allocated(current_sph))) then
-!      ! Diagonal part
-!      do i=1, nwt
-!        sph(i,i) = spenergies(i)
-!      enddo
-!    else
-!      ! Full matrix
-!      sph = current_sph
-!    endif
-! 
-!  end function build_sph
-
   subroutine printpairing(stabfactor)
     !---------------------------------------------------------------------------
-    !
+    ! TODO: document
     !---------------------------------------------------------------------------
 
     real*8, intent(in) :: stabfactor(2)
