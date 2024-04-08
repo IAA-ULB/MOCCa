@@ -1062,7 +1062,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !    the contents of the array hfpsi get changed and now are orthonormal.
     !---------------------------------------------------------------------------
     real(KIND=dp), allocatable         :: overlaps(:,:), overlaps_copy(:,:)
-    real(KIND=dp), allocatable         :: work(:), eigv(:)
+    !real(KIND=dp), allocatable         :: work(:), eigv(:)
     real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:)
     integer                    :: N, i, si, B, info, lwork
  
@@ -1092,13 +1092,22 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         print *, 'Issue with the Cholesky decomposition.'
         print *, 'INFO = ', info
       endif
-      allocate(work(1), eigv(N))
-      call DSYEV('N', 'U', N, overlaps_copy, N, eigv, work, -1, info)
-      lwork = int(work(1))
-      deallocate(work) 
-      allocate(work(lwork))
-      call DSYEV('N', 'U', N, overlaps_copy, N, eigv, work, lwork, info)
-      print *, "BLOCK = ", B, " min = ", eigv(1), " max = ", eigv(N)
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Debugging statements telling us about the eigenvalue spectrum of the 
+      ! overlap matrix
+      !if(.true.)
+      !  allocate(work(1), eigv(N))
+      !  call DSYEV('N', 'U', N, overlaps_copy, N, eigv, work, -1, info)
+      !  lwork = int(work(1))
+      !  deallocate(work) 
+      !  allocate(work(lwork))
+      !  call DSYEV('N', 'U', N, overlaps_copy, N, eigv, work, lwork, info)
+      !  print *, "BLOCK = ", B, " min = ", eigv(1), " max = ", eigv(N)
+      !  deallocate(eigv, work)
+      !endif
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Solve the linear equations
       !    X L^T = N
@@ -1117,7 +1126,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 !       print *
       !-------------------------------------------------------------------------
  
-      deallocate(overlaps, eigv,work)
+      deallocate(overlaps)
       si = si +N
     enddo
     

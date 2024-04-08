@@ -341,11 +341,13 @@ $REDUZ  coul_offset_z = 0
 
     !---------------------------------------------------------------------------
     ! Allocate the CoulombPotential array on the full Coulomb mesh
-    allocate(F%CoulombPotential(ox,oy,oz))
-    F%CoulombPotential = 0.0_dp
-    ! The exchange potential is only defined on the original mesh
-    allocate(F%ExchangePotential(nx,ny,nz))
-    F%ExchangePotential = 0.0_dp
+    if(.not.allocated(F%CoulombPotential)) then
+      allocate(F%CoulombPotential(ox,oy,oz))
+      F%CoulombPotential = 0.0_dp
+      ! The exchange potential is only defined on the original mesh
+      allocate(F%ExchangePotential(nx,ny,nz))
+      F%ExchangePotential = 0.0_dp
+    endif
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
     Prec = 1.d-12/(dx**3)
