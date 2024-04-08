@@ -260,13 +260,14 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     !   |  4. Perform feasible projection if asked for
     !   |  5. Construct the densities
     !   |    5b. Update the Lagrange multipliers of the constraints
-    !   |  6. Construct the fields
-    !   |     (including Coulomb and potential constraint contribution)
+    !   |  6. Construct the potentials
+    !   |     (including the contributions to F_I_I by Coulomb interaction 
+    !   |      and any multipole constraints)
     !   |  7. Print iteration info
     !   |_____________________________
     !
     ! TODO: correct this documentation
-    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   None.
     ! Output:
@@ -331,39 +332,41 @@ subroutine ReachForWaterAndFood(iter, iomsg)
       call SolvePairing(pairingscheme, ifail)
     endif
 
-    ! Construct the canonical basis
-    if(pairingtype.eq. 2) call ConstructCanonicalBasis()
-
     ! Derive all the single-particle wavefunctions in the HFPsi array
     call deriveHF()
-    ! Calculate the initial densities and the charge density (separately)
-    call densit(SaveRho=.false.)
-    call ConstructChargeDensity(ChargeDensity)
 
-    ! Adopt the relevant quantities to the centre-of-mass of the nucleus
-    call adapt_com()
+    ! Calculate the initial density vector
+    call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
+    Density = densit(rho_can, kappa_pairing)
 
-    call CalculateMoments()   !=> vital to be called here,
-                              !    (a) before the calculation of the fields
+    call CalculateMoments(Density)   
+                              !=> vital to be called here, 
+                              !    (a) before the calculation of the potentials
                               !    (b) after construction of the charge density
                               ! as
                               !  (a) the multipole cutoff is allocated in this
                               !      process, and is needed for the calculation
-                              !      of the cranking fields
+                              !      of the cranking potentials
                               !  (b) the calculations of the charge rms radius
                               !      requires the charge density to be
                               !      constructed
+    ! Adopt the relevant quantities to the centre-of-mass of the nucleus
+    call adapt_com(Density)
 
-    ! Only calculate the fields that have not been read from either a
-    ! wavefunction file or a potential file.
-    call calcFields(calcall=.false.,precon= .false.)
+    ! Only calculate the fields that have not been initialized from file.
+    if(allocated(potentials_read%F_I_I)) then
+      potentials = calcPotentials(Density, potentials_read)
+    else
+      potentials = calcPotentials(Density)
+    endif
 
     ! Update all spwf properties
     call update_spwf_properties( .true. ) ! expensive version
 
     call setBelyaevProcedure()
-    call CalcEnergy(.true.)      ! Calculate the energy WITH all the expensive
-                                 !   parts included.
+    !---------------------------------------------------------------------------
+    ! Calculate the energy WITH all the expensive parts included. 
+    call CalcEnergy(Density,Potentials,.true.)  
     call calc_avg_gap()
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -391,40 +394,40 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! TODO: include feasibleproject in the evolve_subspace code
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        if(projectpresent) call feasibleproject()
-        call Evolve_subspace(iter)
+        if(projectpresent) call feasibleproject(Density)
+        call Evolve_subspace(potentials, iter)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Calculate the single-particle hamiltonian ...
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        sphamil = Calc_Sphamil(.true.)
+        sphamil = Calc_Sphamil(potentials, .true.)
         ! ... optionally perform a subspace rotation...
         if(subspace_rotation) then
             call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
             call deriveHF() ! and update derivatives
         endif
         ! ..... and then calculate the pairing gaps
-        call CalcGaps(FermiEnergy, PairStabFactor)
+        call CalcGaps(FermiEnergy, PairStabFactor, Potentials)
         ! ... and use these matrices to build a new many-body state!
         call SolvePairing(pairingscheme,ifail)
-        if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
+        call construct_canonical_basis(rho_pairing,kappa_pairing,&
+        &                              rho_can    ,kappa_can)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! From the many-body state, we start calculating observables
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        call densit(SaveRho=.false.)
-        call ConstructChargeDensity(ChargeDensity)
-        if(follow_com) call adapt_com()
+        Density = densit(rho_can, kappa_pairing)
+        if(follow_com) call adapt_com(Density)
         ! Calculate the value of all multipole moments
-        call CalculateMoments()
+        call CalculateMoments(Density)
         ! ...and readjust any constraints on them
         call ReadjustAllMoments(1) ! TODO: remove the input dependence here...
         call ReadjustAllMoments(2)
         ! Update value of the average angular momentum
-        call updateAM              ! TODO: adapt the calculation of angular momentum
-                                   !       to only ever use densities...
+        call updateAM          ! TODO: adapt the calculation of angular momentum
+                               !       to only ever use densities...
         ! .... and readjust any constraints on it
         call ReadjustCranking
 
@@ -440,33 +443,51 @@ subroutine ReachForWaterAndFood(iter, iomsg)
                 call deriveHF() ! and update derivatives
             endif
             ! .... and recalculate the gaps .....
-            call CalcGaps(FermiEnergy, PairStabFactor)
+            call CalcGaps(FermiEnergy, PairStabFactor, Potentials)
             ! ..... reconstruct a many-body state .....
-            call SolvePairing(pairingscheme,ifail)
-            if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
+            call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
+            Density = densit(rho_can, kappa_pairing)
             ! ..... reconstruct all densities ....
-            call densit(SaveRho=.true.)
-            call ConstructChargeDensity(ChargeDensity)
-            if(follow_com) call adapt_com()
+            if(follow_com) call adapt_com(Density)
             ! .... and recalculate constrained quantities
-            call CalculateMoments()
+            call CalculateMoments(Density)
             call updateAM
         endif
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Recalculate the fields, but only if MaxIter > FreezeIter
+        ! Construct new potentials, but only if MaxIter > FreezeIter
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         if(iter .gt. freezeiter) then
-          call calcFields(calcall=.true.,precon=.true.)
-        endif
+          ! calculate new values for the potentials from the densities
+          potentials_out = calcPotentials(Density, coulomb_guess=potentials%CoulombPotential)
+          
+          if(scfscheme .eq. 0) then
+            potentials_out = precondition_potentials(potentials, potentials_out)
+          endif
+          ! Save the information to memory, throwing out older information.
+          ! This information is not used in any further part of the evolution
+          ! if mixingscheme = 0.
+          call save_potential_history(potentials, potentials_out)
 
+          select case(mixingscheme)
+          case(0)
+            ! No mixing, simple update
+            potentials = potentials_out
+          case(1)
+            ! Mixing with Anderson acceleration
+            potentials_out = AndersonMixPotentials(Potential_iterates, &
+            &                                      Potential_updates,  &
+            &                                      mixstepsize, iter)
+          end select
+        elseif(iter.eq.freezeiter) then
+          ! Recalculate the Coulomb potential at the last iteration for 
+          ! comparison purposes with other codes.
+          call solvecoulomb(Density, Potentials)
+        endif
         !-----------------------------------------------------------------------
         ! Above: actual evolution of physical quantities
         ! Below: administration/bookkeeping
         !-----------------------------------------------------------------------
-        ! NS: Recalculate the Coulomb field at the last iteration
-        if(iter .eq. freezeiter) call solvecoulomb(D_I_I(:,2))
-
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Recalculate the energy with one of two options:
         ! - cheap calculation that omits the recalculation of some parts of the
@@ -478,7 +499,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
           iprint = 0 ; calc_expensive = .false.
         endif
 
-        call CalcEnergy(calc_expensive)
+        call CalcEnergy(Density, Potentials, calc_expensive)
         ! Calculate the average pairing gap
         call calc_avg_gap()
 
@@ -497,7 +518,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
           iprint = 1
           ! Recalculate the energy with all parts included at the end, don't
           ! skimp on the expensive parts
-          call CalcEnergy(.true.)
+          call CalcEnergy(Density, Potentials,  .true.)
         endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         !  update all spwf properties first to ensure correct printout of spwfs
@@ -661,7 +682,7 @@ subroutine full_printout(iter, converged, print_all_spwf_properties)
   !-----------------------------------------------------------------------------
   use pairing,          only : printpairing
   use moments,          only : printallmoments
-  use densities,        only : print_boxsize_check
+  use densities,        only : print_boxsize_check, density
   use momentsofinertia, only : printMomentsOfInertia
   use printing,         only : printqps, print_adv_spwf_properties, printspwfs
   use cranking,         only : printcranking
@@ -687,7 +708,7 @@ subroutine full_printout(iter, converged, print_all_spwf_properties)
     call printspwfs(print_all_spwf_properties)
     call printqps
     call printallmoments
-    call print_boxsize_check
+    call print_boxsize_check(Density)
     call printmomentsofinertia
     call printcranking
     call printpairing(pairstabfactor)
@@ -757,8 +778,8 @@ subroutine initialize_all_timers()
    call add_timer('Density: pp'                 , T_den_pp)
    call add_timer('Density: ph'                 , T_den_ph)
    call add_timer('Density: derivatives'        , T_den_der)
-   call add_timer('Field calculations'          , T_fields)
-   call add_timer('Field preconditioning'       , T_F_precon)
+   call add_timer('Potential calculations'      , T_potentials)
+   call add_timer('Potential preconditioning'   , T_pot_precon)
    call add_timer('Energy calculations'         , T_energy)
    call add_timer('Pairing solver '             , T_pairing)
    call add_timer('Sp. Hamiltonian '            , T_sphamil)
@@ -816,7 +837,6 @@ subroutine cleanupthemess()
   call clean_BCS
   call clean_HFB
   call clean_pairing
-  call clean_densities
   call clean_moments
   call clean_coulomb
   call clean_evolution

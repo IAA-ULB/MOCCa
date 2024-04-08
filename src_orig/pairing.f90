@@ -677,6 +677,10 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     case(2)
       !-------------------------------------------------------------------------
       ! HFB-type pairing
+#if(PASTA > 0)
+      call stp('HFB calculations for pasta-configurations currently impossible')
+#endif
+
       if(.not.allocated(CanTransfo)) then
         ! Allocate the full matrices
         allocate(CanTransfo(nwt, nwt))     ; CanTransfo    = 0.0
@@ -1020,11 +1024,11 @@ $NTR integer                   :: wavebar
     allocate(gaps_can(nwt,nwt))
    
     if(.not.allocated(HFBgaps)) then
-	! This return is programmed AFTER the allocate, since CRAY compilers 
+        ! This return is programmed AFTER the allocate, since CRAY compilers 
         ! complain about things that might not be allocated at high optimisation
         ! levels.
-	deallocate(gaps_can)
-	return
+        deallocate(gaps_can)
+        return
     endif
     gaps_can = matmul(transpose(cantransfo), HFBgaps)
     gaps_can = matmul(gaps_can, cantransfo)

@@ -46,7 +46,7 @@ contains
     end select
   end subroutine
 
-  subroutine calcrigid()
+  subroutine calcrigid(R)
     !---------------------------------------------------------------------------
     ! Calculate the rgid-rotor moment of inertia of the density.
     ! 
@@ -61,9 +61,10 @@ contains
     ! We divide by (hbar c)**2 to obtain the final units of
     !       hbar^2 / MeV
     !---------------------------------------------------------------------------
-    real(KIND=dp) :: xs(2), ys(2), zs(2)
-    real(KIND=dp), pointer :: rho(:,:,:)
-    integer       :: it, i,j,k
+    type(DensityVector), intent(in), target :: R
+    real(KIND=dp), pointer                  :: rho(:,:,:)
+    real(KIND=dp)                           :: xs(2), ys(2), zs(2)
+    integer                                 :: it, i,j,k
 
     Rigid = 0
 
@@ -71,7 +72,7 @@ contains
 
     do it=1,2
       ! Assigning the storage structure in D_I_I a more readable form
-      rho(1:nx, 1:ny, 1:nz) => D_I_I(1:nx*ny*nz,it)
+      rho(1:nx, 1:ny, 1:nz) => R%D_I_I(1:nx*ny*nz,it)
       do k=1,nz
         do j=1,ny
           do i=1,nx

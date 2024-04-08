@@ -88,7 +88,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
     fieldprecon:
     fieldwrite :
     fieldread  :
-    fieldclean :
 
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -109,7 +108,11 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   fieldwrite= ''
   fieldtransfo = ''
       
-  fieldclean= '' 
+  fieldini     = ''
+  fieldadd     = ''
+  fieldmultiply= ''
+ 
+  fieldinproduct = ''
   #---------------------------------------------------------------------------
   for den in src_heph.heph_functional.Densities_needed:
       #-----------------------------------------------------------------------
@@ -210,9 +213,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       fieldlist['p'] = []
       fieldlist['n'] = []        
       cpcte     = ''
-
-      fieldclean = fieldclean + '\n' + ts.clean.substitute(dic)
-      fieldclean = fieldclean + '\n' + ts.clean_b.substitute(dic)
 
       #-----------------------------------------------------------------------
       for nterm, term in enumerate(src_heph.heph_functional.Functional_terms): 
@@ -487,12 +487,14 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         dic['ISOSIZE'] = 4
         
       declaration  = declaration + ts.field_decl.substitute(dic)
-      declaration  = declaration + ts.fhist_decl.substitute(dic)
+      # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      # Explicit declaration of the history is no longer needed
+      #declaration  = declaration + ts.fhist_decl.substitute(dic)
       
       # ... and the expression for reading/writing the fields from file
       #     NOTE THAT ONLY NEUTRON/PROTON FIELDS ARE WRITTEN/READ FROM FILE
       fieldread    = fieldread   + ts.field_read_a.substitute(dic)
-      fieldread    = fieldread   + ts.field_allo_b.substitute(dic)
+      #fieldread    = fieldread   + ts.field_allo_b.substitute(dic)
       fieldread    = fieldread   + ts.field_read_b.substitute(dic)
       fieldread    = fieldread   + ts.field_read_c.substitute(dic)
       fieldread    = fieldread   + ts.field_read_d.substitute(dic)
@@ -514,13 +516,17 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       fieldwrite   = fieldwrite  + ts.field_write_a.substitute(dic)
       fieldwrite   = fieldwrite  + ts.field_write_b.substitute(dic)
 
+      fieldini     = fieldini  + ts.field_allo.substitute(dic)
+
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_calc_a_start.substitute(dic)
-      FIELDCALC    = FIELDCALC + ts.field_allo.substitute(dic)
-      FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
+      #FIELDCALC    = FIELDCALC + ts.field_allo.substitute(dic)
+      #FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
       
       FIELDCALC    = FIELDCALC + ts.field_condition_start.substitute(dic)
       
+      fieldinproduct = fieldinproduct + ts.field_inproduct.substitute(dic)
+
       #-------------------------------------------------------------------------
       # Code generation for the calculation of the fields. 
       #
@@ -661,6 +667,9 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       FIELDCALC    = FIELDCALC + ts.field_condition_end.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic) + '\n'
 
+      # Add some lines for the multiplication and addition of potentialvectors!
+      fieldadd      = fieldadd      + '\n' +  ts.Add.substitute(dic)
+      fieldmultiply = fieldmultiply + '\n' +  ts.Multiply.substitute(dic)
       #-------------------------------------------------------------------------
       # Code generation for the preconditioning of the fields
       #
@@ -802,10 +811,10 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
             dic['PZ'] = str(pz)
           fieldprecon  = fieldprecon + ts.field_precon_call.substitute(dic)
           fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
-        fieldprecon  = fieldprecon + ts.field_precon_end.substitute(dic)
   #-----------------------------------------------------------------------------
 
-  return(declaration, FIELDCALC, fieldprecon, fieldwrite, fieldread, fieldclean)
+  return(declaration, fieldini, FIELDCALC, fieldprecon, fieldwrite, fieldread, \
+         fieldadd, fieldmultiply, fieldinproduct)
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
   """

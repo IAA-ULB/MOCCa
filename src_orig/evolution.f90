@@ -89,8 +89,10 @@ module evolution
     !---------------------------------------------------------------------------
     !Procedure that determines the evolution of a Spwf under imaginary time.
     abstract interface
-      subroutine Evolve_interface(Iteration)
-        integer, intent(in)       :: iteration
+      subroutine Evolve_interface(F,Iteration)
+        import PotentialVector
+        type(PotentialVector), intent(in) :: F
+        integer, intent(in)               :: iteration
       end subroutine
     end interface
     procedure(Evolve_Interface),pointer :: Evolve_subspace    
@@ -168,6 +170,7 @@ contains
 
         call MPI_BCAST(maxiter   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         call MPI_BCAST(printiter , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(freezeiter, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         !-----------------------------------------------------------------------
 #endif
         !-----------------------------------------------------------------------
@@ -286,7 +289,7 @@ contains
 ! Evolution routines 
 !===============================================================================
 
-    subroutine Evolve_graddesc(iteration)
+    subroutine Evolve_graddesc(F,iteration)
         !-----------------------------------------------------------------------
         ! 
         ! a) For every wave-function do a gradient step
@@ -300,11 +303,16 @@ contains
         !
         ! c) Orthonormalize within symmetry blocks
         !
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Input:
+        !  F        : potentials determining the single-particle hamiltonian
+        !  iteration: iteration count
         !-----------------------------------------------------------------------
 
         use wavefunctions
-
-        integer, intent(in) :: iteration
+        
+        type(PotentialVector), intent(in) :: F
+        integer, intent(in)               :: iteration
         integer             :: wave, iso, iter
         real(KIND = dp)     :: hpsi(nx*ny*nz,4)
 
@@ -329,7 +337,7 @@ contains
             &              hfdpsi(:,:,:,wave)    ,                           &
             &              hfddpsi(:,:,:,wave)   ,                           &
 $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.,F)
 
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             dispersions(wave) = sum( hpsi(:,:)**2)  * dv   -spenergies(wave)**2          
@@ -357,7 +365,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
 
     end subroutine Evolve_graddesc
 
-    subroutine Evolve_momentum(iteration)
+    subroutine Evolve_momentum(F, iteration)
         !-----------------------------------------------------------------------
         ! 
         ! Evolution of the single-particle wavefunctions in memory through
@@ -420,11 +428,17 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
         !   (d) d2h:
         !       Weighted dispersion of the spwfs, only calculated when
         !       diagsphamil = .true.
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Input:
+        !  F        : potentials determining the single-particle hamiltonian
+        !  iteration: iteration count
         !-----------------------------------------------------------------------
 
         use wavefunctions
-
-        integer, intent(in)   :: iteration
+        
+        type(PotentialVector), intent(in) :: F
+        integer, intent(in)               :: iteration
+        
         integer               :: wave, iso, B, si, N, wave2, lwork, ifail
         integer               :: wg, wg2
 #if(USE_MPI>0)
@@ -445,7 +459,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
             allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
         endif
 
-        if(EstimateParams) call IterativeEstimation(iteration)
+        if(EstimateParams) call IterativeEstimation(F,iteration)
 
         si           = 0
         gradientnorm = 0.0_dp
@@ -466,7 +480,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                           &
             &              hfdpsi(:,:,:,wave)    ,                              &
             &              hfddpsi(:,:,:,wave)   ,                              &
 $N3         &              hfdddpsi(:,:,:,wave)  ,                              &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.,F)
 
             if(diagsphamil) then
               ! If we are diagonalising the s.p. hamiltonian, we use hpsi to
@@ -640,7 +654,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
 
     end subroutine Evolve_momentum
     
-    subroutine Evolve_momentum_sane(iteration)
+    subroutine Evolve_momentum_sane(F, iteration)
       !-------------------------------------------------------------------------
       ! Evolution of the single-particle wavefunctions in memory with 
       ! MODIFIED heavy-ball evolution.
@@ -674,6 +688,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
 
       use wavefunctions
 
+      type(PotentialVector), intent(in) :: F
       integer, intent(in)        :: iteration
       integer                    :: si, m, B, N, iso, wave
       real(KIND=dp), allocatable :: hpsi(:,:,:)
@@ -696,7 +711,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       sphamil     = 0.0d0
       d2h         = 0.0d0
       dispersions = 0.0d0
-      if(EstimateParams) call IterativeEstimation(iteration)
+      if(EstimateParams) call IterativeEstimation(F, iteration)
 
       !-------------------------------------------------------------------------
       ! Step 1: construct all updates
@@ -712,8 +727,8 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         ! Obtain the action of the s.p.h. on the spwfs using precomputed derivatives
         call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
         &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
-        &                          HFdpsi(:,:,:,si+1:si+N),                    &
-        &                          HFddpsi(:,:,:,si+1:si+N),.false.)
+        &                          HFdpsi(:,:,:,si+1:si+N),              &
+        &                          HFddpsi(:,:,:,si+1:si+N),.false., F)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Construct the residual
         do m=1,N
@@ -778,7 +793,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         real(KIND=dp), intent(inout) :: sph(nwt,nwt)
         real(KIND=dp)                :: update(nwt,nwt)
         integer                      :: si, it, m, k, B, N, wave
-        real(KIND=dp), allocatable   :: hpsi(:,:,:), temp(:,:)
+        real(KIND=dp), allocatable   :: hpsi(:,:,:)
         real(KIND=dp)                :: pot_elmult(mv,2)
 #if(USE_MPI > 0)
         integer                    :: mpi_err
@@ -836,7 +851,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
 ! Utility routines 
 !===============================================================================
 
-    subroutine apply_sphamil_block(m, x,hx,sx,sy,sz,iso, dx, ddx, onthefly)
+    subroutine apply_sphamil_block(m, x,hx,sx,sy,sz,iso, dx, ddx, onthefly, F)
       !-------------------------------------------------------------------------
       ! Apply the single-particle hamiltonian as specified by the potentials  
       ! currently in memory to a set of vectors in single-particle space with 
@@ -856,6 +871,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       !       ddx: array containing the second derivative of x, if precalculated
       !  onthefly: Recalculate derivatives inside apply_sphamil (.true.) or 
       !            take precalculated derivatives (.false.)
+      !         F: set of mean-field potentials specifying the sphamil
       ! Output: 
       !      hx : the application of the s.p. hamiltonian to the vectors, a new
       !           matrix of dimension (nx*ny*nz,4,m)
@@ -878,11 +894,12 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       real(KIND=dp), intent(out), target   :: hx(mv,4,m)
       logical, intent(in)                  :: onthefly
       integer                              :: wave
- 
+      type(PotentialVector), intent(in)    :: F
+      
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       do wave=1,m
         hx(:,:,wave)=apply_sphamil(x(:,:,wave),dx(:,:,:,wave),ddx(:,:,:,wave), &
-        &                          sx,sy,sz,iso,onthefly)
+        &                          sx,sy,sz,iso,onthefly,F)
       enddo
     end subroutine apply_sphamil_block
 
@@ -947,6 +964,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! ..... and now do the actual work
       call DSYEV('V','L', m ,sph,m,tempe,work,lwork,info)
       if(info.ne.0) then
+        print *, info
         call stp('Issue with diagonalising in eval_sph.')
       endif
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -964,7 +982,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     end subroutine diag_sph
     
-    function calc_sphamil(onthefly) result(sph)
+    function calc_sphamil(F, onthefly) result(sph)
         !------------------------------------------------------------------------
         ! Calculate all matrix elements of the single-particle hamiltonian in the 
         ! reduced subspace spanned by the single-particle wavefunctions in memory
@@ -972,6 +990,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! 
         ! Input:
+        !           F: a set of mean-field potentials
         !   Onthefly : use precalculated derivatives of spwfs to evaluate the 
         !              action of the single-particle hamiltonian (.false.) or 
         !              recalculate derivatives on the fly (.true.)
@@ -985,7 +1004,9 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         !            are updated in memory. 
         !
         !------------------------------------------------------------------------
+        type(PotentialVector), intent(in) :: F
         logical, intent(in)        :: onthefly
+
         real(KIND=dp)              :: sph(nwt,nwt)
         integer                    :: si, B, N, iso, wave
         real(KIND=dp), allocatable :: hpsi(:,:,:)
@@ -1010,7 +1031,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
             &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,  &
             &                          HFdpsi(:,:,:,si+1:si+N),               &
             &                          HFddpsi(:,:,:,si+1:si+N),              &
-            &                          onthefly)
+            &                          onthefly, F)
 
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
             ! Calculate matrix elements by way of a BLAS call
@@ -1136,6 +1157,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! ..... and now do the actual work
       call DSYEV('V','L', m ,sph,m,tempe,work,lwork,info)
       if(info.ne.0) then
+        print *, 'INFO = ', info
         call stp('Issue with diagonalising in eval_sph.')
       endif
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1151,7 +1173,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     end subroutine diag_sph_block
 
-    subroutine IterativeEstimation(Iteration)
+    subroutine IterativeEstimation(F, Iteration)
       !-------------------------------------------------------------------------
       ! Estimate optimum parameters (dt,mu) of the heavy-ball iterative process
       ! to try and achieve optimal convergence rate.
@@ -1171,6 +1193,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       5 format ('          This probably means these potentials are not physical.   ')
         
 
+      type(PotentialVector), intent(in):: F
       integer, intent(in)              :: iteration
 
       real(KIND=dp), allocatable, save :: maxspwf(:,:,:)
@@ -1228,7 +1251,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           !   symmetry block.
           actionofh = apply_sphamil(maxspwf(:,:,it), dmax, ddmax,              &
 $N3       &                                         dddmax,                    &
-          &                                     sx_max,sy_max,sz_max,iso,.true.)
+          &                                  sx_max,sy_max,sz_max,iso,.true., F)
           con(it)   = Es(it)
           Es(it)    = sum(actionofh * maxspwf(:,:,it)) * dv
           con(it)   = con(it) - Es(it)
@@ -1301,7 +1324,7 @@ $N3       &                                         dddmax,                    &
 !===============================================================================
 ! Projection on the feasible subspace routine
 !===============================================================================  
-  subroutine FeasibleProject()
+  subroutine FeasibleProject(Rin)
   !-----------------------------------------------------------------------------
   ! Subroutine performing one (or more) alternate step for the alternating
   ! constraints. The idea is a a simple gradient step in the direction of a
@@ -1323,6 +1346,7 @@ $N3       &                                         dddmax,                    &
    use wavefunctions
    use moments
 
+   type(DensityVector), intent(in) :: Rin
    type(Moment),pointer  :: Current
    real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
    real(KIND=dp)         :: mpsi(nx*ny*nz,4), jpsi(nx*ny*nz,4)
@@ -1335,7 +1359,7 @@ $N3       &                                         dddmax,                    &
    ! (i) The contribution of the multipole moments to the update
    Current    => Root
    multipole = 0.0_dp
-   call compcutoff()
+   call compcutoff(Rin)
    
    do while(associated(Current%Next))
     Current => Current%next

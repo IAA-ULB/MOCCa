@@ -12,11 +12,12 @@ module BCS
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
- !
+ !  
  ! Module implementing the routines for the solution of the BCS equations.
  !
  !==============================================================================
 
+ use vectors
  use wavefunctions
  use pairingcutoffs
 
@@ -56,16 +57,16 @@ $N1DELTA                    &      dpsi, &
 $N2DELTA                    &            ddpsi, &
 $N3DELTA                    &                   dddpsi, &
 $SYMDELTA                   &                          sx,sy,sz, &
-&                                                               iso, onthefly) &
+&                                                            iso, onthefly, F) &
                                                                 result(deltapsi)
       !-------------------------------------------------------------------------
-      ! Dummy function to allow this module to acces the functional.f90 module 
-      ! to acces the information on the acces of deltas.
-      ! Note that the actual delta_action routine's interface is decided by 
-      ! Hephaestos at compiletime, and as such this dummy interface has to also
-      ! be decided at that time.
+      ! Dummy function to allow this module to access the functional.f90 module 
+      ! routine to calculate the "action of" Delta.
       !-------------------------------------------------------------------------
-      real*8, intent(in)    :: psi(:,:)  
+      import PotentialVector ! explicit import statement, otherwise the 
+                             ! interface would be invalid
+      real*8, intent(in)                :: psi(:,:)
+      type(PotentialVector), intent(in) :: F
 $N1DELTA      real*8, intent(inout) ::   dpsi(:,:,:)
 $N2DELTA      real*8, intent(inout) ::  ddpsi(:,:,:)
 $N3DELTA      real*8, intent(inout) :: dddpsi(:,:,:)
@@ -208,13 +209,19 @@ contains
 
  end subroutine solvepairing_BCS
  
- subroutine CalcBCSGaps(fermi, stabfactor)
+ subroutine CalcBCSGaps(fermi, stabfactor, F)
     !---------------------------------------------------------------------------
     ! Calculate the BCS pairing gaps.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !  fermi     : chemical potential for both nucleon species
+    !  stabfactor: factor to use in the stabilised pairing
+    !  F         : set of mean-field potentials
     !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)         :: fermi(2), stabfactor(2)
+    type(PotentialVector), intent(in) :: F 
     integer                      :: wave, iso, wave_global
     real(KIND=dp)                :: deltapsi(mv,4), trash(2)
-    real(KIND=dp), intent(in)    :: fermi(2), stabfactor(2)
 #if(USE_MPI>0)
     integer                      :: mpi_err
 #endif
@@ -243,7 +250,7 @@ $N1DELTA    &                            hfdpsi(:,:,:,wave),            &
 $N2DELTA    &                           hfddpsi(:,:,:,wave),            &
 $N3DELTA    &                          hfdddpsi(:,:,:,wave),            &
 $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
-            &                                                iso,.false.)
+            &                                             iso,.false.,F)
  
  
             BCSgaps(wave_global) =  sum(hfpsi(:,:,wave)*deltapsi)*dv*          &
@@ -327,7 +334,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
     ! Trash statements to fool CRAY compilers. If this is not here, the compiler
     ! complains about the array being used before being allocated as soon as 
     ! the optimisation level is equal to -O1 or above. I guess this is related 
-    ! to the highly-nested nature of this routine ...	
+    ! to the highly-nested nature of this routine ...
     allocate(indices(1))       ; deallocate(indices)
     allocate(proton_block(1))  ; deallocate(proton_block)
     allocate(neutron_block(1)) ; deallocate(neutron_block)
@@ -432,7 +439,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         c  = 0
         do B=1,8
             N = HFBlocks_global(B) ; if(N.eq.0) cycle
-	    allocate(indices(N))
+            allocate(indices(N))
             indices = Order(BCSqps(si+1:si+N),N)
             do i=1, toblock(B)
               f(si+indices(i)) = occ

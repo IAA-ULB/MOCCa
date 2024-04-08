@@ -17,12 +17,12 @@ comment         = T(   tab + '!' + 38 * '- ' + '\n' +               \
                             tab + '! Calculation of $TERM \n')
 end_comment     =             tab + '!' + 38 * '- ' + '\n' 
 
-edent     = T('$DEN(:$IND,$ISO)')
-edent_DD  = T('pow($DEN(:$IND,$ISO), $EXP)')
+edent     = T('(R%$DEN(:$IND,$ISO))')
+edent_DD  = T('(pow(R%$DEN(:$IND,$ISO), $EXP))')
 
 calc_z    = T(   tab + 'Edensity = 0.0_dp \n')
-calc_a    = T(   tab + 'EDensity = Edensity $SIGN $EDENT  \n')
-calc_extra= T(   tab + 'EDensity = Edensity * $EXTRA  \n')
+calc_a    = T(   tab + 'EDensity = Edensity $SIGN $EDENT\n')
+calc_extra= T(   tab + 'EDensity = Edensity * $EXTRA\n')
 calc_b    = T(   tab + '$TERM$GROUPINDEX = $CPCTE * sum( Edensity) * dv \n')
 
 doloop    =    tab + 'do %s = 1, 3 \n'

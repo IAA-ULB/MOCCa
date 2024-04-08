@@ -291,8 +291,8 @@ endif
 # Tantalus source files
 TARGET :=   Tantalus.exe
 SRC    :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
-SRC    +=   sphericalharmonics.f90 folding.f90
-SRC    +=   nil8.f90 derivatives.f90 precondition.f90 wavefunctions.f90
+SRC    +=   sphericalharmonics.f90 folding.f90 nil8.f90 
+SRC    +=   derivatives.f90 vectors.f90 precondition.f90 wavefunctions.f90
 SRC    +=   pairingcutoffs.f90 parameterization.f90
 SRC    +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90
 SRC    +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90

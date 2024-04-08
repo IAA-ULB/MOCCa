@@ -59,8 +59,8 @@ module HFB
  ! 
  !==============================================================================
 
-
   use geninfo
+  use vectors
   use wavefunctions
   use pairingcutoffs
 
@@ -100,16 +100,16 @@ $N1DELTA                    &      dpsi, &
 $N2DELTA                    &            ddpsi, &
 $N3DELTA                    &                   dddpsi, &
 $SYMDELTA                   &                          sx,sy,sz, &
-&                                                               iso, onthefly) &
+&                                                             iso, onthefly,F) &
                                                                 result(deltapsi)
       !-------------------------------------------------------------------------
-      ! Dummy function to allow this module to acces the functional.f90 module 
-      ! to acces the information on the acces of deltas.
-      ! Note that the actual delta_action routine's interface is decided by 
-      ! Hephaestos at compiletime, and as such this dummy interface has to also
-      ! be decided at that time.
+      ! Dummy function to allow this module to access the functional.f90 module 
+      ! routine to calculate the "action of" Delta.
       !-------------------------------------------------------------------------
-      real*8, intent(in)    :: psi(:,:)  
+      import PotentialVector ! explicit import statement, otherwise the 
+                             ! interface would be invalid
+      real*8, intent(in)                :: psi(:,:)
+      type(PotentialVector), intent(in) :: F
 $N1DELTA      real*8, intent(inout) ::   dpsi(:,:,:)
 $N2DELTA      real*8, intent(inout) ::  ddpsi(:,:,:)
 $N3DELTA      real*8, intent(inout) :: dddpsi(:,:,:)
@@ -1542,7 +1542,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
 
   end function ConstructHFBHamil 
 
-  subroutine calcHFBgaps(Fermi, stabfactor)
+  subroutine calcHFBgaps(Fermi, stabfactor, F)
     !---------------------------------------------------------------------------
     ! Calculates the HFB gaps for use in the HFB solver.
     !
@@ -1577,7 +1577,8 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     ! When time-reversal is not conserved, it is indeed the full matrix that 
     ! is stored. This full matrix is antisymmetric, not symmetric!
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: Fermi(2), stabfactor(2)
+    real(KIND=dp), intent(in)         :: Fermi(2), stabfactor(2)
+    type(PotentialVector), intent(in) :: F
     integer                   :: wave1, wave2, iso, si,  B, N, N2,T
     integer                   :: inda, indb, inda_global, indb_global
     real(KIND=dp)             :: deltapsi(mv,4), val(2), stabfac
@@ -1624,7 +1625,7 @@ $N1DELTA  &                            hfdpsi(:,:,:,inda),                     &
 $N2DELTA  &                           hfddpsi(:,:,:,inda),                     &
 $N3DELTA  &                          hfdddpsi(:,:,:,inda),                     &
 $SYMDELTA &                        sx(:,inda), sy(:,inda), sz(:,inda),         &
-                                                                    iso,.false.)
+                                                                  iso,.false.,F)
         
 $NTR        do wave2=1,N
 $TR         do wave2=wave1,N
