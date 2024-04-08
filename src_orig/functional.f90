@@ -558,9 +558,14 @@ end function multiply_potentialvector
     K = CompKinetic_density(Rin)
     ! Note that this estimate of the energy does NOT include the 2-body COM
     ! To save CPU cycles, we override its calculation
+#if(PASTA == 0)
     call compComCorrection(K, .true., COM)
+#else
+    ! A waste of CPU time for pasta calculations
+    COM = 0.0d0
+#endif    
     ! Skyrme energy
-    call compSkyrme(Rin, S, TE, TO, PE)
+    call compSkyrme(Rin, Fin, S, TE, TO, PE)
     ! Coulomb energies
     C  = CoulombEnergy_Direct(Rin,Fin)
     CE = CoulombEnergy_Exchange(Rin) 
@@ -619,9 +624,15 @@ end function multiply_potentialvector
     ! Kinetic energy
     Kinetic = CompKinetic_density(Rin)
     ! COM correction (attention to input!)
+#if(PASTA == 0)
     call CompCOMCorrection(Kinetic, .not. calc_expensive, COMCorrection)
+#else
+    ! A waste of CPU time for pasta calculations
+    COMCorrection = 0.0d0
+#endif
+
     ! Skyrme functional
-    call compSkyrme(Rin, Skyrme, tot_even, tot_odd, pairdenenergy)
+    call compSkyrme(Rin, Fin, Skyrme, tot_even, tot_odd, pairdenenergy)
 
     ! Pairing energy: can be used to check the validity of the calculation. 
     ! It is summed by integrating Delta instead of the pairing densities. 
@@ -717,7 +728,7 @@ end function multiply_potentialvector
 
  end subroutine CalcEnergy
 
- subroutine CompSkyrme(R, S, T_even, T_odd, PE)
+ subroutine CompSkyrme(R, F, S, T_even, T_odd, PE)
     !---------------------------------------------------------------------------
     ! Integrate the Skyrme energy density for the given set of densities.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -736,9 +747,10 @@ end function multiply_potentialvector
     !
     ! TODO: further 'functionalize' these routines, eliminate side-effects.
     !---------------------------------------------------------------------------
-    real(KIND=dp)                   :: Edensity(mv)
-    type(DensityVector), intent(in) :: R
-    real(KIND=dp), intent(out)      :: S, T_even, T_odd, PE(2)
+    real(KIND=dp)                     :: Edensity(mv)
+    type(DensityVector), intent(in)   :: R
+    type(PotentialVector), intent(in) :: F
+    real(KIND=dp), intent(out)        :: S, T_even, T_odd, PE(2)
     
 $CALCULATION    
 
@@ -875,7 +887,7 @@ $TAUTENSOR            &                     + Rin%D_N_N(:,3,3,it),1)
     enddo
   end function CompKinetic_density
 
-  function effective_mass_potential(F_in) result(em_pot)
+  function effmass_pot(F_in) result(em_pot)
     !---------------------------------------------------------------------------
     ! TODO: document!
     !
@@ -887,7 +899,7 @@ $TAUTENSOR            &                     + Rin%D_N_N(:,3,3,it),1)
 $TAUSCALAR em_pot = F_in%F_Nm_Nm
 $TAUTENSOR em_pot = F_in%F_N_N(:,1,1,:) + F_in%F_N_N(:,2,2,:) + F_in%F_N_N(:,3,3,:)
     
-  end function effective_mass_potential
+  end function effmass_pot
 
   subroutine CompCOMCorrection(kin, override_2body, Comcorr)
     !---------------------------------------------------------------------------
@@ -1753,7 +1765,7 @@ $WRITEPOTENTIALS
     !  1. this function does not rely on MPI I/O and simply reads everything 
     !     with rank 0 and then does a bunch of MPI_BCASTS.
     !  2. this function should not be confused with the readpotentials_separate
-    !     routine from the IO module.
+    !     routine below
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   chan                  : integer, channel number for input
@@ -1869,5 +1881,174 @@ $PVECTORINPRODUCT
     
  end function PVectorInproduct
 
+  function readpotentials_separate(chan, ifn) result(F)
+    !---------------------------------------------------------------------------
+    ! Read mean-field potentials from a separate user-provided file that is 
+    ! NOT a wavefunction file. This routine should not be confused with the 
+    ! readpotentials subroutine from the functional module.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input: 
+    !  * chan : integer, channel number to read the file
+    !  * ifn  : input filename (will be checked for existence)
+    !
+    ! Output:
+    !      F  : a set of mean-field potentials
+    !
+    ! Caution: this routine is currently foreseen for a specific application, 
+    !          limited to maximally symmetric calculations and .func files
+    !          for which F_Nm_Nm and G_I_NS potentials are defined.
+    !
+    ! 
+    !---------------------------------------------------------------------------
+    use Coulombmod ! module explicitly 'used' in order to be able to place the 
+                   ! values of the direct and exchange Coulomb potentials 
+                   ! correctly on the mesh
+  
+    type(PotentialVector)        :: F
+    integer, intent(in)          :: chan
+    character(len=*), intent(in) :: ifn
+
+    logical :: exists
+    integer :: i,j,k,io, it, mu, nu, ox, oy, oz, headercount, mpi_err
+    real(KIND=dp), allocatable :: Vc(:), Ec(:)
+    real(KIND=dp)              :: x,y,z
+    character(len=200)         :: temp
+     
+    inquire(file=ifn, exist=exists)
+    if(.not.exists) then
+      print *, 'Input file specified does not exist!'
+      stop
+    endif
+    
+    open (chan,file=ifn)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! We need to skip any header lines (indicated by #).
+    ! For a Tantalus-created file, there are 14 of them by default but other 
+    ! people might write a different amount
+    io = 0; headercount = -1
+    do while(io.eq.0) 
+      headercount = headercount + 1
+      read(chan, iostat=io, fmt='(a200)') temp
+      if(temp(1:1) .ne. '#') io = 1
+    enddo  
+    ! We've found an error; we have counted the number of header lines!
+    rewind(chan)
+    ! ... and now we skip this number of lines    
+    do i=1,headercount
+        read(chan, fmt=('()'))
+    enddo
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Allocate the relevant potentials    
+    allocate(F%F_I_I  (nx*ny*nz,4))     ; F%F_I_I   = 0.0d0
+$TAUSCALAR    allocate(F%F_Nm_Nm(nx*ny*nz,4))   ; F%F_Nm_Nm = 0.0d0
+$TAUTENSOR    allocate(F%F_N_N(nx*ny*nz,3,3,4)) ; F%F_N_N   = 0.0d0
+    allocate(F%G_I_NS (nx*ny*nz,3,3,4)) ; F%G_I_NS  = 0.0d0
+    allocate(Vc(nx*ny*nz))              ; VC        = 0.0d0
+    allocate(Ec(nx*ny*nz))              ; EC        = 0.0d0
+
+    ! We assume the points on the file are correctly ordered in 
+    ! FORTRAN fashion, such that we do not have to worry about looping 
+    ! separately over x/y/z and can just loop once over all mesh points.
+    ! This also means the coordinate information is not used.
+    do i=1,nx*ny*nz
+      read(chan, fmt='(3f8.3, 4es25.12)', iostat=io, advance='no') & 
+      &                            x,y,z,                          & !unused
+      &                            F%F_I_I(i,1),F%F_I_I(i,2),      & ! U(r)
+      &                            Vc(i),  Ec(i)                     ! Coulomb
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! It is easy to read the kinetic potential from ETFSI calculations if 
+      ! D_Nm_Nm is defined as a contracted density
+$TAUSCALAR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
+$TAUSCALAR      &                            F%F_Nm_Nm(i,1), F%F_Nm_Nm(i,2)    ! kinetic
+      ! If not, then we have to do some reorganisation
+$TAUTENSOR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
+$TAUTENSOR      &                            F%F_N_N(i,1,1,1), F%F_N_N(i,1,1,2)! kinetic
+$TAUTENSOR      F%F_N_N(i,2,2,:) = F%F_N_N(i,1,1,:)/3
+$TAUTENSOR      F%F_N_N(i,3,3,:) = F%F_N_N(i,1,1,:)/3
+$TAUTENSOR      F%F_N_N(i,1,1,:) = F%F_N_N(i,1,1,:)/3
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+      do mu=1,3
+        do nu=1,3
+          read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
+          &               F%G_I_NS(i,mu,nu,1), F%G_I_NS(i,mu,nu,2)
+        enddo
+      enddo
+      read(chan, *) ! Advance to new line
+      
+      if(io.ne.0) then
+        print *, 'Problem encountered reading potential file ', ifn
+        print *, 'IOSTAT = ', io
+        stop
+      endif
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Make sure the Coulomb module is configured with the right array dimensions
+    call setupCoulomb(F)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! The index juggling is ugly, but necessary, because the Coulomb 
+    ! potential has a different size than the Lagrange mesh.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+      
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          F%CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex(i,j,k))
+          F%ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex(i,j,k))
+        enddo
+      enddo
+    enddo
+    
+    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+    &                             (.not. nucleonsize_selfconsistent)) then
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! No finite size effects; correction is simple
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+      F%F_I_I(:,2) = F%F_I_I(:,2) + Vc(:) + Ec(:)
+    else
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Finite size effects taken into account
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Calculate folded potentials from the read-in potentials
+      call obtain_folded_potentials(F)
+      ! ... and correct F_I_I for them with ugly index juggling
+      do it=1, 2
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+
+              F%F_I_I(meshindex(i,j,k),it)= F%F_I_I(meshindex(i,j,k),it)       &
+              &                           + F%FoldedCoul(i,j,k,it)             &
+              &                           + F%FoldedExchange(i,j,k,it)
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Make sure isospin combinations are made correctly for all potentials
+    F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
+    F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
+
+$TAUSCALAR    F%F_Nm_Nm(:,3)   = F%F_Nm_Nm(:,1)   + F%F_Nm_Nm(:,2)
+$TAUSCALAR    F%F_Nm_Nm(:,4)   = F%F_Nm_Nm(:,1)   - F%F_Nm_Nm(:,2)
+$TAUTENSOR    F%F_N_N(:,:,:,3) = F%F_N_N(:,:,:,1) + F%F_N_N(:,:,:,2)
+$TAUTENSOR    F%F_N_N(:,:,:,4) = F%F_N_N(:,:,:,1) - F%F_N_N(:,:,:,2)
+
+    do mu=1,3
+      do nu=1,3
+        F%G_I_NS(:,mu,nu,3) = F%G_I_NS(:,mu,nu,1) + F%G_I_NS(:,mu,nu,2)
+        F%G_I_NS(:,mu,nu,4) = F%G_I_NS(:,mu,nu,1) - F%G_I_NS(:,mu,nu,2)
+      enddo
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Close channel after succesfull IO operations.
+    close(chan)
+  end function readpotentials_separate
 
 end module functional

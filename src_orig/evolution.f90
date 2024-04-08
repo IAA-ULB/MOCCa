@@ -170,6 +170,7 @@ contains
 
         call MPI_BCAST(maxiter   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         call MPI_BCAST(printiter , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(freezeiter, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         !-----------------------------------------------------------------------
 #endif
         !-----------------------------------------------------------------------
@@ -963,6 +964,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! ..... and now do the actual work
       call DSYEV('V','L', m ,sph,m,tempe,work,lwork,info)
       if(info.ne.0) then
+        print *, info
         call stp('Issue with diagonalising in eval_sph.')
       endif
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1155,6 +1157,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! ..... and now do the actual work
       call DSYEV('V','L', m ,sph,m,tempe,work,lwork,info)
       if(info.ne.0) then
+        print *, 'INFO = ', info
         call stp('Issue with diagonalising in eval_sph.')
       endif
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
