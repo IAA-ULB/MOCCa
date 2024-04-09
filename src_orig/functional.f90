@@ -344,7 +344,7 @@ $PRINTCOEF_PAIR
 
 #if(PASTA > 0)
   107 format (30x, '         FOR PASTA CALCULATIONS    ')
-  108 format (15x, '        e_pasta=(Total energy + electrons + Z[Mn-Mp])/A - Mn')
+  108 format (15x, '        e_pasta=(Total energy + electrons - Z[Mn-Mp])/A - Mn')
   109 format (15x, '        e_pasta:', 30x, f15.6)
   110 format (15x, '   Electron kin:', 30x, f15.6) 
   111 format (15x, '  Electron exch:', 30x, f15.6) 
