@@ -139,7 +139,8 @@ module wavefunctions
  ! nwn, nwp       : TOTAL number of neutron/proton spwfs across all MPI ranks
  ! nwt            : TOTAL number of wavefunctions across all MPI ranks
  ! nwt_local      : LOCAL number of wavefunctions on the current MPI rank
- ! rank_map       : identifies the MPI rank that holds a given spwf
+ ! rank_map       : identifies the MPI rank that holds a given spwf within 
+ !                  the global communicator
  ! spwf_map       : identifies the index of a (locally stored) spwf in the 
  !                  TOTAL calculation. I.E. this maps
  !                       spwf  1,  2, 3, ....,  nwt_local
@@ -155,10 +156,17 @@ module wavefunctions
  !                  to uniquely find its location in memory
  !------------------------------------------------------------------------------
  integer, parameter   :: Blocks                  = 8  ! This can always be fixed
- integer              :: HFBlocks(Blocks)  = 0
+ integer              :: HFBlocks(Blocks)        = 0
  integer              :: HFBlocks_global(Blocks) = 0
  integer              :: nwn = 6, nwp = 6, nwt = 12, nwt_local =12
  integer, allocatable :: rank_map(:), spwf_map(:), spwf_inverse(:)
+ 
+ !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ ! Additional MPI communicators, one for each symmetry block
+ integer              :: MPI_COMM_BLOCK, MPI_SYM_BLOCK
+ integer              :: MPI_BLOCK_RANK, MPI_BLOCK_SIZE
+ integer              :: ranks_per_block(Blocks)
+ 
  !------------------------------------------------------------------------------
  ! Properties of the single-particle wave-functions with regard to reflections
  ! of the axes. Note that these are properties of the LOCALLY stored spwfs, 
@@ -333,71 +341,120 @@ contains
     integer, intent(out) :: blocks_local(blocks)
     integer, intent(out), allocatable :: spwf_map(:),rank_map(:),spwf_inverse(:)
 
-    integer              :: B, activeblocks, ranks_per_block, blocks_per_rank
+    integer              :: B, activeblocks, blocks_per_rank
     integer              :: block_count, i, offset, spwfs_per_rank, remainder
-    integer              :: local_ind, N, si
+    integer              :: local_ind, N, si, Nspwf, C
 
     integer, allocatable :: local_count(:)
 #if(USE_MPI>0)
     integer              :: mpi_err
 #endif
 
-    allocate(rank_map(sum(blocks_global)), spwf_inverse(sum(blocks_global)))
-    rank_map     = 0 ; spwf_inverse = 0
-    blocks_local = 0
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! The total number of spwfs to load-balance across different MPI ranks
+    ! Note: not simply set to nwt to keep some flexibility...
+    Nspwf  = sum(blocks_global)
+    allocate(rank_map(Nspwf), spwf_inverse(Nspwf))
+    rank_map     = 0 ; spwf_inverse = 0 ; blocks_local = 0
+
+    ! Count the number of active symmetry blocks (blocks with non-zero spwfs)
+    activeblocks = 0
+    do B=1,8
+      if(blocks_global(B) .ne. 0) activeblocks = activeblocks + 1
+    enddo
 
     select case(balancing)
     case (0)
       !-------------------------------------------------------------------------
-      ! Naive balancing: simply distribute the spwfs among all ranks.
+      ! Full on load-balancing: each symmetry block gets assigned a bunch of
+      ! MPI ranks, which divide equally the number of spwfs among them.
+      !
+      ! Todo: figure out if we can do more clever things by estimating the work
+      !       to be done as a function of the number of spwfs in a given block
       !-------------------------------------------------------------------------
-      spwfs_per_rank = nwt/Ncores       ! Integer division
-      remainder      = mod(nwt, Ncores) ! Perhaps nwt is not precisely divisible
-                                        ! by the number of MPI ranks we have
-
-      allocate(local_count(Ncores)) 
-      local_count = spwfs_per_rank
-      local_count(1:remainder) = local_count(1:remainder) + 1
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Constructing the bookkeeping on each rank
-      allocate(spwf_map(local_count(MPI_RANK))); spwf_map = 0
-
-      local_ind = 0
-      si        = 0
+      ! Naively assign ranks uniformly
+      remainder       = Ncores - (Ncores / activeblocks) * activeblocks
       do B=1,8
         N = blocks_global(B); if(N.eq.0) cycle
-        
-        do i=si+1,si+N
-          if( i .gt. sum(local_count(1:MPI_RANK)) ) then
-            if(MPI_RANK .ne. NCORES) then
-               if (i .le. sum(local_count(1:MPI_RANK+1))) then
-                  local_ind                = local_ind + 1
-                  spwf_map(local_ind)      = i
-                  spwf_inverse(i)          = local_ind
-                  rank_map(i)              = MPI_RANK
-                  blocks_local(B)          = blocks_local(B) + 1
-               endif
-            else
-              local_ind                    = local_ind + 1
-              spwf_map(local_ind)          = i
-              spwf_inverse(i)              = local_ind
-              rank_map(i)                  = MPI_RANK
-              blocks_local(B)              = blocks_local(B) + 1
-            endif
-          endif
-        enddo
-        si = si + N
+        ranks_per_block(B)= Ncores / activeblocks ! integer division
+        if(remainder .gt. 0) then
+          ranks_per_block(B)  = ranks_per_block(B) +1
+          remainder = remainder -1
+        endif
       enddo
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Create a new communicator dealing with each symmetry block
+      MPI_SYM_BLOCK = 1
+      do B=1,8
+        N = blocks_global(B); if(N.eq.0) cycle
+        if(MPI_RANK +1.le. sum(ranks_per_block(1:B))) then
+          if(MPI_RANK+1 .gt. sum(ranks_per_block(1:B-1))) then
+            MPI_SYM_BLOCK = B
+          endif
+        endif
+      enddo
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+      ! Split the WORLD communicator and obtain the relevant rank and size in 
+      ! the new communicator
+      call MPI_COMM_SPLIT(MPI_COMM_WORLD, MPI_SYM_BLOCK, MPI_RANK, MPI_COMM_BLOCK, MPI_ERR)
+      call MPI_COMM_RANK(MPI_COMM_BLOCK, MPI_BLOCK_RANK, MPI_ERR)
+      call MPI_COMM_SIZE(MPI_COMM_BLOCK, MPI_BLOCK_SIZE, MPI_ERR)
+
+!      print *, "RANK = ", MPI_RANK, " now # ", MPI_BLOCK_RANK, "in a team of ", MPI_BLOCK_SIZE, "dealing with block", MPI_SYM_BLOCK
+!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!      call sleep(1)
+!      call MPI_ALLREDUCE(MPI_IN_PLACE,MPI_BLOCK_SIZE,1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
+!      print *, "BLOCK SIZE TOTAL", MPI_BLOCK_SIZE
+!      call stp('')
       
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Divide the number of spwfs in this symmetry block across the number of
+      ! MPI ranks assigned to this block
+      spwfs_per_rank = blocks_global(MPI_SYM_BLOCK) / MPI_BLOCK_SIZE
+      remainder      = blocks_global(MPI_SYM_BLOCK) - spwfs_per_rank * MPI_BLOCK_SIZE
+      ! Note that ALL of the MPI ranks in this particular block should 
+      ! construct the number of spwfs on all other ranks in order to be able
+      ! to do the accounting below.
+      allocate(local_count(0:MPI_BLOCK_SIZE-1))
+      local_count = spwfs_per_rank
+      if(remainder.ne.0) then
+        local_count(0:remainder-1) = local_count(0:remainder-1) + 1
+      endif
+      blocks_local(MPI_SYM_BLOCK) = local_count(MPI_BLOCK_RANK)
+      print *, 'RANK', MPI_RANK, MPI_BLOCK_RANK, blocks_local
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Constructing the bookkeeping on each rank
+      allocate(spwf_map(local_count(MPI_BLOCK_RANK)))
+      spwf_map  = 0
+      local_ind = 0
+
+      N      = blocks_global(MPI_SYM_BLOCK)
+      offset = sum(blocks_global(1:MPI_SYM_BLOCK-1))
+      do i=1,N
+        if( i .gt. sum(local_count(0:MPI_BLOCK_RANK-1)) ) then
+          if(MPI_BLOCK_RANK .ne. MPI_BLOCK_SIZE) then
+             if (i .le. sum(local_count(0:MPI_BLOCK_RANK))) then
+                local_ind                = local_ind + 1
+                spwf_map(local_ind)      = i + offset
+                spwf_inverse(i + offset) = local_ind
+                rank_map(i + offset)     = MPI_RANK
+             endif
+          else
+            local_ind                    = local_ind + 1
+            spwf_map(local_ind)          = i + offset
+            spwf_inverse(i + offset)     = local_ind
+            rank_map(i + offset)         = MPI_RANK
+          endif
+        endif
+      enddo
+      !-------------------------------------------------------------------------
     case (1)
       !-------------------------------------------------------------------------
-      ! Balancing per symmetry block
+      ! Balancing per symmetry block: each MPI rank gets one or more symmetry
+      ! blocks to account for.
       !-------------------------------------------------------------------------
-      ! Count the number of active blocks      
-      activeblocks = 0
-      do B=1,8
-        if(blocks_global(B) .ne. 0) activeblocks = activeblocks + 1
-      enddo
+
 
       if(activeblocks .ge. Ncores) then
         ! More symmetry blocks than MPI ranks, i.e. we assign each rank
@@ -435,10 +492,13 @@ contains
         enddo
       else
         ! More ranks than blocks
-        ranks_per_block = Ncores/activeblocks
+        call stp('There are MPI ranks than symmetry blocks. Pick a different load-balancing strategy')
       endif
+      !-------------------------------------------------------------------------
     case DEFAULT
+      !-------------------------------------------------------------------------
       call stp('Unknown type of load balancing.')
+      !-------------------------------------------------------------------------
     end select
 
 #if(USE_MPI>0)
@@ -448,6 +508,32 @@ contains
   call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_inverse, sum(blocks_global), & 
   &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
 #endif
+
+!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!      if(MPI_RANK.eq.0) then
+!        do C=1,nwt
+!            print *, 'SPWF ', C, ' is held by rank ', rank_map(C)
+!        enddo
+!      endif
+!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!      do B=0, NCORES
+!         if(MPI_RANK.eq.B) then
+!            print *, ''
+!            print *, ' RANK ', B, ' holds', sum(blocks_local), 'states'
+!            do C=1, size(spwf_map)
+!                print *,C, spwf_map(c), spwf_inverse(spwf_map(c))
+!            enddo
+!            print *, MPI_SYM_BLOCK
+!         endif
+!         call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!      enddo
+!      if(MPI_RANK.eq.0) then
+!        do C=1,nwt
+!            print *, 'SPWF ', C, ' is held by rank ', rank_map(C)
+!        enddo
+!      endif
+!      
+!      call stp('')
 
   end subroutine loadbalance
 

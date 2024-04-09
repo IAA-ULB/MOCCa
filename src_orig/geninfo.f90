@@ -138,7 +138,7 @@ module GenInfo
   ! Load balancing strategy for the MPI ranks
   ! (0) : naive 1d block distribution of spwfs among ranks
   ! (1) : give entire symmetry blocks to MPI ranks
-  integer :: balancing_strategy = 1
+  integer :: balancing_strategy = 0
 
 contains
 
@@ -518,7 +518,7 @@ contains
 
     r = adjustl(string)
   end function rps 
-  
+
   subroutine clean_geninfo()
     !---------------------------------------------------------------------------
     ! Deallocate all allocated arrays, to exit in a clean fashion.
