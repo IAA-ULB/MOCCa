@@ -220,7 +220,8 @@ ifeq ($(COMPILER),gnu)
 	LIBS := -llapack -lblas
 else ifeq ($(COMPILER),intel)
   # ifort compiler should link to the new Intel math library
-	LIBS := -qmkl
+	LIBS :=  -qmkl
+	LIBS +=   -L${MKLROOT}/lib -lmkl_scalapack_lp64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lmkl_blacs_intelmpi_lp64 -lpthread -lm -ldl
 else ifeq ($(COMPILER), cray)
   # Cray compilers don't need specific linking to my knowledge
 	LIBS :=
@@ -239,7 +240,7 @@ PYTHON_CMD := python3
 ifeq ($(COMPILER),gnu)
 	CXXFLAGS := -J$(MODDIR)
 else ifeq ($(COMPILER),intel)
-	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin -heap-arrays
+	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin -heap-arrays -diag-disable=10448
 else ifeq ($(COMPILER),cray)
 	CXXFLAGS := -J$(MODDIR) -M 878
 endif

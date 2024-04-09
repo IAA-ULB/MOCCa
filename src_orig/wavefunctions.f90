@@ -95,6 +95,9 @@ module wavefunctions
  real(KIND=dp), allocatable, target ::  HFddPsi(:,:,:,:)!Second order derivatives
  real(KIND=dp), allocatable, target :: HFdddPsi(:,:,:,:)!Third order derivatives
  !------------------------------------------------------------------------------
+ ! A copy of the HFPsi array, to be redistributed across MPI ranks in a 2D way
+ real(KIND=dp), allocatable         :: HFPSI_2D(:,:,:)
+ !------------------------------------------------------------------------------
  ! Array containing the values of the spwfs in the Canonical basis
  ! and their derivatives.
  real(KIND=dp), allocatable, target ::     CANPsi(:,:,:)
@@ -166,7 +169,10 @@ module wavefunctions
  integer              :: MPI_COMM_BLOCK, MPI_SYM_BLOCK
  integer              :: MPI_BLOCK_RANK, MPI_BLOCK_SIZE
  integer              :: ranks_per_block(Blocks)
- 
+ ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ ! BLACS information for the communication between 1D and 2D grids
+ integer :: blacs_cntxt_1D, blacs_cntxt_2D
+ integer :: MPI_COMM_BLOCK_2D
  !------------------------------------------------------------------------------
  ! Properties of the single-particle wave-functions with regard to reflections
  ! of the axes. Note that these are properties of the LOCALLY stored spwfs, 
@@ -263,6 +269,7 @@ module wavefunctions
  !
  ! 1. GramSchmidt :  (modified) Gram-Schmidt process
  ! 2. Loewdin     :  Loewdin (symmetric) orthonormalisation [NOT IMPLEMENTED]
+ ! TODO: CORRECT THIS DOCUMENTATION
  !
  ! Note: this input parameter is not case-sensitive.
   procedure(GramSchmidt), pointer :: Orthonormalize
@@ -1219,6 +1226,120 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     call stop_timer(T_ortho)
   end subroutine Cholesky_orthonormalisation
 
+#if(USE_MPI > 0)
+  subroutine set_up_blacs
+    !---------------------------------------------------------------------------
+    ! TODO: document
+    !---------------------------------------------------------------------------
+    integer :: mpi_err, dims(2), C, myrow, mycol, blacs_rank, nbprocs, i,j,k
+    integer, allocatable :: map_1D(:,:), map_2D(:,:), team(:)
+    logical :: in_team
+    
+    ! MPI_DIMS_CREATE to determine a division of our MPI ranks into a 2D grid
+    dims = 0
+    call MPI_DIMS_CREATE(MPI_BLOCK_SIZE,2, dims, mpi_err)
+    print *, 'DIMS', MPI_BLOCK_SIZE, dims
+    ! ... and create a new communicator according to these rules
+    CALL MPI_CART_CREATE(MPI_COMM_BLOCK,2, dims,.false.,.false.,MPI_COMM_BLOCK_2D,mpi_err)
+
+    ! make sure everything is fine and dandy before proceeding
+    CALL mpi_barrier (MPI_COMM_WORLD, mpi_err)
+
+    ! Getting the BLACS context(s)
+    call blacs_get( 0, 0, blacs_cntxt_1D)
+
+    
+    ! Constructing the BLACS grids
+    ! NOTE: this cannot be accomplished with the blacs_gridinit subroutine 
+    !       because it does not support multigridding, i.e. grids that are 
+    !       split by symmetry blocks such as we attempt here.
+    !call blacs_gridinit( blacs_cntxt_1D, 'R', 1, MPI_BLOCK_SIZE)
+    !call blacs_gridinit( blacs_cntxt_2D, 'C', dims(1), dims(2) )
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! 1D context
+    allocate(map_1D(1,MPI_BLOCK_SIZE))
+    allocate(team(MPI_BLOCK_SIZE))
+    call MPI_Allgather(MPI_RANK, 1, MPI_INT,team, 1, MPI_INT, MPI_COMM_BLOCK, mpi_err)
+    print *, 'MPI RANK', MPI_RANK, ' has team', team
+    do C=1,MPI_BLOCK_SIZE
+      map_1D(1,C) = team(C)
+    enddo
+    print *, 'MPI RANK', MPI_RANK, ' has 1D map', MAP_1D
+    CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1, 1, MPI_BLOCK_SIZE)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! 2D context
+    call blacs_get(blacs_cntxt_2D, 10, blacs_cntxt_2D)
+    call blacs_pinfo(blacs_rank, nbprocs)
+    print *, 'BLACS', blacs_rank, nbprocs
+    allocate(map_2D(dims(1),dims(2)))
+    K = 0
+    do i=1,dims(1)
+      do j=1,dims(2)
+        map_2D(i,j) = K
+        K = K+1
+      enddo
+    enddo
+    print *, MPI_RANK, 'MAP2D', map_2D
+!    in_team = .false.
+!    do K=1, MPI_BLOCK_SIZE
+!      if(MPI_RANK.eq.team(K)) in_team=.true.
+!    enddo
+!    if(in_team) then
+    
+    CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(2), MPI_BLOCK_SIZE)
+!    endif
+    call stp('')   
+    
+    call blacs_pinfo(blacs_rank, nbprocs)
+    !print *, 'BLACS_RANK', blacs_rank,  nbprocs, MPI_BLOCK_SIZE
+    call blacs_gridinfo( blacs_cntxt_2D, dims(1), dims(2), myrow, mycol )
+    do C=0,NCORES
+      if(MPI_RANK.eq. C) then
+        print *, 'RANK', C, MPI_BLOCK_RANK,myrow, mycol
+      endif
+    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    enddo
+    
+    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    call stp('')
+!    call blacs_gridinit( ictxt, 'Row', nprow, npcol )
+
+  end subroutine set_up_blacs
+
+  subroutine transfer_1D_to_2D(A_1D, A_2D)
+    !---------------------------------------------------------------------------
+    ! Use the scalapack PDGEMR2D to copy the HFPSI array
+    !
+    !
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  :: A_1D(:,:,:)
+    real(KIND=dp), intent(out) :: A_2D(:,:,:)
+    integer                    :: B, N, si
+    
+    call set_up_blacs
+    
+    A_2D = 0.0
+    
+    si = 0
+    do B=1,8
+      N = HFblocks(B) ; if(N.eq.0) cycle
+
+!      call pdgemr2d(4*mv,N,HFPsi(1:4*mv,1,1:N), 1, 1, desc_A, &
+!      &               matrix_A_loc,1,1, desc_A_loc, ictxt)
+      si = si + N
+    enddo
+!        
+!        CALL PZGEMR2D(gridsize,nlin,psi_1d,1,1,desc_psi1d(1:10),psi_2d,&
+!                  1,1,desc_psi2d(1:10),contxt)
+  end subroutine transfer_1D_to_2D
+  
+  subroutine transfer_2D_to_1D(A_2D, A_1D)
+    real(KIND=dp), intent(in)  :: A_2D(:,:,:)
+    real(KIND=dp), intent(out) :: A_1D(:,:,:)
+    integer                    :: B, N, si
+    A_1D = 0.0
+  end subroutine transfer_2D_to_1D
+#endif
 !===============================================================================
 
   function TimeReverse(psi) result(Tpsi)

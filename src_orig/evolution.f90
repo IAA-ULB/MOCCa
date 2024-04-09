@@ -92,7 +92,7 @@ module evolution
         integer, intent(in)               :: iteration
       end subroutine
     end interface
-    procedure(Evolve_Interface),pointer :: Evolve_subspace    
+    procedure(Evolve_Interface),pointer :: Evolve_subspace
     !---------------------------------------------------------------------------
     ! Allow Tantalus to estimate the runtime parameters of the heavy-ball 
     ! algorithm for the linear subproblem or stay faithful to those specified 
@@ -750,7 +750,14 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       HFPSI = HFPSI + momentum_updates
       !-------------------------------------------------------------------------
       ! Step 3: orthonormalize
+      ! ... but first transfer to 2D layout when MPI is active
+#if(USE_MPI > 0)
+      call transfer_1D_to_2D(HFPsi, HFPsi_2D)
+#endif
       call orthonormalize
+#if(USE_MPI > 0)
+      call transfer_2D_to_1D(HFPsi_2D, HFPsi)
+#endif
       !-------------------------------------------------------------------------
 
 #if(USE_MPI > 0)
