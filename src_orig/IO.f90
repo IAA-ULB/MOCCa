@@ -476,7 +476,7 @@ contains
       fileblocks        = HFBlocks
       
       if(inputoption.eq.1) then
-        Potentials = readpotentials_separate(12, inputfilename)
+        Potentials_read = readpotentials_separate(12, inputfilename)
         Coulomb_read_from_file = .true. 
         ! Signalling that we have direct and Exchange potentials read
       endif
