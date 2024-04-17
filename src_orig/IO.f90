@@ -1292,7 +1292,7 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Write the neutron, proton and charge density to a file for postprocessing 
     if(DENFILE .ne. '') then
-      call write_densities(DENFILE)
+      call write_densities(Density, DENFILE)
     endif
     if(TOFILE .ne. '') then
 $TR   call stp('Time-odd densities do not figure in a calculation that assumes time-reversal.')
@@ -1301,7 +1301,7 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Write the relevant potentials to a file for postprocessing
     if(POTFILE .ne. '') then
-      call write_potentialfile(POTFILE)
+      call write_potentialfile(potentials, POTFILE)
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Single-particle wave function information 
@@ -1722,9 +1722,9 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     integer, intent(in) :: iochannel
     type(moment), pointer :: Q20, Q22
    
-    1 format("# N = ", i3, ' Z = ', i3, ' A = ', i3)
-    2 format("# nwn = ", i3, ", nwp = ", i3)
-    3 format("# (nx,ny,nz) = (", 3i3, "), dx = ", f8.6, ' fm')
+    1 format("# N = ", i8, ' Z = ', i8, ' A = ', i8)
+    2 format("# nwn = ", i9, ", nwp = ", i9)
+    3 format("# (nx,ny,nz) = (", 3i5, "), dx = ", f10.8, ' fm')
     4 format("# Parameterisation    : ", a40)
     5 format("# Functional type     : ", a40)
     6 format("# Fermi energies      : ", 2f15.4)
@@ -1762,7 +1762,7 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
 
   end subroutine write_header
 
-  subroutine write_densities(fname)
+  subroutine write_densities(R, fname)
     !---------------------------------------------------------------------------
     ! Write the following densities to a file named "fname"
     !    rho(neutron), rho(proton), rho(charge)
@@ -1790,9 +1790,10 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     ! part of the box that is actually represented numerically. It is up to
     ! postprocessing to actually construct the densities in the entire box.
     !---------------------------------------------------------------------------
-    real(KIND=dp), pointer           :: rhon(:,:,:), rhop(:,:,:)
-    character(len=*), intent(in)     :: fname
-    integer                          :: io, i,j,k
+    type(DensityVector), intent(in), target :: R
+    real(KIND=dp), pointer                  :: rhon(:,:,:), rhop(:,:,:)
+    character(len=*), intent(in)            :: fname
+    integer                                 :: io, i,j,k
 
     1 format('#  X[fm]   Y[fm]   Z[fm]       rho_n[fm^{-3}]           rho_p[fm^{-3}]           rho_c[fm^{-3}]')
     open(1,file=fname, iostat=io)
@@ -1802,17 +1803,17 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
       call stp('')
     endif
 
-    rhon(1:nx,1:ny,1:nz)  => Density%D_I_I(:,1)
-    rhop(1:nx,1:ny,1:nz)  => Density%D_I_I(:,2)
+    rhon(1:nx,1:ny,1:nz)  => R%D_I_I(:,1)
+    rhop(1:nx,1:ny,1:nz)  => R%D_I_I(:,2)
 
     call write_header(1)
     write(1, fmt=1) 
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          write(1, fmt='(3f8.3, 3es25.12E3)') meshx(i), meshx(j), meshz(k),    &
-          &                                   rhon(i,j,k), rhop(i,j,k),        &
-          &                                        Density%chargedensity(i,j,k)
+          write(1, fmt='(6es25.12E3)') meshx(i), meshx(j), meshz(k),    &
+          &                            rhon(i,j,k), rhop(i,j,k),        &
+          &                            Density%chargedensity(i,j,k)
         enddo
       enddo
     enddo
@@ -1820,8 +1821,174 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     close(1)
   end subroutine write_densities
   
+ subroutine write_potentialfile(F,fname)
+    !---------------------------------------------------------------------------
+    ! Write the mean-field potentials to a file named "fname":
+    !  central       coulomb   coulomb   kinetic  pairing   spin-orbit  
+    !                 direct   exchange
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Remarks:
+    ! 
+    !   *) Note that G_I_NS has 9 components for each isospin, corresponding 
+    !      to the gradient and spin indices. These are arranged in lexographical
+    !      order.  
+    !   *) F_I_I should be the exact potential corresponding to the derivative 
+    !      of the Skyrme energy with respect to D_I_I. This means that it should
+    !      not include
+    !       - the contributions from constraints
+    !       - the contribution of the Coulomb interaction
+    !   *) To reproduce the complete state of the code, it is important that 
+    !      the Coulomb potentials written to file are the potentials 
+    !      corresponding to the charge density; for the direct potential this
+    !      is the U that satisfies 
+    ! 
+    !                 Delta U = 4 pi rho_charge
+    !
+    !      If the finite extent of the nucleons charge density is taken into 
+    !      account selfconsistently, this means that U is NOT the potential 
+    !      which should be added to F_I_I. 
+    !
+    !---------------------------------------------------------------------------
+    !
+    ! The file contains a header written by the subroutine write_header,
+    ! supplemented by
+    ! #   X[fm] Y[fm] Z[fm] V_nuc(n) V_nuc(p) V_c(n) V_c(p) 
+    !               V_so(xx,n), V_so(xy,n), ..., V_so(zz,p)
+    ! 
+    ! where the # are included so that Numpy (or other plotting tools) can 
+    ! ignore these lines when naively plotting stuff. Note that the fourth
+    ! line is currently empty, but is reserved for future additions concerning
+    ! symmetry options of the current run.
+    !
+    ! where the first three numbers are the Cartesian coordinates (units of fm).
+    ! The points are written down in column-major order ('Fortran order'), 
+    ! which might not be how your favorite plotting tool prefers it.
+    !---------------------------------------------------------------------------
+    use Coulombmod ! module explicitly 'used' in order to be able to place the 
+                   ! values of the direct and exchange Coulomb potentials 
+                   ! correctly on the mesh
 
-  !!NS_t0t3: fname is deleted from write nabla argument
+
+    type(PotentialVector), intent(in) :: F
+    character(len=*), intent(in)      :: fname
+    real(KIND=dp), pointer            :: Vnucp(:,:,:), Vnucn(:,:,:)
+    real(KIND=dp), allocatable        :: Coulp(:,:,:), Excp(:,:,:)
+
+    real(KIND=dp), allocatable, target   :: temp(:,:)
+    integer                              :: io, i,j,k, mu, nu, ox, oy, oz, mi
+    character(len=1) :: directions(3) 
+
+    1 format('#', 6x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]', 20x, 'V_nuc(n)', 17x, 'V_nuc(p)', 17x, &
+      &      'V_cd', 21x, 'V_ce', 21x, 'V_kin(n)', 17x, 'V_kin(p)', 17x, 'FP_n', 21x, 'FP_p',21x) 
+    2 format('W_', 2a1,'(n)', 18x, 'W_', 2a1,'(p)', 18x )
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'Something went wrong with writing a potential to file.'
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+
+    call write_header(1)
+    write(1, fmt=1, advance='no') 
+  
+    directions = (/'x', 'y', 'z'/)
+    do mu=1,3
+      do nu=1,3
+        write(1, fmt=2, advance='no') directions(mu), directions(nu), &
+        &                             directions(mu), directions(nu)
+      enddo
+    enddo
+    write(1, fmt='()')
+    
+    ! The central nuclear potential is the potential associated with D_I_I, but 
+    ! it should not include the contribution of the constraints, nor the 
+    ! contribution of the direct and exchange Coulomb potentials
+    allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
+    
+    temp = F%F_I_I(:,1:2) - constraint_I_I
+
+    Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
+    Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Subtracting the coulomb potential depends on our treatment of the 
+    ! proton and neutron finite size effect
+    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+    &                             (.not. nucleonsize_selfconsistent)) then
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! No finite size effect
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! The index juggling is ugly, but necessary, because the Coulomb 
+      ! potential has a different size than the Lagrange mesh.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            Vnucp(i,j,k)          =   Vnucp(i,j,k) &
+            &                     - F%CoulombPotential(i+ox,j+oy,k+oz)    &
+            &                     - F%ExchangePotential(i,j,k)
+          enddo
+        enddo
+      enddo
+    else
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Finite size effects taken into account
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Note that there is no index juggling since these matrices are 
+      ! conveniently defined on the ordinary mesh.
+      Vnucn = Vnucn - F%FoldedCoul(:,:,:,1) &
+      &             - F%FoldedExchange(:,:,:,1)
+      Vnucp = Vnucp - F%FoldedCoul(:,:,:,2) &
+      &             - F%FoldedExchange(:,:,:,2)
+    endif
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! The potentials related to the charge density
+    Coulp = F%CoulombPotential (ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
+    Excp  = F%ExchangePotential(ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Mesh coordinates and F_I_I and coulomb contribution to it.
+          write(1, fmt='(7es25.12)', advance='no') &
+          &          meshx(i), meshy(j), meshz(k),        &
+          &            Vnucn(i,j,k), Vnucp(i,j,k),        & 
+          &            Coulp(i,j,k), Excp(i,j,k) 
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! the contributions above are indexed according to (x,y,z) but 
+          ! we do not have this luxury for the following potentials
+          mi = meshindex(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The kinetic potential is the potential F_Nm_Nm if D_Nm_Nm is used 
+          ! in the calculation. If instead the kinetic density is decontracted, 
+          ! i.e. D_N_N is used, then we write the scalar component of the tensor
+$TAUSCALAR write(1, fmt='(2es25.12)', advance='no') &
+$TAUSCALAR &         F%F_Nm_Nm(mi,1), F%F_Nm_Nm(mi,2)
+$TAUTENSOR write(1, fmt='(2es25.12)', advance='no') &
+$TAUTENSOR &         F%F_N_N(mi,1,1,1) + F%F_N_N(mi,2,2,1) + F%F_N_N(mi,3,3,1),&
+$TAUTENSOR &         F%F_N_N(mi,1,1,2) + F%F_N_N(mi,2,2,2) + F%F_N_N(mi,3,3,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The pairing fields FP_I_I
+          write(1, fmt='(2es25.12)',advance='no') F%FP_I_I(mi,1), F%FP_I_I(mi,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The spin-orbit potential is the potential G_I_NS
+          do mu=1,3
+            do nu=1,3
+              write(1, fmt='(2es25.12)', advance='no') &
+              &            F%G_I_NS(mi,mu,nu,1), F%G_I_NS(mi,mu,nu,2)
+            enddo
+          enddo
+          write(1, fmt='()') !  newline character
+        enddo
+      enddo
+    enddo
+
+    close(1)
+  end subroutine write_potentialfile
+
+    !!NS_t0t3: fname is deleted from write nabla argument
   subroutine write_nablaJ()
     !---------------------------------------------------------------------------
     ! Debugging routine that can be used to write both
@@ -2022,167 +2189,6 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     close(1)
 
   end subroutine write_timeodd_densities
-
-  subroutine write_potentialfile(fname)
-    !---------------------------------------------------------------------------
-    ! Write the following potentials to a file named "fname"
-    !  F_I_I(n/p)    F_c       E_c      F_Nm_Nm (n/p)  G_I_NS(n/p) 
-    !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !  central       coulomb   coulomb   kinetic        spin-orbit   potentials
-    !                 direct   exchange
-    ! Remarks:
-    ! 
-    !   *) Note that G_I_NS has 9 components for each isospin, corresponding 
-    !      to the gradient and spin indices. These are arranged in lexographical
-    !      order.  
-    !   *) F_I_I should be the exact potential corresponding to the derivative 
-    !      of the Skyrme energy with respect to D_I_I. This means that it should
-    !      not include
-    !       - the contributions from constraints
-    !       - the contribution of the Coulomb interaction
-    !   *) To reproduce the complete state of the code, it is important that 
-    !      the Coulomb potentials written to file are the potentials 
-    !      corresponding to the charge density; for the direct potential this
-    !      is the U that satisfies 
-    ! 
-    !                 Delta U = 4 pi rho_charge
-    !
-    !      If the finite extent of the nucleons charge density is taken into 
-    !      account selfconsistently, this means that U is NOT the potential 
-    !      which should be added to F_I_I. 
-    !
-    !---------------------------------------------------------------------------
-    !
-    ! The file contains a header written by the subroutine write_header,
-    ! supplemented by
-    ! #   X[fm] Y[fm] Z[fm] V_nuc(n) V_nuc(p) V_c(n) V_c(p) 
-    !               V_so(xx,n), V_so(xy,n), ..., V_so(zz,p)
-    ! 
-    ! where the # are included so that Numpy (or other plotting tools) can 
-    ! ignore these lines when naively plotting stuff. Note that the fourth
-    ! line is currently empty, but is reserved for future additions concerning
-    ! symmetry options of the current run.
-    !
-    ! where the first three numbers are the Cartesian coordinates (units of fm).
-    ! The points are written down in column-major order ('Fortran order'), 
-    ! which might not be how your favorite plotting tool prefers it.
-    !---------------------------------------------------------------------------
-    ! IMPORTANT:
-    !  While this routine now claims to write V_so and V_pair to file, right now
-    !  it just writes zeros in those columns.
-    !---------------------------------------------------------------------------
-    character(len=*), intent(in) :: fname
-    real(KIND=dp), pointer       :: Vnucp(:,:,:), Vnucn(:,:,:)
-    real(KIND=dp), allocatable   :: Coulp(:,:,:), Excp(:,:,:)
-
-    real(KIND=dp), allocatable, target   :: temp(:,:)
-    integer                              :: io, i,j,k, mu, nu, ox, oy, oz, mi
-    character(len=1) :: directions(3) 
-
-    1 format('#  X[fm]   Y[fm]   Z[fm]', 7x, 'V_nuc(n)', 17x, 'V_nuc(p)', 17x, &
-      &      'V_cd', 20x, 'V_ce', 20x, 'V_kin(n)', 17x, 'V_kin(p)', 19x) 
-    2 format('W_', 2a1,'(n)', 18x, 'W_', 2a1,'(p)', 18x )
-
-    open(1,file=fname, iostat=io)
-    if(io.ne.0) then    
-      print *, 'Something went wrong with writing a potential to file.'
-      print *, 'filename = ', fname
-      call stp('')
-    endif
-
-    call write_header(1)
-    write(1, fmt=1, advance='no') 
-  
-    directions = (/'x', 'y', 'z'/)
-    do mu=1,3
-      do nu=1,3
-        write(1, fmt=2, advance='no') directions(mu), directions(nu), &
-        &                             directions(mu), directions(nu)
-      enddo
-    enddo
-    write(1, fmt='()')
-    
-    ! The central nuclear potential is the potential associated with D_I_I, but 
-    ! it should not include the contribution of the constraints, nor the 
-    ! contribution of the direct and exchange Coulomb potentials
-    allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
-    
-    temp = Potentials%F_I_I(:,1:2) - constraint_I_I
-
-    Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
-    Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Subtracting the coulomb potential depends on our treatment of the 
-    ! proton and neutron finite size effect
-    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
-    &                             (.not. nucleonsize_selfconsistent)) then
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! No finite size effect
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! The index juggling is ugly, but necessary, because the Coulomb 
-      ! potential has a different size than the Lagrange mesh.
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            Vnucp(i,j,k)          =   Vnucp(i,j,k) &
-            &                 - Potentials%CoulombPotential(i+ox,j+oy,k+oz)    &
-            &                 - Potentials%ExchangePotential(i,j,k)
-          enddo
-        enddo
-      enddo
-    else
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Finite size effects taken into account
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Note that there is no index juggling since these matrices are 
-      ! conveniently defined on the ordinary mesh.
-      Vnucn = Vnucn - Potentials%FoldedCoul(:,:,:,1) &
-      &             - Potentials%FoldedExchange(:,:,:,1)
-      Vnucp = Vnucp - Potentials%FoldedCoul(:,:,:,2) &
-      &             - Potentials%FoldedExchange(:,:,:,2)
-    endif
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! The potentials related to the charge density
-    Coulp = Potentials%CoulombPotential (ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
-    Excp  = Potentials%ExchangePotential(ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! Mesh coordinates and F_I_I and coulomb contribution to it.
-          write(1, fmt='(3f8.3, 4es25.12)', advance='no') &
-          &          meshx(i), meshy(j), meshz(k),        &
-          &            Vnucn(i,j,k), Vnucp(i,j,k),        & 
-          &            Coulp(i,j,k), Excp(i,j,k) 
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! the contributions above are indexed according to (x,y,z) but 
-          ! we do not have this luxury for the following potentials
-          mi = meshindex(i,j,k)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The kinetic potential is the potential F_Nm_Nm
-          !NS_t0t3:
-          !write(1, fmt='(2es25.12)', advance='no') &
-          !&         F_Nm_Nm(mi,1), F_Nm_Nm(mi,2)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The spin-orbit potential is the potential G_I_NS
-          !do mu=1,3
-          !  do nu=1,3
-          !    write(1, fmt='(2es25.12)', advance='no') &
-          !    &             G_I_NS(mi,mu,nu,1), G_I_NS(mi,mu,nu,2)
-          !  enddo
-          !enddo
-          write(1, fmt='()') !  newline character
-        enddo
-      enddo
-    enddo
-
-    close(1)
-  end subroutine write_potentialfile
-
-
 
   subroutine write_sp_info(fname)
     !---------------------------------------------------------------------------

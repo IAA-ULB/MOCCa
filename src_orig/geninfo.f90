@@ -74,6 +74,10 @@ module GenInfo
   ! MaxIter; (MaxIter - FreezeIter) iterations DO change the potentials.
   integer :: FreezeIter = 0
   !---------------------------------------------------------------------------
+  ! Alternatively, one can check for the convergence of the linear subproblem
+  ! by keeping the potentials frozen until d2H passes this limit.
+  real(KIND=dp) :: d2H_freeze =1e20
+  !---------------------------------------------------------------------------
   ! Coordinates of the mesh points for the calculation as well as the 
   ! coulomb calculation
   real(KIND=dp), allocatable         :: meshx(:), meshy(:), meshz(:)

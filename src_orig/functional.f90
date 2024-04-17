@@ -1939,7 +1939,8 @@ $PVECTORINPRODUCT
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocate the relevant potentials    
-    allocate(F%F_I_I  (nx*ny*nz,4))     ; F%F_I_I   = 0.0d0
+    allocate(F%F_I_I   (nx*ny*nz,4))     ; F%F_I_I    = 0.0d0
+    allocate(F%FP_I_I  (nx*ny*nz,2))     ; F%FP_I_I   = 0.0d0
 $TAUSCALAR    allocate(F%F_Nm_Nm(nx*ny*nz,4))   ; F%F_Nm_Nm = 0.0d0
 $TAUTENSOR    allocate(F%F_N_N(nx*ny*nz,3,3,4)) ; F%F_N_N   = 0.0d0
     allocate(F%G_I_NS (nx*ny*nz,3,3,4)) ; F%G_I_NS  = 0.0d0
@@ -1951,30 +1952,34 @@ $TAUTENSOR    allocate(F%F_N_N(nx*ny*nz,3,3,4)) ; F%F_N_N   = 0.0d0
     ! separately over x/y/z and can just loop once over all mesh points.
     ! This also means the coordinate information is not used.
     do i=1,nx*ny*nz
-      read(chan, fmt='(3f8.3, 4es25.12)', iostat=io, advance='no') & 
+      read(chan, fmt='(7es25.12)', iostat=io, advance='no')        & 
       &                            x,y,z,                          & !unused
       &                            F%F_I_I(i,1),F%F_I_I(i,2),      & ! U(r)
       &                            Vc(i),  Ec(i)                     ! Coulomb
-
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! It is easy to read the kinetic potential from ETFSI calculations if 
       ! D_Nm_Nm is defined as a contracted density
 $TAUSCALAR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
 $TAUSCALAR      &                            F%F_Nm_Nm(i,1), F%F_Nm_Nm(i,2)    ! kinetic
-      ! If not, then we have to do some reorganisation
+!      ! If not, then we have to do some reorganisation
 $TAUTENSOR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
 $TAUTENSOR      &                            F%F_N_N(i,1,1,1), F%F_N_N(i,1,1,2)! kinetic
 $TAUTENSOR      F%F_N_N(i,2,2,:) = F%F_N_N(i,1,1,:)/3
 $TAUTENSOR      F%F_N_N(i,3,3,:) = F%F_N_N(i,1,1,:)/3
 $TAUTENSOR      F%F_N_N(i,1,1,:) = F%F_N_N(i,1,1,:)/3
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+      ! Pairing field
+      read(chan, fmt='(7es25.12)', iostat=io, advance='no')                    &
+      &                            F%FP_I_I(i,1),F%FP_I_I(i,2)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! All components of the spin-orbit field
       do mu=1,3
         do nu=1,3
           read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
           &               F%G_I_NS(i,mu,nu,1), F%G_I_NS(i,mu,nu,2)
         enddo
       enddo
+      
       read(chan, *) ! Advance to new line
       
       if(io.ne.0) then

@@ -7,6 +7,7 @@
 #-------------------------------------------------------------------------------
 from string          import Template
 from src_heph.heph_symmetries import symmetryencoding
+from src_heph.heph_functional import Densities_needed
 
 def ProcessIO(fname, src, target, so, oldso):
     """
@@ -51,6 +52,13 @@ def ProcessIO(fname, src, target, so, oldso):
       dic['TR'] = '!'
       dic['NTR']= ''
 
+    if('D_Nm_Nm' not in Densities_needed):
+      dic['TAUSCALAR'] = '!'
+      dic['TAUTENSOR'] = ' '
+    else:
+      dic['TAUSCALAR'] = ' '
+      dic['TAUTENSOR'] = '!'
+      
     with open(src+fname, 'r') as template:
       with open(target+fname, 'w') as generated:
         for line in template:

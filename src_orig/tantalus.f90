@@ -301,6 +301,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 
     integer :: iprint, scheme, ifail
     logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
+    logical :: potentials_frozen=.true.
     ! Logical to see if any moments with projection are necessary
     logical :: projectpresent = .false.
 
@@ -455,9 +456,14 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         endif
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Construct new potentials, but only if MaxIter > FreezeIter
+        ! Construct new potentials ...
+        ! ...but only if Iter > FreezeIter AND d2H < d2H_freeze
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        if(iter .gt. freezeiter) then
+        if((iter .gt. freezeiter) .and. (d2H .lt. d2H_freeze)) then
+           potentials_frozen = .false.
+        endif
+
+        if(potentials_frozen) then
           ! calculate new values for the potentials from the densities
           potentials_out = calcPotentials(Density, coulomb_guess=potentials%CoulombPotential)
           
@@ -531,7 +537,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! Decide whether to do a full printout
         ! .... but do a summary printout anyway to enable for "complete" output
         !      when grepping on quantities included in the summary
-        if(MPI_RANK.eq.0) call printsummary(iter)
+        if(MPI_RANK.eq.0) call printsummary(iter, potentials_frozen)
         if(iprint .eq.1)  then
           call full_printout(iter,convergenceachieved,print_all_spwf_properties)
         endif
@@ -554,13 +560,14 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     enddo
 end subroutine ReachForWaterAndFood
 
-subroutine printsummary(iter)
+subroutine printsummary(iter, potentials_frozen)
     !---------------------------------------------------------------------------
     ! Short printout after an iteration with sufficient information to follow
     ! somewhat the convergence of the calculation.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
-    !    iter : iteration count
+    !    iter              : iteration count
+    !    potentials_frozen : whether or not the potentials were updated
     !---------------------------------------------------------------------------
     use functional
     use evolution
@@ -570,6 +577,7 @@ subroutine printsummary(iter)
     implicit none
 
     integer, intent(in)   :: iter
+    logical, intent(in)   :: potentials_frozen
     type(Moment), pointer :: current, part
     real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val, devJ
     character(len=1)      :: t, spec
@@ -595,7 +603,7 @@ subroutine printsummary(iter)
 
     if(iter.eq.1) print 1
     print 2, iter
-    if(freezeiter .gt. iter) print 21
+    if(potentials_frozen) print 21
     print 3, dt, momentum, gradientnorm, d2h
     if(pairingscheme.eq.1) then
       print 31, gradient_stepsize, gradient_mu, sqrt(sum(HFBGradnorm**2))
