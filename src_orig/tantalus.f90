@@ -463,7 +463,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
            potentials_frozen = .false.
         endif
 
-        if(potentials_frozen) then
+        if(.not. potentials_frozen) then
           ! calculate new values for the potentials from the densities
           potentials_out = calcPotentials(Density, coulomb_guess=potentials%CoulombPotential)
           
