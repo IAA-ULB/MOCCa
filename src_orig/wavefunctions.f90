@@ -1268,14 +1268,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1, 1, MPI_BLOCK_SIZE)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! 2D context
-    call blacs_get(blacs_cntxt_2D, 10, blacs_cntxt_2D)
+    call blacs_get(blacs_cntxt_1D, 10, blacs_cntxt_2D)
     call blacs_pinfo(blacs_rank, nbprocs)
     print *, 'BLACS', blacs_rank, nbprocs
     allocate(map_2D(dims(1),dims(2)))
     K = 0
     do i=1,dims(1)
       do j=1,dims(2)
-        map_2D(i,j) = K
+        map_2D(i,j) = K + # of CPUs before this symmetry block
         K = K+1
       enddo
     enddo
