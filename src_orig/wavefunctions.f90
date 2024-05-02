@@ -172,7 +172,7 @@ module wavefunctions
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! BLACS information for the communication between 1D and 2D grids
  integer :: blacs_cntxt_1D, blacs_cntxt_2D
- integer :: MPI_COMM_BLOCK_2D
+ integer :: MPI_COMM_BLOCK_2D ! Not sure if this one is going to be necessary
  !------------------------------------------------------------------------------
  ! Properties of the single-particle wave-functions with regard to reflections
  ! of the axes. Note that these are properties of the LOCALLY stored spwfs, 
@@ -398,23 +398,20 @@ contains
         if(MPI_RANK +1.le. sum(ranks_per_block(1:B))) then
           if(MPI_RANK+1 .gt. sum(ranks_per_block(1:B-1))) then
             MPI_SYM_BLOCK = B
+            ! MPI_SYM_BLOCK is the block this particular process is assigned to.
           endif
         endif
       enddo
       call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-      ! Split the WORLD communicator and obtain the relevant rank and size in 
-      ! the new communicator
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Split the MPI_COMM_WORLD communicator
       call MPI_COMM_SPLIT(MPI_COMM_WORLD, MPI_SYM_BLOCK, MPI_RANK, MPI_COMM_BLOCK, MPI_ERR)
+      ! MPI_BLOCK_RANK is the MPI RANK of this particular process within its
+      !                assigned symmetry block.
       call MPI_COMM_RANK(MPI_COMM_BLOCK, MPI_BLOCK_RANK, MPI_ERR)
+      ! MPI_BLOCK_SIZE is the total number of MPI ranks assigned to this 
+      !                symmetry block.
       call MPI_COMM_SIZE(MPI_COMM_BLOCK, MPI_BLOCK_SIZE, MPI_ERR)
-
-!      print *, "RANK = ", MPI_RANK, " now # ", MPI_BLOCK_RANK, "in a team of ", MPI_BLOCK_SIZE, "dealing with block", MPI_SYM_BLOCK
-!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!      call sleep(1)
-!      call MPI_ALLREDUCE(MPI_IN_PLACE,MPI_BLOCK_SIZE,1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
-!      print *, "BLOCK SIZE TOTAL", MPI_BLOCK_SIZE
-!      call stp('')
-      
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Divide the number of spwfs in this symmetry block across the number of
       ! MPI ranks assigned to this block
@@ -429,13 +426,12 @@ contains
         local_count(0:remainder-1) = local_count(0:remainder-1) + 1
       endif
       blocks_local(MPI_SYM_BLOCK) = local_count(MPI_BLOCK_RANK)
-      print *, 'RANK', MPI_RANK, MPI_BLOCK_RANK, blocks_local
+      !print *, 'RANK', MPI_RANK, MPI_BLOCK_RANK, blocks_local
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Constructing the bookkeeping on each rank
       allocate(spwf_map(local_count(MPI_BLOCK_RANK)))
       spwf_map  = 0
       local_ind = 0
-
       N      = blocks_global(MPI_SYM_BLOCK)
       offset = sum(blocks_global(1:MPI_SYM_BLOCK-1))
       do i=1,N
@@ -461,7 +457,6 @@ contains
       ! Balancing per symmetry block: each MPI rank gets one or more symmetry
       ! blocks to account for.
       !-------------------------------------------------------------------------
-
 
       if(activeblocks .ge. Ncores) then
         ! More symmetry blocks than MPI ranks, i.e. we assign each rank
@@ -1232,77 +1227,71 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! TODO: document
     !---------------------------------------------------------------------------
     integer :: mpi_err, dims(2), C, myrow, mycol, blacs_rank, nbprocs, i,j,k
+    integer :: offset, NPROCS
     integer, allocatable :: map_1D(:,:), map_2D(:,:), team(:)
     logical :: in_team
-    
+
+      CALL BLACS_PINFO(MPI_RANK,NPROCS)
+      IF (NPROCS.LT.1) THEN
+        CALL BLACS_SETUP(MPI_RANK,NPROCS)
+      END IF
+
     ! MPI_DIMS_CREATE to determine a division of our MPI ranks into a 2D grid
     dims = 0
     call MPI_DIMS_CREATE(MPI_BLOCK_SIZE,2, dims, mpi_err)
     print *, 'DIMS', MPI_BLOCK_SIZE, dims
     ! ... and create a new communicator according to these rules
-    CALL MPI_CART_CREATE(MPI_COMM_BLOCK,2, dims,.false.,.false.,MPI_COMM_BLOCK_2D,mpi_err)
+    !CALL MPI_CART_CREATE(MPI_COMM_BLOCK,2, dims,.false.,.false.,MPI_COMM_BLOCK_2D,mpi_err)
 
     ! make sure everything is fine and dandy before proceeding
     CALL mpi_barrier (MPI_COMM_WORLD, mpi_err)
 
-    ! Getting the BLACS context(s)
-    call blacs_get( 0, 0, blacs_cntxt_1D)
-
-    
-    ! Constructing the BLACS grids
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Constructing the BLACS 1D and 2D grids
     ! NOTE: this cannot be accomplished with the blacs_gridinit subroutine 
     !       because it does not support multigridding, i.e. grids that are 
     !       split by symmetry blocks such as we attempt here.
-    !call blacs_gridinit( blacs_cntxt_1D, 'R', 1, MPI_BLOCK_SIZE)
-    !call blacs_gridinit( blacs_cntxt_2D, 'C', dims(1), dims(2) )
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! 1D context
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Getting the BLACS context for our 1 set-up
+    call blacs_get( 0, 0, blacs_cntxt_1D)
     allocate(map_1D(1,MPI_BLOCK_SIZE))
     allocate(team(MPI_BLOCK_SIZE))
     call MPI_Allgather(MPI_RANK, 1, MPI_INT,team, 1, MPI_INT, MPI_COMM_BLOCK, mpi_err)
-    print *, 'MPI RANK', MPI_RANK, ' has team', team
     do C=1,MPI_BLOCK_SIZE
       map_1D(1,C) = team(C)
     enddo
     print *, 'MPI RANK', MPI_RANK, ' has 1D map', MAP_1D
+    !call blacs_gridinit(blacs_cntxt_1D, 'C', 1, MPI_BLOCK_SIZE)
     CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1, 1, MPI_BLOCK_SIZE)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! 2D context
-    call blacs_get(blacs_cntxt_1D, 10, blacs_cntxt_2D)
-    call blacs_pinfo(blacs_rank, nbprocs)
-    print *, 'BLACS', blacs_rank, nbprocs
+    call blacs_get(0, 0, blacs_cntxt_2D)
     allocate(map_2D(dims(1),dims(2)))
-    K = 0
+    ! offset is the number of ranks assigned to symmetry blocks of lower number
+    K=  sum(ranks_per_block(1:MPI_SYM_BLOCK-1))
     do i=1,dims(1)
       do j=1,dims(2)
-        map_2D(i,j) = K + # of CPUs before this symmetry block
+        map_2D(i,j) = K
         K = K+1
       enddo
     enddo
-    print *, MPI_RANK, 'MAP2D', map_2D
-!    in_team = .false.
-!    do K=1, MPI_BLOCK_SIZE
-!      if(MPI_RANK.eq.team(K)) in_team=.true.
-!    enddo
-!    if(in_team) then
+    print *, MPI_RANK, 'MAP2D', map_2D, MPI_BLOCK_SIZE, dims
+    CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
     
-    CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(2), MPI_BLOCK_SIZE)
-!    endif
-    call stp('')   
-    
-    call blacs_pinfo(blacs_rank, nbprocs)
+    !call blacs_pinfo(blacs_rank, nbprocs)
     !print *, 'BLACS_RANK', blacs_rank,  nbprocs, MPI_BLOCK_SIZE
-    call blacs_gridinfo( blacs_cntxt_2D, dims(1), dims(2), myrow, mycol )
-    do C=0,NCORES
-      if(MPI_RANK.eq. C) then
-        print *, 'RANK', C, MPI_BLOCK_RANK,myrow, mycol
-      endif
-    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-    enddo
+    !call blacs_gridinfo( blacs_cntxt_2D, dims(1), dims(2), myrow, mycol )
+    !do C=0,NCORES
+    !  if(MPI_RANK.eq. C) then
+    !    print *, 'RANK', C, MPI_BLOCK_RANK,myrow, mycol
+    !  endif
+    !  call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    !enddo
     
-    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    !call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
     call stp('')
-!    call blacs_gridinit( ictxt, 'Row', nprow, npcol )
 
   end subroutine set_up_blacs
 
