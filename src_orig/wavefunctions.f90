@@ -96,7 +96,7 @@ module wavefunctions
  real(KIND=dp), allocatable, target :: HFdddPsi(:,:,:,:)!Third order derivatives
  !------------------------------------------------------------------------------
  ! A copy of the HFPsi array, to be redistributed across MPI ranks in a 2D way
- real(KIND=dp), allocatable         :: HFPSI_2D(:,:,:)
+ real(KIND=dp), allocatable         :: HFPSI_2D(:,:)
  !------------------------------------------------------------------------------
  ! Array containing the values of the spwfs in the Canonical basis
  ! and their derivatives.
@@ -163,16 +163,23 @@ module wavefunctions
  integer              :: HFBlocks_global(Blocks) = 0
  integer              :: nwn = 6, nwp = 6, nwt = 12, nwt_local =12
  integer, allocatable :: rank_map(:), spwf_map(:), spwf_inverse(:)
- 
  !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! Additional MPI communicators, one for each symmetry block
  integer              :: MPI_COMM_BLOCK, MPI_SYM_BLOCK
  integer              :: MPI_BLOCK_RANK, MPI_BLOCK_SIZE
+ ! The number of MPI ranks assigned to each symmetry block
  integer              :: ranks_per_block(Blocks)
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! BLACS information for the communication between 1D and 2D grids
- integer :: blacs_cntxt_1D, blacs_cntxt_2D
+ integer :: blacs_cntxt_1D, blacs_cntxt_2D, blacs_cntxt
  integer :: MPI_COMM_BLOCK_2D ! Not sure if this one is going to be necessary
+ integer :: MYROW, MYCOL, NROW, NCOL
+ integer :: TEAMLEADER
+ ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ ! SCALAPACK descriptors
+ integer :: desc_psi_1d(10) ! 1D layout of the spwfs
+ integer :: desc_psi_2d(10) ! 2D block-cyclic layout of the spwfs
+ integer :: desc_mat_2d(10) ! 2D block-cyclic layout of matrices in spwf-space
  !------------------------------------------------------------------------------
  ! Properties of the single-particle wave-functions with regard to reflections
  ! of the axes. Note that these are properties of the LOCALLY stored spwfs, 
@@ -402,6 +409,7 @@ contains
           endif
         endif
       enddo
+      TEAMLEADER = sum(ranks_per_block(1:MPI_SYM_BLOCK-1))
       call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Split the MPI_COMM_WORLD communicator
@@ -510,33 +518,6 @@ contains
   call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_inverse, sum(blocks_global), & 
   &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
 #endif
-
-!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!      if(MPI_RANK.eq.0) then
-!        do C=1,nwt
-!            print *, 'SPWF ', C, ' is held by rank ', rank_map(C)
-!        enddo
-!      endif
-!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!      do B=0, NCORES
-!         if(MPI_RANK.eq.B) then
-!            print *, ''
-!            print *, ' RANK ', B, ' holds', sum(blocks_local), 'states'
-!            do C=1, size(spwf_map)
-!                print *,C, spwf_map(c), spwf_inverse(spwf_map(c))
-!            enddo
-!            print *, MPI_SYM_BLOCK
-!         endif
-!         call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!      enddo
-!      if(MPI_RANK.eq.0) then
-!        do C=1,nwt
-!            print *, 'SPWF ', C, ' is held by rank ', rank_map(C)
-!        enddo
-!      endif
-!      
-!      call stp('')
-
   end subroutine loadbalance
 
   subroutine iniwavefunctions(ininx,ininy, ininz, ininwn, ininwp)   
@@ -1220,13 +1201,15 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     
     call stop_timer(T_ortho)
   end subroutine Cholesky_orthonormalisation
-
+!===============================================================================
+! MPI-only routines
+!===============================================================================
 #if(USE_MPI > 0)
-  subroutine set_up_blacs
+  subroutine init_blacs
     !---------------------------------------------------------------------------
     ! TODO: document
     !---------------------------------------------------------------------------
-    integer :: mpi_err, dims(2), C, myrow, mycol, blacs_rank, nbprocs, i,j,k
+    integer :: mpi_err, dims(2), C,blacs_rank, nbprocs, i,j,k
     integer :: offset, NPROCS
     integer, allocatable :: map_1D(:,:), map_2D(:,:), team(:)
     logical :: in_team
@@ -1256,6 +1239,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Getting the BLACS context for our 1 set-up
     call blacs_get( 0, 0, blacs_cntxt_1D)
+    blacs_cntxt = blacs_cntxt_1D
     allocate(map_1D(1,MPI_BLOCK_SIZE))
     allocate(team(MPI_BLOCK_SIZE))
     call MPI_Allgather(MPI_RANK, 1, MPI_INT,team, 1, MPI_INT, MPI_COMM_BLOCK, mpi_err)
@@ -1263,8 +1247,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       map_1D(1,C) = team(C)
     enddo
     print *, 'MPI RANK', MPI_RANK, ' has 1D map', MAP_1D
-    !call blacs_gridinit(blacs_cntxt_1D, 'C', 1, MPI_BLOCK_SIZE)
-    CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1, 1, MPI_BLOCK_SIZE)
+    CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1,  1, MPI_BLOCK_SIZE)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! 2D context
     call blacs_get(0, 0, blacs_cntxt_2D)
@@ -1277,23 +1260,37 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         K = K+1
       enddo
     enddo
-    print *, MPI_RANK, 'MAP2D', map_2D, MPI_BLOCK_SIZE, dims
+    !print *, MPI_RANK, 'MAP2D', map_2D, MPI_BLOCK_SIZE, dims
     CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
-    
-    !call blacs_pinfo(blacs_rank, nbprocs)
-    !print *, 'BLACS_RANK', blacs_rank,  nbprocs, MPI_BLOCK_SIZE
-    !call blacs_gridinfo( blacs_cntxt_2D, dims(1), dims(2), myrow, mycol )
-    !do C=0,NCORES
-    !  if(MPI_RANK.eq. C) then
-    !    print *, 'RANK', C, MPI_BLOCK_RANK,myrow, mycol
-    !  endif
-    !  call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-    !enddo
-    
-    !call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-    call stp('')
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    CALL BLACS_GRIDINFO(blacs_cntxt_2D,NROW,NCOL,MYROW,MYCOL)
 
-  end subroutine set_up_blacs
+    print *, MPI_RANK, NROW, NCOL, MYROW, MYCOL, TEAMLEADER
+
+  end subroutine init_blacs
+  
+  subroutine init_scalapack
+    !---------------------------------------------------------------------------
+    ! TODO: Document
+    !---------------------------------------------------------------------------
+    integer :: MB, NB, gridsize, blocksize, xsize, info, ysize
+    integer,external :: NUMROC
+    
+    
+    gridsize = 4*nx*ny*nz
+    blocksize = HFBlocks(MPI_SYM_BLOCK)
+    MB = 2
+    NB = 2
+
+    xsize = NUMROC(      gridsize,NB,MYROW,0,NROW)
+    
+    CALL DESCINIT(desc_psi_1D,gridsize,blocksize, gridsize, nwt_local,0,0,blacs_cntxt_1d,gridsize,info)
+    CALL DESCINIT(desc_psi_2D,gridsize,blocksize, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
+    
+    xsize = NUMROC(MPI_BLOCK_SIZE,NB,MYROW,0,NROW)
+    print *, 'SIZES', MPI_BLOCK_SIZE, blocksize
+    !CALL DESCINIT(desc_mat_2D,blocksize,blocksize, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
+  end subroutine init_scalapack
 
   subroutine transfer_1D_to_2D(A_1D, A_2D)
     !---------------------------------------------------------------------------
@@ -1301,33 +1298,103 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !
     !
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)  :: A_1D(:,:,:)
-    real(KIND=dp), intent(out) :: A_2D(:,:,:)
-    integer                    :: B, N, si
-    
-    call set_up_blacs
-    
-    A_2D = 0.0
-    
-    si = 0
-    do B=1,8
-      N = HFblocks(B) ; if(N.eq.0) cycle
+    real(KIND=dp), intent(in) ,allocatable, target:: A_1D(:,:,:)
+    real(KIND=dp), pointer, contiguous :: A_1D_copy(:,:)
+    real(KIND=dp), intent(out), allocatable :: A_2D(:,:)
+    integer                    :: B, N, si, xsize, ysize, mpi_err, C
+    integer, external :: NUMROC
 
-!      call pdgemr2d(4*mv,N,HFPsi(1:4*mv,1,1:N), 1, 1, desc_A, &
-!      &               matrix_A_loc,1,1, desc_A_loc, ictxt)
-      si = si + N
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! set up the blacs context
+    call init_blacs
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Then we set up the descriptors for scalapack
+    call init_scalapack    
+
+    if(.not.allocated(A_2D)) then
+      xsize = NUMROC(4*mv,2,MYROW,0,NROW)
+      ysize = NUMROC(4*mv,2,MYCOL,0,NCOL)
+      allocate(A_2D(xsize, ysize))
+    endif
+
+    A_1D_copy(1:4*mv, 1:nwt_local) => A_1D(1:mv, 1:4, 1:nwt_local)
+    call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_1D_copy, 1,1, desc_psi_1D,             &
+     &                    A_2D      ,1,1, desc_psi_2D, blacs_cntxt_2D)
+
+    do C=1,NCORES
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+      if(C.eq. MPI_RANK) print *, 'SUCCESS 1D-2D on RANK = ', MPI_RANK
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
     enddo
-!        
+    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    !call stp('')
+    !        
 !        CALL PZGEMR2D(gridsize,nlin,psi_1d,1,1,desc_psi1d(1:10),psi_2d,&
 !                  1,1,desc_psi2d(1:10),contxt)
   end subroutine transfer_1D_to_2D
   
   subroutine transfer_2D_to_1D(A_2D, A_1D)
-    real(KIND=dp), intent(in)  :: A_2D(:,:,:)
-    real(KIND=dp), intent(out) :: A_1D(:,:,:)
-    integer                    :: B, N, si
+    real(KIND=dp), intent(in)  :: A_2D(:,:)
+    real(KIND=dp), intent(out), target :: A_1D(:,:,:)
+    real(KIND=dp), pointer, contiguous :: A_1D_copy(:,:)
+    integer                    :: B, N, si, C, mpi_err
     A_1D = 0.0
+
+    A_1D_copy(1:4*mv, 1:nwt_local) => A_1D(1:mv, 1:4, 1:nwt_local)
+    call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_2D, 1,1, desc_psi_2D,             &
+     &                         A_1D_copy      ,1,1, desc_psi_1D, blacs_cntxt_2D)
+
+    do C=1,NCORES
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+      if(C.eq. MPI_RANK) print *, 'SUCCESS 2D-1D on RANK = ', MPI_RANK
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    enddo
+    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    call stp('')
+
   end subroutine transfer_2D_to_1D
+  
+  !subroutine test_transfer
+  !  !
+  !  !
+  !  real(KIND=dp), allocatable :: overlap(:,:), overlap_global(:,:)
+  !  integer :: xsize, desc_0(10), info, i, ysize, NB, MB
+  !  integer, external :: NUMROC
+  !  
+  !  xsize = NUMROC(MPI_BLOCK_SIZE,2,MYROW,0,NROW)
+  !  ysize = NUMROC(MPI_BLOCK_SIZE,2,MYCOL,0,NCOL)!
+!
+  !  NB = 2
+  !  MB = 2
+  !  
+  !  allocate(overlap(xsize,ysize))
+  !  
+  !  call stp('')
+  !  CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
+  !  call stp('')
+  !  call PZGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, 1.0d0, &
+  !  &             HFpsi_2d, 1, 1, desc_psi_2d, HFpsi_2d, 1, 1, desc_psi_2d, 0.0d0, overlap, 1, 1, desc_mat_2d)
+!
+!    desc_0(:) = 0
+!    desc_0(2) = -1
+!    call stp('')
+!    if (MPI_RANK .eq. TEAMLEADER) then
+!     ! initialization of the descriptor for the global matrix
+!     call descinit(desc_0, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 0, 0, blacs_cntxt, MPI_BLOCK_SIZE, info)
+!     ! allocation and initialization of the global matrices A and B
+!     allocate(overlap_global(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE))
+!    end if     
+!    call pdgemr2d(MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, overlap, 1, 1, desc_mat_2d, overlap_global, 1, 1, desc_0, blacs_cntxt)
+!    if (MPI_RANK .eq. 0) then
+!        do i=1,MPI_BLOCK_SIZE
+!          print ('(99f10.3)'), overlap_global(i,1:MPI_BLOCK_SIZE)
+!        enddo
+!    endif    
+!    call stp('')
+!    !call pdgemr2d(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,A_2D, 1,1, desc_psi_2D,             &
+!    !&                         A_1D_copy      ,1,1, desc_psi_1D, blacs_cntxt_2D)
+!
+!  end subroutine test_transfer
 #endif
 !===============================================================================
 
