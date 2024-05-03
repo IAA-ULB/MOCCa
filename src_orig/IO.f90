@@ -1765,55 +1765,68 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
   subroutine write_densities(R, fname)
     !---------------------------------------------------------------------------
     ! Write the following densities to a file named "fname"
-    !    rho(neutron), rho(proton), rho(charge)
+    !    rho(neutron), rho(proton), rho(charge), 
+    !    tau(neutron), tau(proton),
+    !    \tilde{rho}(neutron), \tilde{rho}(proton)
     !---------------------------------------------------------------------------
     ! The file contains a header written by the subroutine write_header,
-    ! supplemented by
-    !
-    !     #   X[fm] Y[fm] Z[fm] rho_n[fm^{-3}] rho_p[fm^{-3}] rho_c[fm^{-3}]
-    ! 
-    ! where the # are included so that Numpy (or other plotting tools) can 
-    ! ignore these lines when naively plotting stuff. Note that the fourth
-    ! line is currently empty, but is reserved for future additions concerning
-    ! symmetry options of the current run.
-    !
+    ! supplemented by a dedicated line explaining the content of each column.
     ! The format of the body of said file is
     ! 
-    !        x , y , z,  rho_n, rho_p, rho_c
+    !   x , y , z,  rho_n, rho_p, rho_c, tau_n, tau_p, DP_I_I_n, DP_I_I_p
     !
-    ! where the first three numbers are the Cartesian coordinates (units of fm)
-    ! and the densities are all in units of fm^{-3}. 
-    ! The points are written down in column-major order ('Fortran order'), 
-    ! which might not be how your favorite plotting tool prefers it.
-    !---------------------------------------------------------------------------
-    ! Note that the densities are written "as they are" to file, i.e. only in
-    ! part of the box that is actually represented numerically. It is up to
-    ! postprocessing to actually construct the densities in the entire box.
+    ! where the first three numbers are the Cartesian coordinates in fm, withµ
+    ! the densities all in their natural units. The mesh points are traverse in 
+    ! column-major order ('Fortran order'), which might not be how your favorite 
+    ! plotting tool prefers it. Note that the densities are written "as-is" to 
+    ! file, i.e. only in part of the box that is actually represented 
+    ! numerically. It is up to postprocessing to construct the densities in the 
+    ! simulation volume.
     !---------------------------------------------------------------------------
     type(DensityVector), intent(in), target :: R
-    real(KIND=dp), pointer                  :: rhon(:,:,:), rhop(:,:,:)
     character(len=*), intent(in)            :: fname
-    integer                                 :: io, i,j,k
+    integer                                 :: io, i,j,k, mi
 
-    1 format('#  X[fm]   Y[fm]   Z[fm]       rho_n[fm^{-3}]           rho_p[fm^{-3}]           rho_c[fm^{-3}]')
+    1 format('#', 6x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]', 20x,   &
+      &               'rho_n', 20x, 'rho_p', 20x,'rho_c', 20x, &
+      &               'tau_n', 20x, 'tau_p', 20x,              &
+      &               'tilde{rho}_n', 13x, 'tilde{rho}_p')
+
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
       print *, 'Something went wrong with writing a density to file.'
       print *, 'filename = ', fname
       call stp('')
     endif
-
-    rhon(1:nx,1:ny,1:nz)  => R%D_I_I(:,1)
-    rhop(1:nx,1:ny,1:nz)  => R%D_I_I(:,2)
-
+    
     call write_header(1)
     write(1, fmt=1) 
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          write(1, fmt='(6es25.12E3)') meshx(i), meshx(j), meshz(k),    &
-          &                            rhon(i,j,k), rhop(i,j,k),        &
-          &                            Density%chargedensity(i,j,k)
+          write(1, fmt='(3es25.12)', advance='no') &
+          &          meshx(i), meshy(j), meshz(k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! the contributions above are indexed according to (x,y,z) but 
+          ! we do not have this luxury for most of the densities
+          mi = meshindex(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The ordinary and charge density; always defined
+          write(1, fmt='(2es25.12)', advance='no') R%D_I_I(mi,1),R%D_I_I(mi,2)
+          write(1, fmt='( es25.12)', advance='no') R%chargedensity(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The kinetic density; its definition depends on the type of EDF used
+$TAUSCALAR write(1, fmt='(2es25.12)', advance='no') &
+$TAUSCALAR &         R%D_Nm_Nm(mi,1), R%D_Nm_Nm(mi,2)
+$TAUTENSOR write(1, fmt='(2es25.12)', advance='no') &
+$TAUTENSOR &         R%D_N_N(mi,1,1,1) + R%D_N_N(mi,2,2,1) + R%D_N_N(mi,3,3,1),&
+$TAUTENSOR &         R%D_N_N(mi,1,1,2) + R%D_N_N(mi,2,2,2) + R%D_N_N(mi,3,3,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The pairing fields FP_I_I
+          write(1, fmt='(2es25.12)',advance='no') R%DP_I_I(mi,1), R%DP_I_I(mi,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! We are done writing this line in the output
+          write(1, fmt='()') !  newline character
         enddo
       enddo
     enddo
