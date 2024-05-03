@@ -76,16 +76,17 @@ module wavefunctions
  implicit none
  
  !------------------------------------------------------------------------------
- ! Array containing the spwfs and their derivatives
+ ! Array containing the spwfs and their derivatives: for ease of use in density
+ ! and derivative calculations, these are stored with spatial (nx*ny*nz points)
+ ! and spin indices (real/imaginary parts of spin up/down) separately.
  !
- ! Note: these are called the Hartree-Fock basis throughout the code (hence
- !       the name HFBasis), but they are not guaranteed to be the actual 
- !       Hartree-Fock basis, i.e. the basis that diagonalises the sphamiltonian.
- !       An extra unitary transformation might be required among them to obtain
- !       the physical HF basis. 
+ ! These spwfs are called the Hartree-Fock basis throughout the code (hence
+ ! the name HFBasis), but they are not guaranteed to be the basis that
+ ! diagonalises the sphamiltonian. An extra unitary transformation might be
+ ! required among them to obtain the physical HF basis.
  !
- ! Note that higher-order derivative tensors are stored in lexicographical order
- ! in order to cut down on the number of indices and wasted computation.
+ ! Her-order derivative tensors are stored in lexicographical order to cut down
+ !  on the number of indices and wasted computation.
  !            1    2    3    4    5    6    7    8    9    10
  ! 1st order: Dx   Dy   Dz
  ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
@@ -94,16 +95,26 @@ module wavefunctions
  real(KIND=dp), allocatable, target ::   HFdPsi(:,:,:,:)!First order derivatives
  real(KIND=dp), allocatable, target ::  HFddPsi(:,:,:,:)!Second order derivatives
  real(KIND=dp), allocatable, target :: HFdddPsi(:,:,:,:)!Third order derivatives
+ !----------------------------------------------------------------------------
+ ! Often though, having an explicitly 2D array for the spwfs is useful: these
+ ! pointers merge spatial and spin indices while costing us no additional memory
+ ! yet allowing us to use bounds-checking by compilers. The "contiguous" label
+ ! is required to make the pointer remapping work.
+ real(KIND=dp), pointer, contiguous :: HFPsi_pointer(:,:)
  !------------------------------------------------------------------------------
- ! A copy of the HFPsi array, to be redistributed across MPI ranks in a 2D way
+ ! A copy of the HFPsi array, to be redistributed across MPI ranks in a
+ ! 2D block-cyclic distribution with row and column blocking factors
+ ! BLOCK_FACTOR_ROW and BLOCK_FACTOR_COLUN, respectively.
  real(KIND=dp), allocatable         :: HFPSI_2D(:,:)
+ integer                            :: BLOCK_FACTOR_ROW = 2
+ integer                            :: BLOCK_FACTOR_COLUMN = 2
  !------------------------------------------------------------------------------
  ! Array containing the values of the spwfs in the Canonical basis
  ! and their derivatives.
- real(KIND=dp), allocatable, target ::     CANPsi(:,:,:)
- real(KIND=dp), allocatable, target ::  CANdPsi(:,:,:,:)!First order derivatives
- real(KIND=dp), allocatable, target ::CANddPsi(:,:,:,:)!Second order derivatives
- real(KIND=dp), allocatable, target ::CANdddPsi(:,:,:,:)!Third order derivatives
+ real(KIND=dp), allocatable, target::     CANPsi(:,:,:)
+ real(KIND=dp), allocatable, target::  CANdPsi(:,:,:,:)!First order derivatives
+ real(KIND=dp), allocatable, target:: CANddPsi(:,:,:,:)!Second order derivatives
+ real(KIND=dp), allocatable, target::CANdddPsi(:,:,:,:)!Third order derivatives
  !---------------------------------------------------------------------------
  ! Pointer to which basis is supposed to be used to calculate the densities
  ! Based on pairingtype
@@ -163,18 +174,28 @@ module wavefunctions
  integer              :: HFBlocks_global(Blocks) = 0
  integer              :: nwn = 6, nwp = 6, nwt = 12, nwt_local =12
  integer, allocatable :: rank_map(:), spwf_map(:), spwf_inverse(:)
- !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- ! Additional MPI communicators, one for each symmetry block
- integer              :: MPI_COMM_BLOCK, MPI_SYM_BLOCK
- integer              :: MPI_BLOCK_RANK, MPI_BLOCK_SIZE
  ! The number of MPI ranks assigned to each symmetry block
  integer              :: ranks_per_block(Blocks)
+ !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ ! Additional MPI communicator for the assigned symmetry block
+ integer              :: MPI_COMM_BLOCK   ! communicator of the local team
+ integer              :: MPI_SYM_BLOCK    ! assigned symmetry block
+ integer              :: MPI_BLOCK_SIZE   ! number of spwfs for this block
+ integer              :: MPI_BLOCK_RANK   ! rank inside the local team
+ integer              :: MPI_BLOCK_NCORES ! size of the local team
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! BLACS information for the communication between 1D and 2D grids
- integer :: blacs_cntxt_1D, blacs_cntxt_2D, blacs_cntxt
- integer :: MPI_COMM_BLOCK_2D ! Not sure if this one is going to be necessary
- integer :: MYROW, MYCOL, NROW, NCOL
- integer :: TEAMLEADER
+ ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ ! default BLACS context regrouping all ranks
+ integer :: blacs_cntxt
+ ! BLACS context for 1D calculations with spwfs within the current symmetry block
+ integer :: blacs_cntxt_1D
+ ! BLACS context for 2D calculations with spwfs within the current symmetry block
+ integer :: blacs_cntxt_2D
+ ! Size of the BLACS 2D layout within the current symmetry block
+ integer :: NROW, NCOL
+ ! The coordinates of this MPI rank within the 2D BLACS layout
+ integer :: MYROW, MYCOL
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! SCALAPACK descriptors
  integer :: desc_psi_1d(10) ! 1D layout of the spwfs
@@ -405,11 +426,11 @@ contains
         if(MPI_RANK +1.le. sum(ranks_per_block(1:B))) then
           if(MPI_RANK+1 .gt. sum(ranks_per_block(1:B-1))) then
             MPI_SYM_BLOCK = B
-            ! MPI_SYM_BLOCK is the block this particular process is assigned to.
+            ! MPI_SYM_BLOCK is the symmetry block this particular process
+            ! is assigned to.
           endif
         endif
       enddo
-      TEAMLEADER = sum(ranks_per_block(1:MPI_SYM_BLOCK-1))
       call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Split the MPI_COMM_WORLD communicator
@@ -417,18 +438,29 @@ contains
       ! MPI_BLOCK_RANK is the MPI RANK of this particular process within its
       !                assigned symmetry block.
       call MPI_COMM_RANK(MPI_COMM_BLOCK, MPI_BLOCK_RANK, MPI_ERR)
-      ! MPI_BLOCK_SIZE is the total number of MPI ranks assigned to this 
+      ! MPI_BLOCK_NCORES is the total number of MPI ranks assigned to this
       !                symmetry block.
-      call MPI_COMM_SIZE(MPI_COMM_BLOCK, MPI_BLOCK_SIZE, MPI_ERR)
+      call MPI_COMM_SIZE(MPI_COMM_BLOCK, MPI_BLOCK_NCORES, MPI_ERR)
+      print *, MPI_RANK, MPI_BLOCK_NCORES
+      ! MPI_BLOCK_SIZE is the number of spfs in this symmetry block;
+      !   redundant information of course, but nice to have
+      MPI_BLOCK_SIZE = blocks_global(MPI_SYM_BLOCK)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! INSERT BLACS SETUP calls here, which will automatically deal with the
+      ! right partitioning of sspwfs within the symmetry block; afterwards we
+      ! should reverse engineer the mappings such that human-created routines
+      ! can put stuff in the right place...
+
+
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Divide the number of spwfs in this symmetry block across the number of
       ! MPI ranks assigned to this block
-      spwfs_per_rank = blocks_global(MPI_SYM_BLOCK) / MPI_BLOCK_SIZE
-      remainder      = blocks_global(MPI_SYM_BLOCK) - spwfs_per_rank * MPI_BLOCK_SIZE
+      spwfs_per_rank = MPI_BLOCK_SIZE / MPI_BLOCK_NCORES
+      remainder      = MPI_BLOCK_SIZE - spwfs_per_rank * MPI_BLOCK_NCORES
       ! Note that ALL of the MPI ranks in this particular block should 
       ! construct the number of spwfs on all other ranks in order to be able
       ! to do the accounting below.
-      allocate(local_count(0:MPI_BLOCK_SIZE-1))
+      allocate(local_count(0:MPI_BLOCK_NCORES-1))
       local_count = spwfs_per_rank
       if(remainder.ne.0) then
         local_count(0:remainder-1) = local_count(0:remainder-1) + 1
@@ -444,7 +476,7 @@ contains
       offset = sum(blocks_global(1:MPI_SYM_BLOCK-1))
       do i=1,N
         if( i .gt. sum(local_count(0:MPI_BLOCK_RANK-1)) ) then
-          if(MPI_BLOCK_RANK .ne. MPI_BLOCK_SIZE) then
+          if(MPI_BLOCK_RANK .ne. MPI_BLOCK_NCORES) then
              if (i .le. sum(local_count(0:MPI_BLOCK_RANK))) then
                 local_ind                = local_ind + 1
                 spwf_map(local_ind)      = i + offset
@@ -1210,19 +1242,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! TODO: document
     !---------------------------------------------------------------------------
     integer :: mpi_err, dims(2), C,blacs_rank, nbprocs, i,j,k
-    integer :: offset, NPROCS
+    integer :: offset
     integer, allocatable :: map_1D(:,:), map_2D(:,:), team(:)
     logical :: in_team
 
-      CALL BLACS_PINFO(MPI_RANK,NPROCS)
-      IF (NPROCS.LT.1) THEN
-        CALL BLACS_SETUP(MPI_RANK,NPROCS)
-      END IF
-
     ! MPI_DIMS_CREATE to determine a division of our MPI ranks into a 2D grid
     dims = 0
-    call MPI_DIMS_CREATE(MPI_BLOCK_SIZE,2, dims, mpi_err)
-    print *, 'DIMS', MPI_BLOCK_SIZE, dims
+    call MPI_DIMS_CREATE(MPI_BLOCK_NCORES,2, dims, mpi_err)
+    print *, 'DIMS', MPI_BLOCK_NCORES, dims
     ! ... and create a new communicator according to these rules
     !CALL MPI_CART_CREATE(MPI_COMM_BLOCK,2, dims,.false.,.false.,MPI_COMM_BLOCK_2D,mpi_err)
 
@@ -1240,14 +1267,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! Getting the BLACS context for our 1 set-up
     call blacs_get( 0, 0, blacs_cntxt_1D)
     blacs_cntxt = blacs_cntxt_1D
-    allocate(map_1D(1,MPI_BLOCK_SIZE))
-    allocate(team(MPI_BLOCK_SIZE))
+    allocate(map_1D(1,MPI_BLOCK_NCORES))
+    allocate(team(MPI_BLOCK_NCORES))
     call MPI_Allgather(MPI_RANK, 1, MPI_INT,team, 1, MPI_INT, MPI_COMM_BLOCK, mpi_err)
-    do C=1,MPI_BLOCK_SIZE
+    do C=1,MPI_BLOCK_NCORES
       map_1D(1,C) = team(C)
     enddo
     print *, 'MPI RANK', MPI_RANK, ' has 1D map', MAP_1D
-    CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1,  1, MPI_BLOCK_SIZE)
+    CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1,  1, MPI_BLOCK_NCORES)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! 2D context
     call blacs_get(0, 0, blacs_cntxt_2D)
@@ -1260,12 +1287,12 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         K = K+1
       enddo
     enddo
-    !print *, MPI_RANK, 'MAP2D', map_2D, MPI_BLOCK_SIZE, dims
+    !print *, MPI_RANK, 'MAP2D', map_2D, MPI_BLOCK_NCORES, dims
     CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     CALL BLACS_GRIDINFO(blacs_cntxt_2D,NROW,NCOL,MYROW,MYCOL)
 
-    print *, MPI_RANK, NROW, NCOL, MYROW, MYCOL, TEAMLEADER
+    print *, MPI_RANK, NROW, NCOL, MYROW, MYCOL
 
   end subroutine init_blacs
   
@@ -1276,20 +1303,19 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     integer :: MB, NB, gridsize, blocksize, xsize, info, ysize
     integer,external :: NUMROC
     
-    
     gridsize = 4*nx*ny*nz
-    blocksize = HFBlocks(MPI_SYM_BLOCK)
+    blocksize = MPI_BLOCK_SIZE
     MB = 2
     NB = 2
 
-    xsize = NUMROC(      gridsize,NB,MYROW,0,NROW)
     
-    CALL DESCINIT(desc_psi_1D,gridsize,blocksize, gridsize, nwt_local,0,0,blacs_cntxt_1d,gridsize,info)
+    CALL DESCINIT(desc_psi_1D,gridsize,blocksize, gridsize, nwt_local,0,0, blacs_cntxt_1d,gridsize,info)
+    xsize = NUMROC(      gridsize,2,MYROW,0,NROW)
     CALL DESCINIT(desc_psi_2D,gridsize,blocksize, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
     
     xsize = NUMROC(MPI_BLOCK_SIZE,NB,MYROW,0,NROW)
-    print *, 'SIZES', MPI_BLOCK_SIZE, blocksize
-    !CALL DESCINIT(desc_mat_2D,blocksize,blocksize, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
+    print *, 'SIZES', MPI_BLOCK_NCORES, blocksize
+    CALL DESCINIT(desc_mat_2D,blocksize,blocksize, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
   end subroutine init_scalapack
 
   subroutine transfer_1D_to_2D(A_1D, A_2D)
@@ -1313,7 +1339,9 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
     if(.not.allocated(A_2D)) then
       xsize = NUMROC(4*mv,2,MYROW,0,NROW)
-      ysize = NUMROC(4*mv,2,MYCOL,0,NCOL)
+      ysize = NUMROC(MPI_BLOCK_SIZE,2,MYCOL,0,NCOL)
+      print *, 'SIZE', nwt_local, ysize
+      print *, 'MESH', xsize, 4*mv
       allocate(A_2D(xsize, ysize))
     endif
 
@@ -1350,51 +1378,46 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
     enddo
     call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-    call stp('')
 
   end subroutine transfer_2D_to_1D
   
-  !subroutine test_transfer
-  !  !
-  !  !
-  !  real(KIND=dp), allocatable :: overlap(:,:), overlap_global(:,:)
-  !  integer :: xsize, desc_0(10), info, i, ysize, NB, MB
-  !  integer, external :: NUMROC
-  !  
-  !  xsize = NUMROC(MPI_BLOCK_SIZE,2,MYROW,0,NROW)
-  !  ysize = NUMROC(MPI_BLOCK_SIZE,2,MYCOL,0,NCOL)!
-!
-  !  NB = 2
-  !  MB = 2
-  !  
-  !  allocate(overlap(xsize,ysize))
-  !  
-  !  call stp('')
-  !  CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
-  !  call stp('')
-  !  call PZGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, 1.0d0, &
-  !  &             HFpsi_2d, 1, 1, desc_psi_2d, HFpsi_2d, 1, 1, desc_psi_2d, 0.0d0, overlap, 1, 1, desc_mat_2d)
-!
-!    desc_0(:) = 0
-!    desc_0(2) = -1
-!    call stp('')
-!    if (MPI_RANK .eq. TEAMLEADER) then
-!     ! initialization of the descriptor for the global matrix
-!     call descinit(desc_0, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 0, 0, blacs_cntxt, MPI_BLOCK_SIZE, info)
-!     ! allocation and initialization of the global matrices A and B
-!     allocate(overlap_global(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE))
-!    end if     
-!    call pdgemr2d(MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, overlap, 1, 1, desc_mat_2d, overlap_global, 1, 1, desc_0, blacs_cntxt)
-!    if (MPI_RANK .eq. 0) then
-!        do i=1,MPI_BLOCK_SIZE
-!          print ('(99f10.3)'), overlap_global(i,1:MPI_BLOCK_SIZE)
-!        enddo
-!    endif    
-!    call stp('')
-!    !call pdgemr2d(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,A_2D, 1,1, desc_psi_2D,             &
-!    !&                         A_1D_copy      ,1,1, desc_psi_1D, blacs_cntxt_2D)
-!
-!  end subroutine test_transfer
+  subroutine test_transfer
+    !
+    !
+    real(KIND=dp), allocatable :: overlap(:,:), overlap_global(:,:)
+    integer :: xsize, desc_0(10), info, i, ysize, NB, MB
+    integer, external :: NUMROC
+
+    xsize = NUMROC(MPI_BLOCK_SIZE,2,MYROW,0,NROW)
+    ysize = NUMROC(MPI_BLOCK_SIZE,2,MYCOL,0,NCOL)!
+
+    NB = 2
+    MB = 2
+
+    allocate(overlap(xsize,ysize))
+
+    CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
+    call PZGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, 1.0d0, &
+    &             HFpsi_2d, 1, 1, desc_psi_2d, HFpsi_2d, 1, 1, desc_psi_2d, 0.0d0, overlap, 1, 1, desc_mat_2d)
+    !desc_0(:) = 0
+    !desc_0(2) = -1
+    if (MPI_RANK .eq. 0) then
+      print *, MPI_RANK, MPI_BLOCK_SIZE
+     ! initialization of the descriptor for the global matrix
+     call descinit(desc_0, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 0, 0, &
+     &                        blacs_cntxt, MPI_BLOCK_SIZE, info)
+     ! allocation and initialization of the global matrices A and B
+     allocate(overlap_global(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE))
+    end if
+    call stp('')
+    call pdgemr2d(MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, overlap, 1, 1, desc_mat_2d, overlap_global, 1, 1, desc_0, blacs_cntxt)
+    if (MPI_RANK .eq. 0) then
+        do i=1,MPI_BLOCK_SIZE
+          print ('(99f10.3)'), overlap_global(i,1:MPI_BLOCK_SIZE)
+        enddo
+    endif
+    call stp('')
+  end subroutine test_transfer
 #endif
 !===============================================================================
 
