@@ -772,8 +772,8 @@ $TOTAL_QUAD
     densitydependent = &
 $TOTAL_DD
 
-    S = tot_even + tot_odd
-
+    S = T_even + T_odd
+      
     PE(1) = &
 $TOTALPAIR_NEUTRON
 
