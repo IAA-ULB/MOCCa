@@ -220,8 +220,10 @@ ifeq ($(COMPILER),gnu)
 	LIBS := -llapack -lblas
 else ifeq ($(COMPILER),intel)
   # ifort compiler should link to the new Intel math library
-	LIBS :=  -qmkl
-	LIBS +=   -L${MKLROOT}/lib -lmkl_scalapack_lp64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lmkl_blacs_intelmpi_lp64 -lpthread -lm -ldl
+	LIBS :=  -mkl
+ifeq ($(USE_MPI),1)
+  LIBS +=   -L${MKLROOT}/lib -lmkl_scalapack_lp64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lmkl_blacs_intelmpi_lp64 -lpthread -lm -ldl
+endif
 else ifeq ($(COMPILER), cray)
   # Cray compilers don't need specific linking to my knowledge
 	LIBS :=

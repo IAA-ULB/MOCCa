@@ -125,7 +125,7 @@ module GenInfo
   ! for convergence detection. Default value = -1, in which case the multipole
   ! moments module modifies this number.
   integer :: min_iter_conv = -1
-  !-----------------------------------------------------------------------------
+  !=============================================================================
   ! MPI parallelization variables
   !  NPROCS   = the number of MPI processes we are working with
   !  MPI_RANK = the rank of the current core
@@ -139,6 +139,32 @@ module GenInfo
   ! (0) : naive 1d block distribution of spwfs among ranks
   ! (1) : give entire symmetry blocks to MPI ranks
   integer :: balancing_strategy = 0
+  !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Additional MPI communicator for the assigned symmetry block
+  integer              :: MPI_COMM_BLOCK   ! communicator of the local team
+  integer              :: MPI_SYM_BLOCK    ! assigned symmetry block
+  integer              :: MPI_BLOCK_SIZE   ! number of spwfs for this block
+  integer              :: MPI_BLOCK_RANK   ! rank inside the local team
+  integer              :: MPI_BLOCK_NPROCS ! size of the local team
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ! BLACS information for the communication between 1D and 2D grids
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ! default BLACS context regrouping all ranks
+  integer :: blacs_cntxt
+  ! BLACS context for 1D spwf calculations within the current symmetry block
+  integer :: blacs_cntxt_1D
+  ! BLACS context for 2D spwf calculations within the current symmetry block
+  integer :: blacs_cntxt_2D
+  ! Size of the BLACS 2D layout within the current symmetry block
+  integer :: NROW, NCOL
+  ! The coordinates of this MPI rank within the 2D BLACS layout
+  integer :: MYROW, MYCOL
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ! SCALAPACK descriptors
+  integer :: desc_psi_1d(10) ! 1D layout of the spwfs
+  integer :: desc_psi_2d(10) ! 2D block-cyclic layout of the spwfs
+  integer :: desc_mat_2d(10) ! 2D block-cyclic layout of matrices in spwf-space
+  !=============================================================================
 
 contains
 

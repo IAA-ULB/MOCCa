@@ -176,31 +176,6 @@ module wavefunctions
  integer, allocatable :: rank_map(:), spwf_map(:), spwf_inverse(:)
  ! The number of MPI ranks assigned to each symmetry block
  integer              :: ranks_per_block(Blocks)
- !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- ! Additional MPI communicator for the assigned symmetry block
- integer              :: MPI_COMM_BLOCK   ! communicator of the local team
- integer              :: MPI_SYM_BLOCK    ! assigned symmetry block
- integer              :: MPI_BLOCK_SIZE   ! number of spwfs for this block
- integer              :: MPI_BLOCK_RANK   ! rank inside the local team
- integer              :: MPI_BLOCK_NPROCS ! size of the local team
- ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- ! BLACS information for the communication between 1D and 2D grids
- ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- ! default BLACS context regrouping all ranks
- integer :: blacs_cntxt
- ! BLACS context for 1D calculations with spwfs within the current symmetry block
- integer :: blacs_cntxt_1D
- ! BLACS context for 2D calculations with spwfs within the current symmetry block
- integer :: blacs_cntxt_2D
- ! Size of the BLACS 2D layout within the current symmetry block
- integer :: NROW, NCOL
- ! The coordinates of this MPI rank within the 2D BLACS layout
- integer :: MYROW, MYCOL
- ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- ! SCALAPACK descriptors
- integer :: desc_psi_1d(10) ! 1D layout of the spwfs
- integer :: desc_psi_2d(10) ! 2D block-cyclic layout of the spwfs
- integer :: desc_mat_2d(10) ! 2D block-cyclic layout of matrices in spwf-space
  !------------------------------------------------------------------------------
  ! Properties of the single-particle wave-functions with regard to reflections
  ! of the axes. Note that these are properties of the LOCALLY stored spwfs, 
@@ -407,6 +382,8 @@ contains
       ! Todo: figure out if we can do more clever things by estimating the work
       !       to be done as a function of the number of spwfs in a given block
       !-------------------------------------------------------------------------
+
+#if(USE_MPI>0)
       ! Naively assign ranks uniformly
       remainder       = NPROCS - (NPROCS / activeblocks) * activeblocks
       do B=1,8
@@ -451,6 +428,10 @@ contains
       ! should reverse engineer the mappings such that human-created routines
       ! can put stuff in the right place...
 
+      ! BLACS 1D setup 
+      ! BLACS 2D setup 
+
+      ! SCALAPACK descriptors
 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Divide the number of spwfs in this symmetry block across the number of
@@ -492,6 +473,9 @@ contains
         endif
       enddo
       !-------------------------------------------------------------------------
+#ELSE
+      call stp('Balancing_strategy = 0 is not compatible with sequential calculations.')
+#ENDIF
     case (1)
       !-------------------------------------------------------------------------
       ! Balancing per symmetry block: each MPI rank gets one or more symmetry
@@ -1237,86 +1221,86 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 ! MPI-only routines
 !===============================================================================
 #if(USE_MPI > 0)
-  subroutine init_blacs
-    !---------------------------------------------------------------------------
-    ! TODO: document
-    !---------------------------------------------------------------------------
-    integer :: mpi_err, dims(2), C,blacs_rank, nbprocs, i,j,k
-    integer :: offset
-    integer, allocatable :: map_1D(:,:), map_2D(:,:), team(:)
-    logical :: in_team
+!  subroutine init_blacs
+!    !---------------------------------------------------------------------------
+!    ! TODO: document
+!    !---------------------------------------------------------------------------
+!    integer :: mpi_err, dims(2), C,blacs_rank, nbprocs, i,j,k
+!    integer :: offset
+!    integer, allocatable :: map_1D(:,:), map_2D(:,:), team(:)
+!    logical :: in_team
 
-    ! MPI_DIMS_CREATE to determine a division of our MPI ranks into a 2D grid
-    dims = 0
-    call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
-    print *, 'DIMS', MPI_BLOCK_NPROCS, dims
-    ! ... and create a new communicator according to these rules
-    !CALL MPI_CART_CREATE(MPI_COMM_BLOCK,2, dims,.false.,.false.,MPI_COMM_BLOCK_2D,mpi_err)
+!    ! MPI_DIMS_CREATE to determine a division of our MPI ranks into a 2D grid
+!    dims = 0
+!    call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
+!    print *, 'DIMS', MPI_BLOCK_NPROCS, dims
+!    ! ... and create a new communicator according to these rules
+!    !CALL MPI_CART_CREATE(MPI_COMM_BLOCK,2, dims,.false.,.false.,MPI_COMM_BLOCK_2D,mpi_err)
 
-    ! make sure everything is fine and dandy before proceeding
-    CALL mpi_barrier (MPI_COMM_WORLD, mpi_err)
+!    ! make sure everything is fine and dandy before proceeding
+!    CALL mpi_barrier (MPI_COMM_WORLD, mpi_err)
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Constructing the BLACS 1D and 2D grids
-    ! NOTE: this cannot be accomplished with the blacs_gridinit subroutine 
-    !       because it does not support multigridding, i.e. grids that are 
-    !       split by symmetry blocks such as we attempt here.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! 1D context
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Getting the BLACS context for our 1 set-up
-    call blacs_get( 0, 0, blacs_cntxt_1D)
-    blacs_cntxt = blacs_cntxt_1D
-    allocate(map_1D(1,MPI_BLOCK_NPROCS))
-    allocate(team(MPI_BLOCK_NPROCS))
-    call MPI_Allgather(MPI_RANK, 1, MPI_INT,team, 1, MPI_INT, MPI_COMM_BLOCK, mpi_err)
-    do C=1,MPI_BLOCK_NPROCS
-      map_1D(1,C) = team(C)
-    enddo
-    print *, 'MPI RANK', MPI_RANK, ' has 1D map', MAP_1D
-    CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1,  1, MPI_BLOCK_NPROCS)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! 2D context
-    call blacs_get(0, 0, blacs_cntxt_2D)
-    allocate(map_2D(dims(1),dims(2)))
-    ! offset is the number of ranks assigned to symmetry blocks of lower number
-    K=  sum(ranks_per_block(1:MPI_SYM_BLOCK-1))
-    do i=1,dims(1)
-      do j=1,dims(2)
-        map_2D(i,j) = K
-        K = K+1
-      enddo
-    enddo
-    !print *, MPI_RANK, 'MAP2D', map_2D, MPI_BLOCK_NPROCS, dims
-    CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    CALL BLACS_GRIDINFO(blacs_cntxt_2D,NROW,NCOL,MYROW,MYCOL)
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!    ! Constructing the BLACS 1D and 2D grids
+!    ! NOTE: this cannot be accomplished with the blacs_gridinit subroutine 
+!    !       because it does not support multigridding, i.e. grids that are 
+!    !       split by symmetry blocks such as we attempt here.
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!    ! 1D context
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!    ! Getting the BLACS context for our 1 set-up
+!    call blacs_get( 0, 0, blacs_cntxt_1D)
+!    blacs_cntxt = blacs_cntxt_1D
+!    allocate(map_1D(1,MPI_BLOCK_NPROCS))
+!    allocate(team(MPI_BLOCK_NPROCS))
+!    call MPI_Allgather(MPI_RANK, 1, MPI_INT,team, 1, MPI_INT, MPI_COMM_BLOCK, mpi_err)
+!    do C=1,MPI_BLOCK_NPROCS
+!      map_1D(1,C) = team(C)
+!    enddo
+!    print *, 'MPI RANK', MPI_RANK, ' has 1D map', MAP_1D
+!    CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1,  1, MPI_BLOCK_NPROCS)
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!    ! 2D context
+!    call blacs_get(0, 0, blacs_cntxt_2D)
+!    allocate(map_2D(dims(1),dims(2)))
+!    ! offset is the number of ranks assigned to symmetry blocks of lower number
+!    K=  sum(ranks_per_block(1:MPI_SYM_BLOCK-1))
+!    do i=1,dims(1)
+!      do j=1,dims(2)
+!        map_2D(i,j) = K
+!        K = K+1
+!      enddo
+!    enddo
+!    !print *, MPI_RANK, 'MAP2D', map_2D, MPI_BLOCK_NPROCS, dims
+!    CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!    CALL BLACS_GRIDINFO(blacs_cntxt_2D,NROW,NCOL,MYROW,MYCOL)
 
-    print *, MPI_RANK, NROW, NCOL, MYROW, MYCOL
+!    print *, MPI_RANK, NROW, NCOL, MYROW, MYCOL
 
-  end subroutine init_blacs
+!  end subroutine init_blacs
   
-  subroutine init_scalapack
-    !---------------------------------------------------------------------------
-    ! TODO: Document
-    !---------------------------------------------------------------------------
-    integer :: MB, NB, gridsize, blocksize, xsize, info, ysize
-    integer,external :: NUMROC
-    
-    gridsize = 4*nx*ny*nz
-    blocksize = MPI_BLOCK_SIZE
-    MB = 2
-    NB = 2
+!  subroutine init_scalapack
+!    !---------------------------------------------------------------------------
+!    ! TODO: Document
+!    !---------------------------------------------------------------------------
+!    integer :: MB, NB, gridsize, blocksize, xsize, info, ysize
+!    integer,external :: NUMROC
+!    
+!    gridsize = 4*nx*ny*nz
+!    blocksize = MPI_BLOCK_SIZE
+!    MB = 2
+!    NB = 2
 
-    
-    CALL DESCINIT(desc_psi_1D,gridsize,blocksize, gridsize, nwt_local,0,0, blacs_cntxt_1d,gridsize,info)
-    xsize = NUMROC(      gridsize,2,MYROW,0,NROW)
-    CALL DESCINIT(desc_psi_2D,gridsize,blocksize, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
-    
-    xsize = NUMROC(MPI_BLOCK_SIZE,NB,MYROW,0,NROW)
-    print *, 'SIZES', MPI_BLOCK_NPROCS, blocksize
-    CALL DESCINIT(desc_mat_2D,blocksize,blocksize, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
-  end subroutine init_scalapack
+!    
+!    CALL DESCINIT(desc_psi_1D,gridsize,blocksize, gridsize, nwt_local,0,0, blacs_cntxt_1d,gridsize,info)
+!    xsize = NUMROC(      gridsize,2,MYROW,0,NROW)
+!    CALL DESCINIT(desc_psi_2D,gridsize,blocksize, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
+!    
+!    xsize = NUMROC(MPI_BLOCK_SIZE,NB,MYROW,0,NROW)
+!    print *, 'SIZES', MPI_BLOCK_NPROCS, blocksize
+!    CALL DESCINIT(desc_mat_2D,blocksize,blocksize, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
+!  end subroutine init_scalapack
 
   subroutine transfer_1D_to_2D(A_1D, A_2D)
     !---------------------------------------------------------------------------
@@ -1332,10 +1316,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! set up the blacs context
-    call init_blacs
+    !call init_blacs
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Then we set up the descriptors for scalapack
-    call init_scalapack    
+    !call init_scalapack    
 
     if(.not.allocated(A_2D)) then
       xsize = NUMROC(4*mv,2,MYROW,0,NROW)
