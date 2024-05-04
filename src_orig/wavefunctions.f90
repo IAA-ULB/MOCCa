@@ -182,7 +182,7 @@ module wavefunctions
  integer              :: MPI_SYM_BLOCK    ! assigned symmetry block
  integer              :: MPI_BLOCK_SIZE   ! number of spwfs for this block
  integer              :: MPI_BLOCK_RANK   ! rank inside the local team
- integer              :: MPI_BLOCK_NCORES ! size of the local team
+ integer              :: MPI_BLOCK_NPROCS ! size of the local team
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  ! BLACS information for the communication between 1D and 2D grids
  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -408,10 +408,10 @@ contains
       !       to be done as a function of the number of spwfs in a given block
       !-------------------------------------------------------------------------
       ! Naively assign ranks uniformly
-      remainder       = Ncores - (Ncores / activeblocks) * activeblocks
+      remainder       = NPROCS - (NPROCS / activeblocks) * activeblocks
       do B=1,8
         N = blocks_global(B); if(N.eq.0) cycle
-        ranks_per_block(B)= Ncores / activeblocks ! integer division
+        ranks_per_block(B)= NPROCS / activeblocks ! integer division
         if(remainder .gt. 0) then
           ranks_per_block(B)  = ranks_per_block(B) +1
           remainder = remainder -1
@@ -438,10 +438,10 @@ contains
       ! MPI_BLOCK_RANK is the MPI RANK of this particular process within its
       !                assigned symmetry block.
       call MPI_COMM_RANK(MPI_COMM_BLOCK, MPI_BLOCK_RANK, MPI_ERR)
-      ! MPI_BLOCK_NCORES is the total number of MPI ranks assigned to this
+      ! MPI_BLOCK_NPROCS is the total number of MPI ranks assigned to this
       !                symmetry block.
-      call MPI_COMM_SIZE(MPI_COMM_BLOCK, MPI_BLOCK_NCORES, MPI_ERR)
-      print *, MPI_RANK, MPI_BLOCK_NCORES
+      call MPI_COMM_SIZE(MPI_COMM_BLOCK, MPI_BLOCK_NPROCS, MPI_ERR)
+      print *, MPI_RANK, MPI_BLOCK_NPROCS
       ! MPI_BLOCK_SIZE is the number of spfs in this symmetry block;
       !   redundant information of course, but nice to have
       MPI_BLOCK_SIZE = blocks_global(MPI_SYM_BLOCK)
@@ -455,12 +455,12 @@ contains
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Divide the number of spwfs in this symmetry block across the number of
       ! MPI ranks assigned to this block
-      spwfs_per_rank = MPI_BLOCK_SIZE / MPI_BLOCK_NCORES
-      remainder      = MPI_BLOCK_SIZE - spwfs_per_rank * MPI_BLOCK_NCORES
+      spwfs_per_rank = MPI_BLOCK_SIZE / MPI_BLOCK_NPROCS
+      remainder      = MPI_BLOCK_SIZE - spwfs_per_rank * MPI_BLOCK_NPROCS
       ! Note that ALL of the MPI ranks in this particular block should 
       ! construct the number of spwfs on all other ranks in order to be able
       ! to do the accounting below.
-      allocate(local_count(0:MPI_BLOCK_NCORES-1))
+      allocate(local_count(0:MPI_BLOCK_NPROCS-1))
       local_count = spwfs_per_rank
       if(remainder.ne.0) then
         local_count(0:remainder-1) = local_count(0:remainder-1) + 1
@@ -476,7 +476,7 @@ contains
       offset = sum(blocks_global(1:MPI_SYM_BLOCK-1))
       do i=1,N
         if( i .gt. sum(local_count(0:MPI_BLOCK_RANK-1)) ) then
-          if(MPI_BLOCK_RANK .ne. MPI_BLOCK_NCORES) then
+          if(MPI_BLOCK_RANK .ne. MPI_BLOCK_NPROCS) then
              if (i .le. sum(local_count(0:MPI_BLOCK_RANK))) then
                 local_ind                = local_ind + 1
                 spwf_map(local_ind)      = i + offset
@@ -498,13 +498,13 @@ contains
       ! blocks to account for.
       !-------------------------------------------------------------------------
 
-      if(activeblocks .ge. Ncores) then
+      if(activeblocks .ge. NPROCS) then
         ! More symmetry blocks than MPI ranks, i.e. we assign each rank
         ! one or more entire symmetry blocks
-        if(mod(activeblocks, Ncores) .ne. 0) then
+        if(mod(activeblocks, NPROCS) .ne. 0) then
           call stp('Incompatible number of MPI ranks for balancing_strategy = 1.')
         endif
-        blocks_per_rank = activeblocks/Ncores
+        blocks_per_rank = activeblocks/NPROCS
 
         block_count = -1 ! unintuitive starting point: first block will be '0'
         do B=1,8
@@ -1248,8 +1248,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
     ! MPI_DIMS_CREATE to determine a division of our MPI ranks into a 2D grid
     dims = 0
-    call MPI_DIMS_CREATE(MPI_BLOCK_NCORES,2, dims, mpi_err)
-    print *, 'DIMS', MPI_BLOCK_NCORES, dims
+    call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
+    print *, 'DIMS', MPI_BLOCK_NPROCS, dims
     ! ... and create a new communicator according to these rules
     !CALL MPI_CART_CREATE(MPI_COMM_BLOCK,2, dims,.false.,.false.,MPI_COMM_BLOCK_2D,mpi_err)
 
@@ -1267,14 +1267,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! Getting the BLACS context for our 1 set-up
     call blacs_get( 0, 0, blacs_cntxt_1D)
     blacs_cntxt = blacs_cntxt_1D
-    allocate(map_1D(1,MPI_BLOCK_NCORES))
-    allocate(team(MPI_BLOCK_NCORES))
+    allocate(map_1D(1,MPI_BLOCK_NPROCS))
+    allocate(team(MPI_BLOCK_NPROCS))
     call MPI_Allgather(MPI_RANK, 1, MPI_INT,team, 1, MPI_INT, MPI_COMM_BLOCK, mpi_err)
-    do C=1,MPI_BLOCK_NCORES
+    do C=1,MPI_BLOCK_NPROCS
       map_1D(1,C) = team(C)
     enddo
     print *, 'MPI RANK', MPI_RANK, ' has 1D map', MAP_1D
-    CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1,  1, MPI_BLOCK_NCORES)
+    CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1,  1, MPI_BLOCK_NPROCS)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! 2D context
     call blacs_get(0, 0, blacs_cntxt_2D)
@@ -1287,7 +1287,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         K = K+1
       enddo
     enddo
-    !print *, MPI_RANK, 'MAP2D', map_2D, MPI_BLOCK_NCORES, dims
+    !print *, MPI_RANK, 'MAP2D', map_2D, MPI_BLOCK_NPROCS, dims
     CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     CALL BLACS_GRIDINFO(blacs_cntxt_2D,NROW,NCOL,MYROW,MYCOL)
@@ -1314,7 +1314,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     CALL DESCINIT(desc_psi_2D,gridsize,blocksize, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
     
     xsize = NUMROC(MPI_BLOCK_SIZE,NB,MYROW,0,NROW)
-    print *, 'SIZES', MPI_BLOCK_NCORES, blocksize
+    print *, 'SIZES', MPI_BLOCK_NPROCS, blocksize
     CALL DESCINIT(desc_mat_2D,blocksize,blocksize, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
   end subroutine init_scalapack
 
@@ -1349,7 +1349,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_1D_copy, 1,1, desc_psi_1D,             &
      &                    A_2D      ,1,1, desc_psi_2D, blacs_cntxt_2D)
 
-    do C=1,NCORES
+    do C=1,NPROCS
       call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
       if(C.eq. MPI_RANK) print *, 'SUCCESS 1D-2D on RANK = ', MPI_RANK
       call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
@@ -1372,7 +1372,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_2D, 1,1, desc_psi_2D,             &
      &                         A_1D_copy      ,1,1, desc_psi_1D, blacs_cntxt_2D)
 
-    do C=1,NCORES
+    do C=1,NPROCS
       call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
       if(C.eq. MPI_RANK) print *, 'SUCCESS 2D-1D on RANK = ', MPI_RANK
       call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)

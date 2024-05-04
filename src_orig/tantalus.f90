@@ -125,7 +125,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! Start the different processes across MPI ranks and do MPI bookkeeping
 #if(USE_MPI > 0)
   call mpi_init(mpi_err)
-  call MPI_COMM_SIZE(MPI_COMM_WORLD, NCORES  , mpi_err)
+  call MPI_COMM_SIZE(MPI_COMM_WORLD, NPROCS  , mpi_err)
   call MPI_COMM_RANK(MPI_COMM_WORLD, MPI_RANK, mpi_err)
 
   ! Set MPI errors to be fatal. This is the default setting, but it doesn't
@@ -172,7 +172,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
    ! Environment information
    print 310
    print 304
-   print 311, NCORES
+   print 311, NPROCS
    printed = .false.
    !----------------------------------------------------------------------------
    ! Technical details about compilation

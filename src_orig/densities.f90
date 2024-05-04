@@ -837,9 +837,9 @@ function CompNablaMelements() result(NablaMelements)
     NablaMElements= 0.0_dp
 
     designated_rank(1) = 0
-    designated_rank(2) = Ncores - 1
+    designated_rank(2) = NPROCS - 1
 
-    if(Ncores .gt. 1) then
+    if(NPROCS .gt. 1) then
       ! Verify that both designated ranks should have no communications; if they
       ! do this calculation will take very long.
 

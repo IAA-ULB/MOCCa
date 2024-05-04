@@ -127,13 +127,13 @@ module GenInfo
   integer :: min_iter_conv = -1
   !-----------------------------------------------------------------------------
   ! MPI parallelization variables
-  !  NCORES   = the number of cores we are working with
+  !  NPROCS   = the number of MPI processes we are working with
   !  MPI_RANK = the rank of the current core
   ! Note that MPI_ranks are indexed starting at zero. 
   !
-  ! NCORES=1, MPI_RANK= 0 corresponds to a sequential calculation.
+  ! NPROCS=1, MPI_RANK= 0 corresponds to a sequential calculation.
   !-----------------------------------------------------------------------------
-  integer :: NCORES = 1, MPI_RANK    = 0 
+  integer :: NPROCS = 1, MPI_RANK    = 0 
   !-----------------------------------------------------------------------------
   ! Load balancing strategy for the MPI ranks
   ! (0) : naive 1d block distribution of spwfs among ranks

@@ -297,7 +297,7 @@ contains
 #if(USE_MPI>0)
     integer :: mpi_err
 #endif
-    do r=1, NCORES
+    do r=1, NPROCS
       if(MPI_RANK .eq. r) then
         if (current_context .ne. 0) then
            write (*,*) "WARNING: There are timers still running. They should be &
@@ -405,7 +405,7 @@ contains
 
     call calc_total_time(total)
 
-    do r=0,NCORES-1
+    do r=0,NPROCS-1
 #if(USE_MPI>0)
       call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
 #endif

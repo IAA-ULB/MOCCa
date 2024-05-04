@@ -329,7 +329,7 @@ contains
 
 
       tcount = sum(HFBlocks)
-      if(MPI_rank .eq. 0) allocate(spwf_count(Ncores))  
+      if(MPI_rank .eq. 0) allocate(spwf_count(NPROCS))  
 #if(USE_MPI>0)
       call MPI_gather(tcount,1,MPI_INTEGER,spwf_count,1,MPI_Integer, & 
       &                      0,MPI_COMM_WORLD, mpi_err)
@@ -384,10 +384,10 @@ contains
       print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
       &         angmom_prec
 
-      print 14, Ncores
+      print 14, NPROCS
 
       print 15, adjustl('Symmetry-wise')
-      do rank=1, NCORES
+      do rank=1, NPROCS
         print 16, rank, spwf_count(rank)
       enddo
   
@@ -815,7 +815,7 @@ contains
     else
       ! Originally, the .wf files contained the HFPsi array as one unformatted
       ! record. This is kind of unpractical for MPI applications.
-      if(NCores .gt. 1) call stp('Old .wf files cannot be read with MPI runs.')
+      if(NPROCS .gt. 1) call stp('Old .wf files cannot be read with MPI runs.')
 
       ! We can safely read this in one go; a single rank is present
       read(chan,iostat=io) HFPsi
