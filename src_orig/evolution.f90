@@ -690,64 +690,64 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       integer                    :: mpi_err
 #endif
 
-      call start_timer(T_evolution)
+!      call start_timer(T_evolution)
 
-      if(.not.allocated(Momentum_Updates)) then
-          ! we only store the history for the LOCALLY stored wavefunctions
-          allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
-          Momentum_Updates = 0.0_dp
-      endif
+!      if(.not.allocated(Momentum_Updates)) then
+!          ! we only store the history for the LOCALLY stored wavefunctions
+!          allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
+!          Momentum_Updates = 0.0_dp
+!      endif
 
-      if(.not.allocated(sphamil)) then 
-          allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
-      endif
+!      if(.not.allocated(sphamil)) then 
+!          allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
+!      endif
 
-      sphamil     = 0.0d0
-      d2h         = 0.0d0
-      dispersions = 0.0d0
-      if(EstimateParams) call IterativeEstimation(F, iteration)
+!      sphamil     = 0.0d0
+!      d2h         = 0.0d0
+!      dispersions = 0.0d0
+!      if(EstimateParams) call IterativeEstimation(F, iteration)
 
-      !-------------------------------------------------------------------------
-      ! Step 1: construct all updates
-      si = 0
-      do B=1,8
-        N = HFBlocks(B) ; if(N.eq.0) cycle
-        iso = -1        ; if(B.gt.4) iso = +1
+!      !-------------------------------------------------------------------------
+!      ! Step 1: construct all updates
+!      si = 0
+!      do B=1,8
+!        N = HFBlocks(B) ; if(N.eq.0) cycle
+!        iso = -1        ; if(B.gt.4) iso = +1
 
-        allocate(hpsi(mv,4,N))
-        wave = spwf_map(si+1)-1 !  global index = wave +1 , local_index = si+1
+!        allocate(hpsi(mv,4,N))
+!        wave = spwf_map(si+1)-1 !  global index = wave +1 , local_index = si+1
 
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Obtain the action of the s.p.h. on the spwfs using precomputed derivatives
-        call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
-        &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
-        &                          HFdpsi(:,:,:,si+1:si+N),              &
-        &                          HFddpsi(:,:,:,si+1:si+N),.false., F)
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Construct the residual
-        do m=1,N
-          ! TODO: replace by BLAS call
-          hpsi(:,:,m)=hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m)
-          dispersions(wave+m) =sum(hpsi(:,:,m)**2)*dv
+!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!        ! Obtain the action of the s.p.h. on the spwfs using precomputed derivatives
+!        call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
+!        &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
+!        &                          HFdpsi(:,:,:,si+1:si+N),              &
+!        &                          HFddpsi(:,:,:,si+1:si+N),.false., F)
+!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!        ! Construct the residual
+!        do m=1,N
+!          ! TODO: replace by BLAS call
+!          hpsi(:,:,m)=hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m)
+!          dispersions(wave+m) =sum(hpsi(:,:,m)**2)*dv
 
-          select case(pairingtype)
-          case(0,1)
-              d2h          = d2h + rho_can(si+m)*dispersions(si+m)
-          case(2) 
-              d2h          = d2h + rho_pairing(si+m,si+m)*dispersions(si+m)
-          end select
-        enddo
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Add some history and 'momentum' to the update. 
-        momentum_updates(:,:,si+1:si+N) = & 
-        &     - dt/hbar * hpsi      +  momentum*momentum_updates(:,:,si+1:si+N) 
-        deallocate(hpsi)
-        si = si + N
-      enddo
-      d2h          = d2h/(neutrons+protons)
-      !-------------------------------------------------------------------------
-      ! Step 2: perform the update
-      HFPSI = HFPSI + momentum_updates
+!          select case(pairingtype)
+!          case(0,1)
+!              d2h          = d2h + rho_can(si+m)*dispersions(si+m)
+!          case(2) 
+!              d2h          = d2h + rho_pairing(si+m,si+m)*dispersions(si+m)
+!          end select
+!        enddo
+!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+!        ! Add some history and 'momentum' to the update. 
+!        momentum_updates(:,:,si+1:si+N) = & 
+!        &     - dt/hbar * hpsi      +  momentum*momentum_updates(:,:,si+1:si+N) 
+!        deallocate(hpsi)
+!        si = si + N
+!      enddo
+!      d2h          = d2h/(neutrons+protons)
+!      !-------------------------------------------------------------------------
+!      ! Step 2: perform the update
+!      HFPSI = HFPSI + momentum_updates
       !-------------------------------------------------------------------------
       ! Step 3: orthonormalize
       ! ... but first transfer to 2D layout when MPI is active

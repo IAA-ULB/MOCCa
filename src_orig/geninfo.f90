@@ -458,6 +458,7 @@ contains
     call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
     print *, 'RANK ', MPI_RANK, ' reports the following error.'
 #endif
+    print *, msg
     if(present(routine)) print *, "Error occurred in routine ", routine
 #if(USE_MPI > 0)
     !call MPI_ABORT(MPI_COMM_WORLD,1,mpi_err) ! force all MPI ranks to stop

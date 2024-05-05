@@ -485,13 +485,19 @@ contains
       !  ------> this is a shorthand for use in the rest of this routine below
       blocks_local(MPI_SYM_BLOCK) = loc_psi
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! The 2D distribution is a block-cyclic one with blocking factors decided
-      ! by the user
+      ! The 2D distribution of spwfs is a block-cyclic one with blocking factors
+      ! decided by the user
       xsize = NUMROC(4*mv, block_factor_row, MYCOL_2D,0, NCOL_2D)
       CALL DESCINIT(desc_psi_2D,4*mv,MPI_BLOCK_SIZE,    &
       &             block_factor_row, block_factor_col, &
       &             0,0,blacs_cntxt_2d, xsize ,info)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! ... and similar for the descriptor of matrices in spwf x spwf space
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      xsize = NUMROC(MPI_BLOCK_SIZE, block_factor_row, MYCOL_2D,0, NCOL_2D)
+      CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,    &
+      &             block_factor_row, block_factor_col, &
+      &             0,0,blacs_cntxt_2d, xsize ,info)
 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Constructing the bookkeeping on each process
@@ -1275,61 +1281,71 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 #if(USE_MPI > 0)
   subroutine transfer_1D_to_2D(A_1D, A_2D)
     !---------------------------------------------------------------------------
-    ! Use the scalapack routine PDGEMR2D to copy 
-    !
+    ! Use the scalapack routine PDGEMR2D to copy the 1D-distributed array into
+    ! the 2D-distributed version A_2D. If necessary, A_2D will get allocated.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
     !    A_1D : array (dimension (mv,4,X)), 1D-layout distributed
     ! Output:
-    !    A_2D : array (dimension (mv*4,X)), 2D-distributed
+    !    A_2D : array (dimension (mv*4,X)), copy of A_1D remapped with a pointer
+    !           but distributed among processes in a 2D layout.
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) ,allocatable, target:: A_1D(:,:,:)
-    real(KIND=dp), pointer, contiguous :: A_1D_copy(:,:)
-    real(KIND=dp), intent(out), allocatable :: A_2D(:,:)
-    integer                    :: B, N, si, xsize, ysize, mpi_err, C
+    real(KIND=dp), intent(in) ,allocatable, target :: A_1D(:,:,:)
+    real(KIND=dp), intent(out), allocatable        :: A_2D(:,:)
+    ! Pointer to remap the (mv,4,X) array into a (4*mv,X) array
+    real(KIND=dp), pointer, contiguous             :: A_1Dc(:,:)
+
+    integer           :: xs, ys
     integer, external :: NUMROC
 
     if(.not.allocated(A_2D)) then
-      xsize = NUMROC(4*mv,2,MYROW_2D,0,NROW_2D)
-      ysize = NUMROC(MPI_BLOCK_SIZE,2,MYCOL_2D,0,NCOL_2D)
-      print *, 'SIZE', nwt_local, ysize
-      print *, 'MESH', xsize, 4*mv
-      allocate(A_2D(xsize, ysize))
+      ! Asking for the appropriate size of the A_2D matrix on this process
+      xs = NUMROC(          4*mv,2,MYROW_2D,0,NROW_2D)
+      ys = NUMROC(MPI_BLOCK_SIZE,2,MYCOL_2D,0,NCOL_2D)
+      allocate(A_2D(xs,ys))
     endif
 
-    A_1D_copy(1:4*mv, 1:nwt_local) => A_1D(1:mv, 1:4, 1:nwt_local)
-    call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_1D_copy, 1,1, desc_psi_1D,             &
-     &                    A_2D      ,1,1, desc_psi_2D, blacs_cntxt_2D)
+    ! Pointer remapping
+    A_1Dc(1:4*mv, 1:nwt_local) => A_1D(1:mv, 1:4, 1:nwt_local)
+    call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_1Dc, 1,1, desc_psi_1D,                 &
+     &                                A_2D  ,1,1, desc_psi_2D, blacs_cntxt_2D)
 
-    do C=1,NPROCS
-      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-      if(C.eq. MPI_RANK) print *, 'SUCCESS 1D-2D on RANK = ', MPI_RANK
-      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-    enddo
-    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-    !call stp('')
-    !        
-!        CALL PZGEMR2D(gridsize,nlin,psi_1d,1,1,desc_psi1d(1:10),psi_2d,&
-!                  1,1,desc_psi2d(1:10),contxt)
+!    do C=1,NPROCS
+!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!      if(C.eq. MPI_RANK) print *, 'SUCCESS 1D-2D on RANK = ', MPI_RANK
+!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!    enddo
+!    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
   end subroutine transfer_1D_to_2D
   
   subroutine transfer_2D_to_1D(A_2D, A_1D)
-    real(KIND=dp), intent(in)  :: A_2D(:,:)
+    !---------------------------------------------------------------------------
+    ! Use the scalapack routine PDGEMR2D to copy the 2D-distributed array into
+    ! the 1D-distributed version A_1D. This routine is the inverse of the one
+    ! above, except it assumes all relevant arrays are allocated.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !    A_2D : array (dimension (4*mv,X)), 2D-layout distributed
+    ! Output:
+    !    A_1D : array (dimension (mv,4,X)), copy of A_2D remapped with a pointer
+    !           but distributed among processes in a 1D layout.
+    !--------------------------------------------------------------------------- 
+    real(KIND=dp), intent(in)          :: A_2D(:,:)
     real(KIND=dp), intent(out), target :: A_1D(:,:,:)
-    real(KIND=dp), pointer, contiguous :: A_1D_copy(:,:)
-    integer                    :: B, N, si, C, mpi_err
-    A_1D = 0.0
+    ! Pointer for remapping 
+    real(KIND=dp), pointer, contiguous :: A_1Dc(:,:)
 
-    A_1D_copy(1:4*mv, 1:nwt_local) => A_1D(1:mv, 1:4, 1:nwt_local)
-    call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_2D, 1,1, desc_psi_2D,             &
-     &                         A_1D_copy      ,1,1, desc_psi_1D, blacs_cntxt_2D)
+    ! Pointer remapping 
+    A_1Dc(1:4*mv, 1:nwt_local) => A_1D(1:mv, 1:4, 1:nwt_local)
+    call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_2D ,1,1, desc_psi_2D,                  &
+    &                                 A_1Dc,1,1, desc_psi_1D, blacs_cntxt_2D)
 
-    do C=1,NPROCS
-      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-      if(C.eq. MPI_RANK) print *, 'SUCCESS 2D-1D on RANK = ', MPI_RANK
-      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-    enddo
-    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!    do C=1,NPROCS
+!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!      if(C.eq. MPI_RANK) print *, 'SUCCESS 2D-1D on RANK = ', MPI_RANK
+!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!    enddo
+!    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
 
   end subroutine transfer_2D_to_1D
   
@@ -1337,36 +1353,45 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !
     !
     real(KIND=dp), allocatable :: overlap(:,:), overlap_global(:,:)
-    integer :: xsize, desc_0(10), info, i, ysize, NB, MB
+    integer :: xsize, desc_0(10), info, i, ysize, mpi_err
     integer, external :: NUMROC
 
-    xsize = NUMROC(MPI_BLOCK_SIZE,2,MYROW_2D,0,NROW_2D)
-    ysize = NUMROC(MPI_BLOCK_SIZE,2,MYCOL_2D,0,NCOL_2D)!
-
-    NB = 2
-    MB = 2
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Set up the matrix of spwf overlaps
+    xsize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
+    ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
 
     allocate(overlap(xsize,ysize))
+    CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,&
+    &             BLOCK_FACTOR_ROW,BLOCK_FACTOR_COL,0,0,blacs_cntxt_2d,xsize,info)
+    print *, allocated(HFPsi_2d)
+    call PDGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, dv, &
+    &             HFpsi_2d, 1, 1, desc_psi_2d, &
+    &             HFpsi_2d, 1, 1, desc_psi_2d, &
+    &             0.0d0,                       &
+    &             overlap , 1, 1, desc_mat_2d)
+    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
 
-    CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE, NB, MB,0,0,blacs_cntxt_2d,xsize,info)
-    call PZGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, 1.0d0, &
-    &             HFpsi_2d, 1, 1, desc_psi_2d, HFpsi_2d, 1, 1, desc_psi_2d, 0.0d0, overlap, 1, 1, desc_mat_2d)
-    !desc_0(:) = 0
-    !desc_0(2) = -1
-    if (MPI_RANK .eq. 0) then
-      print *, MPI_RANK, MPI_BLOCK_SIZE
-     ! initialization of the descriptor for the global matrix
-     call descinit(desc_0, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 0, 0, &
-     &                        blacs_cntxt, MPI_BLOCK_SIZE, info)
+    xsize = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYROW_2D,0,NROW_2D)
+    ysize = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYCOL_2D,0,NCOL_2D)
+    print *, 'XSIZE', MPI_RANK,xsize,ysize, MPI_BLOCK_SIZE
+
+    ! initialization of the descriptor for the global matrix
+    call descinit(desc_0, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, &
+    &                     MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 0, 0, &
+    &                        blacs_cntxt_1D, MPI_BLOCK_SIZE, info)
+     
      ! allocation and initialization of the global matrices A and B
-     allocate(overlap_global(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE))
-    end if
-    call stp('')
-    call pdgemr2d(MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, overlap, 1, 1, desc_mat_2d, overlap_global, 1, 1, desc_0, blacs_cntxt)
-    if (MPI_RANK .eq. 0) then
-        do i=1,MPI_BLOCK_SIZE
-          print ('(99f10.3)'), overlap_global(i,1:MPI_BLOCK_SIZE)
-        enddo
+    allocate(overlap_global(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE))
+    call pdgemr2d(MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, &
+    &             overlap, 1, 1, desc_mat_2d, &
+    &             overlap_global, 1, 1, desc_0, blacs_cntxt_1D)
+      
+    if(MPI_RANK.eq.0) then
+      do i=1,MPI_BLOCK_SIZE
+        print ('(99f7.1)'), overlap_global(i,1:MPI_BLOCK_SIZE)
+      enddo
+      print *
     endif
     call stp('')
   end subroutine test_transfer
