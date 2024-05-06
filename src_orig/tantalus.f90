@@ -195,7 +195,6 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call inilag()
  !------------------------------------------------------------------------------
  ! Read all information from a wf file
- print *, 'READ WF'
  call ReadWavefunction()
  !------------------------------------------------------------------------------
  ! Print all relevant input gleaned from STDIN and the wf file.
@@ -378,6 +377,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
+    
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! First, do some bookkeeping
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -398,7 +398,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         if(projectpresent) call feasibleproject(Density)
         call Evolve_subspace(potentials, iter)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Calculate the single-particle hamiltonian ...
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

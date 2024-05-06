@@ -357,7 +357,7 @@ contains
 #if(USE_MPI>0)
     integer, external    :: numroc
     integer              :: mpi_err, dims(2), k, j, info, xsize, ysize
-    integer              :: block_factor_1D, loc_psi
+    integer              :: loc_psi
     integer, allocatable :: map_1D(:,:), map_2d(:,:),team(:)
 #endif
 
@@ -461,24 +461,21 @@ contains
       enddo
       CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
       CALL BLACS_GRIDINFO(blacs_cntxt_2D,NROW_2D,NCOL_2D,MYROW_2D,MYCOL_2D)
-      
-
-      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-      do C=0, NPROCS
-        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-        if(C .eq. MPI_RANK) then
-          xsize = NUMROC(4*mv,4*mv, MYROW_1D,0, NROW_1D)
-          ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_1D, MYCOL_1D,0, NCOL_1D)
-          print *, '1D: RANK = ', MPI_RANK, 'is part of ', MYROW_1D, '/', NROW_1D, MYCOL_1D, '/', NCOL_1D, 'with ', ysize, ' of ', MPI_BLOCK_SIZE, ' spwfs across ', xsize, ' mesh points.'
-          xsize = NUMROC(4*mv,BLOCK_FACTOR_ROW, MYROW_2D,0, NROW_2D)
-          ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL, MYCOL_2D,0, NCOL_2D)
-          print *, '2D: RANK = ', MPI_RANK, 'is part of ', MYROW_2D, '/', NROW_2D, MYCOL_2D, '/', NCOL_2D, 'with ', ysize, ' of ', MPI_BLOCK_SIZE, ' spwfs across ', xsize, ' mesh points.'
-          print *
-          endif
-        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-      enddo
-      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-      
+!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!      do C=0, NPROCS
+!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!        if(C .eq. MPI_RANK) then
+!          xsize = NUMROC(4*mv,4*mv, MYROW_1D,0, NROW_1D)
+!          ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_1D, MYCOL_1D,0, NCOL_1D)
+!          print *, '1D: RANK = ', MPI_RANK, 'is part of ', MYROW_1D, '/', NROW_1D, MYCOL_1D, '/', NCOL_1D, 'with ', ysize, ' of ', MPI_BLOCK_SIZE, ' spwfs across ', xsize, ' mesh points.'
+!          xsize = NUMROC(4*mv,BLOCK_FACTOR_ROW, MYROW_2D,0, NROW_2D)
+!          ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL, MYCOL_2D,0, NCOL_2D)
+!          print *, '2D: RANK = ', MPI_RANK, 'is part of ', MYROW_2D, '/', NROW_2D, MYCOL_2D, '/', NCOL_2D, 'with ', ysize, ' of ', MPI_BLOCK_SIZE, ' spwfs across ', xsize, ' mesh points.'
+!          print *
+!          endif
+!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!      enddo
+!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! From the BLACS context, we now construct SCALAPACK descriptors
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -554,7 +551,6 @@ contains
       ! Balancing per symmetry block: each MPI rank gets one or more symmetry
       ! blocks to account for.
       !-------------------------------------------------------------------------
-
       if(activeblocks .ge. NPROCS) then
         ! More symmetry blocks than MPI ranks, i.e. we assign each rank
         ! one or more entire symmetry blocks
@@ -633,7 +629,10 @@ contains
     integer                   :: ininwt
     integer, allocatable      :: kparz(:)
     integer                   :: nshells_ev
-
+#if(USE_MPI > 0)
+    integer                   :: xs, ys, B, mpi_err, wave, p,q, wave_global, C, si
+    integer, external         :: NUMROC, INDXG2L, INDXG2P
+#endif
     ininwt = ininwn + ininwp
 
     ! The actual allocation of the spwfs cannot be done here when using MPI.
@@ -642,7 +641,7 @@ contains
 !    allocate(hfpsi(ININX*ININY*ININZ,4,ININWT)) ; hfpsi = 0.0d0
     ! but since our routine nilsson is an adaptation of a very old FORTRAN code,
     ! I preferred to make this complicated construction involving two nilsson
-    ! calls instead of modifying nilsson.
+    ! calls instead of modifying the nilsson subroutine itself.
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
@@ -709,7 +708,9 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! c) and perform some other initializations
     allocate(dispersions(ININWT)) ; dispersions  = 0
-    if(.not.allocated(hftransfo)) allocate(hftransfo(nwt,nwt))
+
+#if(USE_MPI == 0) 
+    allocate(hftransfo(nwt,nwt), sphamil(nwt,nwt))
     do i=1, nwt
       hftransfo(i,i) = 1.0d0
       do j=i+1,nwt
@@ -718,7 +719,6 @@ contains
       enddo
     enddo
 
-    if(.not.allocated(sphamil)) allocate(sphamil(nwt,nwt))
     do i=1, nwt
       sphamil(i,i) = spenergies(i)
       do j=i+1,nwt
@@ -726,7 +726,56 @@ contains
         sphamil(j,i) = 0.0d0 
       enddo
     enddo
+#else 
+    B = MPI_BLOCK_SIZE
+    ! Both hftransfo and sphamil get distributed on the 2D layout
+    xs = NUMROC(B,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
+    ys = NUMROC(B,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
 
+    allocate(hftransfo(xs,ys), sphamil(xs,ys))
+    hftransfo = 0.0d0 ; sphamil   = 0.0d0
+    
+    do wave=1,MPI_BLOCK_SIZE
+      ! Identify which of the ranks has information on this particular spwf
+      p = INDXG2P(wave, BLOCK_FACTOR_ROW, MYROW_2D, 0, NROW_2D)
+      q = INDXG2P(wave, BLOCK_FACTOR_COL, MYCOL_2D, 0, NCOL_2D)
+      ! ... and to which local matrix element the (global) diagonal matrix
+      !     element corresponds.
+      i = INDXG2L(wave, BLOCK_FACTOR_ROW, MYROW_2D, 0, NROW_2D)
+      j = INDXG2L(wave, BLOCK_FACTOR_COL, MYCOL_2D, 0, NCOL_2D)
+      ! ... but we also need to know what is the GLOBAL index of the spwf for 
+      !     the spenergies array
+      wave_global = INDXG2L(wave,BLOCK_FACTOR_1D, 0, MYCOL_1D, NCOL_1D) &
+      &           + sum(HFBLOCKS_global(1:MPI_SYM_BLOCK-1))
+      if((MYROW_2D .eq. p) .and. (MYCOL_2D .eq. q)) then
+        if(i.ne.0 .and. j.ne.0) then
+          sphamil(i,j)   = spenergies( + wave_global)
+          hftransfo(i,j) = 1.0d0
+        endif
+      endif
+    enddo
+
+!    if(MPI_RANK.eq.0) then
+!      print *, 'SP', spenergies(1:HFBLOCKS_global(1))    
+!      print *, 'SP', spenergies(HFBLOCKS_global(1)+1:HFBLOCKS_global(3))    
+!      print *, 'SP', spenergies(sum(HFBLOCKS_global(1:3))+1:sum(HFBLOCKS_global(1:5)))    
+!      print *, 'SP', spenergies(sum(HFBLOCKS_global(1:5))+1:sum(HFBLOCKS_global(1:7)))    
+!    endif
+!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!    do C=0, NPROCS-1
+!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!        if(MPI_RANK.eq.C) then
+!          print *, MPI_RANK, MPI_SYM_BLOCK
+!          do wave=1,MPI_BLOCK_SIZE
+!            print ('(99f10.3)'), sphamil(wave,:)
+!          enddo
+!          print *
+!        endif
+!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!    enddo
+!    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+!    call stp('END INIT')
+#endif
   end subroutine iniwavefunctions
 
   subroutine deriveHF()

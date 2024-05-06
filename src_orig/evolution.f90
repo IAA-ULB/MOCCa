@@ -697,11 +697,11 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
           Momentum_Updates = 0.0_dp
       endif
-      if(.not.allocated(sphamil)) then 
-          allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
-      endif
-
-      sphamil     = 0.0d0
+      !if(.not.allocated(sphamil)) then 
+      !    allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
+      !endif
+      !sphamil     = 0.0d0
+      
       d2h         = 0.0d0
       dispersions = 0.0d0
       if(EstimateParams) call IterativeEstimation(F, iteration)
@@ -899,84 +899,84 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       enddo
     end subroutine apply_sphamil_block
 
-    subroutine diag_sph(m,n,x,hx,upd,eigenvalues)
-      !------------------------------------------------------------------------
-      ! 
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !
-      ! Input:
-      !       m : number of vectors passed in that span the reduced space
-      !       n : number of eigenstates to construct
-      !       x : a set of vectors in s.p. space, 
-      !           i.e. a matrix of dimension (nx*ny*nz,4,m)
-      !      hx : the application of h on the vectors x, 
-      !           i.e. another matrix of dimension (nx*ny*nz,4,m)
-      !      upd: a set of vectors that needs to undergo the same unitary 
-      !           transformation as x      !
-      ! Output: 
-      !           x: the first n columns are the lowest n eigenstates of h 
-      !              in the reduced space
-      !          hx: the first n columns are the application of h on the 
-      !              lowest n eigenvectors.
-      ! eigenvalues: eigenvalues of the s.p. hamiltonian in the reduced space
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Technical notes:
-      !  This routine accepts spinors on the mesh in the format
-      !      x(4*mv, m)
-      !  while the rest of the code operates
-      !      x(mv, 4,m)
-      !  The reason is to (i) make the Lapack calls more transparent and (ii)
-      !  to aid compiler vectorisation.
-      !------------------------------------------------------------------------
-
-      integer, intent(in)          ::  m, n
-      real(KIND=dp), intent(inout) ::  x(mv*4,m)
-      real(KIND=dp), intent(inout) :: hx(mv*4,m), upd(mv*4,m)
-      real(KIND=dp), intent(out)   :: eigenvalues(n)
-      real(KIND=dp)                :: sph(m,m), temp(4*mv,m), tempe(m)
-
-      integer                      :: lwork, info
-      real(KIND=dp), allocatable   :: work(:)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Populate the full matrix sph 
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! This BLAS call does not exploit the symmetry of the problem, it 
-      ! explicitly computes all elements of sph even though we know that 
-      !    sph(i,j) = sph(j,i)^*
-      ! TODO: figure out whether this BLAS call outperforms a symmetric 
-      !       implementation with many matrix-vector calls. 
-      !
-      call DGEMM('t', 'n', m, m, 4*mv, dv, x(:,:), 4*mv, &
-      &                                   hx(:,:), 4*mv,0.0d0,sph,m)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Diagonalise the sphamiltonian
-      ! 
-      ! First inquire about working memory
-      allocate(work(1))
-      call DSYEV('V','L', m ,sph,m,tempe,work,-1,info)
-      lwork=int(work(1))
-      deallocate(work)
-      allocate(work(lwork))
-      ! ..... and now do the actual work
-      call DSYEV('V','L', m ,sph,m,tempe,work,lwork,info)
-      if(info.ne.0) then
-        print *, info
-        call stp('Issue with diagonalising in eval_sph.')
-      endif
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Now we construct the n lowest eigenvectors
-      temp = x! temporary copy
-      call DGEMM('n','n',4*mv,n,m, 1.0d0,temp, 4*mv,sph(:,1:n), m, 0.0d0, & 
-      &                                        x(:,1:n), 4*mv)
-      ! ... and aply the same transformation to upd
-      temp = upd ! temporary copy
-      call DGEMM('n','n',4*mv,n,m, 1.0d0,temp, 4*mv,sph(:,1:n), m, 0.0d0, & 
-      &                                        upd(:,1:n), 4*mv)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Bookkeeping
-      eigenvalues = tempe(1:n)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    end subroutine diag_sph
+!    subroutine diag_sph(m,n,x,hx,upd,eigenvalues)
+!      !------------------------------------------------------------------------
+!      ! 
+!      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      !
+!      ! Input:
+!      !       m : number of vectors passed in that span the reduced space
+!      !       n : number of eigenstates to construct
+!      !       x : a set of vectors in s.p. space, 
+!      !           i.e. a matrix of dimension (nx*ny*nz,4,m)
+!      !      hx : the application of h on the vectors x, 
+!      !           i.e. another matrix of dimension (nx*ny*nz,4,m)
+!      !      upd: a set of vectors that needs to undergo the same unitary 
+!      !           transformation as x      !
+!      ! Output: 
+!      !           x: the first n columns are the lowest n eigenstates of h 
+!      !              in the reduced space
+!      !          hx: the first n columns are the application of h on the 
+!      !              lowest n eigenvectors.
+!      ! eigenvalues: eigenvalues of the s.p. hamiltonian in the reduced space
+!      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      ! Technical notes:
+!      !  This routine accepts spinors on the mesh in the format
+!      !      x(4*mv, m)
+!      !  while the rest of the code operates
+!      !      x(mv, 4,m)
+!      !  The reason is to (i) make the Lapack calls more transparent and (ii)
+!      !  to aid compiler vectorisation.
+!      !------------------------------------------------------------------------
+!
+!      integer, intent(in)          ::  m, n
+!      real(KIND=dp), intent(inout) ::  x(mv*4,m)
+!      real(KIND=dp), intent(inout) :: hx(mv*4,m), upd(mv*4,m)
+!      real(KIND=dp), intent(out)   :: eigenvalues(n)
+!      real(KIND=dp)                :: sph(m,m), temp(4*mv,m), tempe(m)!!
+!
+!      integer                      :: lwork, info
+!      real(KIND=dp), allocatable   :: work(:)
+!      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      ! Populate the full matrix sph 
+!      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      ! This BLAS call does not exploit the symmetry of the problem, it 
+!      ! explicitly computes all elements of sph even though we know that 
+!      !    sph(i,j) = sph(j,i)^*
+!      ! TODO: figure out whether this BLAS call outperforms a symmetric 
+!      !       implementation with many matrix-vector calls. 
+!      !
+!      call DGEMM('t', 'n', m, m, 4*mv, dv, x(:,:), 4*mv, &
+!      &                                   hx(:,:), 4*mv,0.0d0,sph,m)
+!      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      ! Diagonalise the sphamiltonian
+!      ! 
+!      ! First inquire about working memory
+!      allocate(work(1))
+!      call DSYEV('V','L', m ,sph,m,tempe,work,-1,info)
+!      lwork=int(work(1))
+!      deallocate(work)
+!      allocate(work(lwork))
+!      ! ..... and now do the actual work
+!      call DSYEV('V','L', m ,sph,m,tempe,work,lwork,info)
+!      if(info.ne.0) then
+!        print *, info
+!        call stp('Issue with diagonalising in eval_sph.')
+!      endif
+!      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      ! Now we construct the n lowest eigenvectors
+!      temp = x! temporary copy
+!      call DGEMM('n','n',4*mv,n,m, 1.0d0,temp, 4*mv,sph(:,1:n), m, 0.0d0, & 
+!      &                                        x(:,1:n), 4*mv)
+!      ! ... and aply the same transformation to upd
+!      temp = upd ! temporary copy
+!      call DGEMM('n','n',4*mv,n,m, 1.0d0,temp, 4*mv,sph(:,1:n), m, 0.0d0, & 
+!      &                                        upd(:,1:n), 4*mv)
+!      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      ! Bookkeeping
+!      eigenvalues = tempe(1:n)
+!      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!    end subroutine diag_sph
     
     function calc_sphamil(F, onthefly) result(sph)
         !------------------------------------------------------------------------
@@ -1003,53 +1003,72 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         type(PotentialVector), intent(in) :: F
         logical, intent(in)        :: onthefly
 
-        real(KIND=dp)              :: sph(nwt,nwt)
+        real(KIND=dp), allocatable :: sph(:,:)
         integer                    :: si, B, N, iso, wave
-        real(KIND=dp), allocatable :: hpsi(:,:,:)
+        real(KIND=dp), allocatable :: hpsi(:,:,:), hpsi_2d(:,:)
 #if(USE_MPI > 0)
-        integer                    :: mpi_err
+        integer                    :: mpi_err, xs, ys
+        integer, external          :: NUMROC
 #endif
 
         call start_timer(T_calc_sph)
-
+#if(USE_MPI > 0)
+        xs = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
+        ys = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
+        allocate(sph(xs,ys))
+#else
+        allocate(sph(nwt,nwt))
+#endif
         sph = 0.0d0
-
         si = 0
         do B=1,8                      !<---- this loops over local spwf indices
-            N = HFBlocks(B) ; if(N.eq.0) cycle
-            iso = -1        ; if(B.gt.4) iso = +1
-            wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
+#if(USE_MPI == 0) 
+          N = HFBlocks(B) ; if(N.eq.0) cycle
+          iso = -1        ; if(B.gt.4) iso = +1
+          wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
+          allocate(hpsi(mv,4,N))
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! Obtain the action of the s.p.h. on the spwfs in block-wise fashion
+          call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
+          &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,  &
+          &                          HFdpsi(:,:,:,si+1:si+N),               &
+          &                          HFddpsi(:,:,:,si+1:si+N),              &
+          &                          onthefly, F)
 
-            allocate(hpsi(mv,4,N))
-            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-            ! Obtain the action of the s.p.h. on the spwfs in block-wise fashion
-            call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
-            &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,  &
-            &                          HFdpsi(:,:,:,si+1:si+N),               &
-            &                          HFddpsi(:,:,:,si+1:si+N),              &
-            &                          onthefly, F)
-
-            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-            ! Calculate matrix elements by way of a BLAS call
-            ! TODO: hide this behind interface to recast the (mv,4) vectors
-            !       into (4*mv) ones
-            call DGEMM('t', 'n', N, N, 4*mv, dv, hfpsi(:,:,si+1:si+N), 4*mv, &
-            &                                     hpsi(:,:,1:N), 4*mv, 0.0d0,& 
-            &                                     sph(wave+1:wave+N,wave+1:wave+N),N)
-        
-            deallocate(hpsi)
-            si = si + N
-        enddo 
-#if(USE_MPI > 0)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-          ! Collecting all arrays on all MPI ranks. The ALLREDUCE callis valid, 
-          ! since we zeroed the initial array at the top of this routine.
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-          call MPI_ALLREDUCE(MPI_IN_PLACE,sph, nwt**2, MPI_REAL8,               &
-          &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! Calculate matrix elements by way of a BLAS call
+          ! TODO: hide this behind interface to recast the (mv,4) vectors
+          !       into (4*mv) ones
+          call DGEMM('t', 'n', N, N, 4*mv, dv, hfpsi(:,:,si+1:si+N), 4*mv, &
+          &                                     hpsi(:,:,1:N), 4*mv, 0.0d0,& 
+          &                                     sph(wave+1:wave+N,wave+1:wave+N),N)
+      
+          deallocate(hpsi)
+          si = si + N
+#else
+          if(B .ne. MPI_SYM_BLOCK) cycle
+          iso = -1        ; if(B.gt.4) iso = +1
+          N   = nwt_local
+          allocate(hpsi(mv,4,N))
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! Obtain the action of the s.p.h. on the spwfs in block-wise fashion
+          call apply_sphamil_block(N,HFpsi,hpsi,sx,sy,sz,iso,  &
+          &                          HFdpsi,HFddpsi, onthefly, F)
+          
+          N    = MPI_BLOCK_SIZE
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+          ! Calculate matrix elements by way of a BLAS call
+          ! using the 2D layout
+          call transfer_1D_to_2D(hpsi, hpsi_2D)
+          call PDGEMM ('T', 'N', N, N, 4*mv, dv,     &
+          &             hpsi_2d , 1, 1, desc_psi_2d, &
+          &             HFpsi_2d, 1, 1, desc_psi_2d, &
+          &             0.0d0,                       &
+          &             sph, 1, 1, desc_mat_2d)
+          deallocate(hpsi, hpsi_2D)
 #endif
-        
-        call stop_timer(T_calc_sph)
+      enddo 
+      call stop_timer(T_calc_sph)
     end function calc_sphamil
     
     subroutine apply_subspace_rotation(sph, transfo, eigenvalues) 
@@ -1066,14 +1085,16 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! transfo    : trivial HF transformation on output 
       ! eigenvalues: single-particle energies resulting from the diagonalisation
       !-------------------------------------------------------------------------
-      real(KIND=dp), intent(inout)       :: sph(nwt,nwt)
-      real(KIND=dp), intent(out)         :: transfo(nwt,nwt), eigenvalues(nwt)
+      real(KIND=dp), intent(inout)       :: sph(:,:)
+      real(KIND=dp), intent(out)         :: transfo(:,:), eigenvalues(nwt)
       real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:), mom_reshape(:,:)
       integer                      :: si, m, B, N, wave
       integer                      :: lwork, info
-      real(KIND=dp), allocatable   :: work(:), temp(:,:)
+      real(KIND=dp), allocatable   :: work(:), temp(:,:), tempe(:)
 #if(USE_MPI > 0)
-      integer                      :: mpi_err
+      integer                      :: mpi_err, xs, ys
+      integer, external            :: NUMROC
+      real(KIND=dp), allocatable   :: eigenvectors(:,:)
 #endif
     
       call start_timer(T_subspace_rotation)
@@ -1082,6 +1103,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
 
       si = 0
       do B=1,8
+#if(USE_MPI == 0)
           N = HFBlocks(B) ; if(N.eq.0) cycle
           wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
           
@@ -1106,28 +1128,87 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Now we construct the lowest eigenvectors
          temp = wfs_reshape(:,1:N) ! temporary copy
-         call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,sph(wave+1:wave+N,wave+1:wave+N), N, 0.0d0,wfs_reshape, 4*mv)
+         call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,&
+         &         sph(wave+1:wave+N,wave+1:wave+N), N, 0.0d0,wfs_reshape, 4*mv)
          ! ... and aply the same transformation to momentum_updates
          temp = mom_reshape(:,1:N)
-         call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,sph(wave+1:wave+N,wave+1:wave+N), N, 0.0d0,mom_reshape, 4*mv)
-         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,&
+         &         sph(wave+1:wave+N,wave+1:wave+N), N, 0.0d0,mom_reshape, 4*mv)
+         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Populate sphamil and hftransfo for future use
          sph(wave+1:wave+N,wave+1:wave+N) = 0.0d0
          do m=1,N
            sph(wave+m,wave+m)     = eigenvalues(wave+m)
            transfo(wave+m,wave+m) = 1.0d0
          enddo
+#else
+         if(B .ne. MPI_SYM_BLOCK) cycle
+         N = MPI_BLOCK_SIZE
+         wave = sum(HFBLOCKS_GLOBAL(1:B-1))
+         print *, MPI_RANK, wave
          
+         xs = NUMROC(N,block_factor_row,MYROW_2D,0,NROW_2D)
+         ys = NUMROC(N,block_factor_col,MYCOL_2D,0,NCOL_2D)
+         allocate(eigenvectors(xs,ys))
+
+         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         ! Inquire about work size
+         allocate(work(1), tempe(N))
+         CALL PDSYEV ('V','L',N,sph,1,1,desc_mat_2D, &
+         &            eigenvalues(wave+1:wave+N), &
+         &            eigenvectors, 1,1,desc_mat_2D, work,-1,info)
+         
+         lwork=int(work(1))
+         deallocate(work)
+         allocate(work(lwork))
+         ! .... and now do the actual work
+         CALL PDSYEV ('V','L',N,sph,1,1,desc_mat_2D, &
+         &            eigenvalues(wave+1:wave+N), &
+         &            eigenvectors, 1,1, desc_mat_2D, work,lwork,info)
+         
+         ! Dirty trick: the eigenvalues will get all_reduced below, so where we
+         !              divide by the number of processes in this symmetry block
+         !              such that we don't have to code complicated stuff
+         eigenvalues(wave+1:wave+N)=eigenvalues(wave+1:wave+N)/MPI_BLOCK_NPROCS
+         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         ! Now we construct the lowest eigenvectors
+         temp = HFPSI_2D
+         call PDGEMM ('N', 'N',4*mv, N, N, 1.0d0,       &
+         &             temp        , 1, 1, desc_psi_2d, &
+         &             eigenvectors, 1, 1, desc_mat_2d, &
+         &             0.0d0,                           &
+         &             HFPSI_2D, 1, 1, desc_psi_2d)
+         ! TODO:  .. and apply the same transformation to the momentum_updates
+         !mom_reshape(1:4*mv,1:nwt_local) => momentum_updates(:,:,:)
+         !temp = mom_reshape
+         !call PDGEMM ('N', 'N',4*mv, N, N, 1.0d0,       &
+         !&!             temp        , 1, 1, desc_psi_2d, &
+         !&             eigenvectors, 1, 1, desc_mat_2d, &
+         !&             0.0d0,                           &
+         !&             mom_reshape , 1, 1, desc_psi_2d)
+
+         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         ! TODO= Populate sphamil and hftransfo for future use
+         !sph(wave+1:wave+N,wave+1:wave+N) = 0.0d0
+         !do m=1,N
+         !  sph(wave+m,wave+m)     = eigenvalues(wave+m)
+         !  transfo(wave+m,wave+m) = 1.0d0
+         !enddo
+#endif
          si = si + N
       enddo 
 #if(USE_MPI > 0)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Collecting all arrays on all MPI ranks. The ALLREDUCE callis valid, 
+      ! Collecting all arrays on all MPI ranks. The ALLREDUCE call is valid, 
       ! since we zeroed the initial array at the top of this routine.
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       call MPI_ALLREDUCE(MPI_IN_PLACE,eigenvalues, nwt, MPI_REAL8,          &
       &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+
+      ! Have to transfer back into the 
+      call transfer_2D_to_1D(HFPSI_2D,HFPSI)
 #endif
+
       call stop_timer(T_subspace_rotation)
 
     end subroutine apply_subspace_rotation
