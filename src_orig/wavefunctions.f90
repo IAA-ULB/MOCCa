@@ -461,18 +461,24 @@ contains
       enddo
       CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
       CALL BLACS_GRIDINFO(blacs_cntxt_2D,NROW_2D,NCOL_2D,MYROW_2D,MYCOL_2D)
+      
 
-!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!      do C=0, NPROCS
-!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!        if(C .eq. MPI_RANK) then
-!          ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_1D, MYCOL_1D,0, NCOL_1D)
-!          print *, '1D: RANK = ', MPI_RANK, 'is part of ', MYROW_1D, '/', NROW_1D, MYCOL_1D, '/', NCOL_1D, 'with ', ysize, ' of ', MPI_BLOCK_SIZE, ' spwfs'
-!          print *, '2D: RANK = ', MPI_RANK, 'is part of ', MYROW_2D, '/', NROW_2D, MYCOL_2D, '/', NCOL_2D
-!          print *
-!        endif
-!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!      enddo
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+      do C=0, NPROCS
+        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+        if(C .eq. MPI_RANK) then
+          xsize = NUMROC(4*mv,4*mv, MYROW_1D,0, NROW_1D)
+          ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_1D, MYCOL_1D,0, NCOL_1D)
+          print *, '1D: RANK = ', MPI_RANK, 'is part of ', MYROW_1D, '/', NROW_1D, MYCOL_1D, '/', NCOL_1D, 'with ', ysize, ' of ', MPI_BLOCK_SIZE, ' spwfs across ', xsize, ' mesh points.'
+          xsize = NUMROC(4*mv,BLOCK_FACTOR_ROW, MYROW_2D,0, NROW_2D)
+          ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL, MYCOL_2D,0, NCOL_2D)
+          print *, '2D: RANK = ', MPI_RANK, 'is part of ', MYROW_2D, '/', NROW_2D, MYCOL_2D, '/', NCOL_2D, 'with ', ysize, ' of ', MPI_BLOCK_SIZE, ' spwfs across ', xsize, ' mesh points.'
+          print *
+          endif
+        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+      enddo
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+      
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! From the BLACS context, we now construct SCALAPACK descriptors
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -480,6 +486,9 @@ contains
       ! columns of the spwf-matrix.
       CALL DESCINIT(desc_psi_1D,4*mv,MPI_BLOCK_SIZE,4*mv,                      &
       &             BLOCK_FACTOR_1D,0,0, blacs_cntxt_1d,4*mv,info)
+      if(info.ne.0) then 
+        call stp('Problem with DESCINIT call for psi_1D.')
+      endif
       ! Scalapack knows exactly what amount of spwfs that are stored!
       loc_psi = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_1D, MYCOL_1D,0, NCOL_1D)
       !  ------> this is a shorthand for use in the rest of this routine below
@@ -487,18 +496,24 @@ contains
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! The 2D distribution of spwfs is a block-cyclic one with blocking factors
       ! decided by the user
-      xsize = NUMROC(4*mv, block_factor_row, MYCOL_2D,0, NCOL_2D)
+      xsize = NUMROC(4*mv, block_factor_row, MYROW_2D,0, NROW_2D)
       CALL DESCINIT(desc_psi_2D,4*mv,MPI_BLOCK_SIZE,    &
       &             block_factor_row, block_factor_col, &
       &             0,0,blacs_cntxt_2d, xsize ,info)
+      if(info.ne.0) then 
+        call stp('Problem with DESCINIT call for psi_2D.')
+      endif
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! ... and similar for the descriptor of matrices in spwf x spwf space
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      xsize = NUMROC(MPI_BLOCK_SIZE, block_factor_row, MYCOL_2D,0, NCOL_2D)
+      xsize = NUMROC(MPI_BLOCK_SIZE, block_factor_row, MYROW_2D,0, NROW_2D)
+      
       CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,    &
       &             block_factor_row, block_factor_col, &
       &             0,0,blacs_cntxt_2d, xsize ,info)
-
+      if(info.ne.0) then
+        call stp('Problem with DESCINIT call for mat_2D.')
+      endif
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Constructing the bookkeeping on each process
       ! For this, each process needs to know the amount of spwfs each of his
@@ -1295,27 +1310,22 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! Pointer to remap the (mv,4,X) array into a (4*mv,X) array
     real(KIND=dp), pointer, contiguous             :: A_1Dc(:,:)
 
-    integer           :: xs, ys
+    integer           :: xs, ys, mpi_err
     integer, external :: NUMROC
 
     if(.not.allocated(A_2D)) then
       ! Asking for the appropriate size of the A_2D matrix on this process
-      xs = NUMROC(          4*mv,2,MYROW_2D,0,NROW_2D)
-      ys = NUMROC(MPI_BLOCK_SIZE,2,MYCOL_2D,0,NCOL_2D)
+      xs = NUMROC(          4*mv,block_factor_row,MYROW_2D,0,NROW_2D)
+      ys = NUMROC(MPI_BLOCK_SIZE,block_factor_col,MYCOL_2D,0,NCOL_2D)
       allocate(A_2D(xs,ys))
     endif
 
-    ! Pointer remapping
     A_1Dc(1:4*mv, 1:nwt_local) => A_1D(1:mv, 1:4, 1:nwt_local)
     call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_1Dc, 1,1, desc_psi_1D,                 &
-     &                                A_2D  ,1,1, desc_psi_2D, blacs_cntxt_2D)
+     &                                A_2D  ,1,1, desc_psi_2D, blacs_cntxt_1D)
 
-!    do C=1,NPROCS
-!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!      if(C.eq. MPI_RANK) print *, 'SUCCESS 1D-2D on RANK = ', MPI_RANK
-!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!    enddo
-!    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    !call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    !call stp('end 1D')
   end subroutine transfer_1D_to_2D
   
   subroutine transfer_2D_to_1D(A_2D, A_1D)
@@ -1330,30 +1340,27 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !    A_1D : array (dimension (mv,4,X)), copy of A_2D remapped with a pointer
     !           but distributed among processes in a 1D layout.
     !--------------------------------------------------------------------------- 
-    real(KIND=dp), intent(in)          :: A_2D(:,:)
-    real(KIND=dp), intent(out), target :: A_1D(:,:,:)
+    real(KIND=dp), intent(in)            :: A_2D(:,:)
+    real(KIND=dp), intent(inout), target :: A_1D(:,:,:) 
+    ! ^- INOUT attribute, since otherwise the compiler deallocates stuff
     ! Pointer for remapping 
     real(KIND=dp), pointer, contiguous :: A_1Dc(:,:)
+    integer :: mpi_err
 
     ! Pointer remapping 
     A_1Dc(1:4*mv, 1:nwt_local) => A_1D(1:mv, 1:4, 1:nwt_local)
     call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_2D ,1,1, desc_psi_2D,                  &
     &                                 A_1Dc,1,1, desc_psi_1D, blacs_cntxt_2D)
 
-!    do C=1,NPROCS
-!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!      if(C.eq. MPI_RANK) print *, 'SUCCESS 2D-1D on RANK = ', MPI_RANK
-!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!    enddo
-!    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-
+    !call mpi_barrier(MPI_COMM_WORLD, mpi_err)
+    !call stp('end 2D')
   end subroutine transfer_2D_to_1D
   
   subroutine test_transfer
     !
     !
     real(KIND=dp), allocatable :: overlap(:,:), overlap_global(:,:)
-    integer :: xsize, desc_0(10), info, i, ysize, mpi_err
+    integer :: xsize, desc_0(10), info, i, ysize, mpi_err, C, xs, ys
     integer, external :: NUMROC
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1364,7 +1371,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     allocate(overlap(xsize,ysize))
     CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,&
     &             BLOCK_FACTOR_ROW,BLOCK_FACTOR_COL,0,0,blacs_cntxt_2d,xsize,info)
-    print *, allocated(HFPsi_2d)
     call PDGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, dv, &
     &             HFpsi_2d, 1, 1, desc_psi_2d, &
     &             HFpsi_2d, 1, 1, desc_psi_2d, &
@@ -1374,25 +1380,38 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
     xsize = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYROW_2D,0,NROW_2D)
     ysize = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYCOL_2D,0,NCOL_2D)
-    print *, 'XSIZE', MPI_RANK,xsize,ysize, MPI_BLOCK_SIZE
 
     ! initialization of the descriptor for the global matrix
     call descinit(desc_0, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, &
     &                     MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 0, 0, &
     &                        blacs_cntxt_1D, MPI_BLOCK_SIZE, info)
      
-     ! allocation and initialization of the global matrices A and B
-    allocate(overlap_global(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE))
+    ! allocation and initialization of the global matrices A and B
+    xs = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYROW_2D,0,NROW_2D)
+    ys = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYCOL_2D,0,NCOL_2D)
+    
+    if(xs .gt. 0 .and. ys.gt. 0) then
+      allocate(overlap_global(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE))
+    endif
+    
     call pdgemr2d(MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, &
     &             overlap, 1, 1, desc_mat_2d, &
     &             overlap_global, 1, 1, desc_0, blacs_cntxt_1D)
-      
-    if(MPI_RANK.eq.0) then
-      do i=1,MPI_BLOCK_SIZE
-        print ('(99f7.1)'), overlap_global(i,1:MPI_BLOCK_SIZE)
-      enddo
-      print *
-    endif
+
+    do C=1,NPROCS
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+      if(MPI_RANK.eq.C) then
+        print *, C, MPI_SYM_BLOCK, xs, ys
+        if(xs.gt.0 .and. ys.gt. 0) then
+          do i=1,MPI_BLOCK_SIZE
+            print ('(99f7.1)'), overlap_global(i,1:MPI_BLOCK_SIZE)
+          enddo
+        endif
+      endif
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    enddo
+
+    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
     call stp('')
   end subroutine test_transfer
 #endif
