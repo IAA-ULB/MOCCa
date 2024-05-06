@@ -755,8 +755,6 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       call transfer_2D_to_1D(HFPsi_2D, HFPsi)
 #endif
       !-------------------------------------------------------------------------
-
-      call stp('')
 #if(USE_MPI > 0)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Collecting all arrays on all MPI ranks. The ALLREDUCE calls are valid, 
@@ -1068,9 +1066,12 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! transfo    : trivial HF transformation on output 
       ! eigenvalues: single-particle energies resulting from the diagonalisation
       !-------------------------------------------------------------------------
-      real(KIND=dp), intent(inout) :: sph(nwt,nwt)
-      real(KIND=dp), intent(out)   :: transfo(nwt,nwt), eigenvalues(nwt)
+      real(KIND=dp), intent(inout)       :: sph(nwt,nwt)
+      real(KIND=dp), intent(out)         :: transfo(nwt,nwt), eigenvalues(nwt)
+      real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:), mom_reshape(:,:)
       integer                      :: si, m, B, N, wave
+      integer                      :: lwork, info
+      real(KIND=dp), allocatable   :: work(:), temp(:,:)
 #if(USE_MPI > 0)
       integer                      :: mpi_err
 #endif
@@ -1083,18 +1084,41 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       do B=1,8
           N = HFBlocks(B) ; if(N.eq.0) cycle
           wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! Diagonalize the sphamiltonian in this symmetry block
-          call diag_sph_block(N, sph(wave+1:wave+N,wave+1:wave+N), HFPsi(:,:,si+1:si+N), &
-          &             Momentum_updates(:,:,si+1:si+N), eigenvalues(wave+1:wave+N))
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! Populate sphamil and hftransfo for future use
-          sph(wave+1:wave+N,wave+1:wave+N) = 0.0d0
-          do m=1,N
-            sph(wave+m,wave+m)     = eigenvalues(wave+m)
-            transfo(wave+m,wave+m) = 1.0d0
-          enddo
-          si = si + N
+          
+          ! Pointer remapping to make the LAPACK CALL standard compliant
+          wfs_reshape(1:4*mv,1:N) => HFPsi           (1:mv,1:4,si+1:si+N)
+          mom_reshape(1:4*mv,1:N) => momentum_updates(1:mv,1:4,si+1:si+N)
+
+          allocate(work(1))
+          call DSYEV('V','L', N ,sph(wave+1:wave+N,wave+1:wave+N),&
+          &                   N,eigenvalues(wave+1:wave+N),work,-1,info)
+          lwork=int(work(1))
+          deallocate(work)
+          allocate(work(lwork))
+          ! ..... and now do the actual work
+          call DSYEV('V','L', N ,sph(wave+1:wave+N,wave+1:wave+N),&
+          &                   N,eigenvalues(wave+1:wave+N),work,lwork,info)
+          if(info.ne.0) then
+            print *, 'INFO = ', info
+            call stp('Issue with diagonalising in apply_subspace_rotation.')
+          endif
+         deallocate(work)
+         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         ! Now we construct the lowest eigenvectors
+         temp = wfs_reshape(:,1:N) ! temporary copy
+         call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,sph(wave+1:wave+N,wave+1:wave+N), N, 0.0d0,wfs_reshape, 4*mv)
+         ! ... and aply the same transformation to momentum_updates
+         temp = mom_reshape(:,1:N)
+         call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,sph(wave+1:wave+N,wave+1:wave+N), N, 0.0d0,mom_reshape, 4*mv)
+         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         ! Populate sphamil and hftransfo for future use
+         sph(wave+1:wave+N,wave+1:wave+N) = 0.0d0
+         do m=1,N
+           sph(wave+m,wave+m)     = eigenvalues(wave+m)
+           transfo(wave+m,wave+m) = 1.0d0
+         enddo
+         
+         si = si + N
       enddo 
 #if(USE_MPI > 0)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1108,69 +1132,69 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
 
     end subroutine apply_subspace_rotation
     
-    subroutine diag_sph_block(m,sph,x,upd,eigenvalues)
-      !------------------------------------------------------------------------
-      ! TODO: document
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !
-      ! Input:
-      !       m : number of vectors passed in that span the reduced space
-      !      sph: matrix to diagonalize, dimension m x m
-      !       x : a set of vectors in s.p. space, 
-      !           i.e. a matrix of dimension (nx*ny*nz,4,m)
-      !      upd: a set of vectors that needs to undergo the same unitary 
-      !           transformation as x      
-      ! Output: 
-      !           x: the m eigenstates of h in the reduced space
-      !         sph: 
-      !         upd:
-      ! eigenvalues: eigenvalues of the s.p. hamiltonian in the reduced space
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Technical notes:
-      !  This routine accepts spinors on the mesh in the format
-      !      x(4*mv, m)
-      !  while the rest of the code operates
-      !      x(mv, 4,m)
-      !  Two reasons
-      !  (i)  make the Lapack calls more transparent
-      !  (ii) to aid compiler vectorisation.
-      !------------------------------------------------------------------------
-
-      integer, intent(in)          :: m
-      real(KIND=dp), intent(inout) :: x(mv*4,m), upd(mv*4,m), sph(m,m)
-      real(KIND=dp), intent(out)   :: eigenvalues(m)
-      real(KIND=dp)                :: temp(4*mv,m), tempe(m)
-      integer                      :: lwork, info
-      real(KIND=dp), allocatable   :: work(:)
+    !subroutine diag_sph_block(m,sph,x,upd,eigenvalues)
+    !  !------------------------------------------------------------------------
+    !  ! TODO: document
+    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !  !
+    !  ! Input:
+    !  !       m : number of vectors passed in that span the reduced space
+    !  !      sph: matrix to diagonalize, dimension m x m
+    !  !       x : a set of vectors in s.p. space, 
+    !  !           i.e. a matrix of dimension (nx*ny*nz,4,m)
+    !  !      upd: a set of vectors that needs to undergo the same unitary 
+    !  !           transformation as x      
+    !  ! Output: 
+    !  !           x: the m eigenstates of h in the reduced space
+    !  !         sph: 
+    !  !         upd:
+    !  ! eigenvalues: eigenvalues of the s.p. hamiltonian in the reduced space
+    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !  ! Technical notes:
+    !  !  This routine accepts spinors on the mesh in the format
+    !  !      x(4*mv, m)
+    !  !  while the rest of the code operates
+    !  !      x(mv, 4,m)
+    !  !  Two reasons
+    !  !  (i)  make the Lapack calls more transparent
+    !  !  (ii) to aid compiler vectorisation.
+    !  !------------------------------------------------------------------------
+!
+!      integer, intent(in)          :: m
+!      real(KIND=dp), intent(inout) :: x(mv*4,m), upd(mv*4,m), sph(m,m)
+!      real(KIND=dp), intent(out)   :: eigenvalues(m)
+!      real(KIND=dp)                :: temp(4*mv,m), tempe(m)
+!      integer                      :: lwork, info
+!      real(KIND=dp), allocatable   :: work(:)
 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Diagonalise the sphamiltonian
       ! 
       ! First inquire about working memory
-      allocate(work(1))
-      call DSYEV('V','L', m ,sph,m,tempe,work,-1,info)
-      lwork=int(work(1))
-      deallocate(work)
-      allocate(work(lwork))
-      ! ..... and now do the actual work
-      call DSYEV('V','L', m ,sph,m,tempe,work,lwork,info)
-      if(info.ne.0) then
-        print *, 'INFO = ', info
-        call stp('Issue with diagonalising in eval_sph.')
-      endif
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Now we construct the n lowest eigenvectors
-      temp = x! temporary copy
-      call DGEMM('n','n',4*mv,m,m, 1.0d0,temp, 4*mv,sph, m, 0.0d0,   x, 4*mv)
-      ! ... and aply the same transformation to upd
-      temp = upd ! temporary copy
-      call DGEMM('n','n',4*mv,m,m, 1.0d0,temp, 4*mv,sph, m, 0.0d0, upd, 4*mv)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Bookkeeping
-      eigenvalues = tempe(1:m)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    end subroutine diag_sph_block
-
+!      allocate(work(1))
+!      call DSYEV('V','L', m ,sph,m,tempe,work,-1,info)
+!      lwork=int(work(1))
+!      deallocate(work)
+!      allocate(work(lwork))
+!      ! ..... and now do the actual work
+!      call DSYEV('V','L', m ,sph,m,tempe,work,lwork,info)
+!      if(info.ne.0) then
+!        print *, 'INFO = ', info
+!        call stp('Issue with diagonalising in eval_sph.')
+!      endif
+!      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      ! Now we construct the n lowest eigenvectors
+!      temp = x! temporary copy
+!      call DGEMM('n','n',4*mv,m,m, 1.0d0,temp, 4*mv,sph, m, 0.0d0,   x, 4*mv)
+!      ! ... and aply the same transformation to upd
+!      temp = upd ! temporary copy
+!      call DGEMM('n','n',4*mv,m,m, 1.0d0,temp, 4*mv,sph, m, 0.0d0, upd, 4*mv)
+!      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      ! Bookkeeping
+!      eigenvalues = tempe(1:m)
+!      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!    end subroutine diag_sph_block
+!
     subroutine IterativeEstimation(F, Iteration)
       !-------------------------------------------------------------------------
       ! Estimate optimum parameters (dt,mu) of the heavy-ball iterative process

@@ -126,7 +126,7 @@ module wavefunctions
  !------------------------------------------------------------------------------
  ! Store the change in the spwfs from last iteration for momentum
  ! (Stored here such that they can be basis-transformed by other modules)
- real(KIND = dp), allocatable :: Momentum_Updates(:,:,:)  
+ real(KIND = dp), allocatable, target :: Momentum_Updates(:,:,:)  
  !------------------------------------------------------------------------------
  ! Number of the blocks with the same quantum numbers that divide up the 
  ! the single-particle wavefunctions.
