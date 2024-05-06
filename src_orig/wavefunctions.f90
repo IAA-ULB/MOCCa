@@ -676,7 +676,6 @@ contains
     call nilsson (HFPsi,kparz,spenergies,nshells_ev,nshells_ev-1,ININWT,ININWP,&
     &ININWN,floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,      &
     &                                                                  spwf_map)
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! b) and now we go on to populate more symmetry information
     allocate(sx(4,sum(hfblocks)), sy(4,sum(hfblocks)), sz(4,sum(hfblocks)))
@@ -1223,25 +1222,29 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !real(KIND=dp), allocatable         :: work(:), eigv(:)
     real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:)
     integer                    :: N, i, si, B, info, lwork
- 
+#if(USE_MPI > 0)
+    integer                    :: xs, ys
+    integer, external          :: NUMROC
+#endif
+
     call start_timer(T_ortho)
  
     si = 0
     do B=1,8
       N = HFBlocks(B) ; if (N.eq.0) cycle
- 
+
+#if(USE_MPI == 0)
       allocate(overlaps(N,N))
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Reshaping the wavefunctions by pointer in order to make the BLAS calls
       ! as efficient and easy as possible. Note: the "contiguous" keyword for
       ! this pointer array is crucial to make this trick work without tripping
       ! boundary-checking by compilers. 
-      wfs_reshape(1:4*mv,1:N) => hfpsi(:,:,si+1:si+N)
+      wfs_reshape(1:4*mv,1:N) => hfpsi(1:mv,1:4,si+1:si+N)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Build overlaps within this symmetry block 
       call dgemm('t','n',N,N,4*mv, dv,wfs_reshape,4*mv, wfs_reshape, 4*mv, &
       &                            0.0d0, overlaps,N)
-      overlaps_copy = overlaps
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Calculate the cholesky decomposition
       call dpotrf('l',N,overlaps,N,info)
@@ -1250,6 +1253,37 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         print *, 'Issue with the Cholesky decomposition.'
         print *, 'INFO = ', info
       endif
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Solve the linear equations
+      !    X L^T = N
+      call dtrsm('r','l','t','n',4*mv,N,1.0d0,overlaps,N,wfs_reshape,4*mv)
+#else
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Build overlaps within this symmetry block 
+      xs = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
+      ys = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
+      allocate(overlaps(xs,ys))
+      call PDGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, dv, &
+      &             HFpsi_2d, 1, 1, desc_psi_2d, &
+      &             HFpsi_2d, 1, 1, desc_psi_2d, &
+      &             0.0d0,                       &
+      &             overlaps, 1, 1, desc_mat_2d)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Calculate the cholesky decomposition
+      CALL PDPOTRF('l',MPI_BLOCK_SIZE,overlaps,1,1,desc_mat_2d, info)
+      ! overlaps now contains the factorisation L
+      if(info.ne.0) then
+        print *, 'Issue with the Cholesky decomposition.'
+        print *, 'INFO = ', info
+      endif
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Solve the linear equations
+      !    X L^T = N
+      CALL PDTRSM('r','l','t','n',4*mv,MPI_BLOCK_SIZE,1.0d0,           &
+      &                                overlaps, 1, 1, desc_mat_2d, &
+      &                                hfpsi_2D, 1, 1, desc_psi_2d)
+      call MPI_BARRIER(MPI_COMM_WORLD, info)
+#endif
 
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Debugging statements telling us about the eigenvalue spectrum of the 
@@ -1265,12 +1299,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       !  deallocate(eigv, work)
       !endif
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Solve the linear equations
-      !    X L^T = N
-      call dtrsm('r','l','t','n',4*mv,N,1.0d0,overlaps,N,wfs_reshape,4*mv)
- 
       !-------------------------------------------------------------------------
       ! Bugchecking the work: calculating and printing overlaps
 !       call dgemm('t','n',N,N,4*mv,   dv,hfpsi(1:4*mv,1,si+1:si+N), 4*mv, &
@@ -1287,7 +1315,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       deallocate(overlaps)
       si = si +N
     enddo
-    
     call stop_timer(T_ortho)
   end subroutine Cholesky_orthonormalisation
 !===============================================================================
@@ -1324,8 +1351,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_1Dc, 1,1, desc_psi_1D,                 &
      &                                A_2D  ,1,1, desc_psi_2D, blacs_cntxt_1D)
 
-    !call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-    !call stp('end 1D')
   end subroutine transfer_1D_to_2D
   
   subroutine transfer_2D_to_1D(A_2D, A_1D)
@@ -1352,8 +1377,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_2D ,1,1, desc_psi_2D,                  &
     &                                 A_1Dc,1,1, desc_psi_1D, blacs_cntxt_2D)
 
-    !call mpi_barrier(MPI_COMM_WORLD, mpi_err)
-    !call stp('end 2D')
   end subroutine transfer_2D_to_1D
   
   subroutine test_transfer
@@ -1369,8 +1392,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
 
     allocate(overlap(xsize,ysize))
-    CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,&
-    &             BLOCK_FACTOR_ROW,BLOCK_FACTOR_COL,0,0,blacs_cntxt_2d,xsize,info)
     call PDGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, dv, &
     &             HFpsi_2d, 1, 1, desc_psi_2d, &
     &             HFpsi_2d, 1, 1, desc_psi_2d, &

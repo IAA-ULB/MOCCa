@@ -690,78 +690,73 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       integer                    :: mpi_err
 #endif
 
-!      call start_timer(T_evolution)
+      call start_timer(T_evolution)
 
-!      if(.not.allocated(Momentum_Updates)) then
-!          ! we only store the history for the LOCALLY stored wavefunctions
-!          allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
-!          Momentum_Updates = 0.0_dp
-!      endif
+      if(.not.allocated(Momentum_Updates)) then
+          ! we only store the history for the LOCALLY stored wavefunctions
+          allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
+          Momentum_Updates = 0.0_dp
+      endif
+      if(.not.allocated(sphamil)) then 
+          allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
+      endif
 
-!      if(.not.allocated(sphamil)) then 
-!          allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
-!      endif
+      sphamil     = 0.0d0
+      d2h         = 0.0d0
+      dispersions = 0.0d0
+      if(EstimateParams) call IterativeEstimation(F, iteration)
 
-!      sphamil     = 0.0d0
-!      d2h         = 0.0d0
-!      dispersions = 0.0d0
-!      if(EstimateParams) call IterativeEstimation(F, iteration)
-
-!      !-------------------------------------------------------------------------
-!      ! Step 1: construct all updates
-!      si = 0
-!      do B=1,8
-!        N = HFBlocks(B) ; if(N.eq.0) cycle
-!        iso = -1        ; if(B.gt.4) iso = +1
-
-!        allocate(hpsi(mv,4,N))
-!        wave = spwf_map(si+1)-1 !  global index = wave +1 , local_index = si+1
-
-!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!        ! Obtain the action of the s.p.h. on the spwfs using precomputed derivatives
-!        call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
-!        &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
-!        &                          HFdpsi(:,:,:,si+1:si+N),              &
-!        &                          HFddpsi(:,:,:,si+1:si+N),.false., F)
-!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!        ! Construct the residual
-!        do m=1,N
-!          ! TODO: replace by BLAS call
-!          hpsi(:,:,m)=hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m)
-!          dispersions(wave+m) =sum(hpsi(:,:,m)**2)*dv
-
-!          select case(pairingtype)
-!          case(0,1)
-!              d2h          = d2h + rho_can(si+m)*dispersions(si+m)
-!          case(2) 
-!              d2h          = d2h + rho_pairing(si+m,si+m)*dispersions(si+m)
-!          end select
-!        enddo
-!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!        ! Add some history and 'momentum' to the update. 
-!        momentum_updates(:,:,si+1:si+N) = & 
-!        &     - dt/hbar * hpsi      +  momentum*momentum_updates(:,:,si+1:si+N) 
-!        deallocate(hpsi)
-!        si = si + N
-!      enddo
-!      d2h          = d2h/(neutrons+protons)
-!      !-------------------------------------------------------------------------
-!      ! Step 2: perform the update
-!      HFPSI = HFPSI + momentum_updates
+      !-------------------------------------------------------------------------
+      ! Step 1: construct all updates
+      si = 0
+      do B=1,8
+        N = HFBlocks(B) ; if(N.eq.0) cycle
+        iso = -1        ; if(B.gt.4) iso = +1
+        allocate(hpsi(mv,4,N))
+        wave = spwf_map(si+1)-1 !  global index = wave +1 , local_index = si+1
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Obtain the action of the s.p.h. on the spwfs using precomputed derivatives
+        call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
+        &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
+        &                          HFdpsi(:,:,:,si+1:si+N),              &
+        &                          HFddpsi(:,:,:,si+1:si+N),.false., F)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Construct the residual
+        do m=1,N
+          ! TODO: replace by BLAS call
+          hpsi(:,:,m)=hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m)
+          dispersions(wave+m) =sum(hpsi(:,:,m)**2)*dv
+          select case(pairingtype)
+          case(0,1)
+              d2h          = d2h + rho_can(si+m)*dispersions(si+m)
+          case(2) 
+              d2h          = d2h + rho_pairing(si+m,si+m)*dispersions(si+m)
+          end select
+        enddo
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        ! Add some history and 'momentum' to the update. 
+        momentum_updates(:,:,si+1:si+N) = & 
+        &     - dt/hbar * hpsi      +  momentum*momentum_updates(:,:,si+1:si+N) 
+        deallocate(hpsi)
+        si = si + N
+      enddo
+      d2h          = d2h/(neutrons+protons)
+      !-------------------------------------------------------------------------
+      ! Step 2: perform the update
+      HFPSI = HFPSI + momentum_updates
       !-------------------------------------------------------------------------
       ! Step 3: orthonormalize
-      ! ... but first transfer to 2D layout when MPI is active
+    ! ... but first transfer to 2D layout when MPI is active
 #if(USE_MPI > 0)
       call transfer_1D_to_2D(HFPsi, HFPsi_2D)
 #endif
-      !call orthonormalize
+      call orthonormalize
 #if(USE_MPI > 0)
       call transfer_2D_to_1D(HFPsi_2D, HFPsi)
-      call test_transfer
-      call stp('')
 #endif
       !-------------------------------------------------------------------------
 
+      call stp('')
 #if(USE_MPI > 0)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Collecting all arrays on all MPI ranks. The ALLREDUCE calls are valid, 
@@ -1060,56 +1055,56 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
     end function calc_sphamil
     
     subroutine apply_subspace_rotation(sph, transfo, eigenvalues) 
-        !--------------------------------------------------------------------------------
-        ! TODO: document
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! 
-        ! Input:
-        !   sph        : the full matrix of the single-particle hamiltonian in the  
-        !                reduced subspace.
-        ! Output:
-        !   sph        : the full matix of the single-particle hamiltonian i the 
-        !                reduced subspace; which is now diagonal.
-        !   transfo    : trivial HF transformation on output 
-        !   eigenvalues: single-particle energies resulting from the diagonalisation
-        !-------------------------------------------------------------------------------
-        real(KIND=dp), intent(inout) :: sph(nwt,nwt)
-        real(KIND=dp), intent(out)   :: transfo(nwt,nwt), eigenvalues(nwt)
-        integer                      :: si, m, B, N, wave
+      !-------------------------------------------------------------------------
+      ! TODO: document
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! 
+      ! Input:
+      ! sph        : the full matrix of the single-particle hamiltonian in the
+      !              reduced subspace.
+      ! Output:
+      ! sph        : the full matix of the single-particle hamiltonian i the 
+      !              reduced subspace; which is now diagonal.
+      ! transfo    : trivial HF transformation on output 
+      ! eigenvalues: single-particle energies resulting from the diagonalisation
+      !-------------------------------------------------------------------------
+      real(KIND=dp), intent(inout) :: sph(nwt,nwt)
+      real(KIND=dp), intent(out)   :: transfo(nwt,nwt), eigenvalues(nwt)
+      integer                      :: si, m, B, N, wave
 #if(USE_MPI > 0)
-        integer                      :: mpi_err
+      integer                      :: mpi_err
 #endif
-      
-        call start_timer(T_subspace_rotation)
     
-        transfo = 0.0d0 ;  eigenvalues=0.0d0
+      call start_timer(T_subspace_rotation)
+  
+      transfo = 0.0d0 ;  eigenvalues=0.0d0
 
-        si = 0
-        do B=1,8
-            N = HFBlocks(B) ; if(N.eq.0) cycle
-            wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
-            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            ! Diagonalize the sphamiltonian in this symmetry block
-            call diag_sph_block(N, sph(wave+1:wave+N,wave+1:wave+N), HFPsi(:,:,si+1:si+N), &
-            &             Momentum_updates(:,:,si+1:si+N), eigenvalues(wave+1:wave+N))
-            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            ! Populate sphamil and hftransfo for future use
-            sph(wave+1:wave+N,wave+1:wave+N) = 0.0d0
-            do m=1,N
-              sph(wave+m,wave+m)     = eigenvalues(wave+m)
-              transfo(wave+m,wave+m) = 1.0d0
-            enddo
-            si = si + N
-        enddo 
+      si = 0
+      do B=1,8
+          N = HFBlocks(B) ; if(N.eq.0) cycle
+          wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Diagonalize the sphamiltonian in this symmetry block
+          call diag_sph_block(N, sph(wave+1:wave+N,wave+1:wave+N), HFPsi(:,:,si+1:si+N), &
+          &             Momentum_updates(:,:,si+1:si+N), eigenvalues(wave+1:wave+N))
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Populate sphamil and hftransfo for future use
+          sph(wave+1:wave+N,wave+1:wave+N) = 0.0d0
+          do m=1,N
+            sph(wave+m,wave+m)     = eigenvalues(wave+m)
+            transfo(wave+m,wave+m) = 1.0d0
+          enddo
+          si = si + N
+      enddo 
 #if(USE_MPI > 0)
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Collecting all arrays on all MPI ranks. The ALLREDUCE callis valid, 
-        ! since we zeroed the initial array at the top of this routine.
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        call MPI_ALLREDUCE(MPI_IN_PLACE,eigenvalues, nwt, MPI_REAL8,          &
-        &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Collecting all arrays on all MPI ranks. The ALLREDUCE callis valid, 
+      ! since we zeroed the initial array at the top of this routine.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      call MPI_ALLREDUCE(MPI_IN_PLACE,eigenvalues, nwt, MPI_REAL8,          &
+      &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
 #endif
-        call stop_timer(T_subspace_rotation)
+      call stop_timer(T_subspace_rotation)
 
     end subroutine apply_subspace_rotation
     

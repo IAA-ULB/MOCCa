@@ -192,9 +192,10 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call ReadInput(file_number, input_file)
  !------------------------------------------------------------------------------
  ! Initalize relevant matrices throughout the code.
-  call inilag()
+ call inilag()
  !------------------------------------------------------------------------------
  ! Read all information from a wf file
+ print *, 'READ WF'
  call ReadWavefunction()
  !------------------------------------------------------------------------------
  ! Print all relevant input gleaned from STDIN and the wf file.

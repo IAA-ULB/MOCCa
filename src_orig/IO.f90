@@ -553,7 +553,16 @@ contains
     !---------------------------------------------------------------------------
     ! with everything safely in memory, we add in an orthonormalisation to 
     ! guarantee we can start calculating stuff.
+#if(USE_MPI > 0)
+    ! Copy the 1D wavefunctions to the 2D layout, since that is how we 
+    ! orthonormalize ...
+    call transfer_1D_to_2D(HFPsi, HFPsi_2D)
+#endif
     call  orthonormalize
+#if(USE_MPI > 0)
+    ! ... and make sure the results get back to the original layout
+    call transfer_2D_to_1D(HFPsi_2D, HFPsi)
+#endif
     !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
     if(.not.allocated(HFTransfo)) then
