@@ -1094,7 +1094,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
 #if(USE_MPI > 0)
       integer                      :: mpi_err, xs, ys
       integer, external            :: NUMROC
-      real(KIND=dp), allocatable   :: eigenvectors(:,:)
+      real(KIND=dp), allocatable   :: eigenvectors(:,:), mom_2D(:,:)
 #endif
     
       call start_timer(T_subspace_rotation)
@@ -1145,8 +1145,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
          if(B .ne. MPI_SYM_BLOCK) cycle
          N = MPI_BLOCK_SIZE
          wave = sum(HFBLOCKS_GLOBAL(1:B-1))
-         print *, MPI_RANK, wave
-         
+
          xs = NUMROC(N,block_factor_row,MYROW_2D,0,NROW_2D)
          ys = NUMROC(N,block_factor_col,MYCOL_2D,0,NCOL_2D)
          allocate(eigenvectors(xs,ys))
@@ -1157,7 +1156,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
          CALL PDSYEV ('V','L',N,sph,1,1,desc_mat_2D, &
          &            eigenvalues(wave+1:wave+N), &
          &            eigenvectors, 1,1,desc_mat_2D, work,-1,info)
-         
+
          lwork=int(work(1))
          deallocate(work)
          allocate(work(lwork))
@@ -1165,7 +1164,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
          CALL PDSYEV ('V','L',N,sph,1,1,desc_mat_2D, &
          &            eigenvalues(wave+1:wave+N), &
          &            eigenvectors, 1,1, desc_mat_2D, work,lwork,info)
-         
+
          ! Dirty trick: the eigenvalues will get all_reduced below, so where we
          !              divide by the number of processes in this symmetry block
          !              such that we don't have to code complicated stuff
@@ -1178,15 +1177,20 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
          &             eigenvectors, 1, 1, desc_mat_2d, &
          &             0.0d0,                           &
          &             HFPSI_2D, 1, 1, desc_psi_2d)
-         ! TODO:  .. and apply the same transformation to the momentum_updates
-         !mom_reshape(1:4*mv,1:nwt_local) => momentum_updates(:,:,:)
-         !temp = mom_reshape
-         !call PDGEMM ('N', 'N',4*mv, N, N, 1.0d0,       &
-         !&!             temp        , 1, 1, desc_psi_2d, &
-         !&             eigenvectors, 1, 1, desc_mat_2d, &
-         !&             0.0d0,                           &
-         !&             mom_reshape , 1, 1, desc_psi_2d)
 
+         ! ... and apply the same transformation to the momentum_updates
+         ! Unfortunately, this requires MPI communication: taking the 
+         ! momentum_updates array into a 2D layout and back.
+         call transfer_1D_to_2D(momentum_updates, mom_2D)
+         temp = mom_2D
+         call PDGEMM ('N', 'N',4*mv, N, N, 1.0d0,       &
+         &             temp        , 1, 1, desc_psi_2d, &
+         &             eigenvectors, 1, 1, desc_mat_2d, &
+         &             0.0d0,                           &
+         &             mom_2D , 1, 1, desc_psi_2d)
+         call transfer_2D_to_1D(mom_2D,momentum_updates)
+
+         deallocate(mom_2D)
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! TODO= Populate sphamil and hftransfo for future use
          !sph(wave+1:wave+N,wave+1:wave+N) = 0.0d0
