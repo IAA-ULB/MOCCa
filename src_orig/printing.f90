@@ -95,7 +95,7 @@ contains
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-        P = P_hf(wave)        
+        P = P_hf(wave)
 
         if(wave .le. sum(HFBlocks_global(1:2))) then
             if(wave .le. HFBlocks_global(1)) then

@@ -361,7 +361,13 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     endif
 
     ! Update all spwf properties
+#if(PASTA == 0)
+    ! the memory and CPU time requirements of these routine scale very badly...
     call update_spwf_properties( .true. ) ! expensive version
+    print_adv_spwf_properties = .true.
+#else
+    print_adv_spwf_properties = .false.
+#endif
 
     call setBelyaevProcedure()
     !---------------------------------------------------------------------------
@@ -370,9 +376,8 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     call calc_avg_gap()
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Initial printout with all possible details
-    call full_printout(0,.false.,.true.)
-
+    ! Initial printout
+    call full_printout(0,.false.,print_adv_spwf_properties)
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
@@ -522,11 +527,15 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         !  update all spwf properties first to ensure correct printout of spwfs
+#if(PASTA == 0)
+        ! the memory and CPU time requirements of these routine scale very badly...
         print_all_spwf_properties = print_adv_spwf_properties .or. &
         &                           (iter .eq. maxiter)       .or. &
         &                           convergenceachieved
         if(print_all_spwf_properties) call update_spwf_properties( .true. )
-
+#else
+        print_all_spwf_properties = .false.
+#endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Decide whether to do a full printout
         ! .... but do a summary printout anyway to enable for "complete" output

@@ -1504,9 +1504,15 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       real(KIND=dp), allocatable :: full_P(:,:)
       logical, intent(in)        :: fullmatrices
       integer                    :: i
-  
-      allocate(full_P(nwt,nwt))
+
       if(.not. allocated(P_HF))  allocate(P_HF(nwt))
+#if(PASTA == 1)
+      ! This is a waste of CPU time for pasta calculations. 
+      ! This return is ugly and will require more elegant inclusion later on.
+      return
+#endif
+
+      allocate(full_P(nwt,nwt))
       if(allocated(canenergies) .and. (.not.allocated(P_CAN))) allocate(P_CAN(nwt))
 
       full_P  = spwf_parities(HFPsi, fullmatrices)
@@ -1562,10 +1568,17 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     logical, intent(in)        :: fullmatrices
     logical                    :: diag
     integer                    :: k, wave
-    real(KIND=dp)              :: temp(nwt,nwt)
+    real(KIND=dp), allocatable :: temp(:,:)
+
+#if(PASTA == 1)
+    ! This is a waste of CPU time for pasta calculations. 
+    ! This return is ugly and will require more elegant inclusion later on.
+    return
+#endif
 
     call start_timer(T_spwfangmom)
 
+    allocate(temp(nwt,nwt))
     if(.not.allocated(spwf_J)) then
       allocate(spwf_J(3,nwt,nwt))   ; spwf_J  = 0.0
       allocate(spwf_JTR(3,nwt,nwt)) ; spwf_JTR= 0.0
@@ -1601,14 +1614,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       allocate(can_STR(3,nwt)) ; can_STR  = 0.0
       allocate(can_STI(3,nwt)) ; can_STI  = 0.0
     endif
-
-#if(PASTA == 1)
-    ! This is a waste of CPU time for pasta calculations. 
-    ! This return is ugly and will require more elegant inclusion later on.
-    call stop_timer(T_spwfangmom)
-    return
-#endif
-
 
     diag = (.not. fullmatrices)
     ! Operators for which we need no derivatives
@@ -2715,6 +2720,12 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       real(KIND=dp)              :: r2(mv)
 !      integer                    :: B, N, si
 
+#if(PASTA == 1)
+      ! This is a waste of CPU time for pasta calculations. 
+      ! This return is ugly and will require more elegant inclusion later on.
+      return
+#endif
+
       ! Value of r^2 = X^2 + Y^2 + Z^2 on the mesh
       r2 = sum(meshgrid,2)**2
 
@@ -2790,7 +2801,13 @@ $PBROKEN      real(KIND=dp), pointer             :: left4(:,:,:), right4(:,:,:)
         
       ! A statement to stop the compiler complaining about unused variables
       if(fullmatrices) trash = basis(1,1,1)
-        
+
+#if(PASTA == 1)
+    ! This is a waste of CPU time for pasta calculations. 
+    ! This return is ugly and will require more elegant inclusion later on.
+    return
+#endif
+
       allocate(P(nwt,nwt))
 
 $PCON      P = 0 
