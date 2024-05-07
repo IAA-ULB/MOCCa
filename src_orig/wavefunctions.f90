@@ -351,7 +351,7 @@ contains
 
     integer              :: B, activeblocks, blocks_per_rank
     integer              :: block_count, i, offset, spwfs_per_rank, remainder
-    integer              :: local_ind, N, si, Nspwf, C
+    integer              :: local_ind, N, si, Nspwf, C, Bmax(1)
 
     integer, allocatable :: local_count(:)
 #if(USE_MPI>0)
@@ -366,12 +366,20 @@ contains
     ! Note: not simply set to nwt to keep some flexibility...
     Nspwf  = sum(blocks_global)
     allocate(rank_map(Nspwf), spwf_inverse(Nspwf))
-    rank_map     = 0 ; spwf_inverse = 0 ; blocks_local = 0
+    rank_map     = 0 ; spwf_inverse = 0 ; blocks_local = 0; ranks_per_block = 0
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Required for printing assignments
+    if(allocated(MPI_BLOCK_ASSIGNMENTS)) deallocate(MPI_BLOCK_ASSIGNMENTS)
+    allocate(MPI_BLOCK_ASSIGNMENTS(NPROCS))
 
     ! Count the number of active symmetry blocks (blocks with non-zero spwfs)
     activeblocks = 0
     do B=1,8
-      if(blocks_global(B) .ne. 0) activeblocks = activeblocks + 1
+      if(blocks_global(B) .ne. 0) then
+        activeblocks = activeblocks + 1
+        ! ensure that every active block gets one process at least!
+        ranks_per_block(B) = 1
+      endif
     enddo
 
     select case(balancing)
@@ -387,16 +395,28 @@ contains
 #if(USE_MPI==0)
       call stp('Balancing_strategy = 0 is not compatible with sequential calculations.')
 #ELSE
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Naively assign ranks uniformly
-      remainder       = NPROCS - (NPROCS / activeblocks) * activeblocks
+      !remainder       = NPROCS - (NPROCS / activeblocks) * activeblocks
+      !do B=1,8
+      !  N = blocks_global(B); if(N.eq.0) cycle
+      !  ranks_per_block(B)= NPROCS / activeblocks ! integer division
+      !  if(remainder .gt. 0) then
+      !    ranks_per_block(B)  = ranks_per_block(B) +1
+      !    remainder = remainder -1
+      !  endif
+      !enddo
       do B=1,8
-        N = blocks_global(B); if(N.eq.0) cycle
-        ranks_per_block(B)= NPROCS / activeblocks ! integer division
-        if(remainder .gt. 0) then
-          ranks_per_block(B)  = ranks_per_block(B) +1
-          remainder = remainder -1
-        endif
+          ranks_per_block(B) = ranks_per_block(B) & 
+          & + (NPROCS-activeblocks) * BLOCKS_GLOBAL(B)**2/sum(BLOCKS_GLOBAL**2)
       enddo
+      ! This weighting might end up with a total number of ranks that is somewhat
+      ! less than NPROCS, since we are dealing with the integer division. I solve
+      ! this in the ad-hoc way of simply adding the missing number of processes
+      ! to the symmetry block that is largest.
+      Bmax = maxloc(Blocks_global)
+      ranks_per_block(Bmax(1)) = ranks_per_block(Bmax(1)) + NPROCS - sum(ranks_per_block)
+      
       call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Create a new communicator dealing with each symmetry block
@@ -424,10 +444,8 @@ contains
       ! MPI_BLOCK_SIZE is the number of spfs in this symmetry block;
       !   redundant information of course, but nice to have
       MPI_BLOCK_SIZE = blocks_global(MPI_SYM_BLOCK)
-      
-      if(allocated(MPI_BLOCK_ASSIGNMENTS)) deallocate(MPI_BLOCK_ASSIGNMENTS)
-      allocate(MPI_BLOCK_ASSIGNMENTS(NPROCS))
-      call MPI_ALLGATHER(MPI_RANK,1,MPI_INT,MPI_BLOCK_ASSIGNMENTS,1,MPI_INT,MPI_COMM_WORLD,mpi_err)
+
+      call MPI_ALLGATHER(MPI_SYM_BLOCK,1,MPI_INT,MPI_BLOCK_ASSIGNMENTS,1,MPI_INT,MPI_COMM_WORLD,mpi_err)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Constructing the BLACS 1D and 2D layouts
       ! NOTE: this cannot be accomplished with the blacs_gridinit subroutine 
