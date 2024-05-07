@@ -324,9 +324,13 @@ contains
    13 format ( ' Inverse temperature Beta = ', f14.9)
    14 format ( ' MPI information '     ,    /  &
    &           '   number of ranks         = ', i5 )
-   15 format ( '   load balancing strategy = ', a30)
-   16 format ( '   rank ', i4, ' has ', i4, ' spwfs')
-
+   15 format ( '   load balancing strategy = ', i1)
+  160 format ( '---------------------------------')
+   16 format ( '   RANK  |  SYM_BLOCK    #SPWFS ')
+  161 format ( 3x, i4, 2x, '|', 2x, i4, 11x, i4)
+   17 format ( '   Matrix blocking factors ', / &
+   &           '     ROW   = ', i4,           / &
+   &           '     COLUMN= ', i4            )
 
       tcount = sum(HFBlocks)
       if(MPI_rank .eq. 0) allocate(spwf_count(NPROCS))  
@@ -386,11 +390,16 @@ contains
 
       print 14, NPROCS
 
-      print 15, adjustl('Symmetry-wise')
+      print 15, balancing_strategy
+      print 17, block_factor_row, block_factor_col
+      print 160
+      print 16
+      print 160
       do rank=1, NPROCS
-        print 16, rank, spwf_count(rank)
+        print 161, rank, MPI_BLOCK_ASSIGNMENTS(rank), spwf_count(rank)
       enddo
-  
+      print 160
+      
       call printevolution
       call printscfiteration
       call printpairing_init

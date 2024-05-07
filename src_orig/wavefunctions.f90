@@ -424,6 +424,10 @@ contains
       ! MPI_BLOCK_SIZE is the number of spfs in this symmetry block;
       !   redundant information of course, but nice to have
       MPI_BLOCK_SIZE = blocks_global(MPI_SYM_BLOCK)
+      
+      if(allocated(MPI_BLOCK_ASSIGNMENTS)) deallocate(MPI_BLOCK_ASSIGNMENTS)
+      allocate(MPI_BLOCK_ASSIGNMENTS(NPROCS))
+      call MPI_ALLGATHER(MPI_RANK,1,MPI_INT,MPI_BLOCK_ASSIGNMENTS,1,MPI_INT,MPI_COMM_WORLD,mpi_err)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Constructing the BLACS 1D and 2D layouts
       ! NOTE: this cannot be accomplished with the blacs_gridinit subroutine 
@@ -461,21 +465,6 @@ contains
       enddo
       CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
       CALL BLACS_GRIDINFO(blacs_cntxt_2D,NROW_2D,NCOL_2D,MYROW_2D,MYCOL_2D)
-!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!      do C=0, NPROCS
-!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!        if(C .eq. MPI_RANK) then
-!          xsize = NUMROC(4*mv,4*mv, MYROW_1D,0, NROW_1D)
-!          ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_1D, MYCOL_1D,0, NCOL_1D)
-!          print *, '1D: RANK = ', MPI_RANK, 'is part of ', MYROW_1D, '/', NROW_1D, MYCOL_1D, '/', NCOL_1D, 'with ', ysize, ' of ', MPI_BLOCK_SIZE, ' spwfs across ', xsize, ' mesh points.'
-!          xsize = NUMROC(4*mv,BLOCK_FACTOR_ROW, MYROW_2D,0, NROW_2D)
-!          ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL, MYCOL_2D,0, NCOL_2D)
-!          print *, '2D: RANK = ', MPI_RANK, 'is part of ', MYROW_2D, '/', NROW_2D, MYCOL_2D, '/', NCOL_2D, 'with ', ysize, ' of ', MPI_BLOCK_SIZE, ' spwfs across ', xsize, ' mesh points.'
-!          print *
-!          endif
-!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!      enddo
-!      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! From the BLACS context, we now construct SCALAPACK descriptors
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

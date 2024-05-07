@@ -146,6 +146,7 @@ module GenInfo
   integer              :: MPI_BLOCK_SIZE   ! number of spwfs for this block
   integer              :: MPI_BLOCK_RANK   ! rank inside the local team
   integer              :: MPI_BLOCK_NPROCS ! size of the local team
+  integer, allocatable :: MPI_BLOCK_ASSIGNMENTS(:)
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! BLACS information for the communication between 1D and 2D grids
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -190,7 +191,7 @@ contains
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
-    &                  fermi_prec, balancing_strategy
+    &                  fermi_prec, block_factor_row, block_factor_col
     Namelist /mesh/    nx,ny,nz, dx
 
     if(MPI_rank .eq. 0) then    
@@ -210,10 +211,12 @@ contains
       else
         read (unit=*, nml=mesh)
       endif   
-      
-      if((balancing_strategy .ne. 0) .and. (balancing_strategy .ne. 1)) then
-        call stp('Invalid value for balancing_strategy.')
-      endif
+
+#if(USE_MPI > 0)
+      balancing_strategy = 0
+#else
+      balancing_strategy = 1
+#endif
 
       if(fixfermi .and. (mun.eq.-10d8 .or.mup.eq.-10d8) )then
         call stp( 'You should fix an appropriate Lambda_N and Lambda_P.')
@@ -261,15 +264,17 @@ contains
     call MPI_BCAST(fermi_prec  , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
 
     call MPI_BCAST(balancing_strategy,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(block_factor_row  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(block_factor_col  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
   
     ! Some bookkeeping operations, to be executed by all MPIranks 
     mv = nx * ny * nz
-    dv = (dx**3)*(2**$NUMSYM)    
+    dv = (dx**3)*(2**$NUMSYM)
     ! NS: Shift of the wavefunctions applied
     k_shx=pi/($LINESIZEX*dx)
     k_shy=pi/($LINESIZEY*dx)
-    k_shz=pi/($LINESIZEZ*dx)        
+    k_shz=pi/($LINESIZEZ*dx)
     
     call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid,0.0d0,0.0d0,0.0d0)
         
