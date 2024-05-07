@@ -350,15 +350,12 @@ contains
     integer, intent(out), allocatable :: spwf_map(:),rank_map(:),spwf_inverse(:)
 
     integer              :: B, activeblocks, blocks_per_rank
-    integer              :: block_count, i, offset, spwfs_per_rank, remainder
-    integer              :: local_ind, N, si, Nspwf, C, Bmax(1), Bmin(1)
-
-    integer, allocatable :: local_count(:)
+    integer              :: block_count, i, offset, Nspwf
 #if(USE_MPI>0)
     integer, external    :: numroc
-    integer              :: mpi_err, dims(2), k, j, info, xsize, ysize
-    integer              :: loc_psi
-    integer, allocatable :: map_1D(:,:), map_2d(:,:),team(:)
+    integer              :: mpi_err, dims(2), k, j, info, xsize
+    integer              :: loc_psi, Bmax(1), local_ind,N
+    integer, allocatable :: map_1D(:,:), map_2d(:,:),team(:), local_count(:)
 #endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -394,7 +391,7 @@ contains
 
 #if(USE_MPI==0)
       call stp('Balancing_strategy = 0 is not compatible with sequential calculations.')
-#ELSE
+#else
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Assign workload quadratically
       do B=1,8
@@ -642,7 +639,7 @@ contains
     integer, allocatable      :: kparz(:)
     integer                   :: nshells_ev
 #if(USE_MPI > 0)
-    integer                   :: xs, ys, B, mpi_err, wave, p,q, wave_global, C, si
+    integer                   :: xs, ys, B, wave, p,q, wave_global
     integer, external         :: NUMROC, INDXG2L, INDXG2P
 #endif
     ininwt = ininwn + ininwp
@@ -1276,13 +1273,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !    None
     ! Output:
     !    None
-    ! Sideeffects:
+    ! Side-effects:
     !    the contents of the array hfpsi get changed and now are orthonormal.
     !---------------------------------------------------------------------------
     real(KIND=dp), allocatable         :: overlaps(:,:)
-    !real(KIND=dp), allocatable         :: work(:), eigv(:), , overlaps_copy(:,:)
+#if(USE_MPI == 0)
     real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:)
-    integer                    :: N, i, si, B, info, lwork
+#endif
+    integer                    :: N,si, B, info
 #if(USE_MPI > 0)
     integer                    :: xs, ys
     integer, external          :: NUMROC
@@ -1301,7 +1299,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! as efficient and easy as possible. Note: the "contiguous" keyword for
       ! this pointer array is crucial to make this trick work without tripping
       ! boundary-checking by compilers. 
-      wfs_reshape(1:4*mv,1:N) => hfpsi(1:mv,1:4,si+1:si+N)
+      wfs_reshape(1:4*mv,1:N) => hfpsi
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Build overlaps within this symmetry block 
       call dgemm('t','n',N,N,4*mv, dv,wfs_reshape,4*mv, wfs_reshape, 4*mv, &
@@ -1345,34 +1343,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       &                                hfpsi_2D, 1, 1, desc_psi_2d)
       call MPI_BARRIER(MPI_COMM_WORLD, info)
 #endif
-
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Debugging statements telling us about the eigenvalue spectrum of the 
-      ! overlap matrix
-      !if(.true.)
-      !  allocate(work(1), eigv(N))
-      !  call DSYEV('N', 'U', N, overlaps_copy, N, eigv, work, -1, info)
-      !  lwork = int(work(1))
-      !  deallocate(work) 
-      !  allocate(work(lwork))
-      !  call DSYEV('N', 'U', N, overlaps_copy, N, eigv, work, lwork, info)
-      !  print *, "BLOCK = ", B, " min = ", eigv(1), " max = ", eigv(N)
-      !  deallocate(eigv, work)
-      !endif
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !-------------------------------------------------------------------------
-      ! Bugchecking the work: calculating and printing overlaps
-!       call dgemm('t','n',N,N,4*mv,   dv,hfpsi(1:4*mv,1,si+1:si+N), 4*mv, &
-!       &                                 hfpsi(1:4*mv,1,si+1:si+N), 4*mv, &
-!       &                                 0.0d0,                        &
-!       &                                 overlaps,N)
-!       print *, B
-!       do i=1,N
-!          print ('(99f10.3)'), overlaps(i, 1:N)
-!       enddo
-!       print *
-      !-------------------------------------------------------------------------
- 
       deallocate(overlaps)
       si = si +N
     enddo
@@ -1398,7 +1368,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! Pointer to remap the (mv,4,X) array into a (4*mv,X) array
     real(KIND=dp), pointer, contiguous             :: A_1Dc(:,:)
 
-    integer           :: xs, ys, mpi_err
+    integer           :: xs, ys
     integer, external :: NUMROC
 
     call start_timer(T_transfer_psi)
@@ -1434,7 +1404,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! ^- INOUT attribute, since otherwise the compiler deallocates stuff
     ! Pointer for remapping 
     real(KIND=dp), pointer, contiguous :: A_1Dc(:,:)
-    integer :: mpi_err
 
     call start_timer(T_transfer_psi)
 

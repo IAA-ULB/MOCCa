@@ -565,7 +565,7 @@ end function multiply_potentialvector
     COM = 0.0d0
 #endif    
     ! Skyrme energy
-    call compSkyrme(Rin, Fin, S, TE, TO, PE)
+    call compSkyrme(Rin, S, TE, TO, PE)
     ! Coulomb energies
     C  = CoulombEnergy_Direct(Rin,Fin)
     CE = CoulombEnergy_Exchange(Rin) 
@@ -632,7 +632,7 @@ end function multiply_potentialvector
 #endif
 
     ! Skyrme functional
-    call compSkyrme(Rin, Fin, Skyrme, tot_even, tot_odd, pairdenenergy)
+    call compSkyrme(Rin, Skyrme, tot_even, tot_odd, pairdenenergy)
 
     ! Pairing energy: can be used to check the validity of the calculation. 
     ! It is summed by integrating Delta instead of the pairing densities. 
@@ -728,7 +728,7 @@ end function multiply_potentialvector
 
  end subroutine CalcEnergy
 
- subroutine CompSkyrme(R, F, S, T_even, T_odd, PE)
+ subroutine CompSkyrme(R, S, T_even, T_odd, PE)
     !---------------------------------------------------------------------------
     ! Integrate the Skyrme energy density for the given set of densities.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -749,7 +749,6 @@ end function multiply_potentialvector
     !---------------------------------------------------------------------------
     real(KIND=dp)                     :: Edensity(mv)
     type(DensityVector), intent(in)   :: R
-    type(PotentialVector), intent(in) :: F
     real(KIND=dp), intent(out)        :: S, T_even, T_odd, PE(2)
     
 $CALCULATION    
@@ -1909,7 +1908,7 @@ $PVECTORINPRODUCT
     character(len=*), intent(in) :: ifn
 
     logical :: exists
-    integer :: i,j,k,io, it, mu, nu, ox, oy, oz, headercount, mpi_err
+    integer :: i,j,k,io, it, mu, nu, ox, oy, oz, headercount
     real(KIND=dp), allocatable :: Vc(:), Ec(:)
     real(KIND=dp)              :: x,y,z
     character(len=200)         :: temp

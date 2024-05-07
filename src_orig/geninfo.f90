@@ -461,8 +461,9 @@ contains
 
 #if(USE_MPI>0)    
     integer :: mpi_err
-    
     print *, 'RANK ', MPI_RANK, ' reports the following error: ', msg
+#else
+    print *, msg
 #endif
     if(present(routine)) print *, "Error occurred in routine ", routine
 #if(USE_MPI > 0)

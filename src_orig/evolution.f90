@@ -1004,11 +1004,14 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         logical, intent(in)        :: onthefly
 
         real(KIND=dp), allocatable :: sph(:,:)
-        integer                    :: si, B, N, iso, wave
-        real(KIND=dp), allocatable :: hpsi(:,:,:), hpsi_2d(:,:)
+        integer                    :: si, B, N, iso
+        real(KIND=dp), allocatable :: hpsi(:,:,:)
 #if(USE_MPI > 0)
-        integer                    :: mpi_err, xs, ys
+        integer                    :: xs, ys
         integer, external          :: NUMROC
+        real(KIND=dp), allocatable :: hpsi_2d(:,:)
+#else
+        integer                    :: wave
 #endif
 
         call start_timer(T_calc_sph)
@@ -1057,8 +1060,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           
           N    = MPI_BLOCK_SIZE
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-          ! Calculate matrix elements by way of a BLAS call
-          ! using the 2D layout
+          ! Calculate matrix elements using the 2D layout
           call transfer_1D_to_2D(hpsi, hpsi_2D)
           call PDGEMM ('T', 'N', N, N, 4*mv, dv,     &
           &             hpsi_2d , 1, 1, desc_psi_2d, &
@@ -1085,13 +1087,15 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! transfo    : trivial HF transformation on output 
       ! eigenvalues: single-particle energies resulting from the diagonalisation
       !-------------------------------------------------------------------------
-      real(KIND=dp), intent(inout)       :: sph(:,:)
-      real(KIND=dp), intent(out)         :: transfo(:,:), eigenvalues(nwt)
-      real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:), mom_reshape(:,:)
-      integer                      :: si, m, B, N, wave
+      real(KIND=dp), intent(inout) :: sph(:,:)
+      real(KIND=dp), intent(out)   :: transfo(:,:), eigenvalues(nwt)
+      integer                      :: si, B, N, wave
       integer                      :: lwork, info
-      real(KIND=dp), allocatable   :: work(:), temp(:,:), tempe(:)
-#if(USE_MPI > 0)
+      real(KIND=dp), allocatable   :: work(:), temp(:,:)
+#if(USE_MPI == 0)
+      real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:), mom_reshape(:,:)
+      integer                      ::  m
+#else
       integer                      :: mpi_err, xs, ys
       integer, external            :: NUMROC
       real(KIND=dp), allocatable   :: eigenvectors(:,:), mom_2D(:,:)
@@ -1108,9 +1112,9 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
           
           ! Pointer remapping to make the LAPACK CALL standard compliant
-          wfs_reshape(1:4*mv,1:N) => HFPsi           (1:mv,1:4,si+1:si+N)
-          mom_reshape(1:4*mv,1:N) => momentum_updates(1:mv,1:4,si+1:si+N)
-
+          wfs_reshape(1:4*mv,1:N) => HFPsi           
+          mom_reshape(1:4*mv,1:N) => momentum_updates
+          
           allocate(work(1))
           call DSYEV('V','L', N ,sph(wave+1:wave+N,wave+1:wave+N),&
           &                   N,eigenvalues(wave+1:wave+N),work,-1,info)
@@ -1152,7 +1156,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
 
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Inquire about work size
-         allocate(work(1), tempe(N))
+         allocate(work(1))
          CALL PDSYEV ('V','L',N,sph,1,1,desc_mat_2D, &
          &            eigenvalues(wave+1:wave+N), &
          &            eigenvectors, 1,1,desc_mat_2D, work,-1,info)
