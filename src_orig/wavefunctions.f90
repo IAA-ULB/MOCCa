@@ -351,7 +351,7 @@ contains
 
     integer              :: B, activeblocks, blocks_per_rank
     integer              :: block_count, i, offset, spwfs_per_rank, remainder
-    integer              :: local_ind, N, si, Nspwf, C, Bmax(1)
+    integer              :: local_ind, N, si, Nspwf, C, Bmax(1), Bmin(1)
 
     integer, allocatable :: local_count(:)
 #if(USE_MPI>0)
@@ -396,26 +396,26 @@ contains
       call stp('Balancing_strategy = 0 is not compatible with sequential calculations.')
 #ELSE
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Naively assign ranks uniformly
-      !remainder       = NPROCS - (NPROCS / activeblocks) * activeblocks
-      !do B=1,8
-      !  N = blocks_global(B); if(N.eq.0) cycle
-      !  ranks_per_block(B)= NPROCS / activeblocks ! integer division
-      !  if(remainder .gt. 0) then
-      !    ranks_per_block(B)  = ranks_per_block(B) +1
-      !    remainder = remainder -1
-      !  endif
-      !enddo
+      ! Assign workload quadratically
       do B=1,8
           ranks_per_block(B) = ranks_per_block(B) & 
-          & + (NPROCS-activeblocks) * BLOCKS_GLOBAL(B)**2/sum(BLOCKS_GLOBAL**2)
+          & + NINT((NPROCS-activeblocks) * BLOCKS_GLOBAL(B)**2/(1.0d0*sum(BLOCKS_GLOBAL**2)))
       enddo
       ! This weighting might end up with a total number of ranks that is somewhat
       ! less than NPROCS, since we are dealing with the integer division. I solve
-      ! this in the ad-hoc way of simply adding the missing number of processes
-      ! to the symmetry block that is largest.
-      Bmax = maxloc(Blocks_global)
-      ranks_per_block(Bmax(1)) = ranks_per_block(Bmax(1)) + NPROCS - sum(ranks_per_block)
+      ! this in the ad-hoc way of simply 
+      !    1) adding the missing number of procs to the block that is largest.
+      ! or 2) subtracting the superflous nprocs from the block with most nprocs
+      if(Nprocs .gt. sum(ranks_per_block)) then
+        Bmax = maxloc(Blocks_global)
+        ranks_per_block(Bmax(1)) = ranks_per_block(Bmax(1)) + NPROCS - sum(ranks_per_block)
+      elseif(Nprocs .lt. sum(ranks_per_block)) then
+        Bmax = maxloc(ranks_per_block)
+        ranks_per_block(Bmax(1)) = ranks_per_block(Bmax(1)) + NPROCS - sum(ranks_per_block)
+        if(ranks_per_block(Bmax(1)) .le. 0) then 
+          call stp('Invalid load balancing detected!')
+        endif
+      endif
       
       call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -501,6 +501,9 @@ contains
       ! The 2D distribution of spwfs is a block-cyclic one with blocking factors
       ! decided by the user
       xsize = NUMROC(4*mv, block_factor_row, MYROW_2D,0, NROW_2D)
+      if(xsize .le. 0) then 
+        call stp('Blocking factor too large for NPROCS.')
+      endif
       CALL DESCINIT(desc_psi_2D,4*mv,MPI_BLOCK_SIZE,    &
       &             block_factor_row, block_factor_col, &
       &             0,0,blacs_cntxt_2d, xsize ,info)
@@ -511,7 +514,9 @@ contains
       ! ... and similar for the descriptor of matrices in spwf x spwf space
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       xsize = NUMROC(MPI_BLOCK_SIZE, block_factor_row, MYROW_2D,0, NROW_2D)
-      
+      if(xsize .le. 0) then 
+        call stp('Blocking factor too large for NPROCS.')
+      endif
       CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,    &
       &             block_factor_row, block_factor_col, &
       &             0,0,blacs_cntxt_2d, xsize ,info)
