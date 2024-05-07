@@ -1267,8 +1267,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! Sideeffects:
     !    the contents of the array hfpsi get changed and now are orthonormal.
     !---------------------------------------------------------------------------
-    real(KIND=dp), allocatable         :: overlaps(:,:), overlaps_copy(:,:)
-    !real(KIND=dp), allocatable         :: work(:), eigv(:)
+    real(KIND=dp), allocatable         :: overlaps(:,:)
+    !real(KIND=dp), allocatable         :: work(:), eigv(:), , overlaps_copy(:,:)
     real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:)
     integer                    :: N, i, si, B, info, lwork
 #if(USE_MPI > 0)

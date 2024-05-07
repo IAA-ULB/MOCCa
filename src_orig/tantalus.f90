@@ -807,6 +807,7 @@ subroutine initialize_all_timers()
    call add_timer('Update of h in subspace'     , T_update_sph)
 #if( USE_MPI > 0)
    call add_timer('Layout transfer of spwfs'    , T_transfer_psi)
+   call add_timer('MPI_ALLREDUCE calls     '    , T_allreduce)
 #endif
 
 end subroutine initialize_all_timers

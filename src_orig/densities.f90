@@ -525,8 +525,10 @@ $HFBEXPRESSION
     call stop_timer(T_den_pp)
     
 #if(USE_MPI > 0)
+   call start_timer(T_allreduce)
    ! Sum the density over all processes
 $MPIDEN
+   call stop_timer(T_allreduce)
 #endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by 
