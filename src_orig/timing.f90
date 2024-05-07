@@ -21,6 +21,7 @@ module timing
   integer :: T_chargedensity, T_collective_moi, T_microscopic_pairing
   integer :: T_HFdiag, T_Hortho, T_moment_cutoff
   integer :: T_NablaMElements, T_basistransfo, T_COM2_summation, T_pot_precon
+  integer :: T_transfer_psi
   !-----------------------------------------------------------------------------
   ! There are two ways to record the time:
   !  1. cpu_time measures CPU time (excludes time spent in other programs)

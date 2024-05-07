@@ -1381,13 +1381,15 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !    A_2D : array (dimension (mv*4,X)), copy of A_1D remapped with a pointer
     !           but distributed among processes in a 2D layout.
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) ,allocatable, target :: A_1D(:,:,:)
+    real(KIND=dp), intent(in) , contiguous, target :: A_1D(:,:,:)
     real(KIND=dp), intent(out), allocatable        :: A_2D(:,:)
     ! Pointer to remap the (mv,4,X) array into a (4*mv,X) array
     real(KIND=dp), pointer, contiguous             :: A_1Dc(:,:)
 
     integer           :: xs, ys, mpi_err
     integer, external :: NUMROC
+
+    call start_timer(T_transfer_psi)
 
     if(.not.allocated(A_2D)) then
       ! Asking for the appropriate size of the A_2D matrix on this process
@@ -1396,10 +1398,11 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       allocate(A_2D(xs,ys))
     endif
 
-    A_1Dc(1:4*mv, 1:nwt_local) => A_1D(1:mv, 1:4, 1:nwt_local)
+    A_1Dc(1:4*mv, 1:nwt_local) => A_1D
     call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_1Dc, 1,1, desc_psi_1D,                 &
      &                                A_2D  ,1,1, desc_psi_2D, blacs_cntxt_1D)
 
+    call stop_timer(T_transfer_psi)
   end subroutine transfer_1D_to_2D
   
   subroutine transfer_2D_to_1D(A_2D, A_1D)
@@ -1414,76 +1417,79 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !    A_1D : array (dimension (mv,4,X)), copy of A_2D remapped with a pointer
     !           but distributed among processes in a 1D layout.
     !--------------------------------------------------------------------------- 
-    real(KIND=dp), intent(in)            :: A_2D(:,:)
-    real(KIND=dp), intent(inout), target :: A_1D(:,:,:) 
+    real(KIND=dp), intent(in)                        :: A_2D(:,:)
+    real(KIND=dp), intent(inout), contiguous, target :: A_1D(:,:,:) 
     ! ^- INOUT attribute, since otherwise the compiler deallocates stuff
     ! Pointer for remapping 
     real(KIND=dp), pointer, contiguous :: A_1Dc(:,:)
     integer :: mpi_err
 
+    call start_timer(T_transfer_psi)
+
     ! Pointer remapping 
-    A_1Dc(1:4*mv, 1:nwt_local) => A_1D(1:mv, 1:4, 1:nwt_local)
+    A_1Dc(1:4*mv, 1:nwt_local) => A_1D
     call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_2D ,1,1, desc_psi_2D,                  &
     &                                 A_1Dc,1,1, desc_psi_1D, blacs_cntxt_2D)
 
+    call stop_timer(T_transfer_psi)
   end subroutine transfer_2D_to_1D
   
-  subroutine test_transfer
-    !
-    !
-    real(KIND=dp), allocatable :: overlap(:,:), overlap_global(:,:)
-    integer :: xsize, desc_0(10), info, i, ysize, mpi_err, C, xs, ys
-    integer, external :: NUMROC
+  !subroutine test_transfer
+  !  !
+  !  !
+  !  real(KIND=dp), allocatable :: overlap(:,:), overlap_global(:,:)
+  !  integer :: xsize, desc_0(10), info, i, ysize, mpi_err, C, xs, ys
+  !  integer, external :: NUMROC!
+!
+  !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  !  ! Set up the matrix of spwf overlaps
+  !  xsize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
+  !  ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
+!
+  !  allocate(overlap(xsize,ysize))
+  !  call PDGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, dv, &
+  !  &             HFpsi_2d, 1, 1, desc_psi_2d, &
+  !  &             HFpsi_2d, 1, 1, desc_psi_2d, &
+  !  &             0.0d0,                       &
+  !  &             overlap , 1, 1, desc_mat_2d)
+  !  call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)!
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Set up the matrix of spwf overlaps
-    xsize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
-    ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
+  !  xsize = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYROW_2D,0,NROW_2D)
+  !  ysize = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYCOL_2D,0,NCOL_2D)!
 
-    allocate(overlap(xsize,ysize))
-    call PDGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, dv, &
-    &             HFpsi_2d, 1, 1, desc_psi_2d, &
-    &             HFpsi_2d, 1, 1, desc_psi_2d, &
-    &             0.0d0,                       &
-    &             overlap , 1, 1, desc_mat_2d)
-    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-
-    xsize = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYROW_2D,0,NROW_2D)
-    ysize = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYCOL_2D,0,NCOL_2D)
-
-    ! initialization of the descriptor for the global matrix
-    call descinit(desc_0, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, &
-    &                     MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 0, 0, &
-    &                        blacs_cntxt_1D, MPI_BLOCK_SIZE, info)
+  !  ! initialization of the descriptor for the global matrix
+  !  call descinit(desc_0, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, &
+  !  &                     MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 0, 0, &
+  !  &                        blacs_cntxt_1D, MPI_BLOCK_SIZE, info)
      
-    ! allocation and initialization of the global matrices A and B
-    xs = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYROW_2D,0,NROW_2D)
-    ys = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYCOL_2D,0,NCOL_2D)
+  !  ! allocation and initialization of the global matrices A and B
+  !  xs = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYROW_2D,0,NROW_2D)
+  !  ys = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYCOL_2D,0,NCOL_2D)
     
-    if(xs .gt. 0 .and. ys.gt. 0) then
-      allocate(overlap_global(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE))
-    endif
-    
-    call pdgemr2d(MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, &
-    &             overlap, 1, 1, desc_mat_2d, &
-    &             overlap_global, 1, 1, desc_0, blacs_cntxt_1D)
+  !  if(xs .gt. 0 .and. ys.gt. 0) then
+  !    allocate(overlap_global(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE))
+  !  endif
+  !  
+  ! call pdgemr2d(MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, &
+  !  &             overlap, 1, 1, desc_mat_2d, &
+  !  &             overlap_global, 1, 1, desc_0, blacs_cntxt_1D)
 
-    do C=1,NPROCS
-      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-      if(MPI_RANK.eq.C) then
-        print *, C, MPI_SYM_BLOCK, xs, ys
-        if(xs.gt.0 .and. ys.gt. 0) then
-          do i=1,MPI_BLOCK_SIZE
-            print ('(99f7.1)'), overlap_global(i,1:MPI_BLOCK_SIZE)
-          enddo
-        endif
-      endif
-      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-    enddo
+  !  do C=1,NPROCS
+  !    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+  !    if(MPI_RANK.eq.C) then
+  !      print *, C, MPI_SYM_BLOCK, xs, ys
+  !      if(xs.gt.0 .and. ys.gt. 0) then
+  !        do i=1,MPI_BLOCK_SIZE
+  !          print ('(99f7.1)'), overlap_global(i,1:MPI_BLOCK_SIZE)
+  !        enddo
+  !      endif
+  !    endif
+  !    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+  !  enddo
 
-    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-    call stp('')
-  end subroutine test_transfer
+  !  call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+  !  call stp('')
+  !end subroutine test_transfer
 #endif
 !===============================================================================
 

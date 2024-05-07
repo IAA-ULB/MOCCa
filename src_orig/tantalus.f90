@@ -805,6 +805,9 @@ subroutine initialize_all_timers()
    call add_timer('Subspace rotation'           , T_subspace_rotation)
    call add_timer('Calculation of h in subspace', T_calc_sph)
    call add_timer('Update of h in subspace'     , T_update_sph)
+#if( USE_MPI > 0)
+   call add_timer('Layout transfer of spwfs'    , T_transfer_psi)
+#endif
 
 end subroutine initialize_all_timers
 
