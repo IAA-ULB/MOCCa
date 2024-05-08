@@ -461,6 +461,8 @@ contains
 #if(USE_MPI>0)
     integer :: mpi_err
 #endif
+
+    call start_timer(T_wfini)
     
     standardized_input = trim(to_upper(inputfilename))
     lenchar=len(standardized_input)
@@ -603,6 +605,8 @@ contains
           passed_block_test =  check_blocking_structure()      
       endif
     endif
+    call stop_timer(T_wfini)
+
   end subroutine ReadWaveFunction
 
   subroutine ReadTantalus(chan, ifn)
@@ -1149,6 +1153,8 @@ contains
 #endif
     type(moment), pointer        :: mom
 
+    call start_timer(T_wfoutput)
+
     open (chan,form='unformatted',file=ofn)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Purely sequential part of the writing
@@ -1284,6 +1290,8 @@ contains
       enddo
     endif
     close(chan)
+
+    call stop_timer(T_wfoutput)
 
   end subroutine WriteTantalus
 

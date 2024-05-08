@@ -374,7 +374,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     ! Calculate the energy WITH all the expensive parts included. 
     call CalcEnergy(Density,Potentials,.true.)  
     call calc_avg_gap()
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Initial printout
     call full_printout(0,.false.,print_adv_spwf_properties)
@@ -507,7 +506,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         call CalcEnergy(Density, Potentials, calc_expensive)
         ! Calculate the average pairing gap
         call calc_avg_gap()
-
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Check for convergence or a failed calculation
         ! TODO: what is this?
@@ -779,6 +777,8 @@ subroutine initialize_all_timers()
    use timing
 
    call add_timer('Tantalus'                    , T_tantalus)
+   call add_timer('Wavefunction initialisation' , T_wfini)
+   call add_timer('Wavefunction output'         , T_wfoutput)
    call add_timer('HF-basis Derivatives'        , T_derivatives)
    call add_timer('Canonical basis Derivatives' , T_derivatives_can)
    call add_timer('Spwf evolution'              , T_evolution)
