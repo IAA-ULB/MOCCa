@@ -1042,15 +1042,17 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           ! Calculate matrix elements by way of a BLAS call
           ! TODO: hide this behind interface to recast the (mv,4) vectors
           !       into (4*mv) ones
+          call start_timer(T_calc_sph_me)
           call DGEMM('t', 'n', N, N, 4*mv, dv, hfpsi(:,:,si+1:si+N), 4*mv, &
           &                                     hpsi(:,:,1:N), 4*mv, 0.0d0,& 
-          &                                     sph(wave+1:wave+N,wave+1:wave+N),N)
-      
+          &                                  sph(wave+1:wave+N,wave+1:wave+N),N)
+          call stop_timer(T_calc_sph_me)
+
           deallocate(hpsi)
           si = si + N
 #else
           if(B .ne. MPI_SYM_BLOCK) cycle
-          iso = -1        ; if(B.gt.4) iso = +1
+          iso = -1; if(B.gt.4) iso = +1
           N   = nwt_local
           allocate(hpsi(mv,4,N))
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1062,11 +1064,13 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! Calculate matrix elements using the 2D layout
           call transfer_1D_to_2D(hpsi, hpsi_2D)
+          call start_timer(T_calc_sph_me)
           call PDGEMM ('T', 'N', N, N, 4*mv, dv,     &
           &             hpsi_2d , 1, 1, desc_psi_2d, &
           &             HFpsi_2d, 1, 1, desc_psi_2d, &
           &             0.0d0,                       &
           &             sph, 1, 1, desc_mat_2d)
+          call stop_timer(T_calc_sph_me)
           deallocate(hpsi, hpsi_2D)
 #endif
       enddo 
@@ -1111,6 +1115,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           N = HFBlocks(B) ; if(N.eq.0) cycle
           wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
           
+          call start_timer(T_subrot_diag) 
           ! Pointer remapping to make the LAPACK CALL standard compliant
           wfs_reshape(1:4*mv,1:N) => HFPsi           
           mom_reshape(1:4*mv,1:N) => momentum_updates
@@ -1129,8 +1134,10 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
             call stp('Issue with diagonalising in apply_subspace_rotation.')
           endif
          deallocate(work)
+         call stop_timer(T_subrot_diag) 
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Now we construct the lowest eigenvectors
+         call start_timer(T_subrot_transfo)
          temp = wfs_reshape(:,1:N) ! temporary copy
          call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,&
          &         sph(wave+1:wave+N,wave+1:wave+N), N, 0.0d0,wfs_reshape, 4*mv)
@@ -1145,8 +1152,11 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
            sph(wave+m,wave+m)     = eigenvalues(wave+m)
            transfo(wave+m,wave+m) = 1.0d0
          enddo
+         call stop_timer(T_subrot_transfo) 
 #else
          if(B .ne. MPI_SYM_BLOCK) cycle
+
+         call start_timer(T_subrot_diag) 
          N = MPI_BLOCK_SIZE
          wave = sum(HFBLOCKS_GLOBAL(1:B-1))
 
@@ -1173,8 +1183,12 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
          !              divide by the number of processes in this symmetry block
          !              such that we don't have to code complicated stuff
          eigenvalues(wave+1:wave+N)=eigenvalues(wave+1:wave+N)/MPI_BLOCK_NPROCS
+
+         call stop_timer(T_subrot_diag) 
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Now we construct the lowest eigenvectors
+         call start_timer(T_subrot_transfo)
+
          temp = HFPSI_2D
          call PDGEMM ('N', 'N',4*mv, N, N, 1.0d0,       &
          &             temp        , 1, 1, desc_psi_2d, &
@@ -1195,6 +1209,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
          call transfer_2D_to_1D(mom_2D,momentum_updates)
 
          deallocate(mom_2D)
+         call stop_timer(T_subrot_transfo)
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! TODO= Populate sphamil and hftransfo for future use
          !sph(wave+1:wave+N,wave+1:wave+N) = 0.0d0
@@ -1210,15 +1225,15 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       ! Collecting all arrays on all MPI ranks. The ALLREDUCE call is valid, 
       ! since we zeroed the initial array at the top of this routine.
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      call start_timer(T_allreduce)
       call MPI_ALLREDUCE(MPI_IN_PLACE,eigenvalues, nwt, MPI_REAL8,          &
       &                                       MPI_SUM, MPI_COMM_WORLD,mpi_err)
+      call stop_timer(T_allreduce)
 
       ! Have to transfer back into the 
       call transfer_2D_to_1D(HFPSI_2D,HFPSI)
 #endif
-
       call stop_timer(T_subspace_rotation)
-
     end subroutine apply_subspace_rotation
     
     !subroutine diag_sph_block(m,sph,x,upd,eigenvalues)
