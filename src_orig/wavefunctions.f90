@@ -368,6 +368,7 @@ contains
     ! Required for printing assignments
     if(allocated(MPI_BLOCK_ASSIGNMENTS)) deallocate(MPI_BLOCK_ASSIGNMENTS)
     allocate(MPI_BLOCK_ASSIGNMENTS(NPROCS))
+    allocate(MPI_2D_COORDINATES(NPROCS,2))
 
     ! Count the number of active symmetry blocks (blocks with non-zero spwfs)
     activeblocks = 0
@@ -485,6 +486,8 @@ contains
       enddo
       CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
       CALL BLACS_GRIDINFO(blacs_cntxt_2D,NROW_2D,NCOL_2D,MYROW_2D,MYCOL_2D)
+      call MPI_ALLGATHER(MYROW_2D,1,MPI_INT,MPI_2D_COORDINATES(:,1),1,MPI_INT,MPI_COMM_WORLD,mpi_err)
+      call MPI_ALLGATHER(MYCOL_2D,1,MPI_INT,MPI_2D_COORDINATES(:,2),1,MPI_INT,MPI_COMM_WORLD,mpi_err)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! From the BLACS context, we now construct SCALAPACK descriptors
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

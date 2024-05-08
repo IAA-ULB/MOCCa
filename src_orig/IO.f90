@@ -325,9 +325,9 @@ contains
    14 format ( ' MPI information '     ,    /  &
    &           '   number of ranks         = ', i5 )
    15 format ( '   load balancing strategy = ', i1)
-  160 format ( '---------------------------------')
-   16 format ( '   RANK  |  SYM_BLOCK    #SPWFS ')
-  161 format ( 3x, i4, 2x, '|', 2x, i4, 11x, i4)
+  160 format ( '--------------------------------------------')
+   16 format ( '   RANK  |  SYM_BLOCK    P     Q   #SPWFS ')
+  161 format ( 3x, i4, 2x, '|', 2x, i4, 6x, i4, 2x, i4, 3x, i4)
    17 format ( '   Matrix blocking factors ', / &
    &           '     ROW   = ', i4,           / &
    &           '     COLUMN= ', i4            )
@@ -396,7 +396,9 @@ contains
       print 16
       print 160
       do rank=1, NPROCS
-        print 161, rank, MPI_BLOCK_ASSIGNMENTS(rank), spwf_count(rank)
+        print 161, rank, MPI_BLOCK_ASSIGNMENTS(rank), &
+        &          MPI_2D_COORDINATES(rank,1), MPI_2D_COORDINATES(rank,2), &
+        &          spwf_count(rank)
       enddo
       print 160
       
