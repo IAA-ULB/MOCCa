@@ -469,6 +469,11 @@ contains
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! 2D context
       call blacs_get(0, 0, blacs_cntxt_2D)
+      ! It is important to explicitly set dims to zero here, as the 
+      ! MPI_DIMS_CREATE routine can take non-zero values as input. If not 
+      ! done explicitly, this means that the results will become compiler
+      ! and machine dependent....
+      dims = 0
       call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
       allocate(map_2D(dims(1),dims(2)))
       K=  sum(ranks_per_block(1:MPI_SYM_BLOCK-1))
@@ -498,9 +503,8 @@ contains
       ! The 2D distribution of spwfs is a block-cyclic one with blocking factors
       ! decided by the user
       xsize = NUMROC(4*mv, block_factor_row, MYROW_2D,0, NROW_2D)
-      if(xsize .le. 0) then 
-        call stp('Blocking factor too large for NPROCS.')
-      endif
+      if(xsize .le. 0) xsize = 1 ! things will get allocated, but this process 
+                                 ! should not be participating in calculations
       CALL DESCINIT(desc_psi_2D,4*mv,MPI_BLOCK_SIZE,    &
       &             block_factor_row, block_factor_col, &
       &             0,0,blacs_cntxt_2d, xsize ,info)
@@ -511,9 +515,8 @@ contains
       ! ... and similar for the descriptor of matrices in spwf x spwf space
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       xsize = NUMROC(MPI_BLOCK_SIZE, block_factor_row, MYROW_2D,0, NROW_2D)
-      if(xsize .le. 0) then 
-        call stp('Blocking factor too large for NPROCS.')
-      endif
+      if(xsize .le. 0) xsize = 1 ! things will get allocated, but this process 
+                                 ! should not be participating in calculations
       CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,    &
       &             block_factor_row, block_factor_col, &
       &             0,0,blacs_cntxt_2d, xsize ,info)
