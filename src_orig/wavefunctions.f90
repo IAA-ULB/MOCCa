@@ -366,10 +366,9 @@ contains
     rank_map     = 0 ; spwf_inverse = 0 ; blocks_local = 0; ranks_per_block = 0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Required for printing assignments
-    if(allocated(MPI_BLOCK_ASSIGNMENTS)) deallocate(MPI_BLOCK_ASSIGNMENTS)
-    allocate(MPI_BLOCK_ASSIGNMENTS(NPROCS))
-    allocate(MPI_2D_COORDINATES(NPROCS,2))
-
+    if(allocated(MPI_2D_COORDINATES))    deallocate(MPI_2D_COORDINATES)
+    allocate(MPI_BLOCK_ASSIGNMENTS(NPROCS)); mpi_BLOCK_ASSIGNMENTS = 0
+    allocate(MPI_2D_COORDINATES(NPROCS,2)) ; mpi_2D_coordinates    = 0
     ! Count the number of active symmetry blocks (blocks with non-zero spwfs)
     activeblocks = 0
     do B=1,8
