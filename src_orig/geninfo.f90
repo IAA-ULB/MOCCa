@@ -470,11 +470,8 @@ contains
 #if(USE_MPI > 0)
     call MPI_ABORT(MPI_COMM_WORLD,1,mpi_err) ! force all MPI ranks to stop
                                              ! with error code 1
-    !call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
-    !call MPI_FINALIZE(mpi_err)
 #endif
-    stop ! simple stop
-
+    stop 
   end subroutine stp
 
   pure integer function LeviCivita(i,j,k)

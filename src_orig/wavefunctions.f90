@@ -769,27 +769,6 @@ contains
         endif
       endif
     enddo
-
-!    if(MPI_RANK.eq.0) then
-!      print *, 'SP', spenergies(1:HFBLOCKS_global(1))    
-!      print *, 'SP', spenergies(HFBLOCKS_global(1)+1:HFBLOCKS_global(3))    
-!      print *, 'SP', spenergies(sum(HFBLOCKS_global(1:3))+1:sum(HFBLOCKS_global(1:5)))    
-!      print *, 'SP', spenergies(sum(HFBLOCKS_global(1:5))+1:sum(HFBLOCKS_global(1:7)))    
-!    endif
-!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!    do C=0, NPROCS-1
-!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!        if(MPI_RANK.eq.C) then
-!          print *, MPI_RANK, MPI_SYM_BLOCK
-!          do wave=1,MPI_BLOCK_SIZE
-!            print ('(99f10.3)'), sphamil(wave,:)
-!          enddo
-!          print *
-!        endif
-!        call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!    enddo
-!    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-!    call stp('END INIT')
 #endif
   end subroutine iniwavefunctions
 
@@ -1296,9 +1275,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
  
     si = 0
     do B=1,8
-      N = HFBlocks(B) ; if (N.eq.0) cycle
+      N = HFBlocks(B) 
 
 #if(USE_MPI == 0)
+      if (N.eq.0) cycle   ! This can only be explicitly put here.
       allocate(overlaps(N,N))
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Reshaping the wavefunctions by pointer in order to make the BLAS calls
@@ -1323,6 +1303,11 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       !    X L^T = N
       call dtrsm('r','l','t','n',4*mv,N,1.0d0,overlaps,N,wfs_reshape,4*mv)
 #else
+      ! The MPI version cannot cycle over blocks of size 0, since the MPI
+      ! ranks might not be relevant to the calculation but at the same time
+      ! might be part of a given BLACS context and hence are required to 
+      ! call all these SCALAPACK routines; if not, we get stuck eternally...
+      ! if (N.eq.0) cycle   ! This can only be explicitly put here.
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Build overlaps within this symmetry block 
       xs = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
@@ -1347,7 +1332,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       CALL PDTRSM('r','l','t','n',4*mv,MPI_BLOCK_SIZE,1.0d0,           &
       &                                overlaps, 1, 1, desc_mat_2d, &
       &                                hfpsi_2D, 1, 1, desc_psi_2d)
-      call MPI_BARRIER(MPI_COMM_WORLD, info)
 #endif
       deallocate(overlaps)
       si = si +N
@@ -1420,63 +1404,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
     call stop_timer(T_transfer_psi)
   end subroutine transfer_2D_to_1D
-  
-  !subroutine test_transfer
-  !  !
-  !  !
-  !  real(KIND=dp), allocatable :: overlap(:,:), overlap_global(:,:)
-  !  integer :: xsize, desc_0(10), info, i, ysize, mpi_err, C, xs, ys
-  !  integer, external :: NUMROC!
-!
-  !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  !  ! Set up the matrix of spwf overlaps
-  !  xsize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
-  !  ysize = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
-!
-  !  allocate(overlap(xsize,ysize))
-  !  call PDGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, dv, &
-  !  &             HFpsi_2d, 1, 1, desc_psi_2d, &
-  !  &             HFpsi_2d, 1, 1, desc_psi_2d, &
-  !  &             0.0d0,                       &
-  !  &             overlap , 1, 1, desc_mat_2d)
-  !  call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)!
 
-  !  xsize = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYROW_2D,0,NROW_2D)
-  !  ysize = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYCOL_2D,0,NCOL_2D)!
-
-  !  ! initialization of the descriptor for the global matrix
-  !  call descinit(desc_0, MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, &
-  !  &                     MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 0, 0, &
-  !  &                        blacs_cntxt_1D, MPI_BLOCK_SIZE, info)
-     
-  !  ! allocation and initialization of the global matrices A and B
-  !  xs = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYROW_2D,0,NROW_2D)
-  !  ys = NUMROC(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,MYCOL_2D,0,NCOL_2D)
-    
-  !  if(xs .gt. 0 .and. ys.gt. 0) then
-  !    allocate(overlap_global(MPI_BLOCK_SIZE,MPI_BLOCK_SIZE))
-  !  endif
-  !  
-  ! call pdgemr2d(MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, &
-  !  &             overlap, 1, 1, desc_mat_2d, &
-  !  &             overlap_global, 1, 1, desc_0, blacs_cntxt_1D)
-
-  !  do C=1,NPROCS
-  !    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-  !    if(MPI_RANK.eq.C) then
-  !      print *, C, MPI_SYM_BLOCK, xs, ys
-  !      if(xs.gt.0 .and. ys.gt. 0) then
-  !        do i=1,MPI_BLOCK_SIZE
-  !          print ('(99f7.1)'), overlap_global(i,1:MPI_BLOCK_SIZE)
-  !        enddo
-  !      endif
-  !    endif
-  !    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-  !  enddo
-
-  !  call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
-  !  call stp('')
-  !end subroutine test_transfer
 #endif
 !===============================================================================
 
