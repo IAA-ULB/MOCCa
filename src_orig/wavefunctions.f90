@@ -275,8 +275,15 @@ module wavefunctions
  ! Note: this input parameter is not case-sensitive.
  procedure(GramSchmidt), pointer :: Orthonormalize
  !------------------------------------------------------------------------------
- ! TODO: document.
- !
+ ! Procedure used to initialise a bunch of spwfs. 
+ ! Currently available:
+ !     nilsson     : lowest-energy states of a simple Nilsson hamiltonian
+ !                   used for finite nuclei.
+ !     randomspwfs : random values, used for pasta calculations.
+ ! The functioning of these routines is pretty particular, so please have 
+ ! a look at their documentation. 
+ ! The code currently offers no option to change the assignment of this pointer
+ ! at runtime. 
  !------------------------------------------------------------------------------
 #if(PASTA == 0)
  procedure(nilsson), pointer :: initialise_wavefunctions => nilsson
@@ -629,7 +636,8 @@ contains
 
   subroutine iniwavefunctions(ininx,ininy, ininz, ininwn, ininwp)   
     !---------------------------------------------------------------------------
-    ! Build harmonic oscillator eigenfunctions in an EV8-like box
+    ! Build a set of initial wavefunctions in an EV8-like box, achieved through
+    ! repeated calls to (pointer) subroutine initialise_wavefunctions.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Also initialized:
     !  *) Diagonal matrix elements of <h> = spenergies
@@ -661,23 +669,16 @@ contains
     if(allocated(spwf_map)) deallocate(spwf_map)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-    ! The actual allocation of the spwfs cannot be done here when using MPI.
-    ! The reason is that the routine nilsson only decides on the symmetry
-    ! blocks AFTER the diagonalisation of the Nilsson Hamiltonian.
-!    allocate(hfpsi(ININX*ININY*ININZ,4,ININWT)) ; hfpsi = 0.0d0
-    ! but since our routine nilsson is an adaptation of a very old FORTRAN code,
-    ! I preferred to make this complicated construction involving two nilsson
-    ! calls instead of modifying the nilsson subroutine itself.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-    ! First call of subroutine nilsson: do everything BUT construct spwfs
+    ! First call of initialise_wavefunctions: this does not yet construct the 
+    ! actual spwfs, but does get the parities in the array kparz.
     nshells_ev=max(11,int(1.5d0*max(ININWN,ININWP)**(1.d0/3.d0)))
     call initialise_wavefunctions(HFPsi,                                &
     &              kparz,spenergies,nshells_ev,nshells_ev-1,            &
     &              ININWT,ININWP,ININWN,floor(neutrons),floor(protons), &
     &              ININX,ININY,ININZ,dx,osc_freq,spwf_map)
 
-    ! Based on this information, we construct the correct symmetry properties
-    ! and initialize the GLOBAL sizes of the symmetry blocks
+    ! Based on the information in kparz, we construct the correct symmetry 
+    ! properties and initialize the GLOBAL sizes of the symmetry blocks.
     hfblocks_global = 0
     do i=1,ININWN
         if(kparz(i) .gt. 0) HFBlocks_global(1) = HFBlocks_global(1) +1
@@ -687,15 +688,16 @@ contains
         if(kparz(i) .gt. 0) HFBlocks_global(5) = HFBlocks_global(5) +1
         if(kparz(i) .lt. 0) HFBlocks_global(7) = HFBlocks_global(7) +1
     enddo
-    ! using this information, we are capable of figuring out the way to 
-    ! balance the (still unconstructed) spwfs.
+    ! then, we are capable of figuring out the way to balance the spwfs among
+    ! the different MPI ranks. 
     call loadbalance(HFblocks_global,balancing_strategy,& 
     &                        HFblocks,spwf_map,rank_map, spwf_inverse)
-    ! now each MPI rank knows which spwfs it should grab and can make the space
+    ! now each MPI rank knows which spwfs it should grab and can allocate 
+    ! the required space. 
     allocate(HFPSI(ININX*ININY*ININZ,4,sum(HFblocks))); hfpsi = 0.0d0
 
-    ! second call of subroutine nilsson: construct the part of the nilsson 
-    ! spectrum that should be stored on this rank.
+    ! and finally, we can call initialise_wavefunctions a second time in order 
+    ! actually the requested spwfs in this partical process.
     call initialise_wavefunctions(HFPsi,                                &
     &              kparz,spenergies,nshells_ev,nshells_ev-1,            &
     &              ININWT,ININWP,ININWN,floor(neutrons),floor(protons), &
@@ -785,16 +787,23 @@ contains
 
   subroutine randomspwfs(psi,par,spe,nshells_even, nshells_odd, &
   &                      nw,nwp,nwn,neut,prot,mx,my,mz,dx,osc_freq,map)
-
      !--------------------------------------------------------------------------
      ! Generate a set of single-particle wavefunctions randomly. 
      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      ! Input:
-     ! 
-     !
+     !    nw, nwp, nwn : total/proton/neutron number of spwfs to construct
+     !    map          : If allocated, this routine will construct the spwfs.
+     !                   Otherwise unused.
+     !    mx,my,mz,dx,osc_freq, nshells_even, nshells_odd, neut, prot :
+     !            -> dummy arguments to make this routines calling signature
+     !               identical to that of nilsson.
      ! Output:
-     !
-     ! TODO: DOCUMENT THIS
+     !    psi: a set of wavefunctions with random values. Only initialised if 
+     !         the map input is allocated.
+     !         ATTENTION: this set is not orthonormal at all. 
+     !    spe: a guess (trivial in this routine) of the single-particle energies
+     !         of these random states. 
+     !    par: the parity quantum numbers of the spwfs
      !--------------------------------------------------------------------------
      real(KIND=dp), allocatable, intent(inout) :: psi(:,:,:),  spe(:)
      real(KIND=dp), intent(in)                 :: dx, osc_freq(3)
