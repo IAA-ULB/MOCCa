@@ -805,12 +805,15 @@ contains
      !         of these random states. 
      !    par: the parity quantum numbers of the spwfs
      !--------------------------------------------------------------------------
-     real(KIND=dp), allocatable, intent(inout) :: psi(:,:,:),  spe(:)
+     real(KIND=dp), allocatable, intent(inout) :: psi(:,:,:), spe(:)
      real(KIND=dp), intent(in)                 :: dx, osc_freq(3)
      integer, intent(inout), allocatable       :: par(:)
      integer, intent(in)        :: nw,nwn,nwp, mx, my, mz, neut, prot
      integer, intent(in)        :: nshells_even, nshells_odd
      integer, intent(in), allocatable :: map(:)
+     
+     integer :: s
+     integer, allocatable :: seed(:)
 
      if(allocated(par)) deallocate(par)
      if(allocated(spe)) deallocate(spe)
@@ -825,12 +828,14 @@ contains
      spenergies = 100
      
      if(allocated(map)) then
-      ! actually construct random spwfs
-      call random_seed()      ! first explicitly ask for some random input from
-                              ! the OS in order to initialise a random seed. 
-                              ! If this is not done, all MPI-ranks will generate
-                              ! the same sequence of numbers and we will run in
-                              ! trouble when orthonormalising these states.
+      call random_seed(size=s)
+      allocate(seed(s))
+      seed = 987654321 + MPI_RANK * 123456789 ! Seed value needs to depend on
+                                              ! MPI_RANK; if not, we all ranks 
+                                              ! will generate the same sequence
+                                              ! and we will run in trouble with
+                                              ! orthonormalisation
+      call random_seed(put=seed)
       call random_number(psi) ! randomize
      endif
   end subroutine randomspwfs
