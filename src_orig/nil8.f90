@@ -103,7 +103,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     integer              , intent(in)        :: npp, npn
     integer, allocatable, intent(inout)      :: kparz(:)
     real(KIND=dp), allocatable, intent(inout):: wfs(:,:,:), esp1(:)
-    real(KIND=dp), intent(in)                :: osc_freq(3)
+    real(KIND=dp), intent(in)                :: osc_freq(3), dx
     integer, allocatable, intent(in)         :: spwf_map(:)
 
     real(KIND=dp)              :: hox, hoy, hoz

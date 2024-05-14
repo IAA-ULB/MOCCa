@@ -273,8 +273,16 @@ module wavefunctions
  ! TODO: CORRECT THIS DOCUMENTATION
  !
  ! Note: this input parameter is not case-sensitive.
-  procedure(GramSchmidt), pointer :: Orthonormalize
-
+ procedure(GramSchmidt), pointer :: Orthonormalize
+ !------------------------------------------------------------------------------
+ ! TODO: document.
+ !
+ !------------------------------------------------------------------------------
+#if(PASTA == 0)
+ procedure(nilsson), pointer :: initialise_wavefunctions => nilsson
+#else
+ procedure(nilsson), pointer :: initialise_wavefunctions => randomspwfs
+#endif
 contains 
 
   subroutine ReadWFdata(file_number)
@@ -649,6 +657,10 @@ contains
 #endif
     ininwt = ininwn + ininwp
 
+    ! a) Generating the nilsson wave-functions in an EV8-box   
+    if(allocated(spwf_map)) deallocate(spwf_map)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! The actual allocation of the spwfs cannot be done here when using MPI.
     ! The reason is that the routine nilsson only decides on the symmetry
     ! blocks AFTER the diagonalisation of the Nilsson Hamiltonian.
@@ -656,16 +668,13 @@ contains
     ! but since our routine nilsson is an adaptation of a very old FORTRAN code,
     ! I preferred to make this complicated construction involving two nilsson
     ! calls instead of modifying the nilsson subroutine itself.
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-    ! a) Generating the nilsson wave-functions in an EV8-box   
-    if(allocated(spwf_map)) deallocate(spwf_map)
     ! First call of subroutine nilsson: do everything BUT construct spwfs
-    !NS: number of shells is increased for pasta
     nshells_ev=max(11,int(1.5d0*max(ININWN,ININWP)**(1.d0/3.d0)))
-    call nilsson (HFPsi,kparz,spenergies,nshells_ev,nshells_ev-1,ININWT,ININWP,&
-    &ININWN,floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,      &
-    &                                                                  spwf_map)
+    call initialise_wavefunctions(HFPsi,                                &
+    &              kparz,spenergies,nshells_ev,nshells_ev-1,            &
+    &              ININWT,ININWP,ININWN,floor(neutrons),floor(protons), &
+    &              ININX,ININY,ININZ,dx,osc_freq,spwf_map)
 
     ! Based on this information, we construct the correct symmetry properties
     ! and initialize the GLOBAL sizes of the symmetry blocks
@@ -684,11 +693,14 @@ contains
     &                        HFblocks,spwf_map,rank_map, spwf_inverse)
     ! now each MPI rank knows which spwfs it should grab and can make the space
     allocate(HFPSI(ININX*ININY*ININZ,4,sum(HFblocks))); hfpsi = 0.0d0
+
     ! second call of subroutine nilsson: construct the part of the nilsson 
     ! spectrum that should be stored on this rank.
-    call nilsson (HFPsi,kparz,spenergies,nshells_ev,nshells_ev-1,ININWT,ININWP,&
-    &ININWN,floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,      &
-    &                                                                  spwf_map)
+    call initialise_wavefunctions(HFPsi,                                &
+    &              kparz,spenergies,nshells_ev,nshells_ev-1,            &
+    &              ININWT,ININWP,ININWN,floor(neutrons),floor(protons), &
+    &              ININX,ININY,ININZ,dx,osc_freq,spwf_map)
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! b) and now we go on to populate more symmetry information
     allocate(sx(4,sum(hfblocks)), sy(4,sum(hfblocks)), sz(4,sum(hfblocks)))
@@ -770,6 +782,73 @@ contains
     enddo
 #endif
   end subroutine iniwavefunctions
+
+  subroutine randomspwfs(psi,par,spe,nshells_even, nshells_odd, &
+  &                      nw,nwp,nwn,neut,prot,mx,my,mz,dx,osc_freq,map)
+
+     !--------------------------------------------------------------------------
+     ! Generate a set of single-particle wavefunctions randomly. 
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     ! Input:
+     ! 
+     !
+     ! Output:
+     !
+     ! TODO: DOCUMENT THIS
+     !--------------------------------------------------------------------------
+     real(KIND=dp), allocatable, intent(inout) :: psi(:,:,:),  spe(:)
+     real(KIND=dp), intent(in)                 :: dx, osc_freq(3)
+     integer, intent(inout), allocatable       :: par(:)
+     integer, intent(in)        :: nw,nwn,nwp, mx, my, mz, neut, prot
+     integer, intent(in)        :: nshells_even, nshells_odd
+     integer, intent(in), allocatable :: map(:)
+
+     if(allocated(par)) deallocate(par)
+     if(allocated(spe)) deallocate(spe)
+     allocate(par(nw),spe(nw))
+     
+     ! We just take spwfs of positive and negative in 50/50 proportion
+     par(            1:nwn/2    ) = +1
+     par(nwn/2      +1:nwn      ) = -1
+     par(nwn        +1:nwn+nwp/2) = +1
+     par(nwn  +nwp/2+1:nw       ) = -1
+     
+     spenergies = 100
+     
+     if(allocated(map)) then
+      ! actually construct random spwfs
+      call random_number(psi) ! randomize
+     endif
+  end subroutine randomspwfs
+
+  !subroutine planewaves(psi,par,spe,nwaves,nwavesp,nwavesn, &
+  !  &                                      mx,my,mz,dx,map)
+  !  
+  !  real(KIND=dp), allocatable :: psi(:,:,:)
+  !  integer, intent(inout)     :: par(:), spe(:)
+  !  integer, intent(in)        :: nwaves, nwavesp, nwavesn, mx, my, mz, dx
+  !  integer, intent(in), allocatable :: map(:)
+  !  
+  !  real(KIND=dp)        :: kx, ky, kz
+  !  integer              :: nmaxx, nmaxy, nmaxz
+  !  integer, allocatable :: waves(:,:)
+  !  
+  !  !---------------------------------------------------------------------------
+  !  ! wavenumber multiplicators
+  !  kx = pi/(2*mx*dx)
+  !  ky = pi/(2*my*dx)
+  !  kz = pi/(2*mz*dx)
+  !
+  !  nmaxx = max(11,int(1.5d0*max(ININWN,ININWP)**(1.d0/3.d0)))
+  !  nmaxy = max(11,int(1.5d0*max(ININWN,ININWP)**(1.d0/3.d0)))
+  !  nmaxz = max(11,int(1.5d0*max(ININWN,ININWP)**(1.d0/3.d0)))!
+
+  !  ! First even parity
+  !  allocate(waves(nmaxx,nmaxy,nmaxz,4))
+
+    ! then odd parity
+  
+  !end subroutine planewaves()
 
   subroutine deriveHF()
     !---------------------------------------------------------------------------
