@@ -826,6 +826,11 @@ contains
      
      if(allocated(map)) then
       ! actually construct random spwfs
+      call random_seed()      ! first explicitly ask for some random input from
+                              ! the OS in order to initialise a random seed. 
+                              ! If this is not done, all MPI-ranks will generate
+                              ! the same sequence of numbers and we will run in
+                              ! trouble when orthonormalising these states.
       call random_number(psi) ! randomize
      endif
   end subroutine randomspwfs
