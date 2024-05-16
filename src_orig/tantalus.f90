@@ -586,9 +586,9 @@ subroutine printsummary(iter)
    21 format (' Potentials frozen.')
     3 format (' dt    = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
    31 format (' dtg   = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
-    4 format (' E     = ', f17.10,2x, '  DE   = ', e12.5)
-   41 format (' R     = ', f17.10,2x, '  DR   = ', e12.5)
-   42 format (' R-E   = ', f17.10,2x, 'D(R-E) = ', e12.5)
+    4 format (' E     = ', f20.10,2x, '  DE   = ', e12.5)
+   41 format (' R     = ', f20.10,2x, '  DR   = ', e12.5)
+   42 format (' R-E   = ', f20.10,2x, 'D(R-E) = ', e12.5)
 
     5 format (' ',a1, 'Q', 2i1,a1,' = ',f12.4, 3x, 'dQ = ', es8.1, 2x,         &
     &          'L = ',f12.4,2x,' dL = ', es8.1, 2x, 'dev = ', es8.1)
