@@ -1951,7 +1951,7 @@ $TAUTENSOR    allocate(F%F_N_N(nx*ny*nz,3,3,4)) ; F%F_N_N   = 0.0d0
     ! separately over x/y/z and can just loop once over all mesh points.
     ! This also means the coordinate information is not used.
     do i=1,nx*ny*nz
-      read(chan, fmt='(3f8.3, 4es25.12)', iostat=io, advance='no') & 
+      read(chan, fmt='(7es25.12)', iostat=io, advance='no') & 
       &                            x,y,z,                          & !unused
       &                            F%F_I_I(i,1),F%F_I_I(i,2),      & ! U(r)
       &                            Vc(i),  Ec(i)                     ! Coulomb
