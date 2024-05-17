@@ -126,7 +126,7 @@ contains
         &                    estimateparams, estimategradparams,               &
         &                    gradient_safety, efficientHFB,                    &
         &                    stepsize_safety, freezeiter,                      &
-        &                    ortho_strategy, subspace_rotation
+        &                    ortho_strategy, subspace_rotation, d2H_freeze  
         !-----------------------------------------------------------------------
         ! Only the very first MPI rank reads the input
         if(MPI_RANK.eq.0) then
@@ -165,6 +165,7 @@ contains
         call MPI_BCAST(maxiter   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         call MPI_BCAST(printiter , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         call MPI_BCAST(freezeiter, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(d2H_freeze, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
         !-----------------------------------------------------------------------
 #endif
         !-----------------------------------------------------------------------
@@ -228,7 +229,7 @@ contains
         2 format(' Evolution strategy: ', a20 )
         3 format('   dt= ', f7.4, ' mu= ', f7.4 )
        31 format('   maxiter =', i5, ' printiter = ', i5)        
-       32 format('   of which freezeiter= ', i5, ' do change the potentials.')
+       32 format('   freezeiter= ', i5, ' d2H_freeze = ', es10.3)
         4 format('   Estimate (dt,mu) linear subproblem  : ', a3)
        41 format('   Safety factor for linear subproblem : ', f7.4)
        42 format('   Estimate (dt,mu) pairing subproblem : ', a3)
@@ -245,7 +246,7 @@ contains
         print 1
         print 2, adjustl(Strategy)
         print 31, maxiter, printiter
-        print 32, freezeiter
+        print 32, freezeiter, d2H_freeze
         if( EstimateParams) then
           print 4, 'YES'
           print 41, stepsize_safety

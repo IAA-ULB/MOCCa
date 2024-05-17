@@ -49,7 +49,11 @@ module Coulombmod
  real(KIND=dp)              :: Prec
  !------------------------------------------------------------------------------
  ! Number of boundary conditions to put on all sides of the box.
+#if(USE_Periodic==1)
+ integer :: BC = 0
+#else
  integer :: BC = 2
+#endif
  !------------------------------------------------------------------------------
  ! Arrays containing,
  ! 1) the values of the spherical harmonics on the extended mesh and
