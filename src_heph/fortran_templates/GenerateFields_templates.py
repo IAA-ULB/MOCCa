@@ -60,7 +60,7 @@ field_read_b  = T(3*tab +  'allocate(F%${FIELD}(mv$ALLOCIND,$ISOSIZE),F_temp%${F
 
 field_read_c  = T(3*tab +  'if(symtransfo_needed) then    \n')
 field_read_d  = T(4*tab + '$POTREAD F%$FIELD = F_temp%${FIELD} \n'            \
-                + 4*tab + '$UNDOREAD deallocate(F%$FIELD, F%_temp${FIELD}) \n')
+                + 4*tab + '$UNDOREAD deallocate(F%$FIELD, F_temp%${FIELD}) \n')
 field_read_e  = T(3*tab +  'else \n')
 field_read_f  = T(3*tab +  'endif \n')
 # ..... and to transform fields with different symmetries
