@@ -323,7 +323,8 @@ contains
     &          '  Angular momentum convergence < ', es8.1)
    13 format ( ' Inverse temperature Beta = ', f14.9)
    14 format ( ' MPI information '     ,    /  &
-   &           '   number of ranks         = ', i5 )
+   &           '   number of ranks         = ', i7, / &
+   &           '   max_spwf_per_rank       = ', i7 )
    15 format ( '   load balancing strategy = ', i1)
   160 format ( '--------------------------------------------')
    16 format ( '   RANK  |  SYM_BLOCK    P     Q   #SPWFS ')
@@ -388,8 +389,7 @@ contains
       print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
       &         angmom_prec
 
-      print 14, NPROCS
-
+      print 14, NPROCS, max_spwf_per_rank
       print 15, balancing_strategy
       print 17, block_factor_row, block_factor_col
       print 160

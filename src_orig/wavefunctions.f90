@@ -391,7 +391,7 @@ contains
         activeblocks = activeblocks + 1
         ! ensure that every active block gets sufficient ranks to not cross
         ! the maximum number of spwfs per rank or at least one rank.
-        ranks_per_block(B) = max(1,blocks_global(B)/max_spwf_per_rank)
+        ranks_per_block(B) = max(1,ceiling(blocks_global(B)/(1.0d0*max_spwf_per_rank)))
       endif
     enddo
     already_assigned = sum(ranks_per_block)

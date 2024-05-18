@@ -138,7 +138,7 @@ module GenInfo
   ! NPROCS=1, MPI_RANK= 0 corresponds to a sequential calculation.
   !-----------------------------------------------------------------------------
   integer :: NPROCS = 1, MPI_RANK    = 0 
-  integer :: max_spwf_per_rank       = 1
+  integer :: max_spwf_per_rank       = 10000000000
   !-----------------------------------------------------------------------------
   ! Load balancing strategy for the MPI ranks
   ! (0) : naive 1d block distribution of spwfs among ranks
@@ -271,6 +271,7 @@ contains
     call MPI_BCAST(fermi_prec  , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
 
     call MPI_BCAST(balancing_strategy,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(max_spwf_per_rank ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(block_factor_row  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(block_factor_col  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
