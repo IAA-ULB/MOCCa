@@ -365,7 +365,7 @@ contains
     integer, intent(out), allocatable :: spwf_map(:),rank_map(:),spwf_inverse(:)
 
     integer              :: B, activeblocks, blocks_per_rank
-    integer              :: block_count, i, offset, Nspwf
+    integer              :: block_count, i, offset, Nspwf, already_assigned
 #if(USE_MPI>0)
     integer, external    :: numroc
     integer              :: mpi_err, dims(2), k, j, info, xsize
@@ -389,10 +389,12 @@ contains
     do B=1,8
       if(blocks_global(B) .ne. 0) then
         activeblocks = activeblocks + 1
-        ! ensure that every active block gets one process at least!
-        ranks_per_block(B) = 1
+        ! ensure that every active block gets sufficient ranks to not cross
+        ! the maximum number of spwfs per rank or at least one rank.
+        ranks_per_block(B) = max(1,blocks_global(B)/max_spwf_per_rank)
       endif
     enddo
+    already_assigned = sum(ranks_per_block)
 
     select case(balancing)
     case (0)
@@ -411,7 +413,7 @@ contains
       ! Assign workload quadratically
       do B=1,8
           ranks_per_block(B) = ranks_per_block(B) & 
-          & + NINT((NPROCS-activeblocks) * BLOCKS_GLOBAL(B)**2/(1.0d0*sum(BLOCKS_GLOBAL**2)))
+          & + NINT((NPROCS-already_assigned) * BLOCKS_GLOBAL(B)**2/(1.0d0*sum(BLOCKS_GLOBAL**2)))
       enddo
       ! This weighting might end up with a total number of ranks that is somewhat
       ! less than NPROCS, since we are dealing with the integer division. I solve

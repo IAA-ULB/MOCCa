@@ -138,6 +138,7 @@ module GenInfo
   ! NPROCS=1, MPI_RANK= 0 corresponds to a sequential calculation.
   !-----------------------------------------------------------------------------
   integer :: NPROCS = 1, MPI_RANK    = 0 
+  integer :: max_spwf_per_rank       = 1
   !-----------------------------------------------------------------------------
   ! Load balancing strategy for the MPI ranks
   ! (0) : naive 1d block distribution of spwfs among ranks
@@ -196,7 +197,8 @@ contains
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
-    &                  fermi_prec, block_factor_row, block_factor_col
+    &                  fermi_prec, block_factor_row, block_factor_col,         &
+    &                  max_spwf_per_rank
     Namelist /mesh/    nx,ny,nz, dx
 
     if(MPI_rank .eq. 0) then    
