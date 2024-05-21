@@ -138,13 +138,17 @@ module GenInfo
   ! NPROCS=1, MPI_RANK= 0 corresponds to a sequential calculation.
   !-----------------------------------------------------------------------------
   integer :: NPROCS = 1, MPI_RANK    = 0 
-  integer :: max_spwf_per_rank       = 10000000000
+  !-----------------------------------------------------------------------------
+  ! The maximum number of spwfs that can get attributed to each process in an
+  ! MPI calculation. However, the code does not strictly enforce this limit, and
+  ! this variable functions more as a rough guideline for the load balancing.
+  integer :: max_spwf_per_rank       = 10000000
   !-----------------------------------------------------------------------------
   ! Load balancing strategy for the MPI ranks
   ! (0) : naive 1d block distribution of spwfs among ranks
   ! (1) : give entire symmetry blocks to MPI ranks
   integer :: balancing_strategy = 0
-  !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  !-----------------------------------------------------------------------------
   ! Additional MPI communicator for the assigned symmetry block
   integer              :: MPI_COMM_BLOCK   ! communicator of the local team
   integer              :: MPI_SYM_BLOCK    ! assigned symmetry block
@@ -153,9 +157,9 @@ module GenInfo
   integer              :: MPI_BLOCK_NPROCS ! size of the local team
   integer, allocatable :: MPI_BLOCK_ASSIGNMENTS(:)
   integer, allocatable :: MPI_2D_COORDINATES(:,:)
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  !-----------------------------------------------------------------------------
   ! BLACS information for the communication between 1D and 2D grids
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  !-----------------------------------------------------------------------------
   ! default BLACS context regrouping all ranks
   integer :: blacs_cntxt
   ! BLACS context for 1D spwf calculations within the current symmetry block
@@ -166,7 +170,7 @@ module GenInfo
   integer :: NROW_2D, NCOL_2D, NROW_1D, NCOL_1D
   ! The coordinates of this MPI rank within the 2D BLACS layout
   integer :: MYROW_2D, MYCOL_2D, MYROW_1D, MYCOL_1D
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  !-----------------------------------------------------------------------------
   ! SCALAPACK information
   ! blocking factors for rows and columns
   integer :: block_factor_row = 2
@@ -197,8 +201,7 @@ contains
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
-    &                  fermi_prec, block_factor_row, block_factor_col,         &
-    &                  max_spwf_per_rank
+    &                  fermi_prec, block_factor_row, block_factor_col
     Namelist /mesh/    nx,ny,nz, dx
 
     if(MPI_rank .eq. 0) then    
@@ -271,7 +274,6 @@ contains
     call MPI_BCAST(fermi_prec  , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
 
     call MPI_BCAST(balancing_strategy,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(max_spwf_per_rank ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(block_factor_row  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(block_factor_col  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif

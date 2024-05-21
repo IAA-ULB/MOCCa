@@ -306,7 +306,7 @@ contains
     integer                             :: mpi_err
 #endif
 
-    namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties
+    namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties, max_spwf_per_rank
 
     ! Only the first MPI rank reads input
     if(MPI_rank .eq. 0) then
@@ -324,7 +324,9 @@ contains
     call MPI_Bcast(osc_freq, 3, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(print_adv_spwf_properties, 1, MPI_LOGICAL  , 0,             &
     &                                                   MPI_COMM_WORLD, mpi_err)
-#endif    
+
+    call MPI_BCAST(max_spwf_per_rank ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+#endif
     ! Bookkeeping for all MPI ranks
     nwt = nwn + nwp
   end subroutine ReadWFdata
@@ -389,8 +391,13 @@ contains
     do B=1,8
       if(blocks_global(B) .ne. 0) then
         activeblocks = activeblocks + 1
-        ! ensure that every active block gets sufficient ranks to not cross
-        ! the maximum number of spwfs per rank or at least one rank.
+        ! ensure that every active block gets
+        !  (1) sufficient processes such that no process should go above max_spwf_per_rank
+        !  (2) at least one attributed process
+        !
+        ! Important note: the code does not strictly enforce max_spwf_per_rank because
+        ! of the rounding to nearest integer below; max_spwf_per_rank should be understood
+        ! more as a rough guideline.
         ranks_per_block(B) = max(1,ceiling(blocks_global(B)/(1.0d0*max_spwf_per_rank)))
       endif
     enddo
