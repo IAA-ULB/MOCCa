@@ -130,6 +130,10 @@ COMPILER      :=  gnu
 #  => 1 if active
 USE_MPI := 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Debugging level for the code itself
+DEBUG_LEVEL := 0
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Type of calculation aimed at: 
 #    'NUCLEI':  finite nuclei
@@ -334,7 +338,7 @@ PRE_NIL     :=  cp_nil
 #    -cpp      => explicitly enable preprocessing
 #    -DUSE_MPI => enable (1) or disable (0) MPI (see above)
 
-DIRECTIVES := -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic) -DPASTA=$(PASTA) -DDENSUM=$(DENSUM)
+DIRECTIVES := -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic) -DPASTA=$(PASTA) -DDENSUM=$(DENSUM) -DDEBUG_LEVEL=$(DEBUG_LEVEL)
 ifeq ($(COMPILER),cray)
   PREPROCESSOR :=  -e Z $(DIRECTIVES)
 else

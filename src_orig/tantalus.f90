@@ -302,8 +302,13 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     integer :: iprint, scheme, ifail
     logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
     logical :: potentials_frozen=.true.
-    ! Logical to see if any moments with projection are necessary
+    ! Logical to see if any moments with feasible set projection are necessary
     logical :: projectpresent = .false.
+
+#if(DEBUG_LEVEL == 1)
+    character(len=40) :: denfile_iter, potfile_iter
+
+#endif
 
     ifail = 0
     ConvergenceAchieved = .false.
@@ -559,6 +564,14 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! Write a wavefunction file at each multiple of checkpointiter
         if(checkpointiter.ne.0) then
           if(mod(iter,checkpointiter) .eq. 0) then
+#if(DEBUG_LEVEL == 1)
+            ! Output densities and potentials to specific files at every checkpoint
+            write(denfile_iter, '("iter=",i5.5,".den")') iter
+            write(potfile_iter, '("iter=",i5.5,".pot")') iter
+
+            call write_densities(Density, denfile_iter)
+            call write_potentialfile(potentials, potfile_iter)
+#endif
             if(MPI_RANK.eq.0) print 9, iter, outputfilename
             iomsg='CHECKPOINT'
             call WriteTantalus(12, outputfilename)
