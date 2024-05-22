@@ -288,7 +288,10 @@ function densit(rho, kappa) result(R)
     integer                    ::  wave_global, wave2_global
     real(KIND=dp)              :: weight
     real(KIND=dp), allocatable :: kappa_cut(:,:)
-#if(USE_MPI>0)
+
+$SPWF_DECLARATION
+
+    #if(USE_MPI>0)
     integer      :: mpi_err
 #endif
     call start_timer(T_densities)
@@ -339,6 +342,7 @@ $ZEROING
 
         do i=1,mv
 $EXPRESSION
+$DERIVATION_SUM_SPWF
         enddo
     enddo
     call stop_timer(T_den_ph)
@@ -536,7 +540,7 @@ $MPIDEN
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     call start_timer(T_den_der)
     do it=1,2
-$DERIVATION  
+$DERIVATION
     enddo  
     call stop_timer(T_den_der)
 

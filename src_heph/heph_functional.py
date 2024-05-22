@@ -125,6 +125,7 @@ def initfunctional(fname, so, density_spwf_summation):
     # Generating the list of all densities and the total number of derivatives
     tempden     = []
     minder      = []
+    temp_intermediate = []
     for term in Functional_terms:
        (densities,coup) = ParseDensities(term)
        totalder = 0
@@ -139,6 +140,7 @@ def initfunctional(fname, so, density_spwf_summation):
        # add density and set minimum number of derivatives for this term
        for den in densities:
            tempden.append(den)
+           temp_intermediate.append(False) # these are "true" densities
            if(len(densities)<=2):
              minder.append((totallap, totalder))
            else:
@@ -160,38 +162,52 @@ def initfunctional(fname, so, density_spwf_summation):
     #---------------------------------------------------------------------------
     if(density_spwf_summation):
       for j,den in enumerate(tempden):
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # Note: because we add to the end of this list while traversing it, we
         #       automatically do the entire process recursively.
-        # - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         (der, lap, left, right, coup, cross) = \
                         ParseOperators(den,so.timelike)
         if(minder[j][1] > 0):
           lleft = 'N' + left.replace('I','')
           tempden.append(ReconstructDensity(der-1, lap, lleft, right))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
+
           rright = 'N' + right.replace('I','')
           tempden.append(ReconstructDensity(der-1, lap,      left, rright))
           minder.append((0,0))
+          temp_intermediate.append(True) # these are intermediate objects
+
         if(minder[j][0] != 0 or minder[j][1] == 2):
           # Add in all densities needed for the Laplacian ....
           lleft  =  'NN' + left.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, lleft, right))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
+
           rright =  'NN' + right.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, left, rright))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
+
           lleft  =  'N' + left.replace('I','')
           rright =  'N' + right.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, lleft, rright))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
 
           # ... but also the external order one derivative
           lleft = 'N' + left.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1, lleft, right))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
+
           rright = 'N' + right.replace('I','')
           tempden.append(ReconstructDensity(der, lap-1,  left, rright))
+          temp_intermediate.append(True) # these are intermediate objects
           minder.append((0,0))
+
         elif(minder[j][1]>2):
           print ("Hephaestos cannot combine DENSUM=1 with high order derivatives yet.")
           exit()
@@ -204,6 +220,7 @@ def initfunctional(fname, so, density_spwf_summation):
     # B) removing contractions when the full density will be calculated
     Densities_needed.append(tempden[0])
     deriv_needed.append([])
+    intermediate_status.append(False)  # the first density is a "real" one
 
     for i in range(len(tempden)):
         (deri, lapi, lefti, righti, coupi, crossi) = \
@@ -257,6 +274,7 @@ def initfunctional(fname, so, density_spwf_summation):
             for l in sumindices:
                 add = add.replace(derstring + l + '_','')
             Densities_needed.append(add)
+            intermediate_status.append(temp_intermediate[i])
 
     # Clean up the deriv_needed array and add all combinations that might be 
     # necessary for calculating fields etc. This call is not strictly needed 
