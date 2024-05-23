@@ -153,6 +153,7 @@ function Add_densityvector(R1, R2) result(R)
   !-----------------------------------------------------------------------------
   type(DensityVector), intent(in) :: R1, R2
   type(DensityVector)             :: R
+  real(KIND=dp) :: stor
 
 $INITIALIZATION
 $ADD
@@ -169,6 +170,7 @@ function multiply_densityvector(a, R1) result(R)
   type(DensityVector), intent(in) :: R1
   real(KIND=dp), intent(in)       :: a
   type(DensityVector)             :: R
+  real(KIND=dp) :: stor
 
 $INITIALIZATION
 $MULTIPLY
@@ -285,21 +287,24 @@ function densit(rho, kappa) result(R)
     type(DensityVector)       :: R
 
     integer                    :: i, it, wave, wave2, B, N, si, N2, T
-    integer                    ::  wave_global, wave2_global
+    integer                    :: wave_global, wave2_global, stor
     real(KIND=dp)              :: weight
     real(KIND=dp), allocatable :: kappa_cut(:,:)
 
 $SPWF_DECLARATION
 
-    #if(USE_MPI>0)
+#if(USE_MPI>0)
     integer      :: mpi_err
 #endif
     call start_timer(T_densities)
 
+    stor = 0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
 $INITIALIZATION
 
+    print *, 'TOTAL STORAGE for densities', stor
+    print *, 'TOTAL STORAGE for spwfs'    , size(HFPSI) + size(HFDPSI) + size(HFDDPSI)
     if(.not.allocated(R%divJ)) then
       allocate(R%divJ(nx*ny*nz,4))
     endif
@@ -342,7 +347,7 @@ $ZEROING
 
         do i=1,mv
 $EXPRESSION
-$DERIVATION_SUM_SPWF
+$DERIVATION_SUM_SPWF_PH
         enddo
     enddo
     call stop_timer(T_den_ph)
@@ -386,6 +391,7 @@ $DERIVATION_SUM_SPWF
 
           do i=1,mv
 $BCSEXPRESSION
+$DERIVATION_SUM_SPWF_BCS
           enddo
       enddo
     case(2)
@@ -498,6 +504,7 @@ $TR            if(wave.ne.wave2) weight = 2 * weight
 
             do i=1,mv
 $HFBEXPRESSION
+$DERIVATION_SUM_SPWF_HFB
             enddo
           enddo
         enddo

@@ -225,6 +225,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     Spwf_Declaration = ''
     Initialisation   = ''
     Derivation       = ''
+    Derivation_pair  = ''
     BCSExpression    = ''
     HFBExpression    = ''
     Isospincoupl     = ''
@@ -264,9 +265,9 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
-       Declaration    = Declaration    + '\n' + dec
+       Declaration     = Declaration    + '\n' + dec
+
       Spwf_Declaration = Spwf_Declaration + '\n' + spwf_dec
-  
       if('P' in den): 
         # The BCS expression is diagonal in 'wave'
         BCSExpression = BCSExpression + '\n' + e
@@ -278,9 +279,12 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
                                           intermediate_status[i], \
                                          'si+wave2', 'si+wave', so,            \
                                          density_spwf_summation, silent=False)
-        HFBExpression = HFBExpression + '\n' + e
+        HFBExpression   = HFBExpression   + '\n' + e
+        Derivation_pair = Derivation_pair + der
       else:
         Expression    = Expression     + '\n' + e
+        Derivation    = Derivation              + der
+
 
       if( not intermediate_status[i]):
         Initialisation = Initialisation + '\n' + ini
@@ -290,7 +294,6 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         Cleaning       = Cleaning       + '\n' + cleani
         Add            = Add            + '\n' + addi
         Multiply       = Multiply       + '\n' + multi
-      Derivation     = Derivation            + der
 
     print (line)
 
@@ -303,11 +306,15 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     dic['BCSEXPRESSION'   ] = BCSExpression
     dic['HFBEXPRESSION'   ] = HFBExpression
     if(density_spwf_summation):
-        dic['DERIVATION_SUM_SPWF' ] = Derivation
-        dic['DERIVATION' ] = ""
+        dic['DERIVATION'              ] = ""
+        dic['DERIVATION_SUM_SPWF_PH'  ] = Derivation
+        dic['DERIVATION_SUM_SPWF_BCS' ] = Derivation_pair
+        dic['DERIVATION_SUM_SPWF_HFB' ] = Derivation_pair
     else:
-        dic['DERIVATION'      ] = Derivation
-        dic['DERIVATION_SUM_SPWF' ] = ""
+        dic['DERIVATION'              ] = Derivation + Derivation_pair
+        dic['DERIVATION_SUM_SPWF_PH'  ] = ""
+        dic['DERIVATION_SUM_SPWF_BCS' ] = ""
+        dic['DERIVATION_SUM_SPWF_HFB' ] = ""
 
     dic['ZEROING'         ] = Zeroing
     dic['CLEANING'        ] = Cleaning
@@ -658,6 +665,8 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,leftwave,rig
             dic['DIM']     = dim
 
         Declaration    = Declaration    + '\n' + ta.Dec.substitute(dic)
+        if(density_spwf_summation):
+          MPI_reduce     = MPI_reduce     + '\n' + ta.mpi.substitute(dic)
         Initialisation = Initialisation + '\n' + ta.Ini.substitute(dic)
         Zeroing        = Zeroing         + ta.Zero_template.substitute(dic)
         Cleaning       = Cleaning + '\n' + ta.Clean_template.substitute(dic)
