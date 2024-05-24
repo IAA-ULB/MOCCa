@@ -1486,7 +1486,7 @@ $POTENTIALPRECON
 
   function apply_sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &
-&                                        sx,sy,sz,iso, onthefly, F) result(hpsi)
+&                                        sx,sy,sz,iso, onthefly, Fin) result(hpsi)
     !---------------------------------------------------------------------------
     ! Apply the single-particle hamiltonian to a single-particle wavefunction.
     ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1500,7 +1500,7 @@ $N3                                 dddpsi, &
     !                not referenced when onthefly = .false.
     ! onthefly     : if .true., recalculate the derivatives of psi and store
     !                them in the array psi.
-    ! F            : a set of mean-field potentials determining the 
+    ! Fin          : a set of mean-field potentials determining the
     !                singleparticle hamiltonian
     ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Output:
@@ -1529,7 +1529,8 @@ $N3                                 dddpsi, &
     real(KIND=dp), intent(inout)      :: dpsi(mv,3,4),ddpsi(mv,6,4)
 $N3 real(KIND=dp), intent(inout)      :: dddpsi(mv,10,4)
     integer, intent(in)               :: sx(4),sy(4),sz(4), iso
-    type(PotentialVector), intent(in) :: F
+    type(PotentialVector), intent(in) :: Fin
+    type(PotentialVector)             :: F
 
     integer                   :: sym(4)
     real(KIND=dp)             :: hpsi(mv,4)
@@ -1551,6 +1552,15 @@ $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
     integer :: it, i,k
     
     call start_timer(T_sphamil)
+    !---------------------------------------------------------------------------
+    ! Dirty trick: the potential vector Fin contains all relevant information on
+    !              the potentials, namely F_I_I and the coulombpotential.
+    !              Below however, we only act with F_I_I; for the purpose of this
+    !              routine we add these potentials together.
+    !---------------------------------------------------------------------------
+    ! TODO: add in constraint_I_I to the definition of a potentialvector
+    F = Fin
+    call combine_potentials(F)
     !---------------------------------------------------------------------------
     ! Determine the isospin index
     it = (iso + 3)/2

@@ -364,7 +364,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
       potentials = calcPotentials(Density, potentials_read)
     else
       potentials = calcPotentials(Density)
-      call combine_potentials(potentials)
     endif
 
     ! Update all spwf properties
@@ -476,7 +475,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         if(.not. potentials_frozen) then
           ! calculate new values for the potentials from the densities
           potentials_out = calcPotentials(Density, coulomb_guess=potentials%CoulombPotential)
-          
+
           if(scfscheme .eq. 0) then
             potentials_out = precondition_potentials(potentials, potentials_out)
           endif
@@ -497,9 +496,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             potentials = potentials_out
           end select
 
-          ! Make sure all elements of the potentials vector are combined correctly
-          ! to be used in the single-particle hamiltonian
-          call combine_potentials(potentials)
 
         elseif(iter.eq.freezeiter) then
           ! Recalculate the Coulomb potential at the last iteration for 
