@@ -1372,50 +1372,12 @@ $CALCPOTENTIALS
     !   F : where the new F_I_I = old F_I_I + coulomb potentials
     !-----------------------------------------------------------------------------
     use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
-
     type(PotentialVector), intent(inout) :: F
-    integer                              :: i,j,k, ox, oy, oz, it
+    real(KIND=dp)                        :: pot(mv,4)
 
-    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
-      &                             (.not. nucleonsize_selfconsistent)) then
-      !------------------------------------------------------------------------
-      ! Simply add stuff if protons and neutrons are treated as point particles
-      !------------------------------------------------------------------------
-      ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            F%F_I_I(meshindex(i,j,k),2)=F%F_I_I(meshindex(i,j,k),2)        &
-            &                       + F%CoulombPotential(i+ox,j+oy,k+oz)   &
-            &                       + F%ExchangePotential(i,j,k)
-          enddo
-        enddo
-      enddo
-    else
-      !-----------------------------------------------------------------------
-      ! Use the folded coulombpotential, for full self-consistency.
-      ! Note that both protons and neutrons feel a Coulomb force if their
-      !  charge form factor is taken into account.
-      !-----------------------------------------------------------------------
-      if(.not. allocated(F%foldedcoul)) then
-        call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
-      endif
-      do it=1, 2
-        do k=1,nz
-          do j=1,ny
-            do i=1,nx
-              F%F_I_I(meshindex(i,j,k),it)=F%F_I_I(meshindex(i,j,k),it)    &
-              &                              + F%FoldedCoul(i,j,k,it)      &
-              &                              + F%FoldedExchange(i,j,k,it)
-            enddo
-          enddo
-        enddo
-      enddo
-    endif
-
-    ! Make sure the potentials are consistent among neutron/proton and isospin 0/1 channels.
-    F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
-    F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
+    pot = transfer_coulomb_mesh(F, .true.) + transfer_coulomb_mesh(F, .false.)
+    F%F_I_I = F%F_I_I + pot
+  
   end subroutine add_coulomb_potential
 
   subroutine add_cranking_potentials(F)
@@ -1451,22 +1413,147 @@ $NTR F%G_I_N = F%G_I_N + crank_current_potential()
     !          where P_a is the preconditioning operator for µ
     !          mean-field potential a.
     !------------------------------------------ ---------------------------------
+    
     type(PotentialVector), intent(in) :: F_in, F_out
     type(PotentialVector)             :: F
-    real(KIND=dp), allocatable :: update(:,:)
+    real(KIND=dp), allocatable        :: update(:,:)
+    real(KIND=dp)                     :: coul_in(mv,4), coul_out(mv,4)
+
+    integer                           :: i,j,k, ox, oy, oz, it
 
     call start_timer(T_potentials)
     call start_timer(T_pot_precon)
 
+    !---------------------------------------------------------------------------
     ! Everything which is not specifically preconditioned below just gets 
     ! explicitly copied from the new values.
     F = F_out
-
+    !---------------------------------------------------------------------------
+    ! Preconditioning for the Skyrme potentials: we safeguard against 
+    ! short wavelength modes with a high-pass filter.
 $POTENTIALPRECON
+
+    !---------------------------------------------------------------------------
+    ! Preconditioning for the Coulomb potential: we safeguard against 
+    ! long wavelength modes with a low-pass filter. This is typically only
+    ! necessary for calculations in very large boxes.
+    
+!    ! 1. get coulomb potentials on a typical mesh
+!    coul_out =  transfer_coulomb_mesh(F_out,.false.) 
+!    coul_in  = transfer_coulomb_mesh(F_in,.false.)
+!    ! 2. calculate the difference
+!    update = coul_out - coul_in
+!    ! 3. precondition
+!    ! TODO: adapt call to symmetries of the calculation
+!    !       experiment and document k0
+!    update = KerkerPreconditionPotential(update,2*pi/100,+1,+1,+1)
+!    ! 4. save the result
+!    update = coul_in + coul_out
+!    call set_coul(update(:,1:2), F)
+
     call stop_timer(T_pot_precon)
     call stop_timer(T_potentials)
  
   end function precondition_potentials
+
+  function transfer_coulomb_mesh(F, exchange) result(pot)
+    !---------------------------------------------------------------------------
+    ! Restrict a Coulomb potential defined on the large grid defined as a 3D 
+    ! array to the grid of the rest of the code. This is abstracted because of 
+    ! the "if" statements  below.
+    ! 
+    ! Input:
+    !   F  : potentialvector containing the relevant fields
+    !   exchange : logical, determines whether to ask for the exchange or 
+    !              direct coulomb potential
+    ! Output:
+    !   pot: the requested coulomb field on the grid of the Skyrme potentials.
+    !---------------------------------------------------------------------------
+    use coulombmod
+
+    Type(PotentialVector), intent(in) :: F
+    logical, intent(in)               :: exchange
+    integer                           :: i,j,k, ox, oy, oz, it
+    real(KIND=dp)                     :: pot(mv,4)
+
+    pot = 0.0d0    
+    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+      &                             (.not. nucleonsize_selfconsistent)) then
+      !------------------------------------------------------------------------
+      ! Protons and neutrons are treated as point particles
+      !------------------------------------------------------------------------
+      ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            if(.not. exchange) then
+              pot(meshindex(i,j,k),2)=  F%CoulombPotential(i+ox,j+oy,k+oz)
+            else
+              pot(meshindex(i,j,k),2)=  F%ExchangePotential(i,j,k)
+            endif
+          enddo
+        enddo
+      enddo
+    else
+      !-----------------------------------------------------------------------
+      ! Use the folded coulombpotential, for full self-consistency.
+      ! Note that both protons and neutrons feel a Coulomb force if their
+      !  charge form factor is taken into account.
+      !-----------------------------------------------------------------------
+      if(.not. allocated(F%foldedcoul)) then
+        call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
+      endif
+      do it=1, 2
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              if(.not. exchange) then
+                pot(meshindex(i,j,k),it)= F%FoldedCoul(i,j,k,it)
+              else
+                pot(meshindex(i,j,k),it)= F%FoldedExchange(i,j,k,it)
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
+    
+    ! Make sure the potentials are consistent among neutron/proton and isospin 0/1 channels.
+    pot(:,3) = pot(:,1) + pot(:,2)
+    pot(:,4) = pot(:,1) - pot(:,2)
+    
+  end function transfer_coulomb_mesh
+  
+  subroutine set_coul(coul, F)
+    !---------------------------------------------------------------------------
+    ! Set the Coulombpotential of potentialvector F to the input function coul, 
+    ! at least within the zone that corresponds to the mesh of the other
+    ! potentials. This subroutine achieves more or less the inverse of 
+    ! transfer_coulomb_mesh.
+    !
+    ! Input:
+    !   coul :  Coulomb potential, defined on a (nx*ny*nz,4) grid
+    !      F : potentialvector
+    ! Output:
+    !      F : potentialvector with its direct Coulomb potential equal 
+    !          coul (with the exception of the points on the boundary.)
+    !---------------------------------------------------------------------------
+    use coulombmod
+    
+    real(KIND=dp), intent(in)            :: coul(nx*ny*nz,4)
+    Type(PotentialVector), intent(inout) :: F
+    integer :: i,j,k, ox, oy, oz  
+  
+    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          F%CoulombPotential(i+ox,j+oy,k+oz) = coul(meshindex(i,j,k),2) 
+        enddo
+      enddo
+    enddo
+  
+  end subroutine set_coul
   
   pure function pow( f, alpha) result(pf)
     !---------------------------------------------------------------------------
