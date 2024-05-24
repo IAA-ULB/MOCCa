@@ -287,7 +287,7 @@ function densit(rho, kappa) result(R)
     type(DensityVector)       :: R
 
     integer                    :: i, it, wave, wave2, B, N, si, N2, T
-    integer                    :: wave_global, wave2_global, stor
+    integer                    :: wave_global, wave2_global, stor, spwfstor
     real(KIND=dp)              :: weight
     real(KIND=dp), allocatable :: kappa_cut(:,:)
 
@@ -303,8 +303,13 @@ $SPWF_DECLARATION
     ! Allocation and initialization
 $INITIALIZATION
 
-    print *, 'TOTAL STORAGE for densities', stor
-    print *, 'TOTAL STORAGE for spwfs'    , size(HFPSI) + size(HFDPSI) + size(HFDDPSI)
+    if(MPI_RANK.eq.0) then
+      spwfstor = 4*size(HFPSI) + size(HFDPSI) + size(HFDDPSI)
+      print '("Densities require         ", i16, " real numbers = ", i16, " bytes = ", f8.3, " gigabytes")', &
+      &       stor, stor*sizeof(R%D_I_I(1,1)), stor*sizeof(R%D_I_I(1,1))/(1.0d0*1024**3)
+      print '("Spwfs on this rank require", i16, " real numbers = ", i16, " bytes = ", f8.3, " gigabytes")', &
+      &     spwfstor, spwfstor * sizeof(HFPSI(1,1,1)), spwfstor * sizeof(HFPSI(1,1,1))/(1.0d0*1024**3)
+    endif
     if(.not.allocated(R%divJ)) then
       allocate(R%divJ(nx*ny*nz,4))
     endif

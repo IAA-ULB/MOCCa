@@ -666,7 +666,18 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,leftwave,rig
 
         Declaration    = Declaration    + '\n' + ta.Dec.substitute(dic)
         if(density_spwf_summation):
+          # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          # Dealing with the MPI ALLREDUCE call for the derivatives
+          sizecount = 1
+          for r in range(ndim):
+            sizecount  = sizecount * 3
+          sizecount = sizecount * Number_symmetric(3,d) 
+          # SIZE of the density to pass onto the MPI_ALLREDUCE call
+          # the factor two reflects isospin
+          dic['TRANS_SIZE'] = '%d*mv'%(sizecount*2)
           MPI_reduce     = MPI_reduce     + '\n' + ta.mpi.substitute(dic)
+          # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
         Initialisation = Initialisation + '\n' + ta.Ini.substitute(dic)
         Zeroing        = Zeroing         + ta.Zero_template.substitute(dic)
         Cleaning       = Cleaning + '\n' + ta.Clean_template.substitute(dic)
