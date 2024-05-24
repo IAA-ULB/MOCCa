@@ -1391,7 +1391,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! as efficient and easy as possible. Note: the "contiguous" keyword for
       ! this pointer array is crucial to make this trick work without tripping
       ! boundary-checking by compilers. 
-      wfs_reshape(1:4*mv,1:N) => hfpsi
+      wfs_reshape(1:4*mv,1:N) => hfpsi(1:mv,1:4,si+1:si+N)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Build overlaps within this symmetry block 
       call dgemm('t','n',N,N,4*mv, dv,wfs_reshape,4*mv, wfs_reshape, 4*mv, &

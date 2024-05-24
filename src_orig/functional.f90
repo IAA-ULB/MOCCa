@@ -1285,15 +1285,12 @@ $TR   COM2pp = 2*COM2pp
     ! Copy all the relevant information if this information was presented
     if(present(Fread)) F = Fread
 
+    !---------------------------------------------------------------------------
+    ! Calculate all contributions to the potentials due to the SKyrme EDF
 $CALCPOTENTIALS
     
     !---------------------------------------------------------------------------
-    ! Additions to the potential F_I_I associated with the density
-    ! (1) Coulomb potential, direct and exchange
-    ! (2) Constraints
-    !
-    ! and to F_I_S and G_I_N: 
-    ! (1) cranking potential
+    ! Calculate the Coulomb potentials
     !---------------------------------------------------------------------------
     if((.not. present(Fread)) .or. (.not. Coulomb_read_from_file)) then
       if(present(Coulomb_guess)) then
@@ -1303,18 +1300,38 @@ $CALCPOTENTIALS
         call SolveCoulomb(R,F)
       endif
     endif
-    if(.not. present(Fread)) then
-        ! Add the coulomb potential to F_I_I
-        call add_coulomb_potential(F)
-        ! Add the contribution of the multipole constraints
-        call add_constraint_potential(F)
-        ! cranking constraints add stuff to the spin and current potentials
-        call add_cranking_potentials(F)
-    endif
 
     call stop_timer(T_potentials)
 
   end function calcPotentials
+
+  subroutine combine_potentials(F)
+    !----------------------------------------------------------------------------
+    ! This routine makes sure that the potential vector F is ready to be used
+    ! in the single-particle hamiltonian by summing various contributions that
+    ! get calculated separately.
+    !
+    ! 1. add Coulomb potentials to F_I_I
+    ! 2. add contribution from constraints to F_I_I (and possibly others)
+    ! 3. add cranking contribution to F_I_S and G_I_N
+    !
+    ! Input:
+    !   F : potentialvector, fresh from the calculation routines after possibly
+    !       passing through preconditioning and mixing
+    ! Output:
+    !   F : potentialvector, ready to be used in the action of the single-particle
+    !       hamiltonian
+    !----------------------------------------------------------------------------
+    type(PotentialVector), intent(inout) :: F
+
+    ! Add the coulomb potential to F_I_I
+    call add_coulomb_potential(F)
+    ! Add the contribution of the multipole constraints
+    call add_constraint_potential(F)
+    ! cranking constraints add stuff to the spin and current potentials
+    call add_cranking_potentials(F)
+
+  end subroutine combine_potentials
 
   subroutine add_constraint_potential(F)
     !----------------------------------------------------------------------------

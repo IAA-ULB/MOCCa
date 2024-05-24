@@ -364,6 +364,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
       potentials = calcPotentials(Density, potentials_read)
     else
       potentials = calcPotentials(Density)
+      call combine_potentials(potentials)
     endif
 
     ! Update all spwf properties
@@ -493,7 +494,13 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             potentials_out = AndersonMixPotentials(Potential_iterates, &
             &                                      Potential_updates,  &
             &                                      mixstepsize, iter)
+            potentials = potentials_out
           end select
+
+          ! Make sure all elements of the potentials vector are combined correctly
+          ! to be used in the single-particle hamiltonian
+          call combine_potentials(potentials)
+
         elseif(iter.eq.freezeiter) then
           ! Recalculate the Coulomb potential at the last iteration for 
           ! comparison purposes with other codes.

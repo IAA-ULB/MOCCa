@@ -1011,8 +1011,6 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         integer                    :: xs, ys
         integer, external          :: NUMROC
         real(KIND=dp), allocatable :: hpsi_2d(:,:)
-#else
-        integer                    :: wave
 #endif
 
         call start_timer(T_calc_sph)
@@ -1029,7 +1027,6 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
 #if(USE_MPI == 0) 
           N = HFBlocks(B) ; if(N.eq.0) cycle
           iso = -1        ; if(B.gt.4) iso = +1
-          wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
           allocate(hpsi(mv,4,N))
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! Obtain the action of the s.p.h. on the spwfs in block-wise fashion
@@ -1046,7 +1043,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           call start_timer(T_calc_sph_me)
           call DGEMM('t', 'n', N, N, 4*mv, dv, hfpsi(:,:,si+1:si+N), 4*mv, &
           &                                     hpsi(:,:,1:N), 4*mv, 0.0d0,& 
-          &                                  sph(wave+1:wave+N,wave+1:wave+N),N)
+          &                                  sph(si+1:si+N,si+1:si+N),N)
           call stop_timer(T_calc_sph_me)
 
           deallocate(hpsi)
@@ -1114,22 +1111,21 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       do B=1,8
 #if(USE_MPI == 0)
           N = HFBlocks(B) ; if(N.eq.0) cycle
-          wave = spwf_map(si+1) -1 ! global index of the spwf = wave +1 
           
           call start_timer(T_subrot_diag) 
           ! Pointer remapping to make the LAPACK CALL standard compliant
-          wfs_reshape(1:4*mv,1:N) => HFPsi           
-          mom_reshape(1:4*mv,1:N) => momentum_updates
+          wfs_reshape(1:4*mv,1:N) => HFPsi(1:mv,1:4,si+1:si+N)
+          mom_reshape(1:4*mv,1:N) => momentum_updates(1:mv,1:4,si+1:si+N)
           
           allocate(work(1))
-          call DSYEV('V','L', N ,sph(wave+1:wave+N,wave+1:wave+N),&
-          &                   N,eigenvalues(wave+1:wave+N),work,-1,info)
+          call DSYEV('V','L', N ,sph(si+1:si+N,si+1:si+N),&
+          &                   N,eigenvalues(si+1:si+N),work,-1,info)
           lwork=int(work(1))
           deallocate(work)
           allocate(work(lwork))
           ! ..... and now do the actual work
-          call DSYEV('V','L', N ,sph(wave+1:wave+N,wave+1:wave+N),&
-          &                   N,eigenvalues(wave+1:wave+N),work,lwork,info)
+          call DSYEV('V','L', N ,sph(si+1:si+N,si+1:si+N),&
+          &                   N,eigenvalues(si+1:si+N),work,lwork,info)
           if(info.ne.0) then
             print *, 'INFO = ', info
             call stp('Issue with diagonalising in apply_subspace_rotation.')
@@ -1141,17 +1137,17 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
          call start_timer(T_subrot_transfo)
          temp = wfs_reshape(:,1:N) ! temporary copy
          call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,&
-         &         sph(wave+1:wave+N,wave+1:wave+N), N, 0.0d0,wfs_reshape, 4*mv)
+         &         sph(si+1:si+N,si+1:si+N), N, 0.0d0,wfs_reshape, 4*mv)
          ! ... and aply the same transformation to momentum_updates
          temp = mom_reshape(:,1:N)
          call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,&
-         &         sph(wave+1:wave+N,wave+1:wave+N), N, 0.0d0,mom_reshape, 4*mv)
+         &         sph(si+1:si+N,si+1:si+N), N, 0.0d0,mom_reshape, 4*mv)
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Populate sphamil and hftransfo for future use
-         sph(wave+1:wave+N,wave+1:wave+N) = 0.0d0
+         sph(si+1:si+N,si+1:si+N) = 0.0d0
          do m=1,N
-           sph(wave+m,wave+m)     = eigenvalues(wave+m)
-           transfo(wave+m,wave+m) = 1.0d0
+           sph(si+m,si+m)     = eigenvalues(si+m)
+           transfo(si+m,si+m) = 1.0d0
          enddo
          call stop_timer(T_subrot_transfo) 
 #else
