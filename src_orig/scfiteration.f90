@@ -48,7 +48,8 @@ contains
     integer                             :: mpi_err
 #endif
 
-    namelist /scfiteration/ preconfactor, mixingscheme,mixstepsize, memory
+    namelist /scfiteration/ preconfactor, mixingscheme,mixstepsize, memory, &
+    &                       kerker_k0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Only the very first MPI rank reads the input
@@ -69,6 +70,7 @@ contains
 #if(USE_MPI > 0)
     !call MPI_BCAST(scfscheme   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(preconfactor, 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(kerker_k0   , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(mixingscheme, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(mixstepsize , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(memory      , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)

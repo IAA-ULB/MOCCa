@@ -138,6 +138,7 @@ module functional
     !---------------------------------------------------------------------------
     ! Numerical parameter of the preconditioning of the potentials
     real(KIND=dp) :: preconfactor = 4.0_dp
+    real(KIND=dp) :: kerker_k0    = 2*pi/100 ! typical screening length ~ 100 fm
     !---------------------------------------------------------------------------
     ! Stabilisation factor for the pairing:
     !    f = E_cut^2 / E_pair^2
@@ -1437,19 +1438,20 @@ $POTENTIALPRECON
     ! Preconditioning for the Coulomb potential: we safeguard against 
     ! long wavelength modes with a low-pass filter. This is typically only
     ! necessary for calculations in very large boxes.
-    
-!    ! 1. get coulomb potentials on a typical mesh
-!    coul_out =  transfer_coulomb_mesh(F_out,.false.) 
-!    coul_in  = transfer_coulomb_mesh(F_in,.false.)
-!    ! 2. calculate the difference
-!    update = coul_out - coul_in
-!    ! 3. precondition
-!    ! TODO: adapt call to symmetries of the calculation
-!    !       experiment and document k0
-!    update = KerkerPreconditionPotential(update,2*pi/100,+1,+1,+1)
-!    ! 4. save the result
-!    update = coul_in + coul_out
-!    call set_coul(update(:,1:2), F)
+if(kerker_k0 .gt. 0.0d0) then    
+    ! 1. get coulomb potentials on a typical mesh
+    coul_out = transfer_coulomb_mesh(F_out,.false.) 
+    coul_in  = transfer_coulomb_mesh(F_in,.false.)
+    ! 2. calculate the difference
+    update = coul_out - coul_in
+    ! 3. precondition
+    ! TODO: adapt call to symmetries of the calculation
+    !       experiment and document k0
+    update = KerkerPreconditionPotential(update,kerker_k0,sx_rho,sy_rho,sz_rho)
+    ! 4. save the result
+    update = coul_in + update
+    call set_coul(update(:,1:2), F)
+endif
 
     call stop_timer(T_pot_precon)
     call stop_timer(T_potentials)
@@ -1542,16 +1544,40 @@ $POTENTIALPRECON
     
     real(KIND=dp), intent(in)            :: coul(nx*ny*nz,4)
     Type(PotentialVector), intent(inout) :: F
-    integer :: i,j,k, ox, oy, oz  
-  
-    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          F%CoulombPotential(i+ox,j+oy,k+oz) = coul(meshindex(i,j,k),2) 
+    integer                              :: i,j,k, ox, oy, oz, it
+
+    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+      &                             (.not. nucleonsize_selfconsistent)) then
+      !------------------------------------------------------------------------
+      ! Protons and neutrons are treated as point particles
+      !------------------------------------------------------------------------
+      ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            F%CoulombPotential(i+ox,j+oy,k+oz) = coul(meshindex(i,j,k),2) 
+          enddo
         enddo
       enddo
-    enddo
+    else
+      !-----------------------------------------------------------------------
+      ! Use the folded coulombpotential, for full self-consistency.
+      ! Note that both protons and neutrons feel a Coulomb force if their
+      !  charge form factor is taken into account.
+      !-----------------------------------------------------------------------
+      if(.not. allocated(F%foldedcoul)) then
+        call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
+      endif
+      do it=1,2
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              F%FoldedCoul(i,j,k,it) =coul(meshindex(i,j,k),it) 
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
   
   end subroutine set_coul
   
