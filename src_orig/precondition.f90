@@ -174,6 +174,45 @@ contains
     
  end function Preconditionpotential
 
+ function KerkerPreconditionPotential(pot,k0,sx,sy,sz) result(invpot)
+    !---------------------------------------------------------------------------
+    ! Precondition a potential with the matrix
+    !
+    !        \Delta
+    !   --------------------
+    !   ( k0**2  +  \Delta)
+    !
+    ! Calculated through
+    !   (a) applying function Preconditionpotential to obtain the multiplication
+    !       of (k0**2 + \Delta)^-1 to the potential
+    !   (b) applying \Delta to the result
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !    potential : potential to be preconditioned (all components!)
+    !    k0        : wavevector associated with the Kerker screening
+    !    sx/y/z    : integers characterizing the reflection symmetries of the
+    !                potential
+    ! Output:
+    !    invpot    : preconditioned potential (all components!)
+    !---------------------------------------------------------------------------
+    use Derivatives
+
+    real(KIND=dp), intent(in) :: k0
+    real(KIND=dp), intent(in) :: pot(nx*ny*nz,4)
+    integer, intent(in)       :: sx,sy,sz
+    integer                   :: it
+    real(KIND=dp)             :: invpot(nx*ny*nz,4), temp(nx*ny*nz,4)
+
+    ! Calculate (k0**2 + \Delta)^-1
+    temp =  PreconditionPotential(pot,1.0d0,k0**2,sx,sy,sz)
+    ! Calculate \Delta temp
+    do it=1,2
+      call Derive_lap(temp(:,it),sx,sy,sz,invpot(:,it))
+    enddo
+    invpot(:,3) = invpot(:,1) + invpot(:,2)
+    invpot(:,4) = invpot(:,1) - invpot(:,2)
+ end function KerkerPreconditionpotential
+
  function preconoperator(f,a,b,sx,sy,sz) result(Pf)
     !---------------------------------------------------------------------------
     ! Implement the preconditioning operator

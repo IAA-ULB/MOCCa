@@ -1273,15 +1273,12 @@ $TR   COM2pp = 2*COM2pp
     !---------------------------------------------------------------------------
     use Coulombmod , only : SolveCoulomb
     use Coulombmod , only : Coulomb_read_from_file
-    use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
     use pairing_strengths, only : vmicro
-    use moments
 
     type(DensityVector), intent(in)             :: R
     type(PotentialVector), intent(in), optional :: Fread
     type(PotentialVector)                       :: F
     real(KIND=dp), intent(in), optional         :: Coulomb_guess(:,:,:)    
-    integer                                     :: it,i,j,k, ox, oy, oz
 
     call start_timer(T_potentials)
 
@@ -1306,65 +1303,121 @@ $CALCPOTENTIALS
         call SolveCoulomb(R,F)
       endif
     endif
-    if(.not. present(Fread)) then    
-        !-----------------------------------------------------------------------
-        ! Add the Coulomb contribution to the potential F_I_I. The index 
-        ! juggling is ugly, but necessary, because the Coulomb potential is
-        ! defined on a larger mesh.
-        !-----------------------------------------------------------------------
-        if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
-          &                             (.not. nucleonsize_selfconsistent)) then
-          ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-          do k=1,nz
-            do j=1,ny
-              do i=1,nx
-                F%F_I_I(meshindex(i,j,k),2)=F%F_I_I(meshindex(i,j,k),2)        &
-                &                       + F%CoulombPotential(i+ox,j+oy,k+oz)   &
-                &                       + F%ExchangePotential(i,j,k)
-              enddo
-            enddo
-          enddo
-
-        else
-        !-----------------------------------------------------------------------
-        ! Use the folded coulombpotential, for full self-consistency.
-        ! Note that both protons and neutrons feel a Coulomb force if their
-        ! charge form factor is taken into account.
-        !-----------------------------------------------------------------------
-          if(.not. allocated(F%foldedcoul)) then
-            call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
-          endif 
-          do it=1, 2
-            do k=1,nz
-              do j=1,ny
-                do i=1,nx
-                  F%F_I_I(meshindex(i,j,k),it)=F%F_I_I(meshindex(i,j,k),it)    &
-                  &                              + F%FoldedCoul(i,j,k,it)      &
-                  &                              + F%FoldedExchange(i,j,k,it)
-                enddo
-              enddo
-            enddo
-          enddo
-        endif 
-        !-----------------------------------------------------------------------
-        ! Add the contribution from the constraints on the electric multipole 
-        ! moments. 
-        Constraint_I_I = constraints_sph_elmult(.false.)
-        F%F_I_I(:,1:2) = F%F_I_I(:,1:2) + Constraint_I_I(:,1:2)
-        !-----------------------------------------------------------------------
-        ! We added stuff to the proton and neutron potentials, we should be 
-        ! consistent with the isospin 0 and 1 potentials
-        F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
-        F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
-        !-----------------------------------------------------------------------
-        ! Add the contribution of a cranking constraint to the 
-        !    F_I_S and G_I_N potentials
-$NTR    F_I_S = F_I_S + crank_spin_potential()
-$NTR    G_I_N = G_I_N + crank_current_potential()
+    if(.not. present(Fread)) then
+        ! Add the coulomb potential to F_I_I
+        call add_coulomb_potential(F)
+        ! Add the contribution of the multipole constraints
+        call add_constraint_potential(F)
+        ! cranking constraints add stuff to the spin and current potentials
+        call add_cranking_potentials(F)
     endif
+
     call stop_timer(T_potentials)
 
   end function calcPotentials
+
+  subroutine add_constraint_potential(F)
+    !----------------------------------------------------------------------------
+    ! Add the contribution of constraints on the mass electric multipole moments
+    ! to a potentialvector.
+    !
+    ! Input:
+    !   F :  potentialvector with F_I_I
+    ! Output:
+    !   F : where the new F_I_I = old F_I_I + constraint contribution
+    !-----------------------------------------------------------------------------
+    use moments
+
+    type(PotentialVector), intent(inout) :: F
+
+    ! Add the contribution from the constraints on the multipole moments
+    ! This line also sets Constraint_I_I globally!
+    Constraint_I_I = constraints_sph_elmult(.false.)
+    F%F_I_I(:,1:2) = F%F_I_I(:,1:2) + Constraint_I_I(:,1:2)
+
+    ! We added stuff to the proton and neutron potentials, we should be
+    ! consistent with the isospin 0 and 1 potentials
+    F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
+    F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
+
+  end subroutine add_constraint_potential
+
+  subroutine add_coulomb_potential(F)
+    !----------------------------------------------------------------------------
+    ! Add the Coulomb contribution to the potential F_I_I.
+    ! The index juggling is ugly, but necessary, because the Coulomb potential is
+    ! defined on a larger mesh than F_I_I.
+    !
+    ! Input:
+    !   F :  potentialvector with F_I_I (= associated with the Skyrme EDF)
+    !        and calculated Coulomb potentials
+    ! Output:
+    !   F : where the new F_I_I = old F_I_I + coulomb potentials
+    !-----------------------------------------------------------------------------
+    use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
+
+    type(PotentialVector), intent(inout) :: F
+    integer                              :: i,j,k, ox, oy, oz, it
+
+    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+      &                             (.not. nucleonsize_selfconsistent)) then
+      !------------------------------------------------------------------------
+      ! Simply add stuff if protons and neutrons are treated as point particles
+      !------------------------------------------------------------------------
+      ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            F%F_I_I(meshindex(i,j,k),2)=F%F_I_I(meshindex(i,j,k),2)        &
+            &                       + F%CoulombPotential(i+ox,j+oy,k+oz)   &
+            &                       + F%ExchangePotential(i,j,k)
+          enddo
+        enddo
+      enddo
+    else
+      !-----------------------------------------------------------------------
+      ! Use the folded coulombpotential, for full self-consistency.
+      ! Note that both protons and neutrons feel a Coulomb force if their
+      !  charge form factor is taken into account.
+      !-----------------------------------------------------------------------
+      if(.not. allocated(F%foldedcoul)) then
+        call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
+      endif
+      do it=1, 2
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              F%F_I_I(meshindex(i,j,k),it)=F%F_I_I(meshindex(i,j,k),it)    &
+              &                              + F%FoldedCoul(i,j,k,it)      &
+              &                              + F%FoldedExchange(i,j,k,it)
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
+
+    ! Make sure the potentials are consistent among neutron/proton and isospin 0/1 channels.
+    F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
+    F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
+  end subroutine add_coulomb_potential
+
+  subroutine add_cranking_potentials(F)
+    !-----------------------------------------------------------------------------
+    ! Add the cranking contributions to the
+    !   F_I_S (spin potential)
+    !   G_I_N (current potential)
+    !
+    ! Input:
+    !    F : potentialvector
+    ! Output:
+    !    F : potentialvector, with modified F_I_S and G_I_N.
+    !-----------------------------------------------------------------------------
+    type(PotentialVector), intent(inout) :: F
+
+$NTR F%F_I_S = F%F_I_S + crank_spin_potential()
+$NTR F%G_I_N = F%G_I_N + crank_current_potential()
+
+  end subroutine add_cranking_potentials
   
   function precondition_potentials(F_in, F_out) result(F)
     !---------------------------------------------------------------------------
