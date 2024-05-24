@@ -733,12 +733,18 @@ subroutine full_printout(iter, converged, print_all_spwf_properties)
     else
       print 2, iter
     endif
+#if(PASTA == 0 && DEBUG_LEVEL== 0)
+    ! Pasta calculations typically involve TONS of spwfs
+    ! .... but we might be interested in their properties when debugging!
     call printspwfs(print_all_spwf_properties)
     call printqps
+#endif
     call printallmoments
+#if(PASTA == 0)
     call print_boxsize_check(Density)
     call printmomentsofinertia
     call printcranking
+#endif
     call printpairing(pairstabfactor)
     call printenergy()
   endif
