@@ -136,9 +136,16 @@ module functional
     ! NUMERICAL OPTIONS
     !===========================================================================
     !---------------------------------------------------------------------------
-    ! Numerical parameter of the preconditioning of the potentials
+    ! Numerical parameter of the preconditioning of the Skyrme potentials
     real(KIND=dp) :: preconfactor = 4.0_dp
+    ! Kerker parameter for the preconditioning of the Coulomb potential
+    ! Nuclei => don't do kerker by default
+    ! Pasta  => do Kerker by default
+#if(PASTA == 0)
     real(KIND=dp) :: kerker_k0    = 2*pi/100 ! typical screening length ~ 100 fm
+#else
+    real(KIND=dp) :: kerker_k0    = 2*pi/100 ! typical screening length ~ 100 fm
+#endif
     !---------------------------------------------------------------------------
     ! Stabilisation factor for the pairing:
     !    f = E_cut^2 / E_pair^2

@@ -95,12 +95,6 @@ module wavefunctions
  real(KIND=dp), allocatable, target ::   HFdPsi(:,:,:,:)!First order derivatives
  real(KIND=dp), allocatable, target ::  HFddPsi(:,:,:,:)!Second order derivatives
  real(KIND=dp), allocatable, target :: HFdddPsi(:,:,:,:)!Third order derivatives
- !----------------------------------------------------------------------------
- ! Often though, having an explicitly 2D array for the spwfs is useful: these
- ! pointers merge spatial and spin indices while costing us no additional memory
- ! yet allowing us to use bounds-checking by compilers. The "contiguous" label
- ! is required to make the pointer remapping work.
- real(KIND=dp), pointer, contiguous :: HFPsi_pointer(:,:)
  !------------------------------------------------------------------------------
  ! A copy of the HFPsi array, to be redistributed across MPI ranks in a
  ! 2D block-cyclic distribution with row and column blocking factors

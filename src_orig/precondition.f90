@@ -178,13 +178,13 @@ contains
     !---------------------------------------------------------------------------
     ! Precondition a potential with the matrix
     !
-    !        \Delta
+    !      - \Delta
     !   --------------------
-    !   ( k0**2  +  \Delta)
+    !   ( k0**2  -  \Delta)
     !
     ! Calculated through
     !   (a) applying function Preconditionpotential to obtain the multiplication
-    !       of (k0**2 + \Delta)^-1 to the potential
+    !       of (k0**2 - \Delta)^-1 to the potential
     !   (b) applying \Delta to the result
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
@@ -203,8 +203,8 @@ contains
     integer                   :: it
     real(KIND=dp)             :: invpot(nx*ny*nz,4), temp(nx*ny*nz,4)
 
-    ! Calculate (k0**2 + \Delta)^-1
-    temp =  PreconditionPotential(pot,1.0d0,k0**2,sx,sy,sz)
+    ! Calculate - (k0**2 - \Delta)^-1 [!note minus sign!]
+    temp = - PreconditionPotential(pot,-1.0d0,k0**2,sx,sy,sz)
     ! Calculate \Delta temp
     do it=1,2
       call Derive_lap(temp(:,it),sx,sy,sz,invpot(:,it))
