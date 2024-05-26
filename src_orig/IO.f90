@@ -268,7 +268,7 @@ contains
     integer*8, intent(in), optional     :: file_number
     character(11), intent(in), optional :: input_file 
     integer, allocatable                :: spwf_count(:)
-    integer                             :: tcount, rank
+    integer                             :: tcount, rank, B
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
@@ -326,6 +326,8 @@ contains
    &           '   number of ranks         = ', i7, / &
    &           '   max_spwf_per_rank       = ', i7 )
    15 format ( '   load balancing strategy = ', i1)
+  151 format ( '   ranks per symmetry block')
+  152 format ( '     B = ', i1, ' has ', i4, ' MPI ranks')
   160 format ( '--------------------------------------------')
    16 format ( '   RANK  |  SYM_BLOCK    P     Q   #SPWFS ')
   161 format ( 3x, i4, 2x, '|', 2x, i4, 6x, i4, 2x, i4, 3x, i4)
@@ -392,6 +394,11 @@ contains
       print 14, NPROCS, max_spwf_per_rank
       print 15, balancing_strategy
       print 17, block_factor_row, block_factor_col
+      print 160
+      print 151
+      do B=1,8
+        print 152, B, ranks_per_block(B)
+      enddo
       print 160
       print 16
       print 160

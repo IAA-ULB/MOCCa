@@ -367,6 +367,7 @@ contains
     integer              :: mpi_err, dims(2), k, j, info, xsize
     integer              :: loc_psi, Bmax(1), local_ind,N
     integer, allocatable :: map_1D(:,:), map_2d(:,:),team(:), local_count(:)
+    real(KIND=dp)        :: remaining, frac
 #endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -413,8 +414,9 @@ contains
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Assign workload quadratically
       do B=1,8
-          ranks_per_block(B) = ranks_per_block(B) & 
-          & + NINT((NPROCS-already_assigned) * BLOCKS_GLOBAL(B)**2/(1.0d0*sum(BLOCKS_GLOBAL**2)))
+          frac      = BLOCKS_GLOBAL(B)**2 / (1.0d0*sum(BLOCKS_GLOBAL**2))
+          remaining = NPROCS - already_assigned
+          ranks_per_block(B) = ranks_per_block(B) + NINT(frac * remaining)
       enddo
       ! This weighting might end up with a total number of ranks that is somewhat
       ! less than NPROCS, since we are dealing with the integer division. I solve
