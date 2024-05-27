@@ -15,7 +15,7 @@ Ini      = T(   tab+'if(.not.allocated(R%$NAME)) then     \n' + \
                            2*tab+'allocate(R%$NAME(mv$DIM,$ISOSIZE)) \n'   + \
                 tab+'endif \n'                              )
 
-Memory   = T(   tab + 'stor = stor + 2*$TRANS_SIZE ! storage for $NAME')
+Memory   = T(   tab + 'stor = stor + $ISOSIZE*$TRANS_SIZE ! storage for $NAME')
 
 
 Zero_template  = T(   tab+'R%$NAME = 0.0d0 \n')
