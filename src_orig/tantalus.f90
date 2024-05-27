@@ -496,7 +496,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             potentials = potentials_out
           end select
 
-
         elseif(iter.eq.freezeiter) then
           ! Recalculate the Coulomb potential at the last iteration for 
           ! comparison purposes with other codes.

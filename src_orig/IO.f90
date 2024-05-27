@@ -322,16 +322,6 @@ contains
     &          '  Fermi energy convergence     < ', es8.1, / &
     &          '  Angular momentum convergence < ', es8.1)
    13 format ( ' Inverse temperature Beta = ', f14.9)
-   14 format ( ' MPI information '     ,    /  &
-   &           '   number of ranks         = ', i7, / &
-   &           '   max_spwf_per_rank       = ', i7 )
-   15 format ( '   load balancing strategy = ', i1)
-  160 format ( '--------------------------------------------')
-   16 format ( '   RANK  |  SYM_BLOCK    P     Q   #SPWFS ')
-  161 format ( 3x, i4, 2x, '|', 2x, i4, 6x, i4, 2x, i4, 3x, i4)
-   17 format ( '   Matrix blocking factors ', / &
-   &           '     ROW   = ', i4,           / &
-   &           '     COLUMN= ', i4            )
 
       tcount = sum(HFBlocks)
       if(MPI_rank .eq. 0) allocate(spwf_count(NPROCS))  
@@ -388,6 +378,47 @@ contains
       endif
       print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
       &         angmom_prec
+      
+      call printevolution
+      call printscfiteration
+      call printpairing_init
+      call printmoment_init
+      call printcranking_init
+      call printfunctional  
+    endif    
+
+    if(MPI_rank .eq. 0) deallocate(spwf_count)  
+
+  end subroutine PrintInput
+
+#if(USE_MPI > 0)
+  subroutine print_loadbalancing_information()
+    !---------------------------------------------------------------------------------------
+    ! Print detailed information on the balancing of spwfs between the different MPI ranks,
+    ! BEFORE allocating any kind of memory.
+    !---------------------------------------------------------------------------------------
+
+    1 format  (30'-', ' MPI load balancing ', 30'-')
+    2 format  (' number of processes = ', i7)
+    3 format  (' number of spwfs     = ', i7, '(n)', i7, '(p)')
+
+    print 1
+    print 2, NPROCS
+    print 3, nwn, nwp
+    print 4,
+
+    14 format ( ' MPI information '     ,    /  &
+   &           '   number of ranks         = ', i7, / &
+   &           '   max_spwf_per_rank       = ', i7 )
+   15 format ( '   load balancing strategy = ', i1)
+  160 format ( '--------------------------------------------')
+   16 format ( '   RANK  |  SYM_BLOCK    P     Q   #SPWFS ')
+  161 format ( 3x, i4, 2x, '|', 2x, i4, 6x, i4, 2x, i4, 3x, i4)
+   17 format ( '   Matrix blocking factors ', / &
+   &           '     ROW   = ', i4,           / &
+   &           '     COLUMN= ', i4            )
+
+
 
       print 14, NPROCS, max_spwf_per_rank
       print 15, balancing_strategy
@@ -401,19 +432,9 @@ contains
         &          spwf_count(rank)
       enddo
       print 160
-      
-      call printevolution
-      call printscfiteration
-      call printpairing_init
-      call printmoment_init
-      call printcranking_init
-      call printfunctional  
-    endif    
 
-    if(MPI_rank .eq. 0) deallocate(spwf_count)  
-
-  end subroutine PrintInput
-  
+    end subroutine print_loadbalancing_information
+#endif
   subroutine Readwavefunction()
     !---------------------------------------------------------------------------
     ! High-level routine to determine the starting point of a calculation. 
