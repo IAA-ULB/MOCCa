@@ -267,8 +267,6 @@ contains
 
     integer*8, intent(in), optional     :: file_number
     character(11), intent(in), optional :: input_file 
-    integer, allocatable                :: spwf_count(:)
-    integer                             :: tcount, rank
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
@@ -322,15 +320,6 @@ contains
     &          '  Fermi energy convergence     < ', es8.1, / &
     &          '  Angular momentum convergence < ', es8.1)
    13 format ( ' Inverse temperature Beta = ', f14.9)
-
-      tcount = sum(HFBlocks)
-      if(MPI_rank .eq. 0) allocate(spwf_count(NPROCS))  
-#if(USE_MPI>0)
-      call MPI_gather(tcount,1,MPI_INTEGER,spwf_count,1,MPI_Integer, & 
-      &                      0,MPI_COMM_WORLD, mpi_err)
-#else
-      spwf_count = tcount
-#endif
 
     if(MPI_rank .eq. 0) then 
       ! Only one MPI rank needs to print information
@@ -387,54 +376,8 @@ contains
       call printfunctional  
     endif    
 
-    if(MPI_rank .eq. 0) deallocate(spwf_count)  
-
   end subroutine PrintInput
 
-#if(USE_MPI > 0)
-  subroutine print_loadbalancing_information()
-    !---------------------------------------------------------------------------------------
-    ! Print detailed information on the balancing of spwfs between the different MPI ranks,
-    ! BEFORE allocating any kind of memory.
-    !---------------------------------------------------------------------------------------
-
-    1 format  (30'-', ' MPI load balancing ', 30'-')
-    2 format  (' number of processes = ', i7)
-    3 format  (' number of spwfs     = ', i7, '(n)', i7, '(p)')
-
-    print 1
-    print 2, NPROCS
-    print 3, nwn, nwp
-    print 4,
-
-    14 format ( ' MPI information '     ,    /  &
-   &           '   number of ranks         = ', i7, / &
-   &           '   max_spwf_per_rank       = ', i7 )
-   15 format ( '   load balancing strategy = ', i1)
-  160 format ( '--------------------------------------------')
-   16 format ( '   RANK  |  SYM_BLOCK    P     Q   #SPWFS ')
-  161 format ( 3x, i4, 2x, '|', 2x, i4, 6x, i4, 2x, i4, 3x, i4)
-   17 format ( '   Matrix blocking factors ', / &
-   &           '     ROW   = ', i4,           / &
-   &           '     COLUMN= ', i4            )
-
-
-
-      print 14, NPROCS, max_spwf_per_rank
-      print 15, balancing_strategy
-      print 17, block_factor_row, block_factor_col
-      print 160
-      print 16
-      print 160
-      do rank=1, NPROCS
-        print 161, rank, MPI_BLOCK_ASSIGNMENTS(rank), &
-        &          MPI_2D_COORDINATES(rank,1), MPI_2D_COORDINATES(rank,2), &
-        &          spwf_count(rank)
-      enddo
-      print 160
-
-    end subroutine print_loadbalancing_information
-#endif
   subroutine Readwavefunction()
     !---------------------------------------------------------------------------
     ! High-level routine to determine the starting point of a calculation. 
@@ -765,7 +708,7 @@ contains
       endif
 
       !Number of protons and neutrons
-      read(Chan,iostat=io) fileneutrons, fileprotons
+        read(Chan,iostat=io) fileneutrons, fileprotons
       ! HFBLocks information 
       read(Chan,iostat=io) filenwn, filenwp, fileblocks_global
       filenwt = filenwn + filenwp
@@ -774,7 +717,7 @@ contains
     !---------------------------------------------------------------------------
     ! Rank 0 now has a ton of information read from file, including the 
     ! dimensions of the symmetry blocks on the file.
-#if(USE_MPI)
+#if(USE_MPI > 0)
     ! First, we broadcast this information
     call MPI_BCAST(filenx, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(fileny, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)

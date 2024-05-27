@@ -367,6 +367,7 @@ contains
     integer              :: mpi_err, dims(2), k, j, info, xsize
     integer              :: loc_psi, Bmax(1), local_ind,N
     integer, allocatable :: map_1D(:,:), map_2d(:,:),team(:), local_count(:)
+    real(KIND=dp)        :: remaining, frac
 #endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -413,8 +414,9 @@ contains
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Assign workload quadratically
       do B=1,8
-          ranks_per_block(B) = ranks_per_block(B) & 
-          & + NINT((NPROCS-already_assigned) * BLOCKS_GLOBAL(B)**2/(1.0d0*sum(BLOCKS_GLOBAL**2)))
+          frac      = BLOCKS_GLOBAL(B)**2 / (1.0d0*sum(BLOCKS_GLOBAL**2))
+          remaining = NPROCS - already_assigned
+          ranks_per_block(B) = ranks_per_block(B) + NINT(frac * remaining)
       enddo
       ! This weighting might end up with a total number of ranks that is somewhat
       ! less than NPROCS, since we are dealing with the integer division. I solve
@@ -634,8 +636,104 @@ contains
   &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
   call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_inverse, sum(blocks_global), & 
   &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
+
+  call print_loadbalancing_information()
 #endif
-  end subroutine loadbalance
+
+end subroutine loadbalance
+
+#if(USE_MPI > 0)
+  subroutine print_loadbalancing_information()
+    !---------------------------------------------------------------------------------------
+    ! Print detailed information on the balancing of spwfs between the different MPI ranks,
+    ! BEFORE allocating any kind of memory.
+    !---------------------------------------------------------------------------------------
+    use vectors, only : memory_for_densities, memory
+
+    integer              :: rank, B
+    integer              :: mpi_err, tcount, neutron_ranks, proton_ranks, si, N
+    integer, allocatable :: spwf_count(:)
+    real(KIND=dp)        :: spwf_mem_local, den_mem, pot_mem
+
+    1 format  (30('-'), ' MPI load balancing ', 30('-'))
+    2 format  (' number of processes = ', i7)
+    3 format ( '   Matrix blocking factors : ', i4, ' x ' i4)
+    4 format  ('1D Layout')
+    5 format  ('     B = ', i1, ' has ',  i4, ' MPI ranks for ', i7, ' spwfs in total.')
+
+    6 format  ('2D Layout')
+    7 format  ('     B = ', i1, ' has ',  i4, ' x ', i4, ' ranks')
+
+    9 format  (' Memory requirements')
+   10 format  ('    Densities     = ', f10.3 , ' GB')
+   11 format  ('    Potentials    = ', f10.3 , ' GB')
+   12 format  ('    Spwfs (total) = ', f10.3 , ' GB')
+   13 format  ('    Spwfs (max)   = ', f10.3 , ' GB')
+
+   14 format ( ' Detailed information')
+   15 format ( '   RANK  |  SYM_BLOCK    P     Q   #SPWFS | spwf_mem (GB)')
+   16 format ( 3x, i4, 2x, '|', 2x, i4, 6x, i4, 2x, i4, 3x, i4, 3x, '|', 3x, f10.3 )
+
+   99 format ( '--------------------------------------------------------------')
+
+    tcount = sum(HFBlocks)
+    if(MPI_rank .eq. 0) allocate(spwf_count(NPROCS))
+    call MPI_gather(tcount,1,MPI_INTEGER,spwf_count,1,MPI_Integer, &
+    &                      0,MPI_COMM_WORLD, mpi_err)
+
+    if(MPI_RANK .eq. 0) then
+      print 1
+      print 2, NPROCS
+      print 3, block_factor_row, block_factor_col
+
+      print 99
+      print 4
+      print 99
+      do B=1,8
+        if(HFBLOCKS_GLOBAL(B) .eq. 0) cycle
+        print 5, B, ranks_per_block(B), HFBlocks_global(B)
+      enddo
+
+      neutron_ranks = sum(ranks_per_block(1:4))
+      proton_ranks  = sum(ranks_per_block(5:8))
+      print 99
+      print 6
+      si = 0
+      do B=1,8
+        N = ranks_per_block(B)
+        if(N.eq.0) cycle
+        print 7, B,  MAXVAL(MPI_2D_COORDINATES(si+1:si+N,1))+1, &
+        &            MAXVAL(MPI_2D_COORDINATES(si+1:si+N,2))+1
+        si = si + N
+      enddo
+
+      print 99
+      print 9
+
+      den_mem =transform_memory(memory_for_densities()) ! one set of densities
+      ! several sets of potentials: F_in, F_out + memory * (Potential_iterates, Potential_updates)
+      pot_mem = den_mem * 2 * (1 + memory)
+      print 10, den_mem
+      print 11, pot_mem
+      print 12, transform_memory(memory_wavefunctions(sum(HFBlocks_global)))
+      print 13, transform_memory(memory_wavefunctions(maxval(spwf_count)))
+
+      print 99
+      print 14
+      print 15
+      print 99
+      do rank=1, NPROCS
+        spwf_mem_local = transform_memory(memory_wavefunctions(spwf_count(rank)))
+        print 16, rank, MPI_BLOCK_ASSIGNMENTS(rank), &
+        &          MPI_2D_COORDINATES(rank,1), MPI_2D_COORDINATES(rank,2), &
+        &          spwf_count(rank), spwf_mem_local
+      enddo
+      print 99
+      deallocate(spwf_count)
+    endif
+    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    end subroutine print_loadbalancing_information
+#endif
 
   subroutine iniwavefunctions(ininx,ininy, ininz, ininwn, ininwp)   
     !---------------------------------------------------------------------------
@@ -3632,6 +3730,31 @@ function transform_mat_diag(M, transfo) result(Mc)
 
  end function transform_mat_diag 
  
+ function memory_wavefunctions(spwf_number) result(storage)
+  !-----------------------------------------------------------------------------
+  ! Estimate the total storage requirements for a given number of spwfs.
+  !
+  ! Input:
+  !   spwf_number : number of spwfs stored
+  ! Output:
+  !   storage: total number of real numbers involved in storing the spwfs
+  !-----------------------------------------------------------------------------
+  integer, intent(in)    :: spwf_number
+  integer(kind=LargeInt) :: storage
+
+  ! storage for the HFPSI array 
+  storage = mv * 4 * spwf_number
+  ! factors two account for
+  !   (*) additional storage of momentum updates for heavy-ball machinery
+  !   (*) additional storage for the 2D copy
+  storage = 4 * storage
+
+  ! storage for the first order derivatives
+  storage = storage + 3 * mv * 4 * spwf_number
+  ! storage for the second order derivatives
+  storage = storage + 6 * mv * 4 * spwf_number
+
+ end function memory_wavefunctions
 
   subroutine clean_wavefunctions()
 

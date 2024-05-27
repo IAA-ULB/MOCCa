@@ -13,8 +13,11 @@ Den_diag = T( \
 
 Ini      = T(   tab+'if(.not.allocated(R%$NAME)) then     \n' + \
                            2*tab+'allocate(R%$NAME(mv$DIM,$ISOSIZE)) \n'   + \
-                           2*tab+'stor = stor + size(R%$NAME) \n'   + \
-                             tab+'endif \n'                              ) 
+                tab+'endif \n'                              )
+
+Memory   = T(   tab + 'stor = stor + 2*$TRANS_SIZE ! storage for $NAME')
+
+
 Zero_template  = T(   tab+'R%$NAME = 0.0d0 \n')
 Clean_template = T(   tab+'if(allocated(R%$NAME)) deallocate(R%$NAME)')
 

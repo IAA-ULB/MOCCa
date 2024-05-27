@@ -40,6 +40,7 @@ from src_heph.heph_coulomb       import ProcessCoulomb
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 vectors_densities  = ''
 vectors_potentials = ''
+memory_densities   = ''
 
 def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
                density_spwf_summation):
@@ -63,6 +64,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     
     global vectors_densities
     global vectors_potentials
+    global memory_densities
 
     if(fname=='compilation.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
@@ -90,7 +92,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, \
                                                ph_pp_decoupl,density_spwf_summation)
     if(fname=='vectors.f90'):
-        ProcessVectors(fname,src,target,so,vectors_densities,vectors_potentials)
+        ProcessVectors(fname,src,target,so,vectors_densities,vectors_potentials,memory_densities)
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='scfiteration.f90'):
@@ -141,7 +143,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='transform.f90'):
         ProcessTransform(fname, src, target, so, oldso)
     if(fname=='densities.f90'):
-        vectors_densities = ProcessDensities(fname, src, target, so, density_spwf_summation)
+        vectors_densities, memory_densities = ProcessDensities(fname, src, target, so, density_spwf_summation)
     if(fname=='cranking.f90'):
         ProcessCranking(fname, src, target, so)
     if(fname=='convergence.f90'):
@@ -215,7 +217,7 @@ def ProcessGeneric(fname, src, target, so):
             for line in template:
                 generated.write(Template(line).substitute(dic))   
 
-def ProcessVectors(fname, src, target, so, densities, potentials):
+def ProcessVectors(fname, src, target, so, densities, potentials, memory_densities):
   """
 
   """
@@ -223,6 +225,7 @@ def ProcessVectors(fname, src, target, so, densities, potentials):
   dic = {}
   dic['DECLARATION']            = densities
   dic['DECLARATION_POTENTIALS'] = potentials
+  dic['MEMORY_DENSITIES'] = memory_densities
 
   with open(src+fname, 'r') as template:
     with open(target+fname, 'w') as generated:

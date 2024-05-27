@@ -114,10 +114,6 @@ implicit none
     type(DensityVector), target :: Density_out
     type(DensityVector), target, allocatable :: DensityHistory(:)
     !---------------------------------------------------------------------------
-    ! The amount of iterations to keep in memory for the density and/or potential
-    ! mixing and estimation of the convergence rate
-    integer            :: memory = 3
-    !---------------------------------------------------------------------------
     ! As several other modules deal with the density D_I_I and its derivatives
     ! in various forms,  Hephaestos fills in here the appropriate symmetries.
     integer, parameter :: sx_rho = $SX_RHO
@@ -287,7 +283,7 @@ function densit(rho, kappa) result(R)
     type(DensityVector)       :: R
 
     integer                    :: i, it, wave, wave2, B, N, si, N2, T
-    integer                    :: wave_global, wave2_global, stor, spwfstor
+    integer                    :: wave_global, wave2_global
     real(KIND=dp)              :: weight
     real(KIND=dp), allocatable :: kappa_cut(:,:)
 
@@ -298,18 +294,11 @@ $SPWF_DECLARATION
 #endif
     call start_timer(T_densities)
 
-    stor = 0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
 $INITIALIZATION
 
-    if(MPI_RANK.eq.0) then
-      spwfstor = 4*size(HFPSI) + size(HFDPSI) + size(HFDDPSI)
-      print '("Densities require         ", i16, " real numbers = ", i16, " bytes = ", f8.3, " gigabytes")', &
-      &       stor, stor*sizeof(R%D_I_I(1,1)), stor*sizeof(R%D_I_I(1,1))/(1.0d0*1024**3)
-      print '("Spwfs on this rank require", i16, " real numbers = ", i16, " bytes = ", f8.3, " gigabytes")', &
-      &     spwfstor, spwfstor * sizeof(HFPSI(1,1,1)), spwfstor * sizeof(HFPSI(1,1,1))/(1.0d0*1024**3)
-    endif
+
     if(.not.allocated(R%divJ)) then
       allocate(R%divJ(nx*ny*nz,4))
     endif

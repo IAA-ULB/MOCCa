@@ -465,6 +465,8 @@ subroutine save_potential_history(F_in, F_out)
     !---------------------------------------------------------------------------
     integer :: i
     type(PotentialVector), intent(in) :: F_in, F_out
+
+    if(memory .eq. 0) return
   
     if(.not.allocated(Potential_updates)) allocate(Potential_updates(memory))
     if(.not.allocated(Potential_iterates)) allocate(Potential_iterates(memory))

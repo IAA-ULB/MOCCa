@@ -234,6 +234,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     MPI_REDUCE       = ''
     Add              = ''
     Multiply         = ''
+    Memory           = ''
 
     print (line)
     print (' Densities necessary for the functional                                    ')
@@ -258,7 +259,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       den = Densities_needed[i]
 
       # Summation with leftwf = rightwf
-      (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,cleani,addi,multi)  = \
+      (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi)  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],\
                            intermediate_status[i],'wave','wave',so,
                            density_spwf_summation)
@@ -274,7 +275,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         # But we also need the HFB expression 
         # So we recall the routine with different 'wave' indices
         # This summation is blockwise, hence the 'si+'
-        (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,cleani,addi,multi)  = \
+        (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],\
                                           intermediate_status[i], \
                                          'si+wave2', 'si+wave', so,            \
@@ -294,7 +295,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         Cleaning       = Cleaning       + '\n' + cleani
         Add            = Add            + '\n' + addi
         Multiply       = Multiply       + '\n' + multi
-
+        Memory         = Memory         + '\n' + memi
     print (line)
 
     # Substitute into the densities.f90 file.        
@@ -374,7 +375,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
                 generated.write(Template(line).substitute(dic))  
 
     # Return the declaration of all densities for use in vectors.f90
-    return Declaration
+    return Declaration, Memory
 
 def ParseOperators(density, timelike, findindices=False):    
     """    
@@ -539,6 +540,8 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,leftwave,rig
         Isospincoupl   :  string that handles the calculation of isospin 
                           densities
         Zeroing        :  string that sets the density to zero
+        Memory         :  string that gets the contribution to memory requirements
+                          for this density
         Cleaning       :  string deallocating the density
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       
@@ -557,6 +560,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,leftwave,rig
     Add           = ''
     Multiply      = ''
     MPI_reduce    = ''
+    Memory        = ''
     #---------------------------------------------------------------------------
     # Parse the structure from the name
     density = denin    
@@ -642,6 +646,8 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,leftwave,rig
         Cleaning       = ta.Clean_template.substitute(dic)
         Add            = ta.Add_template.substitute(dic)
         Multiply       = ta.Multiply_template.substitute(dic)
+        # memory requirement for this density
+        Memory         = ta.Memory.substitute(dic)
     spwf_dec    = ta.Dec_spwf.substitute(dic)
 
     for c in derivative_combinations:
@@ -676,6 +682,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,leftwave,rig
           # the factor two reflects isospin
           dic['TRANS_SIZE'] = '%d*mv'%(sizecount*2)
           MPI_reduce     = MPI_reduce     + '\n' + ta.mpi.substitute(dic)
+          Memory         = Memory         + '\n' + ta.Memory.substitute(dic)
           # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
         Initialisation = Initialisation + '\n' + ta.Ini.substitute(dic)
@@ -1160,7 +1167,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,leftwave,rig
     
     
     return (Expression, Declaration, spwf_dec, Initialisation, Derivation, Isospincoupl,\
-                                   MPI_reduce, Zeroing, Cleaning, Add, Multiply)
+                                   MPI_reduce, Zeroing, Memory, Cleaning, Add, Multiply)
     
 def GenVecProd(density, coupling):
     #---------------------------------------------------------------------------

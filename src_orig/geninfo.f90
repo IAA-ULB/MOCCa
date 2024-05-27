@@ -483,6 +483,17 @@ contains
     stop 
   end subroutine stp
 
+  function transform_memory(N) result (mem)
+    !--------------------------------------------------------------------
+    ! Calculate the total memory requirement to store N real numbers in
+    ! double precision in units of Gigabytes.
+    !
+    integer(kind=LargeInt), intent(in) :: N
+    real(KIND=dp)                      :: mem
+
+    mem = (N * 8.0d0)/1024/1024/1024
+  end function transform_memory
+
   pure integer function LeviCivita(i,j,k)
     !---------------------------------------------------------------------------
     ! This function is a quick & dirty implementation of the LeviCivita symbol
