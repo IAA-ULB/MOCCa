@@ -314,9 +314,10 @@ contains
     
 #if(USE_MPI > 0)
     ! Broadcasting all information
-    call MPI_Bcast(nwn     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(nwp     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(osc_freq, 3, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(nwn           , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(nwp           , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(max_drop_ranks, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(osc_freq      , 3, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(print_adv_spwf_properties, 1, MPI_LOGICAL  , 0,             &
     &                                                   MPI_COMM_WORLD, mpi_err)
 
@@ -490,27 +491,38 @@ contains
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! 2D context
       call blacs_get(0, 0, blacs_cntxt_2D)
-      ! It is important to explicitly set dims to zero here, as the 
-      ! MPI_DIMS_CREATE routine can take non-zero values as input. If not 
-      ! done explicitly, this means that the results will become compiler
-      ! and machine dependent....
+      ! We try to determine an optimal 2D layout by repeatedly querying MPI_DIMS_CREATE
+      ! until it does not return an error. For this to work, we first need to
+      ! change the MPI error handling...
       CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN,mpi_err)
 
-      ! First try to get an (almost) square grid by setting dims(1) ~ sqrt(MPI_BLOCK_NPROCS)
-      dims(1) = NINT(sqrt(1.0d0*MPI_BLOCK_NPROCS))
-      dims(2) = 0
-      call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
-      drop = 0
-      do while((MPI_ERR .ne. 0) .and. (drop+1 .lt. max_drop_ranks))
-        drop = drop + 1
-        call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS-drop,2, dims, mpi_err)
-        ! note: this will always succeed if MPI_BLOCKS_NPROCS-drop = 1,
-        ! hence no need to test if drop >= MPI_BLOCK_NPROCS
-      enddo
-      call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
+      mpi_err = 1
+      if(MPI_BLOCK_NPROCS .gt. 5) then
+        ! First try to get an (almost) square grid by setting dims(1) ~ sqrt(MPI_BLOCK_NPROCS)
+        dims(1) = NINT(sqrt(1.0d0*MPI_BLOCK_NPROCS))
+        dims(2) = 0
+        call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
+        drop = 0
+        do while((MPI_ERR .ne. 0) .and. (drop+1 .lt. max_drop_ranks))
+          drop = drop + 1
+          call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS-drop,2, dims, mpi_err)
+          ! note: this will always succeed if MPI_BLOCKS_NPROCS-drop = 1,
+          ! hence no need to test if drop >= MPI_BLOCK_NPROCS
+        enddo
+        if(mpi_err .ne. 0) then
+          ! Explicitly set dims to 0 for just the default answer of MPI_DIMS_CREATE
+          dims = 0
+          call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
+        endif
 
-      ! Reset error handling to be fatal
-      CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL,mpi_err)
+        ! Reset error handling to be fatal
+        CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL,mpi_err)
+      else
+        dims = 0
+        call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
+      endif
+      ! Size of the 2D team has been determined
+      MPI_BLOCK_NPROCS_2D = dims(1) * dims(2)
 
       allocate(map_2D(dims(1),dims(2))); map_2D = 0
       K=  sum(ranks_per_block(1:MPI_SYM_BLOCK-1))

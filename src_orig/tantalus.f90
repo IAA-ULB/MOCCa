@@ -412,11 +412,9 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! Calculate the single-particle hamiltonian ...
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         sphamil = Calc_Sphamil(potentials, .true.)
-        call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
         ! ... optionally perform a subspace rotation...
         if(subspace_rotation) then
             call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
-            call mpi_barrier(MPI_COMM_WORLD,mpi_err)
             call deriveHF() ! and update derivatives
         endif
         ! ..... and then calculate the pairing gaps

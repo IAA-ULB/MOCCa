@@ -1014,18 +1014,20 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
 #endif
 
 #if(USE_MPI > 0)
-        if(MYROW_2D .eq.-1) then
-          allocate(sph(1,1)) ; sph = 0.0d0
-          return ! this rank is not part of the 2D layout
-                 ! but sph should not left to be unallocated
-        endif
+
 #endif
 
         call start_timer(T_calc_sph)
 #if(USE_MPI > 0)
-        xs = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
-        ys = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
-        allocate(sph(xs,ys))
+        if(MYROW_2D .ne.-1) then
+          xs = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
+          ys = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
+          allocate(sph(xs,ys))
+        else
+          ! this rank stores no real information on sph, but it should not
+          ! be left unallocated
+          allocate(sph(1,1)) ; sph = 0.0d0
+        endif
 #else
         allocate(sph(nwt,nwt))
 #endif
@@ -1070,13 +1072,15 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! Calculate matrix elements using the 2D layout
           call transfer_1D_to_2D(hpsi, hpsi_2D)
-          call start_timer(T_calc_sph_me)
-          call PDGEMM ('T', 'N', N, N, 4*mv, dv,     &
-          &             hpsi_2d , 1, 1, desc_psi_2d, &
-          &             HFpsi_2d, 1, 1, desc_psi_2d, &
-          &             0.0d0,                       &
-          &             sph, 1, 1, desc_mat_2d)
-          call stop_timer(T_calc_sph_me)
+          if(MYROW_2D .ne. -1) then
+            call start_timer(T_calc_sph_me)
+            call PDGEMM ('T', 'N', N, N, 4*mv, dv,     &
+            &             hpsi_2d , 1, 1, desc_psi_2d, &
+            &             HFpsi_2d, 1, 1, desc_psi_2d, &
+            &             0.0d0,                       &
+            &             sph, 1, 1, desc_mat_2d)
+            call stop_timer(T_calc_sph_me)
+          endif
           deallocate(hpsi, hpsi_2D)
 #endif
       enddo 
@@ -1163,60 +1167,61 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
          ! cycle if the rank is not part of the 2D distribution
          ! note: we can't return early because there is additional work to be
          !       done after the loop
-         if(MYROW_2D .eq. -1) cycle
 
          call start_timer(T_subrot_diag) 
          N = MPI_BLOCK_SIZE
          wave = sum(HFBLOCKS_GLOBAL(1:B-1))
 
-         xs = NUMROC(N,block_factor_row,MYROW_2D,0,NROW_2D)
-         ys = NUMROC(N,block_factor_col,MYCOL_2D,0,NCOL_2D)
-         allocate(eigenvectors(xs,ys))
+         if(MYROW_2D.ne.-1) then
+          xs = NUMROC(N,block_factor_row,MYROW_2D,0,NROW_2D)
+          ys = NUMROC(N,block_factor_col,MYCOL_2D,0,NCOL_2D)
+          allocate(eigenvectors(xs,ys))
 
-         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         ! Inquire about work size
-         allocate(work(1))
-         CALL PDSYEV ('V','L',N,sph,1,1,desc_mat_2D, &
-         &            eigenvalues(wave+1:wave+N), &
-         &            eigenvectors, 1,1,desc_mat_2D, work,-1,info)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Inquire about work size
+          allocate(work(1))
+          CALL PDSYEV ('V','L',N,sph,1,1,desc_mat_2D, &
+          &            eigenvalues(wave+1:wave+N), &
+          &            eigenvectors, 1,1,desc_mat_2D, work,-1,info)
 
-         lwork=int(work(1))
-         deallocate(work)
-         allocate(work(lwork))
-         ! .... and now do the actual work
-         CALL PDSYEV ('V','L',N,sph,1,1,desc_mat_2D, &
-         &            eigenvalues(wave+1:wave+N), &
-         &            eigenvectors, 1,1, desc_mat_2D, work,lwork,info)
+          lwork=int(work(1))
+          deallocate(work)
+          allocate(work(lwork))
+          ! .... and now do the actual work
+          CALL PDSYEV ('V','L',N,sph,1,1,desc_mat_2D, &
+          &            eigenvalues(wave+1:wave+N), &
+          &            eigenvectors, 1,1, desc_mat_2D, work,lwork,info)
 
-         ! Dirty trick: the eigenvalues will get all_reduced below, so where we
-         !              divide by the number of processes in this symmetry block
-         !              such that we don't have to code complicated stuff
-         eigenvalues(wave+1:wave+N)=eigenvalues(wave+1:wave+N)/MPI_BLOCK_NPROCS
-
-         call stop_timer(T_subrot_diag) 
+          ! Dirty trick: the eigenvalues will get all_reduced below, so where we
+          !              divide by the number of processes in this symmetry block
+          !              such that we don't have to code complicated stuff
+          eigenvalues(wave+1:wave+N)=eigenvalues(wave+1:wave+N)/MPI_BLOCK_NPROCS_2D
+         endif
+         call stop_timer(T_subrot_diag)
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Now we construct the lowest eigenvectors
          call start_timer(T_subrot_transfo)
-
-         temp = HFPSI_2D
-         call PDGEMM ('N', 'N',4*mv, N, N, 1.0d0,       &
-         &             temp        , 1, 1, desc_psi_2d, &
-         &             eigenvectors, 1, 1, desc_mat_2d, &
-         &             0.0d0,                           &
-         &             HFPSI_2D, 1, 1, desc_psi_2d)
-
+         if(MYROW_2D.ne.-1) then
+          temp = HFPSI_2D
+          call PDGEMM ('N', 'N',4*mv, N, N, 1.0d0,       &
+          &             temp        , 1, 1, desc_psi_2d, &
+          &             eigenvectors, 1, 1, desc_mat_2d, &
+          &             0.0d0,                           &
+          &             HFPSI_2D, 1, 1, desc_psi_2d)
+         endif
          ! ... and apply the same transformation to the momentum_updates
-         ! Unfortunately, this requires MPI communication: taking the 
+         ! Unfortunately, this requires MPI communication: taking the
          ! momentum_updates array into a 2D layout and back.
          call transfer_1D_to_2D(momentum_updates, mom_2D)
-         temp = mom_2D
-         call PDGEMM ('N', 'N',4*mv, N, N, 1.0d0,       &
-         &             temp        , 1, 1, desc_psi_2d, &
-         &             eigenvectors, 1, 1, desc_mat_2d, &
-         &             0.0d0,                           &
-         &             mom_2D , 1, 1, desc_psi_2d)
+         if(MYROW_2D.ne.-1) then
+          temp = mom_2D
+          call PDGEMM ('N', 'N',4*mv, N, N, 1.0d0,       &
+          &             temp        , 1, 1, desc_psi_2d, &
+          &             eigenvectors, 1, 1, desc_mat_2d, &
+          &             0.0d0,                           &
+          &             mom_2D , 1, 1, desc_psi_2d)
+         endif
          call transfer_2D_to_1D(mom_2D,momentum_updates)
-
          deallocate(mom_2D)
          call stop_timer(T_subrot_transfo)
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

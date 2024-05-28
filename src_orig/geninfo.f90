@@ -154,7 +154,8 @@ module GenInfo
   integer              :: MPI_SYM_BLOCK    ! assigned symmetry block
   integer              :: MPI_BLOCK_SIZE   ! number of spwfs for this block
   integer              :: MPI_BLOCK_RANK   ! rank inside the local team
-  integer              :: MPI_BLOCK_NPROCS ! size of the local team
+  integer              :: MPI_BLOCK_NPROCS    ! size of the local team in 1D
+  integer              :: MPI_BLOCK_NPROCS_2D ! size of the local team in 2D
   integer, allocatable :: MPI_BLOCK_ASSIGNMENTS(:)
   integer, allocatable :: MPI_2D_COORDINATES(:,:)
   !-----------------------------------------------------------------------------
