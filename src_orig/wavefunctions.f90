@@ -300,7 +300,8 @@ contains
     integer                             :: mpi_err
 #endif
 
-    namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties, max_spwf_per_rank
+    namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties, &
+    &              max_spwf_per_rank, max_drop_ranks
 
     ! Only the first MPI rank reads input
     if(MPI_rank .eq. 0) then
@@ -360,7 +361,7 @@ contains
     integer, intent(out) :: blocks_local(blocks)
     integer, intent(out), allocatable :: spwf_map(:),rank_map(:),spwf_inverse(:)
 
-    integer              :: B, activeblocks, blocks_per_rank
+    integer              :: B, activeblocks, blocks_per_rank, drop
     integer              :: block_count, i, offset, Nspwf, already_assigned
 #if(USE_MPI>0)
     integer, external    :: numroc
@@ -493,9 +494,25 @@ contains
       ! MPI_DIMS_CREATE routine can take non-zero values as input. If not 
       ! done explicitly, this means that the results will become compiler
       ! and machine dependent....
-      dims = 0
+      CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN,mpi_err)
+
+      ! First try to get an (almost) square grid by setting dims(1) ~ sqrt(MPI_BLOCK_NPROCS)
+      dims(1) = NINT(sqrt(1.0d0*MPI_BLOCK_NPROCS))
+      dims(2) = 0
       call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
-      allocate(map_2D(dims(1),dims(2)))
+      drop = 0
+      do while((MPI_ERR .ne. 0) .and. (drop+1 .lt. max_drop_ranks))
+        drop = drop + 1
+        call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS-drop,2, dims, mpi_err)
+        ! note: this will always succeed if MPI_BLOCKS_NPROCS-drop = 1,
+        ! hence no need to test if drop >= MPI_BLOCK_NPROCS
+      enddo
+      call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
+
+      ! Reset error handling to be fatal
+      CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL,mpi_err)
+
+      allocate(map_2D(dims(1),dims(2))); map_2D = 0
       K=  sum(ranks_per_block(1:MPI_SYM_BLOCK-1))
       do i=1,dims(1)
        do j=1,dims(2)
@@ -527,11 +544,16 @@ contains
       xsize = NUMROC(4*mv, block_factor_row, MYROW_2D,0, NROW_2D)
       if(xsize .le. 0) xsize = 1 ! things will get allocated, but this process 
                                  ! should not be participating in calculations
-      CALL DESCINIT(desc_psi_2D,4*mv,MPI_BLOCK_SIZE,    &
-      &             block_factor_row, block_factor_col, &
-      &             0,0,blacs_cntxt_2d, xsize ,info)
-      if(info.ne.0) then 
-        call stp('Problem with DESCINIT call for psi_2D.')
+      if(MYROW_2D .ne. -1) then
+        CALL DESCINIT(desc_psi_2D,4*mv,MPI_BLOCK_SIZE,    &
+        &             block_factor_row, block_factor_col, &
+        &             0,0,blacs_cntxt_2d, xsize ,info)
+        if(info.ne.0) then
+          call stp('Problem with DESCINIT call for psi_2D.')
+        endif
+      else
+        ! Indicate that this particular process is not part of this context
+        desc_psi_2d = -1
       endif
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! ... and similar for the descriptor of matrices in spwf x spwf space
@@ -539,13 +561,19 @@ contains
       xsize = NUMROC(MPI_BLOCK_SIZE, block_factor_row, MYROW_2D,0, NROW_2D)
       if(xsize .le. 0) xsize = 1 ! things will get allocated, but this process 
                                  ! should not be participating in calculations
-      CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,    &
-      &             block_factor_row, block_factor_col, &
-      &             0,0,blacs_cntxt_2d, xsize ,info)
-      if(info.ne.0) then
-        call stp('Problem with DESCINIT call for mat_2D.')
+
+      if(MYROW_2D .ne. -1) then
+        CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,    &
+        &             block_factor_row, block_factor_col, &
+        &             0,0,blacs_cntxt_2d, xsize ,info)
+        if(info.ne.0) then
+          call stp('Problem with DESCINIT call for mat_2D.')
+        endif
+      else
+        ! Indicate that this particular process is not part of this context
+        desc_mat_2d = -1
       endif
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Constructing the bookkeeping on each process
       ! For this, each process needs to know the amount of spwfs each of his
       ! partners is storing, hence the MPI_ALLREDUCE
@@ -638,7 +666,6 @@ contains
   &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
 
   call print_loadbalancing_information()
-  call stp('')
 #endif
 
 end subroutine loadbalance
@@ -651,7 +678,7 @@ end subroutine loadbalance
     !---------------------------------------------------------------------------------------
     use vectors, only : memory_for_densities, memory
 
-    integer              :: rank, B
+    integer              :: rank, B, row, col
     integer              :: mpi_err, tcount, neutron_ranks, proton_ranks, si, N
     integer, allocatable :: spwf_count(:)
     real(KIND=dp)        :: spwf_mem_local, den_mem, pot_mem
@@ -663,7 +690,7 @@ end subroutine loadbalance
     5 format  ('     B = ', i1, ' has ',  i4, ' MPI ranks for ', i7, ' spwfs in total.')
 
     6 format  ('2D Layout')
-    7 format  ('     B = ', i1, ' has ',  i4, ' x ', i4, ' ranks')
+    7 format  ('     B = ', i1, ' has ',  i4, ' x ', i4, ' = ', i4' ranks (dropped = ', i4,')')
 
     9 format  (' Memory requirements')
    10 format  ('    Densities     = ', f10.3 , ' GB')
@@ -703,8 +730,9 @@ end subroutine loadbalance
       do B=1,8
         N = ranks_per_block(B)
         if(N.eq.0) cycle
-        print 7, B,  MAXVAL(MPI_2D_COORDINATES(si+1:si+N,1))+1, &
-        &            MAXVAL(MPI_2D_COORDINATES(si+1:si+N,2))+1
+        row = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,1))+1
+        col = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,2))+1
+        print 7, B, row, col, row*col, ranks_per_block(B) - row*col
         si = si + N
       enddo
 
@@ -1470,6 +1498,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     integer, external          :: NUMROC
 #endif
 
+#if(USE_MPI > 0)
+    if(MYROW_2D .eq.-1) return ! this particular rank is not part of the 2D layout
+#endif
+
     call start_timer(T_ortho)
  
     si = 0
@@ -1562,10 +1594,16 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
     call start_timer(T_transfer_psi)
 
-    if(.not.allocated(A_2D)) then
+    if(.not.allocated(A_2D) ) then
       ! Asking for the appropriate size of the A_2D matrix on this process
-      xs = NUMROC(          4*mv,block_factor_row,MYROW_2D,0,NROW_2D)
-      ys = NUMROC(MPI_BLOCK_SIZE,block_factor_col,MYCOL_2D,0,NCOL_2D)
+      ! (if MY_ROW2D = -1,then the node is not part of the 2D grid)
+      if(MYROW_2D .ne. -1) then
+        xs = NUMROC(          4*mv,block_factor_row,MYROW_2D,0,NROW_2D)
+        ys = NUMROC(MPI_BLOCK_SIZE,block_factor_col,MYCOL_2D,0,NCOL_2D)
+      else
+        xs = 1
+        ys = 1
+      endif
       allocate(A_2D(xs,ys))
     endif
 
@@ -1574,6 +1612,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
      &                                A_2D  ,1,1, desc_psi_2D, blacs_cntxt_1D)
 
     call stop_timer(T_transfer_psi)
+
   end subroutine transfer_1D_to_2D
   
   subroutine transfer_2D_to_1D(A_2D, A_1D)
@@ -1599,7 +1638,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! Pointer remapping 
     A_1Dc(1:4*mv, 1:nwt_local) => A_1D
     call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_2D ,1,1, desc_psi_2D,                  &
-    &                                 A_1Dc,1,1, desc_psi_1D, blacs_cntxt_2D)
+    &                                 A_1Dc,1,1, desc_psi_1D, blacs_cntxt_1D)
 
     call stop_timer(T_transfer_psi)
   end subroutine transfer_2D_to_1D

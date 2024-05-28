@@ -535,7 +535,7 @@ contains
     ! orthonormalize ...
     call transfer_1D_to_2D(HFPsi, HFPsi_2D)
 #endif
-    call  orthonormalize
+    call orthonormalize
 #if(USE_MPI > 0)
     ! ... and make sure the results get back to the original layout
     call transfer_2D_to_1D(HFPsi_2D, HFPsi)

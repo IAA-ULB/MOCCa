@@ -1013,6 +1013,14 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
         real(KIND=dp), allocatable :: hpsi_2d(:,:)
 #endif
 
+#if(USE_MPI > 0)
+        if(MYROW_2D .eq.-1) then
+          allocate(sph(1,1)) ; sph = 0.0d0
+          return ! this rank is not part of the 2D layout
+                 ! but sph should not left to be unallocated
+        endif
+#endif
+
         call start_timer(T_calc_sph)
 #if(USE_MPI > 0)
         xs = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
@@ -1102,7 +1110,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
       integer, external            :: NUMROC
       real(KIND=dp), allocatable   :: eigenvectors(:,:), mom_2D(:,:)
 #endif
-    
+
       call start_timer(T_subspace_rotation)
   
       transfo = 0.0d0 ;  eigenvalues=0.0d0
@@ -1152,6 +1160,10 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
          call stop_timer(T_subrot_transfo) 
 #else
          if(B .ne. MPI_SYM_BLOCK) cycle
+         ! cycle if the rank is not part of the 2D distribution
+         ! note: we can't return early because there is additional work to be
+         !       done after the loop
+         if(MYROW_2D .eq. -1) cycle
 
          call start_timer(T_subrot_diag) 
          N = MPI_BLOCK_SIZE

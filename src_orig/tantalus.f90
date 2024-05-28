@@ -299,7 +299,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     integer, intent(out)           :: iter
     character(len=99), intent(out) :: iomsg
 
-    integer :: iprint, scheme, ifail
+    integer :: iprint, scheme, ifail, mpi_err
     logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
     logical :: potentials_frozen=.true.
     ! Logical to see if any moments with feasible set projection are necessary
@@ -412,9 +412,11 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! Calculate the single-particle hamiltonian ...
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         sphamil = Calc_Sphamil(potentials, .true.)
+        call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
         ! ... optionally perform a subspace rotation...
         if(subspace_rotation) then
             call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+            call mpi_barrier(MPI_COMM_WORLD,mpi_err)
             call deriveHF() ! and update derivatives
         endif
         ! ..... and then calculate the pairing gaps
