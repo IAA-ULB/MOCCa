@@ -570,9 +570,10 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             ! Output densities and potentials to specific files at every checkpoint
             write(denfile_iter, '("iter=",i5.5,".den")') iter
             write(potfile_iter, '("iter=",i5.5,".pot")') iter
-
-            call write_densities(Density, denfile_iter)
-            call write_potentialfile(potentials, potfile_iter)
+            if(MPI_RANK.eq.0) then
+              call write_densities(Density, denfile_iter)
+              call write_potentialfile(potentials, potfile_iter)
+            endif
 #endif
             if(MPI_RANK.eq.0) print 9, iter, outputfilename
             iomsg='CHECKPOINT'

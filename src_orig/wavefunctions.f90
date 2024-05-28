@@ -638,6 +638,7 @@ contains
   &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
 
   call print_loadbalancing_information()
+  call stp('')
 #endif
 
 end subroutine loadbalance
