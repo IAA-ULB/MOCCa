@@ -1196,6 +1196,8 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           !              divide by the number of processes in this symmetry block
           !              such that we don't have to code complicated stuff
           eigenvalues(wave+1:wave+N)=eigenvalues(wave+1:wave+N)/MPI_BLOCK_NPROCS_2D
+
+          deallocate(work)
          endif
          call stop_timer(T_subrot_diag)
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1208,6 +1210,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           &             eigenvectors, 1, 1, desc_mat_2d, &
           &             0.0d0,                           &
           &             HFPSI_2D, 1, 1, desc_psi_2d)
+          deallocate(temp)
          endif
          ! ... and apply the same transformation to the momentum_updates
          ! Unfortunately, this requires MPI communication: taking the
@@ -1220,6 +1223,7 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           &             eigenvectors, 1, 1, desc_mat_2d, &
           &             0.0d0,                           &
           &             mom_2D , 1, 1, desc_psi_2d)
+          deallocate(temp)
          endif
          call transfer_2D_to_1D(mom_2D,momentum_updates)
          deallocate(mom_2D)

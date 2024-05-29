@@ -1215,7 +1215,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     ! 1. Setting up things
     !
     ! Do the integration of the matter density over x and y
-    allocate(linear_den(nz), den(nx,ny,nz))
+    allocate(linear_den(nz))
     ! isoscalar density pointer remapping
     den(1:nx,1:ny,1:nz) => R%D_I_I(1:nx*ny*nz,3) 
     ! Integrate for each point along z
