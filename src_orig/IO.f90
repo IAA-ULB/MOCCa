@@ -1735,20 +1735,20 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     write(iochannel, fmt=5)  func_name
     write(iochannel, fmt=6)  FermiEnergy
   
-    Q20 =>FindMoment(2,0,.false.     )
-    Q22 =>FindMoment(2,2,.false., Q20)    
-    write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
-    write(iochannel, fmt=8)    Q20%beta(4), Q22%beta(4)
-    write(iochannel, fmt=9)    Q(3), G(3)
+    !Q20 =>FindMoment(2,0,.false.     )
+    !Q22 =>FindMoment(2,2,.false., Q20)
+    !write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
+    !write(iochannel, fmt=8)    Q20%beta(4), Q22%beta(4)
+    !write(iochannel, fmt=9)    Q(3), G(3)
     
-    write(iochannel, fmt=10)  blocktype, blocknumber
-    if(blocknumber .gt. 0) then
-      write(iochannel, fmt=11) Blockindices
-      write(iochannel, fmt=12) Blocklowest
-    else
-      write(iochannel, fmt=11) 
-      write(iochannel, fmt=12)
-    endif
+   ! write(iochannel, fmt=10)  blocktype, blocknumber
+   ! if(blocknumber .gt. 0) then
+   !   write(iochannel, fmt=11) Blockindices
+   !   write(iochannel, fmt=12) Blocklowest
+   ! else
+   !   write(iochannel, fmt=11)
+   !   write(iochannel, fmt=12)
+   ! endif
 
     write(iochannel, fmt='(a1)') '#'
 
@@ -1911,7 +1911,7 @@ $TAUTENSOR &         R%D_N_N(mi,1,1,2) + R%D_N_N(mi,2,2,2) + R%D_N_N(mi,3,3,2)
     ! contribution of the direct and exchange Coulomb potentials
     allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
     
-    temp = F%F_I_I(:,1:2) - constraint_I_I
+    !temp = F%F_I_I(:,1:2) - constraint_I_I
 
     Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
     Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
