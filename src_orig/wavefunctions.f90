@@ -693,7 +693,7 @@ end subroutine loadbalance
     integer              :: rank, B, row, col
     integer              :: mpi_err, tcount, neutron_ranks, proton_ranks, si, N
     integer, allocatable :: spwf_count(:)
-    real(KIND=dp)        :: spwf_mem_local, den_mem, pot_mem
+    real(KIND=dp)        :: spwf_mem_local, den_mem, pot_mem, spwf_mem_2D
 
     1 format  (30('-'), ' MPI load balancing ', 30('-'))
     2 format  (' number of processes = ', i7)
@@ -711,8 +711,8 @@ end subroutine loadbalance
    13 format  ('    Spwfs (max)   = ', f10.3 , ' GB')
 
    14 format ( ' Detailed information')
-   15 format ( '   RANK  |  SYM_BLOCK    P     Q   #SPWFS | spwf_mem (GB)')
-   16 format ( 3x, i4, 2x, '|', 2x, i4, 6x, i4, 2x, i4, 3x, i4, 3x, '|', 3x, f10.3 )
+   15 format ( '   RANK  |  SYM_BLOCK    P     Q   #SPWFS | spwf_mem (GB) spwf_mem 2D (GB)')
+   16 format ( 3x, i4, 2x, '|', 2x, i4, 6x, i4, 2x, i4, 3x, i4, 3x, '|', 3x, f10.3, 3x, f10.3 )
 
    99 format ( '--------------------------------------------------------------')
 
@@ -764,10 +764,17 @@ end subroutine loadbalance
       print 15
       print 99
       do rank=1, NPROCS
+        B = MPI_BLOCK_ASSIGNMENTS(rank)
+        si = sum(ranks_per_block(1:B-1))
+        N = ranks_per_block(B)
+        print *, B, N, si
+        row = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,1))+1
+        col = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,2))+1
         spwf_mem_local = transform_memory(memory_wavefunctions(spwf_count(rank)))
-        print 16, rank, MPI_BLOCK_ASSIGNMENTS(rank), &
+        spwf_mem_2D    = transform_memory(memory_wavefunctions_2D(HFBLOCKS_GLOBAL(B), MPI_2D_COORDINATES(rank,1), row, MPI_2D_COORDINATES(rank,2), col))
+        print 16, rank,B , &
         &          MPI_2D_COORDINATES(rank,1), MPI_2D_COORDINATES(rank,2), &
-        &          spwf_count(rank), spwf_mem_local
+        &          spwf_count(rank), spwf_mem_local, spwf_mem_2D
       enddo
       print 99
       deallocate(spwf_count)
@@ -3798,8 +3805,11 @@ function transform_mat_diag(M, transfo) result(Mc)
   storage = mv * 4 * spwf_number
   ! factors two account for
   !   (*) additional storage of momentum updates for heavy-ball machinery
-  !   (*) additional storage for the 2D copy
+  !   (*) additional storage for h | psi > in evolution
   storage = 4 * storage
+  
+  ! 2 bonus wavefunctions in estimation of iterative parameters
+  storage = 4*mv*2 + 3*mv*4*2 + 6*mv*2 
 
   ! storage for the first order derivatives
   storage = storage + 3 * mv * 4 * spwf_number
@@ -3807,6 +3817,20 @@ function transform_mat_diag(M, transfo) result(Mc)
   storage = storage + 6 * mv * 4 * spwf_number
 
  end function memory_wavefunctions
+ 
+ function memory_wavefunctions_2D(spwf_number, row, nrow, col, ncol) result(mem)
+   ! TODO: document  
+   integer,intent(in) :: row, nrow, col, ncol, spwf_number
+   integer(kind=LargeInt) :: xs,ys, mem
+   integer, external :: numroc
+ 
+   
+   xs = NUMROC(          4*mv,block_factor_row,row,0,nrow)
+   ys = NUMROC(spwf_number,block_factor_col,col,0,ncol)
+  
+   mem = 3*xs*ys ! factor 3 for mom_2D and hpsi_2D
+   print *, spwf_number, row,nrow, col, ncol, mem
+ end function memory_wavefunctions_2D
 
   subroutine clean_wavefunctions()
 

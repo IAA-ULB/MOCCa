@@ -580,21 +580,6 @@ contains
     r = adjustl(string)
   end function rps 
 
-  subroutine optimize_load_balance(Ctot, Cn, Cp, spwf_mem, Nn, Np)
-    integer, intent(in)       :: Ctot, Nn, Np
-    integer, intent(out)      :: Cn, Cp
-    real(KIND=dp), intent(in) :: spwf_mem
-
-
-  end subroutine optimize_load_balance
-
-  function work_ratio(Cn,Cp,Nn,Np)
-    real(KIND=dp)       :: work_ratio
-    integer, intent(in) :: Cn, Cp, Nn, Np
-
-    work_ratio = abs(Cn/(1.0d0*Cp) - Nn**2/(1.0d0*Np**2))
-  end function work_ratio
-
   subroutine clean_geninfo()
     !---------------------------------------------------------------------------
     ! Deallocate all allocated arrays, to exit in a clean fashion.

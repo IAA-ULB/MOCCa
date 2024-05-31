@@ -2213,31 +2213,34 @@ $TAUTENSOR      F%F_N_N(i,1,1,:) = F%F_N_N(i,1,1,:)/3
       enddo
     enddo
     
+    !----------------------------------------------------------------------------
+    ! F_I_I no longer contains the coulomb potentials; change of definition
+    !----------------------------------------------------------------------------
     if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
     &                             (.not. nucleonsize_selfconsistent)) then
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! No finite size effects; correction is simple
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      F%F_I_I(:,2) = F%F_I_I(:,2) + Vc(:) + Ec(:)
+    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !  ! No finite size effects; correction is simple
+    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+    !  F%F_I_I(:,2) = F%F_I_I(:,2) + Vc(:) + Ec(:)
     else
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Finite size effects taken into account
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Calculate folded potentials from the read-in potentials
+    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !  ! Finite size effects taken into account
+    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !  ! Calculate folded potentials from the read-in potentials
       call obtain_folded_potentials(F)
-      ! ... and correct F_I_I for them with ugly index juggling
-      do it=1, 2
-        do k=1,nz
-          do j=1,ny
-            do i=1,nx
-
-              F%F_I_I(meshindex(i,j,k),it)= F%F_I_I(meshindex(i,j,k),it)       &
-              &                           + F%FoldedCoul(i,j,k,it)             &
-              &                           + F%FoldedExchange(i,j,k,it)
-            enddo
-          enddo
-        enddo
-      enddo
+    !  ! ... and correct F_I_I for them with ugly index juggling
+    !  do it=1, 2
+    !    do k=1,nz
+    !      do j=1,ny
+    !        do i=1,nx
+    !
+    !          F%F_I_I(meshindex(i,j,k),it)= F%F_I_I(meshindex(i,j,k),it)       &
+    !          &                           + F%FoldedCoul(i,j,k,it)             &
+    !          &                           + F%FoldedExchange(i,j,k,it)
+    !        enddo
+    !      enddo
+    !    enddo
+    !  enddo
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
