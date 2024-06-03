@@ -1140,7 +1140,7 @@ contains
       write(chan,iostat=io) spenergies, dispersions
       ! information on the HF transformation
       write(chan, iostat=io) diagsphamil
-      write(chan, iostat=io) HFtransfo
+      write(chan, iostat=io) !HFtransfo
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Parallel part of the writing
@@ -1185,7 +1185,7 @@ contains
       ! Name of the force.
       write(chan, iostat=io) name_param, func_name
       ! Single-particle hamiltonian
-      write(chan, iostat=io) sphamil
+      write(chan, iostat=io) !sphamil
       !-------------------------------------------------------------------------
       ! Pairing information 
       write(chan, iostat=io) PairingType
@@ -1199,7 +1199,7 @@ contains
       case(1)
           ! BCS
           write(chan, iostat=io) FermiEnergy
-          write(chan, iostat=io) BCSGaps 
+          write(chan, iostat=io) !BCSGaps 
       case(2)
           ! HFB
           write(chan, iostat=io) blocktype, blocknumber
@@ -1227,10 +1227,10 @@ contains
           write(chan, iostat=io) configmatrix      ! Configuration matrix
       end select
       ! Cranking information: frequencies in all Cartesian directions 
-      write(chan, iostat=io) Omega(1:3)
+      !write(chan, iostat=io) Omega(1:3)
       !-------------------------------------------------------------------------
       ! Potentials on file
-      call writepotentials(chan,potentials)
+      !call writepotentials(chan,potentials)
       !-------------------------------------------------------------------------
       ! Multipole moment information                             
       !
@@ -1247,13 +1247,13 @@ contains
       ! Note the double dollar-sign, to make sure Hephaestos does not replace these
       ! compiler directives. 
       ! 
-      mom => root
-      do while(associated(mom%next))
-        mom => mom%next
-        !DIR$$ NOINLINE
-        call Writemoment(mom,chan)
-        !DIR$$ INLINE
-      enddo
+      !mom => root
+      !do while(associated(mom%next))
+      !  mom => mom%next
+      !  !DIR$$ NOINLINE
+      !  call Writemoment(mom,chan)
+      !  !DIR$$ INLINE
+      !enddo
     endif
     close(chan)
 

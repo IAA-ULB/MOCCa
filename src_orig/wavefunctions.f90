@@ -767,7 +767,6 @@ end subroutine loadbalance
         B = MPI_BLOCK_ASSIGNMENTS(rank)
         si = sum(ranks_per_block(1:B-1))
         N = ranks_per_block(B)
-        print *, B, N, si
         row = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,1))+1
         col = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,2))+1
         spwf_mem_local = transform_memory(memory_wavefunctions(spwf_count(rank)))
@@ -3824,12 +3823,10 @@ function transform_mat_diag(M, transfo) result(Mc)
    integer(kind=LargeInt) :: xs,ys, mem
    integer, external :: numroc
  
-   
    xs = NUMROC(          4*mv,block_factor_row,row,0,nrow)
    ys = NUMROC(spwf_number,block_factor_col,col,0,ncol)
   
    mem = 3*xs*ys ! factor 3 for mom_2D and hpsi_2D
-   print *, spwf_number, row,nrow, col, ncol, mem
  end function memory_wavefunctions_2D
 
   subroutine clean_wavefunctions()
