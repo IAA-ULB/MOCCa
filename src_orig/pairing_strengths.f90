@@ -317,7 +317,8 @@ contains
   real(KIND=dp), intent(in)  :: deltans(:), deltann(:), deltanp(:), eta(:)
   integer, intent(in)        :: iso 
   real(KIND=dp), allocatable :: Delta(:)
- 
+
+  allocate(Delta(mv))   ! needed to be valgrind-clean
   Delta = Deltans * (1-abs(eta))
   select case(iso)
   case(1)
@@ -354,6 +355,7 @@ contains
   integer, intent(in)        :: iso 
   real(KIND=dp), allocatable :: Delta(:)
  
+  allocate(Delta(mv))   ! needed to be valgrind-clean
   Delta = Deltans * (1-abs(eta))
   select case(iso)
   case(1)
