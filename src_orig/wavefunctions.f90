@@ -1517,7 +1517,11 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 #endif
 
 #if(USE_MPI > 0)
-    if(MYROW_2D .eq.-1) return ! this particular rank is not part of the 2D layout
+    if(MYROW_2D .eq.-1) then  ! this particular rank is not part of the 2D layout
+        allocate(overlaps(1,1)); deallocate(overlaps) 
+        ! allocate/deallocate to ensure the cray compiler does not complain 
+        return
+    endif
 #endif
 
     call start_timer(T_ortho)
@@ -1697,6 +1701,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
       if(.not. allocated(P_HF))  allocate(P_HF(nwt))
 #if(PASTA == 1)
+      allocate(full_P(1,1)); deallocate(full_P)
       ! This is a waste of CPU time for pasta calculations. 
       ! This return is ugly and will require more elegant inclusion later on.
       return
@@ -1763,6 +1768,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 #if(PASTA == 1)
     ! This is a waste of CPU time for pasta calculations. 
     ! This return is ugly and will require more elegant inclusion later on.
+    allocate(temp(1,1)); deallocate(temp)
     return
 #endif
 
