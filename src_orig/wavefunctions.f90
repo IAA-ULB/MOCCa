@@ -3215,7 +3215,6 @@ function transform_mat_diag(M, transfo) result(Mc)
   enddo  
 
  end function transform_mat_diag 
- 
 
   subroutine clean_wavefunctions()
 
