@@ -494,7 +494,7 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     !Creating all the moments and assigning each moment the spherical harmonic
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! a) The mass/electric moments
-    nullify(Current)      ;  allocate(Current)     ; Current=>Root
+    nullify(Current)      ;  Current=>Root
     nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
  
     do l=1,MaxMoment
@@ -558,16 +558,12 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     ! We don't initialize the mesh-representation of the neck operator, 
     ! because its definition is involved
 
-    
     Current%Next    => NextMoment
     NextMoment%Prev => Current
-
-
     ! End of the chain
-    nullify(Current)
+    nullify(Current,NextMoment)
     !---------------------------------------------------------------------------
     ! b) The magnetic moments
-$NTR    allocate(Current)
 $NTR    Current=>Root_mag
 $NTR    nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
 $NTR    do l=1,MaxMoment_mag
