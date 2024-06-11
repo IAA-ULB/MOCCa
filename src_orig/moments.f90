@@ -239,9 +239,16 @@ module moments
 
   !-----------------------------------------------------------------------------
   ! Maximum degree of the multipole moments that are considered in the 
-  ! Tantalus calculation. Default = 10
+  ! Tantalus calculation. Default = 10 for nuclei, less for pasta
+#IF( PASTA == 1)
+  ! We do very little in the pasta case; it does not really interest us greatly
+  ! and storing the spherical harmonics does cost memory.
+  integer      :: MaxMoment=2, maxmoment_mag=0, maxmoment_divJ=0
+#ELSE
+  ! We calculate and store a ton of things in the nuclear case
   integer      :: MaxMoment=10, maxmoment_mag=3, maxmoment_divJ=4
-  ! Maximum degree of the multipole moments that was checked by Hephaestos 
+#ENDIF
+  ! Maximum degree of the multipole moments that was checked by Hephaestos
   ! for its symmetries. Hence MaxMoment <= list_size.
   integer, parameter     :: list_size = $MAX_ELL
   !-----------------------------------------------------------------------------
@@ -517,6 +524,7 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     !---------------------------------------------------------------------------
     ! Appending special "multipole moments" to the linked list
     ! 1. we append the radius squared to the ordinary list. (ell = -2)
+#if(PASTA == 0)
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_electric 
@@ -562,6 +570,7 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     NextMoment%Prev => Current
     ! End of the chain
     nullify(Current,NextMoment)
+#endif
     !---------------------------------------------------------------------------
     ! b) The magnetic moments
 $NTR    Current=>Root_mag
@@ -611,6 +620,7 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     ! Appending special "multipole moments" to the linked list
     ! 1. we append the radius squared to the ordinary list...
+#if(PASTA == 0)
     NextMoment   => NewMoment_electric(-2,0,0)
     harm_3D(1:nx,1:ny,1:nz) => NextMoment%SpherHarm(:)
     NextMoment%Calculate    => Calculate_multipole_divJ 
@@ -641,7 +651,7 @@ $NTR    enddo
         enddo
       enddo
     enddo
-
+#endif
     ! End of the chain
     nullify(Current)
     !---------------------------------------------------------------------------
@@ -2096,6 +2106,7 @@ $NTR     &          '   phys:             mu_N fm^(l-1)'  )
     
     !---------------------------------------------------------------------------
     ! b) Magnetic multipole moments
+$NTR if(maxmoment_mag .ne.0) then
 $NTR    print 101
 $NTR    print 10, Ax
 $NTR    print 11, SecAx1, SecAx2
@@ -2115,25 +2126,26 @@ $NTR    enddo
 $NTR    
 $NTR    nullify(Current)
 $NTR    print 102
-
+$NTR endif
     !---------------------------------------------------------------------------
     ! c) divJ multipole moments
-    print 104
-    print 10, Ax
-    print 11, SecAx1, SecAx2
-    print 1
-    print 105
-    print 1
+    if(maxmoment_divJ .ne.0) then
+      print 104
+      print 10, Ax
+      print 11, SecAx1, SecAx2
+      print 1
+      print 105
+      print 1
 
-    Current => Root_divJ
-    call Current%printMoment(Current)
-    do while(associated(Current%Next))
-      Current => Current%Next
-      call Current%PrintMoment(Current)
-    enddo
-    nullify(Current)
-    print 102
-    
+      Current => Root_divJ
+      call Current%printMoment(Current)
+      do while(associated(Current%Next))
+        Current => Current%Next
+        call Current%PrintMoment(Current)
+      enddo
+      nullify(Current)
+      print 102
+    endif
     return
   end subroutine PrintAllMoments
 

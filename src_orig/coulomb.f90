@@ -198,9 +198,12 @@ $REDUZ  coul_offset_z = 0
       enddo
     enddo
     !---------------------------------------------------------------------------
-    ! Set the boundary conditions.
+    ! Set the boundary condition if dealing with non-periodic boundary conditions
+    ! In the peridic case, these are automatically taken care of
+#if(USE_Periodic == 0)
     call CoulombBound(Source, F)
-
+#endif
+    !---------------------------------------------------------------------------
     ! Solve for the direct coulomb potential
     ! Note that the symmetry properties (+1,+1,+1) are never changed:
     ! Hephaestos modifies directly the Coulomb_Laplacian routine when necessary
