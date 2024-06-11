@@ -83,6 +83,10 @@ module evolution
     !    single-particle hamiltonian in the subspace spanned by the spwfs
     !    in memory.
     logical :: subspace_rotation = .true.
+    !
+    ! TODO: describe inner_iterations
+    !
+    integer :: max_inner_iter = 1
     !---------------------------------------------------------------------------
     !Procedure that determines the evolution of a Spwf under imaginary time.
     abstract interface
@@ -126,7 +130,8 @@ contains
         &                    estimateparams, estimategradparams,               &
         &                    gradient_safety, efficientHFB,                    &
         &                    stepsize_safety, freezeiter,                      &
-        &                    ortho_strategy, subspace_rotation, d2H_freeze  
+        &                    ortho_strategy, subspace_rotation, d2H_freeze,    &
+        &                    max_inner_iter
         !-----------------------------------------------------------------------
         ! Only the very first MPI rank reads the input
         if(MPI_RANK.eq.0) then
@@ -163,6 +168,7 @@ contains
         &                                               MPI_COMM_WORLD, mpi_err)
 
         call MPI_BCAST(maxiter   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+        call MPI_BCAST(max_inner_iter, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         call MPI_BCAST(printiter , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         call MPI_BCAST(freezeiter, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
         call MPI_BCAST(d2H_freeze, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
@@ -228,7 +234,7 @@ contains
         1 format(80('-'))
         2 format(' Evolution strategy: ', a20 )
         3 format('   dt= ', f7.4, ' mu= ', f7.4 )
-       31 format('   maxiter =', i5, ' printiter = ', i5)        
+       31 format('   maxiter =', i5, ' printiter = ', i5, ' max_inner_iter = ', i5)
        32 format('   freezeiter= ', i5, ' d2H_freeze = ', es10.3)
         4 format('   Estimate (dt,mu) linear subproblem  : ', a3)
        41 format('   Safety factor for linear subproblem : ', f7.4)
@@ -245,7 +251,7 @@ contains
         
         print 1
         print 2, adjustl(Strategy)
-        print 31, maxiter, printiter
+        print 31, maxiter, printiter, max_inner_iter
         print 32, freezeiter, d2H_freeze
         if( EstimateParams) then
           print 4, 'YES'
@@ -685,8 +691,9 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
 
       type(PotentialVector), intent(in) :: F
       integer, intent(in)        :: iteration
-      integer                    :: si, m, B, N, iso, wave
+      integer                    :: si, m, B, N, iso, wave, inner_iter
       real(KIND=dp), allocatable :: hpsi(:,:,:)
+      logical                    :: on_the_fly = .false.
 #if(USE_MPI > 0)
       integer                    :: mpi_err
 #endif
@@ -698,53 +705,56 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           allocate(Momentum_Updates(nx*ny*nz,4,nwt_local))
           Momentum_Updates = 0.0_dp
       endif
-      !if(.not.allocated(sphamil)) then 
-      !    allocate(sphamil(nwt,nwt)) ; sphamil = 0.0d0
-      !endif
-      !sphamil     = 0.0d0
-      
+
       d2h         = 0.0d0
       dispersions = 0.0d0
       if(EstimateParams) call IterativeEstimation(F, iteration)
 
-      !-------------------------------------------------------------------------
-      ! Step 1: construct all updates
-      si = 0
-      do B=1,8
-        N = HFBlocks(B) ; if(N.eq.0) cycle
-        iso = -1        ; if(B.gt.4) iso = +1
-        allocate(hpsi(mv,4,N))
-        wave = spwf_map(si+1)-1 !  global index = wave +1 , local_index = si+1
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Obtain the action of the s.p.h. on the spwfs using precomputed derivatives
-        call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
-        &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
-        &                          HFdpsi(:,:,:,si+1:si+N),              &
-        &                          HFddpsi(:,:,:,si+1:si+N),.false., F)
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Construct the residual
-        do m=1,N
-          ! TODO: replace by BLAS call
-          hpsi(:,:,m)=hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m)
-          dispersions(wave+m) =sum(hpsi(:,:,m)**2)*dv
-          select case(pairingtype)
-          case(0,1)
-              d2h          = d2h + rho_can(si+m)*dispersions(si+m)
-          case(2) 
-              d2h          = d2h + rho_pairing(si+m,si+m)*dispersions(si+m)
-          end select
+      do inner_iter=1, max_inner_iter
+        !-------------------------------------------------------------------------
+        ! Step 1: construct all updates
+        si = 0
+        do B=1,8
+          N = HFBlocks(B) ; if(N.eq.0) cycle
+          iso = -1        ; if(B.gt.4) iso = +1
+          allocate(hpsi(mv,4,N))
+          wave = spwf_map(si+1)-1 !  global index = wave +1 , local_index = si+1
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Obtain the action of the s.p.h. on the spwfs using precomputed derivatives
+          if(inner_iter .eq. 1) then
+            on_the_fly = .false.
+          else
+            on_the_fly = .true.
+          endif
+          call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
+          &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
+          &                          HFdpsi(:,:,:,si+1:si+N),              &
+          &                          HFddpsi(:,:,:,si+1:si+N),on_the_fly, F)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Construct the residual
+          do m=1,N
+            ! TODO: replace by BLAS call
+            hpsi(:,:,m)=hpsi(:,:,m) - sum(hpsi(:,:,m)*HFpsi(:,:,si+m))*dv*HFPsi(:,:,si+m)
+            dispersions(wave+m) =sum(hpsi(:,:,m)**2)*dv
+            select case(pairingtype)
+            case(0,1)
+                d2h          = d2h + rho_can(si+m)*dispersions(si+m)
+            case(2)
+                d2h          = d2h + rho_pairing(si+m,si+m)*dispersions(si+m)
+            end select
+          enddo
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Add some history and 'momentum' to the update.
+          momentum_updates(:,:,si+1:si+N) = &
+          &     - dt/hbar * hpsi      +  momentum*momentum_updates(:,:,si+1:si+N)
+          deallocate(hpsi)
+          si = si + N
         enddo
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        ! Add some history and 'momentum' to the update. 
-        momentum_updates(:,:,si+1:si+N) = & 
-        &     - dt/hbar * hpsi      +  momentum*momentum_updates(:,:,si+1:si+N) 
-        deallocate(hpsi)
-        si = si + N
+        d2h          = d2h/(neutrons+protons)
+        !-------------------------------------------------------------------------
+        ! Step 2: perform the update
+        HFPSI = HFPSI + momentum_updates
       enddo
-      d2h          = d2h/(neutrons+protons)
-      !-------------------------------------------------------------------------
-      ! Step 2: perform the update
-      HFPSI = HFPSI + momentum_updates
       !-------------------------------------------------------------------------
       ! Step 3: orthonormalize
     ! ... but first transfer to 2D layout when MPI is active
