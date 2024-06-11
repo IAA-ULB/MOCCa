@@ -613,7 +613,9 @@ subroutine printsummary(iter, potentials_frozen)
     4 format (' E     = ', f20.10,2x, '  DE   = ', e12.5)
    41 format (' R     = ', f20.10,2x, '  DR   = ', e12.5)
    42 format (' R-E   = ', f20.10,2x, 'D(R-E) = ', e12.5)
-
+#if(PASTA == 1)
+   43 format (' Epasta= ', f20.10,2x, 'DEpasta= ', e12.5)
+#endif
     5 format (' ',a1, 'Q', 2i1,a1,' = ',f12.4, 3x, 'dQ = ', es8.1, 2x,         &
     &          'L = ',f12.4,2x,' dL = ', es8.1, 2x, 'dev = ', es8.1)
 
@@ -635,6 +637,9 @@ subroutine printsummary(iter, potentials_frozen)
     print 41, Routhian,  (Routhian - Rhistory(1))/abs(Routhian)
     print 42, Routhian-totalE, &
     &  ((Routhian - Rhistory(1)) - (totalE - Ehistory(1)))/abs(totalE)
+#if(PASTA == 1)
+    print 43,calculate_epasta(totalE), (calculate_epasta(totalE)-calculate_epasta(Ehistory(1)))/abs(calculate_epasta(totalE))
+#endif
     if(fixfermi) then
         dN = part%value - part%history
         print 7, dN

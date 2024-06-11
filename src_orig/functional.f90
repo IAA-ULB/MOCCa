@@ -444,8 +444,7 @@ $PRINTCOEF_PAIR
     print 107
     print 1
     print 108
-    print 109, (TotalE+ElectronEnergyKin+ElectronEnergyExch  &
-    &                   -protons*Qnp)/dble(protons+neutrons)
+    print 109, calculate_epasta(totalE)
     print 110, ElectronEnergyKin
     print 111, ElectronEnergyExch
     print 112, ElectronChempotKin+ElectronChempotExch
@@ -461,6 +460,33 @@ $PRINTCOEF_PAIR
 
     print 1
 end subroutine PrintEnergy
+
+#if(PASTA==1)
+function calculate_epasta(nucE) result(Epasta)
+  !------------------------------------------------------------------------
+  ! Calculate the energy per particle for a pasta calculation. This is a
+  ! rather simple expression, but it pays to not have it in multiple places.
+  !
+  ! For now, only nucE is input as all other parts are constant throughout
+  ! any given calculation.
+  !
+  ! Input:
+  !  nucE : total energy of the configuration of protons and neutrons as
+  !         calculated.
+  !
+  ! Output:
+  !  Epasta: E/A for the entire configuration that accounts for the
+  !          contributions of the sea of electrons.
+  !------------------------------------------------------------------------
+
+  real(KIND=dp), intent(in) :: nucE
+  real(KIND=dp)             :: Epasta
+
+  Epasta = nucE + ElectronEnergyKin+ElectronEnergyExch-protons*Qnp
+  Epasta = Epasta/dble(protons+neutrons)
+
+end function calculate_epasta
+#endif
 
 subroutine save_potential_history(F_in, F_out)
     !---------------------------------------------------------------------------
