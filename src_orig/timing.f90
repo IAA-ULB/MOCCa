@@ -21,7 +21,7 @@ module timing
   integer :: T_den_der, T_sphamil, T_coulomb, T_den_can, T_MOI
   integer :: T_COM, T_COM1, T_COM2, T_gaps, T_moments, T_feasible, T_spwfangmom
   integer :: T_chargedensity, T_collective_moi, T_microscopic_pairing
-  integer :: T_HFdiag, T_Hortho, T_moment_cutoff
+  integer :: T_HFdiag, T_Hortho, T_moment_cutoff, T_norm_ortho, T_diag_ortho
   integer :: T_NablaMElements, T_basistransfo, T_COM2_summation, T_pot_precon
 #if(USE_MPI > 0)
   integer :: T_transfer_psi, T_allreduce

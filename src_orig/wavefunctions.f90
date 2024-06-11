@@ -1541,10 +1541,13 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       wfs_reshape(1:4*mv,1:N) => hfpsi(1:mv,1:4,si+1:si+N)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Build overlaps within this symmetry block 
+      call start_timer(T_norm_ortho)
       call dgemm('t','n',N,N,4*mv, dv,wfs_reshape,4*mv, wfs_reshape, 4*mv, &
       &                            0.0d0, overlaps,N)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      call stop_timer(T_norm_ortho)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Calculate the cholesky decomposition
+      call start_timer(T_diag_ortho)
       call dpotrf('l',N,overlaps,N,info)
       ! overlaps now contains the factorisation L
       if(info.ne.0) then
@@ -1555,6 +1558,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! Solve the linear equations
       !    X L^T = N
       call dtrsm('r','l','t','n',4*mv,N,1.0d0,overlaps,N,wfs_reshape,4*mv)
+      call stop_timer(T_diag_ortho)
 #else
       ! The MPI version cannot cycle over blocks of size 0, since the MPI
       ! ranks might not be relevant to the calculation but at the same time
@@ -1562,7 +1566,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! call all these SCALAPACK routines; if not, we get stuck eternally...
       ! if (N.eq.0) cycle   ! This can only be explicitly put here.
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Build overlaps within this symmetry block 
+      call start_timer(T_norm_ortho)
+      ! Build overlaps within this symmetry block
       xs = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
       ys = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
       allocate(overlaps(xs,ys))
@@ -1571,8 +1576,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       &             HFpsi_2d, 1, 1, desc_psi_2d, &
       &             0.0d0,                       &
       &             overlaps, 1, 1, desc_mat_2d)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      call stop_timer(T_norm_ortho)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Calculate the cholesky decomposition
+      call start_timer(T_diag_ortho)
       CALL PDPOTRF('l',MPI_BLOCK_SIZE,overlaps,1,1,desc_mat_2d, info)
       ! overlaps now contains the factorisation L
       if(info.ne.0) then
@@ -1585,6 +1592,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       CALL PDTRSM('r','l','t','n',4*mv,MPI_BLOCK_SIZE,1.0d0,           &
       &                                overlaps, 1, 1, desc_mat_2d, &
       &                                hfpsi_2D, 1, 1, desc_psi_2d)
+      call stop_timer(T_diag_ortho)
 #endif
       deallocate(overlaps)
       si = si +N
