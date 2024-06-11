@@ -3819,15 +3819,20 @@ function transform_mat_diag(M, transfo) result(Mc)
  
  function memory_wavefunctions_2D(spwf_number, row, nrow, col, ncol) result(mem)
    ! TODO: document  
-   integer,intent(in) :: row, nrow, col, ncol, spwf_number
-   integer(kind=LargeInt) :: xs,ys, mem
+   integer,intent(in)     :: row, nrow, col, ncol, spwf_number
+   integer(kind=LargeInt) :: mem
+#if(USE_MPI>0)
+   integer(kind=LargeInt) :: xs,ys
    integer, external :: numroc
  
    xs = NUMROC(          4*mv,block_factor_row,row,0,nrow)
    ys = NUMROC(spwf_number,block_factor_col,col,0,ncol)
   
    mem = 3*xs*ys ! factor 3 for mom_2D and hpsi_2D
- end function memory_wavefunctions_2D
+#else
+   mem = 0
+#endif
+   end function memory_wavefunctions_2D
 
   subroutine clean_wavefunctions()
 
