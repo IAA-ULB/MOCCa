@@ -486,8 +486,8 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 
           select case(mixingscheme)
           case(0)
-            ! No mixing, simple update
-            potentials = potentials_out
+            ! Simple linear mixing
+            potentials = mixstepsize * potentials_out + (1.0d0 - mixstepsize) * potentials
           case(1)
             ! Mixing with Anderson acceleration
             potentials_out = AndersonMixPotentials(Potential_iterates, &
