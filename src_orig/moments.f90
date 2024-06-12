@@ -594,7 +594,8 @@ $NTR      enddo
 $NTR    enddo
     !---------------------------------------------------------------------------
     ! c) The moments of divJ
-    nullify(Current)      ;  allocate(Current)     ; Current=>Root_divJ
+#if(PASTA == 0)
+    nullify(Current)      ;  Current=>Root_divJ
     nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
  
     do l=1,MaxMoment_divJ
@@ -617,6 +618,7 @@ $NTR    enddo
         enddo
       enddo
     enddo
+#endif
     !---------------------------------------------------------------------------
     ! Appending special "multipole moments" to the linked list
     ! 1. we append the radius squared to the ordinary list...
@@ -653,7 +655,7 @@ $NTR    enddo
     enddo
 #endif
     ! End of the chain
-    nullify(Current)
+    nullify(Current,NextMoment)
     !---------------------------------------------------------------------------
   end subroutine IniMoments
 
