@@ -1560,6 +1560,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       call dtrsm('r','l','t','n',4*mv,N,1.0d0,overlaps,N,wfs_reshape,4*mv)
       call stop_timer(T_diag_ortho)
 #else
+      ! Important: don't spend time waiting for other blocks to complete....
+      if(B .ne. MPI_SYM_BLOCK) cycle
       ! The MPI version cannot cycle over blocks of size 0, since the MPI
       ! ranks might not be relevant to the calculation but at the same time
       ! might be part of a given BLACS context and hence are required to 
