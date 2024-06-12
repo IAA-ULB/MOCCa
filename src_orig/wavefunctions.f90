@@ -1637,7 +1637,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         ys = 1
       endif
       allocate(A_2D(xs,ys))
-      print *, 'REALLOCATING'
     endif
 
     A_1Dc(1:4*mv, 1:nwt_local) => A_1D

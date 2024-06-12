@@ -216,7 +216,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call write_advanced_output(iteration-1,iomsg)
  !---------------------------------------------------------------------------
  ! Write output to the outputfile, i.e. the full wavefunction file
- call WriteTantalus(12, outputfilename)
+ !call WriteTantalus(12, outputfilename)
  !------------------------------------------------------------------------------
  ! Clean up after running, just in case we need to run again.
  call Cleanupthemess()
@@ -577,7 +577,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 #endif
             if(MPI_RANK.eq.0) print 9, iter, outputfilename
             iomsg='CHECKPOINT'
-            call WriteTantalus(12, outputfilename)
+            !call WriteTantalus(12, outputfilename)
           endif
         endif
     enddo
