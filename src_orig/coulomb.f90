@@ -182,12 +182,6 @@ $REDUZ  coul_offset_z = 0
     ! Set up the source term: - 4 * pi * charge_density
     ! Note that this is set up in the middle of the box, i.e. no source density
     ! at the edges of the Coulomb box
-    if(.not.allocated(Source)) then
-        allocate(Source(nx+BC+coul_offset_x, &
-        &               ny+BC+coul_offset_y, &
-        &               nz+BC+coul_offset_z))
-    endif
-
     Source = 0.0_dp
     do k=1,nz
       do j=1,ny
@@ -361,6 +355,7 @@ $REDUZ  coul_offset_z = 0
 
     !---------------------------------------------------------------------------
     ! Set-up the values of r and spherharmcoulomb on the Coulomb mesh.
+#if(USE_Periodic == 0)
     if(.not. allocated(SpherHarmCoulomb)) then
       call inimesh(coulmeshx,coulmeshy,coulmeshz,nx+BC+coul_offset_x, &
       &                                          ny+BC+coul_offset_y, &
@@ -383,6 +378,7 @@ $REDUZ  coul_offset_z = 0
       &                          coulmeshx,coulmeshy, coulmeshz,SpherHarmCoulomb,&
       &                          QuantisationAxis,SecondaryAxis)
     endif
+#endif
     !---------------------------------------------------------------------------
     ! If we account for the finite extent of the charge of the nucleus, then
     ! we need to fold densities and potentials with gaussians. This sets up the

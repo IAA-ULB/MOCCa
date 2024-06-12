@@ -1617,7 +1617,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !           but distributed among processes in a 2D layout.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) , contiguous, target :: A_1D(:,:,:)
-    real(KIND=dp), intent(out), allocatable        :: A_2D(:,:)
+    real(KIND=dp),              allocatable        :: A_2D(:,:)
     ! Pointer to remap the (mv,4,X) array into a (4*mv,X) array
     real(KIND=dp), pointer, contiguous             :: A_1Dc(:,:)
 
