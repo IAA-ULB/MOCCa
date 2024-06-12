@@ -1624,7 +1624,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     integer           :: xs, ys
     integer, external :: NUMROC
 
-    call start_timer(T_transfer_psi)
+    call start_timer(T_transfer_psi_1to2)
 
     if(.not.allocated(A_2D) ) then
       ! Asking for the appropriate size of the A_2D matrix on this process
@@ -1637,13 +1637,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
         ys = 1
       endif
       allocate(A_2D(xs,ys))
+      print *, 'REALLOCATING'
     endif
 
     A_1Dc(1:4*mv, 1:nwt_local) => A_1D
     call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_1Dc, 1,1, desc_psi_1D,                 &
      &                                A_2D  ,1,1, desc_psi_2D, blacs_cntxt_1D)
 
-    call stop_timer(T_transfer_psi)
+    call stop_timer(T_transfer_psi_1to2)
 
   end subroutine transfer_1D_to_2D
   
@@ -1665,14 +1666,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! Pointer for remapping 
     real(KIND=dp), pointer, contiguous :: A_1Dc(:,:)
 
-    call start_timer(T_transfer_psi)
+    call start_timer(T_transfer_psi_2to1)
 
     ! Pointer remapping 
     A_1Dc(1:4*mv, 1:nwt_local) => A_1D
     call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_2D ,1,1, desc_psi_2D,                  &
     &                                 A_1Dc,1,1, desc_psi_1D, blacs_cntxt_1D)
 
-    call stop_timer(T_transfer_psi)
+    call stop_timer(T_transfer_psi_2to1)
   end subroutine transfer_2D_to_1D
 
 #endif

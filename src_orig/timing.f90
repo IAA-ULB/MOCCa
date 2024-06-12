@@ -24,7 +24,7 @@ module timing
   integer :: T_HFdiag, T_Hortho, T_moment_cutoff, T_norm_ortho, T_diag_ortho
   integer :: T_NablaMElements, T_basistransfo, T_COM2_summation, T_pot_precon
 #if(USE_MPI > 0)
-  integer :: T_transfer_psi, T_allreduce
+  integer :: T_transfer_psi_1to2,T_transfer_psi_2to1, T_allreduce
 #endif
   !-----------------------------------------------------------------------------
   ! There are two ways to record the time:

@@ -855,7 +855,8 @@ subroutine initialize_all_timers()
    call add_timer('Matrix elements of h'        , T_calc_sph_me)
    call add_timer('Update of h in subspace'     , T_update_sph)
 #if( USE_MPI > 0)
-   call add_timer('Layout transfer of spwfs'    , T_transfer_psi)
+   call add_timer('Layout transfer: 1D -> 2D'   , T_transfer_psi_1to2)
+   call add_timer('Layout transfer: 2D -> 1D'   , T_transfer_psi_2to1)
    call add_timer('MPI_ALLREDUCE calls     '    , T_allreduce)
 #endif
 
