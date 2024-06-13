@@ -31,7 +31,6 @@ module SCFiteration
   !-----------------------------------------------------------------------------
   ! Determine what to do with mixing of the potentials
   integer       :: mixingscheme = 0
-  real(KIND=dp) :: mixstepsize  = 1.0d0
 
 contains
 

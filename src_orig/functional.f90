@@ -150,6 +150,7 @@ module functional
 #else
     real(KIND=dp) :: kerker_k0    = 2*pi/100 ! typical screening length ~ 100 fm
 #endif
+    real(KIND=dp) :: mixstepsize  = 1.0d0
     !---------------------------------------------------------------------------
     ! Stabilisation factor for the pairing:
     !    f = E_cut^2 / E_pair^2
@@ -1486,7 +1487,7 @@ if(kerker_k0 .gt. 0.0d0) then
     ! 3. precondition
     ! TODO: adapt call to symmetries of the calculation
     !       experiment and document k0
-    update = KerkerPreconditionPotential(update,kerker_k0,sx_rho,sy_rho,sz_rho)
+    update = KerkerPreconditionPotential(update,mixstepsize,kerker_k0,sx_rho,sy_rho,sz_rho)
     ! 4. save the result
     update = coul_in + update
     call set_coul(update(:,1:2), F)

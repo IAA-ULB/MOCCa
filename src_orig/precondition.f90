@@ -174,13 +174,13 @@ contains
     
  end function Preconditionpotential
 
- function KerkerPreconditionPotential(pot,k0,sx,sy,sz) result(invpot)
+ function KerkerPreconditionPotential(pot,a,k0,sx,sy,sz) result(invpot)
     !---------------------------------------------------------------------------
     ! Precondition a potential with the matrix
     !
     !      - \Delta
     !   --------------------
-    !   ( k0**2  -  \Delta)
+    !   ( k0**2  - a^{-1} \Delta)
     !
     ! Calculated through
     !   (a) applying function Preconditionpotential to obtain the multiplication
@@ -190,6 +190,7 @@ contains
     ! Input:
     !    potential : potential to be preconditioned (all components!)
     !    k0        : wavevector associated with the Kerker screening
+    !    a         : other parameter, equivalent to 1/mixingstepsize if k0 = 0
     !    sx/y/z    : integers characterizing the reflection symmetries of the
     !                potential
     ! Output:
@@ -197,14 +198,14 @@ contains
     !---------------------------------------------------------------------------
     use Derivatives
 
-    real(KIND=dp), intent(in) :: k0
+    real(KIND=dp), intent(in) :: k0, a
     real(KIND=dp), intent(in) :: pot(nx*ny*nz,4)
     integer, intent(in)       :: sx,sy,sz
     integer                   :: it
     real(KIND=dp)             :: invpot(nx*ny*nz,4), temp(nx*ny*nz,4)
 
-    ! Calculate - (k0**2 - \Delta)^-1 [!note minus sign!]
-    temp = - PreconditionPotential(pot,-1.0d0,k0**2,sx,sy,sz)
+    ! Calculate - (k0**2 -a \Delta)^-1 [!note minus sign!]
+    temp = - PreconditionPotential(pot,-1/a,k0**2,sx,sy,sz)
     ! Calculate \Delta temp
     do it=1,2
       call Derive_lap(temp(:,it),sx,sy,sz,invpot(:,it))
