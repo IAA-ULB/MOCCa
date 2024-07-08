@@ -1,0 +1,57 @@
+&skf
+!---------------------------------------------------------------------------------
+! Modified BSkG2 parameterization with
+!  (1)  pairing channel replaced by that of BSkG3
+!  (2)  Jmunu terms activated
+!  (3)  explicit N2LO terms (with coupling constants = 0)
+!  (4)  t4/t5 terms removed
+! This parameterization should only be used for testing purposes.
+!---------------------------------------------------------------------------------
+name     =  'BSkG2_micro_N2LO'
+func_file=  'BXL-N2LO.func'
+t0       =            -1885.74370718,
+t1       =              343.58759401,
+t2       =               -8.04132000,
+t3       =            12358.44030829,
+x0       =                0.18177500,
+x1       =               -0.58400300,
+x2       =               20.14637542,
+x3       =                0.10159576,
+t1n2     =                0.0,        ! Vanishing N2LO coupling constants
+t2n2     =                0.00,
+x1n2     =                0.00000000,
+x2n2     =                0.00000000,
+sigma    =                0.30000000,
+wso      =              108.65500000,
+wsoq     =              108.60300000,
+Vn       =      0.00000000,               ! Ordinary pairing terms removed
+Vp       =      0.00000000,
+Vnm      =            1.00,               ! Microscopic pairing terms active
+Vpm      =            1.00,
+kappa_n  =          123.2,                ! Gradient pairing terms activated
+kappa_p  =          129.07,
+alpha    =                0.48601200,
+sigmap   =                0.79602400,
+Estabn   =                0.00000000,
+Estabp   =                0.00000000,
+hbm(1)   =     20.73553000,     20.73553000,
+COM1Body = 2
+COM2Body = 1
+e2            = 1.439964460
+Protonsize    = 0.895, 0.00
+Neutronsize   = 0.387, 0.467
+HOcomform     = .true.
+nucleonsize_selfconsistent=.true.
+CoulTreatment = 2
+rotcorr  = 1
+Cuttype = 1
+Cutneutron =       7.99756000
+Cutproton  =       7.99756000
+rotcorrb    = 0.87841
+rotcorrc    = 8.29315
+vibcorrd    = 0.5952
+vibcorrl    = 4.5553
+vibcorrb    = 0.7875
+ptype=0
+intertype=0 
+/

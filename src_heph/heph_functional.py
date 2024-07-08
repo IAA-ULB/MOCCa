@@ -955,6 +955,14 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       dic['N2DELTA']  = ' '
       dic['N3DELTA']  = ' '
       dic['SYMDELTA'] = ' '
+
+    if('D_Nm_Nm' not in Densities_needed):
+      dic['TAUSCALAR'] = '!'
+      dic['TAUTENSOR'] = ' '
+    else:
+      dic['TAUSCALAR'] = ' '
+      dic['TAUTENSOR'] = '!'
+
    
     if(so.timelike):
       dic['NTR'] = '!'

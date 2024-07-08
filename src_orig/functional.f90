@@ -64,6 +64,9 @@ module functional
  ! D2TEMPDELTA      : $D2TEMPDELTA
  ! D3TEMPDELTA      : $D3TEMPDELTA
  ! LAPTEMPDELTA     : $LAPTEMPDELTA
+ !
+ ! TAUSCALAR        : $TAUSCALAR
+ ! TAUTENSOR        : $TAUTENSOR^
  !------------------------------------------------------------------------------
  ! A density F_L_R is stored as
  !
@@ -1130,6 +1133,19 @@ $FIELDPRECON
       pf = (f)**(alpha)
     endif
   end function pow
+
+  function effmass_pot() result(em_pot)
+    !---------------------------------------------------------------------------
+    ! TODO: document!
+    !
+    !
+    !---------------------------------------------------------------------------
+    real(KIND=dp)                     :: em_pot(mv,4)
+
+$TAUSCALAR em_pot = F_Nm_Nm
+$TAUTENSOR em_pot = (F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:))/3
+
+  end function effmass_pot
 
   function sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &
