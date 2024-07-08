@@ -930,15 +930,31 @@ $TAUTENSOR            &                     + Rin%D_N_N(:,3,3,it),1)
 
   function effmass_pot(F_in) result(em_pot)
     !---------------------------------------------------------------------------
-    ! TODO: document!
+    ! From a given set of mean-field potentials F_in, determine the F^{(N,N)}
+    ! potential in infinite nuclear matter with the same density at each 
+    ! mesh point. This is abstracted in a routine since 
     !
+    ! (a) F_Nm_Nm is not always represented in a calculation
+    ! (b) This is "cooking" in the sense that there is probably no unique 
+    !     recipe; it might be changed in the future.
     !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
+    ! Input:
+    !  F_in   : potentialvector
+    ! Output:
+    !  em_pot : the potential associated with F^{N,N} in infinite nuclear matter
     !---------------------------------------------------------------------------
     type(PotentialVector), intent(in) :: F_in
     real(KIND=dp) :: em_pot(mv,4)
     
+    !----------------------------------------------------------------------------
+    ! F_Nm_Nm is represented explicitly, just use that
+    !----------------------------------------------------------------------------
 $TAUSCALAR em_pot = F_in%F_Nm_Nm
-$TAUTENSOR em_pot = F_in%F_N_N(:,1,1,:) + F_in%F_N_N(:,2,2,:) + F_in%F_N_N(:,3,3,:)
+    !----------------------------------------------------------------------------
+    ! F_N_N is represented; we take the scalar part of this tensor
+    !----------------------------------------------------------------------------
+$TAUTENSOR em_pot = (F_in%F_N_N(:,1,1,:)+F_in%F_N_N(:,2,2,:)+F_in%F_N_N(:,3,3,:))/3
     
   end function effmass_pot
 
