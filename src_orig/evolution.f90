@@ -279,7 +279,7 @@ contains
             hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
             &              hfdpsi(:,:,:,wave)   ,                              &
             &              hfddpsi(:,:,:,wave),                                &
-$N3         &              hfdddpsi(:,:,:,wave),                               &
+$N3         &              hfpsi(:,:,:,wave),                               &
             &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
 
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
@@ -727,7 +727,7 @@ $N3       &              hfddpsi(:,:,:,wave)  ,                              &
       real(KIND=dp), allocatable, save :: update(:,:), actionofh(:,:)
       real(KIND=dp), allocatable, save ::   dmax(:,:,:)
       real(KIND=dp), allocatable, save ::  ddmax(:,:,:)
-      real(KIND=dp), allocatable, save :: dddmax(:,:,:)
+$N3      real(KIND=dp), allocatable, save :: dddmax(:,:,:)
 
       integer       :: estiter, iter, ii, i, it, iso
       real(KIND=dp) :: con(2), maxE, compare, relE, kappa, Es(2)
@@ -741,14 +741,14 @@ $N3       &              hfddpsi(:,:,:,wave)  ,                              &
           if(allocated(actionofh)) deallocate(actionofh)
           if(allocated(dmax))      deallocate(dmax)
           if(allocated(ddmax))     deallocate(ddmax)
-          if(allocated(dddmax))    deallocate(dddmax)
+$N3          if(allocated(dddmax))    deallocate(dddmax)
 
           ! Initialize with a random spwf at the start.
           allocate(maxspwf(nx*ny*nz,4,2)) 
           allocate(update(nx*ny*nz,4)) ; allocate(actionofh(nx*ny*nz,4))
           allocate(dmax(nx*ny*nz,3,4))
           allocate(ddmax(nx*ny*nz,6,4))
-          allocate(dddmax(nx*ny*nz,10,4))
+$N3          allocate(dddmax(nx*ny*nz,10,4))
 
           call random_number(maxspwf)                        ! randomize
           do it=1,2
