@@ -1,7 +1,8 @@
 &skf 
 !-------------------------------------------------------------------------------
-! BSkG3 (candidate) parameterization wih refit on fission.
-! Received from G. Grams on 13/04/'23 and to be published.
+! BSkG3 parameterization as published in
+!    G. Grams et al., EPJA 59, 270 (2023).
+!    DOI: 10.48550/arXiv.2211.03592
 !
 ! Aspects of note
 !  * microscopic pairing prescription
