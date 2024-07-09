@@ -297,6 +297,38 @@ contains
     nwt = nwn + nwp
   end subroutine ReadWFdata
 
+  subroutine allocate_memory_derivatives(ptype)
+    !-----------------------------------------------------------------------------
+    ! Allocate memory to store the derivatives of the wavefunctions.
+    ! Based on store_derivatives:
+    !   .true.  = complete storage
+    !   .false. = temporary storage to hold the derivative of one spwf
+    !
+    ! Input:
+    !   ptype : pairingtype, if 2 then HFB calculations are performed and we need
+    !           to allocate space to the canonical basis.
+    !
+    !-----------------------------------------------------------------------------
+    integer, intent(in) :: ptype
+    integer             :: alloc_size
+
+    if(store_derivatives) then
+      alloc_size = nwt_local
+    else
+      alloc_size = 1
+    endif
+
+    allocate(HFdPsi  (nx*ny*nz, 3,4,alloc_size)) ! first order
+    allocate(HFddPsi (nx*ny*nz, 6,4,alloc_size)) ! full tensor second order
+$N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
+
+    if(ptype.eq.2) then
+      allocate(candPsi  (nx*ny*nz, 3,4,alloc_size)) ! first order
+      allocate(canddPsi (nx*ny*nz, 6,4,alloc_size)) ! full tensor second order
+  $N3 allocate(candddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
+    endif
+  end subroutine allocate_memory_derivatives
+
   subroutine loadbalance(blocks_global,balancing,blocks_local,spwf_map,        &
   &                                                       rank_map,spwf_inverse)
     !---------------------------------------------------------------------------
@@ -580,15 +612,6 @@ contains
     
     call start_timer(T_derivatives)
 
-    if(.not.allocated(HFdPsi)) then
-        allocate(HFdPsi(nx*ny*nz,3,4,nwt_local))
-        allocate(HFddPsi(nx*ny*nz,6,4,nwt_local))
-    endif
-
-$N3    if(.not.allocated(HFdddpsi)) then
-$N3        allocate(HFdddPsi(nx*ny*nz,10,4,nwt_local))
-$N3    endif
-
 #if(USE_Periodic==0)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Original Lagrange mesh derivatives
@@ -629,7 +652,6 @@ $N3        call stp('N3LO functionals not yet supported for periodic BCs.')
     call stop_timer(T_derivatives)
   end subroutine DeriveHF
 
-  
   subroutine derive_extra_spwfs(extraspwfs)
       !-------------------------------------------------------------------------
       ! Derives all of the single-particle wave-functions that were added as
@@ -667,19 +689,6 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
     integer :: wave,k
 
     call start_timer(T_derivatives_can)
-
-    if(allocated(CanPsi)) then
-      if(.not.allocated(CANdPsi)) then
-          allocate( CANdPsi(nx*ny*nz,3,4,nwt_local))
-          allocate(CANddPsi(nx*ny*nz,6,4,nwt_local))
-      endif
-    endif
-
-$N3    if(allocated(CanPsi)) then
-$N3       if(.not.allocated(CANdddpsi)) then
-$N3         allocate(CandddPsi(nx*ny*nz,10,4,nwt_local))
-$N3       endif
-$N3    endif
 
     if(allocated(CanPsi)) then
       do wave=1,nwt_local
@@ -3079,25 +3088,29 @@ subroutine Transfer_derpsi(derpsi,wave,direction, basis, TR &
     integer, intent(in)          :: wave
     integer, intent(in)          :: direction
     logical, intent(in)          :: TR
-    real(KIND=dp), pointer       :: psis(:,:,:,:)
+    real(KIND=dp), pointer       :: dpsis(:,:,:,:), psis(:,:,:)
     character(len=*), intent(in) :: basis
+    integer                      :: k
 #if(USE_MPI>0)
     integer, intent(in)          :: send_rank, calc_rank
     integer                      :: mpi_err
 #endif    
 
     if(to_upper(adjustl(basis))     .eq. 'HF') then
-      psis => HFdpsi
+       psis => HFpsi
+      dpsis => HFdpsi
     elseif(to_upper(adjustl(basis)) .eq. 'CAN') then
-      psis => candpsi
+       psis => canpsi
+      dpsis => candpsi
     elseif(to_upper(adjustl(basis)) .eq. 'DEN') then
-      psis => dendpsi
+       psis => denpsi
+      dpsis => dendpsi
     endif
 
 #if(USE_MPI>0)
     if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
         ! nothing to send or receive
-        derpsi   = psis(:,direction,:,wave)
+        derpsi   = dpsis(:,direction,:,wave)
         if(TR)   derpsi = TimeReverse(derpsi)
     elseif(MPI_RANK.eq.calc_rank) then
         ! calc_rank receives
@@ -3107,11 +3120,22 @@ subroutine Transfer_derpsi(derpsi,wave,direction, basis, TR &
         if(TR)   derpsi = TimeReverse(derpsi)
     else if(MPI_RANK .eq. send_rank)  then
         ! ranki sends the wavefunction
-        call MPI_SEND(psis(:,direction,:,wave), 4*mv, MPI_REAL8,calc_rank,2,&
+        call MPI_SEND(dpsis(:,direction,:,wave), 4*mv, MPI_REAL8,calc_rank,2,&
         &                                           MPI_COMM_WORLD, mpi_err)
     endif
 #else 
-    derpsi   = psis(:,direction,:,wave)
+    if(store_derivatives) then
+      derpsi   = dpsis(:,direction,:,wave)
+    else
+      select case(direction)
+      case(1)
+        call Derive_X_spwf(psis(:,:,wave), sx(:,wave), derpsi)
+      case(2)
+        call Derive_Y_spwf(psis(:,:,wave), sy(:,wave), derpsi)
+      case(3)
+        call Derive_Z_spwf(psis(:,:,wave), sz(:,wave), derpsi)
+      end select
+    endif
     if(TR)   derpsi = TimeReverse(derpsi)
 #endif
 
@@ -3142,35 +3166,45 @@ subroutine Transfer_derpsi_complete(derpsi, wave, basis &
     real(KIND=dp), intent(out)   :: derpsi(mv,3,4)
     integer, intent(in)          ::  wave
     character(len=*), intent(in) :: basis
-    real(KIND=dp), pointer       :: psis(:,:,:,:)
+    real(KIND=dp), pointer       :: dpsis(:,:,:,:), psis(:,:,:)
+    integer                      :: k
 #if(USE_MPI>0)
     integer, intent(in)          :: send_rank, calc_rank
     integer                      :: mpi_err
 #endif
 
     if(to_upper(adjustl(basis))     .eq. 'HF') then
-      psis => HFdpsi
+       psis => HFpsi
+      dpsis => HFdpsi
     elseif(to_upper(adjustl(basis)) .eq. 'CAN') then
-      psis => candpsi
+       psis => canpsi
+      dpsis => candpsi
     elseif(to_upper(adjustl(basis)) .eq. 'DEN') then
-      psis => dendpsi
+       psis => denpsi
+      dpsis => dendpsi
     endif
 
 #if(USE_MPI>0)
     if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
         ! nothing to send or receive
-        derpsi   = psis(:,:,:,wave)
+        derpsi   = dpsis(:,:,:,wave)
     elseif(MPI_RANK.eq.calc_rank) then
         ! calc_rank receives
         call MPI_RECV(derpsi          , 12*mv, MPI_REAL8,send_rank,2,&
         &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
     else if(MPI_RANK .eq. send_rank)  then
         ! ranki sends the wavefunction
-        call MPI_SEND(psis(:,:,:,wave), 12*mv, MPI_REAL8,calc_rank,2,&
+        call MPI_SEND(dpsis(:,:,:,wave), 12*mv, MPI_REAL8,calc_rank,2,&
         &                                           MPI_COMM_WORLD, mpi_err)
     endif
 #else 
-    derpsi   = psis(:,:,:,wave)
+    if(store_derivatives) then
+      derpsi   = dpsis(:,:,:,wave)
+    else
+      call Derive_X_spwf(psis(:,:,wave), sx(:,wave), derpsi(:,1,:))
+      call Derive_Y_spwf(psis(:,:,wave), sy(:,wave), derpsi(:,2,:))
+      call Derive_Z_spwf(psis(:,:,wave), sz(:,wave), derpsi(:,3,:))
+    endif
 #endif
 
 end subroutine Transfer_derpsi_complete

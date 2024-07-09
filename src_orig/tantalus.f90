@@ -297,10 +297,13 @@ subroutine ReachForWaterAndFood()
 
     ifail = 0
     ConvergenceAchieved = .false.
+
+    ! Provide memory for the derivatives of the spwfs
+    call allocate_memory_derivatives(PairingType)
+
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
-
     if( (Bogofromfile.and.readHFBinfofile) .and. pairingscheme.eq.1) then
       ! If using a gradient strategy and we want to continue from file.
       ! Only allowed of course if we have actually read a Bogoliubov transfo.
@@ -327,7 +330,7 @@ subroutine ReachForWaterAndFood()
     if(pairingtype.eq. 2) call ConstructCanonicalBasis()
 
     ! Derive all the single-particle wavefunctions in the HFPsi array
-    call deriveHF()
+    if(store_derivatives) call deriveHF()
     ! Calculate the initial densities and the charge density (separately)
     call densit(SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
@@ -351,7 +354,7 @@ subroutine ReachForWaterAndFood()
     call calcFields(calcall=.false.,precon= .false.)
 
     ! Update all spwf properties
-    call update_spwf_properties( .true. ) ! expensive version
+    !call update_spwf_properties( .true. ) ! expensive version
 
     call setBelyaevProcedure()
     call CalcEnergy(.true.)      ! Calculate the energy WITH all the expensive
@@ -361,8 +364,8 @@ subroutine ReachForWaterAndFood()
     ! Initial printout
     if(MPI_RANK .eq. 0) then
       ! only the very first MPI RANK prints all of this output
-      call printSpwfs(.true.) ! Always include all details on start
-      call printQps
+      call printSpwfs(.false.) ! Always include all details on start
+      !call printQps
       call printallmoments
       call print_boxsize_check
       call PrintMomentsofInertia
@@ -397,7 +400,7 @@ subroutine ReachForWaterAndFood()
         if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
 
         ! Derive all spwfs in the HF-basis
-        call deriveHF()
+        if(store_derivatives) call deriveHF()
         call densit(SaveRho=.true.)
         call ConstructChargeDensity(ChargeDensity)
         if(follow_com) call adapt_com()
@@ -457,10 +460,10 @@ subroutine ReachForWaterAndFood()
         ! Decide between full or partial printout.
         if(iprint .eq.1) then
             ! ... but update all spwf properties first to ensure correct prints
-            if(print_adv_spwf_properties .or. &
-            &              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then
-              call update_spwf_properties( .true. ) ! expensive version
-            endif
+            !if(print_adv_spwf_properties .or. &
+            !&              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then
+            !  call update_spwf_properties( .true. ) ! expensive version
+            !endif
             call updateAM
             call ReadjustCranking
 
@@ -469,13 +472,13 @@ subroutine ReachForWaterAndFood()
               if((iter .eq. maxiter) .or. ConvergenceAchieved) then
                 ! Add a clear indication this is the FINAL iteration
                 print 12, iter
-                call PrintSpwfs(.True.) ! always include all details in the
-                                        ! printing
+                call PrintSpwfs(.false.) ! always include all details in the printing
               else
                 print 11, iter
-                call PrintSpwfs(print_adv_spwf_properties)
+                call PrintSpwfs(.false.) ! always include all details in the printing
+                !call PrintSpwfs(print_adv_spwf_properties)
               endif
-              call PrintQps
+              !call PrintQps
               call printallmoments
               call print_boxsize_check
               call PrintMomentsofInertia

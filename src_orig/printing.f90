@@ -226,7 +226,7 @@ $TR     sumocc = 2*k
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-      P = P_can(wave)
+      !P = P_can(wave)
 
       if(wave .le. sum(HFBlocks_global(1:2))) then
           if(wave .le. HFBlocks_global(1)) then
@@ -291,7 +291,7 @@ $TR     sumocc = 2*k
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-      P = P_can(wave)
+      !P = P_can(wave)
 
       if(wave .le. sum(HFBlocks_global(1:6))) then
           if(wave .le. sum(HFBlocks_global(1:5))) then
@@ -367,7 +367,7 @@ $TR     sumocc = 2*k
     11  format(110('-'))
     if(PairingType.eq.0) return
 
-    if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
+    !if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
 
     print 1
 

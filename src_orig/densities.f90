@@ -205,7 +205,7 @@ contains
     call stop_timer(T_den_can)
 
     ! If we are not doing HFB efficiently, we should rederive the spwfs
-    if(.not. efficientHFB) call derivecan()
+    if((.not. efficientHFB) .and. store_derivatives) call derivecan()
 
  end subroutine ConstructCanonicalBasis
 
@@ -218,8 +218,8 @@ contains
     !                       to their respective histories. If .false., do not
     !                       keep this information.
     !---------------------------------------------------------------------------
-    integer      :: i, it, wave, wave2, B, N, si, N2, T
-    integer      ::  wave_global, wave2_global
+    integer      :: i, it, wave, wave2, B, N, si, N2, T, k
+    integer      ::  wave_global, wave2_global, der_index
     real(KIND=dp):: weight
     logical      :: SaveRho
     real(KIND=dp), allocatable :: kappa_cut(:,:)
@@ -235,7 +235,7 @@ contains
 $INITIALIZATION
 
     if(.not.allocated(divJ)) then
-      allocate(divJ(nx*ny*nz,4))    
+      allocate(divJ(nx*ny*nz,4))
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Save old density for next iteration and mixing.
@@ -292,6 +292,24 @@ $ZEROING
         
         ! For ordinary densities
         weight  = rho_can(wave_global) 
+
+        !---------------------------------------------------------------------------
+        ! Perform some gymnastics to see where we are getting the information
+        ! on derivatives: in memory (target_index = wave) or by calculation
+        ! on the fly.
+        if(store_derivatives) then
+          ! We have centrally stored derivative information
+          der_index = wave
+        else
+          ! We recalculate derivatives on the fly for this spwf
+          do k=1,4
+           call Derive_tot(denPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
+           &                                           dendPsi(:,:,k,1),        &
+           &                                           denddPsi(:,:,k,1))
+          enddo
+          der_index = 1
+        endif
+        !---------------------------------------------------------------------------
 
         do i=1,mv
 $EXPRESSION

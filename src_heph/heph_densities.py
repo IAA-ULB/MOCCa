@@ -251,7 +251,8 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
 
       # Summation with leftwf = rightwf
       (e,dec,ini,der,isoi,mpii,zeroi,cleani)  = \
-      GenDensityExpression(Densities_needed[i],deriv_needed[i],'wave','wave',so,
+      GenDensityExpression(Densities_needed[i],deriv_needed[i],'wave','wave',
+                          'der_index', 'der_index',so,
                            density_spwf_summation)
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
@@ -265,7 +266,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         # This summation is blockwise, hence the 'si+'
         (e,dec,ini,der,isoi,mpii,zeroi,cleani)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],\
-                                         'si+wave2', 'si+wave', so,            \
+                                         'si+wave2', 'si+wave', 'der_index', 'der_index', so,            \
                                          density_spwf_summation, silent=False)
         HFBExpression = HFBExpression + '\n' + e
       else:
@@ -457,7 +458,8 @@ def ReconstructDensity(der, lap, left, right):
   
   return density
 
-def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
+def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,
+                         left_der_wave, right_der_wave, so,
                          density_spwf_summation, silent=False):
     """
       Generate all the necessary strings to plug into FORTRAN source code 
@@ -471,6 +473,8 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     
       * leftwave, rightwave    : Strings indicating to the summation what the 
                                  left and right spwf is.
+      * left/right_der_wave    : Strings indicating to the summation what the
+                                 left and right spwf is when a derivative is involved
       * so                     : a set of symmetry options
       * density_spwf_summation : if True, calculate derivatives of densities 
                                  through summation over spwfs
@@ -534,8 +538,15 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     
     dic['LEFTWF']    = ArrayNames[ LeftOperator.derorder]
     dic['RIGHTWF']   = ArrayNames[RightOperator.derorder]
-    dic['LEFTWAVE']  = leftwave
-    dic['RIGHTWAVE'] = rightwave
+    if(LeftOperator.derorder == 0) :
+        dic['LEFTWAVE']  = leftwave
+    else:
+        dic['LEFTWAVE']  = left_der_wave
+
+    if(RightOperator.derorder == 0) :
+        dic['RIGHTWAVE']  = rightwave
+    else:
+        dic['RIGHTWAVE']  = right_der_wave
     dic['WEIGHT']    = 'weight'            # For now defined in the FORTRAN code
       
     totalind= ''

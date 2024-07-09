@@ -139,7 +139,11 @@ module GenInfo
   ! (0) : naive 1d block distribution of spwfs among ranks
   ! (1) : give entire symmetry blocks to MPI ranks
   integer :: balancing_strategy = 1
-
+  !-----------------------------------------------------------------------------
+  ! Logical indicating whether to keep all derivatives of the spwfs in memory
+  ! or not. Putting this to .false. allows one to save a lot of memory at the
+  ! expense of CPU time.
+  logical :: store_derivatives = .true.
 contains
 
   subroutine ReadGenInfo(file_number)
@@ -158,7 +162,7 @@ contains
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
-    &                  fermi_prec, balancing_strategy
+    &                  fermi_prec, balancing_strategy, store_derivatives
     Namelist /mesh/    nx,ny,nz, dx
 
     if(MPI_rank .eq. 0) then    

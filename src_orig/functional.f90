@@ -434,8 +434,12 @@ $PRINTCOEF_PAIR
     ! First we calculate all the individual terms/parts
 
     ! Kinetic energy
-    Kinetic = CompKinetic()
-    ! COM correction 
+    if(store_derivatives) then
+      Kinetic = CompKinetic_spwfs()
+    else
+      Kinetic = CompKinetic_density()
+    endif
+    ! COM correction
     ! (pass signal if we want to skip the calculation of the two-body part)
 #if(PASTA == 0)
     call CompCOMCorrection(calc_expensive)
@@ -615,7 +619,7 @@ $PRINT
      print 1
  end subroutine PrintSkyrme
 
- function CompKinetic() result(kinetic)
+ function CompKinetic_spwfs() result(kinetic)
     !---------------------------------------------------------------------------
     ! This subroutine computes the total kinetic energy,
     ! according to the following formula:
@@ -642,9 +646,9 @@ $PRINT
         if(wave_global.le.nwn) it = 1
 
         Inproduct = 0.0_dp
-        do k=1,4          
+        do k=1,4
                 do i=1,mv
-                       Inproduct = Inproduct + DenPsi(i,k,wave) *  & 
+                       Inproduct = Inproduct + DenPsi(i,k,wave) *  &
                        &  ( DenddPsi(i,1,k,wave) + &
                        &    DenddPsi(i,4,k,wave) + &
                        &    DenddPsi(i,6,k,wave))
@@ -660,7 +664,25 @@ $PRINT
 
     Kinetic=-Kinetic * hbm * dv
     return
-  end function CompKinetic
+  end function CompKinetic_spwfs
+
+  function CompKinetic_density() result(kinetic)
+    !---------------------------------------------------------------------------
+    ! This subroutine computes the total kinetic energy from the kinetic density
+    !    E_k = -\hbar/2m \int d^3x tau
+    !---------------------------------------------------------------------------
+    ! Note that the 1-body c.o.m. correction is not taken into account here!
+    !---------------------------------------------------------------------------
+    real(KIND=dp)                   :: Kinetic(2)
+    integer                         :: it
+
+    do it=1,2
+$TAUSCALAR    Kinetic(it) = hbm(it) *dv * sum(D_Nm_Nm(:,it))
+$TAUTENSOR    Kinetic(it) = hbm(it) *dv * sum(D_N_N(:,1,1,it)  &
+$TAUTENSOR            &                     + D_N_N(:,2,2,it)  &
+$TAUTENSOR            &                     + D_N_N(:,3,3,it),1)
+    enddo
+  end function CompKinetic_density
   
   subroutine CompCOMCorrection(do_2body)
     !---------------------------------------------------------------------------
