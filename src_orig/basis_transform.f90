@@ -21,68 +21,12 @@ module basis_transform
  !============================================================================== 
  use geninfo
  use wavefunctions, only : HFblocks, nwt, spwf_map, nwt_local, hfblocks_global
+ use wavefunctions, only : basis_cut
  use timing
  
  implicit none
 
- !------------------------------------------------------------------------------
- ! Constructing the canonical basis can be demanding, so we include a cutoff
- ! to save some CPU cycles for spwfs with small matrix elements.
- real(KIND=dp), parameter :: basis_cut = 1d-12
-
 contains
-
- subroutine transform_spwfs_inplace(psi, transfo)
-  !-----------------------------------------------------------------------------
-  ! Perform a linear transformation of the spwfs, in-place in memory. 
-  !
-  ! This routine attempts to have the smallest memory-cost possible, performing
-  ! the transformation symmetry-block by symmetry-block. This requires a temp
-  ! matrix with a non-negligible size. I'm (=W.R.) sure there exists truly
-  ! 'in-place' approaches where this cost can be avoided, but I don't know them.
-  !
-  ! Input:
-  !  psi     : input set of spwfs, to be transformed
-  !  transfo : unitary transformation C
-  !
-  ! Output:
-  !  psi     : transformed set of spwfs
-  !               psi' = C^T psi 
-  !-----------------------------------------------------------------------------
-  integer                      :: wave1, wave2, B, N, si
-  integer                      :: wave1_global, wave2_global
-  real(KIND=dp), intent(inout) :: psi(mv,4,nwt_local)
-  real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
-  real(KIND=dp), allocatable   :: temp(:,:,:)
-
-  call start_timer(T_Basistransfo)
-
-  si  = 0
-  do B=1,8
-    N = HFBlocks(B)  ;  if(N .eq. 0) cycle 
-
-    allocate(temp(mv,4,N)) 
-    temp = 0.0
-    do wave1=1,N    ! The local index of this spwf is si+wave1
-      do wave2=1,N  ! The local index of this spwf is si+wave2
-        wave1_global = spwf_map(si+wave1) ! Global index
-        wave2_global = spwf_map(si+wave2) ! Global index      
-
-        ! Don't bother if the wavefunction is not important enough
-        if(abs(Transfo(wave2_global,wave1_global)).lt.basis_cut) cycle
-        temp(:,:,wave1) = temp(:,:,wave1) +                                    &
-        &                 Transfo(wave2_global,wave1_global) * psi(:,:,si+wave2) 
-      enddo 
-    enddo
-    psi(:,:,si+1:si+N) =  temp
-    deallocate(temp)
-
-    si = si +  N
-  enddo
-
-  call stop_timer(T_Basistransfo)
-
- end subroutine transform_spwfs_inplace
 
  subroutine transform_spwfs(psi_in, psi_out, transfo)
   !-----------------------------------------------------------------------------

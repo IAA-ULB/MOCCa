@@ -117,7 +117,7 @@ $TR     sumocc = 2*k
           Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
           JJ = HF_JJ(wave)
 
-          r2 = sqrt(spwf_r2_hf(wave, wave))
+          r2 = sqrt(spwf_r2_hf(wave))
           if(pairingtype.eq.1) then
             print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
             &               dispersions(wave), BCSgaps(wave),                    &
@@ -174,7 +174,7 @@ $TR     sumocc = 2*k
           Jz = HF_J(3,wave)   ; SZ = HF_spin(3,wave)
           JJ = HF_JJ(wave)
 
-          r2 = sqrt(spwf_r2_hf(wave, wave))
+          r2 = sqrt(spwf_r2_hf( wave))
           if(pairingtype.eq.1) then
             print 11, sumocc, wave, p, s, rho_can(wave), ' ', spenergies(wave),  &
             &               dispersions(wave), BCSgaps(wave),                    &
@@ -266,14 +266,14 @@ $TR     sumocc = 2*k
             Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
             Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
             JJ = can_JJ(wave)
-          else
-            Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
-            Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
-            Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
-            JJ = spwf_JJ(wave)     
+          !else
+          !  Jx = spwf_JTR(1,wave) ; SX = spwf_STR (1,wave)
+          !  Jy = spwf_JTI(2,wave) ; SY = spwf_STI (2,wave)
+          !  Jz = spwf_J(3,wave)   ; SZ = spwf_spin(3,wave)
+          !  JJ = spwf_JJ(wave)
           endif    
 
-          r2 = sqrt(spwf_r2_can(wave, wave))
+          r2 = sqrt(spwf_r2_can(wave))
 
           print 11, sumocc, wave, p,  s,   rho_can(wave), blo , canenergies(wave), &
           &              0.0, Delta , Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)
@@ -331,13 +331,13 @@ $TR     sumocc = 2*k
           Jy = can_JTI(2,wave) ; SY = can_STI (2,wave)
           Jz = can_J(3,wave)   ; SZ = can_spin(3,wave)
           JJ = can_JJ(wave)
-        else
-          Jx = spwf_JTR(1,wave, wave) ; SX = spwf_STR (1,wave, wave)
-          Jy = spwf_JTI(2,wave, wave) ; SY = spwf_STI (2,wave, wave)
-          Jz = spwf_J(3,wave, wave)   ; SZ = spwf_spin(3,wave, wave)
-          JJ = spwf_JJ(wave)     
+        !else
+        !  Jx = spwf_JTR(1,wave) ; SX = spwf_STR (1,wave)
+        !  Jy = spwf_JTI(2,wave) ; SY = spwf_STI (2,wave)
+        !  Jz = spwf_J(3,wave)   ; SZ = spwf_spin(3,wave)
+        !  JJ = spwf_JJ(wave)
         endif    
-        r2 = sqrt(spwf_r2_can(wave, wave))
+        r2 = sqrt(spwf_r2_can(wave))
 
         print 11, sumocc, wave, p, s,   rho_can(wave),  blo, canenergies(wave),  &
         &               0.0, Delta, Jx, Jy, Jz, JJ, Sx, Sy, Sz, r2, rank_map(wave)

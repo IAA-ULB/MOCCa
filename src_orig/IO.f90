@@ -571,7 +571,6 @@ contains
     endif
     !---------------------------------------------------------------------------
     call set_spwf_symmetries(sx, sy, sz, HFblocks)
-    call update_spwf_symmetries(.true.)
     !---------------------------------------------------------------------------
     if(guessgaps) then
       ! Guess some pairing gaps if asked for (always if starting from INIT)
