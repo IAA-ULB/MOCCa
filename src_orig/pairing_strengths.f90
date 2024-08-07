@@ -12,7 +12,7 @@ module pairing_strengths
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
- !
+ ! TODO: provide general context to the documentation
  ! 
  !
  !==============================================================================
@@ -25,6 +25,7 @@ module pairing_strengths
  implicit none
 
  abstract interface 
+    ! Interface for the different microscopic pairing gaps included
     function delta_abstract(kf, iso) result(delta)
       import :: mv, dp 
       real(KIND=dp), intent(in)  :: kf(mv)
@@ -34,6 +35,7 @@ module pairing_strengths
  end interface
 
  abstract interface 
+    ! Interface for the different ways to interpolate the microscopic pairing gaps
     function inter_abstract(delta_function, kfn, kfp, kf0, eta, iso) result(Delta)
       ! import statement to make this interface aware of the one above
       import                             :: delta_abstract, mv, dp
@@ -45,10 +47,13 @@ module pairing_strengths
  end interface
 
  abstract interface
-    function integr_abstract() result(I)
-      ! import statement to make this interface aware of the one above
-      import                             :: mv, dp
-    end function inter_abstract
+    ! Interface for the different ways to calculate the integral in the inversion
+    ! of the pairing strengths. 
+    function integr_abstract(rho,mu,delta,cut) result(integral)
+      import                    :: mv, dp
+      real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), cut
+      real(KIND=dp)             :: integral(mv)
+    end function integr_abstract
  end interface
 
  !------------------------------------------------------------------------------
@@ -132,12 +137,12 @@ contains
   !   vmicro: deduced pairing strength for both isospin species
   !-----------------------------------------------------------------------------
  
-  integer, intent(in)       :: ptype, iso, intertype
+  integer, intent(in)       :: ptype, iso, intertype, integrationtype
   real(KIND=dp), intent(in) :: rho(mv,4), F_Nm_Nm(mv,4)
   real(KIND=dp)             :: vmicro(mv)
 
-  procedure(inter_abstract), pointer :: interpolation
-  procedure(inter_abstract), pointer :: integration
+  procedure(inter_abstract), pointer  :: interpolation
+  procedure(integr_abstract), pointer :: integration
 
   if(.not.allocated(vmicro_storage)) then
     vmicro_stored = .false.
@@ -157,15 +162,14 @@ contains
   end select
 
   ! Select the right type of integration
-  select case(intertype)
+  select case(integrationtype)
   case(0)
     integration => weak_coupling_integration
   case(1)
     integration => tanh_sinh_integration
   case DEFAULT
-    call stp('Unrecognised option for intertype.')
+    call stp('Unrecognised option for integrationtype.')
   end select
-
 
   if(.not. vmicro_stored(iso)) then
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -174,7 +178,7 @@ contains
     call start_timer(T_microscopic_pairing)
     select case(ptype)
     case(0)
-     vmicro_storage(:,iso) = Cao(rho, F_Nm_Nm, iso, interpolation,.false.)
+     vmicro_storage(:,iso) = Cao(rho, F_Nm_Nm, iso, interpolation,integration,.false.)
     case DEFAULT
      call stp('Unrecognized ptype option.')
     end select
@@ -186,12 +190,13 @@ contains
 
  end function vmicro
 
- function Cao(rho, F_Nm_Nm, iso, interpolation, debug) result (vp)
+ function Cao(rho, F_Nm_Nm, iso, interpolation, integration, debug) result (vp)
   !-----------------------------------------------------------------------------
   ! Deduce the microscopic pairing strength (vp) from the density (rho) at all
   ! mesh points, using the routine interpolation to obtain results away from
   ! pure matter and symmetric matter.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  !
   ! Input:
   !   rho         : density D_I_I, including BOTH isospins
   !   iso         : isospin component to return (1 or 2)
@@ -199,7 +204,10 @@ contains
   !                 the position-dependent effective mass.
   !  interpolation: routine to deal with the interpolation to densities
   !                 that are not strictly symmetric or neutron matter.
+  !  integration  : routine to calculate the integral involved in the
+  !                 calculatoin of the pairing strengths
   !  debug : if .true., print a ton of debugging output to stdout.
+  !
   ! Output:
   !   vp  : relevant pairing strength deduced, vp(r) [position-dependent!]
   !-----------------------------------------------------------------------------
@@ -214,7 +222,8 @@ contains
   
   ! I originally coded this routine as taking a procedure as input. 
   ! Turns out that IFORT puts out catastrophic errors at some points...
-  procedure(inter_abstract), pointer  :: interpolation
+  procedure(inter_abstract), pointer   :: interpolation
+  procedure(integr_abstract), pointer  :: integration
  
   logical, optional, intent(in) :: debug
   logical                       :: debugflag
@@ -260,13 +269,13 @@ contains
   ! Calculate the (local) effective mass
   effm = hbm(iso) + F_Nm_Nm(:,iso) 
 
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculating of pairing gaps for each nucleon species using the interpolation 
   ! routine selected
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   delta_function => cao_delta 
   delta = interpolation(delta_function, kfn, kfp, kf0, eta, iso)
-  !This routine seems to need to take a procedure POINTER; cray compilers 
+  ! This routine seems to need to take a procedure POINTER; cray compilers 
   ! segfault if it is not a pointer.
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! Calculation of the Fermi energies using the position-dependent 
@@ -287,7 +296,7 @@ contains
   !     S. Goriely, N. Chamel and N. Pearson, PRL 102, 152503 (2009).
   ! which involves a numerical integral. 
   !
-
+  integral = integration(rho(:,iso), mu, delta, pairingcut(iso))
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Final results for the pairing strengths
   vp = - (8.*pi**2)  /integral*(effm)**1.5d0 
@@ -305,7 +314,7 @@ contains
 
  function integrand(xi, mu, delta, cutoff) result(I)
     !----------------------------------------------------------------------------
-    ! Integrand
+    ! Integrand ; TODO: document
     !----------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: xi, mu, delta, cutoff
     real(KIND=dp)             :: I, Eqp
@@ -375,9 +384,18 @@ contains
  end function tanh_sinh
 
  function tanh_sinh_integration(rho, mu, delta, cut) result (integral)
+   !----------------------------------------------------------------------------
+   ! TODO: document
+   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   ! Input:
+   !   rho      :
+   !   mu       :
+   !   delta    :
+   !   cut      :
    !
-   !
-   !
+   ! Output : 
+   !   integral :
+   !----------------------------------------------------------------------------
    real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), cut
    real(KIND=dp)             :: integral(mv)
    integer :: i
@@ -386,9 +404,10 @@ contains
     if(delta(i) .gt. 0) then
       ! numerical safeguard for underflowing \Delta
       if(rho(i) .gt. 1d-15) then
-        ! Numerical safeguard for very low density
-        integral(i) = tanh_sinh(mu(i), delta(i), cut, 0.0d0, mu(i)    , 0.2d0, 2d-4) &
-        &           + tanh_sinh(mu(i), delta(i), cut, mu(i), mu(i)+cut, 0.2d0, 2d-4)
+        ! Numerical safeguard for very low or negative density
+        integral(i) =&
+        &       tanh_sinh(mu(i), delta(i), cut, 0.0d0, mu(i)    , 0.2d0, 2d-4) &
+        &     + tanh_sinh(mu(i), delta(i), cut, mu(i), mu(i)+cut, 0.2d0, 2d-4)
       else
         ! Analytical limit of rho and delta tending to zero
         integral(i) = 2 * sqrt(cut)
@@ -401,7 +420,9 @@ contains
  end function tanh_sinh_integration
 
  function weak_coupling_integration(rho,mu, delta, cut) result (integral)
-
+  !-----------------------------------------------------------------------------
+  ! TODO: document
+  !
   ! The last development of the BSk-family is somewhat simpler: Eqs. (7-8) from
   !   S. Goriely, N. Chamel and J. M. Pearson, PRC 93, 034337 (2016).
   ! where the integral is approximated as
@@ -412,15 +433,26 @@ contains
   ! \Delta_q is the gap for species q and epsilon_l is the pairing cutoff.
   ! The function Lambda is
   ! \Lambda(x) = log(16*x) + 2 * sqrt(1 + x) - 2 log(1 + sqrt{1 + x}) - 4.
+  !
+  !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Input:
+  !   rho      :
+  !   mu       :
+  !   delta    :
+  !   cut      :
+  !
+  ! Output : 
+  !   integral :
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), cut
-  real(KIND=dp)             :: integral(mv),x
+  real(KIND=dp)             :: integral(mv),x(mv)
   integer :: i
 
   x = cut/mu
   do i=1,mv
     if(delta(i) .gt. 0) then
-      if(rho(i,iso) .gt. 1d-15) then
+      if(rho(i) .gt. 1d-15) then
+        ! Numerical safeguard for very low or negative density
         integral(i) = sqrt(mu(i))* (2.d0*dlog(2.d0*mu(i)/delta(i))+Lambda(x(i)))
       else
         ! Analytical limit of rho and delta tending to zero
