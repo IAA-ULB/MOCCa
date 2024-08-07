@@ -1010,14 +1010,16 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     ! Calcall input decides whether or not to calculate ALL fields. 
     ! If Calcall is true, all of the potentials get recalculated.
     ! If Calcall is false, only potentials that are equal to zero get calculated.
+    !
+    ! Note: it also precalculates the microscopic pairing strengths that is
+    !       necessary to calculate the
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Includes preconditioning of F_I_I at the moment only.
     !---------------------------------------------------------------------------
     use Coulombmod , only : SolveCoulomb, CoulombPotential, Exchangepotential
     use Coulombmod , only : Foldedcoul,  FoldedExchange, Coulomb_read_from_file
     use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
-    
-    use pairing_strengths, only : vmicro
+    use pairing_strengths, only : vmicro, vmicro_stored
     
     use moments
     
@@ -1035,11 +1037,14 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
         if(allocated(F_I_I))then
             rhoread = .true.
         else
-            rhoread = .false.        
+            rhoread = .false.
         endif
     else
         rhoread = .false.
     endif
+
+    ! Signal that microscopic pairing strengths have to be recalculated
+    vmicro_stored = .false.
 
 $CALCFIELDS
     

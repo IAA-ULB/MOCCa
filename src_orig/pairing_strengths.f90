@@ -43,6 +43,22 @@ module pairing_strengths
       real(KIND=dp)                      :: Delta(mv) 
     end function inter_abstract
  end interface
+
+ abstract interface
+    function integr_abstract() result(I)
+      ! import statement to make this interface aware of the one above
+      import                             :: mv, dp
+    end function inter_abstract
+ end interface
+
+ !------------------------------------------------------------------------------
+ ! Global storage for the microscopically-derived pairing strengths.
+ ! Since these numbers require some numerical integration to obtain and feature
+ ! in quite a lot of places, it is worthwhile to calculate these values only
+ ! once per iteration and store them.
+ !------------------------------------------------------------------------------
+ logical                    :: vmicro_stored(2) = .false.
+ real(KIND=dp), allocatable :: vmicro_storage(:,:)
  !------------------------------------------------------------------------------
 
 contains 
@@ -98,7 +114,7 @@ contains
 
  end subroutine print_micro_pairing_info
 
- function vmicro(rho, F_Nm_Nm, iso, ptype, intertype) 
+ function vmicro(rho, F_Nm_Nm, iso, ptype, intertype, integrationtype)
   !-----------------------------------------------------------------------------
   ! Select the right routine for calculation the (position-dependent)
   ! microscopic pairing strength from among possible options. 
@@ -109,8 +125,9 @@ contains
   !   F_NM_NM : potential associated with D_Nm_Nm, for calculating
   !             the position-dependent effective mass.
   !   ptype   : select the prescription for microscopic pairing strength
-  !   intertype: select the prescription for INM matter interpolation
-  !   
+  !   intertype       : select the prescription for INM matter interpolation
+  !   integrationtype : select the type of integration to employ when
+  !                     determining the microscopic pairing strengths
   ! Output:
   !   vmicro: deduced pairing strength for both isospin species
   !-----------------------------------------------------------------------------
@@ -118,10 +135,15 @@ contains
   integer, intent(in)       :: ptype, iso, intertype
   real(KIND=dp), intent(in) :: rho(mv,4), F_Nm_Nm(mv,4)
   real(KIND=dp)             :: vmicro(mv)
+
   procedure(inter_abstract), pointer :: interpolation
-  
-  call start_timer(T_microscopic_pairing)
- 
+  procedure(inter_abstract), pointer :: integration
+
+  if(.not.allocated(vmicro_storage)) then
+    vmicro_stored = .false.
+    allocate(vmicro_storage(mv,2))
+  endif
+
   ! Select the right type of interpolation
   select case(intertype)
   case(0)
@@ -133,16 +155,35 @@ contains
   case DEFAULT
     call stp('Unrecognised option for intertype.')
   end select
- 
-  select case(ptype) 
-  case(0) 
-    vmicro = Cao(rho, F_Nm_Nm, iso, interpolation,.false.)
+
+  ! Select the right type of integration
+  select case(intertype)
+  case(0)
+    integration => weak_coupling_integration
+  case(1)
+    integration => tanh_sinh_integration
   case DEFAULT
-    call stp('Unrecognized ptype option.')
+    call stp('Unrecognised option for intertype.')
   end select
 
-  call stop_timer(T_microscopic_pairing)
- 
+
+  if(.not. vmicro_stored(iso)) then
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Perform the calculation of vmicro for this isospin
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    call start_timer(T_microscopic_pairing)
+    select case(ptype)
+    case(0)
+     vmicro_storage(:,iso) = Cao(rho, F_Nm_Nm, iso, interpolation,.false.)
+    case DEFAULT
+     call stp('Unrecognized ptype option.')
+    end select
+    ! Signal to future calls that we have the numbers already
+    vmicro_stored(iso) = .true.
+    call stop_timer(T_microscopic_pairing)
+  endif
+  vmicro = vmicro_storage(:,iso)
+
  end function vmicro
 
  function Cao(rho, F_Nm_Nm, iso, interpolation, debug) result (vp)
@@ -165,11 +206,11 @@ contains
   real(KIND=dp), intent(in)  :: rho(mv,4), F_Nm_Nm(mv,4)
   integer, intent(in)        :: iso
   procedure(delta_abstract), pointer :: delta_function
-  integer                    :: i
+  integer                    :: i, k
   real(KIND=dp)              :: vp(mv), kf0(mv), kfp(mv), kfn(mv), eta(mv)
   real(KIND=dp)              :: x(mv), mu(mv), effm(mv)
-  real(KIND=dp)              :: integral(mv)
-  real(KIND=dp)              :: Delta(mv)
+  real(KIND=dp)              :: integral(mv), integral_tanh(mv)
+  real(KIND=dp)              :: Delta(mv), a(mv)
   
   ! I originally coded this routine as taking a procedure as input. 
   ! Turns out that IFORT puts out catastrophic errors at some points...
@@ -246,29 +287,6 @@ contains
   !     S. Goriely, N. Chamel and N. Pearson, PRL 102, 152503 (2009).
   ! which involves a numerical integral. 
   !
-  ! The last development of the BSk-family is somewhat simpler: Eqs. (7-8) from 
-  !   S. Goriely, N. Chamel and J. M. Pearson, PRC 93, 034337 (2016).
-  ! where the integral is approximated as
-  !
-  ! I_q = \sqrt{\mu_q} [2 \log (2 \mu_q/\Delta_q) + \Lambda (\epsilon_l/\mu_q)]
-  !
-  ! where \mu_q is the INM approximation for the Fermi energy of species q, 
-  ! \Delta_q is the gap for species q and epsilon_l is the pairing cutoff. 
-  ! The function Lambda is 
-  ! \Lambda(x) = log(16*x) + 2 * sqrt(1 + x) - 2 log(1 + sqrt{1 + x}) - 4.
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  x = pairingcut(iso)/mu
-  do i=1,mv
-    if(delta(i) .gt. 0) then
-      if(rho(i,iso) .gt. 1d-15) then
-        integral(i) = sqrt(mu(i))* (2.d0*dlog(2.d0*mu(i)/delta(i))+Lambda(x(i)))
-      else
-        integral(i) = 2 * sqrt(pairingcut(iso))
-      endif
-    else
-      integral(i) = 1d99
-    endif
-  enddo
 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Final results for the pairing strengths
@@ -284,6 +302,136 @@ contains
     close(10)
   endif
  end function Cao
+
+ function integrand(xi, mu, delta, cutoff) result(I)
+    !----------------------------------------------------------------------------
+    ! Integrand
+    !----------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: xi, mu, delta, cutoff
+    real(KIND=dp)             :: I, Eqp
+
+    Eqp = sqrt((xi-mu)**2 + delta**2)
+    I   = sqrt(xi)/Eqp
+
+ end function integrand
+
+ function tanh_sinh(mu, delta, cutoff, a, b, h, tol) result(I)
+    !----------------------------------------------------------------------------
+    !
+    ! Collocation points placed at t_i+/-(i + 0.5)*h for i=1,N where N is large
+    ! enough such that integrand(x(t_i)) * w_i < tol.
+    !
+    ! Implementation strongly inspired by the one in the mpmath python library.
+    ! TODO: write documentation
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !
+    !  mu    : reduced Fermi energy        |
+    !  delta : targetted pairing gap       | arguments of the function integrand
+    !  cutoff: value of the pairing cutoff |  defined above
+    !
+    !  a, b  : limits of the integration interval
+    !  h     : step size of the collocation points
+    !  tol   : tolerance determining when to stop adding points
+    !
+    ! Output:
+    !
+    !   I    : value of the integral
+    !
+    !----------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: a, b, h, tol, mu, delta, cutoff
+    real(KIND=dp)             :: I, C, D, fxm, fxp, t, t0, x, x0, w, w0, xm, xp
+    integer                   :: k
+
+    I = 0
+    k = -1
+    C = (b-a)/2 ;  D = (b+a)/2
+    fxm = 10 ; fxp = 10
+    w  = 10
+    t0 = h/2
+
+    do while (abs(fxm*w*h) .gt. tol .or. abs(fxp*w*h) .gt. tol)
+        k = k +1
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Add two integration points at +(t0 + k* h) and -((t0 + k* h)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        t  = t0 + k * h
+        ! this is the coordinate and weight for integration on the interval [-1,1]
+        x0 = tanh(pi/2 * sinh(t))
+        w0 = pi/2 * cosh(t) / cosh(pi/2 * sinh(t))**2
+
+        ! We transform x and w to the [a,b] interval with a linear transformation
+        w   = C*w0
+        xp  = C*x0 + D      ; xm  =-C*x0 + D
+
+        ! Function evaluation for both points
+        fxp = integrand(xp, mu, delta, cutoff)
+        fxm = integrand(xm, mu, delta, cutoff)
+
+        ! ... and we add both points to the integral with the appropriate weight
+        I   = I + (fxp+fxm)*w*h
+    enddo
+ end function tanh_sinh
+
+ function tanh_sinh_integration(rho, mu, delta, cut) result (integral)
+   !
+   !
+   !
+   real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), cut
+   real(KIND=dp)             :: integral(mv)
+   integer :: i
+
+   do i=1, mv
+    if(delta(i) .gt. 0) then
+      ! numerical safeguard for underflowing \Delta
+      if(rho(i) .gt. 1d-15) then
+        ! Numerical safeguard for very low density
+        integral(i) = tanh_sinh(mu(i), delta(i), cut, 0.0d0, mu(i)    , 0.2d0, 2d-4) &
+        &           + tanh_sinh(mu(i), delta(i), cut, mu(i), mu(i)+cut, 0.2d0, 2d-4)
+      else
+        ! Analytical limit of rho and delta tending to zero
+        integral(i) = 2 * sqrt(cut)
+      endif
+    else
+        integral(i) = 1d99
+    endif
+  enddo
+
+ end function tanh_sinh_integration
+
+ function weak_coupling_integration(rho,mu, delta, cut) result (integral)
+
+  ! The last development of the BSk-family is somewhat simpler: Eqs. (7-8) from
+  !   S. Goriely, N. Chamel and J. M. Pearson, PRC 93, 034337 (2016).
+  ! where the integral is approximated as
+  !
+  ! I_q = \sqrt{\mu_q} [2 \log (2 \mu_q/\Delta_q) + \Lambda (\epsilon_l/\mu_q)]
+  !
+  ! where \mu_q is the INM approximation for the Fermi energy of species q,
+  ! \Delta_q is the gap for species q and epsilon_l is the pairing cutoff.
+  ! The function Lambda is
+  ! \Lambda(x) = log(16*x) + 2 * sqrt(1 + x) - 2 log(1 + sqrt{1 + x}) - 4.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), cut
+  real(KIND=dp)             :: integral(mv),x
+  integer :: i
+
+  x = cut/mu
+  do i=1,mv
+    if(delta(i) .gt. 0) then
+      if(rho(i,iso) .gt. 1d-15) then
+        integral(i) = sqrt(mu(i))* (2.d0*dlog(2.d0*mu(i)/delta(i))+Lambda(x(i)))
+      else
+        ! Analytical limit of rho and delta tending to zero
+        integral(i) = 2 * sqrt(cut)
+      endif
+    else
+      integral(i) = 1d99
+    endif
+  enddo
+
+ end function weak_coupling_integration
 
 !-------------------------------------------------------------------------------
 ! Obtain an estimate for the microscopic gap by interpolating between the 
