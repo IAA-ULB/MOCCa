@@ -68,32 +68,44 @@ module pairing_strengths
 
 contains 
 
- subroutine print_micro_pairing_info(ptype, intertype)
+ subroutine print_micro_pairing_info(ptype, interpolationtype, integrationtype)
   !-----------------------------------------------------------------------------
   ! Print some information on the type of microscopic pairing type detected.
   !
   ! Input:
   ! ------- 
-  !   ptype     : selection of gap to get to
-  !   intertype :  selection of INM interpolation routine
+  !   ptype                  : selection of gap to get to
+  !   interpolationtype      : selection of INM interpolation routine
+  !   integrationtype        : selection of the integration routine
   !
   !   ptype   type of gap     
   !   -----   -----------     
   !     0     Cao             
   !
   !
-  ! intertype   interpolation routine         Interpolation approach
+  !             interpolation routine         Interpolation approach
   ! ---------   ----------------------       ---------------------------------
   !  0          standard_interpolation      N. Chamel et al., PRC 80, 065804 (2009).
   !  1          linear interpolation        D=(1-|eta|)D_sym + |eta|D_{q,pure}
   !  2          weak coupling interpolation [To be published]
+  !
+  !
+  !             integration routine            Integration
+  ! ---------   --------------------------    ---------------------------------
+  !  0          weak_coupling_integration     analytical approximation
+  !  1          tanh_sinh_integration         numerical integration
+  !
+  ! Note: the analytical formula employed for integrationtype=0 is not suited
+  !       for N2LO forms.
+  !
   !-----------------------------------------------------------------------------
-  integer, intent(in) :: ptype, intertype
+  integer, intent(in) :: ptype, interpolationtype, integrationtype
   
   1 format (' Microscopic treatment of the pairing active')
-  2 format ('      Vmic prescription :  ', a50)
-  3 format ('      INM interpolation :  ', a50)
- 
+  2 format ('      Vmic prescription   :  ', a50)
+  3 format ('      INM interpolation   :  ', a50)
+  4 format ('      Integral calculation:  ', a50)
+
   print 1
   select case(ptype)
   case(0)
@@ -102,7 +114,7 @@ contains
     call stp('PTYPE not recognized in pring_micro_pairing_info.')
   end select 
 
-  select case(intertype)
+  select case(interpolationtype)
   case(0)
     print 3, ' "Standard interpolation" from N. Chamel et al., PRC 80, 065804 (2009).'
     print *, '  ATTENTION: this INM interpolation is NOT recommended. '
@@ -114,30 +126,49 @@ contains
     print *, '      Delta_n = Delta_NM(k_Fn)*[Delta_SM(k_F)/Delta_NM(k_F)]^{1-eta}'
     print *, '      Delta_p = Delta_NM(k_Fp)*[Delta_SM(k_F)/Delta_NM(k_F)]^{1+eta}'
   case DEFAULT
-    call stp('intertype not recognized in print_micro_pairing_info.')
+    call stp('interpolationtype not recognized in print_micro_pairing_info.')
   end select 
+
+  select case(integrationtype)
+  case(0)
+    print 3, ' Analytical weak coupling approximation from N. Chamel, PRC 82, 014313 (2010).'
+  case (1)
+    print 3, ' Numerical integration by means of tanh-sinh quadrature.'
+  case DEFAULT
+    call stp('integrationtype not recognized in print_micro_pairing_info.')
+  end select
 
  end subroutine print_micro_pairing_info
 
- function vmicro(rho, F_Nm_Nm, iso, ptype, intertype, integrationtype)
+ function vmicro(rho, F_Nm_Nm, iso, ptype, interpolationtype, integrationtype)
   !-----------------------------------------------------------------------------
-  ! Select the right routine for calculation the (position-dependent)
-  ! microscopic pairing strength from among possible options. 
-  ! 
+  ! Calculate a microscopically motivated (position-dependent) pairing strength
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  !
   ! Input:
-  !   rho     : density   
-  !   iso     : isospin (1 or 2 for neutrons or protons) 
-  !   F_NM_NM : potential associated with D_Nm_Nm, for calculating
-  !             the position-dependent effective mass.
-  !   ptype   : select the prescription for microscopic pairing strength
-  !   intertype       : select the prescription for INM matter interpolation
-  !   integrationtype : select the type of integration to employ when
+  !   rho               : density
+  !   iso               : isospin (1 or 2 for neutrons or protons)
+  !   F_NM_NM           : potential associated with D_Nm_Nm, for calculating
+  !                     the position-dependent effective mass.
+  !   ptype             : select the prescription for microscopic pairing strength
+  !                      (0) gaps from BHF calculations by Cao et al.
+  !   interpolationtype : select the prescription for INM matter interpolation
+  !                      (0) "standard" interpolation of N. Chamel et al.
+  !                      (1) linear interpolation of original BSkG3
+  !                      (2) weak coupling interpolation as proposed by
+  !                          N. Shchechilin.
+  !   integrationtype   : select the type of integration to employ when
   !                     determining the microscopic pairing strengths
+  !                      (0) analytical result for the weak coupling
+  !                          approximation as proposed by N. Chamel.
+  !                      (1) direct numerical integration through tanh-sinh
+  !                          techniques.
+  !
   ! Output:
-  !   vmicro: deduced pairing strength for both isospin species
+  !   vmicro: deduced pairing strength for the requested species
   !-----------------------------------------------------------------------------
  
-  integer, intent(in)       :: ptype, iso, intertype, integrationtype
+  integer, intent(in)       :: ptype, iso, interpolationtype, integrationtype
   real(KIND=dp), intent(in) :: rho(mv,4), F_Nm_Nm(mv,4)
   real(KIND=dp)             :: vmicro(mv)
 
@@ -150,7 +181,7 @@ contains
   endif
 
   ! Select the right type of interpolation
-  select case(intertype)
+  select case(interpolationtype)
   case(0)
     interpolation => standard_interpolation
   case(1)
@@ -158,7 +189,7 @@ contains
   case(2)
     interpolation => weak_coupling_interpolation
   case DEFAULT
-    call stp('Unrecognised option for intertype.')
+    call stp('Unrecognised option for interpolationtype.')
   end select
 
   ! Select the right type of integration
@@ -291,14 +322,11 @@ contains
     mu = effm * kfp**2
   end select   
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  ! calculation of the pairing strengths, inverted from the gaps. 
-  ! The original way would be that of Eq. (1) of
-  !     S. Goriely, N. Chamel and N. Pearson, PRL 102, 152503 (2009).
-  ! which involves a numerical integral. 
-  !
+  ! calculation of the complicated integral
   integral = integration(rho(:,iso), mu, delta, pairingcut(iso))
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  ! Final results for the pairing strengths
+  ! Final results for the pairing strengths:
+  !  see S. Goriely, N. Chamel and N. Pearson, PRL 102, 152503 (2009).
   vp = - (8.*pi**2)  /integral*(effm)**1.5d0 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -312,11 +340,20 @@ contains
   endif
  end function Cao
 
- function integrand(xi, mu, delta, cutoff) result(I)
+ function integrand(xi, mu, delta) result(I)
     !----------------------------------------------------------------------------
-    ! Integrand ; TODO: document
+    ! Integrand of the complicated integral
+    !
+    !                  sqrt (2 xi)
+    !  I (xi) = --------------------------- sqrt((1+uxi)(1+sqrt(1+uxi)))^-1
+    !           sqrt((xi - mu)^2 + Delta^2)
+    !
+    ! Input:
+    !    xi   : integration variable
+    !    mu   : reduced Fermi energy
+    !    delta: targetted pairing gap
     !----------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: xi, mu, delta, cutoff
+    real(KIND=dp), intent(in) :: xi, mu, delta
     real(KIND=dp)             :: I, Eqp
 
     Eqp = sqrt((xi-mu)**2 + delta**2)
@@ -324,20 +361,61 @@ contains
 
  end function integrand
 
- function tanh_sinh(mu, delta, cutoff, a, b, h, tol) result(I)
+ function tanh_sinh(mu, delta, a, b, h, tol) result(I)
     !----------------------------------------------------------------------------
+    ! Calculate the following integral numerically:
     !
-    ! Collocation points placed at t_i+/-(i + 0.5)*h for i=1,N where N is large
-    ! enough such that integrand(x(t_i)) * w_i < tol.
+    !    I = \int_{0}^{\mu + \epsilon_lambda} integrand(xi, mu, delta) dxi
     !
-    ! Implementation strongly inspired by the one in the mpmath python library.
-    ! TODO: write documentation
+    ! where the function integrand is defined above. This is not trivial, because
+    ! the integrand is a very peaked function at \mu if \Delta is small, which
+    ! typically happens at very low or very high densities. This routine employs
+    ! a tanh-sinh quadrature (also known as a double exponential formula): the
+    ! main interest of this technique is its robustness with respect to
+    ! integrable singularities on the borders of the integration range.
+    !
+    ! This routines strategy is first to split the integral
+    !
+    !   I =  \int_{0}^{\mu} integrand(xi, mu, delta) dxi
+    !     +  \int_{mu}^{\mu+\epsilon_lambda} integrand(xi, mu, delta) dxi
+    !
+    ! and apply a tanh-sinh change of variables to each:
+    !
+    !    xi = tanh(pi/2 * sinh(t))
+    !
+    ! which can changes
+    !
+    !     int_{-1, 1} f(x) dx = \int_{-\infty}^{+\infty} f(x(t)) dx/dt dt
+    !
+    ! Of course, one needs first a linear transformation to recast each original
+    ! integral as one restricted to [-1,1]. The advantage of the r.h.s. is that
+    ! the extremely quickly decreasing dx/dt means we don't need collocation
+    ! points at very large values of t and kills any contribution from the
+    ! points near \mu.
+    !
+    ! In practice, we take symmetric collocation points at
+    !
+    !      t_i = (i + 0.5) * h    and t_-i =-(i + 0.5) * h
+    !
+    ! for i = 1, N. N is adaptively determined by simply adding points until the
+    ! contribution to the integral becomes small enough.
+    !
+    ! This routine is somewhat stupid in that it uses a fixed stepsize h and offers
+    ! no error control in practice; this could be improved easily through refinement
+    ! with additional points.
+    !
+    ! This implementation is strongly inspired by the one in the mpmath python library.
+    ! For more information see:
+    !   - Numerical Recipes in C++, section 4.4 in the second edition.
+    !   - https://en.wikipedia.org/wiki/Tanh-sinh_quadrature
+    !   - Bailey, David H, "Tanh-Sinh High-Precision Quadrature". (2006).
+    !     https://www.davidhbailey.com/dhbpapers/dhb-tanh-sinh.pdf
+    !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !
-    !  mu    : reduced Fermi energy        |
-    !  delta : targetted pairing gap       | arguments of the function integrand
-    !  cutoff: value of the pairing cutoff |  defined above
+    !  mu    : reduced Fermi energy        | arguments of the function integrand
+    !  delta : targetted pairing gap       | defined above
     !
     !  a, b  : limits of the integration interval
     !  h     : step size of the collocation points
@@ -348,7 +426,7 @@ contains
     !   I    : value of the integral
     !
     !----------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: a, b, h, tol, mu, delta, cutoff
+    real(KIND=dp), intent(in) :: a, b, h, tol, mu, delta
     real(KIND=dp)             :: I, C, D, fxm, fxp, t, t0, x, x0, w, w0, xm, xp
     integer                   :: k
 
@@ -375,8 +453,8 @@ contains
         xp  = C*x0 + D      ; xm  =-C*x0 + D
 
         ! Function evaluation for both points
-        fxp = integrand(xp, mu, delta, cutoff)
-        fxm = integrand(xm, mu, delta, cutoff)
+        fxp = integrand(xp, mu, delta)
+        fxm = integrand(xm, mu, delta)
 
         ! ... and we add both points to the integral with the appropriate weight
         I   = I + (fxp+fxm)*w*h
@@ -385,16 +463,24 @@ contains
 
  function tanh_sinh_integration(rho, mu, delta, cut) result (integral)
    !----------------------------------------------------------------------------
-   ! TODO: document
+   ! Use tanh-sinh quadrature to evaluate the complicated integral of the
+   ! function integrand defined above with the strategy described for the
+   ! routine tanh_sinh.
+   !
+   ! The settings h = 0.2 MeV and tol=2d-4 have been manually optimised to
+   ! result in a relative error below 1-e3 for rho in [0, 0.4] fm^{-3} when
+   ! using the gaps of Cao et al. as target with a feasible number of points,
+   ! typically about 50. Of course, this means a superior accuracy (up to 1e-7)
+   ! for the densities encountered in finite nuclei.
    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    ! Input:
-   !   rho      :
-   !   mu       :
-   !   delta    :
-   !   cut      :
+   !   rho      : density of the nucleon species under consideration
+   !   mu       : reduced Fermi energy of the species under consideration
+   !   delta    : targetted pairing gap
+   !   cut      : value of the pairing cutoff
    !
-   ! Output : 
-   !   integral :
+   ! Output :
+   !   integral : numerical value of the integral
    !----------------------------------------------------------------------------
    real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), cut
    real(KIND=dp)             :: integral(mv)
@@ -406,8 +492,8 @@ contains
       if(rho(i) .gt. 1d-15) then
         ! Numerical safeguard for very low or negative density
         integral(i) =&
-        &       tanh_sinh(mu(i), delta(i), cut, 0.0d0, mu(i)    , 0.2d0, 2d-4) &
-        &     + tanh_sinh(mu(i), delta(i), cut, mu(i), mu(i)+cut, 0.2d0, 2d-4)
+        &       tanh_sinh(mu(i), delta(i), 0.0d0, mu(i)    , 0.2d0, 2d-4) &
+        &     + tanh_sinh(mu(i), delta(i), mu(i), mu(i)+cut, 0.2d0, 2d-4)
       else
         ! Analytical limit of rho and delta tending to zero
         integral(i) = 2 * sqrt(cut)
@@ -420,29 +506,36 @@ contains
  end function tanh_sinh_integration
 
  function weak_coupling_integration(rho,mu, delta, cut) result (integral)
-  !-----------------------------------------------------------------------------
-  ! TODO: document
+  !----------------------------------------------------------------------------
+  ! Employ an analytical formula to approximate the following integral
   !
-  ! The last development of the BSk-family is somewhat simpler: Eqs. (7-8) from
+  !    I = \int_{0}^{\mu + \epsilon_lambda} integrand(xi, mu, delta, u=0) dxi
+  !
+  ! where the function integrand is defined above. The analytical approximation
+  ! is Eqs. (7-8) from
+  !
   !   S. Goriely, N. Chamel and J. M. Pearson, PRC 93, 034337 (2016).
-  ! where the integral is approximated as
   !
-  ! I_q = \sqrt{\mu_q} [2 \log (2 \mu_q/\Delta_q) + \Lambda (\epsilon_l/\mu_q)]
+  ! and reads
+  !
+  !  I_q = \sqrt{\mu_q} [2 \log (2 \mu_q/\Delta_q) + \Lambda (\epsilon_l/\mu_q)]
   !
   ! where \mu_q is the INM approximation for the Fermi energy of species q,
   ! \Delta_q is the gap for species q and epsilon_l is the pairing cutoff.
   ! The function Lambda is
-  ! \Lambda(x) = log(16*x) + 2 * sqrt(1 + x) - 2 log(1 + sqrt{1 + x}) - 4.
+  !   \Lambda(x) = log(16*x) + 2 * sqrt(1 + x) - 2 log(1 + sqrt{1 + x}) - 4.
+  !
+  ! Note that this approximation has so far not been generalized to N2LO EDFs.
   !
   !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Input:
-  !   rho      :
-  !   mu       :
-  !   delta    :
-  !   cut      :
+  !   rho      : density
+  !   mu       : reduced Fermi lveel
+  !   delta    : targetted pairing gaps
+  !   cut      : pairing cutoff
   !
   ! Output : 
-  !   integral :
+  !   integral : valueof the integral
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), cut
   real(KIND=dp)             :: integral(mv),x(mv)

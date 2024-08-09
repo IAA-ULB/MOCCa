@@ -72,5 +72,6 @@ vibcorrl    = 5.499
 vibcorrb    = 0.82652   
 eps         = 1d-8 
 ptype       = 0  
-intertype   = 1  
-/ 
+interpolationtype   = 1
+integrationtype   = 0
+/

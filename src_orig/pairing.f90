@@ -490,7 +490,7 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
       print 13
     endif
 
-$VMICRO call print_micro_pairing_info(ptype, intertype)        
+$VMICRO call print_micro_pairing_info(ptype, interpolationtype, integrationtype)
 
     if(Blocktype .ne. 0) then
         print 90
