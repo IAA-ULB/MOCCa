@@ -89,7 +89,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
     fieldwrite :
     fieldread  :
     fieldclean :
-
+    fieldINMk2 :
+    fieldINMk4 :
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
   """
@@ -105,16 +106,20 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   fieldprecon = ''
   declaration = ''
 
-  fieldread = ''
-  fieldwrite= ''
+  fieldread    = ''
+  fieldwrite   = ''
   fieldtransfo = ''
+
+  fieldINMk2 = ''
+  fieldINMk4 = ''
       
-  fieldclean= '' 
+  fieldclean = ''
   #---------------------------------------------------------------------------
   for den in src_heph.heph_functional.Densities_needed:
       #-----------------------------------------------------------------------
       #  Get the operator structure of the density correctly                    
       (der,lap,left, right, coupling,cross) = ParseOperators(den,so.timelike) 
+
       #-----------------------------------------------------------------------
       # Name the field correctly
       dic = {}
@@ -514,7 +519,11 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
       
       FIELDCALC    = FIELDCALC + ts.field_condition_start.substitute(dic)
-      
+
+      #------------------------------------------------------------------------
+      #
+      fieldINM = ""
+
       #-------------------------------------------------------------------------
       # Code generation for the calculation of the fields. 
       #
@@ -647,13 +656,77 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
 
              FIELDCALC = FIELDCALC + ts.field_calc_full.substitute(dic)
              FIELDCALC = FIELDCALC[:-4] + '\n \n'
-                            
+
+             if(LeftOperator.derorder + RightOperator.derorder == 2 or \
+                LeftOperator.derorder + RightOperator.derorder == 4):
+                # - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                # If this term
+                #    1) does not contain derivatives of densities
+                #    2) does not contain a Pauli matrix
+                #    3) and has pair-wise indices to all possible
+                #       densities
+                # then add it to the expressions for the k2 and/or k4
+                # potential for the microscopic pairing.
+                #
+                # This way of determining which terms contribute to the
+                # potential in homogeneous infinite matter seems unlikely
+                # to be entirely correct in the most general case
+                # TODO: figure out and implement something more general
+
+                # - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                # Poor mans reverse engineering of the indices to
+                # determine if they couple to a scalar in position space
+                if(len(dic['IND']) > 0):
+                 scalar = True
+                 inds = []
+                 for k in dic['IND']:
+                   try:
+                     inds.append(int(k))
+                   except:
+                     continue
+                 for k in range(1,max(inds)+1):
+                   if(inds.count(k)%2 != 0):
+                    scalar = False
+                else:
+                  scalar = True
+
+                # Pauli spin matrices?
+                nosigma=True
+                if('S' in left or 'S' in right):
+                  nosigma=False
+
+                # Any external derivatives?
+                noderivatives=True
+                if(len(fieldterm[1])>0 or len(fieldterm[2])>0):
+                    noderivatives = False
+                for d in fieldterm[0]:
+                  if('Der' in d or 'Lap' in d):
+                    noderivatives=False
+
+                # Figure out whether we should average over diagonal components
+                if(OrderOfDen(den)>1):
+                  dic['DEGEN'] = '3.0d0'
+                else:
+                  dic['DEGEN'] = '1.0d0'
+
+
+                if (scalar and nosigma and noderivatives):
+                  fieldINM = fieldINM + ts.field_calc_INM.substitute(dic)
+
+      fieldINM = fieldINM + '\n'
+
       # Add the recombination statements from isospin representation to 
       # proton-neutron representation, but only for normal densities
       if('P' not in den):
         FIELDCALC    = FIELDCALC + ts.field_recombination.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_condition_end.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic) + '\n'
+
+
+      if(LeftOperator.derorder + RightOperator.derorder == 2):
+        fieldINMk2 = fieldINMk2 + fieldINM
+      elif(LeftOperator.derorder + RightOperator.derorder == 4):
+        fieldINMk4 = fieldINMk4 + fieldINM
 
       #-------------------------------------------------------------------------
       # Code generation for the preconditioning of the fields
@@ -822,7 +895,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         fieldprecon  = fieldprecon + ts.field_precon_end.substitute(dic)
   #-----------------------------------------------------------------------------
 
-  return(declaration, FIELDCALC, fieldprecon, fieldwrite, fieldread, fieldclean)
+  return(declaration, FIELDCALC, fieldprecon, fieldwrite, fieldread, fieldclean, fieldINMk2, fieldINMk4 )
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
   """

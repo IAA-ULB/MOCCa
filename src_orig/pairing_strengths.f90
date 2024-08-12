@@ -35,7 +35,7 @@ module pairing_strengths
  end interface
 
  abstract interface 
-    ! Interface for the different ways to interpolate the microscopic pairing gaps
+      ! Interface for the different ways to interpolate the micros310copic pairing gaps
     function inter_abstract(delta_function, kfn, kfp, kf0, eta, iso) result(Delta)
       ! import statement to make this interface aware of the one above
       import                             :: delta_abstract, mv, dp
@@ -49,9 +49,9 @@ module pairing_strengths
  abstract interface
     ! Interface for the different ways to calculate the integral in the inversion
     ! of the pairing strengths. 
-    function integr_abstract(rho,mu,delta,cut) result(integral)
+    function integr_abstract(rho,mu,delta,u,cut) result(integral)
       import                    :: mv, dp
-      real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), cut
+      real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), u(mv), cut
       real(KIND=dp)             :: integral(mv)
     end function integr_abstract
  end interface
@@ -140,7 +140,7 @@ contains
 
  end subroutine print_micro_pairing_info
 
- function vmicro(rho, F_Nm_Nm, iso, ptype, interpolationtype, integrationtype)
+ function vmicro(rho, U2, U4, iso, ptype, interpolationtype, integrationtype)
   !-----------------------------------------------------------------------------
   ! Calculate a microscopically motivated (position-dependent) pairing strength
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -148,8 +148,8 @@ contains
   ! Input:
   !   rho               : density
   !   iso               : isospin (1 or 2 for neutrons or protons)
-  !   F_NM_NM           : potential associated with D_Nm_Nm, for calculating
-  !                     the position-dependent effective mass.
+  !   U2                :
+  !   U4                :
   !   ptype             : select the prescription for microscopic pairing strength
   !                      (0) gaps from BHF calculations by Cao et al.
   !   interpolationtype : select the prescription for INM matter interpolation
@@ -169,7 +169,7 @@ contains
   !-----------------------------------------------------------------------------
  
   integer, intent(in)       :: ptype, iso, interpolationtype, integrationtype
-  real(KIND=dp), intent(in) :: rho(mv,4), F_Nm_Nm(mv,4)
+  real(KIND=dp), intent(in) :: rho(mv,4), U2(mv,4), U4(mv,4)
   real(KIND=dp)             :: vmicro(mv)
 
   procedure(inter_abstract), pointer  :: interpolation
@@ -209,7 +209,7 @@ contains
     call start_timer(T_microscopic_pairing)
     select case(ptype)
     case(0)
-     vmicro_storage(:,iso) = Cao(rho, F_Nm_Nm, iso, interpolation,integration,.false.)
+     vmicro_storage(:,iso) = Cao(rho, U2, U4, iso, interpolation,integration,.false.)
     case DEFAULT
      call stp('Unrecognized ptype option.')
     end select
@@ -221,18 +221,27 @@ contains
 
  end function vmicro
 
- function Cao(rho, F_Nm_Nm, iso, interpolation, integration, debug) result (vp)
+ function Cao(rho, U2, U4, iso, interpolation, integration, debug) result (vp)
   !-----------------------------------------------------------------------------
   ! Deduce the microscopic pairing strength (vp) from the density (rho) at all
   ! mesh points, using the routine interpolation to obtain results away from
   ! pure matter and symmetric matter.
+  !
+  ! Note: this routine assumes that the single-particle hamiltonian in INM
+  !       takes the following form:
+  !
+  !              epsilon_q = U_{0,q} + (hbar^2/2*m_q + U_{2,q}) k^2
+  !                                  +                 U_{4,q}  k^4
+  !
+  !       in a notation close to that introduced by N. Chamel.
+  !
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   !
   ! Input:
   !   rho         : density D_I_I, including BOTH isospins
   !   iso         : isospin component to return (1 or 2)
-  ! F_Nm_Nm       : potential associated with D_Nm_Nm, for calculating
-  !                 the position-dependent effective mass.
+  !   U2          : potential multiplying k^2 in homogeneous INM
+  !   U4          : potential multiplying k^4 in homogeneous INM
   !  interpolation: routine to deal with the interpolation to densities
   !                 that are not strictly symmetric or neutron matter.
   !  integration  : routine to calculate the integral involved in the
@@ -242,14 +251,14 @@ contains
   ! Output:
   !   vp  : relevant pairing strength deduced, vp(r) [position-dependent!]
   !-----------------------------------------------------------------------------
-  real(KIND=dp), intent(in)  :: rho(mv,4), F_Nm_Nm(mv,4)
+  real(KIND=dp), intent(in)  :: rho(mv,4), U2(mv,4), U4(mv,4)
   integer, intent(in)        :: iso
   procedure(delta_abstract), pointer :: delta_function
   integer                    :: i, k
   real(KIND=dp)              :: vp(mv), kf0(mv), kfp(mv), kfn(mv), eta(mv)
   real(KIND=dp)              :: x(mv), mu(mv), effm(mv)
   real(KIND=dp)              :: integral(mv), integral_tanh(mv)
-  real(KIND=dp)              :: Delta(mv), a(mv)
+  real(KIND=dp)              :: Delta(mv), a(mv), u(mv)
   
   ! I originally coded this routine as taking a procedure as input. 
   ! Turns out that IFORT puts out catastrophic errors at some points...
@@ -298,9 +307,11 @@ contains
   enddo
 
   ! Calculate the (local) effective mass
-  effm = hbm(iso) + F_Nm_Nm(:,iso) 
+  effm = hbm(iso) + U2(:,iso)
+  ! .... and the ratio between U2 and U4
+  u = 4 * U4(:,iso)/(effm**2)
 
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Calculating of pairing gaps for each nucleon species using the interpolation 
   ! routine selected
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -312,18 +323,18 @@ contains
   ! Calculation of the Fermi energies using the position-dependent 
   ! effective masses
   !
-  ! mu_q = hbar^2/2M* k_f^2
-  ! hbar^2/2M^* = hbar^2/2M + F_Nm_Nm(r)
+  ! mu_q = hbar^2/2M* k_f^2 + U4 k_f^4
+  ! hbar^2/2M^* = hbar^2/2M + U2
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   select case(iso)
   case(1)
-    mu = effm * kfn**2
+    mu = effm * kfn**2 + U4(:,iso) * kfn**4
   case(2)
-    mu = effm * kfp**2
+    mu = effm * kfp**2 + U4(:,iso) * kfp**4
   end select   
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   ! calculation of the complicated integral
-  integral = integration(rho(:,iso), mu, delta, pairingcut(iso))
+  integral = integration(rho(:,iso), mu, delta, u, pairingcut(iso))
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Final results for the pairing strengths:
   !  see S. Goriely, N. Chamel and N. Pearson, PRL 102, 152503 (2009).
@@ -340,32 +351,35 @@ contains
   endif
  end function Cao
 
- function integrand(xi, mu, delta) result(I)
+ function integrand(xi, mu, delta, u) result(I)
     !----------------------------------------------------------------------------
     ! Integrand of the complicated integral
     !
-    !                  sqrt (2 xi)
-    !  I (xi) = --------------------------- sqrt((1+uxi)(1+sqrt(1+uxi)))^-1
+    !                  sqrt (xi)
+    !  I (xi) = --------------------------- sqrt(2(1+uxi)(1+sqrt(1+uxi)))^-1
     !           sqrt((xi - mu)^2 + Delta^2)
     !
     ! Input:
     !    xi   : integration variable
     !    mu   : reduced Fermi energy
     !    delta: targetted pairing gap
+    !    u    : 4 * U4/U2**2, see above
     !----------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: xi, mu, delta
-    real(KIND=dp)             :: I, Eqp
+    real(KIND=dp), intent(in) :: xi, mu, delta, u
+    real(KIND=dp)             :: I, Eqp, N2LOfac
 
-    Eqp = sqrt((xi-mu)**2 + delta**2)
-    I   = sqrt(xi)/Eqp
+    Eqp    = sqrt((xi-mu)**2 + delta**2)
+    N2LOfac= 2.0/( ( 1 + u * xi) * (1 + sqrt(1+ u * xi)))
+    N2LOfac= sqrt(N2LOfac)
+    I   = sqrt(xi)/Eqp * N2LOfac
 
  end function integrand
 
- function tanh_sinh(mu, delta, a, b, h, tol) result(I)
+ function tanh_sinh(mu, delta, u , a, b, h, tol) result(I)
     !----------------------------------------------------------------------------
     ! Calculate the following integral numerically:
     !
-    !    I = \int_{0}^{\mu + \epsilon_lambda} integrand(xi, mu, delta) dxi
+    !    I = \int_{0}^{\mu + \epsilon_lambda} integrand(xi, mu, delta, u) dxi
     !
     ! where the function integrand is defined above. This is not trivial, because
     ! the integrand is a very peaked function at \mu if \Delta is small, which
@@ -414,9 +428,9 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !
-    !  mu    : reduced Fermi energy        | arguments of the function integrand
-    !  delta : targetted pairing gap       | defined above
-    !
+    !  mu    : reduced Fermi energy             | arguments of the function integrand
+    !  delta : targetted pairing gap            | defined above
+    !  u     : ratio of NLO and N2LO potentials |
     !  a, b  : limits of the integration interval
     !  h     : step size of the collocation points
     !  tol   : tolerance determining when to stop adding points
@@ -426,7 +440,7 @@ contains
     !   I    : value of the integral
     !
     !----------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: a, b, h, tol, mu, delta
+    real(KIND=dp), intent(in) :: a, b, h, tol, mu, delta, u
     real(KIND=dp)             :: I, C, D, fxm, fxp, t, t0, x, x0, w, w0, xm, xp
     integer                   :: k
 
@@ -453,15 +467,15 @@ contains
         xp  = C*x0 + D      ; xm  =-C*x0 + D
 
         ! Function evaluation for both points
-        fxp = integrand(xp, mu, delta)
-        fxm = integrand(xm, mu, delta)
+        fxp = integrand(xp, mu, delta, u)
+        fxm = integrand(xm, mu, delta, u)
 
         ! ... and we add both points to the integral with the appropriate weight
         I   = I + (fxp+fxm)*w*h
     enddo
  end function tanh_sinh
 
- function tanh_sinh_integration(rho, mu, delta, cut) result (integral)
+ function tanh_sinh_integration(rho, mu, delta, u, cut) result (integral)
    !----------------------------------------------------------------------------
    ! Use tanh-sinh quadrature to evaluate the complicated integral of the
    ! function integrand defined above with the strategy described for the
@@ -477,14 +491,15 @@ contains
    !   rho      : density of the nucleon species under consideration
    !   mu       : reduced Fermi energy of the species under consideration
    !   delta    : targetted pairing gap
+   !   u        : ratio of NLO and N2LO potentials
    !   cut      : value of the pairing cutoff
    !
    ! Output :
    !   integral : numerical value of the integral
    !----------------------------------------------------------------------------
-   real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), cut
+   real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), u(mv), cut
+   integer                   :: i
    real(KIND=dp)             :: integral(mv)
-   integer :: i
 
    do i=1, mv
     if(delta(i) .gt. 0) then
@@ -492,8 +507,8 @@ contains
       if(rho(i) .gt. 1d-15) then
         ! Numerical safeguard for very low or negative density
         integral(i) =&
-        &       tanh_sinh(mu(i), delta(i), 0.0d0, mu(i)    , 0.2d0, 2d-4) &
-        &     + tanh_sinh(mu(i), delta(i), mu(i), mu(i)+cut, 0.2d0, 2d-4)
+        &       tanh_sinh(mu(i), delta(i), u(i), 0.0d0, mu(i)    , 0.2d0, 2d-4) &
+        &     + tanh_sinh(mu(i), delta(i), u(i), mu(i), mu(i)+cut, 0.2d0, 2d-4)
       else
         ! Analytical limit of rho and delta tending to zero
         integral(i) = 2 * sqrt(cut)
@@ -505,7 +520,7 @@ contains
 
  end function tanh_sinh_integration
 
- function weak_coupling_integration(rho,mu, delta, cut) result (integral)
+ function weak_coupling_integration(rho,mu, delta, u, cut) result (integral)
   !----------------------------------------------------------------------------
   ! Employ an analytical formula to approximate the following integral
   !
@@ -537,7 +552,7 @@ contains
   ! Output : 
   !   integral : valueof the integral
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), cut
+  real(KIND=dp), intent(in) :: rho(mv), mu(mv), delta(mv), cut, u(mv)
   real(KIND=dp)             :: integral(mv),x(mv)
   integer :: i
 

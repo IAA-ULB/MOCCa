@@ -66,7 +66,10 @@ module functional
  ! LAPTEMPDELTA     : $LAPTEMPDELTA
  !
  ! TAUSCALAR        : $TAUSCALAR
- ! TAUTENSOR        : $TAUTENSOR^
+ ! TAUTENSOR        : $TAUTENSOR
+ !
+ ! K2POT            : [WAY TOO LONG TO INCLUDE HERE]
+ ! K4POT            : [WAY TOO LONG TO INCLUDE HERE]
  !------------------------------------------------------------------------------
  ! A density F_L_R is stored as
  !
@@ -1151,6 +1154,49 @@ $TAUSCALAR em_pot = F_Nm_Nm
 $TAUTENSOR em_pot = (F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:))/3
 
   end function effmass_pot
+
+  function INM_k2_pot() result(pot)
+    !-------------------------------------------
+    ! TODO: document
+    !
+    !-------------------------------------------
+    real(KIND=dp) :: pot(mv,4)
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Initialize to zero
+    pot = 0.0d0
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of isospin 0 and 1
+$K2POT
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Recombine to proton and neutron potentials
+    pot(:,1) = pot(:,3) + pot(:,4)
+    pot(:,2) = pot(:,3) - pot(:,4)
+end function INM_k2_pot
+
+  function INM_k4_pot() result(pot)
+    !-------------------------------------------
+    ! TODO: document
+    !
+    !-------------------------------------------
+    real(KIND=dp) :: pot(mv,4)
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Initialize to zero
+    pot = 0.0d0
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of isospin 0 and 1
+$K4POT
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Recombine to proton and neutron potentials
+    pot(:,1) = pot(:,3) + pot(:,4)
+    pot(:,2) = pot(:,3) - pot(:,4)
+end function INM_k4_pot
+
 
   function sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &
