@@ -237,15 +237,15 @@ $CALCCOEF
     ! Print the values of the EFD coefs used.
     !---------------------------------------------------------------------------
     1 format (' - - - - - - - - - - -')
-    2 format (2x, 74('_'))
+    2 format (2x, 78('_'))
     3 format (' EDF coupling constants ')
     4 format (40x, 'Particle-hole terms')
    41 format (2x, 'Term', 35x, 'Isospin', 5x, '# #G', 5x,' Value ')
     5 format (40x, 'Pairing terms')
 
-   97 format (2x, a38,'|', 2a2, 5x ,'|', 2i3,'|', 1x, f15.6)
-   98 format (2x, a38,'|', 3a2, 3x ,'|', 2i3,'|', 1x, f15.6)
-$QUADRI   99 format (2x, a38,'|', 4a2, 1x ,'|', 2i3,'|', 1x, f15.6)
+   97 format (2x, a38,'|', 2a2, 5x ,'|', 2i3,'|', 1x, f21.12)
+   98 format (2x, a38,'|', 3a2, 3x ,'|', 2i3,'|', 1x, f21.12)
+$QUADRI   99 format (2x, a38,'|', 4a2, 1x ,'|', 2i3,'|', 1x, f21.12)
     
      print 1
      print 3
