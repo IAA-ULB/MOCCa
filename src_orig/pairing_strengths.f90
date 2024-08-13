@@ -293,9 +293,9 @@ contains
   vp = 0.0d0
 
   ! Fermi wavelengths
-  kf0=(3.d0/2.0d0*pi**2*    rho(:,3))**(1./3.) ! Isoscalar density
-  kfn=(3.d0      *pi**2*    rho(:,1))**(1./3.) ! Neutron density
-  kfp=(3.d0      *pi**2*    rho(:,2))**(1./3.) ! Proton  density
+  kf0=(3.d0/2.0d0*pi**2*    rho(:,3))**(1.0d0/3.0d0) ! Isoscalar density
+  kfn=(3.d0      *pi**2*    rho(:,1))**(1.0d0/3.0d0) ! Neutron density
+  kfp=(3.d0      *pi**2*    rho(:,2))**(1.0d0/3.0d0) ! Proton  density
 
   ! Asymmetry \eta
   do i=1,mv
@@ -338,14 +338,16 @@ contains
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Final results for the pairing strengths:
   !  see S. Goriely, N. Chamel and N. Pearson, PRL 102, 152503 (2009).
-  vp = - (8.*pi**2)  /integral*(effm)**1.5d0 
+  vp = - (8.0d0*pi**2)  /integral*(effm)**1.5d0
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
   if(debugflag) then
     do i=1,mv
-      write(10, fmt='(3f8.3, 10es25.12E3)') &
+      write(10, fmt='(3f8.3, 16es30.16E3)') &
         &           meshgrid(i,1), meshgrid(i,2), meshgrid(i,3),         &
-        &           eta(i), kf0(i), kfn(i), kfp(i), delta(i), mu(i), vp(i)
+        &           rho(i,1), rho(i,2), eta(i),                  &
+        &           kf0(i), kfn(i), kfp(i), delta(i), mu(i),     &
+        &           U2(i,iso), U4(i,iso), u(i), integral(i), vp(i)
     enddo
     close(10)
   endif
@@ -369,7 +371,7 @@ contains
     real(KIND=dp)             :: I, Eqp, N2LOfac
 
     Eqp    = sqrt((xi-mu)**2 + delta**2)
-    N2LOfac= 2.0/( ( 1 + u * xi) * (1 + sqrt(1+ u * xi)))
+    N2LOfac= 2.0d0/( ( 1 + u * xi) * (1 + sqrt(1+ u * xi)))
     N2LOfac= sqrt(N2LOfac)
     I   = sqrt(xi)/Eqp * N2LOfac
 
@@ -507,7 +509,7 @@ contains
       if(rho(i) .gt. 1d-15) then
         ! Numerical safeguard for very low or negative density
         integral(i) =&
-        &       tanh_sinh(mu(i), delta(i), u(i), 0.0d0, mu(i)    , 0.2d0, 2d-4) &
+        &       tanh_sinh(mu(i), delta(i), u(i), 0.0d0, mu(i)    , 0.2d0, 2d-4)  &
         &     + tanh_sinh(mu(i), delta(i), u(i), mu(i), mu(i)+cut, 0.2d0, 2d-4)
       else
         ! Analytical limit of rho and delta tending to zero
