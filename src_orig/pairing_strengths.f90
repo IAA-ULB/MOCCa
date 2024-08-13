@@ -556,6 +556,10 @@ contains
   real(KIND=dp)             :: integral(mv),x(mv)
   integer :: i
 
+  if(any(u .ne. 0.0d0)) then
+    call stp('One should not combine integrationtype=0 with an N2LO EDF.')
+  endif
+
   x = cut/mu
   do i=1,mv
     if(delta(i) .gt. 0) then
