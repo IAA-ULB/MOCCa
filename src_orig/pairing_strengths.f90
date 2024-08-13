@@ -12,9 +12,23 @@ module pairing_strengths
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
- ! TODO: provide general context to the documentation
- ! 
  !
+ ! This module deals with the determination of so-called microscopic pairing 
+ ! strengths as discussed in detail in 
+ !    N. Chamel, PRC 82, 014313 (2010),
+ ! and first used in a BSk model in 
+ !    N. Chamel et al., NPA 812, 72 (2008)
+ ! and originally (though seemingly not completely) formulated first in 
+ !    T. Duguet et al., PRC 69, 054317 (2004). 
+ !
+ ! Large parts of the coding in this module reflect the variety of choices that
+ ! can be made for the determination of the gaps. One can
+ !   (a) choose the recipe for the pairing gaps that should be reproduced
+ !   (b) choose an interpolation recipe for extending said gaps to INM at
+ !       arbitrary symmetry
+ !   (c) choose an integration strategy for calculating a rather complicated
+ !       integral that occurs in the formulas.
+ ! 
  !==============================================================================
  ! Hephaestos keywords: [NONE at the moment]
  !
