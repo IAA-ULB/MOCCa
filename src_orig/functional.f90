@@ -1142,25 +1142,33 @@ $FIELDPRECON
     endif
   end function pow
 
-  function effmass_pot() result(em_pot)
-    !---------------------------------------------------------------------------
-    ! TODO: document!
+  function INM_k2_pot(rho) result(pot)
+    !-----------------------------------------------------------------
+    ! Imagine homogeneous and unpolarised infinite nuclear matter:
+    ! if one restricts itselfs to fourth order in gradients, the
+    ! single-particle energies are:
     !
+    !       e(k) = U_0 + U_2 k^2 + U_4 k^4
     !
-    !---------------------------------------------------------------------------
-    real(KIND=dp)                     :: em_pot(mv,4)
-
-$TAUSCALAR em_pot = F_Nm_Nm
-$TAUTENSOR em_pot = (F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:))/3
-
-  end function effmass_pot
-
-  function INM_k2_pot() result(pot)
-    !-------------------------------------------
-    ! TODO: document
+    ! where the U_i are k-indepedent but possibly rho dependent.
+    ! This routine calculates the potential U_2 in this expression
+    ! as a function of the density on the mesh, starting only from
+    ! the density D_I_I and using the local density approximation
+    ! to get higher order densities.
     !
-    !-------------------------------------------
-    real(KIND=dp) :: pot(mv,4)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   rho : density at every point on the mesh
+    ! Output:
+    !   pot : U_2 at every point on the mesh, assuming
+    !         homogeneous unpolarised INM at that specific density.
+    !-----------------------------------------------------------------
+    real(KIND=dp), intent(in) :: rho(mv,4)
+    real(KIND=dp)             :: pot(mv,4)
+    real(KIND=dp)             :: kfn(mv), kfp(mv)
+
+    kfn=(3.d0*pi**2*rho(:,1))**(1.0d0/3.0d0) ! Neutron density
+    kfp=(3.d0*pi**2*rho(:,2))**(1.0d0/3.0d0) ! Proton  density
 
     !- - - - - - - - - - - - - - - - - - - - - -
     ! Initialize to zero
@@ -1176,12 +1184,33 @@ $K2POT
     pot(:,2) = pot(:,3) - pot(:,4)
 end function INM_k2_pot
 
-  function INM_k4_pot() result(pot)
-    !-------------------------------------------
-    ! TODO: document
+  function INM_k4_pot(rho) result(pot)
+    !-----------------------------------------------------------------
+    ! Imagine homogeneous and unpolarised infinite nuclear matter:
+    ! if one restricts itselfs to fourth order in gradients, the
+    ! single-particle energies are:
     !
-    !-------------------------------------------
-    real(KIND=dp) :: pot(mv,4)
+    !       e(k) = U_0 + U_2 k^2 + U_4 k^4
+    !
+    ! where the U_i are k-indepedent but possibly rho dependent.
+    ! This routine calculates the potential U_4 in this expression
+    ! as a function of the density on the mesh, starting only from
+    ! the density D_I_I and using the local density approximation
+    ! to get higher order densities.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   rho : density at every point on the mesh
+    ! Output:
+    !   pot : U_4 at every point on the mesh, assuming
+    !         homogeneous unpolarised INM at that specific density.
+    !-----------------------------------------------------------------
+    real(KIND=dp), intent(in) :: rho(mv,4)
+    real(KIND=dp)             :: pot(mv,4)
+    real(KIND=dp)             :: kfn(mv), kfp(mv)
+
+    kfn=(3.d0*pi**2*rho(:,1))**(1.0d0/3.0d0) ! Neutron density
+    kfp=(3.d0*pi**2*rho(:,2))**(1.0d0/3.0d0) ! Proton  density
 
     !- - - - - - - - - - - - - - - - - - - - - -
     ! Initialize to zero

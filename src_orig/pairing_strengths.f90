@@ -157,13 +157,19 @@ contains
  function vmicro(rho, U2, U4, iso, ptype, interpolationtype, integrationtype)
   !-----------------------------------------------------------------------------
   ! Calculate a microscopically motivated (position-dependent) pairing strength
-  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  !
+  ! Technical note: both U2 and U4 are explicit inputs to this routine, because
+  ! these functions are housed in the functional.f90 module; as the calculation
+  ! of this INM potentials depends on the specific EDF employed in the
+  ! calculation, this is the most logical place for them.
+  !
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   !
   ! Input:
   !   rho               : density
   !   iso               : isospin (1 or 2 for neutrons or protons)
-  !   U2                :
-  !   U4                :
+  !   U2          : potential multiplying k^2 in homogeneous INM
+  !   U4          : potential multiplying k^4 in homogeneous INM
   !   ptype             : select the prescription for microscopic pairing strength
   !                      (0) gaps from BHF calculations by Cao et al.
   !   interpolationtype : select the prescription for INM matter interpolation
@@ -324,7 +330,6 @@ contains
   effm = hbm(iso) + U2(:,iso)
   ! .... and the ratio between U2 and U4
   u = 4 * U4(:,iso)/(effm**2)
-
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Calculating of pairing gaps for each nucleon species using the interpolation 
   ! routine selected
@@ -354,7 +359,6 @@ contains
   !  see S. Goriely, N. Chamel and N. Pearson, PRL 102, 152503 (2009).
   vp = - (8.0d0*pi**2)  /integral*(effm)**1.5d0
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
   if(debugflag) then
     do i=1,mv
       write(10, fmt='(3f8.3, 16es30.16E3)') &
@@ -572,7 +576,7 @@ contains
   real(KIND=dp)             :: integral(mv),x(mv)
   integer :: i
 
-  if(any(u .ne. 0.0d0)) then
+  if(any(abs(u) .gt. 1.0d-16)) then
     call stp('One should not combine integrationtype=0 with an N2LO EDF.')
   endif
 

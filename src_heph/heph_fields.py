@@ -311,7 +311,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                     for j in range(i):
                         removedsum = removedsum + OrderOfDen(densities[j])
 
-                    cplct = 'coupl_constant(%d)'%(nterm+1)                      
+                    cplct = 'coupl_constant(%2d)'%(nterm+1)
                     isoc  = iso_ind.copy()
                     isoc.pop(i)                                          
                                         
@@ -538,8 +538,10 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         
         FIELDCALC    = FIELDCALC + ts.field_calc_iso_start.substitute(dic)
         for fieldterm in fieldlist[iso]:
-        
-           # We rearrange things in this separate routine 
+           dic['CPLCTE']   =  fieldterm[3]
+
+           #-----------------------------------------------------------------
+           # We rearrange things in this separate routine
            NumberOfIndices, nthree, densities, newcpl, pisigns = \
             Adaptdensities(fieldterm[0],fieldterm[4],fieldterm[1],fieldterm[2])
 
@@ -556,8 +558,12 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
               for a in args:
                 for va in vec_args:
                   true_args.append(a+va)
-      
-           for arg in true_args:            
+
+           # This quantity counts how many index combinations of this term
+           # give non-zero contributions to the potentials in homogeneous,
+           # unpolarised infinite nuclear matter.
+           INM_term_count = 0
+           for arg in true_args:
              # get the indices of the field (i.e. the lhs above) correct
              dic['IND']     = ''
              sign           = +1
@@ -581,14 +587,69 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                   dic['IND'] = dic['IND'] + ',%d'%(temp[c.index(k)]+1)
 
              lastorder = OrderOfDen(den)
-             
+
+             #----------------------------------------------------------------
+             # Before we start doing complicated stuff for the index coupling
+             # of fields, we first look into the calculation of potentials
+             # in homogeneous unpolarised infinite nuclear matter.
+             #
+             # We select on terms for which
+             #  - no Pauli sigma matrices are involved
+             #  - either two or four derivatives in the density
+             #  - no external derivatives of densities are involved
+             #  - indices couple to a scalar, i.e. only terms that
+             #    contain the diagonal part of the tensor densities
+             #      D_NNN...._NNN_{aaaaaa..., aaaaa...}
+             #
+             # If all of this is true, we know that this particular term
+             # with this particular combination of indices in non-zero in INM.
+             # We could add a line in the FORTRAN code, but this would result
+             # in a large amount of repeated lines.
+             #
+             # Note: I'm not entirely sure (yet) whether this selection procedure
+             # is entirely general; I've double checked NLO and standard N2LO
+             # EDFS but more general things might not work
+             if(   LeftOperator.derorder + RightOperator.derorder == 2 \
+                 or LeftOperator.derorder + RightOperator.derorder == 4 ):
+                 # Pauli spin matrices?
+                 nosigma=True
+                 if('S' in left or 'S' in right):
+                     nosigma=False
+                  # Any external derivatives?
+                 noderivatives=True
+                 if(len(fieldterm[1])>0 or len(fieldterm[2])>0):
+                   noderivatives = False
+                 for d in fieldterm[0]:
+                   if('Der' in d or 'Lap' in d):
+                       noderivatives=False
+
+                 # - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                 # Poor mans reverse engineering of the indices to
+                 # determine if they couple to a scalar in position space
+                 if(len(dic['IND']) > 0):
+                    scalar = True
+                    inds = []
+                    for k in dic['IND']:
+                     try:
+                      inds.append(int(k))
+                     except:
+                      continue
+                    for k in range(1,max(inds)+1):
+                     if(inds.count(k)%2 != 0):
+                      scalar = False
+                 else:
+                    scalar = True
+
+                 if(nosigma and noderivatives and scalar):
+                   INM_term_count = INM_term_count + 1
+             #----------------------------------------------------------------
+
              FIELDCALC = FIELDCALC + ts.field_calc_b_start.substitute(dic)
               
              dic['DENSITY']  = ''
              dic['EXPR1']    = ''
              dic['EXPR2']    = ''
              dic['EXPR3']    = ''
-             dic['CPLCTE']   =  fieldterm[3]
              
              for i,d in enumerate(densities):
                 dic['DENSITY'] = d
@@ -636,7 +697,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                 # Increment the starting point of indices
                 lastorder = lastorder + OrderOfDen(dic['DENSITY'])
 
-             #------------------------------------------------------------------                   
+             #------------------------------------------------------------------
              # Put an extra sign for every partial integration of a nabla
              if( len(fieldterm[1])%2 != 0):
                  localsign = sign * (-1)
@@ -657,63 +718,53 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
              FIELDCALC = FIELDCALC + ts.field_calc_full.substitute(dic)
              FIELDCALC = FIELDCALC[:-4] + '\n \n'
 
-             if(LeftOperator.derorder + RightOperator.derorder == 2 or \
-                LeftOperator.derorder + RightOperator.derorder == 4):
-                # - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-                # If this term
-                #    1) does not contain derivatives of densities
-                #    2) does not contain a Pauli matrix
-                #    3) and has pair-wise indices to all possible
-                #       densities
-                # then add it to the expressions for the k2 and/or k4
-                # potential for the microscopic pairing.
-                #
-                # This way of determining which terms contribute to the
-                # potential in homogeneous infinite matter seems unlikely
-                # to be entirely correct in the most general case
-                # TODO: figure out and implement something more general
+           #------------------------------------------------------------------
+           # This term contributes to potentials in homogeneous unpolarised
+           # infinite matter, so we count how exactly it does this.
+           if(INM_term_count > 0):
+            dic['EXPR1']  = ''
+            dic['SIGN']   = '+'
 
-                # - - - - - - - - - - - - - - - - - - - - - - - - - - -
-                # Poor mans reverse engineering of the indices to
-                # determine if they couple to a scalar in position space
-                if(len(dic['IND']) > 0):
-                 scalar = True
-                 inds = []
-                 for k in dic['IND']:
-                   try:
-                     inds.append(int(k))
-                   except:
-                     continue
-                 for k in range(1,max(inds)+1):
-                   if(inds.count(k)%2 != 0):
-                    scalar = False
-                else:
-                  scalar = True
-
-                # Pauli spin matrices?
-                nosigma=True
-                if('S' in left or 'S' in right):
-                  nosigma=False
-
-                # Any external derivatives?
-                noderivatives=True
-                if(len(fieldterm[1])>0 or len(fieldterm[2])>0):
-                    noderivatives = False
-                for d in fieldterm[0]:
-                  if('Der' in d or 'Lap' in d):
-                    noderivatives=False
-
-                # Figure out whether we should average over diagonal components
-                if(OrderOfDen(den)>1):
-                  dic['DEGEN'] = '3.0d0'
-                else:
-                  dic['DEGEN'] = '1.0d0'
-
-
-                if (scalar and nosigma and noderivatives):
-                  fieldINM = fieldINM + ts.field_calc_INM.substitute(dic)
-
-      fieldINM = fieldINM + '\n'
+            for i,d in enumerate(densities):
+              # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+              # For now, this implementation is limited to densities of the form
+              #       D^NNNNN.....,NNNNN.....
+              # with 2*l nabla operators. They translate to INM as
+              #
+              #   isospin 0 : [(3+2*l) pi^2 ]^{-1}  (kfn^{3+2*l} + kfp^{3+2*l})
+              #   isospin 1 : [(3+2*l) pi^2 ]^{-1}  (kfn^{3+2*l} + kfp^{3+2*l})
+              #
+              power         = 3 + OrderOfDen(d)
+              # Isospin indices
+              if(fieldterm[5][i] == '0'):
+                isosign = '+'
+              else:
+                isosign = '-'
+              # There is additional degeneracies to account for:
+              #    consider the general equation
+              #
+              #      F =  C * D_1 * D_2 * ...
+              #    where F is a field and the Ds are possibly different densities.
+              #
+              #    - If F has indices, there is a factor three degeneracy since only
+              #      its scalar part contributes to INM.
+              #    - For each of the densities that has indices, there is an additional
+              #      factor of three degeneracy because only their scalar part will be
+              #      non-zero.
+              #
+              degeneracy = 1
+              if(OrderOfDen(d) > 0):
+                degeneracy = degeneracy * 3
+              if(OrderOfDen(den) > 0):
+                degeneracy = degeneracy * 3
+              # We multiply by the number of valid index couplings we counted (INM_term_count)
+              temp_string = " %2d/ (%2d * pi**2) * ( kfn**(%2d) %s kfp**(%2d) )"%(INM_term_count, degeneracy*power, power, isosign, power)
+              # ... and we don't forget to account for density-dependencies
+              if(fieldterm[6] != '1' and i == 0):
+                temp_string = "pow( %s , %s)"%(temp_string, fieldterm[6])
+              dic['EXPR1']  = dic['EXPR1'] + "*" + temp_string
+            fieldINM = fieldINM + ts.field_calc_INM.substitute(dic)
+        fieldINM = fieldINM + '\n'
 
       # Add the recombination statements from isospin representation to 
       # proton-neutron representation, but only for normal densities
