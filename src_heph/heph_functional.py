@@ -194,7 +194,7 @@ def initfunctional(fname, so, density_spwf_summation):
           minder.append((0,0))
         elif(minder[j][1]>2):
           print ("Hephaestos cannot combine DENSUM=1 with high order derivatives yet.")
-          exit()
+          sys.exit(1)
           
     # Complete the needed derivatives from the "maximal" number of derivatives
     temp_deriv_needed = PopulateDeriv(minder)
@@ -491,7 +491,7 @@ def ReadFunctional(fname):
       except IndexError:
           print ('Problem reading the following line in the func file.')
           print (line)
-          exit()      
+          sys.exit(1)      
 
 
   return description  
@@ -519,7 +519,7 @@ def RemoveTimeOddTerms():
       if(totalt != +1):
         print (" A term in your functional is not time-even.")
         print ( term)
-        exit()
+        sys.exit(1)
       
       if(timeodd):
         toremove.append(i)
@@ -809,7 +809,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     #---------------------------------------------------------------------------
     # Generate the fields of the single-particle hamiltonian
     (fielddec,fieldini,fieldcalc,fieldprecon,fieldwrite,fieldread, fieldadd, \
-     fieldmultiply, fieldinproduct) =  GenerateFields(so, oldso,ph_pp_decoupl)
+     fieldmultiply, fieldinproduct, fieldINMk2, fieldINMk4)                  \
+                                 =  GenerateFields(so, oldso,ph_pp_decoupl)
     pot_declaration = pot_declaration + fielddec + '\n'
     writing     = writing     + fieldwrite 
     reading     = reading     + fieldread 
@@ -904,6 +905,9 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     dic['TOTALPAIR_NEUTRON']= pairtotal_neutron
     dic['TOTALPAIR_PROTON'] = pairtotal_proton
+
+    dic['K2POT'] = fieldINMk2
+    dic['K4POT'] = fieldINMk4
     
     dic['CALCPOTENTIALS'] = fieldcalc
     dic['POTENTIALPRECON']= precond
@@ -989,6 +993,14 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       dic['N2DELTA']  = ' '
       dic['N3DELTA']  = ' '
       dic['SYMDELTA'] = ' '
+
+    if('D_Nm_Nm' not in Densities_needed):
+      dic['TAUSCALAR'] = '!'
+      dic['TAUTENSOR'] = ' '
+    else:
+      dic['TAUSCALAR'] = ' '
+      dic['TAUTENSOR'] = '!'
+
    
     if(so.timelike):
       dic['NTR'] = '!'
@@ -1262,7 +1274,7 @@ def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so):
       print ('This term was not parsed correctly.')
       print (term)
       print (densities)
-      exit()
+      sys.exit(1)
     printing = ts.print.substitute(dic) 
     calculation = calculation + ts.end_comment 
     
@@ -1315,7 +1327,7 @@ def identify_param(paramstring):
   else:
     print ('Unrecognized parameter type.')
     print ('Offending entry: ', paramstring)
-    exit()
+    sys.exit(1)
 
   # cleaning routine, strips spaces and newlines
   param = paramstring[2:].replace(' ', '').replace('\n', '')

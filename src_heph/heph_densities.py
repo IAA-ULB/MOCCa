@@ -972,7 +972,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                           Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic) 
                     else:
                       print ('Hephaestos cannot yet handle more than 2 gradients with DENSYM!')
-                      exit()
+                      sys.exit(1)
                         
               else: # there is only a Laplacian here
                 lleft  = 'NN' + left.replace('I','')
@@ -1274,7 +1274,7 @@ def Sigma(mu,indices):
 
     except IndexError:
         print ('Index Error in sigma!')
-        exit()
+        exit(1)
 
 def Current(mu,indices):
     # Operates on indices to get a current C, instead of a density D

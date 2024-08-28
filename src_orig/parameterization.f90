@@ -171,13 +171,13 @@ contains
             toopen = trim('forces.param')  
             inquire(exist=exists, file=toopen)
             if(.not.exists) then
-              param_string = 'No parameterization file found. \n &
-                           &  Valid filenames: &
-                           & - {param}.param (as-is)          \n &
-                           & - {PARAM}.param (all uppercase)  \n &
-                           & - {param}.param (all lowercase)  \n &
-                           & - forces.param'
-              call stp(param_string)
+              print *, 'No parameterization file found.'
+              print *, 'Valid filenames:'
+              print *, ' - {param}.param (as-is)'
+              print *, ' - {PARAM}.param (all uppercase)'
+              print *, ' - {param}.param (all lowercase)'
+              print *, ' - forces.param'
+              call stp('')
             endif
           endif
         endif

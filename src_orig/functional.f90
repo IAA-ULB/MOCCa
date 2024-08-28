@@ -64,6 +64,12 @@ module functional
  ! D2TEMPDELTA      : $D2TEMPDELTA
  ! D3TEMPDELTA      : $D3TEMPDELTA
  ! LAPTEMPDELTA     : $LAPTEMPDELTA
+ !
+ ! TAUSCALAR        : $TAUSCALAR
+ ! TAUTENSOR        : $TAUTENSOR
+ !
+ ! K2POT            : [WAY TOO LONG TO INCLUDE HERE]
+ ! K4POT            : [WAY TOO LONG TO INCLUDE HERE]
  !------------------------------------------------------------------------------
  ! A density F_L_R is stored as
  !
@@ -115,6 +121,9 @@ module functional
     ! Separation of 2-body Centre-of-mass correction into particle-hole 
     ! and pairing parts for diagnostic printing
     real(KIND=dp) :: COM2pp(2), COM2ph(2)
+    ! Debugging quantities for the COM2body correction: a separation of all
+    ! these energies according to Cartesian direction
+    real(KIND=dp) :: COM2_pp_debug(3,2), COM2_ph_debug(3,2)
     ! Two definitions of the pairingenergy: one obtained by summing the gaps
     ! and one by integrating the particle-particle part of the functional
     real(KIND=dp) :: PairingEnergy(2), PairDenEnergy(2)
@@ -273,15 +282,15 @@ $CALCCOEF
     ! Print the values of the EFD coefs used.
     !---------------------------------------------------------------------------
     1 format (' - - - - - - - - - - -')
-    2 format (2x, 74('_'))
+    2 format (2x, 78('_'))
     3 format (' EDF coupling constants ')
     4 format (40x, 'Particle-hole terms')
    41 format (2x, 'Term', 35x, 'Isospin', 5x, '# #G', 5x,' Value ')
     5 format (40x, 'Pairing terms')
 
-   97 format (2x, a38,'|', 2a2, 5x ,'|', 2i3,'|', 1x, f15.6)
-   98 format (2x, a38,'|', 3a2, 3x ,'|', 2i3,'|', 1x, f15.6)
-$QUADRI   99 format (2x, a38,'|', 4a2, 1x ,'|', 2i3,'|', 1x, f15.6)
+   97 format (2x, a38,'|', 2a2, 5x ,'|', 2i3,'|', 1x, f21.12)
+   98 format (2x, a38,'|', 3a2, 3x ,'|', 2i3,'|', 1x, f21.12)
+$QUADRI   99 format (2x, a38,'|', 4a2, 1x ,'|', 2i3,'|', 1x, f21.12)
     
      print 1
      print 3
@@ -368,6 +377,15 @@ $PRINTCOEF_PAIR
      print 62 , COMcorrection(2,:), sum(COMcorrection(2,:))
      print 621, COM2ph(:), sum(COM2ph(:))
      print 622, COM2pp(:), sum(COM2pp(:))
+
+     !print *, 'DEBUG'
+     !print ('(a3, 3f15.6)'), 'ph X',COM2_ph_debug(1,:)
+     !print ('(a3, 3f15.6)'), 'ph Y',COM2_ph_debug(2,:)
+     !print ('(a3, 3f15.6)'), 'ph Z',COM2_ph_debug(3,:)
+     !print ('(a3, 3f15.6)'), 'pp X',COM2_pp_debug(1,:)
+     !print ('(a3, 3f15.6)'), 'pp Y',COM2_pp_debug(2,:)
+     !print ('(a3, 3f15.6)'), 'pp Z',COM2_pp_debug(3,:)
+     !print *
     endif
 
     if(rotcorr .ne.  0) then  
@@ -1036,7 +1054,7 @@ $TAUTENSOR em_pot = (F_in%F_N_N(:,1,1,:)+F_in%F_N_N(:,2,2,:)+F_in%F_N_N(:,3,3,:)
 
     integer       :: it, i,j
 $NTR integer       :: B, ibar, jbar, ii, jj, N, N2, N3, N4, si
-    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt),tempph(3,2), temppp(3,2), fac
+    real(KIND=dp) :: NablaMElements(3,2,nwt,nwt), fac
     real(KIND=dp) :: Butler_t, Butler_f, prefac(2)
 
     call start_timer(T_com)
@@ -1079,10 +1097,9 @@ $NTR    endif
 
       NablaMElements = compNablaMelements()
       call start_timer(T_com2_summation)
-      COMCorr(2,:) = 0.0
-      COM2pp = 0.0 ; COM2ph = 0.0
 
-      tempph = 0.0 ; temppp = 0.0
+      COMCorrection(2,:) = 0.0
+      COM2pp = 0.0 ; COM2ph = 0.0 ; COM2_pp_debug = 0.0 ; COM2_ph_debug=0.0
       do i=1,nwt
          ! We sum over all possible (i,j) pairs, the matrix elements are 
          ! correctly calculated either way.
@@ -1093,27 +1110,27 @@ $NTR    endif
             ! v^2 v^2 part
             fac = rho_can(i)*rho_can(j) 
 $TR         fac = fac / 4.0 ! rho_can is twice too large if T is conserved
-            tempph(1,it) = tempph(1,it) + fac*NablaMElements(1,1,i,j)**2
-            tempph(2,it) = tempph(2,it) + fac*NablaMElements(2,2,i,j)**2
-            tempph(3,it) = tempph(3,it) + fac*NablaMElements(3,1,i,j)**2
+            COM2_ph_debug(1,it) = COM2_ph_debug(1,it) + fac*NablaMElements(1,1,i,j)**2
+            COM2_ph_debug(2,it) = COM2_ph_debug(2,it) + fac*NablaMElements(2,2,i,j)**2
+            COM2_ph_debug(3,it) = COM2_ph_debug(3,it) + fac*NablaMElements(3,1,i,j)**2
 $TR         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 $TR         ! - sum_ij kappa^*{i ibar} kappa^*_{i ibar} kappa_{jbar j} 
 $TR         !                                    Nabla_{i j} \Nabla_{ibar jbar}
 $TR         ! uv uv part
 $TR         ! (in the case of conserved time-reversal)
 $TR         fac = kappa_can(i)*kappa_can(j)
-$TR         temppp(1,it) = temppp(1,it) + fac*NablaMElements(1,1,i,j)**2
-$TR         temppp(2,it) = temppp(2,it) + fac*NablaMElements(2,2,i,j)**2
-$TR         temppp(3,it) = temppp(3,it) + fac*NablaMElements(3,1,i,j)**2
+$TR         COM2_pp_debug(1,it) = COM2_pp_debug(1,it) + fac*NablaMElements(1,1,i,j)**2
+$TR         COM2_pp_debug(2,it) = COM2_pp_debug(2,it) + fac*NablaMElements(2,2,i,j)**2
+$TR         COM2_pp_debug(3,it) = COM2_pp_debug(3,it) + fac*NablaMElements(3,1,i,j)**2
          enddo
       enddo
 
 $NTR      si = 0
 $NTR      do B=1,8,4 ! This is essentially an isospin loop now
-$NTR        N = HFblocks(B) ; if(N.eq.0) cycle
-$NTR        N2 = HFblocks(B+1)
-$NTR        N3 = HFblocks(B+2)
-$NTR        N4 = HFblocks(B+3)
+$NTR        N  = HFblocks_global(B) ; if(N.eq.0) cycle
+$NTR        N2 = HFblocks_global(B+1)
+$NTR        N3 = HFblocks_global(B+2)
+$NTR        N4 = HFblocks_global(B+3)
 $NTR        it = 1  ; if(B .eq.5) it = 2
 $NTR        ! We simply loop over all possible combinations of spwfs
 $NTR        ! as the NablaMElements array is zero in the right places
@@ -1128,36 +1145,42 @@ $NTR            ! (in the case of broken time-reversal)
 $NTR            jj   = si +  j
 $NTR            jbar = conjugp(jj) ; if(jbar .eq.0) cycle
 $NTR            fac = -  kappa_can(ii)*kappa_can(jbar)
-$NTR            temppp(3,it) = temppp(3,it) + fac*NablaMElements(3,1,ii,jj)    &
-$NTR                                  &      *NablaMElements(3,1,ibar,jbar)
-$NTR            temppp(1,it) = temppp(1,it) + fac*NablaMElements(1,1,ii,jj)    &
-$NTR                                  &      *NablaMElements(1,1,ibar,jbar)
-$NTR            temppp(2,it) = temppp(2,it) - fac*NablaMElements(2,2,ii,jj)    &
-$NTR                                  &      *NablaMElements(2,2,ibar,jbar)
+$NTR            COM2_pp_debug(3,it) = COM2_pp_debug(3,it) &
+$NTR            &                   + fac * NablaMElements(3,1,ii,jj)          &
+$NTR            &                         * NablaMElements(3,1,ibar,jbar)
+$NTR            COM2_pp_debug(1,it) = COM2_pp_debug(1,it) &
+$NTR            &                   + fac * NablaMElements(1,1,ii,jj)          &
+$NTR            &                         * NablaMElements(1,1,ibar,jbar)
+$NTR            COM2_pp_debug(2,it) = COM2_pp_debug(2,it) &
+$NTR            &                   - fac * NablaMElements(2,2,ii,jj)          &
+$NTR            &                         * NablaMElements(2,2,ibar,jbar)
 $NTR            ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 $NTR          enddo
 $NTR        enddo
 $NTR        si = si + N + N2 + N3 + N4
 $NTR      enddo
-    
       call stop_timer(T_com2_summation)
-      ! Summing the three directions
-      do it=1,2
-        COM2ph(it) = sum(tempph(:,it))
-        COM2pp(it) = sum(temppp(:,it))       
-      enddo
-      
-      ! In the case of Time-reversal conservation, we summed over only half 
-      ! the states
-$TR   COM2ph = 2*COM2ph   
-$TR   COM2pp = 2*COM2pp 
 
       ! The prefactor f
       prefac=hbm*nucleonmass/(neutrons*nucleonmass(1) + protons*nucleonmass(2))
-
-      COM2ph = prefac * COM2ph ; COM2pp = prefac * COM2pp
       do it=1,2
-          COMCorr(2,it) = COM2ph(it) + COM2pp(it)   
+        COM2_ph_debug(:,it) = prefac(it) * COM2_ph_debug(:,it)
+        COM2_pp_debug(:,it) = prefac(it) * COM2_pp_debug(:,it)
+      enddo
+      ! In the case of Time-reversal conservation, we summed over only half 
+      ! the states
+$TR   COM2_ph_debug = 2*COM2_ph_debug
+$TR   COM2_pp_debug = 2*COM2_pp_debug
+
+      ! Summing the three directions
+      do it=1,2
+        COM2ph(it) = sum(COM2_ph_debug(:,it))
+        COM2pp(it) = sum(COM2_pp_debug(:,it))
+      enddo
+
+      ! The final relevant energy is the sum of ph and pp contributions
+      do it=1,2
+        COMCorrection(2,it) = COM2ph(it) + COM2pp(it)
       enddo
       call stop_timer(T_com2)
      endif      
@@ -1290,7 +1313,7 @@ $TR   COM2pp = 2*COM2pp
     use Coulombmod , only : SolveCoulomb
     use Coulombmod , only : Coulomb_read_from_file
     use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
-    use pairing_strengths, only : vmicro
+    use pairing_strengths, only : vmicro, vmicro_stored
     use moments
 
     type(DensityVector), intent(in)             :: R
@@ -1303,6 +1326,9 @@ $TR   COM2pp = 2*COM2pp
 
     ! Copy all the relevant information if this information was presented
     if(present(Fread)) F = Fread
+
+    ! Signal that microscopic pairing strengths have to be recalculated
+    vmicro_stored = .false.
 
 $CALCPOTENTIALS
     
@@ -1429,6 +1455,90 @@ $POTENTIALPRECON
       pf = (f)**(alpha)
     endif
   end function pow
+
+  function INM_k2_pot(rho) result(pot)
+    !-----------------------------------------------------------------
+    ! Imagine homogeneous and unpolarised infinite nuclear matter:
+    ! if one restricts itselfs to fourth order in gradients, the
+    ! single-particle energies are:
+    !
+    !       e(k) = U_0 + U_2 k^2 + U_4 k^4
+    !
+    ! where the U_i are k-indepedent but possibly rho dependent.
+    ! This routine calculates the potential U_2 in this expression
+    ! as a function of the density on the mesh, starting only from
+    ! the density D_I_I and using the local density approximation
+    ! to get higher order densities.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   rho : density at every point on the mesh
+    ! Output:
+    !   pot : U_2 at every point on the mesh, assuming
+    !         homogeneous unpolarised INM at that specific density.
+    !-----------------------------------------------------------------
+    real(KIND=dp), intent(in) :: rho(mv,4)
+    real(KIND=dp)             :: pot(mv,4)
+    real(KIND=dp)             :: kfn(mv), kfp(mv)
+
+    kfn=(3.d0*pi**2*rho(:,1))**(1.0d0/3.0d0) ! Neutron density
+    kfp=(3.d0*pi**2*rho(:,2))**(1.0d0/3.0d0) ! Proton  density
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Initialize to zero
+    pot = 0.0d0
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of isospin 0 and 1
+$K2POT
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Recombine to proton and neutron potentials
+    pot(:,1) = pot(:,3) + pot(:,4)
+    pot(:,2) = pot(:,3) - pot(:,4)
+  end function INM_k2_pot
+
+  function INM_k4_pot(rho) result(pot)
+    !-----------------------------------------------------------------
+    ! Imagine homogeneous and unpolarised infinite nuclear matter:
+    ! if one restricts itselfs to fourth order in gradients, the
+    ! single-particle energies are:
+    !
+    !       e(k) = U_0 + U_2 k^2 + U_4 k^4
+    !
+    ! where the U_i are k-indepedent but possibly rho dependent.
+    ! This routine calculates the potential U_4 in this expression
+    ! as a function of the density on the mesh, starting only from
+    ! the density D_I_I and using the local density approximation
+    ! to get higher order densities.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   rho : density at every point on the mesh
+    ! Output:
+    !   pot : U_4 at every point on the mesh, assuming
+    !         homogeneous unpolarised INM at that specific density.
+    !-----------------------------------------------------------------
+    real(KIND=dp), intent(in) :: rho(mv,4)
+    real(KIND=dp)             :: pot(mv,4)
+    real(KIND=dp)             :: kfn(mv), kfp(mv)
+
+    kfn=(3.d0*pi**2*rho(:,1))**(1.0d0/3.0d0) ! Neutron density
+    kfp=(3.d0*pi**2*rho(:,2))**(1.0d0/3.0d0) ! Proton  density
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Initialize to zero
+    pot = 0.0d0
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of isospin 0 and 1
+$K4POT
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Recombine to proton and neutron potentials
+    pot(:,1) = pot(:,3) + pot(:,4)
+    pot(:,2) = pot(:,3) - pot(:,4)
+end function INM_k4_pot
 
   function apply_sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &

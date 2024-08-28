@@ -27,6 +27,7 @@ field_calc_den       = T(' * R%$DENSITY(:$DENIND,$ISOALT)')
 field_calc_DD        = T(' * pow(R%$DENSITY(:$DENIND,$ISOALT), $DD)')
 
 field_calc_full      = T(2*tab + '& $SIGN $CPLCTE $EXPR1 $EXTRA & \n') 
+field_calc_INM = T(  tab + 'pot(:,$ISOIND) = pot(:,$ISOIND) $SIGN $CPLCTE $EXPR1 \n')
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Dealing with potential vectors
@@ -83,7 +84,7 @@ T( 1*tab + '! Preconditioning of the field ${FIELD} \n')
 field_precon_update = \
 T( 1*tab +  'update= F_out%${FIELD}(:$IND,:) - F_in%${FIELD}(:$IND,:) \n')
 field_precon_call = \
-T( 1*tab +  'update=  PreconditionPotential(update,-preconfactor,1.0_dp, $PX,$PY,$PZ) \n')
+T( 2*tab +  'update=  PreconditionPotential(update,-preconfactor/$DIVISOR,1.0_dp, $PX,$PY,$PZ) \n')
 field_precon_add  = \
 T( 1*tab +  'F%${FIELD}(:$IND,:) = F_in%${FIELD}(:$IND,:) + update \n')
 

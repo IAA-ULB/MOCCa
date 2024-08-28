@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------------------------------------------------
-# Functional file for the N2LO fits in Brussels.
+# Functional file that combines an N2LO form with the t4/t5 terms for testing purposes
 # Things to be noted:
 #   - two spin-orbit strengths
 #   - pairing terms identical to the BXL functional file
@@ -8,7 +8,8 @@
 #------------------------------------------------------------------------------------------------------------------------
 ! Particle-hole parameters
 ! (N) LO parameters
-R t0;R x0;R t1;R x1;R t2;R x2 ;R t3;R x3 ;R wso;R wsoq;R sigma
+R t0;R x0;R t1;R x1;R t2;R x2 ;R t3;R x3 ;R t4 ;R t5;R x4 ;R x5;R wso;R sigma;R beta ;R  gamma
+R CT0;R CT1 ;R CSDS0;R CSDS1;R wsoq
 ! N2LO parameters
 R t1n2;R x1n2;R t2n2;R x2n2
 ! Particle-particle parameters
@@ -41,8 +42,8 @@ E_D_I_I_Lap_D_I_I              ; -3.0/8.0*Cc(t1,x1,+1,0,1)+1.0/8.0*Cc(t2,x2,-1,0
 ! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
 E_C_I_Nm_C_I_Nm                ; -1.0/2.0*Cc(t1,x1,+1,0,0)-1.0/2.0*Cc(t2,x2,-1,0,0) ;   1   ; 0 ; 0
 E_C_I_Nm_C_I_Nm                ; -1.0/2.0*Cc(t1,x1,+1,0,1)-1.0/2.0*Cc(t2,x2,-1,0,1) ;   1   ; 1 ; 1
-E_D_I_Sm_Lap_D_I_Sm            ; -3.0/8.0*Cc(t1,x1,+1,1,0)+1.0/8.0*Cc(t2,x2,-1,1,0) ;   1   ; 0 ; 0
-E_D_I_Sm_Lap_D_I_Sm            ; -3.0/8.0*Cc(t1,x1,+1,1,1)+1.0/8.0*Cc(t2,x2,-1,1,1) ;   1   ; 1 ; 1
+E_D_I_Sm_Lap_D_I_Sm            ; +CSDS0                                             ;   1   ; 0 ; 0
+E_D_I_Sm_Lap_D_I_Sm            ; +CSDS1                                             ;   1   ; 1 ; 1
 !----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ! Time-even spin-orbit (NLO)
 ! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
@@ -55,12 +56,33 @@ E_C_I_Nm_Derxm_D_I_Sxm         ; -wsoq/4.0                                      
 !----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ! SLy5-like JmnJmn terms (NLO)
 ! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
-E_C_I_NmSk_C_I_NmSk            ; -1.0/2.0*Cc(t1,x1,+1,1,0)-1.0/2.0*Cc(t2,x2,-1,1,0) ;   1   ; 0 ; 0
-E_C_I_NmSk_C_I_NmSk            ; -1.0/2.0*Cc(t1,x1,+1,1,1)-1.0/2.0*Cc(t2,x2,-1,1,1) ;   1   ; 1 ; 1
+E_C_I_NmSk_C_I_NmSk            ; -CT0                                               ;   1   ; 0 ; 0
+E_C_I_NmSk_C_I_NmSk            ; -CT1                                               ;   1   ; 1 ; 1
 ! ... and their time-odd companions
 ! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
 E_D_I_Sm_D_Nk_NkSm             ; +1.0/2.0*Cc(t1,x1,+1,1,0)+1.0/2.0*Cc(t2,x2,-1,1,0) ;   1   ; 0 ; 0
 E_D_I_Sm_D_Nk_NkSm             ; +1.0/2.0*Cc(t1,x1,+1,1,1)+1.0/2.0*Cc(t2,x2,-1,1,1) ;   1   ; 1 ; 1
+E_D_I_Sm_D_Nk_NkSm             ; +CT0                                               ;   1   ; 0 ; 0
+E_D_I_Sm_D_Nk_NkSm             ; +CT1                                               ;   1   ; 1 ; 1
+!-------------------------------------------------------------------------------------------------------------------------
+! Central NLO terms from t4/5
+! Time-even
+! Term                               ! Coupling constant                            ! DD_pow! isospin indices
+E_D_I_I_D_I_I_D_Nm_Nm                ;   1.0/2.0 * CC(t4,x4,+1,0,0)                 ;   beta    ; 0 ; 0 ; 0
+E_D_I_I_D_I_I_D_Nm_Nm                ;   1.0/2.0 * CC(t4,x4,+1,0,1)                 ;   beta    ; 0 ; 1 ; 1
+E_D_I_I_D_I_I_D_Nm_Nm                ;   1.0/2.0 * CC(t5,x5,-1,0,0)                 ;   gamma   ; 0 ; 0 ; 0
+E_D_I_I_D_I_I_D_Nm_Nm                ;   1.0/2.0 * CC(t5,x5,-1,0,1)                 ;   gamma   ; 0 ; 1 ; 1
+E_D_I_I_Derm_D_I_I_Derm_D_I_I        ;  +3.0/8.0 * CC(t4,x4,+1,0,0)                 ;   beta    ; 0 ; 0 ; 0
+E_D_I_I_Derm_D_I_I_Derm_D_I_I        ;  +3.0/8.0 * CC(t4,x4,+1,0,1)                 ;   beta    ; 0 ; 1 ; 1
+E_D_I_I_Derm_D_I_I_Derm_D_I_I        ;  -1.0/8.0 * CC(t5,x5,-1,0,0)                 ;   gamma   ; 0 ; 0 ; 0
+E_D_I_I_Derm_D_I_I_Derm_D_I_I        ;  -1.0/8.0 * CC(t5,x5,-1,0,1)                 ;   gamma   ; 0 ; 1 ; 1
+E_D_I_I_Derm_D_I_I_D_I_I_Derm_D_I_I  ;  +1.0/4.0 * CC(t4,x4,+1,0,0)*beta            ;   beta-1  ; 0 ; 0 ; 0 ; 0
+E_D_I_I_Derm_D_I_I_D_I_I_Derm_D_I_I  ;  +1.0/4.0 * CC(t4,x4,+1,0,1)*beta            ;   beta-1  ; 0 ; 0 ; 1 ; 1
+! Time-odd
+E_D_I_I_C_I_Nm_C_I_Nm                ;  -1.0/2.0 * CC(t4,x4,+1,0,0)                 ;   beta    ; 0 ; 0 ; 0
+E_D_I_I_C_I_Nm_C_I_Nm                ;  -1.0/2.0 * CC(t4,x4,+1,0,1)                 ;   beta    ; 0 ; 1 ; 1
+E_D_I_I_C_I_Nm_C_I_Nm                ;  -1.0/2.0 * CC(t5,x5,-1,0,0)                 ;   gamma   ; 0 ; 0 ; 0
+E_D_I_I_C_I_Nm_C_I_Nm                ;  -1.0/2.0 * CC(t5,x5,-1,0,1)                 ;   gamma   ; 0 ; 1 ; 1
 !----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ! Time-even, central N2LO terms
 ! Without spin
@@ -136,17 +158,17 @@ E_DP_I_I_DP_I_I                ; +Vn/4                                          
 E_DP_I_I_DP_I_I                ; +Vp/4                                              ;   1   ; p ; p
 E_D_I_I_DP_I_I_DP_I_I          ; -Vn/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; n ; n
 E_D_I_I_DP_I_I_DP_I_I          ; -Vp/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; p ; p
-E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_n/4.0                        ;   1   ; 0 ; 0 ; n ; n ;  vmicro(Density%D_I_I, INM_k2_pot(Density%D_I_I), INM_k4_pot(Density%D_I_I),1,ptype,interpolationtype,integrationtype)
-E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_p/4.0                        ;   1   ; 0 ; 0 ; p ; p ;  vmicro(Density%D_I_I, INM_k2_pot(Density%D_I_I), INM_k4_pot(Density%D_I_I),2,ptype,interpolationtype,integrationtype)
-E_DP_I_I_DP_I_I                ; +Vnm/4.0d0                                         ;   1   ; n ; n ;  vmicro(Density%D_I_I, INM_k2_pot(Density%D_I_I), INM_k4_pot(Density%D_I_I),1,ptype,interpolationtype,integrationtype)
-E_DP_I_I_DP_I_I                ; +Vpm/4.0d0                                         ;   1   ; p ; p ;  vmicro(Density%D_I_I, INM_k2_pot(Density%D_I_I), INM_k4_pot(Density%D_I_I),2,ptype,interpolationtype,integrationtype)
+E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_n/4.0                        ;   1   ; 0 ; 0 ; n ; n ;  vmicro(D_I_I, effmass_pot(),1,ptype,interpolationtype, integrationtype)
+E_Derm_D_I_I_Derm_D_I_I_DP_I_I_DP_I_I          ; kappa_p/4.0                        ;   1   ; 0 ; 0 ; p ; p ;  vmicro(D_I_I, effmass_pot(),2,ptype,interpolationtype, integrationtype)
+E_DP_I_I_DP_I_I                ; +Vnm/4.0d0                                         ;   1   ; n ; n ;  vmicro(D_I_I, effmass_pot(),1,ptype,interpolationtype, integrationtype)
+E_DP_I_I_DP_I_I                ; +Vpm/4.0d0                                         ;   1   ; p ; p ;  vmicro(D_I_I, effmass_pot(),2,ptype,interpolationtype, integrationtype)
 ! Time-odd pairing density
 ! Term                         ! Coupling constant                                  ! DD_pow! isospin indices
 E_CP_I_I_CP_I_I                ; +Vn/4                                              ;   1   ; n ; n
 E_CP_I_I_CP_I_I                ; +Vp/4                                              ;   1   ; p ; p
 E_D_I_I_CP_I_I_CP_I_I          ; -Vn/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; n ; n
 E_D_I_I_CP_I_I_CP_I_I          ; -Vp/4*alpha/(0.16**sigmap)                         ; sigmap; 0 ; p ; p
-E_Derm_D_I_I_Derm_D_I_I_CP_I_I_CP_I_I          ; kappa_n/4.0                        ;   1   ; 0 ; 0 ; n ; n ;  vmicro(Density%D_I_I, INM_k2_pot(Density%D_I_I), INM_k4_pot(Density%D_I_I),1,ptype,interpolationtype,integrationtype)
-E_Derm_D_I_I_Derm_D_I_I_CP_I_I_CP_I_I          ; kappa_p/4.0                        ;   1   ; 0 ; 0 ; p ; p ;  vmicro(Density%D_I_I, INM_k2_pot(Density%D_I_I), INM_k4_pot(Density%D_I_I),2,ptype,interpolationtype,integrationtype)
-E_CP_I_I_CP_I_I                                ; +Vnm/4.0d0                         ;   1   ; n ; n ;  vmicro(Density%D_I_I, INM_k2_pot(Density%D_I_I), INM_k4_pot(Density%D_I_I),1,ptype,interpolationtype,integrationtype)
-E_CP_I_I_CP_I_I                                ; +Vpm/4.0d0                         ;   1   ; p ; p ;  vmicro(Density%D_I_I, INM_k2_pot(Density%D_I_I), INM_k4_pot(D_I_I),2,ptype,interpolationtype,integrationtype)
+E_Derm_D_I_I_Derm_D_I_I_CP_I_I_CP_I_I          ; kappa_n/4.0                        ;   1   ; 0 ; 0 ; n ; n ;  vmicro(D_I_I, effmass_pot(),1,ptype,interpolationtype, integrationtype)
+E_Derm_D_I_I_Derm_D_I_I_CP_I_I_CP_I_I          ; kappa_p/4.0                        ;   1   ; 0 ; 0 ; p ; p ;  vmicro(D_I_I, effmass_pot(),2,ptype,interpolationtype, integrationtype)
+E_CP_I_I_CP_I_I                                ; +Vnm/4.0d0                         ;   1   ; n ; n ;  vmicro(D_I_I, effmass_pot(),1,ptype,interpolationtype, integrationtype)
+E_CP_I_I_CP_I_I                                ; +Vpm/4.0d0                         ;   1   ; p ; p ;  vmicro(D_I_I, effmass_pot(),2,ptype,interpolationtype, integrationtype)
