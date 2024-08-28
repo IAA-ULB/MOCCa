@@ -218,6 +218,7 @@ DEBUG   := 0
 ifeq ($(COMPILER),gnu)
 	# versions of gfortran should link to OPENBLAS
 	LIBS := -llapack -lblas
+	HDF5_LIBS := -fintrinsic-modules-path /usr/include/hdf5/serial -L/usr/lib/x86_64-linux-gnu/hdf5/serial -lhdf5_fortran
 else ifeq ($(COMPILER),intel)
   # ifort compiler should link to the new Intel math library
 	LIBS := -qmkl
@@ -363,7 +364,7 @@ $(SRCDIR)/:
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 single: $(PRE) $(SINGLE_OBJ)
-	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(SINGLE_OBJ) $(LIBS)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(SINGLE_OBJ) $(LIBS) $(HDF5_LIBS)
 	mv single exec/$(EXENAME)
 
 run_heph:
