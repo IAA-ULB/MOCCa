@@ -520,7 +520,8 @@ contains
       else
           ! Option b): add points and/or add spwfs
           call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,    & 
-          &                               fileblocks,file_HFB_blocks,extraspwfs)
+          &                    fileblocks,file_HFB_blocks, file_spwf_map,      &
+          &                    file_rank_map, file_spwf_inverse, extraspwfs)
       endif
     else  
       ! Sanity check
@@ -544,11 +545,11 @@ contains
     ! ... and these if (and only if) transformspwfs was not called above
     ! If transformspwfs was called, this assignment was taken care of inside 
     ! that routine.
-    if(.not. symtransfo_needed) then
-      spwf_map     = file_spwf_map
-      rank_map     = file_rank_map
-      spwf_inverse = file_spwf_inverse
-    endif
+!    if(.not. symtransfo_needed) then
+!      spwf_map     = file_spwf_map
+!      rank_map     = file_rank_map
+!      spwf_inverse = file_spwf_inverse
+!    endif
 
     !---------------------------------------------------------------------------
     ! with everything safely in memory, we add in an orthonormalisation to 

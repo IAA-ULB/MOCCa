@@ -682,7 +682,8 @@ contains
   end subroutine Transformspwfs
 
   subroutine TransformInput(filenx,fileny,filenz,filenwn,filenwp, filedx,      &
-  &                         fileblocks, file_HFB_blocks, extraspwfs)
+  &                         fileblocks, file_HFB_blocks, file_spwf_map,        &
+  &                          file_rank_map, file_spwf_inverse,extraspwfs)
     !---------------------------------------------------------------------------
     ! Transform the input from file to the parameters of the new calculation.
     ! Note that this means either
@@ -692,6 +693,11 @@ contains
     ! but all of this with the same conserved/broken symmetries. These
     ! manipulations are not compatible in the same run with the breaking
     ! additional symmetries, achieved by the Transformspwfs routine.
+    !
+    ! - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: 
+    !  - Document this routine 
+    !  - Fix this routine to be MPI-compatible
     !---------------------------------------------------------------------------
 
  1 format &
@@ -714,6 +720,8 @@ contains
     integer, intent(in)        :: filenx,fileny,filenz,filenwn, filenwp
     integer, intent(in)        :: fileblocks(8),extraspwfs(8)
     integer, intent(in)        :: file_HFB_blocks(8)
+    integer, intent(in)        :: file_spwf_map(:), file_rank_map(:)
+    integer, intent(in)        :: file_spwf_inverse(:)
     integer                    :: bogo_blocks(8)
 
     real(KIND=dp), intent(in)  :: filedx
@@ -754,6 +762,9 @@ contains
     !---------------------------------------------------------------------------
     ! Add in extra wavefunctions
     if(filenwn .ne. nwn .or. filenwp .ne. nwp) then
+#if(USE_MPI>0)
+    call stp('Changing spwf number is not allowed for MPI calculations.')
+#endif
           !---------------------------------------------------------------------
           !  First a bunch of sanity checks
           if(nwn .ne. sum(fileblocks(1:4)) + sum(extraspwfs(1:4)) ) then
@@ -797,6 +808,7 @@ $PBROKEN  enddo
           allocate(extended(nx*ny*nz,4,nwt)) ; allocate(newenergy(nwt))
           extended = 0.0
           hfblocks = fileblocks + extraspwfs ; newenergy = 1000.0
+          hfblocks_global = hfblocks
 
           gradient_detected =.false.
           do b=1,8
@@ -831,6 +843,13 @@ $PBROKEN  enddo
           allocate(dispersions(nwt)) ; dispersions=0.0
           if(allocated(rho_can))     deallocate(rho_can)
           allocate(rho_can(nwt))     ; rho_can    =0.0
+
+          !---------------------------------------------------------------------
+          ! have each rank decide what (transformed) spwfs to take from file
+          call loadbalance(HFBlocks_global,balancing_strategy, &   ! inputs
+          &       HFblocks, spwf_map, rank_map, spwf_inverse)      ! outputs
+          ! this particular will hold nwt_local spwfs at the end of the transformation
+          nwt_local = sum(HFblocks)
           !---------------------------------------------------------------------
           ! Dealing with the quantities related to the pairing subproblem
           ! (1)  the pairing gaps
@@ -1131,7 +1150,10 @@ $PBROKEN  enddo
           !---------------------------------------------------------------------
     else
       ! Copy this information
-      hfblocks = fileblocks
+      hfblocks     = fileblocks
+      spwf_map     = file_spwf_map
+      rank_map     = file_rank_map
+      spwf_inverse = file_spwf_inverse
     endif
 
     print 1, filenx, fileny, filenz, filedx, filenwn, filenwp,                &
