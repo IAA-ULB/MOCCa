@@ -953,8 +953,8 @@ $PBROKEN  enddo
                 ! that gets propagated by the code.
                 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
                 ! U^+ and V^+
-                U = temp2(sf             +1:sf+N1F_sp,sf+TF+1:sf+TF+N1F)
-                V = temp2(sf+TF_sp+N2F_sp+1:         ,sf+TF+1:sf+TF+N1F)
+                U = temp2(sf             +1:sf+  N1F_sp,sf+TF+1:sf+TF+N1F)
+                V = temp2(sf+TF_sp+N2F_sp+1:sf+2*TF_sp ,sf+TF+1:sf+TF+N1F)
                 Unew => Bogoliubov(sb               +1:sb+  THF_sp,sb+THF+1:sb+THF+N1HF)
                 Vnew => Bogoliubov(sb+THF_sp+N2HF_sp+1:sb+2*THF_sp,sb+THF+1:sb+THF+N1HF)
 
@@ -991,11 +991,11 @@ $PBROKEN  enddo
 
                 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
                 ! U^- and V^-
-                U = temp2(sf+N1F_sp+1:sf+N1F_sp+N2F_sp,sf+TF+N1F+1:)
-                V = temp2(sf+ TF_sp+1:sf+ TF_sp+N1F_sp,sf+TF+N1F+1:)
+                U = temp2(sf+N1F_sp+1:sf+N1F_sp+N2F_sp,sf+TF+N1F+1:sf+2*TF)
+                V = temp2(sf+ TF_sp+1:sf+ TF_sp+N2F_sp,sf+TF+N1F+1:sf+2*TF)
 
-                Unew => Bogoliubov(sb+N1HF_sp+1:sb+THF_sp        ,sb+THF+N1HF+1:)
-                Vnew => Bogoliubov(sb+ THF_sp+1:sb+THF_sp+N1HF_sp,sb+THF+N1HF+1:)
+                Unew => Bogoliubov(sb+N1HF_sp+1:sb+THF_sp        ,sb+THF+N1HF+1:sb+2*THF)
+                Vnew => Bogoliubov(sb+ THF_sp+1:sb+THF_sp+N2HF_sp,sb+THF+N1HF+1:sb+2*THF)
 
                 Unew(1:N2F_sp, 1:N2F) = U
                 Vnew(1:N2F_sp, 1:N2F) = V
