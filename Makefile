@@ -232,7 +232,7 @@ PYTHON_CMD := python3
 ifeq ($(COMPILER),gfortran)
 	CXXFLAGS := -J$(MODDIR)
 else ifeq ($(COMPILER),ifort)
-	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin
+	CXXFLAGS := -module $(MODDIR) -heap-arrays -assume realloc-lhs -assume byterecl -no-wrap-margin
 else ifeq ($(CXX),ftn)
 	CXXFLAGS := -J$(MODDIR)
 endif
