@@ -496,7 +496,7 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     !Creating all the moments and assigning each moment the spherical harmonic
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! a) The mass/electric moments
-    nullify(Current)      ;  allocate(Current)     ; Current=>Root
+    nullify(Current)      ;  Current=>Root
     nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
  
     do l=1,MaxMoment
@@ -560,13 +560,11 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     ! We don't initialize the mesh-representation of the neck operator, 
     ! because its definition is involved
 
-    
     Current%Next    => NextMoment
     NextMoment%Prev => Current
 
-
     ! End of the chain
-    nullify(Current)
+    nullify(Current,NextMoment)
     !---------------------------------------------------------------------------
     ! b) The magnetic moments
 $NTR    allocate(Current)
@@ -591,7 +589,7 @@ $NTR      enddo
 $NTR    enddo
     !---------------------------------------------------------------------------
     ! c) The moments of divJ
-    nullify(Current)      ;  allocate(Current)     ; Current=>Root_divJ
+    nullify(Current)      ;  Current=>Root_divJ
     nullify(Current%Next) ;  nullify(Current%Prev) ; nullify(NextMoment)
  
     do l=1,MaxMoment_divJ
@@ -649,7 +647,7 @@ $NTR    enddo
     enddo
 
     ! End of the chain
-    nullify(Current)
+    nullify(Current, NextMoment)
     !---------------------------------------------------------------------------
   end subroutine IniMoments
 
@@ -1216,7 +1214,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     ! 1. Setting up things
     !
     ! Do the integration of the matter density over x and y
-    allocate(linear_den(nz), den(nx,ny,nz))
+    allocate(linear_den(nz))
     ! isoscalar density pointer remapping
     den(1:nx,1:ny,1:nz) => D_I_I(1:nx*ny*nz,3) 
     ! Integrate for each point along z
