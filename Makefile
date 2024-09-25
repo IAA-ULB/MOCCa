@@ -213,7 +213,7 @@ ifeq ($(COMPILER),gfortran)
 	LIBS := -llapack -lblas
 else ifeq ($(COMPILER),ifort)
   # ifort compiler should link to the new Intel math library
-	LIBS := -mkl
+	LIBS := -qmkl
 else ifeq ($(COMPILER), cray)
   # Cray compilers don't need specific linking to my knowledge
 	LIBS :=
@@ -233,6 +233,9 @@ ifeq ($(COMPILER),gfortran)
 	CXXFLAGS := -J$(MODDIR)
 else ifeq ($(COMPILER),ifort)
 	CXXFLAGS := -module $(MODDIR) -heap-arrays -assume realloc-lhs -assume byterecl -no-wrap-margin
+        # Technical notes
+        # -heap-arrays is required: if not enabled, Tantalus will segfault for large numbers
+        #                           of single-particle wavefunctions when compiled with ifort/ifx
 else ifeq ($(CXX),ftn)
 	CXXFLAGS := -J$(MODDIR)
 endif
@@ -251,7 +254,7 @@ else
   ifeq ($(COMPILER),gfortran)
 	  OPTFLAGS := -O0 -g -Wall -Wno-uninitialized -fbacktrace -fbounds-check
   else ifeq ($(COMPILER),ifort)
-	  OPTFLAGS := -g -traceback -check bounds
+	  OPTFLAGS := -g -traceback -check bounds -warn all # -fsanitize=adress
   else ifeq ($(COMPILER),cray)
 	  OPTFLAGS := -g -h bounds
   endif
@@ -331,7 +334,6 @@ ifeq ($(COMPILER),cray)
 else
   PREPROCESSOR :=  -cpp $(DIRECTIVES)
 endif
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 ################################################################################
