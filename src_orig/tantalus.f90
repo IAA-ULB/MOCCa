@@ -119,7 +119,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  319 format ( 8x,'| ', a58, '|')
  320 format ( 8x,'|___________________________________________________________|')
 
- !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
  ! Start the different processes across MPI ranks and do MPI bookkeeping
 #if(USE_MPI > 0)
   call mpi_init(mpi_err)

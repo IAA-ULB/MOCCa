@@ -1402,7 +1402,7 @@ $LAPTEMPDELTA   real(KIND=dp)    :: laptemp(mv,4)
     ! Zero the action of Delta. 
     ! This is the place to include contributions to the pairing that should 
     ! be coded manually
-    allocate(deltapsi(mv, 4))
+    allocate(deltapsi(mv,4))
     deltapsi = 0.0
    
 $PAIRINGACTION

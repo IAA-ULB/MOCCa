@@ -1582,10 +1582,20 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     ! When time-reversal is not conserved, it is indeed the full matrix that 
     ! is stored. This full matrix is antisymmetric, not symmetric!
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: Fermi(2), stabfactor(2)
-    integer                   :: wave1, wave2, iso, si,  B, N, N2,T
-    integer                   :: inda, indb, inda_global, indb_global
-    real(KIND=dp)             :: deltapsi(mv,4), val(2), stabfac
+    real(KIND=dp), intent(in)  :: Fermi(2), stabfactor(2)
+    integer                    :: wave1, wave2, iso, si,  B, N, N2,T
+    integer                    :: inda, indb, inda_global, indb_global
+    real(KIND=dp)              :: val(2), stabfac
+    real(KIND=dp), allocatable :: deltapsi(:,:)
+    ! Technical note: deltapsi HAS to be allocatable as opposed to an automatic
+    !                 array, because the result of the function delta_action
+    !                 is allocatable. This cannot be changed, because delta_action
+    !                 is assigned through pointer remapping which requires an
+    !                 interface (see delta_action_dummy at the top of this file).
+    !                 Said interface cannot be defined in terms of runtime
+    !                 variables such as the number of mesh points. Switching to an
+    !                 automatic array here will lead to memory leaks with IFORT
+    !                 compilers.
 #if(USE_MPI>0)
     integer                   :: mpi_err
 #endif

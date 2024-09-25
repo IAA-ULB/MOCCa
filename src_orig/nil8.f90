@@ -453,15 +453,14 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
      ! Diagonalization in the subblock
      ! Inquire about the optimal size of work
      allocate(work(1)) ; lwork = -1
-     call DSYEV( 'V', 'U', n, h, n, d, work, lwork, ifail)
+     call DSYEV( 'V', 'U', n, h(1:n,1:n), n, d, work, lwork, ifail)
      ! Change to the optimal value
      lwork = int(work(1)) ;  deallocate(work) ; allocate(work(lwork))
      ! Do the diagonalization
      call DSYEV( 'V', 'U', n, h(1:n,1:n), n, d(1:n), work, lwork, ifail)
      deallocate(work)      
      s(1:n,1:n)= h(1:n,1:n)
-
-    !c.......................storage and shift of the single particle energies
+     !c.......................storage and shift of the single particle energies
         irep(ni) = ia
         do i=1,n
             do j=1,n
