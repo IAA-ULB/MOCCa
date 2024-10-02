@@ -696,6 +696,12 @@ function CompNablaMelements() result(NablaMelements)
     !                 hence never communicate.
     !    5) MPI_BCAST creates the complete array for all ranks
     ! 
+    !
+    ! - - - - - - - -
+    ! TODO: this routine can be refactored by
+    !       - adding a bunch of small functions for repeated instructions!
+    !       - centrally changing the .false.,.true. settings
+    !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Some notes:
     ! 1) These matrix elements are, in general, complex numbers!
@@ -721,11 +727,12 @@ function CompNablaMelements() result(NablaMelements)
     ! calculations describe essentially infinite systems which are well-located
     ! in space.
     !---------------------------------------------------------------------------
-    integer       :: i,         j, B, N, si, N2, N3, N4, wave, wave2
+    integer       :: i, j, B, N, si, N2, N3, N4, wave, wave2
     integer       :: ranki, rankj, wave_global, wave2_global
     integer       :: designated_rank(2), calc_rank, T
     real(KIND=dp) :: NablaMElements(3,2,nwt,nwt), psi(mv,4)
     real(KIND=dp) :: derx(mv,4), dery(mv,4), derz(mv,4)
+    logical       :: hidden_TR = .false.
 #if(USE_MPI>0)
     integer       :: mpi_err
 #endif
@@ -869,7 +876,7 @@ $PBROKEN   enddo
       
       ! Block 2 with block 2 (parity broken)
 $PBROKEN   do i=1,N2
-$PBROKEN     wave_global = si+i  ! this is the global index of the spwf
+$PBROKEN     wave_global = si+N+i  ! this is the global index of the spwf
 $PBROKEN     ! .... and we have to find the MPI RANK and the index it is on
 $PBROKEN     ranki = rank_map(wave_global)
 $PBROKEN     wave  = spwf_inverse(wave_global)
@@ -901,8 +908,23 @@ $PBROKEN       endif
 $PBROKEN     enddo
 $PBROKEN   enddo
 
-      !-------------------------------------------------------------------------
+      !----------------------------------------------------------------------------
       ! Re < p_x >, Im <p_y> 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! hidden_TR = .true. => Include a time-reversal operation in the calculation
+      !                       of matrix elements of these operators
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+$NTR  hidden_TR = .false.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! hidden_TR = .true. => Do not include a time-reversal operation in the
+      !                       calculation of matrix elements
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+$TR   hidden_TR = .true.
+      !
+      ! Note: I define these logicals here in order to cut down on the preprocessor
+      !       directives needed just below.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
       do i=1,N
         wave_global  = si+i
         ranki        = rank_map(wave_global)
@@ -922,19 +944,11 @@ $TR           wave2_global = si+N+j
               rankj        = rank_map(wave2_global)
               wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-              ! TR = .true. => Include a time-reversal operation
-$TR           call transfer_derpsi(derx, wave2, 1,'DEN',.true.,rankj,calc_rank)
-$TR           call transfer_derpsi(dery, wave2, 2,'DEN',.true.,rankj,calc_rank)
-              ! TR = .false. => Don't include a time-reversal operation
-$NTR          call transfer_derpsi(derx, wave2, 1,'DEN',.false.,rankj,calc_rank)
-$NTR          call transfer_derpsi(dery, wave2, 2,'DEN',.false.,rankj,calc_rank)
+              call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR,rankj,calc_rank)
+              call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR,rankj,calc_rank)
 #else
-              ! TR = .true. => Include a time-reversal operation
-$TR           call transfer_derpsi(derx, wave2, 1,'DEN',.true.)
-$TR           call transfer_derpsi(dery, wave2, 2,'DEN',.true.)
-              ! TR = .false. => Don't include a time-reversal operation
-$NTR          call transfer_derpsi(derx, wave2, 1,'DEN',.false.)
-$NTR          call transfer_derpsi(dery, wave2, 2,'DEN',.false.)
+              call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR)
+              call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR)
 #endif
           if(MPI_RANK.eq.calc_rank) then
 
@@ -965,30 +979,30 @@ $PBROKEN     call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
 #else
 $PBROKEN     call transfer_psi(psi, wave, 'DEN')
 #endif
-                ! Block 1 with block 2  (T-broken, P-broken)    
+              ! Block 1 with block 2  (T-broken, P-broken)
 $PBROKEN $NTR do j=1, N2
 $PBROKEN $NTR   wave2_global = si+N+j
 $PBROKEN $NTR   rankj        = rank_map(wave2_global)
 $PBROKEN $NTR   wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-$PBROKEN $NTR   call transfer_derpsi(derx,wave2,1,'DEN',.false.,rankj,calc_rank)
-$PBROKEN $NTR   call transfer_derpsi(dery,wave2,2,'DEN',.false.,rankj,calc_rank)
+$PBROKEN $NTR   call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR,rankj,calc_rank)
+$PBROKEN $NTR   call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR,rankj,calc_rank)
 #else
-$PBROKEN $NTR   call transfer_derpsi(derx,wave2,1,'DEN',.false.)
-$PBROKEN $NTR   call transfer_derpsi(dery,wave2,2,'DEN',.false.)
+$PBROKEN $NTR   call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR)
+$PBROKEN $NTR   call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR)
 #endif
 
-                ! Block 1 with block 1  (T-conserved, P-broken)    
+              ! Block 1 with block 1  (T-conserved, P-broken)
 $PBROKEN $TR  do j=1, N
 $PBROKEN $TR    wave2_global = si+j
 $PBROKEN $TR    rankj        = rank_map(wave2_global)
 $PBROKEN $TR    wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',.true.,rankj,calc_rank)
-$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',.true.,rankj,calc_rank)
+$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR,rankj,calc_rank)
+$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR,rankj,calc_rank)
 #else
-$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',.true.)
-$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',.true.)
+$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR)
+$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR)
 #endif
 $PBROKEN        if(MPI_RANK .eq. calc_rank) then
 $PBROKEN          NablaMElements(1,1,wave_global,wave2_global) = dv*           &
@@ -1028,19 +1042,13 @@ $TR           wave2_global = si+N+N2+N3+j
               wave2        = spwf_inverse(wave2_global)
 
 #if(USE_MPI>0)
-              ! TR = .true. => Include a time-reversal operation
-$TR           call transfer_derpsi(derx, wave2, 1,'DEN',.true.,rankj,calc_rank)
-$TR           call transfer_derpsi(dery, wave2, 2,'DEN',.true.,rankj,calc_rank)
-              ! TR = .false. => Don't include a time-reversal operation
-$NTR          call transfer_derpsi(derx, wave2, 1,'DEN',.false.,rankj,calc_rank)
-$NTR          call transfer_derpsi(dery, wave2, 2,'DEN',.false.,rankj,calc_rank)
+          ! TR = .true. => Include a time-reversal operation
+          call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR,rankj,calc_rank)
+          call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR,rankj,calc_rank)
 #else
-              ! TR = .true. => Include a time-reversal operation
-$TR           call transfer_derpsi(derx, wave2, 1,'DEN',.true.)
-$TR           call transfer_derpsi(dery, wave2, 2,'DEN',.true.)
-              ! TR = .false. => Don't include a time-reversal operation
-$NTR          call transfer_derpsi(derx, wave2, 1,'DEN',.false.)
-$NTR          call transfer_derpsi(dery, wave2, 2,'DEN',.false.)
+          ! TR = .true. => Include a time-reversal operation
+          call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR)
+          call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR)
 #endif
           if(MPI_RANK.eq.calc_rank) then
             NablaMElements(1,1,wave_global,wave2_global) = dv*                 &
@@ -1063,19 +1071,10 @@ $PBROKEN   do i=1,N2
 $PBROKEN      wave_global  = si+N+i
 $PBROKEN      ranki        = rank_map(wave_global)
 $PBROKEN      wave         = spwf_inverse(wave_global)
-              ! Block 2 with block 1 (P-broken, T-broken)
-              ! This one is likely superfluous, as we have this 
-              ! combination already once above
-$PBROKEN $NTR do j=1, N
-$PBROKEN $NTR   wave2_global = si+j
-$PBROKEN $NTR   rankj        = rank_map(wave2_global)
-$PBROKEN $NTR   wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-$PBROKEN $NTR   call transfer_derpsi(derx,wave2,1,'DEN',.false.,rankj,calc_rank)
-$PBROKEN $NTR   call transfer_derpsi(dery,wave2,2,'DEN',.false.,rankj,calc_rank)
+$PBROKEN     call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
 #else
-$PBROKEN $NTR   call transfer_derpsi(derx,wave2,1,'DEN',.false.)
-$PBROKEN $NTR   call transfer_derpsi(dery,wave2,2,'DEN',.false.)
+$PBROKEN     call transfer_psi(psi, wave, 'DEN')
 #endif
               ! Block 2 with block 2 (P-broken, T-conserved)
 $PBROKEN $TR   do j=1, N2
@@ -1083,12 +1082,17 @@ $PBROKEN $TR    wave2_global = si+N+j
 $PBROKEN $TR    rankj        = rank_map(wave2_global)
 $PBROKEN $TR    wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',.false.,rankj,calc_rank)
-$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',.false.,rankj,calc_rank)
+$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR,rankj,calc_rank)
+$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR,rankj,calc_rank)
 #else
-$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',.false.)
-$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',.false.)
+$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR)
+$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR)
 #endif
+              ! The time-reversal broken version of the above would be
+              ! Block 2 with block 1 (P-broken, T-broken)
+              ! ... but this would be superfluous as we already calculated block 1 with block 2
+              !     in that case above. So we put a loop that will never trigger.
+$PBROKEN $NTR do j=1, 0
 
 $PBROKEN        if(MPI_RANK.eq.calc_rank) then
 $PBROKEN          NablaMElements(1,1,wave_global,wave2_global) = dv*           &
