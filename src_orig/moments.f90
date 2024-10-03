@@ -407,8 +407,42 @@ contains
       print 73
     end select
 
-    
   end subroutine PrintMoment_init
+  
+  pure real(KIND=dp) function Multipolefactor( particles, A, ell) result(factor)
+    !---------------------------------------------------------------------------
+    ! A small function that calculates the conversion factor between the 
+    ! multipole moments Qlm and the dimensionless Blm.
+    ! 
+    !  Beta_lm  = 4 * pi /( 3 * R_0**l * A) < Q_{lm} >
+    !           where R0 = 1.2A**(1/3)
+    !
+    ! Note: the routine returns zero as a safeguard when particles == 0.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    ! ------
+    !  particles: number of particles for which we are calculating Q_lm
+    !  A        : total mass of the nucleus, used to calculate the reference 
+    !             radius R
+    !  ell      : order of the multipole moment, i.e. l in Q_lm
+    ! Output:
+    ! -------
+    !  factor    :  the conversion factor f such that
+    !               beta_lm = f * Q_lm
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: particles, A
+    integer, intent(in)       :: ell
+    real(KIND=dp)             :: R
+  
+    ! Reference radius of a liquid drop: R_0 A^{1/3} with R_0 = 1.2 fm
+    R      = 1.2 * A**(1.0_dp/3.0_dp)
+    
+    if(particles .gt. 0.0d0) then
+      factor = 4.0_dp * pi /(3.0_dp * R**ell * particles)
+    else
+      factor = 0.0d0
+    endif
+  end function Multipolefactor
   
   subroutine IniMoments()
     !---------------------------------------------------------------------------
@@ -1456,17 +1490,15 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
   ! an (electric) multipole moment Q_lm.
   !-----------------------------------------------------------------------------
     type(Moment), intent(inout) :: Mom
-    real(KIND=dp)               :: R, factor
+    real(KIND=dp)               :: A, N, Z
 
-    R = 1.2_dp  * (neutrons + protons)**(1.0_dp/3.0_dp)
-    factor = 4.0_dp * pi /(3.0_dp * R**(Mom%l))
+    N = neutrons ; Z = protons
+    A = N + Z
+    Mom%Beta(1) = MultipoleFactor(N,A,Mom%l) *Mom%Value(1)
+    Mom%Beta(2) = MultipoleFactor(Z,A, Mom%l)*Mom%Value(2)
+    Mom%Beta(3) = MultipoleFactor(Z,A, Mom%l)*Mom%ChargeValue
+    Mom%Beta(4) = MultipoleFactor(A,A, Mom%l)*sum(Mom%Value)
 
-    Mom%Beta(:) = 0.0_dp
-    if ( neutrons .gt. 0.0_dp ) Mom%Beta(1) = factor*Mom%Value(1)/neutrons
-    if ( protons  .gt. 0.0_dp ) Mom%Beta(2) = factor*Mom%Value(2)/protons
-    if ( protons  .gt. 0.0_dp ) Mom%Beta(3) = factor*Mom%ChargeValue/protons
-
-    Mom%Beta(4) = factor*sum(Mom%Value)/(neutrons+protons)
   end subroutine CalcBeta
   
   subroutine CalcQuadrupoleAlt()
@@ -2059,8 +2091,7 @@ $NTR     &          '   phys:             mu_N fm^(l-1)'  )
     print 1
     nullify(Current)
     do currentl=1, MaxMoment
-      R = 1.2_dp  * (neutrons + protons)**(1.0_dp/3.0_dp)
-      factor = 4.0_dp * pi /(3.0_dp * (neutrons+ protons) * R**(Currentl))
+      factor = MultipoleFactor(neutrons+protons, neutrons+protons, current%l)
 
       ql = CalculateTotalQl(currentl)
       if(all(ql.eq.0.0_dp)) cycle

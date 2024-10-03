@@ -2769,13 +2769,17 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     ! Additional note: the MOI that are written are the "COLLECTIVE" Belyaev 
     !                  values, i.e. those without the contributions from any
     !                  blocked qps.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: Document the precise output of this routine.
     !
     !---------------------------------------------------------------------------
-    type(moment), pointer        :: quadrupole
+    use Moments, only: multipolefactor, calculatetotalQl
+    
     character(len=*), intent(in) :: combi
     integer, allocatable :: indices(:)
     integer              :: i,ii, p1, p2,jj
-    real(KIND=dp)        :: A, mstate1, mstate2
+    real(KIND=dp)        :: A, mstate1, mstate, mstate2
+    real(KIND=dp)        :: b2, b3,b4, q2(4), q3(4), q4(4)
     real(KIND=dp), allocatable :: tempgaps(:,:)
 
     1 format (a1, 3i4)
@@ -2915,15 +2919,23 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     !       expectation values of Jz that are written on file.
     !---------------------------------------------------------------------------
 
-    quadrupole => FindMoment(2,0,.false.)
-    A = protons + neutrons
+    ! Calculate the total deformations Q_l
+    q2 = CalculateTotalQl(2) 
+    q3 = CalculateTotalQl(3)
+    q4 = CalculateTotalQl(4)
+    
+    ! Rescale to dimensionless quantities
+    A = neutrons + protons
+    b2 = q2(4) * MultipoleFactor(A,A,2)
+    b3 = q3(4) * MultipoleFactor(A,A,3)
+    b4 = q4(4) * MultipoleFactor(A,A,4)
 
     ! Note: items marked with (*) are written as zero and, to the best of
     ! my (=W.R.) knowledge, not used by the level density code.  
     !                        IZ          IA    BETA     B4
-    write(unit=6, fmt=3)  int(protons),int(A),quadrupole%beta(4), 0.0,  &
+    write(unit=6, fmt=3)  int(protons),int(A),  b2, b3,  &
     !                      HGN    HFGP  HFDN             HFDP
-    &                      0.0,   0.0,  average_gap(2,1),average_gap(2,2), & 
+    &                      b4,    0.0,  average_gap(2,1),average_gap(2,2), &
     !                      HFDDN,HFDDP,HFEN,HFEP,HFUN,HFUP
     &                      0.0,   0.0,  0.0, 0.0, 0.0, 0.0, & 
     !                      HFLN, HFLP, 
