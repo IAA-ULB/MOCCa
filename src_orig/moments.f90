@@ -2091,7 +2091,7 @@ $NTR     &          '   phys:             mu_N fm^(l-1)'  )
     print 1
     nullify(Current)
     do currentl=1, MaxMoment
-      factor = MultipoleFactor(neutrons+protons, neutrons+protons, current%l)
+      factor = MultipoleFactor(neutrons+protons, neutrons+protons, currentl)
 
       ql = CalculateTotalQl(currentl)
       if(all(ql.eq.0.0_dp)) cycle

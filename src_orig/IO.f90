@@ -2933,9 +2933,9 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     ! Note: items marked with (*) are written as zero and, to the best of
     ! my (=W.R.) knowledge, not used by the level density code.  
     !                        IZ          IA    BETA     B4
-    write(unit=6, fmt=3)  int(protons),int(A),  b2, b3,  &
+    write(unit=6, fmt=3)  int(protons),int(A),  b2, b4,  &
     !                      HGN    HFGP  HFDN             HFDP
-    &                      b4,    0.0,  average_gap(2,1),average_gap(2,2), &
+    &                      b3,    0.0,  average_gap(2,1),average_gap(2,2), &
     !                      HFDDN,HFDDP,HFEN,HFEP,HFUN,HFUP
     &                      0.0,   0.0,  0.0, 0.0, 0.0, 0.0, & 
     !                      HFLN, HFLP, 
