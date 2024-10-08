@@ -840,6 +840,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     reading       = LineFormat(reading)
     writing       = LineFormat(writing)
     cleaning      = LineFormat(cleaning)
+    fieldINMk2    = LineFormat(fieldINMk2)
+    fieldINMk4    = LineFormat(fieldINMk4)
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Substitute into the functional.f90 file.  
     dic={}
