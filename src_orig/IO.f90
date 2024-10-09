@@ -517,21 +517,27 @@ contains
           ! Option a): break a symmetry and transform the spwfs appropriately
           call Transformspwfs( HFPsi, filenx, fileny, filenz,fileblocks_global,&
           &                    fileblocks, file_rank_map, file_spwf_inverse)
+          ! ----> this features a call to load_balance and hence sets the 
+          !       correct spwfs mappings everywhere
       else
           ! Option b): add points and/or add spwfs
           call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,    & 
           &                    fileblocks,file_HFB_blocks, file_spwf_map,      &
           &                    file_rank_map, file_spwf_inverse, extraspwfs)
+          ! ----> this features a call to load_balance and hence sets the 
+          !       correct spwfs mappings everywhere
       endif
     else  
-      ! Sanity check
+      ! Sanity check the input
       if(symtransfo_needed) then
         call stp('Symmetry transformation needed, but not allowed by user.')
       endif
-      ! We still need to set this particular information
-      HFblocks  = fileblocks
+      ! We still need to set the information regarding spwf mapping
+      HFblocks     = fileblocks
+      spwf_map     = file_spwf_map
+      rank_map     = file_rank_map
+      spwf_inverse = file_spwf_inverse
     endif
-  
     !---------------------------------------------------------------------------
     ! The following information needs to be transferred in every case
     nwt_local = sum(HFBlocks)
@@ -542,15 +548,6 @@ contains
 #else
       HFBlocks_global = HFBlocks
 #endif
-    ! ... and these if (and only if) transformspwfs was not called above
-    ! If transformspwfs was called, this assignment was taken care of inside 
-    ! that routine.
-!    if(.not. symtransfo_needed) then
-!      spwf_map     = file_spwf_map
-!      rank_map     = file_rank_map
-!      spwf_inverse = file_spwf_inverse
-!    endif
-
     !---------------------------------------------------------------------------
     ! with everything safely in memory, we add in an orthonormalisation to 
     ! guarantee we can start calculating stuff.
