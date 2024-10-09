@@ -428,6 +428,9 @@ contains
     ! Note: this routine is not yet ready to deal with blocked HFB vacua!
     !
     !---------------------------------------------------------------------------
+    ! Explicit declaration of the external linear algebra routines
+    external :: dsytrf, dsytri
+
     real(KIND=dp), allocatable :: Mat(:,:,:,:), Qsp(:,:,:), Q20(:,:,:)
     real(KIND=dp), allocatable :: work(:), M1_inv(:,:,:)
     integer :: i, j, la, lb, l, m, info, lwork, it

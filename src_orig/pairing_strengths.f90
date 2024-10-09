@@ -145,9 +145,9 @@ contains
 
   select case(integrationtype)
   case(0)
-    print 3, ' Analytical weak coupling approximation from N. Chamel, PRC 82, 014313 (2010).'
+    print 4, ' Analytical weak coupling approximation from N. Chamel, PRC 82, 014313 (2010).'
   case (1)
-    print 3, ' Numerical integration by means of tanh-sinh quadrature.'
+    print 4, ' Numerical integration by means of tanh-sinh quadrature.'
   case DEFAULT
     call stp('integrationtype not recognized in print_micro_pairing_info.')
   end select
@@ -274,12 +274,10 @@ contains
   real(KIND=dp), intent(in)  :: rho(mv,4), U2(mv,4), U4(mv,4)
   integer, intent(in)        :: iso
   procedure(delta_abstract), pointer :: delta_function
-  integer                    :: i, k
+  integer                    :: i
   real(KIND=dp)              :: vp(mv), kf0(mv), kfp(mv), kfn(mv), eta(mv)
-  real(KIND=dp)              :: x(mv), mu(mv), effm(mv)
-  real(KIND=dp)              :: integral(mv), integral_tanh(mv)
-  real(KIND=dp)              :: Delta(mv), a(mv), u(mv)
-  
+  real(KIND=dp)              :: mu(mv), effm(mv), Delta(mv), u(mv), integral(mv)
+
   ! I originally coded this routine as taking a procedure as input. 
   ! Turns out that IFORT puts out catastrophic errors at some points...
   procedure(inter_abstract), pointer   :: interpolation
@@ -461,7 +459,7 @@ contains
     !
     !----------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: a, b, h, tol, mu, delta, u
-    real(KIND=dp)             :: I, C, D, fxm, fxp, t, t0, x, x0, w, w0, xm, xp
+    real(KIND=dp)             :: I, C, D, fxm, fxp, t, t0, x0, w, w0, xm, xp
     integer                   :: k
 
     I = 0

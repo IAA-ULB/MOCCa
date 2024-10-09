@@ -89,7 +89,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     !       and store it in the i-th entry in the wfs array. Obviously
     !       len(spwf_map) <= nwt.
     !---------------------------------------------------------------------------
-    implicit real*8 (a-h,o-z)
+    !implicit real*8 (a-h,o-z)
 !    
 !  101 format (/,' neutron levels kappa=',e10.3,' mu=',e9.2,   &
 !     &          ' al0n=al0*(1+',f5.2,'*(n-z)/a)',/,           &
@@ -99,17 +99,20 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
 !     &          ' (n0,nor,energy/(hbar*omega0),parity)',/,' ')
 !  103 format (' (',2i4,f8.3,i3,') (',2i4,f8.3,i3,') (',2i4,f8.3,i3,')')
     
+    external :: DSYEV
     integer              , intent(in)        :: meven, modd,mx,my,mz,nwt,nwp,nwn
     integer              , intent(in)        :: npp, npn
     integer, allocatable, intent(inout)      :: kparz(:)
     real(KIND=dp), allocatable, intent(inout):: wfs(:,:,:), esp1(:)
-    real(KIND=dp), intent(in)                :: osc_freq(3)
+    real(KIND=dp), intent(in)                :: osc_freq(3), dx
     integer, allocatable, intent(in)         :: spwf_map(:)
 
     real(KIND=dp)              :: hox, hoy, hoz
     real(KIND=dp), allocatable :: h(:,:), s(:,:), d(:), wd(:), e(:)
     real(KIND=dp), allocatable :: he(:,:,:) , a(:), work(:)
-    real(KIND=dp)              :: psi(mx,my,mz,4)
+    real(KIND=dp)              :: psi(mx,my,mz,4), hbm(2), cf(2)
+    real(KIND=dp)              :: xho, x, x1, x2, x3, x4, hex, hey, hez, xph
+    real(KIND=dp)              :: ho0, ax, ay, az, y,an, am, xis 
 
     integer                    :: npar(2,2), nvv, nz2, nz1, nx1, nx2, ny1, ny2
     integer                    :: nwave, nodd, nnn2, nnn1, nn2, nn1, nn, nmax
@@ -119,13 +122,11 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     integer                    :: lwork, store_counter
     integer, allocatable       :: nsi(:,:),ns(:), nx(:), ny(:), nz(:), irep(:)
     integer, allocatable       :: nor(:), npa(:), ntrs(:)
-
-    dimension xk(4),xmu(4),cf(2), hbm(2)
     
-    data ca,cb /0.986d0,0.14d0/
-    data xk,xmu/0.08d0,0.08d0,   0.0637d0,0.0637d0    &
-    &           ,0.0d0 ,0.0d0 ,  0.42d0,  0.60d0   /
-    parameter (hhbar=6.58218d0,xxmn =1.044673d0)
+    real*8, parameter :: hhbar=6.58218d0, xxmn =1.044673d0
+    real*8, parameter :: ca   =0.986d0  , cb   =0.14
+    real*8, parameter :: xk(4)  = (/0.08d0,0.08d0,   0.0637d0,0.0637d0/)
+    real*8, parameter :: xmu(4) = (/0.08d0,0.08d0,   0.0637d0,0.0637d0/)
     
     hox = osc_freq(1) ; hoy = osc_freq(2) ; hoz = osc_freq(3)
 
@@ -155,7 +156,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     allocate(kparz(nwt),esp1(nwt))
 
     irep = 0 ; ntrs = 0
-    h = 0.0d0 ; s = 0.0d0 ; d = 0.0d0 ; wf = 0.0d0
+    h = 0.0d0 ; s = 0.0d0 ; d = 0.0d0 ; wfs = 0.0d0
     nsi = 0 ; ns = 0
     nx = 0 ; ny = 0 ; nz = 0 ; e = 0.0d0; nor =0 ; npa =0 
     he = 0.0d0 ; kparz=0; a= 0.0d0

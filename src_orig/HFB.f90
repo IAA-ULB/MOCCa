@@ -999,6 +999,7 @@ $PBROKEN blockblock(i) = 5
     ! (2) this routine produces the ACTUAL qp energies of a given HFB 
     !     Hamiltonian, as opposed to the subroutine correct_ordering_eqp
     !---------------------------------------------------------------------------
+    external :: DSYEV
 
     real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), lambda(2)
     real(KIND=dp), allocatable  :: HFBhamil(:,:), work(:), A(:,:)
@@ -1848,7 +1849,7 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     ! c) Return the diagonal elements of rho, and the offdiagonal elements of 
     !    kappa, as well as the transformation.
     !---------------------------------------------------------------------------
-    
+    external DSYEV
     real(KIND=dp), intent(in)  :: rho_pairing(nwt,nwt)
     real(KIND=dp), intent(in)  :: kappa_pairing(nwt,nwt)
     real(KIND=dp), intent(out) :: rho_can(nwt), kappa_can(nwt)

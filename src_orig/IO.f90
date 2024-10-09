@@ -2185,16 +2185,17 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     use Coulombmod ! module explicitly 'used' in order to be able to place the 
                    ! values of the direct and exchange Coulomb potentials 
                    ! correctly on the mesh
-  
+
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ifn
 
     logical :: exists
-    integer :: i,j,k,io, it, mu, nu, ox, oy, oz, headercount
+    integer :: i,j,k,io, it, ox, oy, oz, headercount
+    !integer :: mu, nu
     real(KIND=dp), allocatable :: Vc(:), Ec(:)
     real(KIND=dp) :: x,y,z
     character(len=200) :: temp
-     
+
     inquire(file=inputfilename, exist=exists)
     if(.not.exists) then
       print *, 'Input file specified does not exist!'
@@ -2775,7 +2776,7 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     character(len=*), intent(in) :: combi
     integer, allocatable :: indices(:)
     integer              :: i,ii, p1, p2,jj
-    real(KIND=dp)        :: A, mstate1, mstate, mstate2
+    real(KIND=dp)        :: A, mstate1, mstate2
     real(KIND=dp)        :: b2, b3,b4, q2(4), q3(4), q4(4)
     real(KIND=dp), allocatable :: tempgaps(:,:)
 

@@ -1976,7 +1976,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     !-------------------------------------------------------------------------
     type(Moment), pointer :: Current => null()
     integer               :: currentl
-    real(KIND=dp)         :: ql(4), factor, R
+    real(KIND=dp)         :: ql(4), factor
     character(len=1)      :: AX='Z',secAx1='Y', secAx2='Z'
 
   100 format (24('-'),' Electric Multipole Moments ', 25('-'))

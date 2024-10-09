@@ -380,6 +380,9 @@ contains
         real*8, allocatable     :: rwork(:), qpe_copy(:), W(:,:)
         integer                 :: iphi, N, Ntotal, sb, si, B, info, i
 
+        ! Explicit declaration of external linear algebra routines
+        external :: zgeev, zungqr, zgeqrf
+
         Iimag = cmplx(0, 1.0)
 
         Ntotal = sum(blocks) ; allocate(detM(2*Ntotal)) ; detM = 0
