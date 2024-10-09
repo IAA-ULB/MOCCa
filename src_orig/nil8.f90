@@ -156,7 +156,7 @@ subroutine nilsson (wfs,kparz,esp1,meven,modd,nwt,nwp,nwn,npp,npn,mx,my,mz,   &
     allocate(kparz(nwt),esp1(nwt))
 
     irep = 0 ; ntrs = 0
-    h = 0.0d0 ; s = 0.0d0 ; d = 0.0d0 ; wfs = 0.0d0
+    h = 0.0d0 ; s = 0.0d0 ; d = 0.0d0 
     nsi = 0 ; ns = 0
     nx = 0 ; ny = 0 ; nz = 0 ; e = 0.0d0; nor =0 ; npa =0 
     he = 0.0d0 ; kparz=0; a= 0.0d0
