@@ -14,8 +14,8 @@ decl_int     = T(  tab + 'integer       :: $PARAM = -123456789 \n')
 
 
 read    = T(  tab + '& $PARAM, & \n')
-print_real   = T(2*tab + 'print "(a6,2x, f10.3)", "$PARAM", $PARAM \n ')
-print_int    = T(2*tab + 'print "(a6,2x,    i5)", "$PARAM", $PARAM \n ')
+print_real   = T(2*tab + 'print "(a20,2x, f10.3)", "$PARAM", $PARAM \n ')
+print_int    = T(2*tab + 'print "(a20,2x,    i7)", "$PARAM", $PARAM \n ')
 
 reset   = T(  tab + '$PARAM = -123456789 \n')
 

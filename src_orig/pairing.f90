@@ -328,11 +328,14 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
     ! /blocking/ namelist variables
     if(BlockNumber.ne.0) then
      call MPI_Bcast(blockJ, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
-     allocate(blockindices(blocknumber)) ; allocate(blocklowest(blocknumber))
-     call MPI_Bcast(blockindices,blocknumber,MPI_INTEGER,0,MPI_COMM_WORLD,mpi_err)
+     if(MPI_RANK .ne. 0) then
+      allocate(blockindices(blocknumber))
+      allocate(blocklowest(blocknumber))
+     endif
+     call MPI_Bcast(blockindices,blocknumber,MPI_INTEGER,0, MPI_COMM_WORLD,mpi_err)
      ! blocklowest is an array of strings, so it is complicated to transfer...
      do i=1,blocknumber
-      call MPI_Bcast(blocklowest(i), 2,MPI_CHARACTER,0,MPI_COMM_WORLD,mpi_err) 
+      call MPI_Bcast(blocklowest(i), 2,MPI_CHARACTER, 0,MPI_COMM_WORLD,mpi_err)
      enddo
     endif
 #endif
@@ -487,7 +490,7 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
       print 13
     endif
 
-$VMICRO call print_micro_pairing_info(ptype, intertype)        
+$VMICRO call print_micro_pairing_info(ptype, interpolationtype, integrationtype)
 
     if(Blocktype .ne. 0) then
         print 90

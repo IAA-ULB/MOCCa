@@ -4,6 +4,9 @@
 !    G. Grams et al., EPJA 59, 270 (2023).
 !    DOI: 10.48550/arXiv.2211.03592
 !
+! Attention: parameterization for testing purposes that combines BSkG3's t4/t5
+!            terms with (vanishing) N2LO terms
+!
 ! Aspects of note
 !  * microscopic pairing prescription
 !  * although not with the original INM interpolation
@@ -12,8 +15,8 @@
 !  * no terms that include gradients of spin densities
 !  * pairing cutoff only ABOVE the Fermi energy
 !-------------------------------------------------------------------------------
-name       = 'BSkG3' 
-func_file  = 'BXL.func' 
+name       = 'BSkG3_N2LO'
+func_file  = 'BXL-N2LO-full.func'
 t0         =        -2325.349405138098, 
 t1         =          749.818167793719, 
 t2         =            0.01, 
@@ -26,6 +29,10 @@ x2         =       -43225.69541010625,
 x3         =            0.6286997213815574, 
 x4         =            5.65799, 
 x5         =            0.39693292344163034, 
+x1n2       =            0.0
+x2n2       =            0.0
+t1n2       =            0.0
+t2n2       =            0.0
 sigma      =            0.2,  
 beta       =            0.08333, 
 gamma      =            0.25, 
@@ -66,5 +73,5 @@ vibcorrb    = 0.82652
 eps         = 1d-8 
 ptype       = 0  
 interpolationtype   = 1
-integrationtype     = 0
-/ 
+integrationtype   = 0
+/

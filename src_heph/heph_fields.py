@@ -88,7 +88,9 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
     fieldprecon:
     fieldwrite :
     fieldread  :
-
+    fieldclean :
+    fieldINMk2 :
+    fieldINMk4 :
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
   """
@@ -104,20 +106,25 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   fieldprecon = ''
   declaration = ''
 
-  fieldread = ''
-  fieldwrite= ''
+  fieldread    = ''
+  fieldwrite   = ''
   fieldtransfo = ''
+
+  fieldINMk2 = ''
+  fieldINMk4 = ''
       
   fieldini     = ''
   fieldadd     = ''
   fieldmultiply= ''
  
   fieldinproduct = ''
+  fieldclean = ''
   #---------------------------------------------------------------------------
   for den in src_heph.heph_functional.Densities_needed:
       #-----------------------------------------------------------------------
       #  Get the operator structure of the density correctly                    
       (der,lap,left, right, coupling,cross) = ParseOperators(den,so.timelike) 
+
       #-----------------------------------------------------------------------
       # Name the field correctly
       dic = {}
@@ -167,8 +174,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       else:
         Pairing_Fields_needed.append(dic['FIELD'])
       #-----------------------------------------------------------------------
-
-
       # Construct the left/right operators
       operatordic = {}
       operatordic['I'] = Identity
@@ -222,7 +227,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
           
           #-------------------------------------------------------------------
           # Replace the densities in the list by the ones actually calculated
-          
           newden = densities.copy()
           for i, d in enumerate(densities):
               (x,y,l2,r2,c2,cr2) = ParseOperators(d,so.timelike)
@@ -255,8 +259,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
 #                    tryout = densities[i].replace(s1, s2)
 #                    nosum  = densities[i].replace(s1, '')
 #                    altterm = altterm.replace(tryout, nosum)
-
-
           (rubbish, cpl) = src_heph.heph_functional.ParseDensities(altterm)
 
           #---------------------------------------------------------------------
@@ -311,7 +313,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                     for j in range(i):
                         removedsum = removedsum + OrderOfDen(densities[j])
 
-                    cplct = 'coupl_constant(%d)'%(nterm+1)                      
+                    cplct = 'coupl_constant(%2d)'%(nterm+1)
                     isoc  = iso_ind.copy()
                     isoc.pop(i)                                          
                                         
@@ -366,7 +368,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                         if(dcmb.count(0) == 1 and dden != '1'):
                           if(len(dcmb) !=  1):
                             print ("Hephaestos cannot yet deal with derivatives upon derivatives of density dependent terms!")
-                            exit()
+                            exit(1)
                           # The derivative falls on the density dependence!
                           # nabla_m rho^alpha = alpha rho^(alpha-1) nabla_m rho
                           cc      = '(%s) * '%(dden) + cplct
@@ -389,7 +391,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                           
                           if(len(lcmb)>1):
                             print ("Repeated derivatives of density dependence.")
-                            exit()
+                            exit(1)
 
                           lc = lcmb[0]                          
                           if( lc.count(0) == 1):
@@ -447,7 +449,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                     altcpl  = cplct + ' * (' +  dden + ')' 
                     isoc    = iso_ind.copy()
                     #-----------------------------------------------------------
-
                     # When terms are trilinear or quadrilinear, every partial 
                     # integration generates MORE THAN ONE TERM in the 
                     # calculation of the field. Example:
@@ -524,9 +525,11 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       #FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
       
       FIELDCALC    = FIELDCALC + ts.field_condition_start.substitute(dic)
-      
       fieldinproduct = fieldinproduct + ts.field_inproduct.substitute(dic)
 
+      #------------------------------------------------------------------------
+      #
+      fieldINM = ""
       #-------------------------------------------------------------------------
       # Code generation for the calculation of the fields. 
       #
@@ -541,8 +544,10 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         
         FIELDCALC    = FIELDCALC + ts.field_calc_iso_start.substitute(dic)
         for fieldterm in fieldlist[iso]:
-        
-           # We rearrange things in this separate routine 
+           dic['CPLCTE']   =  fieldterm[3]
+
+           #-----------------------------------------------------------------
+           # We rearrange things in this separate routine
            NumberOfIndices, nthree, densities, newcpl, pisigns = \
             Adaptdensities(fieldterm[0],fieldterm[4],fieldterm[1],fieldterm[2])
 
@@ -559,8 +564,12 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
               for a in args:
                 for va in vec_args:
                   true_args.append(a+va)
-      
-           for arg in true_args:            
+
+           # This quantity counts how many index combinations of this term
+           # give non-zero contributions to the potentials in homogeneous,
+           # unpolarised infinite nuclear matter.
+           INM_term_count = 0
+           for arg in true_args:
              # get the indices of the field (i.e. the lhs above) correct
              dic['IND']     = ''
              sign           = +1
@@ -584,14 +593,69 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                   dic['IND'] = dic['IND'] + ',%d'%(temp[c.index(k)]+1)
 
              lastorder = OrderOfDen(den)
-             
+
+             #----------------------------------------------------------------
+             # Before we start doing complicated stuff for the index coupling
+             # of fields, we first look into the calculation of potentials
+             # in homogeneous unpolarised infinite nuclear matter.
+             #
+             # We select on terms for which
+             #  - no Pauli sigma matrices are involved
+             #  - either two or four derivatives in the density
+             #  - no external derivatives of densities are involved
+             #  - indices couple to a scalar, i.e. only terms that
+             #    contain the diagonal part of the tensor densities
+             #      D_NNN...._NNN_{aaaaaa..., aaaaa...}
+             #
+             # If all of this is true, we know that this particular term
+             # with this particular combination of indices in non-zero in INM.
+             # We could add a line in the FORTRAN code, but this would result
+             # in a large amount of repeated lines.
+             #
+             # Note: I'm not entirely sure (yet) whether this selection procedure
+             # is entirely general; I've double checked NLO and standard N2LO
+             # EDFS but more general things might not work
+             if(   LeftOperator.derorder + RightOperator.derorder == 2 \
+                 or LeftOperator.derorder + RightOperator.derorder == 4 ):
+                 # Pauli spin matrices?
+                 nosigma=True
+                 if('S' in left or 'S' in right):
+                     nosigma=False
+                  # Any external derivatives?
+                 noderivatives=True
+                 if(len(fieldterm[1])>0 or len(fieldterm[2])>0):
+                   noderivatives = False
+                 for d in fieldterm[0]:
+                   if('Der' in d or 'Lap' in d):
+                       noderivatives=False
+
+                 # - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                 # Poor mans reverse engineering of the indices to
+                 # determine if they couple to a scalar in position space
+                 if(len(dic['IND']) > 0):
+                    scalar = True
+                    inds = []
+                    for k in dic['IND']:
+                     try:
+                      inds.append(int(k))
+                     except:
+                      continue
+                    for k in range(1,max(inds)+1):
+                     if(inds.count(k)%2 != 0):
+                      scalar = False
+                 else:
+                    scalar = True
+
+                 if(nosigma and noderivatives and scalar):
+                   INM_term_count = INM_term_count + 1
+             #----------------------------------------------------------------
+
              FIELDCALC = FIELDCALC + ts.field_calc_b_start.substitute(dic)
               
              dic['DENSITY']  = ''
              dic['EXPR1']    = ''
              dic['EXPR2']    = ''
              dic['EXPR3']    = ''
-             dic['CPLCTE']   =  fieldterm[3]
              
              for i,d in enumerate(densities):
                 dic['DENSITY'] = d
@@ -639,7 +703,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                 # Increment the starting point of indices
                 lastorder = lastorder + OrderOfDen(dic['DENSITY'])
 
-             #------------------------------------------------------------------                   
+             #------------------------------------------------------------------
              # Put an extra sign for every partial integration of a nabla
              if( len(fieldterm[1])%2 != 0):
                  localsign = sign * (-1)
@@ -659,7 +723,55 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
 
              FIELDCALC = FIELDCALC + ts.field_calc_full.substitute(dic)
              FIELDCALC = FIELDCALC[:-4] + '\n \n'
-                            
+
+           #------------------------------------------------------------------
+           # This term contributes to potentials in homogeneous unpolarised
+           # infinite matter, so we count how exactly it does this.
+           if(INM_term_count > 0):
+            dic['EXPR1']  = ''
+            dic['SIGN']   = '+'
+
+            for i,d in enumerate(densities):
+              # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+              # For now, this implementation is limited to densities of the form
+              #       D^NNNNN.....,NNNNN.....
+              # with 2*l nabla operators. They translate to INM as
+              #
+              #   isospin 0 : [(3+2*l) pi^2 ]^{-1}  (kfn^{3+2*l} + kfp^{3+2*l})
+              #   isospin 1 : [(3+2*l) pi^2 ]^{-1}  (kfn^{3+2*l} + kfp^{3+2*l})
+              #
+              power         = 3 + OrderOfDen(d)
+              # Isospin indices
+              if(fieldterm[5][i] == '0'):
+                isosign = '+'
+              else:
+                isosign = '-'
+              # There is additional degeneracies to account for:
+              #    consider the general equation
+              #
+              #      F =  C * D_1 * D_2 * ...
+              #    where F is a field and the Ds are possibly different densities.
+              #
+              #    - If F has indices, there is a factor three degeneracy since only
+              #      its scalar part contributes to INM.
+              #    - For each of the densities that has indices, there is an additional
+              #      factor of three degeneracy because only their scalar part will be
+              #      non-zero.
+              #
+              degeneracy = 1
+              if(OrderOfDen(d) > 0):
+                degeneracy = degeneracy * 3
+              if(OrderOfDen(den) > 0):
+                degeneracy = degeneracy * 3
+              # We multiply by the number of valid index couplings we counted (INM_term_count)
+              temp_string = " %2d/ (%2d * pi**2) * ( kfn**(%2d) %s kfp**(%2d) )"%(INM_term_count, degeneracy*power, power, isosign, power)
+              # ... and we don't forget to account for density-dependencies
+              if(fieldterm[6] != '1' and i == 0):
+                temp_string = "pow( %s , %s)"%(temp_string, fieldterm[6])
+              dic['EXPR1']  = dic['EXPR1'] + "*" + temp_string
+            fieldINM = fieldINM + ts.field_calc_INM.substitute(dic)
+        fieldINM = fieldINM + '\n'
+
       # Add the recombination statements from isospin representation to 
       # proton-neutron representation, but only for normal densities
       if('P' not in den):
@@ -670,6 +782,12 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       # Add some lines for the multiplication and addition of potentialvectors!
       fieldadd      = fieldadd      + '\n' +  ts.Add.substitute(dic)
       fieldmultiply = fieldmultiply + '\n' +  ts.Multiply.substitute(dic)
+
+      if(LeftOperator.derorder + RightOperator.derorder == 2):
+        fieldINMk2 = fieldINMk2 + fieldINM
+      elif(LeftOperator.derorder + RightOperator.derorder == 4):
+        fieldINMk4 = fieldINMk4 + fieldINM
+
       #-------------------------------------------------------------------------
       # Code generation for the preconditioning of the fields
       #
@@ -792,13 +910,39 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
 
           dic['IND'] = IND
 
+          #--------------------------------------------------------------------
+          # Add the actual call(s) to precondition this potential to the code.
+          # First we coun the number of external derivatives that occurs in the 
+          # field, such that we know how often to apply the preconditioner.
+          extder = 0
+          for iso in ['0','1', 'n', 'p']:        
+            if(len(fieldlist[iso]) == 0):
+              continue
+            for fieldterm in fieldlist[iso]:
+              nder = 0 ; nlap = 0
+              # Number of external derivatives in the "density", i.e. not incurred by 
+              # partial integration
+              for tempden in fieldterm[0]:
+                  nder = nder + tempden.count('Der')
+                  nlap = nlap + tempden.count('Lap')
+              # extra derivatives incurred by partial integration
+              nder = nder + len(fieldterm[1])
+              nlap = nlap + len(fieldterm[2])
+              # Every laplacian counts for two derivatives of course!
+              extder = max(extder, nder + 2 * nlap)
+          
+          if(extder != 0):
+            fieldprecon  = fieldprecon + ts.field_precon_update.substitute(dic)
 
-          fieldprecon  = fieldprecon + ts.field_precon_update.substitute(dic)
+            for true_arg in uncontracted: 
+              # We do the whole loop but only use the values for the final set of
+              # indices: all terms in a given contraction should have the same 
+              # behaviour under symmetry.
 
-          for true_arg in uncontracted: 
-            # We do the whole loop but only use the values for the final set of
-            # indices: all terms in a given contraction should have the same 
-            # behaviour under symmetry.
+              # The ugly tuple(np.abs( construction is simply because abs doesn't 
+              # accept tuples as arguments, for whatever reasons.
+              larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
+              rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
 
             # The ugly tuple(np.abs( construction is simply because abs doesn't 
             # accept tuples as arguments, for whatever reasons.
@@ -809,12 +953,14 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
             dic['PX'] = str(px)
             dic['PY'] = str(py)
             dic['PZ'] = str(pz)
-          fieldprecon  = fieldprecon + ts.field_precon_call.substitute(dic)
-          fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
+            # Every two external derivatives get one preconditioning run.
+            dic['DIVISOR'] = (extder//2)**2 # ansatz for the appropriate preconfactor
+            fieldprecon  = fieldprecon + + (extder//2) * ts.field_precon_call.substitute(dic)
+            fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
   #-----------------------------------------------------------------------------
 
   return(declaration, fieldini, FIELDCALC, fieldprecon, fieldwrite, fieldread, \
-         fieldadd, fieldmultiply, fieldinproduct)
+         fieldadd, fieldmultiply, fieldinproduct, fieldINMk2, fieldINMk4)
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
   """
