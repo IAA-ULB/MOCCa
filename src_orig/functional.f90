@@ -1771,6 +1771,25 @@ $EREAR
     ! string and comparisons can not be made.
 $WRITEPOTENTIALS
   end subroutine WritePotentials
+ 
+ 
+!  subroutine WritePotentials_hdf5(chan, F)
+!    !---------------------------------------------------------------------------
+!    !  Subroutine writing the different potentials to file.
+!    !---------------------------------------------------------------------------
+!    type(PotentialVector), intent(in) :: F
+!    integer, intent(in) :: chan
+!    integer             :: io
+
+
+!    ! Then, for every potential write the 
+!    ! * Name 
+!    ! * Value
+!    ! Note that the name is written as a length-30 string, padded with spaces.
+!    ! If not, the unformatted in/out cannot correctly determine the end of a
+!    ! string and comparisons can not be made.
+! !putdollarWRITEPOTENTIALS_HDF5
+!  end subroutine WritePotentials_hdf5
 
   function ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed) &
   & result(F)
