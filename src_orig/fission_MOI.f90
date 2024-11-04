@@ -244,9 +244,6 @@ contains
     enddo
     print *,sep
     print *
-    
-    ! Verify these results with the COM motion    
-    call verify_COM_motion
         
     print 2
   end subroutine print_collective_inertia
@@ -309,7 +306,7 @@ contains
     &         '   Am               | ', 3f16.5, /, 80('-'))
     
     real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
-    real(KIND=dp) :: mat(2,2), Pmat(2,2), neutronmass, protonmass
+    real(KIND=dp) :: mat(2,2), Pmat(2,2), neutronmass, protonmass, totalmass
       
     real(KIND=dp) :: Psp(nwt,nwt), Qsp(nwt,nwt), hbar
     real(KIND=dp) :: P20(nwt,nwt), Q20(nwt,nwt), avg_effmass(2)
@@ -347,11 +344,15 @@ contains
     ! which is the logical generalization from Eq. (30) in 
     !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
     ! and an explicit factor of hbar^2.
-    avg_effmass =1.0 ! sum(F_Nm_Nm(:,:) * D_I_I(:,:) , 1) * dv 
-    avg_effmass(1) = avg_effmass(1) / (hbm(1) * neutrons)
-    avg_effmass(2) = avg_effmass(2) / (hbm(2) * protons)
-    avg_effmass    = avg_effmass + 1 
-    avg_effmass    = 1/avg_effmass
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: fix the calculation of this effective mass
+!     avg_effmass = sum(F%F_Nm_Nm(:,:) * R%D_I_I(:,:) , 1) * dv
+!     avg_effmass(1) = avg_effmass(1) / (hbm(1) * neutrons)
+!     avg_effmass(2) = avg_effmass(2) / (hbm(2) * protons)
+!     avg_effmass    = avg_effmass + 1
+!     avg_effmass    = 1/avg_effmass
+    avg_effmass = 1.0d0
 
     print 1
     print 2
@@ -372,8 +373,13 @@ contains
     end select
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculating the inertia parameters
-    neutronmass = 0.25d0 * 1.0/mat(1,1) * mat(2,1) * 1.0/mat(1,1)
-    protonmass  = 0.25d0 * 1.0/mat(1,2) * mat(2,2) * 1.0/mat(1,2)
+    if(neutrons .gt. 0.0d0) then
+      neutronmass = 0.25d0 * 1.0/mat(1,1) * mat(2,1) * 1.0/mat(1,1)
+    endif
+    if(protons .gt. 0.0d0) then
+      protonmass  = 0.25d0 * 1.0/mat(1,2) * mat(2,2) * 1.0/mat(1,2)
+    endif
+    totalmass   = neutronmass + protonmass
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Printing 
     print 3,  Pmat(1,:), sum(Pmat(1,:))
@@ -506,13 +512,13 @@ contains
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Factorize M1
       call dsytrf('U', N_inertia, M1_inv(:,:,it),N_inertia,ipiv,work,lwork,info)
-      deallocate(work)
       ! Invert M1
-      allocate(Work(N_inertia))
-      call dsytri('U', N_inertia, M1_inv(:,:,it), N_inertia,ipiv,work, info)
-
-      if(info.ne.0) then
-         call stp('Problem for DSYTRI during the calculation of collective inertia.')
+      if(MAXVAL(abs(M1_inv)).lt.1e-15) then
+       allocate(Work(N_inertia))
+       call dsytri('U', N_inertia, M1_inv(:,:,it), N_inertia,ipiv,work, info)
+       if(info.ne.0) then
+          call stp('Problem for DSYTRI during the calculation of collective inertia.')
+       endif
       endif
       deallocate(work, ipiv)
 

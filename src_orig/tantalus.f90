@@ -525,6 +525,8 @@ subroutine ReachForWaterAndFood()
       call calc_collective_inertia
       if(MPI_RANK.eq.0) then
         call print_collective_inertia
+        ! Verify these results with the COM motion
+        call verify_COM_motion()
       endif
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
