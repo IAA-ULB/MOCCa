@@ -51,7 +51,7 @@ module fission_MOI
   !-----------------------------------------------------------------------------
   ! The full collective inertia tensor, obtained by including information 
   ! on ALL the multipole moments that were asked for  
-  real(KIND = dp), allocatable :: collective_inertia(:,:,:)
+  real(KIND = dp), allocatable :: collective_inertia(:,:)
   ! Intermediate matrices M^1 and M^3 that are needed for the calculation
   ! of the collective_inertia. Stored separately so it can be output for 
   ! people wanting to recalculate the collective inertia.
@@ -177,24 +177,11 @@ contains
       header = adjustl(trim(header)//tmp)
     enddo
 
-    print *, ' neutrons        ', header   
-    print *, sep 
-    do i=1, N_inertia
-      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,1)
-    enddo
-    print *,sep
     print *
-    print *, ' protons         ', header   
+    print *, '                ', header
     print *,sep
     do i=1, N_inertia
-      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,2)
-    enddo
-    print *,sep
-    print *
-    print *, ' total          ', header   
-    print *,sep
-    do i=1, N_inertia
-      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,3)
+      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia)
     enddo
     print *,sep
     print *
@@ -299,6 +286,7 @@ contains
     &         1x, 80('-'))
     3 format ('   Belyaev M_0      | ', 3f16.5)
     4 format ('   Pert. cranking   | ', 3f16.5)
+   41 format ('   Pert. crankingv2 | ', 3f16.5)
     5 format ('   Belyaev m / m_*  | ', 3f16.5)
     6 format ('   Pert.   m / m_*  | ', 3f16.5)
     
@@ -374,25 +362,26 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculating the inertia parameters
     if(neutrons .gt. 0.0d0) then
-      neutronmass = 0.25d0 * 1.0/mat(1,1) * mat(2,1) * 1.0/mat(1,1)
+      neutronmass = 0.25d0 * 1.0d0/mat(1,1) * mat(2,1) * 1.0d0/mat(1,1)
     endif
     if(protons .gt. 0.0d0) then
-      protonmass  = 0.25d0 * 1.0/mat(1,2) * mat(2,2) * 1.0/mat(1,2)
+      protonmass  = 0.25d0 * 1.0d0/mat(1,2) * mat(2,2) * 1.0d0/mat(1,2)
     endif
-    totalmass   = neutronmass + protonmass
+    totalmass   = 1.0d0/(sum(mat(1,:))) * sum(mat(2,:)) * 1.0d0/(sum(mat(1,:)))
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Printing 
     print 3,  Pmat(1,:), sum(Pmat(1,:))
     print 4,  neutronmass*hbar**2,  &
     &         protonmass*hbar**2,   & 
     &         (neutronmass+protonmass)*hbar**2
+    print 41, 0.0,0.0, totalmass * hbar**2
 
-    print 5,  Pmat(1,:)/avg_effmass, sum(Pmat(1,:)/avg_effmass)
-    print 6,  neutronmass*hbar**2/avg_effmass(1), &
-    &         protonmass *hbar**2/avg_effmass(2), &
-    &         (neutronmass/avg_effmass(1)+protonmass/avg_effmass(2))*hbar**2 
+!     print 5,  Pmat(1,:)/avg_effmass, sum(Pmat(1,:)/avg_effmass)
+!     print 6,  neutronmass*hbar**2/avg_effmass(1), &
+!     &         protonmass *hbar**2/avg_effmass(2), &
+!     &         (neutronmass/avg_effmass(1)+protonmass/avg_effmass(2))*hbar**2
     
-    
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Analytical result
     print 7,  neutrons * nucleonmass(1), protons*nucleonmass(2), &
     &         neutrons * nucleonmass(1)+ protons*nucleonmass(2) 
@@ -435,14 +424,14 @@ contains
     !
     !---------------------------------------------------------------------------
     real(KIND=dp), allocatable :: Mat(:,:,:,:), Qsp(:,:,:), Q20(:,:,:)
-    real(KIND=dp), allocatable :: work(:), M1_inv(:,:,:)
+    real(KIND=dp), allocatable :: work(:), M1_inv(:,:)
     integer :: i, j, la, lb, l, m, info, lwork, it
     integer, allocatable :: ipiv(:)
         
     call start_timer(T_collective_MOI)
         
     if(.not.allocated(collective_inertia)) then
-      allocate(collective_inertia(N_inertia, N_inertia,3))
+      allocate(collective_inertia(N_inertia, N_inertia))
     endif
     collective_inertia = 0
     
@@ -492,55 +481,48 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Constructing explicitly the matrices M_1 and M_3 for ease of reading
-    if(.not. allocated(M1)) allocate(M1(N_inertia, N_inertia,2)) 
-    if(.not. allocated(M3)) allocate(M3(N_inertia, N_inertia,2)) 
-    M1 = Mat(:,:,1,:) 
-    M3 = Mat(:,:,2,:) 
-
+    if(.not. allocated(M1)) allocate(M1(N_inertia, N_inertia,3))
+    if(.not. allocated(M3)) allocate(M3(N_inertia, N_inertia,3))
+    M1(:,:,1:2) = Mat(:,:,1,1:2) ; M1(:,:,3) = sum(M1(:,:,1:2))
+    M3(:,:,1:2) = Mat(:,:,2,1:2) ; M3(:,:,3) = sum(M3(:,:,1:2))
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Step 4: use LAPACK routines to invert M1
-    allocate(M1_inv(N_inertia, N_inertia,2))
-    M1_inv = M1
-    do it=1,2
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Ask for a workspace size
-      allocate(work(1), ipiv(N_inertia))
-      call dsytrf('U', N_inertia, M1_inv(:,:,it),N_inertia, ipiv, work,-1, info)
-      lwork = int(work(1))
-      deallocate(work)
-      allocate(work(lwork))
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    allocate(M1_inv(N_inertia, N_inertia))
+    M1_inv = M1(:,:,3)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Ask for a workspace size
+    allocate(work(1), ipiv(N_inertia))
+    call dsytrf('U', N_inertia, M1_inv,N_inertia, ipiv, work,-1, info)
+    lwork = int(work(1))
+    deallocate(work)
+    allocate(work(lwork))
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Factorize M1
-      call dsytrf('U', N_inertia, M1_inv(:,:,it),N_inertia,ipiv,work,lwork,info)
-      ! Invert M1
-      if(MAXVAL(abs(M1_inv)).lt.1e-15) then
-       allocate(Work(N_inertia))
-       call dsytri('U', N_inertia, M1_inv(:,:,it), N_inertia,ipiv,work, info)
-       if(info.ne.0) then
-          call stp('Problem for DSYTRI during the calculation of collective inertia.')
-       endif
+    call dsytrf('U', N_inertia, M1_inv,N_inertia,ipiv,work,lwork,info)
+    ! Invert M1
+    if(MAXVAL(abs(M1_inv)).lt.1e-15) then
+      allocate(Work(N_inertia))
+      call dsytri('U', N_inertia, M1_inv, N_inertia,ipiv,work, info)
+      if(info.ne.0) then
+        call stp('Problem for DSYTRI during the calculation of collective inertia.')
       endif
-      deallocate(work, ipiv)
+    endif
+    deallocate(work, ipiv)
 
-      ! Note that after DSYTRI, only the top half of M1 is guaranteed to be right
-      ! Thus, we populate the other half here to avoid any surprises
-      do i=1,N_inertia
-        do j=i+1,N_inertia
-          M1_inv(j,i,it) = M1_inv(i,j,it)
-        enddo
+    ! Note that after DSYTRI, only the top half of M1 is guaranteed to be right
+    ! Thus, we populate the other half here to avoid any surprises
+    do i=1,N_inertia
+      do j=i+1,N_inertia
+        M1_inv(j,i) = M1_inv(i,j)
       enddo
-
     enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Step 5: calculate cranking tensor for every isospin
     !             M_c = 1/4 M1^{-1} M3 M1^{-1}
     !         and sum the results
     !             M_t = M_n + M_p
-    do it=1,2
-      collective_inertia(:,:,it) = &
-      &        0.25d0*matmul(matmul(M1_inv(:,:,it), M3(:,:,it)), M1_inv(:,:,it)) 
-    enddo
-    collective_inertia(:,:,3) = sum(collective_inertia(:,:,:),3)
+    collective_inertia(:,:) = matmul(matmul(M1_inv(:,:), M3(:,:,3)), M1_inv(:,:))
     
     deallocate(Mat, M1_inv, Qsp)
     if(pairingtype.eq.2) deallocate(Q20)
