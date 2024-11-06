@@ -2671,22 +2671,11 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     ! Collective inertia
     write(1, fmt=1)
     write(1, fmt=9)
-    do it=1,3
-      select case(it)
-      ! FORTRAN does not seem to allow for calculated fmt = it + 3 statements,
-      ! so hardcoding it is.
-      case(1)
-        write(1, fmt=4)
-      case(2)
-        write(1, fmt=5)
-      case(3)
-        write(1, fmt=6)
-      end select      
-      do k=1, N_inertia
+    write(1, fmt=6)
+    do k=1, N_inertia
         l = inertia_l(k)
         m = inertia_m(k)
-        write(1, fmt=7) l,m,collective_inertia(k,1:N_inertia ,it)
-      enddo    
+        write(1, fmt=7) l,m,collective_inertia(k,1:N_inertia)
     enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
