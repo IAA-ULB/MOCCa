@@ -469,8 +469,8 @@ contains
     ! Constructing explicitly the matrices M_1 and M_3 for ease of reading
     if(.not. allocated(M1)) allocate(M1(N_inertia, N_inertia,3))
     if(.not. allocated(M3)) allocate(M3(N_inertia, N_inertia,3))
-    M1(:,:,1:2) = Mat(:,:,1,1:2) ; M1(:,:,3) = sum(M1(:,:,1:2))
-    M3(:,:,1:2) = Mat(:,:,2,1:2) ; M3(:,:,3) = sum(M3(:,:,1:2))
+    M1(:,:,1:2) = Mat(:,:,1,1:2) ; M1(:,:,3) = sum(M1(:,:,1:2),3)
+    M3(:,:,1:2) = Mat(:,:,2,1:2) ; M3(:,:,3) = sum(M3(:,:,1:2),3)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Step 4: use LAPACK routines to invert M1
     allocate(M1_inv(N_inertia, N_inertia))
@@ -487,8 +487,7 @@ contains
       ! Factorize M1
     call dsytrf('U', N_inertia, M1_inv,N_inertia,ipiv,work,lwork,info)
     ! Invert M1
-    if(MAXVAL(abs(M1_inv)).lt.1e-15) then
-      allocate(Work(N_inertia))
+    if(MAXVAL(abs(M1_inv)).gt.1e-15) then
       call dsytri('U', N_inertia, M1_inv, N_inertia,ipiv,work, info)
       if(info.ne.0) then
         call stp('Problem for DSYTRI during the calculation of collective inertia.')
@@ -508,8 +507,8 @@ contains
     !             M_c = 1/4 M1^{-1} M3 M1^{-1}
     !         and sum the results
     !             M_t = M_n + M_p
-    collective_inertia(:,:) = matmul(matmul(M1_inv(:,:), M3(:,:,3)), M1_inv(:,:))
-    
+    collective_inertia = matmul(matmul(M1_inv, M3(:,:,3)), M1_inv)
+
     deallocate(Mat, M1_inv, Qsp)
     if(pairingtype.eq.2) deallocate(Q20)
     call stop_timer(T_collective_MOI)
