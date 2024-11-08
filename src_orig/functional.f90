@@ -96,6 +96,7 @@ module functional
  use vectors
  use Cranking
  use pairing_strengths
+ use HDF5
 
  implicit none
  
@@ -1883,23 +1884,52 @@ $WRITEPOTENTIALS
   end subroutine WritePotentials
  
  
-!  subroutine WritePotentials_hdf5(chan, F)
-!    !---------------------------------------------------------------------------
-!    !  Subroutine writing the different potentials to file.
-!    !---------------------------------------------------------------------------
-!    type(PotentialVector), intent(in) :: F
-!    integer, intent(in) :: chan
-!    integer             :: io
+ subroutine WritePotentials_hdf5(file_id, F)
+   !---------------------------------------------------------------------------
+   !  Subroutine writing the different potentials to hdf5 file.
+   !---------------------------------------------------------------------------
+   type(PotentialVector), intent(in) :: F
+   integer(hid_t), intent(in) :: file_id
 
 
-!    ! Then, for every potential write the 
-!    ! * Name 
-!    ! * Value
-!    ! Note that the name is written as a length-30 string, padded with spaces.
-!    ! If not, the unformatted in/out cannot correctly determine the end of a
-!    ! string and comparisons can not be made.
-! !putdollarWRITEPOTENTIALS_HDF5
-!  end subroutine WritePotentials_hdf5
+   ! Then, for every potential write the 
+   ! * Name 
+   ! * Value
+   ! Note that the name is written as a length-30 string, padded with spaces.
+   ! If not, the unformatted in/out cannot correctly determine the end of a
+   ! string and comparisons can not be made.
+$WRITEPOTENTIALS_HDF5
+ end subroutine WritePotentials_hdf5
+ 
+ subroutine hdf5_writepot(id, name, dset,n)
+    ! writes double precision dataset array with some name in the hdf5 file
+    use HDF5
+    character(len=30), intent(in) :: name
+    integer(hid_t), intent(in) :: id
+    integer       , intent(in) :: n
+    real(kind=dp),  intent(in) :: dset(n) 
+    integer(hid_t)             :: space_id, dset_id 
+    integer                    :: error
+    integer(hsize_t), dimension(1) :: dims,data_dims
+
+    dims=(/n/)
+    data_dims(1)=n
+    ! Create dataspace for data_set 
+    call h5screate_simple_f(1, dims, space_id, error)
+    ! Create dataset with default properties "dset_id" is returned
+    call h5dcreate_f(id,'potentials/'//trim(name),H5T_NATIVE_DOUBLE, space_id, dset_id, error)
+    ! Write dataset 
+    call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, error)
+    ! Close access to data space 
+    call h5sclose_f(space_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: writting integer attribute in hdf5 format')
+    endif
+
+  end subroutine hdf5_writepot
 
   function ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed) &
   & result(F)

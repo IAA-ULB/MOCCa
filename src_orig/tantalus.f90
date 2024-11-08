@@ -222,12 +222,11 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call write_advanced_output(iteration-1,iomsg)
  !---------------------------------------------------------------------------
  ! Write output to the outputfile, i.e. the full wavefunction file
- ! old style in .wf file
-! if(to_upper(OutputFileName[-4:]).eq.'HDF5') then
-!   call WriteTantalus_hdf5(outputfilename)
-! else
-!   call WriteTantalus(12, outputfilename)
-! endif
+ if(trim(to_upper(OutputFileName(len_trim(OutputFileName)-3:))).eq.'HDF5') then
+   call WriteTantalus_hdf5(outputfilename) !new hdf5 format
+ else
+   call WriteTantalus(12, outputfilename) ! old style in .wf file
+ endif
  !------------------------------------------------------------------------------
  ! Clean up after running, just in case we need to run again.
  call Cleanupthemess()

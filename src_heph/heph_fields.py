@@ -106,8 +106,9 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   fieldprecon = ''
   declaration = ''
 
-  fieldread    = ''
-  fieldwrite   = ''
+  fieldread = ''
+  fieldwrite= ''
+  fieldwrite_hdf5= ''
   fieldtransfo = ''
 
   fieldINMk2 = ''
@@ -516,6 +517,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         
       fieldwrite   = fieldwrite  + ts.field_write_a.substitute(dic)
       fieldwrite   = fieldwrite  + ts.field_write_b.substitute(dic)
+
+      fieldwrite_hdf5   = fieldwrite_hdf5  + ts.field_write_hdf5.substitute(dic)
 
       fieldini     = fieldini  + ts.field_allo.substitute(dic)
 
@@ -959,7 +962,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
             fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
   #-----------------------------------------------------------------------------
 
-  return(declaration, fieldini, FIELDCALC, fieldprecon, fieldwrite, fieldread, \
+  return(declaration, fieldini, FIELDCALC, fieldprecon, fieldwrite,fieldwrite_hdf5, fieldread, \
          fieldadd, fieldmultiply, fieldinproduct, fieldINMk2, fieldINMk4)
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
