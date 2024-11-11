@@ -770,7 +770,8 @@ end subroutine loadbalance
         row = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,1))+1
         col = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,2))+1
         spwf_mem_local = transform_memory(memory_wavefunctions(spwf_count(rank)))
-        spwf_mem_2D    = transform_memory(memory_wavefunctions_2D(HFBLOCKS_GLOBAL(B), MPI_2D_COORDINATES(rank,1), row, MPI_2D_COORDINATES(rank,2), col))
+        spwf_mem_2D    = transform_memory(memory_wavefunctions_2D(HFBLOCKS_GLOBAL(B), &
+        &             MPI_2D_COORDINATES(rank,1), row, MPI_2D_COORDINATES(rank,2), col))
         print 16, rank,B , &
         &          MPI_2D_COORDINATES(rank,1), MPI_2D_COORDINATES(rank,2), &
         &          spwf_count(rank), spwf_mem_local, spwf_mem_2D

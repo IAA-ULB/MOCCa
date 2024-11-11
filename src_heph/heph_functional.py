@@ -885,6 +885,9 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     add               = LineFormat(add)
     multiply          = LineFormat(multiply)
     inproduct         = LineFormat(inproduct)
+    fieldINMk2        = LineFormat(fieldINMk2)
+    fieldINMk4        = LineFormat(fieldINMk4)
+    
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Substitute into the functional.f90 file.  
     dic={}

@@ -240,14 +240,14 @@ module moments
   !-----------------------------------------------------------------------------
   ! Maximum degree of the multipole moments that are considered in the 
   ! Tantalus calculation. Default = 10 for nuclei, less for pasta
-#IF( PASTA == 1)
+#if(PASTA == 1)
   ! We do very little in the pasta case; it does not really interest us greatly
   ! and storing the spherical harmonics does cost memory.
   integer      :: MaxMoment=2, maxmoment_mag=0, maxmoment_divJ=0
-#ELSE
+#else
   ! We calculate and store a ton of things in the nuclear case
   integer      :: MaxMoment=10, maxmoment_mag=3, maxmoment_divJ=4
-#ENDIF
+#endif
   ! Maximum degree of the multipole moments that was checked by Hephaestos
   ! for its symmetries. Hence MaxMoment <= list_size.
   integer, parameter     :: list_size = $MAX_ELL
