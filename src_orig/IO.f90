@@ -268,8 +268,6 @@ contains
 
     integer*8, intent(in), optional     :: file_number
     character(11), intent(in), optional :: input_file 
-    integer, allocatable                :: spwf_count(:)
-    integer                             :: tcount, rank
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
@@ -323,20 +321,6 @@ contains
     &          '  Fermi energy convergence     < ', es8.1, / &
     &          '  Angular momentum convergence < ', es8.1)
    13 format ( ' Inverse temperature Beta = ', f14.9)
-   14 format ( ' MPI information '     ,    /  &
-   &           '   number of ranks         = ', i5 )
-   15 format ( '   load balancing strategy = ', a30)
-   16 format ( '   rank ', i4, ' has ', i4, ' spwfs')
-
-
-      tcount = sum(HFBlocks)
-      if(MPI_rank .eq. 0) allocate(spwf_count(Ncores))  
-#if(USE_MPI>0)
-      call MPI_gather(tcount,1,MPI_INTEGER,spwf_count,1,MPI_Integer, & 
-      &                      0,MPI_COMM_WORLD, mpi_err)
-#else
-      spwf_count = tcount
-#endif
 
     if(MPI_rank .eq. 0) then 
       ! Only one MPI rank needs to print information
@@ -384,14 +368,7 @@ contains
       endif
       print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
       &         angmom_prec
-
-      print 14, Ncores
-
-      print 15, adjustl('Symmetry-wise')
-      do rank=1, NCORES
-        print 16, rank, spwf_count(rank)
-      enddo
-  
+      
       call printevolution
       call printscfiteration
       call printpairing_init
@@ -400,10 +377,8 @@ contains
       call printfunctional  
     endif    
 
-    if(MPI_rank .eq. 0) deallocate(spwf_count)  
-
   end subroutine PrintInput
-  
+
   subroutine Readwavefunction()
     !---------------------------------------------------------------------------
     ! High-level routine to determine the starting point of a calculation. 
@@ -453,6 +428,8 @@ contains
 #if(USE_MPI>0)
     integer :: mpi_err
 #endif
+
+    call start_timer(T_wfini)
     
     standardized_input = trim(to_upper(inputfilename))
     lenchar=len(standardized_input)
@@ -554,7 +531,16 @@ contains
     !---------------------------------------------------------------------------
     ! with everything safely in memory, we add in an orthonormalisation to 
     ! guarantee we can start calculating stuff.
-    call  orthonormalize
+#if(USE_MPI > 0)
+    ! Copy the 1D wavefunctions to the 2D layout, since that is how we 
+    ! orthonormalize ...
+    call transfer_1D_to_2D(HFPsi, HFPsi_2D)
+#endif
+    call orthonormalize
+#if(USE_MPI > 0)
+    ! ... and make sure the results get back to the original layout
+    call transfer_2D_to_1D(HFPsi_2D, HFPsi)
+#endif
     !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
     if(.not.allocated(HFTransfo)) then
@@ -586,6 +572,8 @@ contains
           passed_block_test =  check_blocking_structure()      
       endif
     endif
+    call stop_timer(T_wfini)
+
   end subroutine ReadWaveFunction
 
   subroutine ReadTantalus(chan, ifn)
@@ -721,7 +709,7 @@ contains
       endif
 
       !Number of protons and neutrons
-      read(Chan,iostat=io) fileneutrons, fileprotons
+        read(Chan,iostat=io) fileneutrons, fileprotons
       ! HFBLocks information 
       read(Chan,iostat=io) filenwn, filenwp, fileblocks_global
       filenwt = filenwn + filenwp
@@ -730,7 +718,7 @@ contains
     !---------------------------------------------------------------------------
     ! Rank 0 now has a ton of information read from file, including the 
     ! dimensions of the symmetry blocks on the file.
-#if(USE_MPI)
+#if(USE_MPI > 0)
     ! First, we broadcast this information
     call MPI_BCAST(filenx, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(fileny, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
@@ -816,7 +804,7 @@ contains
     else
       ! Originally, the .wf files contained the HFPsi array as one unformatted
       ! record. This is kind of unpractical for MPI applications.
-      if(NCores .gt. 1) call stp('Old .wf files cannot be read with MPI runs.')
+      if(NPROCS .gt. 1) call stp('Old .wf files cannot be read with MPI runs.')
 
       ! We can safely read this in one go; a single rank is present
       read(chan,iostat=io) HFPsi
@@ -1132,6 +1120,8 @@ contains
 #endif
     type(moment), pointer        :: mom
 
+    call start_timer(T_wfoutput)
+
     open (chan,form='unformatted',file=ofn)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Purely sequential part of the writing
@@ -1151,7 +1141,7 @@ contains
       write(chan,iostat=io) spenergies, dispersions
       ! information on the HF transformation
       write(chan, iostat=io) diagsphamil
-      write(chan, iostat=io) HFtransfo
+      write(chan, iostat=io) !HFtransfo
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Parallel part of the writing
@@ -1196,7 +1186,7 @@ contains
       ! Name of the force.
       write(chan, iostat=io) name_param, func_name
       ! Single-particle hamiltonian
-      write(chan, iostat=io) sphamil
+      write(chan, iostat=io) !sphamil
       !-------------------------------------------------------------------------
       ! Pairing information 
       write(chan, iostat=io) PairingType
@@ -1210,7 +1200,7 @@ contains
       case(1)
           ! BCS
           write(chan, iostat=io) FermiEnergy
-          write(chan, iostat=io) BCSGaps 
+          write(chan, iostat=io) !BCSGaps 
       case(2)
           ! HFB
           write(chan, iostat=io) blocktype, blocknumber
@@ -1238,10 +1228,10 @@ contains
           write(chan, iostat=io) configmatrix      ! Configuration matrix
       end select
       ! Cranking information: frequencies in all Cartesian directions 
-      write(chan, iostat=io) Omega(1:3)
+      !write(chan, iostat=io) Omega(1:3)
       !-------------------------------------------------------------------------
       ! Potentials on file
-      call writepotentials(chan,potentials)
+      !call writepotentials(chan,potentials)
       !-------------------------------------------------------------------------
       ! Multipole moment information                             
       !
@@ -1258,15 +1248,17 @@ contains
       ! Note the double dollar-sign, to make sure Hephaestos does not replace these
       ! compiler directives. 
       ! 
-      mom => root
-      do while(associated(mom%next))
-        mom => mom%next
-        !DIR$$ NOINLINE
-        call Writemoment(mom,chan)
-        !DIR$$ INLINE
-      enddo
+      !mom => root
+      !do while(associated(mom%next))
+      !  mom => mom%next
+      !  !DIR$$ NOINLINE
+      !  call Writemoment(mom,chan)
+      !  !DIR$$ INLINE
+      !enddo
     endif
     close(chan)
+
+    call stop_timer(T_wfoutput)
 
   end subroutine WriteTantalus
 
@@ -2042,20 +2034,20 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     write(iochannel, fmt=5)  func_name
     write(iochannel, fmt=6)  FermiEnergy
   
-    Q20 =>FindMoment(2,0,.false.     )
-    Q22 =>FindMoment(2,2,.false., Q20)    
-    write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
-    write(iochannel, fmt=8)    Q20%beta(4), Q22%beta(4)
-    write(iochannel, fmt=9)    Q(3), G(3)
+    !Q20 =>FindMoment(2,0,.false.     )
+    !Q22 =>FindMoment(2,2,.false., Q20)
+    !write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
+    !write(iochannel, fmt=8)    Q20%beta(4), Q22%beta(4)
+    !write(iochannel, fmt=9)    Q(3), G(3)
     
-    write(iochannel, fmt=10)  blocktype, blocknumber
-    if(blocknumber .gt. 0) then
-      write(iochannel, fmt=11) Blockindices
-      write(iochannel, fmt=12) Blocklowest
-    else
-      write(iochannel, fmt=11) 
-      write(iochannel, fmt=12)
-    endif
+   ! write(iochannel, fmt=10)  blocktype, blocknumber
+   ! if(blocknumber .gt. 0) then
+   !   write(iochannel, fmt=11) Blockindices
+   !   write(iochannel, fmt=12) Blocklowest
+   ! else
+   !   write(iochannel, fmt=11)
+   !   write(iochannel, fmt=12)
+   ! endif
 
     write(iochannel, fmt='(a1)') '#'
 
@@ -2218,7 +2210,7 @@ $TAUTENSOR &         R%D_N_N(mi,1,1,2) + R%D_N_N(mi,2,2,2) + R%D_N_N(mi,3,3,2)
     ! contribution of the direct and exchange Coulomb potentials
     allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
     
-    temp = F%F_I_I(:,1:2) - constraint_I_I
+    !temp = F%F_I_I(:,1:2) - constraint_I_I
 
     Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
     Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)

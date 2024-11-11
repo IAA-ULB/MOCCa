@@ -114,10 +114,6 @@ implicit none
     type(DensityVector), target :: Density_out
     type(DensityVector), target, allocatable :: DensityHistory(:)
     !---------------------------------------------------------------------------
-    ! The amount of iterations to keep in memory for the density and/or potential
-    ! mixing and estimation of the convergence rate
-    integer            :: memory = 3
-    !---------------------------------------------------------------------------
     ! As several other modules deal with the density D_I_I and its derivatives
     ! in various forms,  Hephaestos fills in here the appropriate symmetries.
     integer, parameter :: sx_rho = $SX_RHO
@@ -153,6 +149,7 @@ function Add_densityvector(R1, R2) result(R)
   !-----------------------------------------------------------------------------
   type(DensityVector), intent(in) :: R1, R2
   type(DensityVector)             :: R
+  real(KIND=dp) :: stor
 
 $INITIALIZATION
 $ADD
@@ -169,6 +166,7 @@ function multiply_densityvector(a, R1) result(R)
   type(DensityVector), intent(in) :: R1
   real(KIND=dp), intent(in)       :: a
   type(DensityVector)             :: R
+  real(KIND=dp) :: stor
 
 $INITIALIZATION
 $MULTIPLY
@@ -285,9 +283,12 @@ function densit(rho, kappa) result(R)
     type(DensityVector)       :: R
 
     integer                    :: i, it, wave, wave2, B, N, si, N2, T
-    integer                    ::  wave_global, wave2_global
+    integer                    :: wave_global, wave2_global
     real(KIND=dp)              :: weight
     real(KIND=dp), allocatable :: kappa_cut(:,:)
+
+$SPWF_DECLARATION
+
 #if(USE_MPI>0)
     integer      :: mpi_err
 #endif
@@ -296,6 +297,7 @@ function densit(rho, kappa) result(R)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
 $INITIALIZATION
+
 
     if(.not.allocated(R%divJ)) then
       allocate(R%divJ(nx*ny*nz,4))
@@ -339,6 +341,7 @@ $ZEROING
 
         do i=1,mv
 $EXPRESSION
+$DERIVATION_SUM_SPWF_PH
         enddo
     enddo
     call stop_timer(T_den_ph)
@@ -382,6 +385,7 @@ $EXPRESSION
 
           do i=1,mv
 $BCSEXPRESSION
+$DERIVATION_SUM_SPWF_BCS
           enddo
       enddo
     case(2)
@@ -494,6 +498,7 @@ $TR            if(wave.ne.wave2) weight = 2 * weight
 
             do i=1,mv
 $HFBEXPRESSION
+$DERIVATION_SUM_SPWF_HFB
             enddo
           enddo
         enddo
@@ -525,8 +530,10 @@ $HFBEXPRESSION
     call stop_timer(T_den_pp)
     
 #if(USE_MPI > 0)
+   call start_timer(T_allreduce)
    ! Sum the density over all processes
 $MPIDEN
+   call stop_timer(T_allreduce)
 #endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by 
@@ -534,7 +541,7 @@ $MPIDEN
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     call start_timer(T_den_der)
     do it=1,2
-$DERIVATION  
+$DERIVATION
     enddo  
     call stop_timer(T_den_der)
 
@@ -837,9 +844,9 @@ function CompNablaMelements() result(NablaMelements)
     NablaMElements= 0.0_dp
 
     designated_rank(1) = 0
-    designated_rank(2) = Ncores - 1
+    designated_rank(2) = NPROCS - 1
 
-    if(Ncores .gt. 1) then
+    if(NPROCS .gt. 1) then
       ! Verify that both designated ranks should have no communications; if they
       ! do this calculation will take very long.
 

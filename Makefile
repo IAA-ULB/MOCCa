@@ -130,6 +130,10 @@ COMPILER      :=  gnu
 #  => 1 if active
 USE_MPI := 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Debugging level for the code itself
+DEBUG_LEVEL := 0
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Type of calculation aimed at: 
 #    'NUCLEI':  finite nuclei
@@ -221,7 +225,10 @@ ifeq ($(COMPILER),gnu)
 	LIBS := -llapack -lblas #HDF5_LIBS 
 else ifeq ($(COMPILER),intel)
   # ifort compiler should link to the new Intel math library
-	LIBS := -qmkl
+	LIBS :=  -mkl
+ifeq ($(USE_MPI),1)
+  LIBS +=   -L${MKLROOT}/lib -lmkl_scalapack_lp64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lmkl_blacs_intelmpi_lp64 -lpthread -lm -ldl
+endif
 else ifeq ($(COMPILER), cray)
   # Cray compilers don't need specific linking to my knowledge
 	LIBS :=
@@ -240,7 +247,7 @@ PYTHON_CMD := python3
 ifeq ($(COMPILER),gnu)
 	CXXFLAGS := -J$(MODDIR) 
 else ifeq ($(COMPILER),intel)
-	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin -heap-arrays
+	CXXFLAGS := -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin -heap-arrays -diag-disable=10448
 else ifeq ($(COMPILER),cray)
 	CXXFLAGS := -J$(MODDIR) -M 878
 endif
@@ -333,7 +340,7 @@ PRE_NIL     :=  cp_nil
 #    -cpp      => explicitly enable preprocessing
 #    -DUSE_MPI => enable (1) or disable (0) MPI (see above)
 
-DIRECTIVES := -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic) -DPASTA=$(PASTA) -DDENSUM=$(DENSUM)
+DIRECTIVES := -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic) -DPASTA=$(PASTA) -DDENSUM=$(DENSUM) -DDEBUG_LEVEL=$(DEBUG_LEVEL)
 ifeq ($(COMPILER),cray)
   PREPROCESSOR :=  -e Z $(DIRECTIVES)
 else

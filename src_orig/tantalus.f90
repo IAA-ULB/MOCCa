@@ -130,7 +130,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! Start the different processes across MPI ranks and do MPI bookkeeping
 #if(USE_MPI > 0)
   call mpi_init(mpi_err)
-  call MPI_COMM_SIZE(MPI_COMM_WORLD, NCORES  , mpi_err)
+  call MPI_COMM_SIZE(MPI_COMM_WORLD, NPROCS  , mpi_err)
   call MPI_COMM_RANK(MPI_COMM_WORLD, MPI_RANK, mpi_err)
 
   ! Set MPI errors to be fatal. This is the default setting, but it doesn't
@@ -178,7 +178,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
    ! Environment information
    print 310
    print 304
-   print 311, NCORES
+   print 311, NPROCS
    printed = .false.
    !----------------------------------------------------------------------------
    ! Technical details about compilation
@@ -198,7 +198,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call ReadInput(file_number, input_file)
  !------------------------------------------------------------------------------
  ! Initalize relevant matrices throughout the code.
-  call inilag()
+ call inilag()
  !------------------------------------------------------------------------------
  ! Read all information from a wf file
  call ReadWavefunction()
@@ -310,11 +310,16 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     integer, intent(out)           :: iter
     character(len=99), intent(out) :: iomsg
 
-    integer :: iprint, scheme, ifail
+    integer :: iprint, scheme, ifail, mpi_err
     logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
     logical :: potentials_frozen=.true.
-    ! Logical to see if any moments with projection are necessary
+    ! Logical to see if any moments with feasible set projection are necessary
     logical :: projectpresent = .false.
+
+#if(DEBUG_LEVEL == 1)
+    character(len=40) :: denfile_iter, potfile_iter
+
+#endif
 
     ifail = 0
     ConvergenceAchieved = .false.
@@ -373,22 +378,27 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     endif
 
     ! Update all spwf properties
+#if(PASTA == 0)
+    ! the memory and CPU time requirements of these routine scale very badly...
     call update_spwf_properties( .true. ) ! expensive version
+    print_adv_spwf_properties = .true.
+#else
+    print_adv_spwf_properties = .false.
+#endif
 
     call setBelyaevProcedure()
     !---------------------------------------------------------------------------
     ! Calculate the energy WITH all the expensive parts included. 
     call CalcEnergy(Density,Potentials,.true.)  
     call calc_avg_gap()
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Initial printout with all possible details
-    call full_printout(0,.false.,.true.)
-
+    ! Initial printout
+    call full_printout(0,.false.,print_adv_spwf_properties)
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
+    
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! First, do some bookkeeping
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -409,7 +419,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         if(projectpresent) call feasibleproject(Density)
         call Evolve_subspace(potentials, iter)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Calculate the single-particle hamiltonian ...
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -477,7 +486,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         if(.not. potentials_frozen) then
           ! calculate new values for the potentials from the densities
           potentials_out = calcPotentials(Density, coulomb_guess=potentials%CoulombPotential)
-          
+
           if(scfscheme .eq. 0) then
             potentials_out = precondition_potentials(potentials, potentials_out)
           endif
@@ -488,14 +497,16 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 
           select case(mixingscheme)
           case(0)
-            ! No mixing, simple update
-            potentials = potentials_out
+            ! No mixing
+            potentials = potentials_out 
           case(1)
             ! Mixing with Anderson acceleration
             potentials_out = AndersonMixPotentials(Potential_iterates, &
             &                                      Potential_updates,  &
             &                                      mixstepsize, iter)
+            potentials = potentials_out
           end select
+
         elseif(iter.eq.freezeiter) then
           ! Recalculate the Coulomb potential at the last iteration for 
           ! comparison purposes with other codes.
@@ -519,7 +530,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         call CalcEnergy(Density, Potentials, calc_expensive)
         ! Calculate the average pairing gap
         call calc_avg_gap()
-
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Check for convergence or a failed calculation
         ! TODO: what is this?
@@ -539,11 +549,15 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         !  update all spwf properties first to ensure correct printout of spwfs
+#if(PASTA == 0)
+        ! the memory and CPU time requirements of these routine scale very badly...
         print_all_spwf_properties = print_adv_spwf_properties .or. &
         &                           (iter .eq. maxiter)       .or. &
         &                           convergenceachieved
         if(print_all_spwf_properties) call update_spwf_properties( .true. )
-
+#else
+        print_all_spwf_properties = .false.
+#endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Decide whether to do a full printout
         ! .... but do a summary printout anyway to enable for "complete" output
@@ -563,9 +577,18 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! Write a wavefunction file at each multiple of checkpointiter
         if(checkpointiter.ne.0) then
           if(mod(iter,checkpointiter) .eq. 0) then
+#if(DEBUG_LEVEL == 1)
+            ! Output densities and potentials to specific files at every checkpoint
+            write(denfile_iter, '("iter=",i5.5,".den")') iter
+            write(potfile_iter, '("iter=",i5.5,".pot")') iter
+            if(MPI_RANK.eq.0) then
+              call write_densities(Density, denfile_iter)
+              call write_potentialfile(potentials, potfile_iter)
+            endif
+#endif
             if(MPI_RANK.eq.0) print 9, iter, outputfilename
             iomsg='CHECKPOINT'
-            call WriteTantalus(12, outputfilename)
+            !call WriteTantalus(12, outputfilename)
           endif
         endif
     enddo
@@ -598,10 +621,12 @@ subroutine printsummary(iter, potentials_frozen)
    21 format (' Potentials frozen.')
     3 format (' dt    = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
    31 format (' dtg   = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
-    4 format (' E     = ', f17.10,2x, '  DE   = ', e12.5)
-   41 format (' R     = ', f17.10,2x, '  DR   = ', e12.5)
-   42 format (' R-E   = ', f17.10,2x, 'D(R-E) = ', e12.5)
-
+    4 format (' E     = ', f20.10,2x, '  DE   = ', e12.5)
+   41 format (' R     = ', f20.10,2x, '  DR   = ', e12.5)
+   42 format (' R-E   = ', f20.10,2x, 'D(R-E) = ', e12.5)
+#if(PASTA == 1)
+   43 format (' Epasta= ', f20.10,2x, 'DEpasta= ', e12.5)
+#endif
     5 format (' ',a1, 'Q', 2i1,a1,' = ',f12.4, 3x, 'dQ = ', es8.1, 2x,         &
     &          'L = ',f12.4,2x,' dL = ', es8.1, 2x, 'dev = ', es8.1)
 
@@ -623,6 +648,9 @@ subroutine printsummary(iter, potentials_frozen)
     print 41, Routhian,  (Routhian - Rhistory(1))/abs(Routhian)
     print 42, Routhian-totalE, &
     &  ((Routhian - Rhistory(1)) - (totalE - Ehistory(1)))/abs(totalE)
+#if(PASTA == 1)
+    print 43,calculate_epasta(totalE), (calculate_epasta(totalE)-calculate_epasta(Ehistory(1)))/abs(calculate_epasta(totalE))
+#endif
     if(fixfermi) then
         dN = part%value - part%history
         print 7, dN
@@ -724,12 +752,18 @@ subroutine full_printout(iter, converged, print_all_spwf_properties)
     else
       print 2, iter
     endif
+#if(PASTA == 0 && DEBUG_LEVEL== 0)
+    ! Pasta calculations typically involve TONS of spwfs
+    ! .... but we might be interested in their properties when debugging!
     call printspwfs(print_all_spwf_properties)
     call printqps
+#endif
     call printallmoments
+#if(PASTA == 0)
     call print_boxsize_check(Density)
     call printmomentsofinertia
     call printcranking
+#endif
     call printpairing(pairstabfactor)
     call printenergy()
   endif
@@ -789,10 +823,14 @@ subroutine initialize_all_timers()
    use timing
 
    call add_timer('Tantalus'                    , T_tantalus)
+   call add_timer('Wavefunction initialisation' , T_wfini)
+   call add_timer('Wavefunction output'         , T_wfoutput)
    call add_timer('HF-basis Derivatives'        , T_derivatives)
    call add_timer('Canonical basis Derivatives' , T_derivatives_can)
    call add_timer('Spwf evolution'              , T_evolution)
    call add_timer('Orthonormalization'          , T_ortho)
+   call add_timer('Construction of norm matrix' , T_norm_ortho)
+   call add_timer('Diagonalisation norm matrix' , T_diag_ortho)
    call add_timer('Density calculations'        , T_densities)
    call add_timer('Density: pp'                 , T_den_pp)
    call add_timer('Density: ph'                 , T_den_ph)
@@ -822,8 +860,16 @@ subroutine initialize_all_timers()
    call add_timer('Construction HF transfo'     , T_HFDiag)
    call add_timer('Basis transformation'        , T_Basistransfo)
    call add_timer('Subspace rotation'           , T_subspace_rotation)
+   call add_timer('Spwf transformation'         , T_subrot_transfo)
+   call add_timer('Matrix diagonalisation'      , T_subrot_diag)
    call add_timer('Calculation of h in subspace', T_calc_sph)
+   call add_timer('Matrix elements of h'        , T_calc_sph_me)
    call add_timer('Update of h in subspace'     , T_update_sph)
+#if( USE_MPI > 0)
+   call add_timer('Layout transfer: 1D -> 2D'   , T_transfer_psi_1to2)
+   call add_timer('Layout transfer: 2D -> 1D'   , T_transfer_psi_2to1)
+   call add_timer('MPI_ALLREDUCE calls     '    , T_allreduce)
+#endif
 
 end subroutine initialize_all_timers
 

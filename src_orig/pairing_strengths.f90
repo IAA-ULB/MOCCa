@@ -646,7 +646,7 @@ contains
   deltanp = delta_function(kfp, 2) !                pure proton  matter at k_Fp
   deltans = delta_function(kf0, 3) !                symmetric    matter at k_F
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
- 
+
   Delta = Deltans * (1-abs(eta))
   select case(iso)
   case(1)
@@ -694,6 +694,7 @@ contains
   deltans = delta_function(kf0, 3) !                symmetric    matter at k_F
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
  
+  allocate(Delta(mv))   ! needed to be valgrind-clean
   Delta = Deltans * (1-abs(eta))
   select case(iso)
   case(1)

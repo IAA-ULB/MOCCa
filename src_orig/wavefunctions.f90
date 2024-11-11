@@ -76,16 +76,17 @@ module wavefunctions
  implicit none
  
  !------------------------------------------------------------------------------
- ! Array containing the spwfs and their derivatives
+ ! Array containing the spwfs and their derivatives: for ease of use in density
+ ! and derivative calculations, these are stored with spatial (nx*ny*nz points)
+ ! and spin indices (real/imaginary parts of spin up/down) separately.
  !
- ! Note: these are called the Hartree-Fock basis throughout the code (hence
- !       the name HFBasis), but they are not guaranteed to be the actual 
- !       Hartree-Fock basis, i.e. the basis that diagonalises the sphamiltonian.
- !       An extra unitary transformation might be required among them to obtain
- !       the physical HF basis. 
+ ! These spwfs are called the Hartree-Fock basis throughout the code (hence
+ ! the name HFBasis), but they are not guaranteed to be the basis that
+ ! diagonalises the sphamiltonian. An extra unitary transformation might be
+ ! required among them to obtain the physical HF basis.
  !
- ! Note that higher-order derivative tensors are stored in lexicographical order
- ! in order to cut down on the number of indices and wasted computation.
+ ! Her-order derivative tensors are stored in lexicographical order to cut down
+ !  on the number of indices and wasted computation.
  !            1    2    3    4    5    6    7    8    9    10
  ! 1st order: Dx   Dy   Dz
  ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
@@ -95,12 +96,17 @@ module wavefunctions
  real(KIND=dp), allocatable, target ::  HFddPsi(:,:,:,:)!Second order derivatives
  real(KIND=dp), allocatable, target :: HFdddPsi(:,:,:,:)!Third order derivatives
  !------------------------------------------------------------------------------
+ ! A copy of the HFPsi array, to be redistributed across MPI ranks in a
+ ! 2D block-cyclic distribution with row and column blocking factors
+ ! BLOCK_FACTOR_ROW and BLOCK_FACTOR_COLUN, respectively.
+ real(KIND=dp), allocatable         :: HFPSI_2D(:,:)
+ !------------------------------------------------------------------------------
  ! Array containing the values of the spwfs in the Canonical basis
  ! and their derivatives.
- real(KIND=dp), allocatable, target ::     CANPsi(:,:,:)
- real(KIND=dp), allocatable, target ::  CANdPsi(:,:,:,:)!First order derivatives
- real(KIND=dp), allocatable, target ::CANddPsi(:,:,:,:)!Second order derivatives
- real(KIND=dp), allocatable, target ::CANdddPsi(:,:,:,:)!Third order derivatives
+ real(KIND=dp), allocatable, target::     CANPsi(:,:,:)
+ real(KIND=dp), allocatable, target::  CANdPsi(:,:,:,:)!First order derivatives
+ real(KIND=dp), allocatable, target:: CANddPsi(:,:,:,:)!Second order derivatives
+ real(KIND=dp), allocatable, target::CANdddPsi(:,:,:,:)!Third order derivatives
  !---------------------------------------------------------------------------
  ! Pointer to which basis is supposed to be used to calculate the densities
  ! Based on pairingtype
@@ -114,7 +120,7 @@ module wavefunctions
  !------------------------------------------------------------------------------
  ! Store the change in the spwfs from last iteration for momentum
  ! (Stored here such that they can be basis-transformed by other modules)
- real(KIND = dp), allocatable :: Momentum_Updates(:,:,:)  
+ real(KIND = dp), allocatable, target :: Momentum_Updates(:,:,:)  
  !------------------------------------------------------------------------------
  ! Number of the blocks with the same quantum numbers that divide up the 
  ! the single-particle wavefunctions.
@@ -139,7 +145,8 @@ module wavefunctions
  ! nwn, nwp       : TOTAL number of neutron/proton spwfs across all MPI ranks
  ! nwt            : TOTAL number of wavefunctions across all MPI ranks
  ! nwt_local      : LOCAL number of wavefunctions on the current MPI rank
- ! rank_map       : identifies the MPI rank that holds a given spwf
+ ! rank_map       : identifies the MPI rank that holds a given spwf within 
+ !                  the global communicator
  ! spwf_map       : identifies the index of a (locally stored) spwf in the 
  !                  TOTAL calculation. I.E. this maps
  !                       spwf  1,  2, 3, ....,  nwt_local
@@ -155,10 +162,12 @@ module wavefunctions
  !                  to uniquely find its location in memory
  !------------------------------------------------------------------------------
  integer, parameter   :: Blocks                  = 8  ! This can always be fixed
- integer              :: HFBlocks(Blocks)  = 0
+ integer              :: HFBlocks(Blocks)        = 0
  integer              :: HFBlocks_global(Blocks) = 0
  integer              :: nwn = 6, nwp = 6, nwt = 12, nwt_local =12
  integer, allocatable :: rank_map(:), spwf_map(:), spwf_inverse(:)
+ ! The number of MPI ranks assigned to each symmetry block
+ integer              :: ranks_per_block(Blocks)
  !------------------------------------------------------------------------------
  ! Properties of the single-particle wave-functions with regard to reflections
  ! of the axes. Note that these are properties of the LOCALLY stored spwfs, 
@@ -255,10 +264,26 @@ module wavefunctions
  !
  ! 1. GramSchmidt :  (modified) Gram-Schmidt process
  ! 2. Loewdin     :  Loewdin (symmetric) orthonormalisation [NOT IMPLEMENTED]
+ ! TODO: CORRECT THIS DOCUMENTATION
  !
  ! Note: this input parameter is not case-sensitive.
-  procedure(GramSchmidt), pointer :: Orthonormalize
-
+ procedure(GramSchmidt), pointer :: Orthonormalize
+ !------------------------------------------------------------------------------
+ ! Procedure used to initialise a bunch of spwfs. 
+ ! Currently available:
+ !     nilsson     : lowest-energy states of a simple Nilsson hamiltonian
+ !                   used for finite nuclei.
+ !     randomspwfs : random values, used for pasta calculations.
+ ! The functioning of these routines is pretty particular, so please have 
+ ! a look at their documentation. 
+ ! The code currently offers no option to change the assignment of this pointer
+ ! at runtime. 
+ !------------------------------------------------------------------------------
+#if(PASTA == 0)
+ procedure(nilsson), pointer :: initialise_wavefunctions => nilsson
+#else
+ procedure(nilsson), pointer :: initialise_wavefunctions => randomspwfs
+#endif
 contains 
 
   subroutine ReadWFdata(file_number)
@@ -275,7 +300,8 @@ contains
     integer                             :: mpi_err
 #endif
 
-    namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties
+    namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties, &
+    &              max_spwf_per_rank, max_drop_ranks
 
     ! Only the first MPI rank reads input
     if(MPI_rank .eq. 0) then
@@ -288,12 +314,15 @@ contains
     
 #if(USE_MPI > 0)
     ! Broadcasting all information
-    call MPI_Bcast(nwn     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(nwp     , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(osc_freq, 3, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(nwn           , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(nwp           , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(max_drop_ranks, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_Bcast(osc_freq      , 3, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_Bcast(print_adv_spwf_properties, 1, MPI_LOGICAL  , 0,             &
     &                                                   MPI_COMM_WORLD, mpi_err)
-#endif    
+
+    call MPI_BCAST(max_spwf_per_rank ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+#endif
     ! Bookkeeping for all MPI ranks
     nwt = nwn + nwp
   end subroutine ReadWFdata
@@ -333,79 +362,276 @@ contains
     integer, intent(out) :: blocks_local(blocks)
     integer, intent(out), allocatable :: spwf_map(:),rank_map(:),spwf_inverse(:)
 
-    integer              :: B, activeblocks, ranks_per_block, blocks_per_rank
-    integer              :: block_count, i, offset, spwfs_per_rank, remainder
-    integer              :: local_ind, N, si
-
-    integer, allocatable :: local_count(:)
+    integer              :: B, activeblocks, blocks_per_rank, drop
+    integer              :: block_count, i, offset, Nspwf, already_assigned
 #if(USE_MPI>0)
-    integer              :: mpi_err
+    integer, external    :: numroc
+    integer              :: mpi_err, dims(2), k, j, info, xsize
+    integer              :: loc_psi, Bmax(1), local_ind,N
+    integer, allocatable :: map_1D(:,:), map_2d(:,:),team(:), local_count(:)
+    real(KIND=dp)        :: remaining, frac
 #endif
 
-    allocate(rank_map(sum(blocks_global)), spwf_inverse(sum(blocks_global)))
-    rank_map     = 0 ; spwf_inverse = 0
-    blocks_local = 0
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! The total number of spwfs to load-balance across different MPI ranks
+    ! Note: not simply set to nwt to keep some flexibility...
+    Nspwf  = sum(blocks_global)
+    allocate(rank_map(Nspwf), spwf_inverse(Nspwf))
+    rank_map     = 0 ; spwf_inverse = 0 ; blocks_local = 0; ranks_per_block = 0
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Required for printing assignments
+    if(allocated(MPI_2D_COORDINATES))    deallocate(MPI_2D_COORDINATES)
+    allocate(MPI_BLOCK_ASSIGNMENTS(NPROCS)); mpi_BLOCK_ASSIGNMENTS = 0
+    allocate(MPI_2D_COORDINATES(NPROCS,2)) ; mpi_2D_coordinates    = 0
+    ! Count the number of active symmetry blocks (blocks with non-zero spwfs)
+    activeblocks = 0
+    do B=1,8
+      if(blocks_global(B) .ne. 0) then
+        activeblocks = activeblocks + 1
+        ! ensure that every active block gets
+        !  (1) sufficient processes such that no process should go above max_spwf_per_rank
+        !  (2) at least one attributed process
+        !
+        ! Important note: the code does not strictly enforce max_spwf_per_rank because
+        ! of the rounding to nearest integer below; max_spwf_per_rank should be understood
+        ! more as a rough guideline.
+        ranks_per_block(B) = max(1,ceiling(blocks_global(B)/(1.0d0*max_spwf_per_rank)))
+      endif
+    enddo
+    already_assigned = sum(ranks_per_block)
 
     select case(balancing)
     case (0)
       !-------------------------------------------------------------------------
-      ! Naive balancing: simply distribute the spwfs among all ranks.
+      ! Full on load-balancing: each symmetry block gets assigned a bunch of
+      ! MPI ranks, which divide equally the number of spwfs among them.
+      !
+      ! Todo: figure out if we can do more clever things by estimating the work
+      !       to be done as a function of the number of spwfs in a given block
       !-------------------------------------------------------------------------
-      spwfs_per_rank = nwt/Ncores       ! Integer division
-      remainder      = mod(nwt, Ncores) ! Perhaps nwt is not precisely divisible
-                                        ! by the number of MPI ranks we have
 
-      allocate(local_count(Ncores)) 
-      local_count = spwfs_per_rank
-      local_count(1:remainder) = local_count(1:remainder) + 1
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Constructing the bookkeeping on each rank
-      allocate(spwf_map(local_count(MPI_RANK))); spwf_map = 0
-
-      local_ind = 0
-      si        = 0
+#if(USE_MPI==0)
+      call stp('Balancing_strategy = 0 is not compatible with sequential calculations.')
+#else
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Assign workload quadratically
+      do B=1,8
+          frac      = BLOCKS_GLOBAL(B)**2 / (1.0d0*sum(BLOCKS_GLOBAL**2))
+          remaining = NPROCS - already_assigned
+          ranks_per_block(B) = ranks_per_block(B) + NINT(frac * remaining)
+      enddo
+      ! This weighting might end up with a total number of ranks that is somewhat
+      ! less than NPROCS, since we are dealing with the integer division. I solve
+      ! this in the ad-hoc way of simply 
+      !    1) adding the missing number of procs to the block that is largest.
+      ! or 2) subtracting the superflous nprocs from the block with most nprocs
+      if(Nprocs .gt. sum(ranks_per_block)) then
+        Bmax = maxloc(Blocks_global)
+        ranks_per_block(Bmax(1)) = ranks_per_block(Bmax(1)) + NPROCS - sum(ranks_per_block)
+      elseif(Nprocs .lt. sum(ranks_per_block)) then
+        Bmax = maxloc(ranks_per_block)
+        ranks_per_block(Bmax(1)) = ranks_per_block(Bmax(1)) + NPROCS - sum(ranks_per_block)
+        if(ranks_per_block(Bmax(1)) .le. 0) then 
+          call stp('Invalid load balancing detected!')
+        endif
+      endif
+      
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Create a new communicator dealing with each symmetry block
+      MPI_SYM_BLOCK = 1
       do B=1,8
         N = blocks_global(B); if(N.eq.0) cycle
-        
-        do i=si+1,si+N
-          if( i .gt. sum(local_count(1:MPI_RANK)) ) then
-            if(MPI_RANK .ne. NCORES) then
-               if (i .le. sum(local_count(1:MPI_RANK+1))) then
-                  local_ind                = local_ind + 1
-                  spwf_map(local_ind)      = i
-                  spwf_inverse(i)          = local_ind
-                  rank_map(i)              = MPI_RANK
-                  blocks_local(B)          = blocks_local(B) + 1
-               endif
-            else
-              local_ind                    = local_ind + 1
-              spwf_map(local_ind)          = i
-              spwf_inverse(i)              = local_ind
-              rank_map(i)                  = MPI_RANK
-              blocks_local(B)              = blocks_local(B) + 1
-            endif
+        if(MPI_RANK +1.le. sum(ranks_per_block(1:B))) then
+          if(MPI_RANK+1 .gt. sum(ranks_per_block(1:B-1))) then
+            MPI_SYM_BLOCK = B
+            ! MPI_SYM_BLOCK is the symmetry block this particular process
+            ! is assigned to.
           endif
-        enddo
-        si = si + N
+        endif
       enddo
-      
+      call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Split the MPI_COMM_WORLD communicator
+      call MPI_COMM_SPLIT(MPI_COMM_WORLD, MPI_SYM_BLOCK, MPI_RANK, MPI_COMM_BLOCK, MPI_ERR)
+      ! MPI_BLOCK_RANK is the MPI RANK of this particular process within its
+      !                assigned symmetry block.
+      call MPI_COMM_RANK(MPI_COMM_BLOCK, MPI_BLOCK_RANK, MPI_ERR)
+      ! MPI_BLOCK_NPROCS is the total number of MPI ranks assigned to this
+      !                symmetry block.
+      call MPI_COMM_SIZE(MPI_COMM_BLOCK, MPI_BLOCK_NPROCS, MPI_ERR)
+      ! MPI_BLOCK_SIZE is the number of spfs in this symmetry block;
+      !   redundant information of course, but nice to have
+      MPI_BLOCK_SIZE = blocks_global(MPI_SYM_BLOCK)
+
+      call MPI_ALLGATHER(MPI_SYM_BLOCK,1,MPI_INT,MPI_BLOCK_ASSIGNMENTS,1,MPI_INT,MPI_COMM_WORLD,mpi_err)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Constructing the BLACS 1D and 2D layouts
+      ! NOTE: this cannot be accomplished with the blacs_gridinit subroutine 
+      !       because it does not support multigridding, i.e. grids that are 
+      !       split by symmetry blocks such as we attempt here.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Default context containing ALL processes
+      call blacs_get( 0, 0, blacs_cntxt)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! 1D context
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      blacs_cntxt_1D = blacs_cntxt
+      allocate(map_1D(1,MPI_BLOCK_NPROCS))
+      allocate(team(MPI_BLOCK_NPROCS))
+      ! every member of the MPI_COMM_BLOCK sends its reank into the array team
+      call MPI_ALLGATHER(MPI_RANK,1,MPI_INT,team,1,MPI_INT,MPI_COMM_BLOCK,mpi_err)
+      map_1D(1,:) = team
+      CALL BLACS_GRIDMAP (blacs_cntxt_1D, team , 1,  1, MPI_BLOCK_NPROCS)
+      CALL BLACS_GRIDINFO(blacs_cntxt_1D,NROW_1D,NCOL_1D,MYROW_1D,MYCOL_1D)
+      ! Blocking factor for the 1D distribution is engineered such that all 
+      ! processes get one single contiguous block of memory. This simplifies
+      ! the bookkeeping down below....
+      BLOCK_FACTOR_1D = ceiling(MPI_BLOCK_SIZE/(1.0d0*MPI_BLOCK_NPROCS))
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! 2D context
+      call blacs_get(0, 0, blacs_cntxt_2D)
+      ! We try to determine an optimal 2D layout by repeatedly querying MPI_DIMS_CREATE
+      ! until it does not return an error. For this to work, we first need to
+      ! change the MPI error handling...
+      CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN,mpi_err)
+
+      mpi_err = 1
+      if(MPI_BLOCK_NPROCS .gt. 5) then
+        ! First try to get an (almost) square grid by setting dims(1) ~ sqrt(MPI_BLOCK_NPROCS)
+        dims(1) = NINT(sqrt(1.0d0*MPI_BLOCK_NPROCS))
+        dims(2) = 0
+        call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
+        drop = 0
+        do while((MPI_ERR .ne. 0) .and. (drop+1 .lt. max_drop_ranks))
+          drop = drop + 1
+          call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS-drop,2, dims, mpi_err)
+          ! note: this will always succeed if MPI_BLOCKS_NPROCS-drop = 1,
+          ! hence no need to test if drop >= MPI_BLOCK_NPROCS
+        enddo
+        if(mpi_err .ne. 0) then
+          ! Explicitly set dims to 0 for just the default answer of MPI_DIMS_CREATE
+          dims = 0
+          call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
+        endif
+
+        ! Reset error handling to be fatal
+        CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL,mpi_err)
+      else
+        dims = 0
+        call MPI_DIMS_CREATE(MPI_BLOCK_NPROCS,2, dims, mpi_err)
+      endif
+      ! Size of the 2D team has been determined
+      MPI_BLOCK_NPROCS_2D = dims(1) * dims(2)
+
+      allocate(map_2D(dims(1),dims(2))); map_2D = 0
+      K=  sum(ranks_per_block(1:MPI_SYM_BLOCK-1))
+      do i=1,dims(1)
+       do j=1,dims(2)
+        map_2D(i,j) = K
+        K = K+1
+       enddo
+      enddo
+      CALL BLACS_GRIDMAP (blacs_cntxt_2D, map_2D, dims(1),dims(1), dims(2))
+      CALL BLACS_GRIDINFO(blacs_cntxt_2D,NROW_2D,NCOL_2D,MYROW_2D,MYCOL_2D)
+      call MPI_ALLGATHER(MYROW_2D,1,MPI_INT,MPI_2D_COORDINATES(:,1),1,MPI_INT,MPI_COMM_WORLD,mpi_err)
+      call MPI_ALLGATHER(MYCOL_2D,1,MPI_INT,MPI_2D_COORDINATES(:,2),1,MPI_INT,MPI_COMM_WORLD,mpi_err)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! From the BLACS context, we now construct SCALAPACK descriptors
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! The 1D distribution is a column-cyclic one: each MPI rank gets complete
+      ! columns of the spwf-matrix.
+      CALL DESCINIT(desc_psi_1D,4*mv,MPI_BLOCK_SIZE,4*mv,                      &
+      &             BLOCK_FACTOR_1D,0,0, blacs_cntxt_1d,4*mv,info)
+      if(info.ne.0) then 
+        call stp('Problem with DESCINIT call for psi_1D.')
+      endif
+      ! Scalapack knows exactly what amount of spwfs that are stored!
+      loc_psi = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_1D, MYCOL_1D,0, NCOL_1D)
+      !  ------> this is a shorthand for use in the rest of this routine below
+      blocks_local(MPI_SYM_BLOCK) = loc_psi
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! The 2D distribution of spwfs is a block-cyclic one with blocking factors
+      ! decided by the user
+      xsize = NUMROC(4*mv, block_factor_row, MYROW_2D,0, NROW_2D)
+      if(xsize .le. 0) xsize = 1 ! things will get allocated, but this process 
+                                 ! should not be participating in calculations
+      if(MYROW_2D .ne. -1) then
+        CALL DESCINIT(desc_psi_2D,4*mv,MPI_BLOCK_SIZE,    &
+        &             block_factor_row, block_factor_col, &
+        &             0,0,blacs_cntxt_2d, xsize ,info)
+        if(info.ne.0) then
+          call stp('Problem with DESCINIT call for psi_2D.')
+        endif
+      else
+        ! Indicate that this particular process is not part of this context
+        desc_psi_2d = -1
+      endif
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! ... and similar for the descriptor of matrices in spwf x spwf space
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      xsize = NUMROC(MPI_BLOCK_SIZE, block_factor_row, MYROW_2D,0, NROW_2D)
+      if(xsize .le. 0) xsize = 1 ! things will get allocated, but this process 
+                                 ! should not be participating in calculations
+
+      if(MYROW_2D .ne. -1) then
+        CALL DESCINIT(desc_mat_2D,MPI_BLOCK_SIZE,MPI_BLOCK_SIZE,    &
+        &             block_factor_row, block_factor_col, &
+        &             0,0,blacs_cntxt_2d, xsize ,info)
+        if(info.ne.0) then
+          call stp('Problem with DESCINIT call for mat_2D.')
+        endif
+      else
+        ! Indicate that this particular process is not part of this context
+        desc_mat_2d = -1
+      endif
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Constructing the bookkeeping on each process
+      ! For this, each process needs to know the amount of spwfs each of his
+      ! partners is storing, hence the MPI_ALLREDUCE
+      allocate(spwf_map(loc_psi), local_count(0:MPI_BLOCK_NPROCS-1))
+      local_count = 0
+      local_count(MPI_BLOCK_RANK) = loc_psi
+      call MPI_ALLREDUCE(MPI_IN_PLACE, local_count, MPI_BLOCK_NPROCS,     & 
+      &                  MPI_INTEGER, MPI_SUM, MPI_COMM_BLOCK, mpi_err)
+
+      ! The bookkeeping below works because we give all ranks one contiguous
+      ! sets of spwfs because of our specific choice for the 1D blocking factor
+      spwf_map  = 0
+      local_ind = 0
+      N      = MPI_BLOCK_SIZE
+      offset = sum(blocks_global(1:MPI_SYM_BLOCK-1))
+      do i=1,N
+        if( i .gt. sum(local_count(0:MPI_BLOCK_RANK-1)) ) then
+          if(MPI_BLOCK_RANK .ne. MPI_BLOCK_NPROCS) then
+             if (i .le. sum(local_count(0:MPI_BLOCK_RANK))) then
+                local_ind                = local_ind + 1
+                spwf_map(local_ind)      = i + offset
+                spwf_inverse(i + offset) = local_ind
+                rank_map(i + offset)     = MPI_RANK
+             endif
+          else
+            local_ind                    = local_ind + 1
+            spwf_map(local_ind)          = i + offset
+            spwf_inverse(i + offset)     = local_ind
+            rank_map(i + offset)         = MPI_RANK
+          endif
+        endif
+      enddo
+      !-------------------------------------------------------------------------
+#endif
     case (1)
       !-------------------------------------------------------------------------
-      ! Balancing per symmetry block
+      ! Balancing per symmetry block: each MPI rank gets one or more symmetry
+      ! blocks to account for.
       !-------------------------------------------------------------------------
-      ! Count the number of active blocks      
-      activeblocks = 0
-      do B=1,8
-        if(blocks_global(B) .ne. 0) activeblocks = activeblocks + 1
-      enddo
-
-      if(activeblocks .ge. Ncores) then
+      if(activeblocks .ge. NPROCS) then
         ! More symmetry blocks than MPI ranks, i.e. we assign each rank
         ! one or more entire symmetry blocks
-        if(mod(activeblocks, Ncores) .ne. 0) then
+        if(mod(activeblocks, NPROCS) .ne. 0) then
           call stp('Incompatible number of MPI ranks for balancing_strategy = 1.')
         endif
-        blocks_per_rank = activeblocks/Ncores
+        blocks_per_rank = activeblocks/NPROCS
 
         block_count = -1 ! unintuitive starting point: first block will be '0'
         do B=1,8
@@ -435,10 +661,13 @@ contains
         enddo
       else
         ! More ranks than blocks
-        ranks_per_block = Ncores/activeblocks
+        call stp('There are MPI ranks than symmetry blocks. Pick a different load-balancing strategy')
       endif
+      !-------------------------------------------------------------------------
     case DEFAULT
+      !-------------------------------------------------------------------------
       call stp('Unknown type of load balancing.')
+      !-------------------------------------------------------------------------
     end select
 
 #if(USE_MPI>0)
@@ -447,13 +676,116 @@ contains
   &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
   call MPI_ALLREDUCE(MPI_IN_PLACE, spwf_inverse, sum(blocks_global), & 
   &                  MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, mpi_err)
+
+  call print_loadbalancing_information()
 #endif
 
-  end subroutine loadbalance
+end subroutine loadbalance
+
+#if(USE_MPI > 0)
+  subroutine print_loadbalancing_information()
+    !---------------------------------------------------------------------------------------
+    ! Print detailed information on the balancing of spwfs between the different MPI ranks,
+    ! BEFORE allocating any kind of memory.
+    !---------------------------------------------------------------------------------------
+    use vectors, only : memory_for_densities, memory
+
+    integer              :: rank, B, row, col
+    integer              :: mpi_err, tcount, neutron_ranks, proton_ranks, si, N
+    integer, allocatable :: spwf_count(:)
+    real(KIND=dp)        :: spwf_mem_local, den_mem, pot_mem, spwf_mem_2D
+
+    1 format  (30('-'), ' MPI load balancing ', 30('-'))
+    2 format  (' number of processes = ', i7)
+    3 format ( '   Matrix blocking factors : ', i4, ' x ' i4)
+    4 format  ('1D Layout')
+    5 format  ('     B = ', i1, ' has ',  i4, ' MPI ranks for ', i7, ' spwfs in total.')
+
+    6 format  ('2D Layout')
+    7 format  ('     B = ', i1, ' has ',  i4, ' x ', i4, ' = ', i4' ranks (dropped = ', i4,')')
+
+    9 format  (' Memory requirements')
+   10 format  ('    Densities     = ', f10.3 , ' GB')
+   11 format  ('    Potentials    = ', f10.3 , ' GB')
+   12 format  ('    Spwfs (total) = ', f10.3 , ' GB')
+   13 format  ('    Spwfs (max)   = ', f10.3 , ' GB')
+
+   14 format ( ' Detailed information')
+   15 format ( '   RANK  |  SYM_BLOCK    P     Q   #SPWFS | spwf_mem (GB) spwf_mem 2D (GB)')
+   16 format ( 3x, i4, 2x, '|', 2x, i4, 6x, i4, 2x, i4, 3x, i4, 3x, '|', 3x, f10.3, 3x, f10.3 )
+
+   99 format ( '--------------------------------------------------------------')
+
+    tcount = sum(HFBlocks)
+    if(MPI_rank .eq. 0) allocate(spwf_count(NPROCS))
+    call MPI_gather(tcount,1,MPI_INTEGER,spwf_count,1,MPI_Integer, &
+    &                      0,MPI_COMM_WORLD, mpi_err)
+
+    if(MPI_RANK .eq. 0) then
+      print 1
+      print 2, NPROCS
+      print 3, block_factor_row, block_factor_col
+
+      print 99
+      print 4
+      print 99
+      do B=1,8
+        if(HFBLOCKS_GLOBAL(B) .eq. 0) cycle
+        print 5, B, ranks_per_block(B), HFBlocks_global(B)
+      enddo
+
+      neutron_ranks = sum(ranks_per_block(1:4))
+      proton_ranks  = sum(ranks_per_block(5:8))
+      print 99
+      print 6
+      si = 0
+      do B=1,8
+        N = ranks_per_block(B)
+        if(N.eq.0) cycle
+        row = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,1))+1
+        col = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,2))+1
+        print 7, B, row, col, row*col, ranks_per_block(B) - row*col
+        si = si + N
+      enddo
+
+      print 99
+      print 9
+
+      den_mem =transform_memory(memory_for_densities()) ! one set of densities
+      ! several sets of potentials: F_in, F_out + memory * (Potential_iterates, Potential_updates)
+      pot_mem = den_mem * 2 * (1 + memory)
+      print 10, den_mem
+      print 11, pot_mem
+      print 12, transform_memory(memory_wavefunctions(sum(HFBlocks_global)))
+      print 13, transform_memory(memory_wavefunctions(maxval(spwf_count)))
+
+      print 99
+      print 14
+      print 15
+      print 99
+      do rank=1, NPROCS
+        B = MPI_BLOCK_ASSIGNMENTS(rank)
+        si = sum(ranks_per_block(1:B-1))
+        N = ranks_per_block(B)
+        row = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,1))+1
+        col = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,2))+1
+        spwf_mem_local = transform_memory(memory_wavefunctions(spwf_count(rank)))
+        spwf_mem_2D    = transform_memory(memory_wavefunctions_2D(HFBLOCKS_GLOBAL(B), MPI_2D_COORDINATES(rank,1), row, MPI_2D_COORDINATES(rank,2), col))
+        print 16, rank,B , &
+        &          MPI_2D_COORDINATES(rank,1), MPI_2D_COORDINATES(rank,2), &
+        &          spwf_count(rank), spwf_mem_local, spwf_mem_2D
+      enddo
+      print 99
+      deallocate(spwf_count)
+    endif
+    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+    end subroutine print_loadbalancing_information
+#endif
 
   subroutine iniwavefunctions(ininx,ininy, ininz, ininwn, ininwp)   
     !---------------------------------------------------------------------------
-    ! Build harmonic oscillator eigenfunctions in an EV8-like box
+    ! Build a set of initial wavefunctions in an EV8-like box, achieved through
+    ! repeated calls to (pointer) subroutine initialise_wavefunctions.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Also initialized:
     !  *) Diagonal matrix elements of <h> = spenergies
@@ -475,29 +807,26 @@ contains
     integer                   :: ininwt
     integer, allocatable      :: kparz(:)
     integer                   :: nshells_ev
-
+#if(USE_MPI > 0)
+    integer                   :: xs, ys, B, wave, p,q, wave_global
+    integer, external         :: NUMROC, INDXG2L, INDXG2P
+#endif
     ininwt = ininwn + ininwp
 
-    ! The actual allocation of the spwfs cannot be done here when using MPI.
-    ! The reason is that the routine nilsson only decides on the symmetry
-    ! blocks AFTER the diagonalisation of the Nilsson Hamiltonian.
-!    allocate(hfpsi(ININX*ININY*ININZ,4,ININWT)) ; hfpsi = 0.0d0
-    ! but since our routine nilsson is an adaptation of a very old FORTRAN code,
-    ! I preferred to make this complicated construction involving two nilsson
-    ! calls instead of modifying nilsson.
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
     ! a) Generating the nilsson wave-functions in an EV8-box   
     if(allocated(spwf_map)) deallocate(spwf_map)
-    ! First call of subroutine nilsson: do everything BUT construct spwfs
-    !NS: number of shells is increased for pasta
-    nshells_ev=max(11,int(1.5d0*max(ININWN,ININWP)**(1.d0/3.d0)))
-    call nilsson (HFPsi,kparz,spenergies,nshells_ev,nshells_ev-1,ININWT,ININWP,&
-    &ININWN,floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,      &
-    &                                                                  spwf_map)
 
-    ! Based on this information, we construct the correct symmetry properties
-    ! and initialize the GLOBAL sizes of the symmetry blocks
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+    ! First call of initialise_wavefunctions: this does not yet construct the 
+    ! actual spwfs, but does get the parities in the array kparz.
+    nshells_ev=max(11,int(1.5d0*max(ININWN,ININWP)**(1.d0/3.d0)))
+    call initialise_wavefunctions(HFPsi,                                &
+    &              kparz,spenergies,nshells_ev,nshells_ev-1,            &
+    &              ININWT,ININWP,ININWN,floor(neutrons),floor(protons), &
+    &              ININX,ININY,ININZ,dx,osc_freq,spwf_map)
+
+    ! Based on the information in kparz, we construct the correct symmetry 
+    ! properties and initialize the GLOBAL sizes of the symmetry blocks.
     hfblocks_global = 0
     do i=1,ININWN
         if(kparz(i) .gt. 0) HFBlocks_global(1) = HFBlocks_global(1) +1
@@ -507,17 +836,20 @@ contains
         if(kparz(i) .gt. 0) HFBlocks_global(5) = HFBlocks_global(5) +1
         if(kparz(i) .lt. 0) HFBlocks_global(7) = HFBlocks_global(7) +1
     enddo
-    ! using this information, we are capable of figuring out the way to 
-    ! balance the (still unconstructed) spwfs.
+    ! then, we are capable of figuring out the way to balance the spwfs among
+    ! the different MPI ranks. 
     call loadbalance(HFblocks_global,balancing_strategy,& 
     &                        HFblocks,spwf_map,rank_map, spwf_inverse)
-    ! now each MPI rank knows which spwfs it should grab and can make the space
+    ! now each MPI rank knows which spwfs it should grab and can allocate 
+    ! the required space. 
     allocate(HFPSI(ININX*ININY*ININZ,4,sum(HFblocks))); hfpsi = 0.0d0
-    ! second call of subroutine nilsson: construct the part of the nilsson 
-    ! spectrum that should be stored on this rank.
-    call nilsson (HFPsi,kparz,spenergies,nshells_ev,nshells_ev-1,ININWT,ININWP,&
-    &ININWN,floor(neutrons),floor(protons),ININX,ININY,ININZ,dx,osc_freq,      &
-    &                                                                  spwf_map)
+
+    ! and finally, we can call initialise_wavefunctions a second time in order 
+    ! actually the requested spwfs in this partical process.
+    call initialise_wavefunctions(HFPsi,                                &
+    &              kparz,spenergies,nshells_ev,nshells_ev-1,            &
+    &              ININWT,ININWP,ININWN,floor(neutrons),floor(protons), &
+    &              ININX,ININY,ININZ,dx,osc_freq,spwf_map)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! b) and now we go on to populate more symmetry information
@@ -552,7 +884,9 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! c) and perform some other initializations
     allocate(dispersions(ININWT)) ; dispersions  = 0
-    if(.not.allocated(hftransfo)) allocate(hftransfo(nwt,nwt))
+
+#if(USE_MPI == 0) 
+    allocate(hftransfo(nwt,nwt), sphamil(nwt,nwt))
     do i=1, nwt
       hftransfo(i,i) = 1.0d0
       do j=i+1,nwt
@@ -561,7 +895,6 @@ contains
       enddo
     enddo
 
-    if(.not.allocated(sphamil)) allocate(sphamil(nwt,nwt))
     do i=1, nwt
       sphamil(i,i) = spenergies(i)
       do j=i+1,nwt
@@ -569,8 +902,120 @@ contains
         sphamil(j,i) = 0.0d0 
       enddo
     enddo
+#else 
+    B = MPI_BLOCK_SIZE
+    ! Both hftransfo and sphamil get distributed on the 2D layout
+    xs = NUMROC(B,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
+    ys = NUMROC(B,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
 
+    allocate(hftransfo(xs,ys), sphamil(xs,ys))
+    hftransfo = 0.0d0 ; sphamil   = 0.0d0
+    
+    do wave=1,MPI_BLOCK_SIZE
+      ! Identify which of the ranks has information on this particular spwf
+      p = INDXG2P(wave, BLOCK_FACTOR_ROW, MYROW_2D, 0, NROW_2D)
+      q = INDXG2P(wave, BLOCK_FACTOR_COL, MYCOL_2D, 0, NCOL_2D)
+      ! ... and to which local matrix element the (global) diagonal matrix
+      !     element corresponds.
+      i = INDXG2L(wave, BLOCK_FACTOR_ROW, MYROW_2D, 0, NROW_2D)
+      j = INDXG2L(wave, BLOCK_FACTOR_COL, MYCOL_2D, 0, NCOL_2D)
+      ! ... but we also need to know what is the GLOBAL index of the spwf for 
+      !     the spenergies array
+      wave_global = INDXG2L(wave,BLOCK_FACTOR_1D, 0, MYCOL_1D, NCOL_1D) &
+      &           + sum(HFBLOCKS_global(1:MPI_SYM_BLOCK-1))
+      if((MYROW_2D .eq. p) .and. (MYCOL_2D .eq. q)) then
+        if(i.ne.0 .and. j.ne.0) then
+          sphamil(i,j)   = spenergies( + wave_global)
+          hftransfo(i,j) = 1.0d0
+        endif
+      endif
+    enddo
+#endif
   end subroutine iniwavefunctions
+
+  subroutine randomspwfs(psi,par,spe,nshells_even, nshells_odd, &
+  &                      nw,nwp,nwn,neut,prot,mx,my,mz,dx,osc_freq,map)
+     !--------------------------------------------------------------------------
+     ! Generate a set of single-particle wavefunctions randomly. 
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     ! Input:
+     !    nw, nwp, nwn : total/proton/neutron number of spwfs to construct
+     !    map          : If allocated, this routine will construct the spwfs.
+     !                   Otherwise unused.
+     !    mx,my,mz,dx,osc_freq, nshells_even, nshells_odd, neut, prot :
+     !            -> dummy arguments to make this routines calling signature
+     !               identical to that of nilsson.
+     ! Output:
+     !    psi: a set of wavefunctions with random values. Only initialised if 
+     !         the map input is allocated.
+     !         ATTENTION: this set is not orthonormal at all. 
+     !    spe: a guess (trivial in this routine) of the single-particle energies
+     !         of these random states. 
+     !    par: the parity quantum numbers of the spwfs
+     !--------------------------------------------------------------------------
+     real(KIND=dp), allocatable, intent(inout) :: psi(:,:,:), spe(:)
+     real(KIND=dp), intent(in)                 :: dx, osc_freq(3)
+     integer, intent(inout), allocatable       :: par(:)
+     integer, intent(in)        :: nw,nwn,nwp, mx, my, mz, neut, prot
+     integer, intent(in)        :: nshells_even, nshells_odd
+     integer, intent(in), allocatable :: map(:)
+     
+     integer :: s
+     integer, allocatable :: seed(:)
+
+     if(allocated(par)) deallocate(par)
+     if(allocated(spe)) deallocate(spe)
+     allocate(par(nw),spe(nw))
+     
+     ! We just take spwfs of positive and negative in 50/50 proportion
+     par(            1:nwn/2    ) = +1
+     par(nwn/2      +1:nwn      ) = -1
+     par(nwn        +1:nwn+nwp/2) = +1
+     par(nwn  +nwp/2+1:nw       ) = -1
+     
+     spenergies = 100
+     
+     if(allocated(map)) then
+      call random_seed(size=s)
+      allocate(seed(s))
+      seed = 987654321 + MPI_RANK * 123456789 ! Seed value needs to depend on
+                                              ! MPI_RANK; if not, we all ranks 
+                                              ! will generate the same sequence
+                                              ! and we will run in trouble with
+                                              ! orthonormalisation
+      call random_seed(put=seed)
+      call random_number(psi) ! randomize
+     endif
+  end subroutine randomspwfs
+
+  !subroutine planewaves(psi,par,spe,nwaves,nwavesp,nwavesn, &
+  !  &                                      mx,my,mz,dx,map)
+  !  
+  !  real(KIND=dp), allocatable :: psi(:,:,:)
+  !  integer, intent(inout)     :: par(:), spe(:)
+  !  integer, intent(in)        :: nwaves, nwavesp, nwavesn, mx, my, mz, dx
+  !  integer, intent(in), allocatable :: map(:)
+  !  
+  !  real(KIND=dp)        :: kx, ky, kz
+  !  integer              :: nmaxx, nmaxy, nmaxz
+  !  integer, allocatable :: waves(:,:)
+  !  
+  !  !---------------------------------------------------------------------------
+  !  ! wavenumber multiplicators
+  !  kx = pi/(2*mx*dx)
+  !  ky = pi/(2*my*dx)
+  !  kz = pi/(2*mz*dx)
+  !
+  !  nmaxx = max(11,int(1.5d0*max(ININWN,ININWP)**(1.d0/3.d0)))
+  !  nmaxy = max(11,int(1.5d0*max(ININWN,ININWP)**(1.d0/3.d0)))
+  !  nmaxz = max(11,int(1.5d0*max(ININWN,ININWP)**(1.d0/3.d0)))!
+
+  !  ! First even parity
+  !  allocate(waves(nmaxx,nmaxy,nmaxz,4))
+
+    ! then odd parity
+  
+  !end subroutine planewaves()
 
   subroutine deriveHF()
     !---------------------------------------------------------------------------
@@ -1058,81 +1503,179 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !    None
     ! Output:
     !    None
-    ! Sideeffects:
+    ! Side-effects:
     !    the contents of the array hfpsi get changed and now are orthonormal.
     !---------------------------------------------------------------------------
-    real(KIND=dp), allocatable         :: overlaps(:,:), overlaps_copy(:,:)
-    !real(KIND=dp), allocatable         :: work(:), eigv(:)
+    real(KIND=dp), allocatable         :: overlaps(:,:)
+#if(USE_MPI == 0)
     real(KIND=dp), pointer, contiguous :: wfs_reshape(:,:)
-    integer                    :: N, i, si, B, info, lwork
- 
+#endif
+    integer                    :: N,si, B, info
+#if(USE_MPI > 0)
+    integer                    :: xs, ys
+    integer, external          :: NUMROC
+#endif
+
+#if(USE_MPI > 0)
+    if(MYROW_2D .eq.-1) then  ! this particular rank is not part of the 2D layout
+        allocate(overlaps(1,1)); deallocate(overlaps) 
+        ! allocate/deallocate to ensure the cray compiler does not complain 
+        return
+    endif
+#endif
+
     call start_timer(T_ortho)
  
     si = 0
     do B=1,8
-      N = HFBlocks(B) ; if (N.eq.0) cycle
- 
+      N = HFBlocks(B) 
+
+#if(USE_MPI == 0)
+      if (N.eq.0) cycle   ! This can only be explicitly put here.
       allocate(overlaps(N,N))
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Reshaping the wavefunctions by pointer in order to make the BLAS calls
       ! as efficient and easy as possible. Note: the "contiguous" keyword for
       ! this pointer array is crucial to make this trick work without tripping
       ! boundary-checking by compilers. 
-      wfs_reshape(1:4*mv,1:N) => hfpsi(:,:,si+1:si+N)
+      wfs_reshape(1:4*mv,1:N) => hfpsi(1:mv,1:4,si+1:si+N)
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Build overlaps within this symmetry block 
+      call start_timer(T_norm_ortho)
       call dgemm('t','n',N,N,4*mv, dv,wfs_reshape,4*mv, wfs_reshape, 4*mv, &
       &                            0.0d0, overlaps,N)
-      overlaps_copy = overlaps
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      call stop_timer(T_norm_ortho)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Calculate the cholesky decomposition
+      call start_timer(T_diag_ortho)
       call dpotrf('l',N,overlaps,N,info)
       ! overlaps now contains the factorisation L
       if(info.ne.0) then
         print *, 'Issue with the Cholesky decomposition.'
         print *, 'INFO = ', info
       endif
-
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Debugging statements telling us about the eigenvalue spectrum of the 
-      ! overlap matrix
-      !if(.true.)
-      !  allocate(work(1), eigv(N))
-      !  call DSYEV('N', 'U', N, overlaps_copy, N, eigv, work, -1, info)
-      !  lwork = int(work(1))
-      !  deallocate(work) 
-      !  allocate(work(lwork))
-      !  call DSYEV('N', 'U', N, overlaps_copy, N, eigv, work, lwork, info)
-      !  print *, "BLOCK = ", B, " min = ", eigv(1), " max = ", eigv(N)
-      !  deallocate(eigv, work)
-      !endif
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Solve the linear equations
       !    X L^T = N
       call dtrsm('r','l','t','n',4*mv,N,1.0d0,overlaps,N,wfs_reshape,4*mv)
- 
-      !-------------------------------------------------------------------------
-      ! Bugchecking the work: calculating and printing overlaps
-!       call dgemm('t','n',N,N,4*mv,   dv,hfpsi(1:4*mv,1,si+1:si+N), 4*mv, &
-!       &                                 hfpsi(1:4*mv,1,si+1:si+N), 4*mv, &
-!       &                                 0.0d0,                        &
-!       &                                 overlaps,N)
-!       print *, B
-!       do i=1,N
-!          print ('(99f10.3)'), overlaps(i, 1:N)
-!       enddo
-!       print *
-      !-------------------------------------------------------------------------
- 
+      call stop_timer(T_diag_ortho)
+#else
+      ! Important: don't spend time waiting for other blocks to complete....
+      if(B .ne. MPI_SYM_BLOCK) cycle
+      ! The MPI version cannot cycle over blocks of size 0, since the MPI
+      ! ranks might not be relevant to the calculation but at the same time
+      ! might be part of a given BLACS context and hence are required to 
+      ! call all these SCALAPACK routines; if not, we get stuck eternally...
+      ! if (N.eq.0) cycle   ! This can only be explicitly put here.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      call start_timer(T_norm_ortho)
+      ! Build overlaps within this symmetry block
+      xs = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
+      ys = NUMROC(MPI_BLOCK_SIZE,BLOCK_FACTOR_COL,MYCOL_2D,0,NCOL_2D)
+      allocate(overlaps(xs,ys))
+      call PDGEMM ('T', 'N', MPI_BLOCK_SIZE, MPI_BLOCK_SIZE, 4*mv, dv, &
+      &             HFpsi_2d, 1, 1, desc_psi_2d, &
+      &             HFpsi_2d, 1, 1, desc_psi_2d, &
+      &             0.0d0,                       &
+      &             overlaps, 1, 1, desc_mat_2d)
+      call stop_timer(T_norm_ortho)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Calculate the cholesky decomposition
+      call start_timer(T_diag_ortho)
+      CALL PDPOTRF('l',MPI_BLOCK_SIZE,overlaps,1,1,desc_mat_2d, info)
+      ! overlaps now contains the factorisation L
+      if(info.ne.0) then
+        print *, 'Issue with the Cholesky decomposition.'
+        print *, 'INFO = ', info
+      endif
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Solve the linear equations
+      !    X L^T = N
+      CALL PDTRSM('r','l','t','n',4*mv,MPI_BLOCK_SIZE,1.0d0,           &
+      &                                overlaps, 1, 1, desc_mat_2d, &
+      &                                hfpsi_2D, 1, 1, desc_psi_2d)
+      call stop_timer(T_diag_ortho)
+#endif
       deallocate(overlaps)
       si = si +N
     enddo
-    
     call stop_timer(T_ortho)
   end subroutine Cholesky_orthonormalisation
+!===============================================================================
+! MPI-only routines
+!===============================================================================
+#if(USE_MPI > 0)
+  subroutine transfer_1D_to_2D(A_1D, A_2D)
+    !---------------------------------------------------------------------------
+    ! Use the scalapack routine PDGEMR2D to copy the 1D-distributed array into
+    ! the 2D-distributed version A_2D. If necessary, A_2D will get allocated.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !    A_1D : array (dimension (mv,4,X)), 1D-layout distributed
+    ! Output:
+    !    A_2D : array (dimension (mv*4,X)), copy of A_1D remapped with a pointer
+    !           but distributed among processes in a 2D layout.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) , contiguous, target :: A_1D(:,:,:)
+    real(KIND=dp),              allocatable        :: A_2D(:,:)
+    ! Pointer to remap the (mv,4,X) array into a (4*mv,X) array
+    real(KIND=dp), pointer, contiguous             :: A_1Dc(:,:)
 
+    integer           :: xs, ys
+    integer, external :: NUMROC
+
+    call start_timer(T_transfer_psi_1to2)
+
+    if(.not.allocated(A_2D) ) then
+      ! Asking for the appropriate size of the A_2D matrix on this process
+      ! (if MY_ROW2D = -1,then the node is not part of the 2D grid)
+      if(MYROW_2D .ne. -1) then
+        xs = NUMROC(          4*mv,block_factor_row,MYROW_2D,0,NROW_2D)
+        ys = NUMROC(MPI_BLOCK_SIZE,block_factor_col,MYCOL_2D,0,NCOL_2D)
+      else
+        xs = 1
+        ys = 1
+      endif
+      allocate(A_2D(xs,ys))
+    endif
+
+    A_1Dc(1:4*mv, 1:nwt_local) => A_1D
+    call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_1Dc, 1,1, desc_psi_1D,                 &
+     &                                A_2D  ,1,1, desc_psi_2D, blacs_cntxt_1D)
+
+    call stop_timer(T_transfer_psi_1to2)
+
+  end subroutine transfer_1D_to_2D
+  
+  subroutine transfer_2D_to_1D(A_2D, A_1D)
+    !---------------------------------------------------------------------------
+    ! Use the scalapack routine PDGEMR2D to copy the 2D-distributed array into
+    ! the 1D-distributed version A_1D. This routine is the inverse of the one
+    ! above, except it assumes all relevant arrays are allocated.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !    A_2D : array (dimension (4*mv,X)), 2D-layout distributed
+    ! Output:
+    !    A_1D : array (dimension (mv,4,X)), copy of A_2D remapped with a pointer
+    !           but distributed among processes in a 1D layout.
+    !--------------------------------------------------------------------------- 
+    real(KIND=dp), intent(in)                        :: A_2D(:,:)
+    real(KIND=dp), intent(inout), contiguous, target :: A_1D(:,:,:) 
+    ! ^- INOUT attribute, since otherwise the compiler deallocates stuff
+    ! Pointer for remapping 
+    real(KIND=dp), pointer, contiguous :: A_1Dc(:,:)
+
+    call start_timer(T_transfer_psi_2to1)
+
+    ! Pointer remapping 
+    A_1Dc(1:4*mv, 1:nwt_local) => A_1D
+    call pdgemr2d(4*mv,MPI_BLOCK_SIZE,A_2D ,1,1, desc_psi_2D,                  &
+    &                                 A_1Dc,1,1, desc_psi_1D, blacs_cntxt_1D)
+
+    call stop_timer(T_transfer_psi_2to1)
+  end subroutine transfer_2D_to_1D
+
+#endif
 !===============================================================================
 
   function TimeReverse(psi) result(Tpsi)
@@ -1165,9 +1708,16 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       real(KIND=dp), allocatable :: full_P(:,:)
       logical, intent(in)        :: fullmatrices
       integer                    :: i
-  
-      allocate(full_P(nwt,nwt))
+
       if(.not. allocated(P_HF))  allocate(P_HF(nwt))
+#if(PASTA == 1)
+      allocate(full_P(1,1)); deallocate(full_P)
+      ! This is a waste of CPU time for pasta calculations. 
+      ! This return is ugly and will require more elegant inclusion later on.
+      return
+#endif
+
+      allocate(full_P(nwt,nwt))
       if(allocated(canenergies) .and. (.not.allocated(P_CAN))) allocate(P_CAN(nwt))
 
       full_P  = spwf_parities(HFPsi, fullmatrices)
@@ -1223,10 +1773,18 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     logical, intent(in)        :: fullmatrices
     logical                    :: diag
     integer                    :: k, wave
-    real(KIND=dp)              :: temp(nwt,nwt)
+    real(KIND=dp), allocatable :: temp(:,:)
+
+#if(PASTA == 1)
+    ! This is a waste of CPU time for pasta calculations. 
+    ! This return is ugly and will require more elegant inclusion later on.
+    allocate(temp(1,1)); deallocate(temp)
+    return
+#endif
 
     call start_timer(T_spwfangmom)
 
+    allocate(temp(nwt,nwt))
     if(.not.allocated(spwf_J)) then
       allocate(spwf_J(3,nwt,nwt))   ; spwf_J  = 0.0
       allocate(spwf_JTR(3,nwt,nwt)) ; spwf_JTR= 0.0
@@ -1262,14 +1820,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       allocate(can_STR(3,nwt)) ; can_STR  = 0.0
       allocate(can_STI(3,nwt)) ; can_STI  = 0.0
     endif
-
-#if(PASTA == 1)
-    ! This is a waste of CPU time for pasta calculations. 
-    ! This return is ugly and will require more elegant inclusion later on.
-    call stop_timer(T_spwfangmom)
-    return
-#endif
-
 
     diag = (.not. fullmatrices)
     ! Operators for which we need no derivatives
@@ -2376,6 +2926,12 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       real(KIND=dp)              :: r2(mv)
 !      integer                    :: B, N, si
 
+#if(PASTA == 1)
+      ! This is a waste of CPU time for pasta calculations. 
+      ! This return is ugly and will require more elegant inclusion later on.
+      return
+#endif
+
       ! Value of r^2 = X^2 + Y^2 + Z^2 on the mesh
       r2 = sum(meshgrid,2)**2
 
@@ -2451,7 +3007,13 @@ $PBROKEN      real(KIND=dp), pointer             :: left4(:,:,:), right4(:,:,:)
         
       ! A statement to stop the compiler complaining about unused variables
       if(fullmatrices) trash = basis(1,1,1)
-        
+
+#if(PASTA == 1)
+    ! This is a waste of CPU time for pasta calculations. 
+    ! This return is ugly and will require more elegant inclusion later on.
+    return
+#endif
+
       allocate(P(nwt,nwt))
 
 $PCON      P = 0 
@@ -3242,6 +3804,51 @@ function transform_mat_diag(M, transfo) result(Mc)
 
  end function transform_mat_diag 
  
+ function memory_wavefunctions(spwf_number) result(storage)
+  !-----------------------------------------------------------------------------
+  ! Estimate the total storage requirements for a given number of spwfs.
+  !
+  ! Input:
+  !   spwf_number : number of spwfs stored
+  ! Output:
+  !   storage: total number of real numbers involved in storing the spwfs
+  !-----------------------------------------------------------------------------
+  integer, intent(in)    :: spwf_number
+  integer(kind=LargeInt) :: storage
+
+  ! storage for the HFPSI array 
+  storage = mv * 4 * spwf_number
+  ! factors two account for
+  !   (*) additional storage of momentum updates for heavy-ball machinery
+  !   (*) additional storage for h | psi > in evolution
+  storage = 4 * storage
+  
+  ! 2 bonus wavefunctions in estimation of iterative parameters
+  storage = 4*mv*2 + 3*mv*4*2 + 6*mv*2 
+
+  ! storage for the first order derivatives
+  storage = storage + 3 * mv * 4 * spwf_number
+  ! storage for the second order derivatives
+  storage = storage + 6 * mv * 4 * spwf_number
+
+ end function memory_wavefunctions
+ 
+ function memory_wavefunctions_2D(spwf_number, row, nrow, col, ncol) result(mem)
+   ! TODO: document  
+   integer,intent(in)     :: row, nrow, col, ncol, spwf_number
+   integer(kind=LargeInt) :: mem
+#if(USE_MPI>0)
+   integer(kind=LargeInt) :: xs,ys
+   integer, external :: numroc
+ 
+   xs = NUMROC(          4*mv,block_factor_row,row,0,nrow)
+   ys = NUMROC(spwf_number,block_factor_col,col,0,ncol)
+  
+   mem = 3*xs*ys ! factor 3 for mom_2D and hpsi_2D
+#else
+   mem = 0
+#endif
+   end function memory_wavefunctions_2D
 
   subroutine clean_wavefunctions()
 

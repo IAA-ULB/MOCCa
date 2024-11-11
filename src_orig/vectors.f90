@@ -64,6 +64,27 @@ $DECLARATION_POTENTIALS
     real(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExchange(:,:,:,:)
  end type PotentialVector
 
-end module vectors
+ !---------------------------------------------------------------------------
+ ! The amount of iterations to keep in memory for the density and/or potential
+ ! mixing and estimation of the convergence rate
+#if(PASTA == 0)
+ integer            :: memory = 3
+#else
+ ! We squeeze out every drop of memory we can
+ integer            :: memory = 0
+#endif
+ contains
+
+function memory_for_densities() result (stor)
+  !-----------------------------------------------------------------------------
+  ! Return an estimation for the total memory required to store all densities.
+  !-----------------------------------------------------------------------------
+  integer(KIND=LargeInt) :: stor
+  stor = 0
+$MEMORY_DENSITIES
+
+end function memory_for_densities
+
+ end module vectors
 
 

@@ -31,7 +31,6 @@ module SCFiteration
   !-----------------------------------------------------------------------------
   ! Determine what to do with mixing of the potentials
   integer       :: mixingscheme = 0
-  real(KIND=dp) :: mixstepsize  = 1.0d0
 
 contains
 
@@ -48,7 +47,8 @@ contains
     integer                             :: mpi_err
 #endif
 
-    namelist /scfiteration/ preconfactor, mixingscheme,mixstepsize, memory
+    namelist /scfiteration/ preconfactor, mixingscheme,mixstepsize, memory, &
+    &                       kerker_k0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Only the very first MPI rank reads the input
@@ -69,6 +69,7 @@ contains
 #if(USE_MPI > 0)
     !call MPI_BCAST(scfscheme   , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(preconfactor, 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(kerker_k0   , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(mixingscheme, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(mixstepsize , 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(memory      , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
@@ -85,6 +86,7 @@ contains
     2 format(' SCF iteration strategy: ',/, 2x, a30 )
     !3 format('   denmix= '            , f7.4)        
     4 format('   Preconfactor= '      , f7.4)
+    5 format('   Kerker k0   = '      , f7.4)
     6 format(' Potential mixing active!', /,     &  
     &        '                  memory:' 2x, i4, &
     &        '                stepsize:',2x, f7.4)    
@@ -94,6 +96,7 @@ contains
     case(0)
       print 2, 'Potential preconditioning'
       print 4, preconfactor
+      print 5, kerker_k0
     !case(1)
     !  print 2, 'Linear mixing of densities'
     !  print 3, denmix

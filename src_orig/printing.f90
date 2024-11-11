@@ -28,8 +28,8 @@ contains
 
   subroutine PrintSpwfs(print_advanced)
     !---------------------------------------------------------------------------
-    ! Print the info of the (physical) Hartree-Fock basis.
-    !
+    ! Print the info of the (physical) Hartree-Fock basis and the canonical
+    ! basis in the case of HFB calculations.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   print_advanced : logical, if .true. print ALL details of the spwfs
@@ -56,12 +56,11 @@ contains
     &          3(3x, '*', 3x), ' | ', 3x, '*', 2x , ' | ', i4)
 
     logical, intent(in) ::  print_advanced
-
-    integer       :: wave,k, B, si, N, T, wavebar, l
-    integer       :: ProtonOrder(nwp), NeutronOrder(nwn), sumocc
-    real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz, r2
-    real(KIND=dp), allocatable :: HF_gaps(:,:), can_gaps(:,:)
+    integer          :: wave,k, B, si, N, T, wavebar, l
+    integer          :: ProtonOrder(nwp), NeutronOrder(nwn), sumocc
+    real(KIND=dp)    :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz, r2
     character(len=1) :: blo
+    real(KIND=dp), allocatable :: HF_gaps(:,:), can_gaps(:,:)
 
     ! We transform the gaps to the Hartree-Fock basis for printing
     if(pairingtype.eq.2) then
@@ -81,7 +80,7 @@ contains
       enddo
     endif
     !---------------------------------------------------------------------------
-    ! Start of the actual printing.   
+    ! Start of the actual printing.
     ! Order the spwfs according to growing single-particle energy.
     ProtonOrder = OrderSpwfsISO(+1)
     NeutronOrder= OrderSpwfsISO(-1)
@@ -95,7 +94,7 @@ contains
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-        P = P_hf(wave)        
+        P = P_hf(wave)
 
         if(wave .le. sum(HFBlocks_global(1:2))) then
             if(wave .le. HFBlocks_global(1)) then

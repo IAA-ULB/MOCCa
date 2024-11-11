@@ -142,11 +142,15 @@ ArrayNames=['DenPsi', 'DendPsi', 'DenddPsi', 'DendddPsi']
 
 #-------------------------------------------------------------------------------
 # Array containing all the different densities needed. Note that this contains 
-# all of the densities that will get summed by Tantalus, AS-IS, INCLUDING 
-# contractions. So if D_Nm_Nm is in here, Tantalus will calculate Tr(tau_mn) 
-# and NOT tau_mn fully. 
+# all of the densities that will get summed by Tantalus.
 Densities_needed   = []
-deriv_needed       = []
+deriv_needed       = [] # what external derivatives are needed for each element
+                        # in Densities needed
+intermediate_status= [] # whether or not the density is an intermediate object.
+                        # YES: the density does not feature in the expression
+                        #      of the energy density and does not have to be
+                        #      explicitly stored in the density vector
+                        # NO:  the density gets stored explicitly
 #-------------------------------------------------------------------------------
 # Indices over which sums are supposed to go in both the FORTRAN code and the 
 # naming scheme.
@@ -216,23 +220,26 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     """
 
     global line
-    Expression     = ''
-    Declaration    = ''
-    Initialisation = ''
-    Derivation     = ''
-    BCSExpression  = ''
-    HFBExpression  = ''
-    Isospincoupl   = ''
-    Zeroing        = ''
-    Cleaning       = ''
-    MPI_REDUCE     = ''
-    Add            = ''
-    Multiply       = ''
+    Expression       = ''
+    Declaration      = ''
+    Spwf_Declaration = ''
+    Initialisation   = ''
+    Derivation       = ''
+    Derivation_pair  = ''
+    BCSExpression    = ''
+    HFBExpression    = ''
+    Isospincoupl     = ''
+    Zeroing          = ''
+    Cleaning         = ''
+    MPI_REDUCE       = ''
+    Add              = ''
+    Multiply         = ''
+    Memory           = ''
 
     print (line)
     print (' Densities necessary for the functional                                    ')
     print (line)
-    print ('      Name       Calc?      T     DIM with / out    Derivative combs.      ')
+    print ('      Name       Calc?     TR    Intermediate?  DIM with / out  Derivative combs.      ')
     print (line)
     for i in range(len(Densities_needed)):
         den = Densities_needed[i]
@@ -241,8 +248,8 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         owithout = OrderOfDen(den, contract=False)
         T        = TimeDen(den)
         D        = deriv_needed[i]
-    
-        print ('%15s %4s   %6d  %6d %6d     '%(den,'y', T, owith, owithout), D)
+        I        = intermediate_status[i]
+        print ('%15s %4s   %6d     %5s        %6d %6d     ' % (den,'y', T, I, owith, owithout), D )
 
     print (line)
     print (' Symmetries of the densities')
@@ -252,52 +259,70 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       den = Densities_needed[i]
 
       # Summation with leftwf = rightwf
-      (e,dec,ini,der,isoi,mpii,zeroi,cleani,addi,multi)  = \
-      GenDensityExpression(Densities_needed[i],deriv_needed[i],'wave','wave',so,
+      (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi)  = \
+      GenDensityExpression(Densities_needed[i],deriv_needed[i],\
+                           intermediate_status[i],'wave','wave',so,
                            density_spwf_summation)
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
-      Declaration    = Declaration    + '\n' + dec
-  
+      if( not intermediate_status[i]):
+       Declaration     = Declaration    + '\n' + dec
+
+      Spwf_Declaration = Spwf_Declaration + '\n' + spwf_dec
       if('P' in den): 
         # The BCS expression is diagonal in 'wave'
         BCSExpression = BCSExpression + '\n' + e
         # But we also need the HFB expression 
         # So we recall the routine with different 'wave' indices
         # This summation is blockwise, hence the 'si+'
-        (e,dec,ini,der,isoi,mpii,zeroi,cleani,addi,multi)  = \
+        (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i],\
+                                          intermediate_status[i], \
                                          'si+wave2', 'si+wave', so,            \
                                          density_spwf_summation, silent=False)
-        HFBExpression = HFBExpression + '\n' + e
+        HFBExpression   = HFBExpression   + '\n' + e
+        Derivation_pair = Derivation_pair + der
       else:
         Expression    = Expression     + '\n' + e
-          
-      Initialisation = Initialisation + '\n' + ini
-      Derivation     = Derivation            + der
-      Isospincoupl   = Isospincoupl          + isoi
-      MPI_REDUCE     = MPI_REDUCE     + '\n' + mpii
-      Zeroing        = Zeroing        +        zeroi
-      Cleaning       = Cleaning       + '\n' + cleani
-      Add            = Add            + '\n' + addi
-      Multiply       = Multiply       + '\n' + multi
+        Derivation    = Derivation              + der
 
+
+      if( not intermediate_status[i]):
+        Initialisation = Initialisation + '\n' + ini
+        Isospincoupl   = Isospincoupl          + isoi
+        MPI_REDUCE     = MPI_REDUCE     + '\n' + mpii
+        Zeroing        = Zeroing        +        zeroi
+        Cleaning       = Cleaning       + '\n' + cleani
+        Add            = Add            + '\n' + addi
+        Multiply       = Multiply       + '\n' + multi
+        Memory         = Memory         + '\n' + memi
     print (line)
 
     # Substitute into the densities.f90 file.        
     dic={}
-    dic['DECLARATION'   ] = Declaration
-    dic['INITIALIZATION'] = Initialisation
-    dic['EXPRESSION'    ] = Expression
-    dic['BCSEXPRESSION']  = BCSExpression
-    dic['HFBEXPRESSION']  = HFBExpression
-    dic['DERIVATION'    ] = Derivation
-    dic['ZEROING'       ] = Zeroing 
-    dic['CLEANING'      ] = Cleaning 
-    dic['ISOSPINCOUPL'  ] = Isospincoupl
-    dic['MPIDEN']         = MPI_REDUCE
-    dic['ADD'           ] = Add
-    dic['MULTIPLY'      ] = Multiply
+    dic['DECLARATION'     ] = Declaration
+    dic['SPWF_DECLARATION'] = Spwf_Declaration
+    dic['INITIALIZATION'  ] = Initialisation
+    dic['EXPRESSION'      ] = Expression
+    dic['BCSEXPRESSION'   ] = BCSExpression
+    dic['HFBEXPRESSION'   ] = HFBExpression
+    if(density_spwf_summation):
+        dic['DERIVATION'              ] = ""
+        dic['DERIVATION_SUM_SPWF_PH'  ] = Derivation
+        dic['DERIVATION_SUM_SPWF_BCS' ] = Derivation_pair
+        dic['DERIVATION_SUM_SPWF_HFB' ] = Derivation_pair
+    else:
+        dic['DERIVATION'              ] = Derivation + Derivation_pair
+        dic['DERIVATION_SUM_SPWF_PH'  ] = ""
+        dic['DERIVATION_SUM_SPWF_BCS' ] = ""
+        dic['DERIVATION_SUM_SPWF_HFB' ] = ""
+
+    dic['ZEROING'         ] = Zeroing
+    dic['CLEANING'        ] = Cleaning
+    dic['ISOSPINCOUPL'    ] = Isospincoupl
+    dic['MPIDEN']           = MPI_REDUCE
+    dic['ADD'             ] = Add
+    dic['MULTIPLY'        ] = Multiply
   
     # Symmetry options
     if(so.timelike):
@@ -350,7 +375,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
                 generated.write(Template(line).substitute(dic))  
 
     # Return the declaration of all densities for use in vectors.f90
-    return Declaration
+    return Declaration, Memory
 
 def ParseOperators(density, timelike, findindices=False):    
     """    
@@ -477,7 +502,7 @@ def ReconstructDensity(der, lap, left, right):
   
   return density
 
-def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
+def GenDensityExpression(denin,derivative_combinations,intermediate,leftwave,rightwave,so,
                          density_spwf_summation, silent=False):
     """
       Generate all the necessary strings to plug into FORTRAN source code 
@@ -488,8 +513,11 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
       * denin                  : Expression for the density
       * Derivative_combinations: declares the different external derivatives of 
                                  the density that need to be calculated 
-    
-      * leftwave, rightwave    : Strings indicating to the summation what the 
+      * intermediate           : is this density one that needs to be explicitly
+                                 stored (False) or one that is just an intermediate
+                                 object for the calculation of other densities (True).
+                                 If the latter, a lot of the output string should be empty
+      * leftwave, rightwave    : Strings indicating to the summation what the
                                  left and right spwf is.
       * so                     : a set of symmetry options
       * density_spwf_summation : if True, calculate derivatives of densities 
@@ -504,12 +532,16 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
       
         Expression     :  string that calculates the density
         Declaration    :  string that declares the density in the FORTRAN code
-        Initialisation :  string that (if necessary) allocates the density 
+        spwf_dec       :  string that declares the temporary density for use
+                          in the densit function
+        Initialisation :  string that (if necessary) allocates the density
         Derivation     :  string that handles all the derivatives that need to 
                           be calculated of the density
         Isospincoupl   :  string that handles the calculation of isospin 
                           densities
         Zeroing        :  string that sets the density to zero
+        Memory         :  string that gets the contribution to memory requirements
+                          for this density
         Cleaning       :  string deallocating the density
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       
@@ -519,6 +551,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     # Initialisation 
     Expression    = ''
     Declaration   = ''
+    spwf_dec      = ''
     Initialisation= ''
     Derivation    = ''
     Zeroing       = ''
@@ -526,7 +559,8 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     Cleaning      = ''
     Add           = ''
     Multiply      = ''
-
+    MPI_reduce    = ''
+    Memory        = ''
     #---------------------------------------------------------------------------
     # Parse the structure from the name
     density = denin    
@@ -589,6 +623,10 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
         sizecount  = sizecount * 3
     dic['TOTALIND']= totalind
     dic['DIM']     = dim
+    if(len(dim)>1):
+        dic['DIM_spwf'] = '(' + dim[1:] + ')' # remove leading comma and add brackets
+    else:
+        dic['DIM_spwf'] = ''
     # SIZE of the density to pass onto the MPI_ALLREDUCE call
     # the factor two reflects isospin
     dic['TRANS_SIZE'] = '%d*mv'%(sizecount*2) 
@@ -600,14 +638,18 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     
     #---------------------------------------------------------------------------
     # Get the declaration of the density and its derivatives right
-    Declaration    = ta.Dec.substitute(dic)
-    MPI_reduce     = ta.mpi.substitute(dic)
-    Initialisation = ta.Ini.substitute(dic)
-    Zeroing        = ta.Zero_template.substitute(dic)
-    Cleaning       = ta.Clean_template.substitute(dic)
-    Add            = ta.Add_template.substitute(dic)
-    Multiply       = ta.Multiply_template.substitute(dic)
-    
+    if( not intermediate ):
+        Declaration    = ta.Dec.substitute(dic)
+        MPI_reduce     = ta.mpi.substitute(dic)
+        Initialisation = ta.Ini.substitute(dic)
+        Zeroing        = ta.Zero_template.substitute(dic)
+        Cleaning       = ta.Clean_template.substitute(dic)
+        Add            = ta.Add_template.substitute(dic)
+        Multiply       = ta.Multiply_template.substitute(dic)
+        # memory requirement for this density
+        Memory         = ta.Memory.substitute(dic)
+    spwf_dec    = ta.Dec_spwf.substitute(dic)
+
     for c in derivative_combinations:
         l = c[0]
         d = c[1]
@@ -629,7 +671,22 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
             dic['DIM']     = dim
 
         Declaration    = Declaration    + '\n' + ta.Dec.substitute(dic)
+        if(density_spwf_summation):
+          # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          # Dealing with the MPI ALLREDUCE call for the derivatives
+          sizecount = 1
+          for r in range(ndim):
+            sizecount  = sizecount * 3
+          sizecount = sizecount * Number_symmetric(3,d) 
+          # SIZE of the density to pass onto the MPI_ALLREDUCE call
+          # the factor two reflects isospin
+          dic['TRANS_SIZE'] = '%d*mv'%(sizecount*2)
+          MPI_reduce     = MPI_reduce     + '\n' + ta.mpi.substitute(dic)
+          Memory         = Memory         + '\n' + ta.Memory.substitute(dic)
+          # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
         Initialisation = Initialisation + '\n' + ta.Ini.substitute(dic)
+        Zeroing        = Zeroing         + ta.Zero_template.substitute(dic)
         Cleaning       = Cleaning + '\n' + ta.Clean_template.substitute(dic)
         Add            = Add      + '\n' + ta.Add_template.substitute(dic)
         Multiply       = Multiply + '\n' + ta.Multiply_template.substitute(dic)
@@ -639,10 +696,10 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     # Generate the expression to calculate the density
     # Start from standard wave-functions, [ Psi_1, Psi_2, Psi_3, Psi_4 ]^T
     start  = np.zeros((4,1))
-    start[0,0] = 1 
-    start[1,0] = 2  
-    start[2,0] = 3 
-    start[3,0] = 4     
+    start[0,0] = 1
+    start[1,0] = 2
+    start[2,0] = 3
+    start[3,0] = 4
 
     #---------------------------------------------------------------------------
     # TODO: define a dedicated function for this next particular piece of 
@@ -658,8 +715,11 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
     args = itertools.product(range(3), repeat=ndim)
     
     Expression = Expression +  ta.Den_line.substitute(dic)
-    Expression = Expression +  ta.Den_comment.substitute(dic)
- 
+    if( not intermediate ):
+        Expression = Expression +  ta.Den_comment.substitute(dic)
+    else:
+        Expression = Expression +  ta.Den_intermediate_comment.substitute(dic)
+
     for arg in args:
         # We have the uncontracted indices. Now construct the combinations of
         # indices, including contracted ones, that correspond to this. 
@@ -761,9 +821,13 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
         for mu in arg: 
             IND = IND + ',' + str(int(abs(mu)+1)) # Python indexes 0:N-1
         
-        dic['IND'] = IND
-        
-        Expression = Expression +  ta.Den_1.substitute(dic)
+        dic['IND']       = IND
+        if(len(dic['IND']) > 1):
+            dic['IND_nocomma'] = '(' + IND[1:] + ')' # identical, but without leading comma and in brackets
+        else:
+            dic['IND_nocomma'] = ""
+
+        Expression = Expression +  ta.Den_1_spwf.substitute(dic)
 
         #-----------------------------------------------------------------------
         # Now loop over the uncontracted indices
@@ -852,11 +916,15 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                 Expression = Expression +  \
                             '& \n               &' +  \
                             ta.Den_diag.substitute(dic)
-        # Don't forget the closing bracket
-        Expression = Expression +  ')\n'
+        Expression = Expression +  '\n'
+
+        # Final summation
+        if( not intermediate):
+            # Only sum for storage if the object is not intermediate
+            Expression = Expression + ta.Den_1.substitute(dic) + '\n\n'
 
         # And add a line for the isospin coupling
-        if('P' not in density): 
+        if('P' not in density):
           Isospincoupl = Isospincoupl + ta.Den_iso_comment.substitute(dic) 
           Isospincoupl = Isospincoupl + ta.iso_normal.substitute(dic) 
           
@@ -913,7 +981,7 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                       # LEFTIND and RIGHTIND do not use this yet!
                       dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
 
-                      dargstring=','
+                      dargstring=''
                       for dargind in darg:
                         dargstring = dargstring + str(dargind+1) + ','
                       dargstring = dargstring[:-1]
@@ -952,20 +1020,25 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                       # LEFTIND and RIGHTIND do not use this yet!
                       dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
 
-                      Derivation  = Derivation + ta.Der_der_sum_a.substitute(dic)
                       # On the left, the new Nabla's precede all other arguments
-                      dic['DERLIND']  =  ',' + str(darg[0]+1)+',' + str(darg[1]+1) + IND
+                      dic['DERLIND']  =  str(darg[0]+1)+',' + str(darg[1]+1) + IND
                       # On the right, the new Nabla's precede only the indices of the right operator
                       ldim = LeftOperator.dimension
-                      dic['DERRIND']  =     IND[0:ldim]+',' \
-                                       + str(darg[0]+1)+',' \
-                                       + str(darg[1]+1)+    \
+                      if(ldim > 0):
+                        dic['DERRIND']  =     IND[0:ldim]+',' \
+                                        + str(darg[0]+1)+',' \
+                                        + str(darg[1]+1)+    \
                                              IND[ldim:]
+                      else:
+                        dic['DERRIND']  = str(darg[0]+1)+',' \
+                                        + str(darg[1]+1)+    \
+                                             IND[ldim:]
+
                       # In the center, one nabla is on the left
-                      dic['DERCIND']  =  ',' + str(darg[0]+1)    \
+                      dic['DERCIND']  =      str(darg[0]+1)    \
                                              + IND[0:ldim]   +','\
                                              + str(darg[1]+1) + IND[ldim:]
-                      Derivation  = Derivation + ta.Der_der_sum_b.substitute(dic)
+                      Derivation  = Derivation + ta.Der_der_sum.substitute(dic)
                       
                       # Add a line for the isospin coupling while we are here
                       if('P' not in density):
@@ -990,9 +1063,9 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
                 dic['IND']      =  IND
                 Derivation  = Derivation + ta.Lap_sum_a.substitute(dic)
                 for k in range(3):
-                  dic['DERLIND']  =  ',' + str(k+1)+',' + str(k+1) + IND 
-                  dic['DERRIND']  =  ',' + str(k+1)+',' + str(k+1) + IND 
-                  dic['DERCIND']  =  ',' + str(k+1)+',' + str(k+1) + IND 
+                  dic['DERLIND']  =  str(k+1)+',' + str(k+1) + IND
+                  dic['DERRIND']  =  str(k+1)+',' + str(k+1) + IND
+                  dic['DERCIND']  =  str(k+1)+',' + str(k+1) + IND
                   Derivation  = Derivation + ta.Lap_sum_b.substitute(dic)
                 Derivation = Derivation[:-2]
                 
@@ -1090,11 +1163,11 @@ def GenDensityExpression(denin,derivative_combinations,leftwave,rightwave,so,
         
         dic['NAME'] = density
         
-    Expression = Expression + ta.Den_line.substitute(dic) 
+    Expression = Expression + ta.Den_line.substitute(dic)
     
     
-    return (Expression, Declaration, Initialisation, Derivation, Isospincoupl,\
-                                   MPI_reduce, Zeroing, Cleaning, Add, Multiply)
+    return (Expression, Declaration, spwf_dec, Initialisation, Derivation, Isospincoupl,\
+                                   MPI_reduce, Zeroing, Memory, Cleaning, Add, Multiply)
     
 def GenVecProd(density, coupling):
     #---------------------------------------------------------------------------

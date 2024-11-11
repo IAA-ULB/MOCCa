@@ -145,8 +145,21 @@ module functional
     ! NUMERICAL OPTIONS
     !===========================================================================
     !---------------------------------------------------------------------------
-    ! Numerical parameter of the preconditioning of the potentials
+    ! Numerical parameter of the preconditioning of the Skyrme potentials
+#if(PASTA == 0)
     real(KIND=dp) :: preconfactor = 4.0_dp
+#else
+    real(KIND=dp) :: preconfactor = 1.0_dp
+#endif
+    ! Kerker parameter for the preconditioning of the Coulomb potential
+    ! Nuclei => don't do kerker by default
+    ! Pasta  => do Kerker by default
+#if(PASTA == 0)
+    real(KIND=dp) :: kerker_k0    = 0.0d0 ! typical screening length ~ 100 fm
+#else
+    real(KIND=dp) :: kerker_k0    = 2*pi/100 ! typical screening length ~ 100 fm
+#endif
+    real(KIND=dp) :: mixstepsize  = 1.0d0
     !---------------------------------------------------------------------------
     ! Stabilisation factor for the pairing:
     !    f = E_cut^2 / E_pair^2
@@ -313,55 +326,55 @@ $PRINTCOEF_PAIR
     !---------------------------------------------------------------------------
     use Coulombmod
 
-    1 format (80('-'))
-    5 format (30x, '       neutron        proton         total')
-    6 format (15x, ' Kinetic Energy:', 3f15.6)
-   61 format (15x, '     COM 1-body:', 3f15.6)
-   62 format (15x, '     COM 2-body:', 3f15.6)
-  621 format (15x, '             ph:', 3f15.6)
-  622 format (15x, '             pp:', 3f15.6)
+    1 format (91('-'))
+    5 format (40x, '    neutron             proton              total')
+    6 format (15x, ' Kinetic Energy:', 3f20.6)
+   61 format (15x, '     COM 1-body:', 3f20.6)
+   62 format (15x, '     COM 2-body:', 3f20.6)
+  621 format (15x, '             ph:', 3f20.6)
+  622 format (15x, '             pp:', 3f20.6)
 
-   63 format (15x, '  Rotational  '  , a1, ':', 30x, f15.6)
-  631 format (15x, '  Rotational  T:',          30x, f15.6)
+   63 format (15x, '  Rotational  '  , a1, ':', 40x, f20.6)
+  631 format (15x, '  Rotational  T:',          40x, f20.6)
   
-   64 format (15x, '  Vibrational '   , a1, ':', 30x, f15.6)
-  641 format (15x, '  Vibrational T:',          30x, f15.6)
+   64 format (15x, '  Vibrational '   , a1, ':', 40x, f20.6)
+  641 format (15x, '  Vibrational T:',          40x, f20.6)
 
-   65 format (15x, '  Collective T: ',          30x, f15.6)
+   65 format (15x, '  Collective T: ',          40x, f20.6)
   
-    7 format (15x, ' Coulomb Direct:', 3f15.6)
-   !71 format (15x, '   Dir. (point):', 3f15.6)
-    8 format (15x, '       Exchange:', 3f15.6)
-   !81 format (15x, '   Exc. (point):', 3f15.6)  
+    7 format (15x, ' Coulomb Direct:', 3f20.6)
+   !71 format (15x, '   Dir. (point):', 3f20.6)
+    8 format (15x, '       Exchange:', 3f20.6)
+   !81 format (15x, '   Exc. (point):', 3f20.6)  
 
-    9 format (15x, 'Pairing (delta):', 3f15.6)
-   91 format (15x, 'Pairing (densi):', 30x, f15.6)
-   92 format ( 7x, 'Pair. (delta, no stab.):', 3f15.6)
-   93 format ( 7x, 'Pair. (densi, no stab.):', 30x, f15.6)
-   94 format ( 7x, 'Pair. (delta,    stab.):', 3f15.6)
-   95 format ( 7x, 'Pair. (densi,    stab.):', 30x, f15.6)
+    9 format (15x, 'Pairing (delta):', 3f20.6)
+   91 format (15x, 'Pairing (densi):', 40x, f20.6)
+   92 format ( 7x, 'Pair. (delta, no stab.):', 3f20.6)
+   93 format ( 7x, 'Pair. (densi, no stab.):', 40x, f20.6)
+   94 format ( 7x, 'Pair. (delta,    stab.):', 3f20.6)
+   95 format ( 7x, 'Pair. (densi,    stab.):', 40x, f20.6)
 
-   99 format (15x, '   Total energy:', 30x, f15.6)
-  991 format (15x, '    (no corr.) :', 30x, f15.6)
-  100 format (15x, '     from spwfs:', 30x, f15.6)
-  101 format (15x, '    Free Energy:', 30x, f15.6)
-  102 format (15x, '        Entropy:', 3f15.6)
-  103 format (15x, '    E_fu - E_sp:', 30x, e15.6)
-  104 format (15x, '          dE   :', 30x, e15.6)
-  105 format (15x, '       Routhian:', 30x, f15.6)
-  106 format (15x, '          dR   :', 30x, e15.6)           
+   99 format (15x, '   Total energy:', 40x, f20.6)
+  991 format (15x, '    (no corr.) :', 40x, f20.6)
+  100 format (15x, '     from spwfs:', 40x, f20.6)
+  101 format (15x, '    Free Energy:', 40x, f20.6)
+  102 format (15x, '        Entropy:', 3f20.6)
+  103 format (15x, '    E_fu - E_sp:', 40x, e20.6)
+  104 format (15x, '          dE   :', 40x, e20.6)
+  105 format (15x, '       Routhian:', 40x, f20.6)
+  106 format (15x, '          dR   :', 40x, e20.6)           
 
 #if(PASTA > 0)
-  107 format (30x, '         FOR PASTA CALCULATIONS    ')
-  108 format (15x, '        e_pasta=(Total energy + electrons - Z[Mn-Mp])/A - Mn')
-  109 format (15x, '        e_pasta:', 30x, f15.6)
-  110 format (15x, '   Electron kin:', 30x, f15.6) 
-  111 format (15x, '  Electron exch:', 30x, f15.6) 
-  112 format (15x, 'Chempot_e total:', 30x, f15.6)
-  113 format (15x, '      Chempot_n:', 30x, f15.6)
-  114 format (15x, '      Chempot_p:', 30x, f15.6)
-  115 format (15x, ' Chempot_p β-eq:', 30x, f15.6)
-  116 format (15x, '       Pressure:', 30x, f15.6)
+  107 format (40x, '         FOR PASTA CALCULATIONS    ')
+  108 format (15x, '        e_pasta=(Total energy + electrons + Z[Mn-Mp])/A - Mn')
+  109 format (15x, '        e_pasta:', 40x, f20.6)
+  110 format (15x, '   Electron kin:', 40x, f20.6) 
+  111 format (15x, '  Electron exch:', 40x, f20.6) 
+  112 format (15x, 'Chempot_e total:', 40x, f20.6)
+  113 format (15x, '      Chempot_n:', 40x, f20.6)
+  114 format (15x, '      Chempot_p:', 40x, f20.6)
+  115 format (15x, ' Chempot_p β-eq:', 40x, f20.6)
+  116 format (15x, '       Pressure:', 40x, f20.6)
 #endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -450,8 +463,7 @@ $PRINTCOEF_PAIR
     print 107
     print 1
     print 108
-    print 109, (TotalE+ElectronEnergyKin+ElectronEnergyExch  &
-    &                   -protons*Qnp)/dble(protons+neutrons)
+    print 109, calculate_epasta(totalE)
     print 110, ElectronEnergyKin
     print 111, ElectronEnergyExch
     print 112, ElectronChempotKin+ElectronChempotExch
@@ -468,6 +480,33 @@ $PRINTCOEF_PAIR
     print 1
 end subroutine PrintEnergy
 
+#if(PASTA==1)
+function calculate_epasta(nucE) result(Epasta)
+  !------------------------------------------------------------------------
+  ! Calculate the energy per particle for a pasta calculation. This is a
+  ! rather simple expression, but it pays to not have it in multiple places.
+  !
+  ! For now, only nucE is input as all other parts are constant throughout
+  ! any given calculation.
+  !
+  ! Input:
+  !  nucE : total energy of the configuration of protons and neutrons as
+  !         calculated.
+  !
+  ! Output:
+  !  Epasta: E/A for the entire configuration that accounts for the
+  !          contributions of the sea of electrons.
+  !------------------------------------------------------------------------
+
+  real(KIND=dp), intent(in) :: nucE
+  real(KIND=dp)             :: Epasta
+
+  Epasta = nucE + ElectronEnergyKin+ElectronEnergyExch-protons*Qnp
+  Epasta = Epasta/dble(protons+neutrons)
+
+end function calculate_epasta
+#endif
+
 subroutine save_potential_history(F_in, F_out)
     !---------------------------------------------------------------------------
     ! Update the history of the mean-field densities, before calculating an
@@ -475,6 +514,8 @@ subroutine save_potential_history(F_in, F_out)
     !---------------------------------------------------------------------------
     integer :: i
     type(PotentialVector), intent(in) :: F_in, F_out
+
+    if(memory .eq. 0) return
   
     if(.not.allocated(Potential_updates)) allocate(Potential_updates(memory))
     if(.not.allocated(Potential_iterates)) allocate(Potential_iterates(memory))
@@ -790,8 +831,8 @@ $TOTAL_QUAD
     densitydependent = &
 $TOTAL_DD
 
-    S = tot_even + tot_odd
-
+    S = T_even + T_odd
+      
     PE(1) = &
 $TOTALPAIR_NEUTRON
 
@@ -806,22 +847,22 @@ $TOTALPAIR_PROTON
     ! Hephaestos. 
     !---------------------------------------------------------------------------
     
-    1 format (80('-'))
-    3 format (' Skyrme Energy',16x, 'Isospin  1 2 3 4', 19x, 'Energy [MeV]')
-    !4 format (17x, 'Total Skyrme:', 3f15.6)
-    5 format (17x, 'Total Skyrme:', 31x, f15.6)    
+    1 format (91('-'))
+    3 format (' Skyrme Energy',16x, 'Isospin  1 2 3 4', 33x, 'Energy [MeV]')
+    !4 format (17x, 'Total Skyrme:', 3f20.6)
+    5 format (17x, 'Total Skyrme:', 41x, f20.6)    
 
-   51 format (17x, '   time-even:', 31x, f15.6)
-   52 format (17x, '   time-odd :', 31x, f15.6)
+   51 format (17x, '   time-even:', 41x, f20.6)
+   52 format (17x, '   time-odd :', 41x, f20.6)
 
-   53 format (17x,     '   bilinear :', 31x, f15.6)
-   54 format (17x,     '   trilinear:', 31x, f15.6)
-   55 format (17x,     'quadrilinear:', 31x, f15.6)
-   56 format (12x, 'density-dependent:', 31x, f15.6)
+   53 format (17x,     '   bilinear :', 41x, f20.6)
+   54 format (17x,     '   trilinear:', 41x, f20.6)
+   55 format (17x,     'quadrilinear:', 41x, f20.6)
+   56 format (12x, 'density-dependent:', 41x, f20.6)
    
-   97 format ( a38, 2a2, 19x, f15.6)
-   98 format ( a38, 3a2, 17x, f15.6)
-$QUADRI   99 format ( a38, 4a2, 15x, f15.6)
+   97 format ( a38, 2a2, 29x, f20.6)
+   98 format ( a38, 3a2, 27x, f20.6)
+$QUADRI   99 format ( a38, 4a2, 25x, f20.6)
 
      print 1
      print 3
@@ -1320,7 +1361,6 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     type(PotentialVector), intent(in), optional :: Fread
     type(PotentialVector)                       :: F
     real(KIND=dp), intent(in), optional         :: Coulomb_guess(:,:,:)    
-    integer                                     :: it,i,j,k, ox, oy, oz
 
     call start_timer(T_potentials)
 
@@ -1330,15 +1370,12 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     ! Signal that microscopic pairing strengths have to be recalculated
     vmicro_stored = .false.
 
-$CALCPOTENTIALS
-    
     !---------------------------------------------------------------------------
-    ! Additions to the potential F_I_I associated with the density
-    ! (1) Coulomb potential, direct and exchange
-    ! (2) Constraints
-    !
-    ! and to F_I_S and G_I_N: 
-    ! (1) cranking potential
+    ! Calculate all contributions to the potentials due to the Skyrme EDF
+$CALCPOTENTIALS
+
+    !---------------------------------------------------------------------------
+    ! Calculate the Coulomb potentials
     !---------------------------------------------------------------------------
     if((.not. present(Fread)) .or. (.not. Coulomb_read_from_file)) then
       if(present(Coulomb_guess)) then
@@ -1348,65 +1385,103 @@ $CALCPOTENTIALS
         call SolveCoulomb(R,F)
       endif
     endif
-    if(.not. present(Fread)) then    
-        !-----------------------------------------------------------------------
-        ! Add the Coulomb contribution to the potential F_I_I. The index 
-        ! juggling is ugly, but necessary, because the Coulomb potential is
-        ! defined on a larger mesh.
-        !-----------------------------------------------------------------------
-        if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
-          &                             (.not. nucleonsize_selfconsistent)) then
-          ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-          do k=1,nz
-            do j=1,ny
-              do i=1,nx
-                F%F_I_I(meshindex(i,j,k),2)=F%F_I_I(meshindex(i,j,k),2)        &
-                &                       + F%CoulombPotential(i+ox,j+oy,k+oz)   &
-                &                       + F%ExchangePotential(i,j,k)
-              enddo
-            enddo
-          enddo
 
-        else
-        !-----------------------------------------------------------------------
-        ! Use the folded coulombpotential, for full self-consistency.
-        ! Note that both protons and neutrons feel a Coulomb force if their
-        ! charge form factor is taken into account.
-        !-----------------------------------------------------------------------
-          if(.not. allocated(F%foldedcoul)) then
-            call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
-          endif 
-          do it=1, 2
-            do k=1,nz
-              do j=1,ny
-                do i=1,nx
-                  F%F_I_I(meshindex(i,j,k),it)=F%F_I_I(meshindex(i,j,k),it)    &
-                  &                              + F%FoldedCoul(i,j,k,it)      &
-                  &                              + F%FoldedExchange(i,j,k,it)
-                enddo
-              enddo
-            enddo
-          enddo
-        endif 
-        !-----------------------------------------------------------------------
-        ! Add the contribution from the constraints on the electric multipole 
-        ! moments. 
-        Constraint_I_I = constraints_sph_elmult(.false.)
-        F%F_I_I(:,1:2) = F%F_I_I(:,1:2) + Constraint_I_I(:,1:2)
-        !-----------------------------------------------------------------------
-        ! We added stuff to the proton and neutron potentials, we should be 
-        ! consistent with the isospin 0 and 1 potentials
-        F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
-        F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
-        !-----------------------------------------------------------------------
-        ! Add the contribution of a cranking constraint to the 
-        !    F_I_S and G_I_N potentials
-$NTR    F_I_S = F_I_S + crank_spin_potential()
-$NTR    G_I_N = G_I_N + crank_current_potential()
-    endif
     call stop_timer(T_potentials)
 
   end function calcPotentials
+
+  subroutine combine_potentials(F)
+    !----------------------------------------------------------------------------
+    ! This routine makes sure that the potential vector F is ready to be used
+    ! in the single-particle hamiltonian by summing various contributions that
+    ! get calculated separately.
+    !
+    ! 1. add Coulomb potentials to F_I_I
+    ! 2. add contribution from constraints to F_I_I (and possibly others)
+    ! 3. add cranking contribution to F_I_S and G_I_N
+    !
+    ! Input:
+    !   F : potentialvector, fresh from the calculation routines after possibly
+    !       passing through preconditioning and mixing
+    ! Output:
+    !   F : potentialvector, ready to be used in the action of the single-particle
+    !       hamiltonian
+    !----------------------------------------------------------------------------
+    type(PotentialVector), intent(inout) :: F
+
+    ! Add the coulomb potential to F_I_I
+    call add_coulomb_potential(F)
+    ! Add the contribution of the multipole constraints
+    call add_constraint_potential(F)
+    ! cranking constraints add stuff to the spin and current potentials
+    call add_cranking_potentials(F)
+
+  end subroutine combine_potentials
+
+  subroutine add_constraint_potential(F)
+    !----------------------------------------------------------------------------
+    ! Add the contribution of constraints on the mass electric multipole moments
+    ! to a potentialvector.
+    !
+    ! Input:
+    !   F :  potentialvector with F_I_I
+    ! Output:
+    !   F : where the new F_I_I = old F_I_I + constraint contribution
+    !-----------------------------------------------------------------------------
+    use moments
+
+    type(PotentialVector), intent(inout) :: F
+
+    ! Add the contribution from the constraints on the multipole moments
+    ! This line also sets Constraint_I_I globally!
+    Constraint_I_I = constraints_sph_elmult(.false.)
+    F%F_I_I(:,1:2) = F%F_I_I(:,1:2) + Constraint_I_I(:,1:2)
+
+    ! We added stuff to the proton and neutron potentials, we should be
+    ! consistent with the isospin 0 and 1 potentials
+    F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
+    F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
+
+  end subroutine add_constraint_potential
+
+  subroutine add_coulomb_potential(F)
+    !----------------------------------------------------------------------------
+    ! Add the Coulomb contribution to the potential F_I_I.
+    ! The index juggling is ugly, but necessary, because the Coulomb potential is
+    ! defined on a larger mesh than F_I_I.
+    !
+    ! Input:
+    !   F :  potentialvector with F_I_I (= associated with the Skyrme EDF)
+    !        and calculated Coulomb potentials
+    ! Output:
+    !   F : where the new F_I_I = old F_I_I + coulomb potentials
+    !-----------------------------------------------------------------------------
+    use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
+    type(PotentialVector), intent(inout) :: F
+    real(KIND=dp)                        :: pot(mv,4)
+
+    pot = transfer_coulomb_mesh(F, .true.) + transfer_coulomb_mesh(F, .false.)
+    F%F_I_I = F%F_I_I + pot
+  
+  end subroutine add_coulomb_potential
+
+  subroutine add_cranking_potentials(F)
+    !-----------------------------------------------------------------------------
+    ! Add the cranking contributions to the
+    !   F_I_S (spin potential)
+    !   G_I_N (current potential)
+    !
+    ! Input:
+    !    F : potentialvector
+    ! Output:
+    !    F : potentialvector, with modified F_I_S and G_I_N.
+    !-----------------------------------------------------------------------------
+    type(PotentialVector), intent(inout) :: F
+
+$NTR F%F_I_S = F%F_I_S + crank_spin_potential()
+$NTR F%G_I_N = F%G_I_N + crank_current_potential()
+
+  end subroutine add_cranking_potentials
   
   function precondition_potentials(F_in, F_out) result(F)
     !---------------------------------------------------------------------------
@@ -1423,22 +1498,172 @@ $NTR    G_I_N = G_I_N + crank_current_potential()
     !          where P_a is the preconditioning operator for µ
     !          mean-field potential a.
     !------------------------------------------ ---------------------------------
+    
     type(PotentialVector), intent(in) :: F_in, F_out
     type(PotentialVector)             :: F
-    real(KIND=dp), allocatable :: update(:,:)
+    real(KIND=dp), allocatable        :: update(:,:)
+    real(KIND=dp)                     :: coul_in(mv,4), coul_out(mv,4)
+
+    integer                           :: i,j,k, ox, oy, oz, it
 
     call start_timer(T_potentials)
     call start_timer(T_pot_precon)
 
+    !---------------------------------------------------------------------------
     ! Everything which is not specifically preconditioned below just gets 
     ! explicitly copied from the new values.
     F = F_out
-
+    !---------------------------------------------------------------------------
+    ! Preconditioning for the Skyrme potentials: we safeguard against 
+    ! short wavelength modes with a high-pass filter.
 $POTENTIALPRECON
+
+    !---------------------------------------------------------------------------
+    ! Preconditioning for the Coulomb potential: we safeguard against 
+    ! long wavelength modes with a low-pass filter. This is typically only
+    ! necessary for calculations in very large boxes.
+if(kerker_k0 .gt. 0.0d0) then    
+    ! 1. get coulomb potentials on a typical mesh
+    coul_out = transfer_coulomb_mesh(F_out,.false.) 
+    coul_in  = transfer_coulomb_mesh(F_in,.false.)
+    ! 2. calculate the difference
+    update = coul_out - coul_in
+    ! 3. precondition
+    ! TODO: adapt call to symmetries of the calculation
+    !       experiment and document k0
+    update = KerkerPreconditionPotential(update,mixstepsize,kerker_k0,sx_rho,sy_rho,sz_rho)
+    ! 4. save the result
+    update = coul_in + update
+    call set_coul(update(:,1:2), F)
+endif
+
     call stop_timer(T_pot_precon)
     call stop_timer(T_potentials)
  
   end function precondition_potentials
+
+  function transfer_coulomb_mesh(F, exchange) result(pot)
+    !---------------------------------------------------------------------------
+    ! Restrict a Coulomb potential defined on the large grid defined as a 3D 
+    ! array to the grid of the rest of the code. This is abstracted because of 
+    ! the "if" statements  below.
+    ! 
+    ! Input:
+    !   F  : potentialvector containing the relevant fields
+    !   exchange : logical, determines whether to ask for the exchange or 
+    !              direct coulomb potential
+    ! Output:
+    !   pot: the requested coulomb field on the grid of the Skyrme potentials.
+    !---------------------------------------------------------------------------
+    use coulombmod
+
+    Type(PotentialVector), intent(in) :: F
+    logical, intent(in)               :: exchange
+    integer                           :: i,j,k, ox, oy, oz, it
+    real(KIND=dp)                     :: pot(mv,4)
+
+    pot = 0.0d0    
+    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+      &                             (.not. nucleonsize_selfconsistent)) then
+      !------------------------------------------------------------------------
+      ! Protons and neutrons are treated as point particles
+      !------------------------------------------------------------------------
+      ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            if(.not. exchange) then
+              pot(meshindex(i,j,k),2)=  F%CoulombPotential(i+ox,j+oy,k+oz)
+            else
+              pot(meshindex(i,j,k),2)=  F%ExchangePotential(i,j,k)
+            endif
+          enddo
+        enddo
+      enddo
+    else
+      !-----------------------------------------------------------------------
+      ! Use the folded coulombpotential, for full self-consistency.
+      ! Note that both protons and neutrons feel a Coulomb force if their
+      !  charge form factor is taken into account.
+      !-----------------------------------------------------------------------
+      if(.not. allocated(F%foldedcoul)) then
+        call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
+      endif
+      do it=1, 2
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              if(.not. exchange) then
+                pot(meshindex(i,j,k),it)= F%FoldedCoul(i,j,k,it)
+              else
+                pot(meshindex(i,j,k),it)= F%FoldedExchange(i,j,k,it)
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
+    
+    ! Make sure the potentials are consistent among neutron/proton and isospin 0/1 channels.
+    pot(:,3) = pot(:,1) + pot(:,2)
+    pot(:,4) = pot(:,1) - pot(:,2)
+    
+  end function transfer_coulomb_mesh
+  
+  subroutine set_coul(coul, F)
+    !---------------------------------------------------------------------------
+    ! Set the Coulombpotential of potentialvector F to the input function coul, 
+    ! at least within the zone that corresponds to the mesh of the other
+    ! potentials. This subroutine achieves more or less the inverse of 
+    ! transfer_coulomb_mesh.
+    !
+    ! Input:
+    !   coul :  Coulomb potential, defined on a (nx*ny*nz,4) grid
+    !      F : potentialvector
+    ! Output:
+    !      F : potentialvector with its direct Coulomb potential equal 
+    !          coul (with the exception of the points on the boundary.)
+    !---------------------------------------------------------------------------
+    use coulombmod
+    
+    real(KIND=dp), intent(in)            :: coul(nx*ny*nz,4)
+    Type(PotentialVector), intent(inout) :: F
+    integer                              :: i,j,k, ox, oy, oz, it
+
+    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+      &                             (.not. nucleonsize_selfconsistent)) then
+      !------------------------------------------------------------------------
+      ! Protons and neutrons are treated as point particles
+      !------------------------------------------------------------------------
+      ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            F%CoulombPotential(i+ox,j+oy,k+oz) = coul(meshindex(i,j,k),2) 
+          enddo
+        enddo
+      enddo
+    else
+      !-----------------------------------------------------------------------
+      ! Use the folded coulombpotential, for full self-consistency.
+      ! Note that both protons and neutrons feel a Coulomb force if their
+      !  charge form factor is taken into account.
+      !-----------------------------------------------------------------------
+      if(.not. allocated(F%foldedcoul)) then
+        call stp('Nucleonsize_selfconsistent cannot be .false. if the protons are not point particles.')
+      endif
+      do it=1,2
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              F%FoldedCoul(i,j,k,it) =coul(meshindex(i,j,k),it) 
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
+  
+  end subroutine set_coul
   
   pure function pow( f, alpha) result(pf)
     !---------------------------------------------------------------------------
@@ -1542,7 +1767,7 @@ end function INM_k4_pot
 
   function apply_sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &
-&                                        sx,sy,sz,iso, onthefly, F) result(hpsi)
+&                                        sx,sy,sz,iso, onthefly, Fin) result(hpsi)
     !---------------------------------------------------------------------------
     ! Apply the single-particle hamiltonian to a single-particle wavefunction.
     ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1556,7 +1781,7 @@ $N3                                 dddpsi, &
     !                not referenced when onthefly = .false.
     ! onthefly     : if .true., recalculate the derivatives of psi and store
     !                them in the array psi.
-    ! F            : a set of mean-field potentials determining the 
+    ! Fin          : a set of mean-field potentials determining the
     !                singleparticle hamiltonian
     ! - - - - - - - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Output:
@@ -1585,7 +1810,8 @@ $N3                                 dddpsi, &
     real(KIND=dp), intent(inout)      :: dpsi(mv,3,4),ddpsi(mv,6,4)
 $N3 real(KIND=dp), intent(inout)      :: dddpsi(mv,10,4)
     integer, intent(in)               :: sx(4),sy(4),sz(4), iso
-    type(PotentialVector), intent(in) :: F
+    type(PotentialVector), intent(in) :: Fin
+    type(PotentialVector)             :: F
 
     integer                   :: sym(4)
     real(KIND=dp)             :: hpsi(mv,4)
@@ -1607,6 +1833,15 @@ $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
     integer :: it, i,k
     
     call start_timer(T_sphamil)
+    !---------------------------------------------------------------------------
+    ! Dirty trick: the potential vector Fin contains all relevant information on
+    !              the potentials, namely F_I_I and the coulombpotential.
+    !              Below however, we only act with F_I_I; for the purpose of this
+    !              routine we add these potentials together.
+    !---------------------------------------------------------------------------
+    ! TODO: add in constraint_I_I to the definition of a potentialvector
+    F = Fin
+    call combine_potentials(F)
     !---------------------------------------------------------------------------
     ! Determine the isospin index
     it = (iso + 3)/2
@@ -2054,7 +2289,7 @@ $PVECTORINPRODUCT
     character(len=*), intent(in) :: ifn
 
     logical :: exists
-    integer :: i,j,k,io, it, mu, nu, ox, oy, oz, headercount, mpi_err
+    integer :: i,j,k,io, it, mu, nu, ox, oy, oz, headercount
     real(KIND=dp), allocatable :: Vc(:), Ec(:)
     real(KIND=dp)              :: x,y,z
     character(len=200)         :: temp
@@ -2152,31 +2387,34 @@ $TAUTENSOR      F%F_N_N(i,1,1,:) = F%F_N_N(i,1,1,:)/3
       enddo
     enddo
     
+    !----------------------------------------------------------------------------
+    ! F_I_I no longer contains the coulomb potentials; change of definition
+    !----------------------------------------------------------------------------
     if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
     &                             (.not. nucleonsize_selfconsistent)) then
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! No finite size effects; correction is simple
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      F%F_I_I(:,2) = F%F_I_I(:,2) + Vc(:) + Ec(:)
+    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !  ! No finite size effects; correction is simple
+    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+    !  F%F_I_I(:,2) = F%F_I_I(:,2) + Vc(:) + Ec(:)
     else
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Finite size effects taken into account
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Calculate folded potentials from the read-in potentials
+    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !  ! Finite size effects taken into account
+    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !  ! Calculate folded potentials from the read-in potentials
       call obtain_folded_potentials(F)
-      ! ... and correct F_I_I for them with ugly index juggling
-      do it=1, 2
-        do k=1,nz
-          do j=1,ny
-            do i=1,nx
-
-              F%F_I_I(meshindex(i,j,k),it)= F%F_I_I(meshindex(i,j,k),it)       &
-              &                           + F%FoldedCoul(i,j,k,it)             &
-              &                           + F%FoldedExchange(i,j,k,it)
-            enddo
-          enddo
-        enddo
-      enddo
+    !  ! ... and correct F_I_I for them with ugly index juggling
+    !  do it=1, 2
+    !    do k=1,nz
+    !      do j=1,ny
+    !        do i=1,nx
+    !
+    !          F%F_I_I(meshindex(i,j,k),it)= F%F_I_I(meshindex(i,j,k),it)       &
+    !          &                           + F%FoldedCoul(i,j,k,it)             &
+    !          &                           + F%FoldedExchange(i,j,k,it)
+    !        enddo
+    !      enddo
+    !    enddo
+    !  enddo
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
