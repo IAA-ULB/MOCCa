@@ -1135,11 +1135,14 @@ def GenVecProd(density, coupling):
     # Constructing the correct set of indices for allocation and declaration.
     order      =  OrderOfDen(density)
 
-    allocind   = ''
+    allocind       = ''
+    allocindhdf5   = ''
     for i in range(order - len(coupling)):
-        allocind = allocind + ',3'
+        allocind     = allocind     + ',3'
+        allocindhdf5 = allocindhdf5 + '*3'
     
-    dic['ALLOCIND'] = allocind
+    dic['ALLOCIND']     = allocind
+    dic['ALLOCINDHDF5'] = allocindhdf5
     dic['DECLIND']  = allocind.replace('3', ':')
     
     decl = tb.decl_template.substitute(dic)

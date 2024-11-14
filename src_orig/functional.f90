@@ -1891,7 +1891,6 @@ $WRITEPOTENTIALS
    type(PotentialVector), intent(in) :: F
    integer(hid_t), intent(in) :: file_id
 
-
    ! Then, for every potential write the 
    ! * Name 
    ! * Value
@@ -1900,8 +1899,8 @@ $WRITEPOTENTIALS
    ! string and comparisons can not be made.
 $WRITEPOTENTIALS_HDF5
  end subroutine WritePotentials_hdf5
- 
- subroutine hdf5_writepot(id, name, dset,n)
+
+  subroutine hdf5_writepot(id, name, dset,n)
     ! writes double precision dataset array with some name in the hdf5 file
     use HDF5
     character(len=30), intent(in) :: name
@@ -1926,7 +1925,7 @@ $WRITEPOTENTIALS_HDF5
     call h5sclose_f(space_id, error)
 
     if (error.ne.0) then
-      call stp('ERROR: writting integer attribute in hdf5 format')
+      call stp('ERROR: writting potentials in hdf5 format')
     endif
 
   end subroutine hdf5_writepot
@@ -1992,6 +1991,71 @@ $READPOTENTIALS
     enddo
 
   end function ReadPotentials
+
+  function ReadPotentials_hdf5(id, filenx, fileny, filenz, symtransfo_needed) &
+   & result(F)
+    !---------------------------------------------------------------------------
+    ! Subroutine that reads the different mean-field potentials from a 
+    ! wavefunction file created by a previous run of the code.
+    ! Notes:
+    !  1. now only sequental reading
+    !  2. this function should not be confused with the readpotentials_separate
+    !     routine below
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   chan                  : id of the group potentials
+    !   filenx, fileny,filenz : integers, number of mesh points in every 
+    !                           direction for the quantities on file
+    !   symtransfo_needed     : logical, if a symmetry transformation is 
+    !                           needed (.true.) or not (.false.)
+    !                  .false.: use the potentials as read from 
+    !                           file, transforming only the number of mesh 
+    !                           points if needed. 
+    !                  .true. : use the potentials from file for further 
+    !                           calculations. This means just reading them here
+    !                           and trusting the rest of the program to do the
+    !                           the rest.
+    ! Output:
+    !   F                      : a potential-vector, read from file
+    !---------------------------------------------------------------------------
+    integer(hid_t), intent(in) :: id
+    integer, intent(in)        :: filenx, fileny, filenz
+    logical, intent(in)        :: symtransfo_needed
+    type(PotentialVector)      :: F, F_temp
+    real(kind=dp), allocatable :: Ftmp(:) 
+    integer                    :: filemv, it
+
+    filemv = filenx * fileny * filenz
+
+$READPOTENTIALS_HDF5
+
+  end function ReadPotentials_hdf5
+
+  subroutine hdf5_readpot(id, name, dset, n)
+    ! reads double precision potential of length n with some name in the hdf5 file
+    use HDF5
+    character(len=*), intent(in) :: name
+    integer(hid_t), intent(in)   :: id
+    integer, intent(in)          :: n
+    real(kind=dp), intent(inout) :: dset(n)
+    integer(hid_t)               :: dset_id !identifiers
+    integer                      :: error
+    integer(hsize_t), dimension(1) :: dims, data_dims
+
+    dims=(/n/)
+    data_dims(1)=n
+    ! open dataset, "dset_id" is returned
+    call h5dopen_f(id, name, dset_id, error)
+    ! read dataset 
+    call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading potentials in hdf5 format')
+    endif
+
+  end subroutine hdf5_readpot
 
   function CompStabilisingFactor(PairE) result(stab)
     !---------------------------------------------------------------------------

@@ -408,18 +408,22 @@ contains
     !---------------------------------------------------------------------------
     ! High-level routine to determine the starting point of a calculation. 
     !
-    ! There are two main starting options, one of which has two suboptions
+    ! There are two main starting options, both of which has two suboptions
     !
     ! 1) Initialize in an EV8-style box with Nilsson orbitals
     !    a - start self-consistency cycles immediately
     !    b - read a set of potentials from file to start the calculations
     ! 
-    ! 2) Read a set of spwfs from file 
+    ! 2) Read a set of spwfs from: 
+    !    a - hdf5 file 
+    !    b - *.wf file 
     ! 
     ! Which option is chosen based on the InputFileName keyword: 
     !  - INIT (case insensitive) : option 1a, no reading of any file
     !  - *.pot                   : option 1b, reading of a potential file
-    !  - [any other filename]    : option 2, reading of a wavefunction file
+    !  - *.hdf5                  : option 2a, reading of a hdf5 wavefunction file
+    !  - [any other filename]    : option 2b, reading of an unformatted fortran 
+    !                                                      wavefunction file .wf
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! These inputs can then be amended by either
@@ -463,9 +467,12 @@ contains
     else if( standardized_input(lenchar-3:lenchar) .eq. '.POT') then
       ! option 1b : reading potentials
       inputoption = 1 
+    else if( standardized_input(lenchar-4:lenchar) .eq. '.HDF5') then
+      ! option 2a : reading complete .hdf5 file
+      inputoption = 2 
     else
-      ! option 2 : reading complete .wf file
-      inputoption = 2        
+      ! option 2b : reading complete .wf file
+      inputoption = 3        
     endif   
     !---------------------------------------------------------------------------
     ! Input options 
@@ -506,8 +513,11 @@ contains
       file_spwf_map     = spwf_map
       file_rank_map     = rank_map
       file_spwf_inverse = spwf_inverse
+    else if(inputoption.eq.2) then
+      ! Option 2a) start from a previous calculation with hdf5 input file
+      call ReadTantalus_hdf5(inputfilename)
     else
-      ! Option 2) start from a previous calculation.
+      ! Option 2b) start from a previous calculation with .wf input file
       call ReadTantalus(12, inputfilename)
       ! No need to guess gaps every time (unless the user asked for it)
     endif
@@ -1063,6 +1073,432 @@ contains
     endif
   end subroutine ReadTantalus
 
+subroutine ReadTantalus_hdf5(ifn)
+    !---------------------------------------------------------------------------
+    ! Reading all information from a previous Tantalus run stored in a .hdf5 file.
+    ! Sequental implementation as of now
+    !
+    ! This routine also performs a few sanity checks. 
+    ! Currently:
+    !   
+    !   *) equality of (nx,ny,nz) between data and file
+    !   *) equality of (nwn,nwp) between data and file
+    !   *) the symmetry encoding matches either SYM_CODE or TRANS_CODE
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   ifn  : character, name of the input file. 
+    !          The code will first check for its existence.
+    !---------------------------------------------------------------------------
+    ! 
+    ! Things read from file. (Not yet implemented ones are indicated by *)
+    !
+    ! Version                                          (integer attribute)
+    ! Convergence information: E, dE                   (*)
+    ! nx,ny,nz                                         (integer attributes)
+    ! dx                                               (double attribute)
+    ! Symmetry information                          (1)(char attribute)
+    ! neutrons,protons                                 (integer attributes)
+    ! nwn, nwp                                         (integer attribute)
+    ! Number of wavefunctions in every block           (1d-array int attribute)
+    ! spenergies, dispersions                          (1d-array dataset)
+    ! diagsphamil                                      (scalar attribute 1-true
+    !                                                                    0-flase)
+    ! HFtransfo                                        (*) not needed for pasta
+    ! (nwt) Wavefunctions                              (3d-array dataset)
+    ! Forcename                                        (char attribute)
+    ! Single-particle hamiltonian                      (*) not needed for pasta
+    ! Pairing information                              
+    !    - Pairingtype                                 (integer attribute)
+    !    - Rho_can = occupation factors                (1d-array dataset)
+    !      (HF)  
+    !        |   (nothing)
+    !      (BCS) 
+    !        |   Fermi level                           (double attributes)
+    !        |   BCSGaps                               (1d-array dataset)
+    !      (HFB)                                       (*) not for pasta
+    !        |   blocktype, blocknumber
+    !        |   block-sizes for HFB solver
+    !        |   blocklowest/blockindices
+    !        |   Fermi level
+    !        |   rho_pairing    
+    !        |   kappa_pairing
+    !        |   can_transfo
+    !        |   HFBgaps      
+    !        |   Bogoliubov transformation 
+    !        |   Configuration matrix   
+    ! CrankingInfo                                      (*) not needed for pasta
+    ! Potentials                                        (datasets in subgroup potentials)
+    ! Multipole Moments                                 (?) for later
+    !     | The code writes the data on ALL the multipole moments.
+    !     | For the format of the lines, see the Moments module.
+    !
+    !
+    !---------------------------------------------------------------------------    
+    use functional
+    use moments
+    use cranking
+    use HDF5 !is it here??
+    
+    character(len=*), intent(in) :: ifn
+    integer                      :: h5ferr, i
+    integer(HID_T)               :: file_id, root_id, group_id
+    character(len=1)             :: rootname
+    character(len=11)            :: groupname
+    character(len=20)            :: func_name_check
+    character(len=26)            :: SYM_CODE_CHECK
+    logical                      :: exists
+    real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
+    integer                      :: filediagsphamil_int
+    logical                      :: filediagsphamil 
+    logical                      :: check_x, check_y, check_z
+    logical                      :: check_nwn, check_nwp 
+    
+    
+    1 format ('Number of mesh points does not correspond to file.', / &
+    &         'On file: nx= ', i3, ' ny= ', i3, ' nz= ',i3,            / &
+    &         'In data: nx= ', i3, ' ny= ', i3, ' nz= ',i3)
+    2 format ('Number of wavefunctions does not correspond to file.', / &
+    &         'On file: nwn= ', i3, ' nwp=', i3,                      / &
+    &         'In data: nwn= ', i3, ' nwp=', i3)
+
+    3 format (' The symmetry choices  on file cannot be handled.')
+    4 format (' SYM_CODE   = ', a26)
+    5 format (' TRANS_CODE = ', a26)
+    6 format (' ON FILE    = ', a26)
+ 
+    !-------------------------------------------------------------------------
+    ! First check if the file exists.
+    inquire(file=inputfilename, exist=exists)
+    if(.not.exists) then
+      call stp('Input file specified does not exist!')
+    endif
+
+    !Initialize hdf5 interface 
+    call h5open_f(h5ferr)
+    !open the file
+    call h5fopen_f(ifn,H5F_ACC_RDONLY_F,file_id,h5ferr)
+    !open the root group; looks like it is not needed
+    !rootname='/'
+    !call h5gopen_f(file_id,rootname,root_id,h5ferr)
+    root_id=file_id
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Purely sequential 
+    ! read information with subroutines 
+    ! subroutine structure hdf5_read(file_id, name, data, size)
+    call hdf5_read_attr_integer(root_id, 'version_number', file_version)
+    if(file_version .gt. version_number) then
+      call stp('Unsupported version number of the .wf file.')
+    endif
+
+    ! Convergence information                                (NOT IMPLEMENTED)
+    
+    !Parameters of the mesh
+    call hdf5_read_attr_integer(root_id, 'nx', filenx)
+    call hdf5_read_attr_integer(root_id, 'ny', fileny)
+    call hdf5_read_attr_integer(root_id, 'nz', filenz)
+    call hdf5_read_attr_double(root_id,  'dx', filedx)
+    filemv = filenx*fileny*filenz
+
+    ! Symmetry information       
+    call hdf5_read_attr_char(root_id, 'SYM_CODE', SYM_CODE_CHECK, len(SYM_CODE_CHECK,kind=8))
+
+    if(SYM_CODE_CHECK .eq. SYM_CODE) then
+      symtransfo_needed = .false.
+    elseif(SYM_CODE_CHECK .eq. TRANS_CODE) then
+      symtransfo_needed = .true.
+    else
+      print 3
+      print 4, SYM_CODE 
+      print 5, TRANS_CODE
+      print 6, SYM_CODE_CHECK
+      call stp('')
+    endif
+
+    !Number of protons and neutrons are integers here, but usually double in the code?
+    call hdf5_read_attr_integer(root_id, 'neutrons', fileneutrons)
+    call hdf5_read_attr_integer(root_id, 'protons', fileprotons)
+    ! HFBLocks information 
+    call hdf5_read_attr_integer(root_id, 'nwn', filenwn)
+    call hdf5_read_attr_integer(root_id, 'nwp', filenwp)
+    call hdf5_read_attr_integer_1d(root_id, 'hfblocks_global', fileblocks_global, 8)
+    filenwt = filenwn + filenwp
+    
+    !---------------------------------------------------------------------------   
+    ! This is needed for fileblock even in sequential reading case
+    ! .. now we have each rank decide what spwfs to take from file
+    call loadbalance(fileblocks_global,balancing_strategy, &           ! inputs
+    &       fileblocks, file_spwf_map, file_rank_map,file_spwf_inverse)! outputs
+
+    ! Arrays like these are stored on all ranks, hence "filenwt"
+    allocate(spenergies (filenwt))
+    allocate(dispersions(filenwt))
+    allocate(HFtransfo  (filenwt,filenwt)) ; HFtransfo   = 0.0d0
+    allocate(sphamil(filenwt,filenwt)) ; sphamil = 0.0d0
+
+    if (allocated(rho_can)) deallocate(rho_can)
+    allocate(rho_can(filenwt))
+
+    call hdf5_read_dataset_1d(root_id, 'spenergies',  spenergies, filenwt)
+    call hdf5_read_dataset_1d(root_id,'dispersions', dispersions, filenwt)
+    
+    call hdf5_read_attr_integer(root_id, 'diagsphamil', filediagsphamil_int)
+    if(filediagsphamil_int.eq.1) then
+      filediagsphamil=.true.
+    else
+      filediagsphamil=.false.
+    end if
+    !---------------------------------------------------------------------------
+    ! Reading the spwfs from file
+    !---------------------------------------------------------------------------
+    ! Sequentally!
+    allocate(HFPsi(filenx*fileny*filenz,4, filenwt))
+    call hdf5_read_wf(root_id,'wavefunctions', HFpsi, filenx*fileny*filenz, filenwt)
+    !---------------------------------------------------------------------------
+
+    !--------------------------------------------------------------------------- 
+    ! Name of the force and functional and full s.p. hamiltonian matrix
+    call hdf5_read_attr_char(root_id, 'name_param', ini_name_param, len(ini_name_param,kind=8))
+    call hdf5_read_attr_char(root_id, 'func_name', func_name_check, len(func_name_check,kind=8))
+    !---------------------------------------------------------------------------
+    ! Pairing information
+    call hdf5_read_attr_integer(root_id, 'PairingType', filepairing)
+    call hdf5_read_dataset_1d(root_id, 'rho_can',  rho_can, filenwt)
+
+    select case (filepairing)
+    case(0) !-------------------------------------------------------------------
+        ! HF: nothing to read
+    case(1) !-------------------------------------------------------------------
+        ! BCS calculation: read the gaps
+        allocate(filegaps(filenwt,1))
+        call hdf5_read_attr_double(root_id, 'FermiEnergyn', FermiEnergy(1))
+        call hdf5_read_attr_double(root_id, 'FermiEnergyp', FermiEnergy(2))
+        call hdf5_read_dataset_1d(root_id, 'BCSGaps',  filegaps, filenwt)
+
+        ! Simply copy the gaps for now
+        select case(pairingtype)
+        case(0)
+          ! Do nothing
+        case(1)
+          allocate(BCSGaps(filenwt)) ;  BCSGaps = filegaps(:,1)
+        case(2)
+          allocate(HFBgaps(filenwt, filenwt)) ; HFBgaps = 0
+          do i=1, filenwt
+              HFBgaps(i,i) = filegaps(i,1)
+          enddo
+        end select
+    case(2) !-------------------------------------------------------------------
+        ! HFB calculation
+        ! not included
+    end select
+    !---------------------------------------------------------------------------
+    ! Cranking information
+    ! not implemented
+
+    !---------------------------------------------------------------------------
+    ! Potentials: note that readpotentials handles all MPI affairs itself
+    !open the potentials group
+    groupname='/potentials'
+    call h5gopen_f(file_id,groupname,group_id,h5ferr)
+    potentials_read = readpotentials_hdf5(group_id,filenx,fileny,filenz,symtransfo_needed)
+    call h5gclose_f(group_id, h5ferr)
+    !-------------------------------------------------------------------------
+    ! Multipole moment information
+    ! not implemented
+
+    !-------------------------------------------------------------------------
+    ! End of reading
+    ! close the root group
+    !call h5gclose_f(root_id, h5ferr)
+    ! Close the file
+    call h5fclose_f(file_id, h5ferr)
+    ! Close FORTRAN interface
+    call h5close_f(h5ferr)
+
+    !-------------------------------------------------------------------------
+    ! Sanity checks if transformation is not allowed
+    if(.not.  AllowTransform) then
+      if((filenx.ne.nx).or. (fileny.ne.ny) .or. (filenz.ne.nz)) then
+          print 1, filenx, fileny, filenz, nx,ny,nz
+          call stp('')
+      endif
+      if(filenwn.ne.nwn .or. filenwp.ne.nwp) then
+          print 2, filenwn, filenwp, nwn, nwp
+          call stp('')
+      endif
+    else
+      ! We do not allow modification of the mesh, s.p. wavefunctions and 
+      ! symmetry transformations at the same time. 
+      check_x = (nx .ne. filenx) .and. (nx .ne. 2*filenx)
+      check_y = (ny .ne. fileny) .and. (ny .ne. 2*fileny)
+      check_z = (nz .ne. filenz) .and. (nz .ne. 2*filenz)
+
+      check_nwn = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
+      check_nwp = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
+
+      if(symtransfo_needed) then
+       if(check_x .or. check_y .or. check_z) then 
+        call stp("Please don't combine symmetry transformations and mesh modifications.")
+       endif  
+       if(check_nwn .or. check_nwp ) then 
+        call stp("Please don't combine symmetry transformations and adding wavefunctions.")
+       endif  
+      endif
+    endif
+  end subroutine ReadTantalus_hdf5
+  
+  subroutine hdf5_read_attr_char(id, name, attribute, n)
+    ! reads character scalar attribute with some name from the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer(HID_T)             :: attribute_id !identifiers
+    integer(HID_T)             :: type_id !identifiers
+    integer                    :: error
+    Integer(size_t)            :: n
+    character(len=*), intent(in) :: name
+    character(len=*), intent(inout) :: attribute
+    Integer(hsize_t), dimension (1) :: dims
+
+    dims(1)=n
+    !open attribute
+    call h5aopen_name_f(id, name, attribute_id, error)
+    !get the type
+    call h5aget_type_f(attribute_id, type_id, error)
+    !read attribute
+    call h5aread_f(attribute_id, type_id, attribute, dims, error)
+    !close the attribute
+    call h5aclose_f(attribute_id,error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading character attribute in hdf5 format')
+    endif
+  end subroutine hdf5_read_attr_char
+  
+  subroutine hdf5_read_attr_integer(id, name, attribute)
+    ! reads integer scalar attribute with some name from the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer(HID_T)             :: attribute_id !identifiers
+    integer                    :: error
+    character(len=*), intent(in) :: name
+    integer, intent(inout)       :: attribute
+    Integer(size_t), dimension (1) :: dims
+
+    dims(1)=1
+    !open attribute
+    call h5aopen_name_f(id, name, attribute_id, error)
+    !read attribute
+    call h5aread_f(attribute_id, H5T_Native_Integer, attribute, dims, error)
+    !close the attribute
+    call h5aclose_f(attribute_id,error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading integer attribute in hdf5 format')
+    endif
+  end subroutine hdf5_read_attr_integer
+  
+  subroutine hdf5_read_attr_integer_1d(id, name, attribute, n)
+    ! reads integer array attribute with some name from the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer, intent(in)        :: n
+    integer(HID_T)             :: attribute_id !identifiers
+    integer                    :: error
+    character(len=*), intent(in) :: name
+    integer, intent(inout)       :: attribute(n)
+    Integer(size_t), dimension (1) :: dims
+
+    dims(1)=n
+    !open attribute
+    call h5aopen_name_f(id, name, attribute_id, error)
+    !read attribute
+    call h5aread_f(attribute_id, H5T_Native_Integer, attribute, dims, error)
+    !close the attribute
+    call h5aclose_f(attribute_id,error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading integer array attribute in hdf5 format')
+    endif
+  end subroutine hdf5_read_attr_integer_1d
+
+
+  subroutine hdf5_read_attr_double(id, name, attribute)
+    ! reads double precision scalar attribute with some name from the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer(HID_T)             :: attribute_id !identifiers
+    integer                    :: error
+    character(len=*), intent(in) :: name
+    real(kind=dp), intent(inout) :: attribute
+    Integer(size_t), dimension (1) :: dims
+
+    dims(1)=1
+    !open attribute
+    call h5aopen_name_f(id, name, attribute_id, error)
+    !read attribute
+    call h5aread_f(attribute_id, H5T_Native_Double, attribute, dims, error)
+    !close the attribute
+    call h5aclose_f(attribute_id,error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading double precision attribute in hdf5 format')
+    endif
+  end subroutine hdf5_read_attr_double
+  
+  subroutine hdf5_read_dataset_1d(id, name, dset, n)
+    ! reads double precision dataset array of length n with some name in the hdf5 file
+    use HDF5
+    character(len=*), intent(in) :: name
+    integer(hid_t), intent(in)   :: id
+    integer, intent(in)          :: n
+    real(kind=dp), intent(inout) :: dset(n)
+    integer(hid_t)               :: dset_id !identifiers
+    integer                      :: error
+    integer(hsize_t), dimension(1) :: dims, data_dims
+
+    dims=(/n/)
+    data_dims(1)=n
+    ! open dataset, "dset_id" is returned
+    call h5dopen_f(id, name, dset_id, error)
+    ! read dataset 
+    call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading dataset in hdf5 format')
+    endif
+
+  end subroutine hdf5_read_dataset_1d
+  
+  subroutine hdf5_read_wf(id, name, dset, np, nwt)
+    ! reads wafefunctions dataset array of size (np,4,nwt) from the hdf5 file
+    use HDF5
+    character(len=*), intent(in) :: name
+    integer(hid_t), intent(in)   :: id
+    integer, intent(in)          :: np,nwt
+    real(kind=dp), intent(inout) :: dset(np,4,nwt)
+    integer(hid_t)               :: dset_id !identifiers
+    integer                      :: error
+    integer(hsize_t), dimension(3) :: dims, data_dims
+
+    dims=(/np,4,nwt/)
+    data_dims(1)=np
+    data_dims(2)=4
+    data_dims(1)=nwt
+    ! open dataset, "dset_id" is returned
+    call h5dopen_f(id, name, dset_id, error)
+    ! read dataset 
+    call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading wafefunctions in hdf5 format')
+    endif
+
+  end subroutine hdf5_read_wf
+
   subroutine WriteTantalus(chan, ofn)
     !---------------------------------------------------------------------------
     ! Subroutine that dumps all information to a .wf file for future runs.
@@ -1281,21 +1717,23 @@ contains
     !---------------------------------------------------------------------------
     ! Things written to file. (Not yet implemented ones are indicated by (*) )
     !
-    ! Version                                          (char attribute)
+    ! Version                                          (integer attribute)
     ! Convergence information: E, dE                   (*)
-    ! nx,ny,nz,dx,dt                                   (scalar attributes)  
+    ! nx,ny,nz                                         (integer attributes)  
+    ! dx                                               (double attributes)  
     ! Symmetry information                             (char attribute)
-    ! neutrons,protons                                 (scalar attribute)  
-    ! nwn, nwp                                         (scalar attribute)
-    ! Number of wavefunctions in every block           (1d-array dataset)
+    ! neutrons,protons                                 (double attributes)  
+    ! nwn, nwp                                         (integer attributes)
+    ! Number of wavefunctions in every block           (1d-array attribute)
     ! spenergies, dispersions                          (1d-array dataset)
-    ! diagsphamil                                      (scalar attribute 1-true)
+    ! diagsphamil                                      (integer attribute 1-true
+    !                                                                    0-false)
     ! HFtransfo                                        (*) not needed for pasta
     ! (nwt) Wavefunctions                              (3d-array dataset)
-    ! Forcename                                        (scalar attribute)
+    ! Forcename                                        (char attribute)
     ! Single-particle hamiltonian                      (*) not needed for pasta
     ! Pairing information                              
-    !    - Pairingtype                                 (scalar attribute)
+    !    - Pairingtype                                 (integer attribute)
     !    - Rho_can = occupation factors                (1d-array dataset)
     !      (HF)  
     !        |   (nothing)
@@ -1314,7 +1752,7 @@ contains
     !        |   Bogoliubov transformation 
     !        |   Configuration matrix   
     ! CrankingInfo                                      (*) not needed for pasta
-    ! Potentials                                        (datasets in subgroup potentials)
+    ! Potentials                                        (datasets in group potentials)
     ! Multipole Moments                                 (?) for later
     !     | The code writes the data on ALL the multipole moments.
     !     | For the format of the lines, see the Moments module.
@@ -1330,7 +1768,7 @@ contains
 
     character(len=*), intent(in) :: ofn
     integer(HID_T)               :: file_id, group_id !file and group identifier
-    integer                      :: h5ferr,i
+    integer                      :: h5ferr
 
     !Initialize hdf5 interface 
     call h5open_f(h5ferr)
@@ -1341,7 +1779,7 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Purely sequential 
     !write down information with subroutines 
-    !subroutine structure hdf5_write(file_id, name, data)
+    !subroutine structure hdf5_write(file_id, name, data,size)
     call hdf5_write_attr_integer(file_id, 'version_number', version_number)
     ! Convergence information                                (NOT IMPLEMENTED)
     !Parameters of the mesh
@@ -1377,8 +1815,8 @@ contains
     ! Name of the force.
     call hdf5_write_attr_char(file_id, 'name_param', trim(name_param))
     call hdf5_write_attr_char(file_id, 'func_name', trim(func_name))
+    
     ! Single-particle hamiltonian (?) not needed
-    !write(chan, iostat=io) sphamil
     !-------------------------------------------------------------------------
     ! Pairing information 
     call hdf5_write_attr_integer(file_id, 'PairingType', PairingType)
@@ -1464,7 +1902,7 @@ contains
     Call h5tclose_f(type_id, error)
 
     if (error.ne.0) then
-      call stp('ERROR: writting integer attribute in hdf5 format')
+      call stp('ERROR: writting character attribute in hdf5 format')
     endif
   end subroutine hdf5_write_attr_char
 
@@ -1495,7 +1933,7 @@ contains
   end subroutine hdf5_write_attr_integer
   
   subroutine hdf5_write_attr_integer_1d(id, name, attribute, n)
-    ! writes integer scalar attribute with some name in the hdf5 file
+    ! writes integer array attribute with some name in the hdf5 file
     use HDF5
     integer(hid_t), intent(in) :: id
     integer(hid_t)             :: space_id, attribute_id !identifiers
@@ -1518,7 +1956,7 @@ contains
     Call h5sclose_f(space_id, error)
 
     if (error.ne.0) then
-      call stp('ERROR: writting integer attribute in hdf5 format')
+      call stp('ERROR: writting integer array attribute in hdf5 format')
     endif
   end subroutine hdf5_write_attr_integer_1d
 
@@ -1544,7 +1982,7 @@ contains
     Call h5sclose_f(space_id, error)
 
     if (error.ne.0) then
-      call stp('ERROR: writting integer attribute in hdf5 format')
+      call stp('ERROR: writting double attribute in hdf5 format')
     endif
   end subroutine hdf5_write_attr_double
 
@@ -1573,13 +2011,13 @@ contains
     call h5sclose_f(space_id, error)
 
     if (error.ne.0) then
-      call stp('ERROR: writting integer attribute in hdf5 format')
+      call stp('ERROR: writting dataset in hdf5 format')
     endif
 
   end subroutine hdf5_write_dataset_1d
 
   subroutine hdf5_write_wf(id, name, dset, np, nwt)
-    ! writes double precision dataset array of length n with some name in the hdf5 file
+    ! writes wavefunctions of shape (np,4,nwt) in the hdf5 file
     use HDF5
     character(len=*), intent(in) :: name
     integer(hid_t), intent(in) :: id
@@ -1605,7 +2043,7 @@ contains
     call h5sclose_f(space_id, error)
 
     if (error.ne.0) then
-      call stp('ERROR: writting integer attribute in hdf5 format')
+      call stp('ERROR: writting wafefunctions in hdf5 format')
     endif
 
   end subroutine hdf5_write_wf

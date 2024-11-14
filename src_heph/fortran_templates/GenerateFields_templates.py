@@ -65,6 +65,16 @@ field_read_d  = T(4*tab + '$POTREAD F%$FIELD = F_temp%${FIELD} \n'            \
                 + 4*tab + '$UNDOREAD deallocate(F%$FIELD, F_temp%${FIELD}) \n')
 field_read_e  = T(3*tab +  'else \n')
 field_read_f  = T(3*tab +  'endif \n')
+# hdf5 option
+field_read_hdf5_a = T(tab +  'allocate(F%${FIELD}(mv$ALLOCIND,$ISOSIZE),F_temp%${FIELD}(mv$ALLOCIND,$ISOSIZE),Ftmp(mv$ALLOCINDHDF5*$ISOSIZE))\n')
+field_read_hdf5_b = T(tab +  'call hdf5_readpot(id, "$FIELD", Ftmp, size(Ftmp))\n'  \
+                    + tab +  'F_temp%${FIELD}=reshape(Ftmp,(/mv$ALLOCIND,$ISOSIZE/))\n' \
+                    + tab +  'deallocate(Ftmp)                                 \n')
+field_read_hdf5_c = T(tab +  'if(symtransfo_needed) then    \n')
+field_read_hdf5_d = T(2*tab + '$POTREAD F%$FIELD = F_temp%${FIELD} \n'            \
+                + 2*tab + '$UNDOREAD deallocate(F%$FIELD, F_temp%${FIELD}) \n')
+field_read_hdf5_e = T(tab +  'else \n')
+field_read_hdf5_f = T(tab +  'endif \n')
 # ..... and to transform fields with different symmetries
 field_transfo = \
 T( \
@@ -78,6 +88,18 @@ field_transfo_recomb = \
 T( \
        + 4*tab + 'F%${FIELD}(:$DECLIND,3) = F%${FIELD}(:$DECLIND,1) + F%${FIELD}(:$DECLIND,2) \n' \
        + 4*tab + 'F%${FIELD}(:$DECLIND,4) = F%${FIELD}(:$DECLIND,1) - F%${FIELD}(:$DECLIND,2) \n')
+field_transfo_hdf5 = \
+T( \
+       + 2*tab + 'do it=1,2 \n'                                                                   \
+       + 3*tab + 'F%${FIELD}(:$IND,it) = & \n'                                                    \
+       + 3*tab + '&  changeboxsize_function(F_temp%${FIELD}(:$IND,it), filenx, fileny, filenz) \n'\
+       + 2*tab + 'enddo \n'
+       )
+
+field_transfo_recomb_hdf5 = \
+T( \
+       + 2*tab + 'F%${FIELD}(:$DECLIND,3) = F%${FIELD}(:$DECLIND,1) + F%${FIELD}(:$DECLIND,2) \n' \
+       + 2*tab + 'F%${FIELD}(:$DECLIND,4) = F%${FIELD}(:$DECLIND,1) - F%${FIELD}(:$DECLIND,2) \n')
 #-------------------------------------------------------------------------------
 # Templates for preconditioning 
 field_precon_start= \
