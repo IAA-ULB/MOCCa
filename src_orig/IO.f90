@@ -1808,7 +1808,8 @@ subroutine ReadTantalus_hdf5(ifn)
       call hdf5_write_attr_integer(file_id, 'diagsphamil', 0)
     endif
     !write(chan, iostat=io) HFtransfo ? not needed
-
+    
+    !call hdf5_write_dataset_1d(file_id, 'wavefunctions', HFpsi, nwt*4*nx*ny*nz)
     call hdf5_write_wf(file_id, 'wavefunctions', HFpsi, nx*ny*nz, nwt)
 
 
@@ -1993,7 +1994,7 @@ subroutine ReadTantalus_hdf5(ifn)
     integer(hid_t), intent(in) :: id
     integer,        intent(in) :: n
     real(kind=dp),  intent(in) :: dset(n)
-    integer(hid_t)             :: space_id, dset_id !identifiers
+    integer(hid_t)             :: space_id, dset_id, plist_id !identifiers
     integer                    :: error
     integer(hsize_t), dimension(1) :: dims,data_dims
 
@@ -2001,14 +2002,25 @@ subroutine ReadTantalus_hdf5(ifn)
     data_dims(1)=n
     ! Create dataspace for data_set 
     call h5screate_simple_f(1, dims, space_id, error)
+    ! create property list
+    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, error)
+    ! create chunks with property list for compression, as of now size of chunk      
+    ! is just equal to the size of array. Modify for MPI reading?
+    call h5pset_chunk_f(plist_id, 1, dims, error)
+    ! shuffling for better compression?
+    call h5pset_shuffle_f(plist_id, error)
+    ! zlib compression with deflate
+    call h5pset_deflate_f(plist_id, comprlvl, error)
     ! Create dataset with default properties "dset_id" is returned
-    call h5dcreate_f(id, name, H5T_NATIVE_DOUBLE, space_id, dset_id, error)
+    call h5dcreate_f(id,name,H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
     ! Write dataset 
     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
     ! Close access to dataset 
     call h5dclose_f(dset_id, error)
     ! Close access to data space 
     call h5sclose_f(space_id, error)
+    ! close access to plist
+    call h5pclose_f(plist_id, error)
 
     if (error.ne.0) then
       call stp('ERROR: writting dataset in hdf5 format')
@@ -2023,24 +2035,36 @@ subroutine ReadTantalus_hdf5(ifn)
     integer(hid_t), intent(in) :: id
     integer,        intent(in) :: np, nwt
     real(kind=dp),  intent(in) :: dset(np,4,nwt) !dset(np*4*nwt)
-    integer(hid_t)             :: space_id, dset_id !identifiers
+    integer(hid_t)             :: space_id, dset_id, plist_id  !identifiers
     integer                    :: error
-    integer(hsize_t), dimension(3) :: dims,data_dims
+    integer(hsize_t), dimension(3) :: dims,data_dims!,chdims
 
     dims=(/np,4,nwt/)
     data_dims(1)=np
     data_dims(2)=4
     data_dims(3)=nwt
     ! Create dataspace for data_set 
-    call h5screate_simple_f(3, dims, space_id, error) !3->1, dims=size(dset)
+    call h5screate_simple_f(3, dims, space_id, error) !option for future 3->1
+    ! create property list
+    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, error)
+    ! create chunks with property list for compression, as of now size of chunk  
+    ! is just equal to the size of array (for some reason work better). 
+    ! Modify for MPI reading?
+    call h5pset_chunk_f(plist_id, 3, dims, error)
+    ! shuffling for better compression?
+    call h5pset_shuffle_f(plist_id, error)
+    ! zlib compression with deflate
+    call h5pset_deflate_f(plist_id, comprlvl, error)
     ! Create dataset with default properties "dset_id" is returned
-    call h5dcreate_f(id, name, H5T_NATIVE_DOUBLE, space_id, dset_id, error)
+    call h5dcreate_f(id,name,H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
     ! Write dataset 
     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
     ! Close access to dataset 
     call h5dclose_f(dset_id, error)
     ! Close access to data space 
     call h5sclose_f(space_id, error)
+    ! close access to plist
+    call h5pclose_f(plist_id, error)
 
     if (error.ne.0) then
       call stp('ERROR: writting wafefunctions in hdf5 format')

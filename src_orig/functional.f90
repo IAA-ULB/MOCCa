@@ -145,6 +145,8 @@ module functional
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
+     ! level of compression in hdf5, 6 seems to be the best
+    integer, parameter  :: comprlvl = 6
     !---------------------------------------------------------------------------
     ! Numerical parameter of the preconditioning of the potentials
     real(KIND=dp) :: preconfactor = 4.0_dp
@@ -1907,22 +1909,35 @@ $WRITEPOTENTIALS_HDF5
     integer(hid_t), intent(in) :: id
     integer       , intent(in) :: n
     real(kind=dp),  intent(in) :: dset(n) 
-    integer(hid_t)             :: space_id, dset_id 
+    integer(hid_t)             :: space_id, dset_id, plist_id  
     integer                    :: error
-    integer(hsize_t), dimension(1) :: dims,data_dims
+    integer(hsize_t), dimension(1) :: dims,data_dims!, chdims
 
     dims=(/n/)
     data_dims(1)=n
     ! Create dataspace for data_set 
     call h5screate_simple_f(1, dims, space_id, error)
+    ! create property list
+    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, error)
+    ! create chunks with property list for compression, as of now size of chunk  
+    ! is just equal to the size of array (for some reason work better). 
+    ! Modify for MPI reading?
+    call h5pset_chunk_f(plist_id, 1, dims, error)
+    ! shuffling for better compression?
+    call h5pset_shuffle_f(plist_id, error)
+    ! zlib compression with deflate
+    call h5pset_deflate_f(plist_id, comprlvl, error)
     ! Create dataset with default properties "dset_id" is returned
-    call h5dcreate_f(id,'potentials/'//trim(name),H5T_NATIVE_DOUBLE, space_id, dset_id, error)
+    call h5dcreate_f(id,'potentials/'//trim(name),H5T_NATIVE_DOUBLE, space_id, &
+                     dset_id, error, plist_id)
     ! Write dataset 
     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
     ! Close access to dataset 
     call h5dclose_f(dset_id, error)
     ! Close access to data space 
     call h5sclose_f(space_id, error)
+    ! close access to plist
+    call h5pclose_f(plist_id, error)
 
     if (error.ne.0) then
       call stp('ERROR: writting potentials in hdf5 format')
