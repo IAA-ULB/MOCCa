@@ -720,13 +720,13 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
         &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
-        &   .true. , 1, ifail)
+        &   .true. , 1, HFBmix, ifail)
       case(-1)
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                &
         &   kappa_pairing, configmatrix, qpenergies,BlockType, Blockindices,   &
         &   blocklowest, blocked_qps, partner_qps, partner_overlaps,           &
-        &  .false., 1, ifail)
+        &  .false., 1,HFBmix, ifail)
       end select
     end select
     ! Construct the density in the Hartree-Fock basis 

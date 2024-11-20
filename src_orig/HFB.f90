@@ -362,9 +362,8 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     !    program.
     call reorganise_matrices(Bogoliubov,qpenergies,configmatrix)
     !---------------------------------------------------------------------------
-    !    Construct the density and anomalous density matrices, based on the 
-    !    configmatrix and the Bogoliubov transformation
-    call PairingMatrices(configmatrix, bogoliubov, rho_pairing, kappa_pairing)
+    !    Construct the density and anomalous density matrices
+    call PairingMatrices(configmatrix,bogoliubov,rho_pairing,kappa_pairing)
     !---------------------------------------------------------------------------
     ! optional mixing of density matrices to stabilise convergence
     call mix_pairing(mix, rho_pairing, kappa_pairing)
@@ -377,7 +376,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType, Blockindices,              &
   &                          blocklowest, blocked_qps, partner_qps,            & 
-  &                          p_overlaps, move, maxhfbiter,  ifail) 
+  &                          p_overlaps, move, maxhfbiter, mix, ifail) 
     !---------------------------------------------------------------------------
     ! Driver routine for solving the HFB equations by heavy-ball evolution in 
     ! the manifold of Bogoliubov states connected by a Thouless transformation.
@@ -398,8 +397,9 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     !                       after the heavy-ball step.
     !   move         : logical. 
     !                   .true. : update the Bogoliubov transformation
-    !                   .false.: don't move (useful for initialisation)                    
-    !
+    !                   .false.: don't move (useful for initialisation)         
+    !   mix          : mixing factor for density matrix mixing 
+    ! 
     ! Output         :
     !   Bogo         : evolved Bogoliubov transformation
     !   configmatrix : new configuration (see remark below)
@@ -461,7 +461,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     integer, intent(inout)       :: ifail
     integer, intent(in)          :: maxhfbiter
     logical, intent(in)          :: move
-
+    real(KIND=dp), intent(in)    :: mix
     integer, intent(in)                       :: BlockType
     integer, intent(in), allocatable          :: Blockindices(:)
     character(len=2), intent(in), allocatable :: BlockLowest(:)
@@ -478,10 +478,10 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     if(allocated(blockindices)) trash = 0.0d0
 
     if(.not.allocated(rho_history)) then
-      allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
-      allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0
-      allocate(configmatrix_history(2*nwt))     ; configmatrix_history = 0.0
-      allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0
+      allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0d0
+      allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0d0
+      allocate(configmatrix_history(2*nwt))     ; configmatrix_history = 0.0d0
+      allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0d0
     endif
 
     if(.not.allocated(Z_updates)) then
@@ -614,6 +614,9 @@ $TR    endif
     !---------------------------------------------------------------------------
     ! Calculate the density and anomalous density matrix
     call PairingMatrices(configmatrix, bogo, rho_pairing, kappa_pairing)
+    !---------------------------------------------------------------------------
+    ! optional mixing of density matrices to stabilise convergence
+    call mix_pairing(mix, rho_pairing, kappa_pairing)
     !---------------------------------------------------------------------------
     ! Final organisation of the Bogoliubov transformation B and QP energies. 
     call correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFBlocks_global, &
@@ -1404,7 +1407,7 @@ $TR    dispersion = 2 * dispersion
     !      rho   = mix * rho   + (1-mix) * rho_history
     !      kappa = mix * kappa + (1-mix) * kappa_history
     ! 
-    ! The actual mixing only gets performed however if kappa did not change too
+    ! The actual mixing only gets performed if kappa did not change too
     ! violently. This reflects experiments of M. Bender that he emailed to W.R.
     ! on 14/08/2024: the short summary is that, depending on the initialisation
     ! of the entire run, naive mixing would or would not destroy convergence.
@@ -1456,9 +1459,16 @@ $TR    dispersion = 2 * dispersion
     !    rho   = U   f U^\dagger + V^* (1 - f) V^T
     !    kappa = U   f V^\dagger + V^* (1 - f) U^T  
     !
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !  Notice how this routine only uses the last half of the columns of the  
     !  Bogoliubov transformation.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !    config: the configuration matrix, i.e. f, in most of the literature
+    !    bogo  : the complete bogoliubov transformation
+    ! Output: 
+    !    rho   : new values for the density matrix
+    !    kappa : new values for the 
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: config(:), Bogo(:,:)
