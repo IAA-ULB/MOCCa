@@ -249,8 +249,7 @@ $NTR        enddo
 $NTR      enddo
 $NTR      si = si + N
 $NTR    enddo
-$NTR    crankenergy     = - omega * TotalAngMom
-$NTR    crankenergy_cut = - omega * TotalAngMom_cut
+$NTR
 $NTR    !-------------------------------------------------------------------------
 $NTR    ! And now we integrate the current density and spin density.
 $NTR    totalangmom_dens = 0.0
@@ -270,9 +269,14 @@ $NTR        TotalAngMom_cut(3)  = TotalAngMom_cut(3) + cutoff(i,it) * &
 $NTR        & (- meshgrid(i,2) * C_I_N(i,1,it) + meshgrid(i,1) * C_I_N(i,2,it))
 $NTR      enddo
 $NTR    enddo
-
 $NTR    TotalAngMom_dens = TotalAngMom_dens * dv
 $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
+
+$NTR    !-----------------------------------------------------------------------
+$NTR    ! The contribution of the cranking constraint to the total Routhian
+$NTR    crankenergy     = - omega * TotalAngMom
+$NTR    crankenergy_cut = - omega * TotalAngMom_cut
+
 
   end subroutine updateAM
 
