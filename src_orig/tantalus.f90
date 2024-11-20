@@ -473,6 +473,7 @@ subroutine ReachForWaterAndFood()
             &              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then
               call update_spwf_properties( .true. ) ! expensive version
             endif
+
             call updateAM
             call ReadjustCranking
 
@@ -654,18 +655,24 @@ subroutine printsummary(iter)
       endif
     enddo
 
-    if(cranktype(3) .eq. 1) then
-      devJ = TotalAngMom(3) - CrankValues(3)
-    else
-      devJ = 0.0
-    endif
-    if(.not. crank_smooth) then
+    if(.not.crank_smooth) then
+      if(cranktype(3) .eq. 1) then
+        devJ = TotalAngMom(3) - CrankValues(3)
+      else
+        devJ = 0.0d0
+      endif
       print 8, totalangmom(3), totalangmom(3) - angmomold(3), &
       &        omega(3), omega(3)-omega_prev(3), devJ
     else
+      if(cranktype(3) .eq. 1) then
+        devJ = TotalAngMom_dens(3) - CrankValues(3)
+      else
+        devJ = 0.0d0
+      endif
       print 8, totalangmom_dens(3), totalangmom_dens(3) - angmomold_dens(3), &
-      &        omega(3), omega(3)-omega_prev(3), devJ
+      &        omega(3), omega(3)-omega_prev(3), devJ  
     endif
+
     print 1
 
 end subroutine printsummary

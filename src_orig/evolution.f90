@@ -758,7 +758,7 @@ $N3       &                                        dddmax,                     &
    type(Moment),pointer  :: Current
    real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
    real(KIND=dp)         :: mpsi(nx*ny*nz,4), jpsi(nx*ny*nz,4)
-   real(KIND=dp)         :: O2, value, des, scale, crankfactor(3)
+   real(KIND=dp)         :: O2, value, des, scale, crankfactor(3), J
    integer               :: wave, k, B, si, N, it, i
 
    call start_timer(T_feasible)
@@ -804,7 +804,13 @@ $N3       &                                        dddmax,                     &
    ! (ii) The contribution of the cranking constraints to the update
    do i=1,3
      if(CrankType(i).ne.1) cycle ! Only include cranking for cranktype=1
-     CrankFactor(i)= 0.5*(TotalAngMom(i)-CrankValues(i))/J2_sp(i)
+     
+     if(crank_smooth) then
+      J = TotalAngMom_dens(i)
+     else
+      J = TotalAngMom(i)
+     endif
+     CrankFactor(i)= 0.5*( J -CrankValues(i))/J2_sp(i)
      ! Rescale with a factor
      Crankfactor(i) = Crankfactor(i)*CrankScaleFactor(i)
    enddo
