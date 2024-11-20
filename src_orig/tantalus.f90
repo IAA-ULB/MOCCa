@@ -413,8 +413,16 @@ subroutine ReachForWaterAndFood()
           call calcFields(calcall=.true.,precon=.true.)
         endif
 
-        ! Update all spwf properties
-!        call update_spwf_properties( .false. ) ! nonexpensive version
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Update information regarding cranking constraints
+        if(.not. crank_smooth) then
+          ! If we are cranking based on the angular momentum obtained by summing 
+          !  the single-particle angular momenta, we cannot escape the need to 
+          !  update the single-particle properties...
+          ! At least we can call the not-expensive version which concerns itself
+          ! only with diagonal matrix elements (i.e. the argument .false.)
+          call update_spwf_properties( .false. ) 
+        endif
         call updateAM
         call ReadjustCranking
         !-----------------------------------------------------------------------
@@ -647,8 +655,13 @@ subroutine printsummary(iter)
     else
       devJ = 0.0
     endif
-    print 8, totalangmom(3), totalangmom(3) - angmomold(3), &
-    &        omega(3), omega(3)-omega_prev(3), devJ
+    if(.not. crank_smooth) then
+      print 8, totalangmom(3), totalangmom(3) - angmomold(3), &
+      &        omega(3), omega(3)-omega_prev(3), devJ
+    else
+      print 8, totalangmom_dens(3), totalangmom_dens(3) - angmomold_dens(3), &
+      &        omega(3), omega(3)-omega_prev(3), devJ
+    endif
     print 1
 
 end subroutine printsummary

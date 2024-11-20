@@ -1,14 +1,14 @@
 module cranking
  !==============================================================================
- !_________ _______  _       _________ _______  _                 _______ 
+ !_________ _______  _       _________ _______  _                 _______
  !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
  !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
- !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
+ !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____
  !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
  !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
  !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
  !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
- !                                                                       
+ !
  !  Copyright W. Ryssens & M. Bender
  !
  !==============================================================================
@@ -16,12 +16,12 @@ module cranking
  !
  !------------------------------------------------------------------------------
  ! HEPHAESTOS keywords:
- ! 
+ !
  ! CRANKDIR : $CRANKDIR
  ! CRANKLEN : $CRANKLEN
- !    The array crankdirections controls the axes along which we calculate 
- !    angular momentum. It has size $CRANKLEN+1 and has entries $CRANKDIR plus 
- !    a trailing zero. The trailing zero is included, because the code has to 
+ !    The array crankdirections controls the axes along which we calculate
+ !    angular momentum. It has size $CRANKLEN+1 and has entries $CRANKDIR plus
+ !    a trailing zero. The trailing zero is included, because the code has to
  !    compile when we calculate no angular momentum at all, i.e. when time-
  !    reversal is conserved.
  !
@@ -38,10 +38,10 @@ module cranking
  use densities
 
  implicit none
- 
+
  !------------------------------------------------------------------------------
  ! Omega:
- !   Cranking frequency or Lagrange multiplier of the angular momentum in 
+ !   Cranking frequency or Lagrange multiplier of the angular momentum in
  !   the three Cartesian directions.
  !------------------------------------------------------------------------------
  real(KIND=dp) :: Omega(3)       = 0.0_dp
@@ -51,8 +51,8 @@ module cranking
  !------------------------------------------------------------------------------
  real(KIND=dp) :: CrankValues(3) = 0.0_dp
  !------------------------------------------------------------------------------
- ! CrankIntensity: 
- !  Intensity of the cranking constraint if cranktype_mu = 1. The code will use 
+ ! CrankIntensity:
+ !  Intensity of the cranking constraint if cranktype_mu = 1. The code will use
  !  a simple heuristic if left to zero while a constraint is detected.
  !------------------------------------------------------------------------------
  real(KIND=dp) :: CrankIntensity(3) = 0.0_dp
@@ -68,19 +68,19 @@ module cranking
  !
  ! Crankenergy_cut:
  !   Energy associated with the cranking constraint in each Cartesian direction,
- !   i.e. CE(i) = - omega_i * <J_i>, but where <J_i> is calculated by 
+ !   i.e. CE(i) = - omega_i * <J_i>, but where <J_i> is calculated by
  !   integration over the current and spin densities with the multipole cutoff.
  !------------------------------------------------------------------------------
  real(KIND=dp) :: crankenergy(3)     = 0.0_dp
  real(KIND=dp) :: crankenergy_cut(3) = 0.0_dp
  !------------------------------------------------------------------------------
- ! Cranktype 
+ ! Cranktype
  !    Determines the type of constraint (every cartesian direction separately)
  integer       :: cranktype(3) = 0
- ! Crank_smooth 
- ! Whether the update of the cranking constraint uses 
+ ! Crank_smooth
+ ! Whether the update of the cranking constraint uses
  ! (a) .false. => TotalAngMom     , calculated from the spwfs directly
- ! (b) .true.  => TotalAngMom_dens, calculated by integrating the densities 
+ ! (b) .true.  => TotalAngMom_dens, calculated by integrating the densities
  logical       :: crank_smooth = .false.
  !-----------------------------------------------------------------------------
  ! Whether or not to use the cranking info from file
@@ -94,27 +94,25 @@ module cranking
  !    by integration of the spin and current densities.
  ! TotalAngMom_cut:
  !    Total angular momentum in the three Cartesian directions, calculated
- !    by integration of the spin and current densities, but including the 
+ !    by integration of the spin and current densities, but including the
  !    multipole cutoff.
- ! AngMomOld: 
+ ! AngMomOld:
  !    Values of the total angular momentum at the previous iteration, used for
  !    readjustment of the cranking constraints.
  ! J2_sp:
- !    Values of the single-particle part of the total angular momentum squared, 
- !            <J_i^2>_sp = sum_i rho_ii < i | J_i^2 | i> 
+ !    Values of the single-particle part of the total angular momentum squared,
+ !            <J_i^2>_sp = sum_i rho_ii < i | J_i^2 | i>
  !    where the sum is in the canonical basis and the second J_i on the right
- !    is a SINGLE-PARTICLE operator. This quantity IS NOT EQUAL to <J^2_i>, 
- !    the many-body operator.  
- !  
+ !    is a SINGLE-PARTICLE operator. This quantity IS NOT EQUAL to <J^2_i>,
+ !    the many-body operator.
+ !
  ! AMBlock:
  !    Values of the total angular momentum, split by quantum number block.
  !------------------------------------------------------------------------------
  real(KIND=dp) :: TotalAngMom(3)= 0.0_dp, AngMomOld(3)  = 0.0_dp
  real(KIND=dp) :: J2_sp(3)      = 0.0_dp, AMBlock(8,3)  = 0.0_dp
-
-
- real(KIND=dp) :: TotalAngMom_dens(3) = 0.0_dp 
- real(KIND=dp) :: TotalAngMom_cut(3)  = 0.0_dp
+ real(KIND=dp) :: TotalAngMom_dens(3) = 0.0_dp, AngMomOld_dens(3)  = 0.0_dp
+ real(KIND=dp) :: TotalAngMom_cut(3)  = 0.0_dp, AngMomOld_cut(3)   = 0.0_dp
  !------------------------------------------------------------------------------
  integer, parameter                        :: cranklen = $CRANKLEN
  integer, parameter, dimension(cranklen+1) :: crankdirections = (/ $CRANKDIR 0/)
@@ -123,31 +121,31 @@ contains
 
   function check_cranking() result(checked)
     !---------------------------------------------------------------------------
-    ! Simple function that indicates whether there are active cranking 
+    ! Simple function that indicates whether there are active cranking
     ! constraints requiring projection on the feasible subspace.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Output: 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Output:
     !    checked: .false. if no such constraints present, .true. else.
     !
     !---------------------------------------------------------------------------
     logical :: checked
     integer :: i
-    
+
     checked = .false.
     do i=1,3
       if(cranktype(i) .eq. 1) then
         checked = .true.
       endif
     enddo
-    
+
   end function check_cranking
 
   subroutine readcranking(file_number)
     !---------------------------------------------------------------------------
     ! Read the namelist &cranking/.
     !
-    ! Input: 
-    !     file_number : channel number of opened file where to read from. 
+    ! Input:
+    !     file_number : channel number of opened file where to read from.
     !                   Optional. If not present, read from STDIN.
     !---------------------------------------------------------------------------
     integer(dp), intent(in),optional :: file_number
@@ -163,12 +161,12 @@ $NTR  integer             :: j,c
 #endif
 
     namelist /cranking/ OmegaX, OmegaY, OmegaZ,             &
-    &                   CrankX, CrankY, CrankZ,             & 
+    &                   CrankX, CrankY, CrankZ,             &
     &                   CrankTypeX, CrankTypeY, CrankTypeZ, &
     &                   IntensityX, IntensityY, IntensityZ, &
     &                   ScaleX, ScaleY, ScaleZ,             &
     &                   crank_smooth, ContinueCrank
- 
+
     OmegaX     = 0 ; OmegaY     = 0 ; OmegaZ     = 0
     CrankX     = 0 ; CrankY     = 0 ; CrankZ     = 0
     CrankTypeX = 0 ; CrankTypeY = 0 ; CrankTypeZ = 0
@@ -182,7 +180,7 @@ $NTR  integer             :: j,c
       else
         read (unit=*, nml=cranking)
       endif
-      
+
       !----------------- Assigning Constants based on Input --------------------
       CrankValues      = (/ CrankX,CrankY,CrankZ/)
       Omega            = (/ OmegaX,OmegaY,OmegaZ/)
@@ -190,7 +188,7 @@ $NTR  integer             :: j,c
       CrankScaleFactor = (/ ScaleX, ScaleY, ScaleZ/)
       CrankIntensity   = (/ IntensityX, IntensityY, IntensityZ/)
     endif
-    
+
 #if(USE_MPI > 0)
     call MPI_Bcast(CrankValues       , 3, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
     call MPI_Bcast(Omega             , 3, MPI_REAL8  ,0,MPI_COMM_WORLD,mpi_err)
@@ -218,21 +216,26 @@ $NTR        enddo
   subroutine updateAM()
     !---------------------------------------------------------------------------
     ! Calculate the total angular momentum and cranking energies.
-    !---------------------------------------------------------------------------  
+    !---------------------------------------------------------------------------
 $NTR    use Moments, only : cutoff
     ! We only import this if time-reversal is not conserved, otherwise
     ! the compiler complains
 
 $NTR    integer :: B, N, wave, si, i, c, it
-    
-    angmomold   = totalangmom
-    totalangmom = 0.0
+
+    ! Saving all of the history for convergence analysis ...
+    angmomold       = totalangmom
+    angmomold_dens  = totalangmom_dens
+    angmomold_cut   = totalangmom_cut
+
+    ! ... and resetting the current values
+    totalangmom = 0.0 ; totalangmom_dens = 0.0d0 ; totalangmom_cut = 0.0d0
     J2_sp       = 0.0
 
-$NTR    si = 0    
+$NTR    si = 0
 $NTR    do B=1,8
 $NTR      N = HFBlocks(B) ; if(N .eq. 0) cycle
-$NTR      do wave = 1, N  
+$NTR      do wave = 1, N
 $NTR        do i = 1, cranklen
 $NTR          c  = crankdirections(i)
 $NTR          if(pairingtype.ne.2) then
@@ -240,13 +243,13 @@ $NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * spwf_J (c,s
 $NTR            J2_sp      (c) = J2_sp      (c) + rho_can(si+wave) * spwf_J2(c,si+wave,si+wave)
 $NTR          else
 $NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * can_J (c,si+wave)
-$NTR            J2_sp      (c) = J2_sp(c)       + rho_can(si+wave) * can_J2(c,si+wave) 
+$NTR            J2_sp      (c) = J2_sp(c)       + rho_can(si+wave) * can_J2(c,si+wave)
 $NTR          endif
 $NTR        enddo
 $NTR      enddo
 $NTR      si = si + N
 $NTR    enddo
-$NTR    crankenergy     = - omega * TotalAngMom    
+$NTR    crankenergy     = - omega * TotalAngMom
 $NTR    crankenergy_cut = - omega * TotalAngMom_cut
 $NTR    !-------------------------------------------------------------------------
 $NTR    ! And now we integrate the current density and spin density.
@@ -255,14 +258,14 @@ $NTR    totalangmom_cut  = 0.0
 $NTR    do it=1,2
 $NTR      ! Spin part
 $NTR      TotalAngMom_dens(3) = TotalAngMom_dens(3) + &
-$NTR      &                     0.5 *                sum(D_I_S(:,3,it)) 
+$NTR      &                     0.5 *                sum(D_I_S(:,3,it))
 $NTR      TotalAngMom_cut(3) = TotalAngMom_cut(3) + &
-$NTR      &                     0.5 * sum( Cutoff(:,it)* D_I_S(:,3,it)) 
+$NTR      &                     0.5 * sum( Cutoff(:,it)* D_I_S(:,3,it))
 $NTR
 $NTR      do i=1, nx*ny*nz
 $NTR        TotalAngMom_dens(3) = TotalAngMom_dens(3) &
 $NTR        & - meshgrid(i,2) * C_I_N(i,1,it) + meshgrid(i,1) * C_I_N(i,2,it)
-$NTR        
+$NTR
 $NTR        TotalAngMom_cut(3)  = TotalAngMom_cut(3) + cutoff(i,it) * &
 $NTR        & (- meshgrid(i,2) * C_I_N(i,1,it) + meshgrid(i,1) * C_I_N(i,2,it))
 $NTR      enddo
@@ -279,27 +282,27 @@ $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
     ! at the start of the program.
     !---------------------------------------------------------------------------
     1 format ( 29('-'), ' Cranking information ', 29('-'))
-    2 format ( ' Cranking frequencies:   ', /, & 
+    2 format ( ' Cranking frequencies:   ', /, &
     &          '    Omega_X = ', f15.3, /,  &
     &          '    Omega_Y = ', f15.3, /,  &
-    &          '    Omega_Z = ', f15.3) 
+    &          '    Omega_Z = ', f15.3)
     21 format ('    => read from STDIN ')
     22 format ('    => read from FILE  ')
-    3 format ( ' Cranking target values: ', /, & 
+    3 format ( ' Cranking target values: ', /, &
     &          '    J_X     = ', f15.3, /,  &
     &          '    J_Y     = ', f15.3, /,  &
-    &          '    J_Z     = ', f15.3) 
-   31 format ( ' Cranking scale factors: ', /, & 
+    &          '    J_Z     = ', f15.3)
+   31 format ( ' Cranking scale factors: ', /, &
     &          '    J_X     = ', f15.3, /,  &
     &          '    J_Y     = ', f15.3, /,  &
-    &          '    J_Z     = ', f15.3) 
-    4 format ( ' Cranking types: ', /, & 
+    &          '    J_Z     = ', f15.3)
+    4 format ( ' Cranking types: ', /, &
     &          '    J_X     = ', i15, /,  &
     &          '    J_Y     = ', i15, /,  &
-    &          '    J_Z     = ', i15 ) 
+    &          '    J_Z     = ', i15 )
     5 format ( ' Cranking on the basis of INTEGRATION OF DENSITIES')
    51 format ( ' Cranking on the basis of SUMMED SPWF ANGULAR MOMENTUM')
-   
+
     print 1
     print 2, Omega
     if(continuecrank) then
@@ -314,13 +317,13 @@ $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
       print 5
     else
       print 51
-    endif    
- 
+    endif
+
   end subroutine printcranking_init
 
   subroutine PrintCranking()
     !---------------------------------------------------------------------------
-    ! Prints all kinds of information about the expectation value of the 
+    ! Prints all kinds of information about the expectation value of the
     ! angular momentum operator and all kinds of angles.
     !---------------------------------------------------------------------------
     character(len=1), parameter  :: dir(3) = (/'x', 'y', 'z'/)
@@ -341,13 +344,13 @@ $NTR    8 format (3x,a1,1x,'|',3x,'|',4f12.5)
 
     print 2
     print *
-    
+
     if(crank_smooth) then
      print 31
     else
      print 3
     endif
-    
+
     !---------------------------------------------------------------------------
     ! Information on the total angular momentum
     print 1
@@ -364,7 +367,7 @@ $NTR    8 format (3x,a1,1x,'|',3x,'|',4f12.5)
     print 41, sqrt(sum(totalangmom**2)), 0.0, &
     &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom_dens**2))
     print 10
-    
+
     !---------------------------------------------------------------------------
     ! Information on the spin density
 $NTR    print *
@@ -375,14 +378,14 @@ $NTR    do i=1,3
 $NTR      found = .false.
 $NTR      do j=1,cranklen
 $NTR        if(i .eq. crankdirections(j)) found = .true.
-$NTR      enddo      
+$NTR      enddo
 $NTR      if(found) then
 $NTR        ! There is a possibility for total spin in this Cartesian direction.
 $NTR        print 8     , dir(i), 0.5*sum(D_I_S(:,i,1))*dv, &
 $NTR        &                     0.5*sum(D_I_S(:,i,2))*dv
 $NTR      else
 $NTR        ! Spin is restricted in this particular direction
-$NTR        print 8     , dir(i), 0.0d0,0.0d0      
+$NTR        print 8     , dir(i), 0.0d0,0.0d0
 $NTR      endif
 $NTR    enddo
 $NTR    print 5
@@ -390,15 +393,15 @@ $NTR    print 5
 
   function crank_spin_potential() result(spot)
     !---------------------------------------------------------------------------
-    ! The cranking constraint contributes to the field F_I_S, associated with 
+    ! The cranking constraint contributes to the field F_I_S, associated with
     ! the spin density D_I_S:
     !
     !     F_I_S(r) => F_I_S(r) - \frac{1}{2} \omega f_cut(r)
     !
-    ! where f_cut(r) is the cutoff factor also employed for the multipole 
-    ! constraints. The factor 1/2 is present because the J_spin = 1/2 Pauli 
+    ! where f_cut(r) is the cutoff factor also employed for the multipole
+    ! constraints. The factor 1/2 is present because the J_spin = 1/2 Pauli
     ! sigma matrix.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Output:
     !     spot : the contribution to the spin potential due to cranking
     !---------------------------------------------------------------------------
@@ -416,19 +419,19 @@ $NTR        spot(:,c,it) = - 0.5 * omega(c) * cutoff(:,it)
 $NTR      enddo
 $NTR    enddo
 
-$NTR    spot(:,:,3) = spot(:,:,1) + spot(:,:,2) 
-$NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)  
-      
+$NTR    spot(:,:,3) = spot(:,:,1) + spot(:,:,2)
+$NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
+
     return
   end function crank_spin_potential
 
   function crank_current_potential() result(jpot)
     !---------------------------------------------------------------------------
-    ! The cranking constraint contributes to the field G_I_N, associated with 
+    ! The cranking constraint contributes to the field G_I_N, associated with
     ! the current density D_I_N:
     !
-    !       G_I_N => G_I_N - f_cut(r) \vec{\omega} x \vec{r} 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !       G_I_N => G_I_N - f_cut(r) \vec{\omega} x \vec{r}
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Output:
     !     jpot : the contribution to the current potential due to cranking
     !---------------------------------------------------------------------------
@@ -447,13 +450,13 @@ $NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
           &            (omega(nu) * meshgrid(:,ka) - omega(ka) * meshgrid(:,nu))
       enddo
     enddo
-    
-    jpot(:,:,3) = jpot(:,:,1) + jpot(:,:,2) 
-    jpot(:,:,4) = jpot(:,:,1) - jpot(:,:,2)  
-    
+
+    jpot(:,:,3) = jpot(:,:,1) + jpot(:,:,2)
+    jpot(:,:,4) = jpot(:,:,1) - jpot(:,:,2)
+
     return
   end function crank_current_potential
-  
+
   subroutine ReadjustCranking()
     !---------------------------------------------------------------------------
     ! Readjust the cranking constraint(s)
@@ -475,7 +478,7 @@ $NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
             !-------------------------------------------------------------------
             ! If left to zero by the user, the code uses this heuristic to guess
             ! an intensity for the cranking constraint. This works very well for
-            ! collective cranking. Although still decent, you might want to 
+            ! collective cranking. Although still decent, you might want to
             ! manually set intensity_x when cranking around a symmetry axis.
             print 11
             print 12, dir(i)
@@ -483,7 +486,7 @@ $NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
             print 13, CrankIntensity(i)
             print 11
           endif
-          ! Actual readjustment of the constraint           
+          ! Actual readjustment of the constraint
           if(crank_smooth) then
             value = TotalAngMom_dens(i)
           else
@@ -502,4 +505,4 @@ $NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
     enddo
   end subroutine ReadjustCranking
 
-end module 
+end module

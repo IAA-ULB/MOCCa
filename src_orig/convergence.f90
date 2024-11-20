@@ -189,10 +189,17 @@ contains
     if(any(abs(Fermienergy - FermiHistory).gt.fermi_prec)) C = .false.
         
     ! Check the angular momentum
-    do i=1,3
+    if(.not. crank_smooth) then
+      ! angular momenta calculated by integration of spin and current densities 
+      do i=1,3
+        if(abs(TotalAngMom_dens(i)-AngMomOld_dens(i)).gt.angmom_prec ) C = .false.
+      enddo
+    else
+      ! angular momenta calculated by summation of spwf properties
+      do i=1,3
         if(abs(TotalAngMom(i) - AngMomOld(i)).gt.angmom_prec ) C = .false.
-    enddo
-    
+      enddo    
+    endif  
     ! Check if we have performed at least a minimum of iterations
     if(iter.le. min_iter_conv) C = .false.
         
