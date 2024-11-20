@@ -244,9 +244,9 @@ endif
 # .... when in production mode
 ifeq ($(DEBUG),0)
   ifeq ($(COMPILER),gfortran)
-	  OPTFLAGS := -O3
+	  OPTFLAGS := -O3 -Wall -Wno-uninitialized -Werror
   else ifeq ($(COMPILER),ifort)
-	  OPTFLAGS := -Ofast
+	  OPTFLAGS := -Ofast -warn all
   else ifeq ($(COMPILER),cray)
 	  OPTFLAGS := -O2 # -O3 produces NaN results
   endif
