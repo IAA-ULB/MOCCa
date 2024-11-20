@@ -353,6 +353,10 @@ subroutine ReachForWaterAndFood()
     ! Update all spwf properties
     call update_spwf_properties( .true. ) ! expensive version
 
+    ! Update angular momentum observables
+    call updateAM   ! This call HAS to happen, otherwise J2_sp will not be 
+                    ! initialized and any crankingtype = 1 calculation will fail.
+
     call setBelyaevProcedure()
     call CalcEnergy(.true.)      ! Calculate the energy WITH all the expensive
                                  !   parts included.
