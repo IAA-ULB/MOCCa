@@ -414,7 +414,7 @@ contains
 
     real(KIND=dp), allocatable :: Mat(:,:,:,:), Qsp(:,:,:), Q20(:,:,:)
     real(KIND=dp), allocatable :: work(:), M1_inv(:,:)
-    integer :: i, j, la, lb, l, m, info, lwork, it
+    integer :: i, j, la, lb, l, m, info, lwork
     integer, allocatable :: ipiv(:)
         
     call start_timer(T_collective_MOI)

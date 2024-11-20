@@ -2332,10 +2332,10 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
       call update_spwf_symmetries(fullmatrices) ! <symmetry operators>
       call update_spwf_angmom(fullmatrices)     ! angular momentum
-      call update_spwf_r2(fullmatrices)         ! <r^2> 
+      call update_spwf_r2() !fullmatrices)         ! <r^2> 
   end subroutine update_spwf_properties
   
-  subroutine update_spwf_r2(fullmatrices)
+  subroutine update_spwf_r2() !fullmatrices)
       !-------------------------------------------------------------------------
       ! Calculate the single-particle expectation <r^2> for every spwf in 
       ! the Hartree-Fock and canonical basis.
@@ -2343,10 +2343,12 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! Input:
       !   fullmatrices : if .true., force calculation in the HF and canonical
       !                  basis even if diagsphamil = .false.
+      !
+      !   TODO: clean up the disabled input fullmatrices
       !-------------------------------------------------------------------------
-      logical, intent(in) :: fullmatrices
+      !logical, intent(in) :: fullmatrices
 
-      real(KIND=dp), pointer     :: rme(:,:)
+      !real(KIND=dp), pointer     :: rme(:,:)
       real(KIND=dp)              :: r2(mv)
 !      integer                    :: B, N, si
 
