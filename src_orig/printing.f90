@@ -350,10 +350,17 @@ $TR     sumocc = 2*k
 
   end subroutine PrintSpwfs
 
-  subroutine printqps
+  subroutine printqps(print_advanced)
     !---------------------------------------------------------------------------
-    ! Print all relevant info on quasiparticles, without any side-effects.
+    ! Print all relevant info on quasiparticles.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !   print_advanced : logical, if .false. does not print angular momenta.
+    !                    This option exists because we cannot be sure that the 
+    !                    underlying single-particle angular momentum expectation
+    !                    values are up-to-date.
     !---------------------------------------------------------------------------
+    logical, intent(in)  :: print_advanced
     integer              :: i, N, B, si, sb, ind, N2, k, U(1),V(1), T
     integer, allocatable :: indices(:)
     real(KIND=dp)        :: ov, v2, u2
@@ -363,6 +370,9 @@ $TR     sumocc = 2*k
     2  format ( i5, 1f10.2, 2x, 1es12.2, 1es12.2, ' | ', 2i4,  2x, 2f8.5,  &
     &           ' | ', 2x, a1,   &
     &           2x, a1,  2x, 1f5.3, ' | ',  3(2x,f5.2))
+    3  format ( i5, 1f10.2, 2x, 1es12.2, 1es12.2, ' | ', 2i4,  2x, 2f8.5,  &
+    &           ' | ', 2x, a1,   &
+    &           2x, a1,  2x, 1f5.3, ' | ',  3(2x,'*', 2x))
 
     11  format(110('-'))
     if(PairingType.eq.0) return
@@ -402,10 +412,16 @@ $TR     sumocc = 2*k
             u2 = sum(Bogoliubov(sb  +1:sb+  T,sb+i)**2) 
             v2 = sum(Bogoliubov(sb+T+1:sb+2*T,sb+i)**2) 
 
-            print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*T-i+1),          &
-            &           qpdispersions(sb+i),                                   &
-            &           U(1), V(1), u2, v2, '-', '-', 0.0d0,                   &
-            &            qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
+            if(print_advanced) then
+              print 2, i, QPenergies(sb+i), 1-configmatrix(sb+2*T-i+1),        &
+              &           qpdispersions(sb+i),                                 &
+              &           U(1), V(1), u2, v2, '-', '-', 0.0d0,                 &
+              &            qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
+            else
+              print 3, i, QPenergies(sb+i), 1-configmatrix(sb+2*T-i+1),        &
+              &           qpdispersions(sb+i),                                 &
+              &           U(1), V(1), u2, v2, '-', '-', 0.0d0
+            endif
           enddo
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! The second half of the Bogoliubov matrix
@@ -456,10 +472,16 @@ $TR     sumocc = 2*k
               ov = 0.0d0
             endif
             ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            print 2, i, QPenergies(sb+i), configmatrix(sb+i),                  & 
-            &           qpdispersions(sb+i),                                   &
-            &           U(1), V(1), u2, v2, Bstr, Pstr, ov,                    &
-            &           qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
+            if(print_advanced) then
+              print 2, i, QPenergies(sb+i), configmatrix(sb+i),                & 
+              &           qpdispersions(sb+i),                                 &
+              &           U(1), V(1), u2, v2, Bstr, Pstr, ov,                  &
+              &           qp_JTR(1,sb+i), qp_JTI(2,sb+i), QP_J(3,sb+i)
+            else
+              print 3, i, QPenergies(sb+i), configmatrix(sb+i),                & 
+              &           qpdispersions(sb+i),                                 &
+              &           U(1), V(1), u2, v2, Bstr, Pstr, ov
+            endif
           enddo
 
         case(1)
@@ -469,8 +491,13 @@ $TR     sumocc = 2*k
           indices = order(BCSqps(si+1:si+N))
           do i=1, N
             ind  = indices(i)
-            print 2, i, BCSqps(si+ind), BCSf(si+ind),0.0d0, 0,0, 0.0d0,0.0d0,  &
-            &        '-', '-',0.0d0, 0.0d0, 0.0d0,0.0d0
+            if(print_advanced) then
+              print 2, i, BCSqps(si+ind), BCSf(si+ind),0.0d0, 0,0, 0.0d0,0.0d0,&
+              &        '-', '-',0.0d0, 0.0d0, 0.0d0,0.0d0
+            else
+              print 3, i, BCSqps(si+ind), BCSf(si+ind),0.0d0, 0,0, 0.0d0,0.0d0,&
+              &        '-', '-',0.0d0
+            endif
           enddo
         end select
         si = si +   T
