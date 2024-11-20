@@ -89,6 +89,10 @@ module HFB
   real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
   real(KIND=dp), allocatable ::  configmatrix_history(:) 
   real(KIND=dp), allocatable ::  Bogoliubov_history(:,:)
+  !------------------------------------------------------------------------------
+  ! Admixture of new (HFBmix) and old (HFBmix-1) density matrices to stabilize
+  ! convergence
+  real(KIND=dp) :: HFBmix = 1.0_dp
   !-----------------------------------------------------------------------------
   ! Cutoff parameter to judge whether or not levels are participating in the 
   ! pairing.
@@ -130,7 +134,7 @@ contains
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType,Blockindices,               &
   &                          blocklowest, blocked_qps, partner_qps,qp_overlaps,&
-  &                          ifail)
+  &                          mix, ifail)
 
     !---------------------------------------------------------------------------
     ! Driver routine for the solving of the HFB equations in a direct fashion,
@@ -150,6 +154,7 @@ contains
     !    Blocklowest  : when blocktype=2,4,6 contains the type of excitations 
     !                   we want to build. To be passed into 
     !                   construct_configuration.
+    !    mix          : mixing factor for density matrix mixing ! MB 24/08/13
     !
     ! Ouput:
     !    Fermi        : final value obtained by the solver for the Fermi 
@@ -181,7 +186,8 @@ contains
     ! Quantities for the HFB hamiltonian
     real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
     real(KIND=dp)                :: HFBHamil(2*nwt, 2*nwt)
-    
+    ! mixing parameter
+    real(KIND=dp), intent(in)    :: mix
     ! Configuration for the blocking
     integer, intent(in)          :: Blockindices(:)
     integer, intent(in)          :: BlockType
@@ -200,10 +206,15 @@ contains
     !-----------------END OF DECLARATIONS --------------------------------------
 
     if(.not.allocated(rho_history)) then
-      allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
-      allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0
-      allocate(configmatrix_history(2*nwt))     ; configmatrix_history = 0.0
-      allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0
+      allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0d0
+      allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0d0
+      allocate(configmatrix_history(2*nwt))     ; configmatrix_history = 0.0d0
+      allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0d0
+     else
+      ! Saving the history                      
+      ! copy only when not being initialised and when being non-zero
+      if (any(rho_pairing   .ne. 0.0_dp)) rho_history   = rho_pairing
+      if (any(kappa_pairing .ne. 0.0_dp)) kappa_history = kappa_pairing
     endif
 
     ! Saving the history
@@ -354,6 +365,9 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     !    Construct the density and anomalous density matrices, based on the 
     !    configmatrix and the Bogoliubov transformation
     call PairingMatrices(configmatrix, bogoliubov, rho_pairing, kappa_pairing)
+    !---------------------------------------------------------------------------
+    ! optional mixing of density matrices to stabilise convergence
+    call mix_pairing(mix, rho_pairing, kappa_pairing)
 
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
 
@@ -1384,14 +1398,54 @@ $TR    dispersion = 2 * dispersion
 
   subroutine mix_pairing(mix, rho, kappa) 
     !---------------------------------------------------------------------------
-    ! Linearly mix rho and kappa
+    ! Perform a linear mixing of the pairing matrices rho and kappa with older
+    ! values stored in rho_history and kappa_history. 
+    !
+    !      rho   = mix * rho   + (1-mix) * rho_history
+    !      kappa = mix * kappa + (1-mix) * kappa_history
+    ! 
+    ! The actual mixing only gets performed however if kappa did not change too
+    ! violently. This reflects experiments of M. Bender that he emailed to W.R.
+    ! on 14/08/2024: the short summary is that, depending on the initialisation
+    ! of the entire run, naive mixing would or would not destroy convergence.
+    ! TODO: It should be figured out whether this observation is due to an 
+    !       inconsistency somewhere in the phase conventions of pairing 
+    !       quantities such as the pairing gaps and gap.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   mix   : real, mixing parameter
+    !   rho   : density matrix constructed from the Bogoliubov transformation 
+    !   kappa : anomalous density matrix from the Bogoliubov transformation 
+    !
+    ! Ouput:
+    !   rho   : mixed density matrix
+    !   kappa : mixed anomalous density matrix
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)    :: mix
     real(KIND=dp), intent(inout) :: rho(:,:), kappa(:,:)
 
-    rho   =  mix * rho   + (1.0d0-mix) * rho_history
-    kappa =  mix * kappa + (1.0d0-mix) * kappa_history
-
+    if (any(rho_history .ne. 0.0_dp)) then
+      ! the sign of large values of kappa has changed, don't mix rho either
+      if (abs(minval(kappa-kappa_history)).gt.1.2_dp*abs(minval(kappa))) then
+        !print '(" mix_pairing: kappa-kappa_history too large, better dont mix")'
+        rho = 1.0_dp * rho
+      else
+        rho   =  mix * rho   + (1.0d0-mix) * rho_history
+        ! print '(" mix_pairing: mix rho   with ",1f6.3)',mix
+      endif
+    else
+      rho = 1.0_dp * rho
+    endif
+    if (any(kappa_history .ne. 0.0_dp)) then                    
+      if (abs(minval(kappa-kappa_history)).gt.1.2_dp*abs(minval(kappa))) then
+        !print '(" mix_pairing: kappa-kappa_history too large, better dont mix")'
+        kappa = 1.0_dp * kappa
+      else
+        kappa =  mix * kappa + (1.0d0-mix) * kappa_history
+      endif
+    else
+      kappa = 1.0_dp * kappa
+    endif
   end subroutine mix_pairing 
 
   subroutine PairingMatrices(config, bogo, rho, kappa)

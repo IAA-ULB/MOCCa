@@ -187,7 +187,7 @@ contains
     NameList /Pairing/ Type, Constantgap,                                      &
     &                  BlockType, BlockNumber, particles_in_gas, maxhfbiter,   & 
     &                  FermiSolver, guessgaps,  pairingscheme,                 &
-    &                  gradient_precon, bogofromfile, gapvalue
+    &                  gradient_precon, bogofromfile, gapvalue, hfbmix
 
     NameList /Indices/ BlockIndices, blocklowest, blockJ
 
@@ -386,6 +386,7 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
    21 format('   Fermi-solver: ', a99 )
   211 format('   Pairing strategy:', a60)
  2111 format('     -> Fermi tolerance: ', es10.3)
+ 2112 format('   HFBmix = ',f5.3) ! MB 24/08/13
     6 format('   Cutoff parameters  = ', a20)
     7 format('     dE (n,p) = ', 2f5.2, ' MeV ')
     8 format('     mu (n,p) = ', 2f5.2, ' MeV ')
@@ -442,6 +443,7 @@ $PBROKEN         call stp('Cannot block a neutron qp with definite parity.')
           print 211,  adjustl(pscheme)
         end select 
         print 2111, pairing_prec
+        print 2112, HFBmix 
     end select
 
     select case(CutType)
@@ -712,7 +714,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         call solvepairing_HFB_direct(  &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,kappa_pairing,  &
         &   configmatrix, qpenergies,BlockType, Blockindices, blocklowest,     &
-        &   blocked_qps, partner_qps, partner_overlaps, ifail)
+        &   blocked_qps, partner_qps, partner_overlaps, HFBmix, ifail)
       case(+1)
         call solvepairing_HFB_gradient( &
         &   sphamil,HFBgaps,FermiEnergy,Bogoliubov,rho_pairing,                &
