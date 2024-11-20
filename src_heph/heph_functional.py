@@ -11,6 +11,7 @@
 
 import itertools
 import numpy as np
+import sys
 
 from src_heph.heph_densities import Densities_needed, tab, sumindices, derstring
 from src_heph.heph_densities import lapstring, OrderOfDen, ParseOperators
