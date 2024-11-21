@@ -252,8 +252,6 @@ $NTR    enddo
 $NTR
 $NTR    !-------------------------------------------------------------------------
 $NTR    ! And now we integrate the current density and spin density.
-$NTR    totalangmom_dens = 0.0
-$NTR    totalangmom_cut  = 0.0
 $NTR    do it=1,2
 $NTR      ! Spin part
 $NTR      TotalAngMom_dens(3) = TotalAngMom_dens(3) + &
@@ -360,16 +358,21 @@ $NTR    8 format (3x,a1,1x,'|',3x,'|',4f12.5)
     print 1
     do i=1,3
       if(crank_smooth) then
-        print 4, dir(i), TotalAngMom(i), CrankValues(i), Omega(i),        &
+        print 4, dir(i), TotalAngMom_dens(i), CrankValues(i), Omega(i),        &
         &                CrankEnergy(i), TotalAngMom     (i)
       else
-        print 4, dir(i), TotalAngMom_dens(i), CrankValues(i), Omega(i),   &
+        print 4, dir(i), TotalAngMom(i), CrankValues(i), Omega(i),   &
         &                CrankEnergy(i), TotalAngMom_dens(i)
       endif
     enddo
     print 1
-    print 41, sqrt(sum(totalangmom**2)), 0.0, &
-    &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom_dens**2))
+    if(crank_smooth) then
+      print 41, sqrt(sum(totalangmom_dens**2)), 0.0, &
+      &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom**2))
+    else
+      print 41, sqrt(sum(totalangmom**2)), 0.0, &
+      &         sqrt(sum(omega**2))      , sqrt(sum(totalangmom_dens**2))
+    endif
     print 10
 
     !---------------------------------------------------------------------------
