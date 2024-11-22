@@ -802,9 +802,9 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     if(allocated(Energies))  deallocate(energies)
     allocate(Indices(nwf), Energies(nwf))
     do i=1,nwf
-       Indices(i)  = startind + i 
-       Energies(i) = spwf_map(i) 
+       Indices(i) = startind + i 
     enddo
+    Energies = spenergies(startind+1:startind+nwf)
     
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Sort the energies
