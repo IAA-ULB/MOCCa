@@ -778,6 +778,9 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! Sort the single-particle wave-functions in the given symmetry-block 
     ! by single-particle energy. Note, this routine works with the indices 
     ! LOCAL to any given MPI rank.
+    !
+    ! TODO: refactor OrderSpwfsSym to take all relevant variables as input
+    ! TODO: develop unit test for this routine
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !      block   : integer
