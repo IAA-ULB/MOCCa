@@ -1136,8 +1136,8 @@ $N3         &              hfdddpsi(:,:,:,wave)  ,                              
           
           call start_timer(T_subrot_diag) 
           ! Pointer remapping to make the LAPACK CALL standard compliant
-          wfs_reshape(1:4*mv,1:N) => HFPsi(1:mv,1:4,si+1:si+N)
-          mom_reshape(1:4*mv,1:N) => momentum_updates(1:mv,1:4,si+1:si+N)
+          wfs_reshape(1:4*mv,1:N) => HFPsi(:,:,si+1:si+N)
+          mom_reshape(1:4*mv,1:N) => momentum_updates(:,:,si+1:si+N)
           
           allocate(work(1))
           call DSYEV('V','L', N ,sph(si+1:si+N,si+1:si+N),&
