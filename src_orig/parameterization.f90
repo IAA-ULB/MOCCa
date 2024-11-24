@@ -217,6 +217,7 @@ contains
       enddo
       !-------------------------------------------------------------------------
       ! Some sanity checks
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! a) does the type of functional match the compiled code?
       if(adjustl(func_file) .ne. adjustl(func_name)) then
         print *, '============================================================='
@@ -225,6 +226,7 @@ contains
         print *, '============================================================='
         call stp('')
       endif 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! b) does the name of the parameterization match the file?
       if(adjustl(to_upper(name_param)) .ne. adjustl(name)) then
         print *, '============================================================='
@@ -233,10 +235,50 @@ contains
         print *, '============================================================='
         call stp('')
       endif 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! c) Have all requested parameters been read?
       !    Hephaestos generates a list of 'if' conditions to check what 
       !    parameters are equal to their initializer values
 $CHECKPARAMS
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! d) Are the Coulomb options consistent? 
+      ! -> periodic boundary calculations without neutralizing electron 
+      !    background will fail.
+      ! -> the implementation of the Slater approximation is simply incorrect
+      !    when (i)  including finite-size effects for the charge densities
+      !         (ii) including electron background in pasta calculations
+#if(PASTA == 0) 
+#if(USE_Periodic == 1)
+      if(coultreatment .ne. 0) then 
+        print *, '============================================================='
+        print *, ' The current implementation does not support using periodic '
+        print *, ' boundary conditions for calculations of finite nuclei.     '
+        print *, ' Without a neutralizing background of electrons, the Coulomb'
+        print *, ' potential is not periodic. '
+        print *, '============================================================='
+        call stp('')
+      endif
+#endif
+#endif
+
+      if((any(protonsize.ne.0.0) .or. any(neutronsize.ne.0.0)).and. &
+      &                                                 coultreatment.eq.1) then
+        print *, '============================================================='
+        print *, ' The current implementation of the Slater Coulomb exchange   '
+        print *, ' is incorrect when the finite size of the nucleonic charge   '
+        print *, ' densities are included.'
+        print *, '============================================================='
+        call stp('')
+      endif
+#if(PASTA > 0)
+      if(coultreatment.eq.1) then
+        print *, '============================================================='
+        print *, ' The current implementation of the Slater Coulomb exchange   '
+        print *, ' is incorrect when the electron background is included.      '
+        print *, '============================================================='
+        call stp('')
+      endif
+#endif
     endif
     
 #if(USE_MPI > 0)
