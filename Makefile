@@ -138,36 +138,41 @@ DEBUG_LEVEL := 0
 # Type of calculation aimed at: 
 #    'NUCLEI':  finite nuclei
 #    'PASTA' : nuclear pasta
+#
+# These categories are the main ones and their choice determines
+#    PASTA        = 0/1 
+#    USE_Periodic = 0/1 
+#    DENSUM       = 0/1 
+# but it is possible that the user might want to set these flags differently...
 CALCTYPE :=NUCLEI
 ifeq ($(CALCTYPE),PASTA)
-  PASTA  := 1
-  DENSUM := 1
+  PASTA        := 1
+  USE_Periodic := 1
 else
 ifeq ($(CALCTYPE),NUCLEI)
-  PASTA  := 0
-  DENSUM := 0
+  PASTA        := 0
+  USE_Periodic := 0
 else
   $(error "Invalid value of CALCTYPE. $(CALCTYPE)")
 endif
 endif
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# USE_Periodic
-#  => 0 if inactive
-#  => 1 if active
-# Forced to be active if CALC_TYPE == 'PASTA'
-# 
-ifeq ($(CALCTYPE),PASTA)
-  USE_Periodic := 1
+ifeq ($(USE_Periodic),1)
+  DENSUM       := 1
 else
-  USE_Periodic := 0
+  DENSUM       := 0 
 endif
-
+# .... but not all combination are meaningful!
 ifeq ($(CALCTYPE),PASTA)
 ifeq ($(USE_Periodic),0)
     $(error "Periodic boundary conditions should be enforced when attempting pasta calculations.")
 endif
 endif
+ifeq ($(USE_Periodic),1)
+ifeq ($(DENSUM),0)
+    $(error "Periodic boundary conditions require setting DENSUM = 1")
+endif
+endif
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Actual compiler wrapper that gets invoked
