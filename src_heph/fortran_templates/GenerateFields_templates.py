@@ -66,10 +66,16 @@ field_read_d  = T(4*tab + '$POTREAD F%$FIELD = F_temp%${FIELD} \n'            \
 field_read_e  = T(3*tab +  'else \n')
 field_read_f  = T(3*tab +  'endif \n')
 # hdf5 option
-field_read_hdf5_a = T(tab +  'allocate(F%${FIELD}(mv$ALLOCIND,$ISOSIZE),F_temp%${FIELD}(mv$ALLOCIND,$ISOSIZE),Ftmp(mv$ALLOCINDHDF5*$ISOSIZE))\n')
-field_read_hdf5_b = T(tab +  'call hdf5_readpot(id, "$FIELD", Ftmp, size(Ftmp))\n'  \
-                    + tab +  'F_temp%${FIELD}=reshape(Ftmp,(/mv$ALLOCIND,$ISOSIZE/))\n' \
-                    + tab +  'deallocate(Ftmp)                                 \n')
+field_read_hdf5_a = T(tab +  'allocate(F%${FIELD}(mv$ALLOCIND,$ISOSIZE),F_temp%${FIELD}(mv$ALLOCIND,$ISOSIZE))\n')
+field_read_hdf5_b = T(tab +  'if(MPI_RANK .eq. 0) then \n' +
+                    2*tab +  'allocate(Ftmp(mv$ALLOCINDHDF5*$ISOSIZE)) \n' +
+                    2*tab +  'call hdf5_readpot(group_id, "$FIELD", Ftmp, size(Ftmp))\n' +
+                    2*tab +  'F_temp%${FIELD}=reshape(Ftmp,(/mv$ALLOCIND,$ISOSIZE/))\n' +
+                    2*tab +  'deallocate(Ftmp)                                 \n' +
+                    tab +  'endif                              \n'+
+                    '#if (USE_MPI > 0) \n' +
+                    tab +  'call MPI_BCAST(F_temp%${FIELD},size(F_temp%${FIELD}),MPI_REAL8,0,MPI_COMM_WORLD,mpi_err) \n' + 
+                  '#endif \n')
 field_read_hdf5_c = T(tab +  'if(symtransfo_needed) then    \n')
 field_read_hdf5_d = T(2*tab + '$POTREAD F%$FIELD = F_temp%${FIELD} \n'            \
                 + 2*tab + '$UNDOREAD deallocate(F%$FIELD, F_temp%${FIELD}) \n')

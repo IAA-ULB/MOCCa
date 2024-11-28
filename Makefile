@@ -224,6 +224,7 @@ else ifeq ($(COMPILER),intel)
 	LIBS := -qmkl
 else ifeq ($(COMPILER), cray)
   # Cray compilers don't need specific linking to my knowledge
+	HDF5_LIBS :=
 	LIBS :=
 endif
 

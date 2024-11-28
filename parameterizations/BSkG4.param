@@ -1,0 +1,78 @@
+&skf
+!-------------------------------------------------------------------------------
+! BSkG4 parameterization
+!
+! Aspects of note
+!  * microscopic pairing prescription
+!  * with improved INM interpolation
+!  * t4/t5 terms included
+!  * and associated non-zero eps parameter for stability
+!  * no terms that include gradients of spin densities
+!  * pairing cutoff only ABOVE the Fermi energy
+!-------------------------------------------------------------------------------
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Identification
+name       = 'BSkG4'
+func_file  = 'BXL.func'
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Skyrme parameters and related
+t0       =   -2325.449401021444,
+t1       =     731.8352923024026,
+t2       =       0.01,
+t3       =   14092.794503681582,
+t4       =    -476.316,
+t5       =     271.18737643936265,
+x0       =       0.549106,
+x1       =       2.97317,
+x2       =  -43143.59043327973,
+x3       =       0.6184313234615159,
+x4       =       5.87636,
+x5       =       0.35334471899596287,
+sigma     =      0.2,
+beta      =      0.08333,
+gamma     =      0.25,
+wso       =    122.206,
+wsoq      =     79.8397,
+CSDS0     =      0.0,                ! No s \Delta s term
+CSDS1     =      0.0,                !
+CT0       =      0.0,                ! Jmunu terms absent
+CT1       =      0.0,                !
+hbm(1)    =     20.73553000,  20.73553000,
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Pairing options
+Vn                  =      0.0,      ! Pairing parameters of conventional
+Vp                  =      0.0,      ! terms set to zero
+Vnm                 =      1.00,     ! Microscopic pairing terms active
+Vpm                 =      1.00,
+kappa_n             =    123.2,
+kappa_p             =    129.07,
+alpha               =      1.00,
+sigmap              =      1.00,
+Cutneutron          =      7.91874
+Cutproton           =      7.91874
+Estabn              =      0.00,
+Estabp              =      0.00,
+Cuttype             = 2              ! Cutoff only ABOVE the Fermi energy
+interpolationtype   = 2
+integrationtype     = 0
+ptype       = 0
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Coulomb options
+CoulTreatment              = 2
+e2                         = 1.43996446,
+Protonsize                 = 0.895, 0.0
+Neutronsize                = 0.387, 0.467
+HOcomform                  = .false.
+nucleonsize_selfconsistent = .true.
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Collective corrections: rotational, vibrational and COM
+rotcorr     = 1
+rotcorrb    = 0.904553
+rotcorrc    = 6.7641
+vibcorrd    = 0.234325
+vibcorrl    = 1.78716
+vibcorrb    = 0.866167
+COM1Body    = 2
+COM2Body    = 1
+eps         = 1d-8
+/

@@ -1929,7 +1929,7 @@ $WRITEPOTENTIALS_HDF5
     call h5pset_deflate_f(plist_id, comprlvl, error)
     ! Create dataset with default properties "dset_id" is returned
     call h5dcreate_f(id,'potentials/'//trim(name),H5T_NATIVE_DOUBLE, space_id, &
-                     dset_id, error, plist_id)
+                      dset_id, error, plist_id)
     ! Write dataset 
     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
     ! Close access to dataset 
@@ -2007,7 +2007,7 @@ $READPOTENTIALS
 
   end function ReadPotentials
 
-  function ReadPotentials_hdf5(id, filenx, fileny, filenz, symtransfo_needed) &
+  function ReadPotentials_hdf5(file_id, filenx, fileny, filenz, symtransfo_needed) &
    & result(F)
     !---------------------------------------------------------------------------
     ! Subroutine that reads the different mean-field potentials from a 
@@ -2033,16 +2033,31 @@ $READPOTENTIALS
     ! Output:
     !   F                      : a potential-vector, read from file
     !---------------------------------------------------------------------------
-    integer(hid_t), intent(in) :: id
+    integer(hid_t), intent(in) :: file_id
+    integer(hid_t)             :: group_id
+    character(len=11)          :: groupname
     integer, intent(in)        :: filenx, fileny, filenz
     logical, intent(in)        :: symtransfo_needed
     type(PotentialVector)      :: F, F_temp
     real(kind=dp), allocatable :: Ftmp(:) 
-    integer                    :: filemv, it
+    integer                    :: filemv, it, h5ferr
+#if(USE_MPI > 0)
+    integer                    :: mpi_err
+#endif
 
     filemv = filenx * fileny * filenz
+    
+    if(MPI_RANK .eq. 0) then
+      groupname='/potentials'
+      call h5gopen_f(file_id,groupname,group_id,h5ferr)
+    endif
 
 $READPOTENTIALS_HDF5
+
+    if(MPI_RANK.eq.0) then
+      !close the potentials group
+      call h5gclose_f(group_id, h5ferr)
+    endif
 
   end function ReadPotentials_hdf5
 
