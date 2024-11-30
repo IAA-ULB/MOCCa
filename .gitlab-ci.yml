@@ -1,0 +1,14 @@
+#
+# A very simple, first-try at a CI/CD deployment for Tantalus
+#
+#
+
+stages:
+ - build
+ - test
+ 
+build-job:
+  stage: build
+  script:
+    - make CONFIG=BXL
+
