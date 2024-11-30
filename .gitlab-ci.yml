@@ -1,14 +1,33 @@
+#-------------------------------------------------------------------------------
+# A very simple, first-try at a CI/CD deployment for Tantalus on GITLAB
 #
-# A very simple, first-try at a CI/CD deployment for Tantalus
-#
-#
+#-------------------------------------------------------------------------------
+image: ubuntu
 
 stages:
- - build
- - test
+ - build # Test whether the code compiles with gfortran
+ - test  # to be implemented
  
 build-job:
   stage: build
   script:
+    #----------------------------------------------------------------------
+    # Install all prerequisites
+    # Note: the -y serves to skip all prompts
+    - apt update
+    - apt install make -y                          # to use the Makefile
+    - apt-get install gfortran -y                  # to compile
+    - apt-get install libblas-dev liblapack-dev -y # LAPACK library
+    - apt-get install python3  -y                  # to run Hephaestos
+    - apt-get install python3-numpy    -y
+    - apt-get install python3-scipy    -y
+    - apt-get install git              -y          # for setting version info
+    # This is a horrible hack:
+    #   unfortunately the current Makefile configuration of Tantalus will always
+    #   fail the first time around because Hephaestos has not created f90 files
+    #   in the src/ directory yet. I have not found a way to correctly do this 
+    #   dependency in the Makefile yet...;
+    - mkdir src/
+    - cp src_orig/*.f90 src
     - make CONFIG=BXL
 
