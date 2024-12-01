@@ -1,0 +1,28 @@
+&nucleus
+neutrons=8, protons=8
+/
+&mesh
+nx=12, ny=12, nz=12, dx=1.0
+/
+&func
+name_param='SLy4'
+/
+&pairing
+/
+&evolution
+maxiter=100
+/
+&scfiteration
+/
+&wfs
+nwn = 15, nwp = 15
+osc_freq = 0.2, 0.2, 0.2
+/
+&IO
+InputFilename='init'
+OutputFilename='wtf'
+/
+&MomentParam
+/
+&Cranking
+/
