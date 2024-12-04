@@ -2,26 +2,35 @@
 # A very simple, first-try at a CI/CD deployment for Tantalus on GITLAB
 #
 #-------------------------------------------------------------------------------
-image: ubuntu
+image: ubuntu # Only needed when running on systems that apply docker to get dependencies
 
 stages:
  - build # Test whether the code compiles with gfortran
  - test  # to be implemented
- 
+
 build-job:
   stage: build
+  tags:
+    - astropc19
   script:
+    - echo "This machine has runner tags = ${CI_RUNNER_TAGS}"
     #----------------------------------------------------------------------
-    # Install all prerequisites
+    # Install all prerequisites for docker-based systems
+    #   I'm keeping this around for future configurations
+    #----------------------------------------------------------------------
     # Note: the -y serves to skip all prompts
-    - apt update
-    - apt install make -y                          # to use the Makefile
-    - apt-get install gfortran -y                  # to compile
-    - apt-get install libblas-dev liblapack-dev -y # LAPACK library
-    - apt-get install python3  -y                  # to run Hephaestos
-    - apt-get install python3-numpy    -y
-    - apt-get install python3-scipy    -y
-    - apt-get install git              -y          # for setting version info
+    #- apt update
+    #- apt install make -y                          # to use the Makefile
+    #- apt-get install gfortran -y                  # to compile
+    #- apt-get install libblas-dev liblapack-dev -y # LAPACK library
+    #- apt-get install python3  -y                  # to run Hephaestos
+    #- apt-get install python3-numpy    -y
+    #- apt-get install python3-scipy    -y
+    #- apt-get install git              -y          # for setting version info
+
+    #----------------------------------------------------------------------
+    # Actual building instructions for fully equipped systems
+    #----------------------------------------------------------------------
     # This is a horrible hack:
     #   unfortunately the current Makefile configuration of Tantalus will always
     #   fail the first time around because Hephaestos has not created f90 files
@@ -29,5 +38,6 @@ build-job:
     #   dependency in the Makefile yet...;
     - mkdir src/
     - cp src_orig/*.f90 src
+    #---------------------------------------------------------------------
     - make CONFIG=BXL
 
