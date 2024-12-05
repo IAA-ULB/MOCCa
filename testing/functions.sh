@@ -5,14 +5,14 @@
 
 # Hard-coded variables that guarantee the correct working of the functions below
 # TODO: find some way to not hardcode this
-EXECDIR=$HOME/Documents/Codes/Tantalus/exec/
-PARAMDIR=$HOME/Documents/Codes/Tantalus/parameterizations/
+EXECDIR=../../exec/
+PARAMDIR=../../parameterizations/
 
 setup_test_env () {
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Setting up for running a test: 
 # 1. define a few standard environment variables 
-# 2. create a work directory 
+# 2. create a work directory and logging directory
 # 3. copy the relevant executable and .param file there
 #
 # Arguments are:
@@ -21,12 +21,16 @@ setup_test_env () {
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 #1. environment variables
-exe="Tantalus.$1.exe"  # full name of the executable
-param="$2"
+outfile="../logs/$1.$2.out"       # output file; doubles as log file
+exe="Tantalus.$2.exe"             # full name of the executable
+param="$3"                        # name of the parameterization
 
-#2. create working directory
+#2. create working and logging directory
 if [ ! -d "work/" ]; then
   mkdir work
+fi
+if [ ! -d "logs/" ]; then
+  mkdir logs
 fi
 
 #3. copy executable and parameterization file
@@ -56,6 +60,29 @@ get_total_energy_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   echo `grep "Total energy" $1  | tail -1 | grep -oE '[+-][0-9]+([.][0-9]+)?'`
 }
+
+get_B20_stdout (){
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Get the quadrupole deformation \beta_{20} from a Tantalus STDOUT
+#
+# Input:
+#    $1: filename of tantalus STDOUT
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  B20arr=(`grep "Beta_{ 2 0}" $1  | tail -1`) # The () force the grep result into array
+  echo ${B20arr[3]}                           # echo the last result
+}
+
+get_B22_stdout (){
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Get the quadrupole deformation \beta_{22} from a Tantalus STDOUT
+#
+# Input:
+#    $1: filename of tantalus STDOUT
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  B20arr=(`grep "Beta_{ 2 2}" $1  | tail -1`) # The () force the grep result into array
+  echo ${B20arr[3]}                           # echo the last result
+}
+
 
 compare_floats (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
