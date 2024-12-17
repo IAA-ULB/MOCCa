@@ -1966,34 +1966,9 @@ subroutine ReadTantalus_hdf5(ifn)
     call h5fopen_f(ofn, H5F_ACC_RDWR_F, file_id, h5ferr, plist_id)
     !close plist_id
     call h5pclose_f(plist_id, h5ferr)
-#else
-    call h5fopen_f(ofn, H5F_ACC_RDWR_F, file_id, h5ferr)
-#endif
     ! Create dataspace for data_set 
-    call h5screate_simple_f(3, dims, space_id, h5ferr) !3d->1d doesnt change the compression
-!    !---------------------------------------------------------------------------
-!    !for chunking and deflating (to do later)
-!    ! create property list
-!    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
-!    ! create chunks with property list for compression, as of now size of chunk  
-!    ! is just equal to the size of array (for some reason work better). 
-!    ! Modify for MPI reading?
-!    call h5pset_chunk_f(plist_id, 3, dims, h5ferr)
-!    ! shuffling for better compression?
-!    call h5pset_shuffle_f(plist_id, h5ferr)
-!    ! zlib compression with deflate
-!    call h5pset_deflate_f(plist_id, comprlvl, h5ferr)
-!    ! Create dataset with default properties "dset_id" is returned
-!    call h5dcreate_f(id,name,H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
-!    ! close access to plist
-!    call h5pclose_f(plist_id, h5ferr)
-!    !---------------------------------------------------------------------------
-    ! Create dataset with default properties "dset_id" is returned
-    call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr)
-    ! Close access to data space 
-    call h5sclose_f(space_id, h5ferr)
-
-#if(USE_MPI > 0)
+    call h5screate_simple_f(3, dims, space_id, h5ferr) 
+    
     ! Each process writes its own set of wavefunctions (hyperslab)
     ! with the size
     counts(1)=nx*ny*nz
@@ -2003,6 +1978,25 @@ subroutine ReadTantalus_hdf5(ifn)
     offsets(1)=0
     offsets(2)=0
     offsets(3)=spwf_map(1)-1
+    !---------------------------------------------------------------------------
+    !for chunking and deflating
+    ! create property list
+    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
+    ! create chunks with property list for compression, as of now size of chunk  
+    ! is just equal to the size of local array. 
+    call h5pset_chunk_f(plist_id, 3, dims, h5ferr)
+    ! shuffling for better compression?
+    call h5pset_shuffle_f(plist_id, h5ferr)
+    ! zlib compression with deflate
+    call h5pset_deflate_f(plist_id, comprlvl, h5ferr)
+    ! Create dataset with default properties "dset_id" is returned
+    call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
+    ! close access to plist
+    call h5pclose_f(plist_id, h5ferr)
+    !---------------------------------------------------------------------------
+    ! Close access to data space 
+    call h5sclose_f(space_id, h5ferr)
+    
     ! create dataspace for this hyperslab
     call h5screate_simple_f(3, counts, mems_id, h5ferr)
     ! select hyperslab in the file
@@ -2021,6 +2015,28 @@ subroutine ReadTantalus_hdf5(ifn)
     ! close access to plist
     call h5pclose_f(plist_id, h5ferr)
 #else
+    ! open the file
+    call h5fopen_f(ofn, H5F_ACC_RDWR_F, file_id, h5ferr)
+    ! Create dataspace for data_set 
+    call h5screate_simple_f(3, dims, space_id, h5ferr) !3d->1d doesnt change the compression
+    !---------------------------------------------------------------------------
+    !for chunking and deflating
+    ! create property list
+    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
+    ! create chunks with property list for compression, as of now size of chunk  
+    ! is just equal to the size of array (for some reason work better). 
+    call h5pset_chunk_f(plist_id, 3, dims, h5ferr)
+    ! shuffling for better compression?
+    call h5pset_shuffle_f(plist_id, h5ferr)
+    ! zlib compression with deflate
+    call h5pset_deflate_f(plist_id, comprlvl, h5ferr)
+    ! Create dataset with default properties "dset_id" is returned
+    call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
+    ! close access to plist
+    call h5pclose_f(plist_id, h5ferr)
+    !---------------------------------------------------------------------------
+    ! Close access to data space 
+    call h5sclose_f(space_id, h5ferr)
     ! Write dataset sequentally 
     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, HFpsi, data_dims, h5ferr)
 #endif
