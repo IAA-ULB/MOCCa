@@ -1176,6 +1176,7 @@ $TR  part = 2.0d0 * part
     !   Eqp    : Diagonal matrix elements of H^11 in the new basis
     !
     !---------------------------------------------------------------------------
+    external :: DSYEV
     real(KIND=dp), intent(in)    :: H11(:,:), N11(:,:), H20(:,:), N20(:,:)
     real(KIND=dp), intent(in)    :: occ(:), lambda
     real(KIND=dp), intent(inout) :: Bogo(:,:), prev(:,:,:)

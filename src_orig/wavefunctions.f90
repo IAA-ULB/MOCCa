@@ -784,6 +784,9 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! Sort the single-particle wave-functions in the given symmetry-block 
     ! by single-particle energy. Note, this routine works with the indices 
     ! LOCAL to any given MPI rank.
+    !
+    ! TODO: refactor OrderSpwfsSym to take all relevant variables as input
+    ! TODO: develop unit test for this routine
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !      block   : integer
@@ -808,9 +811,9 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     if(allocated(Energies))  deallocate(energies)
     allocate(Indices(nwf), Energies(nwf))
     do i=1,nwf
-       Indices(i)  = startind + i 
-       Energies(i) = spwf_map(i) 
+       Indices(i) = startind + i 
     enddo
+    Energies = spenergies(startind+1:startind+nwf)
     
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Sort the energies
@@ -2114,10 +2117,12 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       ! the Hartree-Fock (HF) or Canonical (CAN) basis.
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Input:
+      !
       !  basis          : 'HF' or 'CAN', indicates which set of spwfs in memory to
       !                   calculate matrix elements for
       !  transfo        : unitary transformation to apply to the spwfs if necessary.
       !  perform_transfo: whether to apply the unitary transformation or not
+      !
       ! Output:
       !  J      : diagonal matrix elements of J
       !  JTR    : real      part of the diagonal matrix elements of JT
@@ -2932,7 +2937,6 @@ subroutine Transfer_derpsi(derpsi,wave,direction, basis, TR &
     logical, intent(in)          :: TR
     real(KIND=dp), pointer       :: dpsis(:,:,:,:), psis(:,:,:)
     character(len=*), intent(in) :: basis
-    integer                      :: k
 #if(USE_MPI>0)
     integer, intent(in)          :: send_rank, calc_rank
     integer                      :: mpi_err
@@ -3009,7 +3013,6 @@ subroutine Transfer_derpsi_complete(derpsi, wave, basis &
     integer, intent(in)          ::  wave
     character(len=*), intent(in) :: basis
     real(KIND=dp), pointer       :: dpsis(:,:,:,:), psis(:,:,:)
-    integer                      :: k
 #if(USE_MPI>0)
     integer, intent(in)          :: send_rank, calc_rank
     integer                      :: mpi_err
@@ -3091,7 +3094,7 @@ function transform_mat_diag(M, transfo) result(Mc)
   enddo  
 
  end function transform_mat_diag 
- 
+
  subroutine clean_wavefunctions()
 
     if(allocated(HFPsi))    deallocate(HFPsi)

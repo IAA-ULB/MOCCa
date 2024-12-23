@@ -1,12 +1,12 @@
 # Configuration file for Tantalus compilation
-# Functional : NLO Skyrme-type (think SLy4/5/6) with optional Jmn terms
-FUNC_FILE = 'NLO.func'
-# Symmetries : EV4-style
-SYMSTRING = 'T,STy'
-REDUCE    = [0,1,0]
+# Functional : N2LO Skyrme-type with BXL-style pairing treatment AND T4+T5 terms
+FUNC_FILE = 'BXL-N2LO-full.func'
+# Symmetries : EV8-style
+SYMSTRING = 'Rz,T,P,STy'
+REDUCE    = [1,1,1]
 # Read symmetries: EV8-style
-INSYM     = 'Rz,T,STy'
-INREDUCE  = [1,1,0]
+INSYM     = 'Rz,T,P,STy'
+INREDUCE  = [1,1,1]
 # Axis orientation for multipole moments : default
 QUANT_AXIS='Z'
 SECOND_AXIS=1

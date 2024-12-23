@@ -89,6 +89,10 @@ module HFB
   real(KIND=dp), allocatable ::  rho_history(:,:), kappa_history(:,:)
   real(KIND=dp), allocatable ::  configmatrix_history(:) 
   real(KIND=dp), allocatable ::  Bogoliubov_history(:,:)
+  !------------------------------------------------------------------------------
+  ! Admixture of new (HFBmix) and old (HFBmix-1) density matrices to stabilize
+  ! convergence
+  real(KIND=dp) :: HFBmix = 1.0_dp
   !-----------------------------------------------------------------------------
   ! Cutoff parameter to judge whether or not levels are participating in the 
   ! pairing.
@@ -130,7 +134,7 @@ contains
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType,Blockindices,               &
   &                          blocklowest, blocked_qps, partner_qps,qp_overlaps,&
-  &                          ifail)
+  &                          mix, ifail)
 
     !---------------------------------------------------------------------------
     ! Driver routine for the solving of the HFB equations in a direct fashion,
@@ -150,6 +154,7 @@ contains
     !    Blocklowest  : when blocktype=2,4,6 contains the type of excitations 
     !                   we want to build. To be passed into 
     !                   construct_configuration.
+    !    mix          : mixing factor for density matrix mixing ! MB 24/08/13
     !
     ! Ouput:
     !    Fermi        : final value obtained by the solver for the Fermi 
@@ -181,7 +186,8 @@ contains
     ! Quantities for the HFB hamiltonian
     real(KIND=dp), intent(in)    :: sphamil(:,:),gaps(:,:)
     real(KIND=dp)                :: HFBHamil(2*nwt, 2*nwt)
-    
+    ! mixing parameter
+    real(KIND=dp), intent(in)    :: mix
     ! Configuration for the blocking
     integer, intent(in)          :: Blockindices(:)
     integer, intent(in)          :: BlockType
@@ -200,10 +206,15 @@ contains
     !-----------------END OF DECLARATIONS --------------------------------------
 
     if(.not.allocated(rho_history)) then
-      allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
-      allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0
-      allocate(configmatrix_history(2*nwt))     ; configmatrix_history = 0.0
-      allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0
+      allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0d0
+      allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0d0
+      allocate(configmatrix_history(2*nwt))     ; configmatrix_history = 0.0d0
+      allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0d0
+     else
+      ! Saving the history                      
+      ! copy only when not being initialised and when being non-zero
+      if (any(rho_pairing   .ne. 0.0_dp)) rho_history   = rho_pairing
+      if (any(kappa_pairing .ne. 0.0_dp)) kappa_history = kappa_pairing
     endif
 
     ! Saving the history
@@ -351,9 +362,11 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     !    program.
     call reorganise_matrices(Bogoliubov,qpenergies,configmatrix)
     !---------------------------------------------------------------------------
-    !    Construct the density and anomalous density matrices, based on the 
-    !    configmatrix and the Bogoliubov transformation
-    call PairingMatrices(configmatrix, bogoliubov, rho_pairing, kappa_pairing)
+    !    Construct the density and anomalous density matrices
+    call PairingMatrices(configmatrix,bogoliubov,rho_pairing,kappa_pairing)
+    !---------------------------------------------------------------------------
+    ! optional mixing of density matrices to stabilise convergence
+    call mix_pairing(mix, rho_pairing, kappa_pairing)
 
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
 
@@ -363,7 +376,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType, Blockindices,              &
   &                          blocklowest, blocked_qps, partner_qps,            & 
-  &                          p_overlaps, move, maxhfbiter,  ifail) 
+  &                          p_overlaps, move, maxhfbiter, mix, ifail) 
     !---------------------------------------------------------------------------
     ! Driver routine for solving the HFB equations by heavy-ball evolution in 
     ! the manifold of Bogoliubov states connected by a Thouless transformation.
@@ -384,8 +397,9 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     !                       after the heavy-ball step.
     !   move         : logical. 
     !                   .true. : update the Bogoliubov transformation
-    !                   .false.: don't move (useful for initialisation)                    
-    !
+    !                   .false.: don't move (useful for initialisation)         
+    !   mix          : mixing factor for density matrix mixing 
+    ! 
     ! Output         :
     !   Bogo         : evolved Bogoliubov transformation
     !   configmatrix : new configuration (see remark below)
@@ -447,7 +461,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     integer, intent(inout)       :: ifail
     integer, intent(in)          :: maxhfbiter
     logical, intent(in)          :: move
-
+    real(KIND=dp), intent(in)    :: mix
     integer, intent(in)                       :: BlockType
     integer, intent(in), allocatable          :: Blockindices(:)
     character(len=2), intent(in), allocatable :: BlockLowest(:)
@@ -464,10 +478,10 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     if(allocated(blockindices)) trash = 0.0d0
 
     if(.not.allocated(rho_history)) then
-      allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0
-      allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0
-      allocate(configmatrix_history(2*nwt))     ; configmatrix_history = 0.0
-      allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0
+      allocate(rho_history(nwt,nwt))            ; rho_history   = 0.0d0
+      allocate(kappa_history(nwt,nwt))          ; kappa_history = 0.0d0
+      allocate(configmatrix_history(2*nwt))     ; configmatrix_history = 0.0d0
+      allocate(Bogoliubov_history(2*nwt, 2*nwt)); Bogoliubov_history = 0.0d0
     endif
 
     if(.not.allocated(Z_updates)) then
@@ -600,6 +614,9 @@ $TR    endif
     !---------------------------------------------------------------------------
     ! Calculate the density and anomalous density matrix
     call PairingMatrices(configmatrix, bogo, rho_pairing, kappa_pairing)
+    !---------------------------------------------------------------------------
+    ! optional mixing of density matrices to stabilise convergence
+    call mix_pairing(mix, rho_pairing, kappa_pairing)
     !---------------------------------------------------------------------------
     ! Final organisation of the Bogoliubov transformation B and QP energies. 
     call correct_ordering_eqp(sphamil,gaps,Fermi,bogo,HFBlocks_global, &
@@ -999,6 +1016,7 @@ $PBROKEN blockblock(i) = 5
     ! (2) this routine produces the ACTUAL qp energies of a given HFB 
     !     Hamiltonian, as opposed to the subroutine correct_ordering_eqp
     !---------------------------------------------------------------------------
+    external :: DSYEV
 
     real(KIND=dp), intent(in)   :: sphamil(:,:), gaps(:,:), lambda(2)
     real(KIND=dp), allocatable  :: HFBhamil(:,:), work(:), A(:,:)
@@ -1383,14 +1401,54 @@ $TR    dispersion = 2 * dispersion
 
   subroutine mix_pairing(mix, rho, kappa) 
     !---------------------------------------------------------------------------
-    ! Linearly mix rho and kappa
+    ! Perform a linear mixing of the pairing matrices rho and kappa with older
+    ! values stored in rho_history and kappa_history. 
+    !
+    !      rho   = mix * rho   + (1-mix) * rho_history
+    !      kappa = mix * kappa + (1-mix) * kappa_history
+    ! 
+    ! The actual mixing only gets performed if kappa did not change too
+    ! violently. This reflects experiments of M. Bender that he emailed to W.R.
+    ! on 14/08/2024: the short summary is that, depending on the initialisation
+    ! of the entire run, naive mixing would or would not destroy convergence.
+    ! TODO: It should be figured out whether this observation is due to an 
+    !       inconsistency somewhere in the phase conventions of pairing 
+    !       quantities such as the pairing gaps and gap.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   mix   : real, mixing parameter
+    !   rho   : density matrix constructed from the Bogoliubov transformation 
+    !   kappa : anomalous density matrix from the Bogoliubov transformation 
+    !
+    ! Ouput:
+    !   rho   : mixed density matrix
+    !   kappa : mixed anomalous density matrix
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)    :: mix
     real(KIND=dp), intent(inout) :: rho(:,:), kappa(:,:)
 
-    rho   =  mix * rho   + (1.0d0-mix) * rho_history
-    kappa =  mix * kappa + (1.0d0-mix) * kappa_history
-
+    if (any(rho_history .ne. 0.0_dp)) then
+      ! the sign of large values of kappa has changed, don't mix rho either
+      if (abs(minval(kappa-kappa_history)).gt.1.2_dp*abs(minval(kappa))) then
+        !print '(" mix_pairing: kappa-kappa_history too large, better dont mix")'
+        rho = 1.0_dp * rho
+      else
+        rho   =  mix * rho   + (1.0d0-mix) * rho_history
+        ! print '(" mix_pairing: mix rho   with ",1f6.3)',mix
+      endif
+    else
+      rho = 1.0_dp * rho
+    endif
+    if (any(kappa_history .ne. 0.0_dp)) then                    
+      if (abs(minval(kappa-kappa_history)).gt.1.2_dp*abs(minval(kappa))) then
+        !print '(" mix_pairing: kappa-kappa_history too large, better dont mix")'
+        kappa = 1.0_dp * kappa
+      else
+        kappa =  mix * kappa + (1.0d0-mix) * kappa_history
+      endif
+    else
+      kappa = 1.0_dp * kappa
+    endif
   end subroutine mix_pairing 
 
   subroutine PairingMatrices(config, bogo, rho, kappa)
@@ -1401,9 +1459,16 @@ $TR    dispersion = 2 * dispersion
     !    rho   = U   f U^\dagger + V^* (1 - f) V^T
     !    kappa = U   f V^\dagger + V^* (1 - f) U^T  
     !
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !  Notice how this routine only uses the last half of the columns of the  
     !  Bogoliubov transformation.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !    config: the configuration matrix, i.e. f, in most of the literature
+    !    bogo  : the complete bogoliubov transformation
+    ! Output: 
+    !    rho   : new values for the density matrix
+    !    kappa : new values for the 
     !---------------------------------------------------------------------------
 
     real(KIND=dp), intent(in) :: config(:), Bogo(:,:)
@@ -1582,10 +1647,20 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     ! When time-reversal is not conserved, it is indeed the full matrix that 
     ! is stored. This full matrix is antisymmetric, not symmetric!
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: Fermi(2), stabfactor(2)
-    integer                   :: wave1, wave2, iso, si,  B, N, N2,T
-    integer                   :: inda, indb, inda_global, indb_global
-    real(KIND=dp)             :: deltapsi(mv,4), val(2), stabfac
+    real(KIND=dp), intent(in)  :: Fermi(2), stabfactor(2)
+    integer                    :: wave1, wave2, iso, si,  B, N, N2,T
+    integer                    :: inda, indb, inda_global, indb_global
+    real(KIND=dp)              :: val(2), stabfac
+    real(KIND=dp), allocatable :: deltapsi(:,:)
+    ! Technical note: deltapsi HAS to be allocatable as opposed to an automatic
+    !                 array, because the result of the function delta_action
+    !                 is allocatable. This cannot be changed, because delta_action
+    !                 is assigned through pointer remapping which requires an
+    !                 interface (see delta_action_dummy at the top of this file).
+    !                 Said interface cannot be defined in terms of runtime
+    !                 variables such as the number of mesh points. Switching to an
+    !                 automatic array here will lead to memory leaks with IFORT
+    !                 compilers.
 #if(USE_MPI>0)
     integer                   :: mpi_err
 #endif
@@ -1838,7 +1913,7 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     ! c) Return the diagonal elements of rho, and the offdiagonal elements of 
     !    kappa, as well as the transformation.
     !---------------------------------------------------------------------------
-    
+    external DSYEV
     real(KIND=dp), intent(in)  :: rho_pairing(nwt,nwt)
     real(KIND=dp), intent(in)  :: kappa_pairing(nwt,nwt)
     real(KIND=dp), intent(out) :: rho_can(nwt), kappa_can(nwt)

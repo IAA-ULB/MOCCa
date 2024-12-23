@@ -523,20 +523,27 @@ contains
           ! Option a): break a symmetry and transform the spwfs appropriately
           call Transformspwfs( HFPsi, filenx, fileny, filenz,fileblocks_global,&
           &                    fileblocks, file_rank_map, file_spwf_inverse)
+          ! ----> this features a call to load_balance and hence sets the 
+          !       correct spwfs mappings everywhere
       else
           ! Option b): add points and/or add spwfs
           call  TransformInput(filenx,fileny,filenz,filenwn,filenwp,filedx,    & 
-          &                               fileblocks,file_HFB_blocks,extraspwfs)
+          &                    fileblocks,file_HFB_blocks, file_spwf_map,      &
+          &                    file_rank_map, file_spwf_inverse, extraspwfs)
+          ! ----> this features a call to load_balance and hence sets the 
+          !       correct spwfs mappings everywhere
       endif
     else  
-      ! Sanity check
+      ! Sanity check the input
       if(symtransfo_needed) then
         call stp('Symmetry transformation needed, but not allowed by user.')
       endif
-      ! We still need to set this particular information
-      HFblocks  = fileblocks
+      ! We still need to set the information regarding spwf mapping
+      HFblocks     = fileblocks
+      spwf_map     = file_spwf_map
+      rank_map     = file_rank_map
+      spwf_inverse = file_spwf_inverse
     endif
-  
     !---------------------------------------------------------------------------
     ! The following information needs to be transferred in every case
     nwt_local = sum(HFBlocks)
@@ -547,15 +554,6 @@ contains
 #else
       HFBlocks_global = HFBlocks
 #endif
-    ! ... and these if (and only if) transformspwfs was not called above
-    ! If transformspwfs was called, this assignment was taken care of inside 
-    ! that routine.
-    if(.not. symtransfo_needed) then
-      spwf_map     = file_spwf_map
-      rank_map     = file_rank_map
-      spwf_inverse = file_spwf_inverse
-    endif
-
     !---------------------------------------------------------------------------
     ! with everything safely in memory, we add in an orthonormalisation to 
     ! guarantee we can start calculating stuff.
@@ -2192,16 +2190,17 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     use Coulombmod ! module explicitly 'used' in order to be able to place the 
                    ! values of the direct and exchange Coulomb potentials 
                    ! correctly on the mesh
-  
+
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ifn
 
     logical :: exists
-    integer :: i,j,k,io, it, mu, nu, ox, oy, oz, headercount
+    integer :: i,j,k,io, it, ox, oy, oz, headercount
+    !integer :: mu, nu
     real(KIND=dp), allocatable :: Vc(:), Ec(:)
     real(KIND=dp) :: x,y,z
     character(len=200) :: temp
-     
+
     inquire(file=inputfilename, exist=exists)
     if(.not.exists) then
       print *, 'Input file specified does not exist!'
@@ -2675,22 +2674,11 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     ! Collective inertia
     write(1, fmt=1)
     write(1, fmt=9)
-    do it=1,3
-      select case(it)
-      ! FORTRAN does not seem to allow for calculated fmt = it + 3 statements,
-      ! so hardcoding it is.
-      case(1)
-        write(1, fmt=4)
-      case(2)
-        write(1, fmt=5)
-      case(3)
-        write(1, fmt=6)
-      end select      
-      do k=1, N_inertia
+    write(1, fmt=6)
+    do k=1, N_inertia
         l = inertia_l(k)
         m = inertia_m(k)
-        write(1, fmt=7) l,m,collective_inertia(k,1:N_inertia ,it)
-      enddo    
+        write(1, fmt=7) l,m,collective_inertia(k,1:N_inertia)
     enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2773,13 +2761,17 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     ! Additional note: the MOI that are written are the "COLLECTIVE" Belyaev 
     !                  values, i.e. those without the contributions from any
     !                  blocked qps.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: Document the precise output of this routine.
     !
     !---------------------------------------------------------------------------
-    type(moment), pointer        :: quadrupole
+    use Moments, only: multipolefactor, calculatetotalQl
+    
     character(len=*), intent(in) :: combi
     integer, allocatable :: indices(:)
     integer              :: i,ii, p1, p2,jj
     real(KIND=dp)        :: A, mstate1, mstate2
+    real(KIND=dp)        :: b2, b3,b4, q2(4), q3(4), q4(4)
     real(KIND=dp), allocatable :: tempgaps(:,:)
 
     1 format (a1, 3i4)
@@ -2919,15 +2911,23 @@ $NTR      &              mstate2,p2,spenergies(jj),rho_HF(jj),maxval(abs(tempgap
     !       expectation values of Jz that are written on file.
     !---------------------------------------------------------------------------
 
-    quadrupole => FindMoment(2,0,.false.)
-    A = protons + neutrons
+    ! Calculate the total deformations Q_l
+    q2 = CalculateTotalQl(2) 
+    q3 = CalculateTotalQl(3)
+    q4 = CalculateTotalQl(4)
+    
+    ! Rescale to dimensionless quantities
+    A = neutrons + protons
+    b2 = q2(4) * MultipoleFactor(A,A,2)
+    b3 = q3(4) * MultipoleFactor(A,A,3)
+    b4 = q4(4) * MultipoleFactor(A,A,4)
 
     ! Note: items marked with (*) are written as zero and, to the best of
     ! my (=W.R.) knowledge, not used by the level density code.  
     !                        IZ          IA    BETA     B4
-    write(unit=6, fmt=3)  int(protons),int(A),quadrupole%beta(4), 0.0,  &
+    write(unit=6, fmt=3)  int(protons),int(A),  b2, b4,  &
     !                      HGN    HFGP  HFDN             HFDP
-    &                      0.0,   0.0,  average_gap(2,1),average_gap(2,2), & 
+    &                      b3,    0.0,  average_gap(2,1),average_gap(2,2), &
     !                      HFDDN,HFDDP,HFEN,HFEP,HFUN,HFUP
     &                      0.0,   0.0,  0.0, 0.0, 0.0, 0.0, & 
     !                      HFLN, HFLP, 

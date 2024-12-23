@@ -1,0 +1,86 @@
+#-------------------------------------------------------------------------------
+# CI/CD deployment for Tantalus on ULB GITLAB
+#-------------------------------------------------------------------------------
+image: ubuntu # Only needed when running on systems that use docker 
+
+stages:
+ - compilation # Test whether the code compiles with gfortran
+ - testing     # All types of numerical testing 
+
+compile:
+  #----------------------------------------------------------------------------
+  # Perform several different compilations for .exe's
+  #----------------------------------------------------------------------------
+  stage: compilation
+  variables:
+    EXENAME: Tantalus.${CONFIG}.${COMPILER}.${CALCTYPE}.exe
+  tags:
+    - astropc19
+  artifacts:
+    paths:
+      - exec/${EXENAME}
+    expire_in: 2 days # Don't keep the exe's around for long
+  parallel:
+    matrix:
+      - CONFIG  : [NLO,BXL]
+        COMPILER: [gfortran, ifort]
+        CALCTYPE:  NUCLEI
+      - CONFIG  : BXL
+        COMPILER: ifort
+        CALCTYPE: PASTA
+  script:
+    #---------------------------------------------------------------------------
+    # This is a horrible hack:
+    #   unfortunately the current Makefile configuration of Tantalus will always
+    #   fail the first time around because Hephaestos has not created f90 files
+    #   in the src/ directory yet. I have not found a way to correctly do this 
+    #   dependency in the Makefile yet...;
+    #---------------------------------------------------------------------------
+    - mkdir src/
+    - cp src_orig/*.f90 src
+    #---------------------------------------------------------------------------
+    # Make sure that the intel compilers and libraries are available
+    - source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+    #---------------------------------------------------------------------------
+    # Compiles the selected configuration file with the selected compiler, 
+    #    resulting in a specific executable
+    - make CONFIG=${CONFIG} COMPILER=${COMPILER} EXENAME=${EXENAME} CALCTYPE=${CALCTYPE}
+
+integration-testing:
+  #-----------------------------------------------------------------------------
+  # Run all integration tests.
+  #-----------------------------------------------------------------------------
+  stage: testing
+  tags:
+    - astropc19
+  variables:
+    SUFFIX: NLO.${COMPILER}.NUCLEI
+  artifacts:
+    paths:
+      - testing/integration/logs/minimal.${SUFFIX}.out
+    expire_in: 1 year # keep outputs for a LONG time
+  parallel:
+    matrix:
+      - COMPILER: [gfortran, ifort]
+  script:
+    #---------------------------------------------------------------------------
+    # Make sure that the intel compilers and libraries are available
+    - source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+    #---------------------------------------------------------------------------
+    # Start testing!
+    - cd testing/integration/
+    - bash minimal.sh $SUFFIX # Spherical O16 with SLy4
+    
+  #----------------------------------------------------------------------
+  # Install all prerequisites for docker-based systems
+  #   I'm keeping this around for future configurations
+  #----------------------------------------------------------------------
+  # Note: the -y serves to skip all prompts
+  #- apt update
+  #- apt install make -y                          # to use the Makefile
+  #- apt-get install gfortran -y                  # to compile
+  #- apt-get install libblas-dev liblapack-dev -y # LAPACK library
+  #- apt-get install python3  -y                  # to run Hephaestos
+  #- apt-get install python3-numpy    -y
+  #- apt-get install python3-scipy    -y
+  #- apt-get install git              -y          # for setting version info

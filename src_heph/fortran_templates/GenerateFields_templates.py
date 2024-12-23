@@ -41,6 +41,7 @@ field_calc_den       = T(' * $DENSITY(:$DENIND,$ISOALT)')
 field_calc_DD        = T(' * pow($DENSITY(:$DENIND,$ISOALT), $DD)')
 
 field_calc_full      = T(2*tab + '& $SIGN $CPLCTE $EXPR1 $EXTRA & \n') 
+field_calc_INM = T(  tab + 'pot(:,$ISOIND) = pot(:,$ISOIND) $SIGN $CPLCTE $EXPR1 \n')
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Recombination statements

@@ -213,7 +213,17 @@ contains
     ! Calculate the BCS pairing gaps.
     !---------------------------------------------------------------------------
     integer                      :: wave, iso, wave_global
-    real(KIND=dp)                :: deltapsi(mv,4), trash(2)
+    real(KIND=dp)                :: trash(2)
+    real(KIND=dp), allocatable   :: deltapsi(:,:)
+    ! Technical note: deltapsi HAS to be allocatable as opposed to an automatic
+    !                 array, because the result of the function delta_action
+    !                 is allocatable. This cannot be changed, because delta_action
+    !                 is assigned through pointer remapping which requires an
+    !                 interface (see delta_action_dummy at the top of this file).
+    !                 Said interface cannot be defined in terms of runtime
+    !                 variables such as the number of mesh points. Switching to an
+    !                 automatic array here will lead to memory leaks with IFORT
+    !                 compilers.
     real(KIND=dp), intent(in)    :: fermi(2), stabfactor(2)
 #if(USE_MPI>0)
     integer                      :: mpi_err

@@ -66,7 +66,10 @@ module functional
  ! LAPTEMPDELTA     : $LAPTEMPDELTA
  !
  ! TAUSCALAR        : $TAUSCALAR
- ! TAUTENSOR        : $TAUTENSOR^
+ ! TAUTENSOR        : $TAUTENSOR
+ !
+ ! K2POT            : [WAY TOO LONG TO INCLUDE HERE]
+ ! K4POT            : [WAY TOO LONG TO INCLUDE HERE]
  !------------------------------------------------------------------------------
  ! A density F_L_R is stored as
  !
@@ -234,15 +237,15 @@ $CALCCOEF
     ! Print the values of the EFD coefs used.
     !---------------------------------------------------------------------------
     1 format (' - - - - - - - - - - -')
-    2 format (2x, 74('_'))
+    2 format (2x, 78('_'))
     3 format (' EDF coupling constants ')
     4 format (40x, 'Particle-hole terms')
    41 format (2x, 'Term', 35x, 'Isospin', 5x, '# #G', 5x,' Value ')
     5 format (40x, 'Pairing terms')
 
-   97 format (2x, a38,'|', 2a2, 5x ,'|', 2i3,'|', 1x, f15.6)
-   98 format (2x, a38,'|', 3a2, 3x ,'|', 2i3,'|', 1x, f15.6)
-$QUADRI   99 format (2x, a38,'|', 4a2, 1x ,'|', 2i3,'|', 1x, f15.6)
+   97 format (2x, a38,'|', 2a2, 5x ,'|', 2i3,'|', 1x, f21.12)
+   98 format (2x, a38,'|', 3a2, 3x ,'|', 2i3,'|', 1x, f21.12)
+$QUADRI   99 format (2x, a38,'|', 4a2, 1x ,'|', 2i3,'|', 1x, f21.12)
     
      print 1
      print 3
@@ -1032,14 +1035,16 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     ! Calcall input decides whether or not to calculate ALL fields. 
     ! If Calcall is true, all of the potentials get recalculated.
     ! If Calcall is false, only potentials that are equal to zero get calculated.
+    !
+    ! Note: it also precalculates the microscopic pairing strengths that is
+    !       necessary to calculate the
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Includes preconditioning of F_I_I at the moment only.
     !---------------------------------------------------------------------------
     use Coulombmod , only : SolveCoulomb, CoulombPotential, Exchangepotential
     use Coulombmod , only : Foldedcoul,  FoldedExchange, Coulomb_read_from_file
     use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
-    
-    use pairing_strengths, only : vmicro
+    use pairing_strengths, only : vmicro, vmicro_stored
     
     use moments
     
@@ -1057,11 +1062,14 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
         if(allocated(F_I_I))then
             rhoread = .true.
         else
-            rhoread = .false.        
+            rhoread = .false.
         endif
     else
         rhoread = .false.
     endif
+
+    ! Signal that microscopic pairing strengths have to be recalculated
+    vmicro_stored = .false.
 
 $CALCFIELDS
     
@@ -1156,18 +1164,90 @@ $FIELDPRECON
     endif
   end function pow
 
-  function effmass_pot() result(em_pot)
-    !---------------------------------------------------------------------------
-    ! TODO: document!
+  function INM_k2_pot(rho) result(pot)
+    !-----------------------------------------------------------------
+    ! Imagine homogeneous and unpolarised infinite nuclear matter:
+    ! if one restricts itselfs to fourth order in gradients, the
+    ! single-particle energies are:
     !
+    !       e(k) = U_0 + U_2 k^2 + U_4 k^4
     !
-    !---------------------------------------------------------------------------
-    real(KIND=dp)                     :: em_pot(mv,4)
+    ! where the U_i are k-indepedent but possibly rho dependent.
+    ! This routine calculates the potential U_2 in this expression
+    ! as a function of the density on the mesh, starting only from
+    ! the density D_I_I and using the local density approximation
+    ! to get higher order densities.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   rho : density at every point on the mesh
+    ! Output:
+    !   pot : U_2 at every point on the mesh, assuming
+    !         homogeneous unpolarised INM at that specific density.
+    !-----------------------------------------------------------------
+    real(KIND=dp), intent(in) :: rho(mv,4)
+    real(KIND=dp)             :: pot(mv,4)
+    real(KIND=dp)             :: kfn(mv), kfp(mv)
 
-$TAUSCALAR em_pot = F_Nm_Nm
-$TAUTENSOR em_pot = (F_N_N(:,1,1,:) + F_N_N(:,2,2,:) + F_N_N(:,3,3,:))/3
+    kfn=(3.d0*pi**2*rho(:,1))**(1.0d0/3.0d0) ! Neutron density
+    kfp=(3.d0*pi**2*rho(:,2))**(1.0d0/3.0d0) ! Proton  density
 
-  end function effmass_pot
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Initialize to zero
+    pot = 0.0d0
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of isospin 0 and 1
+$K2POT
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Recombine to proton and neutron potentials
+    pot(:,1) = pot(:,3) + pot(:,4)
+    pot(:,2) = pot(:,3) - pot(:,4)
+end function INM_k2_pot
+
+  function INM_k4_pot(rho) result(pot)
+    !-----------------------------------------------------------------
+    ! Imagine homogeneous and unpolarised infinite nuclear matter:
+    ! if one restricts itselfs to fourth order in gradients, the
+    ! single-particle energies are:
+    !
+    !       e(k) = U_0 + U_2 k^2 + U_4 k^4
+    !
+    ! where the U_i are k-indepedent but possibly rho dependent.
+    ! This routine calculates the potential U_4 in this expression
+    ! as a function of the density on the mesh, starting only from
+    ! the density D_I_I and using the local density approximation
+    ! to get higher order densities.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   rho : density at every point on the mesh
+    ! Output:
+    !   pot : U_4 at every point on the mesh, assuming
+    !         homogeneous unpolarised INM at that specific density.
+    !-----------------------------------------------------------------
+    real(KIND=dp), intent(in) :: rho(mv,4)
+    real(KIND=dp)             :: pot(mv,4)
+    real(KIND=dp)             :: kfn(mv), kfp(mv)
+
+    kfn=(3.d0*pi**2*rho(:,1))**(1.0d0/3.0d0) ! Neutron density
+    kfp=(3.d0*pi**2*rho(:,2))**(1.0d0/3.0d0) ! Proton  density
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Initialize to zero
+    pot = 0.0d0
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of isospin 0 and 1
+$K4POT
+
+    !- - - - - - - - - - - - - - - - - - - - - -
+    ! Recombine to proton and neutron potentials
+    pot(:,1) = pot(:,3) + pot(:,4)
+    pot(:,2) = pot(:,3) - pot(:,4)
+end function INM_k4_pot
+
 
   function sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &
@@ -1344,7 +1424,7 @@ $LAPTEMPDELTA   real(KIND=dp)    :: laptemp(mv,4)
     ! Zero the action of Delta. 
     ! This is the place to include contributions to the pairing that should 
     ! be coded manually
-    allocate(deltapsi(mv, 4))
+    allocate(deltapsi(mv,4))
     deltapsi = 0.0
    
 $PAIRINGACTION

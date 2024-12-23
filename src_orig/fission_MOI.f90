@@ -27,6 +27,10 @@ module fission_MOI
  !      Quadrupole collective inertia in nuclear fission: cranking approximation
  !      Phys. Rev. C 84, 054321 (2011)
  !
+ ! Attention: to the best of my understanding, there are errors in Baran et al. 
+ !            that lead to almost, but not quite, the same results! The final
+ !            implementation here is based on S.A. Giuliani et al.
+ ! 
  !------------------------------------------------------------------------------
  ! Hephaestos keywords
  ! 
@@ -51,7 +55,7 @@ module fission_MOI
   !-----------------------------------------------------------------------------
   ! The full collective inertia tensor, obtained by including information 
   ! on ALL the multipole moments that were asked for  
-  real(KIND = dp), allocatable :: collective_inertia(:,:,:)
+  real(KIND = dp), allocatable :: collective_inertia(:,:)
   ! Intermediate matrices M^1 and M^3 that are needed for the calculation
   ! of the collective_inertia. Stored separately so it can be output for 
   ! people wanting to recalculate the collective inertia.
@@ -170,31 +174,18 @@ contains
     enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Collective inertia tensor, complete version
+    ! Collective inertia tensor
     header = ''
     do i=1,N_inertia
       write(tmp, 3) inertia_l(i),inertia_m(i) 
       header = adjustl(trim(header)//tmp)
     enddo
 
-    print *, ' neutrons        ', header   
-    print *, sep 
-    do i=1, N_inertia
-      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,1)
-    enddo
-    print *,sep
     print *
-    print *, ' protons         ', header   
+    print *, '                ', header
     print *,sep
     do i=1, N_inertia
-      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,2)
-    enddo
-    print *,sep
-    print *
-    print *, ' total          ', header   
-    print *,sep
-    do i=1, N_inertia
-      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia,3)
+      print 4, inertia_l(i),inertia_m(i), collective_inertia(i,1:N_inertia)
     enddo
     print *,sep
     print *
@@ -244,9 +235,6 @@ contains
     enddo
     print *,sep
     print *
-    
-    ! Verify these results with the COM motion    
-    call verify_COM_motion
         
     print 2
   end subroutine print_collective_inertia
@@ -283,14 +271,14 @@ contains
     !
     ! The results of (b) and (c) are not necessarily close to (a) however: 
     ! for typical Skyrme interactions the effective mass m^*/m is not equal
-    ! to one, spoiling the correspondence. The origin lies in the absence of 
-    ! Galileian invariance of the interaction (at least in a perturbative
-    ! calculation) as discussed in 
+    ! to one, spoiling the correspondence of the perturbative formulation. 
+    ! The origin lies in the absence of Galileian invariance of the interaction 
+    ! in the perturbative treatment, see 
     !
     !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
-    !
-    ! We calculate an "average effective mass" and also display the corrected
-    ! result. 
+    ! 
+    ! for a discussion. Ideally, we would calculate an "average" effective mass
+    ! as these authors do and use it to correct our results.
     !
     !---------------------------------------------------------------------------
     
@@ -301,18 +289,15 @@ contains
     2 format (25x, 'neutrons        protons          total', / &
     &         1x, 80('-'))
     3 format ('   Belyaev M_0      | ', 3f16.5)
-    4 format ('   Pert. cranking   | ', 3f16.5)
-    5 format ('   Belyaev m / m_*  | ', 3f16.5)
-    6 format ('   Pert.   m / m_*  | ', 3f16.5)
-    
+    4 format ('   Pert. cranking   | ', 32x,f16.5)
     7 format (1x, 80('-'),/, &
     &         '   Am               | ', 3f16.5, /, 80('-'))
     
     real(KIND=dp), allocatable :: NablaMElements(:,:,:,:)
-    real(KIND=dp) :: mat(2,2), Pmat(2,2), neutronmass, protonmass
+    real(KIND=dp) :: mat(2,2), Pmat(2,2), totalmass
       
     real(KIND=dp) :: Psp(nwt,nwt), Qsp(nwt,nwt), hbar
-    real(KIND=dp) :: P20(nwt,nwt), Q20(nwt,nwt), avg_effmass(2)
+    real(KIND=dp) :: P20(nwt,nwt), Q20(nwt,nwt)
     
     ! Calculate hbar to make its use consistent
     hbar =  sqrt(hbm(1) * 2  * 0.5 * sum(nucleonmass))
@@ -338,6 +323,9 @@ contains
     Qsp(1:nwn,1:nwn)         =      Qsp(1:nwn,1:nwn)        /(neutrons+protons)
     Qsp(nwn+1:nwt,nwn+1:nwt) =      Qsp(nwn+1:nwt,nwn+1:nwt)/(protons +neutrons)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: Calculate the average effective mass for the pushing model.
+    !       This used to work, but now fails thanks to the changes of the 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculate average effective mass 
     !
     !   m^*/m_q  = 2m/N_q * int d^3r   rho_q(r) hbar^2/2m^*_q(r)
@@ -347,11 +335,13 @@ contains
     ! which is the logical generalization from Eq. (30) in 
     !    K. Wen, and T. Nakatsukasa,  http://arxiv.org/abs/2112.13317
     ! and an explicit factor of hbar^2.
-    avg_effmass =1.0 ! sum(F_Nm_Nm(:,:) * D_I_I(:,:) , 1) * dv 
-    avg_effmass(1) = avg_effmass(1) / (hbm(1) * neutrons)
-    avg_effmass(2) = avg_effmass(2) / (hbm(2) * protons)
-    avg_effmass    = avg_effmass + 1 
-    avg_effmass    = 1/avg_effmass
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !     avg_effmass = sum(F%F_Nm_Nm(:,:) * R%D_I_I(:,:) , 1) * dv
+    !     avg_effmass(1) = avg_effmass(1) / (hbm(1) * neutrons)
+    !     avg_effmass(2) = avg_effmass(2) / (hbm(2) * protons)
+    !     avg_effmass    = avg_effmass + 1
+    !     avg_effmass    = 1/avg_effmass
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     print 1
     print 2
@@ -372,21 +362,12 @@ contains
     end select
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculating the inertia parameters
-    neutronmass = 0.25d0 * 1.0/mat(1,1) * mat(2,1) * 1.0/mat(1,1)
-    protonmass  = 0.25d0 * 1.0/mat(1,2) * mat(2,2) * 1.0/mat(1,2)
+    totalmass   = 1.0d0/(sum(mat(1,:))) * sum(mat(2,:)) * 1.0d0/(sum(mat(1,:)))
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Printing 
     print 3,  Pmat(1,:), sum(Pmat(1,:))
-    print 4,  neutronmass*hbar**2,  &
-    &         protonmass*hbar**2,   & 
-    &         (neutronmass+protonmass)*hbar**2
-
-    print 5,  Pmat(1,:)/avg_effmass, sum(Pmat(1,:)/avg_effmass)
-    print 6,  neutronmass*hbar**2/avg_effmass(1), &
-    &         protonmass *hbar**2/avg_effmass(2), &
-    &         (neutronmass/avg_effmass(1)+protonmass/avg_effmass(2))*hbar**2 
-    
-    
+    print 4,  totalmass * hbar**2
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Analytical result
     print 7,  neutrons * nucleonmass(1), protons*nucleonmass(2), &
     &         neutrons * nucleonmass(1)+ protons*nucleonmass(2) 
@@ -401,7 +382,7 @@ contains
     ! Qlm determined in inertia_l and inertia_m. This tensor in the perturbative
     ! cranking approximation is given by
     !
-    !     M_c = 1/4  M_1^{-1} M_3 M_1^{-1}    (from Baran et al.)
+    !     M_c =  M_1^{-1} M_3 M_1^{-1}    (from Giuliani and Robledo)
     !
     ! where the matrices M_n are determined by
     !
@@ -428,15 +409,18 @@ contains
     ! Note: this routine is not yet ready to deal with blocked HFB vacua!
     !
     !---------------------------------------------------------------------------
+    ! Explicit declaration of the external linear algebra routines
+    external :: dsytrf, dsytri
+
     real(KIND=dp), allocatable :: Mat(:,:,:,:), Qsp(:,:,:), Q20(:,:,:)
-    real(KIND=dp), allocatable :: work(:), M1_inv(:,:,:)
-    integer :: i, j, la, lb, l, m, info, lwork, it
+    real(KIND=dp), allocatable :: work(:), M1_inv(:,:)
+    integer :: i, j, la, lb, l, m, info, lwork
     integer, allocatable :: ipiv(:)
         
     call start_timer(T_collective_MOI)
         
     if(.not.allocated(collective_inertia)) then
-      allocate(collective_inertia(N_inertia, N_inertia,3))
+      allocate(collective_inertia(N_inertia, N_inertia))
     endif
     collective_inertia = 0
     
@@ -486,56 +470,48 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Constructing explicitly the matrices M_1 and M_3 for ease of reading
-    if(.not. allocated(M1)) allocate(M1(N_inertia, N_inertia,2)) 
-    if(.not. allocated(M3)) allocate(M3(N_inertia, N_inertia,2)) 
-    M1 = Mat(:,:,1,:) 
-    M3 = Mat(:,:,2,:) 
-
+    if(.not. allocated(M1)) allocate(M1(N_inertia, N_inertia,3))
+    if(.not. allocated(M3)) allocate(M3(N_inertia, N_inertia,3))
+    M1(:,:,1:2) = Mat(:,:,1,1:2) ; M1(:,:,3) = sum(M1(:,:,1:2),3)
+    M3(:,:,1:2) = Mat(:,:,2,1:2) ; M3(:,:,3) = sum(M3(:,:,1:2),3)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Step 4: use LAPACK routines to invert M1
-    allocate(M1_inv(N_inertia, N_inertia,2))
-    M1_inv = M1
-    do it=1,2
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Ask for a workspace size
-      allocate(work(1), ipiv(N_inertia))
-      call dsytrf('U', N_inertia, M1_inv(:,:,it),N_inertia, ipiv, work,-1, info)
-      lwork = int(work(1))
-      deallocate(work)
-      allocate(work(lwork))
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    allocate(M1_inv(N_inertia, N_inertia))
+    M1_inv = M1(:,:,3)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Ask for a workspace size
+    allocate(work(1), ipiv(N_inertia))
+    call dsytrf('U', N_inertia, M1_inv,N_inertia, ipiv, work,-1, info)
+    lwork = int(work(1))
+    deallocate(work)
+    allocate(work(lwork))
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Factorize M1
-      call dsytrf('U', N_inertia, M1_inv(:,:,it),N_inertia,ipiv,work,lwork,info)
-      deallocate(work)
-      ! Invert M1
-      allocate(Work(N_inertia))
-      call dsytri('U', N_inertia, M1_inv(:,:,it), N_inertia,ipiv,work, info)
-
+    call dsytrf('U', N_inertia, M1_inv,N_inertia,ipiv,work,lwork,info)
+    ! Invert M1
+    if(MAXVAL(abs(M1_inv)).gt.1e-15) then
+      call dsytri('U', N_inertia, M1_inv, N_inertia,ipiv,work, info)
       if(info.ne.0) then
-         call stp('Problem for DSYTRI during the calculation of collective inertia.')
+        call stp('Problem for DSYTRI during the calculation of collective inertia.')
       endif
-      deallocate(work, ipiv)
+    endif
+    deallocate(work, ipiv)
 
-      ! Note that after DSYTRI, only the top half of M1 is guaranteed to be right
-      ! Thus, we populate the other half here to avoid any surprises
-      do i=1,N_inertia
-        do j=i+1,N_inertia
-          M1_inv(j,i,it) = M1_inv(i,j,it)
-        enddo
+    ! Note that after DSYTRI, only the top half of M1 is guaranteed to be right
+    ! Thus, we populate the other half here to avoid any surprises
+    do i=1,N_inertia
+      do j=i+1,N_inertia
+        M1_inv(j,i) = M1_inv(i,j)
       enddo
-
     enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Step 5: calculate cranking tensor for every isospin
     !             M_c = 1/4 M1^{-1} M3 M1^{-1}
     !         and sum the results
     !             M_t = M_n + M_p
-    do it=1,2
-      collective_inertia(:,:,it) = &
-      &        0.25d0*matmul(matmul(M1_inv(:,:,it), M3(:,:,it)), M1_inv(:,:,it)) 
-    enddo
-    collective_inertia(:,:,3) = sum(collective_inertia(:,:,:),3)
-    
+    collective_inertia = matmul(matmul(M1_inv, M3(:,:,3)), M1_inv)
+
     deallocate(Mat, M1_inv, Qsp)
     if(pairingtype.eq.2) deallocate(Q20)
     call stop_timer(T_collective_MOI)

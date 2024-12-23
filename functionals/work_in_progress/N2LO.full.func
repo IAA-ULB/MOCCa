@@ -1,21 +1,21 @@
 # (time-reversal invariant, local N2LO central + NLO tensor + N2LO LS) functional 
 # Jmunu^2 terms are not optional
 ! LO (always local + density dependent) parameters
-t0 ;  x0 ; t3 ; x3 ; sigma 
+R t0 ;R x0 ;R t3;R x3;R sigma 
 ! NLO (always local) parameters 
-t1 ;  x1 ; t2 ; x2 ; w0 ; te ; to 
+R t1 ;R x1;R t2;R x2 ;R w0;R te;R to 
 ! central local N2LO parameters
-t1n2 ; x1n2 ; t2n2 ; x2n2
+R t1n2;R x1n2 ;R t2n2;R x2n2
 ! central non local N2LO parameters
-t3n2 ; x3n2 ; t4n2 ; x4n2
+R t3n2;R x3n2 ;R t4n2;R x4n2
 ! LS (always non local) N2LO parameters
-w1n2 ; w2n2
+R w1n2;R w2n2
 ! tensor local N2LO parameters:
-tt1n2 ; tt2n2
+R tt1n2;R tt2n2
 ! tensor non local N2LO parameters:
-tt3n2 ; tt4n2 ; tt5n2
+R tt3n2;R tt4n2;R tt5n2
 ! Pairing strengths
-Vn ; Vp ; alpha ; sigmap
+R Vn;R Vp;R alpha;R sigmap
 !TERMS
 !----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ! Particle-hole functional in isospin representation

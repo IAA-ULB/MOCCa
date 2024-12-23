@@ -58,5 +58,6 @@ vibcorrd    = 0.5952
 vibcorrl    = 4.5553
 vibcorrb    = 0.7875
 ptype=0
-intertype=0 
+interpolationtype=1
+integrationtype=0
 /

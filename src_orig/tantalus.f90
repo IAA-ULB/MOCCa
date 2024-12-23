@@ -119,7 +119,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  319 format ( 8x,'| ', a58, '|')
  320 format ( 8x,'|___________________________________________________________|')
 
- !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
  ! Start the different processes across MPI ranks and do MPI bookkeeping
 #if(USE_MPI > 0)
   call mpi_init(mpi_err)
@@ -360,6 +360,10 @@ subroutine ReachForWaterAndFood()
     ! wavefunction file or a potential file.
     call calcFields(calcall=.false.,precon= .false.)
 
+    ! Update angular momentum observables
+    call updateAM   ! This call HAS to happen, otherwise J2_sp will not be 
+                    ! initialized and any crankingtype = 1 calculation will fail.
+
     call setBelyaevProcedure()
     call CalcEnergy(.true.)      ! Calculate the energy WITH all the expensive
                                  !   parts included.
@@ -369,7 +373,7 @@ subroutine ReachForWaterAndFood()
     if(MPI_RANK .eq. 0) then
       ! only the very first MPI RANK prints all of this output
       call printSpwfs(.true.) ! Always include all details on start
-      !call printQps
+      call printQps(.true.)
       call printallmoments
       call print_boxsize_check
       call PrintMomentsofInertia
@@ -425,7 +429,6 @@ subroutine ReachForWaterAndFood()
           call calcFields(calcall=.true.,precon=.true.)
         endif
 
-        ! Update all spwf properties
         call updateAM
         call ReadjustCranking
         !-----------------------------------------------------------------------
@@ -468,10 +471,12 @@ subroutine ReachForWaterAndFood()
         ! Decide between full or partial printout.
         if(iprint .eq.1) then
             ! ... but update all spwf properties first to ensure correct prints
+
             !if(print_adv_spwf_properties .or. &
             !&              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then
             !  call update_spwf_properties( .true. ) ! expensive version
             !endif
+
             call updateAM
             call ReadjustCranking
 
@@ -480,12 +485,16 @@ subroutine ReachForWaterAndFood()
               if((iter .eq. maxiter) .or. ConvergenceAchieved) then
                 ! Add a clear indication this is the FINAL iteration
                 print 12, iter
-                call PrintSpwfs(.true.) ! always include all details in the printing
-              else
+
+                call PrintSpwfs(.True.) ! always include all details in the
+                call PrintQps(.True.)   ! printing at the end
+
+                else
                 print 11, iter
                 call PrintSpwfs(print_adv_spwf_properties)
+                call PrintQps(print_adv_spwf_properties)
               endif
-              !call PrintQps
+
               call printallmoments
               call print_boxsize_check
               call PrintMomentsofInertia
@@ -535,6 +544,8 @@ subroutine ReachForWaterAndFood()
       call calc_collective_inertia
       if(MPI_RANK.eq.0) then
         call print_collective_inertia
+        ! Verify these results with the COM motion
+        call verify_COM_motion()
       endif
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -650,13 +661,24 @@ subroutine printsummary(iter)
       endif
     enddo
 
-    if(cranktype(3) .eq. 1) then
-      devJ = TotalAngMom(3) - CrankValues(3)
+    if(.not.crank_smooth) then
+      if(cranktype(3) .eq. 1) then
+        devJ = TotalAngMom(3) - CrankValues(3)
+      else
+        devJ = 0.0d0
+      endif
+      print 8, totalangmom(3), totalangmom(3) - angmomold(3), &
+      &        omega(3), omega(3)-omega_prev(3), devJ
     else
-      devJ = 0.0
+      if(cranktype(3) .eq. 1) then
+        devJ = TotalAngMom_dens(3) - CrankValues(3)
+      else
+        devJ = 0.0d0
+      endif
+      print 8, totalangmom_dens(3), totalangmom_dens(3) - angmomold_dens(3), &
+      &        omega(3), omega(3)-omega_prev(3), devJ  
     endif
-    print 8, totalangmom(3), totalangmom(3) - angmomold(3), &
-    &        omega(3), omega(3)-omega_prev(3), devJ
+
     print 1
 
 end subroutine printsummary

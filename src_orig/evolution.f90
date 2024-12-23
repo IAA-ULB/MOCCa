@@ -375,6 +375,9 @@ $N3         &              hfpsi(:,:,:,wave),                               &
 
         use wavefunctions
 
+        ! Explicit declaration of linear algebra routines
+        external :: DSYEV
+
         integer, intent(in)   :: iteration
         integer               :: wave, iso, B, si, N, wave2, lwork, ifail
         integer               :: wg, wg2, der_index
@@ -602,119 +605,6 @@ $N3         &              hfdddpsi(:,:,:,der_index),                          &
 
     end subroutine Evolve_momentum
 
-    subroutine evolve_partial(maxiter, extraspwfs)
-      !-------------------------------------------------------------------------
-      ! Perform some gradient evolution with a fixed single-particle hamiltonian 
-      ! for the BONUS spwfs, i.e. the ones that were added through the keyword
-      ! extraspwfs. As these are randomly initialized, such evolution brings 
-      ! them (hopefully) rather quickly to some "reasonable form".
-      !  
-      ! Input:
-      !    maxiter    :  # of evolutions to perform
-      !    extraspwfs :  number of extra spwfs that were added
-      !-------------------------------------------------------------------------
-      integer, intent(in) :: maxiter, extraspwfs(8)
-      integer :: B, N, iso, wave, iter, si, wave2
-      real(KIND=dp), allocatable :: hpsi(:,:)
-      
-      if(EstimateParams) call IterativeEstimation(1)
-      
-      do iter=1, maxiter
-        si = 0
-        do B=1,8
-          N = HFblocks(B) ; if(N.eq.0) cycle
-          iso = -1
-          if(B.gt.4) iso = +1
-          do wave=si+N-extraspwfs(B)+1,si+N
-            ! Calculate the action of the single-particle hamiltonian.
-            hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
-            &              hfdpsi(:,:,:,wave)   ,                              &
-            &              hfddpsi(:,:,:,wave)  ,                              &
-$N3         &              hfdddpsi(:,:,:,wave) ,                              &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
-
-            spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
-            hpsi =   hpsi - spenergies(wave) * hfpsi(:,:,wave)
-
-            ! Evolve 
-            hfpsi(:,:,wave) = hfpsi(:,:,wave)  - dt/hbar* hpsi
-            do wave2=wave,si+N
-              current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
-              current_sph(wave ,wave2) = current_sph(wave2,wave)
-            enddo
-          enddo
-
-          si = si + N
-        enddo
-        ! orthonormalize
-        call orthonormalize
-        ! derive those that were evolved
-        call derive_extra_spwfs(extraspwfs)
-      enddo
-      
-    end subroutine evolve_partial
-
-    subroutine eval_sph(diag)
-      !------------------------------------------------------------------------
-      ! 
-      ! 
-      !------------------------------------------------------------------------
-      use wavefunctions
-        
-      integer               :: wave, iso, B, si, N, wave2, lwork, ifail
-      real(KIND = dp)       :: hpsi(nx*ny*nz,4)
-      real(KIND = dp), allocatable :: work(:), temp(:,:,:)
-      logical, intent(in)   :: diag
-
-      if(.not.allocated(current_sph)) then 
-          allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
-      endif
-
-      si  = 0
-      do B=1,8
-        N = HFblocks(B) ; if(N.eq.0) cycle
-        iso = -1
-        if(B.gt.4) iso = +1
-        do wave=si+1,si+N
-          !-------------------------------------------------------------------
-          ! Calculate the action of the single-particle hamiltonian.
-          hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
-          &              hfdpsi(:,:,:,wave)   ,                              &
-$N3       &              hfddpsi(:,:,:,wave)  ,                              &
-          &              hfdddpsi(:,:,:,wave) ,                              &
-          &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
-          !-------------------------------------------------------------------
-          ! Save the current estimate for the single-particle hamiltonian
-          do wave2=wave,si+N
-              current_sph(wave2,wave ) = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
-              current_sph(wave ,wave2) = current_sph(wave2,wave)
-          enddo
-        enddo
-        if(diag) then
-            lwork = -1; allocate(work(1))
-            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, &
-            &                       spenergies(si+1:si+N),work,lwork,ifail)
-            lwork = int(work(1)); deallocate(work) ; allocate(work(lwork))
-            call DSYEV( 'V', 'U', N, current_sph(si+1:si+N,si+1:si+N), N, &
-            &                       spenergies(si+1:si+N),work,lwork,ifail)
-            deallocate(work)
-            temp = hfpsi(:,:,si+1:si+N)
-            do wave=1,N
-              hfpsi(:,:,si+wave) = 0
-              do wave2=1,N
-                hfpsi(:,:,si+wave) = hfpsi(:,:,si+wave) + &
-                &                current_sph(si+wave,si+wave2) * temp(:,:,wave2)
-              enddo
-            enddo
-        else
-          do wave=si+1,si+N
-            spenergies(wave) = current_sph(wave,wave)
-          enddo
-        endif
-        si = si + N
-      enddo
-    end subroutine eval_sph
-
     subroutine IterativeEstimation(Iteration)
       !-------------------------------------------------------------------------
       ! Estimate optimum parameters (dt,mu) of the heavy-ball iterative process
@@ -879,7 +769,7 @@ $N3       &                                        dddmax,                     &
    type(Moment),pointer  :: Current
    real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
    real(KIND=dp)         :: mpsi(nx*ny*nz,4), jpsi(nx*ny*nz,4)
-   real(KIND=dp)         :: O2, value, des, scale, crankfactor(3)
+   real(KIND=dp)         :: O2, value, des, scale, crankfactor(3), J
    integer               :: wave, k, B, si, N, it, i
 
    call start_timer(T_feasible)
@@ -925,7 +815,13 @@ $N3       &                                        dddmax,                     &
    ! (ii) The contribution of the cranking constraints to the update
    do i=1,3
      if(CrankType(i).ne.1) cycle ! Only include cranking for cranktype=1
-     CrankFactor(i)= 0.5*(TotalAngMom(i)-CrankValues(i))/J2_sp(i)
+     
+     if(crank_smooth) then
+      J = TotalAngMom_dens(i)
+     else
+      J = TotalAngMom(i)
+     endif
+     CrankFactor(i)= 0.5*( J -CrankValues(i))/J2_sp(i)
      ! Rescale with a factor
      Crankfactor(i) = Crankfactor(i)*CrankScaleFactor(i)
    enddo

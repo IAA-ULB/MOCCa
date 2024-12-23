@@ -495,6 +495,8 @@ $NTR    endif
       ! blocks, i.e. for ONE nucleon species. 
       !
       !-------------------------------------------------------------------------
+      external :: DSYEV
+
       real(KIND=dp), intent(in)    :: H(:,:)
       real(KIND=dp), intent(out)   :: config(:), Bogo(:,:), Eqp(:)
       real(KIND=dp), intent(inout) :: lambda

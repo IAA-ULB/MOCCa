@@ -11,6 +11,7 @@
 
 import itertools
 import numpy as np
+import sys
 
 from src_heph.heph_densities import Densities_needed, tab, sumindices, derstring
 from src_heph.heph_densities import lapstring, OrderOfDen, ParseOperators
@@ -789,7 +790,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     #---------------------------------------------------------------------------
     # Generate the fields of the single-particle hamiltonian
-    (fielddec, fieldcalc, fieldprecon, fieldwrite,fieldread, fieldclean) =     \
+    (fielddec, fieldcalc, fieldprecon, fieldwrite,fieldread, fieldclean, fieldINMk2, fieldINMk4) =     \
                                          GenerateFields(so,oldso, ph_pp_decoupl)
     declaration = declaration + fielddec   + '\n'
     writing     = writing     + fieldwrite 
@@ -840,6 +841,8 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     reading       = LineFormat(reading)
     writing       = LineFormat(writing)
     cleaning      = LineFormat(cleaning)
+    fieldINMk2    = LineFormat(fieldINMk2)
+    fieldINMk4    = LineFormat(fieldINMk4)
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Substitute into the functional.f90 file.  
     dic={}
@@ -875,6 +878,9 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     dic['TOTALPAIR_NEUTRON']= pairtotal_neutron
     dic['TOTALPAIR_PROTON'] = pairtotal_proton
+
+    dic['K2POT'] = fieldINMk2
+    dic['K4POT'] = fieldINMk4
     
     dic['CALCFIELDS']     = fieldcalc
     dic['FIELDPRECON']    = precond

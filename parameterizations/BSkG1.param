@@ -55,5 +55,6 @@ rotcorr  = 1
 rotcorrb = 0.93
 rotcorrc = 5.00
 ptype=0
-intertype=0
+interpolationtype=0
+integrationtype=0
 /

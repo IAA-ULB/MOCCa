@@ -191,17 +191,19 @@ contains
         call stp( 'You should fix an appropriate Lambda_N and Lambda_P.')
         stop
       endif
-      
-      ! Sanity check on the number of mesh points
-      if(mod(nx,2) .ne. 0) then
-        call stp('NX must be even')
-      endif 
-      if(mod(ny,2) .ne. 0) then
-        call stp('NY must be even')
-      endif
-      if(mod(nz,2) .ne. 0) then
-        call stp('NZ must be even')
-      endif
+
+!     W.R.: I don't remember why I enforced this...
+!       TODO: reenable in case of broken symmetries.
+!       ! Sanity check on the number of mesh points
+!       if(mod(nx,2) .ne. 0) then
+!         call stp('NX must be even')
+!       endif
+!       if(mod(ny,2) .ne. 0) then
+!         call stp('NY must be even')
+!       endif
+!       if(mod(nz,2) .ne. 0) then
+!         call stp('NZ must be even')
+!       endif
     endif
 
 #if(USE_MPI > 0)
