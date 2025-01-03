@@ -361,7 +361,7 @@ subroutine ReachForWaterAndFood()
     call calcFields(calcall=.false.,precon= .false.)
 
     ! Update angular momentum observables
-    call updateAM   ! This call HAS to happen, otherwise J2_sp will not be 
+    call updateAM   ! This call HAS to happen, otherwise J2_sp will not be
                     ! initialized and any crankingtype = 1 calculation will fail.
 
     call setBelyaevProcedure()
@@ -373,7 +373,7 @@ subroutine ReachForWaterAndFood()
     if(MPI_RANK .eq. 0) then
       ! only the very first MPI RANK prints all of this output
       call printSpwfs(.true.) ! Always include all details on start
-      call printQps(.true.)
+      !call printQps(.true.)
       call printallmoments
       call print_boxsize_check
       call PrintMomentsofInertia
@@ -487,12 +487,12 @@ subroutine ReachForWaterAndFood()
                 print 12, iter
 
                 call PrintSpwfs(.True.) ! always include all details in the
-                call PrintQps(.True.)   ! printing at the end
+                !call PrintQps(.True.)   ! printing at the end
 
                 else
                 print 11, iter
                 call PrintSpwfs(print_adv_spwf_properties)
-                call PrintQps(print_adv_spwf_properties)
+                !call PrintQps(print_adv_spwf_properties)
               endif
 
               call printallmoments
@@ -676,7 +676,7 @@ subroutine printsummary(iter)
         devJ = 0.0d0
       endif
       print 8, totalangmom_dens(3), totalangmom_dens(3) - angmomold_dens(3), &
-      &        omega(3), omega(3)-omega_prev(3), devJ  
+      &        omega(3), omega(3)-omega_prev(3), devJ
     endif
 
     print 1
