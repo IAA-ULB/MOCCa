@@ -352,9 +352,8 @@ subroutine ReachForWaterAndFood()
 
     ! Update all spwf properties in the HF basis
     call update_spwf_properties_HF()
-    ! Update all spwf properties in the HF basis
-    call update_spwf_properties_can()
-
+    ! Update all spwf properties in the canonical basis
+    if(PairingType .eq. 2) call update_spwf_properties_CAN()
 
     ! Only calculate the fields that have not been read from either a
     ! wavefunction file or a potential file.
@@ -396,8 +395,6 @@ subroutine ReachForWaterAndFood()
 
         ! Derive all spwfs in the HF-basis
         if(store_derivatives) call deriveHF()
-        ! Update all spwf properties in the HF basis
-        call update_spwf_properties_HF()
 
         ! Calculate the gaps Delta with the current
         ! a) fields
@@ -411,8 +408,11 @@ subroutine ReachForWaterAndFood()
 
         call SolvePairing(pairingscheme,ifail)
         if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
+
         ! Update all spwf properties in the HF basis
-        call update_spwf_properties_CAN()
+        call update_spwf_properties_HF()
+        ! Update all spwf properties in the canonical basis
+        if(PairingType .eq. 2) call update_spwf_properties_CAN()
 
         call densit(SaveRho=.true.)
         call ConstructChargeDensity(ChargeDensity)
