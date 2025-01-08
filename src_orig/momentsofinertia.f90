@@ -154,28 +154,27 @@ contains
 
       calc_rank = designated_rank(B) ! <---- this rank will do the integrations
                                      !       of the spwf matrix elements
-      do i=1,N
-        ii    = si + i            ! global index of the spwf
-        locali= spwf_inverse(ii)  ! local index of the spwf
-        ranki = rank_map(ii)      ! MPI rank storing the spwf
+      do j=1, N
+        jj    = si + j            ! global index of the spwf
+        localj= spwf_inverse(jj)  ! local index of the spwf
+        rankj = rank_map(jj)      ! MPI rank storing the spwf
 
 #if(USE_MPI>0)
-        call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+        call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+        call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
 #else
-        call Transfer_psi(psi_i, locali, 'HF')
+        call Transfer_psi(psi_j, localj, 'HF')
+        call Transfer_derpsi_complete(der_psi_j,localj,'HF')
 #endif
-
-        do j=1, N
-          jj    = si + j            ! global index of the spwf
-          localj= spwf_inverse(jj)  ! local index of the spwf
-          rankj = rank_map(jj)      ! MPI rank storing the spwf
+        do i=1,N
+          ii    = si + i            ! global index of the spwf
+          locali= spwf_inverse(ii)  ! local index of the spwf
+          ranki = rank_map(ii)      ! MPI rank storing the spwf
 
 #if(USE_MPI>0)
-          call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
-          call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+          call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
 #else
-          call Transfer_psi(psi_j, localj, 'HF')
-          call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+          call Transfer_psi(psi_i, locali, 'HF')
 #endif
 
           if(MPI_RANK.eq.calc_rank) then
@@ -211,32 +210,32 @@ $TR         Belyaev(1:2,it) = Belyaev(1:2,it) + ME(1:2) * dfde
         enddo
       enddo
 
-$NTR  do i=1,N2
-$NTR    ii    = si + i            ! global index of the spwf
-$NTR    locali= spwf_inverse(ii)  ! local index of the spwf
-$NTR    ranki = rank_map(ii)      ! MPI rank storing the spwf
-$NTR
-$NTR       J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
+$NTR  do j=1,N2
+$NTR    jj = si + N + j           ! global index of the spwf
+$NTR    localj= spwf_inverse(jj)  ! local index of the spwf
+$NTR    rankj = rank_map(jj)      ! MPI rank storing the spwf
 $NTR
 #if(USE_MPI>0)
-$NTR    call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+$NTR    call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+$NTR    call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
 #else
-$NTR    call Transfer_psi(psi_i, locali, 'HF')
+$NTR    call Transfer_psi(psi_j, localj, 'HF')
+$NTR    call Transfer_derpsi_complete(der_psi_j,localj,'HF')
 #endif
-$NTR    do j=1,N2
-$NTR       jj = si + N + j           ! global index of the spwf
-$NTR       localj= spwf_inverse(jj)  ! local index of the spwf
-$NTR       rankj = rank_map(jj)      ! MPI rank storing the spwf
+$NTR    do i=1,N2
+$NTR      ii    = si + i            ! global index of the spwf
+$NTR      locali= spwf_inverse(ii)  ! local index of the spwf
+$NTR      ranki = rank_map(ii)      ! MPI rank storing the spwf
+$NTR
+$NTR      J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
 $NTR
 #if(USE_MPI>0)
-$NTR       call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
-$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+$NTR      call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
 #else
-$NTR       call Transfer_psi(psi_j, localj, 'HF')
-$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+$NTR      call Transfer_psi(psi_i, locali, 'HF')
 #endif
 $NTR       if(MPI_RANK.eq.calc_rank) then
-$NTR         ME(3)= angmom_z_real(psi_i,psi_j,der_psi_j)**2  
+$NTR         ME(3)= angmom_z_real(psi_i,psi_j,der_psi_j)**2
 $NTR         fi = rho_can(ii)     ; fj = rho_can(jj)
 $NTR         J2(3,it) = J2(3,it) +  ME(3) * fi*(1-fj)
 $NTR
@@ -257,26 +256,27 @@ $NTR         Belyaev(3,it) = Belyaev(3,it) + ME(3) * dfde
 $NTR       endif
 $NTR     enddo
 $NTR   enddo
-$NTR   do i=1,N
-$NTR    ii    = si + i            ! global index of the spwf
-$NTR    locali= spwf_inverse(ii)  ! local index of the spwf
-$NTR    ranki = rank_map(ii)      ! MPI rank storing the spwf
-#if(USE_MPI>0)
-$NTR    call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
-#else
-$NTR    call Transfer_psi(psi_i, locali, 'HF')
-#endif
-$NTR     do j=1,N2
-$NTR       jj = si + N + j           ! global index of the spwf
-$NTR       localj= spwf_inverse(jj)  ! local index of the spwf
-$NTR       rankj = rank_map(jj)      ! MPI rank storing the spwf
+
+$NTR   do j=1,N2
+$NTR     jj = si + N + j           ! global index of the spwf
+$NTR     localj= spwf_inverse(jj)  ! local index of the spwf
+$NTR     rankj = rank_map(jj)      ! MPI rank storing the spwf
 $NTR
 #if(USE_MPI>0)
-$NTR       call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
-$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+$NTR     call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+$NTR     call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
 #else
-$NTR       call Transfer_psi(psi_j, localj, 'HF')
-$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+$NTR     call Transfer_psi(psi_j, localj, 'HF')
+$NTR     call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+#endif
+$NTR     do i=1,N
+$NTR      ii    = si + i            ! global index of the spwf
+$NTR      locali= spwf_inverse(ii)  ! local index of the spwf
+$NTR      ranki = rank_map(ii)      ! MPI rank storing the spwf
+#if(USE_MPI>0)
+$NTR      call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+#else
+$NTR      call Transfer_psi(psi_i, locali, 'HF')
 #endif
 $NTR       if(MPI_RANK.eq.calc_rank) then
 $NTR         fi = rho_can(ii)     ; fj = rho_can(jj)
@@ -404,32 +404,33 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
       N = HFBlocks_global(B); if(N.eq.0) cycle
       calc_rank = designated_rank(B) ! <---- this rank will do the integrations
                                      !       of the spwf matrix elements
-      do i=1, N
-        ii    = si + i            ! global index of the spwf
-        locali= spwf_inverse(ii)  ! local index of the spwf
-        ranki = rank_map(ii)      ! MPI rank storing the spwf
-        it = 1
 
-        if(B.gt.4) it = 2
+      do j=1, N
+        jj    = si + j            ! global index of the spwf
+        localj= spwf_inverse(jj)  ! local index of the spwf
+        rankj = rank_map(jj)      ! MPI rank storing the spwf
 
 #if(USE_MPI>0)
-        call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+        call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+        call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
 #else
-        call Transfer_psi(psi_i, locali, 'HF')
+        call Transfer_psi(psi_j, localj, 'HF')
+        call Transfer_derpsi_complete(der_psi_j,localj,'HF')
 #endif
 
-        do j=1, N
-          jj    = si + j            ! global index of the spwf
-          localj= spwf_inverse(jj)  ! local index of the spwf
-          rankj = rank_map(jj)      ! MPI rank storing the spwf
+        do i=1, N
+          ii    = si + i            ! global index of the spwf
+          locali= spwf_inverse(ii)  ! local index of the spwf
+          ranki = rank_map(ii)      ! MPI rank storing the spwf
+          it = 1
 
+          if(B.gt.4) it = 2
 #if(USE_MPI>0)
-          call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
-          call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+          call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
 #else
-          call Transfer_psi(psi_j, localj, 'HF')
-          call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+          call Transfer_psi(psi_i, locali, 'HF')
 #endif
+
           if(MPI_RANK.eq.calc_rank) then
             ! ^------ only one rank needs to to this calculation.
 
