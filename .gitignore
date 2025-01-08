@@ -7,6 +7,8 @@ mod/*
 *.pyc
 src_heph/*.pyc
 
+testing/integration/logs/
+
 tantalus_examples/out/
 tantalus_examples/diffs/
 tantalus_examples/work/*

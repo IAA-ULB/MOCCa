@@ -22,7 +22,7 @@ compile:
     expire_in: 2 days # Don't keep the exe's around for long
   parallel:
     matrix:
-      - CONFIG  : [NLO,BXL]
+      - CONFIG  : [NLO,BXL,BXL-P,BXL-T,BXL-TP]
         COMPILER: [gfortran, ifort]
         CALCTYPE:  NUCLEI
       - CONFIG  : BXL
@@ -70,7 +70,7 @@ integration-testing:
     # Start testing!
     - cd testing/integration/
     - bash minimal.sh $SUFFIX # Spherical O16 with SLy4
-    
+
   #----------------------------------------------------------------------
   # Install all prerequisites for docker-based systems
   #   I'm keeping this around for future configurations
