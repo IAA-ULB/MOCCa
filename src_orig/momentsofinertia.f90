@@ -686,27 +686,26 @@ $TR Belyaev(:,1:2) = 2 * Belyaev(:,1:2)
       ! both the inner and outer summation are over the same symmetry block    
       ! for all directions.
       !-------------------------------------------------------------------------
-      do i=1,N
-        ii    = si + i            ! global index of the spwf
-        locali= spwf_inverse(ii)  ! local index of the spwf
-        ranki = rank_map(ii)      ! MPI rank storing the spwf
+      do j=1,N
+        jj    = si + j            ! global index of the spwf
+        localj= spwf_inverse(jj)  ! local index of the spwf
+        rankj = rank_map(jj)      ! MPI rank storing the spwf
+
 #if(USE_MPI>0)
-        call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+        call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+        call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
 #else
-        call Transfer_psi(psi_i, locali, 'HF')
+        call Transfer_psi(psi_j, localj, 'HF')
+        call Transfer_derpsi_complete(der_psi_j,localj,'HF')
 #endif
-
-        do j=i,N
-          jj    = si + j            ! global index of the spwf
-          localj= spwf_inverse(jj)  ! local index of the spwf
-          rankj = rank_map(jj)      ! MPI rank storing the spwf
-
+        do i=j,N
+          ii    = si + i            ! global index of the spwf
+          locali= spwf_inverse(ii)  ! local index of the spwf
+          ranki = rank_map(ii)      ! MPI rank storing the spwf
 #if(USE_MPI>0)
-          call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
-          call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+          call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
 #else
-          call Transfer_psi(psi_j, localj, 'HF')
-          call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+          call Transfer_psi(psi_i, locali, 'HF')
 #endif
 
           if(MPI_rank.eq.calc_rank) then
@@ -726,25 +725,25 @@ $TR         jy(jj,ii)= jy(ii,jj)
       ! If time-reversal is not conserved, we have only calculated half of the 
       ! necessary matrix elements of jz above
 $NTR  calc_rank = designated_rank(B+1) ! this is the rank doing the calculation
-$NTR  do i=1,N2
-$NTR     ii = si + N + i
-$NTR     locali= spwf_inverse(ii)  ! local index of the spwf
-$NTR     ranki = rank_map(ii)      ! MPI rank storing the spwf
+$NTR  do j=1,N2
+$NTR   jj = si + N + j           ! global index of the spwf
+$NTR   localj= spwf_inverse(jj)  ! local index of the spwf
+$NTR   rankj = rank_map(jj)      ! MPI rank storing the spwf
 #if(USE_MPI>0)
-$NTR     call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+$NTR   call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+$NTR   call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
 #else
-$NTR     call Transfer_psi(psi_i, locali, 'HF')
+$NTR   call Transfer_psi(psi_j, localj, 'HF')
+$NTR   call Transfer_derpsi_complete(der_psi_j,localj,'HF')
 #endif
-$NTR     do j=i,N2
-$NTR      jj = si + N + j           ! global index of the spwf
-$NTR      localj= spwf_inverse(jj)  ! local index of the spwf
-$NTR      rankj = rank_map(jj)      ! MPI rank storing the spwf
+$NTR   do i=j,N2
+$NTR      ii = si + N + i
+$NTR      locali= spwf_inverse(ii)  ! local index of the spwf
+$NTR      ranki = rank_map(ii)      ! MPI rank storing the spwf
 #if(USE_MPI>0)
-$NTR      call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
-$NTR      call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+$NTR      call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
 #else
-$NTR      call Transfer_psi(psi_j, localj, 'HF')
-$NTR      call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+$NTR      call Transfer_psi(psi_i, locali, 'HF')
 #endif
 $NTR      if(calc_rank.eq.MPI_RANK) then
 $NTR        jz(ii,jj)= angmom_z_real(psi_i,psi_j,der_psi_j)
@@ -757,34 +756,34 @@ $NTR  enddo
       ! jx and jy matrix elements are not the same.
       !-------------------------------------------------------------------------
 $NTR  calc_rank = designated_rank(B) ! this is the rank doing the calculation
-$NTR  do i=1,N
-$NTR    ii = si + i               ! global index of the spwf
-$NTR    locali= spwf_inverse(ii)  ! local index of the spwf
-$NTR    ranki = rank_map(ii)      ! MPI rank storing the spwf
+$NTR  do j=1, N2
+$NTR    jj = si + N +  j          ! global index of the spwf
+$NTR    localj= spwf_inverse(jj)  ! local index of the spwf
+$NTR    rankj = rank_map(jj)      ! MPI rank storing the spwf
 #if(USE_MPI>0)
-$NTR    call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
+$NTR    call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
+$NTR    call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
 #else
-$NTR    call Transfer_psi(psi_i, locali, 'HF')
+$NTR    call Transfer_psi(psi_j, localj, 'HF')
+$NTR    call Transfer_derpsi_complete(der_psi_j,localj,'HF')
 #endif
-$NTR    do j=1, N2
-$NTR       jj = si + N +  j          ! global index of the spwf
-$NTR       localj= spwf_inverse(jj)  ! local index of the spwf
-$NTR       rankj = rank_map(jj)      ! MPI rank storing the spwf
+$NTR    do i=1,N
+$NTR      ii = si + i               ! global index of the spwf
+$NTR      locali= spwf_inverse(ii)  ! local index of the spwf
+$NTR      ranki = rank_map(ii)      ! MPI rank storing the spwf
 #if(USE_MPI>0)
-$NTR       call Transfer_psi(psi_j, localj, 'HF', rankj, calc_rank)
-$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF',rankj, calc_rank)
+$NTR      call Transfer_psi(psi_i, locali, 'HF', ranki, calc_rank)
 #else
-$NTR       call Transfer_psi(psi_j, localj, 'HF')
-$NTR       call Transfer_derpsi_complete(der_psi_j,localj,'HF')
+$NTR      call Transfer_psi(psi_i, locali, 'HF')
 #endif
-$NTR       if(calc_rank.eq.MPI_RANK) then
-$NTR         !|< k | j_x | l >|^2            
-$NTR         jx(ii,jj)=angmom_x_real(psi_i, psi_j, der_psi_j) 
-$NTR         ! |< k | j_y | l >|^2 
-$NTR         jy(ii,jj)=angmom_y_imag(psi_i, psi_j, der_psi_j) 
-$NTR         jx(jj,ii) =  jx(ii,jj)
-$NTR         jy(jj,ii) = -jy(ii,jj)  ! attention to the sign(s)!
-$NTR       endif
+$NTR      if(calc_rank.eq.MPI_RANK) then
+$NTR        !|< k | j_x | l >|^2
+$NTR        jx(ii,jj)=angmom_x_real(psi_i, psi_j, der_psi_j)
+$NTR        ! |< k | j_y | l >|^2
+$NTR        jy(ii,jj)=angmom_y_imag(psi_i, psi_j, der_psi_j)
+$NTR        jx(jj,ii) =  jx(ii,jj)
+$NTR        jy(jj,ii) = -jy(ii,jj)  ! attention to the sign(s)!
+$NTR      endif
 $NTR    enddo
 $NTR  enddo
 
