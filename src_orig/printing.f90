@@ -377,7 +377,7 @@ $TR     sumocc = 2*k
     11  format(110('-'))
     if(PairingType.eq.0) return
 
-    !if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
+    if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
 
     print 1
 

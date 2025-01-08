@@ -2127,50 +2127,50 @@ $NTR     enddo
     if(allocated(HFBgaps))  deallocate(HFBGaps)
    end subroutine clean_HFB
 
-!    subroutine update_qp_angmom(Bogo)
-!     !---------------------------------------------------------------------------
-!     ! Calculate the angular momentum expectation values for the HFB
-!     ! quasiparticle operators.
-!     !
-!     ! What we calculate here is
-!     !
-!     !  <  qp=k | J_mu | qp=k >  = sum_i - |V_{i,k}|^2 < i | J_mu | i >
-!     !                                   + |U_{i,k}|^2 < i | J_mu | i >
-!     !
-!     ! where i is a single-particle index and k is a quasi-particle index.
-!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ! Currently only <J_z>, hardcoded for CR8-like symmetries.
-!     !
-!     !---------------------------------------------------------------------------
-!     integer                   :: B, k, N, N2, si, sb, wave, i
-!     real(KIND=dp), intent(in) :: Bogo(:,:)
-!
-!     if(.not.allocated(qp_J)) then
-!       allocate(qp_J(3,2*nwt), qp_JTR(3,2*nwt), qp_JTI(3,2*nwt))
-!     endif
-!     qp_J   = 0.0d0 ;  qp_JTR = 0.0d0 ; qp_JTI = 0.0d0
-!
-!     si = 0 ; sb = 0
-!     do B=1,8,2
-!       N = HFBlocks_global(B)   ; if(N.eq.0) cycle
-!       N2= HFBlocks_global(B+1)
-!       do wave=1,2*N+2*N2
-!         do k=1,3
-!           qp_J(k,sb+wave)   = 0.0d0
-!           qp_JTR(k,sb+wave) = 0.0d0
-!           qp_JTI(k,sb+wave) = 0.0d0
-!           do i=1,N+N2
-!             qp_J(k,sb+wave) = qp_J(k,sb+wave) +                                &
-!             !          U^2                       V^2
-!             &   (Bogo(sb+i,sb+wave)**2 - Bogo(sb+N+N2+i,sb+wave)**2)           &
-!             &                                              * spwf_J(k,si+i,si+i)
-!           enddo
-!         enddo
-!       enddo
-!
-!       si = si +  N +   N2
-!       sb = sb +2*N + 2*N2
-!     enddo
-!
-!    end subroutine update_qp_angmom
+   subroutine update_qp_angmom(Bogo)
+    !---------------------------------------------------------------------------
+    ! Calculate the angular momentum expectation values for the HFB
+    ! quasiparticle operators.
+    !
+    ! What we calculate here is
+    !
+    !  <  qp=k | J_mu | qp=k >  = sum_i - |V_{i,k}|^2 < i | J_mu | i >
+    !                                   + |U_{i,k}|^2 < i | J_mu | i >
+    !
+    ! where i is a single-particle index and k is a quasi-particle index.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Currently only <J_z>, hardcoded for CR8-like symmetries.
+    !
+    !---------------------------------------------------------------------------
+    integer                   :: B, k, N, N2, si, sb, wave, i
+    real(KIND=dp), intent(in) :: Bogo(:,:)
+
+    if(.not.allocated(qp_J)) then
+      allocate(qp_J(3,2*nwt), qp_JTR(3,2*nwt), qp_JTI(3,2*nwt))
+    endif
+    qp_J   = 0.0d0 ;  qp_JTR = 0.0d0 ; qp_JTI = 0.0d0
+
+    si = 0 ; sb = 0
+    do B=1,8,2
+      N = HFBlocks_global(B)   ; if(N.eq.0) cycle
+      N2= HFBlocks_global(B+1)
+      do wave=1,2*N+2*N2
+        do k=1,3
+          qp_J(k,sb+wave)   = 0.0d0
+          qp_JTR(k,sb+wave) = 0.0d0
+          qp_JTI(k,sb+wave) = 0.0d0
+          do i=1,N+N2
+            qp_J(k,sb+wave) = qp_J(k,sb+wave) +                         &
+            !          U^2                       V^2
+            &   (Bogo(sb+i,sb+wave)**2 - Bogo(sb+N+N2+i,sb+wave)**2)    &
+            &                                              * HF_J(k,si+i)
+          enddo
+        enddo
+      enddo
+
+      si = si +  N +   N2
+      sb = sb +2*N + 2*N2
+    enddo
+
+   end subroutine update_qp_angmom
 end module
