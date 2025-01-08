@@ -1,11 +1,11 @@
 #-------------------------------------------------------------------------------
 # CI/CD deployment for Tantalus on ULB GITLAB
 #-------------------------------------------------------------------------------
-image: ubuntu # Only needed when running on systems that use docker 
+image: ubuntu # Only needed when running on systems that use docker
 
 stages:
  - compilation # Test whether the code compiles with gfortran
- - testing     # All types of numerical testing 
+ - testing     # All types of numerical testing
 
 compile:
   #----------------------------------------------------------------------------
@@ -33,7 +33,7 @@ compile:
     # This is a horrible hack:
     #   unfortunately the current Makefile configuration of Tantalus will always
     #   fail the first time around because Hephaestos has not created f90 files
-    #   in the src/ directory yet. I have not found a way to correctly do this 
+    #   in the src/ directory yet. I have not found a way to correctly do this
     #   dependency in the Makefile yet...;
     #---------------------------------------------------------------------------
     - mkdir src/
@@ -42,13 +42,13 @@ compile:
     # Make sure that the intel compilers and libraries are available
     - source /opt/intel/oneapi/setvars.sh --force &> /dev/null
     #---------------------------------------------------------------------------
-    # Compiles the selected configuration file with the selected compiler, 
+    # Compiles the selected configuration file with the selected compiler,
     #    resulting in a specific executable
     - make CONFIG=${CONFIG} COMPILER=${COMPILER} EXENAME=${EXENAME} CALCTYPE=${CALCTYPE}
 
-integration-testing:
+minimal:
   #-----------------------------------------------------------------------------
-  # Run all integration tests.
+  # Run the 'minimal' test for two different compilers.
   #-----------------------------------------------------------------------------
   stage: testing
   tags:
@@ -70,6 +70,25 @@ integration-testing:
     # Start testing!
     - cd testing/integration/
     - bash minimal.sh $SUFFIX # Spherical O16 with SLy4
+
+symmetries:
+  #-----------------------------------------------------------------------------
+  # Run the 'symmetries' test
+  #-----------------------------------------------------------------------------
+  stage: testing
+  tags:
+    - astropc19
+  variables:
+    SUFFIX: NLO.gfortran.NUCLEI
+  artifacts:
+    paths:
+      - testing/integration/logs/symmetries.${SUFFIX}.out
+    expire_in: 1 year # keep outputs for a LONG time
+  script:
+    #---------------------------------------------------------------------------
+    # Start testing!
+    - cd testing/integration/
+    - bash symmetries.sh
 
   #----------------------------------------------------------------------
   # Install all prerequisites for docker-based systems

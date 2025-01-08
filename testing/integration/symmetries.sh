@@ -24,11 +24,6 @@
 # Complexity           : medium
 # Reference commit hash: ec5d48ee9e546d795cc74d6160bf7812cd1d3b93
 #-------------------------------------------------------------------------------
-# These are the hardcoded answers
-#refE=-128.513125 # Total energy of O16 in MeV
-#refB20=0.0       # this nucleus should be REALLY spherical
-#refB22=0.0
-
 set -e
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
