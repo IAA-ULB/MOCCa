@@ -1073,24 +1073,22 @@ $PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR)
               ! The time-reversal broken version of the above would be
               ! Block 2 with block 1 (P-broken, T-broken)
               ! ... but this would be superfluous as we already calculated block 1 with block 2
-              !     in that case above. So we put a loop that will never trigger.
-$PBROKEN $NTR do j=1, 0
+              !     in that case above. So there is no code corresponding to that case!
+$PBROKEN $TR    if(MPI_RANK.eq.calc_rank) then
+$PBROKEN $TR      NablaMElements(1,1,wave_global,wave2_global) = dv*           &
+$PBROKEN $TR      & sum(         derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+$PBROKEN $TR      &           +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
 
-$PBROKEN        if(MPI_RANK.eq.calc_rank) then
-$PBROKEN          NablaMElements(1,1,wave_global,wave2_global) = dv*           &
-$PBROKEN          & sum(         derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
-$PBROKEN          &           +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+$PBROKEN $TR      NablaMElements(2,2,wave_global,wave2_global) = dv*           &
+$PBROKEN $TR      & sum(          dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
+$PBROKEN $TR      &            -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
 
-$PBROKEN          NablaMElements(2,2,wave_global,wave2_global) = dv*           &
-$PBROKEN          & sum(          dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
-$PBROKEN          &            -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
-
-$PBROKEN          NablaMElements(1,1,wave2_global,wave_global) = &
-$PBROKEN          &               - NablaMElements(1,1,wave_global,wave2_global)
-$PBROKEN          NablaMElements(2,2,wave2_global,wave_global) = &
-$PBROKEN          &                 NablaMElements(2,2,wave_global,wave2_global)
-$PBROKEN        endif
-$PBROKEN      enddo
+$PBROKEN $TR      NablaMElements(1,1,wave2_global,wave_global) = &
+$PBROKEN $TR      &               - NablaMElements(1,1,wave_global,wave2_global)
+$PBROKEN $TR      NablaMElements(2,2,wave2_global,wave_global) = &
+$PBROKEN $TR      &                 NablaMElements(2,2,wave_global,wave2_global)
+$PBROKEN $TR    endif
+$PBROKEN $TR  enddo
 $PBROKEN    enddo
       T = N + N2 + N3 + N4
       si = si + T 
