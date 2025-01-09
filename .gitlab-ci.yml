@@ -79,16 +79,29 @@ symmetries:
   tags:
     - astropc19
   variables:
-    SUFFIX: NLO.gfortran.NUCLEI
+    EXEC    : ${CONFIG}.${COMPILER}.${CALCTYPE}
+    EXEC_P  : ${CONFIG}-P.${COMPILER}.${CALCTYPE}
+    EXEC_T  : ${CONFIG}-T.${COMPILER}.${CALCTYPE}
+    EXEC_TP : ${CONFIG}-TP.${COMPILER}.${CALCTYPE}
   artifacts:
     paths:
-      - testing/integration/logs/symmetries.${SUFFIX}.out
+      - testing/integration/logs/symmetries.${EXEC}.out
+      - testing/integration/logs/symmetries.${EXEC_P}.out
+      - testing/integration/logs/symmetries.${EXEC_T}.out
+      - testing/integration/logs/symmetries.${EXEC_TP}.out
     expire_in: 1 year # keep outputs for a LONG time
+  parallel:
+    matrix:
+      - PARAM    : BSkG3
+        CONFIG   : BXL
+        COMPILER : gfortran
+        CALCTYPE : NUCLEI
   script:
     #---------------------------------------------------------------------------
     # Start testing!
     - cd testing/integration/
-    - bash symmetries.sh
+    # Useage: bash symmetries param exec exec_P exec_T exec_TP
+    - bash symmetries.sh ${PARAM} ${EXEC} ${EXEC_P} ${EXEC_T} ${EXEC_TP}
 
   #----------------------------------------------------------------------
   # Install all prerequisites for docker-based systems
