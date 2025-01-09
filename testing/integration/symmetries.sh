@@ -78,6 +78,7 @@ constraint=10
 EOF
 
 # Run the calculation
+echo 'Running the CONFIG=BXL calculation.'
 ./$exe < tant.data > $outfile
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check=$?
@@ -136,6 +137,7 @@ constraint=10
 EOF
 
 # Run the calculation
+echo 'Running the CONFIG=BXL-P calculation.'
 ./$exe < tant.data > $outfile
 # ... immediately check if Tantalus reported back some error codes
 tantalus_check_P=$?
@@ -192,6 +194,7 @@ constraint=10
 /
 EOF
 # Run the calculation
+echo 'Running the CONFIG=BXL-T calculation.'
 ./$exe < tant.data > $outfile
 # ... immediately check if Tantalus reported back some error codes
 tantalus_check_T=$?
@@ -304,6 +307,7 @@ constraint=10
 /
 EOF
 # Run the calculation
+echo 'Running the CONFIG=BXL-TP calculation.'
 ./$exe < tant.data > $outfile
 # ... immediately check if Tantalus reported back some error codes
 tantalus_check_TP=$?
@@ -315,6 +319,13 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Starting the checking
+echo '---------------------------------'
+echo ' Runtime checks                  '
+echo '---------------------------------'
+echo ' CONFIG=BXL    ' $tantalus_check
+echo ' CONFIG=BXL-P  ' $tantalus_check_P
+echo ' CONFIG=BXL-T  ' $tantalus_check_T
+echo ' CONFIG=BXL-TP ' $tantalus_check_TP
 # a) Compare total energies with a tolerance of 1 keV
 # a.1) parity-broken calculation
 compare_floats $E_parity              $refE 0.001
@@ -326,8 +337,20 @@ check_energy_T=$?
 compare_floats $E_timereversal_parity $refE 0.001
 check_energy_TP=$?
 
+echo '---------------------------------'
+echo ' Energy consistency              '
+echo '---------------------------------'
+echo ' BXL = BXL-P   '  $check_energy_P
+echo ' BXL = BXL-T   '  $check_energy_T
+echo ' BXL = BXL-TP  ' $check_energy_TP
+echo '---------------------------------'
+
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
 t_check=$tantalus_check || $tantalus_check_P || $tantalus_check_T || $tantalus_check_TP
 e_check=$check_energy_P || $check_energy_T || $check_energy_TP
-return $t_check || $e_check
+
+exitcode=$t_check || $e_check
+echo ' SUCCESS?      ' $exitcode
+echo '---------------------------------'
+exit $exitcode
