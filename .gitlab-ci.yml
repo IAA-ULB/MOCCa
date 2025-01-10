@@ -22,12 +22,15 @@ compile:
     expire_in: 2 days # Don't keep the exe's around for long
   parallel:
     matrix:
-      - CONFIG  : [NLO,BXL,BXL-P,BXL-T,BXL-TP]
-        COMPILER: [gfortran, ifort]
-        CALCTYPE:  NUCLEI
+      - CONFIG  : [NLO,BXL,BXL-P,BXL-T,BXL-TP,N2LO,N2LO-P,N2LO-T,N2LO-TP]
+        COMPILER: gfortran
+        CALCTYPE: NUCLEI
       - CONFIG  : BXL
         COMPILER: ifort
         CALCTYPE: PASTA
+      - CONFIG  : [NLO,BXL]
+        COMPILER: ifort
+        CALCTYPE: NUCLEI
   script:
     #---------------------------------------------------------------------------
     # This is a horrible hack:
@@ -94,6 +97,10 @@ symmetries:
     matrix:
       - PARAM    : BSkG3
         CONFIG   : BXL
+        COMPILER : gfortran
+        CALCTYPE : NUCLEI
+      - PARAM    : SN2LO1
+        CONFIG   : N2LO
         COMPILER : gfortran
         CALCTYPE : NUCLEI
   script:
