@@ -966,7 +966,6 @@ $TR     wave2_global = si+N+j
          endif
         enddo
       enddo
-
       ! Block 1 with block 2  (T-broken, P-broken)
 $PBROKEN $NTR do j=1, N2
 $PBROKEN $NTR   wave2_global = si+N+j
@@ -1045,7 +1044,6 @@ $TR     wave2_global = si+N+N2+N3+j
 #else
           call transfer_psi(psi, wave, 'DEN')
 #endif
-
           if(MPI_RANK.eq.calc_rank) then
             NablaMElements(1,1,wave_global,wave2_global) = dv*                 &
             & sum(                 derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2) &
@@ -1064,6 +1062,9 @@ $TR     wave2_global = si+N+N2+N3+j
       enddo
 
               ! Block 2 with block 2 (P-broken, T-conserved)
+              ! Note: there is no "time-reversal broken" version of the following
+              ! code block since "block 1 with 2" is already taken into account
+              ! above..
 $PBROKEN $TR  do j=1, N2
 $PBROKEN $TR   wave2_global = si+N+j
 $PBROKEN $TR   rankj        = rank_map(wave2_global)
@@ -1075,38 +1076,32 @@ $PBROKEN $TR   call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR,rankj,calc_rank
 $PBROKEN $TR   call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR)
 $PBROKEN $TR   call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR)
 #endif
-              ! The time-reversal broken version of the above would be
-              ! Block 2 with block 1 (P-broken, T-broken)
-              ! ... but this would be superfluous as we already calculated block 1 with block 2
-              !     in that case above. So we put a loop that will never trigger.
-$PBROKEN $NTR do j=1, 0
 
-$PBROKEN      do i=1,N2
-$PBROKEN        wave_global  = si+N+i
-$PBROKEN        ranki        = rank_map(wave_global)
-$PBROKEN        wave         = spwf_inverse(wave_global)
+$PBROKEN $TR   do i=1,N2
+$PBROKEN $TR      wave_global  = si+N+i
+$PBROKEN $TR      ranki        = rank_map(wave_global)
+$PBROKEN $TR      wave         = spwf_inverse(wave_global)
 #if(USE_MPI>0)
-$PBROKEN        call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+$PBROKEN $TR      call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
 #else
-$PBROKEN        call transfer_psi(psi, wave, 'DEN')
+$PBROKEN $TR      call transfer_psi(psi, wave, 'DEN')
 #endif
+$PBROKEN $TR      if(MPI_RANK.eq.calc_rank) then
+$PBROKEN $TR        NablaMElements(1,1,wave_global,wave2_global) = dv*           &
+$PBROKEN $TR        & sum(         derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+$PBROKEN $TR        &           +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
 
-$PBROKEN        if(MPI_RANK.eq.calc_rank) then
-$PBROKEN          NablaMElements(1,1,wave_global,wave2_global) = dv*           &
-$PBROKEN          & sum(         derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
-$PBROKEN          &           +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
+$PBROKEN $TR        NablaMElements(2,2,wave_global,wave2_global) = dv*           &
+$PBROKEN $TR        & sum(          dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
+$PBROKEN $TR        &            -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
 
-$PBROKEN          NablaMElements(2,2,wave_global,wave2_global) = dv*           &
-$PBROKEN          & sum(          dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
-$PBROKEN          &            -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
-
-$PBROKEN          NablaMElements(1,1,wave2_global,wave_global) = &
-$PBROKEN          &               - NablaMElements(1,1,wave_global,wave2_global)
-$PBROKEN          NablaMElements(2,2,wave2_global,wave_global) = &
-$PBROKEN          &                 NablaMElements(2,2,wave_global,wave2_global)
-$PBROKEN        endif
-$PBROKEN      enddo
-$PBROKEN    enddo
+$PBROKEN $TR        NablaMElements(1,1,wave2_global,wave_global) = &
+$PBROKEN $TR        &               - NablaMElements(1,1,wave_global,wave2_global)
+$PBROKEN $TR        NablaMElements(2,2,wave2_global,wave_global) = &
+$PBROKEN $TR        &                 NablaMElements(2,2,wave_global,wave2_global)
+$PBROKEN $TR      endif
+$PBROKEN $TR   enddo
+$PBROKEN $TR  enddo
       T = N + N2 + N3 + N4
       si = si + T 
     enddo

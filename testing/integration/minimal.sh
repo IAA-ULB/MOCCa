@@ -1,5 +1,5 @@
 #-------------------------------------------------------------------------------
-# Spherical O16 calculation with SLy4 in a minimal box. 
+# Spherical O16 calculation with SLy4 in a minimal box.
 #
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
@@ -17,11 +17,11 @@ refB20=0.0       # this nucleus should be REALLY spherical
 refB22=0.0
 
 set -e
-#- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - - 
+#- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
 source ../functions.sh
 
-# Set up 
+# Set up
 setup_test_env "minimal" "$1" "SLy4"
 
 # Create runtime data
@@ -48,7 +48,7 @@ osc_freq = 0.2, 0.2, 0.2
 /
 &IO
 InputFilename='init'
-OutputFilename='wtf'
+OutputFilename='trash'
 /
 &MomentParam
 /
@@ -61,7 +61,7 @@ EOF
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check=$?
 
-#- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - - 
+#- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Starting the checking
 # a) Get the total energy from the STDOUT file
 E=$(get_total_energy_stdout $outfile)
@@ -73,8 +73,10 @@ B20=$(get_B20_stdout $outfile)
 compare_floats $B20 $refB20 0.00001
 check_B20=$?
 B22=$(get_B22_stdout $outfile)
-compare_floats $B22 $refB20 0.00001
+compare_floats $B22 $refB22 0.00001
 check_B22=$?
-#- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - - 
+# remove working directory and traces of these calculations
+teardown_test_env
+#- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-exit $tantalus_check || $check_energy || $check_B20 || $check_B22 
+exit $tantalus_check || $check_energy || $check_B20 || $check_B22

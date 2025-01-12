@@ -1,11 +1,11 @@
 #-------------------------------------------------------------------------------
 # CI/CD deployment for Tantalus on ULB GITLAB
 #-------------------------------------------------------------------------------
-image: ubuntu # Only needed when running on systems that use docker 
+image: ubuntu # Only needed when running on systems that use docker
 
 stages:
  - compilation # Test whether the code compiles with gfortran
- - testing     # All types of numerical testing 
+ - testing     # All types of numerical testing
 
 compile:
   #----------------------------------------------------------------------------
@@ -22,18 +22,21 @@ compile:
     expire_in: 2 days # Don't keep the exe's around for long
   parallel:
     matrix:
-      - CONFIG  : [NLO,BXL]
-        COMPILER: [gfortran, ifort]
-        CALCTYPE:  NUCLEI
+      - CONFIG  : [NLO,BXL,BXL-P,BXL-T,BXL-TP,N2LO,N2LO-P,N2LO-T,N2LO-TP]
+        COMPILER: gfortran
+        CALCTYPE: NUCLEI
       - CONFIG  : BXL
         COMPILER: ifort
         CALCTYPE: PASTA
+      - CONFIG  : [NLO,BXL]
+        COMPILER: ifort
+        CALCTYPE: NUCLEI
   script:
     #---------------------------------------------------------------------------
     # This is a horrible hack:
     #   unfortunately the current Makefile configuration of Tantalus will always
     #   fail the first time around because Hephaestos has not created f90 files
-    #   in the src/ directory yet. I have not found a way to correctly do this 
+    #   in the src/ directory yet. I have not found a way to correctly do this
     #   dependency in the Makefile yet...;
     #---------------------------------------------------------------------------
     - mkdir src/
@@ -42,13 +45,13 @@ compile:
     # Make sure that the intel compilers and libraries are available
     - source /opt/intel/oneapi/setvars.sh --force &> /dev/null
     #---------------------------------------------------------------------------
-    # Compiles the selected configuration file with the selected compiler, 
+    # Compiles the selected configuration file with the selected compiler,
     #    resulting in a specific executable
     - make CONFIG=${CONFIG} COMPILER=${COMPILER} EXENAME=${EXENAME} CALCTYPE=${CALCTYPE}
 
-integration-testing:
+minimal:
   #-----------------------------------------------------------------------------
-  # Run all integration tests.
+  # Run the 'minimal' test for two different compilers.
   #-----------------------------------------------------------------------------
   stage: testing
   tags:
@@ -70,7 +73,43 @@ integration-testing:
     # Start testing!
     - cd testing/integration/
     - bash minimal.sh $SUFFIX # Spherical O16 with SLy4
-    
+
+symmetries:
+  #-----------------------------------------------------------------------------
+  # Run the 'symmetries' test
+  #-----------------------------------------------------------------------------
+  stage: testing
+  tags:
+    - astropc19
+  variables:
+    EXEC    : ${CONFIG}.${COMPILER}.${CALCTYPE}
+    EXEC_P  : ${CONFIG}-P.${COMPILER}.${CALCTYPE}
+    EXEC_T  : ${CONFIG}-T.${COMPILER}.${CALCTYPE}
+    EXEC_TP : ${CONFIG}-TP.${COMPILER}.${CALCTYPE}
+  artifacts:
+    paths:
+      - testing/integration/logs/symmetries.${EXEC}.out
+      - testing/integration/logs/symmetries.${EXEC_P}.out
+      - testing/integration/logs/symmetries.${EXEC_T}.out
+      - testing/integration/logs/symmetries.${EXEC_TP}.out
+    expire_in: 1 year # keep outputs for a LONG time
+  parallel:
+    matrix:
+      - PARAM    : BSkG3
+        CONFIG   : BXL
+        COMPILER : gfortran
+        CALCTYPE : NUCLEI
+      - PARAM    : SN2LO1
+        CONFIG   : N2LO
+        COMPILER : gfortran
+        CALCTYPE : NUCLEI
+  script:
+    #---------------------------------------------------------------------------
+    # Start testing!
+    - cd testing/integration/
+    # Useage: bash symmetries param exec exec_P exec_T exec_TP
+    - bash symmetries.sh ${PARAM} ${EXEC} ${EXEC_P} ${EXEC_T} ${EXEC_TP}
+
   #----------------------------------------------------------------------
   # Install all prerequisites for docker-based systems
   #   I'm keeping this around for future configurations

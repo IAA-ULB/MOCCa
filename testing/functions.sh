@@ -9,9 +9,9 @@ EXECDIR=../../exec/
 PARAMDIR=../../parameterizations/
 
 setup_test_env () {
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# Setting up for running a test: 
-# 1. define a few standard environment variables 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Setting up for running a test:
+# 1. define a few standard environment variables
 # 2. create a work directory and logging directory
 # 3. copy the relevant executable and .param file there
 #
@@ -39,6 +39,17 @@ cp $PARAMDIR/"$param.param"  work/
 
 cd work
 }
+
+teardown_test_env() {
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Remove all trace from the calculations we've just performed.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+if [[ `basename $PWD` == 'work' ]] ; then
+cd ../
+rm -r work/
+fi
+}
+
 
 tantalus_error_codes () {
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
