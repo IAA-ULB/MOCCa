@@ -79,4 +79,4 @@ check_B22=$?
 teardown_test_env
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-exit $tantalus_check || $check_energy || $check_B20 || $check_B22
+exit $(($tantalus_check || $check_energy || $check_B20 || $check_B22 ))
