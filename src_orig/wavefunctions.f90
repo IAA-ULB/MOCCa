@@ -2167,7 +2167,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       r2   = 0
       ! Zero <P>
       P    = 0
-
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Perform a unitary transformation to arrive at the basis we are studying
       if(perform_transfo) then
@@ -2191,9 +2190,9 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
             der_index = si + i
           else
             ! In this case, we recalculate them on the fly
-            call Derive_X_spwf(psi(:,:,si+i), sx(:,wave), dpsi(:,1,:,1))
-            call Derive_Y_spwf(psi(:,:,si+i), sy(:,wave), dpsi(:,2,:,1))
-            call Derive_Z_spwf(psi(:,:,si+i), sz(:,wave), dpsi(:,3,:,1))
+            call Derive_X_spwf(psi(:,:,si+i), sx(:,si+i), dpsi(:,1,:,1))
+            call Derive_Y_spwf(psi(:,:,si+i), sy(:,si+i), dpsi(:,2,:,1))
+            call Derive_Z_spwf(psi(:,:,si+i), sz(:,si+i), dpsi(:,3,:,1))
             der_index = 1
           endif
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2939,6 +2938,7 @@ subroutine Transfer_derpsi(derpsi,wave,direction, basis, TR &
     real(KIND=dp), pointer       :: dpsis(:,:,:,:), psis(:,:,:)
     character(len=*), intent(in) :: basis
 #if(USE_MPI>0)
+    real(KIND=dp)                :: psi(mv,4)
     integer, intent(in)          :: send_rank, calc_rank
     integer                      :: mpi_err
 #endif    
@@ -2955,20 +2955,55 @@ subroutine Transfer_derpsi(derpsi,wave,direction, basis, TR &
     endif
 
 #if(USE_MPI>0)
-    if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
-        ! nothing to send or receive
-        derpsi   = dpsis(:,direction,:,wave)
-        if(TR)   derpsi = TimeReverse(derpsi)
-    elseif(MPI_RANK.eq.calc_rank) then
-        ! calc_rank receives
-        call MPI_RECV(                     derpsi, 4*mv, MPI_REAL8,send_rank,2,&
-        &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
-        ! and time-reverses if needed
-        if(TR)   derpsi = TimeReverse(derpsi)
-    else if(MPI_RANK .eq. send_rank)  then
-        ! ranki sends the wavefunction
-        call MPI_SEND(dpsis(:,direction,:,wave), 4*mv, MPI_REAL8,calc_rank,2,&
-        &                                           MPI_COMM_WORLD, mpi_err)
+    if(store_derivatives) then
+      if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+          ! nothing to send or receive
+          derpsi   = dpsis(:,direction,:,wave)
+          if(TR)   derpsi = TimeReverse(derpsi)
+      elseif(MPI_RANK.eq.calc_rank) then
+          ! calc_rank receives
+          call MPI_RECV(                     derpsi, 4*mv, MPI_REAL8,send_rank,2,&
+          &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+          ! and time-reverses if needed
+          if(TR)   derpsi = TimeReverse(derpsi)
+      else if(MPI_RANK .eq. send_rank)  then
+          ! ranki sends the wavefunction
+          call MPI_SEND(dpsis(:,direction,:,wave), 4*mv, MPI_REAL8,calc_rank,2,&
+          &                                           MPI_COMM_WORLD, mpi_err)
+      endif
+    else
+      if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+          ! nothing to send or receive, but derivative to calculate
+          select case(direction)
+          case(1)
+            call Derive_X_spwf(psis(:,:,wave), sx(:,wave), derpsi)
+          case(2)
+            call Derive_Y_spwf(psis(:,:,wave), sy(:,wave), derpsi)
+          case(3)
+            call Derive_Z_spwf(psis(:,:,wave), sz(:,wave), derpsi)
+          end select
+          if(TR)   derpsi = TimeReverse(derpsi)
+
+      elseif(MPI_RANK.eq.calc_rank) then
+          ! calc_rank receives the wavefunction and performs derivative
+          call MPI_RECV(                     psi, 4*mv, MPI_REAL8,send_rank,2,&
+          &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+          ! .... and calculates a derivative
+          select case(direction)
+          case(1)
+            call Derive_X_spwf(psi, sx(:,wave), derpsi)
+          case(2)
+            call Derive_Y_spwf(psi, sy(:,wave), derpsi)
+          case(3)
+            call Derive_Z_spwf(psi, sz(:,wave), derpsi)
+          end select
+          ! ... and time-reverses if needed
+          if(TR)   derpsi = TimeReverse(derpsi)
+      else if(MPI_RANK .eq. send_rank)  then
+          ! ranki sends the wavefunction
+          call MPI_SEND(psis(:,:,wave), 4*mv, MPI_REAL8,calc_rank,2,&
+          &                                           MPI_COMM_WORLD, mpi_err)
+      endif
     endif
 #else 
     if(store_derivatives) then
@@ -3015,6 +3050,7 @@ subroutine Transfer_derpsi_complete(derpsi, wave, basis &
     character(len=*), intent(in) :: basis
     real(KIND=dp), pointer       :: dpsis(:,:,:,:), psis(:,:,:)
 #if(USE_MPI>0)
+    real(KIND=dp)                :: psi(mv,4)
     integer, intent(in)          :: send_rank, calc_rank
     integer                      :: mpi_err
 #endif
@@ -3031,17 +3067,38 @@ subroutine Transfer_derpsi_complete(derpsi, wave, basis &
     endif
 
 #if(USE_MPI>0)
-    if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
-        ! nothing to send or receive
-        derpsi   = dpsis(:,:,:,wave)
-    elseif(MPI_RANK.eq.calc_rank) then
-        ! calc_rank receives
-        call MPI_RECV(derpsi          , 12*mv, MPI_REAL8,send_rank,2,&
-        &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
-    else if(MPI_RANK .eq. send_rank)  then
-        ! ranki sends the wavefunction
-        call MPI_SEND(dpsis(:,:,:,wave), 12*mv, MPI_REAL8,calc_rank,2,&
-        &                                           MPI_COMM_WORLD, mpi_err)
+    if(store_derivatives) then
+      if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+          ! nothing to send or receive
+          derpsi   = dpsis(:,:,:,wave)
+      elseif(MPI_RANK.eq.calc_rank) then
+          ! calc_rank receives
+          call MPI_RECV(derpsi          , 12*mv, MPI_REAL8,send_rank,2,&
+          &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+      else if(MPI_RANK .eq. send_rank)  then
+          ! ranki sends the wavefunction
+          call MPI_SEND(dpsis(:,:,:,wave), 12*mv, MPI_REAL8,calc_rank,2,&
+          &                                           MPI_COMM_WORLD, mpi_err)
+      endif
+    else
+      if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+          ! nothing to send or receive, but derivatives to calculate
+          call Derive_X_spwf(psis(:,:,wave), sx(:,wave), derpsi(:,1,:))
+          call Derive_Y_spwf(psis(:,:,wave), sy(:,wave), derpsi(:,2,:))
+          call Derive_Z_spwf(psis(:,:,wave), sz(:,wave), derpsi(:,3,:))
+      elseif(MPI_RANK.eq.calc_rank) then
+          ! calc_rank receives the wavefunction and performs derivative
+          call MPI_RECV(                     psi, 4*mv, MPI_REAL8,send_rank,2,&
+          &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+          ! .... and calculates the derivatives
+          call Derive_X_spwf(psi, sx(:,wave), derpsi(:,1,:))
+          call Derive_Y_spwf(psi, sy(:,wave), derpsi(:,2,:))
+          call Derive_Z_spwf(psi, sz(:,wave), derpsi(:,3,:))
+      else if(MPI_RANK .eq. send_rank)  then
+          ! ranki sends the wavefunction
+          call MPI_SEND(psis(:,:,wave), 4*mv, MPI_REAL8,calc_rank,2,&
+          &                                           MPI_COMM_WORLD, mpi_err)
+      endif
     endif
 #else 
     if(store_derivatives) then

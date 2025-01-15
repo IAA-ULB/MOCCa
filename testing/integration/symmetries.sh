@@ -86,10 +86,10 @@ exec_T="BXL-T"
 exec_TP="BXL-TP"
 fi
 
+iter=400
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
 source ../functions.sh
-
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Setting up the reference calculation: BXL
 setup_test_env "$logfiletag" "$exec" "$param"

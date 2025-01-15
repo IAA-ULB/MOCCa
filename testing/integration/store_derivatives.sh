@@ -70,7 +70,7 @@ name_param="$2"
 Type='HFB'
 /
 &evolution
-maxiter=100
+maxiter=200
 /
 &scfiteration
 /
