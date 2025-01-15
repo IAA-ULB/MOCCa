@@ -691,22 +691,22 @@ subroutine update_spwf_properties_HF()
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   use evolution, only     : diagsphamil
   use wavefunctions, only : update_spwf_properties, HFTransfo
-  use wavefunctions, only : HF_J, HF_JTR, HF_JTI, HF_JJ
+  use wavefunctions, only : HF_J, HF_JTR, HF_JTI, HF_JJ, HF_J2
   use wavefunctions, only : HF_spin, HF_STR, HF_STI
   use wavefunctions, only : spwf_r2_HF, P_HF
 
   if(diagsphamil) then
-    call update_spwf_properties('HF', HFTRANSFO,.false.,    &
-                            &  HF_J, HF_JTR, HF_JTI, HF_JJ, & ! J-like stuff
-                            &  HF_spin, HF_STR, HF_STI,     & ! spin-stuff
-                            &  spwf_r2_hf,                  & ! radii
-                            &  P_hf)                          ! symmetry-stuff
+    call update_spwf_properties('HF', HFTRANSFO,.false.,           &
+                            &  HF_J, HF_JTR, HF_JTI, HF_J2, HF_JJ, & ! J-like stuff
+                            &  HF_spin, HF_STR, HF_STI,            & ! spin-stuff
+                            &  spwf_r2_hf,                         & ! radii
+                            &  P_hf)                                 ! symmetry-stuff
   else
     call update_spwf_properties('HF', HFTRANSFO,.true.,    &
-                            &  HF_J, HF_JTR, HF_JTI, HF_JJ, & ! J-like stuff
-                            &  HF_spin, HF_STR, HF_STI,     & ! spin-stuff
-                            &  spwf_r2_hf,                  & ! radii
-                            &  P_hf)                          ! symmetry-stuff
+                            &  HF_J, HF_JTR, HF_JTI, HF_J2, HF_JJ, & ! J-like stuff
+                            &  HF_spin, HF_STR, HF_STI,            & ! spin-stuff
+                            &  spwf_r2_hf,                         & ! radii
+                            &  P_hf)                                 ! symmetry-stuff
   endif
 
 end subroutine update_spwf_properties_HF
@@ -719,15 +719,15 @@ subroutine update_spwf_properties_CAN()
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   use pairing, only       : cantransfo
   use wavefunctions, only : update_spwf_properties
-  use wavefunctions, only : CAN_J, CAN_JTR, CAN_JTI, CAN_JJ
+  use wavefunctions, only : CAN_J, CAN_JTR, CAN_JTI, CAN_JJ, CAN_J2
   use wavefunctions, only : CAN_spin, CAN_STR, can_STI
   use wavefunctions, only : spwf_r2_can, P_can
 
-  call update_spwf_properties('CAN', CANTRANSFO,.false.,        &
-                            &  CAN_J, CAN_JTR, CAN_JTI, CAN_JJ, & ! J-like stuff
-                            &  CAN_spin, CAN_STR, CAN_STI,      & ! spin-stuff
-                            &  spwf_r2_can,                     & ! radii
-                            &  P_can)                             ! symmetry-stuff
+  call update_spwf_properties('CAN', CANTRANSFO,.false.,                &
+                            &  CAN_J, CAN_JTR, CAN_JTI, CAN_J2, CAN_JJ, & ! J-like stuff
+                            &  CAN_spin, CAN_STR, CAN_STI,              & ! spin-stuff
+                            &  spwf_r2_can,                             & ! radii
+                            &  P_can)                                     ! symmetry-stuff
 end subroutine update_spwf_properties_CAN
 
 subroutine initialize_all_timers()

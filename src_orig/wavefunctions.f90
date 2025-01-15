@@ -581,18 +581,18 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
     ! c) and perform some other initializations
     allocate(dispersions(ININWT)) ; dispersions  = 0
     if(.not.allocated(hftransfo)) allocate(hftransfo(nwt,nwt))
-    do i=1, nwt
+    do i=1, ininwt
       hftransfo(i,i) = 1.0d0
-      do j=i+1,nwt
+      do j=i+1,ininwt
         hftransfo(i,j) = 0.0d0 
         hftransfo(j,i) = 0.0d0 
       enddo
     enddo
 
     if(.not.allocated(current_sph)) allocate(current_sph(nwt,nwt))
-    do i=1, nwt
+    do i=1, ininwt
       current_sph(i,i) = spenergies(i)
-      do j=i+1,nwt
+      do j=i+1,ininwt
         current_sph(i,j) = 0.0d0 
         current_sph(j,i) = 0.0d0 
       enddo
@@ -2110,7 +2110,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 !===============================================================================
 
   subroutine update_spwf_properties( basis , transfo, perform_transfo, &
-  &                                  J, JTR, JTI, JJ, spin, STR, STI, r2, P )
+  &                                  J, JTR, JTI, J2, JJ, spin, STR, STI, r2, P )
       !----------------------------------------------------------------------------
       ! Calculate various properties of single-particle wavefunctions that are
       ! the diagonal matrix elements of a single-particle operator in either
@@ -2127,7 +2127,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       !  J      : diagonal matrix elements of J
       !  JTR    : real      part of the diagonal matrix elements of JT
       !  JTI    : imaginary part of the diagonal matrix elements of JT
-      !  JJ     : diagonal matrix elements of J^2
+      !  J2     : matrix elements of J^2
+      !  JJ     : "total angular momentum",i.e. J such that J(J+1) = sum_mu <J_mu^2>
       !  spin   : matrix element of spin operator S
       !  STR    : real      part of the diagonal matrix elements of ST
       !  STI    : imaginary part of the diagonal matrix elements of ST
@@ -2137,7 +2138,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       character(len=*), intent(in)                :: basis
       real(KIND=dp), intent(in)                   :: transfo(:,:)
       logical, intent(in)                         :: perform_transfo
-      real(KIND=dp), allocatable, intent(inout)   :: J(:,:), JTR(:,:), JTI(:,:), JJ(:)
+      real(KIND=dp), allocatable, intent(inout)   :: J(:,:), JTR(:,:), JTI(:,:), J2(:,:), JJ(:)
       real(KIND=dp), allocatable, intent(inout)   :: spin(:,:), STR(:,:), STI(:,:)
       real(KIND=dp), allocatable, intent(inout)   :: r2(:), P(:)
       real(KIND=dp), pointer                      :: psi(:,:,:), dpsi(:,:,:,:)
@@ -2154,7 +2155,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       end select
 
       if(.not. allocated(J)) then
-        allocate(   J(3,nwt), JTR(3,nwt), JTI(3,nwt), JJ(nwt))
+        allocate(   J(3,nwt), JTR(3,nwt), JTI(3,nwt), J2(3,nwt), JJ(nwt))
         allocate(spin(3,nwt), STR(3,nwt), STI(3,nwt))
         allocate(r2(nwt))
         allocate(P(nwt))
@@ -2201,14 +2202,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
           JTI(2,wave)  = angmom_yt_imag(psi(:,:,si+i), psi(:,:,si+i),dpsi(:,:,:,der_index))
           J(3,wave)    = angmom_z_real( psi(:,:,si+i), psi(:,:,si+i),dpsi(:,:,:,der_index))
 
-          JJ(wave)     = angmom_x_quad(psi(:,:,si+i), dpsi(:,:,:,der_index), &
-          &                            psi(:,:,si+i), dpsi(:,:,:,der_index)) &
-          &            + angmom_y_quad(psi(:,:,si+i), dpsi(:,:,:,der_index), &
-          &                            psi(:,:,si+i), dpsi(:,:,:,der_index)) &
-          &            + angmom_z_quad(psi(:,:,si+i), dpsi(:,:,:,der_index), &
-          &                            psi(:,:,si+i), dpsi(:,:,:,der_index))
+          J2(1,wave)     = angmom_x_quad(psi(:,:,si+i), dpsi(:,:,:,der_index), &
+          &                              psi(:,:,si+i), dpsi(:,:,:,der_index))
+          J2(2,wave)     = angmom_y_quad(psi(:,:,si+i), dpsi(:,:,:,der_index), &
+          &                              psi(:,:,si+i), dpsi(:,:,:,der_index))
+          J2(3,wave)     = angmom_z_quad(psi(:,:,si+i), dpsi(:,:,:,der_index), &
+          &                              psi(:,:,si+i), dpsi(:,:,:,der_index))
 
-          JJ(wave) =  (-1. + sqrt(1. + 4*JJ(wave)))/2.
+          JJ(wave) =  (-1. + sqrt(1. + 4*sum(J2(:,wave))))/2.
 
           STR (1,wave) = spin_xt_real(psi(:,:,si+i), psi(:,:,si+i))
           STI (2,wave) = spin_yt_imag(psi(:,:,si+i), psi(:,:,si+i))
