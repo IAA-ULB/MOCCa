@@ -731,7 +731,9 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     precond         = ''
     erear           = ''
     writing         = ''
+    writing_hdf5    = ''
     reading         = ''
+    reading_hdf5    = ''
     cleaning        = ''
 
     init            = ''
@@ -826,12 +828,14 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     #---------------------------------------------------------------------------
     # Generate the fields of the single-particle hamiltonian
-    (fielddec,fieldini,fieldcalc,fieldprecon,fieldwrite,fieldread, fieldadd, \
-     fieldmultiply, fieldinproduct, fieldINMk2, fieldINMk4)                  \
+    (fielddec,fieldini,fieldcalc,fieldprecon,fieldwrite,fieldwrite_hdf5,fieldread,\
+     fieldread_hdf5,fieldadd,fieldmultiply,fieldinproduct,fieldINMk2, fieldINMk4) \
                                  =  GenerateFields(so, oldso,ph_pp_decoupl)
     pot_declaration = pot_declaration + fielddec + '\n'
     writing     = writing     + fieldwrite 
-    reading     = reading     + fieldread 
+    writing_hdf5     = writing_hdf5     + fieldwrite_hdf5
+    reading     = reading     + fieldread
+    reading_hdf5     = reading_hdf5     + fieldread_hdf5
     precond     = precond     + fieldprecon
     init        = init        + fieldini
     add         = add         + fieldadd
@@ -938,7 +942,9 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     dic['FUNC_NAME']      = func_name
     dic['POTENTIALNUMBER']= len(Densities_needed)
     dic['WRITEPOTENTIALS']= writing
+    dic['WRITEPOTENTIALS_HDF5']= writing_hdf5
     dic['READPOTENTIALS'] = reading
+    dic['READPOTENTIALS_HDF5'] = reading_hdf5
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Making sure to (un)comment the parts of the interfaces of the routines of
     #  sphamil, delta_action and the derivative routines. 

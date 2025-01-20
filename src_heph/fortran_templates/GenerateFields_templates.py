@@ -51,6 +51,7 @@ field_calc_den_pair  = T('* $DENSITY(:$DENIND,it)')
 # Statements for writing the field to file
 field_write_a = T(tab + ('write(chan, iostat=io) "$FIELDFILLED" \n'))
 field_write_b = T(tab + ('write(chan, iostat=io)  F%$FIELD  \n'))
+field_write_hdf5 = T(tab + ('call hdf5_writepot(file_id,"$FIELDFILLED",F%$FIELD,size(F%$FIELD)) \n')) 
 # ... and to read it from file
 field_read_a  = T(2*tab + ('case("$FIELD") \n'))
 field_read_b  = T(3*tab +  'allocate(F%${FIELD}(mv$ALLOCIND,$ISOSIZE),F_temp%${FIELD}(mv$ALLOCIND,$ISOSIZE))\n' +
@@ -64,6 +65,22 @@ field_read_d  = T(4*tab + '$POTREAD F%$FIELD = F_temp%${FIELD} \n'            \
                 + 4*tab + '$UNDOREAD deallocate(F%$FIELD, F_temp%${FIELD}) \n')
 field_read_e  = T(3*tab +  'else \n')
 field_read_f  = T(3*tab +  'endif \n')
+# hdf5 option
+field_read_hdf5_a = T(tab +  'allocate(F%${FIELD}(mv$ALLOCIND,$ISOSIZE),F_temp%${FIELD}(mv$ALLOCIND,$ISOSIZE))\n')
+field_read_hdf5_b = T(tab +  'if(MPI_RANK .eq. 0) then \n' +
+                    2*tab +  'allocate(Ftmp(mv$ALLOCINDHDF5*$ISOSIZE)) \n' +
+                    2*tab +  'call hdf5_readpot(group_id, "$FIELD", Ftmp, size(Ftmp))\n' +
+                    2*tab +  'F_temp%${FIELD}=reshape(Ftmp,(/mv$ALLOCIND,$ISOSIZE/))\n' +
+                    2*tab +  'deallocate(Ftmp)                                 \n' +
+                    tab +  'endif                              \n'+
+                    '#if (USE_MPI > 0) \n' +
+                    tab +  'call MPI_BCAST(F_temp%${FIELD},size(F_temp%${FIELD}),MPI_REAL8,0,MPI_COMM_WORLD,mpi_err) \n' + 
+                  '#endif \n')
+field_read_hdf5_c = T(tab +  'if(symtransfo_needed) then    \n')
+field_read_hdf5_d = T(2*tab + '$POTREAD F%$FIELD = F_temp%${FIELD} \n'            \
+                + 2*tab + '$UNDOREAD deallocate(F%$FIELD, F_temp%${FIELD}) \n')
+field_read_hdf5_e = T(tab +  'else \n')
+field_read_hdf5_f = T(tab +  'endif \n')
 # ..... and to transform fields with different symmetries
 field_transfo = \
 T( \
@@ -77,6 +94,18 @@ field_transfo_recomb = \
 T( \
        + 4*tab + 'F%${FIELD}(:$DECLIND,3) = F%${FIELD}(:$DECLIND,1) + F%${FIELD}(:$DECLIND,2) \n' \
        + 4*tab + 'F%${FIELD}(:$DECLIND,4) = F%${FIELD}(:$DECLIND,1) - F%${FIELD}(:$DECLIND,2) \n')
+field_transfo_hdf5 = \
+T( \
+       + 2*tab + 'do it=1,2 \n'                                                                   \
+       + 3*tab + 'F%${FIELD}(:$IND,it) = & \n'                                                    \
+       + 3*tab + '&  changeboxsize_function(F_temp%${FIELD}(:$IND,it), filenx, fileny, filenz) \n'\
+       + 2*tab + 'enddo \n'
+       )
+
+field_transfo_recomb_hdf5 = \
+T( \
+       + 2*tab + 'F%${FIELD}(:$DECLIND,3) = F%${FIELD}(:$DECLIND,1) + F%${FIELD}(:$DECLIND,2) \n' \
+       + 2*tab + 'F%${FIELD}(:$DECLIND,4) = F%${FIELD}(:$DECLIND,1) - F%${FIELD}(:$DECLIND,2) \n')
 #-------------------------------------------------------------------------------
 # Templates for preconditioning 
 field_precon_start= \

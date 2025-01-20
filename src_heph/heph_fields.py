@@ -106,8 +106,10 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   fieldprecon = ''
   declaration = ''
 
-  fieldread    = ''
-  fieldwrite   = ''
+  fieldread = ''
+  fieldread_hdf5 = ''
+  fieldwrite= ''
+  fieldwrite_hdf5= ''
   fieldtransfo = ''
 
   fieldINMk2 = ''
@@ -477,11 +479,13 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       # Now we BUILD the code that calculates all these terms
       #-----------------------------------------------------------------------
       # Create the expression for the field
-      dic['ALLOCIND']= ''
-      dic['DECLIND'] = ''
+      dic['ALLOCIND']     = ''
+      dic['ALLOCINDHDF5'] = ''
+      dic['DECLIND']      = ''
       for k in range(OrderOfDen(den)):
-          dic['ALLOCIND'] = dic['ALLOCIND'] + ',3' 
-          dic['DECLIND']  = dic['DECLIND']  + ',:'
+          dic['ALLOCIND']     = dic['ALLOCIND']     + ',3'
+          dic['ALLOCINDHDF5'] = dic['ALLOCINDHDF5'] + '*3' 
+          dic['DECLIND']      = dic['DECLIND']      + ',:'
       if('P' in den):
         dic['ISOSIZE'] = 2
       else:
@@ -513,9 +517,31 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         # Only recombine normal fields
         fieldread = fieldread + ts.field_transfo_recomb.substitute(dic)
       fieldread = fieldread + ts.field_read_f.substitute(dic)
+      
+      # HDF4 option
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_a.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_b.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_c.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_d.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_e.substitute(dic)
+ 
+      args = list(itertools.product(range(3), repeat=OrderOfDen(den)))
+      for arg in args:   
+           # get the indices of the field correct
+           dic['IND']     = ''
+           for k in arg:
+              dic['IND'] = dic['IND'] + ',%d'%(k+1)
+              
+           fieldread_hdf5 = fieldread_hdf5 + ts.field_transfo_hdf5.substitute(dic)
+      if('P' not in den):
+        # Only recombine normal fields
+        fieldread_hdf5 = fieldread_hdf5 + ts.field_transfo_recomb_hdf5.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_f.substitute(dic)
         
       fieldwrite   = fieldwrite  + ts.field_write_a.substitute(dic)
       fieldwrite   = fieldwrite  + ts.field_write_b.substitute(dic)
+
+      fieldwrite_hdf5   = fieldwrite_hdf5  + ts.field_write_hdf5.substitute(dic)
 
       fieldini     = fieldini  + ts.field_allo.substitute(dic)
 
@@ -959,8 +985,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
             fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
   #-----------------------------------------------------------------------------
 
-  return(declaration, fieldini, FIELDCALC, fieldprecon, fieldwrite, fieldread, \
-         fieldadd, fieldmultiply, fieldinproduct, fieldINMk2, fieldINMk4)
+  return(declaration, fieldini, FIELDCALC, fieldprecon, fieldwrite,fieldwrite_hdf5, \
+   fieldread,fieldread_hdf5,fieldadd,fieldmultiply,fieldinproduct,fieldINMk2,fieldINMk4)
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
   """

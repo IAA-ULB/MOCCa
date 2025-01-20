@@ -222,12 +222,12 @@ MODDIR  :=   mod
 DEBUG   := 0
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#HDF5_LIBS := -fintrinsic-modules-path /usr/include/hdf5/serial -L/usr/lib/x86_64-linux-gnu/hdf5/serial -lhdf5_fortran
+HDF5_LIBS := -fintrinsic-modules-path /usr/include/hdf5/serial -L/usr/lib/x86_64-linux-gnu/hdf5/serial -lhdf5_fortran
 # Libraries for linear algebra
 # This can be specified on the command line, but is in practice compiler based
 ifeq ($(COMPILER),gnu)
 	# versions of gfortran should link to OPENBLAS
-	LIBS := -llapack -lblas #HDF5_LIBS 
+	LIBS := -llapack -lblas $(HDF5_LIBS) 
 else ifeq ($(COMPILER),intel)
   # ifort compiler should link to the new Intel math library
 	LIBS :=  -mkl
@@ -236,6 +236,7 @@ ifeq ($(USE_MPI),1)
 endif
 else ifeq ($(COMPILER), cray)
   # Cray compilers don't need specific linking to my knowledge
+	HDF5_LIBS :=
 	LIBS :=
 endif
 
@@ -376,7 +377,7 @@ $(SRCDIR)/:
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 single: $(PRE) $(SINGLE_OBJ)
-	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(SINGLE_OBJ) $(LIBS) #$(HDF5_LIBS)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(SINGLE_OBJ) $(LIBS) 
 	mv single exec/$(EXENAME)
 
 run_heph:
@@ -393,7 +394,7 @@ clean:
 	rm  -f $(MODDIR)/*.mod
 
 $(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/
-	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  $< -o $@ #$(HDF5_LIBS)
+	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  $< -o $@ $(HDF5_LIBS)
 
 setversioninfo:
 # Copy the git information into the main code, so it can be printed

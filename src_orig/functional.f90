@@ -96,6 +96,7 @@ module functional
  use vectors
  use Cranking
  use pairing_strengths
+ use HDF5
 
  implicit none
  
@@ -144,6 +145,8 @@ module functional
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
+     ! level of compression in hdf5, 6 seems to be the best
+    integer, parameter  :: comprlvl = 6
     !---------------------------------------------------------------------------
     ! Numerical parameter of the preconditioning of the Skyrme potentials
 #if(PASTA == 0)
@@ -2118,23 +2121,64 @@ $WRITEPOTENTIALS
   end subroutine WritePotentials
  
  
-!  subroutine WritePotentials_hdf5(chan, F)
-!    !---------------------------------------------------------------------------
-!    !  Subroutine writing the different potentials to file.
-!    !---------------------------------------------------------------------------
-!    type(PotentialVector), intent(in) :: F
-!    integer, intent(in) :: chan
-!    integer             :: io
+ subroutine WritePotentials_hdf5(file_id, F)
+   !---------------------------------------------------------------------------
+   !  Subroutine writing the different potentials to hdf5 file.
+   !---------------------------------------------------------------------------
+   type(PotentialVector), intent(in) :: F
+   integer(hid_t), intent(in) :: file_id
 
+   ! Then, for every potential write the 
+   ! * Name 
+   ! * Value
+   ! Note that the name is written as a length-30 string, padded with spaces.
+   ! If not, the unformatted in/out cannot correctly determine the end of a
+   ! string and comparisons can not be made.
+$WRITEPOTENTIALS_HDF5
+ end subroutine WritePotentials_hdf5
 
-!    ! Then, for every potential write the 
-!    ! * Name 
-!    ! * Value
-!    ! Note that the name is written as a length-30 string, padded with spaces.
-!    ! If not, the unformatted in/out cannot correctly determine the end of a
-!    ! string and comparisons can not be made.
-! !putdollarWRITEPOTENTIALS_HDF5
-!  end subroutine WritePotentials_hdf5
+  subroutine hdf5_writepot(id, name, dset,n)
+    ! writes double precision dataset array with some name in the hdf5 file
+    use HDF5
+    character(len=30), intent(in) :: name
+    integer(hid_t), intent(in) :: id
+    integer       , intent(in) :: n
+    real(kind=dp),  intent(in) :: dset(n) 
+    integer(hid_t)             :: space_id, dset_id, plist_id  
+    integer                    :: error
+    integer(hsize_t), dimension(1) :: dims,data_dims!, chdims
+
+    dims=(/n/)
+    data_dims(1)=n
+    ! Create dataspace for data_set 
+    call h5screate_simple_f(1, dims, space_id, error)
+    ! create property list
+    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, error)
+    ! create chunks with property list for compression, as of now size of chunk  
+    ! is just equal to the size of array (for some reason work better). 
+    ! Modify for MPI reading?
+    call h5pset_chunk_f(plist_id, 1, dims, error)
+    ! shuffling for better compression?
+    call h5pset_shuffle_f(plist_id, error)
+    ! zlib compression with deflate
+    call h5pset_deflate_f(plist_id, comprlvl, error)
+    ! Create dataset with default properties "dset_id" is returned
+    call h5dcreate_f(id,'potentials/'//trim(name),H5T_NATIVE_DOUBLE, space_id, &
+                      dset_id, error, plist_id)
+    ! Write dataset 
+    call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, error)
+    ! Close access to data space 
+    call h5sclose_f(space_id, error)
+    ! close access to plist
+    call h5pclose_f(plist_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: writting potentials in hdf5 format')
+    endif
+
+  end subroutine hdf5_writepot
 
   function ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed) &
   & result(F)
@@ -2197,6 +2241,86 @@ $READPOTENTIALS
     enddo
 
   end function ReadPotentials
+
+  function ReadPotentials_hdf5(file_id, filenx, fileny, filenz, symtransfo_needed) &
+   & result(F)
+    !---------------------------------------------------------------------------
+    ! Subroutine that reads the different mean-field potentials from a 
+    ! wavefunction file created by a previous run of the code.
+    ! Notes:
+    !  1. now only sequental reading
+    !  2. this function should not be confused with the readpotentials_separate
+    !     routine below
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   chan                  : id of the group potentials
+    !   filenx, fileny,filenz : integers, number of mesh points in every 
+    !                           direction for the quantities on file
+    !   symtransfo_needed     : logical, if a symmetry transformation is 
+    !                           needed (.true.) or not (.false.)
+    !                  .false.: use the potentials as read from 
+    !                           file, transforming only the number of mesh 
+    !                           points if needed. 
+    !                  .true. : use the potentials from file for further 
+    !                           calculations. This means just reading them here
+    !                           and trusting the rest of the program to do the
+    !                           the rest.
+    ! Output:
+    !   F                      : a potential-vector, read from file
+    !---------------------------------------------------------------------------
+    integer(hid_t), intent(in) :: file_id
+    integer(hid_t)             :: group_id
+    character(len=11)          :: groupname
+    integer, intent(in)        :: filenx, fileny, filenz
+    logical, intent(in)        :: symtransfo_needed
+    type(PotentialVector)      :: F, F_temp
+    real(kind=dp), allocatable :: Ftmp(:) 
+    integer                    :: filemv, it, h5ferr
+#if(USE_MPI > 0)
+    integer                    :: mpi_err
+#endif
+
+    filemv = filenx * fileny * filenz
+    
+    if(MPI_RANK .eq. 0) then
+      groupname='/potentials'
+      call h5gopen_f(file_id,groupname,group_id,h5ferr)
+    endif
+
+$READPOTENTIALS_HDF5
+
+    if(MPI_RANK.eq.0) then
+      !close the potentials group
+      call h5gclose_f(group_id, h5ferr)
+    endif
+
+  end function ReadPotentials_hdf5
+
+  subroutine hdf5_readpot(id, name, dset, n)
+    ! reads double precision potential of length n with some name in the hdf5 file
+    use HDF5
+    character(len=*), intent(in) :: name
+    integer(hid_t), intent(in)   :: id
+    integer, intent(in)          :: n
+    real(kind=dp), intent(inout) :: dset(n)
+    integer(hid_t)               :: dset_id !identifiers
+    integer                      :: error
+    integer(hsize_t), dimension(1) :: dims, data_dims
+
+    dims=(/n/)
+    data_dims(1)=n
+    ! open dataset, "dset_id" is returned
+    call h5dopen_f(id, name, dset_id, error)
+    ! read dataset 
+    call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading potentials in hdf5 format')
+    endif
+
+  end subroutine hdf5_readpot
 
   function CompStabilisingFactor(PairE) result(stab)
     !---------------------------------------------------------------------------
