@@ -96,7 +96,9 @@ module functional
  use vectors
  use Cranking
  use pairing_strengths
+#if(HDF5>0)
  use HDF5
+#endif
 
  implicit none
  
@@ -145,8 +147,10 @@ module functional
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
-     ! level of compression in hdf5, 6 seems to be the best
+#if(HDF5>0)
+    ! level of compression in hdf5, 6 seems to be the best
     integer, parameter  :: comprlvl = 6
+#endif
     !---------------------------------------------------------------------------
     ! Numerical parameter of the preconditioning of the Skyrme potentials
 #if(PASTA == 0)
@@ -2120,7 +2124,7 @@ $EREAR
 $WRITEPOTENTIALS
   end subroutine WritePotentials
  
- 
+#if(HDF5>0)
  subroutine WritePotentials_hdf5(file_id, F)
    !---------------------------------------------------------------------------
    !  Subroutine writing the different potentials to hdf5 file.
@@ -2179,6 +2183,7 @@ $WRITEPOTENTIALS_HDF5
     endif
 
   end subroutine hdf5_writepot
+#endif
 
   function ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed) &
   & result(F)
@@ -2242,6 +2247,7 @@ $READPOTENTIALS
 
   end function ReadPotentials
 
+#if(HDF5 > 0)
   function ReadPotentials_hdf5(file_id, filenx, fileny, filenz, symtransfo_needed) &
    & result(F)
     !---------------------------------------------------------------------------
@@ -2321,6 +2327,7 @@ $READPOTENTIALS_HDF5
     endif
 
   end subroutine hdf5_readpot
+#endif
 
   function CompStabilisingFactor(PairE) result(stab)
     !---------------------------------------------------------------------------

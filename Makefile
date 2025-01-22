@@ -56,6 +56,7 @@
 #  SRCDIR   : source code as processed by Hephaestos
 #  OBJDIR   : storage for intermediate object files
 #  MODDIR   : storage for final module files
+#  HDF5     : whether to offer HDF5 support
 #
 # Notes
 # - - - -
@@ -132,6 +133,9 @@ USE_MPI := 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Debugging level for the code itself
 DEBUG_LEVEL := 0
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Whether to enable HDF5 support, yes or no.
+HDF5 := 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -222,7 +226,7 @@ MODDIR  :=   mod
 DEBUG   := 0
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-HDF5_LIBS := -fintrinsic-modules-path /usr/include/hdf5/serial -L/usr/lib/x86_64-linux-gnu/hdf5/serial -lhdf5_fortran
+HDF5_LIBS := #-fintrinsic-modules-path /usr/include/hdf5/serial -L/usr/lib/x86_64-linux-gnu/hdf5/serial -lhdf5_fortran
 # Libraries for linear algebra
 # This can be specified on the command line, but is in practice compiler based
 ifeq ($(COMPILER),gnu)
@@ -346,7 +350,7 @@ PRE_NIL     :=  cp_nil
 #    -cpp      => explicitly enable preprocessing
 #    -DUSE_MPI => enable (1) or disable (0) MPI (see above)
 
-DIRECTIVES := -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic) -DPASTA=$(PASTA) -DDENSUM=$(DENSUM) -DDEBUG_LEVEL=$(DEBUG_LEVEL)
+DIRECTIVES := -DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic) -DPASTA=$(PASTA) -DDENSUM=$(DENSUM) -DDEBUG_LEVEL=$(DEBUG_LEVEL) -DHDF5=$(HDF5)
 ifeq ($(COMPILER),cray)
   PREPROCESSOR :=  -e Z $(DIRECTIVES)
 else

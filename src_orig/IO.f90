@@ -50,10 +50,13 @@ use momentsofinertia
 use moments
 use Coulombmod
 use transform
+#if (HDF5 > 0)
 use HDF5
+#endif
 
 implicit none
-  !-----------------------------------------------------------------------------
+
+!-----------------------------------------------------------------------------
   ! Version number of the .wf file written by this version of the code. 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Some history:
@@ -491,8 +494,12 @@ contains
       file_rank_map     = rank_map
       file_spwf_inverse = spwf_inverse
     else if(inputoption.eq.2) then
+#if (HDF5 > 0)
       ! Option 2a) start from a previous calculation with hdf5 input file
       call ReadTantalus_hdf5(inputfilename)
+#else
+      call stp('HDF5 support was not enabled at compilation.')
+#endif
     else
       ! Option 2b) start from a previous calculation with .wf input file
       call ReadTantalus(12, inputfilename)
@@ -1061,6 +1068,7 @@ contains
     endif
   end subroutine ReadTantalus
 
+#if (HDF5 > 0)
 subroutine ReadTantalus_hdf5(ifn)
     !---------------------------------------------------------------------------
     ! Reading all information from a previous Tantalus run stored in a .hdf5 file.
@@ -1463,7 +1471,7 @@ subroutine ReadTantalus_hdf5(ifn)
       endif
     endif
   end subroutine ReadTantalus_hdf5
-  
+
   subroutine hdf5_read_attr_char(id, name, attribute, n)
     ! reads character scalar attribute with some name from the hdf5 file
     use HDF5
@@ -1587,6 +1595,35 @@ subroutine ReadTantalus_hdf5(ifn)
     endif
 
   end subroutine hdf5_read_dataset_1d
+#endif
+
+  subroutine WriteWaveFunction(chan, ofn)
+    !--------------------------------------------------------------------------------------------
+    ! Simple routine to call the appropriate subroutine depending on type of output
+    ! asked for by the user.
+    !
+    ! Input:
+    !------------
+    !   chan : integer, channel to open file ofn on
+    !   ofn  : character, filename to write to.
+    !          If it does not exist, will get created.
+    !          If this ends in "HDF5" (case-insensitive), then the code will write an HDF5 file.
+    !          If not, then a simple fortran unformatted file will be written.
+    !--------------------------------------------------------------------------------------------
+    integer, intent(in)          :: chan
+    character(len=*), intent(in) :: ofn
+
+    if(trim(to_upper(OutputFileName(len_trim(OutputFileName)-3:))).eq.'HDF5') then
+#if(HDF5>0)
+      call WriteTantalus_hdf5(outputfilename) !new hdf5 format
+#else
+      call stp('HDF5 support was not enabled at compilation.')
+#endif
+    else
+      call WriteTantalus(12, outputfilename) ! old style in .wf file
+    endif
+
+  end subroutine WriteWaveFunction
 
   subroutine WriteTantalus(chan, ofn)
     !---------------------------------------------------------------------------
@@ -1799,6 +1836,7 @@ subroutine ReadTantalus_hdf5(ifn)
 
   end subroutine WriteTantalus
 
+#if (HDF5 > 0)
   subroutine WriteTantalus_hdf5(ofn)
     !---------------------------------------------------------------------------
     ! Subroutine that dumps all information to a .hdf5 file for future runs.
@@ -2206,8 +2244,7 @@ subroutine ReadTantalus_hdf5(ifn)
     endif
 
   end subroutine hdf5_write_dataset_1d
-
-
+#endif
 
   subroutine write_advanced_output(iter, iomsg)
     !--------------------------------------------------------------------------- 
