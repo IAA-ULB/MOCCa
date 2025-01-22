@@ -1858,7 +1858,7 @@ subroutine ReadTantalus_hdf5(ifn)
     !---------------------------------------------------------------------------
 
     use functional
-    use HDF5 !is it here??
+    use HDF5
 
     character(len=*), intent(in)  :: ofn
     integer(HID_T)                :: file_id, group_id, dset_id, plist_id, space_id !identifiers
@@ -1869,6 +1869,8 @@ subroutine ReadTantalus_hdf5(ifn)
     integer(hid_t)                :: mems_id !identifier for the block of data on processor
     integer(hsize_t),dimension(3) :: counts, offsets ! for writing in the particular place in file
 #endif
+
+    call start_timer(T_wfoutput)
 
 !Initialize hdf5 interface 
     call h5open_f(h5ferr)
@@ -2044,6 +2046,8 @@ subroutine ReadTantalus_hdf5(ifn)
    
     ! Close FORTRAN interface
     call h5close_f(h5ferr)
+
+    call stop_timer(T_wfoutput)
 
   end subroutine WriteTantalus_hdf5
 
