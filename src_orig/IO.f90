@@ -2014,13 +2014,18 @@ subroutine ReadTantalus_hdf5(ifn)
     !for chunking and deflating
     ! create property list
     call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
-    ! create chunks with property list for compression, as of now size of chunk  
-    ! is just equal to the size of local array. 
-    call h5pset_chunk_f(plist_id, 3, dims, h5ferr)
-    ! shuffling for better compression?
-    call h5pset_shuffle_f(plist_id, h5ferr)
-    ! zlib compression with deflate
-    call h5pset_deflate_f(plist_id, comprlvl, h5ferr)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Disabled the compression because it did not naively scale to large numbers
+    ! of ranks.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! create chunks with property list for compression, as of now size of chunk
+!     ! is just equal to the size of local array.
+!     call h5pset_chunk_f(plist_id, 3, dims, h5ferr)
+!     ! shuffling for better compression?
+!     call h5pset_shuffle_f(plist_id, h5ferr)
+!     ! zlib compression with deflate
+!     call h5pset_deflate_f(plist_id, comprlvl, h5ferr)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Create dataset with default properties "dset_id" is returned
     call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
     ! close access to plist
@@ -2055,13 +2060,18 @@ subroutine ReadTantalus_hdf5(ifn)
     !for chunking and deflating
     ! create property list
     call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
-    ! create chunks with property list for compression, as of now size of chunk  
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Disabled the compression because it did not naively scale to large numbers
+    ! of ranks.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! create chunks with property list for compression, as of now size of chunk
     ! is just equal to the size of array (for some reason work better). 
-    call h5pset_chunk_f(plist_id, 3, dims, h5ferr)
-    ! shuffling for better compression?
-    call h5pset_shuffle_f(plist_id, h5ferr)
-    ! zlib compression with deflate
-    call h5pset_deflate_f(plist_id, comprlvl, h5ferr)
+!     call h5pset_chunk_f(plist_id, 3, dims, h5ferr)
+!     ! shuffling for better compression?
+!     call h5pset_shuffle_f(plist_id, h5ferr)
+!     ! zlib compression with deflate
+!     call h5pset_deflate_f(plist_id, comprlvl, h5ferr)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Create dataset with default properties "dset_id" is returned
     call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
     ! close access to plist
