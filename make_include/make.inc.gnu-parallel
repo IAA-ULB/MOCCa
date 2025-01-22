@@ -1,0 +1,47 @@
+####################################################################
+#  Tantalus make include file.                                     #
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -#
+# File to be used for MPI-enabled GNU gfortran without HDF5        #
+#                                                                  #
+# Tested on:                                                       #
+#   - W.R.s home pc                                                #
+####################################################################
+
+# Directory names  (will be created if they don't exist)
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - EXECDIR = directory for storage of the final executables
+# - SRCDIR  = source code as processed by Hephaestos
+# - OBJDIR  = storage for intermediate object files
+# - MODDIR  = storage for final module files
+EXECDIR =  exec
+SRCDIR  =   src
+OBJDIR  =   obj
+MODDIR  =   mod
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Python interpreter with which to invoke Hephaestos
+PYTHON_CMD  = python3
+
+# Direct compiler options
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# CXX        : actual fortran compiler invokation
+# OPTFLAGS   : optimisation flags to pass to the compiler
+# CXXFLAGS   : other "general use" flags
+# PREPFLAG   : preprocessor flag, i.e. the "-cpp" in "gfortran -cpp"
+# DEBUG_LEVEL: debugging level to pass to the code
+# USE_MPI    : whether (1) or not (0) to compile with MPI support
+CXX       = mpifort
+OPTFLAGS  = -O3
+CXXFLAGS  = -J$(MODDIR)
+PREPFLAG  = -cpp
+DEBUG_LEVEL = 0
+USE_MPI   = 1
+
+# Linking options
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# HDF5     :  have the executable offer HDF5 support or not
+# HDF5_LIB :  linking statements for the HDF5 library
+# LINEAR_ALGEBRA_LIB : linking statements for (Sca)LAPACK and BLAS
+HDF5               = 0
+HDF5_LIB           =
+LINEAR_ALGEBRA_LIB = -llapack -lblas -lscalapack-openmpi
