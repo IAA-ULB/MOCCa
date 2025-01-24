@@ -111,6 +111,7 @@ COMPILER      :=  gfortran
 #         - gfortran  by GNU
 #         - ifort     by Intel
 #         - cray      by Cray
+#         - ifx       by Intel
 #
 #       The primary reason that COMPILER and CXX are different is because
 #       vendors have different compiler wrappers for different modes
@@ -184,6 +185,8 @@ else ifeq ($(COMPILER),ifort)
   endif
 else ifeq ($(COMPILER), cray)
   CXX := ftn
+else ifeq ($(COMPILER),ifx)
+  CXX := ifx
 endif
 endif
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -217,6 +220,9 @@ else ifeq ($(COMPILER),ifort)
 else ifeq ($(COMPILER), cray)
   # Cray compilers don't need specific linking to my knowledge
 	LIBS :=
+else ifeq ($(COMPILER),ifx)
+  # ifx compiler should link to the new Intel math library
+        LIBS := -qmkl
 endif
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -238,6 +244,8 @@ else ifeq ($(COMPILER),ifort)
         #                           of single-particle wavefunctions when compiled with ifort/ifx
 else ifeq ($(CXX),ftn)
 	CXXFLAGS := -J$(MODDIR)
+else ifeq ($(COMPILER),ifx)
+        CXXFLAGS := -module $(MODDIR) -heap-arrays -assume realloc-lhs -assume byterecl -no-wrap-margin
 endif
 
 # 2. set compiler-specific optimisation level
@@ -249,6 +257,8 @@ ifeq ($(DEBUG),0)
 	  OPTFLAGS := -Ofast -warn all
   else ifeq ($(COMPILER),cray)
 	  OPTFLAGS := -O2 # -O3 produces NaN results
+  else ifeq ($(COMPILER),ifx)
+          OPTFLAGS := -Ofast -warn all
   endif
 else
   ifeq ($(COMPILER),gfortran)
