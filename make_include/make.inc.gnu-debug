@@ -5,7 +5,8 @@
 # debugging mode.                                                  #
 #                                                                  #
 # Tested on:                                                       #
-#   - W.R.s home pc                                                #
+#   - ELBERETH : W.R.s home machine                                #
+#   - ASTROPC19: W.R.s office machine                              #
 ####################################################################
 
 # Directory names  (will be created if they don't exist)

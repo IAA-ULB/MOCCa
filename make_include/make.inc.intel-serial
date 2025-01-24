@@ -1,10 +1,10 @@
 ####################################################################
 #  Tantalus make include file.                                     #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -#
-# File to be used for MPI-enabled GNU gfortran without HDF5        #
+# This is a default file for use with INTEL ifort without MPI and  #
+# HDF5 support                                                     #
 #                                                                  #
 # Tested on:                                                       #
-#   - ELBERETH : W.R.s home machine                                #
 #   - ASTROPC19: W.R.s office machine                              #
 ####################################################################
 
@@ -29,14 +29,16 @@ PYTHON_CMD  = python3
 # OPTFLAGS   : optimisation flags to pass to the compiler
 # CXXFLAGS   : other "general use" flags
 # PREPFLAG   : preprocessor flag, i.e. the "-cpp" in "gfortran -cpp"
-# DEBUG_LEVEL: debugging level to pass to the code
-# USE_MPI    : whether (1) or not (0) to compile with MPI support
-CXX       = mpifort
-OPTFLAGS  = -O3
-CXXFLAGS  = -J$(MODDIR)
+CXX       = ifort
+OPTFLAGS  = -Ofast
+CXXFLAGS  = -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin -heap-arrays -diag-disable=10448
 PREPFLAG  = -cpp
+
+# DEBUGFLAGS : debugging flags to pass to the compiler
 DEBUG_LEVEL = 0
-USE_MPI   = 1
+
+# USE_MPI    : whether (1) or not (0) to compile with MPI support
+USE_MPI   = 0
 
 # Linking options
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -45,4 +47,4 @@ USE_MPI   = 1
 # LINEAR_ALGEBRA_LIB : linking statements for (Sca)LAPACK and BLAS
 HDF5               = 0
 HDF5_LIB           =
-LINEAR_ALGEBRA_LIB = -llapack -lblas -lscalapack-openmpi
+LINEAR_ALGEBRA_LIB = -mkl
