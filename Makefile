@@ -75,7 +75,12 @@
 
 ################################################################################
 # Go get the compilation settings
-include make.inc
+ifeq ("$(wildcard make.inc)","")
+  $(error make.inc was not found; Tantalus cannot be compiled.)
+else
+  include make.inc
+endif
+
 ################################################################################
 
 ################################################################################
