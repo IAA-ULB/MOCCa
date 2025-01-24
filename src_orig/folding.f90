@@ -18,7 +18,14 @@ module folding
  use geninfo
 
  implicit none
- 
+
+ !------------------------------------------------------------------------------
+ ! Gaussian matrices, to be used when folding of the nucleon densities to 
+ ! obtain the charge densities are required. The fourth index is the isospin 
+ ! index, the third whether it is the Gaussian with positive or negative sign.
+ !------------------------------------------------------------------------------
+ real(KIND=dp), allocatable :: Gaussx(:,:,:,:), Gaussy(:,:,:,:), Gaussz(:,:,:,:)
+
 contains
 
  pure function Gaussian(r1,r2, r0) result(G)
@@ -89,6 +96,18 @@ contains
         enddo
     enddo
     !---------------------------------------------------------------------------
+    !NS: for periodic boundary conditions add contrubution from 2 (symmetric)
+    !neighboors. Should be enough for realistic box sizes due to rapid fall down
+    !of the exponent.
+#if(USE_Periodic==1) 
+    do i=1,m
+        do j=1,m          
+            G(i,j) = G(i,j) + Gaussian(mesh(i)-(1+p)*m*dx, mesh(j), r0)        &
+            &      +  Gaussian((1-2*p)*mesh(i)+(1+p)*m*dx, mesh(j), r0)
+        enddo
+    enddo
+#endif
+    !---------------------------------------------------------------------------
     ! Normalize, to avoid the numerical errors due to the mesh discretization.
     ! Technical note: we normalize all columns with the norm of ONE PARTICULAR
     !                 column, chosen "sufficiently far away" from the boundary
@@ -142,5 +161,5 @@ contains
   enddo
   !-----------------------------------------------------------------------------
  end function FoldGaussian
- 
+
 end module folding

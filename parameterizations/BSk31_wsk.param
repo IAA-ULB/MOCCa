@@ -1,0 +1,63 @@
+!-------------------------------------------------------------------------------
+! BSk31 parameterization
+! Note: Tantalus cannot simulate the pairing of this parameterization, and in 
+!       particular the concept of kappa_p and kappa_n is absolutely not the 
+!       same as in the paper.
+!-------------------------------------------------------------------------------
+&skf 
+name     = "BSk31" 
+func_file= 'BXL.func'
+! - - - - - - - - - - - - - - - - - - - - - 
+! Particle-hole parameters 
+t0       =   -2302.01,
+t1       =     762.99,
+t2       =       0.0001,
+t3       =   13797.83,
+t4       =    -500.0,
+t5       =     -40.0, 
+x0       =       0.676655,
+x1       =       2.658109,
+x2       =-4222900.0,
+x3       =       0.83982,
+x4       =       5.0,
+x5       =     -12.0,
+sigma    =       0.2, 
+beta     =       0.083333333,
+gamma    =       0.25,
+wso      =      62.174,# put to 0
+wsoq     =     186.522 # put to 0
+CSDS0    = 0.0                             ! No s \Delta s term
+CSDS1    = 0.0                             ! 
+CT0      = 0.0                             ! No Jmunu terms
+CT1      = 0.0                             ! 
+! - - - - - - - - - - - - - - - - - - - - - 
+! Pairing parameters 
+Vp         =  0.00000
+Vn         =  0.00000
+Vnm        =  1.0
+Vpm        =  1.0 
+kappa_n    = -36630.4 #put to 0
+kappa_p    = -45207.2 #put to 0
+pairingmu  =  0.25,0.25
+Cutneutron =  6.5
+Cutproton  =  6.5
+cuttype    =  2
+alpha      =  1.0
+sigmap     =  1.0
+! - - - - - - - - - - - - - - - - - - - - - 
+! Constants and Coulomb
+hbm(1)   = 20.72126890,20.74983164   # to check!    
+e2       = 1.43996446 # to check!
+COM1Body = 2
+COM2Body = 1
+Protonsize    = 0.895, 0.0 #put to zero
+Neutronsize   = 0.387, 0.467 #put to zero
+HOcomform     = .true.
+nucleonsize_selfconsistent=.false.
+CoulTreatment = 2
+eps=1e-8
+ptype=0
+intertype=1
+/
+
+

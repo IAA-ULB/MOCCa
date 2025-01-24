@@ -29,6 +29,19 @@ from src_heph.heph_cranking      import ProcessCranking
 from src_heph.heph_multipoles    import ProcessMoments, ProcessFission_MOI
 from src_heph.heph_coulomb       import ProcessCoulomb
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Almost all files are processed by a matching Hephaestos routine. The exception
+# is the vectors.f90 file, which is processed with results from the
+# heph_densities and heph_potentials modules. The vectors.f90 file contains
+# the definition of the potential and density vectors, and thus needs the
+# list of densities and potentials. To avoid having to call the entire machinery
+# twice, I simply save the relevant strings here. This means it is important
+# that densities.f90 and potentials.f90 get processed BEFORE vectors.f90.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+vectors_densities  = ''
+vectors_potentials = ''
+memory_densities   = ''
+
 def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
                density_spwf_summation):
     """
@@ -48,132 +61,93 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
       density_spwf_summation: Boolean. If .True., calculate the derivatives of
                               densities by summing 
     """
-      
+    
+    global vectors_densities
+    global vectors_potentials
+    global memory_densities
+
     if(fname=='compilation.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='sphericalharmonics.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='geninfo.f90'):
         ProcessGeninfo(fname, src, target, so)
-        return
     if(fname=='derivatives.f90'):
         ProcessDerivatives(fname, src, target, so)
-        return
     if(fname=='wavefunctions.f90'):
         ProcessWavefunctions(fname, src, target, so)
-        return
     if(fname=='precondition.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='tantalus.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='run_single.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='run_mpi.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='multirun_example.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='parameterization.f90'):
         ProcessParameterization(fname, src, target)
-        return
     if(fname=='functional.f90'):
-        ProcessFunctional(fname, src, target,so, oldso, ph_pp_decoupl, 
-                          density_spwf_summation)
-        return
+        vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, \
+                                               ph_pp_decoupl,density_spwf_summation)
+    if(fname=='vectors.f90'):
+        ProcessVectors(fname,src,target,so,vectors_densities,vectors_potentials,memory_densities)
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='scfiteration.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='basis_transform.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='moments.f90'):
         ProcessMoments(fname, src, target, so)
-        return
     if(fname=='constants.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='diag.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
-        return
     if(fname=='evolution.f90'):
         ProcessGeneric(fname, src, target, so)
-        return
     if(fname=='IO.f90'):
         ProcessIO(fname, src, target, so, oldso)
-        return
     if(fname=='coulomb.f90'):
         ProcessCoulomb(fname, src, target, so)
-        return
     if(fname=='pairing.f90'):
         ProcessPairing(fname, src, target, so)
-        return
     if(fname=='pairing_strengths.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
-#    if(fname=='BCS.f90'):
-#        os.system('cp ' + src + fname + ' ' + target + fname)
-#        return
     if(fname=='pairingcutoffs.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='printing.f90'):
         ProcessGeneric(fname, src, target, so)
-        return
     if(fname=='HFB_gradient.f90'):
         ProcessGeneric(fname, src, target, so)
-        return
     if(fname=='HFB_direct.f90'):
         ProcessGeneric(fname, src, target, so)
-        return
     if(fname=='HFB.f90' or fname == 'BCS.f90'): 
-        #BCS.f90 and HFB.f90 have exactly the same needs in terms of 
+        # BCS.f90 and HFB.f90 have exactly the same needs in terms of 
         # preprocessing by Hephaestos
         ProcessHFB(fname, src, target, so)
         return
     if(fname=='hartree-fock.f90'):
         ProcessHartreeFock(fname, src, target, so)
-        return
     if(fname=='folding.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='temperature_projection.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='momentsofinertia.f90'):
         ProcessGeneric(fname, src, target, so)
-        return
     if(fname=='fission_MOI.f90'):
         ProcessFission_MOI(fname, src, target, so)
-        return
-    if(fname=='particleinabox.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='timing.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-        return
     if(fname=='transform.f90'):
         ProcessTransform(fname, src, target, so, oldso)
-        return
     if(fname=='densities.f90'):
-        ProcessDensities(fname, src, target, so, density_spwf_summation)
-        return
+        vectors_densities, memory_densities = ProcessDensities(fname, src, target, so, density_spwf_summation)
     if(fname=='cranking.f90'):
         ProcessCranking(fname, src, target, so)
-        return
     if(fname=='convergence.f90'):
         ProcessCranking(fname, src, target, so)
-        return
-        
 
 def ProcessGeninfo(fname, src, target, so):
     """
@@ -242,5 +216,18 @@ def ProcessGeneric(fname, src, target, so):
         with open(target+fname, 'w') as generated:
             for line in template:
                 generated.write(Template(line).substitute(dic))   
- 
-        
+
+def ProcessVectors(fname, src, target, so, densities, potentials, memory_densities):
+  """
+
+  """
+
+  dic = {}
+  dic['DECLARATION']            = densities
+  dic['DECLARATION_POTENTIALS'] = potentials
+  dic['MEMORY_DENSITIES'] = memory_densities
+
+  with open(src+fname, 'r') as template:
+    with open(target+fname, 'w') as generated:
+        for line in template:
+            generated.write(Template(line).substitute(dic))

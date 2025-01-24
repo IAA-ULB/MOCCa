@@ -14,14 +14,13 @@ module basis_transform
  !==============================================================================
  ! Module containing the routines to change from one spwf-basis to the next.
  !
- ! Convention: Here an orthonormal transformation means an orthonormal matrix 
- !             where each column represents a new basis vector, expressed in 
- !             the old basis. 
+ ! Note: this module assumes that transformation matrices are passed as 
+ !       orthonormal matrices where each column represents a basis vector of the
+ !       new basis expressed in the old basis. 
  !
  !============================================================================== 
  use geninfo
  use wavefunctions, only : HFblocks, nwt, spwf_map, nwt_local, hfblocks_global
- use wavefunctions, only : basis_cut
  use timing
  
  implicit none
@@ -61,8 +60,6 @@ contains
 
         wave1_global = spwf_map(si+wave1) ! Global index
         wave2_global = spwf_map(si+wave2) ! Global index
-        ! Don't bother if the wavefunction is not important enough
-        if(abs(Transfo(wave2_global,wave1_global)).lt.basis_cut) cycle
 
         psi_out(:,:,si+wave1)  = psi_out(:,:,si+wave1) +                       &
         &              Transfo(wave2_global,wave1_global) * psi_in(:,:,si+wave2) 
@@ -207,7 +204,8 @@ contains
     N2= HFblocks_global(B+1) 
 
     T = N+N2 
-    
+     
+    allocate(A(T,T))
     A = transpose(transfo(si  +1:si+  T, si  +1:si  +T))
     
     Bc(sb  +1:sb+  T, sb+T+1:sb+2*T) = &
@@ -222,6 +220,7 @@ contains
 
     si = si +   T
     sb = sb + 2*T
+    deallocate(A)
   enddo
 
  end function transform_bogo

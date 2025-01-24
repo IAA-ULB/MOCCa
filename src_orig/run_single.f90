@@ -30,7 +30,6 @@ program tantalus_single
   character(len=32) :: filename = 'input.dat', numberstring
 
   Narguments = COMMAND_ARGUMENT_COUNT()
-  print *, 'Nargs', Narguments
   if(Narguments .eq. 0) then
     ! Run the code from STDIN
     call Run_Tantalus('Single-mode')

@@ -526,6 +526,7 @@ $N2    sz = (-pz + 3)/2 !    2    if pi =   +1
 $N2
 $N2    df = 0.0d0 ; ddf = 0.0d0
 $N2
+$N2    allocate(A(nx,nx), B(nx,nx))
 $N2    !---------------------------------------------------------------------------
 $N2    !  First order derivatives and diagonal second-order ones
 $N2    A = derX(:,:,sx) ; B = laplaX(:,:,sx)
@@ -539,10 +540,11 @@ $N2       enddo
 $N2      enddo
 $N2     enddo
 $N2    enddo
-$N2
+$N2    deallocate(A, B)
 !           call dgemm('N','N',  nx,ny*nz,nx,1.0d0,A,nx,f(1:nx,1:ny*nz,1),nx,0.0d0, df(1:nx,1:ny*nz,1,1),nx)
 !           call dsymm('L','U',  nx,ny*nz,   1.0d0,B,nx,f(1:nx,1:ny*nz,1),nx,0.0d0,ddf(1:nx,1:ny*nz,1,1),nx)
 
+$N2    allocate(A(ny,ny), B(ny,ny))
 $N2    A = derY(:,:,sy) ; B = laplaY(:,:,sy)
 $N2    do k=1,nz
 $N2     do j=1,ny
@@ -554,8 +556,9 @@ $N2       enddo
 $N2      enddo
 $N2     enddo
 $N2    enddo
-$N2
+$N2    deallocate(A, B)
 !
+$N2    allocate(A(nz,nz), B(nz,nz))
 $N2    A = derZ(:,:,sz) ; B = laplaZ(:,:,sz)
 $N2    do k=1,nz
 $N2     do l=1,nz
@@ -567,10 +570,12 @@ $N2          enddo
 $N2        enddo
 $N2      enddo
 $N2    enddo
+$N2    deallocate(A,B)
 !           call dgemm('N','T',  nx*ny,nz,nz,1.0d0,f(1:nx*ny,1,1:nz),nx*ny,A,nz,0.0d0, df(1:nx*ny,1,1:nz,3),nx*ny)
 !           call dsymm('R','U',  nx*ny,   nz,1.0d0,B,nz,f(1:nx*ny,1,1:nz),nx*ny,0.0d0,ddf(1:nx*ny,1,1:nz,6),nx*ny)
 $N2ALL !---------------------------------------------------------------------------
 $N2ALL ! Off-diagonal second order derivatives
+$N2ALL allocate(A(ny,ny))
 $N2ALL A = derY  (:,:,sy)
 $N2ALL do k=1,nz
 $N2ALL  do j=1,ny
@@ -581,7 +586,9 @@ $N2ALL    enddo
 $N2ALL   enddo
 $N2ALL  enddo
 $N2ALL enddo
+$N2ALL deallocate(A)
 $N2ALL
+$N2ALL allocate(A(nz,nz))
 $N2ALL A = derZ  (:,:,sz)
 $N2ALL do k=1,nz
 $N2ALL  do l=1,nz
@@ -593,8 +600,8 @@ $N2ALL    enddo
 $N2ALL   enddo
 $N2ALL  enddo
 $N2ALL enddo
+$N2ALL deallocate(A)
 $N2ALL !---------------------------------------------------------------------------
-$N2    deallocate(A,B)
 $N2 end subroutine Derive_tot_3D
 
 $N2 subroutine Derive_tot_1d(f, px, py, pz, df, ddf)
@@ -646,10 +653,9 @@ $N2    !------------------------------------------------------------------------
 $N2
 $N2    real(KIND=dp), intent(in)  :: f(:,:,:,:)
 $N2    real(KIND=dp), intent(out) :: df(:,:,:,:,:), ddf(:,:,:,:,:)
-$N2    integer, intent(in)        :: px(:),py(:),pz(:)
-$N2
+$N2    integer, intent(in)        :: px(2), py(2), pz(2)
 $N2    integer                    :: i,k,j,l
-$N2    integer, allocatable       :: sx(:), sy(:),sz(:)
+$N2    integer                    :: sx(2), sy(2), sz(2)
 $N2
 $N2    sx = (-px + 1)/2*2 ! These are equal to
 $N2    sy = (-py + 1)/2*2 !    0    if pi =   +1  or 0
@@ -1047,7 +1053,7 @@ $N3ALL end subroutine Derive_tot_1D
     fy  = 0.0d0
     do k=1,nz
      do j=1,ny
-      do l=1,nx
+      do l=1,ny
        do i=1,nx
          fy(i,j,k,1) = fy(i,j,k,1) + derY  (j,l,1+sy(1))*f(i,l,k,1) &
                        &           - derY  (j,l,2+sy(2))*f(i,l,k,2)

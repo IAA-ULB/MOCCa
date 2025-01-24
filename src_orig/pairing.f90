@@ -180,7 +180,7 @@ contains
     character(len=20)                   :: Type = 'HF'
     integer(dp), intent(in), optional   :: file_number   
     integer                             :: i
-#if(USE_MPI>0)
+#if(USE_MPI > 0)
     integer                             :: mpi_err
 #endif
 
@@ -640,10 +640,9 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
 
     integer, intent(in)        :: scheme
     integer, intent(out)       :: ifail
-    real(KIND=dp), allocatable :: sphamil(:,:)
 
     call start_timer(T_pairing)
-
+ 
     if(.not.allocated(rho_can)) then
       allocate(rho_can(nwt))              ; rho_can    = 0.0
     endif
@@ -660,9 +659,9 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     if(.not.allocated(configmatrix)) then
        allocate(configmatrix(2*nwt))      ; configmatrix = 0.0
     endif
-        
-    select case (Pairingtype)
-    case(0)
+ 
+   select case (Pairingtype)
+   case(0)
         if(inversetemp .eq. -1) then
             call NaiveFill(rho_can)
         else
@@ -683,6 +682,10 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     case(2)
       !-------------------------------------------------------------------------
       ! HFB-type pairing
+#if(PASTA > 0)
+      call stp('HFB calculations for pasta-configurations currently impossible')
+#endif
+
       if(.not.allocated(CanTransfo)) then
         ! Allocate the full matrices
         allocate(CanTransfo(nwt, nwt))     ; CanTransfo    = 0.0
@@ -705,7 +708,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
       
       ! Depending on the algorithm in use, we build a different single-particle
       ! hamiltonian matrix.
-      sphamil = build_sph(scheme, efficientHFB)
+      !sphamil = build_sph(scheme, efficientHFB)
 
       !-------------------------------------------------------------------------
       ! Find the Fermi energy
@@ -766,34 +769,9 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     end select
   end subroutine calc_avg_gap
 
-  function build_sph(pscheme, efficient) result(sph)
-    !---------------------------------------------------------------------------
-    !
-    !   
-    !---------------------------------------------------------------------------
-    real(KIND=dp), allocatable :: sph(:,:)
-    integer, intent(in)        :: pscheme
-    logical, intent(in)        :: efficient 
-    integer                    :: i
-
-    allocate(sph(nwt,nwt)) ; sph = 0.0d0
-
-    if((pscheme.eq. 0 .and. (.not. efficient)) &
-    &   .or. (.not. allocated(current_sph))) then
-      ! Diagonal part
-      do i=1, nwt
-        sph(i,i) = spenergies(i)
-      enddo
-    else
-      ! Full matrix
-      sph = current_sph
-    endif
- 
-  end function build_sph
-
   subroutine printpairing(stabfactor)
     !---------------------------------------------------------------------------
-    !
+    ! TODO: document
     !---------------------------------------------------------------------------
 
     real*8, intent(in) :: stabfactor(2)
@@ -818,8 +796,9 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
 
     select case(PairingType)
     case (0)
-        if(inversetemp .eq. -1) return
-        
+        !NS: remove to print Fermi energy in HF case
+        !if(inversetemp .eq. -1) return
+        FermiEnergy=FermiEnergyHF
         print 1
         print 2
         print 3, FermiEnergy
@@ -1015,15 +994,22 @@ $NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
      ! part.
      !--------------------------------------------------------------------------
 
-    real(KIND=dp) :: gap(2,2), norm(2,2), v2, uv
+    real(KIND=dp)              :: gap(2,2), norm(2,2), v2, uv
     real(KIND=dp), allocatable :: gaps_can(:,:)
-    integer       :: it1, wave,i
-$NTR integer      :: wavebar
+    integer                    :: it1, wave,i
+$NTR integer                   :: wavebar
 
     gap = 0 ; norm = 0
-    if(.not.allocated(HFBgaps)) return
 
-    allocate(gaps_can(nwt,nwt)) ; gaps_can = 0.0
+    allocate(gaps_can(nwt,nwt))
+   
+    if(.not.allocated(HFBgaps)) then
+        ! This return is programmed AFTER the allocate, since CRAY compilers 
+        ! complain about things that might not be allocated at high optimisation
+        ! levels.
+        deallocate(gaps_can)
+        return
+    endif
     gaps_can = matmul(transpose(cantransfo), HFBgaps)
     gaps_can = matmul(gaps_can, cantransfo)
   

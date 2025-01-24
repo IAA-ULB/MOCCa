@@ -1,0 +1,50 @@
+####################################################################
+#  Tantalus make include file.                                     #
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -#
+# This is a default file for use with INTEL ifort without MPI and  #
+# HDF5 support                                                     #
+#                                                                  #
+# Tested on:                                                       #
+#   - ASTROPC19: W.R.s office machine                              #
+####################################################################
+
+# Directory names  (will be created if they don't exist)
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - EXECDIR = directory for storage of the final executables
+# - SRCDIR  = source code as processed by Hephaestos
+# - OBJDIR  = storage for intermediate object files
+# - MODDIR  = storage for final module files
+EXECDIR =  exec
+SRCDIR  =   src
+OBJDIR  =   obj
+MODDIR  =   mod
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Python interpreter with which to invoke Hephaestos
+PYTHON_CMD  = python3
+
+# Direct compiler options
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# CXX        : actual fortran compiler invokation
+# OPTFLAGS   : optimisation flags to pass to the compiler
+# CXXFLAGS   : other "general use" flags
+# PREPFLAG   : preprocessor flag, i.e. the "-cpp" in "gfortran -cpp"
+CXX       = ifort
+OPTFLAGS  = -Ofast
+CXXFLAGS  = -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin -heap-arrays -diag-disable=10448
+PREPFLAG  = -cpp
+
+# DEBUGFLAGS : debugging flags to pass to the compiler
+DEBUG_LEVEL = 0
+
+# USE_MPI    : whether (1) or not (0) to compile with MPI support
+USE_MPI   = 0
+
+# Linking options
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# HDF5     :  have the executable offer HDF5 support or not
+# HDF5_LIB :  linking statements for the HDF5 library
+# LINEAR_ALGEBRA_LIB : linking statements for (Sca)LAPACK and BLAS
+HDF5               = 0
+HDF5_LIB           =
+LINEAR_ALGEBRA_LIB = -mkl

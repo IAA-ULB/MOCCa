@@ -50,9 +50,13 @@ use momentsofinertia
 use moments
 use Coulombmod
 use transform
+#if (HDF5 > 0)
+use HDF5
+#endif
 
 implicit none
-  !-----------------------------------------------------------------------------
+
+!-----------------------------------------------------------------------------
   ! Version number of the .wf file written by this version of the code. 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Some history:
@@ -267,8 +271,6 @@ contains
 
     integer*8, intent(in), optional     :: file_number
     character(11), intent(in), optional :: input_file 
-    integer, allocatable                :: spwf_count(:)
-    integer                             :: tcount, rank
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
@@ -323,20 +325,6 @@ contains
     &          '  Fermi energy convergence     < ', es8.1, / &
     &          '  Angular momentum convergence < ', es8.1)
    13 format ( ' Inverse temperature Beta = ', f14.9)
-   14 format ( ' MPI information '     ,    /  &
-   &           '   number of ranks         = ', i5 )
-   15 format ( '   load balancing strategy = ', a30)
-   16 format ( '   rank ', i4, ' has ', i4, ' spwfs')
-
-
-      tcount = sum(HFBlocks)
-      if(MPI_rank .eq. 0) allocate(spwf_count(Ncores))  
-#if(USE_MPI>0)
-      call MPI_gather(tcount,1,MPI_INTEGER,spwf_count,1,MPI_Integer, & 
-      &                      0,MPI_COMM_WORLD, mpi_err)
-#else
-      spwf_count = tcount
-#endif
 
     if(MPI_rank .eq. 0) then 
       ! Only one MPI rank needs to print information
@@ -389,14 +377,7 @@ contains
       endif
       print 12, energy_prec, moment_prec, disp_prec, gradient_prec, fermi_prec,  &
       &         angmom_prec
-
-      print 14, Ncores
-
-      print 15, adjustl('Symmetry-wise')
-      do rank=1, NCORES
-        print 16, rank, spwf_count(rank)
-      enddo
-  
+      
       call printevolution
       call printscfiteration
       call printpairing_init
@@ -405,26 +386,28 @@ contains
       call printfunctional  
     endif    
 
-    if(MPI_rank .eq. 0) deallocate(spwf_count)  
-
   end subroutine PrintInput
-  
+
   subroutine Readwavefunction()
     !---------------------------------------------------------------------------
     ! High-level routine to determine the starting point of a calculation. 
     !
-    ! There are two main starting options, one of which has two suboptions
+    ! There are two main starting options, both of which has two suboptions
     !
     ! 1) Initialize in an EV8-style box with Nilsson orbitals
     !    a - start self-consistency cycles immediately
     !    b - read a set of potentials from file to start the calculations
     ! 
-    ! 2) Read a set of spwfs from file 
+    ! 2) Read a set of spwfs from: 
+    !    a - *.hdf5 file 
+    !    b - *.wf file 
     ! 
     ! Which option is chosen based on the InputFileName keyword: 
     !  - INIT (case insensitive) : option 1a, no reading of any file
     !  - *.pot                   : option 1b, reading of a potential file
-    !  - [any other filename]    : option 2, reading of a wavefunction file
+    !  - *.hdf5                  : option 2a, reading of a hdf5 wavefunction file
+    !  - [any other filename]    : option 2b, reading of an unformatted fortran 
+    !                                                      wavefunction file .wf
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! These inputs can then be amended by either
@@ -458,6 +441,8 @@ contains
 #if(USE_MPI>0)
     integer :: mpi_err
 #endif
+
+    call start_timer(T_wfini)
     
     standardized_input = trim(to_upper(inputfilename))
     lenchar=len(standardized_input)
@@ -468,9 +453,12 @@ contains
     else if( standardized_input(lenchar-3:lenchar) .eq. '.POT') then
       ! option 1b : reading potentials
       inputoption = 1 
+    else if( standardized_input(lenchar-4:lenchar) .eq. '.HDF5') then
+      ! option 2a : reading complete .hdf5 file
+      inputoption = 2 
     else
-      ! option 2 : reading complete .wf file
-      inputoption = 2        
+      ! option 2b : reading complete .wf file
+      inputoption = 3        
     endif   
     !---------------------------------------------------------------------------
     ! Input options 
@@ -482,7 +470,7 @@ contains
       fileblocks        = HFBlocks
       
       if(inputoption.eq.1) then
-        call read_potentials(12, inputfilename)
+        Potentials_read = readpotentials_separate(12, inputfilename)
         Coulomb_read_from_file = .true. 
         ! Signalling that we have direct and Exchange potentials read
       endif
@@ -511,8 +499,15 @@ contains
       file_spwf_map     = spwf_map
       file_rank_map     = rank_map
       file_spwf_inverse = spwf_inverse
+    else if(inputoption.eq.2) then
+#if (HDF5 > 0)
+      ! Option 2a) start from a previous calculation with hdf5 input file
+      call ReadTantalus_hdf5(inputfilename)
+#else
+      call stp('HDF5 support was not enabled at compilation.')
+#endif
     else
-      ! Option 2) start from a previous calculation.
+      ! Option 2b) start from a previous calculation with .wf input file
       call ReadTantalus(12, inputfilename)
       ! No need to guess gaps every time (unless the user asked for it)
     endif
@@ -557,7 +552,16 @@ contains
     !---------------------------------------------------------------------------
     ! with everything safely in memory, we add in an orthonormalisation to 
     ! guarantee we can start calculating stuff.
-    call  orthonormalize
+#if(USE_MPI > 0)
+    ! Copy the 1D wavefunctions to the 2D layout, since that is how we 
+    ! orthonormalize ...
+    call transfer_1D_to_2D(HFPsi, HFPsi_2D)
+#endif
+    call orthonormalize
+#if(USE_MPI > 0)
+    ! ... and make sure the results get back to the original layout
+    call transfer_2D_to_1D(HFPsi_2D, HFPsi)
+#endif
     !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
     if(.not.allocated(HFTransfo)) then
@@ -588,6 +592,8 @@ contains
           passed_block_test =  check_blocking_structure()      
       endif
     endif
+    call stop_timer(T_wfini)
+
   end subroutine ReadWaveFunction
 
   subroutine ReadTantalus(chan, ifn)
@@ -723,7 +729,7 @@ contains
       endif
 
       !Number of protons and neutrons
-      read(Chan,iostat=io) fileneutrons, fileprotons
+        read(Chan,iostat=io) fileneutrons, fileprotons
       ! HFBLocks information 
       read(Chan,iostat=io) filenwn, filenwp, fileblocks_global
       filenwt = filenwn + filenwp
@@ -732,7 +738,7 @@ contains
     !---------------------------------------------------------------------------
     ! Rank 0 now has a ton of information read from file, including the 
     ! dimensions of the symmetry blocks on the file.
-#if(USE_MPI)
+#if(USE_MPI > 0)
     ! First, we broadcast this information
     call MPI_BCAST(filenx, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(fileny, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
@@ -762,7 +768,7 @@ contains
     allocate(spenergies (filenwt))
     allocate(dispersions(filenwt))
     allocate(HFtransfo  (filenwt,filenwt)) ; HFtransfo   = 0.0d0
-    allocate(current_sph(filenwt,filenwt)) ; current_sph = 0.0d0
+    allocate(sphamil(filenwt,filenwt)) ; sphamil = 0.0d0
 
     if (allocated(rho_can)) deallocate(rho_can)
     allocate(rho_can(filenwt))
@@ -818,7 +824,7 @@ contains
     else
       ! Originally, the .wf files contained the HFPsi array as one unformatted
       ! record. This is kind of unpractical for MPI applications.
-      if(NCores .gt. 1) call stp('Old .wf files cannot be read with MPI runs.')
+      if(NPROCS .gt. 1) call stp('Old .wf files cannot be read with MPI runs.')
 
       ! We can safely read this in one go; a single rank is present
       read(chan,iostat=io) HFPsi
@@ -837,7 +843,7 @@ contains
       read(chan, iostat=io) ini_name_param, func_name_check
       ! Single-particle hamiltonian
       if(file_version.ge.4) then
-        read(chan, iostat=io) current_sph
+        read(chan, iostat=io) sphamil
       endif
     endif
 #if(USE_MPI > 0)
@@ -846,7 +852,7 @@ contains
     call MPI_BCAST(func_name_check, len(func_name_check), MPI_CHARACTER,0,     &
     &                                                   MPI_COMM_WORLD, mpi_err)
 
-    call MPI_BCAST(current_sph, filenwt**2, MPI_REAL8,0,MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(sphamil, filenwt**2, MPI_REAL8,0,MPI_COMM_WORLD, mpi_err)
 #endif
 
     !---------------------------------------------------------------------------
@@ -1021,7 +1027,7 @@ contains
 
     !---------------------------------------------------------------------------
     ! Potentials: note that readpotentials handles all MPI affairs itself
-    call readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
+    potentials_read = readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
     !-------------------------------------------------------------------------
     ! Multipole moment information
     ! Note: ReadMoment handles all MPI affairs itself
@@ -1064,6 +1070,563 @@ contains
       endif
     endif
   end subroutine ReadTantalus
+
+#if (HDF5 > 0)
+subroutine ReadTantalus_hdf5(ifn)
+    !---------------------------------------------------------------------------
+    ! Reading all information from a previous Tantalus run stored in a .hdf5 file.
+    ! MPI reading for wf only
+    !
+    ! This routine also performs a few sanity checks. 
+    ! Currently:
+    !   
+    !   *) equality of (nx,ny,nz) between data and file
+    !   *) equality of (nwn,nwp) between data and file
+    !   *) the symmetry encoding matches either SYM_CODE or TRANS_CODE
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   ifn  : character, name of the input file. 
+    !          The code will first check for its existence.
+    !---------------------------------------------------------------------------
+    ! 
+    ! Things read from file. (Not yet implemented ones are indicated by *)
+    !
+    ! Version                                          (integer attribute)
+    ! Convergence information: E, dE                   (*)
+    ! nx,ny,nz                                         (integer attributes)
+    ! dx                                               (double attribute)
+    ! Symmetry information                          (1)(char attribute)
+    ! neutrons,protons                                 (integer attributes)
+    ! nwn, nwp                                         (integer attribute)
+    ! Number of wavefunctions in every block           (1d-array int attribute)
+    ! spenergies, dispersions                          (1d-array dataset)
+    ! diagsphamil                                      (scalar attribute 1-true
+    !                                                                    0-flase)
+    ! HFtransfo                                        (*) not needed for pasta
+    ! (nwt) Wavefunctions                              (3d-array dataset)
+    ! Forcename                                        (char attribute)
+    ! Single-particle hamiltonian                      (*) not needed for pasta
+    ! Pairing information                              
+    !    - Pairingtype                                 (integer attribute)
+    !    - Rho_can = occupation factors                (1d-array dataset)
+    !      (HF)  
+    !        |   (nothing)
+    !      (BCS) 
+    !        |   Fermi level                           (double attributes)
+    !        |   BCSGaps                               (1d-array dataset)
+    !      (HFB)                                       (*) not for pasta
+    !        |   blocktype, blocknumber
+    !        |   block-sizes for HFB solver
+    !        |   blocklowest/blockindices
+    !        |   Fermi level
+    !        |   rho_pairing    
+    !        |   kappa_pairing
+    !        |   can_transfo
+    !        |   HFBgaps      
+    !        |   Bogoliubov transformation 
+    !        |   Configuration matrix   
+    ! CrankingInfo                                      (*) not needed for pasta
+    ! Potentials                                        (datasets in subgroup potentials)
+    ! Multipole Moments                                 (?) for later
+    !     | The code writes the data on ALL the multipole moments.
+    !     | For the format of the lines, see the Moments module.
+    !
+    !
+    !---------------------------------------------------------------------------    
+    use functional
+    use moments
+    use cranking
+    use HDF5 !is it here??
+    
+    character(len=*), intent(in) :: ifn
+    integer                      :: h5ferr, i
+    integer(HID_T)               :: file_id, root_id, dset_id, plist_id, space_id
+    character(len=1)             :: rootname
+    character(len=20)            :: func_name_check
+    character(len=26)            :: SYM_CODE_CHECK
+    logical                      :: exists
+    real(KIND=dp), allocatable   :: filegaps(:,:), temp(:,:)
+    real(KIND=dp), allocatable   :: HFpsitemp(:)
+    integer                      :: filediagsphamil_int
+    logical                      :: filediagsphamil 
+    logical                      :: check_x, check_y, check_z
+    logical                      :: check_nwn, check_nwp 
+    integer(hsize_t),dimension(3) :: dims,data_dims!,chdims !dimensions of wf
+#if(USE_MPI>0)
+    integer :: mpi_err
+    integer(hid_t)                :: mems_id !identifier for the block of data on processor
+    integer(hsize_t),dimension(3) :: counts, offsets ! for reading from the particular place in file
+#endif 
+    
+    
+    1 format ('Number of mesh points does not correspond to file.', / &
+    &         'On file: nx= ', i3, ' ny= ', i3, ' nz= ',i3,            / &
+    &         'In data: nx= ', i3, ' ny= ', i3, ' nz= ',i3)
+    2 format ('Number of wavefunctions does not correspond to file.', / &
+    &         'On file: nwn= ', i3, ' nwp=', i3,                      / &
+    &         'In data: nwn= ', i3, ' nwp=', i3)
+
+    3 format (' The symmetry choices  on file cannot be handled.')
+    4 format (' SYM_CODE   = ', a26)
+    5 format (' TRANS_CODE = ', a26)
+    6 format (' ON FILE    = ', a26)
+ 
+    !Initialize hdf5 interface 
+    call h5open_f(h5ferr)
+    
+    !Master rank will sequentaly read attributes and energy arrays from file 
+    if(MPI_RANK.eq.0) then
+      !-------------------------------------------------------------------------
+      ! First check if the file exists.
+      inquire(file=inputfilename, exist=exists)
+      if(.not.exists) then
+        call stp('Input file specified does not exist!')
+      endif
+
+      !open the file
+      call h5fopen_f(ifn,H5F_ACC_RDONLY_F,file_id,h5ferr)
+      !open the root group; looks like it is not needed
+      !rootname='/'
+      !call h5gopen_f(file_id,rootname,root_id,h5ferr)
+      root_id=file_id
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Purely sequential 
+      ! read information with subroutines 
+      ! subroutine structure hdf5_read(file_id, name, data, size)
+      call hdf5_read_attr_integer(root_id, 'version_number', file_version)
+      if(file_version .gt. version_number) then
+        call stp('Unsupported version number of the .wf file.')
+      endif
+
+      ! Convergence information                                (NOT IMPLEMENTED)
+    
+      !Parameters of the mesh
+      call hdf5_read_attr_integer(root_id, 'nx', filenx)
+      call hdf5_read_attr_integer(root_id, 'ny', fileny)
+      call hdf5_read_attr_integer(root_id, 'nz', filenz)
+      call hdf5_read_attr_double(root_id,  'dx', filedx)
+      filemv = filenx*fileny*filenz
+
+      ! Symmetry information       
+      call hdf5_read_attr_char(root_id, 'SYM_CODE', SYM_CODE_CHECK, len(SYM_CODE_CHECK,kind=8))
+      if(SYM_CODE_CHECK .eq. SYM_CODE) then
+        symtransfo_needed = .false.
+      elseif(SYM_CODE_CHECK .eq. TRANS_CODE) then
+        symtransfo_needed = .true.
+      else
+        print 3
+        print 4, SYM_CODE 
+        print 5, TRANS_CODE
+        print 6, SYM_CODE_CHECK
+        call stp('')
+      endif
+
+      !Number of protons and neutrons are integers here, but usually double in the code?
+      call hdf5_read_attr_integer(root_id, 'neutrons', fileneutrons)
+      call hdf5_read_attr_integer(root_id, 'protons', fileprotons)
+      ! HFBLocks information 
+      call hdf5_read_attr_integer(root_id, 'nwn', filenwn)
+      call hdf5_read_attr_integer(root_id, 'nwp', filenwp)
+      call hdf5_read_attr_integer_1d(root_id, 'hfblocks_global', fileblocks_global, 8)
+      filenwt = filenwn + filenwp
+    endif
+    
+    !---------------------------------------------------------------------------
+    ! Rank 0 now has a ton of information read from file, including the 
+    ! dimensions of the symmetry blocks on the file.
+#if(USE_MPI)
+    ! First, we broadcast this information
+    call MPI_BCAST(filenx, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(fileny, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(filenz, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(filemv, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(filedx, 1, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_BCAST(fileprotons , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(fileneutrons, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_BCAST(filenwn           ,1, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(filenwp           ,1, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(filenwt           ,1, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(fileblocks_global ,8, MPI_integer,0, MPI_COMM_WORLD, mpi_err)
+
+    ! Seemingly useless to BCAST fileversion, but this is necessary for further
+    ! logic further down in this routine
+    call MPI_BCAST(file_version , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_BCAST(symtransfo_needed,1,MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+#endif        
+    
+    !---------------------------------------------------------------------------   
+    ! .. now we have each rank decide what spwfs to take from file
+    call loadbalance(fileblocks_global,balancing_strategy, &           ! inputs
+    &       fileblocks, file_spwf_map, file_rank_map,file_spwf_inverse)! outputs
+
+    ! Arrays like these are stored on all ranks, hence "filenwt"
+    allocate(spenergies (filenwt))
+    allocate(dispersions(filenwt))
+    allocate(HFtransfo  (filenwt,filenwt)) ; HFtransfo   = 0.0d0
+    allocate(sphamil(filenwt,filenwt)) ; sphamil = 0.0d0
+
+    if (allocated(rho_can)) deallocate(rho_can)
+    allocate(rho_can(filenwt))
+
+    ! continue reading
+    if(MPI_RANK.eq.0) then 
+      call hdf5_read_dataset_1d(root_id, 'spenergies',  spenergies, filenwt)
+      call hdf5_read_dataset_1d(root_id,'dispersions', dispersions, filenwt)
+    
+      call hdf5_read_attr_integer(root_id, 'diagsphamil', filediagsphamil_int)
+      if(filediagsphamil_int.eq.1) then
+        filediagsphamil=.true.
+      else
+        filediagsphamil=.false.
+      end if
+    endif
+#if(USE_MPI>0)
+    call MPI_BCAST(spenergies ,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(dispersions,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(dispersions,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
+#endif
+    
+
+    !--------------------------------------------------------------------------- 
+    ! Name of the force and functional and full s.p. hamiltonian matrix
+    if(MPI_RANK.eq.0) then
+      call hdf5_read_attr_char(root_id, 'name_param', ini_name_param, len(ini_name_param,kind=8))
+      call hdf5_read_attr_char(root_id, 'func_name', func_name_check, len(func_name_check,kind=8))
+    endif
+#if(USE_MPI > 0)
+    call MPI_BCAST(ini_name_param , len(ini_name_param) , MPI_CHARACTER,0,     &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(func_name_check, len(func_name_check), MPI_CHARACTER,0,     &
+    &                                                   MPI_COMM_WORLD, mpi_err)
+
+#endif
+
+    !---------------------------------------------------------------------------
+    ! Pairing information
+    if(MPI_RANK.eq.0) then
+      call hdf5_read_attr_integer(root_id, 'PairingType', filepairing)
+      call hdf5_read_dataset_1d(root_id, 'rho_can',  rho_can, filenwt)
+    endif
+#if(USE_MPI > 0) 
+    call MPI_BCAST(filepairing,      1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(rho_can    ,filenwt, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
+#endif
+    
+    select case (filepairing)
+    case(0) !-------------------------------------------------------------------
+        ! HF: nothing to read
+    case(1) !-------------------------------------------------------------------
+        ! BCS calculation: read the gaps
+        allocate(filegaps(filenwt,1))
+        if(MPI_RANK .eq. 0) then
+          call hdf5_read_attr_double(root_id, 'FermiEnergyn', FermiEnergy(1))
+          call hdf5_read_attr_double(root_id, 'FermiEnergyp', FermiEnergy(2))
+          call hdf5_read_dataset_1d(root_id, 'BCSGaps',  filegaps, filenwt)
+        endif
+
+#if(USE_MPI > 0)
+        call MPI_BCAST(Fermienergy,      2, MPI_REAL8,0, MPI_COMM_WORLD,mpi_err)
+        call MPI_BCAST(filegaps  ,filenwt, MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
+#endif
+
+        ! Simply copy the gaps for now
+        select case(pairingtype)
+        case(0)
+          ! Do nothing
+        case(1)
+          allocate(BCSGaps(filenwt)) ;  BCSGaps = filegaps(:,1)
+        case(2)
+          allocate(HFBgaps(filenwt, filenwt)) ; HFBgaps = 0
+          do i=1, filenwt
+              HFBgaps(i,i) = filegaps(i,1)
+          enddo
+        end select
+    
+    case(2) !-------------------------------------------------------------------
+        ! HFB calculation
+        ! not included
+    case DEFAULT
+      call stp('Something is seriously wrong with the .hdf file.')
+    end select 
+    
+    !---------------------------------------------------------------------------
+    ! Cranking information
+    ! not implemented
+
+    !---------------------------------------------------------------------------
+    ! Potentials: note that readpotentials handles all MPI affairs itself
+    potentials_read = readpotentials_hdf5(file_id,filenx,fileny,filenz,symtransfo_needed)
+
+    !-------------------------------------------------------------------------
+    ! Multipole moment information
+    ! not implemented
+
+    !-------------------------------------------------------------------------
+    ! End of reading
+    ! close the root group
+    !call h5gclose_f(root_id, h5ferr)
+    ! close the file for sequental reading part
+    if(MPI_RANK.eq.0) call h5fclose_f(file_id, h5ferr)
+    
+    !Now MPI reading
+    !---------------------------------------------------------------------------
+    ! Reading the spwfs from file
+    !---------------------------------------------------------------------------
+    ! First allocate the needed space
+    ! wavefunctions are distributed across ranks ....
+    allocate(HFPsi(filenx*fileny*filenz,4, sum(fileblocks)))
+    dims=(/filenx*fileny*filenz,4,filenwt/)
+    data_dims(1)=filenx*fileny*filenz
+    data_dims(2)=4
+    data_dims(3)=filenwt
+#if(USE_MPI > 0)
+    !make everything to be synched
+    call mpi_barrier(MPI_COMM_WORLD, mpi_err)
+    !Set up access property for the parallel reading    
+    call h5pcreate_f(H5P_FILE_ACCESS_F, plist_id, h5ferr)
+    call h5pset_fapl_mpio_f(plist_id, MPI_COMM_WORLD, MPI_INFO_NULL, h5ferr)
+    !open the file collectively
+    call h5fopen_f(ifn, H5F_ACC_RDONLY_F, file_id, h5ferr, plist_id)
+    !close plist_id
+    call h5pclose_f(plist_id, h5ferr)
+#else
+    call h5fopen_f(ifn, H5F_ACC_RDONLY_F, file_id, h5ferr)
+#endif
+    ! open dataset 
+    call h5dopen_f(file_id, 'wavefunctions', dset_id, h5ferr)
+#if(USE_MPI > 0)
+    ! Each process reads its own set of wavefunctions (hyperslab)
+    ! with the size
+    counts(1)=filenx*fileny*filenz
+    counts(2)=4
+    counts(3)=sum(fileblocks)
+    ! and offset in the targetted full dataset
+    offsets(1)=0
+    offsets(2)=0
+    offsets(3)=file_spwf_map(1)-1    
+    ! create dataspace for this hyperslab
+    call h5screate_simple_f(3, counts, mems_id, h5ferr)
+    ! select hyperslab in the file
+    call h5dget_space_f(dset_id, space_id, h5ferr)
+    call h5sselect_hyperslab_f(space_id, H5S_SELECT_SET_F, offsets, counts, h5ferr)
+    !create property list for collective data reading 
+    call h5pcreate_f(H5P_DATASET_XFER_F, plist_id, h5ferr)
+    call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F, h5ferr)
+    ! read dataset collectively
+    call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, HFpsi, data_dims, h5ferr,        &
+                file_space_id=space_id, mem_space_id=mems_id, xfer_prp=plist_id)
+    ! close access to mem space
+    call h5sclose_f(mems_id, h5ferr)
+    ! Close access to data space 
+    call h5sclose_f(space_id, h5ferr)
+    ! close access to plist
+    call h5pclose_f(plist_id, h5ferr)    
+#else 
+    ! read dataset 
+    call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, HFpsi, data_dims, h5ferr)
+#endif    
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, h5ferr)
+    if (h5ferr.ne.0) then
+      call stp('ERROR: reading wafefunctions in hdf5 format')
+    endif
+    ! Close FORTRAN interface
+    call h5fclose_f(file_id,h5ferr)
+    call h5close_f(h5ferr)
+
+#if(USE_MPI > 0)    
+    ! Possibly a superfluous barrier call, but good for my peace of mind
+    call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
+#endif   
+    
+    !-------------------------------------------------------------------------
+    ! Sanity checks if transformation is not allowed
+    if(.not.  AllowTransform) then
+      if((filenx.ne.nx).or. (fileny.ne.ny) .or. (filenz.ne.nz)) then
+          print 1, filenx, fileny, filenz, nx,ny,nz
+          call stp('')
+      endif
+      if(filenwn.ne.nwn .or. filenwp.ne.nwp) then
+          print 2, filenwn, filenwp, nwn, nwp
+          call stp('')
+      endif
+    else
+      ! We do not allow modification of the mesh, s.p. wavefunctions and 
+      ! symmetry transformations at the same time. 
+      check_x = (nx .ne. filenx) .and. (nx .ne. 2*filenx)
+      check_y = (ny .ne. fileny) .and. (ny .ne. 2*fileny)
+      check_z = (nz .ne. filenz) .and. (nz .ne. 2*filenz)
+
+      check_nwn = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
+      check_nwp = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
+
+      if(symtransfo_needed) then
+       if(check_x .or. check_y .or. check_z) then 
+        call stp("Please don't combine symmetry transformations and mesh modifications.")
+       endif  
+       if(check_nwn .or. check_nwp ) then 
+        call stp("Please don't combine symmetry transformations and adding wavefunctions.")
+       endif  
+      endif
+    endif
+  end subroutine ReadTantalus_hdf5
+
+  subroutine hdf5_read_attr_char(id, name, attribute, n)
+    ! reads character scalar attribute with some name from the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer(HID_T)             :: attribute_id !identifiers
+    integer(HID_T)             :: type_id !identifiers
+    integer                    :: error
+    Integer(size_t)            :: n
+    character(len=*), intent(in) :: name
+    character(len=*), intent(inout) :: attribute
+    Integer(hsize_t), dimension (1) :: dims
+
+    dims(1)=n
+    !open attribute
+    call h5aopen_name_f(id, name, attribute_id, error)
+    !get the type
+    call h5aget_type_f(attribute_id, type_id, error)
+    !read attribute
+    call h5aread_f(attribute_id, type_id, attribute, dims, error)
+    !close the attribute
+    call h5aclose_f(attribute_id,error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading character attribute in hdf5 format')
+    endif
+  end subroutine hdf5_read_attr_char
+  
+  subroutine hdf5_read_attr_integer(id, name, attribute)
+    ! reads integer scalar attribute with some name from the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer(HID_T)             :: attribute_id !identifiers
+    integer                    :: error
+    character(len=*), intent(in) :: name
+    integer, intent(inout)       :: attribute
+    Integer(size_t), dimension (1) :: dims
+
+    dims(1)=1
+    !open attribute
+    call h5aopen_name_f(id, name, attribute_id, error)
+    !read attribute
+    call h5aread_f(attribute_id, H5T_Native_Integer, attribute, dims, error)
+    !close the attribute
+    call h5aclose_f(attribute_id,error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading integer attribute in hdf5 format')
+    endif
+  end subroutine hdf5_read_attr_integer
+  
+  subroutine hdf5_read_attr_integer_1d(id, name, attribute, n)
+    ! reads integer array attribute with some name from the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer, intent(in)        :: n
+    integer(HID_T)             :: attribute_id !identifiers
+    integer                    :: error
+    character(len=*), intent(in) :: name
+    integer, intent(inout)       :: attribute(n)
+    Integer(size_t), dimension (1) :: dims
+
+    dims(1)=n
+    !open attribute
+    call h5aopen_name_f(id, name, attribute_id, error)
+    !read attribute
+    call h5aread_f(attribute_id, H5T_Native_Integer, attribute, dims, error)
+    !close the attribute
+    call h5aclose_f(attribute_id,error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading integer array attribute in hdf5 format')
+    endif
+  end subroutine hdf5_read_attr_integer_1d
+
+
+  subroutine hdf5_read_attr_double(id, name, attribute)
+    ! reads double precision scalar attribute with some name from the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer(HID_T)             :: attribute_id !identifiers
+    integer                    :: error
+    character(len=*), intent(in) :: name
+    real(kind=dp), intent(inout) :: attribute
+    Integer(size_t), dimension (1) :: dims
+
+    dims(1)=1
+    !open attribute
+    call h5aopen_name_f(id, name, attribute_id, error)
+    !read attribute
+    call h5aread_f(attribute_id, H5T_Native_Double, attribute, dims, error)
+    !close the attribute
+    call h5aclose_f(attribute_id,error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading double precision attribute in hdf5 format')
+    endif
+  end subroutine hdf5_read_attr_double
+  
+  subroutine hdf5_read_dataset_1d(id, name, dset, n)
+    ! reads double precision dataset array of length n with some name in the hdf5 file
+    use HDF5
+    character(len=*), intent(in) :: name
+    integer(hid_t), intent(in)   :: id
+    integer, intent(in)          :: n
+    real(kind=dp), intent(inout) :: dset(n)
+    integer(hid_t)               :: dset_id !identifiers
+    integer                      :: error
+    integer(hsize_t), dimension(1) :: dims, data_dims
+
+    dims=(/n/)
+    data_dims(1)=n
+    ! open dataset, "dset_id" is returned
+    call h5dopen_f(id, name, dset_id, error)
+    ! read dataset 
+    call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: reading dataset in hdf5 format')
+    endif
+
+  end subroutine hdf5_read_dataset_1d
+#endif
+
+  subroutine WriteWaveFunction(chan, ofn)
+    !--------------------------------------------------------------------------------------------
+    ! Simple routine to call the appropriate subroutine depending on type of output
+    ! asked for by the user.
+    !
+    ! Input:
+    !------------
+    !   chan : integer, channel to open file ofn on
+    !   ofn  : character, filename to write to.
+    !          If it does not exist, will get created.
+    !          If this ends in "HDF5" (case-insensitive), then the code will write an HDF5 file.
+    !          If not, then a simple fortran unformatted file will be written.
+    !--------------------------------------------------------------------------------------------
+    integer, intent(in)          :: chan
+    character(len=*), intent(in) :: ofn
+
+    if(trim(to_upper(OutputFileName(len_trim(OutputFileName)-3:))).eq.'HDF5') then
+#if(HDF5>0)
+      call WriteTantalus_hdf5(outputfilename) !new hdf5 format
+#else
+      call stp('HDF5 support was not enabled at compilation.')
+#endif
+    else
+      call WriteTantalus(12, outputfilename) ! old style in .wf file
+    endif
+
+  end subroutine WriteWaveFunction
 
   subroutine WriteTantalus(chan, ofn)
     !---------------------------------------------------------------------------
@@ -1134,6 +1697,8 @@ contains
 #endif
     type(moment), pointer        :: mom
 
+    call start_timer(T_wfoutput)
+
     open (chan,form='unformatted',file=ofn)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Purely sequential part of the writing
@@ -1153,7 +1718,7 @@ contains
       write(chan,iostat=io) spenergies, dispersions
       ! information on the HF transformation
       write(chan, iostat=io) diagsphamil
-      write(chan, iostat=io) HFtransfo
+      write(chan, iostat=io) !HFtransfo
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Parallel part of the writing
@@ -1198,7 +1763,7 @@ contains
       ! Name of the force.
       write(chan, iostat=io) name_param, func_name
       ! Single-particle hamiltonian
-      write(chan, iostat=io) current_sph
+      write(chan, iostat=io) !sphamil
       !-------------------------------------------------------------------------
       ! Pairing information 
       write(chan, iostat=io) PairingType
@@ -1212,7 +1777,7 @@ contains
       case(1)
           ! BCS
           write(chan, iostat=io) FermiEnergy
-          write(chan, iostat=io) BCSGaps 
+          write(chan, iostat=io) !BCSGaps 
       case(2)
           ! HFB
           write(chan, iostat=io) blocktype, blocknumber
@@ -1240,10 +1805,10 @@ contains
           write(chan, iostat=io) configmatrix      ! Configuration matrix
       end select
       ! Cranking information: frequencies in all Cartesian directions 
-      write(chan, iostat=io) Omega(1:3)
+      !write(chan, iostat=io) Omega(1:3)
       !-------------------------------------------------------------------------
       ! Potentials on file
-      call writepotentials(chan)
+      !call writepotentials(chan,potentials)
       !-------------------------------------------------------------------------
       ! Multipole moment information                             
       !
@@ -1260,17 +1825,439 @@ contains
       ! Note the double dollar-sign, to make sure Hephaestos does not replace these
       ! compiler directives. 
       ! 
-      mom => root
-      do while(associated(mom%next))
-        mom => mom%next
-        !DIR$$ NOINLINE
-        call Writemoment(mom,chan)
-        !DIR$$ INLINE
-      enddo
+      !mom => root
+      !do while(associated(mom%next))
+      !  mom => mom%next
+      !  !DIR$$ NOINLINE
+      !  call Writemoment(mom,chan)
+      !  !DIR$$ INLINE
+      !enddo
     endif
     close(chan)
 
+    call stop_timer(T_wfoutput)
+
   end subroutine WriteTantalus
+
+#if (HDF5 > 0)
+  subroutine WriteTantalus_hdf5(ofn)
+    !---------------------------------------------------------------------------
+    ! Subroutine that dumps all information to a .hdf5 file for future runs.
+    ! MPI is implemented only for the wf writing, all other stuff is written 
+    ! by the master rank 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   ofn  : character, filename to write to. 
+    !          If it does not exist, will get created.
+    !---------------------------------------------------------------------------
+    ! Things written to file. (Not yet implemented ones are indicated by (*) )
+    !
+    ! Version                                          (integer attribute)
+    ! Convergence information: E, dE                   (*)
+    ! nx,ny,nz                                         (integer attributes)  
+    ! dx                                               (double attributes)  
+    ! Symmetry information                             (char attribute)
+    ! neutrons,protons                                 (double attributes)  
+    ! nwn, nwp                                         (integer attributes)
+    ! Number of wavefunctions in every block           (1d-array attribute)
+    ! spenergies, dispersions                          (1d-array dataset)
+    ! diagsphamil                                      (integer attribute 1-true
+    !                                                                    0-false)
+    ! HFtransfo                                        (*) not needed for pasta
+    ! (nwt) Wavefunctions                              (3d-array dataset)
+    ! Forcename                                        (char attribute)
+    ! Single-particle hamiltonian                      (*) not needed for pasta
+    ! Pairing information                              
+    !    - Pairingtype                                 (integer attribute)
+    !    - Rho_can = occupation factors                (1d-array dataset)
+    !      (HF)  
+    !        |   (nothing)
+    !      (BCS) 
+    !        |   Fermi level                           (double attribute)
+    !        |   BCSGaps                               (1d-array dataset)
+    !      (HFB)                                       (*) not for pasta
+    !        |   blocktype, blocknumber
+    !        |   block-sizes for HFB solver
+    !        |   blocklowest/blockindices
+    !        |   Fermi level
+    !        |   rho_pairing    
+    !        |   kappa_pairing
+    !        |   can_transfo
+    !        |   HFBgaps      
+    !        |   Bogoliubov transformation 
+    !        |   Configuration matrix   
+    ! CrankingInfo                                      (*) not needed for pasta
+    ! Potentials                                        (datasets in group potentials)
+    ! Multipole Moments                                 (?) for later
+    !     | The code writes the data on ALL the multipole moments.
+    !     | For the format of the lines, see the Moments module.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Some remarks:
+    !  (1) The symmetry information is encoded in a single string, the SYM_CODE.
+    !  (2) Potentials are written on multiple lines, see the functional module.
+    !---------------------------------------------------------------------------
+
+    use functional
+    use HDF5
+
+    character(len=*), intent(in)  :: ofn
+    integer(HID_T)                :: file_id, group_id, dset_id, plist_id, space_id !identifiers
+    integer                       :: h5ferr
+    integer(hsize_t),dimension(3) :: dims,data_dims!,chdims !dimensions of wf
+#if(USE_MPI > 0)
+    integer                       :: mpi_err
+    integer(hid_t)                :: mems_id !identifier for the block of data on processor
+    integer(hsize_t),dimension(3) :: counts, offsets ! for writing in the particular place in file
+#endif
+
+    call start_timer(T_wfoutput)
+
+!Initialize hdf5 interface 
+    call h5open_f(h5ferr)
+
+    !master rank creates file and writes sequentally all the attributes 
+    ! and as of now deflated 1d data arrays 
+    if(MPI_RANK.eq.0) then
+      !Create a new file (returns file_id to use later)
+      call h5fcreate_f(ofn, H5F_ACC_TRUNC_F, file_id, h5ferr)
+      !Create a group for potentials
+      call h5gcreate_f(file_id, 'potentials', group_id, h5ferr)
+      ! close the group
+      call h5gclose_f(group_id, h5ferr)
+      
+      !write down information with subroutines 
+      !subroutine structure hdf5_write(file_id, name, data,size)
+      call hdf5_write_attr_integer(file_id, 'version_number', version_number)
+      ! Convergence information                                (NOT IMPLEMENTED)
+      !Parameters of the mesh
+      call hdf5_write_attr_integer(file_id, 'nx', nx)
+      call hdf5_write_attr_integer(file_id, 'ny', ny)
+      call hdf5_write_attr_integer(file_id, 'nz', nz)
+      call hdf5_write_attr_double( file_id, 'dx', dx)
+      ! Symmetry information                                   
+      call hdf5_write_attr_char(file_id, 'SYM_CODE', SYM_CODE)
+      !Number of protons and neutrons
+      call hdf5_write_attr_double(file_id, 'neutrons', neutrons)
+      call hdf5_write_attr_double(file_id, 'protons',  protons)
+      !number of wavefunctions
+      call hdf5_write_attr_integer(file_id, 'nwn', nwn)
+      call hdf5_write_attr_integer(file_id, 'nwp', nwp)
+      ! HFBLocks information (NOTE: this should be the GLOBAL information)
+      call hdf5_write_attr_integer_1d(file_id,'hfblocks_global',hfblocks_global,8)
+      
+      ! information on the HF transformation 
+      if (diagsphamil) then
+        call hdf5_write_attr_integer(file_id, 'diagsphamil', 1)
+      else 
+        call hdf5_write_attr_integer(file_id, 'diagsphamil', 0)
+      endif
+      !write(chan, iostat=io) HFtransfo ? not needed
+      ! Single-particle hamiltonian (?) not needed
+      ! Name of the force.
+      call hdf5_write_attr_char(file_id, 'name_param', trim(name_param))
+      call hdf5_write_attr_char(file_id, 'func_name', trim(func_name))
+      
+      !levels info
+      call hdf5_write_dataset_1d(file_id, 'spenergies' , spenergies , nwt)
+      call hdf5_write_dataset_1d(file_id, 'dispersions', dispersions, nwt)
+      
+      ! Pairing information 
+      call hdf5_write_attr_integer(file_id, 'PairingType', PairingType)
+      ! Write the occupation factors in all cases
+      call hdf5_write_dataset_1d(file_id, 'rho_can', rho_can, nwt)
+      ! pairing properties 
+      select case (PairingType)
+      case(0)
+        ! HF: nothing to write
+      case(1)
+        ! BCS
+        call hdf5_write_attr_double(file_id, 'FermiEnergyn', FermiEnergy(1))
+        call hdf5_write_attr_double(file_id, 'FermiEnergyp', FermiEnergy(2))
+        call hdf5_write_dataset_1d(file_id, 'BCSGaps', BCSGaps, nwt)
+      case(2)
+        ! HFB: not implemented      
+      end select
+      ! Potentials on file
+      call writepotentials_hdf5(file_id,potentials)
+      
+      ! Close the file
+      call h5fclose_f(file_id, h5ferr)
+    endif 
+        
+    ! Only Wavefunctions are written in parallel I/O      
+    dims=(/nx*ny*nz,4,nwt/)
+    data_dims(1)=nx*ny*nz
+    data_dims(2)=4
+    data_dims(3)=nwt
+
+#if(USE_MPI > 0)
+    !make everything to be synched
+    call mpi_barrier(MPI_COMM_WORLD, mpi_err)
+    !Set up access property for the parallel writting    
+    call h5pcreate_f(H5P_FILE_ACCESS_F, plist_id, h5ferr)
+    call h5pset_fapl_mpio_f(plist_id, MPI_COMM_WORLD, MPI_INFO_NULL, h5ferr)
+    !open the file collectively
+    call h5fopen_f(ofn, H5F_ACC_RDWR_F, file_id, h5ferr, plist_id)
+    !close plist_id
+    call h5pclose_f(plist_id, h5ferr)
+    ! Create dataspace for data_set 
+    call h5screate_simple_f(3, dims, space_id, h5ferr) 
+    
+    ! Each process writes its own set of wavefunctions (hyperslab)
+    ! with the size
+    counts(1)=nx*ny*nz
+    counts(2)=4
+    counts(3)=nwt_local
+    ! and offset in the targetted full dataset
+    offsets(1)=0
+    offsets(2)=0
+    offsets(3)=spwf_map(1)-1
+    !---------------------------------------------------------------------------
+    !for chunking and deflating
+    ! create property list
+    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Disabled the compression because it did not naively scale to large numbers
+    ! of ranks.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! create chunks with property list for compression, as of now size of chunk
+!     ! is just equal to the size of local array.
+!     call h5pset_chunk_f(plist_id, 3, dims, h5ferr)
+!     ! shuffling for better compression?
+!     call h5pset_shuffle_f(plist_id, h5ferr)
+!     ! zlib compression with deflate
+!     call h5pset_deflate_f(plist_id, comprlvl, h5ferr)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Create dataset with default properties "dset_id" is returned
+    call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
+    ! close access to plist
+    call h5pclose_f(plist_id, h5ferr)
+    !---------------------------------------------------------------------------
+    ! Close access to data space 
+    call h5sclose_f(space_id, h5ferr)
+    
+    ! create dataspace for this hyperslab
+    call h5screate_simple_f(3, counts, mems_id, h5ferr)
+    ! select hyperslab in the file
+    call h5dget_space_f(dset_id, space_id, h5ferr)
+    call h5sselect_hyperslab_f(space_id, H5S_SELECT_SET_F, offsets, counts, h5ferr)
+    !create property list for collective data writing 
+    call h5pcreate_f(H5P_DATASET_XFER_F, plist_id, h5ferr)
+    call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F, h5ferr)
+    ! write dataset collectively
+    call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, HFpsi, data_dims, h5ferr,        &
+                file_space_id=space_id, mem_space_id=mems_id, xfer_prp=plist_id)
+    ! close access to mem space
+    call h5sclose_f(mems_id, h5ferr)
+    ! Close access to data space 
+    call h5sclose_f(space_id, h5ferr)
+    ! close access to plist
+    call h5pclose_f(plist_id, h5ferr)
+#else
+    ! open the file
+    call h5fopen_f(ofn, H5F_ACC_RDWR_F, file_id, h5ferr)
+    ! Create dataspace for data_set 
+    call h5screate_simple_f(3, dims, space_id, h5ferr) !3d->1d doesnt change the compression
+    !---------------------------------------------------------------------------
+    !for chunking and deflating
+    ! create property list
+    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Disabled the compression because it did not naively scale to large numbers
+    ! of ranks.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! create chunks with property list for compression, as of now size of chunk
+    ! is just equal to the size of array (for some reason work better). 
+!     call h5pset_chunk_f(plist_id, 3, dims, h5ferr)
+!     ! shuffling for better compression?
+!     call h5pset_shuffle_f(plist_id, h5ferr)
+!     ! zlib compression with deflate
+!     call h5pset_deflate_f(plist_id, comprlvl, h5ferr)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Create dataset with default properties "dset_id" is returned
+    call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
+    ! close access to plist
+    call h5pclose_f(plist_id, h5ferr)
+    !---------------------------------------------------------------------------
+    ! Close access to data space 
+    call h5sclose_f(space_id, h5ferr)
+    ! Write dataset sequentally 
+    call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, HFpsi, data_dims, h5ferr)
+#endif
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, h5ferr)
+    call h5fclose_f(file_id,h5ferr)
+
+    if (h5ferr.ne.0) then
+      call stp('ERROR: writting wafefunctions in hdf5 format')
+    endif
+
+    ! Multipole moment information (not needed for pasta now)                            
+   
+    ! Close FORTRAN interface
+    call h5close_f(h5ferr)
+
+    call stop_timer(T_wfoutput)
+
+  end subroutine WriteTantalus_hdf5
+
+  subroutine hdf5_write_attr_char(id, name, attribute)
+    ! writes character scalar attribute with some name in the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer(HID_T)             :: file_id, space_id, attribute_id !identifiers
+    integer(HID_T)             :: type_id !identifiers
+    integer                    :: error
+    Integer(size_t)            :: alen
+    character(len=*), intent(in) :: name, attribute
+    Integer(hsize_t), dimension (1) :: dims
+
+    dims(1)=1
+    alen=len(attribute)
+    !creating datatype
+    Call h5tcopy_f(h5t_native_character, type_id, error)
+    Call h5tset_size_f(type_id, alen, error)
+    !create space
+    Call h5screate_f(h5s_scalar_f, space_id, error)
+    !create attribute
+    Call h5acreate_f(id, name, type_id, space_id, attribute_id, error)
+    !write attribute
+    Call h5awrite_f(attribute_id, type_id, attribute, dims, error)
+    !close attribute
+    Call h5aclose_f(attribute_id, error)
+    !close space
+    Call h5sclose_f(space_id, error)
+    !close type
+    Call h5tclose_f(type_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: writting character attribute in hdf5 format')
+    endif
+  end subroutine hdf5_write_attr_char
+
+  subroutine hdf5_write_attr_integer(id, name, attribute)
+    ! writes integer scalar attribute with some name in the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer(hid_t)             :: space_id, attribute_id !identifiers
+    integer, intent(in)        :: attribute
+    integer                    :: error
+    character(len=*), intent(in) :: name
+    Integer(size_t), dimension (1)        :: dims=(/0/)
+
+    !create space
+    Call h5screate_f(h5s_scalar_f, space_id, error)
+    !create attribute
+    Call h5acreate_f(id, name, H5T_Native_Integer, space_id, attribute_id, error)
+    !write attribute
+    Call h5awrite_f(attribute_id, H5T_Native_Integer, attribute, dims, error)
+    !close attribute
+    Call h5aclose_f(attribute_id, error)
+    !close space
+    Call h5sclose_f(space_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: writting integer attribute in hdf5 format')
+    endif
+  end subroutine hdf5_write_attr_integer
+  
+  subroutine hdf5_write_attr_integer_1d(id, name, attribute, n)
+    ! writes integer array attribute with some name in the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer(hid_t)             :: space_id, attribute_id !identifiers
+    integer, intent(in)        :: n
+    integer, intent(in)        :: attribute(n)
+    integer                    :: error
+    character(len=*), intent(in) :: name
+    Integer(size_t), dimension (1) :: dims
+    
+    dims=(/n/)
+    !create space
+    Call h5screate_simple_f(1, dims, space_id, error)
+    !create attribute
+    Call h5acreate_f(id, name, H5T_Native_Integer, space_id, attribute_id, error)
+    !write attribute
+    Call h5awrite_f(attribute_id, H5T_Native_Integer, attribute, dims, error)
+    !close attribute
+    Call h5aclose_f(attribute_id, error)
+    !close space
+    Call h5sclose_f(space_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: writting integer array attribute in hdf5 format')
+    endif
+  end subroutine hdf5_write_attr_integer_1d
+
+  subroutine hdf5_write_attr_double(id, name, attribute)
+    ! writes double precision scalar attribute with some name in the hdf5 file
+    use HDF5
+    integer(hid_t), intent(in) :: id
+    integer(hid_t)             :: space_id, attribute_id !identifiers
+    real(kind=dp), intent(in)  :: attribute
+    integer                    :: error
+    character(len=*), intent(in) :: name
+    Integer(size_t), dimension (1)        :: dims=(/0/)
+
+    !create space
+    Call h5screate_f(h5s_scalar_f, space_id, error)
+    !create attribute
+    Call h5acreate_f(id, name, H5T_Native_Double, space_id, attribute_id, error)
+    !write attribute
+    Call h5awrite_f(attribute_id, H5T_Native_Double, attribute, dims, error)
+    !close attribute
+    Call h5aclose_f(attribute_id, error)
+    !close space
+    Call h5sclose_f(space_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: writting double attribute in hdf5 format')
+    endif
+  end subroutine hdf5_write_attr_double
+
+  subroutine hdf5_write_dataset_1d(id, name, dset, n)
+    ! writes double precision dataset array of length n with some name in the hdf5 file
+    use HDF5
+    character(len=*), intent(in) :: name
+    integer(hid_t), intent(in) :: id
+    integer,        intent(in) :: n
+    real(kind=dp),  intent(in) :: dset(n)
+    integer(hid_t)             :: space_id, dset_id, plist_id !identifiers
+    integer                    :: error
+    integer(hsize_t), dimension(1) :: dims,data_dims
+
+
+    dims=(/n/)
+    data_dims(1)=n
+    ! Create dataspace for data_set 
+    call h5screate_simple_f(1, dims, space_id, error)
+    ! create property list
+    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, error)
+    ! create chunks with property list for compression, as of now size of chunk      
+    ! is just equal to the size of array. Modify for MPI reading?
+    call h5pset_chunk_f(plist_id, 1, dims, error)
+    ! shuffling for better compression?
+    call h5pset_shuffle_f(plist_id, error)
+    ! zlib compression with deflate
+    call h5pset_deflate_f(plist_id, comprlvl, error)
+    ! Create dataset with default properties "dset_id" is returned
+    call h5dcreate_f(id,name,H5T_NATIVE_DOUBLE,space_id,dset_id,error,plist_id)
+    ! Write dataset 
+    call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
+    ! Close access to dataset 
+    call h5dclose_f(dset_id, error)
+    ! Close access to data space 
+    call h5sclose_f(space_id, error)
+    ! close access to plist
+    call h5pclose_f(plist_id, error)
+
+    if (error.ne.0) then
+      call stp('ERROR: writting dataset in hdf5 format')
+    endif
+
+  end subroutine hdf5_write_dataset_1d
+#endif
 
   subroutine write_advanced_output(iter, iomsg)
     !--------------------------------------------------------------------------- 
@@ -1295,7 +2282,7 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Write the neutron, proton and charge density to a file for postprocessing 
     if(DENFILE .ne. '') then
-      call write_densities(DENFILE)
+      call write_densities(Density, DENFILE)
     endif
     if(TOFILE .ne. '') then
 $TR   call stp('Time-odd densities do not figure in a calculation that assumes time-reversal.')
@@ -1304,7 +2291,7 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Write the relevant potentials to a file for postprocessing
     if(POTFILE .ne. '') then
-      call write_potentials(POTFILE)
+      call write_potentialfile(potentials, POTFILE)
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Single-particle wave function information 
@@ -1525,7 +2512,7 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     !---------------------------------------------------------------------------
     ! This method has turned out to NOT be a reliable indicator.
 !    blocked_blocks =  figure_out_blocking_structure_agnostic(                  &
-!    &                             current_sph, HFBgaps, FermiEnergy, Bogoliubov)
+!    &                             sphamil, HFBgaps, FermiEnergy, Bogoliubov)
 !  
 !    check_blocks = 0
 !    do i=1,NB
@@ -1725,9 +2712,9 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     integer, intent(in) :: iochannel
     type(moment), pointer :: Q20, Q22
    
-    1 format("# N = ", i3, ' Z = ', i3, ' A = ', i3)
-    2 format("# nwn = ", i3, ", nwp = ", i3)
-    3 format("# (nx,ny,nz) = (", 3i3, "), dx = ", f8.6, ' fm')
+    1 format("# N = ", i8, ' Z = ', i8, ' A = ', i8)
+    2 format("# nwn = ", i9, ", nwp = ", i9)
+    3 format("# (nx,ny,nz) = (", 3i5, "), dx = ", f10.8, ' fm')
     4 format("# Parameterisation    : ", a40)
     5 format("# Functional type     : ", a40)
     6 format("# Fermi energies      : ", 2f15.4)
@@ -1746,75 +2733,90 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     write(iochannel, fmt=5)  func_name
     write(iochannel, fmt=6)  FermiEnergy
   
-    Q20 =>FindMoment(2,0,.false.     )
-    Q22 =>FindMoment(2,2,.false., Q20)    
-    write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
-    write(iochannel, fmt=8)    Q20%beta(4), Q22%beta(4)
-    write(iochannel, fmt=9)    Q(3), G(3)
+    !Q20 =>FindMoment(2,0,.false.     )
+    !Q22 =>FindMoment(2,2,.false., Q20)
+    !write(iochannel, fmt=7) sum(Q20%value), sum(Q22%value)
+    !write(iochannel, fmt=8)    Q20%beta(4), Q22%beta(4)
+    !write(iochannel, fmt=9)    Q(3), G(3)
     
-    write(iochannel, fmt=10)  blocktype, blocknumber
-    if(blocknumber .gt. 0) then
-      write(iochannel, fmt=11) Blockindices
-      write(iochannel, fmt=12) Blocklowest
-    else
-      write(iochannel, fmt=11) 
-      write(iochannel, fmt=12)
-    endif
+   ! write(iochannel, fmt=10)  blocktype, blocknumber
+   ! if(blocknumber .gt. 0) then
+   !   write(iochannel, fmt=11) Blockindices
+   !   write(iochannel, fmt=12) Blocklowest
+   ! else
+   !   write(iochannel, fmt=11)
+   !   write(iochannel, fmt=12)
+   ! endif
 
     write(iochannel, fmt='(a1)') '#'
 
   end subroutine write_header
 
-  subroutine write_densities(fname)
+  subroutine write_densities(R, fname)
     !---------------------------------------------------------------------------
     ! Write the following densities to a file named "fname"
-    !    rho(neutron), rho(proton), rho(charge)
+    !    rho(neutron), rho(proton), rho(charge), 
+    !    tau(neutron), tau(proton),
+    !    \tilde{rho}(neutron), \tilde{rho}(proton)
     !---------------------------------------------------------------------------
     ! The file contains a header written by the subroutine write_header,
-    ! supplemented by
-    !
-    !     #   X[fm] Y[fm] Z[fm] rho_n[fm^{-3}] rho_p[fm^{-3}] rho_c[fm^{-3}]
-    ! 
-    ! where the # are included so that Numpy (or other plotting tools) can 
-    ! ignore these lines when naively plotting stuff. Note that the fourth
-    ! line is currently empty, but is reserved for future additions concerning
-    ! symmetry options of the current run.
-    !
+    ! supplemented by a dedicated line explaining the content of each column.
     ! The format of the body of said file is
     ! 
-    !        x , y , z,  rho_n, rho_p, rho_c
+    !   x , y , z,  rho_n, rho_p, rho_c, tau_n, tau_p, DP_I_I_n, DP_I_I_p
     !
-    ! where the first three numbers are the Cartesian coordinates (units of fm)
-    ! and the densities are all in units of fm^{-3}. 
-    ! The points are written down in column-major order ('Fortran order'), 
-    ! which might not be how your favorite plotting tool prefers it.
+    ! where the first three numbers are the Cartesian coordinates in fm, withµ
+    ! the densities all in their natural units. The mesh points are traverse in 
+    ! column-major order ('Fortran order'), which might not be how your favorite 
+    ! plotting tool prefers it. Note that the densities are written "as-is" to 
+    ! file, i.e. only in part of the box that is actually represented 
+    ! numerically. It is up to postprocessing to construct the densities in the 
+    ! simulation volume.
     !---------------------------------------------------------------------------
-    ! Note that the densities are written "as they are" to file, i.e. only in
-    ! part of the box that is actually represented numerically. It is up to
-    ! postprocessing to actually construct the densities in the entire box.
-    !---------------------------------------------------------------------------
-    real(KIND=dp), pointer           :: rhon(:,:,:), rhop(:,:,:)
-    character(len=*), intent(in)     :: fname
-    integer                          :: io, i,j,k
+    type(DensityVector), intent(in), target :: R
+    character(len=*), intent(in)            :: fname
+    integer                                 :: io, i,j,k, mi
 
-    1 format('#  X[fm]   Y[fm]   Z[fm]       rho_n[fm^{-3}]           rho_p[fm^{-3}]           rho_c[fm^{-3}]')
+    1 format('#', 6x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]', 20x,   &
+      &               'rho_n', 20x, 'rho_p', 20x,'rho_c', 20x, &
+      &               'tau_n', 20x, 'tau_p', 20x,              &
+      &               'tilde{rho}_n', 13x, 'tilde{rho}_p')
+
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    
       print *, 'Something went wrong with writing a density to file.'
       print *, 'filename = ', fname
       call stp('')
     endif
-
-    rhon(1:nx,1:ny,1:nz)  => D_I_I(:,1)
-    rhop(1:nx,1:ny,1:nz)  => D_I_I(:,2)
-
+    
     call write_header(1)
     write(1, fmt=1) 
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          write(1, fmt='(3f8.3, 3es25.12E3)') meshx(i), meshx(j), meshz(k),      &
-          &                        rhon(i,j,k), rhop(i,j,k), chargedensity(i,j,k) 
+          write(1, fmt='(3es25.12)', advance='no') &
+          &          meshx(i), meshy(j), meshz(k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! the contributions above are indexed according to (x,y,z) but 
+          ! we do not have this luxury for most of the densities
+          mi = meshindex(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The ordinary and charge density; always defined
+          write(1, fmt='(2es25.12)', advance='no') R%D_I_I(mi,1),R%D_I_I(mi,2)
+          write(1, fmt='( es25.12)', advance='no') R%chargedensity(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The kinetic density; its definition depends on the type of EDF used
+$TAUSCALAR write(1, fmt='(2es25.12)', advance='no') &
+$TAUSCALAR &         R%D_Nm_Nm(mi,1), R%D_Nm_Nm(mi,2)
+$TAUTENSOR write(1, fmt='(2es25.12)', advance='no') &
+$TAUTENSOR &         R%D_N_N(mi,1,1,1) + R%D_N_N(mi,2,2,1) + R%D_N_N(mi,3,3,1),&
+$TAUTENSOR &         R%D_N_N(mi,1,1,2) + R%D_N_N(mi,2,2,2) + R%D_N_N(mi,3,3,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The pairing fields FP_I_I
+          write(1, fmt='(2es25.12)',advance='no') R%DP_I_I(mi,1), R%DP_I_I(mi,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! We are done writing this line in the output
+          write(1, fmt='()') !  newline character
         enddo
       enddo
     enddo
@@ -1822,8 +2824,174 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     close(1)
   end subroutine write_densities
   
+ subroutine write_potentialfile(F,fname)
+    !---------------------------------------------------------------------------
+    ! Write the mean-field potentials to a file named "fname":
+    !  central       coulomb   coulomb   kinetic  pairing   spin-orbit  
+    !                 direct   exchange
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Remarks:
+    ! 
+    !   *) Note that G_I_NS has 9 components for each isospin, corresponding 
+    !      to the gradient and spin indices. These are arranged in lexographical
+    !      order.  
+    !   *) F_I_I should be the exact potential corresponding to the derivative 
+    !      of the Skyrme energy with respect to D_I_I. This means that it should
+    !      not include
+    !       - the contributions from constraints
+    !       - the contribution of the Coulomb interaction
+    !   *) To reproduce the complete state of the code, it is important that 
+    !      the Coulomb potentials written to file are the potentials 
+    !      corresponding to the charge density; for the direct potential this
+    !      is the U that satisfies 
+    ! 
+    !                 Delta U = 4 pi rho_charge
+    !
+    !      If the finite extent of the nucleons charge density is taken into 
+    !      account selfconsistently, this means that U is NOT the potential 
+    !      which should be added to F_I_I. 
+    !
+    !---------------------------------------------------------------------------
+    !
+    ! The file contains a header written by the subroutine write_header,
+    ! supplemented by
+    ! #   X[fm] Y[fm] Z[fm] V_nuc(n) V_nuc(p) V_c(n) V_c(p) 
+    !               V_so(xx,n), V_so(xy,n), ..., V_so(zz,p)
+    ! 
+    ! where the # are included so that Numpy (or other plotting tools) can 
+    ! ignore these lines when naively plotting stuff. Note that the fourth
+    ! line is currently empty, but is reserved for future additions concerning
+    ! symmetry options of the current run.
+    !
+    ! where the first three numbers are the Cartesian coordinates (units of fm).
+    ! The points are written down in column-major order ('Fortran order'), 
+    ! which might not be how your favorite plotting tool prefers it.
+    !---------------------------------------------------------------------------
+    use Coulombmod ! module explicitly 'used' in order to be able to place the 
+                   ! values of the direct and exchange Coulomb potentials 
+                   ! correctly on the mesh
 
-  !!NS_t0t3: fname is deleted from write nabla argument
+
+    type(PotentialVector), intent(in) :: F
+    character(len=*), intent(in)      :: fname
+    real(KIND=dp), pointer            :: Vnucp(:,:,:), Vnucn(:,:,:)
+    real(KIND=dp), allocatable        :: Coulp(:,:,:), Excp(:,:,:)
+
+    real(KIND=dp), allocatable, target   :: temp(:,:)
+    integer                              :: io, i,j,k, mu, nu, ox, oy, oz, mi
+    character(len=1) :: directions(3) 
+
+    1 format('#', 6x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]', 20x, 'V_nuc(n)', 17x, 'V_nuc(p)', 17x, &
+      &      'V_cd', 21x, 'V_ce', 21x, 'V_kin(n)', 17x, 'V_kin(p)', 17x, 'FP_n', 21x, 'FP_p',21x) 
+    2 format('W_', 2a1,'(n)', 18x, 'W_', 2a1,'(p)', 18x )
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'Something went wrong with writing a potential to file.'
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+
+    call write_header(1)
+    write(1, fmt=1, advance='no') 
+  
+    directions = (/'x', 'y', 'z'/)
+    do mu=1,3
+      do nu=1,3
+        write(1, fmt=2, advance='no') directions(mu), directions(nu), &
+        &                             directions(mu), directions(nu)
+      enddo
+    enddo
+    write(1, fmt='()')
+    
+    ! The central nuclear potential is the potential associated with D_I_I, but 
+    ! it should not include the contribution of the constraints, nor the 
+    ! contribution of the direct and exchange Coulomb potentials
+    allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
+    
+    !temp = F%F_I_I(:,1:2) - constraint_I_I
+
+    Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
+    Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Subtracting the coulomb potential depends on our treatment of the 
+    ! proton and neutron finite size effect
+    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+    &                             (.not. nucleonsize_selfconsistent)) then
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! No finite size effect
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! The index juggling is ugly, but necessary, because the Coulomb 
+      ! potential has a different size than the Lagrange mesh.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            Vnucp(i,j,k)          =   Vnucp(i,j,k) &
+            &                     - F%CoulombPotential(i+ox,j+oy,k+oz)    &
+            &                     - F%ExchangePotential(i,j,k)
+          enddo
+        enddo
+      enddo
+    else
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Finite size effects taken into account
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Note that there is no index juggling since these matrices are 
+      ! conveniently defined on the ordinary mesh.
+      Vnucn = Vnucn - F%FoldedCoul(:,:,:,1) &
+      &             - F%FoldedExchange(:,:,:,1)
+      Vnucp = Vnucp - F%FoldedCoul(:,:,:,2) &
+      &             - F%FoldedExchange(:,:,:,2)
+    endif
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! The potentials related to the charge density
+    Coulp = F%CoulombPotential (ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
+    Excp  = F%ExchangePotential(ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Mesh coordinates and F_I_I and coulomb contribution to it.
+          write(1, fmt='(7es25.12)', advance='no') &
+          &          meshx(i), meshy(j), meshz(k),        &
+          &            Vnucn(i,j,k), Vnucp(i,j,k),        & 
+          &            Coulp(i,j,k), Excp(i,j,k) 
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! the contributions above are indexed according to (x,y,z) but 
+          ! we do not have this luxury for the following potentials
+          mi = meshindex(i,j,k)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The kinetic potential is the potential F_Nm_Nm if D_Nm_Nm is used 
+          ! in the calculation. If instead the kinetic density is decontracted, 
+          ! i.e. D_N_N is used, then we write the scalar component of the tensor
+$TAUSCALAR write(1, fmt='(2es25.12)', advance='no') &
+$TAUSCALAR &         F%F_Nm_Nm(mi,1), F%F_Nm_Nm(mi,2)
+$TAUTENSOR write(1, fmt='(2es25.12)', advance='no') &
+$TAUTENSOR &         F%F_N_N(mi,1,1,1) + F%F_N_N(mi,2,2,1) + F%F_N_N(mi,3,3,1),&
+$TAUTENSOR &         F%F_N_N(mi,1,1,2) + F%F_N_N(mi,2,2,2) + F%F_N_N(mi,3,3,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The pairing fields FP_I_I
+          write(1, fmt='(2es25.12)',advance='no') F%FP_I_I(mi,1), F%FP_I_I(mi,2)
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! The spin-orbit potential is the potential G_I_NS
+          do mu=1,3
+            do nu=1,3
+              write(1, fmt='(2es25.12)', advance='no') &
+              &            F%G_I_NS(mi,mu,nu,1), F%G_I_NS(mi,mu,nu,2)
+            enddo
+          enddo
+          write(1, fmt='()') !  newline character
+        enddo
+      enddo
+    enddo
+
+    close(1)
+  end subroutine write_potentialfile
+
+    !!NS_t0t3: fname is deleted from write nabla argument
   subroutine write_nablaJ()
     !---------------------------------------------------------------------------
     ! Debugging routine that can be used to write both
@@ -1917,15 +3085,15 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     ! postprocessing to actually construct the densities in the entire box.
     !---------------------------------------------------------------------------
     
-    real(KIND=dp), pointer           :: Sxn(:,:,:), Sxp(:,:,:)
-    real(KIND=dp), pointer           :: Jxn(:,:,:), Jxp(:,:,:)
-    real(KIND=dp), pointer           :: Syn(:,:,:), Syp(:,:,:)
-    real(KIND=dp), pointer           :: Jyn(:,:,:), Jyp(:,:,:)
-    real(KIND=dp), pointer           :: Szn(:,:,:), Szp(:,:,:)
-    real(KIND=dp), pointer           :: Jzn(:,:,:), Jzp(:,:,:)
-    real(KIND=dp), pointer           :: Txn(:,:,:), Txp(:,:,:)
-    real(KIND=dp), pointer           :: Tyn(:,:,:), Typ(:,:,:)
-    real(KIND=dp), pointer           :: Tzn(:,:,:), Tzp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Sxn(:,:,:), Sxp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Jxn(:,:,:), Jxp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Syn(:,:,:), Syp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Jyn(:,:,:), Jyp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Szn(:,:,:), Szp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Jzn(:,:,:), Jzp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Txn(:,:,:), Txp(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Tyn(:,:,:), Typ(:,:,:)
+$NTR    real(KIND=dp), pointer           :: Tzn(:,:,:), Tzp(:,:,:)
 
     real(KIND=dp), allocatable, target  :: totalangmom(:,:,:)
   
@@ -1993,21 +3161,29 @@ $NTR    Typ(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,2)
 $NTR    Tzn(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,1) 
 $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
 
-    print *, 'TOTAL J_Z', sum(TotalAngmom(:,3,1)) * dv, sum(TotalAngmom(:,3,2)) * dv
-
     call write_header(1)
     write(1, fmt=2) 
     write(1, fmt=1) 
     do k=1,nz
       do j=1,ny
         do i=1,nx
-          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
-          &                                Sxn(i,j,k), Syn(i,j,k), Szn(i,j,k), & 
-          &                                Sxp(i,j,k), Syp(i,j,k), Szp(i,j,k), & 
-          &                                Jxn(i,j,k), Jyn(i,j,k), Jzn(i,j,k), & 
-          &                                Jxp(i,j,k), Jyp(i,j,k), Jzp(i,j,k), &
-          &                                Txn(i,j,k), Tyn(i,j,k), Tzn(i,j,k), &
-          &                                Txp(i,j,k), Typ(i,j,k), Tzp(i,j,k)
+
+$NTR          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
+$NTR          &                                Sxn(i,j,k), Syn(i,j,k), Szn(i,j,k), & 
+$NTR          &                                Sxp(i,j,k), Syp(i,j,k), Szp(i,j,k), & 
+$NTR          &                                Jxn(i,j,k), Jyn(i,j,k), Jzn(i,j,k), & 
+$NTR          &                                Jxp(i,j,k), Jyp(i,j,k), Jzp(i,j,k), &
+$NTR          &                                Txn(i,j,k), Tyn(i,j,k), Tzn(i,j,k), &
+$NTR          &                                Txp(i,j,k), Typ(i,j,k), Tzp(i,j,k)
+
+$TR          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
+$TR          &                                0.0d0,0.0d0,0.0d0, &
+$TR          &                                0.0d0,0.0d0,0.0d0, &
+$TR          &                                0.0d0,0.0d0,0.0d0, &
+$TR          &                                0.0d0,0.0d0,0.0d0, &
+$TR          &                                0.0d0,0.0d0,0.0d0, &
+$TR          &                                0.0d0,0.0d0,0.0d0
+
         enddo
       enddo
     enddo
@@ -2016,316 +3192,6 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     close(1)
 
   end subroutine write_timeodd_densities
-
-  subroutine write_potentials(fname)
-    !---------------------------------------------------------------------------
-    ! Write the following potentials to a file named "fname"
-    !  F_I_I(n/p)    F_c       E_c      F_Nm_Nm (n/p)  G_I_NS(n/p) 
-    !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !  central       coulomb   coulomb   kinetic        spin-orbit   potentials
-    !                 direct   exchange
-    ! Remarks:
-    ! 
-    !   *) Note that G_I_NS has 9 components for each isospin, corresponding 
-    !      to the gradient and spin indices. These are arranged in lexographical
-    !      order.  
-    !   *) F_I_I should be the exact potential corresponding to the derivative 
-    !      of the Skyrme energy with respect to D_I_I. This means that it should
-    !      not include
-    !       - the contributions from constraints
-    !       - the contribution of the Coulomb interaction
-    !   *) To reproduce the complete state of the code, it is important that 
-    !      the Coulomb potentials written to file are the potentials 
-    !      corresponding to the charge density; for the direct potential this
-    !      is the U that satisfies 
-    ! 
-    !                 Delta U = 4 pi rho_charge
-    !
-    !      If the finite extent of the nucleons charge density is taken into 
-    !      account selfconsistently, this means that U is NOT the potential 
-    !      which should be added to F_I_I. 
-    !
-    !---------------------------------------------------------------------------
-    !
-    ! The file contains a header written by the subroutine write_header,
-    ! supplemented by
-    ! #   X[fm] Y[fm] Z[fm] V_nuc(n) V_nuc(p) V_c(n) V_c(p) 
-    !               V_so(xx,n), V_so(xy,n), ..., V_so(zz,p)
-    ! 
-    ! where the # are included so that Numpy (or other plotting tools) can 
-    ! ignore these lines when naively plotting stuff. Note that the fourth
-    ! line is currently empty, but is reserved for future additions concerning
-    ! symmetry options of the current run.
-    !
-    ! where the first three numbers are the Cartesian coordinates (units of fm).
-    ! The points are written down in column-major order ('Fortran order'), 
-    ! which might not be how your favorite plotting tool prefers it.
-    !---------------------------------------------------------------------------
-    ! IMPORTANT:
-    !  While this routine now claims to write V_so and V_pair to file, right now
-    !  it just writes zeros in those columns.
-    !---------------------------------------------------------------------------
-    character(len=*), intent(in) :: fname
-    real(KIND=dp), pointer       :: Vnucp(:,:,:), Vnucn(:,:,:)
-    real(KIND=dp), allocatable   :: Coulp(:,:,:), Excp(:,:,:)
-
-    real(KIND=dp), allocatable, target   :: temp(:,:)
-    integer                              :: io, i,j,k, mu, nu, ox, oy, oz, mi
-    character(len=1) :: directions(3) 
-
-    1 format('#  X[fm]   Y[fm]   Z[fm]', 7x, 'V_nuc(n)', 17x, 'V_nuc(p)', 17x, &
-      &      'V_cd', 20x, 'V_ce', 20x, 'V_kin(n)', 17x, 'V_kin(p)', 19x) 
-    2 format('W_', 2a1,'(n)', 18x, 'W_', 2a1,'(p)', 18x )
-
-    open(1,file=fname, iostat=io)
-    if(io.ne.0) then    
-      print *, 'Something went wrong with writing a potential to file.'
-      print *, 'filename = ', fname
-      call stp('')
-    endif
-
-    call write_header(1)
-    write(1, fmt=1, advance='no') 
-  
-    directions = (/'x', 'y', 'z'/)
-    do mu=1,3
-      do nu=1,3
-        write(1, fmt=2, advance='no') directions(mu), directions(nu), &
-        &                             directions(mu), directions(nu)
-      enddo
-    enddo
-    write(1, fmt='()')
-    
-    ! The central nuclear potential is the field associated with D_I_I, but it
-    ! should not include the constraints, nor the contribution of the 
-    ! direct and exchange Coulomb potentials
-    allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
-    
-    temp = F_I_I(:,1:2) - constraint_I_I
-
-    Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
-    Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Subtracting the coulomb potential depends on our treatment of the 
-    ! proton and neutron finite size effect
-    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
-    &                             (.not. nucleonsize_selfconsistent)) then
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! No finite size effect
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! The index juggling is ugly, but necessary, because the Coulomb 
-      ! potential has a different size than the Lagrange mesh.
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            Vnucp(i,j,k)          =   Vnucp(i,j,k) &
-            &                       - CoulombPotential(i+ox,j+oy,k+oz)    &
-            &                       - ExchangePotential(i,j,k)
-          enddo
-        enddo
-      enddo
-    else
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Finite size effects taken into account
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Note that there is no index juggling since these matrices are 
-      ! conveniently defined on the ordinary mesh.
-      Vnucn = Vnucn - FoldedCoul(:,:,:,1)       - FoldedExchange(:,:,:,1)
-      Vnucp = Vnucp - FoldedCoul(:,:,:,2)       - FoldedExchange(:,:,:,2)
-    endif
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! The potentials related to the charge density
-    Coulp = CoulombPotential (ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
-    Excp  = ExchangePotential(ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! Mesh coordinates and F_I_I and coulomb contribution to it.
-          write(1, fmt='(3f8.3, 4es25.12)', advance='no') &
-          &          meshx(i), meshy(j), meshz(k),        &
-          &            Vnucn(i,j,k), Vnucp(i,j,k),        & 
-          &            Coulp(i,j,k), Excp(i,j,k) 
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! the contributions above are indexed according to (x,y,z) but 
-          ! we do not have this luxury for the following potentials
-          mi = meshindex(i,j,k)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The kinetic potential is the field F_Nm_Nm associated with D_Nm_Nm
-          !NS_t0t3:
-          !write(1, fmt='(2es25.12)', advance='no') &
-          !&         F_Nm_Nm(mi,1), F_Nm_Nm(mi,2)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The spin-orbit potential is the field G_I_NS, associated with the
-          ! density C_I_NS
-          !do mu=1,3
-          !  do nu=1,3
-          !    write(1, fmt='(2es25.12)', advance='no') &
-          !    &             G_I_NS(mi,mu,nu,1), G_I_NS(mi,mu,nu,2)
-          !  enddo
-          !enddo
-          write(1, fmt='()') !  newline character
-        enddo
-      enddo
-    enddo
-
-    close(1)
-  end subroutine write_potentials
-
-  subroutine read_potentials(chan, ifn)
-    !---------------------------------------------------------------------------
-    ! Read mean-field potentials from a separate file.
-    !
-    ! Input: 
-    !  * chan : integer, channel number to read the file
-    !  * ifn  : input filename (will be checked for existence)
-    !
-    ! Caution: this routine is currently foreseen for a specific application, 
-    !          limited to maximally symmetric calculations and .func files
-    !          for which F_Nm_Nm and G_I_NS potentials are defined.
-    !---------------------------------------------------------------------------
-    use Coulombmod ! module explicitly 'used' in order to be able to place the 
-                   ! values of the direct and exchange Coulomb potentials 
-                   ! correctly on the mesh
-
-    integer, intent(in)          :: chan
-    character(len=*), intent(in) :: ifn
-
-    logical :: exists
-    integer :: i,j,k,io, it, ox, oy, oz, headercount
-    !integer :: mu, nu
-    real(KIND=dp), allocatable :: Vc(:), Ec(:)
-    real(KIND=dp) :: x,y,z
-    character(len=200) :: temp
-
-    inquire(file=inputfilename, exist=exists)
-    if(.not.exists) then
-      print *, 'Input file specified does not exist!'
-      stop
-    endif
-
-    open (chan,file=ifn)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! We need to skip any header lines (indicated by #).
-    ! For a Tantalus-created file, there are 14 of them by default but other 
-    ! people might write a different amount
-    io = 0; headercount = -1
-    do while(io.eq.0) 
-      headercount = headercount + 1
-      read(chan, iostat=io, fmt='(a200)') temp
-      if(temp(1:1) .ne. '#') io = 1
-    enddo  
-    ! We've found an error; we have counted the number of header lines!
-    rewind(chan)
-    ! ... and now we skip this number of lines    
-    do i=1,headercount
-        read(chan, fmt=('()'))
-    enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Allocate the relevant potentials    
-    allocate(F_I_I  (nx*ny*nz,4))     ; F_I_I   = 0.0d0
-    !NS_t0t3:
-    !allocate(F_Nm_Nm(nx*ny*nz,4))     ; F_Nm_Nm = 0.0d0
-    !allocate(G_I_NS (nx*ny*nz,3,3,4)) ; G_I_NS  = 0.0d0
-    allocate(Vc(nx*ny*nz))            ; VC      = 0.0d0
-    allocate(Ec(nx*ny*nz))            ; EC      = 0.0d0
-
-    ! We assume the points on the file are correctly ordered in 
-    ! FORTRAN fashion, such that we do not have to worry about looping 
-    ! separately over x/y/z and can just loop once over all mesh points.
-    ! This also means the coordinate information is not used.
-    do i=1,nx*ny*nz
-      read(chan, fmt='(3f8.3, 4es25.12)', iostat=io, advance='no') & 
-      &                            x,y,z, & !unused
-      &                            F_I_I(i,1), F_I_I(i,2),     & ! U(r)
-      &                            Vc(i),  Ec(i)                 ! Coulomb
-      !!NS_t0t3:
-      !read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
-      !&                            F_Nm_Nm(i,1), F_Nm_Nm(i,2)    ! kinetic
-
-      !do mu=1,3
-      !  do nu=1,3
-      !    read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
-      !    &               G_I_NS(i,mu,nu,1), G_I_NS(i,mu,nu,2)
-      !  enddo
-      !enddo
-      read(chan, *) ! Advance to new line
-      
-      if(io.ne.0) then
-        print *, 'Problem encountered reading potential file ', inputfilename
-        print *, 'IOSTAT = ', io
-        stop
-      endif
-    enddo
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Make sure the Coulomb module is configured with the right array dimensions
-    call setupCoulomb
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! The index juggling is ugly, but necessary, because the Coulomb 
-    ! potential has a different size than the Lagrange mesh.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-      
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex(i,j,k))
-          ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex(i,j,k))
-        enddo
-      enddo
-    enddo
-    
-    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
-    &                             (.not. nucleonsize_selfconsistent)) then
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! No finite size effects; correction is simple
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      F_I_I(:,2) = F_I_I(:,2) + Vc(:) + Ec(:)
-    else
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Finite size effects taken into account
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Calculate folded potentials from the read-in potentials
-      call obtain_folded_potentials()
-      ! ... and correct F_I_I for them with ugly index juggling
-      do it=1, 2
-        do k=1,nz
-          do j=1,ny
-            do i=1,nx
-
-              F_I_I(meshindex(i,j,k),it)= F_I_I(meshindex(i,j,k),it)           &
-              &                              + FoldedCoul(i,j,k,it)            &
-              &                              + FoldedExchange(i,j,k,it)
-            enddo
-          enddo
-        enddo
-      enddo
-    endif
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Make sure isospin combinations are made correctly for all potentials
-    F_I_I(:,3) = F_I_I(:,1) + F_I_I(:,2)
-    F_I_I(:,4) = F_I_I(:,1) - F_I_I(:,2)
-             
-    !NS_t0t3:
-    !F_Nm_Nm(:,3) = F_Nm_Nm(:,1) + F_Nm_Nm(:,2)
-    !F_Nm_Nm(:,4) = F_Nm_Nm(:,1) - F_Nm_Nm(:,2)
-
-    !do mu=1,3
-    !  do nu=1,3
-    !    G_I_NS(:,mu,nu,3) = G_I_NS(:,mu,nu,1) + G_I_NS(:,mu,nu,2)
-    !    G_I_NS(:,mu,nu,4) = G_I_NS(:,mu,nu,1) - G_I_NS(:,mu,nu,2)
-    !  enddo
-    !enddo
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Close channel after succesfull IO operations.
-    close(chan)
-  end subroutine read_potentials
 
   subroutine write_sp_info(fname)
     !---------------------------------------------------------------------------
@@ -2547,8 +3413,11 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     1 format('#  X[fm]   Y[fm]   Z[fm]')
     2 format(7x, ' |Psi_', i1, '|^2' , 10x)
 
+    allocate(psis(nx,ny,nz,blocknumber)) ; psis = 0
+
     if(.not.allocated(blocked_sps)) then
       print *, 'Cannot write single-particle wavefunctions to file.'
+      deallocate(psis)
       return
     endif
 
@@ -2566,7 +3435,6 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     enddo
     write(1, fmt=*)
     
-    allocate(psis(nx,ny,nz,blocknumber)) ; psis = 0
     do wave=1,blocknumber
       tempwf_one(1:nx,1:ny,1:nz)   => canpsi(1:nx*ny*nz,1,wave)
       tempwf_two(1:nx,1:ny,1:nz)   => canpsi(1:nx*ny*nz,2,wave)
