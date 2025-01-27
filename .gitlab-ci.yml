@@ -28,13 +28,13 @@ compile:
   parallel:
     matrix:
       - CONFIG  : [NLO,BXL,BXL-P,BXL-T,BXL-TP,N2LO,N2LO-P,N2LO-T,N2LO-TP]
-        COMPILER: gfortran
+        COMPILER: gnu
         CALCTYPE: NUCLEI
       - CONFIG  : BXL
-        COMPILER: ifort
+        COMPILER: intel
         CALCTYPE: PASTA
       - CONFIG  : [NLO,BXL]
-        COMPILER: ifort
+        COMPILER: intel
         CALCTYPE: NUCLEI
   script:
     #---------------------------------------------------------------------------
@@ -46,6 +46,8 @@ compile:
     #---------------------------------------------------------------------------
     - mkdir src/
     - cp src_orig/*.f90 src
+    # Copy the compilation settings to make.inc
+    - cp make_include/make.inc.${COMPILER}-serial make.inc
     #---------------------------------------------------------------------------
     # Make sure that the intel compilers and libraries are available
     - source /opt/intel/oneapi/setvars.sh --force &> /dev/null
@@ -74,7 +76,7 @@ minimal:
     expire_in: 1 year # keep outputs for a LONG time
   parallel:
     matrix:
-      - COMPILER: [gfortran, ifort]
+      - COMPILER: [gnu, intel]
   script:
     #---------------------------------------------------------------------------
     # Make sure that the intel compilers and libraries are available
@@ -115,11 +117,11 @@ symmetries:
     matrix:
       - PARAM    : BSkG3
         CONFIG   : BXL
-        COMPILER : gfortran
+        COMPILER : gnu
         CALCTYPE : NUCLEI
       - PARAM    : SN2LO1
         CONFIG   : N2LO
-        COMPILER : gfortran
+        COMPILER : gnu
         CALCTYPE : NUCLEI
   script:
     #---------------------------------------------------------------------------
@@ -153,11 +155,11 @@ store_derivatives:
     matrix:
       - PARAM    : BSkG3
         CONFIG   : [BXL, BXL-T, BXL-P]
-        COMPILER : gfortran
+        COMPILER : gnu
         CALCTYPE : NUCLEI
       - PARAM    : SN2LO1
         CONFIG   : [N2LO, N2LO-T, N2LO-P]
-        COMPILER : gfortran
+        COMPILER : gnu
         CALCTYPE : NUCLEI
   script:
     #---------------------------------------------------------------------------
