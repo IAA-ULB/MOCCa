@@ -399,11 +399,14 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
     ! The total number of spwfs to load-balance across different MPI ranks
     ! Note: not simply set to nwt to keep some flexibility...
     Nspwf  = sum(blocks_global)
-    allocate(rank_map(Nspwf), spwf_inverse(Nspwf))
+    if(.not.allocated(rank_map)) allocate(rank_map(Nspwf), spwf_inverse(Nspwf))
     rank_map     = 0 ; spwf_inverse = 0 ; blocks_local = 0; ranks_per_block = 0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Required for printing assignments
-    if(allocated(MPI_2D_COORDINATES))    deallocate(MPI_2D_COORDINATES)
+    if(allocated(MPI_2D_COORDINATES)) then
+      deallocate(MPI_2D_COORDINATES)
+      deallocate(MPI_BLOCK_ASSIGNMENTS)
+    endif
     allocate(MPI_BLOCK_ASSIGNMENTS(NPROCS)); mpi_BLOCK_ASSIGNMENTS = 0
     allocate(MPI_2D_COORDINATES(NPROCS,2)) ; mpi_2D_coordinates    = 0
     ! Count the number of active symmetry blocks (blocks with non-zero spwfs)

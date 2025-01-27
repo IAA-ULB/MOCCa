@@ -313,7 +313,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 
 #if(DEBUG_LEVEL == 1)
     character(len=40) :: denfile_iter, potfile_iter
-
 #endif
 
     ifail = 0
@@ -365,7 +364,8 @@ subroutine ReachForWaterAndFood(iter, iomsg)
                               !      requires the charge density to be
                               !      constructed
     ! Adopt the relevant quantities to the centre-of-mass of the nucleus
-    call adapt_com(Density)
+    call adapt_com(Density)        !
+    call CalculateMoments(Density) ! Recalculate because the COM might have changed.
 
     ! Update all spwf properties
 #if(PASTA == 0)
@@ -386,8 +386,8 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     endif
 
     ! Update angular momentum observables
-    call updateAM   ! This call HAS to happen, otherwise J2_sp will not be
-                    ! initialized and any crankingtype = 1 calculation will fail.
+    call updateAM(Density)  ! This call HAS to happen, otherwise J2_sp will not be
+                            ! initialized and any crankingtype = 1 calculation will fail.
 
     call setBelyaevProcedure()
     call CalcEnergy(Density, Potentials, .true.) ! Calculate the energy WITH all the expensive
@@ -402,7 +402,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
       call printallmoments
       call print_boxsize_check(Density)
       call PrintMomentsofInertia
-      call printcranking
+      call printcranking(Density)
       call printpairing(pairstabfactor)
       call PrintEnergy
     endif
@@ -468,7 +468,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         call ReadjustAllMoments(1) ! TODO: remove the input dependence here...
         call ReadjustAllMoments(2)
         ! Update value of the average angular momentum
-        call updateAM          ! TODO: adapt the calculation of angular momentum
+        call updateAM(Density) ! TODO: adapt the calculation of angular momentum
                                !       to only ever use densities...
         ! .... and readjust any constraints on it
         call ReadjustCranking
@@ -493,7 +493,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             if(follow_com) call adapt_com(Density)
             ! .... and recalculate constrained quantities
             call CalculateMoments(Density)
-            call updateAM
+            call updateAM(Density)
         endif
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -844,7 +844,7 @@ subroutine full_printout(iter, converged, print_all_spwf_properties)
 #if(PASTA == 0)
     call print_boxsize_check(Density)
     call printmomentsofinertia
-    call printcranking
+    call printcranking(Density)
 #endif
     call printpairing(pairstabfactor)
     call printenergy()

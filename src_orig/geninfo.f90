@@ -301,7 +301,12 @@ contains
     k_shz=pi/($LINESIZEZ*dx)
     
     call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid,0.0d0,0.0d0,0.0d0)
-        
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! redo the initialisation for the shifted coordinates for a COM at the origin
+    ! This is just to make sure these arrays are allocated at the start ....
+    call inimesh(meshx_shifted, meshy_shifted, meshz_shifted, nx, ny,nz, &
+    &            meshgrid_shifted,0.0d0,0.0d0,0.0d0)
+
   end subroutine ReadGenInfo
 
   function vector_product( mu ) result(indices)

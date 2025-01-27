@@ -2286,7 +2286,7 @@ subroutine ReadTantalus_hdf5(ifn)
     endif
     if(TOFILE .ne. '') then
 $TR   call stp('Time-odd densities do not figure in a calculation that assumes time-reversal.')
-      call write_timeodd_densities(TOFILE)
+      call write_timeodd_densities(Density, TOFILE)
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Write the relevant potentials to a file for postprocessing
@@ -3056,7 +3056,7 @@ $TAUTENSOR &         F%F_N_N(mi,1,1,2) + F%F_N_N(mi,2,2,2) + F%F_N_N(mi,3,3,2)
     ! close(1)
   end subroutine write_nablaJ
 
-  subroutine write_timeodd_densities(fname)
+  subroutine write_timeodd_densities(R, fname)
     !---------------------------------------------------------------------------
     ! Write the following densities to a file named "fname"
     !    D_I_S, C_I_N
@@ -3095,10 +3095,11 @@ $NTR    real(KIND=dp), pointer           :: Txn(:,:,:), Txp(:,:,:)
 $NTR    real(KIND=dp), pointer           :: Tyn(:,:,:), Typ(:,:,:)
 $NTR    real(KIND=dp), pointer           :: Tzn(:,:,:), Tzp(:,:,:)
 
-    real(KIND=dp), allocatable, target  :: totalangmom(:,:,:)
-  
-    character(len=*), intent(in)     :: fname
-    integer                          :: io, i,j,k
+    type(DensityVector), intent(in), target :: R
+    character(len=*), intent(in)            :: fname
+
+    real(KIND=dp), allocatable, target      :: totalangmom(:,:,:)
+    integer                                 :: io, i,j,k
 $NTR integer                         :: it
 
     1 format('#  X[fm]   Y[fm]   Z[fm] ', &
@@ -3123,33 +3124,33 @@ $NTR integer                         :: it
       call stp('')
     endif
 
-$NTR    Sxn(1:nx,1:ny,1:nz)  => D_I_S(:,1,1) ; Sxp(1:nx,1:ny,1:nz)  => D_I_S(:,1,2)
-$NTR    Syn(1:nx,1:ny,1:nz)  => D_I_S(:,2,1) ; Syp(1:nx,1:ny,1:nz)  => D_I_S(:,2,2)
-$NTR    Szn(1:nx,1:ny,1:nz)  => D_I_S(:,3,1) ; Szp(1:nx,1:ny,1:nz)  => D_I_S(:,3,2)
+$NTR    Sxn(1:nx,1:ny,1:nz)  => R%D_I_S(:,1,1) ; Sxp(1:nx,1:ny,1:nz)  => R%D_I_S(:,1,2)
+$NTR    Syn(1:nx,1:ny,1:nz)  => R%D_I_S(:,2,1) ; Syp(1:nx,1:ny,1:nz)  => R%D_I_S(:,2,2)
+$NTR    Szn(1:nx,1:ny,1:nz)  => R%D_I_S(:,3,1) ; Szp(1:nx,1:ny,1:nz)  => R%D_I_S(:,3,2)
 
-$NTR    Jxn(1:nx,1:ny,1:nz)  => C_I_N(:,1,1) ; Jxp(1:nx,1:ny,1:nz)  => C_I_N(:,1,2)
-$NTR    Jyn(1:nx,1:ny,1:nz)  => C_I_N(:,2,1) ; Jyp(1:nx,1:ny,1:nz)  => C_I_N(:,2,2)
-$NTR    Jzn(1:nx,1:ny,1:nz)  => C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => C_I_N(:,3,2)
+$NTR    Jxn(1:nx,1:ny,1:nz)  => R%C_I_N(:,1,1) ; Jxp(1:nx,1:ny,1:nz)  => R%C_I_N(:,1,2)
+$NTR    Jyn(1:nx,1:ny,1:nz)  => R%C_I_N(:,2,1) ; Jyp(1:nx,1:ny,1:nz)  => R%C_I_N(:,2,2)
+$NTR    Jzn(1:nx,1:ny,1:nz)  => R%C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => R%C_I_N(:,3,2)
 
 
     ! Calculate the total angular momentum density
 $NTR    allocate(totalangmom(nx*ny*nz,3,2)) ; totalangmom = 0.0d0
 $NTR    do it=1,2
-$NTR      totalangmom(:,1,it) = 0.5 * D_I_S(:,1,it) ! spin part
-$NTR      totalangmom(:,2,it) = 0.5 * D_I_S(:,2,it) ! spin part
-$NTR      totalangmom(:,3,it) = 0.5 * D_I_S(:,3,it) ! spin part
+$NTR      totalangmom(:,1,it) = 0.5 * R%D_I_S(:,1,it) ! spin part
+$NTR      totalangmom(:,2,it) = 0.5 * R%D_I_S(:,2,it) ! spin part
+$NTR      totalangmom(:,3,it) = 0.5 * R%D_I_S(:,3,it) ! spin part
 $NTR      do i=1, nx*ny*nz
 $NTR        ! X component : J_x ~ y j_z - z j_y
 $NTR        TotalAngMom(i,1,it) = TotalAngMom(i,1,it) &
-$NTR        & + meshgrid(i,2) * C_I_N(i,3,it) - meshgrid(i,3) * C_I_N(i,2,it)
+$NTR        & + meshgrid(i,2) * R%C_I_N(i,3,it) - meshgrid(i,3) * R%C_I_N(i,2,it)
 $NTR
 $NTR        ! Y component : J_y ~ z j_x - x j_z
 $NTR        TotalAngMom(i,2,it) = TotalAngMom(i,2,it) &
-$NTR        & + meshgrid(i,3) * C_I_N(i,1,it) - meshgrid(i,1) * C_I_N(i,3,it)
+$NTR        & + meshgrid(i,3) * R%C_I_N(i,1,it) - meshgrid(i,1) * R%C_I_N(i,3,it)
 $NTR
 $NTR        ! Z component : J_z ~ x j_y - y j_x
 $NTR        TotalAngMom(i,3,it) = TotalAngMom(i,3,it) &
-$NTR        & + meshgrid(i,1) * C_I_N(i,2,it) - meshgrid(i,2) * C_I_N(i,1,it)
+$NTR        & + meshgrid(i,1) * R%C_I_N(i,2,it) - meshgrid(i,2) * R%C_I_N(i,1,it)
 $NTR      enddo
 $NTR    enddo
 
