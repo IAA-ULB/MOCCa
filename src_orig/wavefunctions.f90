@@ -260,21 +260,21 @@ module wavefunctions
  ! Note: this input parameter is not case-sensitive.
  procedure(GramSchmidt), pointer :: Orthonormalize
  !------------------------------------------------------------------------------
- ! Procedure used to initialise a bunch of spwfs. 
+ ! Procedure used to initialise a bunch of spwfs.
  ! Currently available:
  !     nilsson     : lowest-energy states of a simple Nilsson hamiltonian
  !                   used for finite nuclei.
  !     randomspwfs : random values, used for pasta calculations.
  ! The functioning of these routines is pretty particular, so please have 
  ! a look at their documentation. 
- ! The code currently offers no option to change the assignment of this pointer
- ! at runtime. 
  !------------------------------------------------------------------------------
+ procedure(nilsson), pointer :: initialise_wavefunctions
 #if(PASTA == 0)
- procedure(nilsson), pointer :: initialise_wavefunctions => nilsson
+ character(len=20)           :: ini_strategy = 'Nilsson'
 #else
- procedure(nilsson), pointer :: initialise_wavefunctions => randomspwfs
+ character(len=20)           :: ini_strategy = 'Random'
 #endif
+
 contains 
 
   subroutine ReadWFdata(file_number)
@@ -286,13 +286,13 @@ contains
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
 
-    integer(dp), intent(in), optional   :: file_number   
+    integer(dp), intent(in), optional   :: file_number
 #if(USE_MPI>0)
     integer                             :: mpi_err
 #endif
 
     namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties, &
-    &              max_spwf_per_rank, max_drop_ranks
+    &              max_spwf_per_rank, max_drop_ranks, ini_strategy
 
     ! Only the first MPI rank reads input
     if(MPI_rank .eq. 0) then
@@ -302,7 +302,8 @@ contains
         read(unit=*, nml = wfs)
       endif
     endif
-    
+
+
 #if(USE_MPI > 0)
     ! Broadcasting all information
     call MPI_Bcast(nwn           , 1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
@@ -316,6 +317,16 @@ contains
 #endif
     ! Bookkeeping for all MPI ranks
     nwt = nwn + nwp
+
+    ini_strategy = to_upper(ini_strategy)
+    if(adjustl(ini_strategy) .eq. 'NILSSON' ) then
+       initialise_wavefunctions => nilsson
+    elseif(adjustl(ini_strategy) .eq. 'RANDOM') then
+       initialise_wavefunctions => randomspwfs
+    else
+      call stp('INI_STRATEGY has an invalid value.')
+    endif
+
   end subroutine ReadWFdata
 
   subroutine allocate_memory_derivatives(ptype)
@@ -2712,13 +2723,13 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       real(KIND=dp), allocatable, intent(inout)   :: spin(:,:), STR(:,:), STI(:,:)
       real(KIND=dp), allocatable, intent(inout)   :: r2(:), P(:)
       real(KIND=dp), pointer                      :: psi(:,:,:), dpsi(:,:,:,:)
+      integer                                     :: si, N, B, i, wave, der_index
+
 #if(PASTA == 1)
       ! This is a waste of CPU time for pasta calculations. 
       ! This return is ugly and will require more elegant inclusion later on.
       return
 #endif
-
-      integer :: si, N, B, i, wave, der_index
 
       select case(basis)
       case ('HF')
