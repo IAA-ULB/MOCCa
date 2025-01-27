@@ -69,20 +69,33 @@ module evolution
     !   IMTIME    => Gradient Descent/Imaginary Time
     !   HEAVYBALL => Heavy-ball dynamics
     !   HBSANE    => "Sane" heavy-ball dynamics
+#if(PASTA > 0)
     character(len=20) :: Strategy = 'HBSANE'
+#else
+    character(len=20) :: Strategy = 'HEAVYBALL'
+#endif
     !
     ! Orthonormalisation strategy
     ! - - - - - - - - - - - - - - -
     !   GRAMSCHMIDT => Gram-Schmidt "sequential" orthonormalisation
     !   CHOLESKY    => Cholesky decomposition
+#if(PASTA > 0)
     character(len=20)               :: ortho_strategy = 'CHOLESKY'
-    ! 
+#else
+    character(len=20)               :: ortho_strategy = 'GRAMSCHMIDT'
+#endif
+    !
     ! Subspace rotation 
     ! - - - - - - - - - - -
     !    whether or not to throw in an explicit diagonalisation of the 
     !    single-particle hamiltonian in the subspace spanned by the spwfs
     !    in memory.
+#if(PASTA > 0)
     logical :: subspace_rotation = .true.
+#else
+    logical :: subspace_rotation = .false.
+#endif
+
     !
     ! TODO: describe inner_iterations
     !

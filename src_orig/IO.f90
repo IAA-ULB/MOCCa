@@ -56,7 +56,7 @@ use HDF5
 
 implicit none
 
-!-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! Version number of the .wf file written by this version of the code. 
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ! Some history:
@@ -1813,7 +1813,7 @@ subroutine ReadTantalus_hdf5(ifn)
       ! Multipole moment information                             
       !
       ! The Cray compilers on LUCIA want to inline the WriteMoment function while
-      ! also flattening the linked list of multipole moments when optimisation 
+      ! also flattening the linked list of multipole moments when optimisation
       ! options -O2 or above are used. For reasons I do not understand, this 
       ! makes the executable segfault. Since this routine has absolutely no impact
       ! on execution time, I simply forbid the CRAY compiler to inline this function. 
