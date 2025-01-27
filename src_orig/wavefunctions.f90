@@ -1250,6 +1250,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     startind = sum(HFBlocks(1:block-1))
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !Filling Energies & Indices
+    if(allocated(Indices))   deallocate(indices)
+    if(allocated(Energies))  deallocate(energies)
     allocate(Indices(nwf), Energies(nwf))
     do i=1,nwf
        Indices(i) = startind + i 
@@ -1274,7 +1276,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
       Energies(HolePos) = ToInsert
       Indices(HolePos)  = ToInsertIndex
     enddo
-    deallocate(energies,indices)
+    deallocate(energies)
   end function OrderSpwfsSym
 
   subroutine set_spwf_symmetries(sx, sy, sz, blocks)
