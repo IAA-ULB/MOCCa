@@ -61,7 +61,7 @@ cat << EOF > tant.data
 neutrons=8, protons=8
 /
 &mesh
-nx=12, ny=12, nz=12, dx=1.0
+nx=16, ny=16, nz=16, dx=0.8
 /
 &func
 name_param="$2"
