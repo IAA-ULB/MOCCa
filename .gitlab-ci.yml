@@ -12,6 +12,11 @@ compile:
   # Perform several different compilations for .exe's
   #----------------------------------------------------------------------------
   stage: compilation
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: always
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      when: manual
   variables:
     EXENAME: Tantalus.${CONFIG}.${COMPILER}.${CALCTYPE}.exe
   tags:
@@ -54,6 +59,11 @@ minimal:
   # Run the 'minimal' test for two different compilers.
   #-----------------------------------------------------------------------------
   stage: testing
+  rules:
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    when: always
+  - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+    when: manual
   tags:
     - astropc19
   variables:
@@ -82,6 +92,11 @@ symmetries:
   #  - SN2LO1 with the N2LO configuration compiled with gfortran
   #-----------------------------------------------------------------------------
   stage: testing
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: always
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      when: manual
   tags:
     - astropc19
   variables:
