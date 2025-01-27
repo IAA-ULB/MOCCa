@@ -367,6 +367,14 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     call adapt_com(Density)        !
     call CalculateMoments(Density) ! Recalculate because the COM might have changed.
 
+
+    ! Only calculate the fields that have not been read from either a
+    ! wavefunction file or a potential file.
+    if(allocated(potentials_read%F_I_I)) then
+      potentials = calcPotentials(Density, potentials_read)
+    else
+      potentials = calcPotentials(Density)
+    endif
     ! Update all spwf properties
 #if(PASTA == 0)
     ! the memory and CPU time requirements of these routine scale very badly...
@@ -377,35 +385,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     print_adv_spwf_properties = .false.
 #endif
 
-    ! Only calculate the fields that have not been read from either a
-    ! wavefunction file or a potential file.
-    if(allocated(potentials_read%F_I_I)) then
-      potentials = calcPotentials(Density, potentials_read)
-    else
-      potentials = calcPotentials(Density)
-    endif
-
-    ! Update angular momentum observables
-    call updateAM(Density)  ! This call HAS to happen, otherwise J2_sp will not be
-                            ! initialized and any crankingtype = 1 calculation will fail.
-
-    call setBelyaevProcedure()
-    call CalcEnergy(Density, Potentials, .true.) ! Calculate the energy WITH all the expensive
-                                                 !   parts included.
-    call calc_avg_gap()
-
-    ! Initial printout
-    if(MPI_RANK .eq. 0) then
-      ! only the very first MPI RANK prints all of this output
-      call printSpwfs(.true.) ! Always include all details on start
-      call printQps(.true.)
-      call printallmoments
-      call print_boxsize_check(Density)
-      call PrintMomentsofInertia
-      call printcranking(Density)
-      call printpairing(pairstabfactor)
-      call PrintEnergy
-    endif
 
     call setBelyaevProcedure()
     !---------------------------------------------------------------------------
