@@ -58,8 +58,8 @@
 #            1 => MPI (note: your compiler should be MPI-capable to use this)
 #
 # Linking options
-# HDF5     : whether to offer HDF5 support
-# HDF5_LIB : linking statemetns for the HDF5 library
+# USE_HDF5           : whether to offer HDF5 support, yes(1) or no (0)
+# HDF5_LIB           : linking statemetns for the HDF5 library
 # LINEAR_ALGEBRA_LIB : linking statements for (Sca)LAPACK and BLAS
 #
 #
@@ -195,7 +195,7 @@ PRE         :=  $(SRCDIR)/ $(OBJDIR)/ $(MODDIR)/ $(EXECDIR)/ run_heph getgitinfo
 #    -DUSE_MPI => enable (1) or disable (0) MPI (see above)
 
 DIRECTIVES :=-DUSE_MPI=$(USE_MPI) -DUSE_Periodic=$(USE_Periodic) -DPASTA=$(PASTA)
-DIRECTIVES +=-DDENSUM=$(DENSUM) -DDEBUG_LEVEL=$(DEBUG_LEVEL) -DHDF5=$(HDF5)
+DIRECTIVES +=-DDENSUM=$(DENSUM) -DDEBUG_LEVEL=$(DEBUG_LEVEL) -DUSE_HDF5=$(USE_HDF5)
 PREPROCESSOR :=  $(PREPFLAG) $(DIRECTIVES)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -226,7 +226,7 @@ $(SRCDIR)/:
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 single: $(PRE) $(SINGLE_OBJ)
-	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(SINGLE_OBJ) $(LINEAR_ALGEBRA_LIB)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(SINGLE_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
 	mv single exec/$(EXENAME)
 
 run_heph:

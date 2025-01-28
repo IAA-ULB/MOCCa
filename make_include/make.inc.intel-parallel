@@ -42,9 +42,9 @@ USE_MPI   = 1
 
 # Linking options
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# HDF5     :  have the executable offer HDF5 support or not
+# USE_HDF5    :  have the executable offer HDF5 support or not
 # HDF5_LIB :  linking statements for the HDF5 library
 # LINEAR_ALGEBRA_LIB : linking statements for (Sca)LAPACK and BLAS
-HDF5               = 0
+USE_HDF5           = 0
 HDF5_LIB           =
 LINEAR_ALGEBRA_LIB = -L${MKLROOT}/lib -lmkl_scalapack_lp64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lmkl_blacs_intelmpi_lp64 -lpthread -lm -ldl

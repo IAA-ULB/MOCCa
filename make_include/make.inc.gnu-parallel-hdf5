@@ -1,10 +1,10 @@
 ####################################################################
 #  Tantalus make include file.                                     #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -#
-# This is a default file for use with INTEL ifort without MPI and  #
-# HDF5 support                                                     #
+# File to be used for MPI-enabled GNU gfortran without HDF5        #
 #                                                                  #
 # Tested on:                                                       #
+#   - ELBERETH : W.R.s home machine                                #
 #   - ASTROPC19: W.R.s office machine                              #
 ####################################################################
 
@@ -29,22 +29,20 @@ PYTHON_CMD  = python3
 # OPTFLAGS   : optimisation flags to pass to the compiler
 # CXXFLAGS   : other "general use" flags
 # PREPFLAG   : preprocessor flag, i.e. the "-cpp" in "gfortran -cpp"
-CXX       = ifort
-OPTFLAGS  = -Ofast
-CXXFLAGS  = -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin -heap-arrays -diag-disable=10448
-PREPFLAG  = -cpp
-
-# DEBUGFLAGS : debugging flags to pass to the compiler
-DEBUG_LEVEL = 0
-
+# DEBUG_LEVEL: debugging level to pass to the code
 # USE_MPI    : whether (1) or not (0) to compile with MPI support
-USE_MPI   = 0
+CXX       = mpifort
+OPTFLAGS  = -O3
+CXXFLAGS  = -J$(MODDIR)
+PREPFLAG  = -cpp
+DEBUG_LEVEL = 0
+USE_MPI   = 1
 
 # Linking options
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # USE_HDF5    :  have the executable offer HDF5 support or not
 # HDF5_LIB :  linking statements for the HDF5 library
 # LINEAR_ALGEBRA_LIB : linking statements for (Sca)LAPACK and BLAS
-USE_HDF5           = 0
-HDF5_LIB           =
-LINEAR_ALGEBRA_LIB = -mkl
+USE_HDF5           = 1
+HDF5_LIB           = -fintrinsic-modules-path /usr/include/hdf5/openmpi/ -L/usr/lib/x86_64-linux-gnu/hdf5/openmpi/ -lhdf5_fortran
+LINEAR_ALGEBRA_LIB = -llapack -lblas -lscalapack-openmpi

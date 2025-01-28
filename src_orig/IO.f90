@@ -50,7 +50,7 @@ use momentsofinertia
 use moments
 use Coulombmod
 use transform
-#if (HDF5 > 0)
+#if (USE_HDF5 > 0)
 use HDF5
 #endif
 
@@ -500,7 +500,7 @@ contains
       file_rank_map     = rank_map
       file_spwf_inverse = spwf_inverse
     else if(inputoption.eq.2) then
-#if (HDF5 > 0)
+#if (USE_HDF5 > 0)
       ! Option 2a) start from a previous calculation with hdf5 input file
       call ReadTantalus_hdf5(inputfilename)
 #else
@@ -1071,7 +1071,7 @@ contains
     endif
   end subroutine ReadTantalus
 
-#if (HDF5 > 0)
+#if (USE_HDF5 > 0)
 subroutine ReadTantalus_hdf5(ifn)
     !---------------------------------------------------------------------------
     ! Reading all information from a previous Tantalus run stored in a .hdf5 file.
@@ -1137,7 +1137,7 @@ subroutine ReadTantalus_hdf5(ifn)
     use functional
     use moments
     use cranking
-    use HDF5 !is it here??
+    use HDF5
     
     character(len=*), intent(in) :: ifn
     integer                      :: h5ferr, i
@@ -1235,7 +1235,7 @@ subroutine ReadTantalus_hdf5(ifn)
     !---------------------------------------------------------------------------
     ! Rank 0 now has a ton of information read from file, including the 
     ! dimensions of the symmetry blocks on the file.
-#if(USE_MPI)
+#if(USE_MPI>0)
     ! First, we broadcast this information
     call MPI_BCAST(filenx, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(fileny, 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
@@ -1256,7 +1256,7 @@ subroutine ReadTantalus_hdf5(ifn)
     call MPI_BCAST(file_version , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
 
     call MPI_BCAST(symtransfo_needed,1,MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
-#endif        
+#endif
     
     !---------------------------------------------------------------------------   
     ! .. now we have each rank decide what spwfs to take from file
@@ -1297,7 +1297,7 @@ subroutine ReadTantalus_hdf5(ifn)
       call hdf5_read_attr_char(root_id, 'name_param', ini_name_param, len(ini_name_param,kind=8))
       call hdf5_read_attr_char(root_id, 'func_name', func_name_check, len(func_name_check,kind=8))
     endif
-#if(USE_MPI > 0)
+#if(USE_MPI>0)
     call MPI_BCAST(ini_name_param , len(ini_name_param) , MPI_CHARACTER,0,     &
     &                                                   MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(func_name_check, len(func_name_check), MPI_CHARACTER,0,     &
@@ -1311,7 +1311,7 @@ subroutine ReadTantalus_hdf5(ifn)
       call hdf5_read_attr_integer(root_id, 'PairingType', filepairing)
       call hdf5_read_dataset_1d(root_id, 'rho_can',  rho_can, filenwt)
     endif
-#if(USE_MPI > 0) 
+#if(USE_MPI>0)
     call MPI_BCAST(filepairing,      1, MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(rho_can    ,filenwt, MPI_REAL8  , 0, MPI_COMM_WORLD, mpi_err)
 #endif
@@ -1328,7 +1328,7 @@ subroutine ReadTantalus_hdf5(ifn)
           call hdf5_read_dataset_1d(root_id, 'BCSGaps',  filegaps, filenwt)
         endif
 
-#if(USE_MPI > 0)
+#if(USE_MPI>0)
         call MPI_BCAST(Fermienergy,      2, MPI_REAL8,0, MPI_COMM_WORLD,mpi_err)
         call MPI_BCAST(filegaps  ,filenwt, MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
 #endif

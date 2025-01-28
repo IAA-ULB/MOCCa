@@ -96,7 +96,7 @@ module functional
  use vectors
  use Cranking
  use pairing_strengths
-#if(HDF5>0)
+#if(USE_HDF5>0)
  use HDF5
 #endif
 
@@ -147,7 +147,7 @@ module functional
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
-#if(HDF5>0)
+#if(USE_HDF5>0)
     ! level of compression in hdf5, 6 seems to be the best
     integer, parameter  :: comprlvl = 6
 #endif
@@ -2144,7 +2144,7 @@ $EREAR
 $WRITEPOTENTIALS
   end subroutine WritePotentials
  
-#if(HDF5>0)
+#if(USE_HDF5>0)
  subroutine WritePotentials_hdf5(file_id, F)
    !---------------------------------------------------------------------------
    !  Subroutine writing the different potentials to hdf5 file.
@@ -2267,7 +2267,7 @@ $READPOTENTIALS
 
   end function ReadPotentials
 
-#if(HDF5 > 0)
+#if(USE_HDF5 > 0)
   function ReadPotentials_hdf5(file_id, filenx, fileny, filenz, symtransfo_needed) &
    & result(F)
     !---------------------------------------------------------------------------
