@@ -168,6 +168,36 @@ store_derivatives:
     # Useage: bash symmetries param exec exec_P exec_T exec_TP
     - bash store_derivatives.sh -p ${PARAM} -e ${EXEC}
 
+store_derivatives:
+  #-----------------------------------------------------------------------------
+  # Run the 'boundary_conditions' test
+  # Currently implemented runs:
+  #  - BSkG3   with the BXL    configuration compiled with intel
+  #-----------------------------------------------------------------------------
+  stage: testing
+  tags:
+    - astropc19
+  variables:
+    EXEC_N   : ${CONFIG}.${COMPILER}.NUCLEI
+    EXEC_P   : ${CONFIG}.${COMPILER}.PASTA
+  artifacts:
+    paths:
+      - testing/integration/logs/boundary_conditions.${EXEC}.out
+      - testing/integration/logs/boundary_conditions.${EXEC}.PASTA.out
+    expire_in: 1 year # keep outputs for a LONG time
+  parallel:
+    matrix:
+      - PARAM    : BSkG3
+        CONFIG   : BXL
+        COMPILER : intel
+  script:
+    #---------------------------------------------------------------------------
+    # Start testing!
+    - cd testing/integration/
+    # Useage: bash boundary_conditions.sh -p param -e exec -f exec_P
+    - bash boundary_conditions.sh -p ${PARAM} -e ${EXEC_N} -f ${EXEC_P}
+
+
   #----------------------------------------------------------------------
   # Install all prerequisites for docker-based systems
   #   I'm keeping this around for future configurations

@@ -4,6 +4,12 @@
 # w.r.t. to a hardcoded reference value, but rather checks that results are identical
 # in both modes.
 #
+# Note: because of the different implementation for terms with derivatives in the
+#       functional, it is normal to have small differences between calculations
+#       with periodic and antiperiodic boundary conditions for dx ~ 0.8 fm - 1.0 fm.
+#       To get agreement at the level of a keV, you need to go to lower values of
+#       mesh spacing; this test used dx = 0.65 fm.
+#
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # This script tests:
 #
@@ -61,7 +67,7 @@ cat << EOF > tant.data
 neutrons=8, protons=8
 /
 &mesh
-nx=16, ny=16, nz=16, dx=0.8
+nx=15, ny=15, nz=15, dx=0.65
 /
 &func
 name_param="$2"
@@ -111,6 +117,7 @@ echo "Running $exe"
 tantalus_check=$?
 # Saving reference values
 refE=$(get_total_energy_stdout $outfile)
+echo $refE $outfile
 # ... and tear down this testing environment.
 teardown_test_env
 #----------------------------------------------------------------------------------
@@ -127,6 +134,7 @@ testE=$(get_total_energy_stdout $outfile)
 # ... and tear down this testing environment.
 teardown_test_env
 
+echo $testE $outfile
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Starting the checking
