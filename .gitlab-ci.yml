@@ -187,7 +187,7 @@ store_derivatives:
     expire_in: 1 year # keep outputs for a LONG time
   parallel:
     matrix:
-      - PARAM    : BSkG3
+      - PARAM    : BSkG3_naked
         CONFIG   : BXL
         COMPILER : intel
   script:
