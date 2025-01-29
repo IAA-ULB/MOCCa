@@ -288,7 +288,8 @@ contains
     &          '  nwn = ', i5, / &
     &          '  nwp = ', i5 )
    98 format ( '  Derivatives stored explicitly: ', a3)
-   99 format ( '  Nilsson initialization with hom = (', 3(f7.3) ,')')
+  990 format ( '  Nilsson initialization with hom = (', 3(f7.3) ,')')
+  991 format ( '  Initialization with random spwfs')
    10 format ( ' IO information', / &
     &          '  inputfilename  =', a32, / &
     &          '  outputfilename =', a32)
@@ -344,8 +345,13 @@ contains
       else
         print 98, ' NO'
       endif
-      if(trim(to_upper(inputfilename)).eq.'INIT') print 99, osc_freq
-
+      if(trim(to_upper(inputfilename)).eq.'INIT') then
+        if(adjustl(ini_strategy) .eq. 'NILSSON') then
+          print 990, osc_freq
+        elseif(adjustl(ini_strategy) .eq. 'RANDOM') then
+          print 990, osc_freq
+        endif
+      endif
       print 13, inversetemp
       print 10, inputfilename, outputfilename
       if(trim(to_upper(inputfilename)).ne.'INIT') then
@@ -761,7 +767,7 @@ contains
     call MPI_BCAST(symtransfo_needed,1,MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
 #endif    
     ! .. now we have each rank decide what spwfs to take from file
-    call loadbalance(fileblocks_global,balancing_strategy, &           ! inputs
+    call loadbalance(fileblocks_global, &                              ! inputs
     &       fileblocks, file_spwf_map, file_rank_map,file_spwf_inverse)! outputs
 
     ! Arrays like these are stored on all ranks, hence "filenwt"
@@ -1260,7 +1266,7 @@ subroutine ReadTantalus_hdf5(ifn)
     
     !---------------------------------------------------------------------------   
     ! .. now we have each rank decide what spwfs to take from file
-    call loadbalance(fileblocks_global,balancing_strategy, &           ! inputs
+    call loadbalance(fileblocks_global,                                ! inputs
     &       fileblocks, file_spwf_map, file_rank_map,file_spwf_inverse)! outputs
 
     ! Arrays like these are stored on all ranks, hence "filenwt"

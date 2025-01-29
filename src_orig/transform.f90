@@ -171,7 +171,7 @@ contains
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! .. and now we have each rank decide what (transformed) spwfs to take 
     !    from file
-    call loadbalance(HFBlocks_global,balancing_strategy, &            ! inputs
+    call loadbalance(HFBlocks_global,                 &               ! inputs
     &       HFblocks, spwf_map, rank_map, spwf_inverse)               ! outputs
     ! this particular will hold nwt_local spwfs at the end of the transformation
     nwt_local = sum(HFblocks)
@@ -846,7 +846,7 @@ $PBROKEN  enddo
 
           !---------------------------------------------------------------------
           ! have each rank decide what (transformed) spwfs to take from file
-          call loadbalance(HFBlocks_global,balancing_strategy, &   ! inputs
+          call loadbalance(HFBlocks_global,                    &   ! inputs
           &       HFblocks, spwf_map, rank_map, spwf_inverse)      ! outputs
           ! this particular will hold nwt_local spwfs at the end of the transformation
           nwt_local = sum(HFblocks)

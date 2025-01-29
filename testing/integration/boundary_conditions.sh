@@ -70,7 +70,7 @@ neutrons=8, protons=8
 nx=15, ny=15, nz=15, dx=0.65
 /
 &func
-name_param="$2"
+name_param="$1"
 /
 &pairing
 Type='HF'
@@ -109,7 +109,7 @@ source ../functions.sh
 #----------------------------------------------------------------------------------
 # Setting up the reference calculation
 setup_test_env "boundary_conditions" "$exec_anti" "$param"
-write_data '.true.' $param
+write_data  $param
 # Run the calculation
 echo "Running $exe"
 ./$exe < tant.data > $outfile
@@ -123,7 +123,7 @@ teardown_test_env
 #----------------------------------------------------------------------------------
 # Setting up the reference calculation
 setup_test_env "boundary_conditions" "$exec_period" "$param"
-write_data '.false.' $param
+write_data  $param
 # Run the calculation
 echo "Running $exe"
 ./$exe < tant.data > $outfile

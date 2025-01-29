@@ -385,7 +385,6 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     print_adv_spwf_properties = .false.
 #endif
 
-
     call setBelyaevProcedure()
     !---------------------------------------------------------------------------
     ! Calculate the energy WITH all the expensive parts included. 

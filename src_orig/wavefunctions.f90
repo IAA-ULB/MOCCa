@@ -361,22 +361,16 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
     endif
   end subroutine allocate_memory_derivatives
 
-  subroutine loadbalance(blocks_global,balancing,blocks_local,spwf_map,        &
+  subroutine loadbalance(blocks_global,blocks_local,spwf_map,        &
   &                                                       rank_map,spwf_inverse)
     !---------------------------------------------------------------------------
-    ! Balance the loading of large arrays across MPI ranks in a 1D fashion.
+    ! Balance the loading of large arrays across the available MPI ranks.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   blocks_global : integer (8)
     !                   TOTAL size of all symmetry blocks, i.e. the total number
     !                   of spwfs in each block.
     !
-    !   balancing     : integer.
-    !                   0 => load balance purely on a spwf-by-spwf basis
-    !                   1 => balance the load HFBLock-wise, i.e. assign 
-    !                        spwfs per symmetry block. The number of MPI ranks
-    !                        should be a multiple of the actually non-zero
-    !                        symmetry blocks.
     ! Output:
     !   blocks_local  : integer(8)
     !                   LOCAL size of the symmetry blocks, i.e. the total number
@@ -391,7 +385,6 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
     !                   index of the wavefunction defined by a global index on
     !                   the LOCAL MPI rank
     !---------------------------------------------------------------------------
-    integer, intent(in)  :: balancing
     integer, intent(in)  :: blocks_global(blocks)
     integer, intent(out) :: blocks_local(blocks)
     integer, intent(out), allocatable :: spwf_map(:),rank_map(:),spwf_inverse(:)
@@ -437,20 +430,53 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
     enddo
     already_assigned = sum(ranks_per_block)
 
-    select case(balancing)
-    case (0)
-      !-------------------------------------------------------------------------
-      ! Full on load-balancing: each symmetry block gets assigned a bunch of
-      ! MPI ranks, which divide equally the number of spwfs among them.
-      !
-      ! Todo: figure out if we can do more clever things by estimating the work
-      !       to be done as a function of the number of spwfs in a given block
-      !-------------------------------------------------------------------------
-
 #if(USE_MPI==0)
-      call stp('Balancing_strategy = 0 is not compatible with sequential calculations.')
+      !-------------------------------------------------------------------------
+      ! Assign trivial values in the case of non-MPI calculations.
+      !
+      ! This piece of code was originally written to work for a special
+      ! case of load balancing: when a single rank could hold the spwfs of
+      ! a complete symmetry block. This option was deprecated because of its
+      ! limited use-case; this piece of code remains in case we ever need to
+      ! bring it back.
+      !-------------------------------------------------------------------------
+      if(mod(activeblocks, NPROCS) .ne. 0) then
+        call stp('Incompatible number of MPI ranks.')
+      endif
+      blocks_per_rank = activeblocks/NPROCS
+
+      block_count = -1 ! unintuitive starting point: first block will be '0'
+      do B=1,8
+        if(blocks_global(B) .eq. 0) cycle
+        block_count = block_count + 1
+        if( block_count / blocks_per_rank .eq. MPI_rank) then
+          ! attention, INTEGER division in the line above
+          blocks_local(B) = blocks_global(B)
+        endif
+      enddo
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Find the first non-zero size in blocks_local
+      do B=1,8
+        if(blocks_local(B) .ne. 0) exit
+      enddo
+      offset = sum(blocks_global(1:B-1))
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Calculate the spwf <-> rank mapping and its inverse
+      allocate(spwf_map(sum(blocks_local)))
+
+      do i=1,sum(blocks_local)
+        spwf_map(i)            = offset + i
+        spwf_inverse(offset+i) = i
+        rank_map(offset+i)     = MPI_RANK
+      enddo
+      !-----------------------------------------------------------------------------
 #else
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      if( activeblocks > NPROCS ) then
+        call stp('Insufficient MPI ranks to perform the calculation.')
+      endif
+      !-----------------------------------------------------------------------------
       ! Assign workload quadratically
       do B=1,8
           frac      = BLOCKS_GLOBAL(B)**2 / (1.0d0*sum(BLOCKS_GLOBAL**2))
@@ -657,55 +683,6 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
       enddo
       !-------------------------------------------------------------------------
 #endif
-    case (1)
-      !-------------------------------------------------------------------------
-      ! Balancing per symmetry block: each MPI rank gets one or more symmetry
-      ! blocks to account for.
-      !-------------------------------------------------------------------------
-      if(activeblocks .ge. NPROCS) then
-        ! More symmetry blocks than MPI ranks, i.e. we assign each rank
-        ! one or more entire symmetry blocks
-        if(mod(activeblocks, NPROCS) .ne. 0) then
-          call stp('Incompatible number of MPI ranks for balancing_strategy = 1.')
-        endif
-        blocks_per_rank = activeblocks/NPROCS
-
-        block_count = -1 ! unintuitive starting point: first block will be '0'
-        do B=1,8
-          if(blocks_global(B) .eq. 0) cycle
-          block_count = block_count + 1
-          if( block_count / blocks_per_rank .eq. MPI_rank) then
-            ! attention, INTEGER division in the line above
-            blocks_local(B) = blocks_global(B)
-          endif
-        enddo
-
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Find the first non-zero size in blocks_local
-        do B=1,8
-          if(blocks_local(B) .ne. 0) exit
-        enddo
-        offset = sum(blocks_global(1:B-1))
-
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Calculate the spwf <-> rank mapping and its inverse
-        allocate(spwf_map(sum(blocks_local)))
-
-        do i=1,sum(blocks_local)
-          spwf_map(i)            = offset + i
-          spwf_inverse(offset+i) = i
-          rank_map(offset+i)     = MPI_RANK
-        enddo
-      else
-        ! More ranks than blocks
-        call stp('There are MPI ranks than symmetry blocks. Pick a different load-balancing strategy')
-      endif
-      !-------------------------------------------------------------------------
-    case DEFAULT
-      !-------------------------------------------------------------------------
-      call stp('Unknown type of load balancing.')
-      !-------------------------------------------------------------------------
-    end select
 
 #if(USE_MPI>0)
   ! these calls to allreduce is valid since we took care to zero things above
@@ -770,7 +747,6 @@ end subroutine loadbalance
         if(HFBLOCKS_GLOBAL(B) .eq. 0) cycle
         print 5, B, ranks_per_block(B), HFBlocks_global(B)
       enddo
-
       neutron_ranks = sum(ranks_per_block(1:4))
       proton_ranks  = sum(ranks_per_block(5:8))
       print 99
@@ -784,7 +760,6 @@ end subroutine loadbalance
         print 7, B, row, col, row*col, ranks_per_block(B) - row*col
         si = si + N
       enddo
-
       print 99
       print 9
 
@@ -876,7 +851,7 @@ end subroutine loadbalance
     enddo
     ! then, we are capable of figuring out the way to balance the spwfs among
     ! the different MPI ranks. 
-    call loadbalance(HFblocks_global,balancing_strategy,& 
+    call loadbalance(HFblocks_global,&
     &                        HFblocks,spwf_map,rank_map, spwf_inverse)
     ! now each MPI rank knows which spwfs it should grab and can allocate 
     ! the required space. 
@@ -929,19 +904,19 @@ end subroutine loadbalance
     do i=1, nwt
       hftransfo(i,i) = 1.0d0
       do j=i+1,ininwt
-        hftransfo(i,j) = 0.0d0 
-        hftransfo(j,i) = 0.0d0 
+        hftransfo(i,j) = 0.0d0
+        hftransfo(j,i) = 0.0d0
       enddo
     enddo
 
     do i=1, ininwt
       sphamil(i,i) = spenergies(i)
       do j=i+1,nwt
-        sphamil(i,j) = 0.0d0 
-        sphamil(j,i) = 0.0d0 
+        sphamil(i,j) = 0.0d0
+        sphamil(j,i) = 0.0d0
       enddo
     enddo
-#else 
+#else
     B = MPI_BLOCK_SIZE
     ! Both hftransfo and sphamil get distributed on the 2D layout
     xs = NUMROC(B,BLOCK_FACTOR_ROW,MYROW_2D,0,NROW_2D)
@@ -949,7 +924,7 @@ end subroutine loadbalance
 
     allocate(hftransfo(xs,ys), sphamil(xs,ys))
     hftransfo = 0.0d0 ; sphamil   = 0.0d0
-    
+
     do wave=1,MPI_BLOCK_SIZE
       ! Identify which of the ranks has information on this particular spwf
       p = INDXG2P(wave, BLOCK_FACTOR_ROW, MYROW_2D, 0, NROW_2D)
@@ -958,7 +933,7 @@ end subroutine loadbalance
       !     element corresponds.
       i = INDXG2L(wave, BLOCK_FACTOR_ROW, MYROW_2D, 0, NROW_2D)
       j = INDXG2L(wave, BLOCK_FACTOR_COL, MYCOL_2D, 0, NCOL_2D)
-      ! ... but we also need to know what is the GLOBAL index of the spwf for 
+      ! ... but we also need to know what is the GLOBAL index of the spwf for
       !     the spenergies array
       wave_global = INDXG2L(wave,BLOCK_FACTOR_1D, 0, MYCOL_1D, NCOL_1D) &
       &           + sum(HFBLOCKS_global(1:MPI_SYM_BLOCK-1))
@@ -1432,9 +1407,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     real(KIND=dp) ::  norm
 
 #if(USE_MPI>0)
-    if(balancing_strategy.ne.1) then
-      call stp('Balancing_strategy should be 1 for GramSchmidt to work.')
-    endif
+    call stp('GramSchmidt is not suited to MPI calculations.')
 #endif
 
     call start_timer(T_ortho)

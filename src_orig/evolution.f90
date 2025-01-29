@@ -69,7 +69,7 @@ module evolution
     !   IMTIME    => Gradient Descent/Imaginary Time
     !   HEAVYBALL => Heavy-ball dynamics
     !   HBSANE    => "Sane" heavy-ball dynamics
-#if(PASTA > 0)
+#if(USE_MPI > 0)
     character(len=20) :: Strategy = 'HBSANE'
 #else
     character(len=20) :: Strategy = 'HEAVYBALL'
@@ -79,7 +79,7 @@ module evolution
     ! - - - - - - - - - - - - - - -
     !   GRAMSCHMIDT => Gram-Schmidt "sequential" orthonormalisation
     !   CHOLESKY    => Cholesky decomposition
-#if(PASTA > 0)
+#if(USE_MPI > 0)
     character(len=20)               :: ortho_strategy = 'CHOLESKY'
 #else
     character(len=20)               :: ortho_strategy = 'GRAMSCHMIDT'
@@ -90,7 +90,7 @@ module evolution
     !    whether or not to throw in an explicit diagonalisation of the 
     !    single-particle hamiltonian in the subspace spanned by the spwfs
     !    in memory.
-#if(PASTA > 0)
+#if(USE_MPI > 0)
     logical :: subspace_rotation = .true.
 #else
     logical :: subspace_rotation = .false.
@@ -531,23 +531,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
             ! We construct the matrix elements of the single-particle 
             ! hamiltonian in the basis of s.p. wavefunctions in memory.
 #if(USE_MPI>0)
-            do wave2=wave,si+N           ! local index
-                wg2 = spwf_map(wave2)    ! global index
-
-                select case (balancing_strategy)
-                case(1)
-                  ! In the case of symmetry-block-wise load balancing, we can
-                  ! safely assume all relevant wavefunctions are represented
-                  ! on the current MPI rank and we do not need more complicated
-                  !  things.
-                  sphamil(wg2,wg)  = sum(hfpsi(:,:,wave2) * hpsi(:,:))* dv
-                  sphamil(wg ,wg2) = sphamil(wg2,wg)
-                case DEFAULT
-                  call stp('Subroutine evolve_momentum is not yet ready for &
-                  &         MPI calculations with balancing_strategy different &
-                  &         from 1.')
-                end select
-            enddo
+            call stp('Evolve_momentum is not yet ready for MPI calculations.')
 #else
             do wave2=wave,si+N           ! local index
                 wg2 = spwf_map(wave2)    ! global index

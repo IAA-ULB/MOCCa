@@ -144,11 +144,6 @@ module GenInfo
   ! this variable functions more as a rough guideline for the load balancing.
   integer :: max_spwf_per_rank       = 10000000
   !-----------------------------------------------------------------------------
-  ! Load balancing strategy for the MPI ranks
-  ! (0) : naive 1d block distribution of spwfs among ranks
-  ! (1) : give entire symmetry blocks to MPI ranks
-  integer :: balancing_strategy = 1
-  !-----------------------------------------------------------------------------
   ! Logical indicating whether to keep all derivatives of the spwfs in memory
   ! or not. Putting this to .false. allows one to save a lot of memory at the
   ! expense of CPU time.
@@ -210,8 +205,8 @@ contains
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
-    &                  balancing_strategy, store_derivatives,                  &
-    &                  fermi_prec, block_factor_row, block_factor_col
+    &                  store_derivatives, fermi_prec, block_factor_row,        &
+    &                  block_factor_col
     Namelist /mesh/    nx,ny,nz, dx
 
     if(MPI_rank .eq. 0) then    
@@ -231,12 +226,6 @@ contains
       else
         read (unit=*, nml=mesh)
       endif   
-
-#if(USE_MPI > 0)
-      balancing_strategy = 0
-#else
-      balancing_strategy = 1
-#endif
 
       if(fixfermi .and. (mun.eq.-10d8 .or.mup.eq.-10d8) )then
         call stp( 'You should fix an appropriate Lambda_N and Lambda_P.')
@@ -286,7 +275,6 @@ contains
     call MPI_BCAST(fermi_prec  , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
 
     ! d) Other calculational details...
-    call MPI_BCAST(balancing_strategy,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(store_derivatives ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(block_factor_row  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(block_factor_col  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
