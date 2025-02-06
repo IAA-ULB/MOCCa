@@ -737,10 +737,17 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
           else
             on_the_fly = .true.
           endif
-          call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
-          &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
-          &                          HFdpsi(:,:,:,si+1:si+N),              &
-          &                          HFddpsi(:,:,:,si+1:si+N),on_the_fly, F)
+          if(store_derivatives) then
+            call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
+            &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
+            &                          HFdpsi(:,:,:,si+1:si+N),              &
+            &                          HFddpsi(:,:,:,si+1:si+N),on_the_fly, F)
+          else
+            call apply_sphamil_block_no_derivative_storage                   &
+            &                         (N,HFpsi(:,:,si+1:si+N),hpsi,&
+            &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso, &
+            &                          HFdpsi(:,:,:,1), HFddpsi(:,:,:,1), F)
+          endif
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! Construct the residual
           do m=1,N
@@ -868,6 +875,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 !===============================================================================
 ! Utility routines 
 !===============================================================================
+    ! TODO: Document why this mess of apply_sphamil_block routines exist!
 
     subroutine apply_sphamil_block(m, x,hx,sx,sy,sz,iso, dx, ddx, onthefly, F)
       !-------------------------------------------------------------------------
@@ -899,10 +907,6 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       !           (not overwritten from input if precalculated)
       !
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Important to note: this routine does NOT reuse derivatives, i.e. it 
-      ! tells the sphamiltonian to apply all derivative matrix multiplications 
-      ! on the fly. 
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Optional TODO: write an additional routine that takes as input the
       ! fully vectorized spwfs, i.e. psi(4*nx*ny*nz,m).
       !-------------------------------------------------------------------------
@@ -920,6 +924,54 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         &                          sx,sy,sz,iso,onthefly,F)
       enddo
     end subroutine apply_sphamil_block
+
+    subroutine apply_sphamil_block_no_derivative_storage &
+    &                                         (m, x,hx,sx,sy,sz,iso, dx, ddx, F)
+      !-------------------------------------------------------------------------
+      ! Apply the single-particle hamiltonian as specified by the potentials  
+      ! currently in memory to a set of vectors in single-particle space with 
+      ! common symmetry properties.
+      !
+      ! Identical to the previous routine, but does not rely on storage for 
+      ! the derivatives having been allocated.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !
+      ! Input:
+      !        m :  number of vectors to compute h|psi> for
+      !        x :  a set of vectors in s.p. space, i.e. a matrix of dimension
+      !          (nx*ny*nz,4,m)
+      !  sx/sy/sz:  the symmetries under plane reflections of the vectors, i.e.
+      !             4 integers in each case.
+      !       iso:  the isospin of the vectors.
+      !
+      !        dx: array containing the gradient of x, if precalculated
+      !       ddx: array containing the second derivative of x, if precalculated
+      !         F: set of mean-field potentials specifying the sphamil
+      ! Output: 
+      !      hx : the application of the s.p. hamiltonian to the vectors, a new
+      !           matrix of dimension (nx*ny*nz,4,m)
+      !       dx: array containing the gradient of x
+      !           (not overwritten from input if precalculated)
+      !      ddx: array containing the second derivative of x, if precalculated
+      !           (not overwritten from input if precalculated)
+      !
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Optional TODO: write an additional routine that takes as input the
+      ! fully vectorized spwfs, i.e. psi(4*nx*ny*nz,m).
+      !-------------------------------------------------------------------------
+      integer, intent(in)                  ::  m, sx(4), sy(4), sz(4), iso
+      real(KIND=dp), intent(in), target    ::  x(mv,4,m)
+      real(KIND=dp), intent(inout)         :: dx(mv,3,4), ddx(mv,6,4)
+      real(KIND=dp), intent(out), target   :: hx(mv,4,m)
+      integer                              :: wave
+      type(PotentialVector), intent(in)    :: F
+      
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      do wave=1,m
+        hx(:,:,wave)=apply_sphamil(x(:,:,wave),dx(:,:,:),ddx(:,:,:), &
+        &                          sx,sy,sz,iso,.true.,F)
+      enddo
+    end subroutine apply_sphamil_block_no_derivative_storage
 
 !    subroutine diag_sph(m,n,x,hx,upd,eigenvalues)
 !      !------------------------------------------------------------------------
@@ -1034,10 +1086,12 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         real(KIND=dp), allocatable :: hpsi_2d(:,:)
 #endif
 
-#if(USE_MPI > 0)
-
-#endif
-
+        if(.not. onthefly) then
+          if(.not. store_derivatives) then
+            call stp('Onthefly needs to be activated if store_derivatives is false.')
+          endif
+        endif
+    
         call start_timer(T_calc_sph)
 #if(USE_MPI > 0)
         if(MYROW_2D .ne.-1) then
@@ -1061,12 +1115,20 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
           allocate(hpsi(mv,4,N))
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! Obtain the action of the s.p.h. on the spwfs in block-wise fashion
-          call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
-          &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,  &
-          &                          HFdpsi(:,:,:,si+1:si+N),               &
-          &                          HFddpsi(:,:,:,si+1:si+N),              &
-          &                          onthefly, F)
-
+          if(store_derivatives) then
+            call apply_sphamil_block(N,HFpsi(:,:,si+1:si+N),hpsi,&
+            &                          sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,  &
+            &                          HFdpsi(:,:,:,si+1:si+N),               &
+            &                          HFddpsi(:,:,:,si+1:si+N),              &
+            &                          onthefly, F)
+          else
+            call apply_sphamil_block_no_derivative_storage                     &
+            &                          (N,HFpsi(:,:,si+1:si+N),hpsi,           &
+            &                           sx(:,si+1),sy(:,si+1),sz(:,si+1),iso,  &
+            &                           HFdpsi(:,:,:,1),               &
+            &                           HFddpsi(:,:,:,1),              &
+            &                           F)  
+          endif
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! Calculate matrix elements by way of a BLAS call
           ! TODO: hide this behind interface to recast the (mv,4) vectors
@@ -1086,9 +1148,14 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
           allocate(hpsi(mv,4,N))
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! Obtain the action of the s.p.h. on the spwfs in block-wise fashion
-          call apply_sphamil_block(N,HFpsi,hpsi,sx,sy,sz,iso,  &
-          &                          HFdpsi,HFddpsi, onthefly, F)
-          
+          if(store_derivatives) then
+            call apply_sphamil_block(N,HFpsi,hpsi,sx,sy,sz,iso,    &
+            &                          HFdpsi,HFddpsi, onthefly, F)
+          else
+            call apply_sphamil_block_no_derivative_storage(        &
+            &                          N,HFpsi,hpsi,sx,sy,sz,iso,  &
+            &                          HFdpsi,HFddpsi, F)          
+          endif
           N    = MPI_BLOCK_SIZE
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! Calculate matrix elements using the 2D layout
