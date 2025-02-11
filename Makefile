@@ -18,7 +18,7 @@
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #
-# After having verified that make.inc is correctly configured, you can
+# After having verified that make.inc exists (and is correct!), you can
 # compile the code with:
 #
 #    > make
@@ -33,6 +33,14 @@
 # (look in the configs/ folder). By default, executables at the end will be
 # named Tantalus.$(CONFIG).exe and be placed in the $(EXECDIR) configured
 # in make.inc.
+#
+# An alternative is to not use a make.inc file but directly pass the Makefile the
+# extension of the make.inc file in the make_include folder as in the following
+# example:
+#
+#   > make INCLUDE=gnu-serial
+#
+# which uses the options specified in make_include/make.inc.gnu-serial.
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # The Makefile requires the following to be set. This can either be done inside
@@ -73,14 +81,19 @@
 #   P. Marević et al., Computer Physics Communications 276, 108367 (2022).
 #-------------------------------------------------------------------------------
 
+INCLUDE=make.inc
+INCLUDEFILE=$(INCLUDE)
 ################################################################################
 # Go get the compilation settings
-ifeq ("$(wildcard make.inc)","")
-  $(error make.inc was not found; Tantalus cannot be compiled.)
+ifeq ("$(wildcard $(INCLUDEFILE))","")
+  INCLUDE_ALT := make_include/make.inc.$(INCLUDEFILE)
+ifeq ("$(wildcard $(INCLUDE_ALT))","")
+  $(error $(INCLUDE_ALT) was not found; Tantalus cannot be compiled.)
 else
-  include make.inc
+  INCLUDEFILE=$(INCLUDE_ALT)
 endif
-
+endif
+include $(INCLUDEFILE)
 ################################################################################
 
 ################################################################################
