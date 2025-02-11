@@ -1266,7 +1266,7 @@ subroutine ReadTantalus_hdf5(ifn)
     
     !---------------------------------------------------------------------------   
     ! .. now we have each rank decide what spwfs to take from file
-    call loadbalance(fileblocks_global,                                ! inputs
+    call loadbalance(fileblocks_global,                               &! inputs
     &       fileblocks, file_spwf_map, file_rank_map,file_spwf_inverse)! outputs
 
     ! Arrays like these are stored on all ranks, hence "filenwt"
