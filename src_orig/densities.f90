@@ -347,14 +347,26 @@ $ZEROING
           ! We have centrally stored derivative information
           der_index = wave
         else
-          ! We recalculate derivatives on the fly for this spwf
-          do k=1,4
-           call Derive_tot(denPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
-           &                                           dendPsi(:,:,k,1),        &
-           &                                           denddPsi(:,:,k,1))
-          enddo
           der_index = 1
+#if(USE_Periodic==0)
+          do k=1,4
+           call Derive_tot(denPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave), &
+           &                                           dendPsi(:,:,k,der_index), &
+           &                                           denddPsi(:,:,k,der_index))
+          enddo
+#else
+          do k=1,2
+           call Derive_tot_periodic(denPsi   (:,   (2*k-1):2*k,wave),     &
+           &                        sx       ((2*k-1):2*k,wave),          &
+           &                        sy       ((2*k-1):2*k,wave),          &
+           &                        sz       ((2*k-1):2*k,wave),          &
+           &                        dendpsi  (:,:,(2*k-1):2*k,der_index), &
+           &                        denddpsi (:,:,(2*k-1):2*k,der_index))
+          enddo
+#endif
         endif
+
+
         !---------------------------------------------------------------------------
 
         do i=1,mv
