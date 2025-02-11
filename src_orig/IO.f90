@@ -1623,7 +1623,7 @@ subroutine ReadTantalus_hdf5(ifn)
     character(len=*), intent(in) :: ofn
 
     if(trim(to_upper(OutputFileName(len_trim(OutputFileName)-3:))).eq.'HDF5') then
-#if(HDF5>0)
+#if(USE_HDF5>0)
       call WriteTantalus_hdf5(outputfilename) !new hdf5 format
 #else
       call stp('HDF5 support was not enabled at compilation.')
@@ -1845,7 +1845,7 @@ subroutine ReadTantalus_hdf5(ifn)
 
   end subroutine WriteTantalus
 
-#if (HDF5 > 0)
+#if (USE_HDF5 > 0)
   subroutine WriteTantalus_hdf5(ofn)
     !---------------------------------------------------------------------------
     ! Subroutine that dumps all information to a .hdf5 file for future runs.
