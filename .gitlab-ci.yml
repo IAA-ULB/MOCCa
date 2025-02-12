@@ -231,8 +231,8 @@ parallel:
     #---------------------------------------------------------------------------
     # Start testing!
     - cd testing/integration/
-    # Useage: bash parallel.sh -p param -s serial exe -f parallel exe
-    - bash parallel.sh -p ${PARAM} -s ${EXEC_SERIAL} -p ${EXEC_PARALLEL} -r 4
+    # Useage: bash parallel.sh -p param -s serial exe -m parallel exe -r ranks
+    - bash parallel.sh -p ${PARAM} -s ${EXEC_SERIAL} -m ${EXEC_PARALLEL} -r 4
 
 
   #----------------------------------------------------------------------
