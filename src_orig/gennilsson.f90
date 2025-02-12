@@ -23,13 +23,13 @@ contains
     !---------------------------------------------------------------------------
     use wavefunctions
   
-    1 format (22 ('-'), ' Sp wavefunctions ', 25('-'))
+    1 format (22 ('-'), ' Sp wavefunctions ', 30('-'))
     2 format (65 ('-'))
-    6 format (3x,'i',4x,'P',11x,'E',8x, 'JxT',7x, 'JyT', 7x ,'Jz', 9x, 'J')    
+    6 format (3x,'i',3x,'P', 1x, 'iso', 11x,'E',8x, 'JxT',7x, 'JyT', 7x ,'Jz', 9x, 'J')    
 
     integer, intent(in) :: selected
-    integer       :: wave,k
-    integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
+    integer       :: wave,k, iso
+    !integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp) :: p, Jx, Jy, Jz, JJ  
     character(len=3) :: sel
 
@@ -39,6 +39,9 @@ contains
     print 2
     do k=1,nwt 
         wave = k
+        
+        iso = +1
+        if(wave .le. nwn) iso = -1
         
         p = +1
         if(k .gt. HFBlocks(1) .and. k .lt. sum(HFBlocks(1:3))) p = -1
@@ -50,8 +53,7 @@ contains
         Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
         Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
         Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
-      
-    
+
         JJ = & 
         &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
         &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
@@ -63,7 +65,7 @@ contains
 
         sel = ''
         if(wave .eq. selected) sel = '(*)'
-        print ('(2i4,3x, a3, 99f10.3)'), wave, int(p), sel,spenergies(wave),   & 
+        print ('(3i4,3x, a3, 99f10.3)'), wave, int(p), iso, sel,spenergies(wave),   & 
         &                                                        Jx, Jy, Jz, JJ
     enddo
     print 2
@@ -122,7 +124,6 @@ program generate_nilson
   15 format(' N, Z             = ', 2i3)
   16 format(' filename         = ', a40)
   17 format(' spwf selected    = ', i3)
-  18 format(' Selected: it = ', i3, ' P = ', i3, 'Jz = ', f8.3)
   integer                    ::  npp, npn, selection = 1
   real(KIND=dp)              ::  osc_x, osc_y, osc_z
 
@@ -151,14 +152,15 @@ program generate_nilson
   ! Dealing with input in a better way
   osc_freq(1) =osc_x ;  osc_freq(2) =osc_y ; osc_freq(3) =osc_z
   npp      = int(protons)  ;  npn      = int(neutrons)  
-  nwt = nwn + nwp
+  nwt = nwn + nwp ; nwt_local = nwt ; HFBlocks_global = HFBLocks
 
   !-----------------------------------------------------------------------------
   ! Initializing everything in the code
   dv = (dx**3)*8
   mv = nx*ny*nz
-  call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid)
-  call iniwavefunctions()
+  call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid, 0.0d0,0.0d0, 0.0d0)
+  call inimesh(meshx_shifted, meshy_shifted, meshz_shifted, nx, ny,nz, meshgrid_shifted, 0.0d0,0.0d0, 0.0d0)
+  call iniwavefunctions(nx,ny,nz,nwn,nwp)
   call inilag()                               ! Initialize derivative matrices. 
   call add_timer('HF-basis Derivatives'       , T_derivatives)  
   call deriveHF()
@@ -178,6 +180,7 @@ program generate_nilson
        par = -1
     endif
   endif
+
 
   call nilsson_print(wave)
   !-----------------------------------------------------------------------------

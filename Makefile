@@ -302,7 +302,7 @@ SINGLE_SRC = $(SRC) run_single.f90
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Nilsson source files
-NIL_SRC := compilation.f90 timing.f90 geninfo.f90 derivatives.f90 nil8.f90
+NIL_SRC := compilation.f90 geninfo.f90 timing.f90 derivatives.f90 nil8.f90
 NIL_SRC += wavefunctions.f90 gennilsson.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -366,9 +366,9 @@ run_heph:
   # the Makefile
 	python3 Hephaestos.py $(CONFIG) $(DENSUM)
 
-gen_nilsson: $(PRE_NIL) $(NIL_OBJ)
+gen_nilsson: $(PRE) $(PRE_NIL) $(NIL_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LIBS)
-	mv gen_nilsson exec/$(EXENAME)
+	mv gen_nilsson exec/gen_nilsson.exe
 
 clean:
 	rm  -f $(OBJDIR)/*.o

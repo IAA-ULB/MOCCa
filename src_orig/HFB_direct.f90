@@ -95,11 +95,11 @@ contains
     integer, allocatable         :: blocked_qp(:), partner_qp(:)
     real(KIND=dp), allocatable, intent(out) :: qp_overlap(:)
     real(KIND=dp), intent(in)    :: Eqp(:), Bogo(:,:)
-    real(KIND=dp), allocatable   :: R(:)
+    real(KIND=dp), allocatable   :: R(:), overlaps(:)
        
     integer                      :: N, N2,B, sb, i, NB, j, k,qblock, ind, si, bi
-    real(KIND=dp)                :: compare, occ, qpmin
-    integer                      :: toblock(4), qpb    
+    real(KIND=dp)                :: compare, occ, qpmin, blockoverlap, maxover,O
+    integer                      :: toblock(4), qpb, indover
     logical                      :: found
 
     N = size(Eqp) 
@@ -109,7 +109,7 @@ contains
     !---------------------------------------------------------------------------
     ! Construct the DEFAULT configuration, corresponding to all positive energy
     ! quasiparticles.
-    sb = 0 ; si = 0      
+    sb = 0 ; si = 0
 
     do B=1,4
         N = blocks(B) ; if (N.eq. 0) cycle
@@ -135,7 +135,7 @@ contains
     !---------------------------------------------------------------------------
     occ = 0
     select case(Blocktype)
-    case(1,2)
+    case(1,2,7)
         ! Full blocking
         occ = 1.0_dp
     case(3,4)
@@ -307,7 +307,88 @@ $NTR    endif
            enddo
            si = si +   N +  N2 
            sb = sb + 2*N +2*N2         
-        enddo    
+        enddo
+    case (7)
+        !-----------------------------------------------------------------------
+        ! We have a tagging state in memory, so we will look which quasiparticle
+        ! has the largest overlap with said state.
+        NB = sum(blockconf)
+        if(allocated(blocked_qp)) then
+          deallocate(blocked_qp)
+          deallocate(partner_qp)
+        endif
+
+        if(.not.allocated(blocked_qp)) then
+          allocate(blocked_qp(NB)) ; blocked_qp = 0
+          allocate(partner_qp(NB)) ; partner_qp = 0
+          allocate(qp_overlap(NB)) ; qp_overlap = 0.0d0
+        endif
+
+        B = 0
+        do i=1,4
+          if(blockconf(i) .eq. 1) B = i 
+        enddo
+        if(B.eq.0) return
+        if(B.gt.1) then
+          si =   sum(blocks(1:B-1))
+          sb = 2*sum(blocks(1:B-1))
+        else
+          si = 0
+          sb = 0
+        endif
+        N = blocks(B)
+        N2= blocks(B+1) 
+        
+        ! Calculate the overlaps of all states in the HF basis with the 
+        !  tagging spwf
+        allocate(overlaps(N)) ; overlaps = 0
+        do i=1,N
+          overlaps(i) =  dv*sum( HFPsi(:,:,si+i) *tagging_spwf(:,:))
+        enddo
+        
+        ! ... and now calculate the overlap of the U and V parts of the 
+        ! quasiparticles with the tagging spwfs
+        maxover = -10
+        indover =   0
+        ! First scan the U-matrix
+        do i=1, N
+          O = 0
+          do j=1, N
+            O = O + Bogo(sb    +j,sb+N+i) * overlaps(j)
+          enddo
+          O = abs(O)
+          if(O .gt. maxover) then
+              maxover = O
+              indover = i
+          endif
+        enddo
+
+        ! ... and then the V-matrix
+        do i=1, N
+          O = 0
+          do j=1, N
+            O =  O + Bogo(sb+3*N+j,sb+N+i) * overlaps(j)
+          enddo
+          O  = abs(O)
+          if(O .gt. maxover) then
+              maxover = O
+              indover = i
+          endif
+        enddo
+
+        ! Make the selection!
+        R(sb +  N + indover ) = 1 - occ
+        R(sb      + indover ) =     occ
+        
+        blocked_qp(1) = si + indover
+        blockoverlap  = maxover
+
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Then we look for the closest thing to a time-reversal partner. 
+        call find_partner(N,N2,si,blocked_qp(1), &
+        &                 Bogo(sb+1:sb+2*N+2*N2,sb+1:sb+2*N+2*N2),  &
+        &                 partner_qp(1),qp_overlap(1))
+
     end select
     
   end function ConstructConfiguration

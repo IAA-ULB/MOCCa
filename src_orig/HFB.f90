@@ -286,16 +286,16 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
         end select
       enddo
 
-!    case(5,6)
-!      ! We simply pass which isospin needs to be compared to the modelspwf 
-!      allocate(proton_block(5))  ; proton_block  = 0 
-!      allocate(neutron_block(5)) ; neutron_block = 0
-!      
-!      if(modelblock .gt. 4) then
-!          proton_block(modelblock-4)  = 1
-!      else
-!          neutron_block(modelblock)   = 1
-!      endif
+    case(7)
+      ! We have a tagging state  
+      allocate(proton_block(5))  ; proton_block  = 0 
+      allocate(neutron_block(5)) ; neutron_block = 0
+     
+      if(tagblock .gt. 4) then
+          proton_block(tagblock-4)  = 1
+      else
+          neutron_block(tagblock)   = 1
+      endif
     end select
 
     !---------------------------------------------------------------------------
