@@ -1122,6 +1122,29 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
 !===============================================================================
 
+  function calculate_tag_overlaps() result(tag_overlaps)
+    !---------------------------------------------------------------------------
+    ! Calculate the overlaps between a tagging spwf and the current HFBasis
+    ! in memory to pass down to the blocking routines.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     None
+    ! Output:
+    !     tag_overlaps: the matrix elements < HFBasis | tag spwf >
+    !---------------------------------------------------------------------------
+    real(KIND=dp), allocatable :: tag_overlaps(:)
+    integer                    :: si, wave, N
+
+    allocate(tag_overlaps(nwt)); tag_overlaps = 0.0d0
+
+    si = sum(HFBlocks(1:tagblock-1))
+    N = HFBlocks(tagblock)
+
+    do wave=1,N
+      tag_overlaps(si+wave) =  dv*sum(HFPsi(:,:,si+wave) *tagging_spwf(:,:))
+    enddo
+  end function calculate_tag_overlaps
+
   function TimeReverse(psi) result(Tpsi)
     !---------------------------------------------------------------------------
     ! Perform a time-reversal on the input spinor.

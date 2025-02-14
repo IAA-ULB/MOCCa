@@ -40,12 +40,15 @@ contains
     do k=1,nwt 
         wave = k
         
-        iso = +1
-        if(wave .le. nwn) iso = -1
-        
-        p = +1
-        if(k .gt. HFBlocks(1) .and. k .lt. sum(HFBlocks(1:3))) p = -1
-        if(k .gt. sum(HFBlocks(1:5))) p = -1
+        if(wave .le. nwn) then
+          iso = -1
+          p   = +1
+          if(wave .gt. HFBlocks(1)) p = -1
+        else
+          iso = +1
+          p   = +1
+          if(wave .gt. sum(HFBlocks(1:5))) p = -1
+        endif
 
         !-----------------------------------------------------------------------
         ! Depending on the symmetries, select different quantities to print 
@@ -73,8 +76,15 @@ contains
     wave = selected
        
     p = +1
-    if(k .gt. HFBlocks(1) .and. k .lt. sum(HFBlocks(1:3))) p = -1
-    if(k .gt. sum(HFBlocks(1:5))) p = -1
+    if(wave .le. nwn) then
+      iso = -1
+      p   = +1
+      if(wave .gt. HFBlocks(1)) p = -1
+    else
+      iso = +1
+      p   = +1
+      if(wave .gt. sum(HFBlocks(1:5))) p = -1
+    endif
 
     !-----------------------------------------------------------------------
     ! Depending on the symmetries, select different quantities to print 
