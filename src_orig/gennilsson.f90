@@ -123,7 +123,7 @@ program generate_nilson
 
   implicit none
 
-  1 format (3i3, f8.3, 2i3)
+  1 format (3i3, f8.3, 3i3)
   2 format (99f18.15)
 
   10 format('-----------------------------------------------------------------')
@@ -134,19 +134,21 @@ program generate_nilson
   15 format(' N, Z             = ', 2i3)
   16 format(' filename         = ', a40)
   17 format(' spwf selected    = ', i3)
+  18 format(' Time-reversal?   = ', a20)
   integer                    ::  npp, npn, selection = 1
   real(KIND=dp)              ::  osc_x, osc_y, osc_z
 
   character(len=40)          ::  fname = 'model.spwf'
+  logical                    :: timereversal
 
   ! Practical redefinition
   real(KIND=dp), pointer             :: wf3d(:,:,:)
-  integer :: i,j,k,l, wave, par, it
+  integer :: i,j,k,l, wave, par, it, sig
 
   !-----------------------------------------------------------------------------
   ! Input phase
   namelist /nil/  nx, ny, nz, dx, neutrons, protons, nwn, nwp,  &
-  &                   osc_x, osc_y, osc_z, fname, selection
+  &                   osc_x, osc_y, osc_z, fname, selection, timereversal
 
   read(unit=*, NML=nil)
   print 10
@@ -157,6 +159,11 @@ program generate_nilson
   print 15, int(neutrons), int(protons)
   print 16, fname
   print 17, selection
+  if(timereversal) then
+    print 18, 'YES'
+  else
+    print 18, 'NO'
+  endif
   print 10
 
   ! Dealing with input in a better way
@@ -197,8 +204,12 @@ program generate_nilson
   ! Writing the selected spwf to file
   open(unit=6, file = fname)
 
-
-  write(unit=6, fmt=1) nx,ny,nz,dx,it, par
+  sig = +1
+  if(timereversal) then
+    hfpsi(:,:,wave) = TimeReverse(hfpsi(:,:,wave))
+    sig = -1
+  endif
+  write(unit=6, fmt=1) nx,ny,nz,dx,it, par, sig
   do l=1,4
     wf3d(1:nx,1:ny,1:nz) => hfpsi(1:nx*ny*nz,l,wave)
     do k=1,nz

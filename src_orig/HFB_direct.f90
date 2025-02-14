@@ -338,7 +338,7 @@ $NTR    endif
           sb = 0
         endif
         N = blocks(B)
-        N2= blocks(B+1)
+        N2 = N ! TO BE CHANGED
 
         ! ... and now calculate the overlap of the U and V parts of the
         ! quasiparticles with the tagging spwfs
@@ -384,9 +384,19 @@ $NTR    endif
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Then we look for the closest thing to a time-reversal partner.
-        call find_partner(N,N2,si,blocked_qp(1), &
-        &                 Bogo(sb+1:sb+2*N+2*N2,sb+1:sb+2*N+2*N2),  &
-        &                 partner_qp(1),qp_overlap(1))
+        sb = 0 ; si = 0 ; ind = 0
+        do B=1,4,2
+           N = blocks(B)   ; if(N.eq.0) cycle
+           N2= blocks(B+1)
+
+           if(blockconf(B) .eq. 1 .or. blockconf(B+1) .eq. 1) then
+              call find_partner(N,N2,si,blocked_qp(1), &
+                   &                 Bogo(sb+1:sb+2*N+2*N2,sb+1:sb+2*N+2*N2),  &
+                   &                 partner_qp(1),qp_overlap(1))
+           endif
+           si = si +   N +  N2
+           sb = sb + 2*N +2*N2
+        enddo
 
     end select
 

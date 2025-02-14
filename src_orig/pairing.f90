@@ -1169,13 +1169,13 @@ $NTR      endif
       !-------------------------------------------------------------------------
       logical                       :: exists = .true.
       character(len=40), intent(in) :: fname 
-      integer                       :: io, filenx,fileny,filenz,fileit,filepar
+      integer                       :: io, filenx,fileny,filenz,fileit,filepar, filesig
       integer                       :: i,j,k,l !, sxh(4), syh(4), szh(4)
       real(KIND=dp)                 :: filedx
       real(KIND=dp), pointer        :: model3d(:,:,:) 
       !real(KIND=dp), allocatable    :: dmodel3d(:,:,:), ddmodel3d(:,:,:)
 
-      1 format (3i3, f8.3, 2i3)
+      1 format (3i3, f8.3, 3i3)
       2 format (99f18.15)
 
       inquire(file=fname, EXIST = exists)
@@ -1189,7 +1189,7 @@ $NTR      endif
         !-----------------------------------------------------------------------
         ! Read the header:
         ! nx ny nz dx it parity 
-        read(unit=12, fmt=1) filenx, fileny, filenz,filedx, fileit, filepar
+        read(unit=12, fmt=1) filenx, fileny, filenz,filedx, fileit, filepar, filesig
         ! Sanity checks
         if((filenx .ne. nx) .or. &
         &  (fileny .ne. ny) .or. & 
@@ -1247,15 +1247,31 @@ $NTR      endif
         ! Assigning the right blocking blocks
         if(fileit .eq. 1) then
             if (filepar.gt.0) then
-              tagblock = 1
+              if(filesig .gt.0) then
+                tagblock = 1
+              else
+                tagblock = 2
+              endif
             else
-              tagblock = 3
+              if(filesig .gt. 0) then
+                tagblock = 3
+              else
+                tagblock = 4
+              endif
             endif            
         else
             if (filepar.gt.0) then
-              tagblock = 5
+              if(filesig .gt. 0) then
+                tagblock = 5
+              else
+                tagblock = 6
+              endif
             else
-              tagblock = 7
+              if(filesig .gt. 0) then
+                tagblock = 7
+              else
+                tagblock = 8
+              endif
             endif
         endif
 

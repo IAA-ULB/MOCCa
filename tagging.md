@@ -9,6 +9,7 @@ in the main directory. Standard options regarding compilers apply.
 
 You can run the resulting executable (exec/gen_nilsson.exe) with the following namelist input
 
+> &nil
 > nx = 12         !
 > ny = 12         ! mesh parameters 
 > nz = 12         !
@@ -22,6 +23,8 @@ You can run the resulting executable (exec/gen_nilsson.exe) with the following n
 > osc_z = 0.15    !
 > fname='spwf.dat'! Filename to write to
 > selection=165   ! Selected index, i.e. the index of the spwf that will be written to file.
+> timereversal=.false. ! Whether to apply a time-reversal operation before writing the spwf to file
+> /
 
 When this data is used, you will end up with 'spwf.dat' file (or whatever you specified as fname) that 
 can be used in a future MOCCa run as a tag.
