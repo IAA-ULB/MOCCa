@@ -531,9 +531,10 @@ function sum_divJ_spwf() result(divJ)
     ! in the calculation of any energy for consistency reasons.
     !---------------------------------------------------------------------------
     real(KIND=dp) :: divJ(nx*ny*nz,4)
-!    real(KIND=dp) :: temp(nx*ny*nz,4)
-!    real(KIND=dp) :: weight
-!    integer       :: wave,it
+    ! MB 24/12/14 comment use of Pauli back in now that the memory leak is fixed
+    real(KIND=dp) :: temp(nx*ny*nz,4)
+    real(KIND=dp) :: weight
+    integer       :: wave,it
 
     divJ = 0.0d0
     select case(PairingType)
@@ -552,43 +553,43 @@ function sum_divJ_spwf() result(divJ)
       endif
     end select
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    do wave=1,nwt
-!        ! Isospin is neutron in the first half of blocks, proton in the rest
-!        it = 2
-!        if(wave.le.nwn) it = 1
+    do wave=1,nwt
+        ! Isospin is neutron in the first half of blocks, proton in the rest
+        it = 2
+        if(wave.le.nwn) it = 1
 
-!        ! For ordinary densities
-!        weight  = rho_can(wave)
+        ! For ordinary densities
+        weight  = rho_can(wave)
 
-!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!        ! I code this with calls to the Pauli and ImagMultiplySpinor functions 
-!        ! to make no mistakes
-!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!        ! x y z
-!        temp = Pauli(DenDPsi(:,2,:,wave), 3)
-!        divJ(:,it) = divJ(:,it) &
-!        &            + weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
-!        ! y x z
-!        temp = Pauli(DenDPsi(:,1,:,wave), 3)
-!        divJ(:,it) = divJ(:,it) &
-!        &            - weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
-!        ! x z y 
-!        temp = Pauli(DenDPsi(:,3,:,wave), 2)
-!        divJ(:,it) = divJ(:,it) &
-!        &            - weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
-!        ! z x y 
-!        temp = Pauli(DenDPsi(:,1,:,wave), 2)
-!        divJ(:,it) = divJ(:,it) &
-!        &            + weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
-!        ! y z x 
-!        temp = Pauli(DenDPsi(:,3,:,wave), 1)
-!        divJ(:,it) = divJ(:,it) &
-!        &            + weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
-!        ! z y x 
-!        temp = Pauli(DenDPsi(:,2,:,wave), 1)
-!        divJ(:,it) = divJ(:,it) &
-!        &            - weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
-!    enddo
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! I code this with calls to the Pauli and ImagMultiplySpinor functions 
+        ! to make no mistakes
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! x y z
+        temp = Pauli(DenDPsi(:,2,:,wave), 3)
+        divJ(:,it) = divJ(:,it) &
+        &            + weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
+        ! y x z
+        temp = Pauli(DenDPsi(:,1,:,wave), 3)
+        divJ(:,it) = divJ(:,it) &
+        &            - weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
+        ! x z y 
+        temp = Pauli(DenDPsi(:,3,:,wave), 2)
+        divJ(:,it) = divJ(:,it) &
+        &            - weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
+        ! z x y 
+        temp = Pauli(DenDPsi(:,1,:,wave), 2)
+        divJ(:,it) = divJ(:,it) &
+        &            + weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
+        ! y z x 
+        temp = Pauli(DenDPsi(:,3,:,wave), 1)
+        divJ(:,it) = divJ(:,it) &
+        &            + weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
+        ! z y x 
+        temp = Pauli(DenDPsi(:,2,:,wave), 1)
+        divJ(:,it) = divJ(:,it) &
+        &            - weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
+    enddo
     ! Taking isospin combinations
     divJ(:,3) = divJ(:,1) + divJ(:,2)
     divJ(:,4) = divJ(:,1) - divJ(:,2)
