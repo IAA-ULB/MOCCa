@@ -707,7 +707,9 @@ end subroutine loadbalance
     integer              :: rank, B, row, col
     integer              :: mpi_err, tcount, neutron_ranks, proton_ranks, si, N
     integer, allocatable :: spwf_count(:)
-    real(KIND=dp)        :: spwf_mem_local, den_mem, pot_mem, spwf_mem_2D
+    ! Disabled because the current implementation is bugged
+    !real(KIND=dp)        :: spwf_mem_local, spwf_mem_2D
+    real(KIND=dp)        :: pot_mem, den_mem
 
     1 format  (30('-'), ' MPI load balancing ', 30('-'))
     2 format  (' number of processes = ', i7)
@@ -768,8 +770,8 @@ end subroutine loadbalance
       pot_mem = den_mem * 2 * (1 + memory)
       print 10, den_mem
       print 11, pot_mem
-      print 12, transform_memory(memory_wavefunctions(sum(HFBlocks_global)))
-      print 13, transform_memory(memory_wavefunctions(maxval(spwf_count)))
+      print 12, 0.0d0 !transform_memory(memory_wavefunctions(sum(HFBlocks_global)))
+      print 13, 0.0d0 !transform_memory(memory_wavefunctions(maxval(spwf_count)))
 
       print 99
       print 14
@@ -781,12 +783,14 @@ end subroutine loadbalance
         N = ranks_per_block(B)
         row = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,1))+1
         col = MAXVAL(MPI_2D_COORDINATES(si+1:si+N,2))+1
-        spwf_mem_local = transform_memory(memory_wavefunctions(spwf_count(rank)))
-        spwf_mem_2D    = transform_memory(memory_wavefunctions_2D(HFBLOCKS_GLOBAL(B), &
-        &             MPI_2D_COORDINATES(rank,1), row, MPI_2D_COORDINATES(rank,2), col))
+
+        ! Disabled because the current implementation is bugged.
+        !spwf_mem_local = transform_memory(memory_wavefunctions(spwf_count(rank)))
+        !spwf_mem_2D    = transform_memory(memory_wavefunctions_2D(HFBLOCKS_GLOBAL(B), &
+        !&             MPI_2D_COORDINATES(rank,1), row, MPI_2D_COORDINATES(rank,2), col))
         print 16, rank,B , &
         &          MPI_2D_COORDINATES(rank,1), MPI_2D_COORDINATES(rank,2), &
-        &          spwf_count(rank), spwf_mem_local, spwf_mem_2D
+        &          spwf_count(rank), 0.0d0, 0.0d0
       enddo
       print 99
       deallocate(spwf_count)
@@ -3718,7 +3722,8 @@ function transform_mat_diag(M, transfo) result(Mc)
   ! Output:
   !   storage: total number of real numbers involved in storing the spwfs
   !
-  ! TODO: this needs significant work!
+  ! TODO: the estimation of the memory associated with wavefunctions is likely
+  !       wrong and at least does not account for store_derivatives = .false.
   !-----------------------------------------------------------------------------
   integer, intent(in)    :: spwf_number
   integer(kind=LargeInt) :: storage
