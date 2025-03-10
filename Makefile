@@ -297,6 +297,7 @@ SRC    +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 SRC    +=   functional.f90 fission_MOI.f90  evolution.f90 scfiteration.f90
 SRC    +=   IO.f90 temperature_projection.f90 convergence.f90 printing.f90
 SRC    +=   tantalus.version.f90
+SRC    +=   FAM.f90
 SINGLE_SRC = $(SRC) run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -377,6 +378,12 @@ clean:
 $(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  $< -o $@
 
+fam:
+	cp src_orig/FAM.f90 src/FAM.f90
+	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  src/FAM.f90 -o obj/FAM.o
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o single $(SINGLE_OBJ) $(LIBS)
+	mv single exec/$(EXENAME)
+	
 setversioninfo:
 # Copy the git information into the main code, so it can be printed
 	@cp $(SRCDIR)/tantalus.f90 $(SRCDIR)/tantalus.version.f90
