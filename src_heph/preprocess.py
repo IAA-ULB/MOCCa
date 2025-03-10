@@ -173,6 +173,10 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='convergence.f90'):
         ProcessCranking(fname, src, target, so)
         return
+
+    if(fname=='FAM.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
+        return
         
 
 def ProcessGeninfo(fname, src, target, so):

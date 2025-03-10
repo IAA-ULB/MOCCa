@@ -131,7 +131,8 @@ FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90
               'functional.f90'    , 'parameterization.f90' , 'evolution.f90'   , 
               'scfiteration.f90'  , 'IO.f90'               , 'tantalus.f90'    ,   
               'transform.f90'     ,  'cranking.f90'        , 'convergence.f90' , 
-              'run_single.f90'    , 'multirun_example.f90' , 'timing.f90']
+              'run_single.f90'    , 'multirun_example.f90' , 'timing.f90', 
+              'FAM.f90' ]
 
 #-------------------------------------------------------------------------------
 # Check for the existence of all the source code files in SRCPATH
