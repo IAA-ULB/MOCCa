@@ -6,6 +6,7 @@ program tantalus_single
   !
   !-----------------------------------------------------------------------------
   use Tantalus
+  use FAM
 
   implicit none
 
@@ -28,12 +29,19 @@ program tantalus_single
   integer           :: Narguments, status
   integer(dp)       :: file_number = 10
   character(len=32) :: filename = 'input.dat', numberstring
+  logical           :: do_fam = .true.
+
 
   Narguments = COMMAND_ARGUMENT_COUNT()
   print *, 'Nargs', Narguments
   if(Narguments .eq. 0) then
     ! Run the code from STDIN
-    call Run_Tantalus('Single-mode')
+    ! call Run_Tantalus('Single-mode')
+
+    if(do_fam) then
+      ! Run a FAM QRPA calculation
+      call Run_FAM()
+    endif
   else
     ! Read filename
     call get_command_argument(1,filename,status=status)
