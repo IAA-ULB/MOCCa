@@ -22,6 +22,8 @@ program FAM
 
   implicit none
 
+  integer :: ifail
+
   100 format &
      &  (/,8x,' _____________________________________________________________', &
      &   /,8x,'|                                                             |', &
@@ -73,6 +75,18 @@ program FAM
   !------------------------------------------------------------------------------
   ! Print all relevant input gleaned from STDIN and the wf file.
   call PrintInput()
+
+  ! Provide memory for the derivatives of the spwfs
+  call allocate_memory_derivatives(PairingType)
+
+
+  ifail = 0
+  call SolvePairing(Pairingtype, ifail)
+
+  ! Derive all single-particle wavefunctions on the mesh
+  print *, "deriving the spwf"
+  call deriveHF()
+
 
   print *, "Reached the end successfully" 
 
