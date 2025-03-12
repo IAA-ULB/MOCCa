@@ -17,10 +17,30 @@ program FAM
  !==============================================================================
 
   use compilation
+  use IO
 
   implicit none
 
-  print *, "HABEMUS FAMTALUS"
+
+  !-----------------------------------------------------------------------------
+  ! Read input from STDIN
+  ! 
+  ! For FAMQRPA, the code should read in addition:
+  ! 
+  ! -  the type of perturbing operator/external field: E1, E2, M1, M2, ...
+  !    and more complicated stuff when targetting beta-decay
+  !    Important note: we will need to distinguish
+  ! -  the frequency \omega of the perturbing field
+  ! -  the 'size' of the perturbation to perform the finite differencing
+  ! -  a smearing parameter to avoid discontinuities at the poles of the 
+  !    response function
+  ! 
+  call ReadInput()
+
+
+
+
+  print *, "Reached the end successfully" 
 
   ! end of one FAM calculation;
 
