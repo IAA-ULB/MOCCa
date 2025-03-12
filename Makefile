@@ -307,15 +307,7 @@ NIL_SRC := compilation.f90 timing.f90 geninfo.f90 derivatives.f90 nil8.f90
 NIL_SRC += wavefunctions.f90 gennilsson.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # FAM source files
-FAM_SRC :=  compilation.f90 geninfo.f90 timing.f90 constants.f90 
-FAM_SRC +=  nil8.f90 derivatives.f90 wavefunctions.f90 
-FAM_SRC +=  pairingcutoffs.f90 parameterization.f90 hartree-fock.f90 BCS.f90 
-FAM_SRC +=  HFB_gradient.f90 HFB_direct.f90 HFB.f90 pairing_strengths.f90 
-FAM_SRC +=  pairing.f90 precondition.f90 basis_transform.f90 densities.f90 
-FAM_SRC +=  transform.f90 sphericalharmonics.f90 moments.f90 cranking.f90 
-FAM_SRC +=  folding.f90 coulomb.f90 momentsofinertia.f90 functional.f90 
-FAM_SRC +=  evolution.f90 scfiteration.f90 fission_MOI.f90 IO.f90 
-FAM_SRC +=  FAM.f90
+FAM_SRC += $(SRC) FAM.f90
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Translate source files into object files

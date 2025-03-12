@@ -18,9 +18,16 @@ program FAM
 
   use compilation
   use IO
+  use Tantalus
 
   implicit none
 
+  !------------------------------------------------------------------------------
+  ! starting all timers
+  ! 
+  ! -> This is necessary since subroutines below make use of the timers
+  ! 
+  call initialize_all_timers
 
   !-----------------------------------------------------------------------------
   ! Read input from STDIN
@@ -37,8 +44,13 @@ program FAM
   ! 
   call ReadInput()
 
+  !-----------------------------------------------------------------------------
+  ! Initalize the matrices for performing derivatives on the mesh
+  call inilag()
 
-
+  !------------------------------------------------------------------------------
+  ! Read all information from a wf file
+  call ReadWavefunction()
 
   print *, "Reached the end successfully" 
 
