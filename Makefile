@@ -297,7 +297,7 @@ SRC    +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 SRC    +=   functional.f90 fission_MOI.f90  evolution.f90 scfiteration.f90
 SRC    +=   IO.f90 temperature_projection.f90 convergence.f90 printing.f90
 SRC    +=   tantalus.version.f90
-SRC    +=   FAM.f90
+
 SINGLE_SRC = $(SRC) run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -306,10 +306,14 @@ SINGLE_SRC = $(SRC) run_single.f90
 NIL_SRC := compilation.f90 timing.f90 geninfo.f90 derivatives.f90 nil8.f90
 NIL_SRC += wavefunctions.f90 gennilsson.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# FAM source files
+FAM_SRC :=  compilation.f90 geninfo.f90 timing.f90 constants.f90
+FAM_SRC +=  FAM.f90
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Translate source files into object files
 SINGLE_OBJ  :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(SINGLE_SRC))
+FAM_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(FAM_SRC))
 NIL_OBJ     :=  $(patsubst %.f90,$(OBJDIR)/%.o,$(NIL_SRC))
 
 ################################################################################
@@ -341,7 +345,7 @@ endif
 # Recipes (This section should NOT be modified in principle)
 ################################################################################
 
-all: single
+all: single fam
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Creation of required directories
@@ -361,6 +365,11 @@ $(SRCDIR)/:
 single: $(PRE) $(SINGLE_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(SINGLE_OBJ) $(LIBS)
 	mv single exec/$(EXENAME)
+
+fam: $(PRE) $(FAM_OBJ)
+# 	cp src_orig/FAM.f90 src/FAM.f90
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(FAM_OBJ) $(LIBS)
+	mv fam exec/fam.exe
 
 run_heph:
   # Run Hephaestos with the correct configuration file and information from 
@@ -410,6 +419,9 @@ getcompilerinfo:
 
 cp_nil:
 	cp src_orig/gennilsson.f90 $(SRCDIR)/gennilsson.f90
+
+cp_fam:	
+	cp src_orig/FAM.f90 $(SRCDIR)/FAM.f90
 
 ################################################################################
 

@@ -1,8 +1,4 @@
-module FAM
-
-  contains
-
-  subroutine run_FAM()
+program FAM
 
  !==============================================================================
  ! ________ _______  _        _ _________ _______  _                 _______
@@ -27,6 +23,5 @@ module FAM
   print *, "HABEMUS FAMTALUS"
 
   ! end of one FAM calculation;
-  end subroutine Run_FAM
 
-end module FAM
+end program FAM
