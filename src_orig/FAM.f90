@@ -22,7 +22,7 @@ program FAM
 
   implicit none
 
-  integer :: ifail
+  ! integer :: ifail ! Future dev: required for HFB
 
   100 format &
      &  (/,8x,' _____________________________________________________________', &
@@ -80,13 +80,12 @@ program FAM
   call allocate_memory_derivatives(PairingType)
 
 
-  ifail = 0
-  call SolvePairing(Pairingtype, ifail)
+  ! Future dev: required for HFB
+  ! ifail = 0
+  ! call SolvePairing(pairingscheme, ifail)
 
   ! Derive all single-particle wavefunctions on the mesh
-  print *, "deriving the spwf"
-  call deriveHF()
-
+  if(store_derivatives) call deriveHF()
 
   print *, "Reached the end successfully" 
 
