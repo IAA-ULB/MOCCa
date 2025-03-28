@@ -1,0 +1,10 @@
+site_name: MOCCa
+nav:
+  - Home: index.md
+  - Getting started:
+    - Quickstart:  user-guide/start.md
+    - Compilation: user-guide/compilation.md
+    - The make.inc file: user-guide/make.inc.md
+  - Release notes: release.md
+
+theme: readthedocs
