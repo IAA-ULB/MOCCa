@@ -1,10 +1,14 @@
 site_name: MOCCa
 nav:
   - Home: index.md
+  - Release notes: release.md
   - Getting started:
     - Quickstart:  user-guide/start.md
     - Compilation: user-guide/compilation.md
     - The make.inc file: user-guide/make.inc.md
-  - Release notes: release.md
-
+  - Input :
+    - The .param file: user-guide/param.md
+    - The input data:  user-guide/input.md
+  - Auxiliary tools:
+    - mean-field_analysis: user-guide/mfa.md
 theme: readthedocs
