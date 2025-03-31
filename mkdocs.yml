@@ -6,5 +6,27 @@ nav:
     - Compilation: user-guide/compilation.md
     - The make.inc file: user-guide/make.inc.md
   - Release notes: release.md
-
+  - Running MOCCa:
+    - General considerations: user-guide/input.md
+    - "EDF parameterisation/ the .param file": user-guide/param.md
+    - "Runtime input/ the .in file":
+        - Structure        : user-guide/structure.md
+        - nucleus          : user-guide/namelists/nucleus.md
+        - mesh             : user-guide/namelists/mesh.md
+        - func             : user-guide/namelists/func.md
+        - pairing          : user-guide/namelists/pairing.md
+        - indices          : user-guide/namelists/indices.md
+        - evolution        : user-guide/namelists/evolution.md
+        - scfiteration     : user-guide/namelists/scfiteration.md
+        - wfs              : user-guide/namelists/wfs.md
+        - IO               : user-guide/namelists/IO.md
+        - inertia          : user-guide/namelists/inertia.md
+        - momentparam      : user-guide/namelists/momentparam.md
+        - momentconstraint : user-guide/namelists/momentconstraint.md
+        - cranking         : user-guide/namelists/cranking.md
+  - Examples:
+    - Integration tests:
+        - minimal : examples/minimal.md
+        - store_derivatives: examples/store_derivatives.md
+        - symmetries: examples/symmetries.md
 theme: readthedocs
