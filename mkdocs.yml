@@ -4,7 +4,9 @@ nav:
   - Getting started:
     - Quickstart:  user-guide/start.md
     - Compilation: user-guide/compilation.md
+    - Machine-specific information: user-guide/machines.md
     - The make.inc file: user-guide/make.inc.md
+    - The config   file: user-guide/config.md
   - Release notes: release.md
   - Running MOCCa:
     - General considerations: user-guide/input.md
@@ -24,9 +26,13 @@ nav:
         - momentparam      : user-guide/namelists/momentparam.md
         - momentconstraint : user-guide/namelists/momentconstraint.md
         - cranking         : user-guide/namelists/cranking.md
-  - Examples:
+    - "Warmstarting: the .wf and .pot files": user-guide/wffile.md
+    - Convergence: user-guide/convergence.md
+  - Examples and tests:
+    - General considerations : examples/general.md
     - Integration tests:
         - minimal : examples/minimal.md
         - store_derivatives: examples/store_derivatives.md
         - symmetries: examples/symmetries.md
 theme: readthedocs
+extra_css: [extra.css]

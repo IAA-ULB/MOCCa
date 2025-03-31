@@ -1,13 +1,13 @@
 # Running MOCCa
 A boilerplate MOCCa calculation requires that you provide at least:
 
-* [a **.in file**: specifying all runtime parameters](user-guide/all.md).
-* [a **.param file**: the details of the EDF parameterisation](user-guide/param.md).
+* [a **.in file**: specifying all runtime parameters](structure.md).
+* [a **.param file**: the details of the EDF parameterisation](param.md).
 
 You can optionally provide the following files to warmstart the code:
 
-* [a **.wf file**: a wavefunction file obtained in a previous MOCCa calculation ](user-guide/wffile.md).
-* [a **.pot file**:  mean-field potentials obtained from a simpler type of calculation ](user-guide/potfile.md).
+* [a **.wf file**: a wavefunction file obtained in a previous MOCCa calculation ](wffile.md).
+* [a **.pot file**:  mean-field potentials obtained from a simpler type of calculation ](potfile.md).
 
 
 Actually executing the code can then be as simple as typing
