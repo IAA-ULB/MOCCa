@@ -5,10 +5,37 @@ nav:
   - Getting started:
     - Quickstart:  user-guide/start.md
     - Compilation: user-guide/compilation.md
+    - Machine-specific information: user-guide/machines.md
     - The make.inc file: user-guide/make.inc.md
-  - Input :
-    - The .param file: user-guide/param.md
-    - The input data:  user-guide/input.md
+    - The config   file: user-guide/config.md
+  - Release notes: release.md
+  - Running MOCCa:
+    - General considerations: user-guide/input.md
+    - "EDF parameterisation/ the .param file": user-guide/param.md
+    - "Runtime input/ the .in file":
+        - Structure        : user-guide/structure.md
+        - nucleus          : user-guide/namelists/nucleus.md
+        - mesh             : user-guide/namelists/mesh.md
+        - func             : user-guide/namelists/func.md
+        - pairing          : user-guide/namelists/pairing.md
+        - indices          : user-guide/namelists/indices.md
+        - evolution        : user-guide/namelists/evolution.md
+        - scfiteration     : user-guide/namelists/scfiteration.md
+        - wfs              : user-guide/namelists/wfs.md
+        - IO               : user-guide/namelists/IO.md
+        - inertia          : user-guide/namelists/inertia.md
+        - momentparam      : user-guide/namelists/momentparam.md
+        - momentconstraint : user-guide/namelists/momentconstraint.md
+        - cranking         : user-guide/namelists/cranking.md
+    - "Warmstarting: the .wf and .pot files": user-guide/wffile.md
+    - Convergence: user-guide/convergence.md
   - Auxiliary tools:
     - mean-field_analysis: user-guide/mfa.md
+  - Examples and tests:
+    - General considerations : examples/general.md
+    - Integration tests:
+        - minimal : examples/minimal.md
+        - store_derivatives: examples/store_derivatives.md
+        - symmetries: examples/symmetries.md
 theme: readthedocs
+extra_css: [extra.css]

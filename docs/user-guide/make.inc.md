@@ -49,4 +49,3 @@ one for use, the following table summarizes all the options you are required to 
 | USE_HDF5           | whether to offer HDF5 support, yes(1) or no (0)
 | HDF5_LIB           | linking statemetns for the HDF5 library
 | LINEAR_ALGEBRA_LIB | linking statements for (Sca)LAPACK and BLAS
-|--------------------|---------------------------------------------------------
