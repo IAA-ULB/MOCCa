@@ -1,0 +1,166 @@
+name: Tantalus CI/CD Workflow
+#TODO:
+# - add comments
+# - clean up matrix notation
+on:
+  push:
+    branches:
+      - mkdocs_documentation
+  pull_request:
+    branches:
+      - mkdocs_documentation
+
+jobs:
+  compile:
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        CONFIG:
+          - NLO
+          - BXL
+          - BXL-P
+          - BXL-T
+          - BXL-TP
+          - N2LO
+          - N2LO-P
+          - N2LO-T
+          - N2LO-TP
+        COMPILER:
+          - gfortran
+          # - ifort # TODO: fix on astropc19
+        CALCTYPE:
+          - NUCLEI
+          # - PASTA # TODO: fix the code
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare src directory
+        # ---------------------------------------------------------------------------
+        # This is a horrible hack:
+        #   unfortunately the current Makefile configuration of Tantalus will always
+        #   fail the first time around because Hephaestos has not created f90 files
+        #   in the src/ directory yet. I have not found a way to correctly do this
+        #   dependency in the Makefile yet...;
+        # ---------------------------------------------------------------------------
+        run: |
+            mkdir src/
+            cp src_orig/*.f90 src
+      - name: Compile Tantalus
+        run: |
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          make CONFIG=${{ matrix.CONFIG }} COMPILER=${{ matrix.COMPILER }} EXENAME=Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+      - name: Upload compilation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: exec-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}-${{ matrix.CALCTYPE }}
+          path: exec/Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.exe
+          retention-days: 2
+
+  minimal:
+    runs-on: self-hosted
+    needs: compile
+    strategy:
+      matrix:
+        COMPILER:
+          - gfortran
+          # - ifort # TODO: fix on astropc19
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-NLO-${{ matrix.COMPILER }}-NUCLEI
+          path: exec/
+
+      - name: Make executeable
+        run:  chmod +x exec/Tantalus.NLO.${{ matrix.COMPILER }}.NUCLEI.exe
+
+      - name: Run minimal test
+        run: |
+          cd testing/integration/
+          bash minimal.sh NLO.${{ matrix.COMPILER }}.NUCLEI
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimal-test-results-${{ matrix.COMPILER }}
+          path: testing/integration/logs/minimal.${{ matrix.COMPILER }}.NUCLEI.out
+          retention-days: 365
+
+  symmetries:
+    runs-on: self-hosted
+    needs: compile
+    strategy:
+      matrix:
+        PARAM:
+          - BSkG3
+          - SN2LO1
+        CONFIG:
+          - BXL
+          - N2LO
+        COMPILER:
+          - gfortran
+        CALCTYPE:
+          - NUCLEI
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}-${{ matrix.CALCTYPE }}
+          path: exec/
+
+      - name: Make executeable
+        run:  chmod +x exec/Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.exe
+
+      - name: Run symmetries test
+        run: |
+          cd testing/integration/
+          bash symmetries.sh ${{ matrix.PARAM }} Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }} Tantalus.${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }} Tantalus.${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }} Tantalus.${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+
+      - name: Upload symmetries test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: symmetries-test-results-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
+          path: |
+            testing/integration/logs/symmetries.Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.out
+            testing/integration/logs/symmetries.Tantalus.${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.out
+            testing/integration/logs/symmetries.Tantalus.${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.out
+            testing/integration/logs/symmetries.Tantalus.${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.out
+          retention-days: 365
+
+  store_derivatives:
+    runs-on: self-hosted
+    needs: compile
+    strategy:
+      matrix:
+        PARAM:
+          - BSkG3
+          - SN2LO1
+        CONFIG:
+          - BXL
+          - BXL-T
+          - BXL-P
+          - N2LO
+          - N2LO-T
+          - N2LO-P
+        COMPILER:
+          - gfortran
+        CALCTYPE:
+          - NUCLEI
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}-${{ matrix.CALCTYPE }}
+          path: exec/
+
+      - name: Run store_derivatives test
+        run: |
+          cd testing/integration/
+          bash store_derivatives.sh -p ${{ matrix.PARAM }} -e ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+
+      - name: Upload store_derivatives test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: store_derivatives-test-results-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
+          path: |
+            testing/integration/logs/store_derivatives=.true..Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.out
+            testing/integration/logs/store_derivatives=.false..Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.out
+          retention-days: 365
