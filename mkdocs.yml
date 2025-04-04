@@ -5,9 +5,9 @@ nav:
   - Getting started:
     - Quickstart:  user-guide/start.md
     - Compilation: user-guide/compilation.md
-    - Machine-specific information: user-guide/machines.md
     - The make.inc file: user-guide/make.inc.md
     - The config   file: user-guide/config.md
+    - Machine-specific information: user-guide/machines.md
   - Release notes: release.md
   - Running MOCCa:
     - General considerations: user-guide/input.md
