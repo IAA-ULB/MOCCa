@@ -19,7 +19,7 @@
 # Useage
 # ------
 #
-#  bash symmetries.sh -p param -e exec [OTHER FLAGS]
+#  bash store_derivatives.sh -p param -e exec [OTHER FLAGS]
 #
 # -p param: specify a parameterization name
 # -e exec : specify the  suffix of the executable
