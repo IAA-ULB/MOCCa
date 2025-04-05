@@ -103,72 +103,10 @@ jobs:
           path: testing/integration/logs/minimal.${{ env.SUFFIX }}.out
           retention-days: 90
 
-  # symmetries:
-  #   runs-on: self-hosted
-  #   needs: compile
-  #   strategy:
-  #     matrix:
-  #       PARAM:
-  #         - BSkG3
-  #         # - SN2LO1
-  #       CONFIG:
-  #         - BXL
-  #         # - N2LO
-  #       COMPILER:
-  #         - gfortran
-  #       CALCTYPE:
-  #         - NUCLEI
-  #   variables:
-  #      EXEC    : ${CONFIG}.${COMPILER}.${CALCTYPE}
-  #      EXEC_P  : ${CONFIG}-P.${COMPILER}.${CALCTYPE}
-  #      EXEC_T  : ${CONFIG}-T.${COMPILER}.${CALCTYPE}
-  #      EXEC_TP : ${CONFIG}-TP.${COMPILER}.${CALCTYPE}
-  #
-  #    steps:
-  #     - uses: actions/download-artifact@v4
-  #       with:
-  #         name: exec-${{ EXEC }}
-  #         path: exec/
-  #     - uses: actions/download-artifact@v4
-  #       with:
-  #         name: exec-${{ EXEC_P }}
-  #         path: exec/
-  #     - uses: actions/download-artifact@v4
-  #       with:
-  #         name: exec-${{ EXEC_T }}
-  #         path: exec/
-  #     - uses: actions/download-artifact@v4
-  #       with:
-  #         name: exec-${{ EXEC_TP }}
-  #         path: exec/
-  #
-  #     - name: Make executeable
-  #       run:  |
-  #        chmod +x exec/Tantalus.${{ EXEC    }}.exe
-  #        chmod +x exec/Tantalus.${{ EXEC_P  }}.exe
-  #        chmod +x exec/Tantalus.${{ EXEC_T  }}.exe
-  #        chmod +x exec/Tantalus.${{ EXEC_TP }}.exe
-  #
-  #     - name: Run symmetries test
-  #       run: |
-  #         cd testing/integration/
-  #         bash symmetries.sh ${{ EXEC }} ${{ EXEC_P }} ${{ EXEC_T }} ${{ EXEC_TP }}
-  #
-  #     - name: Upload symmetries test results
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: symmetries-test-results-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
-  #         path: |
-  #           testing/integration/logs/symmetries.${{ EXEC    }}.out
-  #           testing/integration/logs/symmetries.${{ EXEC_T  }}.out
-  #           testing/integration/logs/symmetries.${{ EXEC_P  }}.out
-  #           testing/integration/logs/symmetries.${{ EXEC_TP }}.out
-  #         retention-days: 90
-  #
   store_derivatives:
-  #-----------------------------------------------------------------------------
-  # Run the 'store_derivatives' test
-  #-----------------------------------------------------------------------------
+    #-----------------------------------------------------------------------------
+    # Run the 'store_derivatives' test
+    #-----------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile
     strategy:
@@ -205,8 +143,65 @@ jobs:
       - name: Upload store_derivatives test results
         uses: actions/upload-artifact@v4
         with:
-          name: store_derivatives-test-results-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
+          name: store_derivatives-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
           path: |
-            testing/integration/logs/store_derivatives=.true..${{ env.SUFFIX }}.out
-            testing/integration/logs/store_derivatives=.false..${{ env.SUFFIX }}.out
+            testing/integration/logs/store_derivatives=true.${{ env.SUFFIX }}.out
+            testing/integration/logs/store_derivatives=false.${{ env.SUFFIX }}.out
           retention-days: 90
+
+  symmetries:
+    runs-on: self-hosted
+    needs: compile
+    strategy:
+      matrix:
+        PARAM   : [BSkG3]   # - SN2LO1
+        CONFIG  : [BXL]     # - N2LO
+        COMPILER: [gfortran]
+        CALCTYPE: [NUCLEI]
+    env:
+       EXEC    : ${CONFIG}.${COMPILER}.${CALCTYPE}
+       EXEC_P  : ${CONFIG}-P.${COMPILER}.${CALCTYPE}
+       EXEC_T  : ${CONFIG}-T.${COMPILER}.${CALCTYPE}
+       EXEC_TP : ${CONFIG}-TP.${COMPILER}.${CALCTYPE}
+
+     steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.EXEC }}
+          path: exec/
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.EXEC_P }}
+          path: exec/
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.EXEC_T }}
+          path: exec/
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.EXEC_TP }}
+          path: exec/
+
+      - name: Make executeable
+        run:  |
+         chmod +x exec/Tantalus.${{ env.EXEC    }}.exe
+         chmod +x exec/Tantalus.${{ env.EXEC_P  }}.exe
+         chmod +x exec/Tantalus.${{ env.EXEC_T  }}.exe
+         chmod +x exec/Tantalus.${{ env.EXEC_TP }}.exe
+
+      - name: Run symmetries test
+        run: |
+          cd testing/integration/
+          bash symmetries.sh ${{ env.EXEC }} ${{ env.EXEC_P }} ${{ env.EXEC_T }} ${{ env.EXEC_TP }}
+
+      - name: Upload symmetries test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: symmetries-test-results-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
+          path: |
+            testing/integration/logs/symmetries.${{ env.EXEC    }}.out
+            testing/integration/logs/symmetries.${{ env.EXEC_T  }}.out
+            testing/integration/logs/symmetries.${{ env.EXEC_P  }}.out
+            testing/integration/logs/symmetries.${{ env.EXEC_TP }}.out
+          retention-days: 90
+
