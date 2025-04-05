@@ -66,7 +66,6 @@ jobs:
           name: exec-${{ env.SUFFIX }}
           path: exec/Tantalus.${{ env.SUFFIX }}.exe
           retention-days: 2
-
   minimal:
     #-----------------------------------------------------------------------------
     # Run the 'minimal' test for two different compilers.
@@ -102,7 +101,6 @@ jobs:
           name: minimal-${{ env.SUFFIX }}
           path: testing/integration/logs/minimal.${{ env.SUFFIX }}.out
           retention-days: 90
-
   store_derivatives:
     #-----------------------------------------------------------------------------
     # Run the 'store_derivatives' test
@@ -159,12 +157,12 @@ jobs:
         COMPILER: [gfortran]
         CALCTYPE: [NUCLEI]
     env:
-       EXEC    : ${CONFIG}.${COMPILER}.${CALCTYPE}
-       EXEC_P  : ${CONFIG}-P.${COMPILER}.${CALCTYPE}
-       EXEC_T  : ${CONFIG}-T.${COMPILER}.${CALCTYPE}
-       EXEC_TP : ${CONFIG}-TP.${COMPILER}.${CALCTYPE}
+       EXEC    : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+       EXEC_P  : ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+       EXEC_T  : ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+       EXEC_TP : ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
 
-     steps:
+    steps:
       - uses: actions/download-artifact@v4
         with:
           name: exec-${{ env.EXEC }}
@@ -190,9 +188,10 @@ jobs:
          chmod +x exec/Tantalus.${{ env.EXEC_TP }}.exe
 
       - name: Run symmetries test
+        # Useage: bash symmetries param exec exec_P exec_T exec_TP
         run: |
           cd testing/integration/
-          bash symmetries.sh ${{ env.EXEC }} ${{ env.EXEC_P }} ${{ env.EXEC_T }} ${{ env.EXEC_TP }}
+          bash symmetries.sh ${{ matrix.param }} ${{ env.EXEC }} ${{ env.EXEC_P }} ${{ env.EXEC_T }} ${{ env.EXEC_TP }}
 
       - name: Upload symmetries test results
         uses: actions/upload-artifact@v4
