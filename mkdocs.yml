@@ -33,9 +33,6 @@ nav:
     - mean-field_analysis: user-guide/mfa.md
   - Examples and tests:
     - General considerations : examples/general.md
-    - Integration tests:
-        - minimal : examples/minimal.md
-        - store_derivatives: examples/store_derivatives.md
-        - symmetries: examples/symmetries.md
+    - How to write a test: examples/requirements.md
 theme: readthedocs
 extra_css: [extra.css]

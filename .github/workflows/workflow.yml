@@ -9,18 +9,14 @@
 #
 #-------------------------------------------------------------------------------
 name: Tantalus CI/CD Workflow
-#TODO:
-# - add comments
-# - clean up matrix notation
-# - enable all options
+#TODO: fix pasta and ifort compilation
 on:
   push:
     branches:
-      - mkdocs_documentation # configured for the testing branch right now
+      - mkdocs_documentation # TODO: adapt to main branch
   pull_request:
     branches:
-      - mkdocs_documentation # configured for the testing branch right now
-
+      - mkdocs_documentation # TODO: adapt to main branch
 jobs:
   compile:
     #------------------------------------------------------------------------------

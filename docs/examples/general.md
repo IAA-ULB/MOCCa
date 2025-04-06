@@ -14,12 +14,14 @@
 
 ## Integration tests 
 
-  - [minimal](minimal.md): 
-     a calculation of spherical O16 with a standard Skyrme 
+  - ```minimal.sh```: 
+     A calculation of spherical O16 with a standard Skyrme 
      parameterisation whose energy gets compared to a known value.
-  - [symmetries](symmetries.md):
+  - ```symmetries.sh```:
     A showcase of different symmetry compilation options that verifies that they 
     return identical results when the symmetries are conserved self-consistently.
+  - ```store_derivatives.sh```:
+    Verify that calculations with store_derivatives=.true. and .false. are equivalent.
 
 ## Regression tests 
 
