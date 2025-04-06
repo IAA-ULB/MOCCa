@@ -13,10 +13,10 @@ name: Tantalus CI/CD Workflow
 on:
   push:
     branches:
-      - mkdocs_documentation # TODO: adapt to main branch
+      - master
   pull_request:
     branches:
-      - mkdocs_documentation # TODO: adapt to main branch
+      - master
 jobs:
   compile:
     #------------------------------------------------------------------------------
