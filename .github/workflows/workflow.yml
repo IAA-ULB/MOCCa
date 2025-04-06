@@ -32,7 +32,7 @@ jobs:
     runs-on: self-hosted
     strategy:
       matrix:
-        CONFIG:   [NLO, BXL, BXL-P, BXL-T, BXL-TP] # N2LO, N2LO-P, N2LO-T, N2LO-TP]
+        CONFIG:   [NLO, BXL, BXL-P, BXL-T, BXL-TP, N2LO, N2LO-P, N2LO-T, N2LO-TP]
         COMPILER: [gfortran]                       # - ifort # TODO: fix on astropc19
         CALCTYPE: [NUCLEI]                         # - PASTA # TODO: fix the code
     env:
@@ -109,15 +109,14 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        PARAM: [BSkG3] # - SN2LO1
-        CONFIG: [BXL]
-          # - BXL-T
-          # - BXL-P
-          # - N2LO
-          # - N2LO-T
-          # - N2LO-P
+        CONFIG  : [BXL,N2LO]
         COMPILER: [gfortran]
         CALCTYPE: [NUCLEI]
+        include :
+          - CONFIG: BXL
+            PARAM : BSkG3
+          - CONFIG: N2LO
+            PARAM : SN2LO1
     env:
       # Uniquely labelling the executables with this environment variable
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
@@ -152,10 +151,15 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        PARAM   : [BSkG3]   # - SN2LO1
-        CONFIG  : [BXL]     # - N2LO
-        COMPILER: [gfortran]
-        CALCTYPE: [NUCLEI]
+        CONFIG  : [BXL, N2LO]
+        COMPILER: [ gfortran]
+        CALCTYPE: [ NUCLEI  ]
+        include :
+          - CONFIG: BXL
+            PARAM : BSkG3
+          - CONFIG: N2LO
+            PARAM : SN2LO1
+
     env:
        EXEC    : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
        EXEC_P  : ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
