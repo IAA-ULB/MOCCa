@@ -28,9 +28,18 @@ jobs:
     runs-on: self-hosted
     strategy:
       matrix:
-        CONFIG:   [NLO, BXL, BXL-P, BXL-T, BXL-TP, N2LO, N2LO-P, N2LO-T, N2LO-TP]
-        COMPILER: [gfortran]                       # - ifort # TODO: fix on astropc19
-        CALCTYPE: [NUCLEI]                         # - PASTA # TODO: fix the code
+        CONFIG  :   [ NLO, BXL,BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP ]
+        COMPILER:   [ gfortran ]
+        CALCTYPE:   [ NUCLEI   ]
+        include :
+            # Only check pasta with BXL and ifort compiler
+            - CALCTYPE: PASTA
+              CONFIG  : BXL
+              COMPILER: ifort
+            # Compile one thing with ifort to have a compiler independence check
+            - CALCTYPE: NUCLEI
+              CONFIG  : NLO
+              COMPILER: ifort
     env:
       # Uniquely labelling the executables with this environment variable
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
@@ -70,7 +79,7 @@ jobs:
     needs:   compile
     strategy:
       matrix:
-        COMPILER: [gfortran] # ifort # TODO: fix on astropc19
+        COMPILER: [gfortran, ifort]
     env:
       SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI
     steps:
@@ -88,6 +97,7 @@ jobs:
         # Perform the test
         run: |
           cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
           bash minimal.sh $SUFFIX
 
       - name: Upload test results

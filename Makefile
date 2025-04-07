@@ -180,7 +180,7 @@ else ifeq ($(COMPILER),ifort)
     CXX := mpiifort # on the systems available to me, this is the wrapper for
                    # MPI-enabled IFORT
   else
-    CXX := ifort
+    CXX := ifx
   endif
 else ifeq ($(COMPILER), cray)
   CXX := ftn

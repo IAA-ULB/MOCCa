@@ -3,14 +3,36 @@
  The code comes bundled with an extensive set of scripts that serve as automated 
  tests to verify new versions of the code. 
  
- These come in three flavours:
+ These come in four flavours:
 
+ - compilation tests: checking what settings compile without errors.
  - integration tests: tests of all parts of the code acting in tandem.
  - regression tests: tests aimed at verifying earlier bugs have not reappeared.
  - unit tests: tests of individual parts of the code. 
  
  The integration tests also serve as inspiration to new users, detailing the operation of 
  code in what are essentially production conditions.
+
+## Compilation tests 
+
+The following combinations are checked for compilation errors:
+
+ - All possible combinations of
+    - CALCTYPE: NUCLEI 
+    - Compiler: gfortran
+    - Functional  : BXL, N2LO
+    - Symmetries: "", "-T", "-P", "-TP"
+ - A gfortran and ifort compilation to compare
+    - CALCTYPE: NUCLEI
+    - Symmetries : ""
+    - Functional : NLO
+    - Compiler   : ifort, gfortran
+ - A simple PASTA compilation 
+     - CALCTYPE   : PASTA
+     - Symmetries : ""
+     - Functional       : BXL
+     - Compiler  : intel 
+
 
 ## Integration tests 
 
