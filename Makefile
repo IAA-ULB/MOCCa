@@ -180,7 +180,7 @@ else ifeq ($(COMPILER),ifort)
     CXX := mpiifort # on the systems available to me, this is the wrapper for
                    # MPI-enabled IFORT
   else
-    CXX := ifx
+    CXX := ifort
   endif
 else ifeq ($(COMPILER), cray)
   CXX := ftn
@@ -380,6 +380,7 @@ $(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/
 setversioninfo:
 # Copy the git information into the main code, so it can be printed
 	@cp $(SRCDIR)/tantalus.f90 $(SRCDIR)/tantalus.version.f90
+	@sed -i.bak 's/VTAG/"${GIT_INFO5}"/'     $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' $(SRCDIR)/tantalus.version.f90
@@ -396,7 +397,7 @@ getgitinfo:
 	$(eval GIT_INFO2=$(shell git show   | grep 'Author:' | head -1))
 	$(eval GIT_INFO3=$(shell git show   | grep 'Date:'   | head -1))
 	$(eval GIT_INFO4=$(shell git branch | grep '*'       | head -1 | cut -c2- ))
-
+	$(eval GIT_INFO5=$(shell git describe --tags ))
 getcompilerinfo:
   # Get information from 'CXX --version'
 	$(eval COMPVERSION=$(shell $(CXX) --version | head -1))

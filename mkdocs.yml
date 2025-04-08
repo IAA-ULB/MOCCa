@@ -8,7 +8,6 @@ nav:
     - The make.inc file: user-guide/make.inc.md
     - The config   file: user-guide/config.md
     - Machine-specific information: user-guide/machines.md
-  - Release notes: release.md
   - Running MOCCa:
     - General considerations: user-guide/input.md
     - "EDF parameterisation/ the .param file": user-guide/param.md
@@ -27,7 +26,9 @@ nav:
         - momentparam      : user-guide/namelists/momentparam.md
         - momentconstraint : user-guide/namelists/momentconstraint.md
         - cranking         : user-guide/namelists/cranking.md
-    - "Warmstarting: the .wf and .pot files": user-guide/wffile.md
+    - "Warmstarting the code":
+        - wavefunction (.wf) files: user-guide/wffile.md
+        - potential (.pot) files: user-guide/potfile.md
     - Convergence: user-guide/convergence.md
   - Auxiliary tools:
     - mean-field_analysis: user-guide/mfa.md
