@@ -41,6 +41,39 @@ module fam
 
   subroutine inifam
     implicit none
+    !------------------------------------------------------------------------------
+    ! subroutine to initialise the FAM matrices, i.e.
+    !   - drho   : perturbed densities 
+    !   - ... TO BE COMPLETED ...
+    !------------------------------------------------------------------------------
+
+    real(KIND=dp), allocatable :: drho(:,:,:)
+    real(KIND=dp), allocatable :: SpherHarmMesh(:,:,:,:,:,:)
+    integer :: ImPart
+
+    print *, "Initialise FAM matrices" 
+
+
+    allocate(SpherHarmMesh(nx,ny,nz,0:maxmoment,0:maxmoment,2))
+
+    ! Generate the spherical harmonics Y^l_m(x,y,z) up to l=maxmoment (default:10)
+    ! This could be reduced to just calling the necessary one
+    call GenSphericalHarmonics(maxmoment,nx,ny,nz,meshx,meshy,meshz,           & 
+    &                          SpherHarmMesh,quantisationaxis,secondaryaxis)
+
+    allocate(drho(nx,ny,nz))
+
+    ImPart = 0 ! 0 = Real, 1 = Im, => TBD later
+
+    select case (perturbationtype)
+      case (4)
+        drho(:,:,:) = SpherHarmMesh(:,:,:,2,0,ImPart+1)
+      case default
+        print *, "only E2 (perturbationtype = 4) implemented so far"
+    end select
+    
+    deallocate(spherharmmesh)
+    
 
   end subroutine inifam
 
