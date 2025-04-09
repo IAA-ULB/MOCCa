@@ -4,6 +4,7 @@ nav:
   - Release notes: release.md
   - Getting started:
     - Quickstart:  user-guide/start.md
+    - Working with git and MOCCa:  user-guide/git.md
     - Compilation: user-guide/compilation.md
     - The make.inc file: user-guide/make.inc.md
     - The config   file: user-guide/config.md
