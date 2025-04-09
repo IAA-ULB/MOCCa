@@ -21,6 +21,22 @@ module fam
 
   implicit none
 
+  !------------------------------------------------------------------------------
+  ! The FAM frequency of perturbing field
+  real(KIND=dp) :: omega = 0.5
+  !------------------------------------------------------------------------------
+  ! Type of perturbing operator
+  ! (0) : E0
+  ! (1) : M0
+  ! (2) : E1
+  ! (3) : M1
+  ! (4) : E2
+  ! (5) : M2
+  ! (6) : E3
+  ! (7) : M3
+  integer :: perturbationtype = 4
+  !------------------------------------------------------------------------------
+
   contains
 
   subroutine inifam
