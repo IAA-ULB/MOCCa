@@ -19,7 +19,7 @@
 # Useage
 # ------
 #
-#  bash symmetries.sh -p param -e exec [OTHER FLAGS]
+#  bash store_derivatives.sh -p param -e exec [OTHER FLAGS]
 #
 # -p param: specify a parameterization name
 # -e exec : specify the  suffix of the executable
@@ -28,10 +28,9 @@
 #  Attention: the exe being called should be able to auto-initialise, i.e. to
 #             start from scratch without reading a .wf file!
 #
-#
+# Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Owner                : wouter.ryssens@ulb.be
-# Complexity           : medium
+# Owner                : W. Ryssens [wouter.ryssens@ulb.be]
 # Reference commit hash: 22b6c4b464086ec74f57b72d95a15e11a37a06ec
 #--------------------------------------------------------------------------------
 usage() { echo "Usage: $0 -p param -e exec" 1>&2; exit 1; }

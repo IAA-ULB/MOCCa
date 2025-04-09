@@ -31,14 +31,12 @@ program tantalus_single
 
 
   Narguments = COMMAND_ARGUMENT_COUNT()
-  print *, 'Nargs', Narguments
   if(Narguments .eq. 0) then
     ! Run the code from STDIN
     call Run_Tantalus('Single-mode')
   else
     ! Read filename
     call get_command_argument(1,filename,status=status)
-    print *, 'filename', filename
     if(status.gt.0) then
       call stp('Unknown error when reading the first command line argument.')
     elseif(status.eq.-1) then
