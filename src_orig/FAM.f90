@@ -1,4 +1,4 @@
-program FAM
+module fam
 
  !==============================================================================
  ! ________ _______  _        _ _________ _______  _                 _______
@@ -16,9 +16,26 @@ program FAM
  ! A FAM-QRPA implementation to complement MOCCa.
  !==============================================================================
 
+  use densities
+  use moments
+
+  implicit none
+
+  contains
+
+  subroutine inifam
+    implicit none
+
+  end subroutine inifam
+
+end module fam
+
+program run_FAM
+
   use compilation
   use IO
   use Tantalus
+  use fam
 
   implicit none
 
@@ -96,8 +113,12 @@ program FAM
   ! call adapt_com()
 
   call CalculateMoments()
+
+  ! initialise perturbed matrices
+  call inifam()
+
   print *, "Reached the end successfully" 
 
   ! end of one FAM calculation;
 
-end program FAM
+end program run_FAM
