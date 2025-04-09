@@ -87,6 +87,15 @@ program FAM
   ! Derive all single-particle wavefunctions on the mesh
   if(store_derivatives) call deriveHF()
 
+  ! Calculate the initial densities and the charge density (separately)
+  call densit(SaveRho=.false.)
+
+  call ConstructChargeDensity(ChargeDensity) ! PD: necessary? 
+
+  ! Adopt the relevant quantities to the centre-of-mass of the nucleus ! PD: necessary? 
+  ! call adapt_com()
+
+  call CalculateMoments()
   print *, "Reached the end successfully" 
 
   ! end of one FAM calculation;
