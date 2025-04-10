@@ -86,7 +86,7 @@ implicit none
   ! Filenames for in- and output of the code with respect to spwfs.
   character(len=100)  :: inputfilename, outputfilename
   ! Signal the code to write extra output.
-  character(len=80)   :: BXLFIT='', COMBI='', denfile='', potfile=''
+  character(len=100)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
   character(len=80)   :: inertfile=''
   ! Signal the code to write the wavefunctions periodically to disk
