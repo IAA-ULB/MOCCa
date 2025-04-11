@@ -615,6 +615,11 @@ subroutine printsummary(iter)
         dN = part%value - part%history
         print 7, dN
     else
+        dN(1) = sum(rho_can(1:nwn))     - neutrons
+        dN(2) = sum(rho_can(nwn+1:nwt)) - protons
+        if ( any(dN(:)*dN(:) .gt. 1.d-14) ) then
+          print 7, dN
+        endif
         dF   = FermiEnergy - FermiHistory
         print 6, dF
     endif
