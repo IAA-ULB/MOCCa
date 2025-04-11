@@ -578,8 +578,8 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Write a wavefunction file at each multiple of checkpointiter
         if(checkpointiter.ne.0) then
-          if(mod(iter,checkpointiter) .eq. 0) then
-#if(DEBUG_LEVEL == 1)
+	  if(mod(iter,checkpointiter).eq.0) then
+#if(DEBUG_LEVEL==1)
             ! Output densities and potentials to specific files at every checkpoint
             write(denfile_iter, '("iter=",i5.5,".den")') iter
             write(potfile_iter, '("iter=",i5.5,".pot")') iter
@@ -590,7 +590,15 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 #endif
             if(MPI_RANK.eq.0) print 9, iter, outputfilename
             iomsg='CHECKPOINT'
-            !call WriteTantalus(12, outputfilename)
+            if(trim(to_upper(OutputFileName(len_trim(OutputFileName)-3:))).eq.'HDF5') then
+#if(USE_HDF5>0)
+              call WriteTantalus_hdf5(outputfilename) !new hdf5 format
+#else
+              call stp('HDF5 support was not enabled at compilation.')
+#endif
+            else
+              call WriteTantalus(12, outputfilename) ! old style in .wf file
+            endif
           endif
         endif
     enddo
