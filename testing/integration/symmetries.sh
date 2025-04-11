@@ -24,13 +24,18 @@
 #
 #  TODO:
 #  - add other observables
+#  - improve input to accept longer options?
+#     -> this will mean moving away from getopts
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
+#
 # 1.  the "default"
 #     Invoking without arguments, i.e.
 #        bash symmetries.sh [no arguments]
-#     will perform the test for a BXL-style CONFIG with BSkG3.
+#     will perform the test for a BXL-style CONFIG with BSkG3 for the flags
+#     requested.
+#
 # 2.  the "manual"
 #     Full control through (example)
 #        bash symmetries.sh param exec exec_P exec_T exec_TP
@@ -47,16 +52,14 @@
 #                   on your system.
 #                   Example: "BXL-TP" for "Tantalus.BXL-TP.exe".
 #
+# Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Owner                : wouter.ryssens@ulb.be
-# Complexity           : medium
+# Owner                : W. Ryssens [wouter.ryssens@ulb.be]
 # Reference commit hash: ec5d48ee9e546d795cc74d6160bf7812cd1d3b93
-#-------------------------------------------------------------------------------
-
-#set -e # Make sure no error goes unnoticed...
-
+#--------------------------------------------------------------------------------
+logfiletag='symmetries'
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Input checking: this script requires either 5 or 0 arguments!
+# Input checking: this script requires either 5 or 0 positional arguments!
 if [[ "$#" -ne 0 && "$#" -ne 5 ]]; then
   echo " Illegal number of parameters!"
   echo " Correct useage is either"
@@ -83,17 +86,18 @@ exec_T="BXL-T"
 exec_TP="BXL-TP"
 fi
 
+iter=400
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Basic starting point of all testing scripts
 source ../functions.sh
-
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Setting up the reference calculation: BXL
-setup_test_env "symmetries" "$exec" "$param"
+setup_test_env "$logfiletag" "$exec" "$param"
 
 cat << EOF > tant.data
 &nucleus
 neutrons=12, protons=12
+store_derivatives=$store_derivatives
 /
 &mesh
 nx=12, ny=12, nz=12, dx=1.0
@@ -105,7 +109,7 @@ name_param="$param"
 Type='HFB'
 /
 &evolution
-maxiter=400
+maxiter=$iter
 /
 &scfiteration
 /
@@ -147,11 +151,12 @@ teardown_test_env
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Performing a parity-broken calculation
-setup_test_env "symmetries" "$exec_P" "$param"
+setup_test_env "$logfiletag" "$exec_P" "$param"
 
 cat << EOF > tant.data
 &nucleus
 neutrons=12, protons=12
+store_derivatives=$store_derivatives
 /
 &mesh
 nx=12, ny=12, nz=24, dx=1.0
@@ -163,7 +168,7 @@ name_param="$param"
 Type='HFB'
 /
 &evolution
-maxiter=400
+maxiter=$iter
 /
 &scfiteration
 /
@@ -205,11 +210,12 @@ E_parity=$(get_total_energy_stdout $outfile)
 teardown_test_env
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Performing a time-reversal-broken calculation
-setup_test_env "symmetries" "$exec_T" "$param"
+setup_test_env "$logfiletag" "$exec_T" "$param"
 
 cat << EOF > tant.data
 &nucleus
 neutrons=12, protons=12
+store_derivatives=$store_derivatives
 /
 &mesh
 nx=12, ny=12, nz=12, dx=1.0
@@ -221,7 +227,7 @@ name_param="$param"
 Type='HFB'
 /
 &evolution
-maxiter=400
+maxiter=$iter
 /
 &scfiteration
 /
@@ -263,11 +269,12 @@ teardown_test_env
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Performing a time-reversal- and parity-broken calculation
 # We need to set-up an initial run
-setup_test_env "symmetries" "$exec_P" "$param"
+setup_test_env "$logfiletag" "$exec_P" "$param"
 
 cat << EOF > tant.init.data
 &nucleus
 neutrons=12, protons=12
+store_derivatives=$store_derivatives
 /
 &mesh
 nx=12, ny=12, nz=24, dx=1.0
@@ -316,13 +323,14 @@ mv setting_up.wf ../
 teardown_test_env
 
 # Change the environment
-setup_test_env "symmetries" "$exec_TP" "$param"
+setup_test_env "$logfiletag" "$exec_TP" "$param"
 mv ../setting_up.wf .
 
 # ... and now put the actual data!
 cat << EOF > tant.data
 &nucleus
 neutrons=12, protons=12
+store_derivatives=$store_derivatives
 /
 &mesh
 nx=12, ny=12, nz=24, dx=1.0
@@ -334,7 +342,7 @@ name_param="$param"
 Type='HFB'
 /
 &evolution
-maxiter=400
+maxiter=$iter
 /
 &scfiteration
 /
@@ -404,11 +412,12 @@ printf " %-10s = %-10s?  %1d \n"  $exec $exec_TP $check_energy_TP
 echo '---------------------------------'
 
 # t_check = Global exit code for correct endings of executables
-t_check=$tantalus_check || $tantalus_check_P || $tantalus_check_T || $tantalus_check_TP
+t_check=$(( $tantalus_check || $tantalus_check_P || $tantalus_check_T || $tantalus_check_TP ))
 # e_check = Global exit code for energy comparisons
-e_check=$check_energy_P || $check_energy_T || $check_energy_TP
+e_check=$(( $check_energy_P || $check_energy_T || $check_energy_TP ))
 # Global exit code: everything needs to pass!
-exitcode=$t_check || $e_check
+exitcode=$(( $t_check || $e_check ))
+
 echo ' SUCCESS?      ' $exitcode
 echo '---------------------------------'
 

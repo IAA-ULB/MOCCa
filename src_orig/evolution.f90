@@ -380,7 +380,8 @@ $N3         &              hfpsi(:,:,:,wave),                               &
 
         integer, intent(in)   :: iteration
         integer               :: wave, iso, B, si, N, wave2, lwork, ifail
-        integer               :: wg, wg2
+        integer               :: wg, wg2, der_index
+        logical               :: on_the_fly
 #if(USE_MPI>0)
         integer               :: mpi_err
 #endif
@@ -414,13 +415,23 @@ $N3         &              hfpsi(:,:,:,wave),                               &
           if(B.gt.4) iso = +1
           do wave=si+1,si+N     ! = local index of the spwf
             wg = spwf_map(wave) ! = global index of the spwf
+
+            if(store_derivatives) then
+              ! We have the derivatives precalculated
+              der_index = wave
+              on_the_fly = .false.
+            else
+              ! We do not have the derivatives precalculated
+              der_index  = 1
+              on_the_fly = .true.
+            endif
             !-------------------------------------------------------------------
             ! Calculate the action of the single-particle hamiltonian.
-            hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
-            &              hfdpsi(:,:,:,wave)   ,                              &
-            &              hfddpsi(:,:,:,wave)  ,                              &
-$N3         &              hfdddpsi(:,:,:,wave) ,                              &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+            hpsi = sphamil( hfpsi(:,:,wave)         ,                          &
+            &              hfdpsi(:,:,:,der_index)  ,                          &
+            &              hfddpsi(:,:,:,der_index) ,                          &
+$N3         &              hfdddpsi(:,:,:,der_index),                          &
+            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,on_the_fly)
 
             if(diagsphamil) then
               ! If we are diagonalising the s.p. hamiltonian, we use hpsi to

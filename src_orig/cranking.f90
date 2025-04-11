@@ -239,11 +239,11 @@ $NTR      do wave = 1, N
 $NTR        do i = 1, cranklen
 $NTR          c  = crankdirections(i)
 $NTR          if(pairingtype.ne.2) then
-$NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * spwf_J (c,si+wave,si+wave)
-$NTR            J2_sp      (c) = J2_sp      (c) + rho_can(si+wave) * spwf_J2(c,si+wave,si+wave)
+$NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * HF_J (c,si+wave)
+$NTR            J2_sp      (c) = J2_sp      (c) + rho_can(si+wave) * HF_J2(c,si+wave)
 $NTR          else
-$NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * can_J (c,si+wave)
-$NTR            J2_sp      (c) = J2_sp(c)       + rho_can(si+wave) * can_J2(c,si+wave)
+$NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * CAN_J (c,si+wave)
+$NTR            J2_sp      (c) = J2_sp(c)       + rho_can(si+wave) * CAN_J2(c,si+wave)
 $NTR          endif
 $NTR        enddo
 $NTR      enddo
@@ -332,17 +332,17 @@ $NTR    crankenergy_cut = - omega * TotalAngMom_cut
     integer           :: i $NTR,j
 $NTR    logical           :: found
 
-    1 format (2x,74('_') )
-   10 format (2x,74('-'))
-    2 format (25('-'), ' Angular Momentum (hbar) ',26('-') )
-    3 format (15x, 'Spwfs(*)  ',2x, 'Desired', 5x, 'Omega', 7x, 'E (MeV)' 6x,'Densit. ')
-   31 format (15x, 'Densit.(*)',2x, 'Desired', 5x, 'Omega', 7x, 'E (MeV)' 6x,'Spwfs   ')
-    4 format (3x,'J_',a1,'   ','|', 5f12.5 )
-   41 format (3x,'Size  |', 3f12.5,12x,1f12.5)
+    1 format (2x,99('_') )
+   10 format (2x,99('-'))
+    2 format (30('-'), ' Angular Momentum (hbar) ',46('-') )
+    3 format (15x, 'Spwfs(*)  ',7x, 'Desired', 10x, 'Omega', 12x, 'E (MeV)' 12x,'Densit. ')
+   31 format (15x, 'Densit.(*)',7x, 'Desired', 10x, 'Omega', 12x, 'E (MeV)' 12x,'Spwfs   ')
+    4 format (3x,'J_',a1,'   ','|', 5f17.10 )
+   41 format (3x,'Size  |', 3f17.10,17x,1f17.10)
 $NTR    5 format (2x,' _______________________________________________________' )
 $NTR    6 format (3x,'Open spin')
 $NTR    7 format (15x, 'Neutrons', 3x, 'Protons')
-$NTR    8 format (3x,a1,1x,'|',3x,'|',4f12.5)
+$NTR    8 format (3x,a1,1x,'|',3x,'|',4f17.10)
 
     print 2
     print *

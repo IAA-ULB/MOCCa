@@ -183,9 +183,11 @@ module wavefunctions
  ! expectation values of the single-particle hamiltonian in the canonical basis
  real(KIND=dp), allocatable :: canenergies(:)
  !------------------------------------------------------------------------------
- ! Single-particle expectation values of Parity in the HF basis and in the 
- ! canonical basis
+ ! Expectation values of Parity in the HF basis and in the canonical basis
  real(KIND=dp), allocatable :: P_hf(:), P_can(:)
+ !------------------------------------------------------------------------------
+ ! Expectation values of <r^2> in the HF and canonical basis
+ real(KIND=dp), allocatable, target :: spwf_r2_hf(:), spwf_r2_can(:)
  !------------------------------------------------------------------------------
  ! Flag indicating whether or not to print advanced properties of the spwfs
  ! DURING the iterations. Their properties are calculated and printed for the 
@@ -200,31 +202,25 @@ module wavefunctions
  logical :: print_adv_spwf_properties = .false.
  !------------------------------------------------------------------------------
  ! Angular momentum properties of the spwfs in
- !  (i)   the ordinary basis, i.e. the spwfs in storage: spwf_[...]
- !  (ii)  the Hartree-Fock basis                       :   HF_[...]
- !  (iii) the canonical basis                          :  can_[...]
+ !  (a) the Hartree-Fock basis                       :   HF_[...]
+ !  (b) the canonical basis                          :  can_[...]
  ! "Ordinary" Jx, Jy, Jz 
- real(KIND=dp), allocatable :: spwf_J(:,:,:), hf_J(:,:), can_J(:,:)
+ real(KIND=dp), allocatable :: hf_J(:,:), can_J(:,:)
  ! Squared   Jx^2, Jy^2, Jz^2
- real(KIND=dp), allocatable :: spwf_J2(:,:,:), HF_J2(:,:), can_J2(:,:)
+ real(KIND=dp), allocatable :: HF_J2(:,:), can_J2(:,:)
  ! With an extra time-reversal operator JxT, JyT, JzT
  ! Both real and imaginary parts
- real(KIND=dp), allocatable :: spwf_JTR(:,:,:), HF_JTR(:,:), can_JTR(:,:)
- real(KIND=dp), allocatable :: spwf_JTI(:,:,:), HF_JTI(:,:), can_JTI(:,:)
+ real(KIND=dp), allocatable :: HF_JTR(:,:), can_JTR(:,:)
+ real(KIND=dp), allocatable :: HF_JTI(:,:), can_JTI(:,:)
  ! Total angular momentum "quantum number", i.e. the number J such that 
  !  J (J+1) = J^2_x +  J^2_y + J^2_z
- real(KIND=dp), allocatable :: spwf_JJ(:), HF_JJ(:), can_JJ(:)
+ real(KIND=dp), allocatable :: HF_JJ(:), can_JJ(:)
  ! 
  ! Spin properties, i.e. < S_mu >
- real(KIND=dp), allocatable :: spwf_spin(:,:,:), hf_spin(:,:), can_spin(:,:)
+ real(KIND=dp), allocatable :: hf_spin(:,:), can_spin(:,:)
  ! And values with a T-operator mixed in
- real(KIND=dp), allocatable :: spwf_STR(:,:,:) , hf_STR(:,:) , can_STR(:,:)
- real(KIND=dp), allocatable :: spwf_STI(:,:,:) , hf_STI(:,:) , can_STI(:,:)
- !
- ! Remark: when we diagonalise the sp hamiltonian explicitly, we are happy with 
- ! calculating only the diagonal matrix elements. When not diagonalising the 
- ! sphamiltonian explicitly, we are in need of the full matrices if we want to
- ! print information in the actual HF basis.  
+ real(KIND=dp), allocatable :: hf_STR(:,:) , can_STR(:,:)
+ real(KIND=dp), allocatable :: hf_STI(:,:) , can_STI(:,:)
  !------------------------------------------------------------------------------
  !------------------------------------------------------------------------------
  ! Oscillator frequencies to use for the initialization with a Nilsson  
@@ -241,11 +237,6 @@ module wavefunctions
  !------------------------------------------------------------------------------
  ! Use (or not) the more efficient implementation of the two-basis method
  logical :: efficientHFB = .false.
- !------------------------------------------------------------------------------
- ! The full matrix elements of <r^2> in the HF and canonical basis
- real(KIND=dp), allocatable, target :: spwf_r2_hf(:,:), spwf_r2_can(:,:)
- ! Important note: in many types of calculations, only the diagonal elements of
- ! this matrices will be calculated.
  !------------------------------------------------------------------------------
  ! Procedure to call to orthonormalize the s.p. wavefunctions in HFPSI.
  ! The code offers several strategies, hence the need for a procedure pointer.
@@ -268,7 +259,13 @@ module wavefunctions
  character(len=99)                  :: tag_spwf_file = ''
  integer                            :: tagblock    = 0
 
-contains 
+ !------------------------------------------------------------------------------
+ ! Constructing the canonical basis can be demanding, so we include a cutoff
+ ! to save some CPU cycles for spwfs with small matrix elements.
+ real(KIND=dp), parameter :: basis_cut = 1d-12
+ !TODO: remove this
+
+ contains
 
   subroutine ReadWFdata(file_number)
     !---------------------------------------------------------------------------
@@ -306,6 +303,38 @@ contains
     ! Bookkeeping for all MPI ranks
     nwt = nwn + nwp
   end subroutine ReadWFdata
+
+  subroutine allocate_memory_derivatives(ptype)
+    !-----------------------------------------------------------------------------
+    ! Allocate memory to store the derivatives of the wavefunctions.
+    ! Based on store_derivatives:
+    !   .true.  = complete storage
+    !   .false. = temporary storage to hold the derivative of one spwf
+    !
+    ! Input:
+    !   ptype : pairingtype, if 2 then HFB calculations are performed and we need
+    !           to allocate space to the canonical basis.
+    !
+    !-----------------------------------------------------------------------------
+    integer, intent(in) :: ptype
+    integer             :: alloc_size
+
+    if(store_derivatives) then
+      alloc_size = nwt_local
+    else
+      alloc_size = 1
+    endif
+
+    allocate(HFdPsi  (nx*ny*nz, 3,4,alloc_size)) ! first order
+    allocate(HFddPsi (nx*ny*nz, 6,4,alloc_size)) ! full tensor second order
+$N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
+
+    if(ptype.eq.2) then
+      allocate(candPsi  (nx*ny*nz, 3,4,alloc_size)) ! first order
+      allocate(canddPsi (nx*ny*nz, 6,4,alloc_size)) ! full tensor second order
+  $N3 allocate(candddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
+    endif
+  end subroutine allocate_memory_derivatives
 
   subroutine loadbalance(blocks_global,balancing,blocks_local,spwf_map,        &
   &                                                       rank_map,spwf_inverse)
@@ -562,9 +591,9 @@ contains
     ! c) and perform some other initializations
     allocate(dispersions(ININWT)) ; dispersions  = 0
     if(.not.allocated(hftransfo)) allocate(hftransfo(nwt,nwt))
-    do i=1, nwt
+    do i=1, ininwt
       hftransfo(i,i) = 1.0d0
-      do j=i+1,nwt
+      do j=i+1,ininwt
         hftransfo(i,j) = 0.0d0 
         hftransfo(j,i) = 0.0d0 
       enddo
@@ -573,7 +602,7 @@ contains
     if(.not.allocated(current_sph)) allocate(current_sph(nwt,nwt))
     do i=1, ininwt
       current_sph(i,i) = spenergies(i)
-      do j=i+1,nwt
+      do j=i+1,ininwt
         current_sph(i,j) = 0.0d0 
         current_sph(j,i) = 0.0d0 
       enddo
@@ -589,15 +618,6 @@ contains
     integer :: wave,k
     
     call start_timer(T_derivatives)
-
-    if(.not.allocated(HFdPsi)) then
-        allocate(HFdPsi(nx*ny*nz,3,4,nwt_local))
-        allocate(HFddPsi(nx*ny*nz,6,4,nwt_local))
-    endif
-
-$N3    if(.not.allocated(HFdddpsi)) then
-$N3        allocate(HFdddPsi(nx*ny*nz,10,4,nwt_local))
-$N3    endif
 
 #if(USE_Periodic==0)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -639,7 +659,6 @@ $N3        call stp('N3LO functionals not yet supported for periodic BCs.')
     call stop_timer(T_derivatives)
   end subroutine DeriveHF
 
-  
   subroutine derive_extra_spwfs(extraspwfs)
       !-------------------------------------------------------------------------
       ! Derives all of the single-particle wave-functions that were added as
@@ -677,19 +696,6 @@ $N3        &                                           HFdddPsi(:,:,k,wave))
     integer :: wave,k
 
     call start_timer(T_derivatives_can)
-
-    if(allocated(CanPsi)) then
-      if(.not.allocated(CANdPsi)) then
-          allocate( CANdPsi(nx*ny*nz,3,4,nwt_local))
-          allocate(CANddPsi(nx*ny*nz,6,4,nwt_local))
-      endif
-    endif
-
-$N3    if(allocated(CanPsi)) then
-$N3       if(.not.allocated(CANdddpsi)) then
-$N3         allocate(CandddPsi(nx*ny*nz,10,4,nwt_local))
-$N3       endif
-$N3    endif
 
     if(allocated(CanPsi)) then
       do wave=1,nwt_local
@@ -1159,211 +1165,6 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     
   end function TimeReverse
   
-  subroutine update_spwf_symmetries(fullmatrices)
-      !-------------------------------------------------------------------------      
-      ! Update/calculate all relevant expectation values of single-particle 
-      ! wavefunctions, for both HF-basis and canonical basis.
-      !
-      ! Currently implemented:
-      !      *   Parity: P_HF and P_can
-      !
-      ! Input: 
-      !    NONE
-      ! Output:
-      !    NONE
-      !-------------------------------------------------------------------------
-      real(KIND=dp), allocatable :: full_P(:,:)
-      logical, intent(in)        :: fullmatrices
-      integer                    :: i
-  
-      if(.not.allocated(P_HF))                             allocate(P_HF (nwt))
-      if(.not.allocated(P_CAN).and.allocated(canenergies)) allocate(P_CAN(nwt))
-
-      full_P  = spwf_parities(HFPsi, fullmatrices)
-      if(.not. diagsphamil) then
-        full_P  = matmul(full_P, HFtransfo)
-        full_P  = matmul(transpose(HFtransfo), full_P)
-      endif
-
-      do i=1,nwt
-        P_HF(i) = full_P(i,i)
-      enddo
-
-      if(allocated(canenergies)) then
-        full_P = spwf_parities(denpsi,.false.)
-        do i=1,nwt
-          P_CAN(i) = full_P(i,i)
-        enddo
-      endif
-              
-  end subroutine update_spwf_symmetries
-
-  subroutine update_spwf_angmom(fullmatrices)
-    !---------------------------------------------------------------------------
-    ! Calculate all relevant single-particle matrix elements of 
-    ! 
-    !  (a) Jx, Jy, Jz
-    !  (b) JxT, JyT, JzT => Real (JTR) and imaginary (JTI) parts
-    !  (c) Jx^2, Jy^2, Jz^2
-    !  (d) JJ 
-    !  (e) Sx, Sy, Sz
-    !  (f) STx, STy, STz
-    !  
-    ! where JJ is a simple number, such that J*(J+1) = Jx^2 + Jy^2 + Jz^2.
-    !
-    ! These things are calculated for 
-    !  (1) the spwfs in memory    => direct integration over the box 
-    !  (2) the Hartree-fock basis => matrix transformation
-    !                                (only if fullmatrices == .true.)
-    !  (3) the canonical basis    => direct integration over the box
-    !
-    ! Right now, all these things are calculated in CR8-like geometry.
-    !
-    ! Input: 
-    !    fullmatrices : if .true., the full matrix elements are calculated 
-    !                   for the set of spwfs in storage. If .false., only
-    !                   diagonal matrix elements are calculated. 
-    !                   Note: in the diagonal basis, we always only calculate
-    !                         diagonal matrix elements. 
-    !
-    !---------------------------------------------------------------------------
-    logical, intent(in)        :: fullmatrices
-    logical                    :: diag
-    integer                    :: k, wave
-    real(KIND=dp), allocatable :: temp(:,:)
-
-    call start_timer(T_spwfangmom)
-
-    if(.not.allocated(spwf_J)) then
-      allocate(spwf_J(3,nwt,nwt))   ; spwf_J  = 0.0
-      allocate(spwf_JTR(3,nwt,nwt)) ; spwf_JTR= 0.0
-      allocate(spwf_JTI(3,nwt,nwt)) ; spwf_JTI= 0.0
-      allocate(spwf_J2(3,nwt,nwt))  ; spwf_J2 = 0.0
-      allocate(spwf_JJ(nwt))        ; spwf_JJ = 0.0
-
-      allocate(spwf_spin(3,nwt,nwt)); spwf_spin= 0.0
-      allocate(spwf_STR(3,nwt,nwt)) ; spwf_STR = 0.0
-      allocate(spwf_STI(3,nwt,nwt)) ; spwf_STI = 0.0
-    endif
-
-    if(.not.allocated(HF_J)) then
-     allocate(HF_J(3,nwt))   ;  HF_J = 0.0
-     allocate(HF_JTR(3,nwt)) ;  HF_JTR = 0.0
-     allocate(HF_JTI(3,nwt)) ;  HF_JTI = 0.0
-     allocate(HF_J2(3,nwt))  ;  HF_J2 = 0.0
-     allocate(HF_JJ(nwt))    ;  HF_JJ = 0.0
-
-     allocate(HF_spin(3,nwt)); HF_spin= 0.0
-     allocate(HF_STR (3,nwt)); HF_STR = 0.0
-     allocate(HF_STI (3,nwt)); HF_STI = 0.0
-    endif
-
-    if(.not.allocated(can_J)) then
-      allocate(can_J(3,nwt))   ; can_J  = 0.0
-      allocate(can_JTR(3,nwt)) ; can_JTR= 0.0
-      allocate(can_JTI(3,nwt)) ; can_JTI= 0.0
-      allocate(can_J2(3,nwt))  ; can_J2 = 0.0
-      allocate(can_JJ(nwt))    ; can_JJ = 0.0
-
-      allocate(can_spin(3,nwt)); can_spin = 0.0
-      allocate(can_STR(3,nwt)) ; can_STR  = 0.0
-      allocate(can_STI(3,nwt)) ; can_STI  = 0.0
-    endif
-
-#if(PASTA == 1)
-    ! This is a waste of CPU time for pasta calculations. 
-    ! This return is ugly and will require more elegant inclusion later on.
-    call stop_timer(T_spwfangmom)
-    return
-#endif
-
-
-    diag = (.not. fullmatrices)
-    ! Operators for which we need no derivatives
-    call ME_function(spwf_STR (1,:,:),spin_xt_real,+1,diag,'HF')
-    call ME_function(spwf_STI (2,:,:),spin_yt_imag,+1,diag,'HF')
-    call ME_function(spwf_spin(3,:,:),spin_z_real, +1,diag,'HF')
-    ! Operators for which we need one set of derivatives
-    call ME_function_deriv1(spwf_J   (3,:,:),angmom_z_real, +1,diag,'HF')
-    call ME_function_deriv1(spwf_JTR (1,:,:),angmom_xt_real,+1,diag,'HF')
-    call ME_function_deriv1(spwf_JTI (2,:,:),angmom_yt_imag,+1,diag,'HF')
-    ! Operators for which we need two sets of derivatives
-    call ME_function_deriv2(spwf_J2  (1,:,:),angmom_x_quad,+1,diag,'HF')
-    call ME_function_deriv2(spwf_J2  (2,:,:),angmom_y_quad,+1,diag,'HF')
-    call ME_function_deriv2(spwf_J2  (3,:,:),angmom_z_quad,+1,diag,'HF')
-
-    do wave=1,nwt
-       spwf_JJ(wave) = (-1. + sqrt(1. + 4*sum(spwf_J2(:,wave,wave))))/2.
-    enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Quantities in the canonical basis 
-    if(allocated(CANPSI)) then
-      ! Note: we NEVER need the full matrix of angular momenta in the canonica
-      ! basis To save on memory, we pass through intermediate arrays.
-      allocate(temp(nwt,nwt))
-
-      can_spin = 0.0d0; can_J   = 0.0d0 ; can_J2 = 0.0d0
-      can_STR  = 0.0d0; can_JTR = 0.0d0 
-      can_STI  = 0.0d0; can_JTI = 0.0d0
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Operators for which we need no derivatives
-      call ME_function(temp,spin_xt_real,+1,.true.,'CAN')
-      can_STR(1,:)  = diag_of_mat(temp)
-      call ME_function(temp,spin_yt_imag,+1,.true.,'CAN')
-      can_STI(2,:)  = diag_of_mat(temp)
-      call ME_function(temp,spin_z_real, +1,.true.,'CAN')
-      can_spin(3,:) = diag_of_mat(temp)
-
-      ! Operators for which we need one set of derivatives
-      call ME_function_deriv1(temp,angmom_z_real, +1,.true.,'CAN')
-      can_J   (3,:) = diag_of_mat(temp)
-      call ME_function_deriv1(temp,angmom_xt_real,+1,.true.,'CAN')
-      can_JTR (1,:) = diag_of_mat(temp)
-      call ME_function_deriv1(temp,angmom_yt_imag,+1,.true.,'CAN')
-      can_JTI (2,:) = diag_of_mat(temp)
-
-      ! Operators for which we need two sets of derivatives
-      call ME_function_deriv2(temp,angmom_x_quad,+1,.true.,'CAN')
-      can_J2  (1,:) = diag_of_mat(temp)
-      call ME_function_deriv2(temp,angmom_y_quad,+1,.true.,'CAN')
-      can_J2  (2,:) = diag_of_mat(temp)
-      call ME_function_deriv2(temp,angmom_z_quad,+1,.true.,'CAN')
-      can_J2  (3,:) = diag_of_mat(temp)
-
-      deallocate(temp)
-    endif
-    can_JJ = (-1. + sqrt(1. + 4*sum(can_J2,1)))/2.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Quantities in the HF basis 
-    if(fullmatrices .and. (.not.diagsphamil)) then
-     do k=1,3
-        HF_J   (k,:) = transform_mat_diag(spwf_J   (k,:,:), HFtransfo)
-        HF_J2  (k,:) = transform_mat_diag(spwf_J2  (k,:,:), HFtransfo)
-        HF_JTR (k,:) = transform_mat_diag(spwf_JTR (k,:,:), HFtransfo)
-        HF_JTI (k,:) = transform_mat_diag(spwf_JTI (k,:,:), HFtransfo)
-        HF_JTI (k,:) = transform_mat_diag(spwf_JTI (k,:,:), HFtransfo)
-        HF_spin(k,:) = transform_mat_diag(spwf_spin(k,:,:), HFtransfo)
-        HF_STR (k,:) = transform_mat_diag(spwf_STR (k,:,:), HFtransfo)
-        HF_STI (k,:) = transform_mat_diag(spwf_STI (k,:,:), HFtransfo)
-     enddo
-   else
-     do k=1,3
-       HF_J   (k,:) = diag_of_mat(spwf_J   (k,:,:))
-       HF_J2  (k,:) = diag_of_mat(spwf_J2  (k,:,:))
-       HF_JTR (k,:) = diag_of_mat(spwf_JTR (k,:,:))
-       HF_JTI (k,:) = diag_of_mat(spwf_JTI (k,:,:))
-       HF_spin(k,:) = diag_of_mat(spwf_spin(k,:,:))
-       HF_STR (k,:) = diag_of_mat(spwf_STR (k,:,:))
-       HF_STI (k,:) = diag_of_mat(spwf_STI (k,:,:))
-     enddo
-   endif
-   do wave=1,nwt
-     HF_JJ(wave) = (-1. + sqrt(1. + 4*sum(HF_J2(:,wave))))/2.0d0
-   enddo
-   call stop_timer(T_spwfangmom)
-
-  end subroutine update_spwf_angmom
-
   function diag_of_mat(A) result(diag)
     !---------------------------------------------------------------------------
     ! Simple function assigning the diagonal matrix elements of a matrix into
@@ -2288,9 +2089,8 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     ! MB 24/12/14 usual declaration of a local array instead
     real(KIND=dp)              ::  Spsi(mv,4)
     integer                    :: i
-
     ! MB 24/12/14 don't allocate anymore as this generates a memory leak
-    ! allocate(SPsi(mv,4)) ; SPsi = 0.0d0
+    !allocate(SPsi(mv,4)) ; SPsi = 0.0d0
     
     if(Direction.eq.1) then
         !\sigma_x = ( 0  1 )
@@ -2345,189 +2145,239 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 ! Routines for calculating diverse properties of the spwfs
 !===============================================================================
 
-  subroutine update_spwf_properties( fullmatrices )
-      !-------------------------------------------------------------------------
-      ! Wrapper function to update all spwf information that needs to be
-      ! recalculated. This is not hidden inside some other routine, simply 
-      ! because the timing of this call is important: it needs to be AFTER
-      ! the construction of the canonical basis.
-      ! 
+  subroutine update_spwf_properties( basis , transfo, perform_transfo, &
+  &                                  J, JTR, JTI, J2, JJ, spin, STR, STI, r2, P )
+      !----------------------------------------------------------------------------
+      ! Calculate various properties of single-particle wavefunctions that are
+      ! the diagonal matrix elements of a single-particle operator in either
+      ! the Hartree-Fock (HF) or Canonical (CAN) basis.
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Input:
-      !    fullmatrices : if .true., force calculation in HF and canonical basis
-      !                   even if diagsphamil = .false.
       !
-      ! All of these calculations can be trivially executed in any basis which
-      ! is explicitly stored. For the canonical basis hence, this is trivial in
-      ! every runmode of the calculation. For the HFbasis, this is only trivial
-      ! if diagsphamil = .true.. If diagsphamil is .false., then we can still
-      ! calculate everything using the HF-transformation and a full set of 
-      ! matrix elements. Since the latter are expensive to calculate, and 
-      ! expectation values of operators in the HF-basis are not so relevant 
-      ! to a HFB calculation (except for printing) this routine offers the 
-      ! option to skip the expensive calculation by setting fullmatrices=.false.
-      ! Ofcourse, this means that HFbasis values should not be trusted....
-      !-------------------------------------------------------------------------
-
-      logical, intent(in) :: fullmatrices
-
-      call update_spwf_symmetries(fullmatrices) ! <symmetry operators>
-      call update_spwf_angmom(fullmatrices)     ! angular momentum
-      call update_spwf_r2() !fullmatrices)         ! <r^2> 
-  end subroutine update_spwf_properties
-  
-  subroutine update_spwf_r2() !fullmatrices)
-      !-------------------------------------------------------------------------
-      ! Calculate the single-particle expectation <r^2> for every spwf in 
-      ! the Hartree-Fock and canonical basis.
+      !  basis          : 'HF' or 'CAN', indicates which set of spwfs in memory to
+      !                   calculate matrix elements for
+      !  transfo        : unitary transformation to apply to the spwfs if necessary.
+      !  perform_transfo: whether to apply the unitary transformation or not
       !
-      ! Input:
-      !   fullmatrices : if .true., force calculation in the HF and canonical
-      !                  basis even if diagsphamil = .false.
-      !
-      !   TODO: clean up the disabled input fullmatrices
-      !-------------------------------------------------------------------------
-      !logical, intent(in) :: fullmatrices
-
-      !real(KIND=dp), pointer     :: rme(:,:)
-      real(KIND=dp)              :: r2(mv)
-!      integer                    :: B, N, si
-
-      ! Value of r^2 = X^2 + Y^2 + Z^2 on the mesh
-      r2 = sum(meshgrid,2)**2
-
-      if(diagsphamil) then
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! This is easy: both HFBasis and canbasis are explicitly stored
-        call ME_scalar(spwf_r2_HF, r2, .true., 'HF')
-        if(allocated(canpsi)) then
-          call ME_scalar(spwf_r2_can, r2, .true., 'CAN')
-        endif
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      else
-       if(.not.allocated(spwf_r2_HF )) allocate(spwf_r2_HF(nwt,nwt)) ; spwf_r2_HF = 0.0d0
-       if(.not.allocated(spwf_r2_can)) allocate(spwf_r2_can(nwt,nwt)) ; spwf_r2_HF = 0.0d0
-!        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!        ! The canonical basis is still trivial, but is now stored in HFPSI
-!        ! Note: it is safe to assume the calculation is a HFB one; this is the
-!        !       only case when diagsphamil should be set to false.
-!        call ME_scalar(spwf_r2_can, r2, .true., 'HF')
-
-!        if(fullmatrices) then
-!          ! For the HFbasis, things are more involved.....
-!          ! a) calculate the entire matrix of r2
-!          call ME_scalar(spwf_r2_HF, r2, .false., 'HF')
-
-!          ! b) transform the matrix elements to the HF basis
-!          si = 0
-!          do B=1,8  
-!            N = HFBlocks_global(B) ! <---- This loop is over global spwf indices
-!            rme => spwf_r2_hf(si+1:si+N, si+1:si+N)
-!            ! .... and then transform to the real Hartree-Fock basis
-!            rme = matmul(transpose(HFtransfo(si+1:si+N, si+1:si+N)), rme)
-!            rme = matmul(            rme,HFtransfo(si+1:si+N, si+1:si+N))
-!            si = si + N
-!          enddo
-!        endif
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      endif
-      
-  end subroutine update_spwf_r2
-  
-  function spwf_parities(basis, fullmatrices) result(P)
-      !-------------------------------------------------------------------------
-      ! Calculation of the single-particle matrix elements of parity P.
-      !
-      !         < i | P | j >
-      ! 
-      ! Input:
-      !     basis        : set of single-particle wavefunctions to perform the 
-      !                    calculation for.
-      !     fullmatrices : whether to calculate all matrix elements (.true.)
-      !                    or only the diagonal ones (.false.)
       ! Output:
-      !     P    : set of parities
-      !
-      ! Currently, this routine is somewhat hardcoded for the symmetry options
-      ! corresponding to EV8/CR8/EV4; in particular it assumes the conservation
-      ! of z-signature. 
-      ! 
-      ! In time, Hephaestos should be able to deal more properly with this.
-      !-------------------------------------------------------------------------
-      real(KIND=dp), allocatable         :: P(:,:)
-      real(KIND=dp), intent(in), target  :: basis(nx*ny*nz,4,nwt)
-      logical, intent(in)                :: fullmatrices
-      integer                            :: wave 
-      real(KIND=dp)                      :: trash
-      
-$PBROKEN      integer :: B, N, i, j,k, si, wave2, startind, endind
-$PBROKEN      real(KIND=dp), pointer             :: left1(:,:,:), right1(:,:,:)
-$PBROKEN      real(KIND=dp), pointer             :: left2(:,:,:), right2(:,:,:)
-$PBROKEN      real(KIND=dp), pointer             :: left3(:,:,:), right3(:,:,:)
-$PBROKEN      real(KIND=dp), pointer             :: left4(:,:,:), right4(:,:,:)
-        
-      ! A statement to stop the compiler complaining about unused variables
-      if(fullmatrices) trash = basis(1,1,1)
-        
-      allocate(P(nwt,nwt))
+      !  J      : diagonal matrix elements of J
+      !  JTR    : real      part of the diagonal matrix elements of JT
+      !  JTI    : imaginary part of the diagonal matrix elements of JT
+      !  J2     : matrix elements of J^2
+      !  JJ     : "total angular momentum",i.e. J such that J(J+1) = sum_mu <J_mu^2>
+      !  spin   : matrix element of spin operator S
+      !  STR    : real      part of the diagonal matrix elements of ST
+      !  STI    : imaginary part of the diagonal matrix elements of ST
+      !  r2     : diagonal matrix elements of r2
+      !  P      : diagonal matrix elements of parity operator P
+      !----------------------------------------------------------------------------
+      character(len=*), intent(in)                :: basis
+      real(KIND=dp), intent(in)                   :: transfo(:,:)
+      logical, intent(in)                         :: perform_transfo
+      real(KIND=dp), allocatable, intent(inout)   :: J(:,:), JTR(:,:), JTI(:,:), J2(:,:), JJ(:)
+      real(KIND=dp), allocatable, intent(inout)   :: spin(:,:), STR(:,:), STI(:,:)
+      real(KIND=dp), allocatable, intent(inout)   :: r2(:), P(:)
+      real(KIND=dp), pointer                      :: psi(:,:,:), dpsi(:,:,:,:)
 
-$PCON      P = 0 
-$PCON      do wave=1,nwt
-$PCON         if    (wave .le. sum(HFBlocks_global(1:2))) then
-$PCON               P(wave,wave) = +1
-$PCON         elseif(wave .le. sum(HFBlocks_global(1:4))) then
-$PCON               P(wave,wave) = -1
-$PCON         elseif(wave .le. sum(HFBlocks_global(1:6))) then
-$PCON               P(wave,wave) = +1
-$PCON         else  
-$PCON               P(wave,wave) = -1
-$PCON         endif
-$PCON      enddo 
-     
-$PBROKEN   si = 0
-$PBROKEN   do B=1,8
-$PBROKEN      N = HFBlocks(B) ; if(N.eq.0) cycle
-$PBROKEN        
-$PBROKEN      do wave = si+1, si+N
-$PBROKEN        ! This is ugly, because the FORTRAN standard does not allow
-$PBROKEN        ! for sufficiently general pointer remapping....
-$PBROKEN        left1(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,1,wave)
-$PBROKEN        left2(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,2,wave)
-$PBROKEN        left3(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,3,wave)
-$PBROKEN        left4(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,4,wave)
-$PBROKEN
-$PBROKEN        startind   = si + wave
-$PBROKEN        if(fullmatrices) then
-$PBROKEN          endind   = si + N
-$PBROKEN        else
-$PBROKEN          endind   = wave
-$PBROKEN        endif
-$PBROKEN        do wave2 = wave,endind
-$PBROKEN
-$PBROKEN         right1(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,1,wave2)
-$PBROKEN         right2(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,2,wave2)
-$PBROKEN         right3(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,3,wave2)
-$PBROKEN         right4(1:nx,1:ny,1:nz) => Basis(1:nx*ny*nz,4,wave2)
-$PBROKEN
-$PBROKEN         P(wave,wave2) = 0
-$PBROKEN         do k=1,nz
-$PBROKEN          do j=1,ny
-$PBROKEN            do i=1,nx
-$PBROKEN             P(wave,wave2)=P(wave,wave2)+left1(i,j,k)*right1(i,j,nz-k+1)
-$PBROKEN             P(wave,wave2)=P(wave,wave2)+left2(i,j,k)*right2(i,j,nz-k+1)
-$PBROKEN             P(wave,wave2)=P(wave,wave2)-left3(i,j,k)*right3(i,j,nz-k+1)
-$PBROKEN             P(wave,wave2)=P(wave,wave2)-left4(i,j,k)*right4(i,j,nz-k+1)
-$PBROKEN            enddo
-$PBROKEN          enddo
-$PBROKEN         enddo
-$PBROKEN         if(mod(B,2) .eq. 0) P(wave,wave2) = - P(wave,wave2)
-$PBROKEN         P(wave ,wave2) = P(wave,wave2) * dv
-$PBROKEN         P(wave2,wave ) = P(wave,wave2) 
-$PBROKEN        enddo
-$PBROKEN      enddo
-$PBROKEN      si = si + N
-$PBROKEN   enddo
-  
-  end function spwf_parities
+      integer :: si, N, B, i, wave, der_index
+
+      select case(basis)
+      case ('HF')
+        psi  => HFPsi
+        dpsi => HFdpsi
+      case ('CAN')
+        psi  => canpsi
+        dpsi => candpsi
+      end select
+
+      if(.not. allocated(J)) then
+        allocate(   J(3,nwt), JTR(3,nwt), JTI(3,nwt), J2(3,nwt), JJ(nwt))
+        allocate(spin(3,nwt), STR(3,nwt), STI(3,nwt))
+        allocate(r2(nwt))
+        allocate(P(nwt))
+      endif
+      ! Zero the angular momentum observables
+      J    = 0; JTR = 0; JTI = 0 ; JJ = 0
+      spin = 0; STR = 0; STI = 0
+      ! Zero <r^2>
+      r2   = 0
+      ! Zero <P>
+      P    = 0
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Perform a unitary transformation to arrive at the basis we are studying
+      if(perform_transfo) then
+        call transform_spwfs_inplace( psi, transfo )
+      endif
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Start looping over the spwfs in local storage
+      si = 0
+      do B=1,8
+        N = HFBlocks(B) ! <---- This loop is over local spwf indices
+
+        do i=1,N
+          !----------------------------------------------------------------------------------
+          ! Perform the integrations for wavefunction "si+i" in local storage,
+          !  which is wave-function wave in global storage
+          wave = spwf_map(si+i)
+
+          if(store_derivatives .and. (.not. perform_transfo)) then
+            ! In this case we have the derivatives in storage
+            der_index = si + i
+          else
+            ! In this case, we recalculate them on the fly
+            call Derive_X_spwf(psi(:,:,si+i), sx(:,si+i), dpsi(:,1,:,1))
+            call Derive_Y_spwf(psi(:,:,si+i), sy(:,si+i), dpsi(:,2,:,1))
+            call Derive_Z_spwf(psi(:,:,si+i), sz(:,si+i), dpsi(:,3,:,1))
+            der_index = 1
+          endif
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Angular momenta
+          JTR(1,wave)  = angmom_xt_real(psi(:,:,si+i), psi(:,:,si+i),dpsi(:,:,:,der_index))
+          JTI(2,wave)  = angmom_yt_imag(psi(:,:,si+i), psi(:,:,si+i),dpsi(:,:,:,der_index))
+          J(3,wave)    = angmom_z_real( psi(:,:,si+i), psi(:,:,si+i),dpsi(:,:,:,der_index))
+
+          J2(1,wave)     = angmom_x_quad(psi(:,:,si+i), dpsi(:,:,:,der_index), &
+          &                              psi(:,:,si+i), dpsi(:,:,:,der_index))
+          J2(2,wave)     = angmom_y_quad(psi(:,:,si+i), dpsi(:,:,:,der_index), &
+          &                              psi(:,:,si+i), dpsi(:,:,:,der_index))
+          J2(3,wave)     = angmom_z_quad(psi(:,:,si+i), dpsi(:,:,:,der_index), &
+          &                              psi(:,:,si+i), dpsi(:,:,:,der_index))
+
+          JJ(wave) =  (-1. + sqrt(1. + 4*sum(J2(:,wave))))/2.
+
+          STR (1,wave) = spin_xt_real(psi(:,:,si+i), psi(:,:,si+i))
+          STI (2,wave) = spin_yt_imag(psi(:,:,si+i), psi(:,:,si+i))
+          spin(3,wave) = spin_z_real (psi(:,:,si+i), psi(:,:,si+i))
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! <r^2>
+          r2(wave) = sum(sum(psi(:,:,si+i)**2,2) * sum(meshgrid**2,2)) * dv
+          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          ! Parity
+          ! Determined by symmetry if P is conserved
+$PCON     if(mod(B,4).le.2) then
+$PCON        P(wave) = +1
+$PCON     else
+$PCON        P(wave) = -1
+$PCON     endif
+
+$PBROKEN  P(wave) = P_expectation(psi(:,:,si+i))
+          !----------------------------------------------------------------------------------
+        enddo
+        si = si + N
+      enddo
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Undo the unitary transformation
+      if(perform_transfo) then
+        call transform_spwfs_inplace( psi, transpose(transfo))
+        ! .. and restore the derivatives of the first spwf we overwrote
+        if(store_derivatives) then
+          call Derive_X_spwf(psi(:,:,1), sx(:,1), dpsi(:,1,:,1))
+          call Derive_Y_spwf(psi(:,:,1), sy(:,1), dpsi(:,2,:,1))
+          call Derive_Z_spwf(psi(:,:,1), sz(:,1), dpsi(:,3,:,1))
+        endif
+      endif
+
+  end subroutine update_spwf_properties
+
+  function P_expectation(psi) result(P)
+    !---------------------------------------------------------------------------
+    ! Calculate the single-particle expectation value of the parity operator P
+    ! Notes:
+    !   -  hardcoded to CR8-like symmetries at the moment.
+    !   -  results are only valid if the entire z-axis is represented in memory
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !    psi: single-particle wavefunction
+    ! Output:
+    !    P  : < psi | P | psi >
+    !---------------------------------------------------------------------------
+    real(KIND=dp), target, intent(in) :: psi(:,:)
+    real(KIND=dp)                     :: P
+    integer                           :: i,j,k
+    real(KIND=dp), pointer            :: p1(:,:,:)
+    real(KIND=dp), pointer            :: p2(:,:,:)
+    real(KIND=dp), pointer            :: p3(:,:,:)
+    real(KIND=dp), pointer            :: p4(:,:,:)
+
+    p1(1:nx,1:ny,1:nz) => psi(1:nx*ny*nz,1)
+    p2(1:nx,1:ny,1:nz) => psi(1:nx*ny*nz,2)
+    p3(1:nx,1:ny,1:nz) => psi(1:nx*ny*nz,3)
+    p4(1:nx,1:ny,1:nz) => psi(1:nx*ny*nz,4)
+
+    P = 0
+    do k=1,nz
+     do j=1,ny
+      do i=1,nx
+        P=P+p1(i,j,k)*p1(i,j,nz-k+1)
+        P=P+p2(i,j,k)*p2(i,j,nz-k+1)
+        P=P-p3(i,j,k)*p3(i,j,nz-k+1)
+        P=P-p4(i,j,k)*p4(i,j,nz-k+1)
+      enddo
+     enddo
+    enddo
+    P = P*dv
+  end function P_expectation
+
+!===============================================================================
+! Basis transformation routines
+!===============================================================================
+
+subroutine transform_spwfs_inplace(psi, transfo)
+  !-----------------------------------------------------------------------------
+  ! Perform a linear transformation of the spwfs, in-place in memory.
+  !
+  ! This routine attempts to have the smallest memory-cost possible, performing
+  ! the transformation symmetry-block by symmetry-block. This requires a temp
+  ! matrix with a non-negligible size. I'm (=W.R.) sure there exists truly
+  ! 'in-place' approaches where this cost can be avoided, but I don't know them.
+  !
+  ! Input:
+  !  psi     : input set of spwfs, to be transformed
+  !  transfo : unitary transformation C
+  !
+  ! Output:
+  !  psi     : transformed set of spwfs
+  !               psi' = C^T psi
+  !
+  ! TODO: replace by a LAPACK call
+  ! TODO: remove this concept of basis_cut
+  !-----------------------------------------------------------------------------
+  integer                      :: wave1, wave2, B, N, si
+  integer                      :: wave1_global, wave2_global
+  real(KIND=dp), intent(inout) :: psi(mv,4,nwt_local)
+  real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
+  real(KIND=dp), allocatable   :: temp(:,:,:)
+
+  call start_timer(T_Basistransfo)
+
+  si  = 0
+  do B=1,8
+    N = HFBlocks(B)  ;  if(N .eq. 0) cycle
+
+    allocate(temp(mv,4,N))
+    temp = 0.0
+    do wave1=1,N    ! The local index of this spwf is si+wave1
+      do wave2=1,N  ! The local index of this spwf is si+wave2
+        wave1_global = spwf_map(si+wave1) ! Global index
+        wave2_global = spwf_map(si+wave2) ! Global index
+
+        ! Don't bother if the wavefunction is not important enough
+        if(abs(Transfo(wave2_global,wave1_global)).lt.basis_cut) cycle
+        temp(:,:,wave1) = temp(:,:,wave1) +                                    &
+        &                 Transfo(wave2_global,wave1_global) * psi(:,:,si+wave2)
+      enddo
+    enddo
+    psi(:,:,si+1:si+N) =  temp
+    deallocate(temp)
+
+    si = si +  N
+  enddo
+
+  call stop_timer(T_Basistransfo)
+
+end subroutine transform_spwfs_inplace
 
 !===============================================================================
 ! Routines useful to simplify the parallelization of the calculation of 
@@ -3121,39 +2971,89 @@ subroutine Transfer_derpsi(derpsi,wave,direction, basis, TR &
     integer, intent(in)          :: wave
     integer, intent(in)          :: direction
     logical, intent(in)          :: TR
-    real(KIND=dp), pointer       :: psis(:,:,:,:)
+    real(KIND=dp), pointer       :: dpsis(:,:,:,:), psis(:,:,:)
     character(len=*), intent(in) :: basis
 #if(USE_MPI>0)
+    real(KIND=dp)                :: psi(mv,4)
     integer, intent(in)          :: send_rank, calc_rank
     integer                      :: mpi_err
 #endif    
 
     if(to_upper(adjustl(basis))     .eq. 'HF') then
-      psis => HFdpsi
+       psis => HFpsi
+      dpsis => HFdpsi
     elseif(to_upper(adjustl(basis)) .eq. 'CAN') then
-      psis => candpsi
+       psis => canpsi
+      dpsis => candpsi
     elseif(to_upper(adjustl(basis)) .eq. 'DEN') then
-      psis => dendpsi
+       psis => denpsi
+      dpsis => dendpsi
     endif
 
 #if(USE_MPI>0)
-    if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
-        ! nothing to send or receive
-        derpsi   = psis(:,direction,:,wave)
-        if(TR)   derpsi = TimeReverse(derpsi)
-    elseif(MPI_RANK.eq.calc_rank) then
-        ! calc_rank receives
-        call MPI_RECV(                     derpsi, 4*mv, MPI_REAL8,send_rank,2,&
-        &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
-        ! and time-reverses if needed
-        if(TR)   derpsi = TimeReverse(derpsi)
-    else if(MPI_RANK .eq. send_rank)  then
-        ! ranki sends the wavefunction
-        call MPI_SEND(psis(:,direction,:,wave), 4*mv, MPI_REAL8,calc_rank,2,&
-        &                                           MPI_COMM_WORLD, mpi_err)
+    if(store_derivatives) then
+      if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+          ! nothing to send or receive
+          derpsi   = dpsis(:,direction,:,wave)
+          if(TR)   derpsi = TimeReverse(derpsi)
+      elseif(MPI_RANK.eq.calc_rank) then
+          ! calc_rank receives
+          call MPI_RECV(                     derpsi, 4*mv, MPI_REAL8,send_rank,2,&
+          &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+          ! and time-reverses if needed
+          if(TR)   derpsi = TimeReverse(derpsi)
+      else if(MPI_RANK .eq. send_rank)  then
+          ! ranki sends the wavefunction
+          call MPI_SEND(dpsis(:,direction,:,wave), 4*mv, MPI_REAL8,calc_rank,2,&
+          &                                           MPI_COMM_WORLD, mpi_err)
+      endif
+    else
+      if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+          ! nothing to send or receive, but derivative to calculate
+          select case(direction)
+          case(1)
+            call Derive_X_spwf(psis(:,:,wave), sx(:,wave), derpsi)
+          case(2)
+            call Derive_Y_spwf(psis(:,:,wave), sy(:,wave), derpsi)
+          case(3)
+            call Derive_Z_spwf(psis(:,:,wave), sz(:,wave), derpsi)
+          end select
+          if(TR)   derpsi = TimeReverse(derpsi)
+
+      elseif(MPI_RANK.eq.calc_rank) then
+          ! calc_rank receives the wavefunction and performs derivative
+          call MPI_RECV(                     psi, 4*mv, MPI_REAL8,send_rank,2,&
+          &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+          ! .... and calculates a derivative
+          select case(direction)
+          case(1)
+            call Derive_X_spwf(psi, sx(:,wave), derpsi)
+          case(2)
+            call Derive_Y_spwf(psi, sy(:,wave), derpsi)
+          case(3)
+            call Derive_Z_spwf(psi, sz(:,wave), derpsi)
+          end select
+          ! ... and time-reverses if needed
+          if(TR)   derpsi = TimeReverse(derpsi)
+      else if(MPI_RANK .eq. send_rank)  then
+          ! ranki sends the wavefunction
+          call MPI_SEND(psis(:,:,wave), 4*mv, MPI_REAL8,calc_rank,2,&
+          &                                           MPI_COMM_WORLD, mpi_err)
+      endif
     endif
 #else 
-    derpsi   = psis(:,direction,:,wave)
+    if(store_derivatives) then
+      derpsi   = dpsis(:,direction,:,wave)
+    else
+      select case(direction)
+      case(1)
+        call Derive_X_spwf(psis(:,:,wave), sx(:,wave), derpsi)
+      case(2)
+        call Derive_Y_spwf(psis(:,:,wave), sy(:,wave), derpsi)
+      case(3)
+        call Derive_Z_spwf(psis(:,:,wave), sz(:,wave), derpsi)
+      end select
+    endif
     if(TR)   derpsi = TimeReverse(derpsi)
 #endif
 
@@ -3184,35 +3084,66 @@ subroutine Transfer_derpsi_complete(derpsi, wave, basis &
     real(KIND=dp), intent(out)   :: derpsi(mv,3,4)
     integer, intent(in)          ::  wave
     character(len=*), intent(in) :: basis
-    real(KIND=dp), pointer       :: psis(:,:,:,:)
+    real(KIND=dp), pointer       :: dpsis(:,:,:,:), psis(:,:,:)
 #if(USE_MPI>0)
+    real(KIND=dp)                :: psi(mv,4)
     integer, intent(in)          :: send_rank, calc_rank
     integer                      :: mpi_err
 #endif
 
     if(to_upper(adjustl(basis))     .eq. 'HF') then
-      psis => HFdpsi
+       psis => HFpsi
+      dpsis => HFdpsi
     elseif(to_upper(adjustl(basis)) .eq. 'CAN') then
-      psis => candpsi
+       psis => canpsi
+      dpsis => candpsi
     elseif(to_upper(adjustl(basis)) .eq. 'DEN') then
-      psis => dendpsi
+       psis => denpsi
+      dpsis => dendpsi
     endif
 
 #if(USE_MPI>0)
-    if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
-        ! nothing to send or receive
-        derpsi   = psis(:,:,:,wave)
-    elseif(MPI_RANK.eq.calc_rank) then
-        ! calc_rank receives
-        call MPI_RECV(derpsi          , 12*mv, MPI_REAL8,send_rank,2,&
-        &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
-    else if(MPI_RANK .eq. send_rank)  then
-        ! ranki sends the wavefunction
-        call MPI_SEND(psis(:,:,:,wave), 12*mv, MPI_REAL8,calc_rank,2,&
-        &                                           MPI_COMM_WORLD, mpi_err)
+    if(store_derivatives) then
+      if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+          ! nothing to send or receive
+          derpsi   = dpsis(:,:,:,wave)
+      elseif(MPI_RANK.eq.calc_rank) then
+          ! calc_rank receives
+          call MPI_RECV(derpsi          , 12*mv, MPI_REAL8,send_rank,2,&
+          &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+      else if(MPI_RANK .eq. send_rank)  then
+          ! ranki sends the wavefunction
+          call MPI_SEND(dpsis(:,:,:,wave), 12*mv, MPI_REAL8,calc_rank,2,&
+          &                                           MPI_COMM_WORLD, mpi_err)
+      endif
+    else
+      if((MPI_RANK.eq. calc_rank) .AND. (send_rank.eq.calc_rank)) then
+          ! nothing to send or receive, but derivatives to calculate
+          call Derive_X_spwf(psis(:,:,wave), sx(:,wave), derpsi(:,1,:))
+          call Derive_Y_spwf(psis(:,:,wave), sy(:,wave), derpsi(:,2,:))
+          call Derive_Z_spwf(psis(:,:,wave), sz(:,wave), derpsi(:,3,:))
+      elseif(MPI_RANK.eq.calc_rank) then
+          ! calc_rank receives the wavefunction and performs derivative
+          call MPI_RECV(                     psi, 4*mv, MPI_REAL8,send_rank,2,&
+          &                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+          ! .... and calculates the derivatives
+          call Derive_X_spwf(psi, sx(:,wave), derpsi(:,1,:))
+          call Derive_Y_spwf(psi, sy(:,wave), derpsi(:,2,:))
+          call Derive_Z_spwf(psi, sz(:,wave), derpsi(:,3,:))
+      else if(MPI_RANK .eq. send_rank)  then
+          ! ranki sends the wavefunction
+          call MPI_SEND(psis(:,:,wave), 4*mv, MPI_REAL8,calc_rank,2,&
+          &                                           MPI_COMM_WORLD, mpi_err)
+      endif
     endif
 #else 
-    derpsi   = psis(:,:,:,wave)
+    if(store_derivatives) then
+      derpsi   = dpsis(:,:,:,wave)
+    else
+      call Derive_X_spwf(psis(:,:,wave), sx(:,wave), derpsi(:,1,:))
+      call Derive_Y_spwf(psis(:,:,wave), sy(:,wave), derpsi(:,2,:))
+      call Derive_Z_spwf(psis(:,:,wave), sz(:,wave), derpsi(:,3,:))
+    endif
 #endif
 
 end subroutine Transfer_derpsi_complete
@@ -3258,7 +3189,7 @@ function transform_mat_diag(M, transfo) result(Mc)
 
  end function transform_mat_diag 
 
-  subroutine clean_wavefunctions()
+ subroutine clean_wavefunctions()
 
     if(allocated(HFPsi))    deallocate(HFPsi)
     if(allocated(HFdPsi))   deallocate(HFdPsi)

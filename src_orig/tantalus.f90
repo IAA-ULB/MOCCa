@@ -45,13 +45,14 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !------------------------------------------------------------------------------
  ! Information gleaned from git and the Makefile, to be used to identify the
  ! executable
- character(len=58), parameter        :: version1 =VERSION1
- character(len=58), parameter        :: version2 =VERSION2
- character(len=58), parameter        :: version3 =VERSION3
- character(len=58), parameter        :: version4 =VERSION4
- character(len=58), parameter        :: compiler =COMPCOMP
- character(len=58), parameter        :: cflags   =CFLAGS
- character(len=58), parameter        :: optflags =OPTFLAGS
+ character(len=44), parameter        :: versiontag=VTAG
+ character(len=58), parameter        :: version1  =VERSION1
+ character(len=58), parameter        :: version2  =VERSION2
+ character(len=58), parameter        :: version3  =VERSION3
+ character(len=58), parameter        :: version4  =VERSION4
+ character(len=58), parameter        :: compiler  =COMPCOMP
+ character(len=58), parameter        :: cflags    =CFLAGS
+ character(len=58), parameter        :: optflags  =OPTFLAGS
 
  !------------------------------------------------------------------------------
  ! MPI error code
@@ -77,6 +78,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  200 format ( 8x, '|', 59('-'), '|'  ,/,8x, '| Runtype = ', a44, 4x, '|')
 
  299 format ( 8x,'|--------------- Version Information -----------------------|')
+2991 format ( 8x,'| Version tag = ', a44, '|') ! Version tag
  300 format ( 8x,'| ', a58, '|') ! Git commit
  301 format ( 8x,'| ', a58, '|') ! Author of commit
  302 format ( 8x,'| ', a58, '|') ! Date
@@ -145,6 +147,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
    print 200, adjustl(mode_print)
    print 299
    print 304
+   print 2991, versiontag
    print 300, version1
    print 301, version2
    print 302, version3
@@ -297,10 +300,13 @@ subroutine ReachForWaterAndFood()
 
     ifail = 0
     ConvergenceAchieved = .false.
+
+    ! Provide memory for the derivatives of the spwfs
+    call allocate_memory_derivatives(PairingType)
+
     !---------------------------------------------------------------------------
     ! Initial calculations
     !---------------------------------------------------------------------------
-
     if( (Bogofromfile.and.readHFBinfofile) .and. pairingscheme.eq.1) then
       ! If using a gradient strategy and we want to continue from file.
       ! Only allowed of course if we have actually read a Bogoliubov transfo.
@@ -323,11 +329,12 @@ subroutine ReachForWaterAndFood()
       call SolvePairing(pairingscheme, ifail)
     endif
 
+    ! Derive all the single-particle wavefunctions in the HFPsi array
+    if(store_derivatives) call deriveHF()
+
     ! Construct the canonical basis
     if(pairingtype.eq. 2) call ConstructCanonicalBasis()
 
-    ! Derive all the single-particle wavefunctions in the HFPsi array
-    call deriveHF()
     ! Calculate the initial densities and the charge density (separately)
     call densit(SaveRho=.false.)
     call ConstructChargeDensity(ChargeDensity)
@@ -346,15 +353,17 @@ subroutine ReachForWaterAndFood()
                               !      requires the charge density to be
                               !      constructed
 
+    ! Update all spwf properties in the HF basis
+    call update_spwf_properties_HF()
+    ! Update all spwf properties in the canonical basis
+    if(PairingType .eq. 2) call update_spwf_properties_CAN()
+
     ! Only calculate the fields that have not been read from either a
     ! wavefunction file or a potential file.
     call calcFields(calcall=.false.,precon= .false.)
 
-    ! Update all spwf properties
-    call update_spwf_properties( .true. ) ! expensive version
-
     ! Update angular momentum observables
-    call updateAM   ! This call HAS to happen, otherwise J2_sp will not be 
+    call updateAM   ! This call HAS to happen, otherwise J2_sp will not be
                     ! initialized and any crankingtype = 1 calculation will fail.
 
     call setBelyaevProcedure()
@@ -387,6 +396,9 @@ subroutine ReachForWaterAndFood()
         ! One evolution step for the spwfs
         call Evolve(iter)
 
+        ! Derive all spwfs in the HF-basis
+        if(store_derivatives) call deriveHF()
+
         ! Calculate the gaps Delta with the current
         ! a) fields
         ! b) density matrix and anomalous density matrix
@@ -400,8 +412,11 @@ subroutine ReachForWaterAndFood()
         call SolvePairing(pairingscheme,ifail)
         if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
 
-        ! Derive all spwfs in the HF-basis
-        call deriveHF()
+        ! Update all spwf properties in the HF basis
+        call update_spwf_properties_HF()
+        ! Update all spwf properties in the canonical basis
+        if(PairingType .eq. 2) call update_spwf_properties_CAN()
+
         call densit(SaveRho=.true.)
         call ConstructChargeDensity(ChargeDensity)
         if(follow_com) call adapt_com()
@@ -417,16 +432,6 @@ subroutine ReachForWaterAndFood()
           call calcFields(calcall=.true.,precon=.true.)
         endif
 
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! Update information regarding cranking constraints
-        if(.not. crank_smooth) then
-          ! If we are cranking based on the angular momentum obtained by summing 
-          !  the single-particle angular momenta, we cannot escape the need to 
-          !  update the single-particle properties...
-          ! At least we can call the not-expensive version which concerns itself
-          ! only with diagonal matrix elements (i.e. the argument .false.)
-          call update_spwf_properties( .false. ) 
-        endif
         call updateAM
         call ReadjustCranking
         !-----------------------------------------------------------------------
@@ -469,10 +474,11 @@ subroutine ReachForWaterAndFood()
         ! Decide between full or partial printout.
         if(iprint .eq.1) then
             ! ... but update all spwf properties first to ensure correct prints
-            if(print_adv_spwf_properties .or. &
-            &              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then
-              call update_spwf_properties( .true. ) ! expensive version
-            endif
+
+            !if(print_adv_spwf_properties .or. &
+            !&              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then
+            !  call update_spwf_properties( .true. ) ! expensive version
+            !endif
 
             call updateAM
             call ReadjustCranking
@@ -482,13 +488,16 @@ subroutine ReachForWaterAndFood()
               if((iter .eq. maxiter) .or. ConvergenceAchieved) then
                 ! Add a clear indication this is the FINAL iteration
                 print 12, iter
+
                 call PrintSpwfs(.True.) ! always include all details in the
                 call PrintQps(.True.)   ! printing at the end
-              else
+
+                else
                 print 11, iter
                 call PrintSpwfs(print_adv_spwf_properties)
                 call PrintQps(print_adv_spwf_properties)
               endif
+
               call printallmoments
               call print_boxsize_check
               call PrintMomentsofInertia
@@ -675,12 +684,59 @@ subroutine printsummary(iter)
         devJ = 0.0d0
       endif
       print 8, totalangmom_dens(3), totalangmom_dens(3) - angmomold_dens(3), &
-      &        omega(3), omega(3)-omega_prev(3), devJ  
+      &        omega(3), omega(3)-omega_prev(3), devJ
     endif
 
     print 1
 
 end subroutine printsummary
+
+subroutine update_spwf_properties_HF()
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Calculate all relevant properties of the spwf in the HFbasis.
+  ! This is just a wrapper function that calls update_spwf_properties with
+  ! the correct input depending on the type of calculation we are performing.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  use evolution, only     : diagsphamil
+  use wavefunctions, only : update_spwf_properties, HFTransfo
+  use wavefunctions, only : HF_J, HF_JTR, HF_JTI, HF_JJ, HF_J2
+  use wavefunctions, only : HF_spin, HF_STR, HF_STI
+  use wavefunctions, only : spwf_r2_HF, P_HF
+
+  if(diagsphamil) then
+    call update_spwf_properties('HF', HFTRANSFO,.false.,           &
+                            &  HF_J, HF_JTR, HF_JTI, HF_J2, HF_JJ, & ! J-like stuff
+                            &  HF_spin, HF_STR, HF_STI,            & ! spin-stuff
+                            &  spwf_r2_hf,                         & ! radii
+                            &  P_hf)                                 ! symmetry-stuff
+  else
+    call update_spwf_properties('HF', HFTRANSFO,.true.,    &
+                            &  HF_J, HF_JTR, HF_JTI, HF_J2, HF_JJ, & ! J-like stuff
+                            &  HF_spin, HF_STR, HF_STI,            & ! spin-stuff
+                            &  spwf_r2_hf,                         & ! radii
+                            &  P_hf)                                 ! symmetry-stuff
+  endif
+
+end subroutine update_spwf_properties_HF
+
+subroutine update_spwf_properties_CAN()
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Calculate all relevant properties of the spwf in the HFbasis.
+  ! This is just a wrapper function that calls update_spwf_properties with
+  ! the correct input depending on the type of calculation we are performing.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  use pairing, only       : cantransfo
+  use wavefunctions, only : update_spwf_properties
+  use wavefunctions, only : CAN_J, CAN_JTR, CAN_JTI, CAN_JJ, CAN_J2
+  use wavefunctions, only : CAN_spin, CAN_STR, can_STI
+  use wavefunctions, only : spwf_r2_can, P_can
+
+  call update_spwf_properties('CAN', CANTRANSFO,.false.,                &
+                            &  CAN_J, CAN_JTR, CAN_JTI, CAN_J2, CAN_JJ, & ! J-like stuff
+                            &  CAN_spin, CAN_STR, CAN_STI,              & ! spin-stuff
+                            &  spwf_r2_can,                             & ! radii
+                            &  P_can)                                     ! symmetry-stuff
+end subroutine update_spwf_properties_CAN
 
 subroutine initialize_all_timers()
    !----------------------------------------------------------------------------

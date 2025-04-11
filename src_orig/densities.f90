@@ -205,7 +205,7 @@ contains
     call stop_timer(T_den_can)
 
     ! If we are not doing HFB efficiently, we should rederive the spwfs
-    if(.not. efficientHFB) call derivecan()
+    if((.not. efficientHFB) .and. store_derivatives) call derivecan()
 
  end subroutine ConstructCanonicalBasis
 
@@ -218,8 +218,8 @@ contains
     !                       to their respective histories. If .false., do not
     !                       keep this information.
     !---------------------------------------------------------------------------
-    integer      :: i, it, wave, wave2, B, N, si, N2, T
-    integer      ::  wave_global, wave2_global
+    integer      :: i, it, wave, wave2, B, N, si, N2, T, k
+    integer      ::  wave_global, wave2_global, der_index
     real(KIND=dp):: weight
     logical      :: SaveRho
     real(KIND=dp), allocatable :: kappa_cut(:,:)
@@ -235,7 +235,7 @@ contains
 $INITIALIZATION
 
     if(.not.allocated(divJ)) then
-      allocate(divJ(nx*ny*nz,4))    
+      allocate(divJ(nx*ny*nz,4))
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Save old density for next iteration and mixing.
@@ -293,9 +293,30 @@ $ZEROING
         ! For ordinary densities
         weight  = rho_can(wave_global) 
 
+        !---------------------------------------------------------------------------
+        ! Perform some gymnastics to see where we are getting the information
+        ! on derivatives: in memory (target_index = wave) or by calculation
+        ! on the fly.
+        if(store_derivatives) then
+          ! We have centrally stored derivative information
+          der_index = wave
+        else
+          ! We recalculate derivatives on the fly for this spwf
+          do k=1,4
+           call Derive_tot(denPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
+           &                                           dendPsi(:,:,k,1),        &
+           &                                           denddPsi(:,:,k,1))
+          enddo
+          der_index = 1
+        endif
+        !---------------------------------------------------------------------------
+
         do i=1,mv
 $EXPRESSION
         enddo
+
+        ! Separate expression for the sum of divJ - see comments in that function
+        divJ(:,it) = divJ(:,it) + weight * divJ_spwf(der_index)
     enddo
     call stop_timer(T_den_ph)
 
@@ -499,9 +520,8 @@ $DERIVATION
     ! Calculate the densities in isospin representation 
 $ISOSPINCOUPL    
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Sum DivJ from the spwfs separately
-    divJ = sum_divJ_spwf()
+    divJ(:,3) = divJ(:,1) + divJ(:,2)
+    divJ(:,4) = divJ(:,1) - divJ(:,2)
 
     call stop_timer(T_densities)
 
@@ -511,90 +531,66 @@ $ISOSPINCOUPL
 
 end subroutine densit
 
-function sum_divJ_spwf() result(divJ)
+function divJ_spwf(der_index)
     !---------------------------------------------------------------------------
-    ! Calculate the 
+    ! Calculate the
     !            nabla cdot J
-    ! where J is the vector component of the spin-current density J_munu. 
-    ! The contribution from a single spwf is 
+    ! where J is the vector component of the spin-current density J_munu.
+    ! The contribution from a single spwf is
     !
     !  sum_{mu nu kappa} eps_munukappa
     !            rho_ii  Im [ \nabla_mu Psi_i^* \nabla_kappa \sigma_nu \Psi_ii]
     !
     ! where eps_munukappa is a Levi-Civita symbol.
     !
+    !
+    ! Input:
+    !    der_index:  index of the derivative of the wavefunction in the array
+    ! Output:
+    !    divJ_spwf: unweighted contribution of this spwf to the divJ
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! The reason this thing is calculated separately is because the sum of 
-    ! spwfs is represented much more accurately on the mesh than the sum of
-    ! derivatives of J on the mesh. We use this summation for the calculation
-    ! of multipole moments of J, but it should in W.R.'s opinion NOT be used
-    ! in the calculation of any energy for consistency reasons.
+    ! The reason this thing is calculated separately from all other densities
+    ! is because the sum of spwfs is represented much more accurately on the
+    ! mesh than the sum of erivatives of J on the mesh. We use this summation
+    ! for the calculation of multipole moments of J, but it should in W.R.'s
+    ! opinion NOT be used in the calculation of any energy for consistency reasons.
+    !
+    ! Originally, this routine included the sums over spwfs; which was
+    ! easier to understand. Unfortunately, compatibility with
+    !       store_derivatives = .true.
+    ! flag requires that this function call be within a loop.
+    !
     !---------------------------------------------------------------------------
-    real(KIND=dp) :: divJ(nx*ny*nz,4)
+
+    integer, intent(in)       :: der_index
+    real(KIND=dp) :: divJ_spwf(nx*ny*nz)
     ! MB 24/12/14 comment use of Pauli back in now that the memory leak is fixed
     real(KIND=dp) :: temp(nx*ny*nz,4)
-    real(KIND=dp) :: weight
-    integer       :: wave,it
 
-    divJ = 0.0d0
-    select case(PairingType)
-    case(0,1)
-      ! HF or BCS Calculation
-      DenPsi   => HFPsi    ; DenDPsi   => HFDPsi
-      DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
-    case(2)
-      ! HFB calculation
-      if(.not. efficientHFB) then
-        DenPsi    => CanPsi   ; DenDPsi   => CanDPsi
-        DenddPsi  => CanddPsi ; DendddPsi => Candddpsi
-      else
-        DenPsi    => HFPsi    ; DenDPsi   => HFDPsi
-        DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi
-      endif
-    end select
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    do wave=1,nwt
-        ! Isospin is neutron in the first half of blocks, proton in the rest
-        it = 2
-        if(wave.le.nwn) it = 1
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! I code this with calls to the Pauli and ImagMultiplySpinor functions
+    ! to make no mistakes
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! x y z
+    temp      = Pauli(DenDPsi(:,2,:,der_index), 3)
+    divJ_spwf =             ImagMultiplySpinor(DendPsi(:,1,:,der_index), temp)
+    ! y x z
+    temp = Pauli(DenDPsi(:,1,:,der_index), 3)
+    divJ_spwf = divJ_spwf - ImagMultiplySpinor(DendPsi(:,2,:,der_index), temp)
+    ! x z y
+    temp = Pauli(DenDPsi(:,3,:,der_index), 2)
+    divJ_spwf = divJ_spwf - ImagMultiplySpinor(DendPsi(:,1,:,der_index), temp)
+    ! z x y
+    temp = Pauli(DenDPsi(:,1,:,der_index), 2)
+    divJ_spwf = divJ_spwf + ImagMultiplySpinor(DendPsi(:,3,:,der_index), temp)
+    ! y z x
+    temp = Pauli(DenDPsi(:,3,:,der_index), 1)
+    divJ_spwf = divJ_spwf + ImagMultiplySpinor(DendPsi(:,2,:,der_index), temp)
+    ! z y x
+    temp = Pauli(DenDPsi(:,2,:,der_index), 1)
+    divJ_spwf = divJ_spwf - ImagMultiplySpinor(DendPsi(:,3,:,der_index), temp)
 
-        ! For ordinary densities
-        weight  = rho_can(wave)
-
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! I code this with calls to the Pauli and ImagMultiplySpinor functions 
-        ! to make no mistakes
-        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ! x y z
-        temp = Pauli(DenDPsi(:,2,:,wave), 3)
-        divJ(:,it) = divJ(:,it) &
-        &            + weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
-        ! y x z
-        temp = Pauli(DenDPsi(:,1,:,wave), 3)
-        divJ(:,it) = divJ(:,it) &
-        &            - weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
-        ! x z y 
-        temp = Pauli(DenDPsi(:,3,:,wave), 2)
-        divJ(:,it) = divJ(:,it) &
-        &            - weight * ImagMultiplySpinor(DendPsi(:,1,:,wave), temp) 
-        ! z x y 
-        temp = Pauli(DenDPsi(:,1,:,wave), 2)
-        divJ(:,it) = divJ(:,it) &
-        &            + weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
-        ! y z x 
-        temp = Pauli(DenDPsi(:,3,:,wave), 1)
-        divJ(:,it) = divJ(:,it) &
-        &            + weight * ImagMultiplySpinor(DendPsi(:,2,:,wave), temp) 
-        ! z y x 
-        temp = Pauli(DenDPsi(:,2,:,wave), 1)
-        divJ(:,it) = divJ(:,it) &
-        &            - weight * ImagMultiplySpinor(DendPsi(:,3,:,wave), temp) 
-    enddo
-    ! Taking isospin combinations
-    divJ(:,3) = divJ(:,1) + divJ(:,2)
-    divJ(:,4) = divJ(:,1) - divJ(:,2)
-  
-end function sum_divJ_spwf
+end function divJ_spwf
 
 subroutine MassageDensity()
     !---------------------------------------------------------------------------
@@ -680,10 +676,9 @@ function CompNablaMelements() result(NablaMelements)
     !    5) MPI_BCAST creates the complete array for all ranks
     ! 
     !
-    ! - - - - - - - -
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! TODO: this routine can be refactored by
     !       - adding a bunch of small functions for repeated instructions!
-    !       - centrally changing the .false.,.true. settings
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Some notes:
@@ -754,27 +749,27 @@ function CompNablaMelements() result(NablaMelements)
       !              and opposite parity (if it is conserved)
       !-------------------------------------------------------------------------
       ! Block 1 with block 3
-      do i=1,N
-        wave_global = si+i  ! this is the global index of the spwf
-        ! .... and we have to find the MPI RANK and the index it is on
-        ranki = rank_map(wave_global)
-        wave  = spwf_inverse(wave_global)
-        ! sending, receing, copying etc to the array psi for calc_rank only 
-#if(USE_MPI>0)
-        call transfer_psi(psi, wave, 'DEN',ranki, calc_rank )
-#else
-        call transfer_psi(psi, wave, 'DEN')
-#endif
-        do j=1,N3
-          wave2_global = si+N+N2+j
-          rankj        = rank_map(wave2_global)
-          wave2        = spwf_inverse(wave2_global)
+      do j=1,N3
+        wave2_global = si+N+N2+j
+        rankj        = rank_map(wave2_global)
+        wave2        = spwf_inverse(wave2_global)
 
-          ! sending, receing, copying etc to the array psi for calc_rank only 
+        ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-          call transfer_derpsi(derz, wave2, 3,'DEN',.false., rankj, calc_rank)
+        call transfer_derpsi(derz, wave2, 3,'DEN',.false., rankj, calc_rank)
 #else
-          call transfer_derpsi(derz, wave2, 3,'DEN',.false.)
+        call transfer_derpsi(derz, wave2, 3,'DEN',.false.)
+#endif
+        do i=1,N
+          wave_global = si+i  ! this is the global index of the spwf
+          ! .... and we have to find the MPI RANK and the index it is on
+          ranki = rank_map(wave_global)
+          wave  = spwf_inverse(wave_global)
+          ! sending, receing, copying etc to the array psi for calc_rank only
+#if(USE_MPI>0)
+          call transfer_psi(psi, wave, 'DEN',ranki, calc_rank )
+#else
+          call transfer_psi(psi, wave, 'DEN')
 #endif
           if(MPI_RANK .eq. calc_rank) then
             ! Perform the calculation with the rank designated to calculate
@@ -789,27 +784,26 @@ function CompNablaMelements() result(NablaMelements)
       enddo
       
       ! Block 1 with block 1 (parity broken)
-$PBROKEN   do i=1,N
-$PBROKEN     wave_global = si+i  ! this is the global index of the spwf
-$PBROKEN     ! .... and we have to find the MPI RANK and the index it is on
-$PBROKEN     ranki = rank_map(wave_global)
-$PBROKEN     wave  = spwf_inverse(wave_global)
+$PBROKEN   do j=1,N
+$PBROKEN     wave2_global = si+j
+$PBROKEN     rankj        = rank_map(wave2_global)
+$PBROKEN     wave2        = spwf_inverse(wave2_global)
+$PBROKEN
+$PBROKEN     ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-$PBROKEN     call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+$PBROKEN     call transfer_derpsi(derz,wave2, 3,'DEN',.false.,rankj,calc_rank)
 #else
-$PBROKEN     call transfer_psi(psi, wave, 'DEN')
+$PBROKEN     call transfer_derpsi(derz,wave2, 3,'DEN',.false.)
 #endif
-$PBROKEN
-$PBROKEN     do j=1,N
-$PBROKEN       wave2_global = si+j
-$PBROKEN       rankj        = rank_map(wave2_global)
-$PBROKEN       wave2        = spwf_inverse(wave2_global)
-$PBROKEN
-$PBROKEN       ! sending, receing, copying etc to the array psi for calc_rank only 
+$PBROKEN     do i=1,N
+$PBROKEN       wave_global = si+i  ! this is the global index of the spwf
+$PBROKEN       ! .... and we have to find the MPI RANK and the index it is on
+$PBROKEN       ranki = rank_map(wave_global)
+$PBROKEN       wave  = spwf_inverse(wave_global)
 #if(USE_MPI>0)
-$PBROKEN       call transfer_derpsi(derz,wave2, 3,'DEN',.false.,rankj,calc_rank)
+$PBROKEN       call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
 #else
-$PBROKEN       call transfer_derpsi(derz,wave2, 3,'DEN',.false.)
+$PBROKEN       call transfer_psi(psi, wave, 'DEN')
 #endif
 $PBROKEN
 $PBROKEN       if(MPI_RANK .eq. calc_rank) then
@@ -824,26 +818,26 @@ $PBROKEN     enddo
 $PBROKEN   enddo
 
       ! Block 2 with block 4
-      do i=1,N2
-        wave_global  = si+N+i
-        ranki        = rank_map(wave_global)
-        wave         = spwf_inverse(wave_global)
-        ! sending, receing, copying etc to the array psi for calc_rank only 
-#if(USE_MPI>0)
-        call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
-#else
-        call transfer_psi(psi, wave, 'DEN')
-#endif
-        do j=1,N4
-          wave2_global = si+N+N2+N3+j
-          rankj        = rank_map(wave2_global)
-          wave2        = spwf_inverse(wave2_global)
+      do j=1,N4
+        wave2_global = si+N+N2+N3+j
+        rankj        = rank_map(wave2_global)
+        wave2        = spwf_inverse(wave2_global)
 
-          ! sending, receing, copying etc to the array psi for calc_rank only 
+        ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-          call transfer_derpsi(derz, wave2, 3, 'DEN',.false., rankj, calc_rank)
+        call transfer_derpsi(derz, wave2, 3, 'DEN',.false., rankj, calc_rank)
 #else
-          call transfer_derpsi(derz, wave2, 3, 'DEN',.false.)
+        call transfer_derpsi(derz, wave2, 3, 'DEN',.false.)
+#endif
+        do i=1,N2
+          wave_global  = si+N+i
+          ranki        = rank_map(wave_global)
+          wave         = spwf_inverse(wave_global)
+          ! sending, receing, copying etc to the array psi for calc_rank only
+#if(USE_MPI>0)
+          call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+#else
+          call transfer_psi(psi, wave, 'DEN')
 #endif
           if(MPI_RANK.eq.calc_rank) then
           ! Re < p_z > 
@@ -858,27 +852,27 @@ $PBROKEN   enddo
       enddo
       
       ! Block 2 with block 2 (parity broken)
-$PBROKEN   do i=1,N2
-$PBROKEN     wave_global = si+N+i  ! this is the global index of the spwf
-$PBROKEN     ! .... and we have to find the MPI RANK and the index it is on
-$PBROKEN     ranki = rank_map(wave_global)
-$PBROKEN     wave  = spwf_inverse(wave_global)
-#if(USE_MPI>0)
-$PBROKEN     call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
-#else
-$PBROKEN     call transfer_psi(psi, wave, 'DEN')
-#endif
-$PBROKEN 
-$PBROKEN     do j=1,N2
-$PBROKEN       wave2_global = si+N+j
-$PBROKEN       rankj        = rank_map(wave2_global)
-$PBROKEN       wave2        = spwf_inverse(wave2_global)
+$PBROKEN   do j=1,N2
+$PBROKEN     wave2_global = si+N+j
+$PBROKEN     rankj        = rank_map(wave2_global)
+$PBROKEN     wave2        = spwf_inverse(wave2_global)
 $PBROKEN
 #if(USE_MPI>0)
-$PBROKEN       call transfer_derpsi(derz,wave2,3,'DEN',.false.,rankj,calc_rank)
+$PBROKEN     call transfer_derpsi(derz,wave2,3,'DEN',.false.,rankj,calc_rank)
 #else
-$PBROKEN       call transfer_derpsi(derz,wave2,3,'DEN',.false.)
+$PBROKEN     call transfer_derpsi(derz,wave2,3,'DEN',.false.)
 #endif
+$PBROKEN     do i=1,N2
+$PBROKEN       wave_global = si+N+i  ! this is the global index of the spwf
+$PBROKEN       ! .... and we have to find the MPI RANK and the index it is on
+$PBROKEN       ranki = rank_map(wave_global)
+$PBROKEN       wave  = spwf_inverse(wave_global)
+#if(USE_MPI>0)
+$PBROKEN       call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+#else
+$PBROKEN       call transfer_psi(psi, wave, 'DEN')
+#endif
+$PBROKEN 
 $PBROKEN       if(MPI_RANK.eq.calc_rank) then
 $PBROKEN         ! Re < p_z > 
 $PBROKEN         NablaMElements(3,1,wave_global,wave2_global) = dv*            &
@@ -908,30 +902,30 @@ $TR   hidden_TR = .true.
       !       directives needed just below.
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-      do i=1,N
-        wave_global  = si+i
-        ranki        = rank_map(wave_global)
-        wave         = spwf_inverse(wave_global)        
-        ! sending, receing, copying etc to the array psi for calc_rank only 
+      ! Block 1 with block 4  (T-broken)
+$NTR  do j=1, N4
+$NTR     wave2_global = si+N+N2+N3+j
+      ! Block 1 with block 3  (T-conserved)
+$TR   do j=1, N3
+$TR     wave2_global = si+N+j
+        rankj        = rank_map(wave2_global)
+        wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-        call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+        call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR,rankj,calc_rank)
+        call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR,rankj,calc_rank)
 #else
-        call transfer_psi(psi, wave, 'DEN')
+        call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR)
+        call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR)
 #endif
-           ! Block 1 with block 4  (T-broken)    
-$NTR       do j=1, N4
-$NTR          wave2_global = si+N+N2+N3+j
-           ! Block 1 with block 3  (T-conserved)    
-$TR        do j=1, N3
-$TR           wave2_global = si+N+j
-              rankj        = rank_map(wave2_global)
-              wave2        = spwf_inverse(wave2_global)
+        do i=1,N
+          wave_global  = si+i
+          ranki        = rank_map(wave_global)
+          wave         = spwf_inverse(wave_global)
+          ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-              call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR,rankj,calc_rank)
-              call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR,rankj,calc_rank)
+          call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
 #else
-              call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR)
-              call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR)
+          call transfer_psi(psi, wave, 'DEN')
 #endif
           if(MPI_RANK.eq.calc_rank) then
 
@@ -951,18 +945,7 @@ $TR           wave2_global = si+N+j
          endif
         enddo
       enddo
-      
-$PBROKEN   do i=1,N
-$PBROKEN     wave_global  = si+i
-$PBROKEN     ranki        = rank_map(wave_global)
-$PBROKEN     wave         = spwf_inverse(wave_global)        
-$PBROKEN     ! sending, receing, copying etc to the array psi for calc_rank only 
-#if(USE_MPI>0)
-$PBROKEN     call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
-#else
-$PBROKEN     call transfer_psi(psi, wave, 'DEN')
-#endif
-              ! Block 1 with block 2  (T-broken, P-broken)
+      ! Block 1 with block 2  (T-broken, P-broken)
 $PBROKEN $NTR do j=1, N2
 $PBROKEN $NTR   wave2_global = si+N+j
 $PBROKEN $NTR   rankj        = rank_map(wave2_global)
@@ -987,6 +970,17 @@ $PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR,rankj,calc_ran
 $PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR)
 $PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR)
 #endif
+$PBROKEN        do i=1,N
+$PBROKEN          wave_global  = si+i
+$PBROKEN          ranki        = rank_map(wave_global)
+$PBROKEN          wave         = spwf_inverse(wave_global)
+$PBROKEN          ! sending, receing, copying etc to the array psi for calc_rank only
+#if(USE_MPI>0)
+$PBROKEN          call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+#else
+$PBROKEN          call transfer_psi(psi, wave, 'DEN')
+#endif
+
 $PBROKEN        if(MPI_RANK .eq. calc_rank) then
 $PBROKEN          NablaMElements(1,1,wave_global,wave2_global) = dv*           &
 $PBROKEN          & sum(         derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
@@ -1004,34 +998,30 @@ $PBROKEN        endif
 $PBROKEN     enddo
 $PBROKEN   enddo
 
-      do i=1,N2
-        wave_global  = si+N+i
-        ranki        = rank_map(wave_global)
-        wave         = spwf_inverse(wave_global)
-        ! sending, receing, copying etc to the array psi for calc_rank only 
+     ! Block 2 with block 3  (T-broken)
+$NTR do j=1, N3
+$NTR    wave2_global = si+N+N2+j
+     ! Block 2 with block 4  (T-conserved)
+$TR  do j=1, N4
+$TR     wave2_global = si+N+N2+N3+j
+        rankj        = rank_map(wave2_global)
+        wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-        call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+        call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR,rankj,calc_rank)
+        call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR,rankj,calc_rank)
 #else
-        call transfer_psi(psi, wave, 'DEN')
+        call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR)
+        call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR)
 #endif
-           ! Block 2 with block 3  (T-broken)    
-$NTR       do j=1, N3
-$NTR          wave2_global = si+N+N2+j
-           ! Block 2 with block 4  (T-conserved)    
-$TR        do j=1, N4
-$TR           wave2_global = si+N+N2+N3+j
-
-              rankj        = rank_map(wave2_global)
-              wave2        = spwf_inverse(wave2_global)
-
+        do i=1,N2
+          wave_global  = si+N+i
+          ranki        = rank_map(wave_global)
+          wave         = spwf_inverse(wave_global)
+          ! sending, receing, copying etc to the array psi for calc_rank only
 #if(USE_MPI>0)
-          ! TR = .true. => Include a time-reversal operation
-          call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR,rankj,calc_rank)
-          call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR,rankj,calc_rank)
+          call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
 #else
-          ! TR = .true. => Include a time-reversal operation
-          call transfer_derpsi(derx, wave2, 1,'DEN',hidden_TR)
-          call transfer_derpsi(dery, wave2, 2,'DEN',hidden_TR)
+          call transfer_psi(psi, wave, 'DEN')
 #endif
           if(MPI_RANK.eq.calc_rank) then
             NablaMElements(1,1,wave_global,wave2_global) = dv*                 &
@@ -1050,47 +1040,47 @@ $TR           wave2_global = si+N+N2+N3+j
         enddo
       enddo
 
-$PBROKEN   do i=1,N2
-$PBROKEN      wave_global  = si+N+i
-$PBROKEN      ranki        = rank_map(wave_global)
-$PBROKEN      wave         = spwf_inverse(wave_global)
-#if(USE_MPI>0)
-$PBROKEN     call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
-#else
-$PBROKEN     call transfer_psi(psi, wave, 'DEN')
-#endif
               ! Block 2 with block 2 (P-broken, T-conserved)
-$PBROKEN $TR   do j=1, N2
-$PBROKEN $TR    wave2_global = si+N+j
-$PBROKEN $TR    rankj        = rank_map(wave2_global)
-$PBROKEN $TR    wave2        = spwf_inverse(wave2_global)
+              ! Note: there is no "time-reversal broken" version of the following
+              ! code block since "block 1 with 2" is already taken into account
+              ! above..
+$PBROKEN $TR  do j=1, N2
+$PBROKEN $TR   wave2_global = si+N+j
+$PBROKEN $TR   rankj        = rank_map(wave2_global)
+$PBROKEN $TR   wave2        = spwf_inverse(wave2_global)
 #if(USE_MPI>0)
-$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR,rankj,calc_rank)
-$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR,rankj,calc_rank)
+$PBROKEN $TR   call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR,rankj,calc_rank)
+$PBROKEN $TR   call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR,rankj,calc_rank)
 #else
-$PBROKEN $TR    call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR)
-$PBROKEN $TR    call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR)
+$PBROKEN $TR   call transfer_derpsi(derx,wave2,1,'DEN',hidden_TR)
+$PBROKEN $TR   call transfer_derpsi(dery,wave2,2,'DEN',hidden_TR)
 #endif
-              ! The time-reversal broken version of the above would be
-              ! Block 2 with block 1 (P-broken, T-broken)
-              ! ... but this would be superfluous as we already calculated block 1 with block 2
-              !     in that case above. So there is no code corresponding to that case!
-$PBROKEN $TR    if(MPI_RANK.eq.calc_rank) then
-$PBROKEN $TR      NablaMElements(1,1,wave_global,wave2_global) = dv*           &
-$PBROKEN $TR      & sum(         derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
-$PBROKEN $TR      &           +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
 
-$PBROKEN $TR      NablaMElements(2,2,wave_global,wave2_global) = dv*           &
-$PBROKEN $TR      & sum(          dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
-$PBROKEN $TR      &            -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+$PBROKEN $TR   do i=1,N2
+$PBROKEN $TR      wave_global  = si+N+i
+$PBROKEN $TR      ranki        = rank_map(wave_global)
+$PBROKEN $TR      wave         = spwf_inverse(wave_global)
+#if(USE_MPI>0)
+$PBROKEN $TR      call transfer_psi(psi, wave, 'DEN', ranki, calc_rank)
+#else
+$PBROKEN $TR      call transfer_psi(psi, wave, 'DEN')
+#endif
+$PBROKEN $TR      if(MPI_RANK.eq.calc_rank) then
+$PBROKEN $TR        NablaMElements(1,1,wave_global,wave2_global) = dv*           &
+$PBROKEN $TR        & sum(         derx(:,1) * psi(:,1) + derx(:,2) * psi(:,2)   &
+$PBROKEN $TR        &           +  derx(:,3) * psi(:,3) + derx(:,4) * psi(:,4))
 
-$PBROKEN $TR      NablaMElements(1,1,wave2_global,wave_global) = &
-$PBROKEN $TR      &               - NablaMElements(1,1,wave_global,wave2_global)
-$PBROKEN $TR      NablaMElements(2,2,wave2_global,wave_global) = &
-$PBROKEN $TR      &                 NablaMElements(2,2,wave_global,wave2_global)
-$PBROKEN $TR    endif
+$PBROKEN $TR        NablaMElements(2,2,wave_global,wave2_global) = dv*           &
+$PBROKEN $TR        & sum(          dery(:,2) * psi(:,1) - dery(:,1) * psi(:,2)  &
+$PBROKEN $TR        &            -  dery(:,3) * psi(:,4) + dery(:,4) * psi(:,3))
+
+$PBROKEN $TR        NablaMElements(1,1,wave2_global,wave_global) = &
+$PBROKEN $TR        &               - NablaMElements(1,1,wave_global,wave2_global)
+$PBROKEN $TR        NablaMElements(2,2,wave2_global,wave_global) = &
+$PBROKEN $TR        &                 NablaMElements(2,2,wave_global,wave2_global)
+$PBROKEN $TR      endif
+$PBROKEN $TR   enddo
 $PBROKEN $TR  enddo
-$PBROKEN    enddo
       T = N + N2 + N3 + N4
       si = si + T 
     enddo

@@ -77,6 +77,9 @@ minimal:
 symmetries:
   #-----------------------------------------------------------------------------
   # Run the 'symmetries' test
+  # Currently implemented runs:
+  #  - BSkG3  with the BXL  configuration compiled with gfortran
+  #  - SN2LO1 with the N2LO configuration compiled with gfortran
   #-----------------------------------------------------------------------------
   stage: testing
   tags:
@@ -109,6 +112,44 @@ symmetries:
     - cd testing/integration/
     # Useage: bash symmetries param exec exec_P exec_T exec_TP
     - bash symmetries.sh ${PARAM} ${EXEC} ${EXEC_P} ${EXEC_T} ${EXEC_TP}
+
+store_derivatives:
+  #-----------------------------------------------------------------------------
+  # Run the 'store_derivatives' test
+  # Currently implemented runs:
+  #  - BSkG3   with the BXL    configuration compiled with gfortran
+  #  - BSkG3   with the BXL-P  configuration compiled with gfortran
+  #  - BSkG3   with the BXL-T  configuration compiled with gfortran
+  #  - S2NLO1  with the N2LO   configuration compiled with gfortran
+  #  - S2NLO1  with the N2LO-P configuration compiled with gfortran
+  #  - S2NLO1  with the N2LO-T configuration compiled with gfortran
+  #-----------------------------------------------------------------------------
+  stage: testing
+  tags:
+    - astropc19
+  variables:
+    EXEC    : ${CONFIG}.${COMPILER}.${CALCTYPE}
+  artifacts:
+    paths:
+      - testing/integration/logs/store_derivatives=.true..${EXEC}.out
+      - testing/integration/logs/store_derivatives=.false..${EXEC}.out
+    expire_in: 1 year # keep outputs for a LONG time
+  parallel:
+    matrix:
+      - PARAM    : BSkG3
+        CONFIG   : [BXL, BXL-T, BXL-P]
+        COMPILER : gfortran
+        CALCTYPE : NUCLEI
+      - PARAM    : SN2LO1
+        CONFIG   : [N2LO, N2LO-T, N2LO-P]
+        COMPILER : gfortran
+        CALCTYPE : NUCLEI
+  script:
+    #---------------------------------------------------------------------------
+    # Start testing!
+    - cd testing/integration/
+    # Useage: bash symmetries param exec exec_P exec_T exec_TP
+    - bash store_derivatives.sh -p ${PARAM} -e ${EXEC}
 
   #----------------------------------------------------------------------
   # Install all prerequisites for docker-based systems
