@@ -407,7 +407,7 @@ getgitinfo:
 	$(eval GIT_INFO2=$(shell git show   | grep 'Author:' | head -1))
 	$(eval GIT_INFO3=$(shell git show   | grep 'Date:'   | head -1))
 	$(eval GIT_INFO4=$(shell git branch | grep '*'       | head -1 | cut -c2- ))
-	$(eval GIT_INFO5=$(shell git describe --tags ))
+	$(eval GIT_INFO5=$(shell git describe --tags --always ))
 getcompilerinfo:
   # Get information from 'CXX --version'
 	$(eval COMPVERSION=$(shell $(CXX) --version | head -1))
