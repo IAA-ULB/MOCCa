@@ -531,7 +531,6 @@ $ISOSPINCOUPL
 
 end subroutine densit
 
-
 function divJ_spwf(der_index)
     !---------------------------------------------------------------------------
     ! Calculate the
@@ -562,6 +561,7 @@ function divJ_spwf(der_index)
     ! flag requires that this function call be within a loop.
     !
     !---------------------------------------------------------------------------
+
     integer, intent(in)       :: der_index
     real(KIND=dp) :: divJ_spwf(nx*ny*nz)
     ! MB 24/12/14 comment use of Pauli back in now that the memory leak is fixed

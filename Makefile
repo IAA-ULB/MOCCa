@@ -312,7 +312,7 @@ SINGLE_SRC = $(SRC) run_single.f90
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Nilsson source files
-NIL_SRC := compilation.f90 timing.f90 geninfo.f90 derivatives.f90 nil8.f90
+NIL_SRC := compilation.f90 geninfo.f90 timing.f90 derivatives.f90 nil8.f90
 NIL_SRC += wavefunctions.f90 gennilsson.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -376,9 +376,9 @@ run_heph:
   # the Makefile
 	python3 Hephaestos.py $(CONFIG) $(DENSUM)
 
-gen_nilsson: $(PRE_NIL) $(NIL_OBJ)
+gen_nilsson: $(PRE) $(PRE_NIL) $(NIL_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LIBS)
-	mv gen_nilsson exec/$(EXENAME)
+	mv gen_nilsson exec/gen_nilsson.exe
 
 clean:
 	rm  -f $(OBJDIR)/*.o
@@ -394,7 +394,7 @@ setversioninfo:
 	@sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' $(SRCDIR)/tantalus.version.f90
-	@sed -i.bak 's/VERSION4/"${GIT_INFO4}"/' $(SRCDIR)/tantalus.version.f90
+# 	@sed -i.bak 's/VERSION4/"${GIT_INFO4}"/' $(SRCDIR)/tantalus.version.f90
 #Copy the compiler information
 	@sed -i.bak 's/COMPCOMP/"${COMPVERSION}"/' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/CFLAGS/"${CXXFLAGS}"/'      $(SRCDIR)/tantalus.version.f90
@@ -406,8 +406,9 @@ getgitinfo:
 	$(eval GIT_INFO1=$(shell git show   | grep 'commit ' | head -1))
 	$(eval GIT_INFO2=$(shell git show   | grep 'Author:' | head -1))
 	$(eval GIT_INFO3=$(shell git show   | grep 'Date:'   | head -1))
-	$(eval GIT_INFO4=$(shell git branch | grep '*'       | head -1 | cut -c2- ))
-	$(eval GIT_INFO5=$(shell git describe --tags ))
+# 	$(eval GIT_INFO4=$(shell git branch | grep '*'       | head -1 | cut -c2- ))
+	$(eval GIT_INFO5=$(shell git describe --tags --always ))
+	echo $(GIT_INFO5)
 getcompilerinfo:
   # Get information from 'CXX --version'
 	$(eval COMPVERSION=$(shell $(CXX) --version | head -1))
