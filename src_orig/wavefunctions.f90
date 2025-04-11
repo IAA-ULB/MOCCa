@@ -2051,10 +2051,14 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)  :: psi(mv,4)
     integer, intent(in)        :: direction
-    real(KIND=dp), allocatable :: Spsi(:,:)
+    ! MB 24/12/14 commented out as this generates a memory leak
+    ! real(KIND=dp), allocatable :: Spsi(:,:)
+    ! MB 24/12/14 usual declaration of a local array instead
+    real(KIND=dp)              ::  Spsi(mv,4)
     integer                    :: i
     
-    allocate(SPsi(mv,4)) ; SPsi = 0.0d0
+    ! MB 24/12/14 don't allocate anymore as this generates a memory leak
+    !allocate(SPsi(mv,4)) ; SPsi = 0.0d0
     
     if(Direction.eq.1) then
         !\sigma_x = ( 0  1 )
