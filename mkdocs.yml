@@ -36,5 +36,7 @@ nav:
   - Examples and tests:
     - General considerations : examples/general.md
     - How to write a test: examples/requirements.md
+  - Not yet organised:
+    - Blocking by tagging:  user-guide/tagging.md
 theme: readthedocs
 extra_css: [extra.css]
