@@ -333,17 +333,17 @@ $NTR    crankenergy_cut = - omega * TotalAngMom_cut
     type(DensityVector), intent(in) :: R
 $NTR    logical           :: found
 
-    1 format (2x,74('_') )
-   10 format (2x,74('-'))
-    2 format (25('-'), ' Angular Momentum (hbar) ',26('-') )
-    3 format (15x, 'Spwfs(*)  ',2x, 'Desired', 5x, 'Omega', 7x, 'E (MeV)' 6x,'Densit. ')
-   31 format (15x, 'Densit.(*)',2x, 'Desired', 5x, 'Omega', 7x, 'E (MeV)' 6x,'Spwfs   ')
-    4 format (3x,'J_',a1,'   ','|', 5f12.5 )
-   41 format (3x,'Size  |', 3f12.5,12x,1f12.5)
+    1 format (2x,99('_') )
+   10 format (2x,99('-'))
+    2 format (30('-'), ' Angular Momentum (hbar) ',46('-') )
+    3 format (15x, 'Spwfs(*)  ',7x, 'Desired', 10x, 'Omega', 12x, 'E (MeV)' 12x,'Densit. ')
+   31 format (15x, 'Densit.(*)',7x, 'Desired', 10x, 'Omega', 12x, 'E (MeV)' 12x,'Spwfs   ')
+    4 format (3x,'J_',a1,'   ','|', 5f17.10 )
+   41 format (3x,'Size  |', 3f17.10,17x,1f17.10)
 $NTR    5 format (2x,' _______________________________________________________' )
 $NTR    6 format (3x,'Open spin')
 $NTR    7 format (15x, 'Neutrons', 3x, 'Protons')
-$NTR    8 format (3x,a1,1x,'|',3x,'|',4f12.5)
+$NTR    8 format (3x,a1,1x,'|',3x,'|',4f17.10)
 
     print 2
     print *

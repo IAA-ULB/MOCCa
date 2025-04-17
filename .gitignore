@@ -10,7 +10,11 @@ make.inc
 *.pyc
 src_heph/*.pyc
 
+# Do not track logs of various kinds
 testing/integration/logs/
+
+# Do not track the documentation builds
+site/ 
 
 tantalus_examples/out/
 tantalus_examples/diffs/

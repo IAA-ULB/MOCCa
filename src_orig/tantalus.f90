@@ -52,13 +52,14 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !------------------------------------------------------------------------------
  ! Information gleaned from git and the Makefile, to be used to identify the
  ! executable
- character(len=58), parameter        :: version1 =VERSION1
- character(len=58), parameter        :: version2 =VERSION2
- character(len=58), parameter        :: version3 =VERSION3
- character(len=58), parameter        :: version4 =VERSION4
- character(len=58), parameter        :: compiler =COMPCOMP
- character(len=58), parameter        :: cflags   =CFLAGS
- character(len=58), parameter        :: optflags =OPTFLAGS
+ character(len=44), parameter        :: versiontag=VTAG
+ character(len=58), parameter        :: version1  =VERSION1
+ character(len=58), parameter        :: version2  =VERSION2
+ character(len=58), parameter        :: version3  =VERSION3
+!  character(len=58), parameter        :: version4  =VERSION4
+ character(len=58), parameter        :: compiler  =COMPCOMP
+ character(len=58), parameter        :: cflags    =CFLAGS
+ character(len=58), parameter        :: optflags  =OPTFLAGS
 
  !------------------------------------------------------------------------------
  ! MPI error code
@@ -84,10 +85,11 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  200 format ( 8x, '|', 59('-'), '|'  ,/,8x, '| Runtype = ', a44, 4x, '|')
 
  299 format ( 8x,'|--------------- Version Information -----------------------|')
+2991 format ( 8x,'| Version tag = ', a44, '|') ! Version tag
  300 format ( 8x,'| ', a58, '|') ! Git commit
  301 format ( 8x,'| ', a58, '|') ! Author of commit
  302 format ( 8x,'| ', a58, '|') ! Date
- 303 format ( 8x,'| Branch: ', a50, '|') ! Branch
+!  303 format ( 8x,'| Branch: ', a50, '|') ! Branch
  304 format ( 8x,'|                                                           |')
  305 format ( 8x,'|-------------- Symmetry Information -----------------------|')
  306 format ( 8x,'| S.p. generators        = ', a26, 7x, '|')
@@ -152,10 +154,14 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
    print 200, adjustl(mode_print)
    print 299
    print 304
+   print 2991, versiontag
    print 300, version1
    print 301, version2
    print 302, version3
-   print 303, version4
+
+!  There is no printing of branch information anymore, as this thing fails in
+!  github actions workflow.
+!    print 303, version4
    print 304
    !----------------------------------------------------------------------------
    ! Information about symmetry choices
@@ -657,6 +663,11 @@ subroutine printsummary(iter, potentials_frozen)
         dN = part%value - part%history
         print 7, dN
     else
+        dN(1) = sum(rho_can(1:nwn))     - neutrons
+        dN(2) = sum(rho_can(nwn+1:nwt)) - protons
+        if ( any(dN(:)*dN(:) .gt. 1.d-14) ) then
+          print 7, dN
+        endif
         dF   = FermiEnergy - FermiHistory
         print 6, dF
     endif
