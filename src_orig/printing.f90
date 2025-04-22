@@ -28,8 +28,8 @@ contains
 
   subroutine PrintSpwfs(print_advanced)
     !---------------------------------------------------------------------------
-    ! Print the info of the (physical) Hartree-Fock basis.
-    !
+    ! Print the info of the (physical) Hartree-Fock basis and the canonical
+    ! basis in the case of HFB calculations.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !   print_advanced : logical, if .true. print ALL details of the spwfs
@@ -52,16 +52,15 @@ contains
     &          3(2x, f5.2), ' | ', f6.2 , ' | ', i4)
 
     12 format (1x, i5, 1x, i5, 1x, f5.2, 1x, f4.1, 2x, f6.4, 1x, a1, &
-    &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(3x, '*', 3x), 1x, '|',   &
+    &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(3x, '*', 3x), 1x, '|',  &
     &          3(3x, '*', 3x), ' | ', 3x, '*', 2x , ' | ', i4)
 
     logical, intent(in) ::  print_advanced
-
-    integer       :: wave,k, B, si, N, T, wavebar, l
-    integer       :: ProtonOrder(nwp), NeutronOrder(nwn), sumocc
-    real(KIND=dp) :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz, r2
-    real(KIND=dp), allocatable :: HF_gaps(:,:), can_gaps(:,:)
+    integer          :: wave,k, B, si, N, T, wavebar, l
+    integer          :: ProtonOrder(nwp), NeutronOrder(nwn), sumocc
+    real(KIND=dp)    :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz, r2
     character(len=1) :: blo
+    real(KIND=dp), allocatable :: HF_gaps(:,:), can_gaps(:,:)
 
     ! We transform the gaps to the Hartree-Fock basis for printing
     if(pairingtype.eq.2) then
@@ -81,7 +80,7 @@ contains
       enddo
     endif
     !---------------------------------------------------------------------------
-    ! Start of the actual printing.   
+    ! Start of the actual printing.
     ! Order the spwfs according to growing single-particle energy.
     ProtonOrder = OrderSpwfsISO(+1)
     NeutronOrder= OrderSpwfsISO(-1)
@@ -95,7 +94,7 @@ contains
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-        P = P_hf(wave)        
+        P = P_hf(wave)
 
         if(wave .le. sum(HFBlocks_global(1:2))) then
             if(wave .le. HFBlocks_global(1)) then
@@ -213,7 +212,9 @@ $TR     sumocc = 2*k
     print 60
     print 20
 
-    ! Prepare by calculating the gaps in the canonical basis  
+    ! Prepare by calculating the gaps in the canonical basis
+    allocate(can_gaps(nwt,nwt))
+    
     can_gaps = matmul(transpose(cantransfo), HFBgaps)
     can_gaps = matmul(can_gaps, cantransfo)
 
@@ -348,6 +349,7 @@ $TR     sumocc = 2*k
     enddo
     print 20
 
+    deallocate(can_gaps)
   end subroutine PrintSpwfs
 
   subroutine printqps(print_advanced)
@@ -375,8 +377,12 @@ $TR     sumocc = 2*k
     &           2x, a1,  2x, 1f5.3, ' | ',  3(2x,'*', 2x))
 
     11  format(110('-'))
-    if(PairingType.eq.0) return
+ 
+    ! Trash statement to stop the cray compiler complaining about non-allocated
+    ! arrays because of the (possible) early return below.
+    allocate(indices(1)) ; deallocate(indices)
 
+    if(PairingType.eq.0) return
     if(PairingType.eq.2) call update_qp_angmom(Bogoliubov)
 
     print 1
@@ -488,7 +494,8 @@ $TR     sumocc = 2*k
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
           ! BCS case
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          indices = order(BCSqps(si+1:si+N))
+          allocate(indices(N))
+          indices = order(BCSqps(si+1:si+N), N)
           do i=1, N
             ind  = indices(i)
             if(print_advanced) then
@@ -499,6 +506,7 @@ $TR     sumocc = 2*k
               &        '-', '-',0.0d0
             endif
           enddo
+          deallocate(indices)
         end select
         si = si +   T
         sb = sb + 2*T
@@ -541,33 +549,4 @@ $TR     sumocc = 2*k
     print 2
     print 3
   end subroutine print_qp_header
-
-  subroutine convergence_report()
-    !---------------------------------------------------------------------------
-    ! Print a report on the observed convergence.
-    !---------------------------------------------------------------------------
-
-    use functional
-
-    1 format (80('-'))
-    2 format ('Convergence report')
-    3 format (19x,'     Change^(i)     Change^(i-1)   rate (approx)')
-    4 format ('  Con.  Energy      :', 3es15.2)
-    5 format ('  Con.  Routhian    :', 3es15.2)
-    6 format ('  Con.  E_fu - E_sp :', 3es15.2)
-    7 format ('  Con.  |delta rho| :', 3es15.2)
-    
-    print 1
-    print 2
-    print 3
-    print 4, totalE   - Ehistory(1), Ehistory(1) - Ehistory(2), con_rates(1)
-    print 5, Routhian - Rhistory(1), Rhistory(1) - Rhistory(2), con_rates(2)
-    print 6, SpwfEnergy     - totalE      - SpwfHistory(1) + Ehistory(1), &
-    &        SpwfHistory(1) - Ehistory(1) - SpwfHistory(2) + Ehistory(2), &
-    &        con_rates(3)
-    print 7,  sqrt(sum((D_I_I - D_I_I_hist(:,:,1))**2)*dv) , 0.0 , con_rates(4)
-    print 1
-
-  end subroutine convergence_report
-
 end module

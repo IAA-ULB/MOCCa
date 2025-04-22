@@ -213,7 +213,7 @@ $NTR        enddo
     enddo
   end subroutine readcranking
 
-  subroutine updateAM()
+  subroutine updateAM(R)
     !---------------------------------------------------------------------------
     ! Calculate the total angular momentum and cranking energies.
     !---------------------------------------------------------------------------
@@ -221,6 +221,7 @@ $NTR    use Moments, only : cutoff
     ! We only import this if time-reversal is not conserved, otherwise
     ! the compiler complains
 
+    type(DensityVector), intent(in) :: R
 $NTR    integer :: B, N, wave, si, i, c, it
 
     ! Saving all of the history for convergence analysis ...
@@ -255,16 +256,16 @@ $NTR    ! And now we integrate the current density and spin density.
 $NTR    do it=1,2
 $NTR      ! Spin part
 $NTR      TotalAngMom_dens(3) = TotalAngMom_dens(3) + &
-$NTR      &                     0.5 *                sum(D_I_S(:,3,it))
+$NTR      &                     0.5 *                sum(R%D_I_S(:,3,it))
 $NTR      TotalAngMom_cut(3) = TotalAngMom_cut(3) + &
-$NTR      &                     0.5 * sum( Cutoff(:,it)* D_I_S(:,3,it))
+$NTR      &                     0.5 * sum( Cutoff(:,it)* R%D_I_S(:,3,it))
 $NTR
 $NTR      do i=1, nx*ny*nz
 $NTR        TotalAngMom_dens(3) = TotalAngMom_dens(3) &
-$NTR        & - meshgrid(i,2) * C_I_N(i,1,it) + meshgrid(i,1) * C_I_N(i,2,it)
+$NTR        & - meshgrid(i,2) * R%C_I_N(i,1,it) + meshgrid(i,1) * R%C_I_N(i,2,it)
 $NTR
 $NTR        TotalAngMom_cut(3)  = TotalAngMom_cut(3) + cutoff(i,it) * &
-$NTR        & (- meshgrid(i,2) * C_I_N(i,1,it) + meshgrid(i,1) * C_I_N(i,2,it))
+$NTR        & (- meshgrid(i,2) * R%C_I_N(i,1,it) + meshgrid(i,1) * R%C_I_N(i,2,it))
 $NTR      enddo
 $NTR    enddo
 $NTR    TotalAngMom_dens = TotalAngMom_dens * dv
@@ -274,7 +275,6 @@ $NTR    !-----------------------------------------------------------------------
 $NTR    ! The contribution of the cranking constraint to the total Routhian
 $NTR    crankenergy     = - omega * TotalAngMom
 $NTR    crankenergy_cut = - omega * TotalAngMom_cut
-
 
   end subroutine updateAM
 
@@ -323,13 +323,14 @@ $NTR    crankenergy_cut = - omega * TotalAngMom_cut
 
   end subroutine printcranking_init
 
-  subroutine PrintCranking()
+  subroutine PrintCranking(R)
     !---------------------------------------------------------------------------
     ! Prints all kinds of information about the expectation value of the
     ! angular momentum operator and all kinds of angles.
     !---------------------------------------------------------------------------
-    character(len=1), parameter  :: dir(3) = (/'x', 'y', 'z'/)
-    integer           :: i $NTR,j
+    character(len=1), parameter     :: dir(3) = (/'x', 'y', 'z'/)
+    integer                         :: i $NTR,j
+    type(DensityVector), intent(in) :: R
 $NTR    logical           :: found
 
     1 format (2x,99('_') )
@@ -388,8 +389,8 @@ $NTR        if(i .eq. crankdirections(j)) found = .true.
 $NTR      enddo
 $NTR      if(found) then
 $NTR        ! There is a possibility for total spin in this Cartesian direction.
-$NTR        print 8     , dir(i), 0.5*sum(D_I_S(:,i,1))*dv, &
-$NTR        &                     0.5*sum(D_I_S(:,i,2))*dv
+$NTR        print 8     , dir(i), 0.5*sum(R%D_I_S(:,i,1))*dv, &
+$NTR        &                     0.5*sum(R%D_I_S(:,i,2))*dv
 $NTR      else
 $NTR        ! Spin is restricted in this particular direction
 $NTR        print 8     , dir(i), 0.0d0,0.0d0
@@ -400,8 +401,8 @@ $NTR    print 5
 
   function crank_spin_potential() result(spot)
     !---------------------------------------------------------------------------
-    ! The cranking constraint contributes to the field F_I_S, associated with
-    ! the spin density D_I_S:
+    ! The cranking constraint contributes to the potential F_I_S, associated 
+    ! with the spin density D_I_S:
     !
     !     F_I_S(r) => F_I_S(r) - \frac{1}{2} \omega f_cut(r)
     !
@@ -434,8 +435,8 @@ $NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
 
   function crank_current_potential() result(jpot)
     !---------------------------------------------------------------------------
-    ! The cranking constraint contributes to the field G_I_N, associated with
-    ! the current density D_I_N:
+    ! The cranking constraint contributes to the potential G_I_N, associated
+    ! with the current density D_I_N:
     !
     !       G_I_N => G_I_N - f_cut(r) \vec{\omega} x \vec{r}
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

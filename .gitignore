@@ -3,7 +3,8 @@ obj/*
 mod/*
 *exe
 *i
-
+# Do not track the make.inc currently in use
+make.inc
 
 # Do not track compiled python modules
 *.pyc

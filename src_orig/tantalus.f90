@@ -29,10 +29,17 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  use geninfo
  use wavefunctions
  use IO
- use temperature_projection
  use timing
+ use fission_MOI
+
 
  implicit none
+ !------------------------------------------------------------------------------
+ ! Convergence signals
+ ! Iteration counter
+ integer           :: iteration
+ ! Message for the output of the code, useful for the Brussels group.
+ character(len=99) :: iomsg = 'START'
  !------------------------------------------------------------------------------
  ! These inputs control where the code will look for its input. Leaving them
  ! empty will have the code rely on STDIN for input.
@@ -125,7 +132,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! Start the different processes across MPI ranks and do MPI bookkeeping
 #if(USE_MPI > 0)
   call mpi_init(mpi_err)
-  call MPI_COMM_SIZE(MPI_COMM_WORLD, NCORES  , mpi_err)
+  call MPI_COMM_SIZE(MPI_COMM_WORLD, NPROCS  , mpi_err)
   call MPI_COMM_RANK(MPI_COMM_WORLD, MPI_RANK, mpi_err)
 
   ! Set MPI errors to be fatal. This is the default setting, but it doesn't
@@ -177,7 +184,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
    ! Environment information
    print 310
    print 304
-   print 311, NCORES
+   print 311, NPROCS
    printed = .false.
    !----------------------------------------------------------------------------
    ! Technical details about compilation
@@ -197,16 +204,31 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  call ReadInput(file_number, input_file)
  !------------------------------------------------------------------------------
  ! Initalize relevant matrices throughout the code.
-  call inilag()
+ call inilag()
  !------------------------------------------------------------------------------
- ! Read wavefunctions
+ ! Read all information from a wf file
  call ReadWavefunction()
  !------------------------------------------------------------------------------
  ! Print all relevant input gleaned from STDIN and the wf file.
  call PrintInput(file_number, input_file)
  !------------------------------------------------------------------------------
  ! Go out and try to reach convergence, only to fail time and time again....
- call ReachForWaterAndFood()
+ call ReachForWaterAndFood(iteration, iomsg)
+ !------------------------------------------------------------------------------
+ ! Perform analysis on the final many-body state
+ ! (i) calculate and print the collective moment of inertias
+ if(N_inertia .gt. 0) then
+   call calc_collective_inertia
+   if(MPI_RANK.eq.0) then
+     call print_collective_inertia
+    endif
+ endif
+ !---------------------------------------------------------------------------
+ ! Write other (optional) output files
+ call write_advanced_output(iteration-1,iomsg)
+ !---------------------------------------------------------------------------
+ ! Write output to the outputfile, i.e. the full wavefunction file
+ call writewavefunction(12, outputfilename)
  !------------------------------------------------------------------------------
  ! Clean up after running, just in case we need to run again.
  call Cleanupthemess()
@@ -227,10 +249,9 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! end of one mean-field calculation..;
 end subroutine Run_Tantalus
 
-subroutine ReachForWaterAndFood()
+subroutine ReachForWaterAndFood(iter, iomsg)
     !---------------------------------------------------------------------------
     ! Evolve the single-particle wavefunctions and densities.
-    !
     !
     ! The overall iterative scheme is as explained in
     !   W. Ryssens, M. Bender, M. and P.-H. Heenen,
@@ -251,10 +272,19 @@ subroutine ReachForWaterAndFood()
     !   |  4. Perform feasible projection if asked for
     !   |  5. Construct the densities
     !   |    5b. Update the Lagrange multipliers of the constraints
-    !   |  6. Construct the fields
-    !   |     (including Coulomb and potential constraint contribution)
+    !   |  6. Construct the potentials
+    !   |     (including the contributions to F_I_I by Coulomb interaction 
+    !   |      and any multipole constraints)
     !   |  7. Print iteration info
     !   |_____________________________
+    !
+    ! TODO: correct this documentation
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   None.
+    ! Output:
+    !   iter  : number of iterations executed by this routine.
+    !   iomsg : message about convergence that can be included in output files.
     !---------------------------------------------------------------------------
     use compilation
     use derivatives
@@ -268,38 +298,28 @@ subroutine ReachForWaterAndFood()
     use coulombmod
     use pairing
     use printing
-    use temperature_projection
     use momentsofinertia
     use cranking
     use convergence
     use scfiteration
     use timing
-    use fission_MOI
 
     implicit none
 
-    1 format('----------------------------------')
-    2 format('| Convergence criteria satisfied.|')
-    3 format('| Needed ', i4, ' iterations.', 8x,'|')
-    4 format('| dE    < ', es10.3, 12x, ' | ')
-    5 format('| dQ2   < ', es10.3, 12x, ' | ')
-    6 format('| d2H   < ', es10.3, 12x, ' | ')
-   61 format('| |spg| < ', es10.3, 12x, ' | ')
-    7 format('| dmu   < ', es10.3, 12x, ' | ')
-   71 format('| dJz   < ', es10.3, 12x, ' | ')
-    8 format('| Ending the iterative proces.   |')
-
     9 format(' Iter =', i5, '; writing checkpoint to file ', a20, '.')
-   10 format(86('-'))
-   11 format(30x, 'Iteration = ', i5, /)
-   12 format(24x, 'FINAL Iteration = ', i5, /)
 
-    integer :: iter, iprint, scheme, ifail
-    logical :: ConvergenceAchieved, calc_expensive
-    ! Logical to see if any moments with projection are necessary
+    integer, intent(out)           :: iter
+    character(len=99), intent(out) :: iomsg
+
+    integer :: iprint, scheme, ifail, mpi_err
+    logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
+    logical :: potentials_frozen=.true.
+    ! Logical to see if any moments with feasible set projection are necessary
     logical :: projectpresent = .false.
-    ! Message for the output of the code, useful for the Brussels group.
-    character(len=99) :: iomsg = 'START'
+
+#if(DEBUG_LEVEL == 1)
+    character(len=40) :: denfile_iter, potfile_iter
+#endif
 
     ifail = 0
     ConvergenceAchieved = .false.
@@ -334,132 +354,190 @@ subroutine ReachForWaterAndFood()
 
     ! Derive all the single-particle wavefunctions in the HFPsi array
     if(store_derivatives) call deriveHF()
+    ! Calculate the initial density vector
+    call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
+    Density = densit(rho_can, kappa_pairing)
 
-    ! Construct the canonical basis
-    if(pairingtype.eq. 2) call ConstructCanonicalBasis()
-
-    ! Calculate the initial densities and the charge density (separately)
-    call densit(SaveRho=.false.)
-    call ConstructChargeDensity(ChargeDensity)
-
-    ! Adopt the relevant quantities to the centre-of-mass of the nucleus
-    call adapt_com()
-
-    call CalculateMoments()   !=> vital to be called here,
-                              !    (a) before the calculation of the fields
+    call CalculateMoments(Density)   
+                              !=> vital to be called here, 
+                              !    (a) before the calculation of the potentials
                               !    (b) after construction of the charge density
                               ! as
                               !  (a) the multipole cutoff is allocated in this
                               !      process, and is needed for the calculation
-                              !      of the cranking fields
+                              !      of the cranking potentials
                               !  (b) the calculations of the charge rms radius
                               !      requires the charge density to be
                               !      constructed
+    ! Adopt the relevant quantities to the centre-of-mass of the nucleus
+    call adapt_com(Density)        !
+    call CalculateMoments(Density) ! Recalculate because the COM might have changed.
 
-    ! Update all spwf properties in the HF basis
-    call update_spwf_properties_HF()
-    ! Update all spwf properties in the canonical basis
-    if(PairingType .eq. 2) call update_spwf_properties_CAN()
 
     ! Only calculate the fields that have not been read from either a
     ! wavefunction file or a potential file.
-    call calcFields(calcall=.false.,precon= .false.)
-
-    ! Update angular momentum observables
-    call updateAM   ! This call HAS to happen, otherwise J2_sp will not be
-                    ! initialized and any crankingtype = 1 calculation will fail.
+    if(allocated(potentials_read%F_I_I)) then
+      potentials = calcPotentials(Density, potentials_read)
+    else
+      potentials = calcPotentials(Density)
+    endif
+    ! Update all spwf properties
+#if(PASTA == 0)
+    ! the memory and CPU time requirements of these routine scale very badly...
+    call update_spwf_properties_HF () !
+    if(PairingType.eq.2) call update_spwf_properties_CAN()
+    print_adv_spwf_properties = .true.
+#else
+    print_adv_spwf_properties = .false.
+#endif
 
     call setBelyaevProcedure()
-    call CalcEnergy(.true.)      ! Calculate the energy WITH all the expensive
-                                 !   parts included.
+    !---------------------------------------------------------------------------
+    ! Calculate the energy WITH all the expensive parts included. 
+    call CalcEnergy(Density,Potentials,.true.)  
     call calc_avg_gap()
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Initial printout
-    if(MPI_RANK .eq. 0) then
-      ! only the very first MPI RANK prints all of this output
-      call printSpwfs(.true.) ! Always include all details on start
-      call printQps(.true.)
-      call printallmoments
-      call print_boxsize_check
-      call PrintMomentsofInertia
-      call printcranking
-      call printpairing(pairstabfactor)
-      call PrintEnergy
-    endif
-
+    call full_printout(0,.false.,print_adv_spwf_properties)
     !---------------------------------------------------------------------------
     ! Start of the iterations
     !---------------------------------------------------------------------------
     do iter=1,maxiter
+    
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! First, do some bookkeeping
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! (1) update the arrays containing stuff at the last iteration
         call update_E_history()
-
-        projectpresent   = checkconstraints() .or. check_cranking()
-        if(projectpresent) call feasibleproject()
-
-        ! One evolution step for the spwfs
-        call Evolve(iter)
-
-        ! Derive all spwfs in the HF-basis
-        if(store_derivatives) call deriveHF()
-
-        ! Calculate the gaps Delta with the current
-        ! a) fields
-        ! b) density matrix and anomalous density matrix
-        ! c) Fermi-energy
-        PairStabfactor = CompStabilisingFactor(PairDenEnergy)
-        call CalcGaps(FermiEnergy, PairStabFactor)
-
-        ! Save Fermi energy
+        !     Save Fermi energy
         FermiHistory   = FermiEnergy
+        ! (2) check if some constraints should not be turned off
+        call TurnOffConstraints(iter)
+        ! (3) and decide whether we are constraining stuff or not
+        projectpresent   = checkconstraints() .or. check_cranking()
 
+        !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Then, we update the reduced subspace spanned by our spwfs
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! TODO: include feasibleproject in the evolve_subspace code
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        if(projectpresent) call feasibleproject(Density)
+        call Evolve_subspace(potentials, iter)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Calculate the single-particle hamiltonian ...
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        sphamil = Calc_Sphamil(potentials, .true.)
+        ! ... optionally perform a subspace rotation...
+        if(subspace_rotation) then
+            call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+            if(store_derivatives) call deriveHF() ! and update derivatives
+        endif
+        ! ..... and then calculate the pairing gaps
+        call CalcGaps(FermiEnergy, PairStabFactor, Potentials)
+        ! ... and use these matrices to build a new many-body state!
         call SolvePairing(pairingscheme,ifail)
-        if(pairingtype.eq. 2)  call ConstructCanonicalBasis()
+        call construct_canonical_basis(rho_pairing,kappa_pairing,&
+        &                              rho_can    ,kappa_can)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        ! Update all spwf properties in the HF basis
-        call update_spwf_properties_HF()
-        ! Update all spwf properties in the canonical basis
-        if(PairingType .eq. 2) call update_spwf_properties_CAN()
-
-        call densit(SaveRho=.true.)
-        call ConstructChargeDensity(ChargeDensity)
-        if(follow_com) call adapt_com()
-        ! Calculate a) moments values, b) readjustment and c) finally their
-        ! contribution to the sphamiltonian.
-        call CalculateMoments()
-        call ReadjustAllMoments(1)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! From the many-body state, we start calculating observables
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        Density = densit(rho_can, kappa_pairing)
+        if(follow_com) call adapt_com(Density)
+        ! Calculate the value of all multipole moments
+        call CalculateMoments(Density)
+        ! ...and readjust any constraints on them
+        call ReadjustAllMoments(1) ! TODO: remove the input dependence here...
         call ReadjustAllMoments(2)
-        call Sphamilcontribution()
+        ! Update value of the average angular momentum
+        call updateAM(Density) ! TODO: adapt the calculation of angular momentum
+                               !       to only ever use densities...
+        ! .... and readjust any constraints on it
+        call ReadjustCranking
 
-        ! Recalculate the fields, but only if MaxIter > FreezeIter
-        if(iter .gt. freezeiter) then
-          call calcFields(calcall=.true.,precon=.true.)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Do a double take when constraints are present: use the updated
+        ! Lagrange multipliers to correct our many-body state
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        if(projectpresent) then
+            ! Update the single-particle hamiltonian
+            call update_sphamil_constraints(sphamil)
+            if(subspace_rotation) then
+                call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+                if(store_derivatives) call deriveHF() ! and update derivatives
+            endif
+            ! .... and recalculate the gaps .....
+            call CalcGaps(FermiEnergy, PairStabFactor, Potentials)
+            ! ..... reconstruct a many-body state .....
+            call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
+            Density = densit(rho_can, kappa_pairing)
+            ! ..... reconstruct all densities ....
+            if(follow_com) call adapt_com(Density)
+            ! .... and recalculate constrained quantities
+            call CalculateMoments(Density)
+            call updateAM(Density)
         endif
 
-        call updateAM
-        call ReadjustCranking
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Construct new potentials ...
+        ! ...but only if Iter > FreezeIter AND d2H < d2H_freeze
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        if((iter .gt. freezeiter) .and. (d2H .lt. d2H_freeze)) then
+           potentials_frozen = .false.
+        endif
+
+        if(.not. potentials_frozen) then
+          ! calculate new values for the potentials from the densities
+          potentials_out = calcPotentials(Density, coulomb_guess=potentials%CoulombPotential)
+
+          if(scfscheme .eq. 0) then
+            potentials_out = precondition_potentials(potentials, potentials_out)
+          endif
+          ! Save the information to memory, throwing out older information.
+          ! This information is not used in any further part of the evolution
+          ! if mixingscheme = 0.
+          call save_potential_history(potentials, potentials_out)
+
+          select case(mixingscheme)
+          case(0)
+            ! No mixing
+            potentials = potentials_out 
+          case(1)
+            ! Mixing with Anderson acceleration
+            potentials_out = AndersonMixPotentials(Potential_iterates, &
+            &                                      Potential_updates,  &
+            &                                      mixstepsize, iter)
+            potentials = potentials_out
+          end select
+
+        elseif(iter.eq.freezeiter) then
+          ! Recalculate the Coulomb potential at the last iteration for 
+          ! comparison purposes with other codes.
+          call solvecoulomb(Density, Potentials)
+        endif
         !-----------------------------------------------------------------------
         ! Above: actual evolution of physical quantities
         ! Below: administration/bookkeeping
         !-----------------------------------------------------------------------
-        !See if some moments were temporary
-        call TurnOffConstraints(iter)
-
-        !NS: Recalculate the Coulomb field at the last iteration
-        if(iter .eq. freezeiter) call solvecoulomb(D_I_I(:,2))
-
-        ! Recalculate the energy
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Recalculate the energy with one of two options:
+        ! - cheap calculation that omits the recalculation of some parts of the
+        !   energy that are computationally intensive
+        ! - expensive, complete calculation
         if((mod(iter,PrintIter).eq.0) .or. (iter.eq.maxiter)) then
-          iprint = 1
-          calc_expensive = .true.
+          iprint = 1 ; calc_expensive = .true.
         else
-          iprint = 0
-          calc_expensive = .false.
+          iprint = 0 ; calc_expensive = .false.
         endif
 
-        call CalcEnergy(calc_expensive)
+        call CalcEnergy(Density, Potentials, calc_expensive)
+        ! Calculate the average pairing gap
         call calc_avg_gap()
-
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Check for convergence or a failed calculation
+        ! TODO: what is this?
         if (ifail .ne. 0) then
           iomsg               = 'FERMI'
           ConvergenceAchieved = .false.
@@ -470,107 +548,68 @@ subroutine ReachForWaterAndFood()
 
         if(convergenceAchieved) then
           iprint = 1
-          ! Recalculate the energy with all parts included at the end
-          call CalcEnergy(.true.)
+          ! Recalculate the energy with all parts included at the end, don't
+          ! skimp on the expensive parts
+          call CalcEnergy(Density, Potentials,  .true.)
         endif
-        !-----------------------------------------------------------------------
-        ! Decide between full or partial printout.
-        if(iprint .eq.1) then
-            ! ... but update all spwf properties first to ensure correct prints
-
-            !if(print_adv_spwf_properties .or. &
-            !&              ((iter .eq. maxiter) .or. ConvergenceAchieved)) then
-            !  call update_spwf_properties( .true. ) ! expensive version
-            !endif
-
-            call updateAM
-            call ReadjustCranking
-
-            if(MPI_RANK.eq.0) then
-              print 10
-              if((iter .eq. maxiter) .or. ConvergenceAchieved) then
-                ! Add a clear indication this is the FINAL iteration
-                print 12, iter
-
-                call PrintSpwfs(.True.) ! always include all details in the
-                call PrintQps(.True.)   ! printing at the end
-
-                else
-                print 11, iter
-                call PrintSpwfs(print_adv_spwf_properties)
-                call PrintQps(print_adv_spwf_properties)
-              endif
-
-              call printallmoments
-              call print_boxsize_check
-              call PrintMomentsofInertia
-              call printcranking
-              call printpairing(PairStabfactor)
-              call printEnergy()
-            endif
-        elseif(MPI_RANK.eq.0) then
-             ! ..... else print a summary
-            call printsummary(iter)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        !  update all spwf properties first to ensure correct printout of spwfs
+#if(PASTA == 0)
+        ! the memory and CPU time requirements of these routine scale very badly...
+        print_all_spwf_properties = print_adv_spwf_properties .or. &
+        &                           (iter .eq. maxiter)       .or. &
+        &                           convergenceachieved
+        if(print_all_spwf_properties) then
+          call update_spwf_properties_HF()
+          if(PairingType.eq.2) call update_spwf_properties_CAN()
         endif
-
-        !-----------------------------------------------------------------------
-        ! Write a wavefunction file according to checkpointiter
-        if(checkpointiter.ne.0) then
-          if(mod(iter,checkpointiter) .eq. 0) then
-            if(MPI_RANK.eq.0) print 9, iter, outputfilename
-            iomsg='CHECKPOINT'
-            call WriteTantalus(12, outputfilename)
-          endif
+#else
+        print_all_spwf_properties = .false.
+#endif
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Decide whether to do a full printout
+        ! .... but do a summary printout anyway to enable for "complete" output
+        !      when grepping on quantities included in the summary
+        if(MPI_RANK.eq.0) call printsummary(iter, potentials_frozen)
+        if(iprint .eq.1)  then
+          call full_printout(iter,convergenceachieved,print_all_spwf_properties)
         endif
-        !-----------------------------------------------------------------------
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Exit the loop if convergence is achieved.
         if(ConvergenceAchieved) then
-          if(MPI_RANK .eq. 0) then
-            print 1
-            print 2
-            print 3, iter
-            print 4, energy_prec
-            print 5, moment_prec
-            print 6, disp_prec
-            print 61, gradient_prec
-            print 7, fermi_prec
-            print 71, angmom_prec
-            print 8
-            print 1
-          endif
+          call print_convergence_message(iter)
           iomsg='CONVERGED'
           exit
         endif
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Write a wavefunction file at each multiple of checkpointiter
+        if(checkpointiter.ne.0) then
+          if(mod(iter,checkpointiter) .eq. 0) then
+#if(DEBUG_LEVEL == 1)
+            ! Output densities and potentials to specific files at every checkpoint
+            write(denfile_iter, '("iter=",i5.5,".den")') iter
+            write(potfile_iter, '("iter=",i5.5,".pot")') iter
+            if(MPI_RANK.eq.0) then
+              call write_densities(Density, denfile_iter)
+              call write_potentialfile(potentials, potfile_iter)
+            endif
+#endif
+            if(MPI_RANK.eq.0) print 9, iter, outputfilename
+            iomsg='CHECKPOINT'
+            !call WriteTantalus(12, outputfilename)
+          endif
+        endif
     enddo
-!    if(inversetemp .ne. -1) then
-!        call projectThermal
-!    endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Calculate and print the collective moment of inertias
-    if(N_inertia .gt. 0) then
-      call calc_collective_inertia
-      if(MPI_RANK.eq.0) then
-        call print_collective_inertia
-        ! Verify these results with the COM motion
-        call verify_COM_motion()
-      endif
-    endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    if(iter.eq.maxiter+1) then
-      iomsg='MAXITER'
-    endif
-    !---------------------------------------------------------------------------
-    ! Write output to the outputfile, i.e. the full wavefunction file
-    call WriteTantalus(12, outputfilename)
-    !---------------------------------------------------------------------------
-    ! Write other, advanced, output
-    call write_advanced_output(iter-1,iomsg)
-    !---------------------------------------------------------------------------
 end subroutine ReachForWaterAndFood
 
-subroutine printsummary(iter)
+subroutine printsummary(iter, potentials_frozen)
     !---------------------------------------------------------------------------
-    ! Short printout after an iteration.
-    !
+    ! Short printout after an iteration with sufficient information to follow
+    ! somewhat the convergence of the calculation.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !    iter              : iteration count
+    !    potentials_frozen : whether or not the potentials were updated
     !---------------------------------------------------------------------------
     use functional
     use evolution
@@ -580,6 +619,7 @@ subroutine printsummary(iter)
     implicit none
 
     integer, intent(in)   :: iter
+    logical, intent(in)   :: potentials_frozen
     type(Moment), pointer :: current, part
     real(KIND=dp)         :: dF(2), DN(2), dQ, dL, dev, val, devJ
     character(len=1)      :: t, spec
@@ -589,10 +629,12 @@ subroutine printsummary(iter)
    21 format (' Potentials frozen.')
     3 format (' dt    = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
    31 format (' dtg   = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
-    4 format (' E     = ', f10.3,2x, '  DE   = ', e12.5)
-   41 format (' R     = ', f10.3,2x, '  DR   = ', e12.5)
-   42 format (' R-E   = ', f10.3,2x, 'D(R-E) = ', e12.5)
-
+    4 format (' E     = ', f20.10,2x, '  DE   = ', e12.5)
+   41 format (' R     = ', f20.10,2x, '  DR   = ', e12.5)
+   42 format (' R-E   = ', f20.10,2x, 'D(R-E) = ', e12.5)
+#if(PASTA == 1)
+   43 format (' Epasta= ', f20.10,2x, 'DEpasta= ', e12.5)
+#endif
     5 format (' ',a1, 'Q', 2i1,a1,' = ',f12.4, 3x, 'dQ = ', es8.1, 2x,         &
     &          'L = ',f12.4,2x,' dL = ', es8.1, 2x, 'dev = ', es8.1)
 
@@ -605,7 +647,7 @@ subroutine printsummary(iter)
 
     if(iter.eq.1) print 1
     print 2, iter
-    if(freezeiter .gt. iter) print 21
+    if(potentials_frozen) print 21
     print 3, dt, momentum, gradientnorm, d2h
     if(pairingscheme.eq.1) then
       print 31, gradient_stepsize, gradient_mu, sqrt(sum(HFBGradnorm**2))
@@ -614,6 +656,9 @@ subroutine printsummary(iter)
     print 41, Routhian,  (Routhian - Rhistory(1))/abs(Routhian)
     print 42, Routhian-totalE, &
     &  ((Routhian - Rhistory(1)) - (totalE - Ehistory(1)))/abs(totalE)
+#if(PASTA == 1)
+    print 43,calculate_epasta(totalE), (calculate_epasta(totalE)-calculate_epasta(Ehistory(1)))/abs(calculate_epasta(totalE))
+#endif
     if(fixfermi) then
         dN = part%value - part%history
         print 7, dN
@@ -741,9 +786,106 @@ subroutine update_spwf_properties_CAN()
                             &  P_can)                                     ! symmetry-stuff
 end subroutine update_spwf_properties_CAN
 
+subroutine full_printout(iter, converged, print_all_spwf_properties)
+  !-----------------------------------------------------------------------------
+  ! Perform a complete print out of the entire state of the code
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Input:
+  !    iter                      : iteration count
+  !    converged                 : logical, if .true. the calculation converged
+  !    print_all_spwf_properties : logical, if .true. print ALL details on the
+  !                                spwf
+  ! Output:
+  !    NONE
+  !-----------------------------------------------------------------------------
+  use pairing,          only : printpairing
+  use moments,          only : printallmoments
+  use densities,        only : print_boxsize_check, density
+  use momentsofinertia, only : printMomentsOfInertia
+  use printing,         only : printqps, print_adv_spwf_properties, printspwfs
+  use cranking,         only : printcranking
+  use functional,       only : printenergy, PairStabFactor
+
+  1 format(86('-'))
+  2 format(30x, 'Iteration = ', i5, /)
+  3 format(24x, 'FINAL Iteration = ', i5, /)
+
+  integer, intent(in) :: iter
+  logical, intent(in) :: print_all_spwf_properties, converged
+
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Drive all routines to print their output to STDOUT
+  if(MPI_RANK.eq.0) then
+    print 1
+    if((iter .eq. maxiter) .or. converged) then
+      ! Add a clear indication this is the FINAL iteration
+      print 3, iter
+    else
+      print 2, iter
+    endif
+#if(PASTA == 0 && DEBUG_LEVEL== 0)
+    ! Pasta calculations typically involve TONS of spwfs
+    ! .... but we might be interested in their properties when debugging!
+    call printspwfs(print_all_spwf_properties)
+    call printqps(print_all_spwf_properties)
+#endif
+    call printallmoments
+#if(PASTA == 0)
+    call print_boxsize_check(Density)
+    call printmomentsofinertia
+    call printcranking(Density)
+#endif
+    call printpairing(pairstabfactor)
+    call printenergy()
+  endif
+
+end subroutine full_printout
+
+subroutine print_convergence_message(iter)
+  !-----------------------------------------------------------------------------
+  ! Print a convergence message if the calculation converged.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Input:
+  !    iter : iteration count
+  ! Output:
+  !    NONE
+  !-----------------------------------------------------------------------------
+
+  use geninfo
+
+  integer, intent(in) :: iter
+
+  1 format('----------------------------------')
+  2 format('| Convergence criteria satisfied.|')
+  3 format('| Needed ', i4, ' iterations.', 8x,'|')
+  4 format('| dE    < ', es10.3, 12x, ' | ')
+  5 format('| dQ2   < ', es10.3, 12x, ' | ')
+  6 format('| d2H   < ', es10.3, 12x, ' | ')
+ 61 format('| |spg| < ', es10.3, 12x, ' | ')
+  7 format('| dmu   < ', es10.3, 12x, ' | ')
+ 71 format('| dJz   < ', es10.3, 12x, ' | ')
+  8 format('| Ending the iterative proces.   |')
+
+  if(MPI_RANK .eq. 0) then
+    print 1
+    print 2
+    print 3, iter
+    print 4, energy_prec
+    print 5, moment_prec
+    print 6, disp_prec
+    print 61, gradient_prec
+    print 7, fermi_prec
+    print 71, angmom_prec
+    print 8
+    print 1
+  endif
+
+end subroutine print_convergence_message
+
 subroutine initialize_all_timers()
    !----------------------------------------------------------------------------
    ! Initialize all the timers that have been defined.
+   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    ! Input:
    !       NONE
    ! Output:
@@ -751,46 +893,65 @@ subroutine initialize_all_timers()
    !----------------------------------------------------------------------------
    use timing
 
-   call add_timer('Tantalus'                   , T_tantalus)
-   call add_timer('HF-basis Derivatives'       , T_derivatives)
-   call add_timer('Canonical basis Derivatives', T_derivatives_can)
-   call add_timer('Spwf evolution'             , T_evolution)
-   call add_timer('Orthonormalization'         , T_ortho)
-   call add_timer('Density calculations'       , T_densities)
-   call add_timer('Density: pp'                , T_den_pp)
-   call add_timer('Density: ph'                , T_den_ph)
-   call add_timer('Density: derivatives'       , T_den_der)
-   call add_timer('Field calculations'         , T_fields)
-   call add_timer('Field preconditioning'      , T_F_precon)
-   call add_timer('Energy calculations'        , T_energy)
-   call add_timer('Pairing solver '            , T_pairing)
-   call add_timer('Sp. Hamiltonian '           , T_sphamil)
-   call add_timer('Coulomb solver'             , T_coulomb)
-   call add_timer('Can. basis construction'    , T_den_can)
-   call add_timer('Moments of inertia '        , T_MOI)
-   call add_timer('Centre-of-mass correction ' , T_COM)
-   call add_timer('COM one-body '              , T_COM1)
-   call add_timer('COM two-body '              , T_COM2)
-   call add_timer('Matrix elements summation'  , T_COM2_summation)
-   call add_timer('Matrix elements of \nabla ' , T_NablaMElements)
-   call add_timer('Pairing gaps '              , T_gaps)
-   call add_timer('Multipole moments '         , T_moments)
-   call add_timer('Multipole moments cutoff'   , T_moment_cutoff)
-   call add_timer('Feas. Proj. step '          , T_feasible)
-   call add_timer('Spwf angular momentum '     , T_spwfangmom)
-   call add_timer('Charge density folding'     , T_chargedensity)
-   call add_timer('Collective MOIs'            , T_collective_moi)
-   call add_timer('Microscopic pairing'        , T_microscopic_pairing)
-   call add_timer('Subspace rotation          ', T_Hortho)
-   call add_timer('Construction HF transfo'    , T_HFDiag)
-   call add_timer('Basis transformation'       , T_Basistransfo)
+   call add_timer('Tantalus'                    , T_tantalus)
+   call add_timer('Wavefunction initialisation' , T_wfini)
+   call add_timer('Wavefunction output'         , T_wfoutput)
+   call add_timer('HF-basis Derivatives'        , T_derivatives)
+   call add_timer('Canonical basis Derivatives' , T_derivatives_can)
+   call add_timer('Spwf evolution'              , T_evolution)
+   call add_timer('Orthonormalization'          , T_ortho)
+   call add_timer('Construction of norm matrix' , T_norm_ortho)
+   call add_timer('Diagonalisation norm matrix' , T_diag_ortho)
+   call add_timer('Density calculations'        , T_densities)
+   call add_timer('Density: pp'                 , T_den_pp)
+   call add_timer('Density: ph'                 , T_den_ph)
+   call add_timer('Density: derivatives'        , T_den_der)
+   call add_timer('Potential calculations'      , T_potentials)
+   call add_timer('Potential preconditioning'   , T_pot_precon)
+   call add_timer('Energy calculations'         , T_energy)
+   call add_timer('Pairing solver '             , T_pairing)
+   call add_timer('Sp. Hamiltonian '            , T_sphamil)
+   call add_timer('Coulomb solver'              , T_coulomb)
+   call add_timer('Can. basis construction'     , T_den_can)
+   call add_timer('Moments of inertia '         , T_MOI)
+   call add_timer('Centre-of-mass correction '  , T_COM)
+   call add_timer('COM one-body '               , T_COM1)
+   call add_timer('COM two-body '               , T_COM2)
+   call add_timer('Matrix elements summation'   , T_COM2_summation)
+   call add_timer('Matrix elements of \nabla '  , T_NablaMElements)
+   call add_timer('Pairing gaps '               , T_gaps)
+   call add_timer('Multipole moments '          , T_moments)
+   call add_timer('Multipole moments cutoff'    , T_moment_cutoff)
+   call add_timer('Feas. Proj. step '           , T_feasible)
+   call add_timer('Spwf angular momentum '      , T_spwfangmom)
+   call add_timer('Charge density folding'      , T_chargedensity)
+   call add_timer('Collective MOIs'             , T_collective_moi)
+   call add_timer('Microscopic pairing'         , T_microscopic_pairing)
+   call add_timer('Subspace rotation          ' , T_Hortho)
+   call add_timer('Construction HF transfo'     , T_HFDiag)
+   call add_timer('Basis transformation'        , T_Basistransfo)
+   call add_timer('Subspace rotation'           , T_subspace_rotation)
+   call add_timer('Spwf transformation'         , T_subrot_transfo)
+   call add_timer('Matrix diagonalisation'      , T_subrot_diag)
+   call add_timer('Calculation of h in subspace', T_calc_sph)
+   call add_timer('Matrix elements of h'        , T_calc_sph_me)
+   call add_timer('Update of h in subspace'     , T_update_sph)
+#if( USE_MPI > 0)
+   call add_timer('Layout transfer: 1D -> 2D'   , T_transfer_psi_1to2)
+   call add_timer('Layout transfer: 2D -> 1D'   , T_transfer_psi_2to1)
+   call add_timer('MPI_ALLREDUCE calls     '    , T_allreduce)
+#endif
 
 end subroutine initialize_all_timers
 
 subroutine cleanupthemess()
   !-----------------------------------------------------------------------------
-  !
-  !
+  ! Driver routine calling all routines to cleanup memory in different modules.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Input:
+  !       NONE
+  ! Output:
+  !       NONE
   !-----------------------------------------------------------------------------
   use geninfo
   use derivatives
@@ -812,7 +973,6 @@ subroutine cleanupthemess()
   call clean_BCS
   call clean_HFB
   call clean_pairing
-  call clean_densities
   call clean_moments
   call clean_coulomb
   call clean_evolution

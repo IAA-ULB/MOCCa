@@ -1,0 +1,75 @@
+&skf 
+!-------------------------------------------------------------------------------
+! A modified BSkG3 parameterization: only the Skyrme part is active, with no
+! Coulomb nor any collective correction.
+!
+! ATTENTION: THIS PARAMETERIZATION FILE IS FOR TESTING PURPOSES ONLY!
+!
+! Original publication:
+!    G. Grams et al., EPJA 59, 270 (2023).
+!    DOI: 10.48550/arXiv.2211.03592
+!
+! Aspects of note
+!  * microscopic pairing prescription
+!  * although not with the original INM interpolation
+!  * t4/t5 terms included
+!  * and associated non-zero eps parameter for stability
+!  * no terms that include gradients of spin densities
+!  * pairing cutoff only ABOVE the Fermi energy
+!-------------------------------------------------------------------------------
+name       = 'BSkG3_naked'
+func_file  = 'BXL.func' 
+t0         =        -2325.349405138098, 
+t1         =          749.818167793719, 
+t2         =            0.01, 
+t3         =        14083.446688753187, 
+t4         =         -498.009, 
+t5         =          266.52042426482916,  
+x0         =            0.558834, 
+x1         =            2.94088, 
+x2         =       -43225.69541010625, 
+x3         =            0.6286997213815574, 
+x4         =            5.65799, 
+x5         =            0.39693292344163034, 
+sigma      =            0.2,  
+beta       =            0.08333, 
+gamma      =            0.25, 
+wso        =          119.735, 
+wsoq       =           78.9875,  
+CSDS0      =            0.0,                ! No s \Delta s term 
+CSDS1      =            0.0,                !  
+CT0        =            0.0,                ! Jmunu terms 
+CT1        =            0.0,                !  
+Vn         =            0.0,                ! Pairing parameters of conventional 
+Vp         =            0.0,                ! terms set to zero
+Vnm        =            1.00,               ! Microscopic pairing terms active 
+Vpm        =            1.00, 
+kappa_n    =          123.2, 
+kappa_p    =          129.07, 
+Cutneutron =            7.96102  
+Cutproton  =            7.96102  
+Cuttype    =            2                   ! Cutoff only ABOVE the Fermi energy  
+alpha      =            1.00, 
+sigmap     =            1.00, 
+Estabn     =            0.00, 
+Estabp     =            0.00, 
+hbm(1)     =  20.73553000,  20.73553000,    
+COM1Body   = 0                               ! No COM correction
+COM2Body   = 0                               ! No COM correction
+e2         = 1.43996446, 
+Protonsize = 0.895, 0.0 
+Neutronsize= 0.387, 0.467  
+HOcomform  = .false. 
+nucleonsize_selfconsistent=.false.
+CoulTreatment = 0                            ! Disabled Coulomb
+rotcorr       = 0                            ! Disabled rotational and vibrational correction
+rotcorrb    = 0.810235
+rotcorrc    = 7.75613  
+vibcorrd    = 0.288929  
+vibcorrl    = 5.499  
+vibcorrb    = 0.82652   
+eps         = 1d-8 
+ptype       = 0  
+interpolationtype   = 1
+integrationtype     = 0
+/ 

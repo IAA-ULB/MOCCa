@@ -216,6 +216,7 @@ contains
       enddo
       !-------------------------------------------------------------------------
       ! Some sanity checks
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! a) does the type of functional match the compiled code?
       if(adjustl(func_file) .ne. adjustl(func_name)) then
         print *, '============================================================='
@@ -224,6 +225,7 @@ contains
         print *, '============================================================='
         call stp('')
       endif 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! b) does the name of the parameterization match the file?
       if(adjustl(to_upper(name_param)) .ne. adjustl(name)) then
         print *, '============================================================='
@@ -232,10 +234,50 @@ contains
         print *, '============================================================='
         call stp('')
       endif 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! c) Have all requested parameters been read?
       !    Hephaestos generates a list of 'if' conditions to check what 
       !    parameters are equal to their initializer values
 $CHECKPARAMS
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! d) Are the Coulomb options consistent? 
+      ! -> periodic boundary calculations without neutralizing electron 
+      !    background will fail.
+      ! -> the implementation of the Slater approximation is simply incorrect
+      !    when (i)  including finite-size effects for the charge densities
+      !         (ii) including electron background in pasta calculations
+#if(PASTA == 0) 
+#if(USE_Periodic == 1)
+      if(coultreatment .ne. 0) then 
+        print *, '============================================================='
+        print *, ' The current implementation does not support using periodic '
+        print *, ' boundary conditions for calculations of finite nuclei.     '
+        print *, ' Without a neutralizing background of electrons, the Coulomb'
+        print *, ' potential is not periodic. '
+        print *, '============================================================='
+        call stp('')
+      endif
+#endif
+#endif
+
+      if((any(protonsize.ne.0.0) .or. any(neutronsize.ne.0.0)).and. &
+      &                                                 coultreatment.eq.1) then
+        print *, '============================================================='
+        print *, ' The current implementation of the Slater Coulomb exchange   '
+        print *, ' is incorrect when the finite size of the nucleonic charge   '
+        print *, ' densities are included.'
+        print *, '============================================================='
+        call stp('')
+      endif
+#if(PASTA > 0)
+      if(coultreatment.eq.1) then
+        print *, '============================================================='
+        print *, ' The current implementation of the Slater Coulomb exchange   '
+        print *, ' is incorrect when the electron background is included.      '
+        print *, '============================================================='
+        call stp('')
+      endif
+#endif
     endif
     
 #if(USE_MPI > 0)
@@ -524,6 +566,68 @@ $PRINTPARAMS
     print 200
     print 201, eps
   end subroutine printparameterization
+
+ subroutine ConstructFoldingMatrices(Gx,Gy,Gz,sx_rho, sy_rho, sz_rho)
+    !---------------------------------------------------------------------------
+    ! Construct the matrices for Gaussian folding.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !  sx/y/z_rho : symmetries of the density, explicitly passed in because
+    !               not defined in lower-level modules
+    !
+    ! Output:
+    !   Gx, Gy, Gz : Gaussian factors for folding the density
+    !---------------------------------------------------------------------------
+    use folding
+
+    real(KIND=dp), intent(out) :: Gx(:,:,:,:), Gy(:,:,:,:), Gz(:,:,:,:)
+    integer, intent(in)        :: sx_rho, sy_rho, sz_rho
+    real(KIND=dp)              :: rplus(2), rmin(2)
+    real(KIND=dp)              :: hbom, mhb, B
+    integer                    :: it
+
+    ! The determination from input for neutrons and protons is not the same
+    rplus(1) = sqrt(neutronsize(1))
+    rmin(1)  = sqrt(neutronsize(2))
+
+    rplus(2) = protonsize(1) * sqrt(2.0/3.0)
+    rmin(2)  = protonsize(2) * sqrt(2.0/3.0)
+
+    !---------------------------------------------------------------------------
+    ! Harmonic-oscillator correction
+    if(hocomform) then
+        ! hbar x omega
+        hbom  = 41.0 * (neutrons + protons)**(-1.0/3.0)
+        ! 2m/hbar^2
+        mhb = 2.0/(1.0/hbm(1)+1.0/hbm(2))
+        ! B^{-1} = hbar * omega/m * A = 1/2 * A * hbar omega * 2m/hbar^2
+        B = sqrt( 1.0/( 0.5 * hbom/mhb  * (neutrons + protons)))
+
+        do it=1,2
+            if(rplus(it).ne.0.0) then
+                rplus(it) = sqrt(rplus(it)**2 - B**2)
+            endif
+            if(rmin(it).ne.0.0) then
+                rmin(it) = sqrt(rmin(it)**2 - B**2)
+            endif
+        enddo
+    endif
+
+    do it=1,2
+      if(rplus(it) .ne. 0.0_dp) then
+        call Gauss_1D(Gx(:,:,1,it), meshx, nx, rplus(it), sx_rho)
+        call Gauss_1D(Gy(:,:,1,it), meshy, ny, rplus(it), sy_rho)
+        call Gauss_1D(Gz(:,:,1,it), meshz, nz, rplus(it), sz_rho)
+      endif
+      if(rmin(it) .ne. 0.0_dp) then
+        call Gauss_1D(Gx(:,:,2,it), meshx, nx, rmin(it),  sx_rho)
+        call Gauss_1D(Gy(:,:,2,it), meshy, ny, rmin(it),  sy_rho)
+        call Gauss_1D(Gz(:,:,2,it), meshz, nz, rmin(it),  sz_rho)
+      endif
+    enddo
+
+ end subroutine ConstructFoldingMatrices
+
   
   !=============================================================================
   ! Various functions that might be useful to define coupling constants in 

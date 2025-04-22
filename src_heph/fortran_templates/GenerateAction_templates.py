@@ -9,7 +9,7 @@ action_final_pairing    = T(  tab + \
 
 temp_ini        = tab + 'temp = 0.0 \n'
 action    = T(2*tab + \
-'temp(i,$IND) =  temp(i,$IND) $SIGN $RMULT $FIELD(i$FIELDIND,it) * $WF(i$RIND,$RCOMP)\n')
+'temp(i,$IND) =  temp(i,$IND) $SIGN $RMULT F%$FIELD(i$FIELDIND,it) * $WF(i$RIND,$RCOMP)\n')
 
 #derive     = T(tab + \
 #'call Derive_$DIR($DNUMBER(:,$RCOMP), $SYM, d$DNUMBER(:,$DIRIND,$RCOMP)) \n')

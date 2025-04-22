@@ -171,7 +171,7 @@ contains
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! .. and now we have each rank decide what (transformed) spwfs to take 
     !    from file
-    call loadbalance(HFBlocks_global,balancing_strategy, &            ! inputs
+    call loadbalance(HFBlocks_global,                 &               ! inputs
     &       HFblocks, spwf_map, rank_map, spwf_inverse)               ! outputs
     ! this particular will hold nwt_local spwfs at the end of the transformation
     nwt_local = sum(HFblocks)
@@ -180,14 +180,14 @@ contains
     ! Copying old information into temporary arrays
     temp        = wfs         ; tempe   = spenergies
     tempd       = dispersions ; tempr   = rho_can
-    temptransfo = hftransfo   ; tempsph = current_sph
+    temptransfo = hftransfo   ; tempsph = sphamil
     !... and making space for the new set of spwfs
     deallocate(wfs)         ; allocate(wfs(nx*ny*nz,4,nwt_local))
     deallocate(dispersions) ; allocate(dispersions(nwt))    ; dispersions  = 0
     deallocate(spenergies)  ; allocate(spenergies(nwt))     ; spenergies   = 0
     deallocate(rho_can)     ; allocate(rho_can(nwt))        ; rho_can      = 0
     deallocate(hftransfo)   ; allocate(hftransfo(nwt,nwt))  ; hftransfo    = 0
-    deallocate(current_sph) ; allocate(current_sph(nwt,nwt)); current_sph  = 0
+    deallocate(sphamil) ; allocate(sphamil(nwt,nwt)); sphamil  = 0
 
     if(pairingtype.eq.2) then
       ! The configmatrix is not necessarily initialised, hence a few more lines
@@ -288,9 +288,9 @@ contains
         &                                   temptransfo(si+1:si+N,si+1:si+N)
         !-------------------------------------------------------------------
         ! The current single-particle hamiltonian
-        current_sph(sb  +1:sb+  N,sb  +1:sb  +N) = &
+        sphamil(sb  +1:sb+  N,sb  +1:sb  +N) = &
         &                                       tempsph(si+1:si+N,si+1:si+N)
-        current_sph(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
+        sphamil(sb+N+1:sb+2*N,sb+N+1:sb+2*N) = &
         &                                       tempsph(si+1:si+N,si+1:si+N)
 
         si = si +   N 
@@ -440,7 +440,7 @@ contains
             &   = temptransfo(sb+offset_left +1:sb+offset_left +blocks(B), &
             &                 sb+offset_left +1:sb+offset_left +blocks(B))
 
-            current_sph      (sb+offset_left +1:sb+offset_left +blocks(B),  &
+            sphamil      (sb+offset_left +1:sb+offset_left +blocks(B),  &
             &                 sb+offset_left +1:sb+offset_left +blocks(B))  &
             &   = tempsph    (sb+offset_left +1:sb+offset_left +blocks(B),  &
             &                 sb+offset_left +1:sb+offset_left +blocks(B))
@@ -460,7 +460,7 @@ contains
             &   = temptransfo(sb+offset_right+1:sb+offset_right+blocks(B+2), &
             &                 sb+offset_right+1:sb+offset_right+blocks(B+2))
 
-            current_sph      (sb+offset_left +1:sb+offset_left +blocks(B+2), &
+            sphamil      (sb+offset_left +1:sb+offset_left +blocks(B+2), &
             &                 sb+offset_left +1:sb+offset_left +blocks(B+2)) &
             &   = tempsph    (sb+offset_right+1:sb+offset_right+blocks(B+2), &
             &                 sb+offset_left +1:sb+offset_left +blocks(B+2))
@@ -480,7 +480,7 @@ contains
             &   = temptransfo(sb+offset_right+1:sb+offset_right+blocks(B+1), &
             &                 sb+offset_left +1:sb+offset_left +blocks(B+1))
 
-            current_sph      (sb+offset_left +1:sb+offset_left +blocks(B+1), &
+            sphamil      (sb+offset_left +1:sb+offset_left +blocks(B+1), &
             &                 sb+offset_left +1:sb+offset_left +blocks(B+1)) &
             &   = tempsph    (sb+offset_right+1:sb+offset_right+blocks(B+1), &
             &                 sb+offset_right+1:sb+offset_right+blocks(B+1))
@@ -500,7 +500,7 @@ contains
             &   = temptransfo(sb+offset_right+1:sb+offset_right+blocks(b+3), &
             &                 sb+offset_right+1:sb+offset_right+blocks(b+3))
 
-            current_sph      (sb+offset_left +1:sb+offset_left +blocks(b+3), &
+            sphamil      (sb+offset_left +1:sb+offset_left +blocks(b+3), &
             &                 sb+offset_right+1:sb+offset_right+blocks(b+3)) &
             &   = tempsph    (sb+offset_right+1:sb+offset_right+blocks(b+3), &
             &                 sb+offset_right+1:sb+offset_right+blocks(b+3))
@@ -846,7 +846,7 @@ $PBROKEN  enddo
 
           !---------------------------------------------------------------------
           ! have each rank decide what (transformed) spwfs to take from file
-          call loadbalance(HFBlocks_global,balancing_strategy, &   ! inputs
+          call loadbalance(HFBlocks_global,                    &   ! inputs
           &       HFblocks, spwf_map, rank_map, spwf_inverse)      ! outputs
           ! this particular will hold nwt_local spwfs at the end of the transformation
           nwt_local = sum(HFblocks)
@@ -1126,16 +1126,16 @@ $PBROKEN  enddo
               enddo
               !-----------------------------------------------------------------
               ! (7) The current single-particle hamiltonian
-              temp2 = current_sph
-              deallocate(current_sph); allocate(current_sph(nwt,nwt))
-              current_sph = 0.0d0
+              temp2 = sphamil
+              deallocate(sphamil); allocate(sphamil(nwt,nwt))
+              sphamil = 0.0d0
 
               sb = 0; sf = 0
               do b=1,8
-                  current_sph(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
+                  sphamil(sb+1:sb+fileblocks(b),sb+1:sb+fileblocks(b)) &
                   & = temp2(sf+1:sf+fileblocks(b),sf+1:sf+fileblocks(b))
                   do i=1,extraspwfs(b)
-                      current_sph(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = &
+                      sphamil(sb+fileblocks(b)+i,sb+fileblocks(b)+i) = &
                       &                    spenergies(sb+fileblocks(b)+i)
                   enddo
 

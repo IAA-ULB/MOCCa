@@ -69,7 +69,7 @@ get_total_energy_stdout (){
 # Input:
 #    $1: filename of tantalus STDOUT
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  echo `grep "Total energy" $1  | tail -1 | grep -oE '[+-][0-9]+([.][0-9]+)?'`
+  echo `grep "Total energy:" $1  | tail -1 | grep -oE '[+-][0-9]+([.][0-9]+)?'`
 }
 
 get_B20_stdout (){

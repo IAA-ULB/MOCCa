@@ -13,13 +13,19 @@ module timing
 
   !-----------------------------------------------------------------------------
   ! Timer IDs. These are set to values by add_timer().
+  integer :: T_wfini, T_wfoutput
   integer :: T_derivatives, T_derivatives_can, T_evolution, T_ortho, T_tantalus
-  integer :: T_densities, T_fields, T_energy, T_pairing, T_den_ph, T_den_pp
+  integer :: T_subspace_rotation, T_subrot_transfo, T_subrot_diag
+  integer :: T_calc_sph, T_calc_sph_me, T_update_sph
+  integer :: T_densities, T_potentials, T_energy, T_pairing, T_den_ph, T_den_pp
   integer :: T_den_der, T_sphamil, T_coulomb, T_den_can, T_MOI
   integer :: T_COM, T_COM1, T_COM2, T_gaps, T_moments, T_feasible, T_spwfangmom
   integer :: T_chargedensity, T_collective_moi, T_microscopic_pairing
-  integer :: T_HFdiag, T_Hortho, T_moment_cutoff
-  integer :: T_NablaMElements, T_basistransfo, T_COM2_summation, T_F_precon
+  integer :: T_HFdiag, T_Hortho, T_moment_cutoff, T_norm_ortho, T_diag_ortho
+  integer :: T_NablaMElements, T_basistransfo, T_COM2_summation, T_pot_precon
+#if(USE_MPI > 0)
+  integer :: T_transfer_psi_1to2,T_transfer_psi_2to1, T_allreduce
+#endif
   !-----------------------------------------------------------------------------
   ! There are two ways to record the time:
   !  1. cpu_time measures CPU time (excludes time spent in other programs)
@@ -296,7 +302,7 @@ contains
 #if(USE_MPI>0)
     integer :: mpi_err
 #endif
-    do r=1, NCORES
+    do r=1, NPROCS
       if(MPI_RANK .eq. r) then
         if (current_context .ne. 0) then
            write (*,*) "WARNING: There are timers still running. They should be &
@@ -404,7 +410,7 @@ contains
 
     call calc_total_time(total)
 
-    do r=0,NCORES-1
+    do r=0,NPROCS-1
 #if(USE_MPI>0)
       call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
 #endif
