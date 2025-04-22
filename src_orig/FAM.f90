@@ -22,20 +22,32 @@ module fam
   implicit none
 
   !------------------------------------------------------------------------------
-  ! The FAM frequency of perturbing field
-  real(KIND=dp) :: omega = 0.5
+  ! Define some FAM parameters
+  real(KIND=dp) :: omega ! frequency of the perturbing field 
+  real(KIND=dp) :: smear = 1.0_dp ! complex smearing parameter, default 1.0 MeV
+  real(KIND=dp) :: eta = 1.0e-3_dp ! ! small parameter entering derivatives, default 10^-3
   !------------------------------------------------------------------------------
-  ! Type of perturbing operator
-  ! (0) : E0
-  ! (1) : M0
-  ! (2) : E1
-  ! (3) : M1
-  ! (4) : E2
-  ! (5) : M2
-  ! (6) : E3
-  ! (7) : M3
-  integer :: perturbationtype = 4
+  ! FAM amplitudes X, Y
+  real(KIND=dp), allocatable :: X(:,:) ! forward amplitudes HF basis
+  real(KIND=dp), allocatable :: Y(:,:) ! backward amplitudes HF basis
   !------------------------------------------------------------------------------
+  ! perturbed densities
+  real(KIND=dp), allocatable :: drho(:,:)   ! preturbed normal density
+  real(KIND=dp), allocatable :: dkappa(:,:) ! preturbed pairing density
+  real(KIND=dp), allocatable :: dR(:,:)     ! preturbed generalised density
+  !------------------------------------------------------------------------------
+  ! perturbed Hamiltonian
+  real(KIND=dp), allocatable :: dH(:,:,:) ! perturbed Hamiltonian in HF basis
+  !                               | '-'--> qp index 
+  !                               -> 1: H^20, 2: H^02 
+  !------------------------------------------------------------------------------
+  ! external field
+  real(KIND=dp), allocatable :: F(:,:,:)  ! perturbing external field in HF basis
+  !                               | '-'--> qp index 
+  !                               -> 1: F^20, 2: F^02 
+  integer :: l, m ! Principal and magnetic quantum number of the multipole moment
+  ! Do we need more identifiers for electric vs mqgnetic and isovector vs isoscalar
+
 
   contains
 
@@ -43,15 +55,22 @@ module fam
     implicit none
     !------------------------------------------------------------------------------
     ! subroutine to initialise the FAM matrices, i.e.
-    !   - drho   : perturbed densities 
-    !   - ... TO BE COMPLETED ...
     !------------------------------------------------------------------------------
 
-    real(KIND=dp), allocatable :: drho(:,:,:)
-    real(KIND=dp), allocatable :: SpherHarmMesh(:,:,:,:,:,:)
-    integer :: ImPart
-
     print *, "Initialise FAM matrices" 
+
+
+    allocate(drho(nwt,nwt))
+    allocate(dkappa(nwt,nwt))
+    allocate(dR(2*nwt,2*nwt))
+
+    allocate(dH(2,nwt,nwt)) 
+
+
+    ! Set external field to E2, hardcoded for now
+    l = 2
+    m = 0
+    allocate(F(2,nwt,nwt))
 
 
     allocate(SpherHarmMesh(nx,ny,nz,0:maxmoment,0:maxmoment,2))
