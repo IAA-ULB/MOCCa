@@ -35,11 +35,11 @@ jobs:
             # Only check pasta with BXL and ifort compiler
             - CALCTYPE: PASTA
               CONFIG  : BXL
-              COMPILER: ifort
+              COMPILER: ifx
             # Compile one thing with ifort to have a compiler independence check
             - CALCTYPE: NUCLEI
               CONFIG  : NLO
-              COMPILER: ifort
+              COMPILER: ifx
     env:
       # Uniquely labelling the executables with this environment variable
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
@@ -79,7 +79,7 @@ jobs:
     needs:   compile
     strategy:
       matrix:
-        COMPILER: [gfortran, ifort]
+        COMPILER: [gfortran, ifx]
     env:
       SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI
     steps:

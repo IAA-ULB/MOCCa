@@ -111,7 +111,7 @@ source ../functions.sh
 setup_test_env "store_derivatives=true" "$exec" "$param"
 write_data '.true.' $param
 # Run the calculation
-echo "Running $exe"
+echo "Running $exe with store_derivatives=true"
 ./$exe < tant.data > $outfile
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check=$?
@@ -124,7 +124,7 @@ teardown_test_env
 setup_test_env "store_derivatives=false" "$exec" "$param"
 write_data '.false.' $param
 # Run the calculation
-echo "Running $exe"
+echo "Running $exe with store_derivatives=false"
 ./$exe < tant.data > $outfile
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check_false=$?
