@@ -2915,7 +2915,7 @@ $TAUTENSOR &         R%D_N_N(mi,1,1,2) + R%D_N_N(mi,2,2,2) + R%D_N_N(mi,3,3,2)
     ! contribution of the direct and exchange Coulomb potentials
     allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
     
-    !temp = F%F_I_I(:,1:2) - constraint_I_I
+    temp = F%F_I_I(:,1:2) !- constraint_I_I
 
     Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
     Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
