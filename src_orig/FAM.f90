@@ -57,8 +57,12 @@ module fam
     ! subroutine to initialise the FAM matrices, i.e.
     !------------------------------------------------------------------------------
 
-    print *, "Initialise FAM matrices" 
+    real(KIND=dp), allocatable :: SpherHarmMesh(:,:,:,:,:,:)
+    ! real(KIND=dp), allocatable :: harm_3D(:,:,:)
+    real(KIND=dp) :: f_ph
+    integer :: ImPart, p, h, i, j, k
 
+    print *, "Initialise FAM matrices" 
 
     allocate(drho(nwt,nwt))
     allocate(dkappa(nwt,nwt))
@@ -74,23 +78,65 @@ module fam
 
 
     allocate(SpherHarmMesh(nx,ny,nz,0:maxmoment,0:maxmoment,2))
+    ! allocate(harm_3D(nx,ny,nz))
 
     ! Generate the spherical harmonics Y^l_m(x,y,z) up to l=maxmoment (default:10)
     ! This could be reduced to just calling the necessary one
     call GenSphericalHarmonics(maxmoment,nx,ny,nz,meshx,meshy,meshz,           & 
     &                          SpherHarmMesh,quantisationaxis,secondaryaxis)
 
-    allocate(drho(nx,ny,nz))
+    ! SpherHarmMesh(nx,ny,nz,l,m,2) = r^l Y_{lm}(x,y,z)
+    !               -------      '-> (real, imaginary) 
+    !                  '--> mesh coordinates (x, y, z)
+    !
+    ! /!\: double check with Wouter that the factor r^l is indeed included already
+    !      such that they are in fact regular solid harmonics R_{lm} so that multipole
+    !      moments are simply < Q_{lm} > = \int rho * R_{lm} .
+    ! TBD: is it correct the imaginary part is zero when m=0 since 
+    !          Y^l_m^dagger = (-1)^m * Y^l_-m 
 
-    ImPart = 0 ! 0 = Real, 1 = Im, => TBD later
 
-    select case (perturbationtype)
-      case (4)
-        drho(:,:,:) = SpherHarmMesh(:,:,:,2,0,ImPart+1)
-      case default
-        print *, "only E2 (perturbationtype = 4) implemented so far"
-    end select
-    
+    ImPart = 1 ! real (1) or imaginary (2) part => TBD later
+
+    ! select case (perturbationtype)
+    !   case (4)
+    !     harm_3D(:,:,:) = SpherHarmMesh(:,:,:,l,m,ImPart) ! select l=2, m=0 component
+    !   case default
+    !     print *, "only E2 (perturbationtype = 4) implemented so far"
+    ! end select
+
+    ! transform SpherHarmMesh to HF basis
+    ! is this basis transformation already implemented? Not in basis_transfrom.f90
+    ! only some complicated (MPI) ones in wavefunctions.f90 
+    ! if not, I think it should be something like this
+
+    do p=1,nwt ! can be restricted to particles
+      do h=1,nwt ! can be restricted to holes
+        f_ph = 0.0_dp
+        do i=1,nx 
+          do j=1,ny 
+            do k=1,nz 
+              f_ph = f_ph + dv * SpherHarmMesh(i,j,k,l,m,ImPart) * sum(HFpsi(i+(j-1)*nx+(k-1)*ny*nx,:,p) &
+                & * HFpsi(i+(j-1)*nx+(k-1)*ny*nx,:,h)) 
+            enddo
+          enddo
+        enddo
+        F(1,p,h) = f_ph
+        ! print *, p, h, f_ph
+      enddo
+    enddo
+
+    ! can be restricted by running over allowed symmetry blocks
+
+
+    do p=1,nwt ! can be restricted to particles
+      do h=1,nwt ! can be restricted to holes
+        f_ph = dv * sum(D_I_I(:,1) * sum(HFpsi(:,:,p) * HFpsi(:,:,h),2) ) 
+              ! F(2,:,:) will host F02 in the future. 
+        ! print *, p, h, f_ph
+      enddo
+    enddo
+
     deallocate(spherharmmesh)
     
 
