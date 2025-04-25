@@ -274,6 +274,23 @@ module wavefunctions
 #else
  character(len=20)           :: ini_strategy = 'Random'
 #endif
+ !--------------------------------------------------------------------------------
+ ! Type of random number generation used to generate spwfs
+ !    'FAST'         = give each MPI rank a different (deterministic) seed and
+ !                     let them independently generate random numbers
+ !    'REPRODUCIBLE' = let all MPI ranks take a different set of random numbers
+ !                     in A SINGLE sequence. This requires some ranks to generate
+ !                     far more numbers than they will use in the spwfs, so this
+ !                     does not scale well at high counts of MPI ranks.
+ !
+ ! Note that 'FAST' remains a reproducible setting: in the absence of bugs,
+ ! repeated calculations with identical input will give identical results as
+ ! long as the number of MPI ranks is identical.
+ !
+ ! 'REPRODUCIBLE' further generalizes this reproducibility by also requiring that
+ ! runs with identical input give identical output, even when running across
+ ! different numbers of MPI ranks.
+ character(len=20)           :: random_numbers = 'FAST'
 
 contains 
 
@@ -292,7 +309,8 @@ contains
 #endif
 
     namelist /wfs/ nwn, nwp, osc_freq, print_adv_spwf_properties, &
-    &              max_spwf_per_rank, max_drop_ranks, ini_strategy
+    &              max_spwf_per_rank, max_drop_ranks, ini_strategy, &
+    &              random_numbers
 
     ! Only the first MPI rank reads input
     if(MPI_rank .eq. 0) then
@@ -303,6 +321,21 @@ contains
       endif
     endif
 
+    ini_strategy = to_upper(ini_strategy)
+    if(adjustl(ini_strategy) .eq. 'NILSSON' ) then
+       initialise_wavefunctions => nilsson
+    elseif(adjustl(ini_strategy) .eq. 'RANDOM') then
+       initialise_wavefunctions => randomspwfs
+    else
+      call stp('INI_STRATEGY has an invalid value.')
+    endif
+
+    random_numbers = to_upper(random_numbers)
+    if(adjustl(random_numbers) .ne. 'FAST') then
+      if(adjustl(ini_strategy) .eq. 'REPRODUCIBLE') then
+        call stp('Invalid setting for random_numbers.')
+      endif
+    endif
 
 #if(USE_MPI > 0)
     ! Broadcasting all information
@@ -314,18 +347,12 @@ contains
     &                                                   MPI_COMM_WORLD, mpi_err)
 
     call MPI_BCAST(max_spwf_per_rank ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
+
+    call MPI_BCAST(ini_strategy   ,20, MPI_CHAR, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(random_numbers ,20, MPI_CHAR, 0, MPI_COMM_WORLD, mpi_err)
 #endif
     ! Bookkeeping for all MPI ranks
     nwt = nwn + nwp
-
-    ini_strategy = to_upper(ini_strategy)
-    if(adjustl(ini_strategy) .eq. 'NILSSON' ) then
-       initialise_wavefunctions => nilsson
-    elseif(adjustl(ini_strategy) .eq. 'RANDOM') then
-       initialise_wavefunctions => randomspwfs
-    else
-      call stp('INI_STRATEGY has an invalid value.')
-    endif
 
   end subroutine ReadWFdata
 
@@ -972,13 +999,14 @@ end subroutine loadbalance
      !    par: the parity quantum numbers of the spwfs
      !--------------------------------------------------------------------------
      real(KIND=dp), allocatable, intent(inout) :: psi(:,:,:), spe(:)
+     real(KIND=dp)                             :: trash(mv,4)
      real(KIND=dp), intent(in)                 :: dx, osc_freq(3)
      integer, intent(inout), allocatable       :: par(:)
      integer, intent(in)        :: nw,nwn,nwp, mx, my, mz, neut, prot
      integer, intent(in)        :: nshells_even, nshells_odd
      integer, intent(in), allocatable :: map(:)
      
-     integer :: s
+     integer :: s, minindex, k
      integer, allocatable :: seed(:)
 
      if(allocated(par)) deallocate(par)
@@ -996,13 +1024,28 @@ end subroutine loadbalance
      if(allocated(map)) then
       call random_seed(size=s)
       allocate(seed(s))
-      seed = 987654321 + MPI_RANK * 123456789 ! Seed value needs to depend on
-                                              ! MPI_RANK; if not, we all ranks 
-                                              ! will generate the same sequence
-                                              ! and we will run in trouble with
-                                              ! orthonormalisation
-      call random_seed(put=seed)
-      call random_number(psi) ! randomize
+
+      if(adjustl(random_numbers) .eq. 'FAST') then
+        ! Let all MPI ranks generate different sets of random numbers
+        seed = 987654321 + MPI_RANK * 123456789 ! Seed value needs to depend on
+                                                ! MPI_RANK; if not, we all ranks
+                                                ! will generate the same sequence
+                                                ! and we will run in trouble with
+                                                ! orthonormalisation
+        call random_seed(put=seed)
+      else
+        ! Let all MPI ranks generate the same random numbers, but take a subset
+        seed = 987654321                        ! Seed value is fixed
+        call random_seed(put=seed)
+
+        ! Determine the offset for this particular MPI rank
+        minindex = minval(spwf_map)
+        do k=1,minindex-1
+          call random_number(trash)
+        enddo
+      endif
+      ! Generate random numbers as (non-orthogonal) wavefunctions
+      call random_number(psi)
      endif
   end subroutine randomspwfs
 

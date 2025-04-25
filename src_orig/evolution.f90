@@ -1434,7 +1434,8 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
       real(KIND=dp), allocatable, save ::  ddmax(:,:,:)
 $N3   real(KIND=dp), allocatable, save :: dddmax(:,:,:)
 
-      integer       :: estiter, iter, ii, i, it, iso
+      integer       :: estiter, iter, ii, i, it, iso, s
+      integer, allocatable :: seed(:)
       real(KIND=dp) :: con(2), maxE, compare, relE, kappa, Es(2)
       !-------------------------------------------------------------------------
       ! Step 1: Solve the auxiliary problem for the largest single-particle 
@@ -1455,7 +1456,13 @@ $N3       if(allocated(dddmax))    deallocate(dddmax)
           allocate(ddmax(nx*ny*nz,6,4))
 $N3       allocate(dddmax(nx*ny*nz,10,4))
 
-          call random_number(maxspwf)                        ! randomize
+          ! Randomize - but in a reproducible way - this spwf
+          call random_seed(size=s)
+          allocate(seed(s))
+          seed = 961
+          call random_seed(put=seed)
+          call random_number(maxspwf)
+          deallocate(seed)
           do it=1,2
             maxspwf(:,:,it) = &                                      ! normalize
                         & 1.0/sqrt(sum(maxspwf(:,:,it)**2)*dv) * maxspwf(:,:,it)
