@@ -69,7 +69,7 @@ module fam
 
     real(KIND=dp), allocatable :: SolidHarmHF(:,:)
     integer :: p, h
-    real(KIND=dp) :: occ_h, occ_p
+    real(KIND=dp) :: occ_h, occ_p, e_h, e_p
     logical :: ImPart
 
     print *, "Initialise FAM matrices" 
@@ -129,6 +129,32 @@ module fam
 
     ! Note to future self: for QFAM this will be replaced by a transformation 
     ! to the qp basis. 
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! initialise the RPA amplitudes 
+
+    X = -F(:,:,1)
+    Y = -F(:,:,2)
+
+    ! normalise with energy denominator
+    do h = 1, nwt
+      occ_h = rho_can(h)
+      e_h = spenergies(h) 
+      if(occ_h < 1d-6) cycle
+      do p = 1, nwt
+        occ_p = 2.0 - rho_can(p)
+        e_p = spenergies(p) 
+        if(occ_p < 1d-6) cycle
+        X(p,h) = X(p,h) / (e_p - e_h - omega )
+        Y(p,h) = Y(p,h) / (e_p - e_h + omega ) 
+        ! print *, p, h, e_p, e_h, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
+      enddo
+    enddo
+
+    ! TBD: X and Y are fully equivalent at this point. Is this expected?
+    ! is this a consequency due to < i | Qlm | j > = < j | Qlm | i > 
+
+    ! TODO: complex smearing
 
   end subroutine inifam
 
