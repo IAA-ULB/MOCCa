@@ -253,7 +253,7 @@ single: $(PRE) $(SINGLE_OBJ)
 
 fam: $(PRE) $(FAM_OBJ)
 # 	cp src_orig/FAM.f90 src/FAM.f90
-	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(FAM_OBJ) $(LIBS)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(FAM_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
 	mv fam exec/fam.exe
 
 run_heph:
@@ -262,12 +262,10 @@ run_heph:
 	python3 Hephaestos.py $(CONFIG) $(DENSUM)
 
 gen_nilsson: $(PRE) $(PRE_NIL) $(NIL_OBJ)
-	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LIBS)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
 	mv gen_nilsson exec/gen_nilsson.exe
 
-clean:
-	rm  -f $(OBJDIR)/*.o
-	rm  -f $(MODDIR)/*.mod
+
 
 $(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  $< -o $@ $(HDF5_LIB)
@@ -279,7 +277,7 @@ setversioninfo:
 	@sed -i.bak 's~VERSION1~"${GIT_INFO1}"~' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's~VERSION2~"${GIT_INFO2}"~' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's~VERSION3~"${GIT_INFO3}"~' $(SRCDIR)/tantalus.version.f90
-  #Copy the compiler information
+	# Copy the compiler information
 	@sed -i.bak 's!COMPCOMP!"${COMPVERSION}"!' $(SRCDIR)/tantalus.version.f90
 	# The above command uses '!' as sed delimiter, because Ubuntu sometimes uses ~ for kernel versions
 	@sed -i.bak 's/CFLAGS/"${CXXFLAGS}"/'      $(SRCDIR)/tantalus.version.f90
