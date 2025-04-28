@@ -134,7 +134,7 @@ contains
   &                          rho_pairing, kappa_pairing, configmatrix,         & 
   &                          qpenergies, BlockType,Blockindices,               &
   &                          blocklowest, blocked_qps, partner_qps,qp_overlaps,&
-  &                          mix, ifail)
+  &                          mix, tag_overlaps, ifail)
 
     !---------------------------------------------------------------------------
     ! Driver routine for the solving of the HFB equations in a direct fashion,
@@ -155,7 +155,8 @@ contains
     !                   we want to build. To be passed into 
     !                   construct_configuration.
     !    mix          : mixing factor for density matrix mixing ! MB 24/08/13
-    !
+    !    tag_overlaps : overlaps between HFBasis and the tagging spwf
+    !                   only referenced if blocktype == 7.
     ! Ouput:
     !    Fermi        : final value obtained by the solver for the Fermi 
     !                   energies of both nucleon species. 
@@ -194,6 +195,7 @@ contains
     integer, intent(out)         :: ifail
     character(len=2), intent(in), allocatable :: BlockLowest(:)
     real(KIND=dp), allocatable, intent(out)   :: qp_overlaps(:)
+    real(KIND=dp), intent(in)    :: tag_overlaps(:)
 
     integer, allocatable         :: neutron_block(:), proton_block(:)
     integer, allocatable         :: p_blocked(:), n_blocked(:)
@@ -286,16 +288,16 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
         end select
       enddo
 
-!    case(5,6)
-!      ! We simply pass which isospin needs to be compared to the modelspwf 
-!      allocate(proton_block(5))  ; proton_block  = 0 
-!      allocate(neutron_block(5)) ; neutron_block = 0
-!      
-!      if(modelblock .gt. 4) then
-!          proton_block(modelblock-4)  = 1
-!      else
-!          neutron_block(modelblock)   = 1
-!      endif
+    case(7)
+      ! We have a tagging state  
+      allocate(proton_block(5))  ; proton_block  = 0 
+      allocate(neutron_block(5)) ; neutron_block = 0
+     
+      if(tagblock .gt. 4) then
+          proton_block(tagblock-4)  = 1
+      else
+          neutron_block(tagblock)   = 1
+      endif
     end select
 
     !---------------------------------------------------------------------------
@@ -324,14 +326,14 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     &              neutrons, configmatrix(  1:2*nwn),                          &
     &              Bogoliubov(1:2*nwn, 1:2*nwn),                               &
     &              qpenergies(1:2*nwn),  Fermi(1), maxhfbiter,                 &
-    &              blocktype, neutron_block, n_blocked, n_partners, n_overlaps,&
-    &              ifail)
+    &              blocktype, neutron_block, tag_overlaps(1:nwn),              &
+    &              n_blocked, n_partners, n_overlaps, ifail)
     call FindFermi(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt), HFBlocks_global(5:8),&
     &              protons, configmatrix(2*nwn+1:2*nwt),                       &
     &              Bogoliubov(2*nwn+1:2*nwt, 2*nwn+1:2*nwt),                   &
     &              qpenergies(2*nwn+1:2*nwt),Fermi(2), maxhfbiter,             &
-    &              blocktype, proton_block, p_blocked, p_partners, p_overlaps, &
-    &              ifail)
+    &              blocktype, proton_block, tag_overlaps(nwn+1:nwt),           &
+    &              p_blocked, p_partners, p_overlaps, ifail)
 
     if(allocated(blocked_qps)) deallocate(blocked_qps)
     if(allocated(partner_qps)) deallocate(partner_qps)
@@ -759,14 +761,16 @@ $TR    endif
     part = Diagbyblock(HFBHamil(1:2*nwn,1:2*nwn),                              &
     &                  HFBlocks_global(1:4),                                   &
     &                  config(1:2*nwn),                                        &
-    &                  Bogo(1:2*nwn,1:2*nwn),Eqp(1:2*nwn),      &
-    &                  lambda_copy(1), 0 , (/0/), blocked_qp, pqp, qpover,ifail)
+    &                  Bogo(1:2*nwn,1:2*nwn),Eqp(1:2*nwn),                     &
+    &                  lambda_copy(1), 0 , (/0/), (/0.0d0/), blocked_qp, pqp,  &
+    &                  qpover,ifail)
     
     part = Diagbyblock(HFBHamil(2*nwn+1:2*nwt,2*nwn+1:2*nwt),                  &
     &                  HFBlocks_global(5:8),                                   &
     &                  config(2*nwn+1:2*nwt),                                  &
     &                  Bogo(2*nwn+1:2*nwt,2*nwn+1:2*nwt), Eqp(2*nwn+1:2*nwt),  &
-    &                  lambda_copy(2), 0 , (/0/), blocked_qp, pqp, qpover,ifail)
+    &                  lambda_copy(2), 0 , (/0/), (/0.0d0/), blocked_qp, pqp,  &
+    &                  qpover,ifail)
 
     ! Don't forget to correct the structure of the matrices
     call reorganise_matrices(Bogo,Eqp, config)

@@ -1,14 +1,25 @@
 #-------------------------------------------------------------------------------
-# Spherical O16 calculation with SLy4 in a minimal box.
-#
+# Perform a spherical calculation of O16 with SLy4 in a minimal box to compare
+# to known values for the energy and quadrupole deformation.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# This script tests:
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
 #  - total energy                        -128.513125 MeV            1 keV
 #  - quadrupole deformation \beta_20        0.0                     0.0001
 #  - quadrupole deformation \beta_22        0.0                     0.0001
 #
-# Owner                : wouter.ryssens@ulb.be
-# Complexity           : low
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Useage
+# ------
+#   bash minimal.sh [EXESUFFIX]
+#
+# where EXESUFFIX specifies the  suffix of the executable to be used
+#            Example: "BXL" for "Tantalus.BXL.exe".
+#
+# Dependencies: none
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Owner                : W. Ryssens [wouter.ryssens@ulb.be]
 # Reference commit hash: commit 24470533c34a47af11223514bbecd500b212151a
 #-------------------------------------------------------------------------------
 # These are the hardcoded answers

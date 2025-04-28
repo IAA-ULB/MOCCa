@@ -29,7 +29,6 @@
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Owner                : wouter.ryssens@ulb.be
-# Complexity           : medium
 # Reference commit hash: 486028f3177530a238062fee11d5392677e83578
 #--------------------------------------------------------------------------------
 usage() { echo "Usage: $0 -p param -s exec -m exec -r np" 1>&2; exit 1; }

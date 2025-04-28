@@ -19,7 +19,7 @@
 # Useage
 # ------
 #
-#  bash symmetries.sh -p param -e exec [OTHER FLAGS]
+#  bash store_derivatives.sh -p param -e exec [OTHER FLAGS]
 #
 # -p param: specify a parameterization name
 # -e exec : specify the  suffix of the executable
@@ -28,10 +28,9 @@
 #  Attention: the exe being called should be able to auto-initialise, i.e. to
 #             start from scratch without reading a .wf file!
 #
-#
+# Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Owner                : wouter.ryssens@ulb.be
-# Complexity           : medium
+# Owner                : W. Ryssens [wouter.ryssens@ulb.be]
 # Reference commit hash: 22b6c4b464086ec74f57b72d95a15e11a37a06ec
 #--------------------------------------------------------------------------------
 usage() { echo "Usage: $0 -p param -e exec" 1>&2; exit 1; }
@@ -112,7 +111,7 @@ source ../functions.sh
 setup_test_env "store_derivatives=true" "$exec" "$param"
 write_data '.true.' $param
 # Run the calculation
-echo "Running $exe"
+echo "Running $exe with store_derivatives=true"
 ./$exe < tant.data > $outfile
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check=$?
@@ -125,7 +124,7 @@ teardown_test_env
 setup_test_env "store_derivatives=false" "$exec" "$param"
 write_data '.false.' $param
 # Run the calculation
-echo "Running $exe"
+echo "Running $exe with store_derivatives=false"
 ./$exe < tant.data > $outfile
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check_false=$?

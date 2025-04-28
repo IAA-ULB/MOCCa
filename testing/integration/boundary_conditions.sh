@@ -4,12 +4,22 @@
 # w.r.t. to a hardcoded reference value, but rather checks that results are identical
 # in both modes.
 #
-# Note: because of the different implementation for terms with derivatives in the
-#       functional, it is normal to have small differences between calculations
-#       with periodic and antiperiodic boundary conditions for dx ~ 0.8 fm - 1.0 fm.
-#       To get agreement at the level of a keV, you need to go to lower values of
-#       mesh spacing; this test used dx = 0.65 fm.
+# Notes
+# 1. Because of the different implementation for terms with derivatives in the
+#    functional, it is normal to have small differences between calculations
+#    with periodic and antiperiodic boundary conditions for dx ~ 0.8 fm - 1.0 fm.
+#    To get agreement at the level of a keV, you need to go to lower values of
+#    mesh spacing; this test uses dx = 0.65 fm.
 #
+# 2. There are several parts of the total energy in a typical .param file that
+#    would invalidate this test. Among them are
+#    - corrections for spurious motion: rotational correction, vibrational correction,
+#                                       center of mass corrections, ...
+#    - Coulomb: the pasta calculations assume a homogeneous background of electrons
+#               that the nuclear calculations do not.
+#
+#    Hence use extreme caution when selection a .param file to run this test for;
+#    the BSkG3_naked.param is an example for which the test passes.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # This script tests:
 #
@@ -36,7 +46,6 @@
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Owner                : wouter.ryssens@ulb.be
-# Complexity           : medium
 # Reference commit hash: bfaa9cbbad6f1aa28e2d70613ee05a4da2a04af5
 #--------------------------------------------------------------------------------
 usage() { echo "Usage: $0 -p param -e exec" 1>&2; exit 1; }

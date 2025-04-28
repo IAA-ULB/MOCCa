@@ -17,6 +17,10 @@ where
 This page will list release notes for all releases that increment at least the minor version, but 
 not the patch version.
 
+## v0.2.0 - Quasiparticle tagging
+  - Inclusion of "tagging" strategy to block quasiparticles 
+  - Reenabling of the calculation of the divergence of the spin-orbit current density.
+ 
 ## v0.1.0 - Start of the documentation
   - Initial stages of the living documentation.
   - Started the automated testing on the master branch.

@@ -52,9 +52,9 @@
 #                   on your system.
 #                   Example: "BXL-TP" for "Tantalus.BXL-TP.exe".
 #
+# Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Owner                : wouter.ryssens@ulb.be
-# Complexity           : medium
+# Owner                : W. Ryssens [wouter.ryssens@ulb.be]
 # Reference commit hash: ec5d48ee9e546d795cc74d6160bf7812cd1d3b93
 #--------------------------------------------------------------------------------
 logfiletag='symmetries'
