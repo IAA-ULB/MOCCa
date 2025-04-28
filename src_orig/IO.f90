@@ -349,7 +349,7 @@ contains
         if(adjustl(ini_strategy) .eq. 'NILSSON') then
           print 990, osc_freq
         elseif(adjustl(ini_strategy) .eq. 'RANDOM') then
-          print 990, osc_freq
+          print 991
         endif
       endif
       print 13, inversetemp
@@ -1622,14 +1622,14 @@ subroutine ReadTantalus_hdf5(ifn)
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ofn
 
-    if(trim(to_upper(OutputFileName(len_trim(OutputFileName)-3:))).eq.'HDF5') then
+    if(trim(to_upper(ofn(len_trim(ofn)-3:))).eq.'HDF5') then
 #if(USE_HDF5>0)
-      call WriteTantalus_hdf5(outputfilename) !new hdf5 format
+      call WriteTantalus_hdf5(ofn) !new hdf5 format
 #else
       call stp('HDF5 support was not enabled at compilation.')
 #endif
     else
-      call WriteTantalus(12, outputfilename) ! old style in .wf file
+      call WriteTantalus(chan, ofn) ! old style in .wf file
     endif
 
   end subroutine WriteWaveFunction
@@ -1701,7 +1701,7 @@ subroutine ReadTantalus_hdf5(ifn)
     integer                      :: mpi_err
     real(KIND=dp), allocatable   :: tempwf(:,:)
 #endif
-    type(moment), pointer        :: mom
+!     type(moment), pointer        :: mom
 
     call start_timer(T_wfoutput)
 
@@ -2292,7 +2292,7 @@ subroutine ReadTantalus_hdf5(ifn)
     endif
     if(TOFILE .ne. '') then
 $TR   call stp('Time-odd densities do not figure in a calculation that assumes time-reversal.')
-      call write_timeodd_densities(Density, TOFILE)
+$NTR  call write_timeodd_densities(Density, TOFILE)
     endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Write the relevant potentials to a file for postprocessing
@@ -2716,7 +2716,7 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     !
     !---------------------------------------------------------------------------
     integer, intent(in) :: iochannel
-    type(moment), pointer :: Q20, Q22
+!     type(moment), pointer :: Q20, Q22
    
     1 format("# N = ", i8, ' Z = ', i8, ' A = ', i8)
     2 format("# nwn = ", i9, ", nwp = ", i9)
@@ -2724,13 +2724,13 @@ $TR   call stp('Time-odd densities do not figure in a calculation that assumes t
     4 format("# Parameterisation    : ", a40)
     5 format("# Functional type     : ", a40)
     6 format("# Fermi energies      : ", 2f15.4)
-    7 format("# Quadrupole   Q20,Q22: ", 2f15.4)
-    8 format("# Quadrupole   B20,B22: ", 2f15.4)
-    9 format("# Quadrupole    Q, gam: ", 2f15.4)
+!     7 format("# Quadrupole   Q20,Q22: ", 2f15.4)
+!     8 format("# Quadrupole   B20,B22: ", 2f15.4)
+!     9 format("# Quadrupole    Q, gam: ", 2f15.4)
 
-   10 format("# BI 1: ", 2i3)
-   11 format("# BI 2: ", 99i4)
-   12 format("# BI 3: ", 99a3)
+!    10 format("# BI 1: ", 2i3)
+!    11 format("# BI 2: ", 99i4)
+!    12 format("# BI 3: ", 99a3)
 
     write(iochannel, fmt=1)  int(neutrons), int(protons),int(neutrons+protons)
     write(iochannel, fmt=2)  nwn, nwp
@@ -3106,7 +3106,8 @@ $NTR    real(KIND=dp), pointer           :: Tzn(:,:,:), Tzp(:,:,:)
 
     real(KIND=dp), allocatable, target      :: totalangmom(:,:,:)
     integer                                 :: io, i,j,k
-$NTR integer                         :: it
+$NTR integer                                :: it
+$TR  real(KIND=dp)                          :: trash
 
     1 format('#  X[fm]   Y[fm]   Z[fm] ', &
     &        '   Sxn     Syn     Szn   ', &
@@ -3122,6 +3123,8 @@ $NTR integer                         :: it
     &        '  12      13      14     ', &
     &        '  15      16      17     ', &
     &        '  18      19      20     ')
+
+$TR trash = R%D_I_I(1,1) ! to stop compiler complaints when TR is conserved
 
     open(1,file=fname, iostat=io)
     if(io.ne.0) then    

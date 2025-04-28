@@ -25,6 +25,7 @@ module cranking
  !    compile when we calculate no angular momentum at all, i.e. when time-
  !    reversal is conserved.
  !
+ !  TR  : $TR
  ! NTR  : $NTR
  !==============================================================================
 
@@ -222,8 +223,8 @@ $NTR    use Moments, only : cutoff
     ! the compiler complains
 
     type(DensityVector), intent(in) :: R
-$NTR    integer :: B, N, wave, si, i, c, it
-
+$NTR    integer   :: B, N, wave, si, i, c, it
+$TR real(KIND=dp) :: trash
     ! Saving all of the history for convergence analysis ...
     angmomold       = totalangmom
     angmomold_dens  = totalangmom_dens
@@ -232,6 +233,8 @@ $NTR    integer :: B, N, wave, si, i, c, it
     ! ... and resetting the current values
     totalangmom = 0.0 ; totalangmom_dens = 0.0d0 ; totalangmom_cut = 0.0d0
     J2_sp       = 0.0
+
+$TR trash = R%D_I_I(1,1) ! To stop compiler complaints when time-reversal is conserved
 
 $NTR    si = 0
 $NTR    do B=1,8
@@ -329,7 +332,9 @@ $NTR    crankenergy_cut = - omega * TotalAngMom_cut
     ! angular momentum operator and all kinds of angles.
     !---------------------------------------------------------------------------
     character(len=1), parameter     :: dir(3) = (/'x', 'y', 'z'/)
-    integer                         :: i $NTR,j
+    integer                         :: i
+$NTR integer                        :: j
+$TR  real(KIND=dp)                  :: trash
     type(DensityVector), intent(in) :: R
 $NTR    logical           :: found
 
@@ -378,6 +383,8 @@ $NTR    8 format (3x,a1,1x,'|',3x,'|',4f12.5)
 
     !---------------------------------------------------------------------------
     ! Information on the spin density
+$TR trash = R%D_I_I(1,1)
+
 $NTR    print *
 $NTR    print 6
 $NTR    print 7

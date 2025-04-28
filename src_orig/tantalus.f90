@@ -305,12 +305,15 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     integer, intent(out)           :: iter
     character(len=99), intent(out) :: iomsg
 
-    integer :: iprint, scheme, ifail, mpi_err
+    integer :: iprint, scheme, ifail
     logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
     logical :: potentials_frozen=.true.
     ! Logical to see if any moments with feasible set projection are necessary
     logical :: projectpresent = .false.
 
+#if(USE_MPI > 0)
+    integer :: mpi_err
+#endif
 #if(DEBUG_LEVEL == 1)
     character(len=40) :: denfile_iter, potfile_iter
 #endif
@@ -578,7 +581,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Write a wavefunction file at each multiple of checkpointiter
         if(checkpointiter.ne.0) then
-	  if(mod(iter,checkpointiter).eq.0) then
+        if(mod(iter,checkpointiter).eq.0) then
 #if(DEBUG_LEVEL==1)
             ! Output densities and potentials to specific files at every checkpoint
             write(denfile_iter, '("iter=",i5.5,".den")') iter
@@ -629,8 +632,8 @@ subroutine printsummary(iter, potentials_frozen)
     1 format (86('-'))
     2 format (' Iteration = ',i4)
    21 format (' Potentials frozen.')
-    3 format (' dt    = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
-   31 format (' dtg   = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
+    3 format (' dt    = ', f10.4, 4x, '  mu   = ', f10.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
+   31 format (' dtg   = ', f10.4, 4x, '  mug  = ', f10.4, ' gradn = ', es12.3)
     4 format (' E     = ', f20.10,2x, '  DE   = ', e12.5)
    41 format (' R     = ', f20.10,2x, '  DR   = ', e12.5)
    42 format (' R-E   = ', f20.10,2x, 'D(R-E) = ', e12.5)

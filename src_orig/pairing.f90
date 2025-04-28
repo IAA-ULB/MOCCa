@@ -774,33 +774,43 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     ! TODO: document
     !---------------------------------------------------------------------------
 
-    real*8, intent(in) :: stabfactor(2)
+    real*8, intent(in)   :: stabfactor(2)
+    integer, allocatable :: indices(:)
+    real(KIND=dp)        :: maxocc(2)
 
-    1 format (26('-'), ' Pairing ', 25('-'))
-    2 format (25x, ' N ',7x, ' P ')
-    3 format (' Fermi Level (MeV) ',2x,f13.8,2x,f13.8)
-    4 format (' Particles         ',2x,f13.8,2x,f13.8)
-    5 format (' Dispersion        ',2x,f13.8,2x,f13.8)
-    6 format (' Average gap   v^2 ',2x, f13.8, 2x, f13.8)
-   61 format (' Average gap   uv  ',2x, f13.8, 2x, f13.8)
+    1 format (26('-'), ' Spectrum and pairing ', 23('-'))
+    2 format (36x, ' N ',12x, ' P  ')
+   21 format (' Highest possible spe    (MeV) ',2x,f13.8,2x,f13.8)
+   22 format (' Lowest represented spe  (MeV) ',2x,f13.8,2x,f13.8)
+   23 format (' Highest represented spe (MeV) ',2x,f13.8,2x,f13.8)
+   24 format (' .... with rho_ii  (HF-basis ) ',2x,f13.8,2x,f13.8)
+    3 format (' Fermi Level             (MeV) ',2x,f13.8,2x,f13.8)
+    4 format (' Particles                     ',2x,f13.8,2x,f13.8)
+    5 format (' Dispersion                    ',2x,f13.8,2x,f13.8)
+    6 format (' Average gap   v^2             ',2x, f13.8, 2x, f13.8)
+   61 format (' Average gap   uv              ',2x, f13.8, 2x, f13.8)
     7 format (60('-'))
-
-    8 format ('  gas-like          ', 2x, f13.8, 2x, f13.8)
-    9 format ('  nucleus           ', 2x, f13.8, 2x, f13.8)
-
-   10 format (' Stab. factor       ', 2x, f13.8, 2x, f13.8)
-!   11 format (' Overlap with model ', 2x, f13.8)
-!   12 format ('                               ++  +-  -+  --')
-!   13 format (' Number parity    n:', 2x, 4i3)
-!   14 format (' Number parity    p:', 2x, 4i3)
+    8 format ('  gas-like                     ', 2x, f13.8, 2x, f13.8)
+    9 format ('  nucleus                      ', 2x, f13.8, 2x, f13.8)
+   10 format (' Stab. factor                  ', 2x, f13.8, 2x, f13.8)
 
     select case(PairingType)
     case (0)
-        !NS: remove to print Fermi energy in HF case
-        !if(inversetemp .eq. -1) return
         FermiEnergy=FermiEnergyHF
         print 1
         print 2
+
+        ! Spectral information
+        print 21, estimated_max_spe
+        print 22, minval(spenergies(1:nwn)), minval(spenergies(nwn+1:))
+        print 23, maxval(spenergies(1:nwn)), maxval(spenergies(nwn+1:))
+        indices    = OrderSpwfsISO(-1, .false.)
+        maxocc(1)  = rho_can(indices(nwn))
+        indices    = OrderSpwfsISO(+1, .false.)
+        maxocc(2)  = rho_can(indices(nwp))
+        print 24, maxocc
+
+        ! Pairing information
         print 3, FermiEnergy
         print 4, sum(rho_can(1:nwn)), sum(rho_can(nwn+1:nwt))
 
@@ -814,6 +824,17 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
         ! BCS and HFB
         print 1    
         print 2
+        ! Spectral information
+        print 21, estimated_max_spe
+        print 22, minval(spenergies(1:nwn)), minval(spenergies(nwn+1:))
+        print 23, maxval(spenergies(1:nwn)), maxval(spenergies(nwn+1:))
+        indices    = OrderSpwfsISO(-1, .false.)
+        maxocc(1)  = rho_can(indices(nwn))
+        indices    = OrderSpwfsISO(+1, .false.)
+        maxocc(2)  = rho_can(indices(nwp))
+        print 24, maxocc
+
+        ! Pairing information
         print 3, FermiEnergy
         print 4, sum(rho_can(1:nwn)), sum(rho_can(nwn+1:nwt))
         select case(PairingType)

@@ -408,11 +408,11 @@ contains
     ! with timing information taken from the lowest rank assigned to that
     ! symmetry block.
     !--------------------------------------------------------------------------
-    integer :: nsub, r, B
+    integer :: nsub, r
     real(8) :: tsub, total
 
 #if(USE_MPI>0)
-    integer :: mpi_err
+    integer :: mpi_err, B
 #endif
 
     call calc_total_time(total)

@@ -149,7 +149,6 @@ function Add_densityvector(R1, R2) result(R)
   !-----------------------------------------------------------------------------
   type(DensityVector), intent(in) :: R1, R2
   type(DensityVector)             :: R
-  real(KIND=dp) :: stor
 
 $INITIALIZATION
 $ADD
@@ -166,7 +165,8 @@ function multiply_densityvector(a, R1) result(R)
   type(DensityVector), intent(in) :: R1
   real(KIND=dp), intent(in)       :: a
   type(DensityVector)             :: R
-  real(KIND=dp) :: stor
+!   real(KIND=dp) :: stor ! Commented for now: required for memory estimation
+!                         ! through Hephaestos
 
 $INITIALIZATION
 $MULTIPLY

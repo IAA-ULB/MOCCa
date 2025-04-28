@@ -192,6 +192,9 @@ module wavefunctions
  real(KIND=dp), allocatable :: dispersions(:)
  ! expectation values of the single-particle hamiltonian in the canonical basis
  real(KIND=dp), allocatable :: canenergies(:)
+ ! Estimated maximum eigenvalue of h that is representable on the mesh for
+ ! each isospin
+ real(KIND=dp)              :: estimated_max_spe(2) = 0.0d0
  !------------------------------------------------------------------------------
  ! Expectation values of Parity in the HF basis and in the canonical basis
  real(KIND=dp), allocatable :: P_hf(:), P_can(:)
@@ -416,12 +419,12 @@ $N3 allocate(HFdddPsi(nx*ny*nz,10,4,alloc_size)) ! full tensor third order
     integer, intent(out) :: blocks_local(blocks)
     integer, intent(out), allocatable :: spwf_map(:),rank_map(:),spwf_inverse(:)
 
-    integer              :: B, activeblocks, blocks_per_rank, drop
+    integer              :: B, activeblocks, blocks_per_rank
     integer              :: block_count, i, offset, Nspwf, already_assigned
 #if(USE_MPI>0)
     integer, external    :: numroc
     integer              :: mpi_err, dims(2), k, j, info, xsize
-    integer              :: loc_psi, Bmax(1), local_ind,N
+    integer              :: loc_psi, Bmax(1), local_ind,N, drop
     integer, allocatable :: map_1D(:,:), map_2d(:,:),team(:), local_count(:)
     real(KIND=dp)        :: remaining, frac
 #endif
@@ -993,21 +996,25 @@ end subroutine loadbalance
      ! Output:
      !    psi: a set of wavefunctions with random values. Only initialised if 
      !         the map input is allocated.
-     !         ATTENTION: this set is not orthonormal at all. 
+     !         ATTENTION: this set of spwfs will not be orthonormal at all.
      !    spe: a guess (trivial in this routine) of the single-particle energies
      !         of these random states. 
      !    par: the parity quantum numbers of the spwfs
      !--------------------------------------------------------------------------
      real(KIND=dp), allocatable, intent(inout) :: psi(:,:,:), spe(:)
-     real(KIND=dp)                             :: trash(mv,4)
+     real(KIND=dp)                             :: trash(mv,4), scalar_trash
      real(KIND=dp), intent(in)                 :: dx, osc_freq(3)
      integer, intent(inout), allocatable       :: par(:)
-     integer, intent(in)        :: nw,nwn,nwp, mx, my, mz, neut, prot
-     integer, intent(in)        :: nshells_even, nshells_odd
-     integer, intent(in), allocatable :: map(:)
+     integer, intent(in)                       :: nw,nwn,nwp,mx,my,mz,neut,prot
+     integer, intent(in)                       :: nshells_even, nshells_odd
+     integer, intent(in), allocatable          :: map(:)
      
-     integer :: s, minindex, k
-     integer, allocatable :: seed(:)
+     integer                                   :: s, minindex, k
+     integer, allocatable                      :: seed(:)
+     !---------------------------------------------------------------------------
+     ! Use these dummy arguments to stop compiler complaints
+     scalar_trash = mx*my*mz*dx*product(osc_freq)*nshells_even*nshells_odd
+     scalar_trash = neut * prot
 
      if(allocated(par)) deallocate(par)
      if(allocated(spe)) deallocate(spe)
@@ -3756,54 +3763,54 @@ function transform_mat_diag(M, transfo) result(Mc)
 
  end function transform_mat_diag 
  
- function memory_wavefunctions(spwf_number) result(storage)
-  !-----------------------------------------------------------------------------
-  ! Estimate the total storage requirements for a given number of spwfs.
-  !
-  ! Input:
-  !   spwf_number : number of spwfs stored
-  ! Output:
-  !   storage: total number of real numbers involved in storing the spwfs
-  !
-  ! TODO: the estimation of the memory associated with wavefunctions is likely
-  !       wrong and at least does not account for store_derivatives = .false.
-  !-----------------------------------------------------------------------------
-  integer, intent(in)    :: spwf_number
-  integer(kind=LargeInt) :: storage
-
-  ! storage for the HFPSI array 
-  storage = mv * 4 * spwf_number
-  ! factors two account for
-  !   (*) additional storage of momentum updates for heavy-ball machinery
-  !   (*) additional storage for h | psi > in evolution
-  storage = 4 * storage
-  
-  ! 2 bonus wavefunctions in estimation of iterative parameters
-  storage = 4*mv*2 + 3*mv*4*2 + 6*mv*2 
-
-  ! storage for the first order derivatives
-  storage = storage + 3 * mv * 4 * spwf_number
-  ! storage for the second order derivatives
-  storage = storage + 6 * mv * 4 * spwf_number
-
- end function memory_wavefunctions
- 
- function memory_wavefunctions_2D(spwf_number, row, nrow, col, ncol) result(mem)
-   ! TODO: document  
-   integer,intent(in)     :: row, nrow, col, ncol, spwf_number
-   integer(kind=LargeInt) :: mem
-#if(USE_MPI>0)
-   integer(kind=LargeInt) :: xs,ys
-   integer, external :: numroc
- 
-   xs = NUMROC(          4*mv,block_factor_row,row,0,nrow)
-   ys = NUMROC(spwf_number,block_factor_col,col,0,ncol)
-  
-   mem = 3*xs*ys ! factor 3 for mom_2D and hpsi_2D
-#else
-   mem = 0
-#endif
-   end function memory_wavefunctions_2D
+!  function memory_wavefunctions(spwf_number) result(storage)
+!   !-----------------------------------------------------------------------------
+!   ! Estimate the total storage requirements for a given number of spwfs.
+!   !
+!   ! Input:
+!   !   spwf_number : number of spwfs stored
+!   ! Output:
+!   !   storage: total number of real numbers involved in storing the spwfs
+!   !
+!   ! TODO: the estimation of the memory associated with wavefunctions is likely
+!   !       wrong and at least does not account for store_derivatives = .false.
+!   !-----------------------------------------------------------------------------
+!   integer, intent(in)    :: spwf_number
+!   integer(kind=LargeInt) :: storage
+!
+!   ! storage for the HFPSI array
+!   storage = mv * 4 * spwf_number
+!   ! factors two account for
+!   !   (*) additional storage of momentum updates for heavy-ball machinery
+!   !   (*) additional storage for h | psi > in evolution
+!   storage = 4 * storage
+!
+!   ! 2 bonus wavefunctions in estimation of iterative parameters
+!   storage = 4*mv*2 + 3*mv*4*2 + 6*mv*2
+!
+!   ! storage for the first order derivatives
+!   storage = storage + 3 * mv * 4 * spwf_number
+!   ! storage for the second order derivatives
+!   storage = storage + 6 * mv * 4 * spwf_number
+!
+!  end function memory_wavefunctions
+!
+!  function memory_wavefunctions_2D(spwf_number, row, nrow, col, ncol) result(mem)
+!    ! TODO: document
+!    integer,intent(in)     :: row, nrow, col, ncol, spwf_number
+!    integer(kind=LargeInt) :: mem
+! #if(USE_MPI>0)
+!    integer(kind=LargeInt) :: xs,ys
+!    integer, external :: numroc
+!
+!    xs = NUMROC(          4*mv,block_factor_row,row,0,nrow)
+!    ys = NUMROC(spwf_number,block_factor_col,col,0,ncol)
+!
+!    mem = 3*xs*ys ! factor 3 for mom_2D and hpsi_2D
+! #else
+!    mem = 0
+! #endif
+!    end function memory_wavefunctions_2D
 
  subroutine clean_wavefunctions()
 
