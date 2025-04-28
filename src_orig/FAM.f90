@@ -38,13 +38,13 @@ module fam
   !------------------------------------------------------------------------------
   ! perturbed Hamiltonian
   real(KIND=dp), allocatable :: dH(:,:,:) ! perturbed Hamiltonian in HF basis
-  !                               | '-'--> qp index 
-  !                               -> 1: H^20, 2: H^02 
+  !                                | | '-> 1: dH^20, 2: dH^02 
+  !                                '-'--> qp index 
   !------------------------------------------------------------------------------
   ! external field
   real(KIND=dp), allocatable :: F(:,:,:)  ! perturbing external field in HF basis
-  !                               | '-'--> qp index 
-  !                               -> 1: F^20, 2: F^02 
+  !                               | | '-> 1: F^20, 2: F^02 
+  !                               '-'--> qp index 
   integer :: l, m ! Principal and magnetic quantum number of the multipole moment
   ! Do we need more identifiers for electric vs mqgnetic and isovector vs isoscalar
 
@@ -68,13 +68,13 @@ module fam
     allocate(dkappa(nwt,nwt))
     allocate(dR(2*nwt,2*nwt))
 
-    allocate(dH(2,nwt,nwt)) 
+    allocate(dH(nwt,nwt,2)) 
 
 
     ! Set external field to E2, hardcoded for now
     l = 2
     m = 0
-    allocate(F(2,nwt,nwt))
+    allocate(F(nwt,nwt,2))
 
 
     allocate(SpherHarmMesh(nx,ny,nz,0:maxmoment,0:maxmoment,2))
@@ -113,9 +113,9 @@ module fam
     do p=1,nwt ! can be restricted to particles
       do h=1,nwt ! can be restricted to holes
         f_ph = 0.0_dp
-        do i=1,nx 
+        do k=1,nz 1 ! outerloop should be rightmost index
           do j=1,ny 
-            do k=1,nz 
+            do i=1,nx 
               f_ph = f_ph + dv * SpherHarmMesh(i,j,k,l,m,ImPart) * sum(HFpsi(i+(j-1)*nx+(k-1)*ny*nx,:,p) &
                 & * HFpsi(i+(j-1)*nx+(k-1)*ny*nx,:,h)) 
             enddo
