@@ -22,43 +22,54 @@ module fam
 
   implicit none
 
-  !------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! Define some FAM parameters
   real(KIND=dp) :: omega ! frequency of the perturbing field 
-  real(KIND=dp) :: smear = 1.0_dp ! complex smearing parameter, default 1.0 MeV
-  real(KIND=dp) :: eta = 1.0e-3_dp ! ! small parameter entering derivatives, default 10^-3
-  !------------------------------------------------------------------------------
+  real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 1.0 MeV
+  real(KIND=dp) :: eta = 1.0e-3_dp ! small parameter entering derivatives, 
+                                   ! default 10^-3
+  !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
   real(KIND=dp), allocatable :: X(:,:) ! forward amplitudes HF basis
+  !                               | '-> sp index : hole
+  !                               '-> sp index : particle
   real(KIND=dp), allocatable :: Y(:,:) ! backward amplitudes HF basis
-  !------------------------------------------------------------------------------
+  !                               | '-> sp index : hole
+  !                               '-> sp index : particle
+  !-----------------------------------------------------------------------------
   ! perturbed densities
   real(KIND=dp), allocatable :: drho(:,:)   ! preturbed normal density
   real(KIND=dp), allocatable :: dkappa(:,:) ! preturbed pairing density
   real(KIND=dp), allocatable :: dR(:,:)     ! preturbed generalised density
-  !------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   ! perturbed Hamiltonian
   real(KIND=dp), allocatable :: dH(:,:,:) ! perturbed Hamiltonian in HF basis
-  !                                | | '-> 1: dH^20, 2: dH^02 
-  !                                '-'--> qp index 
-  !------------------------------------------------------------------------------
+  !                                | | '-> 1: ph block, 2: hp block 
+  !                                | '-> sp index : hole
+  !                                '-> sp index : particle
+  !-----------------------------------------------------------------------------
   ! external field
   real(KIND=dp), allocatable :: F(:,:,:)  ! perturbing external field in HF basis
-  !                               | | '-> 1: F^20, 2: F^02 
-  !                               '-'--> qp index 
+  !                               | | '-> 1: ph block, 2: hp block 
+  !                               | '-> sp index : hole
+  !                               '-> sp index : particle
   integer :: l, m ! Principal and magnetic quantum number of the multipole moment
-  ! Do we need more identifiers for electric vs mqgnetic and isovector vs isoscalar
+
+  ! Do we need more identifiers for electric vs mqgnetic and isovector 
+  ! vs isoscalar
 
 
   contains
 
   subroutine inifam
     implicit none
-    !------------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
     ! subroutine to initialise the FAM matrices, i.e.
-    !------------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
 
     real(KIND=dp), allocatable :: SolidHarmHF(:,:)
+    integer :: p, h
+    real(KIND=dp) :: occ_h, occ_p
     logical :: ImPart
 
     print *, "Initialise FAM matrices" 
@@ -92,8 +103,32 @@ module fam
     ! TODO: write a general transfromation routine from the mesh to any 
     !       single-particle basis
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Define the external field F by selecting the particle-hole and 
+    ! hole-particle subblocks of SolidHarmHF by multiplying by their 
+    ! occupation, i.e. diagonal elements of rho in the canonical basis
+
+    F = 0
+
+    do h = 1, nwt
+      occ_h = rho_can(h)
+      if(occ_h < 1d-6) cycle
+      do p = 1, nwt
+        occ_p = 2.0 - rho_can(p) 
+        ! degeneracy 2.0 must reduced if further symmetries are broken
+        if(occ_p < 1d-6) cycle
+        F(p,h,1) = occ_p * occ_h * SolidHarmHF(p,h) ! ph block F20(p,h)
+        F(p,h,2) = occ_p * occ_h * SolidHarmHF(h,p) ! hp block F02(p,h)
+      enddo
+    enddo
 
     deallocate(SolidHarmHF)
+
+
+    ! This can be improved by some element-wise products occ^T @ SolidHarmHF @ occ
+
+    ! Note to future self: for QFAM this will be replaced by a transformation 
+    ! to the qp basis. 
 
   end subroutine inifam
 
