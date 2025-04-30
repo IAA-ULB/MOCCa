@@ -94,6 +94,29 @@ get_B22_stdout (){
   echo ${B20arr[3]}                           # echo the last result
 }
 
+get_Belyaev_stdout (){
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Get the total Belyaev moment of inertia from a Tantalus STDOUT
+#
+# Input:
+#    $1: filename of Tantalus STDOUT
+#    $2: Cartesian direction, i.e. "X/Y/Z"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  Bearr=(`grep "I_B $2" $1  | tail -2 | head -1 `) # The () force the grep result into array
+  echo ${Bearr[4]}                                # echo the last result
+}
+
+get_DJ2_stdout (){
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Get the total "ordinary" dispersion of J^2 from a Tantalus STDOUT
+#
+# Input:
+#    $1: filename of Tantalus STDOUT
+#    $2: Cartesian direction, i.e. "X/Y/Z"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  Bearr=(`grep "J2_$2" $1  | tail -3 | head -1 `) # The () force the grep result into array
+  echo ${Bearr[3]}                                # echo the last result
+}
 
 compare_floats (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
