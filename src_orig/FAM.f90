@@ -99,6 +99,7 @@ module fam
    
     ! Calling a function in fission_MOI.f90
     SolidHarmHF = Qlm_spme(l, m, ImPart)
+    SolidHarmHF = SolidHarmHF * (100**(l/2.0)) ! rescale, Qlm is in units barn^(l/2)
 
     ! TODO: write a general transfromation routine from the mesh to any 
     !       single-particle basis
