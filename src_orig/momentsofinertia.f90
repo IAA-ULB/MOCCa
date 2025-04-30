@@ -1084,13 +1084,15 @@ $NTR    ibar = conjugp(ii)
         !
         !  J2 ~  \sum_{ab} < a | J_{\mu}^2 | a > \rho_aa
         !--------------------------------------------------------------------
-        fac=  rho_can(ii)/2.0d0
+        fac=  rho_can(ii)      ! There is an additional factor 2  hidden in here
+                               ! when TR is conserved, but it's easier to let
+                               ! it be here and not have to cancel it in the
+                               ! J2 summation below.
         ME(1) = jx2_can(ii)
         ME(2) = jy2_can(ii)
         ME(3) = jz2_can(ii)
 
-$TR        J2(:,it) = J2(:,it) + 2 * ME * fac
-$NTR       J2(:,it) = J2(:,it) +     ME * fac
+        J2(:,it) = J2(:,it) + ME * fac
 
         do j=1,N+N2
           jj = si + j
@@ -1104,39 +1106,37 @@ $NTR      jbar = conjugp(jj)
           ! If time-reversal is conserved,
           !  we can treat the rho-rho term and kappa-kappa term equally
           !
-$TR       ! Factors 1./2 due to time-reversal
-$TR       !--------------------------------------------------------------------
+          ! Factors 1./2 due to time-reversal
+          !--------------------------------------------------------------------
 $TR       fac=  - rho_can(ii)*rho_can(jj)/4.0d0 - kappa_can(ii)*kappa_can(jj)
+$TR
 $TR       ME(1) = 2*jx_can(ii,jj)**2 ! Factor two for time-reversal
 $TR       ME(2) = 2*jy_can(ii,jj)**2 ! Factor two for time-reversal
 $TR       ME(3) = 2*jz_can(ii,jj)**2 ! Factor two for time-reversal
 $TR
 $TR       J2(:,it) = J2(:,it) + ME * fac
 
-          ! TODO: implement time-reversal breaking calculation
-!           ! If time-reversal is broken; we can not do things quite that easily.
-!           !  => the rho-rho term and kappa-kappa term use matrix elements of
-!           !     of different states
-! $NTR      fac=  rho_can(ii)   *(1-rho_can(jj))
-! $NTR      ME(1) = jx_can_cut(ii,jj)**2
-! $NTR      ME(2) = jy_can_cut(ii,jj)**2
-! $NTR      ME(3) = jz_can_cut(ii,jj)**2
-! $NTR      J2_pairing_cut(:,it) = J2_pairing_cut(:,it) + ME * fac
-!           ! We haven't necessarily found canonical partners for all states
-!           ! If a partner is absent, this means that the relevant matrix
-!           ! elements of kappa are too small anyway; we can safely forget about
-!           ! this term.
-!           if(ibar .eq. 0) cycle
-!           if(jbar .eq. 0) cycle
-!
-! $NTR      fac= -kappa_can(ii)*kappa_can(jbar)
-! $NTR      ME(1) = jx_can_cut(ii,jj)*jx_can_cut(jbar,ibar)
-! $NTR      ME(2) = jy_can_cut(ii,jj)*jy_can_cut(jbar,ibar)
-! $NTR      ME(3) = jz_can_cut(ii,jj)*jz_can_cut(jbar,ibar)
-! $NTR      J2_pairing_cut(:,it) = J2_pairing_cut(:,it) + ME(:) * fac
-
-
-
+          ! If time-reversal is broken; we can not do things quite that easily.
+          !  => the rho-rho term and kappa-kappa term use matrix elements of
+          !     of different states
+$NTR      fac= -rho_can(ii) * rho_can(jj)
+$NTR
+$NTR      ME(1) = jx_can(ii,jj)**2
+$NTR      ME(2) = jy_can(ii,jj)**2
+$NTR      ME(3) = jz_can(ii,jj)**2
+$NTR
+$NTR      J2(:,it) = J2(:,it) + ME * fac
+          ! We haven't necessarily found canonical partners for all states
+          ! If a partner is absent, this means that the relevant matrix
+          ! elements of kappa are too small anyway; we can safely forget about
+          ! this term.
+$NTR      if(ibar .ne. 0 .and. jbar .ne. 0) then
+$NTR        fac= -kappa_can(ii)*kappa_can(jbar)
+$NTR        ME(1) = jx_can(ii,jj)*jx_can(jbar,ibar)
+$NTR        ME(2) = jy_can(ii,jj)*jy_can(jbar,ibar)
+$NTR        ME(3) = jz_can(ii,jj)*jz_can(jbar,ibar)
+$NTR        J2(:,it) = J2(:,it) + ME(:) * fac
+$NTR      endif
           !--------------------------------------------------------------------
           ! b) calculation of J2_pairing_cut, i.e. with pairing cutoffs
           !--------------------------------------------------------------------
@@ -1151,26 +1151,24 @@ $TR       ME(3) = 2*jz_can_cut(ii,jj)**2 ! Factor two for time-reversal
 $TR
 $TR       J2_pairing_cut(:,it) = J2_pairing_cut(:,it) + ME * fac
           ! If time-reversal is broken; we can not do things quite that easily.
-          !  => the rho-rho term and kappa-kappa term use matrix elements of 
+          !  => the rho-rho term and kappa-kappa term use matrix elements of
           !     of different states
 $NTR      fac=  rho_can(ii)   *(1-rho_can(jj))
 $NTR      ME(1) = jx_can_cut(ii,jj)**2
 $NTR      ME(2) = jy_can_cut(ii,jj)**2
 $NTR      ME(3) = jz_can_cut(ii,jj)**2
 $NTR      J2_pairing_cut(:,it) = J2_pairing_cut(:,it) + ME * fac
-          ! We haven't necessarily found canonical partners for all states 
-          ! If a partner is absent, this means that the relevant matrix 
+          ! We haven't necessarily found canonical partners for all states
+          ! If a partner is absent, this means that the relevant matrix
           ! elements of kappa are too small anyway; we can safely forget about
           ! this term.
-          if(ibar .eq. 0) cycle
-          if(jbar .eq. 0) cycle
-
-$NTR      fac= -kappa_can(ii)*kappa_can(jbar)
-$NTR      ME(1) = jx_can_cut(ii,jj)*jx_can_cut(jbar,ibar)
-$NTR      ME(2) = jy_can_cut(ii,jj)*jy_can_cut(jbar,ibar)
-$NTR      ME(3) = jz_can_cut(ii,jj)*jz_can_cut(jbar,ibar)
-$NTR      J2_pairing_cut(:,it) = J2_pairing_cut(:,it) + ME(:) * fac
-
+$NTR      if(ibar .ne. 0 .and. jbar .ne. 0) then
+$NTR        fac= -kappa_can(ii)*kappa_can(jbar)
+$NTR        ME(1) = jx_can_cut(ii,jj)*jx_can_cut(jbar,ibar)
+$NTR        ME(2) = jy_can_cut(ii,jj)*jy_can_cut(jbar,ibar)
+$NTR        ME(3) = jz_can_cut(ii,jj)*jz_can_cut(jbar,ibar)
+$NTR        J2_pairing_cut(:,it) = J2_pairing_cut(:,it) + ME(:) * fac
+$NTR      endif
         enddo
       enddo
       si = si +  N + N2
