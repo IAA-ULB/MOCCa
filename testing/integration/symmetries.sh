@@ -141,7 +141,7 @@ EOF
 
 # Run the calculation
 echo "Running $exe"
-#./$exe < tant.data > $outfile
+./$exe < tant.data > $outfile
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check=$?
 
@@ -212,7 +212,7 @@ EOF
 
 # Run the calculation
 echo "Running $exe"
-# ./$exe < tant.data > $outfile
+./$exe < tant.data > $outfile
 # ... immediately check if Tantalus reported back some error codes
 tantalus_check_P=$?
 
@@ -280,7 +280,7 @@ constraint=10
 EOF
 # Run the calculation
 echo "Running $exe"
-# ./$exe < tant.data > $outfile
+./$exe < tant.data > $outfile
 # ... immediately check if Tantalus reported back some error codes
 tantalus_check_T=$?
 
@@ -349,7 +349,7 @@ constraint=10
 /
 EOF
 # Run the initial run calculation (we don't keep the output)
-# ./$exe < tant.init.data > /dev/null
+./$exe < tant.init.data > /dev/null
 # ... but we do keep the wf file!
 mv setting_up.wf ../
 teardown_test_env
@@ -406,7 +406,7 @@ constraint=10
 EOF
 # Run the calculation
 echo "Running $exe"
-# ./$exe < tant.data > $outfile
+./$exe < tant.data > $outfile
 # ... immediately check if Tantalus reported back some error codes
 tantalus_check_TP=$?
 
@@ -508,9 +508,6 @@ compare_floats $J2z_timereversal_parity $refJ2z 0.001
 check_J2z_TP=$?
 #  aggregating across Cartesian directions
 check_J2_TP=$(( check_J2x_TP || check_J2y_TP || check_J2z_TP ))
-
-
-
 
 echo '---------------------------------'
 echo ' Energy consistency              '
