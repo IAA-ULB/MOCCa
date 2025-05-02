@@ -159,6 +159,25 @@ module fam
 
   end subroutine inifam
 
+
+  subroutine iniHFdensities()
+    ! initialse the rho and kappa matrices in HF basis as (nwt, nwt) matrices
+    ! these are coined as rho_pairing and kappa_pairing
+    implicit none
+    integer :: i
+      
+    allocate(rho_pairing(nwt,nwt))
+    allocate(kappa_pairing(nwt,nwt))
+  
+    rho_pairing = 0
+    kappa_pairing = 0
+    
+    do i=1,nwt
+      rho_pairing(i,i) = rho_can(i)
+    enddo
+  
+  end subroutine iniHFdensities
+
 end module fam
 
 program run_FAM
@@ -169,6 +188,8 @@ program run_FAM
   use fam
 
   implicit none
+  type(DensityVector) :: DensityPert
+
 
   ! integer :: ifail ! Future dev: required for HFB
 
@@ -217,7 +238,7 @@ program run_FAM
   call inilag()
 
   !------------------------------------------------------------------------------
-  ! Read all information from a wf file
+  ! Read all information from a .wf file
   call ReadWavefunction()
 
   !------------------------------------------------------------------------------
@@ -227,7 +248,6 @@ program run_FAM
   ! Provide memory for the derivatives of the spwfs
   call allocate_memory_derivatives(PairingType)
 
-
   ! Future dev: required for HFB
   ! ifail = 0
   ! call SolvePairing(pairingscheme, ifail)
@@ -235,10 +255,14 @@ program run_FAM
   ! Derive all single-particle wavefunctions on the mesh
   if(store_derivatives) call deriveHF()
 
-  ! Calculate the initial densities and the charge density (separately)
-  ! call densit(SaveRho=.false.)
+  ! construct the full HF densities rather than the merely the vector rho_can
+  if (pairingtype .eq. 0) call iniHFdensities()
 
-  call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
+  ! call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
+  ! -> not required since those are build when reading the .wf file in 
+  !    in readTantalus in IO.f90
+
+  ! Compute all local one-body densities on the mesh
   Density = densit(rho_can, kappa_pairing)
 
   call ConstructChargeDensity(Density) ! PD: necessary? 
@@ -246,9 +270,10 @@ program run_FAM
   ! Adopt the relevant quantities to the centre-of-mass of the nucleus ! PD: necessary? 
   call adapt_com(Density)  
 
-  call CalculateMoments(Density) ! Recalculate because the COM might have changed.
+  ! Recalculate because the COM might have changed.
+  call CalculateMoments(Density) 
 
-  ! initialise perturbed matrices
+  ! initialise FAM matrices end set perturbing external field
   call inifam()
 
   print *, "Reached the end successfully" 
