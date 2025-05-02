@@ -19,6 +19,7 @@ module fam
   use densities
   use moments
   use fission_MOI
+  use evolution
 
   implicit none
 
@@ -216,6 +217,20 @@ module fam
     call ConstructChargeDensity(DensityPert)
     
   end function build_perturbed_densities
+
+  subroutine build_perturbed_spHamiltonian(DensityPert) 
+    implicit none
+    type(DensityVector), intent(in) :: DensityPert
+    type(PotentialVector) :: PotentialPert
+    real(KIND=dp), allocatable :: HPert(:,:)
+    allocate(HPert(nwt,nwt))
+
+
+    PotentialPert = calcPotentials(DensityPert)
+
+    HPert = calc_sphamil(PotentialPert, .false.)
+    
+  end subroutine build_perturbed_spHamiltonian
 
 
 end module fam
