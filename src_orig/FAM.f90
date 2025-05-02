@@ -24,23 +24,23 @@ module fam
 
   !-----------------------------------------------------------------------------
   ! Define some FAM parameters
-  real(KIND=dp) :: omega ! frequency of the perturbing field 
+  complex(KIND=dp) :: omega_fam    ! frequency of the perturbing field 
   real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 1.0 MeV
   real(KIND=dp) :: eta = 1.0e-3_dp ! small parameter entering derivatives, 
                                    ! default 10^-3
   integer       :: maxfamiter = 10    ! maximal number of FAM iterations 
   !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
-  real(KIND=dp), allocatable :: X(:,:) ! forward amplitudes HF basis
+  complex(KIND=dp), allocatable :: X(:,:) ! forward amplitudes HF basis
   !                               | '-> sp index : hole
   !                               '-> sp index : particle
-  real(KIND=dp), allocatable :: Y(:,:) ! backward amplitudes HF basis
+  complex(KIND=dp), allocatable :: Y(:,:) ! backward amplitudes HF basis
   !                               | '-> sp index : hole
   !                               '-> sp index : particle
   !-----------------------------------------------------------------------------
   ! perturbed densities
-  real(KIND=dp), allocatable :: drho(:,:)   ! preturbed normal density
-  real(KIND=dp), allocatable :: dkappa(:,:) ! preturbed pairing density
+  complex(KIND=dp), allocatable :: drho(:,:)   ! preturbed normal density
+  complex(KIND=dp), allocatable :: dkappa(:,:) ! preturbed pairing density
   real(KIND=dp), allocatable :: dR(:,:)     ! preturbed generalised density
   !-----------------------------------------------------------------------------
   ! perturbed Hamiltonian
@@ -62,16 +62,19 @@ module fam
 
   contains
 
-  subroutine inifam
+  subroutine inifam(omega)
     implicit none
     !---------------------------------------------------------------------------
     ! subroutine to initialise the FAM matrices, i.e.
     !---------------------------------------------------------------------------
-
+    real(KIND=dp), intent(in) :: omega
     real(KIND=dp), allocatable :: SolidHarmHF(:,:)
     integer :: p, h
     real(KIND=dp) :: occ_h, occ_p, e_h, e_p
     logical :: ImPart
+
+    ! define complex energy as omega + i * smear
+    omega_fam = complex(omega, smear)
 
     print *, "Initialise FAM matrices" 
 
@@ -147,8 +150,8 @@ module fam
         occ_p = 2.0 - rho_can(p)
         e_p = spenergies(p) 
         if(occ_p < 1d-6) cycle
-        X(p,h) = X(p,h) / (e_p - e_h - omega )
-        Y(p,h) = Y(p,h) / (e_p - e_h + omega ) 
+        X(p,h) = X(p,h) / (e_p - e_h - omega_fam )
+        Y(p,h) = Y(p,h) / (e_p - e_h + omega_fam ) 
         ! print *, p, h, e_p, e_h, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
       enddo
     enddo
@@ -181,7 +184,9 @@ module fam
 
 
   function build_perturbed_densities(rho0, kappa0) result(DensityPert)
+    implicit none
     real(KIND=dp), intent(in) :: rho0(:,:), kappa0(:,:)
+    real(KIND=dp), allocatable :: drho_real(:,:), dkappa_real(:,:)
     type(DensityVector)       :: DensityPert
     real(KIND=dp), allocatable :: rho_c(:), kappa_c(:)
 
@@ -192,15 +197,21 @@ module fam
 
     drho = rho0 + X + transpose(Y) ! check this transpose
 
-	! TODO: verify that the trace of drho equals N
-  
+    ! PD : verified that the trace of drho equals A
+
     dkappa = kappa0
 
+    ! /!\ HACK FOR NOW
+    ! to be removed once construct_canonical_basis and densit
+    ! can deal with complex density matrices
+    drho_real = realpart(drho)
+    dkappa_real = realpart(dkappa)
 
-   	! construct the canonical basis of the perturbed rho and kappa
-    call construct_canonical_basis(drho,dkappa,rho_c,kappa_c)
+
+    ! construct the canonical basis of the perturbed rho and kappa
+    call construct_canonical_basis(drho_real,dkappa_real,rho_c,kappa_c)
     
-    DensityPert = densit(rho_c, dkappa)
+    DensityPert = densit(rho_c, dkappa_real)
     
     call ConstructChargeDensity(DensityPert)
     
@@ -256,7 +267,7 @@ program run_FAM
   ! -  the type of perturbing operator/external field: E1, E2, M1, M2, ...
   !    and more complicated stuff when targetting beta-decay
   !    Important note: we will need to distinguish
-  ! -  the frequency \omega of the perturbing field
+  ! -  the frequency \omega_fam of the perturbing field
   ! -  the 'size' of the perturbation to perform the finite differencing
   ! -  a smearing parameter to avoid discontinuities at the poles of the 
   !    response function
@@ -304,7 +315,7 @@ program run_FAM
   call CalculateMoments(Density) 
 
   ! initialise FAM matrices end set perturbing external field
-  call inifam()
+  call inifam(0.5_dp)
 
   ! Start of the iterations 
   do iteration=1, maxfamiter
