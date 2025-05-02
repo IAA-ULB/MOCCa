@@ -28,6 +28,7 @@ module fam
   real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 1.0 MeV
   real(KIND=dp) :: eta = 1.0e-3_dp ! small parameter entering derivatives, 
                                    ! default 10^-3
+  integer       :: maxfamiter = 10    ! maximal number of FAM iterations 
   !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
   real(KIND=dp), allocatable :: X(:,:) ! forward amplitudes HF basis
@@ -178,6 +179,34 @@ module fam
   
   end subroutine iniHFdensities
 
+
+  function build_perturbed_densities(rho0, kappa0) result(DensityPert)
+    real(KIND=dp), intent(in) :: rho0(:,:), kappa0(:,:)
+    type(DensityVector)       :: DensityPert
+    real(KIND=dp), allocatable :: rho_c(:), kappa_c(:)
+
+    allocate(rho_c(nwt)) 
+    allocate(kappa_c(nwt))
+
+    print *, "build perturbed densities"
+
+    drho = rho0 + X + transpose(Y) ! check this transpose
+
+	! TODO: verify that the trace of drho equals N
+  
+    dkappa = kappa0
+
+
+   	! construct the canonical basis of the perturbed rho and kappa
+    call construct_canonical_basis(drho,dkappa,rho_c,kappa_c)
+    
+    DensityPert = densit(rho_c, dkappa)
+    
+    call ConstructChargeDensity(DensityPert)
+    
+  end function build_perturbed_densities
+
+
 end module fam
 
 program run_FAM
@@ -188,6 +217,7 @@ program run_FAM
   use fam
 
   implicit none
+  integer :: iteration
   type(DensityVector) :: DensityPert
 
 
@@ -275,6 +305,15 @@ program run_FAM
 
   ! initialise FAM matrices end set perturbing external field
   call inifam()
+
+  ! Start of the iterations 
+  do iteration=1, maxfamiter
+
+    print *, "FAM iteration : ", iteration
+
+    DensityPert = build_perturbed_densities(rho_pairing, kappa_pairing)
+
+  enddo
 
   print *, "Reached the end successfully" 
 
