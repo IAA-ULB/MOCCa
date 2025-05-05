@@ -228,11 +228,14 @@ module fam
     
   end subroutine build_perturbed_densities
 
-  subroutine build_perturbed_spHamiltonian(DensityPert) 
+  subroutine build_dH(DensityPert)
     implicit none
     type(DensityVector), intent(in) :: DensityPert
     type(PotentialVector) :: PotentialPert
     real(KIND=dp), allocatable :: HPert(:,:)
+    integer :: i, h, p
+    real(KIND=dp) :: occ_h, occ_p
+
     allocate(HPert(nwt,nwt))
 
     print *, "build perturbed hamiltonian"
@@ -241,8 +244,30 @@ module fam
     PotentialPert = calcPotentials(DensityPert)
 
     HPert = calc_sphamil(PotentialPert, .false.)
-    
-  end subroutine build_perturbed_spHamiltonian
+
+    ! compute dH by finite difference, i.e. subtract the unperturbed Hamiltonian
+    do i = 1, nwt
+      HPert(i,i) = HPert(i,i) - spenergies(i) 
+    enddo
+
+    ! and devide by the small parameter eta
+    HPert = HPert / eta
+
+    ! store ph and hp blocks in dH
+    do h = 1, nwt
+      occ_h = rho_can(h)
+      if(occ_h < 1d-6) cycle
+      do p = 1, nwt
+        occ_p = 2.0 - rho_can(p) 
+        ! degeneracy 2.0 must reduced if further symmetries are broken
+        if(occ_p < 1d-6) cycle
+        dH(p,h,1) = occ_p * occ_h * HPert(p,h) ! ph block dH20(p,h)
+        dH(p,h,2) = occ_p * occ_h * HPert(h,p) ! hp block dH02(p,h)
+      enddo
+    enddo
+
+
+  end subroutine build_dH
 
 
 end module fam
@@ -349,6 +374,11 @@ program run_FAM
     print *, "FAM iteration : ", iteration
 
     call build_perturbed_densities(rho_pairing, kappa_pairing)
+
+    call build_dH(DensityPert)
+
+    call update_XY()
+
 
   enddo
 
