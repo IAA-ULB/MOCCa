@@ -153,11 +153,7 @@ module functional
 #endif
     !---------------------------------------------------------------------------
     ! Numerical parameter of the preconditioning of the Skyrme potentials
-#if(PASTA == 0)
     real(KIND=dp) :: preconfactor = 4.0_dp
-#else
-    real(KIND=dp) :: preconfactor = 1.0_dp
-#endif
     ! Kerker parameter for the preconditioning of the Coulomb potential
     ! Nuclei => don't do kerker by default
     ! Pasta  => do Kerker by default
