@@ -71,7 +71,7 @@ module fam
     real(KIND=dp), intent(in) :: omega
     real(KIND=dp), allocatable :: SolidHarmHF(:,:)
     integer :: p, h
-    real(KIND=dp) :: occ_h, occ_p, e_h, e_p
+    real(KIND=dp) :: occ_h, occ_p
     logical :: ImPart
 
     ! set omega frequency of perturbation
@@ -138,11 +138,25 @@ module fam
     ! Note to future self: for QFAM this will be replaced by a transformation 
     ! to the qp basis. 
 
+    ! initialise perturbed Hamiltonian as 0
+    dH = 0
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the RPA amplitudes 
+    call update_XY()  
 
-    X = -F(:,:,1)
-    Y = -F(:,:,2)
+  end subroutine inifam
+
+  subroutine update_XY()
+    implicit none
+    integer :: p, h
+    real(KIND=dp) :: occ_h, occ_p, e_h, e_p
+
+    print *, "update X and Y"
+
+
+    X = -F(:,:,1) - dH(:,:,1)
+    Y = -F(:,:,2) - dH(:,:,2)
 
     ! normalise with energy denominator
     do h = 1, nwt
