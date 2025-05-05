@@ -25,24 +25,25 @@ module fam
 
   !-----------------------------------------------------------------------------
   ! Define some FAM parameters
-  complex(KIND=dp) :: omega_fam    ! frequency of the perturbing field 
+  real(KIND=dp) :: omega_fam       ! frequency of the perturbing field 
   real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 1.0 MeV
   real(KIND=dp) :: eta = 1.0e-3_dp ! small parameter entering derivatives, 
                                    ! default 10^-3
-  integer       :: maxfamiter = 10    ! maximal number of FAM iterations 
+  integer       :: maxfamiter = 10 ! maximal number of FAM iterations 
   !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
   complex(KIND=dp), allocatable :: X(:,:) ! forward amplitudes HF basis
-  !                               | '-> sp index : hole
-  !                               '-> sp index : particle
+  !                                  | '-> sp index : hole
+  !                                  '-> sp index : particle
   complex(KIND=dp), allocatable :: Y(:,:) ! backward amplitudes HF basis
-  !                               | '-> sp index : hole
-  !                               '-> sp index : particle
+  !                                  | '-> sp index : hole
+  !                                  '-> sp index : particle
   !-----------------------------------------------------------------------------
   ! perturbed densities
-  complex(KIND=dp), allocatable :: drho(:,:)   ! preturbed normal density
-  complex(KIND=dp), allocatable :: dkappa(:,:) ! preturbed pairing density
-  real(KIND=dp), allocatable :: dR(:,:)     ! preturbed generalised density
+  complex(KIND=dp), allocatable :: drho(:,:)   ! perturbed normal density matrix
+  complex(KIND=dp), allocatable :: dkappa(:,:) ! perturbed pairing density matrix
+  complex(KIND=dp), allocatable :: dR(:,:)     ! perturbed generalised density matrix
+  type(DensityVector) :: DensityPert ! perturbed densities in the mesh
   !-----------------------------------------------------------------------------
   ! perturbed Hamiltonian
   real(KIND=dp), allocatable :: dH(:,:,:) ! perturbed Hamiltonian in HF basis
@@ -57,9 +58,8 @@ module fam
   !                               '-> sp index : particle
   integer :: l, m ! Principal and magnetic quantum number of the multipole moment
 
-  ! Do we need more identifiers for electric vs mqgnetic and isovector 
+  ! Do we need more identifiers for electric vs magnetic and isovector 
   ! vs isoscalar
-
 
   contains
 
@@ -74,8 +74,9 @@ module fam
     real(KIND=dp) :: occ_h, occ_p, e_h, e_p
     logical :: ImPart
 
-    ! define complex energy as omega + i * smear
-    omega_fam = complex(omega, smear)
+    ! set omega frequency of perturbation
+    omega_fam = omega
+
 
     print *, "Initialise FAM matrices" 
 
@@ -83,7 +84,7 @@ module fam
     allocate(dkappa(nwt,nwt))
     allocate(dR(2*nwt,2*nwt))
 
-    allocate(dH(nwt,nwt,2)) 
+    allocate(dH(nwt,nwt,2))
     allocate(F(nwt,nwt,2))
 
 
@@ -104,9 +105,11 @@ module fam
    
     ! Calling a function in fission_MOI.f90
     SolidHarmHF = Qlm_spme(l, m, ImPart)
-    SolidHarmHF = SolidHarmHF * (100**(l/2.0)) ! rescale, Qlm is in units barn^(l/2)
 
-    ! TODO: write a general transfromation routine from the mesh to any 
+    ! Rescale, Qlm comes in units barn^(l/2)
+    SolidHarmHF = SolidHarmHF * (100**(l/2.0)) 
+
+    ! TODO: write a general transformation routine from the mesh to any 
     !       single-particle basis
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -130,7 +133,6 @@ module fam
 
     deallocate(SolidHarmHF)
 
-
     ! This can be improved by some element-wise products occ^T @ SolidHarmHF @ occ
 
     ! Note to future self: for QFAM this will be replaced by a transformation 
@@ -151,18 +153,13 @@ module fam
         occ_p = 2.0 - rho_can(p)
         e_p = spenergies(p) 
         if(occ_p < 1d-6) cycle
-        X(p,h) = X(p,h) / (e_p - e_h - omega_fam )
-        Y(p,h) = Y(p,h) / (e_p - e_h + omega_fam ) 
+        X(p,h) = X(p,h) / (e_p - e_h - complex(omega_fam,smear) )
+        Y(p,h) = Y(p,h) / (e_p - e_h + complex(omega_fam,smear) ) 
         ! print *, p, h, e_p, e_h, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
       enddo
     enddo
 
-    ! TBD: X and Y are fully equivalent at this point. Is this expected?
-    ! is this a consequency due to < i | Qlm | j > = < j | Qlm | i > 
-
-    ! TODO: complex smearing
-
-  end subroutine inifam
+  end subroutine
 
 
   subroutine iniHFdensities()
@@ -184,11 +181,10 @@ module fam
   end subroutine iniHFdensities
 
 
-  function build_perturbed_densities(rho0, kappa0) result(DensityPert)
+  subroutine build_perturbed_densities(rho0, kappa0)
     implicit none
     real(KIND=dp), intent(in) :: rho0(:,:), kappa0(:,:)
     real(KIND=dp), allocatable :: drho_real(:,:), dkappa_real(:,:)
-    type(DensityVector)       :: DensityPert
     real(KIND=dp), allocatable :: rho_c(:), kappa_c(:)
 
     allocate(rho_c(nwt)) 
@@ -196,7 +192,7 @@ module fam
 
     print *, "build perturbed densities"
 
-    drho = rho0 + X + transpose(Y) ! check this transpose
+    drho = rho0 + eta * (X + transpose(Y)) ! check this transpose
 
     ! PD : verified that the trace of drho equals A
 
@@ -214,9 +210,9 @@ module fam
     
     DensityPert = densit(rho_c, dkappa_real)
     
-    call ConstructChargeDensity(DensityPert)
+    call ConstructChargeDensity(DensityPert) ! PD: necessary?
     
-  end function build_perturbed_densities
+  end subroutine build_perturbed_densities
 
   subroutine build_perturbed_spHamiltonian(DensityPert) 
     implicit none
@@ -224,6 +220,8 @@ module fam
     type(PotentialVector) :: PotentialPert
     real(KIND=dp), allocatable :: HPert(:,:)
     allocate(HPert(nwt,nwt))
+
+    print *, "build perturbed hamiltonian"
 
 
     PotentialPert = calcPotentials(DensityPert)
@@ -244,7 +242,6 @@ program run_FAM
 
   implicit none
   integer :: iteration
-  type(DensityVector) :: DensityPert
 
 
   ! integer :: ifail ! Future dev: required for HFB
@@ -337,7 +334,7 @@ program run_FAM
 
     print *, "FAM iteration : ", iteration
 
-    DensityPert = build_perturbed_densities(rho_pairing, kappa_pairing)
+    call build_perturbed_densities(rho_pairing, kappa_pairing)
 
   enddo
 
