@@ -139,6 +139,7 @@ ifeq ($(USE_Periodic),0)
     $(error "Periodic boundary conditions should be enforced when attempting pasta calculations.")
 endif
 endif
+
 ifeq ($(USE_Periodic),1)
 ifeq ($(DENSUM),0)
     $(error "Periodic boundary conditions require setting DENSUM = 1")
@@ -185,6 +186,12 @@ SRC    +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
 SRC    +=   IO.f90 convergence.f90 printing.f90
 SRC    +=   tantalus.version.f90
 SINGLE_SRC = $(SRC) run_single.f90
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Nilsson source files
+NIL_SRC := compilation.f90 geninfo.f90 timing.f90 derivatives.f90 nil8.f90
+NIL_SRC += wavefunctions.f90 gennilsson.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -247,16 +254,25 @@ run_heph:
 	# the Makefile
 	python3 Hephaestos.py $(CONFIG) $(DENSUM)
 
+gen_nilsson: $(PRE) $(PRE_NIL) $(NIL_OBJ)
+	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LIBS)
+	mv gen_nilsson exec/gen_nilsson.exe
+
+clean:
+	rm  -f $(OBJDIR)/*.o
+	rm  -f $(MODDIR)/*.mod
+
 $(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  $< -o $@ $(HDF5_LIB)
 
 setversioninfo:
 	# Copy the git information into the main code, so it can be printed
 	@cp $(SRCDIR)/tantalus.f90 $(SRCDIR)/tantalus.version.f90
+	@sed -i.bak 's~VTAG~"${GIT_INFO5}"~'     $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' $(SRCDIR)/tantalus.version.f90
-	@sed -i.bak 's/VERSION4/"${GIT_INFO4}"/' $(SRCDIR)/tantalus.version.f90
+# 	@sed -i.bak 's/VERSION4/"${GIT_INFO4}"/' $(SRCDIR)/tantalus.version.f90
 	#Copy the compiler information
 	@sed -i.bak 's/COMPCOMP/"${COMPVERSION}"/' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/CFLAGS/"${CXXFLAGS}"/'      $(SRCDIR)/tantalus.version.f90
@@ -268,8 +284,9 @@ getgitinfo:
 	$(eval GIT_INFO1=$(shell git show   | grep 'commit ' | head -1))
 	$(eval GIT_INFO2=$(shell git show   | grep 'Author:' | head -1))
 	$(eval GIT_INFO3=$(shell git show   | grep 'Date:'   | head -1))
-	$(eval GIT_INFO4=$(shell git branch | grep '*'       | head -1 | cut -c2- ))
-
+# 	$(eval GIT_INFO4=$(shell git branch | grep '*'       | head -1 | cut -c2- ))
+	$(eval GIT_INFO5=$(shell git describe --tags --always ))
+	echo $(GIT_INFO5)
 getcompilerinfo:
 	# Get information from 'CXX --version'
 	$(eval COMPVERSION=$(shell $(CXX) --version | head -1))

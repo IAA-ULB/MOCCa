@@ -23,13 +23,13 @@ contains
     !---------------------------------------------------------------------------
     use wavefunctions
   
-    1 format (22 ('-'), ' Sp wavefunctions ', 25('-'))
+    1 format (22 ('-'), ' Sp wavefunctions ', 30('-'))
     2 format (65 ('-'))
-    6 format (3x,'i',4x,'P',11x,'E',8x, 'JxT',7x, 'JyT', 7x ,'Jz', 9x, 'J')    
+    6 format (3x,'i',3x,'P', 1x, 'iso', 11x,'E',8x, 'JxT',7x, 'JyT', 7x ,'Jz', 9x, 'J')    
 
     integer, intent(in) :: selected
-    integer       :: wave,k
-    integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
+    integer       :: wave,k, iso
+    !integer       :: ProtonOrder(nwp), NeutronOrder(nwn)
     real(KIND=dp) :: p, Jx, Jy, Jz, JJ  
     character(len=3) :: sel
 
@@ -40,9 +40,15 @@ contains
     do k=1,nwt 
         wave = k
         
-        p = +1
-        if(k .gt. HFBlocks(1) .and. k .lt. sum(HFBlocks(1:3))) p = -1
-        if(k .gt. sum(HFBlocks(1:5))) p = -1
+        if(wave .le. nwn) then
+          iso = -1
+          p   = +1
+          if(wave .gt. HFBlocks(1)) p = -1
+        else
+          iso = +1
+          p   = +1
+          if(wave .gt. sum(HFBlocks(1:5))) p = -1
+        endif
 
         !-----------------------------------------------------------------------
         ! Depending on the symmetries, select different quantities to print 
@@ -50,8 +56,7 @@ contains
         Jx = angmom_xt_real(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
         Jy = angmom_yt_imag(HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
         Jz = angmom_z_real (HFPsi(:,:,wave),HFPsi(:,:,wave),HFdPsi(:,:,:,wave))
-      
-    
+
         JJ = & 
         &   angmom_x_quad(HFPsi(:,:,wave),HFdPsi(:,:,:,wave), &
         &                 HFPsi(:,:,wave),HFdPsi(:,:,:,wave)) &
@@ -63,7 +68,7 @@ contains
 
         sel = ''
         if(wave .eq. selected) sel = '(*)'
-        print ('(2i4,3x, a3, 99f10.3)'), wave, int(p), sel,spenergies(wave),   & 
+        print ('(3i4,3x, a3, 99f10.3)'), wave, int(p), iso, sel,spenergies(wave),   & 
         &                                                        Jx, Jy, Jz, JJ
     enddo
     print 2
@@ -71,8 +76,15 @@ contains
     wave = selected
        
     p = +1
-    if(k .gt. HFBlocks(1) .and. k .lt. sum(HFBlocks(1:3))) p = -1
-    if(k .gt. sum(HFBlocks(1:5))) p = -1
+    if(wave .le. nwn) then
+      iso = -1
+      p   = +1
+      if(wave .gt. HFBlocks(1)) p = -1
+    else
+      iso = +1
+      p   = +1
+      if(wave .gt. sum(HFBlocks(1:5))) p = -1
+    endif
 
     !-----------------------------------------------------------------------
     ! Depending on the symmetries, select different quantities to print 
@@ -111,7 +123,7 @@ program generate_nilson
 
   implicit none
 
-  1 format (3i3, f8.3, 2i3)
+  1 format (3i3, f8.3, 3i3)
   2 format (99f18.15)
 
   10 format('-----------------------------------------------------------------')
@@ -122,20 +134,21 @@ program generate_nilson
   15 format(' N, Z             = ', 2i3)
   16 format(' filename         = ', a40)
   17 format(' spwf selected    = ', i3)
-  18 format(' Selected: it = ', i3, ' P = ', i3, 'Jz = ', f8.3)
+  18 format(' Time-reversal?   = ', a20)
   integer                    ::  npp, npn, selection = 1
   real(KIND=dp)              ::  osc_x, osc_y, osc_z
 
   character(len=40)          ::  fname = 'model.spwf'
+  logical                    :: timereversal
 
   ! Practical redefinition
   real(KIND=dp), pointer             :: wf3d(:,:,:)
-  integer :: i,j,k,l, wave, par, it
+  integer :: i,j,k,l, wave, par, it, sig
 
   !-----------------------------------------------------------------------------
   ! Input phase
   namelist /nil/  nx, ny, nz, dx, neutrons, protons, nwn, nwp,  &
-  &                   osc_x, osc_y, osc_z, fname, selection
+  &                   osc_x, osc_y, osc_z, fname, selection, timereversal
 
   read(unit=*, NML=nil)
   print 10
@@ -146,19 +159,25 @@ program generate_nilson
   print 15, int(neutrons), int(protons)
   print 16, fname
   print 17, selection
+  if(timereversal) then
+    print 18, 'YES'
+  else
+    print 18, 'NO'
+  endif
   print 10
 
   ! Dealing with input in a better way
   osc_freq(1) =osc_x ;  osc_freq(2) =osc_y ; osc_freq(3) =osc_z
   npp      = int(protons)  ;  npn      = int(neutrons)  
-  nwt = nwn + nwp
+  nwt = nwn + nwp ; nwt_local = nwt ; HFBlocks_global = HFBLocks
 
   !-----------------------------------------------------------------------------
   ! Initializing everything in the code
   dv = (dx**3)*8
   mv = nx*ny*nz
-  call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid)
-  call iniwavefunctions()
+  call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid, 0.0d0,0.0d0, 0.0d0)
+  call inimesh(meshx_shifted, meshy_shifted, meshz_shifted, nx, ny,nz, meshgrid_shifted, 0.0d0,0.0d0, 0.0d0)
+  call iniwavefunctions(nx,ny,nz,nwn,nwp)
   call inilag()                               ! Initialize derivative matrices. 
   call add_timer('HF-basis Derivatives'       , T_derivatives)  
   call deriveHF()
@@ -179,13 +198,18 @@ program generate_nilson
     endif
   endif
 
+
   call nilsson_print(wave)
   !-----------------------------------------------------------------------------
   ! Writing the selected spwf to file
   open(unit=6, file = fname)
 
-
-  write(unit=6, fmt=1) nx,ny,nz,dx,it, par
+  sig = +1
+  if(timereversal) then
+    hfpsi(:,:,wave) = TimeReverse(hfpsi(:,:,wave))
+    sig = -1
+  endif
+  write(unit=6, fmt=1) nx,ny,nz,dx,it, par, sig
   do l=1,4
     wf3d(1:nx,1:ny,1:nz) => hfpsi(1:nx*ny*nz,l,wave)
     do k=1,nz

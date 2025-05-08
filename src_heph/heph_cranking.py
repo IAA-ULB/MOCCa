@@ -22,10 +22,12 @@ def ProcessCranking(fname, src, target, so):
   dic = {}
 
   dic['NTR'] = '!'
+  dic['TR']  = ''
   if( not so.timelike):
     directions = [3]
     dic['NTR'] = ''
-  
+    dic['TR']  = '!'
+
   dic['CRANKDIR'] = ""
   for d in directions:
     dic['CRANKDIR'] = dic['CRANKDIR'] + "%d,"%d

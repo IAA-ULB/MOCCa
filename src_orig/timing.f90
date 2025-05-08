@@ -310,7 +310,7 @@ contains
            write (*,*) "before printing out the timers. Some numbers may be&
                 & incorrect."
         end if
-  
+
         call calc_total_time(total)
   
         print *, 'Timers of MPI-rank ', r
@@ -400,37 +400,61 @@ contains
   end subroutine print_all_timers_aux
 
   subroutine print_all_timers()
-
+    !--------------------------------------------------------------------------
+    ! Print the timing information on a run.
+    !
+    ! For serial execution, this prints a single table reflecting all calculations.
+    ! For parallel execution, this prints one table for every symmetry block
+    ! with timing information taken from the lowest rank assigned to that
+    ! symmetry block.
+    !--------------------------------------------------------------------------
     integer :: nsub, r
     real(8) :: tsub, total
 
 #if(USE_MPI>0)
-    integer :: mpi_err
+    integer :: mpi_err, B
 #endif
 
     call calc_total_time(total)
 
-    do r=0,NPROCS-1
 #if(USE_MPI>0)
+    do B=1,8
       call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
-#endif
-      if(MPI_RANK.eq.r) then
-        print *, '-------------------------------------------------------------'
-        print *, 'Timers of rank ', r
-        print *, '-------------------------------------------------------------'
-        write (*,'(a2,tr1,a40,tr2,a10,tr2,a12,tr2,a7)') &
-             "id", "Timer name                                    ", &
-             "# of calls", "time (s)", "% total"
-        write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
-        write (*,'(2x,tr1,a,tr35,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
-                "TOTAL", "-", total, 100.d0
-        call print_all_timers_aux(0_8,0,nsub,tsub,total,.true.)
-        write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
-      endif
-#if(USE_MPI>0)
+      do r = 0, NPROCS-1
+         ! Searching for the first rank assigned to this symmetry block
+         if(MPI_BLOCK_ASSIGNMENTS(r+1) .eq. B ) then
+            if(MPI_RANK .eq. r) then
+               print *,'------------------------------------------------------------------------------'
+               print *, 'Timers of rank ', r, ' which deals with block B = ', B
+               print *,'------------------------------------------------------------------------------'
+               write (*,'(a2,tr1,a40,tr2,a10,tr2,a12,tr2,a7)') &
+                     "id", "Timer name                                    ", &
+                     "# of calls", "time (s)", "% total"
+               write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
+               write (*,'(2x,tr1,a,tr35,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
+                        "TOTAL", "-", total, 100.d0
+               call print_all_timers_aux(0_8,0,nsub,tsub,total,.true.)
+               write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
+            endif
+            exit
+         endif
+      enddo
       call MPI_BARRIER(MPI_COMM_WORLD,mpi_err)
+   enddo
+#else
+   r = 0
+   print *,'------------------------------------------------------------------------------'
+   print *, 'Timers of rank ', r
+   print *,'------------------------------------------------------------------------------'
+   write (*,'(a2,tr1,a40,tr2,a10,tr2,a12,tr2,a7)') &
+         "id", "Timer name                                    ", &
+         "# of calls", "time (s)", "% total"
+   write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
+   write (*,'(2x,tr1,a,tr35,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
+            "TOTAL", "-", total, 100.d0
+   call print_all_timers_aux(0_8,0,nsub,tsub,total,.true.)
+   write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
 #endif
-    enddo
 
   end subroutine print_all_timers
 

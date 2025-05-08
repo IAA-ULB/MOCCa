@@ -52,13 +52,14 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  !------------------------------------------------------------------------------
  ! Information gleaned from git and the Makefile, to be used to identify the
  ! executable
- character(len=58), parameter        :: version1 =VERSION1
- character(len=58), parameter        :: version2 =VERSION2
- character(len=58), parameter        :: version3 =VERSION3
- character(len=58), parameter        :: version4 =VERSION4
- character(len=58), parameter        :: compiler =COMPCOMP
- character(len=58), parameter        :: cflags   =CFLAGS
- character(len=58), parameter        :: optflags =OPTFLAGS
+ character(len=44), parameter        :: versiontag=VTAG
+ character(len=58), parameter        :: version1  =VERSION1
+ character(len=58), parameter        :: version2  =VERSION2
+ character(len=58), parameter        :: version3  =VERSION3
+!  character(len=58), parameter        :: version4  =VERSION4
+ character(len=58), parameter        :: compiler  =COMPCOMP
+ character(len=58), parameter        :: cflags    =CFLAGS
+ character(len=58), parameter        :: optflags  =OPTFLAGS
 
  !------------------------------------------------------------------------------
  ! MPI error code
@@ -84,10 +85,11 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  200 format ( 8x, '|', 59('-'), '|'  ,/,8x, '| Runtype = ', a44, 4x, '|')
 
  299 format ( 8x,'|--------------- Version Information -----------------------|')
+2991 format ( 8x,'| Version tag = ', a44, '|') ! Version tag
  300 format ( 8x,'| ', a58, '|') ! Git commit
  301 format ( 8x,'| ', a58, '|') ! Author of commit
  302 format ( 8x,'| ', a58, '|') ! Date
- 303 format ( 8x,'| Branch: ', a50, '|') ! Branch
+!  303 format ( 8x,'| Branch: ', a50, '|') ! Branch
  304 format ( 8x,'|                                                           |')
  305 format ( 8x,'|-------------- Symmetry Information -----------------------|')
  306 format ( 8x,'| S.p. generators        = ', a26, 7x, '|')
@@ -152,10 +154,14 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
    print 200, adjustl(mode_print)
    print 299
    print 304
+   print 2991, versiontag
    print 300, version1
    print 301, version2
    print 302, version3
-   print 303, version4
+
+!  There is no printing of branch information anymore, as this thing fails in
+!  github actions workflow.
+!    print 303, version4
    print 304
    !----------------------------------------------------------------------------
    ! Information about symmetry choices
@@ -305,12 +311,15 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     integer, intent(out)           :: iter
     character(len=99), intent(out) :: iomsg
 
-    integer :: iprint, scheme, ifail, mpi_err
+    integer :: iprint, scheme, ifail
     logical :: ConvergenceAchieved, calc_expensive, print_all_spwf_properties
     logical :: potentials_frozen=.true.
     ! Logical to see if any moments with feasible set projection are necessary
     logical :: projectpresent = .false.
 
+#if(USE_MPI > 0)
+    integer :: mpi_err
+#endif
 #if(DEBUG_LEVEL == 1)
     character(len=40) :: denfile_iter, potfile_iter
 #endif
@@ -578,8 +587,8 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Write a wavefunction file at each multiple of checkpointiter
         if(checkpointiter.ne.0) then
-          if(mod(iter,checkpointiter) .eq. 0) then
-#if(DEBUG_LEVEL == 1)
+        if(mod(iter,checkpointiter).eq.0) then
+#if(DEBUG_LEVEL==1)
             ! Output densities and potentials to specific files at every checkpoint
             write(denfile_iter, '("iter=",i5.5,".den")') iter
             write(potfile_iter, '("iter=",i5.5,".pot")') iter
@@ -590,7 +599,15 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 #endif
             if(MPI_RANK.eq.0) print 9, iter, outputfilename
             iomsg='CHECKPOINT'
-            !call WriteTantalus(12, outputfilename)
+            if(trim(to_upper(OutputFileName(len_trim(OutputFileName)-3:))).eq.'HDF5') then
+#if(USE_HDF5>0)
+              call WriteTantalus_hdf5(outputfilename) !new hdf5 format
+#else
+              call stp('HDF5 support was not enabled at compilation.')
+#endif
+            else
+              call WriteTantalus(12, outputfilename) ! old style in .wf file
+            endif
           endif
         endif
     enddo
@@ -621,8 +638,8 @@ subroutine printsummary(iter, potentials_frozen)
     1 format (86('-'))
     2 format (' Iteration = ',i4)
    21 format (' Potentials frozen.')
-    3 format (' dt    = ', f8.4, 4x, '  mu   = ', f8.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
-   31 format (' dtg   = ', f8.4, 4x, '  mug  = ', f8.4, ' gradn = ', es12.3)
+    3 format (' dt    = ', f10.4, 4x, '  mu   = ', f10.4, ' gradn = ', es12.3, ' D2H  = ', es12.3)
+   31 format (' dtg   = ', f10.4, 4x, '  mug  = ', f10.4, ' gradn = ', es12.3)
     4 format (' E     = ', f20.10,2x, '  DE   = ', e12.5)
    41 format (' R     = ', f20.10,2x, '  DR   = ', e12.5)
    42 format (' R-E   = ', f20.10,2x, 'D(R-E) = ', e12.5)
@@ -657,6 +674,11 @@ subroutine printsummary(iter, potentials_frozen)
         dN = part%value - part%history
         print 7, dN
     else
+        dN(1) = sum(rho_can(1:nwn))     - neutrons
+        dN(2) = sum(rho_can(nwn+1:nwt)) - protons
+        if ( any(dN(:)*dN(:) .gt. 1.d-14) ) then
+          print 7, dN
+        endif
         dF   = FermiEnergy - FermiHistory
         print 6, dF
     endif
@@ -815,8 +837,10 @@ subroutine full_printout(iter, converged, print_all_spwf_properties)
 #if(PASTA == 0 && DEBUG_LEVEL== 0)
     ! Pasta calculations typically involve TONS of spwfs
     ! .... but we might be interested in their properties when debugging!
-    call printspwfs(print_all_spwf_properties)
+    call printspwfs(print_all_spwf_properties,print_last = 0)
     call printqps(print_all_spwf_properties)
+#else
+    call printspwfs(print_all_spwf_properties,print_last=100)
 #endif
     call printallmoments
 #if(PASTA == 0)

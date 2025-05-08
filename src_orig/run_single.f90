@@ -36,7 +36,6 @@ program tantalus_single
   else
     ! Read filename
     call get_command_argument(1,filename,status=status)
-    print *, 'filename', filename
     if(status.gt.0) then
       call stp('Unknown error when reading the first command line argument.')
     elseif(status.eq.-1) then

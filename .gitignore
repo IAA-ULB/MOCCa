@@ -3,6 +3,7 @@ obj/*
 mod/*
 *exe
 *i
+
 # Do not track the make.inc currently in use
 make.inc
 
@@ -10,7 +11,13 @@ make.inc
 *.pyc
 src_heph/*.pyc
 
+site/
+
+# Do not track logs of various kinds
 testing/integration/logs/
+
+# Do not track the documentation builds
+site/ 
 
 tantalus_examples/out/
 tantalus_examples/diffs/
