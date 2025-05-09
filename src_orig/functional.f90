@@ -1535,6 +1535,7 @@ $POTENTIALPRECON
 
     !---------------------------------------------------------------------------
     ! Preconditioning for the Coulomb potential
+    ! TODO: also apply the preconditioners to the exchange potential!
     !---------------------------------------------------------------------------
     ! 1. get coulomb potentials on a typical mesh
     coul_out = transfer_coulomb_mesh(F_out,.false.) 
