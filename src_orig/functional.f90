@@ -1548,7 +1548,8 @@ $POTENTIALPRECON
     endif
 
     ! 3b. precondition with the same preconditioner as F_I_I 
-    update = PreconditionPotential(update,-preconfactor,1.0_dp, +1,+1,0) 
+    ! OPTIONAL CHANGE FOR later
+    ! update = PreconditionPotential(update,-preconfactor,1.0_dp, sx_rho,sy_rho,sz_rho)
 
     ! 4. save the result
     update = coul_in + update

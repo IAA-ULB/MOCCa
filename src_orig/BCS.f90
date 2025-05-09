@@ -139,13 +139,14 @@ contains
   character(len=2), intent(in) :: BlockLowest(:)
   integer, allocatable         :: blocked_qps(:)
   
-  1 format('---------------------------------------',/,     &
-    &        ' Warning! ',/,                                &
-    &        ' BCS calculations did not converge.',/,       &
-    &        ' Pairing iterations:  ', i4,/,                &
-    &        ' Old Fermi:    ', 2f12.7,/,                   &
-    &        ' New Fermi:    ', 2f12.7,/,                   &
-    &        '---------------------------------------')
+  1 format('--------------------------------------------------------',/, &
+    &        ' BCS calculations did not converge.',/,  &
+    &        ' Pairing iterations:  ', i4,/,           &
+    &        ' Old Fermi         :  ', 2f15.10,/,      &
+    &        ' New Fermi         :  ', 2f15.10,/,      &
+    &        ' Difference        :  ', 2f15.10,/,      &
+    &        ' Particle deviation:  ', 2f15.10,/,      &
+    &        '-----------------------------------------------------------')
 
   if(.not.allocated(Bcsf)) then
     allocate(bcsf(nwt)) ; bcsf = 0
@@ -164,26 +165,30 @@ contains
     if( all(abs(fermi - oldfermi).lt.FermiPrec)) then
       exit
     elseif(iter.eq.maxBCSiter) then
-      if(MPI_RANK.eq.0) print 1, iter, oldfermi, fermi
+      if(MPI_RANK.eq.0) print 1, iter, oldfermi, fermi, fermi-oldfermi, &
+      &                          sum(BCSoccupations(1:nwn)) -neutrons,&
+      &                          sum(BCSoccupations(nwn+1:))-protons
     endif          
   enddo
   ! Iteration end  
+  call BCSQPEnergies(Fermi)
   call calcBCSoccupations(Fermi)
   !-----------------------------------------------------------------------------
   ! Rho_pairing is diagonal for a BCS calculation
-  rho_can = 0.0
+  rho_can = 0.0d0
   do wave=1,nwt
     ! Occupations are 
     !   n_a = f_i + v_i^2 (1 - 2 * f_i)
     fac = BCSf(wave) 
     ! Note that there is already a factor two due to timereversal in    
     ! BCSoccupations, but not in the first term in the formula above.
-    rho_can(wave) = 2.0*fac + BCSoccupations(wave) * (1 - 2.0*fac)
+    rho_can(wave) = 2.0d0*fac + BCSoccupations(wave) * (1 - 2.0d0*fac)
 
     ! Failsafe
-    if(rho_can(wave).lt.0.0) then
-       rho_can(wave) = 0.0
-    endif
+    ! 06/05/'25: disabled because it lead to issues in pasta calculations
+    ! if(rho_can(wave).lt.0.0) then
+    !   rho_can(wave) = 0.0
+    ! endif
   enddo
 
   !-----------------------------------------------------------------------------
@@ -193,12 +198,12 @@ contains
   !
   ! u * v  = 0.5 * Delta/(sqrt(epsilon**2 + Delta**2))
   !-----------------------------------------------------------------------------
-  kappa_can = 0.0
+  kappa_can = 0.0d0
   do wave=1,nwt
      ! At finite temperature, the elements of kappa are
      ! kappa_i\bar{i} = u_i v_i ( 1 - 2 * f_i )
      fac             = BCSf(wave)
-     kappa_can(wave) = 0.5 * BCSgaps(wave)/(BCSqps(wave)) * (1 - 2.0*fac)
+     kappa_can(wave) = 0.5d0 * BCSgaps(wave)/(BCSqps(wave)) * (1 - 2.0d0*fac)
   enddo
 
   ! Qpenergies in this case are the BCSqpenergies
@@ -242,7 +247,7 @@ contains
     if(ConstantGap) then  
       ! Constantgap pairing
       do wave=1,nwt
-          BCSGaps(wave) = 2.0 * PCutoffs(wave)**2
+          BCSGaps(wave) = 2.0d0 * PCutoffs(wave)**2
       enddo
     else
        ! Use the delta_action function to calculate the matrix elements
@@ -309,7 +314,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
 
       fac =  BCSf(wave) 
       lambdasums(1,it)= lambdasums(1,it) +(1.0_dp - nom/eqp*(1-2*fac))
-      lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)         
+      lambdasums(2,it)= lambdasums(2,it) +       1.0_dp/eqp*(1-2*fac)
     enddo
     do it=1,2
         Fermi(it)=(particles(it)  - lambdasums(1,it))/lambdasums(2,it)
@@ -355,7 +360,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
     !---------------------------------------------------------------------------
     ! Zero-temperature
     if(inversetemp .lt. 0) then
-      occ = 0.0
+      occ = 0.0d0
       select case(Blocktype)
       case(0)
         ! No blocking, all the f are zero
@@ -473,7 +478,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
       select case(gas)
       case(0)
         ! No special treatment of the gas
-        f = 1./(1. + exp(inversetemp * BCSqps))
+        f = 1.d0/(1.d0 + exp(inversetemp * BCSqps))
       case(1)
         ! Not implemented!
         call stp('gastype = 1 is not implemented in the BCS module.')
@@ -481,9 +486,9 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         ! Only take into account the bound states
         do wave=1,nwt
           if(spenergies(wave) .lt. 0) then
-            f(wave) = 1./(1. + exp(inversetemp * BCSqps(wave)))
+            f(wave) = 1.d0/(1.d0 + exp(inversetemp * BCSqps(wave)))
           else 
-            f(wave) = 0
+            f(wave) = 0d0
           endif
         enddo
       case DEFAULT
@@ -536,7 +541,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
     real(KIND=dp)               :: eqp
     
     if(.not.allocated(BCSoccupations)) then
-      allocate(BCSoccupations(nwt)) ; BCSoccupations = 0.0
+      allocate(BCSoccupations(nwt)) ; BCSoccupations = 0.0d0
     endif
     
     do wave=1,nwt
@@ -546,7 +551,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
       eqp = BCSqps(wave)
 
       ! Zero-temperature BCS
-      BCSOccupations(wave) = 0.5*(1 - (spenergies(wave) - Fermi(it))/eqp)
+      BCSOccupations(wave) = 0.5d0*(1 - (spenergies(wave) - Fermi(it))/eqp)
     enddo
     ! Time reversal symmetry
     BCSOccupations = 2 * BCSOccupations
@@ -580,16 +585,16 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
       integer :: wave
 
       ! BCS dispersion
-      BCSdispersion = 0.0    
+      BCSdispersion = 0.0d0
       do wave=1,nwn
         BCSdispersion(1) = BCSdispersion(1)                                    &
-        &                             + 0.5*rho_can(wave)*(1-0.5*rho_can(wave))&
+        &                             + 0.5d0*rho_can(wave)*(1-0.5d0*rho_can(wave))&
         &                             + kappa_can(wave)**2
       enddo
 
       do wave=nwp+1,nwt
         BCSdispersion(2) = BCSdispersion(2)                                    &
-        &                             + 0.5*rho_can(wave)*(1-0.5*rho_can(wave))&
+        &                             + 0.5d0*rho_can(wave)*(1-0.5d0*rho_can(wave))&
         &                             + kappa_can(wave)**2
       enddo
       BCSdispersion  = 2 * BCSdispersion
@@ -621,7 +626,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         it = 1
         if(wave.gt.nwn) it = 2
       
-        uv = 0.5 * BCSgaps(wave)/(BCSqps(wave))
+        uv = 0.5d0 * BCSgaps(wave)/(BCSqps(wave))
         v2 =       BCSoccupations(wave)
 
         ! Note that the definition of the gaps include the cutoff factors. 
@@ -681,7 +686,7 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         Eswap(HolePos) = Eswap(HolePos-1)
         Indices(HolePos) = Indices(HolePos-1)
         HolePos = HolePos - 1
-        if(HolePos.eq.1.0_dp) exit
+        if(HolePos.eq.1) exit
       enddo
       !Insert the energy at the correct place
       Eswap(HolePos)    = ToInsert
