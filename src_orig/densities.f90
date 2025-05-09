@@ -600,6 +600,11 @@ end function densit
     !---------------------------------------------------------------------------
     use Folding
 
+    4 format ('-------------------------------------------------------------------')
+    1 format (' Warning: the charge in your system is not equal to the desired one.')
+    2 format (' Number of protons - \int charge density = ', es10.3 )
+    3 format (' The electron density is compensating.')
+
     type(DensityVector),intent(inout) :: R
     real(KIND=dp)              :: temp(nx,ny,nz)
     integer                    :: i,j,k
@@ -683,12 +688,25 @@ end function densit
     !---------------------------------------------------------------------------
     ! When performing simulations for nuclear pasta, one assumes the entire 
     ! volume is charge neutral: a constant background of electrons floods the 
-    ! entire simulation volume. We subtract this backrgound here.
+    ! entire simulation volume. We subtract thi s backrgound here.
 #if(PASTA==1)
     volume=nx*ny*nz*dv   ! simplification by WR: the physical volume simulated
                          ! can just be gotten by the volume element...
-    rho_el=protons/volume
-    !print *, protons,sum(rho_charge)*dv
+    rho_el=sum(R%chargedensity)*dv/volume
+    ! Note: it is CRUCIAL to put here the integral of the charge density as
+    !       opposed to just the number of protons. If, for whatever reason,
+    !       the code fails to build a proton + neutron charge density that
+    !       does not integrate perfectly to tthe number of protons, then
+    !       putting the number of protons here will lead to a small amount
+    !       of charge; this will blow up the Coulomb solver if periodic
+    !       boundary conditions are applied.
+
+    if(abs(sum(R%chargedensity)*dv - protons) > 1e-7) then
+      print 4
+      print 1
+      print 2, protons - sum(R%chargedensity)*dv
+      print 4
+    endif
     R%chargedensity = R%chargedensity -rho_el
 #endif
     call stop_timer(T_chargedensity)

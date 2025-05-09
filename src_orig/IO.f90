@@ -290,6 +290,7 @@ contains
    98 format ( '  Derivatives stored explicitly: ', a3)
   990 format ( '  Nilsson initialization with hom = (', 3(f7.3) ,')')
   991 format ( '  Initialization with random spwfs')
+  992 format ( '  HFBlocks = ', 8i5)
    10 format ( ' IO information', / &
     &          '  inputfilename  =', a32, / &
     &          '  outputfilename =', a32)
@@ -340,12 +341,13 @@ contains
       print 7 , neutrons, protons
       print 8
       print 9 , nwt,nwn,nwp
+      print 992, HFBlocks_global
       if(store_derivatives) then
         print 98, 'YES'
       else
         print 98, ' NO'
       endif
-      if(trim(to_upper(inputfilename)).eq.'INIT') then
+      if(trim(to_upper(inputfilename)).eq.'INIT' ) then !TODO: make this print too when starting from potentials
         if(adjustl(ini_strategy) .eq. 'NILSSON') then
           print 990, osc_freq
         elseif(adjustl(ini_strategy) .eq. 'RANDOM') then
@@ -1038,7 +1040,7 @@ contains
     ! Multipole moment information
     ! Note: ReadMoment handles all MPI affairs itself
     io = 0
-    do while(io.eq.0) 
+    do while(io.eq.0)
       call ReadMoment(chan,io)
     enddo
 

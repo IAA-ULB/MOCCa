@@ -1534,23 +1534,28 @@ $NTR F%G_I_N = F%G_I_N + crank_current_potential()
 $POTENTIALPRECON
 
     !---------------------------------------------------------------------------
-    ! Preconditioning for the Coulomb potential: we safeguard against 
-    ! long wavelength modes with a low-pass filter. This is typically only
-    ! necessary for calculations in very large boxes.
-if(kerker_k0 .gt. 0.0d0) then    
+    ! Preconditioning for the Coulomb potential
+    ! TODO: also apply the preconditioners to the exchange potential!
+    !---------------------------------------------------------------------------
     ! 1. get coulomb potentials on a typical mesh
     coul_out = transfer_coulomb_mesh(F_out,.false.) 
     coul_in  = transfer_coulomb_mesh(F_in,.false.)
     ! 2. calculate the difference
     update = coul_out - coul_in
-    ! 3. precondition
-    ! TODO: adapt call to symmetries of the calculation
-    !       experiment and document k0
-    update = KerkerPreconditionPotential(update,mixstepsize,kerker_k0,sx_rho,sy_rho,sz_rho)
+
+    if(kerker_k0 .gt. 0.0d0) then    
+      ! 3a. precondition with Kerker preconditioner 
+      update = KerkerPreconditionPotential(update,mixstepsize,kerker_k0,sx_rho,sy_rho,sz_rho)
+    endif
+
+    ! 3b. precondition with the same preconditioner as F_I_I 
+    ! OPTIONAL CHANGE FOR later
+    ! update = PreconditionPotential(update,-preconfactor,1.0_dp, sx_rho,sy_rho,sz_rho)
+
     ! 4. save the result
     update = coul_in + update
     call set_coul(update(:,1:2), F)
-endif
+    !---------------------------------------------------------------------------
 
     call stop_timer(T_pot_precon)
     call stop_timer(T_potentials)
