@@ -16,8 +16,9 @@ setup_test_env () {
 # 3. copy the relevant executable and .param file there
 #
 # Arguments are:
-#  $1 => configuration file name, or rather the X in Tantalus.X.exe
-#  $2 => parameterization name, or rather the X in X.param
+#  $1 => naming scheme, i.e. strings to use for filenames
+#  $2 => configuration file name, or rather the X in Tantalus.X.exe
+#  $3 => parameterization name, or rather the X in X.param
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 #1. environment variables
