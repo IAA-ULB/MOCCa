@@ -701,11 +701,13 @@ end function densit
     !       of charge; this will blow up the Coulomb solver if periodic
     !       boundary conditions are applied.
 
-    if(abs(sum(R%chargedensity)*dv - protons) > 1e-7) then
-      print 4
-      print 1
-      print 2, protons - sum(R%chargedensity)*dv
-      print 4
+    if(MPI_RANK .eq. 0) then
+      if(abs(sum(R%chargedensity)*dv - protons) > 1e-7) then
+        print 4
+        print 1
+        print 2, protons - sum(R%chargedensity)*dv
+        print 4
+      endif
     endif
     R%chargedensity = R%chargedensity -rho_el
 #endif
