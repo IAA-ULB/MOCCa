@@ -9,15 +9,20 @@
 #
 #-------------------------------------------------------------------------------
 name: Tantalus CI/CD Workflow
-#TODO: fix pasta and ifort compilation
+#TODO:
+# - fix pasta and ifort compilation
+# - reenable tests with HFB for the
 on:
   push:
     branches:
       - master
-      - difficult_merge_master
+      - difficult_merge
+      - FAM
   pull_request:
     branches:
       - master
+      - difficult_merge
+      - FAM
 jobs:
   compile:
     #------------------------------------------------------------------------------
@@ -32,19 +37,23 @@ jobs:
         CONFIG  :   [ NLO, BXL,BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP ]
         COMPILER:   [ gfortran ]
         CALCTYPE:   [ NUCLEI   ]
-        # TODO Reactivate!
-#        include :
-#            # Only check pasta with BXL and ifort compiler
-#            - CALCTYPE: PASTA
-#              CONFIG  : BXL
-#              COMPILER: ifx
-#            # Compile one thing with ifort to have a compiler independence check
-#            - CALCTYPE: NUCLEI
-#              CONFIG  : NLO
-#              COMPILER: ifx
+        include :
+            # Only check pasta with BXL and ifort compiler
+            - CALCTYPE: PASTA
+              CONFIG  : BXL
+              COMPILER: ifx
+            # Compile a few things with ifort to have a compiler independence check
+            - CALCTYPE: NUCLEI
+              CONFIG  : NLO
+              COMPILER: ifx
+            - CALCTYPE: NUCLEI
+              CONFIG  : BXL
+              COMPILER: ifx
     env:
       # Uniquely labelling the executables with this environment variable
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+      # Compiler family
+      COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -60,13 +69,19 @@ jobs:
         run: |
             mkdir src/
             cp src_orig/*.f90 src
+      # - name: Compile Tantalus
+      #   if: ${{ contains(github.ref, "master") }}
+      #   # The setvars.sh ensures that the intel compilers are available on the astropcs
+      #   run: |
+      #     source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+      #     make CONFIG=${{ matrix.CONFIG }} COMPILER=${{ matrix.COMPILER }} EXENAME=Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
       - name: Compile Tantalus
-        # The setvers.sh ensures that the intel compilers are available on the astropcs
+        # 1. The setvars.sh ensures that the intel compilers are available on the astropcs
+        # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          cp make_include/make.inc.gnu-serial make.inc                  
-          make CONFIG=${{ matrix.CONFIG }} COMPILER=${{ matrix.COMPILER }} EXENAME=Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
-        # TODO: adapt the make.inc-template copied to ifort compilers...
+          cp make_include/make.inc.${{ env.COMPFAM }}-serial make.inc
+          make CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload compilation artifact
         # Upload the executable such that next steps can download them!
@@ -111,12 +126,58 @@ jobs:
           name: minimal-${{ env.SUFFIX }}
           path: testing/integration/logs/minimal.${{ env.SUFFIX }}.out
           retention-days: 90
+  boundary_conditions:
+    #-----------------------------------------------------------------------------
+    # Run the boundary conditions test
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs:   compile
+    strategy:
+      matrix:
+        COMPILER:
+          - ifx
+    env:
+      SUFFIX: BXL.${{ matrix.COMPILER }}
+    steps:
+      # Start by downloading the relevant executable
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.SUFFIX }}.NUCLEI
+          path: exec/
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.SUFFIX }}.PASTA
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run: |
+          chmod +x exec/Tantalus.${{ env.SUFFIX }}.NUCLEI.exe
+          chmod +x exec/Tantalus.${{ env.SUFFIX }}.PASTA.exe
+
+      - name: Run boundary conditions test
+        # Perform the test
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash boundary_conditions.sh -p BSkG3_naked -e $SUFFIX.NUCLEI -f $SUFFIX.PASTA
+
+      - name: Upload test results
+        # Upload the log files as artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boundary_conditions-${{ env.SUFFIX }}
+          path: |
+            testing/integration/logs/minimal.${{ env.SUFFIX }}.NUCLEI.out
+            testing/integration/logs/minimal.${{ env.SUFFIX }}.PASTA.out
+          retention-days: 90
   store_derivatives:
     #-----------------------------------------------------------------------------
     # Run the 'store_derivatives' test
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile
+    if: github.ref == 'refs/heads/master'
     strategy:
       matrix:
         CONFIG  : [BXL,N2LO]
@@ -159,6 +220,7 @@ jobs:
   symmetries:
     runs-on: self-hosted
     needs: compile
+    if: github.ref == 'refs/heads/master'
     strategy:
       matrix:
         CONFIG  : [BXL, N2LO]

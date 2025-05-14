@@ -149,7 +149,6 @@ function Add_densityvector(R1, R2) result(R)
   !-----------------------------------------------------------------------------
   type(DensityVector), intent(in) :: R1, R2
   type(DensityVector)             :: R
-  real(KIND=dp) :: stor
 
 $INITIALIZATION
 $ADD
@@ -166,7 +165,8 @@ function multiply_densityvector(a, R1) result(R)
   type(DensityVector), intent(in) :: R1
   real(KIND=dp), intent(in)       :: a
   type(DensityVector)             :: R
-  real(KIND=dp) :: stor
+!   real(KIND=dp) :: stor ! Commented for now: required for memory estimation
+!                         ! through Hephaestos
 
 $INITIALIZATION
 $MULTIPLY
@@ -582,12 +582,13 @@ $DERIVATION
     ! Calculate the densities in isospin representation 
 $ISOSPINCOUPL
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    R%divJ(:,3) = R%divJ(:,1) + R%divJ(:,2)
+    R%divJ(:,4) = R%divJ(:,1) - R%divJ(:,2)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
     call constructchargedensity(R)
-    
-    call stop_timer(T_densities)
 
+    call stop_timer(T_densities)
 end function densit
 
  subroutine ConstructChargeDensity(R)
@@ -598,6 +599,11 @@ end function densit
     ! TODO: document what this routine does precisely
     !---------------------------------------------------------------------------
     use Folding
+
+    4 format ('-------------------------------------------------------------------')
+    1 format (' Warning: the charge in your system is not equal to the desired one.')
+    2 format (' Number of protons - \int charge density = ', es10.3 )
+    3 format (' The electron density is compensating.')
 
     type(DensityVector),intent(inout) :: R
     real(KIND=dp)              :: temp(nx,ny,nz)
@@ -682,12 +688,25 @@ end function densit
     !---------------------------------------------------------------------------
     ! When performing simulations for nuclear pasta, one assumes the entire 
     ! volume is charge neutral: a constant background of electrons floods the 
-    ! entire simulation volume. We subtract this backrgound here.
+    ! entire simulation volume. We subtract thi s backrgound here.
 #if(PASTA==1)
     volume=nx*ny*nz*dv   ! simplification by WR: the physical volume simulated
                          ! can just be gotten by the volume element...
-    rho_el=protons/volume
-    !print *, protons,sum(rho_charge)*dv
+    rho_el=sum(R%chargedensity)*dv/volume
+    ! Note: it is CRUCIAL to put here the integral of the charge density as
+    !       opposed to just the number of protons. If, for whatever reason,
+    !       the code fails to build a proton + neutron charge density that
+    !       does not integrate perfectly to tthe number of protons, then
+    !       putting the number of protons here will lead to a small amount
+    !       of charge; this will blow up the Coulomb solver if periodic
+    !       boundary conditions are applied.
+
+    if(abs(sum(R%chargedensity)*dv - protons) > 1e-7) then
+      print 4
+      print 1
+      print 2, protons - sum(R%chargedensity)*dv
+      print 4
+    endif
     R%chargedensity = R%chargedensity -rho_el
 #endif
     call stop_timer(T_chargedensity)
@@ -723,7 +742,8 @@ function divJ_spwf(der_index)
     ! flag requires that this function call be within a loop.
     !
     !---------------------------------------------------------------------------
-    integer, intent(in)       :: der_index
+    integer, intent(in) :: der_index
+
     real(KIND=dp) :: divJ_spwf(nx*ny*nz)
     ! MB 24/12/14 comment use of Pauli back in now that the memory leak is fixed
     real(KIND=dp) :: temp(nx*ny*nz,4)
@@ -753,34 +773,34 @@ function divJ_spwf(der_index)
 
 end function divJ_spwf
 
-!subroutine MassageDensity()
-!    !---------------------------------------------------------------------------
-!    ! Operate on the density before feeding it into the rest of the program.
-!    !---------------------------------------------------------------------------
-!    real(KIND=dp), target  :: resid(nx*ny*nz,4)
-!$NTR real(KIND=dp), target :: sresid(nx*ny*nz,3,4)
-!    if(all(D_I_I_hist.eq.0.0)) return
-!    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! Compute the residual
-!    resid = D_I_I - D_I_I_hist(:,:,1)
-!$NTR    sresid = D_I_S - D_I_S_hist(:,:,:,1)
-!    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! Perform mixing
-!    select case(densitymixing) 
-!    case(0)
-!        !-----------------------------------------------------------------------
-!        ! Precondition the potentials instead of the densities. 
-!        ! So do nothing to the densities.
-!    case(1)
-!        !-----------------------------------------------------------------------
-!        ! Simple linear mixing at the moment.
-!        D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * resid
-!$NTR    D_I_S = D_I_S_hist(:,:,:,1) + (1-denmix) * sresid
-!    end select
-!    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!    ! Safeguard
-!    where(D_I_I.lt.1d-10) D_I_I = 0 
-!end subroutine MassageDensity
+! subroutine MassageDensity()
+!     !---------------------------------------------------------------------------
+!     ! Operate on the density before feeding it into the rest of the program.
+!     !---------------------------------------------------------------------------
+!     real(KIND=dp), target  :: resid(nx*ny*nz,4)
+! $NTR real(KIND=dp), target :: sresid(nx*ny*nz,3,4)
+!     if(all(D_I_I_hist.eq.0.0)) return
+!     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Compute the residual
+!     resid = D_I_I - D_I_I_hist(:,:,1)
+! $NTR    sresid = D_I_S - D_I_S_hist(:,:,:,1)
+!     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Perform mixing
+!     select case(densitymixing)
+!     case(0)
+!         !-----------------------------------------------------------------------
+!         ! Precondition the potentials instead of the densities.
+!         ! So do nothing to the densities.
+!     case(1)
+!         !-----------------------------------------------------------------------
+!         ! Simple linear mixing at the moment.
+!         D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * resid
+! $NTR    D_I_S = D_I_S_hist(:,:,:,1) + (1-denmix) * sresid
+!     end select
+!     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Safeguard
+!     where(D_I_I.lt.1d-10) D_I_I = 0
+! end subroutine MassageDensity
 
 function couple_iso(density, iso) result(coupled)
     !---------------------------------------------------------------------------

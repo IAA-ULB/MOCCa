@@ -26,7 +26,7 @@ module Printing
  
 contains
 
-  subroutine PrintSpwfs(print_advanced)
+  subroutine PrintSpwfs(print_advanced,print_last)
     !---------------------------------------------------------------------------
     ! Print the info of the (physical) Hartree-Fock basis and the canonical
     ! basis in the case of HFB calculations.
@@ -34,6 +34,10 @@ contains
     ! Input:
     !   print_advanced : logical, if .true. print ALL details of the spwfs
     !                             if .false., skip some properties
+    !
+    !   printlast      : integer, if non-zero, print only information on this
+    !                             amount of highest-energy spwfs in each
+    !                             isospin block
     !---------------------------------------------------------------------------
 
     10 format (42 ('-'), ' Hartree-Fock basis', 80('-'))
@@ -55,7 +59,9 @@ contains
     &          1x, f9.3, 1x,es8.1,1x, f6.2,  1x,'|', 4(3x, '*', 3x), 1x, '|',  &
     &          3(3x, '*', 3x), ' | ', 3x, '*', 2x , ' | ', i4)
 
-    logical, intent(in) ::  print_advanced
+    logical, intent(in) :: print_advanced
+    integer, intent(in) :: print_last
+
     integer          :: wave,k, B, si, N, T, wavebar, l
     integer          :: ProtonOrder(nwp), NeutronOrder(nwn), sumocc
     real(KIND=dp)    :: p, Jx, Jy, Jz, JJ, s, Delta, Sx, Sy, Sz, r2
@@ -91,11 +97,18 @@ contains
     print 20
     do k=1,nwn 
         wave = NeutronOrder(k)
+
+        if(print_last .ne. 0 .and. k .lt. (nwn - print_last) ) cycle
+
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
+#if(PASTA == 0)
         P = P_hf(wave)
-
+#else
+        ! Temporary hack
+        P = 0
+#endif
         if(wave .le. sum(HFBlocks_global(1:2))) then
             if(wave .le. HFBlocks_global(1)) then
                s = +1
@@ -149,10 +162,20 @@ $TR     sumocc = 2*k
     print 20
     do k=1,nwp
         wave = ProtonOrder(k)
+
+        if(print_last .ne. 0 .and. k .lt. (nwp - print_last) ) cycle
+
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
-        P = P_hf(wave)        
+
+#if(PASTA == 0)
+        P = P_hf(wave)
+#else
+        ! Temporary hack
+        P = 0
+#endif
+
         if(wave .le. sum(HFBlocks_global(1:6))) then
             if(wave .le. sum(HFBlocks_global(1:5))) then
                s = +1
@@ -224,6 +247,9 @@ $TR     sumocc = 2*k
 
     do k=1,nwn 
       wave = NeutronOrder(k) 
+
+      if(print_last .ne. 0 .and. k .lt. (nwn - print_last) ) cycle
+
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 
@@ -289,6 +315,9 @@ $TR     sumocc = 2*k
 
     do k=1,nwp 
       wave = ProtonOrder(k) 
+
+      if(print_last .ne. 0 .and. k .lt. (nwp - print_last) ) cycle
+
 $NTR    sumocc = k
 $TR     sumocc = 2*k
 

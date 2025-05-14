@@ -153,19 +153,11 @@ module functional
 #endif
     !---------------------------------------------------------------------------
     ! Numerical parameter of the preconditioning of the Skyrme potentials
-#if(PASTA == 0)
     real(KIND=dp) :: preconfactor = 4.0_dp
-#else
-    real(KIND=dp) :: preconfactor = 1.0_dp
-#endif
     ! Kerker parameter for the preconditioning of the Coulomb potential
     ! Nuclei => don't do kerker by default
     ! Pasta  => do Kerker by default
-#if(PASTA == 0)
     real(KIND=dp) :: kerker_k0    = 0.0d0 ! typical screening length ~ 100 fm
-#else
-    real(KIND=dp) :: kerker_k0    = 2*pi/100 ! typical screening length ~ 100 fm
-#endif
     real(KIND=dp) :: mixstepsize  = 1.0d0
     !---------------------------------------------------------------------------
     ! Stabilisation factor for the pairing:
@@ -1376,9 +1368,8 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     ! (2)  The Coulomb potential is part of the field-vector, and hence 
     !      gets calculated here as well. 
     !---------------------------------------------------------------------------
-    use Coulombmod , only : SolveCoulomb
-    use Coulombmod , only : Coulomb_read_from_file
-    use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
+    use Coulombmod, only : SolveCoulomb
+    use Coulombmod, only : Coulomb_read_from_file
     use pairing_strengths, only : vmicro, vmicro_stored
     use moments
 
@@ -1481,7 +1472,6 @@ $CALCPOTENTIALS
     ! Output:
     !   F : where the new F_I_I = old F_I_I + coulomb potentials
     !-----------------------------------------------------------------------------
-    use Coulombmod , only : coul_offset_x, coul_offset_y, coul_offset_z
     type(PotentialVector), intent(inout) :: F
     real(KIND=dp)                        :: pot(mv,4)
 
@@ -1502,6 +1492,8 @@ $CALCPOTENTIALS
     !    F : potentialvector, with modified F_I_S and G_I_N.
     !-----------------------------------------------------------------------------
     type(PotentialVector), intent(inout) :: F
+$TR real(KIND=dp)                        :: trash
+$TR trash = F%F_I_I(1,1) ! to stop compiler complaints when time-reversal is conserved
 
 $NTR F%F_I_S = F%F_I_S + crank_spin_potential()
 $NTR F%G_I_N = F%G_I_N + crank_current_potential()
@@ -1529,8 +1521,6 @@ $NTR F%G_I_N = F%G_I_N + crank_current_potential()
     real(KIND=dp), allocatable        :: update(:,:)
     real(KIND=dp)                     :: coul_in(mv,4), coul_out(mv,4)
 
-    integer                           :: i,j,k, ox, oy, oz, it
-
     call start_timer(T_potentials)
     call start_timer(T_pot_precon)
 
@@ -1544,23 +1534,28 @@ $NTR F%G_I_N = F%G_I_N + crank_current_potential()
 $POTENTIALPRECON
 
     !---------------------------------------------------------------------------
-    ! Preconditioning for the Coulomb potential: we safeguard against 
-    ! long wavelength modes with a low-pass filter. This is typically only
-    ! necessary for calculations in very large boxes.
-if(kerker_k0 .gt. 0.0d0) then    
+    ! Preconditioning for the Coulomb potential
+    ! TODO: also apply the preconditioners to the exchange potential!
+    !---------------------------------------------------------------------------
     ! 1. get coulomb potentials on a typical mesh
     coul_out = transfer_coulomb_mesh(F_out,.false.) 
     coul_in  = transfer_coulomb_mesh(F_in,.false.)
     ! 2. calculate the difference
     update = coul_out - coul_in
-    ! 3. precondition
-    ! TODO: adapt call to symmetries of the calculation
-    !       experiment and document k0
-    update = KerkerPreconditionPotential(update,mixstepsize,kerker_k0,sx_rho,sy_rho,sz_rho)
+
+    if(kerker_k0 .gt. 0.0d0) then    
+      ! 3a. precondition with Kerker preconditioner 
+      update = KerkerPreconditionPotential(update,mixstepsize,kerker_k0,sx_rho,sy_rho,sz_rho)
+    endif
+
+    ! 3b. precondition with the same preconditioner as F_I_I 
+    ! OPTIONAL CHANGE FOR later
+    ! update = PreconditionPotential(update,-preconfactor,1.0_dp, sx_rho,sy_rho,sz_rho)
+
     ! 4. save the result
     update = coul_in + update
     call set_coul(update(:,1:2), F)
-endif
+    !---------------------------------------------------------------------------
 
     call stop_timer(T_pot_precon)
     call stop_timer(T_potentials)
@@ -2440,7 +2435,7 @@ $PVECTORINPRODUCT
     character(len=*), intent(in) :: ifn
 
     logical :: exists
-    integer :: i,j,k,io, it, mu, nu, ox, oy, oz, headercount
+    integer :: i,j,k,io,  mu, nu, ox, oy, oz, headercount
     real(KIND=dp), allocatable :: Vc(:), Ec(:)
     real(KIND=dp)              :: x,y,z
     character(len=200)         :: temp

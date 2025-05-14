@@ -266,7 +266,6 @@ gen_nilsson: $(PRE) $(PRE_NIL) $(NIL_OBJ)
 	mv gen_nilsson exec/gen_nilsson.exe
 
 
-
 $(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  $< -o $@ $(HDF5_LIB)
 
@@ -280,6 +279,7 @@ setversioninfo:
 	# Copy the compiler information
 	@sed -i.bak 's!COMPCOMP!"${COMPVERSION}"!' $(SRCDIR)/tantalus.version.f90
 	# The above command uses '!' as sed delimiter, because Ubuntu sometimes uses ~ for kernel versions
+
 	@sed -i.bak 's/CFLAGS/"${CXXFLAGS}"/'      $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/OPTFLAGS/"${OPTFLAGS}"/'    $(SRCDIR)/tantalus.version.f90
 	@rm $(SRCDIR)/tantalus.version.f90.bak

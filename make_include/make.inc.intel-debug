@@ -29,7 +29,7 @@ PYTHON_CMD  = python3
 # OPTFLAGS   : optimisation flags to pass to the compiler
 # CXXFLAGS   : other "general use" flags
 # PREPFLAG   : preprocessor flag, i.e. the "-cpp" in "gfortran -cpp"
-CXX       = ifort
+CXX       = ifx
 OPTFLAGS  = -g -traceback -check bounds
 CXXFLAGS  = -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin -heap-arrays -diag-disable=10448
 PREPFLAG  = -cpp
