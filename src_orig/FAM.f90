@@ -167,8 +167,8 @@ module fam
         occ_p = 2.0 - rho_can(p)
         e_p = spenergies(p) 
         if(occ_p < 1d-6) cycle
-        X(p,h) = X(p,h) / (e_p - e_h - complex(omega_fam,smear) )
-        Y(p,h) = Y(p,h) / (e_p - e_h + complex(omega_fam,smear) ) 
+        X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear) )
+        Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear) )
         ! print *, p, h, e_p, e_h, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
       enddo
     enddo
@@ -215,9 +215,8 @@ module fam
     ! /!\ HACK FOR NOW
     ! to be removed once construct_canonical_basis and densit
     ! can deal with complex density matrices
-    drho_real = realpart(drho)
-    dkappa_real = realpart(dkappa)
-
+    drho_real   = DBLE(drho)
+    dkappa_real = DBLE(dkappa)
 
     ! construct the canonical basis of the perturbed rho and kappa
     call construct_canonical_basis(drho_real,dkappa_real,rho_c,kappa_c)
