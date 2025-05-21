@@ -275,7 +275,7 @@ program run_FAM
 
   use compilation
   use IO
-  use Tantalus
+  use Tantalus, only : print_header, initialize_all_timers
   use fam
 
   implicit none
@@ -284,23 +284,8 @@ program run_FAM
 
   ! integer :: ifail ! Future dev: required for HFB
 
-  100 format &
-     &  (/,8x,' _____________________________________________________________', &
-     &   /,8x,'|                                                             |', &
-     &   /,8x,'| MOCCa v2.0 =                                                |', &
-     &   /,8x,'|                                                             |', &
-     &   /,8x,'|    #####  ##   #     # #####   ##   #      #    #  ####     |', &
-     &   /,8x,'|    #     #  #  ##   ##   #    #  #  #      #    # #         |', &
-     &   /,8x,'|    #### #    # # # # #   #   #    # #      #    #  ####     |', &
-     &   /,8x,'|    #    ###### #  #  #   #   ###### #      #    #      #    |', &
-     &   /,8x,'|    #    #    # #     #   #   #    # #      #    # #    #    |', &
-     &   /,8x,'|    #    #    # #     #   #   #    # ######  ####   ####     |', &
-     &   /,8x,'|                                                             |', &
-     &   /,8x,'|  Copyright  P.-H. Heenen, M. Bender, W. Ryssens & P. Demol  |', &
-     &   /,8x,'|_____________________________________________________________|')
-
-  print *
-  print 100
+  ! Print a nice header with all kinds of relevant info
+  call print_header(.true.)
 
   !------------------------------------------------------------------------------
   ! starting all timers

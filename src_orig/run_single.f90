@@ -33,7 +33,7 @@ program tantalus_single
   Narguments = COMMAND_ARGUMENT_COUNT()
   if(Narguments .eq. 0) then
     ! Run the code from STDIN
-    call Run_Tantalus('Single-mode')
+    call Run_Tantalus()
   else
     ! Read filename
     call get_command_argument(1,filename,status=status)
@@ -57,6 +57,6 @@ program tantalus_single
       endif
     endif
     ! Run the code from input on file "filename"
-    call Run_Tantalus('Single-mode', file_number, filename)
+    call Run_Tantalus(file_number, filename)
   endif
 end program 

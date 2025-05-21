@@ -6,7 +6,137 @@ module Tantalus
 
 contains
 
-subroutine Run_Tantalus(run_mode, file_number,input_file)
+subroutine print_header(fam)
+ !------------------------------------------------------------------------------
+ ! Print the header to STDOUT.
+ !
+ ! Input
+ !  fam : logical, indicating whether a regular header or FAM header is printed
+ !------------------------------------------------------------------------------
+ use IO, only : SYM_CODE, TRANS_CODE
+
+ logical, intent(in) :: fam
+
+ ! Information gleaned from git and the Makefile
+ character(len=44), parameter        :: versiontag=VTAG
+ character(len=58), parameter        :: version1  =VERSION1
+ character(len=58), parameter        :: version2  =VERSION2
+ character(len=58), parameter        :: version3  =VERSION3
+!  character(len=58), parameter        :: version4  =VERSION4
+ character(len=58), parameter        :: compiler  =COMPCOMP
+ character(len=58), parameter        :: cflags    =CFLAGS
+ character(len=58), parameter        :: optflags  =OPTFLAGS
+
+ ! Formatting statements for printing a nice header
+ character(len=1000), parameter :: header = "(                                 &
+     &     8x,' ____________________________________________________________', &
+     &   /,8x,'|                                                           |'  &
+     &   /,8x,'|                                                           |', &
+     &   /,8x,'|  #######   ##   #    # #####   ##   #      #    #  ####   |', &
+     &   /,8x,'|     #     #  #  ##   #   #    #  #  #      #    # #       |', &
+     &   /,8x,'|     #    #    # # #  #   #   #    # #      #    #  ####   |', &
+     &   /,8x,'|     #    ###### #  # #   #   ###### #      #    #      #  |', &
+     &   /,8x,'|     #    #    # #   ##   #   #    # #      #    # #    #  |', &
+     &   /,8x,'|     #    #    # #    #   #   #    # ######  ####   ####   |', &
+     &   /,8x,'|                                                           |', &
+     &   /,8x,'|                                                           |')"
+
+ character(len=1000), parameter :: famheader = "(                              &
+     &     8x,' ____________________________________________________________', &
+     &   /,8x,'|                                                           |'  &
+     &   /,8x,'|                                                           |', &
+     &   /,8x,'|    #####  ##   #     # #####   ##   #      #    #  ####   |', &
+     &   /,8x,'|    #     #  #  ##   ##   #    #  #  #      #    # #       |', &
+     &   /,8x,'|    #### #    # # # # #   #   #    # #      #    #  ####   |', &
+     &   /,8x,'|    #    ###### #  #  #   #   ###### #      #    #      #  |', &
+     &   /,8x,'|    #    #    # #     #   #   #    # #      #    # #    #  |', &
+     &   /,8x,'|    #    #    # #     #   #   #    # ######  ####   ####   |', &
+     &   /,8x,'|                                                           |', &
+     &   /,8x,'|                                                           |')"
+
+ character(len=1000), parameter :: versioninfo = "(                            &
+  &        8x,'|--------------- Version Information -----------------------|', &
+  &      /,8x,'| Version tag = ', a44, '|',                                    &
+  &      /,8x,'| ', a58, '|',                                                  &
+  &      /,8x,'| ', a58, '|',                                                  &
+  &      /,8x,'| ', a58, '|',                                                  &
+  &      /,8x,'|                                                           |')"
+
+ character(len=1000), parameter :: syminfo = "(                                &
+ &         8x,'|-------------- Symmetry Information -----------------------|', &
+ &       /,8x,'| S.p. generators        = ', a26, 7x, '|',                     &
+ &       /,8x,'| Axis reduction  X Y Z  = ', 3i2, 27x, '|',                    &
+ &       /,8x,'| SYM_CODE               = ', a26, 7x, '|',                     &
+ &       /,8x,'| TRANS_CODE             = ', a26, 7x, '|')"
+
+ character(len=1000), parameter :: compilationchoices = "(                     &
+  &         8x,'|-------------- Compilation choices ------------------------|',&
+#if(PASTA > 0)
+  &       /,8x,'| Calculation type    = PASTA                               |',&
+#else
+  &       /,8x,'| Calculation type    = NUCLEI                              |',&
+#endif
+#if(USE_Periodic > 0)
+  &       /,8x,'| Boundary conditions = periodic                            |',&
+#else
+  &       /,8x,'| Boundary conditions = anti-periodic                       |',&
+#endif
+#if(DENSUM == 1)
+  &       /,8x,'| Derivatives of densities via density summation            |',&
+#else
+  &       /,8x,'| Derivatives of densities via derivative routines          |',&
+#endif
+#if(USE_MPI > 0)
+  &       /,8x,'| MPI enabled                                               |')"
+#else
+  &       /,8x,'| MPI disabled                                              |')"
+#endif
+
+ character(len=200), parameter :: envinfo = "(                                 &
+ &          8x,'|-------------- Environment Information --------------------|',&
+ &        /,8x,'|  Number of MPI_ranks   = ', i6, 27x, '|')"
+
+ character(len=1000), parameter :: compinfo = "(                               &
+ &          8x,'|-------------- Compilation Information --------------------|',&
+ &        /,8x,'| Compiled with:                                            |',&
+ &        /,8x,'| ', a58, '|'                                                 ,&
+ &        /,8x,'| Compilation flags reported:                               |',&
+ &        /,8x,'| ', a58, '|'                                                 ,&
+ &        /,8x,'| Optimisation flags reported:                              |',&
+ &        /,8x,'| ', a58, '|',                                                 &
+ &        /,8x,'|___________________________________________________________|')"
+
+ ! intermediate character definitions
+ character(len=43)                   :: mode_print
+ character(len=26)                   :: symprint
+
+
+  if(MPI_RANK .eq. 0) then
+   print *
+   if(fam) then
+    write(*, fmt=famheader)
+   else
+    write(*, fmt=header)
+   endif
+   write(*, fmt=versioninfo) versiontag, version1, version2, version3
+   !----------------------------------------------------------------------------
+   ! Information about symmetry choices
+   symprint = adjustl(SYMSTRING)
+   write(*, fmt=syminfo) symprint, reduX, reduY, reduZ, SYM_CODE, TRANS_CODE
+   !----------------------------------------------------------------------------
+   ! Other information about compile-time choices
+   write(*,fmt=compilationchoices)
+   !----------------------------------------------------------------------------
+   ! Environment information
+   write(*,fmt=envinfo) NPROCS
+   !----------------------------------------------------------------------------
+   ! Technical details about compilation
+   write(*,fmt=compinfo) compiler, cflags, optflags
+ endif
+
+end subroutine print_header
+
+subroutine Run_Tantalus(file_number,input_file)
  !==============================================================================
  !_________ _______  _       _________ _______  _                 _______
  !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
@@ -45,90 +175,13 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
  ! empty will have the code rely on STDIN for input.
  integer(dp), intent(in), optional   :: file_number
  character(*), intent(in), optional  :: input_file
- character(len=*), intent(in)        :: run_mode
- character(len=43)                   :: mode_print
- character(len=26)                   :: symprint
- logical                             :: printed
- !------------------------------------------------------------------------------
- ! Information gleaned from git and the Makefile, to be used to identify the
- ! executable
- character(len=44), parameter        :: versiontag=VTAG
- character(len=58), parameter        :: version1  =VERSION1
- character(len=58), parameter        :: version2  =VERSION2
- character(len=58), parameter        :: version3  =VERSION3
-!  character(len=58), parameter        :: version4  =VERSION4
- character(len=58), parameter        :: compiler  =COMPCOMP
- character(len=58), parameter        :: cflags    =CFLAGS
- character(len=58), parameter        :: optflags  =OPTFLAGS
-
  !------------------------------------------------------------------------------
  ! MPI error code
 #if(USE_MPI > 0)
  integer :: mpi_err
 #endif
 
- 100 format &
-     &  (/,8x,' ____________________________________________________________', &
-     &   /,8x,'|                                                           |', &
-     &   /,8x,'| MOCCa v2.0 =                                              |', &
-     &   /,8x,'|                                                           |', &
-     &   /,8x,'|  #######   ##   #    # #####   ##   #      #    #  ####   |', &
-     &   /,8x,'|     #     #  #  ##   #   #    #  #  #      #    # #       |', &
-     &   /,8x,'|     #    #    # # #  #   #   #    # #      #    #  ####   |', &
-     &   /,8x,'|     #    ###### #  # #   #   ###### #      #    #      #  |', &
-     &   /,8x,'|     #    #    # #   ##   #   #    # #      #    # #    #  |', &
-     &   /,8x,'|     #    #    # #    #   #   #    # ######  ####   ####   |', &
-     &   /,8x,'|                                                           |', &
-     &   /,8x,'|  Copyright  P.-H. Heenen, M. Bender & W. Ryssens          |', &
-     &   /,8x,'|                                                           |')
-
- 200 format ( 8x, '|', 59('-'), '|'  ,/,8x, '| Runtype = ', a44, 4x, '|')
-
- 299 format ( 8x,'|--------------- Version Information -----------------------|')
-2991 format ( 8x,'| Version tag = ', a44, '|') ! Version tag
- 300 format ( 8x,'| ', a58, '|') ! Git commit
- 301 format ( 8x,'| ', a58, '|') ! Author of commit
- 302 format ( 8x,'| ', a58, '|') ! Date
-!  303 format ( 8x,'| Branch: ', a50, '|') ! Branch
- 304 format ( 8x,'|                                                           |')
- 305 format ( 8x,'|-------------- Symmetry Information -----------------------|')
- 306 format ( 8x,'| S.p. generators        = ', a26, 7x, '|')
- 307 format ( 8x,'| Axis reduction  X Y Z  = ', 3i2, 27x, '|')
- 308 format ( 8x,'| SYM_CODE               = ', a26, 7x, '|')
- 309 format ( 8x,'| TRANS_CODE             = ', a26, 7x, '|')
- 321 format ( 8x,'|-------------- Compilation choices ------------------------|')
-#if(PASTA > 0)
- 322 format ( 8x,'| Calculation type    = PASTA                               |')
-#else
- 322 format ( 8x,'| Calculation type    = NUCLEI                              |')
-#endif
-#if(USE_Periodic > 0)
- 323 format ( 8x,'| Boundary conditions = periodic                            |')
-#else
- 323 format ( 8x,'| Boundary conditions = anti-periodic                       |')
-#endif
-#if(DENSUM == 1)
- 324 format ( 8x,'| Derivatives of densities via density summation            |')
-#else
- 324 format ( 8x,'| Derivatives of densities via derivative routines          |')
-#endif
-#if(USE_MPI > 0)
- 325 format ( 8x,'| MPI enabled                                               |')
-#else
- 325 format ( 8x,'| MPI disabled                                              |')
-#endif
- 310 format ( 8x,'|-------------- Environment Information --------------------|')
- 311 format ( 8x,'|  Number of MPI_ranks   = ', i6, 27x, '|')
- 313 format ( 8x,'|-------------- Compilation Information --------------------|')
- 314 format ( 8x,'| Compiled with:                                            |')
- 315 format ( 8x,'| ', a58, '|')
- 316 format ( 8x,'| Compilation flags reported:                               |')
- 317 format ( 8x,'| ', a58, '|')
- 318 format ( 8x,'| Optimisation flags reported:                              |')
- 319 format ( 8x,'| ', a58, '|')
- 320 format ( 8x,'|___________________________________________________________|')
-
-  !------------------------------------------------------------------------------
+ !------------------------------------------------------------------------------
  ! Start the different processes across MPI ranks and do MPI bookkeeping
 #if(USE_MPI > 0)
   call mpi_init(mpi_err)
@@ -147,58 +200,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
 
  !------------------------------------------------------------------------------
  ! Printing information to STDOUT on the run
- if(MPI_RANK .eq. 0) then
-   print *
-   print 100
-   write(mode_print, '(a43)') run_mode
-   print 200, adjustl(mode_print)
-   print 299
-   print 304
-   print 2991, versiontag
-   print 300, version1
-   print 301, version2
-   print 302, version3
-
-!  There is no printing of branch information anymore, as this thing fails in
-!  github actions workflow.
-!    print 303, version4
-   print 304
-   !----------------------------------------------------------------------------
-   ! Information about symmetry choices
-   print 305
-   print 304
-   symprint = adjustl(SYMSTRING)
-   print 306, symprint
-   print 307, reduX, reduY, reduZ
-   print 308, SYM_CODE
-   print 309, TRANS_CODE
-   !----------------------------------------------------------------------------
-   ! Other information about compile-time choices
-   print 321
-   print 304
-   print 322
-   print 323
-   print 324
-   print 325
-   !----------------------------------------------------------------------------
-   ! Environment information
-   print 310
-   print 304
-   print 311, NPROCS
-   printed = .false.
-   !----------------------------------------------------------------------------
-   ! Technical details about compilation
-   print 313
-   print 304
-   print 314
-   print 315, compiler
-   print 316
-   print 317, cflags
-   print 318
-   print 319, optflags
-   print 320
- endif
-
+ call print_header(.false.)
  !------------------------------------------------------------------------------
  ! Read input from STDIN
  call ReadInput(file_number, input_file)
