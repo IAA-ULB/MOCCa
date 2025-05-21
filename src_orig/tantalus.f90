@@ -71,26 +71,10 @@ subroutine print_header(fam)
 
  character(len=1000), parameter :: compilationchoices = "(                     &
   &         8x,'|-------------- Compilation choices ------------------------|',&
-#if(PASTA > 0)
-  &       /,8x,'| Calculation type    = PASTA                               |',&
-#else
-  &       /,8x,'| Calculation type    = NUCLEI                              |',&
-#endif
-#if(USE_Periodic > 0)
-  &       /,8x,'| Boundary conditions = periodic                            |',&
-#else
-  &       /,8x,'| Boundary conditions = anti-periodic                       |',&
-#endif
-#if(DENSUM == 1)
-  &       /,8x,'| Derivatives of densities via density summation            |',&
-#else
-  &       /,8x,'| Derivatives of densities via derivative routines          |',&
-#endif
-#if(USE_MPI > 0)
-  &       /,8x,'| MPI enabled                                               |')"
-#else
-  &       /,8x,'| MPI disabled                                              |')"
-#endif
+  &       /,8x,'| Calculation type    = ', a36, '|',                           &
+  &       /,8x,'| Boundary conditions = ', a36, '|',                           &
+  &       /,8x,'| Derivatives of densities via ', a29, '|',                    &
+  &       /,8x,'| ', a58, '|' )"
 
  character(len=200), parameter :: envinfo = "(                                 &
  &          8x,'|-------------- Environment Information --------------------|',&
@@ -110,6 +94,28 @@ subroutine print_header(fam)
  character(len=43)                   :: mode_print
  character(len=26)                   :: symprint
 
+ ! compilation choices determined by precompiler directives
+#if(PASTA > 0)
+ character(len=36), parameter :: calctype = 'PASTA '
+#else
+ character(len=36), parameter :: calctype = 'NUCLEI'
+#endif
+#if(USE_Periodic > 0)
+ character(len=36), parameter  :: boundary_conditions= 'periodic'
+#else
+ character(len=36), parameter  :: boundary_conditions= 'anti-periodic'
+#endif
+#if(DENSUM == 1)
+ character(len=29), parameter  :: den_deriv= 'density summation'
+#else
+ character(len=29), parameter  :: den_deriv= 'derivative routines'
+#endif
+#if(USE_MPI > 0)
+ character(len=58), parameter  :: mpi_enabled= 'MPI enabled'
+#else
+ character(len=58), parameter  :: mpi_enabled= 'MPI disabled'
+#endif
+
 
   if(MPI_RANK .eq. 0) then
    print *
@@ -125,7 +131,9 @@ subroutine print_header(fam)
    write(*, fmt=syminfo) symprint, reduX, reduY, reduZ, SYM_CODE, TRANS_CODE
    !----------------------------------------------------------------------------
    ! Other information about compile-time choices
-   write(*,fmt=compilationchoices)
+   write(*,fmt=compilationchoices) &
+   &  adjustl(calctype), adjustl(boundary_conditions), adjustl(den_deriv), &
+   &  adjustl(mpi_enabled)
    !----------------------------------------------------------------------------
    ! Environment information
    write(*,fmt=envinfo) NPROCS
