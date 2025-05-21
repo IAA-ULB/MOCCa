@@ -92,7 +92,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, \
                                                ph_pp_decoupl,density_spwf_summation)
     if(fname=='vectors.f90'):
-        ProcessVectors(fname,src,target,so,vectors_densities,vectors_potentials,memory_densities)
+        ProcessVectors(src,target,so,vectors_densities,vectors_potentials,memory_densities)
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='scfiteration.f90'):
@@ -219,17 +219,38 @@ def ProcessGeneric(fname, src, target, so):
             for line in template:
                 generated.write(Template(line).substitute(dic))   
 
-def ProcessVectors(fname, src, target, so, densities, potentials, memory_densities):
+def ProcessVectors(src, target, so, densities, potentials, memory_densities):
+  """
+    Process the vectors.f90 template Fortran file to filled versions
+
+    - vectors.f90     -> for mean-field calculations; real potentials and densities
+    - vectors_FAM.f90 -> for FAM calculations; complex densities and real potentials
+
+    Note: densities, potentials and memory_densities are outputs from the ProcessDensities function.
+
+    Input:
+        src              : location of the original template
+        target           : location to store the filled template
+        so               : symmetry options of the calculations  [not useful right now]
+        densities        : string containing the Fortran declaration of all individual local densities
+        potentials       : string containing the Fortran declaration of all individual local potentials
+        memory_densities : string containing the code for updating densities
   """
 
-  """
-
+  # mean-field vectors.f90
   dic = {}
   dic['DECLARATION']            = densities
   dic['DECLARATION_POTENTIALS'] = potentials
-  dic['MEMORY_DENSITIES'] = memory_densities
+  dic['MEMORY_DENSITIES']       = memory_densities
 
-  with open(src+fname, 'r') as template:
-    with open(target+fname, 'w') as generated:
+  with open(src+'vectors.f90', 'r') as template:
+    with open(target+'vectors.f90', 'w') as generated:
+        for line in template:
+            generated.write(Template(line).substitute(dic))
+
+  # FAM vector_FAM.f90
+  dic['DECLARATION']            = densities.replace('real(KIND=dp)', 'complex(KIND=dp)')
+  with open(src+'vectors.f90', 'r') as template:
+    with open(target+'vectors_FAM.f90', 'w') as generated:
         for line in template:
             generated.write(Template(line).substitute(dic))

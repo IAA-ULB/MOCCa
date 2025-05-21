@@ -180,19 +180,28 @@ SRC    +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
 SRC    +=   pairing.f90 densities.f90 moments.f90
 SRC    +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 SRC    +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
-SRC    +=   IO.f90 convergence.f90 printing.f90
-SRC    +=   tantalus.version.f90
-
-SINGLE_SRC = $(SRC) run_single.f90
+SRC    +=   IO.f90 convergence.f90 printing.f90 tantalus.version.f90
+SINGLE_SRC = $(SRC)  run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+# FAM source files
+# Large amount of repetition: vectors.f90 should be replaced by vectors_fam.f90
+#  due to the complex declaration of densities and potentials.
+FAM_SRC    :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
+FAM_SRC    +=   sphericalharmonics.f90 folding.f90 nil8.f90
+FAM_SRC    +=   derivatives.f90 vectors_FAM.f90 precondition.f90 wavefunctions.f90
+FAM_SRC    +=   pairingcutoffs.f90 parameterization.f90
+FAM_SRC    +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90
+FAM_SRC    +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
+FAM_SRC    +=   pairing.f90 densities.f90 moments.f90
+FAM_SRC    +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
+FAM_SRC    +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
+FAM_SRC    +=   IO.f90 convergence.f90 printing.f90 tantalus.version.f90
+FAM_SRC    +=   FAM.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Nilsson source files
 NIL_SRC := compilation.f90 geninfo.f90 timing.f90 derivatives.f90 nil8.f90
 NIL_SRC += wavefunctions.f90 gennilsson.f90
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# FAM source files
-FAM_SRC += $(SRC) FAM.f90
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Translate source files into object files
