@@ -600,10 +600,12 @@ end function densit
     !---------------------------------------------------------------------------
     use Folding
 
+#if(PASTA==1)
     4 format ('-------------------------------------------------------------------')
     1 format (' Warning: the charge in your system is not equal to the desired one.')
     2 format (' Number of protons - \int charge density = ', es10.3 )
     3 format (' The electron density is compensating.')
+#endif
 
     type(DensityVector),intent(inout) :: R
     real(KIND=dp)              :: temp(nx,ny,nz)

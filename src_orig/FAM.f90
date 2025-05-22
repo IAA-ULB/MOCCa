@@ -167,8 +167,8 @@ module fam
         occ_p = 2.0 - rho_can(p)
         e_p = spenergies(p) 
         if(occ_p < 1d-6) cycle
-        X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear) )
-        Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear) )
+        X(p,h) = X(p,h) / (e_p - e_h - DCMPLX(omega_fam,smear) )
+        Y(p,h) = Y(p,h) / (e_p - e_h + DCMPLX(omega_fam,smear) )
         ! print *, p, h, e_p, e_h, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
       enddo
     enddo

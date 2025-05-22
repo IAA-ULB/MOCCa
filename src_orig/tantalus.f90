@@ -91,7 +91,6 @@ subroutine print_header(fam)
  &        /,8x,'|___________________________________________________________|')"
 
  ! intermediate character definitions
- character(len=43)                   :: mode_print
  character(len=26)                   :: symprint
 
  ! compilation choices determined by precompiler directives

@@ -98,7 +98,7 @@ module wavefunctions
  !------------------------------------------------------------------------------
  ! A copy of the HFPsi array, to be redistributed across MPI ranks in a
  ! 2D block-cyclic distribution with row and column blocking factors
- ! BLOCK_FACTOR_ROW and BLOCK_FACTOR_COLUN, respectively.
+ ! BLOCK_FACTOR_ROW and BLOCK_FACTOR_COLUMN, respectively.
  real(KIND=dp), allocatable         :: HFPSI_2D(:,:)
  !------------------------------------------------------------------------------
  ! Array containing the values of the spwfs in the Canonical basis
@@ -303,6 +303,13 @@ module wavefunctions
  ! runs with identical input give identical output, even when running across
  ! different numbers of MPI ranks.
  character(len=20)           :: random_numbers = 'FAST'
+ !------------------------------------------------------------------------------
+ ! Overloading of the transform_spwfs_inplace routine depending on the type
+ ! of the unitary transformation: complex or real.
+ interface transform_spwfs_inplace
+  module procedure transform_spwfs_inplace_real
+  module procedure transform_spwfs_inplace_complex
+ end interface
 
 contains 
 
@@ -2936,24 +2943,27 @@ $PBROKEN  P(wave) = P_expectation(psi(:,:,si+i))
 ! Basis transformation routines
 !===============================================================================
 
-subroutine transform_spwfs_inplace(psi, transfo)
+subroutine transform_spwfs_inplace_real(psi, transfo)
   !-----------------------------------------------------------------------------
-  ! Perform a linear transformation of the spwfs, in-place in memory.
+  ! Perform a unitary transformation with REAL coefficients of the spwfs, 
+  ! in-place in memory. 
   !
-  ! This routine attempts to have the smallest memory-cost possible, performing
-  ! the transformation symmetry-block by symmetry-block. This requires a temp
-  ! matrix with a non-negligible size. I'm (=W.R.) sure there exists truly
-  ! 'in-place' approaches where this cost can be avoided, but I don't know them.
+  ! Convention:                 a matrix column contains the coordinates of the 
+  !                             new psi in terms of the old ones
+  !                              | 
+  !    psi'                   = C^T psi
+  !     |                            | 
+  !    new spwfs                    old spwfs
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   !
   ! Input:
   !  psi     : input set of spwfs, to be transformed
-  !  transfo : unitary transformation C
+  !  transfo : real unitary transformation C
   !
   ! Output:
   !  psi     : transformed set of spwfs
-  !               psi' = C^T psi
-  !
-  ! TODO: replace by a LAPACK call
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ! TODO: offload this to LAPACK
   !-----------------------------------------------------------------------------
   integer                      :: wave1, wave2, B, N, si
   integer                      :: wave1_global, wave2_global
@@ -2986,7 +2996,82 @@ subroutine transform_spwfs_inplace(psi, transfo)
 
   call stop_timer(T_Basistransfo)
 
-end subroutine transform_spwfs_inplace
+end subroutine transform_spwfs_inplace_real
+
+subroutine transform_spwfs_inplace_complex(psi, transfo)
+  !-----------------------------------------------------------------------------
+  ! Perform a unitary transformation with COMPLEX coefficients of the spwfs, 
+  ! in-place in memory.
+  !
+  ! Convention:                 a matrix column contains the coordinates of the 
+  !                             new psi in terms of the old ones
+  !                              | 
+  !    psi'                   = C^\dagger psi
+  !     |                                 | 
+  !    new spwfs                       old spwfs
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  !
+  ! Input:
+  !  psi     : input set of spwfs, to be transformed
+  !  transfo : unitary transformation C
+  !
+  ! Output:
+  !  psi     : transformed set of spwfs
+  !               psi' = C^{\dagger} psi
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! TODO: offload this to LAPACK
+  !-----------------------------------------------------------------------------
+  integer                      :: wave1, wave2, B, N, si
+  integer                      :: wave1_global, wave2_global
+  real(KIND=dp), intent(inout) :: psi(mv,4,nwt_local)
+  complex(KIND=dp), intent(in) :: transfo(nwt,nwt)
+  real(KIND=dp), allocatable   :: temp(:,:,:)
+
+  call start_timer(T_Basistransfo)
+
+  si  = 0
+  do B=1,8
+    N = HFBlocks(B)  ;  if(N .eq. 0) cycle
+
+    allocate(temp(mv,4,N))
+    temp = 0.0
+    do wave1=1,N    ! The local index of this spwf is si+wave1
+      do wave2=1,N  ! The local index of this spwf is si+wave2
+        wave1_global = spwf_map(si+wave1) ! Global index
+        wave2_global = spwf_map(si+wave2) ! Global index
+
+        !  Complex multiplication (minus sign due to dagger!)
+        ! ( Re C - i Im C) * ( Re Psi + i Im Psi) = 
+        !      ( Re C Re Psi + Im C Im Psi ) + i ( - Im C Re Psi + Re C Im Psi )
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Spin up
+        temp(:,1,wave1) = temp(:,1,wave1)                                      &
+        &        +  DBLE(Transfo(wave2_global,wave1_global))*psi(:,1,si+wave2) &
+        &        +  IMAG(Transfo(wave2_global,wave1_global))*psi(:,2,si+wave2) 
+    
+        temp(:,2,wave1) = temp(:,2,wave1)                                      &
+        &        -  IMAG(Transfo(wave2_global,wave1_global))*psi(:,1,si+wave2) &
+        &        +  DBLE(Transfo(wave2_global,wave1_global))*psi(:,2,si+wave2) 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Spin down
+        temp(:,3,wave1) = temp(:,1,wave1)                                      &
+        &        +  DBLE(Transfo(wave2_global,wave1_global))*psi(:,3,si+wave2) &
+        &        +  IMAG(Transfo(wave2_global,wave1_global))*psi(:,4,si+wave2) 
+    
+        temp(:,4,wave1) = temp(:,2,wave1)                                      &
+        &        -  IMAG(Transfo(wave2_global,wave1_global))*psi(:,3,si+wave2) &
+        &        +  DBLE(Transfo(wave2_global,wave1_global))*psi(:,4,si+wave2) 
+      enddo
+    enddo
+    psi(:,:,si+1:si+N) =  temp
+    deallocate(temp)
+
+    si = si +  N
+  enddo
+
+  call stop_timer(T_Basistransfo)
+
+end subroutine transform_spwfs_inplace_complex
 
 !===============================================================================
 ! Routines useful to simplify the parallelization of the calculation of 
