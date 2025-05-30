@@ -220,14 +220,17 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     """
 
     global line
-    Expression       = ''
     Declaration      = ''
     Spwf_Declaration = ''
     Initialisation   = ''
     Derivation       = ''
     Derivation_pair  = ''
-    BCSExpression    = ''
-    HFBExpression    = ''
+
+    Expression         = ''
+    Expression_offdiag = ''
+    BCSExpression      = ''
+    HFBExpression      = ''
+
     Isospincoupl     = ''
     Zeroing          = ''
     Cleaning         = ''
@@ -258,12 +261,20 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     for i in range(len(Densities_needed)):
       den = Densities_needed[i]
 
-      # Summation with leftwf = rightwf
+      # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      # "Diagonal" summation of densities in the canonical basis
       (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi)  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                           'wave'     ,'wave',                                          \
                           'der_index', 'der_index',so,                                 \
                            density_spwf_summation)
+      # "Off-diagonal" summation of densities in the HF-basis
+      off_diag_tuple  = \
+      GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+                          'wave_j'     , 'wave_i',                                     \
+                          'der_index_j', 'der_index_i',so,                             \
+                           density_spwf_summation)
+      e_off = off_diag_tuple[0] # we only need the calculation of this density
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
@@ -284,8 +295,9 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
                                           density_spwf_summation, silent=False)
         HFBExpression = HFBExpression + '\n' + e
       else:
-        Expression    = Expression     + '\n' + e
-        Derivation    = Derivation              + der
+        Expression         = Expression              + '\n' + e
+        Expression_offdiag = Expression_offdiag      + '\n' + e_off
+        Derivation         = Derivation              + der
 
 
       if( not intermediate_status[i]):
@@ -299,14 +311,24 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         Memory         = Memory         + '\n' + memi
     print (line)
 
-    # Substitute into the densities.f90 file.        
+    # Substitute into the densities.f90 file.
     dic={}
     dic['DECLARATION'     ] = Declaration
     dic['SPWF_DECLARATION'] = Spwf_Declaration
     dic['INITIALIZATION'  ] = Initialisation
-    dic['EXPRESSION'      ] = Expression
-    dic['BCSEXPRESSION'   ] = BCSExpression
-    dic['HFBEXPRESSION'   ] = HFBExpression
+
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # These are the strings detailing the calculation of densities in all possible contexts
+    #
+    # a) particle-hole densities
+    dic['EXPRESSION'        ] = Expression             # single summation for mean-field calculations
+    dic['EXPRESSION_OFFDIAG'] = Expression_offdiag     # double summation for more general purposes
+    # b) particle-particle densities in the BCS case
+    dic['BCSEXPRESSION'   ] = BCSExpression            # single summation for mean-field calculations
+    # c) particle-particle densities in the BCS case
+    dic['HFBEXPRESSION'   ] = HFBExpression            # single summation for mean-field calculations
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
     if(density_spwf_summation):
         dic['DERIVATION'              ] = ""
         dic['DERIVATION_SUM_SPWF_PH'  ] = Derivation

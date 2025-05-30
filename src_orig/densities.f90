@@ -17,15 +17,16 @@ module densities
 !=============================================================================== 
 ! Hephaestos keywords
 !
-! DECLARATION     : [WAY too long to include here]
-! INITIALIZATION  : [WAY too long to include here]
-! ZEROING         : [WAY too long to include here]
-! EXPRESSION      : [WAY too long to include here]
-! BCSEXPRESSION   : [WAY too long to include here]
-! HFBEXPRESSION   : [WAY too long to include here]
-! DERIVATION      : [WAY too long to include here]
-! ISOSPINCOUPL    : [WAY too long to include here]
-! MPIDEN          : [WAY too long to include here]
+! DECLARATION        : [WAY too long to include here]
+! INITIALIZATION     : [WAY too long to include here]
+! ZEROING            : [WAY too long to include here]
+! EXPRESSION         : [WAY too long to include here]
+! EXPRESSION_OFFDIAG : [WAY too long to include here]
+! BCSEXPRESSION      : [WAY too long to include here]
+! HFBEXPRESSION      : [WAY too long to include here]
+! DERIVATION         : [WAY too long to include here]
+! ISOSPINCOUPL       : [WAY too long to include here]
+! MPIDEN             : [WAY too long to include here]
 !
 ! TR              : $TR
 ! NTR             : $NTR 
@@ -591,7 +592,97 @@ $ISOSPINCOUPL
     call stop_timer(T_densities)
 end function densit
 
- subroutine ConstructChargeDensity(R)
+function densit_offdiag(rho, kappa) result(R)
+    !------------------------------ ---------------------------------------------
+    ! Calculate all of the mean-field densities, both normal and pairing,
+    ! based on (possibly) non-diagonal/canonical matrices rho and kappa.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !   rho      real/complex matrix
+    !   kappa    real/complex matrix
+    !
+    ! Output:
+    !   R        densityvector   values of the mean-field densities.
+    !----------------------------------------------------------------------------
+    external construct_charge_density
+
+    ! TODO: complexify input!
+    real(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
+    type(DensityVector)       :: R
+
+    real(KIND=dp)             :: weight ! adapt to input!
+    integer                   :: wave_i       , wave_j
+    integer                   :: wave_global_i, wave_global_j
+    integer                   :: it_i, it_j, it, der_index_i,der_index_j
+
+    integer :: i
+
+$SPWF_DECLARATION
+    call start_timer(T_densities)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Allocation and initialization
+$INITIALIZATION
+
+    if(.not.allocated(R%divJ)) then
+      allocate(R%divJ(nx*ny*nz,4))
+    endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Zero the current density
+$ZEROING
+    R%divJ = 0.0d0
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Correctly set the pointers to the spwfs
+    ! This should always be the HF basis!
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    DenPsi   => HFPsi    ; DenDPsi   => HFDPsi
+    DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    call start_timer(T_den_ph)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! PARTICLE-HOLE DENSITIES
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: make this double loop more intelligent wrt to symmetries
+    do wave_i=1,nwt_local                ! Loop over the local spwf index
+      wave_global_i = spwf_map(wave_i)     ! Global spwf index
+
+      ! Isospin is neutron in the first half of blocks, proton in the rest
+      it_i = 2
+      if(wave_global_i.le.nwn) it_i = 1
+
+      ! TODO: enable store_derivatives option
+      der_index_i = 1
+
+      do wave_j=1,nwt_local
+        wave_global_j = spwf_map(wave_j) ! Global spwf index
+
+        ! Isospin is neutron in the first half of blocks, proton in the rest
+        it_j = 2
+        if(wave_global_j.le.nwn) it_j = 1
+
+        if(it_i.ne.it_j) cycle ! There are no pn-exchange excitation operators so far
+        it = it_i
+
+        ! TODO: enable store_derivatives option
+        der_index_j = 1
+        !----------------------------------------------------------------------------
+        ! The summation weight for particle-hole densities
+        weight  = rho(wave_global_i, wave_global_j)
+
+        do i=1,mv
+$EXPRESSION_OFFDIAG
+        enddo
+      enddo
+    enddo
+    call stop_timer(T_den_ph)
+
+    call stop_timer(T_densities)
+
+end function densit_offdiag
+
+subroutine ConstructChargeDensity(R)
     !---------------------------------------------------------------------------
     ! Construct the charge density from the proton and neutron densities,
     ! using various effective forms
