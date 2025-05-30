@@ -678,6 +678,26 @@ $EXPRESSION_OFFDIAG
     enddo
     call stop_timer(T_den_ph)
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of the 'derived' densities, densities obtainable by
+    ! deriving other ones.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    call start_timer(T_den_der)
+    do it=1,2
+$DERIVATION
+    enddo
+    call stop_timer(T_den_der)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculate the densities in isospin representation
+$ISOSPINCOUPL
+
+    R%divJ(:,3) = R%divJ(:,1) + R%divJ(:,2)
+    R%divJ(:,4) = R%divJ(:,1) - R%divJ(:,2)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Construct the charge density
+    call constructchargedensity(R)
+
     call stop_timer(T_densities)
 
 end function densit_offdiag
