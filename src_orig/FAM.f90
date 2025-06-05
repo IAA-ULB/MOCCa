@@ -80,6 +80,7 @@ module fam
   !   accessed at idx = modulo(hist_current_idx - 2, hist_max) + 1). Rolling the
   !   index two steps back and then one forward is because mod gives values 
   !   0..hist_max-1 while fortran arrays use a 1-based index. 
+  real(KIND=dp) :: tol_XY_conv = 1.0e-5_dp ! convergence tolerance for X and Y
 
   contains
 
@@ -370,6 +371,43 @@ module fam
 
   end function calc_strength
 
+
+  function test_convergence() result (conv)
+    !---------------------------------------------------------------------------
+    ! Judge the convergence of the FAM iterations based on difference of X and Y
+    ! with respect to previous iteration
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! The convergence measure corresponds to the Frobenius norm of the 
+    ! difference fo the current X(i) (Y(i)) and the one of the previous 
+    ! iteration X(i-1) (Y(i-1)) stored in X_hist and Y_hist, i.e.
+    !      ||X(i) - X(i-1)|| / ||X(i)|| < tolerance
+    ! 
+    ! The Frobenius norm ||A|| is evaluated as sqrt(sum[abs(A(:,:))**2]) where
+    ! the abs takes care of obtaining the modulus of the complex values.
+    !---------------------------------------------------------------------------
+    logical :: conv
+    integer :: idx_prev
+    real(KIND=dp) :: DX_norm, DY_norm
+
+    conv = .false.
+
+    ! previous index in hist obtained by rolling back twice and adding one
+    idx_prev = modulo(hist_current_idx - 2, hist_max) + 1
+
+    DX_norm = sqrt( sum( abs(X_hist(hist_current_idx,:,:) - X_hist(idx_prev,:,:))**2) )
+    DX_norm = DX_norm / sqrt(sum( abs(X_hist(hist_current_idx,:,:))**2) )
+
+    DY_norm = sqrt( sum( abs(Y_hist(hist_current_idx,:,:) - Y_hist(idx_prev,:,:))**2) )
+    DY_norm = DY_norm / sqrt(sum( abs(Y_hist(hist_current_idx,:,:))**2) )
+
+    print * , "convergence: ||DX|| = ", DX_norm, "   ||DY|| = ", DY_norm
+
+    if( (DX_norm<tol_XY_conv) .and. (DY_norm<tol_XY_conv)) then
+      conv = .true.
+    endif
+
+  end function
+
 end module fam
 
 program run_FAM
@@ -381,6 +419,7 @@ program run_FAM
 
   implicit none
   integer :: iteration
+  logical :: is_converged
 
 
   ! integer :: ifail ! Future dev: required for HFB
@@ -453,7 +492,8 @@ program run_FAM
   ! initialise FAM matrices end set perturbing external field
   call inifam(1.5_dp)
 
-  maxfamiter = 0
+  maxfamiter = 5
+  is_converged = .false.
 
   ! Start of the iterations 
   do iteration=1, maxfamiter
@@ -471,12 +511,21 @@ program run_FAM
 
     call store_XY_hist()
 
+    ! Exit the loop if convergence is achieved.
+    if (iteration > 1) then
+     is_converged = test_convergence()
+      if(is_converged) then
+        print *, "Hooray! FAM is converged! "
+        exit
+      endif
+    endif
 
   enddo
 
   print *, " S(", omega_fam, ") = ", calc_strength()
 
   print *, "Reached the end successfully" 
+
 
   ! end of one FAM calculation;
 
