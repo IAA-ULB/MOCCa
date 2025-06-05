@@ -269,6 +269,43 @@ module fam
   end subroutine build_dH
 
 
+  function calc_strength() result (S_out)
+    !---------------------------------------------------------------------------
+    ! Calculate the strength S(omega,F)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! obtained from 
+    !     S(omega,F) = - 1 /pi * Im Tr (F^dagger * drho)
+    ! where 
+    !    Tr (F^dagger * drho) = sum_ab (F^20_ab^* X_ab + F^02_ab^* Y_ab)
+    ! 
+    ! note: 
+    !  - normalisation of external field may have to be taken into account
+    !    S -> S/alpha
+    !  - F is supposed to be real. If F is replaced by a complex field, the
+    !    complex conjugation must be added
+    !---------------------------------------------------------------------------
+
+    complex(KIND=dp) :: S
+    real(KIND=dp) S_out
+    integer :: h, p
+    real(KIND=dp) :: occ_h, occ_p
+
+    S = 0
+    do h = 1, nwt
+      occ_h = rho_can(h)
+      if(occ_h < 1d-6) cycle
+      do p = 1, nwt
+        occ_p = 2.0 - rho_can(p) 
+        ! degeneracy 2.0 must reduced if further symmetries are broken
+        if(occ_p < 1d-6) cycle
+        S = S + F(p,h,1) * X(p,h) + F(p,h,2) * Y(p,h)
+      enddo
+    enddo
+
+    S_out = - S%im / pi
+
+  end function calc_strength
+
 end module fam
 
 program run_FAM
@@ -350,7 +387,9 @@ program run_FAM
   call CalculateMoments(Density) 
 
   ! initialise FAM matrices end set perturbing external field
-  call inifam(0.5_dp)
+  call inifam(1.5_dp)
+
+  maxfamiter = 0
 
   ! Start of the iterations 
   do iteration=1, maxfamiter
@@ -365,6 +404,8 @@ program run_FAM
 
 
   enddo
+
+  print *, " S(", omega_fam, ") = ", calc_strength()
 
   print *, "Reached the end successfully" 
 
