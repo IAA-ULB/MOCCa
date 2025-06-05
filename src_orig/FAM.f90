@@ -1,20 +1,20 @@
 module fam
 
- !==============================================================================
- ! ________ _______  _        _ _________ _______  _                 _______
- !(  _____/(  ___  )( (      ) |\__   __/(  ___  )( \      |\     /|(  ____ \
- !| (      | (   ) ||  \    /  |   ) (   | (   ) || (      | )   ( || (    \/
- !| |___   | (___) ||   \  /   |   | |   | (___) || |      | |   | || (_____
- !|  ___)  |  ___  || (\ \/ /) |   | |   |  ___  || |      | |   | |(_____  )
- !| |      | (   ) || | \  / | |   | |   | (   ) || |      | |   | |      ) |
- !| |      | )   ( || )  \/  ( |   | |   | )   ( || (____/\| (___) |/\____) |
- !(_/      |/     \||/        \)   )_(   |/     \|(_______/(_______)\_______)
- !
- !  Copyright W. Ryssens & P. Demol
- !
- !------------------------------------------------------------------------------
- ! A FAM-QRPA implementation to complement MOCCa.
- !==============================================================================
+  !==============================================================================
+  ! ________ _______  _        _ _________ _______  _                 _______
+  !(  _____/(  ___  )( (      ) |\__   __/(  ___  )( \      |\     /|(  ____ \
+  !| (      | (   ) ||  \    /  |   ) (   | (   ) || (      | )   ( || (    \/
+  !| |___   | (___) ||   \  /   |   | |   | (___) || |      | |   | || (_____
+  !|  ___)  |  ___  || (\ \/ /) |   | |   |  ___  || |      | |   | |(_____  )
+  !| |      | (   ) || | \  / | |   | |   | (   ) || |      | |   | |      ) |
+  !| |      | )   ( || )  \/  ( |   | |   | )   ( || (____/\| (___) |/\____) |
+  !(_/      |/     \||/        \)   )_(   |/     \|(_______/(_______)\_______)
+  !
+  !  Copyright W. Ryssens & P. Demol
+  !
+  !------------------------------------------------------------------------------
+  ! A FAM-QRPA implementation to complement MOCCa.
+  !==============================================================================
 
   use densities
   use moments
@@ -102,19 +102,28 @@ module fam
 
     print *, "Initialise FAM matrices" 
 
-    allocate(drho(nwt,nwt))
-    allocate(dkappa(nwt,nwt))
-    allocate(dR(2*nwt,2*nwt))
+    if(.not.allocated(drho)) then 
+      allocate(drho(nwt,nwt))
+      allocate(dkappa(nwt,nwt))
+      allocate(dR(2*nwt,2*nwt))
 
-    allocate(dH(nwt,nwt,2))
-    allocate(F(nwt,nwt,2))
+      allocate(dH(nwt,nwt,2))
+      allocate(F(nwt,nwt,2))
+    endif
 
+    if(.not.allocated(X)) then
+      allocate(X(nwt,nwt)) 
+      allocate(Y(nwt,nwt))
+    endif
 
-    allocate(X(nwt,nwt)) 
-    allocate(Y(nwt,nwt))
+    if(.not.allocated(X_hist)) then
+      allocate(X_hist(hist_max,nwt,nwt)) 
+      allocate(Y_hist(hist_max,nwt,nwt))
+    endif
 
-    allocate(X_hist(hist_max,nwt,nwt)) 
-    allocate(Y_hist(hist_max,nwt,nwt))
+    X_hist=0
+    Y_hist=0
+
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Get the solid harmonics Q_lm(i,j) = < i | r^l Y_lm | j > expressed 
@@ -420,7 +429,9 @@ program run_FAM
   implicit none
   integer :: iteration
   logical :: is_converged
-
+  real(kind=dp) :: omega_curr, omega_min, omega_max, omega_step
+  integer :: omega_num, omega_index
+  real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
 
   ! integer :: ifail ! Future dev: required for HFB
 
@@ -489,40 +500,62 @@ program run_FAM
   ! Recalculate because the COM might have changed.
   call CalculateMoments(Density) 
 
-  ! initialise FAM matrices end set perturbing external field
-  call inifam(1.5_dp)
+  ! Solve FAM for a range of omega frequencies
 
-  maxfamiter = 5
-  is_converged = .false.
+  omega_min = 0.5
+  omega_max = 40.0
+  omega_step = 0.5
 
-  ! Start of the iterations 
-  do iteration=1, maxfamiter
+  omega_num = int((omega_max - omega_min) / omega_step)
 
-    print *, "FAM iteration : ", iteration
+  allocate(omega_arr(omega_num))
+  allocate(S_arr(omega_num))
 
-    ! call build_perturbed_densities(rho_pairing, kappa_pairing)
+  omega_curr = omega_min
+  do omega_index=1, omega_num
 
-    ! call build_dH(DensityPert)
+    ! initialise FAM matrices end set perturbing external field
+    call inifam(omega_curr)
 
-    call calculate_XY()
-    
-    ! FUTURE: mix new amplitudes with previous iterations
-    ! call mix_XY_GMRES()
+    maxfamiter = 0
+    is_converged = .false.
 
-    call store_XY_hist()
+    ! Start of the iterations 
+    do iteration=1, maxfamiter
 
-    ! Exit the loop if convergence is achieved.
-    if (iteration > 1) then
-     is_converged = test_convergence()
-      if(is_converged) then
-        print *, "Hooray! FAM is converged! "
-        exit
+      print *, "FAM iteration : ", iteration
+
+      ! call build_perturbed_densities(rho_pairing, kappa_pairing)
+
+      ! call build_dH(DensityPert)
+
+      call calculate_XY()
+      
+      ! FUTURE: mix new amplitudes with previous iterations
+      ! call mix_XY_GMRES()
+
+      call store_XY_hist()
+
+      ! Exit the loop if convergence is achieved.
+      if (iteration > 1) then
+       is_converged = test_convergence()
+        if(is_converged) then
+          print *, "Hooray! FAM is converged! "
+          exit
+        endif
       endif
-    endif
+
+    enddo
+
+    omega_arr(omega_index) = omega_curr
+    S_arr(omega_index) = calc_strength()
+
+    print *, " S(", omega_arr(omega_index), ") = ", S_arr(omega_index)
+
+
+    omega_curr = omega_curr + omega_step
 
   enddo
-
-  print *, " S(", omega_fam, ") = ", calc_strength()
 
   print *, "Reached the end successfully" 
 
