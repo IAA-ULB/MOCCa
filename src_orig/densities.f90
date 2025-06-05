@@ -298,21 +298,10 @@ subroutine construct_canonical_basis(rho, kappa, rho_c, kappa_c)
         &                                       - fac *  transfo(si+1:si+N,si+i)
       enddo
     enddo
-    
-    print *, 'B=', B
-    do i=1,N
-      print ('(99f10.3)'), transfo(i,1:N)
-    enddo
-
-!    allocate(check(N,N))    
-!    check = matmul(transfo(si+1:si+N,si+1:si+N), transpose(transfo(si+1:si+N,si+1:si+N)))
-!  
-!    print *, 'B=', B
-!    do i=1,N
-!      print ('(99f10.3)'), check(i,1:N)
-!    enddo
-
-!    deallocate(check)
+!     print *, 'B=', B
+!     do i=1,N
+!       print ('(99f10.3)'), transfo(i,1:N)
+!     enddo
     si = si + N
   enddo
 
@@ -716,7 +705,7 @@ function densit_offdiag(rho, kappa) result(R)
     complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
     type(DensityVector)          :: R
 
-    real(KIND=dp)             :: weight ! adapt to input!
+    real(KIND=dp)             :: weight_sym, weight_asym
     integer                   :: wave_i       , wave_j
     integer                   :: wave_global_i, wave_global_j
     integer                   :: it_i, it_j, it, der_index_i,der_index_j
@@ -774,11 +763,9 @@ $ZEROING
         ! TODO: enable store_derivatives option
         der_index_j = wave_j
         !----------------------------------------------------------------------------
-        ! The summation weight for particle-hole densities
-        weight  = rho(wave_global_i, wave_global_j)
-
-        ! Don't spend time multiplying zeros
-        if(weight.eq.0.0d0) cycle
+        ! The summation weights for particle-hole densities
+        weight_sym   = 0.5d0*(rho(wave_global_i, wave_global_j) + rho(wave_global_j, wave_global_i))
+        weight_asym  = 0.5d0*(rho(wave_global_i, wave_global_j) - rho(wave_global_j, wave_global_i))
 
         do i=1,mv
 $EXPRESSION_OFFDIAG
@@ -801,8 +788,6 @@ $DERIVATION
     ! Calculate the densities in isospin representation
 $ISOSPINCOUPL
 
-    R%divJ(:,3) = R%divJ(:,1) + R%divJ(:,2)
-    R%divJ(:,4) = R%divJ(:,1) - R%divJ(:,2)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
     call constructchargedensity(R)

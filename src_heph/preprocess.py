@@ -150,6 +150,8 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         ProcessCranking(fname, src, target, so)
     if(fname=='FAM.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
+    if(fname=='FAM_testing.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
 
 def ProcessGeninfo(fname, src, target, so):
     """

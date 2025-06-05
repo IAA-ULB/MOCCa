@@ -3,8 +3,10 @@ tab = '    '
 #-------------------------------------------------------------------------------
 # Density calculation template to fill in
 
-Den_sum_real    = T( 2*tab+'R%$NAME(i$IND,it) = R%$NAME(i$IND,it) + $WEIGHT * $NAME$IND_nocomma')
-Den_sum_complex = T( 2*tab+'R%$NAME(i$IND,it) = R%$NAME(i$IND,it) + $WEIGHT * DCMPLX($NAME$IND_nocomma)')
+Den_sum_real     = T( 2*tab+'R%$NAME(i$IND,it) = R%$NAME(i$IND,it) + $WEIGHT * $NAME$IND_nocomma')
+Den_sum_realpart = T( 2*tab+'R%$NAME(i$IND,it) = R%$NAME(i$IND,it) + $WEIGHT * DCMPLX($NAME$IND_nocomma,0.0d0)')
+Den_sum_imagpart = T( 2*tab+'R%$NAME(i$IND,it) = R%$NAME(i$IND,it) + $WEIGHT * DCMPLX(0.0d0,$NAME$IND_nocomma)')
+
 Den_1_spwf = T( 2*tab+'$NAME$IND_nocomma = ')
 
 

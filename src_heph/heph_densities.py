@@ -269,25 +269,13 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
                           'der_index', 'der_index',so,                                 \
                            density_spwf_summation)
       # "Off-diagonal" summation of densities in the HF-basis
-      # -> First the "real" part
+      e_off = ''
       off_diag_tuple  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                          'wave_j'     , 'wave_i',                                     \
-                          'der_index_j', 'der_index_i',so,density_spwf_summation,
-                           complex_numbers=True)
-      e_off = off_diag_tuple[0] # we only need the calculation of this density
-
-      # -> then the imaginary part
-      # if(Densities_needed[i][0] == 'D'):
-      #     den = Densities_needed[i][0].replace('D', 'C') + Densities_needed[i][1:]
-      # else:
-      #     den = Densities_needed[i][0].replace('C', 'D') + Densities_needed[i][1:]
-      # off_diag_tuple  = \
-      # GenDensityExpression(den,deriv_needed[i],intermediate_status[i], \
-      #                     'wave_j'     , 'wave_i',                                     \
-      #                     'der_index_j', 'der_index_i',so,                             \
-      #                      density_spwf_summation)
-      # e_off = e_off + off_diag_tuple[0] # we only need the calculation of this density
+                            'wave_j'     , 'wave_i',                                     \
+                            'der_index_j', 'der_index_i',so,density_spwf_summation,
+                             complex_component=+1,weight='weight_sym')
+      e_off += off_diag_tuple[0] # we only need the calculation of this density
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
@@ -541,7 +529,8 @@ def ReconstructDensity(der, lap, left, right):
 def GenDensityExpression(denin,derivative_combinations,intermediate, 
                          leftwave     , rightwave     ,
                          left_der_wave, right_der_wave, so,
-                         density_spwf_summation, complex_numbers=False,
+                         density_spwf_summation, complex_component=0,
+                         weight = 'weight',
                          silent=False):
     """
       Generate all the necessary strings to plug into FORTRAN source code 
@@ -563,8 +552,14 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
       * so                     : a set of symmetry options
       * density_spwf_summation : if True, calculate derivatives of densities 
                                  through summation over spwfs
-      * complex_numbers        : if False, generate expressions for when the 
-                                 densities can be assumed to be real. 
+      * complex_component      : determines how the contribution of a given 
+                                 pair of (leftwf, rightwf) gets added to the
+                                 total density 
+                                 
+                                 (-1) => this is the imaginary part of a complex number
+                                 (0)  => the density is real
+                                 (+1) => this is the real part of a complex number
+      * weight                 : string for the weight associated with the sum
       * silent                 : If True  => don't print the symmetry output 
                                  If False => print symmetry output for the 
                                              reflection symmetries of the 
@@ -590,6 +585,8 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
       
     """
 
+    assert abs(complex_component) <= 1
+
     #---------------------------------------------------------------------------
     # Initialisation 
     Expression    = ''
@@ -608,6 +605,10 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
     # Parse the structure from the name
     density = denin    
     (x, y, left, right, coupling, cross) = ParseOperators(density, so.timelike)
+    
+    if(complex_component == -1):
+      right = 'C' + right
+    
     # Construct the left/right operators
     operatordic = {}
     operatordic['I'] = Identity
@@ -626,6 +627,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
     for i in range(len(right)):
         r = right[(len(right)) -i -1] 
         RightOperator = Combine(operatordic[r], RightOperator)
+              
     #---------------------------------------------------------------------------
     # Declaration and initialisation, also for the derivatives.
     dic= {}
@@ -642,7 +644,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         dic['RIGHTWAVE']  = rightwave
     else:
         dic['RIGHTWAVE']  = right_der_wave
-    dic['WEIGHT']    = 'weight'            # For now defined in the FORTRAN code
+    dic['WEIGHT']    = weight
       
     totalind= ''
     dim     = ''
@@ -971,9 +973,11 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         # Final summation
         if( not intermediate):
           # Only sum for storage if the object is not intermediate
-          if(complex_numbers):
-            Expression = Expression + ta.Den_sum_complex.substitute(dic) + '\n\n'
-          else:
+          if(complex_component == +1):
+            Expression = Expression + ta.Den_sum_realpart.substitute(dic) + '\n\n'
+          elif(complex_component == -1):
+            Expression = Expression + ta.Den_sum_imagpart.substitute(dic) + '\n\n'
+          elif(complex_component == +0):
             Expression = Expression + ta.Den_sum_real.substitute(dic)    + '\n\n'
 
         # And add a line for the isospin coupling

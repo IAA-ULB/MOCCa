@@ -836,6 +836,9 @@ contains
 
       ! We can safely read this in one go; a single rank is present
       read(chan,iostat=io) HFPsi
+      if(io.ne.0) then
+        call stp('ERROR while reading spwfs from file.')
+      endif
     endif
 #if(USE_MPI > 0)    
     ! Possibly a superfluous barrier call, but good for my peace of mind
@@ -849,9 +852,16 @@ contains
     ! Name of the force and functional and full s.p. hamiltonian matrix
     if(MPI_RANK.eq.0) then
       read(chan, iostat=io) ini_name_param, func_name_check
+      if(io.ne.0) then
+        print *, io
+        call stp('ERROR while reading parameterization information.')
+      endif
       ! Single-particle hamiltonian
       if(file_version.ge.4) then
         read(chan, iostat=io) sphamil
+      endif
+      if(io.ne.0) then
+        call stp('ERROR in reading sphamil from file.')
       endif
     endif
 #if(USE_MPI > 0)

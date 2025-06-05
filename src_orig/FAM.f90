@@ -20,6 +20,7 @@ module fam
   use moments
   use fission_MOI
   use evolution
+  use FAM_testing, only : run_FAM_tests
 
   implicit none
 
@@ -280,10 +281,7 @@ program run_FAM
   use fam
 
   implicit none
-  integer :: iteration,i
-  real(KIND=dp), allocatable    :: transfo(:,:)
-  complex(KIND=dp), allocatable :: rho_test(:,:), kappa_test(:,:)
-
+  integer :: iteration
 
   ! integer :: ifail ! Future dev: required for HFB
 
@@ -343,18 +341,6 @@ program run_FAM
 
   ! Compute all local one-body densities on the mesh
   Density     = densit(rho_can, kappa_pairing)
-  allocate(rho_test(nwt,nwt))
-  do i=1,nwt
-    rho_test(i,i) = rho_can(i)
-  enddo
-  transfo = gen_unitary_transform()
-  call mixup_rhokappa(rho_test, kappa_test, transfo)
-  
-  DensityPert = densit_offdiag(rho_test, kappa_test)
-  
-  print ('(99f10.3)'), Density%D_I_I(1:nx,1)
-  print ('(99f10.3)'), DensityPert%D_I_I(1:nx,1)
-  stop
   call ConstructChargeDensity(Density) ! PD: necessary? 
 
   ! Adopt the relevant quantities to the centre-of-mass of the nucleus ! PD: necessary? 
@@ -366,7 +352,10 @@ program run_FAM
   ! initialise FAM matrices end set perturbing external field
   call inifam(0.5_dp)
 
-  ! Start of the iterations 
+  ! Run all kinds of unit tests; should be made optional as this includes a stop statement
+  call run_FAM_tests()
+
+  ! Start of the iterations
   do iteration=1, maxfamiter
 
     print *, "FAM iteration : ", iteration
