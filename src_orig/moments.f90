@@ -1241,96 +1241,96 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 
     type(DensityVector), intent(in), target :: R
     type(Moment),        intent(inout)      :: ToCalculate
-    integer                             :: it, k, maxind(1)
-    real(KIND=dp)                       :: z0, maxz0, minz0, neck, min_neck,ztry
-    real(KIND=dp), pointer              :: den(:,:,:)
-    real(KIND=dp), allocatable          :: linear_den(:)
+!    integer                             :: it, k, maxind(1)
+!    real(KIND=dp)                       :: z0, maxz0, minz0, neck, min_neck,ztry
+!    real(KIND=dp), pointer              :: den(:,:,:)
+!    real(KIND=dp), allocatable          :: linear_den(:)
 
-    ! Save the history
-    Tocalculate%history = tocalculate%value
+!    ! Save the history
+!    Tocalculate%history = tocalculate%value
 
-    !Initialise
-    ToCalculate%Value      = 0.0_dp
-    ToCalculate%Squared    = 0.0_dp  !Unused, but zeroed anyway
+!    !Initialise
+!    ToCalculate%Value      = 0.0_dp
+!    ToCalculate%Squared    = 0.0_dp  !Unused, but zeroed anyway
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! 1. Setting up things
-    !
-    ! Do the integration of the matter density over x and y
-    allocate(linear_den(nz))
-    ! isoscalar density pointer remapping
-    den(1:nx,1:ny,1:nz) => R%D_I_I(1:nx*ny*nz,3) 
-    ! Integrate for each point along z
-    do k=1,nz
-      linear_den(k) = sum(den(:,:,k))
-    enddo
-    ! Volume element is dx^2  * factors 2 for symmetry
-    linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
-    
-    ! Determine limits for z_0: between the maxima of the density along the 
-    !  negative and positive z-axis
-    if(reduZ .eq. 1) then
-      ! The z-axis is represented symmetrically
-      maxind = maxloc(linear_den)
-      ! The following is maximum of the density along the positive z-axis
-      maxz0 =  meshz(maxind(1))
-      minz0 = -maxz0
-    else
-      ! The z-axis is fully represented
-      ! z > 0
-      maxind = maxloc(linear_den(nz/2+1:nz))
-      maxz0  = meshz(nz/2 + maxind(1))
-      ! z < 0
-      maxind = maxloc(linear_den(1:nz/2))
-      minz0  = meshz(maxind(1))
-    endif
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!    ! 1. Setting up things
+!    !
+!    ! Do the integration of the matter density over x and y
+!    allocate(linear_den(nz))
+!    ! isoscalar density pointer remapping
+!    den(1:nx,1:ny,1:nz) => R%D_I_I(1:nx*ny*nz,3) 
+!    ! Integrate for each point along z
+!    do k=1,nz
+!      linear_den(k) = sum(den(:,:,k))
+!    enddo
+!    ! Volume element is dx^2  * factors 2 for symmetry
+!    linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
+!    
+!    ! Determine limits for z_0: between the maxima of the density along the 
+!    !  negative and positive z-axis
+!    if(reduZ .eq. 1) then
+!      ! The z-axis is represented symmetrically
+!      maxind = maxloc(linear_den)
+!      ! The following is maximum of the density along the positive z-axis
+!      maxz0 =  meshz(maxind(1))
+!      minz0 = -maxz0
+!    else
+!      ! The z-axis is fully represented
+!      ! z > 0
+!      maxind = maxloc(linear_den(nz/2+1:nz))
+!      maxz0  = meshz(nz/2 + maxind(1))
+!      ! z < 0
+!      maxind = maxloc(linear_den(1:nz/2))
+!      minz0  = meshz(maxind(1))
+!    endif
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
-    ! 2. Determine z_0 from the matter density by minimization by brute force
-    z0       = maxz0
-    min_neck = calc_neck(linear_den, z0)
-    do k=1,1000
-      ztry = minz0 + (k-1)*(maxz0-minz0)/1000.0d0
-      neck = calc_neck(linear_den, ztry)
-      if(neck .lt. min_neck)then
-        min_neck = neck
-        z0       = ztry
-      endif
-    enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
-    ! 3. Use this value of z0 to calculate all values 
-    !    Neutron and proton densities
-    do it=1,2
-      den(1:nx,1:ny,1:nz) => R%D_I_I(1:nx*ny*nz,it) 
-      do k=1,nz
-        linear_den(k) = sum(den(:,:,k))
-      enddo
-      ! Volume element is dx^2  * factors 2 for symmetry
-      linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
-      Tocalculate%value(it) = calc_neck(linear_den, z0)
-    enddo
-    ! Charge density
-    do k=1,nz
-      linear_den(k) = sum(R%chargedensity(:,:,k))
-    enddo
-    ! Volume element is dx^2  * factors 2 for symmetry
-    linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
+!    ! 2. Determine z_0 from the matter density by minimization by brute force
+!    z0       = maxz0
+!    min_neck = calc_neck(linear_den, z0)
+!    do k=1,1000
+!      ztry = minz0 + (k-1)*(maxz0-minz0)/1000.0d0
+!      neck = calc_neck(linear_den, ztry)
+!      if(neck .lt. min_neck)then
+!        min_neck = neck
+!        z0       = ztry
+!      endif
+!    enddo
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --
+!    ! 3. Use this value of z0 to calculate all values 
+!    !    Neutron and proton densities
+!    do it=1,2
+!      den(1:nx,1:ny,1:nz) => R%D_I_I(1:nx*ny*nz,it) 
+!      do k=1,nz
+!        linear_den(k) = sum(den(:,:,k))
+!      enddo
+!      ! Volume element is dx^2  * factors 2 for symmetry
+!      linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
+!      Tocalculate%value(it) = calc_neck(linear_den, z0)
+!    enddo
+!    ! Charge density
+!    do k=1,nz
+!      linear_den(k) = sum(R%chargedensity(:,:,k))
+!    enddo
+!    ! Volume element is dx^2  * factors 2 for symmetry
+!    linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
 
-    ToCalculate%ChargeValue = calc_neck(linear_den, z0)
-    !---------------------------------------------------------------------------
-    ! Set the spherical harmonic" variable for this moment in order to 
-    ! facilitate future implementation of constraints on this quantity.
-    ToCalculate%Spherharm = exp(-(meshgrid(:,3) - z0)**2/(neck_length**2))
-    if(reduZ .eq. 1) then
-      ! Explicitly
-      ToCalculate%Spherharm = ToCalculate%Spherharm + &
-      &                     exp(-(meshgrid(:,3) + z0)**2/(neck_length**2))
-      ToCalculate%Spherharm = ToCalculate%Spherharm/2 ! because we have 
-                                                      ! symmetrized!
-    endif
-    !---------------------------------------------------------------------------
-    ! Saving the location of the neck for printing purposes
-    neck_location = z0
+!    ToCalculate%ChargeValue = calc_neck(linear_den, z0)
+!    !---------------------------------------------------------------------------
+!    ! Set the spherical harmonic" variable for this moment in order to 
+!    ! facilitate future implementation of constraints on this quantity.
+!    ToCalculate%Spherharm = exp(-(meshgrid(:,3) - z0)**2/(neck_length**2))
+!    if(reduZ .eq. 1) then
+!      ! Explicitly
+!      ToCalculate%Spherharm = ToCalculate%Spherharm + &
+!      &                     exp(-(meshgrid(:,3) + z0)**2/(neck_length**2))
+!      ToCalculate%Spherharm = ToCalculate%Spherharm/2 ! because we have 
+!                                                      ! symmetrized!
+!    endif
+!    !---------------------------------------------------------------------------
+!    ! Saving the location of the neck for printing purposes
+!    neck_location = z0
     return
   end subroutine Calculate_neckoperator
   
@@ -2650,132 +2650,132 @@ $NTR endif
     
     type(DensityVector), intent(in), target :: R
 
-    real(KIND=dp)  :: Treshold(2), DeltaR(nx,ny,nz), Surface(3,7*nx*ny*nz),X,Y,Z
-    real(KIND=dp)  :: InterX,InterY,InterZ, Distance
-    integer        :: it,i,j,k,l, T, Sig(nx,ny,nz)
-    
-    real(KIND=dp), pointer     :: rho_3D(:,:,:,:), cut_3D(:,:,:,:)
+!    real(KIND=dp)  :: Treshold(2), DeltaR(nx,ny,nz), Surface(3,7*nx*ny*nz),X,Y,Z
+!    real(KIND=dp)  :: InterX,InterY,InterZ, Distance
+!    integer        :: it,i,j,k,l, T, Sig(nx,ny,nz)
+!    
+!    real(KIND=dp), pointer     :: rho_3D(:,:,:,:), cut_3D(:,:,:,:)
 
-    if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
+!    if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
 
-    ! 3D representation of D_I_I for ease of coding
-    rho_3D(1:nx,1:ny,1:nz,1:2) => R%D_I_I
-    cut_3D(1:nx,1:ny,1:nz,1:2) => Cutoff
-  
-    do it=1,2
-      Surface = 0.0_dp
+!    ! 3D representation of D_I_I for ease of coding
+!    rho_3D(1:nx,1:ny,1:nz,1:2) => R%D_I_I
+!    cut_3D(1:nx,1:ny,1:nz,1:2) => Cutoff
+!  
+!    do it=1,2
+!      Surface = 0.0_dp
 
-      !Finding the treshold value. At the moment it is fixed to one tenth
-      !of the maximum density.
-      Treshold(it) = maxval(rho_3D(:,:,:,it))/cutfac
+!      !Finding the treshold value. At the moment it is fixed to one tenth
+!      !of the maximum density.
+!      Treshold(it) = maxval(rho_3D(:,:,:,it))/cutfac
 
-      !Taking a ridiculously large number as starting point
-      DeltaR = 1.d12
+!      !Taking a ridiculously large number as starting point
+!      DeltaR = 1.d12
 
-      !T keeps count of the number of surface points the routine found
-      T=0
+!      !T keeps count of the number of surface points the routine found
+!      T=0
 
-      ! Sig is a sign that keeps track whether a point is on the inside or
-      ! the outside of the equidensity surface.
-      where(rho_3D(:,:,:,it) .gt. Treshold(it))
-              Sig = - 1
-      elsewhere
-              Sig =   1
-      endwhere
+!      ! Sig is a sign that keeps track whether a point is on the inside or
+!      ! the outside of the equidensity surface.
+!      where(rho_3D(:,:,:,it) .gt. Treshold(it))
+!              Sig = - 1
+!      elsewhere
+!              Sig =   1
+!      endwhere
 
-      ! First, we construct the mesh coordinates of the equidensity surface.
-      ! To do this we check for all points of the grid if the surface lies
-      ! between them and their immediate neighbours.
-      ! If this is the case, some linear extrapolation is done and the resulting
-      ! X,Y and Z coordinates are saved to Surface.
-      do k=1,nz-1
-        Z = MeshZ(k)
-        do j=1,ny-1
-          Y = MeshY(j)
-          do i=1,nx-1
-           X = MeshX(i)
+!      ! First, we construct the mesh coordinates of the equidensity surface.
+!      ! To do this we check for all points of the grid if the surface lies
+!      ! between them and their immediate neighbours.
+!      ! If this is the case, some linear extrapolation is done and the resulting
+!      ! X,Y and Z coordinates are saved to Surface.
+!      do k=1,nz-1
+!        Z = MeshZ(k)
+!        do j=1,ny-1
+!          Y = MeshY(j)
+!          do i=1,nx-1
+!           X = MeshX(i)
 
-           !Initialising the interpolated values of the coordinates.
-           !This needs to be done in light of the last if in this
-           !loop-construction.
-           InterX= 0.0_dp
-           InterY= 0.0_dp
-           InterZ= 0.0_dp
+!           !Initialising the interpolated values of the coordinates.
+!           !This needs to be done in light of the last if in this
+!           !loop-construction.
+!           InterX= 0.0_dp
+!           InterY= 0.0_dp
+!           InterZ= 0.0_dp
 
-           if( ((rho_3d(i  ,j,k,it).ge.Treshold(it)) .and.                &
-           &     (rho_3d(i+1,j,k,it).le.Treshold(it)) ) &
-           &  .or. &
-           &   ((rho_3d(i  ,j,k,it).le.Treshold(it)) .and.                &
-           &    (rho_3d(i+1,j,k,it).ge.Treshold(it)))) then
-            !In this case the surface lies somewhere between i and i+1
-            InterX=X +                                                         &
-            &  dx*(Treshold(it)-rho_3d(i,j,k,it))/                        &
-            & (rho_3d(i+1,j,k,it)-rho_3d(i,j,k,it))
+!           if( ((rho_3d(i  ,j,k,it).ge.Treshold(it)) .and.                &
+!           &     (rho_3d(i+1,j,k,it).le.Treshold(it)) ) &
+!           &  .or. &
+!           &   ((rho_3d(i  ,j,k,it).le.Treshold(it)) .and.                &
+!           &    (rho_3d(i+1,j,k,it).ge.Treshold(it)))) then
+!            !In this case the surface lies somewhere between i and i+1
+!            InterX=X +                                                         &
+!            &  dx*(Treshold(it)-rho_3d(i,j,k,it))/                        &
+!            & (rho_3d(i+1,j,k,it)-rho_3d(i,j,k,it))
 
-            T = T + 1
+!            T = T + 1
 
-            Surface(1,T) = InterX
-            Surface(2,T) = Y
-            Surface(3,T) = Z
-           endif
+!            Surface(1,T) = InterX
+!            Surface(2,T) = Y
+!            Surface(3,T) = Z
+!           endif
 
-           if( ((rho_3d(i,j  ,k,it).ge.Treshold(it)) .and.                     &
-           &    (rho_3d(i,j+1,k,it).le.Treshold(it)) ) &
-           &  .or. &
-           &   ((rho_3d(i,j  ,k,it).le.Treshold(it)) .and.                     &
-           &    (rho_3d(i,j+1,k,it).ge.Treshold(it)))) then
-            !In this case the surface lies somewhere between j and j+1
-            InterY = Y +                                                       &
-            & dx*(Treshold(it)-rho_3d(i,j,k,it))/                              &
-            & (rho_3d(i,j+1,k,it)-rho_3d(i,j,k,it))
+!           if( ((rho_3d(i,j  ,k,it).ge.Treshold(it)) .and.                     &
+!           &    (rho_3d(i,j+1,k,it).le.Treshold(it)) ) &
+!           &  .or. &
+!           &   ((rho_3d(i,j  ,k,it).le.Treshold(it)) .and.                     &
+!           &    (rho_3d(i,j+1,k,it).ge.Treshold(it)))) then
+!            !In this case the surface lies somewhere between j and j+1
+!            InterY = Y +                                                       &
+!            & dx*(Treshold(it)-rho_3d(i,j,k,it))/                              &
+!            & (rho_3d(i,j+1,k,it)-rho_3d(i,j,k,it))
 
-            T = T + 1
+!            T = T + 1
 
-            Surface(1,T) = X
-            Surface(2,T) = InterY
-            Surface(3,T) = Z
-           endif
+!            Surface(1,T) = X
+!            Surface(2,T) = InterY
+!            Surface(3,T) = Z
+!           endif
 
-           if( ((rho_3d(i,j,k  ,it).ge.Treshold(it)) .and.                     &
-           &    (rho_3d(i,j,k+1,it).le.Treshold(it)))                          &
-           &  .or. &
-           &   ((rho_3d(i,j,k  ,it).le.Treshold(it)) .and.                     &
-           &   (rho_3d(i,j,k+1,it).ge.Treshold(it)) ) ) then
-            !In this case the surface lies somewhere between k and k+1
-            InterZ = Z +                                                       &
-            & dx*(Treshold(it)-rho_3d(i,j,k,it))/                              &
-            & (rho_3d(i,j,k+1,it) - rho_3d(i,j,k,it))
-            T = T + 1
-            Surface(1,T) = X
-            Surface(2,T) = Y
-            Surface(3,T) = InterZ
-           endif
-          enddo
-        enddo
-      enddo
+!           if( ((rho_3d(i,j,k  ,it).ge.Treshold(it)) .and.                     &
+!           &    (rho_3d(i,j,k+1,it).le.Treshold(it)))                          &
+!           &  .or. &
+!           &   ((rho_3d(i,j,k  ,it).le.Treshold(it)) .and.                     &
+!           &   (rho_3d(i,j,k+1,it).ge.Treshold(it)) ) ) then
+!            !In this case the surface lies somewhere between k and k+1
+!            InterZ = Z +                                                       &
+!            & dx*(Treshold(it)-rho_3d(i,j,k,it))/                              &
+!            & (rho_3d(i,j,k+1,it) - rho_3d(i,j,k,it))
+!            T = T + 1
+!            Surface(1,T) = X
+!            Surface(2,T) = Y
+!            Surface(3,T) = InterZ
+!           endif
+!          enddo
+!        enddo
+!      enddo
 
-      ! Now we can find the minimum distance from every point on the
-      ! mesh to the surface.
-      do k=1,nz
-        Z = MeshZ(k)
-        do j=1,ny
-          Y = MeshY(j)
-          do i=1,nx
-            X = MeshX(i)
-            do l=1,T
-              !Distance to the surface point
-              Distance = (X - Surface(1,l))**2 + (Y -Surface(2,l))**2 +        &
-              &          (Z - Surface(3,l))**2
-              DeltaR(i,j,k) = min(DeltaR(i,j,k) , Distance)
-            enddo
-            DeltaR(i,j,k) = Sig(i,j,k)*sqrt(DeltaR(i,j,k) )
-          enddo
-        enddo
-      enddo
+!      ! Now we can find the minimum distance from every point on the
+!      ! mesh to the surface.
+!      do k=1,nz
+!        Z = MeshZ(k)
+!        do j=1,ny
+!          Y = MeshY(j)
+!          do i=1,nx
+!            X = MeshX(i)
+!            do l=1,T
+!              !Distance to the surface point
+!              Distance = (X - Surface(1,l))**2 + (Y -Surface(2,l))**2 +        &
+!              &          (Z - Surface(3,l))**2
+!              DeltaR(i,j,k) = min(DeltaR(i,j,k) , Distance)
+!            enddo
+!            DeltaR(i,j,k) = Sig(i,j,k)*sqrt(DeltaR(i,j,k) )
+!          enddo
+!        enddo
+!      enddo
 
-      ! With this distance we can calculate the cutoff function.
-      Cut_3D(:,:,:,it) = 1.0d0/(1.0d0 + exp( (DeltaR - radd)/acut)  )
-    enddo
+!      ! With this distance we can calculate the cutoff function.
+!      Cut_3D(:,:,:,it) = 1.0d0/(1.0d0 + exp( (DeltaR - radd)/acut)  )
+!    enddo
     return
   end subroutine RutzCutOff
 

@@ -126,6 +126,11 @@ implicit none
     integer, parameter :: sy_s(3) = (/$SY_SX,$SY_SY,$SY_SZ/)
     integer, parameter :: sz_s(3) = (/$SZ_SX,$SZ_SY,$SZ_SZ/)
     
+    interface mixup_rhokappa
+      module procedure mixup_rhokappa_real
+      module procedure mixup_rhokappa_complex
+    end interface
+    
 contains
  
  subroutine save_density_history(R)
@@ -314,7 +319,7 @@ subroutine construct_canonical_basis(rho, kappa, rho_c, kappa_c)
 
  end function gen_unitary_transform
 
-subroutine mixup_rhokappa(rho, kappa, transfo)
+subroutine mixup_rhokappa_real(rho, kappa, transfo)
   !-----------------------------------------------------------------------------
   ! Construct a random symmetry-respecting unitary transformation and apply
   ! it to (i) the single-particle wavefunctions in the Hartree-Fock basis
@@ -335,7 +340,31 @@ subroutine mixup_rhokappa(rho, kappa, transfo)
   ! TODO: enable!
   !kappa = transform_mat(kappa, transfo)
 
-end subroutine mixup_rhokappa
+end subroutine mixup_rhokappa_real
+
+subroutine mixup_rhokappa_complex(rho, kappa, transfo)
+  !-----------------------------------------------------------------------------
+  ! Construct a random symmetry-respecting unitary transformation and apply
+  ! it to (i) the single-particle wavefunctions in the Hartree-Fock basis
+  ! and (ii) the matrices rho and kappa.
+  !-----------------------------------------------------------------------------
+
+  real(KIND=dp), allocatable, intent(in) :: transfo(:,:)
+  complex(KIND=dp), intent(inout) :: rho(:,:), kappa(:,:)
+
+  ! Perform the transformation of the spwfs
+  call transform_spwfs_inplace(hfpsi, transfo)
+  ! reperform derivatives((
+  call deriveHF()
+  ! Transform the density matrix and canonical kappa
+  rho   = transform_mat(rho, transfo)
+  ! Kappa transforms differently from rho, but in case of real
+  ! matrices this is largely irrelevant
+  ! TODO: enable!
+  !kappa = transform_mat(kappa, transfo)
+
+end subroutine mixup_rhokappa_complex
+
 
 function densit(rho, kappa) result(R)
     !---------------------------------------------------------------------------
@@ -684,9 +713,8 @@ function densit_offdiag(rho, kappa) result(R)
     !----------------------------------------------------------------------------
     external construct_charge_density
 
-    ! TODO: complexify input!
-    real(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
-    type(DensityVector)       :: R
+    complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
+    type(DensityVector)          :: R
 
     real(KIND=dp)             :: weight ! adapt to input!
     integer                   :: wave_i       , wave_j
@@ -1503,24 +1531,24 @@ subroutine print_boxsize_check(R)
   4 format (' Zmax = (nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmax)) = ', es12.3 )
 $PBROKEN 41 format (' Zmin =-(nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmin)) = ', es12.3 )
   
-  rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
-  
-  print 1
-  print 11
-  print 2, meshX(nx) , maxval(sum(rho3D(nx,:,:,:),3))
-  print 3 , meshY(ny), maxval(sum(rho3D(:,ny,:,:),3))
-  print 4 , meshZ(nz), maxval(sum(rho3D(:,:,nz,:),3))
-$PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
+!  rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
+!  
+!  print 1
+!  print 11
+!  print 2, meshX(nx) , maxval(sum(rho3D(nx,:,:,:),3))
+!  print 3 , meshY(ny), maxval(sum(rho3D(:,ny,:,:),3))
+!  print 4 , meshZ(nz), maxval(sum(rho3D(:,:,nz,:),3))
+!$PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
 
-  if(pairingtype .ne. 0) then
-    rhoP_3D(1:nx,1:ny,1:nz,1:2) => R%DP_I_I
+!  if(pairingtype .ne. 0) then
+!    rhoP_3D(1:nx,1:ny,1:nz,1:2) => R%DP_I_I
 
-    print 12
-    print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
-    print 3 , meshY(ny), maxval(abs(sum(rhoP_3D(:,ny,:,:),3)))
-    print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
-$PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
-  endif
+!    print 12
+!    print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
+!    print 3 , meshY(ny), maxval(abs(sum(rhoP_3D(:,ny,:,:),3)))
+!    print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
+!$PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
+!  endif
   
 end subroutine print_boxsize_check
 

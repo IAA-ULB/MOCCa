@@ -24,6 +24,11 @@ module basis_transform
  use timing
  
  implicit none
+ 
+ interface transform_mat
+  module procedure transform_mat_real
+  module procedure transform_mat_complex
+ end interface
 
 contains
 
@@ -79,7 +84,7 @@ contains
 
  end subroutine transform_spwfs
 
- function transform_mat(M, transfo) result(Mc)
+ function transform_mat_real(M, transfo) result(Mc)
   !-----------------------------------------------------------------------------
   ! Transform the matrix M with the orthonormal transformation C = transfo.
   !
@@ -116,7 +121,46 @@ contains
     si = si +  T
   enddo  
 
- end function transform_mat 
+ end function transform_mat_real
+
+ function transform_mat_complex(M, transfo) result(Mc)
+  !-----------------------------------------------------------------------------
+  ! Transform the matrix M with the orthonormal transformation C = transfo.
+  !
+  ! This routine is a bit wasteful: it constructs the new matrix in both 
+  ! signature blocks at the same time. When time-reversal is broken, this means
+  ! that some 0's are multiplied and added together. Since N/N2/T is generally
+  ! small, I don't care enough to do better.
+  ! 
+  ! Input:
+  !     M    : matrix to transform
+  !  transfo : unitary transformation C to employ 
+  !            (in the conventions of this module)
+  !
+  ! Output:
+  !     Mc = C^T M C
+  !-----------------------------------------------------------------------------
+  complex(KIND=dp), intent(in) :: M(nwt,nwt)
+  real(KIND=dp), intent(in)    :: transfo(nwt,nwt)
+  complex(KIND=dp)                :: Mc(nwt,nwt)
+  integer                      :: B, N, N2, si, T
+
+  si      = 0   
+  Mc = 0.0d0
+  do B=1,8,2
+    N = HFBlocks_global(B)  ;  if(N .eq. 0) cycle 
+    N2= HFBlocks_global(B+1)
+    T = N + N2
+
+    Mc(si+1:si+T, si+1:si+T) =&
+    &             matmul(M(si+1:si+T, si+1:si+T), transfo(si+1:si+T, si+1:si+T))
+    Mc(si+1:si+T, si+1:si+T) =&
+    & matmul( transpose(transfo(si+1:si+T, si+1:si+T)),Mc(si+1:si+T, si+1:si+T))
+
+    si = si +  T
+  enddo  
+
+ end function transform_mat_complex
 
  function transform_vec(V, transfo) result(Vc)
   !-----------------------------------------------------------------------------

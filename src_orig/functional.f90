@@ -201,6 +201,11 @@ $DECLARATION
       !Overloading "*" to be used to multiply potential vectors with scalars
       module procedure multiply_potentialvector
    end interface
+   
+   interface pow
+      module procedure pow_real
+      module procedure pow_complex
+   end interface
   
 contains
 
@@ -1685,11 +1690,11 @@ $POTENTIALPRECON
   
   end subroutine set_coul
   
-  pure function pow( f, alpha) result(pf)
+  pure function pow_real(f,alpha) result(pf)
     !---------------------------------------------------------------------------
-    ! Safely take powers of a density f, avoiding negative powers of numbers
-    ! that might be accidentally 0 or negative below machine precision. This is
-    ! achieved by adding a small (positive value) to the density.
+    ! Safely take powers of a REAL density f, avoiding the raising of negative 
+    ! numbers to powers that are 0 or negative. This is achieved by adding a 
+    ! small (positive value) to the density.
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: f(mv), alpha
     real(KIND=dp)             :: pf(mv)
@@ -1699,7 +1704,25 @@ $POTENTIALPRECON
     else
       pf = (f)**(alpha)
     endif
-  end function pow
+  end function pow_real
+
+  pure function pow_complex(f,alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Take powers of a COMPLEX density.
+    !
+    ! No safeguard is necessary; complex exponentiation is well-defined; it
+    ! is maintained however to as closely replicate pow_real
+    !---------------------------------------------------------------------------
+    complex(KIND=dp), intent(in) :: f(mv)
+    real(KIND=dp), intent(in)    :: alpha
+    complex(KIND=dp)             :: pf(mv)
+
+    if(alpha .lt. 0) then
+      pf = (f + eps)**(alpha)
+    else
+      pf = (f)**(alpha)
+    endif
+  end function pow_complex
 
   function INM_k2_pot(rho) result(pot)
     !-----------------------------------------------------------------
@@ -1987,7 +2010,7 @@ $PAIRINGACTION
   function calcspwfenergy() result(spwfenergy)
     !---------------------------------------------------------------------------
     ! Calculates the total energy from the single-particle energies.
-    !
+    ! TODO: define inputs!
     !---------------------------------------------------------------------------
 
     use wavefunctions
@@ -2032,7 +2055,7 @@ $EREAR
     ! Subtract contribution by multipole constraints
     Constraint_I_I = constraints_sph_elmult(.false.)
     SpwfEnergy = SpwfEnergy - &
-    &                sum(Constraint_I_I(:,1:2) * Density%D_I_I(:,1:2))*dv/2.0_dp
+    &          sum(Constraint_I_I(:,1:2) * DBLE(Density%D_I_I(:,1:2)))*dv/2.0_dp
 
     ! Subtract contribution by cranking constraints
     SpwfEnergy = SpwfEnergy - sum(crankenergy_cut)/2.0_dp

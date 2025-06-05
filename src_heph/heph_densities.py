@@ -273,8 +273,8 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       off_diag_tuple  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                           'wave_j'     , 'wave_i',                                     \
-                          'der_index_j', 'der_index_i',so,                             \
-                           density_spwf_summation)
+                          'der_index_j', 'der_index_i',so,density_spwf_summation,
+                           complex_numbers=True)
       e_off = off_diag_tuple[0] # we only need the calculation of this density
 
       # -> then the imaginary part
@@ -541,7 +541,8 @@ def ReconstructDensity(der, lap, left, right):
 def GenDensityExpression(denin,derivative_combinations,intermediate, 
                          leftwave     , rightwave     ,
                          left_der_wave, right_der_wave, so,
-                         density_spwf_summation, silent=False):
+                         density_spwf_summation, complex_numbers=False,
+                         silent=False):
     """
       Generate all the necessary strings to plug into FORTRAN source code 
       template Densities.f90.
@@ -562,6 +563,8 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
       * so                     : a set of symmetry options
       * density_spwf_summation : if True, calculate derivatives of densities 
                                  through summation over spwfs
+      * complex_numbers        : if False, generate expressions for when the 
+                                 densities can be assumed to be real. 
       * silent                 : If True  => don't print the symmetry output 
                                  If False => print symmetry output for the 
                                              reflection symmetries of the 
@@ -967,8 +970,11 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
 
         # Final summation
         if( not intermediate):
-            # Only sum for storage if the object is not intermediate
-            Expression = Expression + ta.Den_1.substitute(dic) + '\n\n'
+          # Only sum for storage if the object is not intermediate
+          if(complex_numbers):
+            Expression = Expression + ta.Den_sum_complex.substitute(dic) + '\n\n'
+          else:
+            Expression = Expression + ta.Den_sum_real.substitute(dic)    + '\n\n'
 
         # And add a line for the isospin coupling
         if('P' not in density):
