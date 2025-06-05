@@ -26,9 +26,12 @@ module fam
   !-----------------------------------------------------------------------------
   ! Define some FAM parameters
   real(KIND=dp) :: omega_fam       ! frequency of the perturbing field 
-  real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 1.0 MeV
+  real(KIND=dp) :: smear = 0.5_dp  ! complex smearing parameter, default 0.5 MeV
+  !    Note that the obtained strength is convoluted with a Lorentzian with FWHM 
+  !    equal to double this complex shift
   real(KIND=dp) :: eta = 1.0e-3_dp ! small parameter entering derivatives, 
-                                   ! default 10^-3
+  !    Default currently set to 10-3. In the end, the strength should be 
+  !    reasonably indepedent of the choice. 
   integer       :: maxfamiter = 10 ! maximal number of FAM iterations 
   !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
@@ -60,6 +63,24 @@ module fam
 
   ! Do we need more identifiers for electric vs magnetic and isovector 
   ! vs isoscalar
+  !-----------------------------------------------------------------------------
+  ! convergence
+  complex(KIND=dp), allocatable :: X_hist(:,:,:) ! history of X through FAM iters
+  !                                       | | '-> sp index : hole
+  !                                       | '-> sp index : particle
+  !                                       '-> history index 
+  complex(KIND=dp), allocatable :: Y_hist(:,:,:) ! history of Y through FAM iters
+  !                                       | | '-> sp index : hole
+  !                                       | '-> sp index : particle
+  !                                       '-> history index 
+  integer :: hist_max = 2 ! history size 
+  integer :: hist_current_idx = 0 ! rolling index through the history
+  ! notes: 
+  !   Histories are implemented as circular buffers to mitigate copying data. 
+  !   hist(hist_current_idx,:,:) contains the latest entry; the previous one can be
+  !   accessed at idx = modulo(hist_current_idx - 2, hist_max) + 1). Rolling the
+  !   index two steps back and then one forward is because mod gives values 
+  !   0..hist_max-1 while fortran arrays use a 1-based index. 
 
   contains
 
@@ -91,6 +112,8 @@ module fam
     allocate(X(nwt,nwt)) 
     allocate(Y(nwt,nwt))
 
+    allocate(X_hist(hist_max,nwt,nwt)) 
+    allocate(Y_hist(hist_max,nwt,nwt))
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Get the solid harmonics Q_lm(i,j) = < i | r^l Y_lm | j > expressed 
@@ -108,6 +131,12 @@ module fam
 
     ! Rescale, Qlm comes in units barn^(l/2)
     SolidHarmHF = SolidHarmHF * (100**(l/2.0)) 
+
+    ! note: 
+    !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
+    !   alpha converting the units of the perturbation to MeV, and eventually 
+    !   devides the obtained strength by alpha. 
+
 
     ! TODO: write a general transformation routine from the mesh to any 
     !       single-particle basis
@@ -143,9 +172,12 @@ module fam
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the RPA amplitudes 
-    call update_XY()  
+    call update_XY()
+
+    call store_XY_hist()
 
   end subroutine inifam
+
 
   subroutine update_XY()
     implicit none
@@ -174,6 +206,20 @@ module fam
     enddo
 
   end subroutine
+
+  subroutine store_XY_hist()
+    !---------------------------------------------------------------------------
+    ! Store the current X and Y into their histories. 
+    !---------------------------------------------------------------------------
+
+    ! roll the current index one step forward
+    hist_current_idx = modulo(hist_current_idx, hist_max) + 1
+
+    ! store X and Y in current spot
+    X_hist(hist_current_idx, :, :) = X(:,:)
+    Y_hist(hist_current_idx, :, :) = Y(:,:)
+
+  end subroutine store_XY_hist
 
 
   subroutine iniHFdensities()
@@ -396,11 +442,16 @@ program run_FAM
 
     print *, "FAM iteration : ", iteration
 
-    call build_perturbed_densities(rho_pairing, kappa_pairing)
+    ! call build_perturbed_densities(rho_pairing, kappa_pairing)
 
-    call build_dH(DensityPert)
+    ! call build_dH(DensityPert)
 
     call update_XY()
+    
+    ! FUTURE: mix new amplitudes with previous iterations
+    ! call mix_XY_GMRES()
+
+    call store_XY_hist()
 
 
   enddo
