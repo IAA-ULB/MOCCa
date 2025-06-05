@@ -260,12 +260,17 @@ subroutine construct_canonical_basis(rho, kappa, rho_c, kappa_c)
  end subroutine construct_canonical_basis
 
  function gen_unitary_transform() result(transfo)
-  !---------------------------------------------------------------------
-  ! TODO: document
+  !-----------------------------------------------------------------------------
+  ! Generate a random unitary transformation in the space of the single-particle
+  ! states that respects the symmetries of the calculation.
   !
-  !---------------------------------------------------------------------
+  ! Input
+  ! Output:
+  !  - transfo : the unitary transformation
+  !-----------------------------------------------------------------------------
   integer                    :: si, B, i, j, N
   real(KIND=dp), allocatable :: transfo(:,:)
+!  real(KIND=dp), allocatable :: check(:,:)
   real(KIND=dp)              :: fac
 
   allocate(transfo(nwt,nwt))
@@ -284,19 +289,36 @@ subroutine construct_canonical_basis(rho, kappa, rho_c, kappa_c)
       do j=i+1,N
         ! Orthogonalize the rest
         fac =  sum(transfo(si+1:si+N,si+j)*transfo(si+1:si+N,si+i))
-        transfo(si+1:si+N,si+j) = transfo(si+1:si+N,si+j)  - fac *  transfo(si+1:si+N,si+i)
+        transfo(si+1:si+N,si+j) = transfo(si+1:si+N,si+j) &
+        &                                       - fac *  transfo(si+1:si+N,si+i)
       enddo
     enddo
+    
+    print *, 'B=', B
+    do i=1,N
+      print ('(99f10.3)'), transfo(i,1:N)
+    enddo
+
+!    allocate(check(N,N))    
+!    check = matmul(transfo(si+1:si+N,si+1:si+N), transpose(transfo(si+1:si+N,si+1:si+N)))
+!  
+!    print *, 'B=', B
+!    do i=1,N
+!      print ('(99f10.3)'), check(i,1:N)
+!    enddo
+
+!    deallocate(check)
+    si = si + N
   enddo
+
 
  end function gen_unitary_transform
 
 subroutine mixup_rhokappa(rho, kappa, transfo)
   !-----------------------------------------------------------------------------
   ! Construct a random symmetry-respecting unitary transformation and apply
-  ! it to
-  !  - the single-particle wavefunctions in the Hartree-Fock basis
-  !  - the matrices rho and kappa
+  ! it to (i) the single-particle wavefunctions in the Hartree-Fock basis
+  ! and (ii) the matrices rho and kappa.
   !-----------------------------------------------------------------------------
 
   real(KIND=dp), allocatable, intent(in) :: transfo(:,:)
@@ -310,7 +332,8 @@ subroutine mixup_rhokappa(rho, kappa, transfo)
   rho   = transform_mat(rho, transfo)
   ! Kappa transforms differently from rho, but in case of real
   ! matrices this is largely irrelevant
-  kappa = transform_mat(kappa, transfo)
+  ! TODO: enable!
+  !kappa = transform_mat(kappa, transfo)
 
 end subroutine mixup_rhokappa
 
@@ -708,7 +731,7 @@ $ZEROING
       if(wave_global_i.le.nwn) it_i = 1
 
       ! TODO: enable store_derivatives option
-      der_index_i = 1
+      der_index_i = wave_i
 
       do wave_j=1,nwt_local
         wave_global_j = spwf_map(wave_j) ! Global spwf index
@@ -721,7 +744,7 @@ $ZEROING
         it = it_i
 
         ! TODO: enable store_derivatives option
-        der_index_j = 1
+        der_index_j = wave_j
         !----------------------------------------------------------------------------
         ! The summation weight for particle-hole densities
         weight  = rho(wave_global_i, wave_global_j)
