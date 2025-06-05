@@ -258,7 +258,62 @@ subroutine construct_canonical_basis(rho, kappa, rho_c, kappa_c)
     if((.not. efficientHFB) .and. store_derivatives) call derivecan()
 
  end subroutine construct_canonical_basis
- 
+
+ function gen_unitary_transform() result(transfo)
+  !---------------------------------------------------------------------
+  ! TODO: document
+  !
+  !---------------------------------------------------------------------
+  integer                    :: si, B, i, j, N
+  real(KIND=dp), allocatable :: transfo(:,:)
+  real(KIND=dp)              :: fac
+
+  allocate(transfo(nwt,nwt))
+  ! Generate a (symmetry-respecting) random unitary transformation
+  transfo = 0.0d0
+  si = 0
+  do B=1,8
+    N = HFBlocks(B)
+    ! Generate random numbers
+    call random_number(transfo(si+1:si+N, si+1:si+N))
+    ! Orthonormalize the columns
+    do i=1,N
+      ! Normalize
+      fac =  sqrt(sum(transfo(si+1:si+N,si+i)**2))
+      transfo(si+1:si+N,si+i) = transfo(si+1:si+N,si+i)/ fac
+      do j=i+1,N
+        ! Orthogonalize the rest
+        fac =  sum(transfo(si+1:si+N,si+j)*transfo(si+1:si+N,si+i))
+        transfo(si+1:si+N,si+j) = transfo(si+1:si+N,si+j)  - fac *  transfo(si+1:si+N,si+i)
+      enddo
+    enddo
+  enddo
+
+ end function gen_unitary_transform
+
+subroutine mixup_rhokappa(rho, kappa, transfo)
+  !-----------------------------------------------------------------------------
+  ! Construct a random symmetry-respecting unitary transformation and apply
+  ! it to
+  !  - the single-particle wavefunctions in the Hartree-Fock basis
+  !  - the matrices rho and kappa
+  !-----------------------------------------------------------------------------
+
+  real(KIND=dp), allocatable, intent(in) :: transfo(:,:)
+  real(KIND=dp), intent(inout) :: rho(:,:), kappa(:,:)
+
+  ! Perform the transformation of the spwfs
+  call transform_spwfs_inplace(hfpsi, transfo)
+  ! reperform derivatives((
+  call deriveHF()
+  ! Transform the density matrix and canonical kappa
+  rho   = transform_mat(rho, transfo)
+  ! Kappa transforms differently from rho, but in case of real
+  ! matrices this is largely irrelevant
+  kappa = transform_mat(kappa, transfo)
+
+end subroutine mixup_rhokappa
+
 function densit(rho, kappa) result(R)
     !---------------------------------------------------------------------------
     ! Calculate all of the mean-field densities, both normal and pairing. 
@@ -670,6 +725,9 @@ $ZEROING
         !----------------------------------------------------------------------------
         ! The summation weight for particle-hole densities
         weight  = rho(wave_global_i, wave_global_j)
+
+        ! Don't spend time multiplying zeros
+        if(weight.eq.0.0d0) cycle
 
         do i=1,mv
 $EXPRESSION_OFFDIAG

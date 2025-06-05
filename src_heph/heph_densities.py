@@ -277,16 +277,17 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
                            density_spwf_summation)
       e_off = off_diag_tuple[0] # we only need the calculation of this density
 
-      if(Densities_needed[i][0] == 'D'):
-          den = Densities_needed[i][0].replace('D', 'C') + Densities_needed[i][1:]
-      else:
-          den = Densities_needed[i][0].replace('C', 'D') + Densities_needed[i][1:]
-      off_diag_tuple  = \
-      GenDensityExpression(den,deriv_needed[i],intermediate_status[i], \
-                          'wave_j'     , 'wave_i',                                     \
-                          'der_index_j', 'der_index_i',so,                             \
-                           density_spwf_summation)
-      e_off = e_off + off_diag_tuple[0] # we only need the calculation of this density
+      # -> then the imaginary part
+      # if(Densities_needed[i][0] == 'D'):
+      #     den = Densities_needed[i][0].replace('D', 'C') + Densities_needed[i][1:]
+      # else:
+      #     den = Densities_needed[i][0].replace('C', 'D') + Densities_needed[i][1:]
+      # off_diag_tuple  = \
+      # GenDensityExpression(den,deriv_needed[i],intermediate_status[i], \
+      #                     'wave_j'     , 'wave_i',                                     \
+      #                     'der_index_j', 'der_index_i',so,                             \
+      #                      density_spwf_summation)
+      # e_off = e_off + off_diag_tuple[0] # we only need the calculation of this density
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
