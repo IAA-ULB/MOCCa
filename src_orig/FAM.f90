@@ -60,7 +60,6 @@ module fam
   !                               | '-> sp index : hole
   !                               '-> sp index : particle
   integer :: l, m ! Principal and magnetic quantum number of the multipole moment
-
   ! Do we need more identifiers for electric vs magnetic and isovector 
   ! vs isoscalar
   !-----------------------------------------------------------------------------
@@ -87,7 +86,8 @@ module fam
   subroutine inifam(omega)
     implicit none
     !---------------------------------------------------------------------------
-    ! subroutine to initialise the FAM matrices, i.e.
+    ! Allocate the FAM objects, set the external field F and initialise the X
+    ! and Y from first order, i.e. dH=0. 
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: omega
     real(KIND=dp), allocatable :: SolidHarmHF(:,:)
@@ -172,14 +172,18 @@ module fam
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the RPA amplitudes 
-    call update_XY()
+    call calculate_XY()
 
     call store_XY_hist()
 
   end subroutine inifam
 
 
-  subroutine update_XY()
+  subroutine calculate_XY()
+    !---------------------------------------------------------------------------
+    ! Compute the X and Y amplitudes from the FAM master equation
+    !---------------------------------------------------------------------------
+
     implicit none
     integer :: p, h
     real(KIND=dp) :: occ_h, occ_p, e_h, e_p
@@ -199,13 +203,13 @@ module fam
         occ_p = 2.0 - rho_can(p)
         e_p = spenergies(p) 
         if(occ_p < 1d-6) cycle
-        X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear) )
-        Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear) )
+        X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
+        Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear,KIND=dp) )
         ! print *, p, h, e_p, e_h, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
       enddo
     enddo
 
-  end subroutine
+  end subroutine calculate_XY
 
   subroutine store_XY_hist()
     !---------------------------------------------------------------------------
@@ -223,8 +227,10 @@ module fam
 
 
   subroutine iniHFdensities()
+    !---------------------------------------------------------------------------
     ! initialse the rho and kappa matrices in HF basis as (nwt, nwt) matrices
     ! these are coined as rho_pairing and kappa_pairing
+    !---------------------------------------------------------------------------
     implicit none
     integer :: i
       
@@ -242,6 +248,11 @@ module fam
 
 
   subroutine build_perturbed_densities(rho0, kappa0)
+    !---------------------------------------------------------------------------
+    ! Build the perturbed mean-field densities.
+    ! /!\ : This is not operational yet and requires more work, cfr. notes. 
+    !---------------------------------------------------------------------------
+
     implicit none
     real(KIND=dp), intent(in) :: rho0(:,:), kappa0(:,:)
     real(KIND=dp), allocatable :: drho_real(:,:), dkappa_real(:,:)
@@ -274,6 +285,13 @@ module fam
   end subroutine build_perturbed_densities
 
   subroutine build_dH(DensityPert)
+    !---------------------------------------------------------------------------
+    ! Build the perturbed single-particle Hamiltonian
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! This still only applicable in absence of pairing since the unperturbed
+    ! sp H is assumed to by diagonal, H_ab = E_a delta_ab
+    !---------------------------------------------------------------------------
+    
     implicit none
     type(DensityVector), intent(in) :: DensityPert
     type(PotentialVector) :: PotentialPert
@@ -446,7 +464,7 @@ program run_FAM
 
     ! call build_dH(DensityPert)
 
-    call update_XY()
+    call calculate_XY()
     
     ! FUTURE: mix new amplitudes with previous iterations
     ! call mix_XY_GMRES()
