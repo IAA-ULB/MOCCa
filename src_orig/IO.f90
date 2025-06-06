@@ -3607,6 +3607,51 @@ $TR          &                                0.0d0,0.0d0,0.0d0
   
   end subroutine write_inertias
 
+  subroutine write_fam_strength(omega_arr, S_arr, l, m, fname)
+    !---------------------------------------------------------------------------
+    ! Write the strength function S(omega, F) obtained from FAMtalus
+    !---------------------------------------------------------------------------
+    ! The file contains a header written by the subroutine write_header,
+    ! supplemented by a dedicated line explaining the content of each column.
+    ! The format of the body of said file is
+    !   omega[MeV]  S[...]
+    !                  '-> unit depends on the external field                  
+    ! 
+    ! TODO: add information specific to FAM : external field l, m, etc. 
+    !---------------------------------------------------------------------------
+    real(kind=dp), intent(in)         :: omega_arr(:), S_arr(:)
+    integer, intent(in)               :: l, m
+    character(len=*), intent(in)      :: fname
+    integer                           :: io, idx
+
+    print *, 'filename = ', fname
+
+
+    1 format('# external field: l =', i2, ' m =', i2)
+    2 format('#', 4x, 'omega',10x,'S')
+
+
+    open(1,file=fname, iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    call write_header(1) ! write general header info
+
+    write(1, fmt=1) l, m ! write info of extrenal field 
+    write(1, fmt=2)      ! write column names
+
+
+    do idx=1,size(omega_arr)
+      write(1, fmt='(1f8.3, 1es25.12E3)') omega_arr(idx), S_arr(idx)
+      
+    enddo
+
+    close(1)
+
+  end subroutine write_fam_strength
+
   function force_halfinteger(j) result(jforced)
       !-------------------------------------------------------------------------
       ! Small function to round a real number to a half integer number, 

@@ -504,9 +504,9 @@ program run_FAM
 
   omega_min = 0.5
   omega_max = 40.0
-  omega_step = 0.5
+  omega_step = 0.1
 
-  omega_num = int((omega_max - omega_min) / omega_step)
+  omega_num = int((omega_max - omega_min) / omega_step) + 1
 
   allocate(omega_arr(omega_num))
   allocate(S_arr(omega_num))
@@ -556,6 +556,8 @@ program run_FAM
     omega_curr = omega_curr + omega_step
 
   enddo
+
+  call write_fam_strength(omega_arr, S_arr, l, m, 'out.fam')
 
   print *, "Reached the end successfully" 
 
