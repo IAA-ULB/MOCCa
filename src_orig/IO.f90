@@ -3624,7 +3624,7 @@ $TR          &                                0.0d0,0.0d0,0.0d0
     character(len=*), intent(in)      :: fname
     integer                           :: io, idx
 
-    print *, 'filename = ', fname
+    print *, ' writing strength function to file :  ', fname
 
 
     1 format('# external field: l =', i2, ' m =', i2)

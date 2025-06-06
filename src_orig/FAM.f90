@@ -106,9 +106,6 @@ module fam
       allocate(drho(nwt,nwt))
       allocate(dkappa(nwt,nwt))
       allocate(dR(2*nwt,2*nwt))
-
-      allocate(dH(nwt,nwt,2))
-      allocate(F(nwt,nwt,2))
     endif
 
     if(.not.allocated(X)) then
@@ -125,52 +122,59 @@ module fam
     Y_hist=0
 
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Get the solid harmonics Q_lm(i,j) = < i | r^l Y_lm | j > expressed 
-    ! in HF basis. 
-    
-    allocate(SolidHarmHF(nwt,nwt)) 
+    if(.not.allocated(F)) then 
+      allocate(F(nwt,nwt,2))
 
-    ! Set external field to E2, hardcoded for now
-    l = 2
-    m = 0
-    ImPart = .false. ! real (.false.) , imaginary (.true.) TBD later
-   
-    ! Calling a function in fission_MOI.f90
-    SolidHarmHF = Qlm_spme(l, m, ImPart)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Get the solid harmonics Q_lm(i,j) = < i | r^l Y_lm | j > expressed 
+      ! in HF basis. 
+      
+      allocate(SolidHarmHF(nwt,nwt)) 
 
-    ! Rescale, Qlm comes in units barn^(l/2)
-    SolidHarmHF = SolidHarmHF * (100**(l/2.0)) 
+      ! Set external field to E2, hardcoded for now
+      l = 2
+      m = 2
+      ImPart = .false. ! real (.false.) , imaginary (.true.) 
+      ! note: odd m and Im parts are not implemeted yet
+     
+      ! Calling a function in fission_MOI.f90
+      SolidHarmHF = Qlm_spme(l, m, ImPart)
 
-    ! note: 
-    !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
-    !   alpha converting the units of the perturbation to MeV, and eventually 
-    !   devides the obtained strength by alpha. 
+      ! Rescale, Qlm comes in units barn^(l/2)
+      SolidHarmHF = SolidHarmHF * (100**(l/2.0)) 
+
+      ! note: 
+      !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
+      !   alpha converting the units of the perturbation to MeV, and eventually 
+      !   devides the obtained strength by alpha. 
 
 
-    ! TODO: write a general transformation routine from the mesh to any 
-    !       single-particle basis
+      ! TODO: write a general transformation routine from the mesh to any 
+      !       single-particle basis
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Define the external field F by selecting the particle-hole and 
-    ! hole-particle subblocks of SolidHarmHF by multiplying by their 
-    ! occupation, i.e. diagonal elements of rho in the canonical basis
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Define the external field F by selecting the particle-hole and 
+      ! hole-particle subblocks of SolidHarmHF by multiplying by their 
+      ! occupation, i.e. diagonal elements of rho in the canonical basis
 
-    F = 0
+      F = 0
 
-    do h = 1, nwt
-      occ_h = rho_can(h)
-      if(occ_h < 1d-6) cycle
-      do p = 1, nwt
-        occ_p = 2.0 - rho_can(p) 
-        ! degeneracy 2.0 must reduced if further symmetries are broken
-        if(occ_p < 1d-6) cycle
-        F(p,h,1) = occ_p * occ_h * SolidHarmHF(p,h) ! ph block F20(p,h)
-        F(p,h,2) = occ_p * occ_h * SolidHarmHF(h,p) ! hp block F02(p,h)
+      do h = 1, nwt
+        occ_h = rho_can(h)
+        if(occ_h < 1d-6) cycle
+        do p = 1, nwt
+          occ_p = 2.0 - rho_can(p) 
+          ! degeneracy 2.0 must reduced if further symmetries are broken
+          if(occ_p < 1d-6) cycle
+          F(p,h,1) = occ_p * occ_h * SolidHarmHF(p,h) ! ph block F20(p,h)
+          F(p,h,2) = occ_p * occ_h * SolidHarmHF(h,p) ! hp block F02(p,h)
+        enddo
       enddo
-    enddo
 
-    deallocate(SolidHarmHF)
+      deallocate(SolidHarmHF)
+
+    endif
+
 
     ! This can be improved by some element-wise products occ^T @ SolidHarmHF @ occ
 
@@ -178,7 +182,10 @@ module fam
     ! to the qp basis. 
 
     ! initialise perturbed Hamiltonian as 0
-    dH = 0
+    if(.not.allocated(dH)) then 
+      allocate(dH(nwt,nwt,2))
+      dH(:,:,:) = 0
+    endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the RPA amplitudes 
@@ -432,6 +439,7 @@ program run_FAM
   real(kind=dp) :: omega_curr, omega_min, omega_max, omega_step
   integer :: omega_num, omega_index
   real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
+  character(len=100) :: famfilename
 
   ! integer :: ifail ! Future dev: required for HFB
 
@@ -557,7 +565,10 @@ program run_FAM
 
   enddo
 
-  call write_fam_strength(omega_arr, S_arr, l, m, 'out.fam')
+
+  write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
+
+  call write_fam_strength(omega_arr, S_arr, l, m, famfilename)
 
   print *, "Reached the end successfully" 
 
