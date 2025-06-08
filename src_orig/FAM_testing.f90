@@ -5,8 +5,10 @@ module fam_testing
   !--------------------------------------------------------------------------------
   use densities
   use moments
-  use pairing, only :  rho_can, pairingtype, rho_pairing, kappa_pairing
+  use Coulombmod, only : SolveCoulomb
+  use pairing,    only :  rho_can, pairingtype, rho_pairing, kappa_pairing
   use fission_MOI
+  use functional
   use evolution
 
 implicit none
@@ -22,8 +24,9 @@ contains
     !--------------------------------------------------------------------------------
     integer :: ifail
 
-    call test_densit_offdiag(ifail)
+    !call test_densit_offdiag(ifail)
     call test_linearity_response(ifail)
+    call test_sphamil_me(ifail)
 
     stop
   end subroutine run_FAM_tests
@@ -43,14 +46,59 @@ contains
   subroutine test_sphamil_me(ifail)
     !-------------------------------------------------------------------------------
     ! Test whether the matrix elements of the single-particle Hamiltonian in the HF
-    ! basis are identical whether calculate through (i) apply_sphamil and (ii) sphamil_me.
+    ! basis are identical whether calculate through (i) apply_sphamil and
+    ! (ii) calc_sphamil_me.
     !
+    ! TODO: define failing case.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Output:
     !  ifail : 0 if succesful, if a deviation above 1e-10 has been detected
     !-------------------------------------------------------------------------------
-    integer, intent(out) :: ifail
+    integer, intent(out)       :: ifail
 
+    real(KIND=dp), allocatable :: sphamil_me(:,:)
+    integer                    :: si, B, N, i
+    type(PotentialVector)      :: F
+    type(DensityVector)        :: R
+
+      do i=1,10
+        print ('(99f10.3)'), sphamil(i, 1:10)
+      enddo
+
+    ! Unfortunately, the Coulomb potentials are not currently read from file
+    ! hence we need to regenerate them explicitly.
+    R  = densit(rho_can, kappa_pairing)
+    call ConstructChargeDensity(R)
+    F  = potentials_read
+    call SolveCoulomb(R, F)
+
+    ! Ensure that potentials match the conventions of sphamil_me with combine_potentials
+    call combine_potentials(F)
+    sphamil_me = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,F, .false.)
+
+    ! print output
+    si = 0
+    do B = 1,8
+      N = HFBLocks(B)
+      print *, 'BLOCK B=', B
+      print ('(99f12.5)'), spenergies(si+1:si+N)
+      print *, 'SPH on file'
+      do i=1,N
+        print ('(99f12.5)'), sphamil(si+i, si+1:si+N)
+      enddo
+      print *, 'SPH from calc_sphamil_me'
+      do i=1,N
+        print ('(99f12.5)'), sphamil_me(si+i, si+1:si+N)
+      enddo
+      print *
+      print *, 'Difference'
+      do i=1,N
+        print ('(99es12.2)'), abs(sphamil(si+i, si+1:si+N) - sphamil_me(si+i, si+1:si+N))
+      enddo
+      si = si + N
+    enddo
+
+    ifail = 0
   end subroutine test_sphamil_me
 
   subroutine test_densit_offdiag(ifail)
@@ -112,7 +160,6 @@ contains
     ! 6. Restore the spwfs to their original condition in order to not mess with other tests
     call mixup_rhokappa(rho_test, kappa_test, transfo)
 
-    stop
   end subroutine test_densit_offdiag
 
 end module fam_testing

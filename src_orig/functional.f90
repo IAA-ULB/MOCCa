@@ -1959,7 +1959,7 @@ $SKYRMEACTION
     call stop_timer(T_sphamil)
 
   end function apply_sphamil
-  
+
   function delta_action(        psi,   &
 $N1DELTA                   &   dpsi,   &
 $N2DELTA                   &  ddpsi,   &

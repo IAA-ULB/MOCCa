@@ -228,6 +228,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
 
     Expression         = ''
     Expression_offdiag = ''
+    Expression_sph     = ''
     BCSExpression      = ''
     HFBExpression      = ''
 
@@ -276,6 +277,15 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
                             'der_index_j', 'der_index_i',so,density_spwf_summation,
                              complex_component=+1,weight='weight_sym')
       e_off += off_diag_tuple[0] # we only need the calculation of this density
+
+      #
+      e_sph = ''
+      sph_tuple = \
+      GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+                            'wave_j', 'wave_i',                                     \
+                            'wave_j', 'wave_i',so,density_spwf_summation,
+                             complex_component=+1, weight='potential')
+      e_sph += sph_tuple[0] # we only need the calculation of this density
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
@@ -298,6 +308,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       else:
         Expression         = Expression              + '\n' + e
         Expression_offdiag = Expression_offdiag      + '\n' + e_off
+        Expression_sph     = Expression_sph          + '\n' + e_sph
         Derivation         = Derivation              + der
 
 
@@ -324,6 +335,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     # a) particle-hole densities
     dic['EXPRESSION'        ] = Expression             # single summation for mean-field calculations
     dic['EXPRESSION_OFFDIAG'] = Expression_offdiag     # double summation for more general purposes
+    dic['EXPRESSION_SPH']    = Expression_sph          # expression for the density-like calculation of the matrix elements of sph
     # b) particle-particle densities in the BCS case
     dic['BCSEXPRESSION'   ] = BCSExpression            # single summation for mean-field calculations
     # c) particle-particle densities in the BCS case
@@ -644,8 +656,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         dic['RIGHTWAVE']  = rightwave
     else:
         dic['RIGHTWAVE']  = right_der_wave
-    dic['WEIGHT']    = weight
-      
+
     totalind= ''
     dim     = ''
     
@@ -970,15 +981,30 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                             ta.Den_diag.substitute(dic)
         Expression = Expression +  '\n'
 
+
         # Final summation
         if( not intermediate):
           # Only sum for storage if the object is not intermediate
-          if(complex_component == +1):
-            Expression = Expression + ta.Den_sum_realpart.substitute(dic) + '\n\n'
-          elif(complex_component == -1):
-            Expression = Expression + ta.Den_sum_imagpart.substitute(dic) + '\n\n'
-          elif(complex_component == +0):
-            Expression = Expression + ta.Den_sum_real.substitute(dic)    + '\n\n'
+
+          if(weight != 'potential'):
+            dic['WEIGHT']    = weight
+            if(complex_component == +1):
+                Expression = Expression + ta.Den_sum_realpart.substitute(dic) + '\n\n'
+            elif(complex_component == -1):
+                Expression = Expression + ta.Den_sum_imagpart.substitute(dic) + '\n\n'
+            elif(complex_component == +0):
+                Expression = Expression + ta.Den_sum_real.substitute(dic)    + '\n\n'
+          else:
+            # This expression will end up in the sum_sphamil routine
+            dic['WEIGHT']    = 'F%'+denin.replace('D', 'F').replace('C','G') + '(i' + IND+  ',it)'
+            if(complex_component == +1):
+                Expression = Expression + ta.Sph_sum_realpart.substitute(dic) + '\n\n'
+            elif(complex_component == -1):
+                Expression = Expression + ta.Sph_sum_imagpart.substitute(dic) + '\n\n'
+            elif(complex_component == +0):
+                Expression = Expression + ta.Sph_sum_real.substitute(dic)    + '\n\n'
+
+
 
         # And add a line for the isospin coupling
         if('P' not in density):
