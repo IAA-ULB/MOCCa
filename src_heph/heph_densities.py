@@ -286,6 +286,13 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
                             'wave_j', 'wave_i',so,density_spwf_summation,
                              complex_component=+1, weight='potential')
       e_sph += sph_tuple[0] # we only need the calculation of this density
+      # Professionalize this ridiculous manual symmetrisation....
+      sph_tuple = \
+      GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+                            'wave_i', 'wave_j',                                     \
+                            'wave_i', 'wave_j',so,density_spwf_summation,
+                             complex_component=+1, weight='potential')
+      e_sph += sph_tuple[0] # we only need the calculation of this density
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
@@ -996,7 +1003,8 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                 Expression = Expression + ta.Den_sum_real.substitute(dic)    + '\n\n'
           else:
             # This expression will end up in the sum_sphamil routine
-            dic['WEIGHT']    = 'F%'+denin.replace('D', 'F').replace('C','G') + '(i' + IND+  ',it)'
+            # TODO: professionalize this ridiculous factor 1/2
+            dic['WEIGHT']    = '0.5d0 * F%'+denin.replace('D', 'F').replace('C','G') + '(i' + IND+  ',it)'
             if(complex_component == +1):
                 Expression = Expression + ta.Sph_sum_realpart.substitute(dic) + '\n\n'
             elif(complex_component == -1):
