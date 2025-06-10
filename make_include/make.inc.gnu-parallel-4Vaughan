@@ -3,7 +3,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -#
 # File to be used for MPI-enabled GNU gfortran without HDF5        #
 # a clone of make.inc.gnu-parallel for Vaughan (linked libraries   #
-# hav a different name                                             #
+# have a different name)                                           #
 #                                                                  #
 # Tested on:                                                       #
 #   - Vaughan : Universiteit Antwerpen Tier-2                      #
