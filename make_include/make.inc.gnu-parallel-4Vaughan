@@ -2,10 +2,11 @@
 #  Tantalus make include file.                                     #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -#
 # File to be used for MPI-enabled GNU gfortran without HDF5        #
+# a clone of make.inc.gnu-parallel for Vaughan (linked libraries   #
+# hav a different name                                             #
 #                                                                  #
 # Tested on:                                                       #
-#   - ELBERETH : W.R.s home machine                                #
-#   - ASTROPC19: W.R.s office machine                              #
+#   - Vaughan : Universiteit Antwerpen Tier-2                      #
 ####################################################################
 
 # Directory names  (will be created if they don't exist)
