@@ -60,11 +60,11 @@ field_read_b  = T(3*tab +  'allocate(F%${FIELD}(mv$ALLOCIND,$ISOSIZE),F_temp%${F
                   3*tab +  'call MPI_BCAST(F_temp%${FIELD},size(F_temp%${FIELD}),MPI_REAL8,0,MPI_COMM_WORLD,mpi_err) \n' + 
                   '#endif \n')
 
-field_read_c  = T(3*tab +  'if(symtransfo_needed) then    \n')
+field_read_c  = T(3*tab +  '!if(symtransfo_needed) then    \n')
 field_read_d  = T(4*tab + '$POTREAD F%$FIELD = F_temp%${FIELD} \n'            \
                 + 4*tab + '$UNDOREAD deallocate(F%$FIELD, F_temp%${FIELD}) \n')
-field_read_e  = T(3*tab +  'else \n')
-field_read_f  = T(3*tab +  'endif \n')
+field_read_e  = T(3*tab +  '!else \n')
+field_read_f  = T(3*tab +  '!endif \n')
 # hdf5 option
 field_read_hdf5_a = T(tab +  'allocate(F%${FIELD}(mv$ALLOCIND,$ISOSIZE),F_temp%${FIELD}(mv$ALLOCIND,$ISOSIZE))\n')
 field_read_hdf5_b = T(tab +  'if(MPI_RANK .eq. 0) then \n' +
@@ -84,10 +84,10 @@ field_read_hdf5_f = T(tab +  'endif \n')
 # ..... and to transform fields with different symmetries
 field_transfo = \
 T( \
-       + 4*tab + 'do it=1,2 \n'                                                                   \
-       + 5*tab + 'F%${FIELD}(:$IND,it) = & \n'                                                    \
-       + 5*tab + '&  changeboxsize_function(F_temp%${FIELD}(:$IND,it), filenx, fileny, filenz) \n'\
-       + 4*tab + 'enddo \n'
+       + 4*tab + '!do it=1,2 \n'                                                                   \
+       + 5*tab + '!F%${FIELD}(:$IND,it) = & \n'                                                    \
+       + 5*tab + '!&  changeboxsize_function(F_temp%${FIELD}(:$IND,it), filenx, fileny, filenz) \n'\
+       + 4*tab + '!enddo \n'
        )
 
 field_transfo_recomb = \
@@ -97,8 +97,8 @@ T( \
 field_transfo_hdf5 = \
 T( \
        + 2*tab + 'do it=1,2 \n'                                                                   \
-       + 3*tab + 'F%${FIELD}(:$IND,it) = & \n'                                                    \
-       + 3*tab + '&  changeboxsize_function(F_temp%${FIELD}(:$IND,it), filenx, fileny, filenz) \n'\
+       + 3*tab + '!F%${FIELD}(:$IND,it) = & \n'                                                    \
+       + 3*tab + '!&  changeboxsize_function(F_temp%${FIELD}(:$IND,it), filenx, fileny, filenz) \n'\
        + 2*tab + 'enddo \n'
        )
 

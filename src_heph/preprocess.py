@@ -252,6 +252,7 @@ def ProcessVectors(src, target, so, densities, potentials, memory_densities):
 
   # FAM vector_FAM.f90
   dic['DECLARATION']            = densities.replace('real(KIND=dp)', 'complex(KIND=dp)')
+  dic['DECLARATION_POTENTIALS'] = potentials.replace('real(KIND=dp)', 'complex(KIND=dp)')
   with open(src+'vectors.f90', 'r') as template:
     with open(target+'vectors_FAM.f90', 'w') as generated:
         for line in template:

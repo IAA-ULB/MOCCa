@@ -1046,6 +1046,7 @@ contains
     !---------------------------------------------------------------------------
     ! Potentials: note that readpotentials handles all MPI affairs itself
     potentials_read = readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
+    print *, 'READ POTENTIALS', ALLOCATED(potentials_read%F_Nm_Nm)
     !-------------------------------------------------------------------------
     ! Multipole moment information
     ! Note: ReadMoment handles all MPI affairs itself
@@ -3102,116 +3103,116 @@ $TAUTENSOR &         F%F_N_N(mi,1,1,2) + F%F_N_N(mi,2,2,2) + F%F_N_N(mi,3,3,2)
     ! part of the box that is actually represented numerically. It is up to
     ! postprocessing to actually construct the densities in the entire box.
     !---------------------------------------------------------------------------
-    
-$NTR    real(KIND=dp), pointer           :: Sxn(:,:,:), Sxp(:,:,:)
-$NTR    real(KIND=dp), pointer           :: Jxn(:,:,:), Jxp(:,:,:)
-$NTR    real(KIND=dp), pointer           :: Syn(:,:,:), Syp(:,:,:)
-$NTR    real(KIND=dp), pointer           :: Jyn(:,:,:), Jyp(:,:,:)
-$NTR    real(KIND=dp), pointer           :: Szn(:,:,:), Szp(:,:,:)
-$NTR    real(KIND=dp), pointer           :: Jzn(:,:,:), Jzp(:,:,:)
-$NTR    real(KIND=dp), pointer           :: Txn(:,:,:), Txp(:,:,:)
-$NTR    real(KIND=dp), pointer           :: Tyn(:,:,:), Typ(:,:,:)
-$NTR    real(KIND=dp), pointer           :: Tzn(:,:,:), Tzp(:,:,:)
-
+!
+! $NTR    real(KIND=dp), pointer           :: Sxn(:,:,:), Sxp(:,:,:)
+! $NTR    real(KIND=dp), pointer           :: Jxn(:,:,:), Jxp(:,:,:)
+! $NTR    real(KIND=dp), pointer           :: Syn(:,:,:), Syp(:,:,:)
+! $NTR    real(KIND=dp), pointer           :: Jyn(:,:,:), Jyp(:,:,:)
+! $NTR    real(KIND=dp), pointer           :: Szn(:,:,:), Szp(:,:,:)
+! $NTR    real(KIND=dp), pointer           :: Jzn(:,:,:), Jzp(:,:,:)
+! $NTR    real(KIND=dp), pointer           :: Txn(:,:,:), Txp(:,:,:)
+! $NTR    real(KIND=dp), pointer           :: Tyn(:,:,:), Typ(:,:,:)
+! $NTR    real(KIND=dp), pointer           :: Tzn(:,:,:), Tzp(:,:,:)
+!
     type(DensityVector), intent(in), target :: R
     character(len=*), intent(in)            :: fname
-
-    real(KIND=dp), allocatable, target      :: totalangmom(:,:,:)
-    integer                                 :: io, i,j,k
-$NTR integer                                :: it
-$TR  real(KIND=dp)                          :: trash
-
-    1 format('#  X[fm]   Y[fm]   Z[fm] ', &
-    &        '   Sxn     Syn     Szn   ', &
-    &        '   Sxp     Syp     Szp   ', &
-    &        '   jxn     jyn     jzn   ', &
-    &        '   jxp     jyp     jzp   ', &
-    &        '   Jxn     Jyn     Jzn   ', &
-    &        '   Jxp     Jyp     Jzp   ')
-    2 format('#  0       1       2     ', &
-    &        '   3       4       5     ', &
-    &        '   6       7       8     ', &
-    &        '   9      10      11     ', &
-    &        '  12      13      14     ', &
-    &        '  15      16      17     ', &
-    &        '  18      19      20     ')
-
-$TR trash = R%D_I_I(1,1) ! to stop compiler complaints when TR is conserved
-
-    open(1,file=fname, iostat=io)
-    if(io.ne.0) then    
-      print *, 'Something went wrong with writing a density to file.'
-      print *, 'filename = ', fname
-      call stp('')
-    endif
-
-$NTR    Sxn(1:nx,1:ny,1:nz)  => R%D_I_S(:,1,1) ; Sxp(1:nx,1:ny,1:nz)  => R%D_I_S(:,1,2)
-$NTR    Syn(1:nx,1:ny,1:nz)  => R%D_I_S(:,2,1) ; Syp(1:nx,1:ny,1:nz)  => R%D_I_S(:,2,2)
-$NTR    Szn(1:nx,1:ny,1:nz)  => R%D_I_S(:,3,1) ; Szp(1:nx,1:ny,1:nz)  => R%D_I_S(:,3,2)
-
-$NTR    Jxn(1:nx,1:ny,1:nz)  => R%C_I_N(:,1,1) ; Jxp(1:nx,1:ny,1:nz)  => R%C_I_N(:,1,2)
-$NTR    Jyn(1:nx,1:ny,1:nz)  => R%C_I_N(:,2,1) ; Jyp(1:nx,1:ny,1:nz)  => R%C_I_N(:,2,2)
-$NTR    Jzn(1:nx,1:ny,1:nz)  => R%C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => R%C_I_N(:,3,2)
-
-
-    ! Calculate the total angular momentum density
-$NTR    allocate(totalangmom(nx*ny*nz,3,2)) ; totalangmom = 0.0d0
-$NTR    do it=1,2
-$NTR      totalangmom(:,1,it) = 0.5 * R%D_I_S(:,1,it) ! spin part
-$NTR      totalangmom(:,2,it) = 0.5 * R%D_I_S(:,2,it) ! spin part
-$NTR      totalangmom(:,3,it) = 0.5 * R%D_I_S(:,3,it) ! spin part
-$NTR      do i=1, nx*ny*nz
-$NTR        ! X component : J_x ~ y j_z - z j_y
-$NTR        TotalAngMom(i,1,it) = TotalAngMom(i,1,it) &
-$NTR        & + meshgrid(i,2) * R%C_I_N(i,3,it) - meshgrid(i,3) * R%C_I_N(i,2,it)
-$NTR
-$NTR        ! Y component : J_y ~ z j_x - x j_z
-$NTR        TotalAngMom(i,2,it) = TotalAngMom(i,2,it) &
-$NTR        & + meshgrid(i,3) * R%C_I_N(i,1,it) - meshgrid(i,1) * R%C_I_N(i,3,it)
-$NTR
-$NTR        ! Z component : J_z ~ x j_y - y j_x
-$NTR        TotalAngMom(i,3,it) = TotalAngMom(i,3,it) &
-$NTR        & + meshgrid(i,1) * R%C_I_N(i,2,it) - meshgrid(i,2) * R%C_I_N(i,1,it)
-$NTR      enddo
-$NTR    enddo
-
-   
-$NTR    Txn(1:nx,1:ny,1:nz)  => TotalAngMom(:,1,1) 
-$NTR    Txp(1:nx,1:ny,1:nz)  => TotalAngMom(:,1,2)
-$NTR    Tyn(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,1) 
-$NTR    Typ(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,2)
-$NTR    Tzn(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,1) 
-$NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
-
-    call write_header(1)
-    write(1, fmt=2) 
-    write(1, fmt=1) 
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-
-$NTR          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
-$NTR          &                                Sxn(i,j,k), Syn(i,j,k), Szn(i,j,k), & 
-$NTR          &                                Sxp(i,j,k), Syp(i,j,k), Szp(i,j,k), & 
-$NTR          &                                Jxn(i,j,k), Jyn(i,j,k), Jzn(i,j,k), & 
-$NTR          &                                Jxp(i,j,k), Jyp(i,j,k), Jzp(i,j,k), &
-$NTR          &                                Txn(i,j,k), Tyn(i,j,k), Tzn(i,j,k), &
-$NTR          &                                Txp(i,j,k), Typ(i,j,k), Tzp(i,j,k)
-
-$TR          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
-$TR          &                                0.0d0,0.0d0,0.0d0, &
-$TR          &                                0.0d0,0.0d0,0.0d0, &
-$TR          &                                0.0d0,0.0d0,0.0d0, &
-$TR          &                                0.0d0,0.0d0,0.0d0, &
-$TR          &                                0.0d0,0.0d0,0.0d0, &
-$TR          &                                0.0d0,0.0d0,0.0d0
-
-        enddo
-      enddo
-    enddo
-
-    deallocate(TotalAngMom)
-    close(1)
+!
+!     real(KIND=dp), allocatable, target      :: totalangmom(:,:,:)
+!     integer                                 :: io, i,j,k
+! $NTR integer                                :: it
+! $TR  real(KIND=dp)                          :: trash
+!
+!     1 format('#  X[fm]   Y[fm]   Z[fm] ', &
+!     &        '   Sxn     Syn     Szn   ', &
+!     &        '   Sxp     Syp     Szp   ', &
+!     &        '   jxn     jyn     jzn   ', &
+!     &        '   jxp     jyp     jzp   ', &
+!     &        '   Jxn     Jyn     Jzn   ', &
+!     &        '   Jxp     Jyp     Jzp   ')
+!     2 format('#  0       1       2     ', &
+!     &        '   3       4       5     ', &
+!     &        '   6       7       8     ', &
+!     &        '   9      10      11     ', &
+!     &        '  12      13      14     ', &
+!     &        '  15      16      17     ', &
+!     &        '  18      19      20     ')
+!
+! $TR trash = R%D_I_I(1,1) ! to stop compiler complaints when TR is conserved
+!
+!     open(1,file=fname, iostat=io)
+!     if(io.ne.0) then
+!       print *, 'Something went wrong with writing a density to file.'
+!       print *, 'filename = ', fname
+!       call stp('')
+!     endif
+!
+! $NTR    Sxn(1:nx,1:ny,1:nz)  => R%D_I_S(:,1,1) ; Sxp(1:nx,1:ny,1:nz)  => R%D_I_S(:,1,2)
+! $NTR    Syn(1:nx,1:ny,1:nz)  => R%D_I_S(:,2,1) ; Syp(1:nx,1:ny,1:nz)  => R%D_I_S(:,2,2)
+! $NTR    Szn(1:nx,1:ny,1:nz)  => R%D_I_S(:,3,1) ; Szp(1:nx,1:ny,1:nz)  => R%D_I_S(:,3,2)
+!
+! $NTR    Jxn(1:nx,1:ny,1:nz)  => R%C_I_N(:,1,1) ; Jxp(1:nx,1:ny,1:nz)  => R%C_I_N(:,1,2)
+! $NTR    Jyn(1:nx,1:ny,1:nz)  => R%C_I_N(:,2,1) ; Jyp(1:nx,1:ny,1:nz)  => R%C_I_N(:,2,2)
+! $NTR    Jzn(1:nx,1:ny,1:nz)  => R%C_I_N(:,3,1) ; Jzp(1:nx,1:ny,1:nz)  => R%C_I_N(:,3,2)
+!
+!
+!     ! Calculate the total angular momentum density
+! $NTR    allocate(totalangmom(nx*ny*nz,3,2)) ; totalangmom = 0.0d0
+! $NTR    do it=1,2
+! $NTR      totalangmom(:,1,it) = 0.5 * R%D_I_S(:,1,it) ! spin part
+! $NTR      totalangmom(:,2,it) = 0.5 * R%D_I_S(:,2,it) ! spin part
+! $NTR      totalangmom(:,3,it) = 0.5 * R%D_I_S(:,3,it) ! spin part
+! $NTR      do i=1, nx*ny*nz
+! $NTR        ! X component : J_x ~ y j_z - z j_y
+! $NTR        TotalAngMom(i,1,it) = TotalAngMom(i,1,it) &
+! $NTR        & + meshgrid(i,2) * R%C_I_N(i,3,it) - meshgrid(i,3) * R%C_I_N(i,2,it)
+! $NTR
+! $NTR        ! Y component : J_y ~ z j_x - x j_z
+! $NTR        TotalAngMom(i,2,it) = TotalAngMom(i,2,it) &
+! $NTR        & + meshgrid(i,3) * R%C_I_N(i,1,it) - meshgrid(i,1) * R%C_I_N(i,3,it)
+! $NTR
+! $NTR        ! Z component : J_z ~ x j_y - y j_x
+! $NTR        TotalAngMom(i,3,it) = TotalAngMom(i,3,it) &
+! $NTR        & + meshgrid(i,1) * R%C_I_N(i,2,it) - meshgrid(i,2) * R%C_I_N(i,1,it)
+! $NTR      enddo
+! $NTR    enddo
+!
+!
+! $NTR    Txn(1:nx,1:ny,1:nz)  => TotalAngMom(:,1,1)
+! $NTR    Txp(1:nx,1:ny,1:nz)  => TotalAngMom(:,1,2)
+! $NTR    Tyn(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,1)
+! $NTR    Typ(1:nx,1:ny,1:nz)  => TotalAngMom(:,2,2)
+! $NTR    Tzn(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,1)
+! $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
+!
+!     call write_header(1)
+!     write(1, fmt=2)
+!     write(1, fmt=1)
+!     do k=1,nz
+!       do j=1,ny
+!         do i=1,nx
+!
+! $NTR          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
+! $NTR          &                                Sxn(i,j,k), Syn(i,j,k), Szn(i,j,k), &
+! $NTR          &                                Sxp(i,j,k), Syp(i,j,k), Szp(i,j,k), &
+! $NTR          &                                Jxn(i,j,k), Jyn(i,j,k), Jzn(i,j,k), &
+! $NTR          &                                Jxp(i,j,k), Jyp(i,j,k), Jzp(i,j,k), &
+! $NTR          &                                Txn(i,j,k), Tyn(i,j,k), Tzn(i,j,k), &
+! $NTR          &                                Txp(i,j,k), Typ(i,j,k), Tzp(i,j,k)
+!
+! $TR          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
+! $TR          &                                0.0d0,0.0d0,0.0d0, &
+! $TR          &                                0.0d0,0.0d0,0.0d0, &
+! $TR          &                                0.0d0,0.0d0,0.0d0, &
+! $TR          &                                0.0d0,0.0d0,0.0d0, &
+! $TR          &                                0.0d0,0.0d0,0.0d0, &
+! $TR          &                                0.0d0,0.0d0,0.0d0
+!
+!         enddo
+!       enddo
+!     enddo
+!
+!     deallocate(TotalAngMom)
+!     close(1)
 
   end subroutine write_timeodd_densities
 

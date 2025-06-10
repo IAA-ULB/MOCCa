@@ -426,16 +426,16 @@ $NTR    use Moments, only : cutoff
 $NTR    integer :: i, it, c
 
     allocate(spot(nx*ny*nz,3,4)) ; spot = 0.0d0
-
-$NTR    do i=1, cranklen
-$NTR      c           = crankdirections(i)
-$NTR      do it=1,2
-$NTR        spot(:,c,it) = - 0.5 * omega(c) * cutoff(:,it)
-$NTR      enddo
-$NTR    enddo
-
-$NTR    spot(:,:,3) = spot(:,:,1) + spot(:,:,2)
-$NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
+!
+! $NTR    do i=1, cranklen
+! $NTR      c           = crankdirections(i)
+! $NTR      do it=1,2
+! $NTR        spot(:,c,it) = - 0.5 * omega(c) * cutoff(:,it)
+! $NTR      enddo
+! $NTR    enddo
+!
+! $NTR    spot(:,:,3) = spot(:,:,1) + spot(:,:,2)
+! $NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
 
     return
   end function crank_spin_potential
@@ -456,18 +456,18 @@ $NTR    spot(:,:,4) = spot(:,:,1) - spot(:,:,2)
     integer                    :: it, mu, indices(2) , nu, ka
 
     allocate(jpot(nx*ny*nz,3,4)) ; jpot = 0.0d0
-    do mu=1, 3
-      indices = vector_product(mu)
-      nu = indices(1)
-      ka = indices(2)
-      do it=1,2
-          jpot(:,mu, it) = -    cutoff(:,it) * &
-          &            (omega(nu) * meshgrid(:,ka) - omega(ka) * meshgrid(:,nu))
-      enddo
-    enddo
-
-    jpot(:,:,3) = jpot(:,:,1) + jpot(:,:,2)
-    jpot(:,:,4) = jpot(:,:,1) - jpot(:,:,2)
+!     do mu=1, 3
+!       indices = vector_product(mu)
+!       nu = indices(1)
+!       ka = indices(2)
+!       do it=1,2
+!           jpot(:,mu, it) = -    cutoff(:,it) * &
+!           &            (omega(nu) * meshgrid(:,ka) - omega(ka) * meshgrid(:,nu))
+!       enddo
+!     enddo
+!
+!     jpot(:,:,3) = jpot(:,:,1) + jpot(:,:,2)
+!     jpot(:,:,4) = jpot(:,:,1) - jpot(:,:,2)
 
     return
   end function crank_current_potential

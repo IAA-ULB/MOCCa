@@ -222,6 +222,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     global line
     Declaration      = ''
     Spwf_Declaration = ''
+    Sph_declaration  = ''
     Initialisation   = ''
 
     # Actually complicated stuff
@@ -296,28 +297,39 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       der_asym   = off_diag_tuple[4]
 
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      #
+      # Expressions required to evaluate the matrix elements of the single-particle
+      # hamiltonian based on density-like expressions
       e_sph = ''
-      sph_tuple = \
-      GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+      (t,t,left,right,t,t) = ParseOperators(Densities_needed[i], so.timelike)
+      if(left != right):
+        # Explicit symmetrisation is required
+        sph_tuple = \
+        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
                             'wave_j', 'wave_i',so,density_spwf_summation,
-                             complex_component=+1, weight='potential')
-      e_sph += sph_tuple[0] # we only need the calculation of this density
-      # Professionalize this ridiculous manual symmetrisation....
-      sph_tuple = \
-      GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_i', 'wave_j',                                     \
-                            'wave_i', 'wave_j',so,density_spwf_summation,
-                             complex_component=+1, weight='potential')
-      e_sph += sph_tuple[0] # we only need the calculation of this density
+                             complex_component=+1, weight='potential', symmetrize=+1)
+        e_sph += sph_tuple[0] # we only need the calculation of this density
+        sph_tuple = \
+        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+                            'wave_j', 'wave_i',                                     \
+                            'wave_j', 'wave_i',so,density_spwf_summation,
+                             complex_component=+1, weight='potential', symmetrize=-1)
+        e_sph += sph_tuple[0] # we only need the calculation of this density
+      else:
+        # No explicit symmetrisation needed
+        sph_tuple = \
+        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+                            'wave_j', 'wave_i',                                     \
+                            'wave_j', 'wave_i',so,density_spwf_summation,
+                             complex_component=+1, weight='potential', symmetrize=0)
+        e_sph += sph_tuple[0] # we only need the calculation of this density
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
        Declaration     = Declaration    + '\n' + dec
 
       Spwf_Declaration = Spwf_Declaration + '\n' + spwf_dec
-      if('P' in den): 
+      if('P' in den):
         # The BCS expression is diagonal in 'wave'
         BCSExpression = BCSExpression + '\n' + e
         # But we also need the HFB expression 
@@ -338,9 +350,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         Derivation                       = Derivation                       + der
         Derivation_offdiag_symmetric     = Derivation_offdiag_symmetric     + der_sym
         Derivation_offdiag_antisymmetric = Derivation_offdiag_antisymmetric + der_asym
-
         Expression_sph     = Expression_sph          + '\n' + e_sph
-
 
       if( not intermediate_status[i]):
         Initialisation = Initialisation + '\n' + ini
@@ -363,11 +373,11 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     # These are the strings detailing the calculation of densities in all possible contexts
     #
     # a) particle-hole densities
-    dic['EXPRESSION'        ] = Expression                                   # single summation for mean-field calculations
-    dic['EXPRESSION_OFFDIAG_SYMMETRIC']  = Expression_offdiag_symmetric      # double summation for symmetric part of more general densities
+    dic['EXPRESSION'        ] = Expression                                      # single summation for mean-field calculations
+    dic['EXPRESSION_OFFDIAG_SYMMETRIC']  = Expression_offdiag_symmetric         # double summation for symmetric part of more general densities
     dic['EXPRESSION_OFFDIAG_ANTISYMMETRIC'] = Expression_offdiag_antisymmetric  # double summation for symmetric part of more general densities
 
-    dic['EXPRESSION_SPH']     = Expression_sph          # expression for the density-like calculation of the matrix elements of sph
+    dic['EXPRESSION_SPH']     = Expression_sph     # expression for the density-like calculation of the matrix elements of sph
     # b) particle-particle densities in the BCS case
     dic['BCSEXPRESSION'   ] = BCSExpression            # single summation for mean-field calculations
     # c) particle-particle densities in the BCS case
@@ -577,7 +587,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                          left_der_wave, right_der_wave, so,
                          density_spwf_summation, complex_component=0,
                          weight = 'weight',
-                         silent=False):
+                         silent=False, symmetrize=0):
     """
       Generate all the necessary strings to plug into FORTRAN source code 
       template Densities.f90.
@@ -610,7 +620,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                                  If False => print symmetry output for the 
                                              reflection symmetries of the 
                                              generated density
-
+      * symmetrize             : TODO document
       - - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       Output :
       
@@ -649,11 +659,37 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
     Memory        = ''
     #---------------------------------------------------------------------------
     # Parse the structure from the name
-    density = denin    
+    density = denin
     (x, y, left, right, coupling, cross) = ParseOperators(density, so.timelike)
-    
+    #---------------------------------------------------------------------------
+    # If symmetrize is non-zero, change left <-> right and the couplings
+    # accordingly
+    if(symmetrize == -1 ):
+        switch_den = density.split('_')
+        R = switch_den[2]
+        L = switch_den[1]
+        # We put all spin indices on the r.h.s.
+        # This allows us to
+        # 1. Be more efficient with "on the fly" derivatives
+        #    (They can be grouped more)
+        # 2. make it easier to figure out the symmetries of the intermediate
+        #    functions for the "on the fly" derivatives
+        if('S' in R):
+          for l in sumindices:
+            if('S' + l in R):
+               R = R.replace('S'+l, '')
+               L = L + 'S' + l
+          if('S' in R):
+            R = R.replace('S', '')
+            L = L + 'S'
+        switch_den = switch_den[0]+'_'+R+'_'+ L
+        (x,y,left,right,coupling,cross) \
+                                 = ParseOperators(switch_den,so.timelike)
+
     if(complex_component == -1):
       right = 'C' + right
+      # Note how this takes into account automatically the -i in the antisymmetric part
+      # of C-objects!
     
     # Construct the left/right operators
     operatordic = {}
@@ -678,7 +714,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
     # Declaration and initialisation, also for the derivatives.
     dic= {}
     dic['NAME']    = density
-    
+
     dic['LEFTWF']    = ArrayNames[ LeftOperator.derorder]
     dic['RIGHTWF']   = ArrayNames[RightOperator.derorder]
     if(LeftOperator.derorder == 0) :
@@ -732,7 +768,8 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
       dic['ISOSIZE'] = 4 # Full complement of neutron, proton, isoscalar, isovector
     else:
       dic['ISOSIZE'] = 2 # Only neutron, proton components for pairing densities
-    
+
+
     #---------------------------------------------------------------------------
     # Get the declaration of the density and its derivatives right
     if( not intermediate ):
@@ -1029,17 +1066,20 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
             elif(complex_component == +0):
                 Expression = Expression + ta.Den_sum_real.substitute(dic)    + '\n\n'
           else:
-            # This expression will end up in the sum_sphamil routine
-            # TODO: professionalize this ridiculous factor 1/2
-            dic['WEIGHT']    = '0.5d0 * F%'+denin.replace('D', 'F').replace('C','G') + '(i' + IND+  ',it)'
+            if(symmetrize == -1):
+                mult = '(-0.5d0) *'
+            elif(symmetrize == +1):
+                mult = '(+0.5d0) *'
+            else:
+                mult = ''
+            dic['WEIGHT']    = mult + 'F%'+density.replace('D', 'F').replace('C','G') + '(i' + IND+  ',it)'
+
             if(complex_component == +1):
                 Expression = Expression + ta.Sph_sum_realpart.substitute(dic) + '\n\n'
             elif(complex_component == -1):
                 Expression = Expression + ta.Sph_sum_imagpart.substitute(dic) + '\n\n'
             elif(complex_component == +0):
                 Expression = Expression + ta.Sph_sum_real.substitute(dic)    + '\n\n'
-
-
 
         # And add a line for the isospin coupling
         if('P' not in density):

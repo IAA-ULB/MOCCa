@@ -214,19 +214,19 @@ module fam
 
     dkappa = kappa0
 
+    !----------------------------------------------------------------
     ! /!\ HACK FOR NOW
     ! to be removed once construct_canonical_basis and densit
     ! can deal with complex density matrices
-    drho_real   = DBLE(drho)
-    dkappa_real = DBLE(dkappa)
-
+    !drho_real   = DBLE(drho)
+    !dkappa_real = DBLE(dkappa)
     ! construct the canonical basis of the perturbed rho and kappa
-    call construct_canonical_basis(drho_real,dkappa_real,rho_c,kappa_c)
-    
-    DensityPert = densit(rho_c, dkappa_real)
-    
-    call ConstructChargeDensity(DensityPert) ! PD: necessary?
-    
+    !call construct_canonical_basis(drho_real,dkappa_real,rho_c,kappa_c)
+    !----------------------------------------------------------------
+
+    DensityPert = densit_offdiag(drho, dkappa)
+    PotentialPert = calcPotentials(DensityPert)
+
   end subroutine build_perturbed_densities
 
   subroutine build_dH(DensityPert)
@@ -341,6 +341,8 @@ program run_FAM
   ! Compute all local one-body densities on the mesh
   Density     = densit(rho_can, kappa_pairing)
   call ConstructChargeDensity(Density) ! PD: necessary? 
+  ! ... and the associated potentials
+  Potentials  = calcPotentials(Density)
 
   ! Adopt the relevant quantities to the centre-of-mass of the nucleus ! PD: necessary? 
   call adapt_com(Density)  
@@ -352,7 +354,7 @@ program run_FAM
   call inifam(0.5_dp)
 
   ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-  call run_FAM_tests()
+  call run_FAM_tests(X,Y)
 
   ! Start of the iterations
   do iteration=1, maxfamiter

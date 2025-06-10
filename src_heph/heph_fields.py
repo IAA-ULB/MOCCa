@@ -506,12 +506,12 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       fieldread    = fieldread   + ts.field_read_e.substitute(dic)
  
       args = list(itertools.product(range(3), repeat=OrderOfDen(den)))
-      for arg in args:   
+      for arg in args:
            # get the indices of the field correct
            dic['IND']     = ''
            for k in arg:
               dic['IND'] = dic['IND'] + ',%d'%(k+1)
-              
+
            fieldread = fieldread + ts.field_transfo.substitute(dic)
       if('P' not in den):
         # Only recombine normal fields
