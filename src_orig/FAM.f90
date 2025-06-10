@@ -351,8 +351,6 @@ program run_FAM
   ! initialise FAM matrices end set perturbing external field
   call inifam(0.5_dp)
 
-      print *, 'SPH', sphamil(1,1)
-
   ! Run all kinds of unit tests; should be made optional as this includes a stop statement
   call run_FAM_tests()
 

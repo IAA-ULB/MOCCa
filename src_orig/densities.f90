@@ -689,9 +689,30 @@ $ISOSPINCOUPL
 end function densit
 
 function densit_offdiag(rho, kappa) result(R)
+    !----------------------------------------------------------------------------
+    ! Calculate normal and anomalous densities through a double sum across spwfs
+    ! by summing symmetric and antisymmetric parts.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !   rho      real/complex matrix
+    !   kappa    real/complex matrix
+    !
+    ! Output:
+    !   R        densityvector   values of the mean-field densities.
+    !----------------------------------------------------------------------------
+    complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
+    type(DensityVector)          :: R
+
+    R = densit_offdiag_symmetric(rho,kappa) + densit_offdiag_antisymmetric(rho,kappa)
+
+end function densit_offdiag
+
+function densit_offdiag_symmetric(rho, kappa) result(R)
     !------------------------------ ---------------------------------------------
-    ! Calculate all of the mean-field densities, both normal and pairing,
-    ! based on (possibly) non-diagonal/canonical matrices rho and kappa.
+    ! Calculate the symmetric part(*) of the mean-field densities, both normal
+    ! and pairing, based on arbitrary matrices rho and kappa.
+    !
+    ! TODO: explain "symmetric part"
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input :
     !   rho      real/complex matrix
@@ -705,7 +726,7 @@ function densit_offdiag(rho, kappa) result(R)
     complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
     type(DensityVector)          :: R
 
-    real(KIND=dp)             :: weight_sym, weight_asym
+    real(KIND=dp)             :: weight_sym
     integer                   :: wave_i       , wave_j
     integer                   :: wave_global_i, wave_global_j
     integer                   :: it_i, it_j, it, der_index_i,der_index_j
@@ -719,13 +740,9 @@ $SPWF_DECLARATION
     ! Allocation and initialization
 $INITIALIZATION
 
-    if(.not.allocated(R%divJ)) then
-      allocate(R%divJ(nx*ny*nz,4))
-    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Zero the current density
 $ZEROING
-    R%divJ = 0.0d0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Correctly set the pointers to the spwfs
@@ -764,11 +781,11 @@ $ZEROING
         der_index_j = wave_j
         !----------------------------------------------------------------------------
         ! The summation weights for particle-hole densities
-        weight_sym   = 0.5d0*(rho(wave_global_i, wave_global_j) + rho(wave_global_j, wave_global_i))
-        weight_asym  = 0.5d0*(rho(wave_global_i, wave_global_j) - rho(wave_global_j, wave_global_i))
+        weight_sym = 0.5d0*( &
+        &      rho(wave_global_i, wave_global_j) + rho(wave_global_j, wave_global_i))
 
         do i=1,mv
-$EXPRESSION_OFFDIAG
+$EXPRESSION_OFFDIAG_SYMMETRIC
         enddo
       enddo
     enddo
@@ -780,7 +797,7 @@ $EXPRESSION_OFFDIAG
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     call start_timer(T_den_der)
     do it=1,2
-$DERIVATION
+$DERIVATION_OFFDIAG_SYMMETRIC
     enddo
     call stop_timer(T_den_der)
 
@@ -794,7 +811,113 @@ $ISOSPINCOUPL
 
     call stop_timer(T_densities)
 
-end function densit_offdiag
+end function densit_offdiag_symmetric
+
+function densit_offdiag_antisymmetric(rho, kappa) result(R)
+    !------------------------------ ---------------------------------------------
+    ! Calculate the antisymmetric part(*) of the mean-field densities, both normal
+    ! and pairing, based on arbitrary matrices rho and kappa.
+    !
+    ! TODO: explain "antisymmetric part"
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !   rho      real/complex matrix
+    !   kappa    real/complex matrix
+    !
+    ! Output:
+    !   R        densityvector   values of the mean-field densities.
+    !----------------------------------------------------------------------------
+    external construct_charge_density
+
+    complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
+    type(DensityVector)          :: R
+
+    real(KIND=dp)             :: weight_asym
+    integer                   :: wave_i       , wave_j
+    integer                   :: wave_global_i, wave_global_j
+    integer                   :: it_i, it_j, it, der_index_i,der_index_j
+
+    integer :: i
+
+$SPWF_DECLARATION
+    call start_timer(T_densities)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Allocation and initialization
+$INITIALIZATION
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Zero the current density
+$ZEROING
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Correctly set the pointers to the spwfs
+    ! This should always be the HF basis!
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    DenPsi   => HFPsi    ; DenDPsi   => HFDPsi
+    DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    call start_timer(T_den_ph)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! PARTICLE-HOLE DENSITIES
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: make this double loop more intelligent wrt to symmetries
+    do wave_i=1,nwt_local                ! Loop over the local spwf index
+      wave_global_i = spwf_map(wave_i)     ! Global spwf index
+
+      ! Isospin is neutron in the first half of blocks, proton in the rest
+      it_i = 2
+      if(wave_global_i.le.nwn) it_i = 1
+
+      ! TODO: enable store_derivatives option
+      der_index_i = wave_i
+
+      do wave_j=1,nwt_local
+        wave_global_j = spwf_map(wave_j) ! Global spwf index
+
+        ! Isospin is neutron in the first half of blocks, proton in the rest
+        it_j = 2
+        if(wave_global_j.le.nwn) it_j = 1
+
+        if(it_i.ne.it_j) cycle ! There are no pn-exchange excitation operators so far
+        it = it_i
+
+        ! TODO: enable store_derivatives option
+        der_index_j = wave_j
+        !----------------------------------------------------------------------------
+        ! The summation weights for particle-hole densities
+        weight_asym = 0.5d0*( &
+        &      rho(wave_global_i, wave_global_j) - rho(wave_global_j, wave_global_i))
+
+        do i=1,mv
+$EXPRESSION_OFFDIAG_ANTISYMMETRIC
+        enddo
+      enddo
+    enddo
+    call stop_timer(T_den_ph)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of the 'derived' densities, densities obtainable by
+    ! deriving other ones.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    call start_timer(T_den_der)
+    do it=1,2
+$DERIVATION_OFFDIAG_ANTISYMMETRIC
+    enddo
+    call stop_timer(T_den_der)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculate the densities in isospin representation
+$ISOSPINCOUPL
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Construct the charge density
+    call constructchargedensity(R)
+
+    call stop_timer(T_densities)
+
+end function densit_offdiag_antisymmetric
 
 function calc_sphamil_me( denpsi, dendpsi, denddpsi, F, onthefly) result(sphamil_me)
     !--------------------------------------------------------------------------------

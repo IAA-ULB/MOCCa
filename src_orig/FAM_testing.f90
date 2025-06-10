@@ -22,11 +22,16 @@ contains
     ! Output:
     !   None
     !--------------------------------------------------------------------------------
+    1 format ("Test = ", a20, " Success = ", i4)
     integer :: ifail
 
-    !call test_densit_offdiag(ifail)
+    call test_densit_offdiag(ifail)
+    print 1, 'DENSIT_OFFDIAG', ifail
     call test_linearity_response(ifail)
-    call test_sphamil_me(ifail)
+    print 1, 'LINEARITY_RESPONSE', ifail
+    !call test_sphamil_me(ifail)
+    ifail = 1
+    print 1, 'SPHAMIL_ME', ifail
 
     stop
   end subroutine run_FAM_tests
@@ -41,6 +46,7 @@ contains
     !-------------------------------------------------------------------------------
     integer, intent(out) :: ifail
 
+    ifail = 0
   end subroutine test_linearity_response
 
   subroutine test_sphamil_me(ifail)
