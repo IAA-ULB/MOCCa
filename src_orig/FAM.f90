@@ -437,14 +437,11 @@ program run_FAM
 
   implicit none
   integer :: iteration
-<<<<<<< HEAD
-=======
   logical :: is_converged
-  real(kind=dp) :: omega_curr, omega_min, omega_max, omega_step
+  real(kind=dp) :: omega_curr, omega_min=0, omega_max=10, omega_step=0.1
   integer :: omega_num, omega_index
   real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
   character(len=100) :: famfilename
->>>>>>> FAM
 
   ! integer :: ifail ! Future dev: required for HFB
 
@@ -515,8 +512,6 @@ program run_FAM
 
   ! Solve FAM for a range of omega frequencies
 
-  ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-  call run_FAM_tests(X,Y)
 
   omega_num = int((omega_max - omega_min) / omega_step) + 1
 
@@ -524,12 +519,13 @@ program run_FAM
   allocate(S_arr(omega_num))
 
   omega_curr = omega_min
+
   do omega_index=1, omega_num
 
     ! initialise FAM matrices end set perturbing external field
     call inifam(omega_curr)
 
-    maxfamiter = 0
+    maxfamiter = 10
     is_converged = .false.
 
     ! Start of the iterations 
@@ -542,7 +538,9 @@ program run_FAM
       ! call build_dH(DensityPert)
 
       call calculate_XY()
-      
+      ! Run all kinds of unit tests; should be made optional as this includes a stop statement
+      call run_FAM_tests(X,Y)
+
       ! FUTURE: mix new amplitudes with previous iterations
       ! call mix_XY_GMRES()
 
@@ -556,7 +554,6 @@ program run_FAM
           exit
         endif
       endif
-
     enddo
 
     omega_arr(omega_index) = omega_curr

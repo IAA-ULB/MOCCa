@@ -1046,7 +1046,6 @@ contains
     !---------------------------------------------------------------------------
     ! Potentials: note that readpotentials handles all MPI affairs itself
     potentials_read = readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
-    print *, 'READ POTENTIALS', ALLOCATED(potentials_read%F_Nm_Nm)
     !-------------------------------------------------------------------------
     ! Multipole moment information
     ! Note: ReadMoment handles all MPI affairs itself
