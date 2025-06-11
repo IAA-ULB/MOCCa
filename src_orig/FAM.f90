@@ -1,20 +1,20 @@
 module fam
 
- !==============================================================================
- ! ________ _______  _        _ _________ _______  _                 _______
- !(  _____/(  ___  )( (      ) |\__   __/(  ___  )( \      |\     /|(  ____ \
- !| (      | (   ) ||  \    /  |   ) (   | (   ) || (      | )   ( || (    \/
- !| |___   | (___) ||   \  /   |   | |   | (___) || |      | |   | || (_____
- !|  ___)  |  ___  || (\ \/ /) |   | |   |  ___  || |      | |   | |(_____  )
- !| |      | (   ) || | \  / | |   | |   | (   ) || |      | |   | |      ) |
- !| |      | )   ( || )  \/  ( |   | |   | )   ( || (____/\| (___) |/\____) |
- !(_/      |/     \||/        \)   )_(   |/     \|(_______/(_______)\_______)
- !
- !  Copyright W. Ryssens & P. Demol
- !
- !------------------------------------------------------------------------------
- ! A FAM-QRPA implementation to complement MOCCa.
- !==============================================================================
+  !==============================================================================
+  ! ________ _______  _        _ _________ _______  _                 _______
+  !(  _____/(  ___  )( (      ) |\__   __/(  ___  )( \      |\     /|(  ____ \
+  !| (      | (   ) ||  \    /  |   ) (   | (   ) || (      | )   ( || (    \/
+  !| |___   | (___) ||   \  /   |   | |   | (___) || |      | |   | || (_____
+  !|  ___)  |  ___  || (\ \/ /) |   | |   |  ___  || |      | |   | |(_____  )
+  !| |      | (   ) || | \  / | |   | |   | (   ) || |      | |   | |      ) |
+  !| |      | )   ( || )  \/  ( |   | |   | )   ( || (____/\| (___) |/\____) |
+  !(_/      |/     \||/        \)   )_(   |/     \|(_______/(_______)\_______)
+  !
+  !  Copyright W. Ryssens & P. Demol
+  !
+  !------------------------------------------------------------------------------
+  ! A FAM-QRPA implementation to complement MOCCa.
+  !==============================================================================
 
   use densities
   use moments
@@ -27,9 +27,12 @@ module fam
   !-----------------------------------------------------------------------------
   ! Define some FAM parameters
   real(KIND=dp) :: omega_fam       ! frequency of the perturbing field 
-  real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 1.0 MeV
+  real(KIND=dp) :: smear = 0.5_dp  ! complex smearing parameter, default 0.5 MeV
+  !    Note that the obtained strength is convoluted with a Lorentzian with FWHM 
+  !    equal to double this complex shift
   real(KIND=dp) :: eta = 1.0e-3_dp ! small parameter entering derivatives, 
-                                   ! default 10^-3
+  !    Default currently set to 10-3. In the end, the strength should be 
+  !    reasonably indepedent of the choice. 
   integer       :: maxfamiter = 10 ! maximal number of FAM iterations 
   !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
@@ -59,16 +62,35 @@ module fam
   !                               | '-> sp index : hole
   !                               '-> sp index : particle
   integer :: l, m ! Principal and magnetic quantum number of the multipole moment
-
   ! Do we need more identifiers for electric vs magnetic and isovector 
   ! vs isoscalar
+  !-----------------------------------------------------------------------------
+  ! convergence
+  complex(KIND=dp), allocatable :: X_hist(:,:,:) ! history of X through FAM iters
+  !                                       | | '-> sp index : hole
+  !                                       | '-> sp index : particle
+  !                                       '-> history index 
+  complex(KIND=dp), allocatable :: Y_hist(:,:,:) ! history of Y through FAM iters
+  !                                       | | '-> sp index : hole
+  !                                       | '-> sp index : particle
+  !                                       '-> history index 
+  integer :: hist_max = 2 ! history size 
+  integer :: hist_current_idx = 0 ! rolling index through the history
+  ! notes: 
+  !   Histories are implemented as circular buffers to mitigate copying data. 
+  !   hist(hist_current_idx,:,:) contains the latest entry; the previous one can be
+  !   accessed at idx = modulo(hist_current_idx - 2, hist_max) + 1). Rolling the
+  !   index two steps back and then one forward is because mod gives values 
+  !   0..hist_max-1 while fortran arrays use a 1-based index. 
+  real(KIND=dp) :: tol_XY_conv = 1.0e-5_dp ! convergence tolerance for X and Y
 
   contains
 
   subroutine inifam(omega)
     implicit none
     !---------------------------------------------------------------------------
-    ! subroutine to initialise the FAM matrices, i.e.
+    ! Allocate the FAM objects, set the external field F and initialise the X
+    ! and Y from first order, i.e. dH=0. 
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: omega
     real(KIND=dp), allocatable :: SolidHarmHF(:,:)
@@ -82,58 +104,79 @@ module fam
 
     print *, "Initialise FAM matrices" 
 
-    allocate(drho(nwt,nwt))
-    allocate(dkappa(nwt,nwt))
-    allocate(dR(2*nwt,2*nwt))
+    if(.not.allocated(drho)) then 
+      allocate(drho(nwt,nwt))
+      allocate(dkappa(nwt,nwt))
+      allocate(dR(2*nwt,2*nwt))
+    endif
 
-    allocate(dH(nwt,nwt,2))
-    allocate(F(nwt,nwt,2))
+    if(.not.allocated(X)) then
+      allocate(X(nwt,nwt)) 
+      allocate(Y(nwt,nwt))
+    endif
+
+    if(.not.allocated(X_hist)) then
+      allocate(X_hist(hist_max,nwt,nwt)) 
+      allocate(Y_hist(hist_max,nwt,nwt))
+    endif
+
+    X_hist=0
+    Y_hist=0
 
 
-    allocate(X(nwt,nwt)) 
-    allocate(Y(nwt,nwt))
+    if(.not.allocated(F)) then 
+      allocate(F(nwt,nwt,2))
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Get the solid harmonics Q_lm(i,j) = < i | r^l Y_lm | j > expressed 
+      ! in HF basis. 
+      
+      allocate(SolidHarmHF(nwt,nwt)) 
+
+      ! Set external field to E2, hardcoded for now
+      l = 2
+      m = 2
+      ImPart = .false. ! real (.false.) , imaginary (.true.) 
+      ! note: odd m and Im parts are not implemeted yet
+     
+      ! Calling a function in fission_MOI.f90
+      SolidHarmHF = Qlm_spme(l, m, ImPart)
+
+      ! Rescale, Qlm comes in units barn^(l/2)
+      SolidHarmHF = SolidHarmHF * (100**(l/2.0)) 
+
+      ! note: 
+      !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
+      !   alpha converting the units of the perturbation to MeV, and eventually 
+      !   devides the obtained strength by alpha. 
 
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Get the solid harmonics Q_lm(i,j) = < i | r^l Y_lm | j > expressed 
-    ! in HF basis. 
-    
-    allocate(SolidHarmHF(nwt,nwt)) 
+      ! TODO: write a general transformation routine from the mesh to any 
+      !       single-particle basis
 
-    ! Set external field to E2, hardcoded for now
-    l = 2
-    m = 0
-    ImPart = .false. ! real (.false.) , imaginary (.true.) TBD later
-   
-    ! Calling a function in fission_MOI.f90
-    SolidHarmHF = Qlm_spme(l, m, ImPart)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Define the external field F by selecting the particle-hole and 
+      ! hole-particle subblocks of SolidHarmHF by multiplying by their 
+      ! occupation, i.e. diagonal elements of rho in the canonical basis
 
-    ! Rescale, Qlm comes in units barn^(l/2)
-    SolidHarmHF = SolidHarmHF * (100**(l/2.0)) 
+      F = 0
 
-    ! TODO: write a general transformation routine from the mesh to any 
-    !       single-particle basis
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Define the external field F by selecting the particle-hole and 
-    ! hole-particle subblocks of SolidHarmHF by multiplying by their 
-    ! occupation, i.e. diagonal elements of rho in the canonical basis
-
-    F = 0
-
-    do h = 1, nwt
-      occ_h = rho_can(h)
-      if(occ_h < 1d-6) cycle
-      do p = 1, nwt
-        occ_p = 2.0 - rho_can(p) 
-        ! degeneracy 2.0 must reduced if further symmetries are broken
-        if(occ_p < 1d-6) cycle
-        F(p,h,1) = occ_p * occ_h * SolidHarmHF(p,h) ! ph block F20(p,h)
-        F(p,h,2) = occ_p * occ_h * SolidHarmHF(h,p) ! hp block F02(p,h)
+      do h = 1, nwt
+        occ_h = rho_can(h)
+        if(occ_h < 1d-6) cycle
+        do p = 1, nwt
+          occ_p = 2.0 - rho_can(p) 
+          ! degeneracy 2.0 must reduced if further symmetries are broken
+          if(occ_p < 1d-6) cycle
+          F(p,h,1) = occ_p * occ_h * SolidHarmHF(p,h) ! ph block F20(p,h)
+          F(p,h,2) = occ_p * occ_h * SolidHarmHF(h,p) ! hp block F02(p,h)
+        enddo
       enddo
-    enddo
 
-    deallocate(SolidHarmHF)
+      deallocate(SolidHarmHF)
+
+    endif
+
 
     ! This can be improved by some element-wise products occ^T @ SolidHarmHF @ occ
 
@@ -141,15 +184,25 @@ module fam
     ! to the qp basis. 
 
     ! initialise perturbed Hamiltonian as 0
-    dH = 0
+    if(.not.allocated(dH)) then 
+      allocate(dH(nwt,nwt,2))
+      dH(:,:,:) = 0
+    endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the RPA amplitudes 
-    call update_XY()  
+    call calculate_XY()
+
+    call store_XY_hist()
 
   end subroutine inifam
 
-  subroutine update_XY()
+
+  subroutine calculate_XY()
+    !---------------------------------------------------------------------------
+    ! Compute the X and Y amplitudes from the FAM master equation
+    !---------------------------------------------------------------------------
+
     implicit none
     integer :: p, h
     real(KIND=dp) :: occ_h, occ_p, e_h, e_p
@@ -169,18 +222,34 @@ module fam
         occ_p = 2.0 - rho_can(p)
         e_p = spenergies(p) 
         if(occ_p < 1d-6) cycle
-        X(p,h) = X(p,h) / (e_p - e_h - DCMPLX(omega_fam,smear) )
-        Y(p,h) = Y(p,h) / (e_p - e_h + DCMPLX(omega_fam,smear) )
+        X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
+        Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear,KIND=dp) )
         ! print *, p, h, e_p, e_h, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
       enddo
     enddo
 
-  end subroutine
+  end subroutine calculate_XY
+
+  subroutine store_XY_hist()
+    !---------------------------------------------------------------------------
+    ! Store the current X and Y into their histories. 
+    !---------------------------------------------------------------------------
+
+    ! roll the current index one step forward
+    hist_current_idx = modulo(hist_current_idx, hist_max) + 1
+
+    ! store X and Y in current spot
+    X_hist(hist_current_idx, :, :) = X(:,:)
+    Y_hist(hist_current_idx, :, :) = Y(:,:)
+
+  end subroutine store_XY_hist
 
 
   subroutine iniHFdensities()
+    !---------------------------------------------------------------------------
     ! initialse the rho and kappa matrices in HF basis as (nwt, nwt) matrices
     ! these are coined as rho_pairing and kappa_pairing
+    !---------------------------------------------------------------------------
     implicit none
     integer :: i
       
@@ -198,6 +267,11 @@ module fam
 
 
   subroutine build_perturbed_densities(rho0, kappa0)
+    !---------------------------------------------------------------------------
+    ! Build the perturbed mean-field densities.
+    ! /!\ : This is not operational yet and requires more work, cfr. notes. 
+    !---------------------------------------------------------------------------
+
     implicit none
     real(KIND=dp), intent(in) :: rho0(:,:), kappa0(:,:)
     real(KIND=dp), allocatable :: drho_real(:,:), dkappa_real(:,:)
@@ -230,6 +304,13 @@ module fam
   end subroutine build_perturbed_densities
 
   subroutine build_dH(DensityPert)
+    !---------------------------------------------------------------------------
+    ! Build the perturbed single-particle Hamiltonian
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! This still only applicable in absence of pairing since the unperturbed
+    ! sp H is assumed to by diagonal, H_ab = E_a delta_ab
+    !---------------------------------------------------------------------------
+    
     implicit none
     type(DensityVector), intent(in) :: DensityPert
     type(PotentialVector) :: PotentialPert
@@ -271,6 +352,80 @@ module fam
   end subroutine build_dH
 
 
+  function calc_strength() result (S_out)
+    !---------------------------------------------------------------------------
+    ! Calculate the strength S(omega,F)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! obtained from 
+    !     S(omega,F) = - 1 /pi * Im Tr (F^dagger * drho)
+    ! where 
+    !    Tr (F^dagger * drho) = sum_ab (F^20_ab^* X_ab + F^02_ab^* Y_ab)
+    ! 
+    ! note: 
+    !  - normalisation of external field may have to be taken into account
+    !    S -> S/alpha
+    !  - F is supposed to be real. If F is replaced by a complex field, the
+    !    complex conjugation must be added
+    !---------------------------------------------------------------------------
+
+    complex(KIND=dp) :: S
+    real(KIND=dp) S_out
+    integer :: h, p
+    real(KIND=dp) :: occ_h, occ_p
+
+    S = 0
+    do h = 1, nwt
+      occ_h = rho_can(h)
+      if(occ_h < 1d-6) cycle
+      do p = 1, nwt
+        occ_p = 2.0 - rho_can(p) 
+        ! degeneracy 2.0 must reduced if further symmetries are broken
+        if(occ_p < 1d-6) cycle
+        S = S + F(p,h,1) * X(p,h) + F(p,h,2) * Y(p,h)
+      enddo
+    enddo
+
+    S_out = - S%im / pi
+
+  end function calc_strength
+
+
+  function test_convergence() result (conv)
+    !---------------------------------------------------------------------------
+    ! Judge the convergence of the FAM iterations based on difference of X and Y
+    ! with respect to previous iteration
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! The convergence measure corresponds to the Frobenius norm of the 
+    ! difference fo the current X(i) (Y(i)) and the one of the previous 
+    ! iteration X(i-1) (Y(i-1)) stored in X_hist and Y_hist, i.e.
+    !      ||X(i) - X(i-1)|| / ||X(i)|| < tolerance
+    ! 
+    ! The Frobenius norm ||A|| is evaluated as sqrt(sum[abs(A(:,:))**2]) where
+    ! the abs takes care of obtaining the modulus of the complex values.
+    !---------------------------------------------------------------------------
+    logical :: conv
+    integer :: idx_prev
+    real(KIND=dp) :: DX_norm, DY_norm
+
+    conv = .false.
+
+    ! previous index in hist obtained by rolling back twice and adding one
+    idx_prev = modulo(hist_current_idx - 2, hist_max) + 1
+
+    DX_norm = sqrt( sum( abs(X_hist(hist_current_idx,:,:) - X_hist(idx_prev,:,:))**2) )
+    DX_norm = DX_norm / sqrt(sum( abs(X_hist(hist_current_idx,:,:))**2) )
+
+    DY_norm = sqrt( sum( abs(Y_hist(hist_current_idx,:,:) - Y_hist(idx_prev,:,:))**2) )
+    DY_norm = DY_norm / sqrt(sum( abs(Y_hist(hist_current_idx,:,:))**2) )
+
+    print * , "convergence: ||DX|| = ", DX_norm, "   ||DY|| = ", DY_norm
+
+    if( (DX_norm<tol_XY_conv) .and. (DY_norm<tol_XY_conv)) then
+      conv = .true.
+    endif
+
+  end function
+
 end module fam
 
 program run_FAM
@@ -282,6 +437,14 @@ program run_FAM
 
   implicit none
   integer :: iteration
+<<<<<<< HEAD
+=======
+  logical :: is_converged
+  real(kind=dp) :: omega_curr, omega_min, omega_max, omega_step
+  integer :: omega_num, omega_index
+  real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
+  character(len=100) :: famfilename
+>>>>>>> FAM
 
   ! integer :: ifail ! Future dev: required for HFB
 
@@ -350,27 +513,69 @@ program run_FAM
   ! Recalculate because the COM might have changed.
   call CalculateMoments(Density) 
 
-  ! initialise FAM matrices end set perturbing external field
-  call inifam(0.5_dp)
+  ! Solve FAM for a range of omega frequencies
 
   ! Run all kinds of unit tests; should be made optional as this includes a stop statement
   call run_FAM_tests(X,Y)
 
-  ! Start of the iterations
-  do iteration=1, maxfamiter
+  omega_num = int((omega_max - omega_min) / omega_step) + 1
 
-    print *, "FAM iteration : ", iteration
+  allocate(omega_arr(omega_num))
+  allocate(S_arr(omega_num))
 
-    call build_perturbed_densities(rho_pairing, kappa_pairing)
+  omega_curr = omega_min
+  do omega_index=1, omega_num
 
-    call build_dH(DensityPert)
+    ! initialise FAM matrices end set perturbing external field
+    call inifam(omega_curr)
 
-    call update_XY()
+    maxfamiter = 0
+    is_converged = .false.
 
+    ! Start of the iterations 
+    do iteration=1, maxfamiter
+
+      print *, "FAM iteration : ", iteration
+
+      ! call build_perturbed_densities(rho_pairing, kappa_pairing)
+
+      ! call build_dH(DensityPert)
+
+      call calculate_XY()
+      
+      ! FUTURE: mix new amplitudes with previous iterations
+      ! call mix_XY_GMRES()
+
+      call store_XY_hist()
+
+      ! Exit the loop if convergence is achieved.
+      if (iteration > 1) then
+       is_converged = test_convergence()
+        if(is_converged) then
+          print *, "Hooray! FAM is converged! "
+          exit
+        endif
+      endif
+
+    enddo
+
+    omega_arr(omega_index) = omega_curr
+    S_arr(omega_index) = calc_strength()
+
+    print *, " S(", omega_arr(omega_index), ") = ", S_arr(omega_index)
+
+
+    omega_curr = omega_curr + omega_step
 
   enddo
 
+
+  write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
+
+  call write_fam_strength(omega_arr, S_arr, l, m, famfilename)
+
   print *, "Reached the end successfully" 
+
 
   ! end of one FAM calculation;
 
