@@ -2,7 +2,7 @@
 
 The original files are in `pasta-test.tar.gz`
 
-In bijlage een voorbeeldje: 3x3x3 spherische clusters op relatief hoge
+Idn bijlage een voorbeeldje: 3x3x3 spherische clusters op relatief hoge
 dichtheid. Er zijn vier bestanden
 
   * run*sh: het runscriptje; geconfigureerd voor de setup van Nikolai,
