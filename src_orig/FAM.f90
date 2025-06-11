@@ -242,6 +242,20 @@ module fam
 
   end subroutine store_XY_hist
 
+  subroutine mix_XY_linear(alpha)
+    !---------------------------------------------------------------------------
+    ! Simple linear mixing of the X and amplitudes, i.e. 
+    !   X^[i] = alpha * X^[i] + (1-alpha) X^[i-1]
+    ! No return. Changes are made to the current X and Y.
+    !---------------------------------------------------------------------------
+
+    real(KIND=dp), intent(in) :: alpha
+
+    X = alpha * X + (1.0 - alpha) * X_hist(hist_current_idx, :, :) 
+    Y = alpha * Y + (1.0 - alpha) * Y_hist(hist_current_idx, :, :) 
+
+  end subroutine mix_XY_linear
+
 
   subroutine iniHFdensities()
     !---------------------------------------------------------------------------
@@ -436,6 +450,7 @@ program run_FAM
   implicit none
   integer :: iteration
   logical :: is_converged
+  real(kind=dp)  :: lin_mix_coeff
   real(kind=dp) :: omega_curr, omega_min, omega_max, omega_step
   integer :: omega_num, omega_index
   real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
@@ -508,6 +523,9 @@ program run_FAM
   ! Recalculate because the COM might have changed.
   call CalculateMoments(Density) 
 
+  ! Set the linear mixing coefficient
+  lin_mix_coeff = 0.4
+
   ! Solve FAM for a range of omega frequencies
 
   omega_min = 0.5
@@ -539,13 +557,14 @@ program run_FAM
 
       call calculate_XY()
       
-      ! FUTURE: mix new amplitudes with previous iterations
-      ! call mix_XY_GMRES()
+      ! Simple linear mixing for now. 
+      ! To be replaced with something more fancy in the future
+      call mix_XY_linear(lin_mix_coeff)
 
       call store_XY_hist()
 
       ! Exit the loop if convergence is achieved.
-      if (iteration > 1) then
+      if (iteration > 1) then ! at least two iterations to be able to compare
        is_converged = test_convergence()
         if(is_converged) then
           print *, "Hooray! FAM is converged! "
