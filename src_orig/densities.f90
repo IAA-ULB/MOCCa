@@ -17,15 +17,16 @@ module densities
 !=============================================================================== 
 ! Hephaestos keywords
 !
-! DECLARATION     : [WAY too long to include here]
-! INITIALIZATION  : [WAY too long to include here]
-! ZEROING         : [WAY too long to include here]
-! EXPRESSION      : [WAY too long to include here]
-! BCSEXPRESSION   : [WAY too long to include here]
-! HFBEXPRESSION   : [WAY too long to include here]
-! DERIVATION      : [WAY too long to include here]
-! ISOSPINCOUPL    : [WAY too long to include here]
-! MPIDEN          : [WAY too long to include here]
+! DECLARATION        : [WAY too long to include here]
+! INITIALIZATION     : [WAY too long to include here]
+! ZEROING            : [WAY too long to include here]
+! EXPRESSION         : [WAY too long to include here]
+! EXPRESSION_OFFDIAG : [WAY too long to include here]
+! BCSEXPRESSION      : [WAY too long to include here]
+! HFBEXPRESSION      : [WAY too long to include here]
+! DERIVATION         : [WAY too long to include here]
+! ISOSPINCOUPL       : [WAY too long to include here]
+! MPIDEN             : [WAY too long to include here]
 !
 ! TR              : $TR
 ! NTR             : $NTR 
@@ -124,6 +125,11 @@ implicit none
     integer, parameter :: sx_s(3) = (/$SX_SX,$SX_SY,$SX_SZ/)
     integer, parameter :: sy_s(3) = (/$SY_SX,$SY_SY,$SY_SZ/)
     integer, parameter :: sz_s(3) = (/$SZ_SX,$SZ_SY,$SZ_SZ/)
+    
+    interface mixup_rhokappa
+      module procedure mixup_rhokappa_real
+      module procedure mixup_rhokappa_complex
+    end interface
     
 contains
  
@@ -257,7 +263,98 @@ subroutine construct_canonical_basis(rho, kappa, rho_c, kappa_c)
     if((.not. efficientHFB) .and. store_derivatives) call derivecan()
 
  end subroutine construct_canonical_basis
- 
+
+ function gen_unitary_transform() result(transfo)
+  !-----------------------------------------------------------------------------
+  ! Generate a random unitary transformation in the space of the single-particle
+  ! states that respects the symmetries of the calculation.
+  !
+  ! Input
+  ! Output:
+  !  - transfo : the unitary transformation
+  !-----------------------------------------------------------------------------
+  integer                    :: si, B, i, j, N
+  real(KIND=dp), allocatable :: transfo(:,:)
+!  real(KIND=dp), allocatable :: check(:,:)
+  real(KIND=dp)              :: fac
+
+  allocate(transfo(nwt,nwt))
+  ! Generate a (symmetry-respecting) random unitary transformation
+  transfo = 0.0d0
+  si = 0
+  do B=1,8
+    N = HFBlocks(B)
+    ! Generate random numbers
+    call random_number(transfo(si+1:si+N, si+1:si+N))
+    ! Orthonormalize the columns
+    do i=1,N
+      ! Normalize
+      fac =  sqrt(sum(transfo(si+1:si+N,si+i)**2))
+      transfo(si+1:si+N,si+i) = transfo(si+1:si+N,si+i)/ fac
+      do j=i+1,N
+        ! Orthogonalize the rest
+        fac =  sum(transfo(si+1:si+N,si+j)*transfo(si+1:si+N,si+i))
+        transfo(si+1:si+N,si+j) = transfo(si+1:si+N,si+j) &
+        &                                       - fac *  transfo(si+1:si+N,si+i)
+      enddo
+    enddo
+!     print *, 'B=', B
+!     do i=1,N
+!       print ('(99f10.3)'), transfo(i,1:N)
+!     enddo
+    si = si + N
+  enddo
+
+
+ end function gen_unitary_transform
+
+subroutine mixup_rhokappa_real(rho, kappa, transfo)
+  !-----------------------------------------------------------------------------
+  ! Construct a random symmetry-respecting unitary transformation and apply
+  ! it to (i) the single-particle wavefunctions in the Hartree-Fock basis
+  ! and (ii) the matrices rho and kappa.
+  !-----------------------------------------------------------------------------
+
+  real(KIND=dp), allocatable, intent(in) :: transfo(:,:)
+  real(KIND=dp), intent(inout) :: rho(:,:), kappa(:,:)
+
+  ! Perform the transformation of the spwfs
+  call transform_spwfs_inplace(hfpsi, transfo)
+  ! reperform derivatives((
+  call deriveHF()
+  ! Transform the density matrix and canonical kappa
+  rho   = transform_mat(rho, transfo)
+  ! Kappa transforms differently from rho, but in case of real
+  ! matrices this is largely irrelevant
+  ! TODO: enable!
+  !kappa = transform_mat(kappa, transfo)
+
+end subroutine mixup_rhokappa_real
+
+subroutine mixup_rhokappa_complex(rho, kappa, transfo)
+  !-----------------------------------------------------------------------------
+  ! Construct a random symmetry-respecting unitary transformation and apply
+  ! it to (i) the single-particle wavefunctions in the Hartree-Fock basis
+  ! and (ii) the matrices rho and kappa.
+  !-----------------------------------------------------------------------------
+
+  real(KIND=dp), allocatable, intent(in) :: transfo(:,:)
+  complex(KIND=dp), intent(inout) :: rho(:,:), kappa(:,:)
+
+  ! Perform the transformation of the spwfs
+  call transform_spwfs_inplace(hfpsi, transfo)
+  ! reperform derivatives((
+  call deriveHF()
+  ! Transform the density matrix and canonical kappa
+  rho   = transform_mat(rho, transfo)
+  ! Kappa transforms differently from rho, but in case of real
+  ! matrices this is largely irrelevant
+  ! TODO: enable!
+  !kappa = transform_mat(kappa, transfo)
+
+end subroutine mixup_rhokappa_complex
+
+
 function densit(rho, kappa) result(R)
     !---------------------------------------------------------------------------
     ! Calculate all of the mean-field densities, both normal and pairing. 
@@ -591,7 +688,333 @@ $ISOSPINCOUPL
     call stop_timer(T_densities)
 end function densit
 
- subroutine ConstructChargeDensity(R)
+function densit_offdiag(rho, kappa) result(R)
+    !----------------------------------------------------------------------------
+    ! Calculate normal and anomalous densities through a double sum across spwfs
+    ! by summing symmetric and antisymmetric parts.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !   rho      real/complex matrix
+    !   kappa    real/complex matrix
+    !
+    ! Output:
+    !   R        densityvector   values of the mean-field densities.
+    !----------------------------------------------------------------------------
+    complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
+    type(DensityVector)          :: R
+
+    R = densit_offdiag_symmetric(rho,kappa) + densit_offdiag_antisymmetric(rho,kappa)
+
+end function densit_offdiag
+
+function densit_offdiag_symmetric(rho, kappa) result(R)
+    !------------------------------ ---------------------------------------------
+    ! Calculate the symmetric part(*) of the mean-field densities, both normal
+    ! and pairing, based on arbitrary matrices rho and kappa.
+    !
+    ! TODO: explain "symmetric part"
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !   rho      real/complex matrix
+    !   kappa    real/complex matrix
+    !
+    ! Output:
+    !   R        densityvector   values of the mean-field densities.
+    !----------------------------------------------------------------------------
+    external construct_charge_density
+
+    complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
+    type(DensityVector)          :: R
+
+    real(KIND=dp)             :: weight_sym
+    integer                   :: wave_i       , wave_j
+    integer                   :: wave_global_i, wave_global_j
+    integer                   :: it_i, it_j, it, der_index_i,der_index_j
+
+    integer :: i
+
+$SPWF_DECLARATION
+    call start_timer(T_densities)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Allocation and initialization
+$INITIALIZATION
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Zero the current density
+$ZEROING
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Correctly set the pointers to the spwfs
+    ! This should always be the HF basis!
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    DenPsi   => HFPsi    ; DenDPsi   => HFDPsi
+    DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    call start_timer(T_den_ph)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! PARTICLE-HOLE DENSITIES
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: make this double loop more intelligent wrt to symmetries
+    do wave_i=1,nwt_local                ! Loop over the local spwf index
+      wave_global_i = spwf_map(wave_i)     ! Global spwf index
+
+      ! Isospin is neutron in the first half of blocks, proton in the rest
+      it_i = 2
+      if(wave_global_i.le.nwn) it_i = 1
+
+      ! TODO: enable store_derivatives option
+      der_index_i = wave_i
+
+      do wave_j=1,nwt_local
+        wave_global_j = spwf_map(wave_j) ! Global spwf index
+
+        ! Isospin is neutron in the first half of blocks, proton in the rest
+        it_j = 2
+        if(wave_global_j.le.nwn) it_j = 1
+
+        if(it_i.ne.it_j) cycle ! There are no pn-exchange excitation operators so far
+        it = it_i
+
+        ! TODO: enable store_derivatives option
+        der_index_j = wave_j
+        !----------------------------------------------------------------------------
+        ! The summation weights for particle-hole densities
+        weight_sym = 0.5d0*( &
+        &      rho(wave_global_i, wave_global_j) + rho(wave_global_j, wave_global_i))
+
+        do i=1,mv
+$EXPRESSION_OFFDIAG_SYMMETRIC
+        enddo
+      enddo
+    enddo
+    call stop_timer(T_den_ph)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of the 'derived' densities, densities obtainable by
+    ! deriving other ones.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    call start_timer(T_den_der)
+    do it=1,2
+$DERIVATION_OFFDIAG_SYMMETRIC
+    enddo
+    call stop_timer(T_den_der)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculate the densities in isospin representation
+$ISOSPINCOUPL
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Construct the charge density
+    call constructchargedensity(R)
+
+    call stop_timer(T_densities)
+
+end function densit_offdiag_symmetric
+
+function densit_offdiag_antisymmetric(rho, kappa) result(R)
+    !------------------------------ ---------------------------------------------
+    ! Calculate the antisymmetric part(*) of the mean-field densities, both normal
+    ! and pairing, based on arbitrary matrices rho and kappa.
+    !
+    ! TODO: explain "antisymmetric part"
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !   rho      real/complex matrix
+    !   kappa    real/complex matrix
+    !
+    ! Output:
+    !   R        densityvector   values of the mean-field densities.
+    !----------------------------------------------------------------------------
+    external construct_charge_density
+
+    complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
+    type(DensityVector)          :: R
+
+    real(KIND=dp)             :: weight_asym
+    integer                   :: wave_i       , wave_j
+    integer                   :: wave_global_i, wave_global_j
+    integer                   :: it_i, it_j, it, der_index_i,der_index_j
+
+    integer :: i
+
+$SPWF_DECLARATION
+    call start_timer(T_densities)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Allocation and initialization
+$INITIALIZATION
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Zero the current density
+$ZEROING
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Correctly set the pointers to the spwfs
+    ! This should always be the HF basis!
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    DenPsi   => HFPsi    ; DenDPsi   => HFDPsi
+    DenddPsi => HFddPsi  ; DendddPsi => HFdddpsi
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    call start_timer(T_den_ph)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! PARTICLE-HOLE DENSITIES
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: make this double loop more intelligent wrt to symmetries
+    do wave_i=1,nwt_local                ! Loop over the local spwf index
+      wave_global_i = spwf_map(wave_i)     ! Global spwf index
+
+      ! Isospin is neutron in the first half of blocks, proton in the rest
+      it_i = 2
+      if(wave_global_i.le.nwn) it_i = 1
+
+      ! TODO: enable store_derivatives option
+      der_index_i = wave_i
+
+      do wave_j=1,nwt_local
+        wave_global_j = spwf_map(wave_j) ! Global spwf index
+
+        ! Isospin is neutron in the first half of blocks, proton in the rest
+        it_j = 2
+        if(wave_global_j.le.nwn) it_j = 1
+
+        if(it_i.ne.it_j) cycle ! There are no pn-exchange excitation operators so far
+        it = it_i
+
+        ! TODO: enable store_derivatives option
+        der_index_j = wave_j
+        !----------------------------------------------------------------------------
+        ! The summation weights for particle-hole densities
+        weight_asym = 0.5d0*( &
+        &      rho(wave_global_i, wave_global_j) - rho(wave_global_j, wave_global_i))
+
+        do i=1,mv
+$EXPRESSION_OFFDIAG_ANTISYMMETRIC
+        enddo
+      enddo
+    enddo
+    call stop_timer(T_den_ph)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculation of the 'derived' densities, densities obtainable by
+    ! deriving other ones.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    call start_timer(T_den_der)
+    do it=1,2
+$DERIVATION_OFFDIAG_ANTISYMMETRIC
+    enddo
+    call stop_timer(T_den_der)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Calculate the densities in isospin representation
+$ISOSPINCOUPL
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Construct the charge density
+    call constructchargedensity(R)
+
+    call stop_timer(T_densities)
+
+end function densit_offdiag_antisymmetric
+
+function calc_sphamil_me( denpsi, dendpsi, denddpsi, F, onthefly) result(sphamil_me)
+    !--------------------------------------------------------------------------------
+    ! This function calculates the single-particle matrix elements of the
+    ! single-particle hamiltonian.
+    !
+    ! Several notes are in order
+    ! - this routine does NOT assume hermeticity, such that it can be used in FAM
+    !   calculations when the potentials are not necessarily real.
+    ! - the potentials on input are "combined" in the sense that F_I_I also contains
+    !   other parts not associated with the Skyrme potentials; this can be achieved
+    !   by the function combine_potentials.
+    ! - the spwfs oninput are named  "den[d/dd]psi" in order to have less changes
+    !   in Hephaestos; these are not the pointers defined on top in this module.
+    !
+    ! TODO:
+    !  - adapt to complex quantities
+    !  - rename wavefunctions for clarity
+    !  - develop MPI parallelism
+    !
+    ! Input:
+    ! -------
+    !   psi     : set of single-particle wavefunctions
+    !   dpsi    : first order derivatives
+    !   ddpsi   : second order derivatives
+    !   F       : potential vector
+    !             has to have been passed through combine_potentials !!!!
+    !   onthefly:   [NOT ACTIVE ]
+    !
+    ! Output:
+    ! -------
+    !  sphamil_me : matrix elements of the single-particle hamiltonian.
+    !----------------------------------------------------------------------------
+    real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
+    logical, intent(in)               :: onthefly
+    type(PotentialVector), intent(in) :: F
+    complex(KIND=dp), allocatable     :: sphamil_me(:,:)
+
+    integer                           :: it, B, si, N, wave_i, wave_j, i
+    real(KIND=dp)                     :: reducedmass, Butler_f, Butler_t
+
+$SPWF_DECLARATION
+
+    ! initialize
+    allocate(sphamil_me(nwt,nwt)) ; sphamil_me = 0.0d0
+
+    si = 0
+    do B=1,8
+      N = HFBlocks(B)
+
+      !---------------------------------------------------------------------------
+      ! Determine the isospin index
+      if(B.ge.5) then
+        it = 2
+      else
+        it = 1
+      endif
+      !---------------------------------------------------------------------------
+      ! Reduced mass in case of self-consistent 1-body COM correction
+      ! If doing pasta calculations, just skip.
+      Reducedmass = 1.0_dp
+#if(PASTA == 0)
+      select case(COM1Body)
+      case(0,1)
+        Reducedmass = 1.0_dp
+      case(2)
+        Reducedmass = (1.0_dp-nucleonmass(it)/                                   &
+        &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
+      case(3)
+        Butler_t = (1.5 * (neutrons + protons))**(1./3.)
+        Butler_f = 2./(Butler_t + 1./(3*Butler_t))
+        Reducedmass = (1.0_dp-nucleonmass(it) * Butler_f/                        &
+        &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
+      end select
+#endif
+
+      do wave_i=si+1,si+N
+        do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
+          ! Action of the kinetic energy to the right
+          sphamil_me(wave_i, wave_j) = sphamil_me(wave_i, wave_j) - hbm(it)* reducedmass &
+          &                          * sum(denpsi(:,:,wave_j) &
+          &                                *(   denddpsi(:,1,:,wave_i) &
+          &                                   + denddpsi(:,4,:,wave_i) &
+          &                                   + denddpsi(:,6,:,wave_i)))
+
+          do i=1,mv
+$EXPRESSION_SPH
+          enddo
+          sphamil_me(wave_i, wave_j) = sphamil_me(wave_i, wave_j) * dv
+        enddo
+      enddo
+      si = si + N
+    enddo
+
+  end function calc_sphamil_me
+
+subroutine ConstructChargeDensity(R)
     !---------------------------------------------------------------------------
     ! Construct the charge density from the proton and neutron densities,
     ! using various effective forms
@@ -600,10 +1023,12 @@ end function densit
     !---------------------------------------------------------------------------
     use Folding
 
+#if(PASTA==1)
     4 format ('-------------------------------------------------------------------')
     1 format (' Warning: the charge in your system is not equal to the desired one.')
     2 format (' Number of protons - \int charge density = ', es10.3 )
     3 format (' The electron density is compensating.')
+#endif
 
     type(DensityVector),intent(inout) :: R
     real(KIND=dp)              :: temp(nx,ny,nz)
@@ -1309,24 +1734,24 @@ subroutine print_boxsize_check(R)
   4 format (' Zmax = (nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmax)) = ', es12.3 )
 $PBROKEN 41 format (' Zmin =-(nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmin)) = ', es12.3 )
   
-  rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
-  
-  print 1
-  print 11
-  print 2, meshX(nx) , maxval(sum(rho3D(nx,:,:,:),3))
-  print 3 , meshY(ny), maxval(sum(rho3D(:,ny,:,:),3))
-  print 4 , meshZ(nz), maxval(sum(rho3D(:,:,nz,:),3))
-$PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
+!  rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
+!  
+!  print 1
+!  print 11
+!  print 2, meshX(nx) , maxval(sum(rho3D(nx,:,:,:),3))
+!  print 3 , meshY(ny), maxval(sum(rho3D(:,ny,:,:),3))
+!  print 4 , meshZ(nz), maxval(sum(rho3D(:,:,nz,:),3))
+!$PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
 
-  if(pairingtype .ne. 0) then
-    rhoP_3D(1:nx,1:ny,1:nz,1:2) => R%DP_I_I
+!  if(pairingtype .ne. 0) then
+!    rhoP_3D(1:nx,1:ny,1:nz,1:2) => R%DP_I_I
 
-    print 12
-    print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
-    print 3 , meshY(ny), maxval(abs(sum(rhoP_3D(:,ny,:,:),3)))
-    print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
-$PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
-  endif
+!    print 12
+!    print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
+!    print 3 , meshY(ny), maxval(abs(sum(rhoP_3D(:,ny,:,:),3)))
+!    print 4 , meshZ(nz), maxval(abs(sum(rhoP_3D(:,:,nz,:),3)))
+!$PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
+!  endif
   
 end subroutine print_boxsize_check
 

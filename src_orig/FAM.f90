@@ -20,6 +20,7 @@ module fam
   use moments
   use fission_MOI
   use evolution
+  use FAM_testing, only : run_FAM_tests
 
   implicit none
 
@@ -46,7 +47,8 @@ module fam
   complex(KIND=dp), allocatable :: drho(:,:)   ! perturbed normal density matrix
   complex(KIND=dp), allocatable :: dkappa(:,:) ! perturbed pairing density matrix
   complex(KIND=dp), allocatable :: dR(:,:)     ! perturbed generalised density matrix
-  type(DensityVector) :: DensityPert ! perturbed densities in the mesh
+  type(DensityVector)   :: DensityPert   ! perturbed densities in the mesh
+  type(PotentialVector) :: PotentialPert ! perturbed potentials on the mesh
   !-----------------------------------------------------------------------------
   ! perturbed Hamiltonian
   real(KIND=dp), allocatable :: dH(:,:,:) ! perturbed Hamiltonian in HF basis
@@ -300,19 +302,19 @@ module fam
 
     dkappa = kappa0
 
+    !----------------------------------------------------------------
     ! /!\ HACK FOR NOW
     ! to be removed once construct_canonical_basis and densit
     ! can deal with complex density matrices
-    drho_real   = DBLE(drho)
-    dkappa_real = DBLE(dkappa)
-
+    !drho_real   = DBLE(drho)
+    !dkappa_real = DBLE(dkappa)
     ! construct the canonical basis of the perturbed rho and kappa
-    call construct_canonical_basis(drho_real,dkappa_real,rho_c,kappa_c)
-    
-    DensityPert = densit(rho_c, dkappa_real)
-    
-    call ConstructChargeDensity(DensityPert) ! PD: necessary?
-    
+    !call construct_canonical_basis(drho_real,dkappa_real,rho_c,kappa_c)
+    !----------------------------------------------------------------
+
+    DensityPert = densit_offdiag(drho, dkappa)
+    PotentialPert = calcPotentials(DensityPert)
+
   end subroutine build_perturbed_densities
 
   subroutine build_dH(DensityPert)
@@ -450,8 +452,8 @@ program run_FAM
   implicit none
   integer :: iteration
   logical :: is_converged
-  real(kind=dp)  :: lin_mix_coeff
-  real(kind=dp) :: omega_curr, omega_min, omega_max, omega_step
+  real(kind=dp)  :: lin_mix_coeff=0.4
+  real(kind=dp) :: omega_curr, omega_min=0, omega_max=10, omega_step=0.1
   integer :: omega_num, omega_index
   real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
   character(len=100) :: famfilename
@@ -490,7 +492,6 @@ program run_FAM
   !------------------------------------------------------------------------------
   ! Read all information from a .wf file
   call ReadWavefunction()
-
   !------------------------------------------------------------------------------
   ! Print all relevant input gleaned from STDIN and the wf file.
   call PrintInput()
@@ -513,9 +514,10 @@ program run_FAM
   !    in readTantalus in IO.f90
 
   ! Compute all local one-body densities on the mesh
-  Density = densit(rho_can, kappa_pairing)
-
+  Density     = densit(rho_can, kappa_pairing)
   call ConstructChargeDensity(Density) ! PD: necessary? 
+  ! ... and the associated potentials
+  Potentials  = calcPotentials(Density)
 
   ! Adopt the relevant quantities to the centre-of-mass of the nucleus ! PD: necessary? 
   call adapt_com(Density)  
@@ -523,14 +525,8 @@ program run_FAM
   ! Recalculate because the COM might have changed.
   call CalculateMoments(Density) 
 
-  ! Set the linear mixing coefficient
-  lin_mix_coeff = 0.4
-
   ! Solve FAM for a range of omega frequencies
 
-  omega_min = 0.5
-  omega_max = 40.0
-  omega_step = 0.1
 
   omega_num = int((omega_max - omega_min) / omega_step) + 1
 
@@ -538,12 +534,13 @@ program run_FAM
   allocate(S_arr(omega_num))
 
   omega_curr = omega_min
+
   do omega_index=1, omega_num
 
     ! initialise FAM matrices end set perturbing external field
     call inifam(omega_curr)
 
-    maxfamiter = 0
+    maxfamiter = 10
     is_converged = .false.
 
     ! Start of the iterations 
@@ -556,6 +553,9 @@ program run_FAM
       ! call build_dH(DensityPert)
 
       call calculate_XY()
+
+      ! Run all kinds of unit tests; should be made optional as this includes a stop statement
+      call run_FAM_tests(X,Y)
       
       ! Simple linear mixing for now. 
       ! To be replaced with something more fancy in the future
@@ -571,7 +571,6 @@ program run_FAM
           exit
         endif
       endif
-
     enddo
 
     omega_arr(omega_index) = omega_curr

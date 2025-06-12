@@ -62,38 +62,38 @@ contains
     !       hbar^2 / MeV
     !---------------------------------------------------------------------------
     type(DensityVector), intent(in), target :: R
-    real(KIND=dp), pointer                  :: rho(:,:,:)
-    real(KIND=dp)                           :: xs(2), ys(2), zs(2)
-    integer                                 :: it, i,j,k
+!    real(KIND=dp), pointer                  :: rho(:,:,:)
+!    real(KIND=dp)                           :: xs(2), ys(2), zs(2)
+!    integer                                 :: it, i,j,k
 
-    Rigid = 0
+!    Rigid = 0
 
-    xs = 0 ; ys = 0 ; zs = 0
+!    xs = 0 ; ys = 0 ; zs = 0
 
-    do it=1,2
-      ! Assigning the storage structure in D_I_I a more readable form
-      rho(1:nx, 1:ny, 1:nz) => R%D_I_I(1:nx*ny*nz,it)
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            xs(it) = xs(it) + meshx_shifted(i)**2 * rho(i,j,k)
-            ys(it) = ys(it) + meshy_shifted(j)**2 * rho(i,j,k)
-            zs(it) = zs(it) + meshz_shifted(k)**2 * rho(i,j,k)
-          enddo
-        enddo
-      enddo
-    enddo
+!    do it=1,2
+!      ! Assigning the storage structure in D_I_I a more readable form
+!      rho(1:nx, 1:ny, 1:nz) => R%D_I_I(1:nx*ny*nz,it)
+!      do k=1,nz
+!        do j=1,ny
+!          do i=1,nx
+!            xs(it) = xs(it) + meshx_shifted(i)**2 * rho(i,j,k)
+!            ys(it) = ys(it) + meshy_shifted(j)**2 * rho(i,j,k)
+!            zs(it) = zs(it) + meshz_shifted(k)**2 * rho(i,j,k)
+!          enddo
+!        enddo
+!      enddo
+!    enddo
 
-    xs = xs * dv ; ys = ys *dv ; zs = zs * dv
+!    xs = xs * dv ; ys = ys *dv ; zs = zs * dv
 
-    Rigid(1,1:2) = nucleonmass * (ys + zs)
-    Rigid(2,1:2) = nucleonmass * (xs + zs)
-    Rigid(3,1:2) = nucleonmass * (xs + ys)
+!    Rigid(1,1:2) = nucleonmass * (ys + zs)
+!    Rigid(2,1:2) = nucleonmass * (xs + zs)
+!    Rigid(3,1:2) = nucleonmass * (xs + ys)
 
-    Rigid(:,3) = sum(Rigid(:,1:2),2)
+!    Rigid(:,3) = sum(Rigid(:,1:2),2)
 
-    ! Converting to the correct units
-    Rigid = Rigid/(hbarclum**2)
+!    ! Converting to the correct units
+!    Rigid = Rigid/(hbarclum**2)
 
   end subroutine calcrigid
 

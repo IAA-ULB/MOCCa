@@ -150,6 +150,8 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         ProcessCranking(fname, src, target, so)
     if(fname=='FAM.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
+    if(fname=='FAM_testing.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
 
 def ProcessGeninfo(fname, src, target, so):
     """
@@ -250,6 +252,7 @@ def ProcessVectors(src, target, so, densities, potentials, memory_densities):
 
   # FAM vector_FAM.f90
   dic['DECLARATION']            = densities.replace('real(KIND=dp)', 'complex(KIND=dp)')
+  dic['DECLARATION_POTENTIALS'] = potentials.replace('real(KIND=dp)', 'complex(KIND=dp)')
   with open(src+'vectors.f90', 'r') as template:
     with open(target+'vectors_FAM.f90', 'w') as generated:
         for line in template:
