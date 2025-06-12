@@ -2795,49 +2795,49 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     character(len=*), intent(in)            :: fname
     integer                                 :: io, i,j,k, mi
 
-    1 format('#', 6x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]', 20x,   &
-      &               'rho_n', 20x, 'rho_p', 20x,'rho_c', 20x, &
-      &               'tau_n', 20x, 'tau_p', 20x,              &
-      &               'tilde{rho}_n', 13x, 'tilde{rho}_p')
-
-    open(1,file=fname, iostat=io)
-    if(io.ne.0) then    
-      print *, 'Something went wrong with writing a density to file.'
-      print *, 'filename = ', fname
-      call stp('')
-    endif
-    
-    call write_header(1)
-    write(1, fmt=1) 
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          write(1, fmt='(3es25.12)', advance='no') &
-          &          meshx(i), meshy(j), meshz(k)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! the contributions above are indexed according to (x,y,z) but 
-          ! we do not have this luxury for most of the densities
-          mi = meshindex(i,j,k)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The ordinary and charge density; always defined
-          write(1, fmt='(2es25.12)', advance='no') R%D_I_I(mi,1),R%D_I_I(mi,2)
-          write(1, fmt='( es25.12)', advance='no') R%chargedensity(i,j,k)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The kinetic density; its definition depends on the type of EDF used
-$TAUSCALAR write(1, fmt='(2es25.12)', advance='no') &
-$TAUSCALAR &         R%D_Nm_Nm(mi,1), R%D_Nm_Nm(mi,2)
-$TAUTENSOR write(1, fmt='(2es25.12)', advance='no') &
-$TAUTENSOR &         R%D_N_N(mi,1,1,1) + R%D_N_N(mi,2,2,1) + R%D_N_N(mi,3,3,1),&
-$TAUTENSOR &         R%D_N_N(mi,1,1,2) + R%D_N_N(mi,2,2,2) + R%D_N_N(mi,3,3,2)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The pairing fields FP_I_I
-          write(1, fmt='(2es25.12)',advance='no') R%DP_I_I(mi,1), R%DP_I_I(mi,2)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! We are done writing this line in the output
-          write(1, fmt='()') !  newline character
-        enddo
-      enddo
-    enddo
+!     1 format('#', 6x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]', 20x,   &
+!       &               'rho_n', 20x, 'rho_p', 20x,'rho_c', 20x, &
+!       &               'tau_n', 20x, 'tau_p', 20x,              &
+!       &               'tilde{rho}_n', 13x, 'tilde{rho}_p')
+!
+!     open(1,file=fname, iostat=io)
+!     if(io.ne.0) then
+!       print *, 'Something went wrong with writing a density to file.'
+!       print *, 'filename = ', fname
+!       call stp('')
+!     endif
+!
+!     call write_header(1)
+!     write(1, fmt=1)
+!     do k=1,nz
+!       do j=1,ny
+!         do i=1,nx
+!           write(1, fmt='(3es25.12)', advance='no') &
+!           &          meshx(i), meshy(j), meshz(k)
+!           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!           ! the contributions above are indexed according to (x,y,z) but
+!           ! we do not have this luxury for most of the densities
+!           mi = meshindex(i,j,k)
+!           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!           ! The ordinary and charge density; always defined
+!           write(1, fmt='(2es25.12)', advance='no') R%D_I_I(mi,1),R%D_I_I(mi,2)
+!           write(1, fmt='( es25.12)', advance='no') R%chargedensity(i,j,k)
+!           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!           ! The kinetic density; its definition depends on the type of EDF used
+! $TAUSCALAR write(1, fmt='(2es25.12)', advance='no') &
+! $TAUSCALAR &         R%D_Nm_Nm(mi,1), R%D_Nm_Nm(mi,2)
+! $TAUTENSOR write(1, fmt='(2es25.12)', advance='no') &
+! $TAUTENSOR &         R%D_N_N(mi,1,1,1) + R%D_N_N(mi,2,2,1) + R%D_N_N(mi,3,3,1),&
+! $TAUTENSOR &         R%D_N_N(mi,1,1,2) + R%D_N_N(mi,2,2,2) + R%D_N_N(mi,3,3,2)
+!           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!           ! The pairing fields FP_I_I
+!           write(1, fmt='(2es25.12)',advance='no') R%DP_I_I(mi,1), R%DP_I_I(mi,2)
+!           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!           ! We are done writing this line in the output
+!           write(1, fmt='()') !  newline character
+!         enddo
+!       enddo
+!     enddo
 
     close(1)
   end subroutine write_densities
@@ -2899,112 +2899,112 @@ $TAUTENSOR &         R%D_N_N(mi,1,1,2) + R%D_N_N(mi,2,2,2) + R%D_N_N(mi,3,3,2)
     integer                              :: io, i,j,k, mu, nu, ox, oy, oz, mi
     character(len=1) :: directions(3) 
 
-    1 format('#', 6x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]', 20x, 'V_nuc(n)', 17x, 'V_nuc(p)', 17x, &
-      &      'V_cd', 21x, 'V_ce', 21x, 'V_kin(n)', 17x, 'V_kin(p)', 17x, 'FP_n', 21x, 'FP_p',21x) 
-    2 format('W_', 2a1,'(n)', 18x, 'W_', 2a1,'(p)', 18x )
-
-    open(1,file=fname, iostat=io)
-    if(io.ne.0) then    
-      print *, 'Something went wrong with writing a potential to file.'
-      print *, 'filename = ', fname
-      call stp('')
-    endif
-
-    call write_header(1)
-    write(1, fmt=1, advance='no') 
-  
-    directions = (/'x', 'y', 'z'/)
-    do mu=1,3
-      do nu=1,3
-        write(1, fmt=2, advance='no') directions(mu), directions(nu), &
-        &                             directions(mu), directions(nu)
-      enddo
-    enddo
-    write(1, fmt='()')
-    
-    ! The central nuclear potential is the potential associated with D_I_I, but 
-    ! it should not include the contribution of the constraints, nor the 
-    ! contribution of the direct and exchange Coulomb potentials
-    allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
-    
-    temp = F%F_I_I(:,1:2) !- constraint_I_I
-
-    Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
-    Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Subtracting the coulomb potential depends on our treatment of the 
-    ! proton and neutron finite size effect
-    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
-    &                             (.not. nucleonsize_selfconsistent)) then
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! No finite size effect
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! The index juggling is ugly, but necessary, because the Coulomb 
-      ! potential has a different size than the Lagrange mesh.
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            Vnucp(i,j,k)          =   Vnucp(i,j,k) &
-            &                     - F%CoulombPotential(i+ox,j+oy,k+oz)    &
-            &                     - F%ExchangePotential(i,j,k)
-          enddo
-        enddo
-      enddo
-    else
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Finite size effects taken into account
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Note that there is no index juggling since these matrices are 
-      ! conveniently defined on the ordinary mesh.
-      Vnucn = Vnucn - F%FoldedCoul(:,:,:,1) &
-      &             - F%FoldedExchange(:,:,:,1)
-      Vnucp = Vnucp - F%FoldedCoul(:,:,:,2) &
-      &             - F%FoldedExchange(:,:,:,2)
-    endif
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! The potentials related to the charge density
-    Coulp = F%CoulombPotential (ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
-    Excp  = F%ExchangePotential(ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! Mesh coordinates and F_I_I and coulomb contribution to it.
-          write(1, fmt='(7es25.12)', advance='no') &
-          &          meshx(i), meshy(j), meshz(k),        &
-          &            Vnucn(i,j,k), Vnucp(i,j,k),        & 
-          &            Coulp(i,j,k), Excp(i,j,k) 
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! the contributions above are indexed according to (x,y,z) but 
-          ! we do not have this luxury for the following potentials
-          mi = meshindex(i,j,k)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The kinetic potential is the potential F_Nm_Nm if D_Nm_Nm is used 
-          ! in the calculation. If instead the kinetic density is decontracted, 
-          ! i.e. D_N_N is used, then we write the scalar component of the tensor
-$TAUSCALAR write(1, fmt='(2es25.12)', advance='no') &
-$TAUSCALAR &         F%F_Nm_Nm(mi,1), F%F_Nm_Nm(mi,2)
-$TAUTENSOR write(1, fmt='(2es25.12)', advance='no') &
-$TAUTENSOR &         F%F_N_N(mi,1,1,1) + F%F_N_N(mi,2,2,1) + F%F_N_N(mi,3,3,1),&
-$TAUTENSOR &         F%F_N_N(mi,1,1,2) + F%F_N_N(mi,2,2,2) + F%F_N_N(mi,3,3,2)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The pairing fields FP_I_I
-          write(1, fmt='(2es25.12)',advance='no') F%FP_I_I(mi,1), F%FP_I_I(mi,2)
-          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ! The spin-orbit potential is the potential G_I_NS
-          do mu=1,3
-            do nu=1,3
-              write(1, fmt='(2es25.12)', advance='no') &
-              &            F%G_I_NS(mi,mu,nu,1), F%G_I_NS(mi,mu,nu,2)
-            enddo
-          enddo
-          write(1, fmt='()') !  newline character
-        enddo
-      enddo
-    enddo
+!     1 format('#', 6x, 'X[fm]',20x,'Y[fm]', 20x,'Z[fm]', 20x, 'V_nuc(n)', 17x, 'V_nuc(p)', 17x, &
+!       &      'V_cd', 21x, 'V_ce', 21x, 'V_kin(n)', 17x, 'V_kin(p)', 17x, 'FP_n', 21x, 'FP_p',21x)
+!     2 format('W_', 2a1,'(n)', 18x, 'W_', 2a1,'(p)', 18x )
+!
+!     open(1,file=fname, iostat=io)
+!     if(io.ne.0) then
+!       print *, 'Something went wrong with writing a potential to file.'
+!       print *, 'filename = ', fname
+!       call stp('')
+!     endif
+!
+!     call write_header(1)
+!     write(1, fmt=1, advance='no')
+!
+!     directions = (/'x', 'y', 'z'/)
+!     do mu=1,3
+!       do nu=1,3
+!         write(1, fmt=2, advance='no') directions(mu), directions(nu), &
+!         &                             directions(mu), directions(nu)
+!       enddo
+!     enddo
+!     write(1, fmt='()')
+!
+!     ! The central nuclear potential is the potential associated with D_I_I, but
+!     ! it should not include the contribution of the constraints, nor the
+!     ! contribution of the direct and exchange Coulomb potentials
+!     allocate(temp(nx*ny*nz,2), coulp(nx,ny,nz), excp(nx,ny,nz))
+!
+!     temp = F%F_I_I(:,1:2) !- constraint_I_I
+!
+!     Vnucn(1:nx,1:ny,1:nz)  => temp(:,1)
+!     Vnucp(1:nx,1:ny,1:nz)  => temp(:,2)
+!
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Subtracting the coulomb potential depends on our treatment of the
+!     ! proton and neutron finite size effect
+!     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+!     if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+!     &                             (.not. nucleonsize_selfconsistent)) then
+!       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       ! No finite size effect
+!       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       ! The index juggling is ugly, but necessary, because the Coulomb
+!       ! potential has a different size than the Lagrange mesh.
+!       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       do k=1,nz
+!         do j=1,ny
+!           do i=1,nx
+!             Vnucp(i,j,k)          =   Vnucp(i,j,k) &
+!             &                     - F%CoulombPotential(i+ox,j+oy,k+oz)    &
+!             &                     - F%ExchangePotential(i,j,k)
+!           enddo
+!         enddo
+!       enddo
+!     else
+!       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       ! Finite size effects taken into account
+!       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       ! Note that there is no index juggling since these matrices are
+!       ! conveniently defined on the ordinary mesh.
+!       Vnucn = Vnucn - F%FoldedCoul(:,:,:,1) &
+!       &             - F%FoldedExchange(:,:,:,1)
+!       Vnucp = Vnucp - F%FoldedCoul(:,:,:,2) &
+!       &             - F%FoldedExchange(:,:,:,2)
+!     endif
+!     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! The potentials related to the charge density
+!     Coulp = F%CoulombPotential (ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
+!     Excp  = F%ExchangePotential(ox+1:ox+nx,oy+1:oy+ny,oz+1:oz+nz)
+!     do k=1,nz
+!       do j=1,ny
+!         do i=1,nx
+!           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!           ! Mesh coordinates and F_I_I and coulomb contribution to it.
+!           write(1, fmt='(7es25.12)', advance='no') &
+!           &          meshx(i), meshy(j), meshz(k),        &
+!           &            Vnucn(i,j,k), Vnucp(i,j,k),        &
+!           &            Coulp(i,j,k), Excp(i,j,k)
+!           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!           ! the contributions above are indexed according to (x,y,z) but
+!           ! we do not have this luxury for the following potentials
+!           mi = meshindex(i,j,k)
+!           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!           ! The kinetic potential is the potential F_Nm_Nm if D_Nm_Nm is used
+!           ! in the calculation. If instead the kinetic density is decontracted,
+!           ! i.e. D_N_N is used, then we write the scalar component of the tensor
+! $TAUSCALAR write(1, fmt='(2es25.12)', advance='no') &
+! $TAUSCALAR &         F%F_Nm_Nm(mi,1), F%F_Nm_Nm(mi,2)
+! $TAUTENSOR write(1, fmt='(2es25.12)', advance='no') &
+! $TAUTENSOR &         F%F_N_N(mi,1,1,1) + F%F_N_N(mi,2,2,1) + F%F_N_N(mi,3,3,1),&
+! $TAUTENSOR &         F%F_N_N(mi,1,1,2) + F%F_N_N(mi,2,2,2) + F%F_N_N(mi,3,3,2)
+!           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!           ! The pairing fields FP_I_I
+!           write(1, fmt='(2es25.12)',advance='no') F%FP_I_I(mi,1), F%FP_I_I(mi,2)
+!           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!           ! The spin-orbit potential is the potential G_I_NS
+!           do mu=1,3
+!             do nu=1,3
+!               write(1, fmt='(2es25.12)', advance='no') &
+!               &            F%G_I_NS(mi,mu,nu,1), F%G_I_NS(mi,mu,nu,2)
+!             enddo
+!           enddo
+!           write(1, fmt='()') !  newline character
+!         enddo
+!       enddo
+!     enddo
 
     close(1)
   end subroutine write_potentialfile

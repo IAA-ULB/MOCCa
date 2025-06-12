@@ -235,9 +235,10 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     Derivation_offdiag_symmetric     = ''
     Derivation_offdiag_antisymmetric = ''
 
-    Expression_sph     = ''
-    BCSExpression      = ''
-    HFBExpression      = ''
+    Expression_sph_sym     = ''
+    Expression_sph_antisym = ''
+    BCSExpression          = ''
+    HFBExpression          = ''
 
     Isospincoupl     = ''
     Zeroing          = ''
@@ -283,7 +284,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j'     , 'wave_i',                                     \
                             'der_index_j', 'der_index_i',so,density_spwf_summation,
-                             complex_component=+1,weight='weight_sym')
+                             complex_component=+1,weight='weight_sym', silent=True)
       e_off_sym = off_diag_tuple[0]
       der_sym   = off_diag_tuple[4]
 
@@ -292,58 +293,60 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j'     , 'wave_i',                                     \
                             'der_index_j', 'der_index_i',so,density_spwf_summation,
-                             complex_component=-1,weight='weight_asym')
+                             complex_component=-1,weight='weight_asym', silent=True)
       e_off_asym = off_diag_tuple[0]
       der_asym   = off_diag_tuple[4]
 
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # Expressions required to evaluate the matrix elements of the single-particle
       # hamiltonian based on density-like expressions
-      e_sph = ''
+      e_sph_sym     = ''
+      e_sph_antisym = ''
       (t,t,left,right,t,t) = ParseOperators(Densities_needed[i], so.timelike)
+      # TODO: write documentation!
       if(left != right):
         # Explicit symmetrisation is required
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
                             'wave_j', 'wave_i',so,density_spwf_summation,
-                             complex_component=+1, weight='potential', symmetrize=+1)
-        e_sph += sph_tuple[0] # we only need the calculation of this density
+                             complex_component=+1, weight='potential', symmetrize=+1, silent=True)
+        e_sph_sym += sph_tuple[0]
 
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
                             'wave_j', 'wave_i',so,density_spwf_summation,
-                             complex_component=-1, weight='potential', symmetrize=+1)
-        e_sph += sph_tuple[0] # we only need the calculation of this density
+                             complex_component=-1, weight='potential', symmetrize=+1, silent=True)
+        e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
 
 
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
                             'wave_j', 'wave_i',so,density_spwf_summation,
-                             complex_component=+1, weight='potential', symmetrize=-1)
-        e_sph += sph_tuple[0] # we only need the calculation of this density
+                             complex_component=+1, weight='potential', symmetrize=-1, silent=True)
+        e_sph_sym += sph_tuple[0] # we only need the calculation of this density
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
                             'wave_j', 'wave_i',so,density_spwf_summation,
-                             complex_component=-1, weight='potential', symmetrize=-1)
-        e_sph += sph_tuple[0] # we only need the calculation of this density
+                             complex_component=-1, weight='potential', symmetrize=-1, silent=True)
+        e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
       else:
         # No explicit symmetrisation needed
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
                             'wave_j', 'wave_i',so,density_spwf_summation,
-                             complex_component=+1, weight='potential', symmetrize=0)
-        e_sph += sph_tuple[0] # we only need the calculation of this density
+                             complex_component=+1, weight='potential', symmetrize=0, silent=True)
+        e_sph_sym += sph_tuple[0] # we only need the calculation of this density
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
                             'wave_j', 'wave_i',so,density_spwf_summation,
-                             complex_component=-1, weight='potential', symmetrize=0)
-        e_sph += sph_tuple[0] # we only need the calculation of this density
+                             complex_component=-1, weight='potential', symmetrize=0, silent=True)
+        e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
@@ -371,7 +374,8 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         Derivation                       = Derivation                       + der
         Derivation_offdiag_symmetric     = Derivation_offdiag_symmetric     + der_sym
         Derivation_offdiag_antisymmetric = Derivation_offdiag_antisymmetric + der_asym
-        Expression_sph     = Expression_sph          + '\n' + e_sph
+        Expression_sph_sym               = Expression_sph_sym          + '\n' + e_sph_sym
+        Expression_sph_antisym           = Expression_sph_sym          + '\n' + e_sph_antisym
 
       if( not intermediate_status[i]):
         Initialisation = Initialisation + '\n' + ini
@@ -398,7 +402,8 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     dic['EXPRESSION_OFFDIAG_SYMMETRIC']  = Expression_offdiag_symmetric         # double summation for symmetric part of more general densities
     dic['EXPRESSION_OFFDIAG_ANTISYMMETRIC'] = Expression_offdiag_antisymmetric  # double summation for symmetric part of more general densities
 
-    dic['EXPRESSION_SPH']     = Expression_sph     # expression for the density-like calculation of the matrix elements of sph
+    dic['EXPRESSION_SPH_SYM']     = Expression_sph_sym         # expression for the density-like calculation of the matrix elements of sph
+    dic['EXPRESSION_SPH_ANTISYM'] = Expression_sph_antisym     # expression for the density-like calculation of the matrix elements of sph
     # b) particle-particle densities in the BCS case
     dic['BCSEXPRESSION'   ] = BCSExpression            # single summation for mean-field calculations
     # c) particle-particle densities in the BCS case

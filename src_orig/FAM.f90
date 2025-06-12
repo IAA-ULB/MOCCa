@@ -47,8 +47,8 @@ module fam
   complex(KIND=dp), allocatable :: drho(:,:)   ! perturbed normal density matrix
   complex(KIND=dp), allocatable :: dkappa(:,:) ! perturbed pairing density matrix
   complex(KIND=dp), allocatable :: dR(:,:)     ! perturbed generalised density matrix
-  type(DensityVector)   :: DensityPert   ! perturbed densities in the mesh
-  type(PotentialVector) :: PotentialPert ! perturbed potentials on the mesh
+  type(DensityVector)   :: Rs, Ra  ! perturbed densities in the mesh
+  type(PotentialVector) :: Fs, Fa! perturbed potentials on the mesh
   !-----------------------------------------------------------------------------
   ! perturbed Hamiltonian
   real(KIND=dp), allocatable :: dH(:,:,:) ! perturbed Hamiltonian in HF basis
@@ -298,8 +298,8 @@ module fam
     !call construct_canonical_basis(drho_real,dkappa_real,rho_c,kappa_c)
     !----------------------------------------------------------------
 
-    DensityPert = densit_offdiag(drho, dkappa)
-    PotentialPert = calcPotentials(DensityPert)
+    call densit_offdiag(drho, dkappa,Rs, Ra)
+!     PotentialPert = calcPotentials(DensityPert)
 
   end subroutine build_perturbed_densities
 

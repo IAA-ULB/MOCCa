@@ -688,7 +688,7 @@ $ISOSPINCOUPL
     call stop_timer(T_densities)
 end function densit
 
-function densit_offdiag(rho, kappa) result(R)
+subroutine densit_offdiag(rho, kappa, Rs, Ra)
     !----------------------------------------------------------------------------
     ! Calculate normal and anomalous densities through a double sum across spwfs
     ! by summing symmetric and antisymmetric parts.
@@ -698,14 +698,16 @@ function densit_offdiag(rho, kappa) result(R)
     !   kappa    real/complex matrix
     !
     ! Output:
-    !   R        densityvector   values of the mean-field densities.
+    !   Rs   : density vector containing the symmetric part of the densities
+    !   Ra   : density vector containing the antisymmetric part of the densities
     !----------------------------------------------------------------------------
-    complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
-    type(DensityVector)          :: R
+    complex(KIND=dp), intent(in)     :: rho(:,:), kappa(:,:)
+    type(DensityVector), intent(out) :: Rs, Ra
 
-    R = densit_offdiag_symmetric(rho,kappa) + densit_offdiag_antisymmetric(rho,kappa)
+    Rs = densit_offdiag_symmetric(rho,kappa)
+    Ra = densit_offdiag_antisymmetric(rho,kappa)
 
-end function densit_offdiag
+end subroutine densit_offdiag
 
 function densit_offdiag_symmetric(rho, kappa) result(R)
     !------------------------------ ---------------------------------------------
@@ -919,7 +921,24 @@ $ISOSPINCOUPL
 
 end function densit_offdiag_antisymmetric
 
-function calc_sphamil_me( denpsi, dendpsi, denddpsi, F, onthefly) result(sphamil_me)
+function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sphamil_me)
+    !----------------------------------------------------------------------------
+    ! TODO: document
+    !
+    !
+    !----------------------------------------------------------------------------
+    real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
+    logical, intent(in)               :: onthefly
+    type(PotentialVector), intent(in) :: Fs, Fa
+    complex(KIND=dp), allocatable     :: sphamil_me(:,:)
+
+    sphamil_me = calc_sphamil_me_sym    ( denpsi, dendpsi, denddpsi, Fs,  onthefly) &
+    &          + calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, Fa,  onthefly)
+
+
+end function calc_sphamil_me
+
+function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, F,  onthefly) result(sphamil_me)
     !--------------------------------------------------------------------------------
     ! This function calculates the single-particle matrix elements of the
     ! single-particle hamiltonian.
@@ -943,8 +962,8 @@ function calc_sphamil_me( denpsi, dendpsi, denddpsi, F, onthefly) result(sphamil
     !   psi     : set of single-particle wavefunctions
     !   dpsi    : first order derivatives
     !   ddpsi   : second order derivatives
-    !   F       : potential vector
-    !             has to have been passed through combine_potentials !!!!
+    !   Fs      : potential vector containing the SYMMETRIC linearised response
+    !             of the mean-field potentials
     !   onthefly:   [NOT ACTIVE ]
     !
     ! Output:
@@ -957,7 +976,7 @@ function calc_sphamil_me( denpsi, dendpsi, denddpsi, F, onthefly) result(sphamil
     complex(KIND=dp), allocatable     :: sphamil_me(:,:)
 
     integer                           :: it, B, si, N, wave_i, wave_j, i
-    real(KIND=dp)                     :: reducedmass, Butler_f, Butler_t
+    !real(KIND=dp)                     :: reducedmass, Butler_f, Butler_t
 
 $SPWF_DECLARATION
 
@@ -978,33 +997,33 @@ $SPWF_DECLARATION
       !---------------------------------------------------------------------------
       ! Reduced mass in case of self-consistent 1-body COM correction
       ! If doing pasta calculations, just skip.
-      Reducedmass = 1.0_dp
-#if(PASTA == 0)
-      select case(COM1Body)
-      case(0,1)
-        Reducedmass = 1.0_dp
-      case(2)
-        Reducedmass = (1.0_dp-nucleonmass(it)/                                   &
-        &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
-      case(3)
-        Butler_t = (1.5 * (neutrons + protons))**(1./3.)
-        Butler_f = 2./(Butler_t + 1./(3*Butler_t))
-        Reducedmass = (1.0_dp-nucleonmass(it) * Butler_f/                        &
-        &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
-      end select
-#endif
+!       Reducedmass = 1.0_dp
+! #if(PASTA == 0)
+!       select case(COM1Body)
+!       case(0,1)
+!         Reducedmass = 1.0_dp
+!       case(2)
+!         Reducedmass = (1.0_dp-nucleonmass(it)/                                   &
+!         &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
+!       case(3)
+!         Butler_t = (1.5 * (neutrons + protons))**(1./3.)
+!         Butler_f = 2./(Butler_t + 1./(3*Butler_t))
+!         Reducedmass = (1.0_dp-nucleonmass(it) * Butler_f/                        &
+!         &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
+!       end select
+! #endif
 
       do wave_i=si+1,si+N
         do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
-          ! Action of the kinetic energy to the right
-          sphamil_me(wave_i, wave_j) = sphamil_me(wave_i, wave_j) - hbm(it)* reducedmass &
-          &                          * sum(denpsi(:,:,wave_j) &
-          &                                *(   denddpsi(:,1,:,wave_i) &
-          &                                   + denddpsi(:,4,:,wave_i) &
-          &                                   + denddpsi(:,6,:,wave_i)))
+!           ! Action of the kinetic energy to the right
+!           sphamil_me(wave_i, wave_j) = sphamil_me(wave_i, wave_j) - hbm(it)* reducedmass &
+!           &                          * sum(denpsi(:,:,wave_j) &
+!           &                                *(   denddpsi(:,1,:,wave_i) &
+!           &                                   + denddpsi(:,4,:,wave_i) &
+!           &                                   + denddpsi(:,6,:,wave_i)))
 
           do i=1,mv
-$EXPRESSION_SPH
+$EXPRESSION_SPH_SYM
           enddo
           sphamil_me(wave_i, wave_j) = sphamil_me(wave_i, wave_j) * dv
         enddo
@@ -1012,7 +1031,61 @@ $EXPRESSION_SPH
       si = si + N
     enddo
 
-  end function calc_sphamil_me
+  end function calc_sphamil_me_sym
+
+function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, F,  onthefly) result(sphamil_me)
+    !--------------------------------------------------------------------------------
+    ! TODO: DOCUMENT
+    !
+    ! Input:
+    ! -------
+    !   psi     : set of single-particle wavefunctions
+    !   dpsi    : first order derivatives
+    !   ddpsi   : second order derivatives
+    !   Fs      : potential vector containing the SYMMETRIC linearised response
+    !             of the mean-field potentials
+    !   onthefly:   [NOT ACTIVE ]
+    !
+    ! Output:
+    ! -------
+    !  sphamil_me : matrix elements of the single-particle hamiltonian.
+    !----------------------------------------------------------------------------
+    real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
+    logical, intent(in)               :: onthefly
+    type(PotentialVector), intent(in) :: F
+    complex(KIND=dp), allocatable     :: sphamil_me(:,:)
+
+    integer                           :: it, B, si, N, wave_i, wave_j, i
+
+$SPWF_DECLARATION
+
+    ! initialize
+    allocate(sphamil_me(nwt,nwt)) ; sphamil_me = 0.0d0
+
+    si = 0
+    do B=1,8
+      N = HFBlocks(B)
+
+      !---------------------------------------------------------------------------
+      ! Determine the isospin index
+      if(B.ge.5) then
+        it = 2
+      else
+        it = 1
+      endif
+
+      do wave_i=si+1,si+N
+        do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
+          do i=1,mv
+$EXPRESSION_SPH_ANTISYM
+          enddo
+          sphamil_me(wave_i, wave_j) = sphamil_me(wave_i, wave_j) * dv
+        enddo
+      enddo
+      si = si + N
+    enddo
+
+  end function calc_sphamil_me_antisym
 
 subroutine ConstructChargeDensity(R)
     !---------------------------------------------------------------------------
