@@ -37,6 +37,7 @@ module functional
  ! PrintCOEF_pair   : [WAY TOO LONG TO INCLUDE HERE]
  ! Print            : [WAY TOO LONG TO INCLUDE HERE]
  ! Calcpotentials   : [WAY TOO LONG TO INCLUDE HERE]
+ ! Calcpotentials_PERTURBED   : [WAY TOO LONG TO INCLUDE HERE]
  ! SkyrmeAction     : [WAY TOO LONG TO INCLUDE HERE]
  ! PairingAction    : [WAY TOO LONG TO INCLUDE HERE]
  ! ERear            : [WAY TOO LONG TO INCLUDE HERE]
@@ -1410,6 +1411,28 @@ $CALCPOTENTIALS
     call stop_timer(T_potentials)
 
   end function calcPotentials
+  
+  function calc_perturbed_potentials(R,R_pert) result (F)
+    !---------------------------------------------------------------------------
+    !
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !   R    : density-vector containing the mean-field densities
+    !   R_pert: density-vector containig the perturbation to the densities
+    ! Output:
+    !   F: potential-vector containing the linearised response of the mean-field
+    !      potentials/
+    !
+    !---------------------------------------------------------------------------
+    use Coulombmod       , only : SolveCoulomb
+    
+    type (DensityVector), intent(in) :: R, R_pert
+    type (PotentialVector)           :: F
+    
+$CALCPOTENTIALS_PERTURBED
+    
+  end function calc_perturbed_potentials
 
   subroutine combine_potentials(F)
     !----------------------------------------------------------------------------

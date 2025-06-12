@@ -256,7 +256,7 @@ contains
     !-------------------------------------------------------------------------------
     integer, intent(out)       :: ifail
 
-    real(KIND=dp), allocatable :: sphamil_me(:,:), sphamil_recalc(:,:), hpsi(:,:)
+    complex(KIND=dp), allocatable :: sphamil_me(:,:), sphamil_recalc(:,:), hpsi(:,:)
     integer                    :: si, B, N, i, it, j
     type(PotentialVector)      :: F
     type(DensityVector)        :: R
@@ -288,19 +288,19 @@ contains
     do B = 1,8
       N = HFBLocks(B)
       print *, 'BLOCK B=', B
-      print ('(99f12.5)'), spenergies(si+1:si+N)
+      print ('(99f10.3)'), spenergies(si+1:si+N)
       print *, 'SPH on file'
       do i=1,N
-        print ('(99f12.5)'), sphamil_recalc(si+i, si+1:si+N)
+        print ('(99f10.3)'), sphamil_recalc(si+i, si+1:si+N)
       enddo
       print *, 'SPH from calc_sphamil_me'
       do i=1,N
-        print ('(99f12.5)'), sphamil_me(si+i, si+1:si+N)
+        print ('(99f10.3)'), sphamil_me(si+i, si+1:si+N)
       enddo
       print *
       print *, 'Difference'
       do i=1,N
-        print ('(99es12.2)'), abs(sphamil_recalc(si+i, si+1:si+N) - sphamil_me(si+i, si+1:si+N))
+        print ('(99es10.2)'), abs(sphamil_recalc(si+i, si+1:si+N) - sphamil_me(si+i, si+1:si+N))
       enddo
       si = si + N
     enddo

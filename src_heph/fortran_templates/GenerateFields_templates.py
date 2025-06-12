@@ -24,9 +24,12 @@ field_calc_iso_start = T(2*tab + '!' + 36 * '- '  + '\n' +
                          2*tab + '! Isospin = $ISO \n')
 field_calc_b_start   = T(2*tab + 'F%$FIELD(:$IND,$ISOIND) = F%$FIELD(:$IND,$ISOIND)  & \n')
 field_calc_den       = T(' * R%$DENSITY(:$DENIND,$ISOALT)')
+field_calc_den_pert  = T(' * R_pert%$DENSITY(:$DENIND,$ISOALT)')
 field_calc_DD        = T(' * pow(R%$DENSITY(:$DENIND,$ISOALT), $DD)')
+field_calc_DD_pert   = T(' * $DD * pow(R%$DENSITY(:$DENIND,$ISOALT), $DD_pert) * R_pert%$DENSITY(:$DENIND,$ISOALT)')
 
 field_calc_full      = T(2*tab + '& $SIGN $CPLCTE $EXPR1 $EXTRA & \n') 
+field_calc_pert      = T(2*tab + '& $SIGN $CPLCTE $EXPR_PERT $EXTRA & \n') 
 field_calc_INM = T(  tab + 'pot(:,$ISOIND) = pot(:,$ISOIND) $SIGN $CPLCTE $EXPR1 \n')
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

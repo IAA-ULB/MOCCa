@@ -728,7 +728,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     sumtotal_tri    = ''
     sumtotal_quad   = ''
     sumtotal_dd     = ''
-    fieldcalc       = ''
+    
     precond         = ''
     erear           = ''
     writing         = ''
@@ -829,8 +829,9 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     #---------------------------------------------------------------------------
     # Generate the fields of the single-particle hamiltonian
-    (fielddec,fieldini,fieldcalc,fieldprecon,fieldwrite,fieldwrite_hdf5,fieldread,\
-     fieldread_hdf5,fieldadd,fieldmultiply,fieldinproduct,fieldINMk2, fieldINMk4) \
+    (fielddec,fieldini,fieldcalc,fieldcalc_perturbed, fieldprecon,fieldwrite, \
+    fieldwrite_hdf5,fieldread, fieldread_hdf5,fieldadd,fieldmultiply,          \
+    fieldinproduct,fieldINMk2, fieldINMk4) \
                                  =  GenerateFields(so, oldso,ph_pp_decoupl)
     pot_declaration = pot_declaration + fielddec + '\n'
     writing     = writing     + fieldwrite 
@@ -879,7 +880,10 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     printcoef_ph      = LineFormat(printcoef_ph)
     sumtotal_even     = LineFormat(sumtotal_even)
     sumtotal_odd      = LineFormat(sumtotal_odd)
-    fieldcalc         = LineFormat(fieldcalc)
+
+    fieldcalc           = LineFormat(fieldcalc)
+    fieldcalc_perturbed = LineFormat(fieldcalc_perturbed)
+    
     precond           = LineFormat(precond)
     SkyrmeAction      = LineFormat(SkyrmeAction)
     PairingAction     = LineFormat(PairingAction)
@@ -935,7 +939,9 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     dic['K2POT'] = fieldINMk2
     dic['K4POT'] = fieldINMk4
     
-    dic['CALCPOTENTIALS'] = fieldcalc
+    dic['CALCPOTENTIALS']           = fieldcalc
+    dic['CALCPOTENTIALS_PERTURBED'] = fieldcalc_perturbed
+      
     dic['POTENTIALPRECON']= precond
     dic['SKYRMEACTION']   = SkyrmeAction
     dic['PAIRINGACTION']  = PairingAction

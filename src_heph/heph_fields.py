@@ -102,7 +102,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   #---------------------------------------------------------------------------
   # For every unique density encountered, we need to figure out the field
   # and the action of the field. 
-  FIELDCALC   = ''
+  FIELDCALC           = ''
+  FIELDCALC_perturbed = ''
   fieldprecon = ''
   declaration = ''
 
@@ -547,10 +548,13 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
 
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_calc_a_start.substitute(dic)
-      #FIELDCALC    = FIELDCALC + ts.field_allo.substitute(dic)
-      #FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
       
-      FIELDCALC    = FIELDCALC + ts.field_condition_start.substitute(dic)
+      FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_line.substitute(dic)
+      FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_calc_a_start.substitute(dic)
+      
+      FIELDCALC           = FIELDCALC           + ts.field_condition_start.substitute(dic)
+      FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_condition_start.substitute(dic)
+      
       fieldinproduct = fieldinproduct + ts.field_inproduct.substitute(dic)
 
       #------------------------------------------------------------------------
@@ -568,7 +572,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         dic['ISO']    = str(iso)
         dic['ISOIND'] = Isospinindices(iso)
         
-        FIELDCALC    = FIELDCALC + ts.field_calc_iso_start.substitute(dic)
+        FIELDCALC            = FIELDCALC           + ts.field_calc_iso_start.substitute(dic)
+        FIELDCALC_perturbed  = FIELDCALC_perturbed + ts.field_calc_iso_start.substitute(dic)
         for fieldterm in fieldlist[iso]:
            dic['CPLCTE']   =  fieldterm[3]
 
@@ -617,8 +622,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                     sign = sign * -1                              
                   temp = (mu,abs(nuka[0]), abs(nuka[1]))
                   dic['IND'] = dic['IND'] + ',%d'%(temp[c.index(k)]+1)
-
-             lastorder = OrderOfDen(den)
 
              #----------------------------------------------------------------
              # Before we start doing complicated stuff for the index coupling
@@ -675,14 +678,32 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                  if(nosigma and noderivatives and scalar):
                    INM_term_count = INM_term_count + 1
              #----------------------------------------------------------------
-
-             FIELDCALC = FIELDCALC + ts.field_calc_b_start.substitute(dic)
               
              dic['DENSITY']  = ''
              dic['EXPR1']    = ''
-             dic['EXPR2']    = ''
-             dic['EXPR3']    = ''
+             dic['EXPR_PERT'] = ''
+
+             #------------------------------------------------------------------
+             # Put an extra sign for every partial integration of a nabla
+             if( len(fieldterm[1])%2 != 0):
+                 localsign = sign * (-1)
+             else:
+                 localsign = sign
+
+             if(localsign > 0):
+               dic['SIGN']     =  '+'
+             else:
+               dic['SIGN']    =  '-'
+
+             if(fieldterm[-1] == ''):
+               dic['EXTRA'] = ''
+             else:
+               dic['EXTRA'] = '*(%s)'%fieldterm[-1]
              
+             # TODO: refactor this into a function  
+             # Build the expression for the traditional mean-field densities
+             lastorder = OrderOfDen(den)
+             FIELDCALC = FIELDCALC + ts.field_calc_b_start.substitute(dic)
              for i,d in enumerate(densities):
                 dic['DENSITY'] = d
                 #-----------------------------------------------------------
@@ -728,27 +749,72 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
 
                 # Increment the starting point of indices
                 lastorder = lastorder + OrderOfDen(dic['DENSITY'])
-
-             #------------------------------------------------------------------
-             # Put an extra sign for every partial integration of a nabla
-             if( len(fieldterm[1])%2 != 0):
-                 localsign = sign * (-1)
-             else:
-                 localsign = sign
-
-             if(localsign > 0):
-               dic['SIGN']     =  '+'
-             else:
-               dic['SIGN']    =  '-'
-
-             if(fieldterm[-1] == ''):
-               dic['EXTRA'] = ''
-             else:
-               dic['EXTRA'] = '*(%s)'%fieldterm[-1]
-             
-
              FIELDCALC = FIELDCALC + ts.field_calc_full.substitute(dic)
              FIELDCALC = FIELDCALC[:-4] + '\n \n'
+             
+
+             # Now do it again, repeatedly, but taking one of the densities
+             # from the perturbed density vector at any one time
+             for j in range(len(densities)):
+               lastorder = OrderOfDen(den)
+               FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_calc_b_start.substitute(dic)
+
+               # Pick the J-th density to be a perturbation; otherwise do the 
+               # same thing as above...
+               for i,d in enumerate(densities):
+                  dic['DENSITY'] = d
+                  #-----------------------------------------------------------
+                  # Get the indices of the density on the rhs.
+                  indices = ()
+                  for k in range(lastorder,lastorder+OrderOfDen(d)):
+                    for c in newcpl: #fieldterm[4]:
+                      if k in c:   
+                        if(len(c) == 2):    
+                          mu      = arg[newcpl.index(c)]  #fieldterm[4].index(c)]
+                          indices = indices + (mu,)
+                        elif(len(c) == 3):
+                          # Integer division
+                          mu   = int(arg[newcpl.index(c)]/2) 
+                          # Which term of two?
+                          t = arg[newcpl.index(c)] - 2*mu
+                          if(t == 1):
+                            sign = sign * -1
+
+                          nuka = Rot_ind(mu)[t] 
+                                
+                          temp = (mu,abs(nuka[0]), abs(nuka[1]))
+                          indices = indices + (temp[c.index(k)],)                                 
+
+                  #-----------------------------------------------------------
+                  # The first indices are necessarily external derivatives
+                  dercount = d.count('Der')
+                  if(dercount > 0):
+                      derind  = Storage_Mapping(indices[:dercount])
+                      indices = (derind,) + indices[dercount:]
+                  dic['DENIND']      = ''
+                  for l in indices:
+                      dic['DENIND'] = dic['DENIND'] + ',%d'%int(l+1)
+                  dic['ISOALT']= Isospinindices(fieldterm[5][i])
+                  if(fieldterm[+6] != '1' and i == 0): 
+                    dic['DD']      = fieldterm[+6]
+                    dic['DD_pert'] = fieldterm[+6]  + '-1'
+                    # Expression with a call to 'pow'
+                    if(i != j):
+                      dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_DD.substitute(dic)
+                    else:
+                      dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_DD_pert.substitute(dic)
+                  else:
+                    # Ordinary expression
+                    if (i != j):
+                      dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_den.substitute(dic)
+                    else:
+                      dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_den_pert.substitute(dic)
+
+                  # Increment the starting point of indices
+                  lastorder = lastorder + OrderOfDen(dic['DENSITY'])
+
+               FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_calc_pert.substitute(dic)
+               FIELDCALC_perturbed = FIELDCALC_perturbed[:-4] + '\n \n'
 
            #------------------------------------------------------------------
            # This term contributes to potentials in homogeneous unpolarised
@@ -801,9 +867,14 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       # Add the recombination statements from isospin representation to 
       # proton-neutron representation, but only for normal densities
       if('P' not in den):
-        FIELDCALC    = FIELDCALC + ts.field_recombination.substitute(dic)
+        FIELDCALC           = FIELDCALC           + ts.field_recombination.substitute(dic)
+        FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_recombination.substitute(dic)
+
       FIELDCALC    = FIELDCALC + ts.field_condition_end.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic) + '\n'
+
+      FIELDCALC_perturbed    = FIELDCALC_perturbed + ts.field_condition_end.substitute(dic)
+      FIELDCALC_perturbed    = FIELDCALC_perturbed + ts.field_line.substitute(dic) + '\n'
 
       # Add some lines for the multiplication and addition of potentialvectors!
       fieldadd      = fieldadd      + '\n' +  ts.Add.substitute(dic)
@@ -985,7 +1056,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
             fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
   #-----------------------------------------------------------------------------
 
-  return(declaration, fieldini, FIELDCALC, fieldprecon, fieldwrite,fieldwrite_hdf5, \
+  return(declaration, fieldini, FIELDCALC, FIELDCALC_perturbed, fieldprecon, fieldwrite,fieldwrite_hdf5, \
    fieldread,fieldread_hdf5,fieldadd,fieldmultiply,fieldinproduct,fieldINMk2,fieldINMk4)
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
