@@ -23,3 +23,4 @@ Nog wat opmerkingen:
     budget hebt door met het keyword "maxiter" in het data* bestandje te
     spelen. Schatting: ~1.5 minuten per iteratie op 6 nodes.
 
+The test needs to be run with Tantalus.BXL.exe.
