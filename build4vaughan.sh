@@ -14,4 +14,4 @@ mkdir -p src
 mkdir -p mod
 mkdir -p obj
 
-make INCLUDE=gnu-parallel CALCTYPE=PASTA
+make INCLUDE=gnu-parallel-4Vaughan CALCTYPE=PASTA CONFIG=BXL
