@@ -43,14 +43,20 @@ module fam
   !                                  | '-> sp index : hole
   !                                  '-> sp index : particle
   !-----------------------------------------------------------------------------
-  ! perturbed densities
+  ! Perturbed densities
+  ! /!\: contains the perturbation relative to the mean-field, e.g.
+  !         rho_fam = rho_MF + drho
   complex(KIND=dp), allocatable :: drho(:,:)   ! perturbed normal density matrix
   complex(KIND=dp), allocatable :: dkappa(:,:) ! perturbed pairing density matrix
   complex(KIND=dp), allocatable :: dR(:,:)     ! perturbed generalised density matrix
   type(DensityVector)   :: DensityPert   ! perturbed densities in the mesh
-  type(PotentialVector) :: PotentialPert ! perturbed potentials on the mesh
   !-----------------------------------------------------------------------------
-  ! perturbed Hamiltonian
+  ! Perturbed potentials (aka fields)
+  ! /!\: contains the perturbation relative to the mean-field
+  type(PotentialVector) :: PotentialPert 
+  !-----------------------------------------------------------------------------
+  ! unperturbed Hamiltonian and perturbed hamiltonian
+  real(KIND=dp), allocatable :: H_unpert(:,:) ! unperturbed Hamiltonian in HF basis
   real(KIND=dp), allocatable :: dH(:,:,:) ! perturbed Hamiltonian in HF basis
   !                                | | '-> 1: ph block, 2: hp block 
   !                                | '-> sp index : hole
@@ -86,17 +92,20 @@ module fam
 
   contains
 
-  subroutine inifam(omega)
+  subroutine inifam(omega, PotentialsUnpert)
     implicit none
     !---------------------------------------------------------------------------
     ! Allocate the FAM objects, set the external field F and initialise the X
     ! and Y from first order, i.e. dH=0. 
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: omega
+    type(PotentialVector), intent(in) :: PotentialsUnpert
     real(KIND=dp), allocatable :: SolidHarmHF(:,:)
     integer :: p, h
     real(KIND=dp) :: occ_h, occ_p
     logical :: ImPart
+
+    1 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
     ! set omega frequency of perturbation
     omega_fam = omega
@@ -107,7 +116,7 @@ module fam
     if(.not.allocated(drho)) then 
       allocate(drho(nwt,nwt))
       allocate(dkappa(nwt,nwt))
-      allocate(dR(2*nwt,2*nwt))
+      ! allocate(dR(2*nwt,2*nwt))
     endif
 
     if(.not.allocated(X)) then
@@ -135,7 +144,7 @@ module fam
 
       ! Set external field to E2, hardcoded for now
       l = 2
-      m = 2
+      m = 0
       ImPart = .false. ! real (.false.) , imaginary (.true.) 
       ! note: odd m and Im parts are not implemeted yet
      
@@ -183,17 +192,33 @@ module fam
     ! Note to future self: for QFAM this will be replaced by a transformation 
     ! to the qp basis. 
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! set up the unperturbed Hamiltonian from the unperturbed potentials
+    if(.not.allocated(H_unpert)) then 
+      allocate(H_unpert(nwt,nwt))
+      H_unpert = calc_sphamil(PotentialsUnpert, .false.)
+    endif
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise perturbed Hamiltonian as 0
     if(.not.allocated(dH)) then 
       allocate(dH(nwt,nwt,2))
       dH(:,:,:) = 0
     endif
 
+    ! TO DO: replace by a better initialisation routine
+    PotentialPert = 0.0_dp * PotentialsUnpert
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the RPA amplitudes 
     call calculate_XY()
 
     call store_XY_hist()
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! print unperturbed strenght
+    print 1, l, m, omega_fam, calc_strength()
 
   end subroutine inifam
 
@@ -227,6 +252,9 @@ module fam
         ! print *, p, h, e_p, e_h, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
       enddo
     enddo
+
+  print *, '||X|| = ', sqrt(sum( abs(X(:,:))**2) )
+  print *, '||Y|| = ', sqrt(sum( abs(Y(:,:))**2) )
 
   end subroutine calculate_XY
 
@@ -288,19 +316,19 @@ module fam
 
     implicit none
     real(KIND=dp), intent(in) :: rho0(:,:), kappa0(:,:)
-    real(KIND=dp), allocatable :: drho_real(:,:), dkappa_real(:,:)
-    real(KIND=dp), allocatable :: rho_c(:), kappa_c(:)
+    ! real(KIND=dp), allocatable :: drho_real(:,:), dkappa_real(:,:)
+    ! real(KIND=dp), allocatable :: rho_c(:), kappa_c(:)
 
-    allocate(rho_c(nwt)) 
-    allocate(kappa_c(nwt))
+    ! allocate(rho_c(nwt)) 
+    ! allocate(kappa_c(nwt))
 
     print *, "build perturbed densities"
 
-    drho = rho0 + eta * (X + transpose(Y)) ! check this transpose
+    ! drho = rho0 + eta * (X + transpose(Y)) ! check this transpose
+    ! depricated => drho only contains the perturbation
 
-    ! PD : verified that the trace of drho equals A
-
-    dkappa = kappa0
+    drho = X + transpose(Y) 
+    dkappa = 0
 
     !----------------------------------------------------------------
     ! /!\ HACK FOR NOW
@@ -313,40 +341,92 @@ module fam
     !----------------------------------------------------------------
 
     DensityPert = densit_offdiag(drho, dkappa)
-    PotentialPert = calcPotentials(DensityPert)
+    ! PotentialPert = calcPotentials(DensityPert) ! now part of build_dH
 
   end subroutine build_perturbed_densities
 
-  subroutine build_dH(DensityPert)
+  subroutine build_dH_explicit(Density, DensityPert)
     !---------------------------------------------------------------------------
     ! Build the perturbed single-particle Hamiltonian
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! This still only applicable in absence of pairing since the unperturbed
-    ! sp H is assumed to by diagonal, H_ab = E_a delta_ab
     !---------------------------------------------------------------------------
     
     implicit none
-    type(DensityVector), intent(in) :: DensityPert
-    type(PotentialVector) :: PotentialPert
+    type(DensityVector), intent(in) :: Density, DensityPert
+    type(PotentialVector) :: PotentialPertNew
+    real(KIND=dp), allocatable :: HPert(:,:)
+    integer :: i, h, p
+    real(KIND=dp) :: occ_h, occ_p
+    real(KIND=dp) :: alpha = 0.005 ! linear mixing coeff 
+
+    print *, "build perturbed hamiltonian using explicit linearisation"
+
+    allocate(HPert(nwt,nwt))
+
+    ! explicit linearisation of the fields
+    PotentialPertNew = calc_perturbed_potentials(Density,DensityPert)
+
+    ! necessary? 
+    ! call combine_potentials(PotentialPertNew)
+
+    ! linear mixing of the fields with previous iteration
+    PotentialPert = alpha * PotentialPertNew  + (1.0 - alpha) * PotentialPert
+
+    ! construct the sp hamiltonian
+    HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,PotentialPert, .false.)
+
+
+    ! store ph and hp blocks in dH
+    do h = 1, nwt
+      occ_h = rho_can(h)
+      if(occ_h < 1d-6) cycle
+      do p = 1, nwt
+        occ_p = 2.0 - rho_can(p) 
+        ! degeneracy 2.0 must reduced if further symmetries are broken
+        if(occ_p < 1d-6) cycle
+        dH(p,h,1) = occ_p * occ_h * HPert(p,h) ! ph block dH20(p,h)
+        dH(p,h,2) = occ_p * occ_h * HPert(h,p) ! hp block dH02(p,h)
+      enddo
+    enddo
+
+    print *,  sqrt(sum( abs(dH(:,:,1))**2) )
+
+
+
+  end subroutine build_dH_explicit
+
+  subroutine build_dH_findiff(Density, DensityPert)
+    !---------------------------------------------------------------------------
+    ! Build the perturbed single-particle Hamiltonian using finite difference
+    !---------------------------------------------------------------------------
+    
+    implicit none
+    type(DensityVector), intent(in) :: Density, DensityPert
+    type(DensityVector) :: DensityTot
+    type(PotentialVector) :: PotentialTotNew
     real(KIND=dp), allocatable :: HPert(:,:)
     integer :: i, h, p
     real(KIND=dp) :: occ_h, occ_p
 
+    print *, "build perturbed hamiltonian using finite difference"
+
     allocate(HPert(nwt,nwt))
 
-    print *, "build perturbed hamiltonian"
+    DensityTot = Density + eta * DensityPert
 
+    PotentialTotNew = calcPotentials(DensityTot)
 
-    PotentialPert = calcPotentials(DensityPert)
+    ! TODO mixing is still absent, it would require keeping track of 
 
-    HPert = calc_sphamil(PotentialPert, .false.)
+    ! necessary? 
+    ! call combine_potentials(PotentialPertNew)
+
+    ! construct the sp hamiltonian
+    HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,PotentialTotNew, .false.)
+
 
     ! compute dH by finite difference, i.e. subtract the unperturbed Hamiltonian
-    do i = 1, nwt
-      HPert(i,i) = HPert(i,i) - spenergies(i) 
-    enddo
-
-    ! and devide by the small parameter eta
+    HPert = HPert - H_unpert
+    ! ... and devide by small parameter eta
     HPert = HPert / eta
 
     ! store ph and hp blocks in dH
@@ -362,8 +442,11 @@ module fam
       enddo
     enddo
 
+    print *,  sqrt(sum( abs(dH(:,:,1))**2) )
 
-  end subroutine build_dH
+
+
+  end subroutine build_dH_findiff
 
 
   function calc_strength() result (S_out)
@@ -453,7 +536,7 @@ program run_FAM
   integer :: iteration
   logical :: is_converged
   real(kind=dp)  :: lin_mix_coeff=0.4
-  real(kind=dp) :: omega_curr, omega_min=0, omega_max=10, omega_step=0.1
+  real(kind=dp) :: omega_curr, omega_min=20, omega_max=20, omega_step=0.1
   integer :: omega_num, omega_index
   real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
   character(len=100) :: famfilename
@@ -538,9 +621,12 @@ program run_FAM
   do omega_index=1, omega_num
 
     ! initialise FAM matrices end set perturbing external field
-    call inifam(omega_curr)
+    call inifam(omega_curr, Potentials)
 
-    maxfamiter = 10
+    ! Run all kinds of unit tests; should be made optional as this includes a stop statement
+    ! call run_FAM_tests(X,Y)
+
+    maxfamiter = 100
     is_converged = .false.
 
     ! Start of the iterations 
@@ -548,18 +634,19 @@ program run_FAM
 
       print *, "FAM iteration : ", iteration
 
-      ! call build_perturbed_densities(rho_pairing, kappa_pairing)
+      call build_perturbed_densities(rho_pairing, kappa_pairing)
 
-      ! call build_dH(DensityPert)
+      ! build the perturbed hamiltonian using explcit linearisation of the field
+      call build_dH_explicit(Density, DensityPert)
+
+      ! build the perturbed hamiltonian using finite difference
+      ! call build_dH_findiff(Density, DensityPert)
 
       call calculate_XY()
-
-      ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-      call run_FAM_tests(X,Y)
       
       ! Simple linear mixing for now. 
       ! To be replaced with something more fancy in the future
-      call mix_XY_linear(lin_mix_coeff)
+      ! call mix_XY_linear(lin_mix_coeff)
 
       call store_XY_hist()
 
