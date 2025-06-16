@@ -310,12 +310,12 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
                              complex_component=+1, weight='potential', symmetrize=+1)
         e_sph += sph_tuple[0] # we only need the calculation of this density
 
-        sph_tuple = \
-        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,density_spwf_summation,
-                             complex_component=-1, weight='potential', symmetrize=+1)
-        e_sph += sph_tuple[0] # we only need the calculation of this density
+        # sph_tuple = \
+        # GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+        #                     'wave_j', 'wave_i',                                     \
+        #                     'wave_j', 'wave_i',so,density_spwf_summation,
+        #                      complex_component=-1, weight='potential', symmetrize=+1)
+        # e_sph += sph_tuple[0] # we only need the calculation of this density
 
 
         sph_tuple = \
@@ -324,12 +324,12 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
                             'wave_j', 'wave_i',so,density_spwf_summation,
                              complex_component=+1, weight='potential', symmetrize=-1)
         e_sph += sph_tuple[0] # we only need the calculation of this density
-        sph_tuple = \
-        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,density_spwf_summation,
-                             complex_component=-1, weight='potential', symmetrize=-1)
-        e_sph += sph_tuple[0] # we only need the calculation of this density
+        # sph_tuple = \
+        # GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+        #                     'wave_j', 'wave_i',                                     \
+        #                     'wave_j', 'wave_i',so,density_spwf_summation,
+        #                      complex_component=-1, weight='potential', symmetrize=-1)
+        # e_sph += sph_tuple[0] # we only need the calculation of this density
       else:
         # No explicit symmetrisation needed
         sph_tuple = \
@@ -338,12 +338,12 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
                             'wave_j', 'wave_i',so,density_spwf_summation,
                              complex_component=+1, weight='potential', symmetrize=0)
         e_sph += sph_tuple[0] # we only need the calculation of this density
-        sph_tuple = \
-        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,density_spwf_summation,
-                             complex_component=-1, weight='potential', symmetrize=0)
-        e_sph += sph_tuple[0] # we only need the calculation of this density
+        # sph_tuple = \
+        # GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+        #                     'wave_j', 'wave_i',                                     \
+        #                     'wave_j', 'wave_i',so,density_spwf_summation,
+        #                      complex_component=-1, weight='potential', symmetrize=0)
+        # e_sph += sph_tuple[0] # we only need the calculation of this density
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
