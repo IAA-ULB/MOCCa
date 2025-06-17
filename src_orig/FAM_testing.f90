@@ -24,88 +24,24 @@ contains
     !---------------------------------------------------------------------------------
 
     1 format ("Test = ", a20, " Success = ", i4)
-
+    9 format (" ------- Start of the FAM testing routines -------")
     complex(KIND=dp), intent(in) :: X(:,:), Y(:,:)
     integer :: ifail
 
 
-     call test_sphamil_me(ifail)
-     print 1, 'SPHAMIL_ME', ifail
-!     call test_eta_independence(X,Y,ifail)
-!     print 1, 'ETA_INDEPENDENCE', ifail
+    print 9
 
-    !çcall test_potentials(X,Y,ifail)
+    call test_sphamil_me(ifail)
+    print 1, 'SPHAMIL_ME', ifail
+
+    !call test_potentials(X,Y,ifail)
     ! Attention: this testing routine has serious side effects on the state of the program.
     !call test_densit_offdiag(ifail)
     !print 1, 'DENSIT_OFFDIAG', ifail
 
     stop
   end subroutine run_FAM_tests
-!
-!   subroutine test_eta_independence(X,Y,ifail)
-!     !---------------------------------------------------------------------------
-!     ! TODO: document
-!     !
-!     !
-!     !---------------------------------------------------------------------------
-!     integer, intent(out)          :: ifail
-!     complex(KIND=dp), intent(in)  :: X(:,:), Y(:,:)
-!
-!     integer                       :: ie, i, neta
-!     real(KIND=dp)                 :: eta
-!     type(DensityVector)           :: R, Rs, Ra
-!     type(PotentialVector)         :: F, Fpert, Falt
-!     real(KIND=dp), allocatable    :: dev_F_Nm_Nm(:), dev_G_I_NS(:)
-!     complex(KIND=dp), allocatable :: drho(:,:), dkappa(:,:)
-!     complex(KIND=dp), allocatable :: perturbed_F_Nm_Nm(:,:,:)
-!     complex(KIND=dp), allocatable :: perturbed_G_I_NS(:,:,:,:,:)
-!
-!     neta = 10
-!     allocate(drho(nwt,nwt))
-!     allocate(perturbed_F_Nm_Nm(mv,4,neta))
-!     allocate(perturbed_G_I_NS(mv,3,3,4,neta))
-!     allocate(dev_F_Nm_Nm(neta),dev_G_I_NS(neta))
-!
-!     do ie = 1, neta
-!       eta = 0.01*ie
-!
-!       !- - - - - - - - - - - - - - -- - - - - -
-!       ! Building the perturbed density matrix
-!       drho = 0.0d0
-!       do i=1,nwt
-!         drho(i,i) = rho_can(i)
-!       enddo
-!       drho = drho +  eta * (X + transpose(Y))
-!
-!       ! Building the densities and the perturbed densities
-!       R       = densit(rho_can, kappa_pairing)
-!       call densit_offdiag(drho, dkappa,Rs, Ra)
-!       ! ... and the potentials and perturbed potentials
-!       F       = calcPotentials(R)
-!       FPert   = calcPotentials(RPert)
-!
-!       perturbed_F_Nm_Nm(:,:,ie)    = (FPert%F_Nm_Nm - F%F_Nm_Nm)/eta
-!       perturbed_G_I_NS(:,:,:,:,ie) = (FPert%G_I_NS  - F%G_I_NS)/eta
-!     enddo
-!
-!     do ie=1,neta
-!       dev_F_Nm_Nm(ie) = maxval(abs(perturbed_F_Nm_Nm(:,:,ie) - perturbed_F_Nm_Nm(:,:,1)))
-!       dev_G_I_NS(ie) = maxval(abs(perturbed_G_I_NS(:,:,:,:,ie) - perturbed_G_I_NS(:,:,:,:,1)))
-!     enddo
-!
-! !     print *, 'DEVIATIONS'
-! !     print *, '     eta       F_Nm_Nm      G_I_NS'
-! !     do ie=1,neta
-! !           eta = 0.01*ie
-! !           print ('(99es12.3)'), eta, dev_F_Nm_Nm(ie), dev_G_I_NS(ie)
-! !     enddo
-!
-!     ifail = 0
-!     if(any(dev_F_Nm_Nm.gt.1e-10)) ifail = 1
-!     if(any(dev_G_I_NS .gt.1e-10)) ifail = 1
-!
-!   end subroutine test_eta_independence
-!
+
   subroutine test_potentials(X,Y,ifail)
     !------------------------------------------------------------------------
     !
@@ -137,68 +73,109 @@ contains
   end subroutine test_potentials
 
   subroutine test_sphamil_me(ifail)
-    !-------------------------------------------------------------------------------
+    !--------------------------------------------------------------------------------------
     ! Test whether the matrix elements of the single-particle Hamiltonian in the HF
-    ! basis are identical whether calculate through (i) apply_sphamil and
-    ! (ii) calc_sphamil_me.
+    ! basis when calculated in two different ways.
     !
-    ! TODO: define failing case.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (i)  densit + calc_potentials + apply_sphamil
+    !      - - - - - - - - - - - - - - - - -
+    !      the densities and potentials calculated as usual; with the latter
+    !      applied to the spwfs as usual in the mean-field part of the code
+    !
+    ! (ii) densit_offdiag + calc_perturbed_potentials + calc_sphamil_me
+    !      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !      a. the (offdiagonal) summation of densities with the mean-field density matrix
+    !      b. the calculation of the potentials with calc_perturbed_potentials
+    !         without perturbation
+    !      c. the calculation of the matrix elements by explicit sandwiching
+    !         of the potentials in calc_sphamil_me
+    !      d. ... with the matrix elements of the kinetic energy added in manually!
+    !
+    ! Although slightly wasteful in terms of CPU resources, this routine never assumes that
+    ! any part of the matrix of the single-particle hamiltonian is hermitian/symmetric.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Output:
-    !  ifail : 0 if succesful, if a deviation above 1e-10 has been detected
-    !-------------------------------------------------------------------------------
+    !  ifail : 0 if succesful, 1 if a deviation above 1e-10 has been detected
+    !---------------------------------------------------------------------------------------
     integer, intent(out)       :: ifail
 
-    complex(KIND=dp), allocatable :: sphamil_me(:,:), sphamil_recalc(:,:), hpsi(:,:), drho(:,:), dkappa(:,:)
-    integer                    :: si, B, N, i, it, j
-    type(PotentialVector)      :: Fs, Fa, F
-    type(DensityVector)        :: R, Rs, Ra
+    complex(KIND=dp), allocatable :: sphamil_me(:,:), sphamil_orig(:,:)
+    complex(KIND=dp), allocatable :: hpsi(:,:), drho(:,:), dkappa(:,:)
+    real(KIND=dp), allocatable    :: dev(:,:)
+    integer                       :: si, B, N, i, it, j
+    type(PotentialVector)         :: Fs, Fa, F
+    type(DensityVector)           :: R, Rs, Ra
 
+    ifail = 0
+    ! some sanity checks
+    if(Coultreatment.ne.0) then
+      print *, 'test_sphamil_me does not know how to handle Coulomb yet.'
+      ifail = 1
+      return
+    endif
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (i) Ordinary mean-field-like calculation
     R  = densit(rho_can, kappa_pairing)
-    call ConstructChargeDensity(R)
-
-    allocate(drho(nwt,nwt)) ; drho = 0.0d0
-    call densit_offdiag(drho, dkappa, Rs, Ra)
     F = calcpotentials(R)
-    call calc_perturbed_potentials(R, Rs, Ra, Fs, Fa)
 
-    ! Calculation with the new routine
-    sphamil_me = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,F, Fa, .false.)
-    sphamil_me = sphamil_me + kinetic_me(HFpsi, HFdpsi, hfddpsi)
-    allocate(sphamil_recalc(nwt,nwt)); sphamil_recalc = 0.0d0
+    allocate(sphamil_orig(nwt,nwt)); sphamil_orig = 0.0d0
     si = 0
     do B=1,8
       N = HFBlocks(B)
       it = -1
       if(B .ge. 5) it = +1
       do j=si+1,si+N
-        hpsi = apply_sphamil(HFPsi(:,:,j), HFdPsi(:,:,:,j), HFddPsi(:,:,:,j), sx(:,j), sy(:,j), sz(:,j), it ,.false. ,F)
+        hpsi = apply_sphamil(HFPsi(:,:,j), HFdPsi(:,:,:,j), HFddPsi(:,:,:,j), &
+        &                     sx(:,j), sy(:,j), sz(:,j), it ,.false. ,F)
         do i=si+1,si+N
-          sphamil_recalc(i,j) = sum(HFpsi(:,:,i) * hpsi)*dv
+          sphamil_orig(i,j) = sum(HFpsi(:,:,i) * hpsi)*dv
         enddo
       enddo
       si = si + N
     enddo
 
-    ! print output
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (ii) FAM-like calculation
+    allocate(drho(nwt,nwt)) ; drho = 0.0d0
+    ! Calculate the original densities through a non-diagonal summation
+    do i=1,nwt
+      drho(i,i) = rho_can(i)
+    enddo
+    call densit_offdiag(drho, dkappa, R , Ra)
+    drho = 0.0d0
+    call densit_offdiag(drho, dkappa, Rs, Ra)     ! No perturbation, drho = 0 in this call
+    ! Calculate the potentials without perturbation
+    call calc_perturbed_potentials(R, Rs, Ra, Fs, Fa)
+    ! .... and feed the result into the spwf sandwhiches
+    sphamil_me = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,F, Fa, .false.)
+    ! .... and add the matrix elements of the kinetic energy
+    sphamil_me = sphamil_me + kinetic_me(HFpsi, HFdpsi, hfddpsi)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! (iii)Check result and print output if needed
     si = 0
     do B = 1,8
-      N = HFBLocks(B)
-      print *, 'BLOCK B=', B
-      print ('(99f10.3)'), spenergies(si+1:si+N)
-      print *, 'SPH on file'
-      do i=1,N
-        print ('(99f10.3)'), sphamil_recalc(si+i, si+1:si+N)
-      enddo
-      print *, 'SPH from calc_sphamil_me'
-      do i=1,N
-        print ('(99f10.3)'), sphamil_me(si+i, si+1:si+N)
-      enddo
-      print *
-      print *, 'Difference'
-      do i=1,N
-        print ('(99es10.2)'), abs(sphamil_recalc(si+i, si+1:si+N) - sphamil_me(si+i, si+1:si+N))
-      enddo
+      N = HFBlocks(B)
+      ! The element-wise deviation
+      dev = abs(sphamil_orig(si+1:si+N, si+1:si+N) - sphamil_me(si+1:si+N, si+1:si+N))
+      if(maxval(dev)>1e-12) then
+        ifail = 1
+        print *, 'BLOCK B=', B
+        print *, '------ Original calculation -------'
+        do i=1,N
+          print ('(99f10.3)'), sphamil_orig(si+i, si+1:si+N)
+        enddo
+        print *, '------ FAM-like calculation -------'
+        do i=1,N
+          print ('(99f10.3)'), sphamil_me(si+i, si+1:si+N)
+        enddo
+        print *
+        print *, '------ difference           -------'
+        do i=1,N
+          print ('(99es10.2)'), dev(si+i, si+1:si+N)
+        enddo
+      endif
       si = si + N
     enddo
 
@@ -206,10 +183,20 @@ contains
   end subroutine test_sphamil_me
 
   function kinetic_me(denpsi, dendpsi, denddpsi)
-    !------------------------------------------------------------------------------------
-    ! TODO: DOCUMENT
-    !------------------------------------------------------------------------------------
-
+    !---------------------------------------------------------------------------------------
+    ! Calculate the single-particle matrix elements (with 1-body COM included) for a
+    ! set of single-particle wavefunctions on the mesh.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   denpsi  : a set of single-particle wavefunctions
+    !   dendpsi : their first derivatives
+    !   denddpsi: their second derivatives
+    !
+    ! Output:
+    !   kinetic_me : the single-particle matrix elements of the kinetic energy with
+    !                the effect of the one-body COM correction folded in
+    !--------------------------------------------------------------------------------------
     real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
     complex(KIND=dp), allocatable     :: kinetic_me(:,:)
 
@@ -234,7 +221,6 @@ contains
       ! Reduced mass in case of self-consistent 1-body COM correction
       ! If doing pasta calculations, just skip.
       Reducedmass = 1.0_dp
-#if(PASTA == 0)
       select case(COM1Body)
       case(0,1)
         Reducedmass = 1.0_dp
@@ -242,7 +228,6 @@ contains
         Reducedmass = (1.0_dp-nucleonmass(it)/                                   &
         &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
       end select
-#endif
 
       do wave_i=si+1,si+N
         do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
@@ -258,8 +243,6 @@ contains
       enddo
       si = si + N
     enddo
-
-
   end function kinetic_me
 
   subroutine test_densit_offdiag(ifail)
@@ -302,7 +285,7 @@ contains
     ! TODO: make this more systematic!
     do it=1,2
         maxdev(1,it) = maxval(abs(Density%D_I_I(:,it)   - R_transformed%D_I_I  (:,it)))
-        maxdev(2,it) = maxval(abs(Density%D_Nm_Nm(:,it) - R_transformed%D_Nm_Nm(:,it)))
+        !maxdev(2,it) = maxval(abs(Density%D_Nm_Nm(:,it) - R_transformed%D_Nm_Nm(:,it)))
         maxdev(3,it) = maxval(abs(Density%C_I_Ns(:,:,:,it) - R_transformed%C_I_Ns(:,:,:,it)))
     enddo
 
