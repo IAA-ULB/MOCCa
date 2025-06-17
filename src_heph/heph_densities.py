@@ -374,8 +374,8 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         Derivation                       = Derivation                       + der
         Derivation_offdiag_symmetric     = Derivation_offdiag_symmetric     + der_sym
         Derivation_offdiag_antisymmetric = Derivation_offdiag_antisymmetric + der_asym
-        Expression_sph_sym               = Expression_sph_sym          + '\n' + e_sph_sym
-        Expression_sph_antisym           = Expression_sph_sym          + '\n' + e_sph_antisym
+        Expression_sph_sym               = Expression_sph_sym               + '\n' + e_sph_sym
+        Expression_sph_antisym           = Expression_sph_antisym           + '\n' + e_sph_antisym
 
       if( not intermediate_status[i]):
         Initialisation = Initialisation + '\n' + ini
