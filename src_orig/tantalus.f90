@@ -134,7 +134,7 @@ subroutine Run_Tantalus(run_mode, file_number,input_file)
   call mpi_init(mpi_err)
   call MPI_COMM_SIZE(MPI_COMM_WORLD, NPROCS  , mpi_err)
   call MPI_COMM_RANK(MPI_COMM_WORLD, MPI_RANK, mpi_err)
-
+  print *, 'Hello World from process: ', MPI_RANK, 'of ', NPROCS
   ! Set MPI errors to be fatal. This is the default setting, but it doesn't
   ! hurt to be verbose, precise and future-flexible.
   CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL,mpi_err)
