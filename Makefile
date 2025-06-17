@@ -101,7 +101,7 @@ include $(INCLUDEFILE)
 ################################################################################
 CONFIG  := default
 EXENAME := Tantalus.$(CONFIG).exe
-
+FAMNAME := fam.$(CONFIG).exe
 ################################################################################
 # Compilation details (this section should be modified as you see fit)
 ################################################################################
@@ -263,7 +263,7 @@ single: $(PRE) $(SINGLE_OBJ)
 fam: $(PRE) $(FAM_OBJ)
 # 	cp src_orig/FAM.f90 src/FAM.f90
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(FAM_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
-	mv fam exec/fam.exe
+	mv fam exec/$(FAMNAME)
 
 run_heph:
 	# Run Hephaestos with the correct configuration file and information from
