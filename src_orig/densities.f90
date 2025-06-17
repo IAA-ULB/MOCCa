@@ -117,9 +117,9 @@ implicit none
     !---------------------------------------------------------------------------
     ! As several other modules deal with the density D_I_I and its derivatives
     ! in various forms,  Hephaestos fills in here the appropriate symmetries.
-    integer, parameter :: sx_rho = $SX_RHO
-    integer, parameter :: sy_rho = $SY_RHO
-    integer, parameter :: sz_rho = $SZ_RHO
+    integer, parameter :: sx_rho = $SX_RHO, sx_rho_antisym = $SX_RHO_ANTISYM
+    integer, parameter :: sy_rho = $SY_RHO, sy_rho_antisym = $SY_RHO_ANTISYM
+    integer, parameter :: sz_rho = $SZ_RHO, sz_rho_antisym = $SZ_RHO_ANTISYM
     ! and similar for the vector spin density s, which is needed in the 
     ! preconditioning of the functionals
     integer, parameter :: sx_s(3) = (/$SX_SX,$SX_SY,$SX_SZ/)
@@ -922,11 +922,45 @@ $ISOSPINCOUPL
 end function densit_offdiag_antisymmetric
 
 function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sphamil_me)
-    !----------------------------------------------------------------------------
-    ! TODO: document
+    !------------------------------------------------------------------------------------
+    ! This function calculates the single-particle matrix elements of the perturbed
+    ! single-particle hamiltonian in total, i.e. including both symmetric and antisymmetric
+    ! parts.
     !
+    ! In general we have
     !
-    !----------------------------------------------------------------------------
+    ! \delta \langle a | h | b \rangle ~  \int d^3 r \delta F^{A,B} f^{A,B}_{ab}
+    !
+    ! where both the perturbed potentials and the spwf-factor get split into two different
+    ! pieces with different symmetry properties
+    !
+    ! \delta F^{A,B} =  \delta F^{A,B}_{sym} + \delta F^{A,B}_{antisym}
+    ! f^{A,B}_{ab}   =  \Re f^{A,B}_{ab} + i \Im f^{AB}_{ab}
+    !
+    ! In EV8-like calculations, only
+    !   \int d^3r \delta F^{A,B}_{sym}     \Re f^{A,B}_{ab}
+    !   \int d^3r \delta F^{A,B}_{antisym} \Im f^{A,B}_{ab}
+    !
+    ! will not vanish for symmetry reasons; this routine only implements these two
+    ! contributions and will thus have to be rewritten to accomodate more general cases.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    !
+    ! Input:
+    ! -------
+    !   denpsi  : set of single-particle wavefunctions
+    !   dendpsi : their first order derivatives
+    !   denddpsi: their second order derivatives
+    !   Fs      : potential vector containing the     SYMMETRIC linearised response
+    !             of the mean-field potentials
+    !   Fa      : potential vector containing the ANTISYMMETRIC linearised response
+    !             of the mean-field potentials
+    !   onthefly: [NOT IMPLEMENTED YET ]
+    !
+    ! Output:
+    ! -------
+    !  sphamil_me : matrix elements of the single-particle hamiltonian.
+    !------------------------------------------------------------------------------------
     real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
     logical, intent(in)               :: onthefly
     type(PotentialVector), intent(in) :: Fs, Fa
@@ -935,50 +969,50 @@ function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sph
     sphamil_me = calc_sphamil_me_sym    ( denpsi, dendpsi, denddpsi, Fs,  onthefly) &
     &          + calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, Fa,  onthefly)
 
-
 end function calc_sphamil_me
 
-function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, F,  onthefly) result(sphamil_me)
-    !--------------------------------------------------------------------------------
-    ! This function calculates the single-particle matrix elements of the
-    ! single-particle hamiltonian.
+function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(sphamil_me)
+    !---------------------------------------------------------------------------------------
+    ! This function calculates the single-particle matrix elements of the symmetric part
+    ! of the single-particle hamiltonian as defined by a potentialvector dF, which should
+    ! contain the symmetric part of a set of perturbed potentials.
     !
-    ! Several notes are in order
-    ! - this routine does NOT assume hermeticity, such that it can be used in FAM
-    !   calculations when the potentials are not necessarily real.
-    ! - the potentials on input are "combined" in the sense that F_I_I also contains
-    !   other parts not associated with the Skyrme potentials; this can be achieved
-    !   by the function combine_potentials.
-    ! - the spwfs oninput are named  "den[d/dd]psi" in order to have less changes
+    ! Note:
+    ! - this routine has no way of checking that you fed it a dF with correct properties.
+    ! - this routine does not assume hermeticity of the matrix elements
+    ! - the spwfs on input are named  "den[d/dd]psi" in order to have less changes
     !   in Hephaestos; these are not the pointers defined on top in this module.
     !
     ! TODO:
-    !  - adapt to complex quantities
-    !  - rename wavefunctions for clarity
+    !  - rename wavefunctions for clarity -> requires Hephaestos change
     !  - develop MPI parallelism
+    !  - add in a call to combine_potentials
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !
     ! Input:
     ! -------
-    !   psi     : set of single-particle wavefunctions
-    !   dpsi    : first order derivatives
-    !   ddpsi   : second order derivatives
-    !   Fs      : potential vector containing the SYMMETRIC linearised response
+    !   denpsi  : set of single-particle wavefunctions
+    !   dendpsi : their first order derivatives
+    !   denddpsi: their second order derivatives
+    !   dF      : potential vector containing the SYMMETRIC linearised response
     !             of the mean-field potentials
-    !   onthefly:   [NOT ACTIVE ]
+    !   onthefly: [NOT IMPLEMENTED YET ]
     !
     ! Output:
     ! -------
     !  sphamil_me : matrix elements of the single-particle hamiltonian.
-    !----------------------------------------------------------------------------
+    !------------------------------------------------------------------------------------------
     real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
     logical, intent(in)               :: onthefly
-    type(PotentialVector), intent(in) :: F
-    complex(KIND=dp), allocatable     :: sphamil_me(:,:)
+    type(PotentialVector), intent(in) :: dF
+    type(PotentialVector)             :: F
 
+    complex(KIND=dp), allocatable     :: sphamil_me(:,:)
     integer                           :: it, B, si, N, wave_i, wave_j, i
-    !real(KIND=dp)                     :: reducedmass, Butler_f, Butler_t
 
 $SPWF_DECLARATION
+
+    F = dF ! TODO: add a call to combine_potentials
 
     ! initialize
     allocate(sphamil_me(nwt,nwt)) ; sphamil_me = 0.0d0
@@ -997,31 +1031,9 @@ $SPWF_DECLARATION
       !---------------------------------------------------------------------------
       ! Reduced mass in case of self-consistent 1-body COM correction
       ! If doing pasta calculations, just skip.
-!       Reducedmass = 1.0_dp
-! #if(PASTA == 0)
-!       select case(COM1Body)
-!       case(0,1)
-!         Reducedmass = 1.0_dp
-!       case(2)
-!         Reducedmass = (1.0_dp-nucleonmass(it)/                                   &
-!         &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
-!       case(3)
-!         Butler_t = (1.5 * (neutrons + protons))**(1./3.)
-!         Butler_f = 2./(Butler_t + 1./(3*Butler_t))
-!         Reducedmass = (1.0_dp-nucleonmass(it) * Butler_f/                        &
-!         &                      (neutrons*nucleonmass(1)+protons*nucleonmass(2)))
-!       end select
-! #endif
 
       do wave_i=si+1,si+N
         do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
-!           ! Action of the kinetic energy to the right
-!           sphamil_me(wave_i, wave_j) = sphamil_me(wave_i, wave_j) - hbm(it)* reducedmass &
-!           &                          * sum(denpsi(:,:,wave_j) &
-!           &                                *(   denddpsi(:,1,:,wave_i) &
-!           &                                   + denddpsi(:,4,:,wave_i) &
-!           &                                   + denddpsi(:,6,:,wave_i)))
-
           do i=1,mv
 $EXPRESSION_SPH_SYM
           enddo
@@ -1033,31 +1045,48 @@ $EXPRESSION_SPH_SYM
 
   end function calc_sphamil_me_sym
 
-function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, F,  onthefly) result(sphamil_me)
-    !--------------------------------------------------------------------------------
-    ! TODO: DOCUMENT
+function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(sphamil_me)
+    !---------------------------------------------------------------------------------------
+    ! This function calculates the single-particle matrix elements of the ANTIsymmetric part
+    ! of the single-particle hamiltonian as defined by a potentialvector dF, which should
+    ! contain the ANTIsymmetric part of a set of perturbed potentials.
+    !
+    ! Note:
+    ! - this routine has no way of checking that you fed it a dF with correct properties.
+    ! - this routine does not assume hermeticity of the matrix elements
+    ! - the spwfs on input are named  "den[d/dd]psi" in order to have less changes
+    !   in Hephaestos; these are not the pointers defined on top in this module.
+    !
+    ! TODO:
+    !  - rename wavefunctions for clarity -> requires Hephaestos change
+    !  - develop MPI parallelism
+    !  - add in a call to combine_potentials
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !
     ! Input:
     ! -------
-    !   psi     : set of single-particle wavefunctions
-    !   dpsi    : first order derivatives
-    !   ddpsi   : second order derivatives
-    !   Fs      : potential vector containing the SYMMETRIC linearised response
+    !   denpsi  : set of single-particle wavefunctions
+    !   dendpsi : their first order derivatives
+    !   denddpsi: their second order derivatives
+    !   dF      : potential vector containing the ANTISYMMETRIC linearised response
     !             of the mean-field potentials
-    !   onthefly:   [NOT ACTIVE ]
+    !   onthefly: [NOT IMPLEMENTED YET ]
     !
     ! Output:
     ! -------
     !  sphamil_me : matrix elements of the single-particle hamiltonian.
-    !----------------------------------------------------------------------------
+    !------------------------------------------------------------------------------------------
     real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
     logical, intent(in)               :: onthefly
-    type(PotentialVector), intent(in) :: F
-    complex(KIND=dp), allocatable     :: sphamil_me(:,:)
+    type(PotentialVector), intent(in) :: dF
+    type(PotentialVector)             :: F
 
+    complex(KIND=dp), allocatable     :: sphamil_me(:,:)
     integer                           :: it, B, si, N, wave_i, wave_j, i
 
 $SPWF_DECLARATION
+
+    F = dF ! TODO: add a call to combine_potentials
 
     ! initialize
     allocate(sphamil_me(nwt,nwt)) ; sphamil_me = 0.0d0

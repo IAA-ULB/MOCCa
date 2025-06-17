@@ -1406,10 +1406,10 @@ $CALCPOTENTIALS
     !---------------------------------------------------------------------------
     if((.not. present(Fread)) .or. (.not. Coulomb_read_from_file)) then
       if(present(Coulomb_guess)) then
-        call SolveCoulomb(R,F,Coulomb_guess)
+        call SolveCoulomb(R,F,sx_rho, sy_rho, sz_rho, Coulomb_guess)
       else
         ! Start solving from a zero'd initial Coulomb potentials
-        call SolveCoulomb(R,F)
+        call SolveCoulomb(R,F,sx_rho, sy_rho, sz_rho)
       endif
     endif
 
@@ -1419,11 +1419,20 @@ $CALCPOTENTIALS
   
   subroutine calc_perturbed_potentials(R,dRs,dRa, dFs, dFa)
     !---------------------------------------------------------------------------
-    ! TODO: improve documentation
+    ! Calculate the linearised response of the potentials (dFs, dFa) around
+    ! a set of mean-field densities (R) that are affected by perturbations
+    ! (dRs, dRa).
     !
+    ! There is a clear separation between so-called symmetric and antisymmetric
+    ! quantities, both for the densities and potentials. The TOTAL perturbation
+    ! is in both cases the sum of the symmetric and antisymmetric parts, but
+    ! these parts have different symmetry properties such that we cannot simply
+    ! sum them everywhere.
     !
-    ! Note: the potentials coming out of this function do not behave nicely 
-    !       w.r.t. symmetries!
+    ! For the potentials, the expressions for the symmetric and antisymmetric
+    ! part are identical; this routine is thus not much more than a wrapper
+    ! around two function calls to calc_perturbed_potentials.
+    !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   R   : density-vector containing the mean-field densities
@@ -1436,19 +1445,23 @@ $CALCPOTENTIALS
     !   dFa : potential-vector containing the antisymmetric part of the linearised
     !         response of the mean-field potentials
     !---------------------------------------------------------------------------
+    use CoulombMod, only : SolveCoulomb
 
     type (DensityVector), intent(in) :: R, dRs, dRa
     type (PotentialVector)           :: dFs, dFa
     
     dFs  = calc_perturbed_potentials_oneoff(R,dRs)
     dFa  = calc_perturbed_potentials_oneoff(R,dRa)
-  
+
+    call SolveCoulomb(dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)
+    call SolveCoulomb(dRa,dFa,sx_rho_antisym,sx_rho_antisym,sz_rho_antisym)
+
   end subroutine calc_perturbed_potentials
   
   function calc_perturbed_potentials_oneoff(R,R_pert) result (F)
     !---------------------------------------------------------------------------
-    ! TODO: improve documentation
-    !
+    ! Calculate the perturbed potential vector (F) around a set of mean-field
+    ! densities (R) affected by a perturbation (R_pert).
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   R    : density-vector containing the mean-field densities
@@ -1456,8 +1469,6 @@ $CALCPOTENTIALS
     ! Output:
     !   F: potential-vector containing the linearised response of the mean-field
     !      potentials/
-    !
-    ! TODO: add Coulomb
     !---------------------------------------------------------------------------
     use Coulombmod       , only : SolveCoulomb
     
