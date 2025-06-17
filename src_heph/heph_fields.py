@@ -758,7 +758,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
              for j in range(len(densities)):
                lastorder = OrderOfDen(den)
                FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_calc_b_start.substitute(dic)
-
+               dic['EXPR_PERT']    = ''
                # Pick the J-th density to be a perturbation; otherwise do the 
                # same thing as above...
                for i,d in enumerate(densities):
@@ -795,7 +795,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                   for l in indices:
                       dic['DENIND'] = dic['DENIND'] + ',%d'%int(l+1)
                   dic['ISOALT']= Isospinindices(fieldterm[5][i])
-                  if(fieldterm[+6] != '1' and i == 0): 
+                  if(fieldterm[+6] != '1' and i == 0):
                     dic['DD']      = fieldterm[+6]
                     dic['DD_pert'] = fieldterm[+6]  + '-1'
                     # Expression with a call to 'pow'

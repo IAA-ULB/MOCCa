@@ -207,6 +207,11 @@ $DECLARATION
       module procedure pow_real
       module procedure pow_complex
    end interface
+
+   interface lr_pow
+      module procedure lr_pow_real
+      module procedure lr_pow_complex
+   end interface
   
 contains
 
@@ -1412,9 +1417,37 @@ $CALCPOTENTIALS
 
   end function calcPotentials
   
-  function calc_perturbed_potentials(R,R_pert) result (F)
+  subroutine calc_perturbed_potentials(R,dRs,dRa, dFs, dFa)
     !---------------------------------------------------------------------------
+    ! TODO: improve documentation
     !
+    !
+    ! Note: the potentials coming out of this function do not behave nicely 
+    !       w.r.t. symmetries!
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Input:
+    !   R   : density-vector containing the mean-field densities
+    !   dRs : density-vector containing the symmetric perturbing densities
+    !   dRa : density-vector containing the antisymmetric perturbing densities
+    !
+    ! Output:
+    !   dFs : potential-vector containing the symmetric part of the linearised
+    !         response of the mean-field potentials
+    !   dFa : potential-vector containing the antisymmetric part of the linearised
+    !         response of the mean-field potentials
+    !---------------------------------------------------------------------------
+
+    type (DensityVector), intent(in) :: R, dRs, dRa
+    type (PotentialVector)           :: dFs, dFa
+    
+    dFs  = calc_perturbed_potentials_oneoff(R,dRs)
+    dFa  = calc_perturbed_potentials_oneoff(R,dRa)
+  
+  end subroutine calc_perturbed_potentials
+  
+  function calc_perturbed_potentials_oneoff(R,R_pert) result (F)
+    !---------------------------------------------------------------------------
+    ! TODO: improve documentation
     !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
@@ -1424,6 +1457,7 @@ $CALCPOTENTIALS
     !   F: potential-vector containing the linearised response of the mean-field
     !      potentials/
     !
+    ! TODO: add Coulomb
     !---------------------------------------------------------------------------
     use Coulombmod       , only : SolveCoulomb
     
@@ -1432,7 +1466,7 @@ $CALCPOTENTIALS
     
 $CALCPOTENTIALS_PERTURBED
     
-  end function calc_perturbed_potentials
+  end function calc_perturbed_potentials_oneoff
 
   subroutine combine_potentials(F)
     !----------------------------------------------------------------------------
@@ -1746,6 +1780,39 @@ $POTENTIALPRECON
       pf = (f)**(alpha)
     endif
   end function pow_complex
+
+  pure function lr_pow_real(f,df, alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Safely calculate the linearisation of the power of a REAL density f, while
+    ! avoiding the raising of negative numbers to powers that are 0 or negative. T
+    ! This is achieved by adding a small (positive value) to the density.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: f(mv), df(mv), alpha
+    real(KIND=dp)             :: pf(mv)
+
+    if((alpha-1) .lt. 0) then
+      pf = alpha * (f + eps)**(alpha - 1) * df
+    else
+      pf = alpha * (f)**(alpha-1)         * df
+    endif
+  end function lr_pow_real
+
+  pure function lr_pow_complex(f,df,alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Safely calculate the linearisation of the power of a REAL density f, while
+    ! avoiding the raising of negative numbers to powers that are 0 or negative. T
+    ! This is achieved by adding a small (positive value) to the density.
+    !---------------------------------------------------------------------------
+    complex(KIND=dp), intent(in) :: f(mv), df(mv)
+    real(KIND=dp), intent(in) :: alpha
+    complex(KIND=dp)             :: pf(mv)
+
+    if((alpha-1) .lt. 0) then
+      pf = alpha * (f + eps)**(alpha - 1) * df
+    else
+      pf = alpha * (f)**(alpha-1)         * df
+    endif
+  end function lr_pow_complex
 
   function INM_k2_pot(rho) result(pot)
     !-----------------------------------------------------------------
@@ -2480,151 +2547,151 @@ $PVECTORINPRODUCT
     integer, intent(in)          :: chan
     character(len=*), intent(in) :: ifn
 
-    logical :: exists
-    integer :: i,j,k,io,  mu, nu, ox, oy, oz, headercount
-    real(KIND=dp), allocatable :: Vc(:), Ec(:)
-    real(KIND=dp)              :: x,y,z
-    character(len=200)         :: temp
-     
-    inquire(file=ifn, exist=exists)
-    if(.not.exists) then
-      print *, 'Input file specified does not exist!'
-      stop
-    endif
-    
-    open (chan,file=ifn)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! We need to skip any header lines (indicated by #).
-    ! For a Tantalus-created file, there are 14 of them by default but other 
-    ! people might write a different amount
-    io = 0; headercount = -1
-    do while(io.eq.0) 
-      headercount = headercount + 1
-      read(chan, iostat=io, fmt='(a200)') temp
-      if(temp(1:1) .ne. '#') io = 1
-    enddo  
-    ! We've found an error; we have counted the number of header lines!
-    rewind(chan)
-    ! ... and now we skip this number of lines    
-    do i=1,headercount
-        read(chan, fmt=('()'))
-    enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Allocate the relevant potentials    
-    allocate(F%F_I_I   (nx*ny*nz,4))     ; F%F_I_I    = 0.0d0
-    allocate(F%FP_I_I  (nx*ny*nz,2))     ; F%FP_I_I   = 0.0d0
-$TAUSCALAR    allocate(F%F_Nm_Nm(nx*ny*nz,4))   ; F%F_Nm_Nm = 0.0d0
-$TAUTENSOR    allocate(F%F_N_N(nx*ny*nz,3,3,4)) ; F%F_N_N   = 0.0d0
-    allocate(F%G_I_NS (nx*ny*nz,3,3,4)) ; F%G_I_NS  = 0.0d0
-    allocate(Vc(nx*ny*nz))              ; VC        = 0.0d0
-    allocate(Ec(nx*ny*nz))              ; EC        = 0.0d0
-
-    ! We assume the points on the file are correctly ordered in 
-    ! FORTRAN fashion, such that we do not have to worry about looping 
-    ! separately over x/y/z and can just loop once over all mesh points.
-    ! This also means the coordinate information is not used.
-    do i=1,nx*ny*nz
-      read(chan, fmt='(7es25.12)', iostat=io, advance='no')        & 
-      &                            x,y,z,                          & !unused
-      &                            F%F_I_I(i,1),F%F_I_I(i,2),      & ! U(r)
-      &                            Vc(i),  Ec(i)                     ! Coulomb
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! It is easy to read the kinetic potential from ETFSI calculations if 
-      ! D_Nm_Nm is defined as a contracted density
-$TAUSCALAR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
-$TAUSCALAR      &                            F%F_Nm_Nm(i,1), F%F_Nm_Nm(i,2)    ! kinetic
-!      ! If not, then we have to do some reorganisation
-$TAUTENSOR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    & 
-$TAUTENSOR      &                            F%F_N_N(i,1,1,1), F%F_N_N(i,1,1,2)! kinetic
-$TAUTENSOR      F%F_N_N(i,2,2,:) = F%F_N_N(i,1,1,:)/3
-$TAUTENSOR      F%F_N_N(i,3,3,:) = F%F_N_N(i,1,1,:)/3
-$TAUTENSOR      F%F_N_N(i,1,1,:) = F%F_N_N(i,1,1,:)/3
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Pairing field
-      read(chan, fmt='(7es25.12)', iostat=io, advance='no')                    &
-      &                            F%FP_I_I(i,1),F%FP_I_I(i,2)
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! All components of the spin-orbit field
-      do mu=1,3
-        do nu=1,3
-          read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
-          &               F%G_I_NS(i,mu,nu,1), F%G_I_NS(i,mu,nu,2)
-        enddo
-      enddo
-      
-      read(chan, *) ! Advance to new line
-      
-      if(io.ne.0) then
-        print *, 'Problem encountered reading potential file ', ifn
-        print *, 'IOSTAT = ', io
-        stop
-      endif
-    enddo
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Make sure the Coulomb module is configured with the right array dimensions
-    call setupCoulomb(F)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! The index juggling is ugly, but necessary, because the Coulomb 
-    ! potential has a different size than the Lagrange mesh.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
-      
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-          F%CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex(i,j,k))
-          F%ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex(i,j,k))
-        enddo
-      enddo
-    enddo
-    
-    !----------------------------------------------------------------------------
-    ! F_I_I no longer contains the coulomb potentials; change of definition
-    !----------------------------------------------------------------------------
-    if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
-    &                             (.not. nucleonsize_selfconsistent)) then
-    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    !  ! No finite size effects; correction is simple
-    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-    !  F%F_I_I(:,2) = F%F_I_I(:,2) + Vc(:) + Ec(:)
-    else
-    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !  ! Finite size effects taken into account
-    !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !  ! Calculate folded potentials from the read-in potentials
-      call obtain_folded_potentials(F)
-    !  ! ... and correct F_I_I for them with ugly index juggling
-    !  do it=1, 2
-    !    do k=1,nz
-    !      do j=1,ny
-    !        do i=1,nx
-    !
-    !          F%F_I_I(meshindex(i,j,k),it)= F%F_I_I(meshindex(i,j,k),it)       &
-    !          &                           + F%FoldedCoul(i,j,k,it)             &
-    !          &                           + F%FoldedExchange(i,j,k,it)
-    !        enddo
-    !      enddo
-    !    enddo
-    !  enddo
-    endif
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Make sure isospin combinations are made correctly for all potentials
-    F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
-    F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
-
-$TAUSCALAR    F%F_Nm_Nm(:,3)   = F%F_Nm_Nm(:,1)   + F%F_Nm_Nm(:,2)
-$TAUSCALAR    F%F_Nm_Nm(:,4)   = F%F_Nm_Nm(:,1)   - F%F_Nm_Nm(:,2)
-$TAUTENSOR    F%F_N_N(:,:,:,3) = F%F_N_N(:,:,:,1) + F%F_N_N(:,:,:,2)
-$TAUTENSOR    F%F_N_N(:,:,:,4) = F%F_N_N(:,:,:,1) - F%F_N_N(:,:,:,2)
-
-    do mu=1,3
-      do nu=1,3
-        F%G_I_NS(:,mu,nu,3) = F%G_I_NS(:,mu,nu,1) + F%G_I_NS(:,mu,nu,2)
-        F%G_I_NS(:,mu,nu,4) = F%G_I_NS(:,mu,nu,1) - F%G_I_NS(:,mu,nu,2)
-      enddo
-    enddo
+!     logical :: exists
+!     integer :: i,j,k,io,  mu, nu, ox, oy, oz, headercount
+!     real(KIND=dp), allocatable :: Vc(:), Ec(:)
+!     real(KIND=dp)              :: x,y,z
+!     character(len=200)         :: temp
+!
+!     inquire(file=ifn, exist=exists)
+!     if(.not.exists) then
+!       print *, 'Input file specified does not exist!'
+!       stop
+!     endif
+!
+!     open (chan,file=ifn)
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! We need to skip any header lines (indicated by #).
+!     ! For a Tantalus-created file, there are 14 of them by default but other
+!     ! people might write a different amount
+!     io = 0; headercount = -1
+!     do while(io.eq.0)
+!       headercount = headercount + 1
+!       read(chan, iostat=io, fmt='(a200)') temp
+!       if(temp(1:1) .ne. '#') io = 1
+!     enddo
+!     ! We've found an error; we have counted the number of header lines!
+!     rewind(chan)
+!     ! ... and now we skip this number of lines
+!     do i=1,headercount
+!         read(chan, fmt=('()'))
+!     enddo
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Allocate the relevant potentials
+!     allocate(F%F_I_I   (nx*ny*nz,4))     ; F%F_I_I    = 0.0d0
+!     allocate(F%FP_I_I  (nx*ny*nz,2))     ; F%FP_I_I   = 0.0d0
+! $TAUSCALAR    allocate(F%F_Nm_Nm(nx*ny*nz,4))   ; F%F_Nm_Nm = 0.0d0
+! $TAUTENSOR    allocate(F%F_N_N(nx*ny*nz,3,3,4)) ; F%F_N_N   = 0.0d0
+!     allocate(F%G_I_NS (nx*ny*nz,3,3,4)) ; F%G_I_NS  = 0.0d0
+!     allocate(Vc(nx*ny*nz))              ; VC        = 0.0d0
+!     allocate(Ec(nx*ny*nz))              ; EC        = 0.0d0
+!
+!     ! We assume the points on the file are correctly ordered in
+!     ! FORTRAN fashion, such that we do not have to worry about looping
+!     ! separately over x/y/z and can just loop once over all mesh points.
+!     ! This also means the coordinate information is not used.
+!     do i=1,nx*ny*nz
+!       read(chan, fmt='(7es25.12)', iostat=io, advance='no')        &
+!       &                            x,y,z,                          & !unused
+!       &                            F%F_I_I(i,1),F%F_I_I(i,2),      & ! U(r)
+!       &                            Vc(i),  Ec(i)                     ! Coulomb
+!       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       ! It is easy to read the kinetic potential from ETFSI calculations if
+!       ! D_Nm_Nm is defined as a contracted density
+! $TAUSCALAR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    &
+! $TAUSCALAR      &                            F%F_Nm_Nm(i,1), F%F_Nm_Nm(i,2)    ! kinetic
+! !      ! If not, then we have to do some reorganisation
+! $TAUTENSOR      read(chan, fmt='(2es25.12)', iostat=io, advance='no')    &
+! $TAUTENSOR      &                            F%F_N_N(i,1,1,1), F%F_N_N(i,1,1,2)! kinetic
+! $TAUTENSOR      F%F_N_N(i,2,2,:) = F%F_N_N(i,1,1,:)/3
+! $TAUTENSOR      F%F_N_N(i,3,3,:) = F%F_N_N(i,1,1,:)/3
+! $TAUTENSOR      F%F_N_N(i,1,1,:) = F%F_N_N(i,1,1,:)/3
+!       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       ! Pairing field
+!       read(chan, fmt='(7es25.12)', iostat=io, advance='no')                    &
+!       &                            F%FP_I_I(i,1),F%FP_I_I(i,2)
+!       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       ! All components of the spin-orbit field
+!       do mu=1,3
+!         do nu=1,3
+!           read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
+!           &               F%G_I_NS(i,mu,nu,1), F%G_I_NS(i,mu,nu,2)
+!         enddo
+!       enddo
+!
+!       read(chan, *) ! Advance to new line
+!
+!       if(io.ne.0) then
+!         print *, 'Problem encountered reading potential file ', ifn
+!         print *, 'IOSTAT = ', io
+!         stop
+!       endif
+!     enddo
+!
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Make sure the Coulomb module is configured with the right array dimensions
+!     call setupCoulomb(F)
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! The index juggling is ugly, but necessary, because the Coulomb
+!     ! potential has a different size than the Lagrange mesh.
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
+!
+!     do k=1,nz
+!       do j=1,ny
+!         do i=1,nx
+!           F%CoulombPotential(i+ox,j+oy,k+oz)  = Vc(meshindex(i,j,k))
+!           F%ExchangePotential(i+ox,j+oy,k+oz) = Ec(meshindex(i,j,k))
+!         enddo
+!       enddo
+!     enddo
+!
+!     !----------------------------------------------------------------------------
+!     ! F_I_I no longer contains the coulomb potentials; change of definition
+!     !----------------------------------------------------------------------------
+!     if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
+!     &                             (.not. nucleonsize_selfconsistent)) then
+!     !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     !  ! No finite size effects; correction is simple
+!     !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     !  F%F_I_I(:,2) = F%F_I_I(:,2) + Vc(:) + Ec(:)
+!     else
+!     !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     !  ! Finite size effects taken into account
+!     !  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     !  ! Calculate folded potentials from the read-in potentials
+!       call obtain_folded_potentials(F)
+!     !  ! ... and correct F_I_I for them with ugly index juggling
+!     !  do it=1, 2
+!     !    do k=1,nz
+!     !      do j=1,ny
+!     !        do i=1,nx
+!     !
+!     !          F%F_I_I(meshindex(i,j,k),it)= F%F_I_I(meshindex(i,j,k),it)       &
+!     !          &                           + F%FoldedCoul(i,j,k,it)             &
+!     !          &                           + F%FoldedExchange(i,j,k,it)
+!     !        enddo
+!     !      enddo
+!     !    enddo
+!     !  enddo
+!     endif
+!
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Make sure isospin combinations are made correctly for all potentials
+!     F%F_I_I(:,3) = F%F_I_I(:,1) + F%F_I_I(:,2)
+!     F%F_I_I(:,4) = F%F_I_I(:,1) - F%F_I_I(:,2)
+!
+! $TAUSCALAR    F%F_Nm_Nm(:,3)   = F%F_Nm_Nm(:,1)   + F%F_Nm_Nm(:,2)
+! $TAUSCALAR    F%F_Nm_Nm(:,4)   = F%F_Nm_Nm(:,1)   - F%F_Nm_Nm(:,2)
+! $TAUTENSOR    F%F_N_N(:,:,:,3) = F%F_N_N(:,:,:,1) + F%F_N_N(:,:,:,2)
+! $TAUTENSOR    F%F_N_N(:,:,:,4) = F%F_N_N(:,:,:,1) - F%F_N_N(:,:,:,2)
+!
+!     do mu=1,3
+!       do nu=1,3
+!         F%G_I_NS(:,mu,nu,3) = F%G_I_NS(:,mu,nu,1) + F%G_I_NS(:,mu,nu,2)
+!         F%G_I_NS(:,mu,nu,4) = F%G_I_NS(:,mu,nu,1) - F%G_I_NS(:,mu,nu,2)
+!       enddo
+!     enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Close channel after succesfull IO operations.
