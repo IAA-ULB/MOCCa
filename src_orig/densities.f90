@@ -117,9 +117,9 @@ implicit none
     !---------------------------------------------------------------------------
     ! As several other modules deal with the density D_I_I and its derivatives
     ! in various forms,  Hephaestos fills in here the appropriate symmetries.
-    integer, parameter :: sx_rho = $SX_RHO
-    integer, parameter :: sy_rho = $SY_RHO
-    integer, parameter :: sz_rho = $SZ_RHO
+    integer, parameter :: sx_rho = $SX_RHO, sx_rho_antisym = $SX_RHO_ANTISYM
+    integer, parameter :: sy_rho = $SY_RHO, sy_rho_antisym = $SY_RHO_ANTISYM
+    integer, parameter :: sz_rho = $SZ_RHO, sz_rho_antisym = $SZ_RHO_ANTISYM
     ! and similar for the vector spin density s, which is needed in the 
     ! preconditioning of the functionals
     integer, parameter :: sx_s(3) = (/$SX_SX,$SX_SY,$SX_SZ/)

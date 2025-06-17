@@ -450,12 +450,24 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Here we figure out the symmetries of the ordinary density rho = D_I_I
     # as that one is often necessary outside of the densities module
+    #
+    # TODO: refactor this to use the AxisReflection function
     axes = ['X', 'Y', 'Z']
     for k in range(3):
      if(so.ReduceAxes[k] == 1):
       dic['S%s_RHO'%axes[k]] ='+1'
      else:
       dic['S%s_RHO'%axes[k]] =' 0'
+
+    for k in range(3):
+     if(so.ReduceAxes[k] == 1):
+       if(k == 0 or k == 1):
+         dic['S%s_RHO_ANTISYM'%axes[k]] ='-1'
+       else:
+         dic['S%s_RHO_ANTISYM'%axes[k]] ='+1'
+     else:
+      dic['S%s_RHO_ANTISYM'%axes[k]] =' 0'
+
     # And the same for D_I_S
     for j in range(3):
       P   = AxisReflection(Identity, Sigma,[()],[(j)],so,False)   

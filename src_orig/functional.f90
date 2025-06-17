@@ -1406,10 +1406,10 @@ $CALCPOTENTIALS
     !---------------------------------------------------------------------------
     if((.not. present(Fread)) .or. (.not. Coulomb_read_from_file)) then
       if(present(Coulomb_guess)) then
-        call SolveCoulomb(R,F,Coulomb_guess)
+        call SolveCoulomb(R,F,sx_rho, sy_rho, sz_rho, Coulomb_guess)
       else
         ! Start solving from a zero'd initial Coulomb potentials
-        call SolveCoulomb(R,F)
+        call SolveCoulomb(R,F,sx_rho, sy_rho, sz_rho)
       endif
     endif
 
