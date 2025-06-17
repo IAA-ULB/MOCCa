@@ -48,9 +48,15 @@ module fam
   !         rho_fam = rho_MF + drho
   complex(KIND=dp), allocatable :: drho(:,:)   ! perturbed normal density matrix
   complex(KIND=dp), allocatable :: dkappa(:,:) ! perturbed pairing density matrix
-  complex(KIND=dp), allocatable :: dR(:,:)     ! perturbed generalised density matrix
-  type(DensityVector)   :: Rs, Ra  ! perturbed densities in the mesh
-  type(PotentialVector) :: Fs, Fa! perturbed potentials on the mesh
+  ! complex(KIND=dp), allocatable :: dR(:,:)     ! perturbed generalised density matrix
+  type(DensityVector)   :: dRs, dRa  ! perturbed densities in the mesh
+  !                         |    '-> anti-symmetric part
+  !                         '-> symmetric part
+  type(PotentialVector) :: dFs, dFa  ! perturbed potentials on the mesh
+  !                         |    '-> anti-symmetric part
+  !                         '-> symmetric part
+  ! type(DensityVector)   :: DensityPert  ! TO BE REMOVED
+  ! type(PotentialVector) :: PotentialPert! TO BE REMOVED
   !-----------------------------------------------------------------------------
   ! unperturbed Hamiltonian and perturbed hamiltonian
   real(KIND=dp), allocatable :: H_unpert(:,:) ! unperturbed Hamiltonian in HF basis
@@ -171,8 +177,7 @@ module fam
         occ_h = rho_can(h)
         if(occ_h < 1d-6) cycle
         do p = 1, nwt
-          occ_p = 2.0 - rho_can(p) 
-          ! degeneracy 2.0 must reduced if further symmetries are broken
+          occ_p = 1.0 - rho_can(p) 
           if(occ_p < 1d-6) cycle
           F(p,h,1) = occ_p * occ_h * SolidHarmHF(p,h) ! ph block F20(p,h)
           F(p,h,2) = occ_p * occ_h * SolidHarmHF(h,p) ! hp block F02(p,h)
@@ -204,8 +209,13 @@ module fam
       dH(:,:,:) = 0
     endif
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! initialise perturbed potentials as 0
+    dFs = 0.0_dp * PotentialsUnpert
+    dFa = 0.0_dp * PotentialsUnpert
+
     ! TO DO: replace by a better initialisation routine
-    PotentialPert = 0.0_dp * PotentialsUnpert
+
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the RPA amplitudes 
@@ -241,14 +251,19 @@ module fam
       e_h = spenergies(h) 
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-        occ_p = 2.0 - rho_can(p)
+        occ_p = 1.0 - rho_can(p) ! degeneracy is always 1 since T is broken
         e_p = spenergies(p) 
         if(occ_p < 1d-6) cycle
         X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
         Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear,KIND=dp) )
-        ! print *, p, h, e_p, e_h, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
+        ! print *, p, h, e_p, e_h, occ_h, occ_p, 
+        ! print *, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
       enddo
     enddo
+
+  print *, '||F20|| = ', sqrt(sum( abs(F(:,:,1))**2) )
+  print *, '||dH20|| = ', sqrt(sum( abs(dH(:,:,1))**2) )
+
 
   print *, '||X|| = ', sqrt(sum( abs(X(:,:))**2) )
   print *, '||Y|| = ', sqrt(sum( abs(Y(:,:))**2) )
@@ -305,71 +320,54 @@ module fam
   end subroutine iniHFdensities
 
 
-  subroutine build_perturbed_densities(rho0, kappa0)
+  subroutine build_perturbed_densities(X, Y, dRs, dRa)
     !---------------------------------------------------------------------------
     ! Build the perturbed mean-field densities.
-    ! /!\ : This is not operational yet and requires more work, cfr. notes. 
     !---------------------------------------------------------------------------
 
     implicit none
-    real(KIND=dp), intent(in) :: rho0(:,:), kappa0(:,:)
-    ! real(KIND=dp), allocatable :: drho_real(:,:), dkappa_real(:,:)
-    ! real(KIND=dp), allocatable :: rho_c(:), kappa_c(:)
+    complex(KIND=dp), intent(in) :: X(:,:), Y(:,:)
+    type(DensityVector), intent(out) :: dRs, dRa
 
-    ! allocate(rho_c(nwt)) 
-    ! allocate(kappa_c(nwt))
 
     print *, "build perturbed densities"
-
-    ! drho = rho0 + eta * (X + transpose(Y)) ! check this transpose
-    ! depricated => drho only contains the perturbation
 
     drho = X + transpose(Y) 
     dkappa = 0
 
-    !----------------------------------------------------------------
-    ! /!\ HACK FOR NOW
-    ! to be removed once construct_canonical_basis and densit
-    ! can deal with complex density matrices
-    !drho_real   = DBLE(drho)
-    !dkappa_real = DBLE(dkappa)
-    ! construct the canonical basis of the perturbed rho and kappa
-    !call construct_canonical_basis(drho_real,dkappa_real,rho_c,kappa_c)
-    !----------------------------------------------------------------
-
-    call densit_offdiag(drho, dkappa,Rs, Ra)
-    ! PotentialPert = calcPotentials(DensityPert) ! now part of build_dH
+    call densit_offdiag(drho, dkappa, dRs, dRa)
 
   end subroutine build_perturbed_densities
 
-  subroutine build_dH_explicit(Density, DensityPert)
+  subroutine build_dH_explicit(R, dRs, dRa)
     !---------------------------------------------------------------------------
     ! Build the perturbed single-particle Hamiltonian
     !---------------------------------------------------------------------------
     
     implicit none
-    type(DensityVector), intent(in) :: Density, DensityPert
-    type(PotentialVector) :: PotentialPertNew
+    type(DensityVector), intent(in) :: R, dRs, dRa
+    type(PotentialVector) :: dFsNew, dFaNew
     real(KIND=dp), allocatable :: HPert(:,:)
     integer :: i, h, p
     real(KIND=dp) :: occ_h, occ_p
-    real(KIND=dp) :: alpha = 0.005 ! linear mixing coeff 
+    real(KIND=dp) :: alpha = 1.0d-3 ! linear mixing coeff 
 
     print *, "build perturbed hamiltonian using explicit linearisation"
 
     allocate(HPert(nwt,nwt))
 
     ! explicit linearisation of the fields
-    PotentialPertNew = calc_perturbed_potentials(Density,DensityPert)
+    call calc_perturbed_potentials(R, dRs, dRa, dFsNew, dFaNew)
 
     ! necessary? 
-    ! call combine_potentials(PotentialPertNew)
+    call combine_potentials(dFsNew)
 
-    ! linear mixing of the fields with previous iteration
-    PotentialPert = alpha * PotentialPertNew  + (1.0 - alpha) * PotentialPert
+    ! linear mixing of the sym and antisym perturbed fields with previous iteration
+    dFs = alpha * dFsNew  + (1.0 - alpha) * dFs
+    dFa = alpha * dFaNew  + (1.0 - alpha) * dFa
 
     ! construct the sp hamiltonian
-    HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,PotentialPert, .false.)
+    HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
 
 
     ! store ph and hp blocks in dH
@@ -377,8 +375,7 @@ module fam
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-        occ_p = 2.0 - rho_can(p) 
-        ! degeneracy 2.0 must reduced if further symmetries are broken
+        occ_p = 1.0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
         dH(p,h,1) = occ_p * occ_h * HPert(p,h) ! ph block dH20(p,h)
         dH(p,h,2) = occ_p * occ_h * HPert(h,p) ! hp block dH02(p,h)
@@ -387,15 +384,21 @@ module fam
 
     print *,  sqrt(sum( abs(dH(:,:,1))**2) )
 
-
-
   end subroutine build_dH_explicit
 
   subroutine build_dH_findiff(Density, DensityPert)
     !---------------------------------------------------------------------------
     ! Build the perturbed single-particle Hamiltonian using finite difference
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! NOT OPERATIONAL
+    !   -> use build_dH_explicit() instead.
+    ! 
+    ! Notes:
+    !    This function is not operational at this point but is kept for potential 
+    !    test in the future. In particular, it would allow to test 
+    !    calc_perturbed_potentials.
     !---------------------------------------------------------------------------
-    
+
     implicit none
     type(DensityVector), intent(in) :: Density, DensityPert
     type(DensityVector) :: DensityTot
@@ -406,42 +409,49 @@ module fam
 
     print *, "build perturbed hamiltonian using finite difference"
 
-    allocate(HPert(nwt,nwt))
+    ! allocate(HPert(nwt,nwt))
 
-    DensityTot = Density + eta * DensityPert
+    ! Calculate the total perturbed potentials, i.e. static mean-field + perturbation, 
+    ! from the total perturbed densit, i.e. static mean-field + perturbation
 
-    PotentialTotNew = calcPotentials(DensityTot)
+    ! PotentialTotNew = calcPotentials(Density + eta * DensityPert)
 
-    ! TODO mixing is still absent, it would require keeping track of 
+    ! /!\ presently incorrect. This should be replaced by a function which treats
+    ! symm and atisymm parts where the Rs = Density + eta * dRs and Ra = eta * dRa
+    ! call calcPotentials(Density + eta * dRs, eta * dRa, Fs, Fa)
 
-    ! necessary? 
     ! call combine_potentials(PotentialPertNew)
 
+
+    ! TODO mixing is still absent, it would require keeping track of the  
+    ! unperturbed plus perturbed fields
+
     ! construct the sp hamiltonian
-    HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,PotentialTotNew, .false.)
+    ! HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,PotentialTotNew, .false.)
+
+    ! /!\ presently incorrect. Again, this should be replaced by a function which 
+    ! treats symm and atisymm parts of the fields. 
+    ! call calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, Fs, Fa, .false.)
 
 
-    ! compute dH by finite difference, i.e. subtract the unperturbed Hamiltonian
-    HPert = HPert - H_unpert
-    ! ... and devide by small parameter eta
-    HPert = HPert / eta
+    ! ! compute dH by finite difference, i.e. subtract the unperturbed Hamiltonian
+    ! HPert = HPert - H_unpert
+    ! ! ... and devide by small parameter eta
+    ! HPert = HPert / eta
 
-    ! store ph and hp blocks in dH
-    do h = 1, nwt
-      occ_h = rho_can(h)
-      if(occ_h < 1d-6) cycle
-      do p = 1, nwt
-        occ_p = 2.0 - rho_can(p) 
-        ! degeneracy 2.0 must reduced if further symmetries are broken
-        if(occ_p < 1d-6) cycle
-        dH(p,h,1) = occ_p * occ_h * HPert(p,h) ! ph block dH20(p,h)
-        dH(p,h,2) = occ_p * occ_h * HPert(h,p) ! hp block dH02(p,h)
-      enddo
-    enddo
+    ! ! store ph and hp blocks in dH
+    ! do h = 1, nwt
+    !   occ_h = rho_can(h)
+    !   if(occ_h < 1d-6) cycle
+    !   do p = 1, nwt
+    !     occ_p = 1.0 - rho_can(p) 
+    !     if(occ_p < 1d-6) cycle
+    !     dH(p,h,1) = occ_p * occ_h * HPert(p,h) ! ph block dH20(p,h)
+    !     dH(p,h,2) = occ_p * occ_h * HPert(h,p) ! hp block dH02(p,h)
+    !   enddo
+    ! enddo
 
-    print *,  sqrt(sum( abs(dH(:,:,1))**2) )
-
-
+    ! print *,  sqrt(sum( abs(dH(:,:,1))**2) )
 
   end subroutine build_dH_findiff
 
@@ -472,8 +482,7 @@ module fam
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-        occ_p = 2.0 - rho_can(p) 
-        ! degeneracy 2.0 must reduced if further symmetries are broken
+        occ_p = 1.0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
         S = S + F(p,h,1) * X(p,h) + F(p,h,2) * Y(p,h)
       enddo
@@ -594,19 +603,19 @@ program run_FAM
   Potentials  = calcPotentials(Density)
   sphamil     = Calc_Sphamil(potentials, .true.)
 
-  ! Testing printout - left for now
-  print *, 'BEFORE'
-  si = 0
-  do B=1,8
-    N = HFBLocks(B)
+  ! ! Testing printout - left for now
+  ! print *, 'BEFORE'
+  ! si = 0
+  ! do B=1,8
+  !   N = HFBLocks(B)
 
-    print *, 'BLOCK', B, N
-    do i=si+1,si+N
-      print ('(99f10.3)'), sphamil(i, si+1:si+N)
-    enddo
-    print *
-    si = si + N
-  enddo
+  !   print *, 'BLOCK', B, N
+  !   do i=si+1,si+N
+  !     print ('(99f10.3)'), sphamil(i, si+1:si+N)
+  !   enddo
+  !   print *
+  !   si = si + N
+  ! enddo
 
   call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
   ! diagonalisation done; now recalculate other quantities
@@ -615,20 +624,22 @@ program run_FAM
   Potentials  = calcPotentials(Density)
   sphamil     = Calc_Sphamil(potentials, .true.)
 
-  ! Testing printout - left for now
-  print *, 'AFTER'
-  si = 0
-  do B=1,8
-    N = HFBLocks(B)
+  ! ! Testing printout - left for now
+  ! print *, 'AFTER'
+  ! si = 0
+  ! do B=1,8
+  !   N = HFBLocks(B)
 
-    print *, 'BLOCK', B, N
-    do i=si+1,si+N
-      print ('(99f10.3)'), sphamil(i, si+1:si+N)
-    enddo
-    print *
-    si = si + N
-  enddo
-  stop
+  !   print *, 'BLOCK', B, N
+  !   do i=si+1,si+N
+  !     print ('(99f10.3)'), sphamil(i, si+1:si+N)
+  !   enddo
+  !   print *
+  !   si = si + N
+  ! enddo
+  ! stop
+
+  ! print ('(99f10.3)'), rho_can(:)
 
   !
   ! Note: there is a silent assumption here that the HF-spectrum is sufficiently
@@ -682,13 +693,10 @@ program run_FAM
 
       print *, "FAM iteration : ", iteration
 
-      call build_perturbed_densities(rho_pairing, kappa_pairing)
+      call build_perturbed_densities(X, Y, dRa, dRs)
 
-      ! build the perturbed hamiltonian using explcit linearisation of the field
-      call build_dH_explicit(Density, DensityPert)
-
-      ! build the perturbed hamiltonian using finite difference
-      ! call build_dH_findiff(Density, DensityPert)
+      ! build the perturbed hamiltonian using explicit linearisation of the field
+      call build_dH_explicit(Density, dRa, dRs)
 
       call calculate_XY()
       
@@ -697,6 +705,9 @@ program run_FAM
       ! call mix_XY_linear(lin_mix_coeff)
 
       call store_XY_hist()
+
+      print *, " S(", omega_curr, ") = ",  calc_strength()
+
 
       ! Exit the loop if convergence is achieved.
       if (iteration > 1) then ! at least two iterations to be able to compare
