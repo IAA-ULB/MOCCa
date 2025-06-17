@@ -94,6 +94,11 @@ module Coulombmod
  & -14350.0_dp/8064.0_dp, 1.0_dp, -1008.0_dp/8064.0_dp, 128.0_dp/8064.0_dp, &
  & -9.0_dp/8064.0_dp /)
 
+ interface SolveCoulomb_worker
+  module procedure SolveCoulomb_worker_real
+  module procedure SolveCoulomb_worker_complex
+ end interface
+
 contains
 
  subroutine SolveCoulomb(R,F,sx,sy,sz,guess)
@@ -122,16 +127,64 @@ contains
     ! Initialize all of the arrays.
     call setupcoulomb(F)
     ! Solve Poissons equation for the charge density
-    call SolveCoulomb_worker(R%chargedensity, &
-    &                        F%CoulombPotential, F%ExchangePotential, sx, sy, sz, guess)
+    call SolveCoulomb_worker(R%chargedensity, F%CoulombPotential, F%ExchangePotential, &
+    &                        sx, sy, sz, guess)
     ! Perform a folding of the potentials if needed
     call Obtain_folded_potentials(F)
 
  end subroutine SolveCoulomb
 
- subroutine SolveCoulomb_worker(chargedensity, CoulombPotential, ExchangePotential, sx, sy, sz, guess)
+ subroutine SolveCoulomb_worker_real(chargedensity, CoulombPotential, ExchangePotential, &
+ &                                    sx, sy, sz, guess)
+    !-------------------------------------------------------------------------------------
+    ! TODO: DOcument
+    !
+    !-------------------------------------------------------------------------------------
+    real(KIND=dp), allocatable, intent(in)    :: Chargedensity(:,:,:)
+    real(KIND=dp), allocatable, intent(inout) :: CoulombPotential(:,:,:)
+    real(KIND=dp), allocatable, intent(inout) :: ExchangePotential(:,:,:)
+    integer, intent(in)                       :: sx, sy, sz
+    real(KIND=dp), intent(in), optional       :: guess(:,:,:)
+
+    call SolveCoulomb_solver(chargedensity, CoulombPotential, ExchangePotential, &
+ &                               sx, sy, sz, guess)
+
+ end subroutine SolveCoulomb_worker_real
+
+  subroutine SolveCoulomb_worker_complex(chargedensity, CoulombPotential, ExchangePotential, &
+ &                               sx, sy, sz)
+    !-------------------------------------------------------------------------------------
+    ! TODO: DOcument
+    !
+    !-------------------------------------------------------------------------------------
+    complex(KIND=dp), allocatable, intent(in)    :: Chargedensity(:,:,:)
+    complex(KIND=dp), allocatable, intent(inout) :: CoulombPotential(:,:,:)
+    complex(KIND=dp), allocatable, intent(inout) :: ExchangePotential(:,:,:)
+    integer, intent(in)                          :: sx, sy, sz
+
+    real(KIND=dp), allocatable :: Re_CD(:,:,:), Im_CD(:,:,:)
+    real(KIND=dp), allocatable :: Re_CP(:,:,:), Im_CP(:,:,:)
+    real(KIND=dp), allocatable :: Re_EX(:,:,:), Im_EX(:,:,:)
+
+    Re_CD = DBLE(ChargeDensity)    ; Im_CD = IMAG(ChargeDensity)
+    Re_CP = DBLE(CoulombPotential) ; Im_CP = IMAG(CoulombPotential)
+    Re_EX = DBLE(ExchangePotential); Im_EX = IMAG(ExchangePotential)
+
+    ! Solve the real equation
+    call SolveCoulomb_solver(Re_CD, Re_CP, Re_Ex, sx, sy, sz)
+    ! ... and the imaginary part of the Coulomb equation
+    call SolveCoulomb_solver(Im_CD, Im_CP, Im_Ex, sx, sy, sz)
+
+    ! ... and sum the results
+    CoulombPotential  = CMPLX(Re_CD, Im_CD)
+    ExchangePotential = CMPLX(Re_EX, Im_EX)
+
+ end subroutine SolveCoulomb_worker_complex
+
+ subroutine SolveCoulomb_solver(chargedensity, CoulombPotential, ExchangePotential, &
+ &                               sx, sy, sz, guess)
     !----------------------------------------------------------------------------------------
-    ! TODO: document
+    ! TODO: document this worker routine
     !
     !
     !
@@ -239,7 +292,7 @@ $REDUZ  coul_offset_z = 0
 
     call stop_timer(T_coulomb)
     deallocate(source)
- end subroutine SolveCoulomb_worker
+ end subroutine SolveCoulomb_solver
 
  subroutine Obtain_folded_potentials(F)
     !---------------------------------------------------------------------------

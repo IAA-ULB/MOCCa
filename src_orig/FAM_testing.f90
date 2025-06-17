@@ -69,7 +69,6 @@ contains
 
     sphamil_me = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs,dFa, .false.)
 
-
   end subroutine test_potentials
 
   subroutine test_sphamil_me(ifail)
@@ -108,12 +107,6 @@ contains
     type(DensityVector)           :: R, Rs, Ra
 
     ifail = 0
-    ! some sanity checks
-    if(Coultreatment.ne.0) then
-      print *, 'test_sphamil_me does not know how to handle Coulomb yet.'
-      ifail = 1
-      return
-    endif
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! (i) Ordinary mean-field-like calculation
     R  = densit(rho_can, kappa_pairing)
@@ -147,6 +140,11 @@ contains
     call densit_offdiag(drho, dkappa, Rs, Ra)     ! No perturbation, drho = 0 in this call
     ! Calculate the potentials without perturbation
     call calc_perturbed_potentials(R, Rs, Ra, Fs, Fa)
+    !- - - - - - - - - - - - - - - - -
+    ! Convention for calc_sphamil_me !
+    call combine_potentials(F)
+    call combine_potentials(Fs)
+    call combine_potentials(Fa)
     ! .... and feed the result into the spwf sandwhiches
     sphamil_me = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,F, Fa, .false.)
     ! .... and add the matrix elements of the kinetic energy

@@ -1445,13 +1445,17 @@ $CALCPOTENTIALS
     !   dFa : potential-vector containing the antisymmetric part of the linearised
     !         response of the mean-field potentials
     !---------------------------------------------------------------------------
+    use CoulombMod, only : SolveCoulomb
 
     type (DensityVector), intent(in) :: R, dRs, dRa
     type (PotentialVector)           :: dFs, dFa
     
     dFs  = calc_perturbed_potentials_oneoff(R,dRs)
     dFa  = calc_perturbed_potentials_oneoff(R,dRa)
-  
+
+    call SolveCoulomb(dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)
+    call SolveCoulomb(dRa,dFa,sx_rho_antisym,sx_rho_antisym,sz_rho_antisym)
+
   end subroutine calc_perturbed_potentials
   
   function calc_perturbed_potentials_oneoff(R,R_pert) result (F)
