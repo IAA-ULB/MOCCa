@@ -1215,8 +1215,9 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
           call start_timer(T_subrot_diag) 
           ! Pointer remapping to make the LAPACK CALL standard compliant
           wfs_reshape(1:4*mv,1:N) => HFPsi(:,:,si+1:si+N)
-          mom_reshape(1:4*mv,1:N) => momentum_updates(:,:,si+1:si+N)
-          
+          if(allocated(momentum_updates)) then
+            mom_reshape(1:4*mv,1:N) => momentum_updates(:,:,si+1:si+N)
+          endif
           allocate(work(1))
           call DSYEV('V','L', N ,sph(si+1:si+N,si+1:si+N),&
           &                   N,eigenvalues(si+1:si+N),work,-1,info)
@@ -1239,9 +1240,11 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
          call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,&
          &         sph(si+1:si+N,si+1:si+N), N, 0.0d0,wfs_reshape, 4*mv)
          ! ... and aply the same transformation to momentum_updates
-         temp = mom_reshape(:,1:N)
-         call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,&
-         &         sph(si+1:si+N,si+1:si+N), N, 0.0d0,mom_reshape, 4*mv)
+         if(allocated(Momentum_Updates)) then
+          temp = mom_reshape(:,1:N)
+          call DGEMM('n','n',4*mv,N,N, 1.0d0,temp, 4*mv,&
+          &         sph(si+1:si+N,si+1:si+N), N, 0.0d0,mom_reshape, 4*mv)
+         endif
          ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ! Populate sphamil and hftransfo for future use
          sph(si+1:si+N,si+1:si+N) = 0.0d0

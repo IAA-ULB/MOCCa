@@ -537,6 +537,7 @@ program run_FAM
   integer :: omega_num, omega_index
   real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
   character(len=100) :: famfilename
+  integer :: i, B, si,N
 
   ! integer :: ifail ! Future dev: required for HFB
 
@@ -586,6 +587,56 @@ program run_FAM
   ! Derive all single-particle wavefunctions on the mesh
   if(store_derivatives) call deriveHF()
 
+  !--------------------------------------------------------------------------------
+  ! Step 0: build explicitly the matrix of the single-particle hamiltonian and
+  !         diagonalize it within the subspace spanned by the spwfs read from file
+  Density     = densit(rho_can, kappa_pairing)
+  Potentials  = calcPotentials(Density)
+  sphamil     = Calc_Sphamil(potentials, .true.)
+
+  ! Testing printout - left for now
+  print *, 'BEFORE'
+  si = 0
+  do B=1,8
+    N = HFBLocks(B)
+
+    print *, 'BLOCK', B, N
+    do i=si+1,si+N
+      print ('(99f10.3)'), sphamil(i, si+1:si+N)
+    enddo
+    print *
+    si = si + N
+  enddo
+
+  call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+  ! diagonalisation done; now recalculate other quantities
+  if(store_derivatives) call deriveHF() ! and update derivatives
+  Density     = densit(rho_can, kappa_pairing)
+  Potentials  = calcPotentials(Density)
+  sphamil     = Calc_Sphamil(potentials, .true.)
+
+  ! Testing printout - left for now
+  print *, 'AFTER'
+  si = 0
+  do B=1,8
+    N = HFBLocks(B)
+
+    print *, 'BLOCK', B, N
+    do i=si+1,si+N
+      print ('(99f10.3)'), sphamil(i, si+1:si+N)
+    enddo
+    print *
+    si = si + N
+  enddo
+  stop
+
+  !
+  ! Note: there is a silent assumption here that the HF-spectrum is sufficiently
+  !       well-converged such that an explicit orthonormalisation will not change
+  !       our mean-field state in any meaningful way. In the future, we might want
+  !       to resolve the whole "pairing subproblem" again here and check that the
+  !       structure does not vary too much.
+  !---------------------------------------------------------------------------------
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
 
@@ -595,15 +646,15 @@ program run_FAM
 
   ! Compute all local one-body densities on the mesh
   Density     = densit(rho_can, kappa_pairing)
-  call ConstructChargeDensity(Density) ! PD: necessary? 
+  ! call ConstructChargeDensity(Density) ! PD: necessary? WR: No; done at the end of subroutine densit
   ! ... and the associated potentials
   Potentials  = calcPotentials(Density)
 
-  ! Adopt the relevant quantities to the centre-of-mass of the nucleus ! PD: necessary? 
-  call adapt_com(Density)  
+  ! Adopt the relevant quantities to the centre-of-mass of the nucleus ! PD: necessary? ! WR: No
+  ! call adapt_com(Density)
 
   ! Recalculate because the COM might have changed.
-  call CalculateMoments(Density) 
+  !call CalculateMoments(Density)  ! superfluous
 
   ! Solve FAM for a range of omega frequencies
 
