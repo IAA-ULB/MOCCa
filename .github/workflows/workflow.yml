@@ -17,12 +17,10 @@ on:
     branches:
       - master
       - difficult_merge
-      - FAM
   pull_request:
     branches:
       - master
       - difficult_merge
-      - FAM
 jobs:
   compile:
     #------------------------------------------------------------------------------
