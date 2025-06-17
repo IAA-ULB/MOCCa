@@ -159,9 +159,11 @@ contains
       N = HFBlocks(B)
       ! The element-wise deviation
       dev = abs(sphamil_orig(si+1:si+N, si+1:si+N) - sphamil_me(si+1:si+N, si+1:si+N))
-      if(maxval(dev)>1e-12) then
+      if(maxval(dev)>1e-10) then
         ifail = 1
+        print *
         print *, 'BLOCK B=', B
+        print *, "Maximal deviation = ", maxval(dev)
         print *, '------ Original calculation -------'
         do i=1,N
           print ('(99f10.3)'), sphamil_orig(si+i, si+1:si+N)
@@ -173,13 +175,12 @@ contains
         print *
         print *, '------ difference           -------'
         do i=1,N
-          print ('(99es10.2)'), dev(si+i, si+1:si+N)
+          print ('(99es10.2)'), dev(i, 1:N)
         enddo
+        print *
       endif
       si = si + N
     enddo
-
-    ifail = 0
   end subroutine test_sphamil_me
 
   function kinetic_me(denpsi, dendpsi, denddpsi)

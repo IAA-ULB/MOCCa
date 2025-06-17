@@ -603,7 +603,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
            for arg in true_args:
              # get the indices of the field (i.e. the lhs above) correct
              dic['IND']     = ''
-             sign           = +1
+             globalsign     = +1
 
              #--------------------------------------------------------------
              for k in range(OrderOfDen(den)):
@@ -619,7 +619,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                   t = arg[fieldterm[4].index(c)] - 2*mu
                   nuka = Rot_ind(mu)[t] 
                   if(t == 1):
-                    sign = sign * -1                              
+                    globalsign = globalsign * -1
                   temp = (mu,abs(nuka[0]), abs(nuka[1]))
                   dic['IND'] = dic['IND'] + ',%d'%(temp[c.index(k)]+1)
 
@@ -682,28 +682,12 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
              dic['DENSITY']  = ''
              dic['EXPR1']    = ''
              dic['EXPR_PERT'] = ''
-
-             #------------------------------------------------------------------
-             # Put an extra sign for every partial integration of a nabla
-             if( len(fieldterm[1])%2 != 0):
-                 localsign = sign * (-1)
-             else:
-                 localsign = sign
-
-             if(localsign > 0):
-               dic['SIGN']     =  '+'
-             else:
-               dic['SIGN']    =  '-'
-
-             if(fieldterm[-1] == ''):
-               dic['EXTRA'] = ''
-             else:
-               dic['EXTRA'] = '*(%s)'%fieldterm[-1]
              
              # TODO: refactor this into a function  
              # Build the expression for the traditional mean-field densities
              lastorder = OrderOfDen(den)
              FIELDCALC = FIELDCALC + ts.field_calc_b_start.substitute(dic)
+             sign      = globalsign
              for i,d in enumerate(densities):
                 dic['DENSITY'] = d
                 #-----------------------------------------------------------
@@ -749,16 +733,34 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
 
                 # Increment the starting point of indices
                 lastorder = lastorder + OrderOfDen(dic['DENSITY'])
+
+             #------------------------------------------------------------------
+             # Put an extra sign for every partial integration of a nabla
+             if( len(fieldterm[1])%2 != 0):
+                 localsign = sign * (-1)
+             else:
+                 localsign = sign
+
+             if(localsign > 0):
+               dic['SIGN']    =  '+'
+             else:
+               dic['SIGN']    =  '-'
+
+             if(fieldterm[-1] == ''):
+               dic['EXTRA'] = ''
+             else:
+               dic['EXTRA'] = '*(%s)'%fieldterm[-1]
+
              FIELDCALC = FIELDCALC + ts.field_calc_full.substitute(dic)
              FIELDCALC = FIELDCALC[:-4] + '\n \n'
              
-
              # Now do it again, repeatedly, but taking one of the densities
              # from the perturbed density vector at any one time
              for j in range(len(densities)):
                lastorder = OrderOfDen(den)
                FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_calc_b_start.substitute(dic)
                dic['EXPR_PERT']    = ''
+               sign = globalsign
                # Pick the J-th density to be a perturbation; otherwise do the 
                # same thing as above...
                for i,d in enumerate(densities):
@@ -812,6 +814,23 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
 
                   # Increment the starting point of indices
                   lastorder = lastorder + OrderOfDen(dic['DENSITY'])
+
+               #------------------------------------------------------------------
+               # Put an extra sign for every partial integration of a nabla
+               if( len(fieldterm[1])%2 != 0):
+                  localsign = sign * (-1)
+               else:
+                  localsign = sign
+
+               if(localsign > 0):
+                dic['SIGN']    =  '+'
+               else:
+                dic['SIGN']    =  '-'
+
+               if(fieldterm[-1] == ''):
+                dic['EXTRA'] = ''
+               else:
+                dic['EXTRA'] = '*(%s)'%fieldterm[-1]
 
                FIELDCALC_perturbed = FIELDCALC_perturbed + ts.field_calc_pert.substitute(dic)
                FIELDCALC_perturbed = FIELDCALC_perturbed[:-4] + '\n \n'
