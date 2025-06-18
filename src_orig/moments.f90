@@ -1152,39 +1152,39 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     !   = - sum_ijk epsilon_ijk r_j (nabla_i j_k)
     !   =   r.(nabla x j)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-$NTR    do it=1,2
-$NTR      !                                [nabla x j]_x = nabla_y j_z - nabla_z j_y
-$NTR      rj(:,1) = meshgrid_shifted(:,1) * &
-$NTR      &                         (R%der_C_I_N(:,2,3,it) - R%der_C_I_N(:,3,2,it))
-$NTR      !                                [nabla x j]_y = nabla_z j_x - nabla_x j_z
-$NTR      rj(:,2) = meshgrid_shifted(:,2) * &
-$NTR      &                         (R%der_C_I_N(:,3,1,it) - R%der_C_I_N(:,1,3,it)) 
-$NTR      !                                [nabla x j]_z = nabla_x j_y - nabla_y j_x
-$NTR      rj(:,3) = meshgrid_shifted(:,3) * &
-$NTR      &                         (R%der_C_I_N(:,1,2,it) - R%der_C_I_N(:,2,1,it)) 
-$NTR  
-$NTR      ! spin part = -1/2 Y_lm div.s(r)
-$NTR      do mu=1,3
-$NTR        ToCalculate%VectorValue(mu,1,it)    = - 0.5_dp*                        &
-$NTR        &                  sum(ToCalculate%SpherHarm(:)*R%Der_D_I_S(:,mu,mu,it))
-$NTR      enddo
-$NTR      ! Orbital part -2/(l+1) Y_lm div(r x j) = 2/(l+1) Y_lm r.(rot j)
-$NTR      do mu=1,3
-$NTR        ToCalculate%VectorValue(mu,2,it) =  2.0_dp/(ToCalculate%l+1) *         &
-$NTR        &                                 sum(ToCalculate%SpherHarm(:)*rj(:,mu))
-$NTR      enddo  
-$NTR    enddo
-$NTR    !---------------------------------------------------------------------------
-$NTR    ! Calculate the contribution to the physical magnetic multipole moment
-$NTR    do it=1,2
-$NTR        do mu=1,3
-$NTR            toCalculate%Physvectorvalue(mu,it) =                &
-$NTR            &    g_spin (it) * tocalculate%vectorvalue(mu,1,it) &
-$NTR            &  + g_orbit(it) * tocalculate%vectorvalue(mu,2,it)
-$NTR        enddo
-$NTR    enddo
-$NTR    ToCalculate%vectorValue       = ToCalculate%vectorValue*dv
-$NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
+! $NTR    do it=1,2
+! $NTR      !                                [nabla x j]_x = nabla_y j_z - nabla_z j_y
+! $NTR      rj(:,1) = meshgrid_shifted(:,1) * &
+! $NTR      &                         (R%der_C_I_N(:,2,3,it) - R%der_C_I_N(:,3,2,it))
+! $NTR      !                                [nabla x j]_y = nabla_z j_x - nabla_x j_z
+! $NTR      rj(:,2) = meshgrid_shifted(:,2) * &
+! $NTR      &                         (R%der_C_I_N(:,3,1,it) - R%der_C_I_N(:,1,3,it))
+! $NTR      !                                [nabla x j]_z = nabla_x j_y - nabla_y j_x
+! $NTR      rj(:,3) = meshgrid_shifted(:,3) * &
+! $NTR      &                         (R%der_C_I_N(:,1,2,it) - R%der_C_I_N(:,2,1,it))
+! $NTR
+! $NTR      ! spin part = -1/2 Y_lm div.s(r)
+! $NTR      do mu=1,3
+! $NTR        ToCalculate%VectorValue(mu,1,it)    = - 0.5_dp*                        &
+! $NTR        &                  sum(ToCalculate%SpherHarm(:)*R%Der_D_I_S(:,mu,mu,it))
+! $NTR      enddo
+! $NTR      ! Orbital part -2/(l+1) Y_lm div(r x j) = 2/(l+1) Y_lm r.(rot j)
+! $NTR      do mu=1,3
+! $NTR        ToCalculate%VectorValue(mu,2,it) =  2.0_dp/(ToCalculate%l+1) *         &
+! $NTR        &                                 sum(ToCalculate%SpherHarm(:)*rj(:,mu))
+! $NTR      enddo
+! $NTR    enddo
+! $NTR    !---------------------------------------------------------------------------
+! $NTR    ! Calculate the contribution to the physical magnetic multipole moment
+! $NTR    do it=1,2
+! $NTR        do mu=1,3
+! $NTR            toCalculate%Physvectorvalue(mu,it) =                &
+! $NTR            &    g_spin (it) * tocalculate%vectorvalue(mu,1,it) &
+! $NTR            &  + g_orbit(it) * tocalculate%vectorvalue(mu,2,it)
+! $NTR        enddo
+! $NTR    enddo
+! $NTR    ToCalculate%vectorValue       = ToCalculate%vectorValue*dv
+! $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 
     return
   end subroutine Calculate_magnetic

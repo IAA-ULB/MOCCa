@@ -236,43 +236,43 @@ $TR real(KIND=dp) :: trash
 
 $TR trash = R%D_I_I(1,1) ! To stop compiler complaints when time-reversal is conserved
 
-$NTR    si = 0
-$NTR    do B=1,8
-$NTR      N = HFBlocks(B) ; if(N .eq. 0) cycle
-$NTR      do wave = 1, N
-$NTR        do i = 1, cranklen
-$NTR          c  = crankdirections(i)
-$NTR          if(pairingtype.ne.2) then
-$NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * HF_J (c,si+wave)
-$NTR            J2_sp      (c) = J2_sp      (c) + rho_can(si+wave) * HF_J2(c,si+wave)
-$NTR          else
-$NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * CAN_J (c,si+wave)
-$NTR            J2_sp      (c) = J2_sp(c)       + rho_can(si+wave) * CAN_J2(c,si+wave)
-$NTR          endif
-$NTR        enddo
-$NTR      enddo
-$NTR      si = si + N
-$NTR    enddo
-$NTR
-$NTR    !-------------------------------------------------------------------------
-$NTR    ! And now we integrate the current density and spin density.
-$NTR    do it=1,2
-$NTR      ! Spin part
-$NTR      TotalAngMom_dens(3) = TotalAngMom_dens(3) + &
-$NTR      &                     0.5 *                sum(R%D_I_S(:,3,it))
-$NTR      TotalAngMom_cut(3) = TotalAngMom_cut(3) + &
-$NTR      &                     0.5 * sum( Cutoff(:,it)* R%D_I_S(:,3,it))
-$NTR
-$NTR      do i=1, nx*ny*nz
-$NTR        TotalAngMom_dens(3) = TotalAngMom_dens(3) &
-$NTR        & - meshgrid(i,2) * R%C_I_N(i,1,it) + meshgrid(i,1) * R%C_I_N(i,2,it)
-$NTR
-$NTR        TotalAngMom_cut(3)  = TotalAngMom_cut(3) + cutoff(i,it) * &
-$NTR        & (- meshgrid(i,2) * R%C_I_N(i,1,it) + meshgrid(i,1) * R%C_I_N(i,2,it))
-$NTR      enddo
-$NTR    enddo
-$NTR    TotalAngMom_dens = TotalAngMom_dens * dv
-$NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
+! $NTR    si = 0
+! $NTR    do B=1,8
+! $NTR      N = HFBlocks(B) ; if(N .eq. 0) cycle
+! $NTR      do wave = 1, N
+! $NTR        do i = 1, cranklen
+! $NTR          c  = crankdirections(i)
+! $NTR          if(pairingtype.ne.2) then
+! $NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * HF_J (c,si+wave)
+! $NTR            J2_sp      (c) = J2_sp      (c) + rho_can(si+wave) * HF_J2(c,si+wave)
+! $NTR          else
+! $NTR            TotalAngMom(c) = TotalAngMom(c) + rho_can(si+wave) * CAN_J (c,si+wave)
+! $NTR            J2_sp      (c) = J2_sp(c)       + rho_can(si+wave) * CAN_J2(c,si+wave)
+! $NTR          endif
+! $NTR        enddo
+! $NTR      enddo
+! $NTR      si = si + N
+! $NTR    enddo
+! $NTR
+! $NTR    !-------------------------------------------------------------------------
+! $NTR    ! And now we integrate the current density and spin density.
+! $NTR    do it=1,2
+! $NTR      ! Spin part
+! $NTR      TotalAngMom_dens(3) = TotalAngMom_dens(3) + &
+! $NTR      &                     0.5 *                sum(R%D_I_S(:,3,it))
+! $NTR      TotalAngMom_cut(3) = TotalAngMom_cut(3) + &
+! $NTR      &                     0.5 * sum( Cutoff(:,it)* R%D_I_S(:,3,it))
+! $NTR
+! $NTR      do i=1, nx*ny*nz
+! $NTR        TotalAngMom_dens(3) = TotalAngMom_dens(3) &
+! $NTR        & - meshgrid(i,2) * R%C_I_N(i,1,it) + meshgrid(i,1) * R%C_I_N(i,2,it)
+! $NTR
+! $NTR        TotalAngMom_cut(3)  = TotalAngMom_cut(3) + cutoff(i,it) * &
+! $NTR        & (- meshgrid(i,2) * R%C_I_N(i,1,it) + meshgrid(i,1) * R%C_I_N(i,2,it))
+! $NTR      enddo
+! $NTR    enddo
+! $NTR    TotalAngMom_dens = TotalAngMom_dens * dv
+! $NTR    TotalAngMom_cut  = TotalAngMom_cut  * dv
 
 $NTR    !-----------------------------------------------------------------------
 $NTR    ! The contribution of the cranking constraint to the total Routhian
