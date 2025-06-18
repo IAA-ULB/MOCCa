@@ -755,10 +755,10 @@ program run_FAM
 
       print *, "FAM iteration : ", iteration
 
-      call build_perturbed_densities(X, Y, dRa, dRs)
+      call build_perturbed_densities(X, Y, dRs, dRa)
 
       ! build the perturbed hamiltonian using explicit linearisation of the field
-      call build_dH_explicit(Density, dRa, dRs)
+      call build_dH_explicit(Density, dRs, dRa)
 
       call calculate_XY()
       
