@@ -157,6 +157,14 @@ module fam
       ! Rescale, Qlm comes in units barn^(l/2)
       SolidHarmHF = SolidHarmHF * (100**(l/2.0)) 
 
+
+      ! TODO: investigate sign change in the third row (column) wrt almost identical (row)
+      ! SolidHarmHF(3,:) = -1.0 * SolidHarmHF(3,:)
+      ! SolidHarmHF(:,3) = -1.0 * SolidHarmHF(:,3)
+
+      ! print *, 'Q20'
+      ! call print_spme_real(SolidHarmHF)
+
       ! note: 
       !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
       !   alpha converting the units of the perturbation to MeV, and eventually 
@@ -265,10 +273,76 @@ module fam
   print *, '||dH20|| = ', sqrt(sum( abs(dH(:,:,1))**2) )
 
 
-  print *, '||X|| = ', sqrt(sum( abs(X(:,:))**2) )
-  print *, '||Y|| = ', sqrt(sum( abs(Y(:,:))**2) )
+  ! print *, '||X|| = ', sqrt(sum( abs(X(:,:))**2) )
+  ! print *, '||Y|| = ', sqrt(sum( abs(Y(:,:))**2) )
 
   end subroutine calculate_XY
+
+  subroutine print_all_fam_spmat()
+
+    print *, 'X'
+    call print_spme_complex(X)
+
+    print *, 'Y'
+    call print_spme_complex(Y)
+
+    print *, 'drho'
+    call print_spme_complex(X)
+
+    print *, 'dH20'
+    call print_spme_real(dH(:,:,1))
+
+    print *, 'dH02'
+    call print_spme_real(dH(:,:,2))
+    
+    print *, 'F20'
+    call print_spme_real(F(:,:,1))
+
+    print *, 'F02'
+    call print_spme_real(F(:,:,2))
+
+  end subroutine
+
+
+  subroutine print_spme_real(A)
+    implicit none
+    real(kind=dp), intent(in) :: A(:,:)
+    integer :: si, B, N, i
+
+    si = 0
+    do B=1,8
+      N = HFBLocks(B)
+
+      print *, 'BLOCK', B
+      do i=si+1,si+N
+        print '(99f10.5)',  A(i, si+1:si+N)
+      enddo
+      print *
+      si = si + N
+    enddo
+    print *
+    
+  end subroutine print_spme_real
+
+  subroutine print_spme_complex(A)
+    implicit none
+    complex(kind=dp), intent(in) :: A(:,:)
+    integer :: si, B, N, i
+
+    si = 0
+    do B=1,8
+      N = HFBLocks(B)
+
+      print *, 'BLOCK', B
+      do i=si+1,si+N
+        print "(*('('sf8.5','sf8.5')':x))",  A(i, si+1:si+N)
+      enddo
+      print *
+      si = si + N
+    enddo
+    print *
+    
+  end subroutine print_spme_complex
 
   subroutine store_XY_hist()
     !---------------------------------------------------------------------------
@@ -647,28 +721,15 @@ program run_FAM
   !       our mean-field state in any meaningful way. In the future, we might want
   !       to resolve the whole "pairing subproblem" again here and check that the
   !       structure does not vary too much.
+
+
   !---------------------------------------------------------------------------------
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
 
-  ! call construct_canonical_basis(rho_pairing,kappa_pairing,rho_can,kappa_can)
-  ! -> not required since those are build when reading the .wf file in 
-  !    in readTantalus in IO.f90
 
-  ! Compute all local one-body densities on the mesh
-  Density     = densit(rho_can, kappa_pairing)
-  ! call ConstructChargeDensity(Density) ! PD: necessary? WR: No; done at the end of subroutine densit
-  ! ... and the associated potentials
-  Potentials  = calcPotentials(Density)
-
-  ! Adopt the relevant quantities to the centre-of-mass of the nucleus ! PD: necessary? ! WR: No
-  ! call adapt_com(Density)
-
-  ! Recalculate because the COM might have changed.
-  !call CalculateMoments(Density)  ! superfluous
-
-  ! Solve FAM for a range of omega frequencies
-
+  !---------------------------------------------------------------------------------
+  ! solving FAM for a range of omega frequencies
 
   omega_num = int((omega_max - omega_min) / omega_step) + 1
 
@@ -679,6 +740,7 @@ program run_FAM
 
   do omega_index=1, omega_num
 
+    !-------------------------------------------------------------------------------
     ! initialise FAM matrices end set perturbing external field
     call inifam(omega_curr, Potentials)
 
@@ -705,6 +767,8 @@ program run_FAM
       ! call mix_XY_linear(lin_mix_coeff)
 
       call store_XY_hist()
+
+      ! call print_all_fam_spmat()
 
       print *, " S(", omega_curr, ") = ",  calc_strength()
 
