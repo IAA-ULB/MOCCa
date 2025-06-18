@@ -250,8 +250,8 @@ module fam
     print *, "update X and Y"
 
 
-    X = -F(:,:,1) - dH(:,:,1)
-    Y = -F(:,:,2) - dH(:,:,2)
+    X = - (F(:,:,1) + dH(:,:,1))
+    Y = - (F(:,:,2) + dH(:,:,2))
 
     ! normalise with energy denominator
     do h = 1, nwt
@@ -567,7 +567,7 @@ module fam
   end function calc_strength
 
 
-  function test_convergence() result (conv)
+  subroutine test_convergence(conv, div)
     !---------------------------------------------------------------------------
     ! Judge the convergence of the FAM iterations based on difference of X and Y
     ! with respect to previous iteration
@@ -580,20 +580,32 @@ module fam
     ! The Frobenius norm ||A|| is evaluated as sqrt(sum[abs(A(:,:))**2]) where
     ! the abs takes care of obtaining the modulus of the complex values.
     !---------------------------------------------------------------------------
-    logical :: conv
+    logical, intent(out) :: conv, div
     integer :: idx_prev
-    real(KIND=dp) :: DX_norm, DY_norm
+    real(KIND=dp) :: DX_norm, DY_norm, X_norm, Y_norm
 
     conv = .false.
+    div = .false.
+
+    X_norm = sqrt(sum( abs(X_hist(hist_current_idx,:,:))**2))
+    Y_norm = sqrt(sum( abs(Y_hist(hist_current_idx,:,:))**2))
+
+
+    print * , "||X|| = ", X_norm
+    print * , "||Y|| = ", Y_norm
+
+    if( (X_norm .ge. 1.0d2) .or. (Y_norm .ge. 1.0d2)) then
+      div = .true.
+    endif
 
     ! previous index in hist obtained by rolling back twice and adding one
     idx_prev = modulo(hist_current_idx - 2, hist_max) + 1
 
     DX_norm = sqrt( sum( abs(X_hist(hist_current_idx,:,:) - X_hist(idx_prev,:,:))**2) )
-    DX_norm = DX_norm / sqrt(sum( abs(X_hist(hist_current_idx,:,:))**2) )
+    ! DX_norm = DX_norm / X_norm
 
     DY_norm = sqrt( sum( abs(Y_hist(hist_current_idx,:,:) - Y_hist(idx_prev,:,:))**2) )
-    DY_norm = DY_norm / sqrt(sum( abs(Y_hist(hist_current_idx,:,:))**2) )
+    ! DY_norm = DY_norm / Y_norm
 
     print * , "convergence: ||DX|| = ", DX_norm, "   ||DY|| = ", DY_norm
 
@@ -601,7 +613,7 @@ module fam
       conv = .true.
     endif
 
-  end function
+  end subroutine test_convergence
 
 end module fam
 
@@ -614,9 +626,9 @@ program run_FAM
 
   implicit none
   integer :: iteration
-  logical :: is_converged
-  real(kind=dp)  :: lin_mix_coeff=0.4
-  real(kind=dp) :: omega_curr, omega_min=20, omega_max=20, omega_step=0.1
+  logical :: is_converged, is_divergent
+  real(kind=dp)  :: lin_mix_coeff=1.0d-2
+  real(kind=dp) :: omega_curr, omega_min=25, omega_max=25, omega_step=-0.5
   integer :: omega_num, omega_index
   real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
   character(len=100) :: famfilename
@@ -749,22 +761,25 @@ program run_FAM
 
     maxfamiter = 100
     is_converged = .false.
+    is_divergent = .false.
 
     ! Start of the iterations 
     do iteration=1, maxfamiter
 
       print *, "FAM iteration : ", iteration
 
+      ! build the perturbed densities on the mesh dRs, dRa from X and Y
       call build_perturbed_densities(X, Y, dRs, dRa)
 
       ! build the perturbed hamiltonian using explicit linearisation of the field
       call build_dH_explicit(Density, dRs, dRa)
 
+      ! calculate X and Y from the perturbed sp Hamil dH
       call calculate_XY()
       
-      ! Simple linear mixing for now. 
-      ! To be replaced with something more fancy in the future
+      ! Apply simple linear mixing of X and Y. 
       ! call mix_XY_linear(lin_mix_coeff)
+      ! To be replaced with something more fancy in the future
 
       call store_XY_hist()
 
@@ -772,19 +787,25 @@ program run_FAM
 
       print *, " S(", omega_curr, ") = ",  calc_strength()
 
-
       ! Exit the loop if convergence is achieved.
       if (iteration > 1) then ! at least two iterations to be able to compare
-       is_converged = test_convergence()
+       call test_convergence(is_converged, is_divergent)
         if(is_converged) then
           print *, "Hooray! FAM is converged! "
+          omega_arr(omega_index) = omega_curr
+          S_arr(omega_index) = calc_strength()
+          exit
+        endif
+        if(is_divergent) then
+          print *, "FAM diverges, exiting"
+          omega_arr(omega_index) = omega_curr
+          S_arr(omega_index) = 0.0
           exit
         endif
       endif
     enddo
 
-    omega_arr(omega_index) = omega_curr
-    S_arr(omega_index) = calc_strength()
+    
 
     print *, " S(", omega_arr(omega_index), ") = ", S_arr(omega_index)
 
