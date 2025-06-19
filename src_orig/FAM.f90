@@ -615,6 +615,113 @@ module fam
 
   end subroutine test_convergence
 
+
+  function Rsq_spme() result (Rsq)
+
+    real(kind=dp) , allocatable:: Rsq(:,:)
+    real(kind=dp) , allocatable:: Rsq_mesh(:)
+    integer :: i, j, k, Bi, Bj, Ni, Nj, si, sj
+    
+    allocate(Rsq_mesh(nx*ny*nz))
+
+    Rsq_mesh(:) = meshgrid(:,1)**2 + meshgrid(:,2)**2 + meshgrid(:,3)**2
+
+    ! do k=1,mz
+    !   do j=1,my
+    !     do i=1,mx
+    !       Rsq_mesh(i,j,k) = MeshX(i)**2 +  MeshY(j)**2 + MeshZ(k)**2
+    !     enddo
+    !   enddo
+    ! enddo
+
+    allocate(Rsq(nwt, nwt))
+
+    !--------------------------------------------------------------------------- 
+    ! Loop over the neutron single-particle states
+    !---------------------------------------------------------------------------
+    si = 0
+    do Bi = 1, 4
+      Ni =  HFBlocks(Bi) ; if(Ni.eq.0) cycle
+      do Bj = 1, 4
+        Nj = HFBlocks(Bj) ; if(Nj.eq.0) cycle
+
+        if(bj.eq.1) then
+          sj = 0
+        else
+          sj = sum(HFblocks(1:Bj-1))
+        endif
+
+        ! Parity selection rule: only single-particle states of identical parity 
+        !   (and signature) contribute    
+! $PCONSERVED        if(Bi .ne. Bj)        cycle
+        ! (THIS is only needed if parity conserved of course)
+! $PBROKEN if( Bi .ne. Bj ) cycle
+
+        if(Bi .ne. Bj)  cycle 
+
+        do i=1,NI    
+         do j=1,NJ
+          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Rsq
+          Rsq(si+i,sj+j) = 0
+          do k=1,4
+            Rsq(si+i,sj+j) = Rsq(si+i,sj+j) & 
+            &                    + sum(HFpsi(:,k,si+i)*HFpsi(:,k,sj+j)*Rsq_mesh(:))
+          enddo
+          ! All these matrix elements are real if 
+          ! (i)  we consider only real multipole moments
+          ! (ii) time simplex is conserved
+          ! 
+          ! which means the matrix we store them in is symmetric
+          Rsq(si+i,sj+j) = Rsq(si+i,sj+j) * dv 
+          Rsq(sj+j,si+i) = Rsq(si+i,sj+j)
+         enddo
+        enddo
+      enddo
+      si = si + NI
+    enddo
+
+    !--------------------------------------------------------------------------- 
+    ! Loop over the proton single-particle states
+    !---------------------------------------------------------------------------
+    si = nwn
+    do Bi = 5, 8
+      Ni =  HFBlocks(Bi) ; if(Ni.eq.0) cycle
+      do Bj = 5, 8
+        Nj = HFBlocks(Bj) ; if(Nj.eq.0) cycle
+        sj = sum(HFblocks(1:Bj-1))
+
+        ! Parity selection rule: only single-particle states of identical parity 
+        !   (and signature) contribute    
+! $PCONSERVED        if(Bi .ne. Bj)        cycle
+        ! (THIS is only needed if parity conserved of course)
+! $PBROKEN if( Bi .ne. Bj ) cycle
+
+        if(Bi .ne. Bj)  cycle 
+
+        do i=1,NI    
+         do j=1,NJ
+          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Qlm(r)
+          Rsq(si+i,sj+j) = 0
+          do k=1,4
+            Rsq(si+i,sj+j) = Rsq(si+i,sj+j) & 
+            &                    + sum(HFpsi(:,k,si+i)*HFpsi(:,k,sj+j)**Rsq_mesh(:))
+          enddo
+          ! All these matrix elements are real if 
+          ! (i)  we consider only real multipole moments
+          ! (ii) time simplex is conserved
+          ! 
+          ! which means the matrix we store them in is symmetric
+          Rsq(si+i,sj+j) = Rsq(si+i,sj+j) * dv 
+          Rsq(sj+j,si+i) = Rsq(si+i,sj+j)
+         enddo
+        enddo
+      enddo
+      si = si + NI
+    enddo
+
+  end function Rsq_spme 
+
+
 end module fam
 
 program run_FAM
