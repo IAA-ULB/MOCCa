@@ -1,6 +1,6 @@
 #! /bin/bash
 # Use as 
-# > . ./pasta-test/build-vaughan.sh
+# > . ./vaughan/build-pasta.sh
 #   - uses the same command line arguments as ml-vaughan.sh
 #   - must be run in directory tantalus_full.
 
@@ -13,7 +13,7 @@ if [[ "$pwd" != "tantalus_full" ]]; then
 fi
 
 # Load modules needed for building and running tantalus
-. ./pasta-test/ml-vaughan.sh $@
+. ./vaughan/ml.sh $@
 
 # modules needed by Hephaestos
 ml Python
