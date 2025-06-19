@@ -5,6 +5,9 @@ mod/*
 *exe
 *i
 *.out
+den_*
+pot_*
+tant_*
 
 # Do not track the make.inc currently in use
 make.inc
