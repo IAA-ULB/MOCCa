@@ -18,8 +18,8 @@ help()
 }
 
 # Process cli arguments
-OPTIONS=$(getopt -o "hvt": \
-                --long "help,verbose,toolchain:" \
+OPTIONS=$(getopt -o "hvtp": \
+                --long "help,verbose,toolchain,python:" \
                  -n '$0' -- "$@")
 
 if [ $? != 0 ] ; then echo "Failed to parse options." >&2 ; exit 1 ; fi
@@ -29,11 +29,13 @@ eval set -- "$OPTIONS" # Note the quotes around '$OPTIONS': they are essential!
 HELP=false
 VERBOSE=false
 TOOLCHAIN=intel
+PYTHON=false
 while true; do
   case "$1" in
     -h | --help      ) HELP=true; shift ;;
     -v | --verbose   ) VERBOSE=true; shift ;;
     -t | --toolchain ) TOOLCHAIN="$2"; shift 2 ;;
+    -p | --python    ) PYTHON=true; shift;;
     * ) break ;;
   esac
 done
@@ -53,6 +55,10 @@ case "$TOOLCHAIN" in
             ml HDF5;;
     *    )  >&2 echo "Toolchain unknown: ${TOOLCHAIN}."
 esac
+
+if [ "$PYTHON" = true ]; then 
+    ml SciPy-bundle
+fi
 
 if [ "$VERBOSE" = true ]; then 
     ml
