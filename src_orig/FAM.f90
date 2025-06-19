@@ -150,20 +150,31 @@ module fam
       m = 0
       ImPart = .false. ! real (.false.) , imaginary (.true.) 
       ! note: odd m and Im parts are not implemeted yet
+
+
+      if(l==0) then
+        SolidHarmHF = Rsq_spme()
+
+        print *, 'Rsq'
+        call print_spme_real(SolidHarmHF)
+        stop
+
+      else
+        ! Calling a function in fission_MOI.f90
+        SolidHarmHF = Qlm_spme(l, m, ImPart)
+
+        ! Rescale, Qlm comes in units barn^(l/2)
+        SolidHarmHF = SolidHarmHF * (100**(l/2.0)) 
+
+        ! TODO: investigate sign change in the third row (column) wrt almost identical (row)
+        ! SolidHarmHF(3,:) = -1.0 * SolidHarmHF(3,:)
+        ! SolidHarmHF(:,3) = -1.0 * SolidHarmHF(:,3)
+  
+        ! print *, 'Q20'
+        ! call print_spme_real(SolidHarmHF)
+
+      endif
      
-      ! Calling a function in fission_MOI.f90
-      SolidHarmHF = Qlm_spme(l, m, ImPart)
-
-      ! Rescale, Qlm comes in units barn^(l/2)
-      SolidHarmHF = SolidHarmHF * (100**(l/2.0)) 
-
-
-      ! TODO: investigate sign change in the third row (column) wrt almost identical (row)
-      ! SolidHarmHF(3,:) = -1.0 * SolidHarmHF(3,:)
-      ! SolidHarmHF(:,3) = -1.0 * SolidHarmHF(:,3)
-
-      ! print *, 'Q20'
-      ! call print_spme_real(SolidHarmHF)
 
       ! note: 
       !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
@@ -618,23 +629,13 @@ module fam
 
   function Rsq_spme() result (Rsq)
 
-    real(kind=dp) , allocatable:: Rsq(:,:)
-    real(kind=dp) , allocatable:: Rsq_mesh(:)
+    real(kind=dp) , allocatable :: Rsq(:,:)
     integer :: i, j, k, Bi, Bj, Ni, Nj, si, sj
     
-    allocate(Rsq_mesh(nx*ny*nz))
-
-    Rsq_mesh(:) = meshgrid(:,1)**2 + meshgrid(:,2)**2 + meshgrid(:,3)**2
-
-    ! do k=1,mz
-    !   do j=1,my
-    !     do i=1,mx
-    !       Rsq_mesh(i,j,k) = MeshX(i)**2 +  MeshY(j)**2 + MeshZ(k)**2
-    !     enddo
-    !   enddo
-    ! enddo
-
     allocate(Rsq(nwt, nwt))
+
+    ! Initialize to zero
+    Rsq = 0.0d0
 
     !--------------------------------------------------------------------------- 
     ! Loop over the neutron single-particle states
@@ -660,19 +661,14 @@ module fam
         if(Bi .ne. Bj)  cycle 
 
         do i=1,NI    
-         do j=1,NJ
-          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Rsq
-          Rsq(si+i,sj+j) = 0
-          do k=1,4
-            Rsq(si+i,sj+j) = Rsq(si+i,sj+j) & 
-            &                    + sum(HFpsi(:,k,si+i)*HFpsi(:,k,sj+j)*Rsq_mesh(:))
-          enddo
+         do j=1,NJ ! PD: cant one restrict it to i, NJ
+          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Rsq(r)
+          Rsq(si+i,sj+j) = sum(sum(HFpsi(:,:,si+i)*HFpsi(:,:,sj+j),2) * sum(meshgrid**2,2)) * dv
           ! All these matrix elements are real if 
           ! (i)  we consider only real multipole moments
           ! (ii) time simplex is conserved
           ! 
           ! which means the matrix we store them in is symmetric
-          Rsq(si+i,sj+j) = Rsq(si+i,sj+j) * dv 
           Rsq(sj+j,si+i) = Rsq(si+i,sj+j)
          enddo
         enddo
@@ -699,19 +695,14 @@ module fam
         if(Bi .ne. Bj)  cycle 
 
         do i=1,NI    
-         do j=1,NJ
-          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Qlm(r)
-          Rsq(si+i,sj+j) = 0
-          do k=1,4
-            Rsq(si+i,sj+j) = Rsq(si+i,sj+j) & 
-            &                    + sum(HFpsi(:,k,si+i)*HFpsi(:,k,sj+j)**Rsq_mesh(:))
-          enddo
+         do j=1,NJ ! PD: cant one restrict it to i, NJ
+          ! me = Int d^3r Sum_sigma psi^*_i(r,sigma) psi_j(r,sigma) Rsq(r)
+          Rsq(si+i,sj+j) = sum(sum(HFpsi(:,:,si+i)*HFpsi(:,:,sj+j),2) * sum(meshgrid**2,2)) * dv
           ! All these matrix elements are real if 
           ! (i)  we consider only real multipole moments
           ! (ii) time simplex is conserved
           ! 
           ! which means the matrix we store them in is symmetric
-          Rsq(si+i,sj+j) = Rsq(si+i,sj+j) * dv 
           Rsq(sj+j,si+i) = Rsq(si+i,sj+j)
          enddo
         enddo
