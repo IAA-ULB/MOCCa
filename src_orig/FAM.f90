@@ -27,7 +27,7 @@ module fam
   !-----------------------------------------------------------------------------
   ! Define some FAM parameters
   real(KIND=dp) :: omega_fam       ! frequency of the perturbing field 
-  real(KIND=dp) :: smear = 0.5_dp  ! complex smearing parameter, default 0.5 MeV
+  real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 0.5 MeV
   !    Note that the obtained strength is convoluted with a Lorentzian with FWHM 
   !    equal to double this complex shift
   real(KIND=dp) :: eta = 1.0e-3_dp ! small parameter entering derivatives, 
@@ -424,7 +424,7 @@ module fam
     real(KIND=dp), allocatable :: HPert(:,:)
     integer :: i, h, p
     real(KIND=dp) :: occ_h, occ_p
-    real(KIND=dp) :: alpha = 1.0d-3 ! linear mixing coeff 
+    real(KIND=dp) :: alpha = 1.0d-2 ! linear mixing coeff
 
     print *, "build perturbed hamiltonian using explicit linearisation"
 
@@ -628,7 +628,7 @@ program run_FAM
   integer :: iteration
   logical :: is_converged, is_divergent
   real(kind=dp)  :: lin_mix_coeff=1.0d-2
-  real(kind=dp) :: omega_curr, omega_min=25, omega_max=25, omega_step=-0.5
+  real(kind=dp) :: omega_curr, omega_min=20, omega_max=40, omega_step=+1.0
   integer :: omega_num, omega_index
   real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
   character(len=100) :: famfilename
@@ -759,7 +759,7 @@ program run_FAM
     ! Run all kinds of unit tests; should be made optional as this includes a stop statement
     ! call run_FAM_tests(X,Y)
 
-    maxfamiter = 100
+    maxfamiter = 10000
     is_converged = .false.
     is_divergent = .false.
 
@@ -817,6 +817,8 @@ program run_FAM
 
   write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
 
+  print *, omega_arr
+  print *, S_arr
   call write_fam_strength(omega_arr, S_arr, l, m, famfilename)
 
   print *, "Reached the end successfully" 

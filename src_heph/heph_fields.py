@@ -799,7 +799,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
                   dic['ISOALT']= Isospinindices(fieldterm[5][i])
                   if(fieldterm[+6] != '1' and i == 0):
                     dic['DD']      = fieldterm[+6]
-                    dic['DD_pert'] = fieldterm[+6]  + '-1'
+                    dic['DD_pert'] = fieldterm[+6]  #+ '-1'
                     # Expression with a call to 'pow'
                     if(i != j):
                       dic['EXPR_PERT'] = dic['EXPR_PERT'] + ts.field_calc_DD.substitute(dic)
@@ -1599,7 +1599,7 @@ def GenerateAction(field, symmetrize, so):
             SIGN           = np.sign(leftind[k,0])
             if((symmetrize == -1) and ('C' in left or 'C' in right)):
                 SIGN = - SIGN
-  
+
             if(SIGN > 0) :
                 dic['SIGN']= '+'
             else :

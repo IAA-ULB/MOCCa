@@ -383,27 +383,27 @@ $NTR    8 format (3x,a1,1x,'|',3x,'|',4f17.10)
 
     !---------------------------------------------------------------------------
     ! Information on the spin density
-$TR trash = R%D_I_I(1,1)
-
-$NTR    print *
-$NTR    print 6
-$NTR    print 7
-$NTR    print 5
-$NTR    do i=1,3
-$NTR      found = .false.
-$NTR      do j=1,cranklen
-$NTR        if(i .eq. crankdirections(j)) found = .true.
-$NTR      enddo
-$NTR      if(found) then
-$NTR        ! There is a possibility for total spin in this Cartesian direction.
-$NTR        print 8     , dir(i), 0.5*sum(R%D_I_S(:,i,1))*dv, &
-$NTR        &                     0.5*sum(R%D_I_S(:,i,2))*dv
-$NTR      else
-$NTR        ! Spin is restricted in this particular direction
-$NTR        print 8     , dir(i), 0.0d0,0.0d0
-$NTR      endif
-$NTR    enddo
-$NTR    print 5
+! $TR trash = R%D_I_I(1,1)
+!
+! $NTR    print *
+! $NTR    print 6
+! $NTR    print 7
+! $NTR    print 5
+! $NTR    do i=1,3
+! $NTR      found = .false.
+! $NTR      do j=1,cranklen
+! $NTR        if(i .eq. crankdirections(j)) found = .true.
+! $NTR      enddo
+! $NTR      if(found) then
+! $NTR        ! There is a possibility for total spin in this Cartesian direction.
+! $NTR        print 8     , dir(i), 0.5*sum(R%D_I_S(:,i,1))*dv, &
+! $NTR        &                     0.5*sum(R%D_I_S(:,i,2))*dv
+! $NTR      else
+! $NTR        ! Spin is restricted in this particular direction
+! $NTR        print 8     , dir(i), 0.0d0,0.0d0
+! $NTR      endif
+! $NTR    enddo
+! $NTR    print 5
   end subroutine PrintCranking
 
   function crank_spin_potential() result(spot)
