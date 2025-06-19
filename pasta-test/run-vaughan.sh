@@ -3,7 +3,7 @@
 #SBATCH --time=4:00:00      
 #SBATCH --mem=0        
 #SBATCH --account=ap_calcua_epicure
-#SBATCH --nodes=16 --ntasks-per-node=64 --cpus-per-task=1 
+#SBATCH --nodes=4 --tasks-per-node=64 --cpus-per-task=1 
 
 # pass command line arguments to ml-vaughan
 . ./ml-vaughan.sh $@

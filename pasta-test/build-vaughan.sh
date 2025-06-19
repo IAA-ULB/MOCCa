@@ -28,8 +28,9 @@ mkdir -p mod
 mkdir -p obj
 
 case "$TOOLCHAIN" in
-    intel)  include="intel-parallel--vaughan";;
-    gnu  )  include="gnu-parallel--vaughan";;
+    intel)  include="intel-parallel-hdf5--vaughan";;
+    # hdf5 must be added first!
+    # gnu  )  include="gnu-parallel--vaughan";;
     *    )  >&2 echo "Toolchain unknown: ${TOOLCHAIN}."; return 1;;
 esac
 

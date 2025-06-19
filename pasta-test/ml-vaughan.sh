@@ -46,9 +46,11 @@ module --force purge
 case "$TOOLCHAIN" in
     intel)  ml calcua/2024a;
             ml intel;
-            ml iimkl;;
+            ml iimkl;
+            ml HDF5;;
     gnu  )  ml calcua/2023a; 
-            ml ScaLAPACK;;
+            ml ScaLAPACK;
+            ml HDF5;;
     *    )  >&2 echo "Toolchain unknown: ${TOOLCHAIN}."
 esac
 

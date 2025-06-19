@@ -13,7 +13,7 @@ Type='BCS'
 /
 &evolution
 freezeiter=20
-maxiter=400
+maxiter=10
 printiter=100
 D2H_freeze=1000
 /

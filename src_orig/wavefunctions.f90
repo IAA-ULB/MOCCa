@@ -1681,7 +1681,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
 
     integer           :: xs, ys
     integer, external :: NUMROC
-
+    WRITE(*,*) 'transfer_1D_to_2D: A_1D', SIZE(A_1D)
     call start_timer(T_transfer_psi_1to2)
 
     if(.not.allocated(A_2D) ) then
