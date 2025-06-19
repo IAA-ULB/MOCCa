@@ -4,6 +4,7 @@ obj/*
 mod/*
 *exe
 *i
+*.out
 
 # Do not track the make.inc currently in use
 make.inc
@@ -40,3 +41,6 @@ manual/tex_source_heph/*.out
 
 auxiliary/decomposition/mod/
 auxiliary/decomposition/obj/
+pasta-test/pot_sph_sc_BSkG4_BCS_nb=0.07_Z=40_A=1282_a=26.4_scal8n_ext_nx=3_ny=3_nz=3
+pasta-test/tant_sph_sc_BSkG4_BCS_nb=0.07_Z=40_A=1282_a=26.4_scal8n_ext_nx=3_ny=3_nz=3.hdf5
+pasta-test/den_sph_sc_BSkG4_BCS_nb=0.07_Z=40_A=1282_a=26.4_scal8n_ext_nx=3_ny=3_nz=3
