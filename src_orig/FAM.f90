@@ -435,7 +435,7 @@ module fam
     real(KIND=dp), allocatable :: HPert(:,:)
     integer :: i, h, p
     real(KIND=dp) :: occ_h, occ_p
-    real(KIND=dp) :: alpha = 1.0d-2 ! linear mixing coeff
+    real(KIND=dp) :: alpha = 1.0d0 ! linear mixing coeff, disable : mixing of XY
 
     print *, "build perturbed hamiltonian using explicit linearisation"
 
@@ -856,6 +856,16 @@ program run_FAM
     !-------------------------------------------------------------------------------
     ! initialise FAM matrices end set perturbing external field
     call inifam(omega_curr, Potentials)
+
+    if( calc_strength() .ge. 0.1) then
+      lin_mix_coeff=1.0d-3
+    else
+      if( calc_strength() .ge. 0.001) then
+        lin_mix_coeff=1.0d-2
+      else
+        lin_mix_coeff=1.0d-1
+      endif
+    endif
 
     ! Run all kinds of unit tests; should be made optional as this includes a stop statement
     ! call run_FAM_tests(X,Y)
