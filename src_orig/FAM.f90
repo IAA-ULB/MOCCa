@@ -729,6 +729,7 @@ program run_FAM
   real(kind=dp) :: omega_curr, omega_min=20, omega_max=40, omega_step=+1.0
   integer :: omega_num, omega_index
   real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
+  integer, allocatable :: iter_arr(:)
   character(len=100) :: famfilename
   integer :: i, B, si,N
 
@@ -845,6 +846,8 @@ program run_FAM
 
   allocate(omega_arr(omega_num))
   allocate(S_arr(omega_num))
+  allocate(iter_arr(omega_num))
+  iter_arr = 0
 
   omega_curr = omega_min
 
@@ -890,20 +893,28 @@ program run_FAM
        call test_convergence(is_converged, is_divergent)
         if(is_converged) then
           print *, "Hooray! FAM is converged! "
-          omega_arr(omega_index) = omega_curr
-          S_arr(omega_index) = calc_strength()
+          ! omega_arr(omega_index) = omega_curr
+          ! S_arr(omega_index) = calc_strength()
+          iter_arr(omega_index) = iteration
           exit
         endif
         if(is_divergent) then
           print *, "FAM diverges, exiting"
-          omega_arr(omega_index) = omega_curr
-          S_arr(omega_index) = 0.0
+          ! omega_arr(omega_index) = omega_curr
+          ! S_arr(omega_index) = calc_strength()
+          iter_arr(omega_index) = -iteration
           exit
         endif
       endif
+      if (iteration == maxfamiter) then
+        print *, "Reached maximal number of iterations, ", maxfamiter
+        iter_arr(omega_index) = -maxfamiter
+      endif
     enddo
 
-    
+    omega_arr(omega_index) = omega_curr
+    S_arr(omega_index) = calc_strength()
+
 
     print *, " S(", omega_arr(omega_index), ") = ", S_arr(omega_index)
 
@@ -917,7 +928,8 @@ program run_FAM
 
   print *, omega_arr
   print *, S_arr
-  call write_fam_strength(omega_arr, S_arr, l, m, famfilename)
+  print *, iter_arr
+  call write_fam_strength(omega_arr, S_arr, iter_arr, l, m, famfilename)
 
   print *, "Reached the end successfully" 
 

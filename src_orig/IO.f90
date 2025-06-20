@@ -3617,7 +3617,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
   
   end subroutine write_inertias
 
-  subroutine write_fam_strength(omega_arr, S_arr, l, m, fname)
+  subroutine write_fam_strength(omega_arr, S_arr, iter_arr, l, m, fname)
     !---------------------------------------------------------------------------
     ! Write the strength function S(omega, F) obtained from FAMtalus
     !---------------------------------------------------------------------------
@@ -3630,6 +3630,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     ! TODO: add information specific to FAM : external field l, m, etc. 
     !---------------------------------------------------------------------------
     real(kind=dp), intent(in)         :: omega_arr(:), S_arr(:)
+    integer, intent(in)               :: iter_arr(:)
     integer, intent(in)               :: l, m
     character(len=*), intent(in)      :: fname
     integer                           :: io, idx
@@ -3638,7 +3639,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
 
     1 format('# external field: l =', i2, ' m =', i2)
-    2 format('#', 4x, 'omega',10x,'S')
+    2 format('#', 4x, 'omega',10x,'S', 15x,'iter')
 
 
     open(1,file=fname, iostat=io)
@@ -3654,7 +3655,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
 
     do idx=1,size(omega_arr)
-      write(1, fmt='(1f8.3, 1es25.12E3)') omega_arr(idx), S_arr(idx)
+      write(1, fmt='(1f8.3, 1es25.12E3, 16i4)') omega_arr(idx), S_arr(idx), iter_arr(idx)
       
     enddo
 
