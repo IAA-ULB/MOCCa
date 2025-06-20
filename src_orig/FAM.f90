@@ -33,7 +33,7 @@ module fam
   real(KIND=dp) :: eta = 1.0e-3_dp ! small parameter entering derivatives, 
   !    Default currently set to 10-3. In the end, the strength should be 
   !    reasonably indepedent of the choice. 
-  integer       :: maxfamiter = 10 ! maximal number of FAM iterations 
+  integer       :: maxfamiter = 10000 ! maximal number of FAM iterations 
   !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
   complex(KIND=dp), allocatable :: X(:,:) ! forward amplitudes HF basis
@@ -110,31 +110,13 @@ module fam
 
     1 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
+    print *, "Initialise FAM matrices" 
+
     ! set omega frequency of perturbation
     omega_fam = omega
 
-
-    print *, "Initialise FAM matrices" 
-
-    if(.not.allocated(drho)) then 
-      allocate(drho(nwt,nwt))
-      allocate(dkappa(nwt,nwt))
-      ! allocate(dR(2*nwt,2*nwt))
-    endif
-
-    if(.not.allocated(X)) then
-      allocate(X(nwt,nwt)) 
-      allocate(Y(nwt,nwt))
-    endif
-
-    if(.not.allocated(X_hist)) then
-      allocate(X_hist(hist_max,nwt,nwt)) 
-      allocate(Y_hist(hist_max,nwt,nwt))
-    endif
-
-    X_hist=0
-    Y_hist=0
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! initialise the external field F
 
     if(.not.allocated(F)) then 
       allocate(F(nwt,nwt,2))
@@ -202,16 +184,14 @@ module fam
           F(p,h,2) = occ_p * occ_h * SolidHarmHF(h,p) ! hp block F02(p,h)
         enddo
       enddo
+      ! This can be improved by some element-wise products occ^T @ SolidHarmHF @ occ
+      
+      ! Note to future self: for QFAM this will be replaced by a transformation 
+      ! to the qp basis. 
 
       deallocate(SolidHarmHF)
 
     endif
-
-
-    ! This can be improved by some element-wise products occ^T @ SolidHarmHF @ occ
-
-    ! Note to future self: for QFAM this will be replaced by a transformation 
-    ! to the qp basis. 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! set up the unperturbed Hamiltonian from the unperturbed potentials
@@ -225,22 +205,48 @@ module fam
     ! initialise perturbed Hamiltonian as 0
     if(.not.allocated(dH)) then 
       allocate(dH(nwt,nwt,2))
-      dH(:,:,:) = 0
     endif
 
+    dH = 0
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! initialise X and Y amplitudes and their history
+    if(.not.allocated(X)) then
+      allocate(X(nwt,nwt)) 
+      allocate(Y(nwt,nwt))
+    endif
+
+    ! X and Y initialised from non-interacting response, i.e. setting dH = 0 
+    ! in the FAM master
+    call calculate_XY()
+
+    if(.not.allocated(X_hist)) then
+      allocate(X_hist(hist_max,nwt,nwt)) 
+      allocate(Y_hist(hist_max,nwt,nwt))
+    endif
+
+    X_hist = 0
+    Y_hist = 0
+
+    ! storing the initial x and Y in the history
+    call store_XY_hist()
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! initialise the perturbed densities
+    if(.not.allocated(drho)) then 
+      allocate(drho(nwt,nwt))
+      allocate(dkappa(nwt,nwt))
+      ! allocate(dR(2*nwt,2*nwt))
+    endif
+
+    call build_perturbed_densities(X, Y, dRs, dRa)
+    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise perturbed potentials as 0
     dFs = 0.0_dp * PotentialsUnpert
     dFa = 0.0_dp * PotentialsUnpert
 
     ! TO DO: replace by a better initialisation routine
-
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! initialise the RPA amplitudes 
-    call calculate_XY()
-
-    call store_XY_hist()
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! print unperturbed strenght
@@ -605,7 +611,7 @@ module fam
     print * , "||X|| = ", X_norm
     print * , "||Y|| = ", Y_norm
 
-    if( (X_norm .ge. 1.0d2) .or. (Y_norm .ge. 1.0d2)) then
+    if( (X_norm .ge. 1.0d3) .or. (Y_norm .ge. 1.0d3)) then
       div = .true.
     endif
 
@@ -851,6 +857,8 @@ program run_FAM
 
   omega_curr = omega_min
 
+  maxfamiter = 5000
+
   do omega_index=1, omega_num
 
     !-------------------------------------------------------------------------------
@@ -870,7 +878,6 @@ program run_FAM
     ! Run all kinds of unit tests; should be made optional as this includes a stop statement
     ! call run_FAM_tests(X,Y)
 
-    maxfamiter = 10000
     is_converged = .false.
     is_divergent = .false.
 
@@ -879,9 +886,6 @@ program run_FAM
 
       print *, "FAM iteration : ", iteration
 
-      ! build the perturbed densities on the mesh dRs, dRa from X and Y
-      call build_perturbed_densities(X, Y, dRs, dRa)
-
       ! build the perturbed hamiltonian using explicit linearisation of the field
       call build_dH_explicit(Density, dRs, dRa)
 
@@ -889,8 +893,11 @@ program run_FAM
       call calculate_XY()
       
       ! Apply simple linear mixing of X and Y. 
-      ! call mix_XY_linear(lin_mix_coeff)
+      call mix_XY_linear(lin_mix_coeff)
       ! To be replaced with something more fancy in the future
+
+      ! build the perturbed densities on the mesh dRs, dRa from X and Y
+      call build_perturbed_densities(X, Y, dRs, dRa)
 
       call store_XY_hist()
 
