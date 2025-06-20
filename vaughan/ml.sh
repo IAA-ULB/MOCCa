@@ -18,8 +18,8 @@ help()
 }
 
 # Process cli arguments
-OPTIONS=$(getopt -o "hvtp": \
-                --long "help,verbose,toolchain,python:" \
+OPTIONS=$(getopt -o "hvpt": \
+                --long "help,verbose,python,toolchain:" \
                  -n '$0' -- "$@")
 
 if [ $? != 0 ] ; then echo "Failed to parse options." >&2 ; exit 1 ; fi
@@ -34,8 +34,8 @@ while true; do
   case "$1" in
     -h | --help      ) HELP=true; shift ;;
     -v | --verbose   ) VERBOSE=true; shift ;;
-    -t | --toolchain ) TOOLCHAIN="$2"; shift 2 ;;
     -p | --python    ) PYTHON=true; shift;;
+    -t | --toolchain ) TOOLCHAIN="$2"; shift 2 ;;
     * ) break ;;
   esac
 done
