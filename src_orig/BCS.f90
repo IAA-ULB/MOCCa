@@ -165,6 +165,7 @@ contains
     if( all(abs(fermi - oldfermi).lt.FermiPrec)) then
       exit
     elseif(iter.eq.maxBCSiter) then
+      call calcBCSoccupations(Fermi)
       if(MPI_RANK.eq.0) print 1, iter, oldfermi, fermi, fermi-oldfermi, &
       &                          sum(BCSoccupations(1:nwn)) -neutrons,&
       &                          sum(BCSoccupations(nwn+1:))-protons
