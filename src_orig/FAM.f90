@@ -940,8 +940,11 @@ program run_FAM
 
   enddo
 
-
-  write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
+  if(maxfamiter.eq.0) then
+    write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, "_unper.fam"
+  else 
+    write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
+  endif
 
   print *, omega_arr
   print *, S_arr

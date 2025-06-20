@@ -3655,7 +3655,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
 
 
     do idx=1,size(omega_arr)
-      write(1, fmt='(1f8.3, 1es25.12E3, 16i4)') omega_arr(idx), S_arr(idx), iter_arr(idx)
+      write(1, fmt='(f8.3, es25.12E3, i10)') omega_arr(idx), S_arr(idx), iter_arr(idx)
       
     enddo
 
