@@ -730,7 +730,7 @@ function densit_offdiag_symmetric(rho, kappa) result(R)
 
     real(KIND=dp)             :: weight_sym
     integer                   :: wave_i       , wave_j
-    integer                   :: wave_global_i, wave_global_j
+    integer                   :: wave_global_i, wave_global_j, B, si, N
     integer                   :: it_i, it_j, it, der_index_i,der_index_j
 
     integer :: i
@@ -758,38 +758,36 @@ $ZEROING
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! PARTICLE-HOLE DENSITIES
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! TODO: make this double loop more intelligent wrt to symmetries
-    do wave_i=1,nwt_local                ! Loop over the local spwf index
-      wave_global_i = spwf_map(wave_i)     ! Global spwf index
+    ! TODO: ensure that this loop can deal with more different symmetries
+    si = 0
+    do B=1,8
+      N = HFBlocks(B) ; if(N.eq.0) cycle
 
-      ! Isospin is neutron in the first half of blocks, proton in the rest
-      it_i = 2
-      if(wave_global_i.le.nwn) it_i = 1
-
-      ! TODO: enable store_derivatives option
-      der_index_i = wave_i
-
-      do wave_j=1,nwt_local
-        wave_global_j = spwf_map(wave_j) ! Global spwf index
+      do wave_i=si+1,si+N                ! Loop over the local spwf index
+        wave_global_i = spwf_map(wave_i)     ! Global spwf index
+        ! TODO: enable store_derivatives option
+        der_index_i = wave_i
 
         ! Isospin is neutron in the first half of blocks, proton in the rest
-        it_j = 2
-        if(wave_global_j.le.nwn) it_j = 1
+        it = 1
+        if(B .ge. 5) it = 2
 
-        if(it_i.ne.it_j) cycle ! There are no pn-exchange excitation operators so far
-        it = it_i
 
-        ! TODO: enable store_derivatives option
-        der_index_j = wave_j
-        !----------------------------------------------------------------------------
-        ! The summation weights for particle-hole densities
-        weight_sym = 0.5d0*( &
-        &      rho(wave_global_i, wave_global_j) + rho(wave_global_j, wave_global_i))
+        do wave_j=si+1,si+N
+          wave_global_j = spwf_map(wave_j) ! Global spwf index
+          ! TODO: enable store_derivatives option
+          der_index_j = wave_j
+          !----------------------------------------------------------------------------
+          ! The summation weights for particle-hole densities
+          weight_sym = 0.5d0*( &
+          &      rho(wave_global_i, wave_global_j) + rho(wave_global_j, wave_global_i))
 
-        do i=1,mv
+          do i=1,mv
 $EXPRESSION_OFFDIAG_SYMMETRIC
+          enddo
         enddo
       enddo
+      si = si + N
     enddo
     call stop_timer(T_den_ph)
 
@@ -837,7 +835,7 @@ function densit_offdiag_antisymmetric(rho, kappa) result(R)
     real(KIND=dp)             :: weight_asym
     integer                   :: wave_i       , wave_j
     integer                   :: wave_global_i, wave_global_j
-    integer                   :: it_i, it_j, it, der_index_i,der_index_j
+    integer                   :: it_i, it_j, it, der_index_i,der_index_j, si, B, N
 
     integer :: i
 
@@ -865,37 +863,39 @@ $ZEROING
     ! PARTICLE-HOLE DENSITIES
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! TODO: make this double loop more intelligent wrt to symmetries
-    do wave_i=1,nwt_local                ! Loop over the local spwf index
-      wave_global_i = spwf_map(wave_i)     ! Global spwf index
-
-      ! Isospin is neutron in the first half of blocks, proton in the rest
-      it_i = 2
-      if(wave_global_i.le.nwn) it_i = 1
-
-      ! TODO: enable store_derivatives option
-      der_index_i = wave_i
-
-      do wave_j=1,nwt_local
-        wave_global_j = spwf_map(wave_j) ! Global spwf index
+    si = 0
+    do B=1,8
+      N = HFBLocks(B) ; if(N.eq.0) cycle
+      do wave_i=si+1,si+N                ! Loop over the local spwf index
+        wave_global_i = spwf_map(wave_i) ! Global spwf index
+        der_index_i = wave_i
 
         ! Isospin is neutron in the first half of blocks, proton in the rest
-        it_j = 2
-        if(wave_global_j.le.nwn) it_j = 1
-
-        if(it_i.ne.it_j) cycle ! There are no pn-exchange excitation operators so far
-        it = it_i
+        it = 1
+        if(B .ge. 5) it = 2
 
         ! TODO: enable store_derivatives option
-        der_index_j = wave_j
-        !----------------------------------------------------------------------------
-        ! The summation weights for particle-hole densities
-        weight_asym = 0.5d0*( &
-        &      rho(wave_global_i, wave_global_j) - rho(wave_global_j, wave_global_i))
 
-        do i=1,mv
+        do wave_j=si+1,si+N
+          wave_global_j = spwf_map(wave_j) ! Global spwf index
+          ! TODO: enable store_derivatives option
+          der_index_j = wave_j
+
+          ! Isospin is neutron in the first half of blocks, proton in the rest
+          it_j = 2
+          if(wave_global_j.le.nwn) it_j = 1
+
+          !----------------------------------------------------------------------------
+          ! The summation weights for particle-hole densities
+          weight_asym = 0.5d0*( &
+          &      rho(wave_global_i, wave_global_j) - rho(wave_global_j, wave_global_i))
+
+          do i=1,mv
 $EXPRESSION_OFFDIAG_ANTISYMMETRIC
+          enddo
         enddo
       enddo
+      si = si + N
     enddo
     call stop_timer(T_den_ph)
 
