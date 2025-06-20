@@ -40,6 +40,41 @@ cp $PARAMDIR/"$param.param"  work/
 cd work
 }
 
+setup_test_env_dep () {
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Setting up for running a test:
+# 1. define a few standard environment variables
+# 2. create a work directory and logging directory
+# 3. copy the relevant executable and .param file there
+#
+# Arguments are:
+#  $1 => configuration file name, or rather the X in Tantalus.X.exe
+#  $2 => parameterization name, or rather the X in X.param
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#1. environment variables
+outfile="../logs/$1.$2.out"       # output file; doubles as log file
+exe="Tantalus.$2.exe"             # full name of the executable
+param="$3"                        # name of the parameterization
+pot="$4"						  # potential file name
+
+#2. create working and logging directory
+if [ ! -d "work/" ]; then
+  mkdir work
+fi
+if [ ! -d "logs/" ]; then
+  mkdir logs
+fi
+
+#3. copy executable and parameterization file
+cp $EXECDIR/$exe             work/
+cp $PARAMDIR/"$param.param"  work/
+cp $pot                      work/
+
+cd work
+}
+
+
 teardown_test_env() {
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Remove all trace from the calculations we've just performed.
@@ -71,6 +106,40 @@ get_total_energy_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   echo `grep "Total energy:" $1  | tail -1 | grep -oE '[+-][0-9]+([.][0-9]+)?'`
 }
+
+get_coulomb_energy_stdout (){
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Get the final Coulomb energy from the Tantalus STDOUT as a float
+#
+# Input:
+#    $1: filename of tantalus STDOUT
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  coularr=(`grep "Coulomb Direct:" $1  | tail -1`) 
+  echo ${coularr[3]}
+}
+
+get_Z_stdout (){
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Get the Z from the Tantalus STDOUT as a float
+#
+# Input:
+#    $1: filename of tantalus STDOUT
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  partarr=(`grep "Particles" $1  | tail -1`) 
+  echo ${partarr[2]}
+}
+
+get_rms_stdout (){
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Get the rms from the Tantalus STDOUT as a float
+#
+# Input:
+#    $1: filename of tantalus STDOUT
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  rmsarr=(`grep "RMS radius" $1  | tail -1`) 
+  echo ${rmsarr[4]}
+}
+
 
 get_B20_stdout (){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -110,12 +179,10 @@ compare_floats (){
 #   0      : comparison is true
 #   1      : comparison is false
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
 # Calculate the difference between both floats with the basic calculator
 difference=$(echo "$1 - $2" | bc )
 # Take the absolute value =  remove the first occurence of "-"
 difference=${difference#-}
-
 # Use the bc calculator again to compare the difference to a tolerance
 if [ 1 -eq "$(echo "$difference < $3 " | bc)" ]
 then 
