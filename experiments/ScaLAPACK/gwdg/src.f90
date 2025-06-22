@@ -4,7 +4,7 @@
 
       implicit none 
       integer i,j
-      real*8 Ag(5,5)
+      real*8 Ag(7,5)
       integer myid,nproc
       integer ctxt, ctxt_sys, ctxt_all
       integer loc_m,loc_n
@@ -16,7 +16,7 @@
 
       ! Initialize A
       do i=1,5
-            do j=1,5
+            do j=1,7
                   Ag(i,j) = matval(i,j)
             end do          
       end do          
@@ -26,7 +26,7 @@
       if (myid.eq.0) then
             print '("[",i0,"/",i0,"] Ag:")', myid, nproc
             do i=1,5
-                  print '(f4.0,f4.0,f4.0,f4.0,f4.0)', Ag(i,1),Ag(i,2),Ag(i,3),Ag(i,4),Ag(i,5)
+                  print '(f4.0,f4.0,f4.0,f4.0,f4.0,f4.0,f4.0)', Ag(i,1),Ag(i,2),Ag(i,3),Ag(i,4),Ag(i,5),Ag(i,6),Ag(i,7)
             end do          
       end if 
       call BLACS_GET( 0, 0, ctxt_sys )
@@ -37,7 +37,7 @@
 
       ! allocate local matrix Al
       loc_m = NUMROC(5,2,myrow,0,nprow)
-      loc_n = NUMROC(5,2,mycol,0,npcol)
+      loc_n = NUMROC(7,2,mycol,0,npcol)
       allocate(Al(loc_m,loc_n))
       print '("[",i0,"/",i0,"] loc_m="i0" loc_n="i0"")', myid, nproc, loc_m, loc_n
 
@@ -49,7 +49,7 @@
       do i = 1,5
          il  = INDXG2L(i,2,0,0,nprow)
          ipr = INDXG2P(i,2,0,0,nprow)
-         do j = 1,5
+         do j = 1,7
             jl  = INDXG2L(j,2,0,0,npcol)
             ipc = INDXG2P(j,2,0,0,npcol)
             ! print '("[",i0,"/",i0,"] j="i0" jl="i0" ipc="i0"")', myid, nproc, j, jl, ipc
@@ -66,7 +66,7 @@
       end do
 
 
-      print '("[",i0,"/",i0,"] Al")', myid, nproc      
+      print '("[",i0,"/",i0,"]=("i0","i0") Al")', myid, nproc, myrow,mycol      
       do il = 1,loc_m
             do jl = 1,loc_n
                   ! print '("[",i0,"/",i0,"] Al("i0","i0")="f6.0"")', myid, nproc, il,jl, Al(il,jl)
