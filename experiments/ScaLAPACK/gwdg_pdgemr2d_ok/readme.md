@@ -1,7 +1,9 @@
 [scalapack tutorial from gwdg](https://info.gwdg.de/wiki/doku.php?id=wiki:hpc:scalapack)
+
+![7x5 matrix distributed in 2x2 blocks over 2x2 processes](../../../experiments/ScaLAPACK/image.png)
 no details given
 
-BUT FINALLY IT WORKS!
+BUT FINALLY IT WORKS! 
 
 ``` shell
 > ./cl.sh 
