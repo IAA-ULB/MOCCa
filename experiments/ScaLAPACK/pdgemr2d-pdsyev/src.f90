@@ -10,6 +10,10 @@
 
       real*8, allocatable :: A_sub(:,:) ! de lokale delen van A0
       integer A_sub_dsc(9)
+      integer lwork
+      real*8, allocatable :: work(:) 
+      real*8, allocatable :: eigenvalues(:)
+      real*8, allocatable :: eigenvectors(:,:)
       
       integer myid, nproc
       integer nprow, npcol, myrow, mycol
@@ -81,6 +85,30 @@
         write (*,*)
       enddo
 
+      allocate(eigenvalues(n))
+      allocate(eigenvectors(n,n))
+      allocate(work(1))
+      CALL PDSYEV ('V','L',n,A_sub,1,1,A_sub_dsc,eigenvalues,eigenvectors,1,1,A_sub_dsc, work,-1,info)
+
+      lwork=int(work(1))
+      deallocate(work)
+      allocate(work(lwork))
+      ! .... and now do the actual work
+      CALL PDSYEV ('V','L',n,A_sub,1,1,A_sub_dsc,eigenvalues,eigenvectors,1,1,A_sub_dsc, work,lwork,info)
+
+      write (*,*) 'A_sub', myid, eigenvalues
+      
+      if (myrow == 0 .and. mycol == 0) then
+        CALL PDSYEV ('V','L',n,A_ful,1,1,A_ful_dsc,eigenvalues,eigenvectors,1,1,A_ful_dsc, work,-1,info)
+
+        lwork=int(work(1))
+        deallocate(work)
+        allocate(work(lwork))
+        ! .... and now do the actual work
+        CALL PDSYEV ('V','L',n,A_ful,1,1,A_ful_dsc,eigenvalues,eigenvectors,1,1,A_ful_dsc, work,lwork,info)
+        write (*,*) 'A_ful', myid, eigenvalues
+
+      endif
 
 1000 continue
       call BLACS_EXIT(0)
