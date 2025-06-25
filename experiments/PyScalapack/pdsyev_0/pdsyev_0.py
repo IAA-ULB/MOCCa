@@ -90,39 +90,21 @@ with (
     info = -1
     info = scalapack.pdsyev(
         b'V', b'L', n,
-        A_sub, 1, 1, *A_sub.scalapack_params(),
+        *A_sub.scalapack_params(),
         eigenvalues,
-        eigenvectors_sub, 1, 1, *eigenvectors_sub.scalapack_params(),
+        *eigenvectors_sub.scalapack_params(),
         work, -1,
         info
     )
-    lwork = work[0]
+    lwork = int(work[0])
     print(f"{lwork=}")
-    # print(f"context: rank {context.rank.value}/{context.size.value} = ({context.myrow.value},{context.mycol.value}): pdsyev: {info=}")        
-    # print(f"context: rank {context.rank.value}/{context.size.value} = ({context.myrow.value},{context.mycol.value}): w\n{w.data}")
-
-    '''
-    resolved_args=[
-        c_char_p(22639597899568), 
-        c_char_p(22639597899088), 
-        <cparam 'P' (0x14961f73cc20)>, n
-        <cparam 'P' (0x14961f72e2e0)>, A_sub
-        <cparam 'P' (0x14961f73ca20)>, 1
-        <cparam 'P' (0x14961f73cca0)>, 1
-        c_void_p(33616272),             
-        <cparam 'P' (0x14961f6edba0)>, 
-        <cparam 'P' (0x14961f6edba0)>, 
-        <cparam 'P' (0x14961f72e2e0)>, 
-        <PyScalapack.Scalapack.Val object at 0x14961f72eae0>, 
-        <cparam 'P' (0x14961f72dfe0)>, 
-        <cparam 'P' (0x14961f73d020)>, 
-        <cparam 'P' (0x14961f73cfa0)>, 
-        c_void_p(33332320), 
-        <cparam 'P' (0x14961f6edba0)>, 
-        <cparam 'P' (0x14961f6edba0)>, 
-        <cparam 'P' (0x14961f72dfe0)>, 
-        <PyScalapack.Scalapack.Val object at 0x14961f72e720>, 
-        <cparam 'P' (0x14961f73d120)>]
-
-    resolved_args=[<cparam 'P' (0x146b9267e7fc)>, <cparam 'P' (0x146b9267e804)>, <cparam 'P' (0x146b92755420)>, <cparam 'P' (0x146b927577a0)>, <cparam 'P'    
-    Í'''
+    work = np.zeros(lwork,dtype=float,order='F')
+    info = scalapack.pdsyev(
+        b'V', b'L', n,
+        *A_sub.scalapack_params(),
+        eigenvalues,
+        *eigenvectors_sub.scalapack_params(),
+        work, lwork,
+        info
+    )
+    print(f"{eigenvalues=}")

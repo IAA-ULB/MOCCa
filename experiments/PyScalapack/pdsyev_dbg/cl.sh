@@ -1,3 +1,3 @@
 #!/bin/bash
 
-mpirun -np 1 python -m pdb pdsyev_dbg.py
+mpirun -np 1 python pdsyev_dbg.py
