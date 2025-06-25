@@ -33,7 +33,7 @@ mpirun -np 16 python scaling_small.py   256 16 >> timings.txt
 mpirun -np 64 python scaling_small.py   256 16 >> timings.txt
 
 mpirun -np  4 python scaling_small.py   256 32 >> timings.txt
-mpirun -np 32 python scaling_small.py   256 32 >> timings.txt
+mpirun -np 16 python scaling_small.py   256 32 >> timings.txt
 mpirun -np 64 python scaling_small.py   256 32 >> timings.txt
 
 
@@ -46,11 +46,7 @@ mpirun -np 16 python scaling_small.py   512 16 >> timings.txt
 mpirun -np 64 python scaling_small.py   512 16 >> timings.txt
 
 mpirun -np  4 python scaling_small.py   512 32 >> timings.txt
-mpirun -np 32 python scaling_small.py   512 32 >> timings.txt
-mpirun -np 64 python scaling_small.py   512 32 >> timings.txt
-
-mpirun -np  4 python scaling_small.py   512 32 >> timings.txt
-mpirun -np 32 python scaling_small.py   512 32 >> timings.txt
+mpirun -np 16 python scaling_small.py   512 32 >> timings.txt
 mpirun -np 64 python scaling_small.py   512 32 >> timings.txt
 
 
@@ -63,11 +59,11 @@ mpirun -np 16 python scaling_small.py   1024 16 >> timings.txt
 mpirun -np 64 python scaling_small.py   1024 16 >> timings.txt
 
 mpirun -np  4 python scaling_small.py   1024 32 >> timings.txt
-mpirun -np 32 python scaling_small.py   1024 32 >> timings.txt
+mpirun -np 16 python scaling_small.py   1024 32 >> timings.txt
 mpirun -np 64 python scaling_small.py   1024 32 >> timings.txt
 
 mpirun -np  4 python scaling_small.py   1024 32 >> timings.txt
-mpirun -np 32 python scaling_small.py   1024 32 >> timings.txt
+mpirun -np 16 python scaling_small.py   1024 32 >> timings.txt
 mpirun -np 64 python scaling_small.py   1024 32 >> timings.txt
 
 
@@ -80,13 +76,8 @@ mpirun -np 16 python scaling_small.py   2048 16 >> timings.txt
 mpirun -np 64 python scaling_small.py   2048 16 >> timings.txt
 
 mpirun -np  4 python scaling_small.py   2048 32 >> timings.txt
-mpirun -np 32 python scaling_small.py   2048 32 >> timings.txt
+mpirun -np 16 python scaling_small.py   2048 32 >> timings.txt
 mpirun -np 64 python scaling_small.py   2048 32 >> timings.txt
-
-mpirun -np  4 python scaling_small.py   2048 32 >> timings.txt
-mpirun -np 32 python scaling_small.py   2048 32 >> timings.txt
-mpirun -np 64 python scaling_small.py   2048 32 >> timings.txt
-
 
 mpirun -np  4 python scaling_small.py   4096  8 >> timings.txt
 mpirun -np 16 python scaling_small.py   4096  8 >> timings.txt
@@ -97,15 +88,15 @@ mpirun -np 16 python scaling_small.py   4096 16 >> timings.txt
 mpirun -np 64 python scaling_small.py   4096 16 >> timings.txt
 
 mpirun -np  4 python scaling_small.py   4096 32 >> timings.txt
-mpirun -np 32 python scaling_small.py   4096 32 >> timings.txt
+mpirun -np 16 python scaling_small.py   4096 32 >> timings.txt
 mpirun -np 64 python scaling_small.py   4096 32 >> timings.txt
 
 mpirun -np  4 python scaling_small.py   4096 32 >> timings.txt
-mpirun -np 32 python scaling_small.py   4096 32 >> timings.txt
+mpirun -np 16 python scaling_small.py   4096 32 >> timings.txt
 mpirun -np 64 python scaling_small.py   4096 32 >> timings.txt
 
 mpirun -np  4 python scaling_small.py   4096 64 >> timings.txt
-mpirun -np 32 python scaling_small.py   4096 64 >> timings.txt
+mpirun -np 16 python scaling_small.py   4096 64 >> timings.txt
 mpirun -np 64 python scaling_small.py   4096 64 >> timings.txt
 
 
@@ -118,14 +109,14 @@ mpirun -np 16 python scaling_small.py   8192 16 >> timings.txt
 mpirun -np 64 python scaling_small.py   8192 16 >> timings.txt
 
 mpirun -np  4 python scaling_small.py   8192 32 >> timings.txt
-mpirun -np 32 python scaling_small.py   8192 32 >> timings.txt
+mpirun -np 16 python scaling_small.py   8192 32 >> timings.txt
 mpirun -np 64 python scaling_small.py   8192 32 >> timings.txt
 
 mpirun -np  4 python scaling_small.py   8192 32 >> timings.txt
-mpirun -np 32 python scaling_small.py   8192 32 >> timings.txt
+mpirun -np 16 python scaling_small.py   8192 32 >> timings.txt
 mpirun -np 64 python scaling_small.py   8192 32 >> timings.txt
 
 mpirun -np  4 python scaling_small.py   8192 64 >> timings.txt
-mpirun -np 64 python scaling_small.py   8192 64 >> timings.txt
+mpirun -np 16 python scaling_small.py   8192 64 >> timings.txt
 mpirun -np 64 python scaling_small.py   8192 64 >> timings.txt
 

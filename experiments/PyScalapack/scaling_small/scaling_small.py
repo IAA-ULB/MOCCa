@@ -101,14 +101,15 @@ with scalapack(context_order, 1, 1) as context0:
         lwork = int(work[0])
         # print(f"{lwork=}")
         work = np.zeros(lwork,dtype=float,order='F')
-        info = scalapack.pdsyev(
-            b'V', b'L', n,
-            *A_sub.scalapack_params(),
-            eigenvalues,
-            *eigenvectors_sub.scalapack_params(),
-            work, lwork,
-            info
-        )
+        if False:
+            info = scalapack.pdsyev(
+                b'V', b'L', n,
+                *A_sub.scalapack_params(),
+                eigenvalues,
+                *eigenvectors_sub.scalapack_params(),
+                work, lwork,
+                info
+            )
         stop = timer()
         dt = stop - start
         print(f"{context.rank.value}, {context.size.value}, {n}, {bf}, {dt}")
@@ -116,5 +117,9 @@ with scalapack(context_order, 1, 1) as context0:
         # with open("timings.txt", mode='a') as f:
         #     f.write(f"{context.size.value}, {context.rank.value}, {n}, {bf}, {dt}\n")
         if context0:
-            # print(f"distributed solution: eigenvalues:\n {eigenvalues}")
-            print(f"{n}x{n} {bf=}: difference norm = {np.linalg.norm(eigenvalues0-eigenvalues)} {dt}s", file=sys.stderr)
+            n_doubles  = n*n                                # full matrix on rank 0
+            n_doubles += n*n * 2 / context0.size.value      # distributed matrix and eigenvectors
+            n_doubles += n + lwork                          # eigenvalues and work
+            
+            print(f"{n}x{n} {bf=}: difference norm = {np.linalg.norm(eigenvalues0-eigenvalues)} {dt}s\n"
+                  f"# {n}x{n} : {n_doubles=}", file=sys.stderr)
