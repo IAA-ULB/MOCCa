@@ -180,7 +180,7 @@ SRC    +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
 SRC    +=   pairing.f90 densities.f90 moments.f90
 SRC    +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 SRC    +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
-SRC    +=   IO.f90 convergence.f90 printing.f90 tantalus.version.f90
+SRC    +=   fam.f90 IO.f90 convergence.f90 printing.f90 tantalus.version.f90
 SINGLE_SRC = $(SRC)  run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # FAM source files
@@ -195,8 +195,9 @@ FAM_SRC    +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
 FAM_SRC    +=   pairing.f90 densities.f90 moments.f90
 FAM_SRC    +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 FAM_SRC    +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
+FAM_SRC    +=   fam_testing.f90 fam.f90
 FAM_SRC    +=   IO.f90 convergence.f90 printing.f90 tantalus.version.f90
-FAM_SRC    +=   FAM_testing.f90 FAM.f90
+FAM_SRC    +=   fam_run.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Nilsson source files
 NIL_SRC := compilation.f90 geninfo.f90 timing.f90 derivatives.f90 nil8.f90
@@ -309,7 +310,7 @@ cp_nil:
 	cp src_orig/gennilsson.f90 $(SRCDIR)/gennilsson.f90
 
 cp_fam:	
-	cp src_orig/FAM.f90 $(SRCDIR)/FAM.f90
+	cp src_orig/fam.f90 $(SRCDIR)/fam.f90
 
 ################################################################################
 

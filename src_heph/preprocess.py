@@ -148,9 +148,14 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         ProcessCranking(fname, src, target, so)
     if(fname=='convergence.f90'):
         ProcessCranking(fname, src, target, so)
-    if(fname=='FAM.f90'):
+    if(fname=='fam.f90'):
+        print('cp ' + src + fname + ' ' + target + fname)
         os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='FAM_testing.f90'):
+    if(fname=='fam_run.f90'):
+        print('cp ' + src + fname + ' ' + target + fname)
+        os.system('cp ' + src + fname + ' ' + target + fname)
+    if(fname=='fam_testing.f90'):
+        print('cp ' + src + fname + ' ' + target + fname)
         os.system('cp ' + src + fname + ' ' + target + fname)
 
 def ProcessGeninfo(fname, src, target, so):
