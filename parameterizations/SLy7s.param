@@ -6,7 +6,7 @@
 !  - stabilized ULB pairing fitted to reproduce the INM gap from SLy4+ULB
 !-------------------------------------------------------------------------------
 &skf 
-name     = "sly7s"
+name     = "SLy7s"
 func_file= 'NLO.func'
 t0            =   -2676.132386841769857710 ,
 t1            =     381.547873212059982961 ,
