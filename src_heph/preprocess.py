@@ -154,6 +154,9 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='fam_run.f90'):
         print('cp ' + src + fname + ' ' + target + fname)
         os.system('cp ' + src + fname + ' ' + target + fname)
+    if(fname=='fam_gmres.f90'):
+        print('cp ' + src + fname + ' ' + target + fname)
+        os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='fam_testing.f90'):
         print('cp ' + src + fname + ' ' + target + fname)
         os.system('cp ' + src + fname + ' ' + target + fname)

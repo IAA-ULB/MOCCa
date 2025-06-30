@@ -195,7 +195,7 @@ FAM_SRC    +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
 FAM_SRC    +=   pairing.f90 densities.f90 moments.f90
 FAM_SRC    +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 FAM_SRC    +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
-FAM_SRC    +=   fam_testing.f90 fam.f90
+FAM_SRC    +=   fam_testing.f90 fam.f90 fam_gmres.f90
 FAM_SRC    +=   IO.f90 convergence.f90 printing.f90 tantalus.version.f90
 FAM_SRC    +=   fam_run.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

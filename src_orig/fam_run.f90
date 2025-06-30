@@ -5,6 +5,7 @@ program run_FAM
   use Tantalus, only : print_header, initialize_all_timers
   use fam
   use fam_testing, only : run_FAM_tests
+  use gmres, only : do_gmres
 
 
   implicit none
