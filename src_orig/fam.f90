@@ -224,7 +224,7 @@ module fam
 
     ! X and Y initialised from non-interacting response, i.e. setting dH = 0 
     ! in the FAM master
-    call calculate_XY()
+    call calculate_XY(dH)
 
     if(.not.allocated(X_hist)) then
       allocate(X_hist(hist_max,nwt,nwt)) 
@@ -317,12 +317,14 @@ module fam
 
   end subroutine
 
-  subroutine calculate_XY()
+  subroutine calculate_XY(dH)
     !---------------------------------------------------------------------------
     ! Compute the X and Y amplitudes from the FAM master equation
     !---------------------------------------------------------------------------
 
     implicit none
+
+    real(KIND=dp), dimension(:,:,:), intent(in)  :: dH ! perturbed H in QP basis
     integer :: p, h
     real(KIND=dp) :: occ_h, occ_p, e_h, e_p
     ! complex(KIND=dp), allocatable :: denomX(:,:),  denomY(:,:)

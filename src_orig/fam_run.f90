@@ -172,7 +172,7 @@ program run_FAM
       call build_dH_explicit(Density, dRs, dRa)
 
       ! calculate X and Y from the perturbed sp Hamil dH
-      call calculate_XY()
+      call calculate_XY(dH)
       
       ! Apply simple linear mixing of X and Y. 
       call mix_XY_linear(lin_mix_coeff)
