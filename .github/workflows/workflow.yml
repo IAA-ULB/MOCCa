@@ -1,0 +1,216 @@
+#-------------------------------------------------------------------------------
+# CI/CD deployment for MOCCa on github
+#
+# The logic of this workflow is simple:
+# - the compile job creates all possible combinations of executables
+# - ... and the following jobs run all defined tests using these executables.
+#
+# It is currently only verified to run on one or more of the astropc computers.
+#
+#-------------------------------------------------------------------------------
+name: Tantalus CI/CD Workflow
+#TODO: fix pasta and ifort compilation
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+jobs:
+  compile:
+    #------------------------------------------------------------------------------
+    # Compile many different executables for different
+    #   - CONFIG   = configuration file
+    #   - COMPILER = different compiler
+    #   - CALCTYPE = nuclei or pasta
+    #------------------------------------------------------------------------------
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        CONFIG  :   [ NLO, BXL,BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP ]
+        COMPILER:   [ gfortran ]
+        CALCTYPE:   [ NUCLEI   ]
+        include :
+            # Only check pasta with BXL and ifort compiler
+            - CALCTYPE: PASTA
+              CONFIG  : BXL
+              COMPILER: ifx
+            # Compile one thing with ifort to have a compiler independence check
+            - CALCTYPE: NUCLEI
+              CONFIG  : NLO
+              COMPILER: ifx
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare src directory
+        # ---------------------------------------------------------------------------
+        # This is a horrible hack:
+        #   unfortunately the current Makefile configuration of Tantalus will always
+        #   fail the first time around because Hephaestos has not created f90 files
+        #   in the src/ directory yet. I have not found a way to correctly do this
+        #   dependency in the Makefile yet...;
+        # ---------------------------------------------------------------------------
+        run: |
+            mkdir src/
+            cp src_orig/*.f90 src
+      - name: Compile Tantalus
+        # The setvers.sh ensures that the intel compilers are available on the astropcs
+        run: |
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          make CONFIG=${{ matrix.CONFIG }} COMPILER=${{ matrix.COMPILER }} EXENAME=Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+
+      - name: Upload compilation artifact
+        # Upload the executable such that next steps can download them!
+        uses: actions/upload-artifact@v4
+        with:
+          name: exec-${{ env.SUFFIX }}
+          path: exec/Tantalus.${{ env.SUFFIX }}.exe
+          retention-days: 2
+  minimal:
+    #-----------------------------------------------------------------------------
+    # Run the 'minimal' test for two different compilers.
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs:   compile
+    strategy:
+      matrix:
+        COMPILER: [gfortran, ifx]
+    env:
+      SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI
+    steps:
+      - uses: actions/download-artifact@v4
+        # Start by downloading the relevant executable
+        with:
+          name: exec-${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run minimal test
+        # Perform the test
+        run: |
+          cd testing/integration/
+          source /opt/intel/oneapi/setvars.sh --force &> /dev/null
+          bash minimal.sh $SUFFIX
+
+      - name: Upload test results
+        # Upload the log files as artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimal-${{ env.SUFFIX }}
+          path: testing/integration/logs/minimal.${{ env.SUFFIX }}.out
+          retention-days: 90
+  store_derivatives:
+    #-----------------------------------------------------------------------------
+    # Run the 'store_derivatives' test
+    #-----------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: compile
+    strategy:
+      matrix:
+        CONFIG  : [BXL,N2LO]
+        COMPILER: [gfortran]
+        CALCTYPE: [NUCLEI]
+        include :
+          - CONFIG: BXL
+            PARAM : BSkG3
+          - CONFIG: N2LO
+            PARAM : SN2LO1
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+    steps:
+      - uses: actions/download-artifact@v4
+        # Download the executable
+        with:
+          name: exec-${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run store_derivatives test
+        # Actually execute the test
+        run: |
+          cd testing/integration/
+          bash store_derivatives.sh -p ${{ matrix.PARAM }} -e ${{ env.SUFFIX }}
+
+      - name: Upload store_derivatives test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: store_derivatives-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
+          path: |
+            testing/integration/logs/store_derivatives=true.${{ env.SUFFIX }}.out
+            testing/integration/logs/store_derivatives=false.${{ env.SUFFIX }}.out
+          retention-days: 90
+
+  symmetries:
+    runs-on: self-hosted
+    needs: compile
+    strategy:
+      matrix:
+        CONFIG  : [BXL, N2LO]
+        COMPILER: [ gfortran]
+        CALCTYPE: [ NUCLEI  ]
+        include :
+          - CONFIG: BXL
+            PARAM : BSkG3
+          - CONFIG: N2LO
+            PARAM : SN2LO1
+
+    env:
+       EXEC    : ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+       EXEC_P  : ${{ matrix.CONFIG }}-P.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+       EXEC_T  : ${{ matrix.CONFIG }}-T.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+       EXEC_TP : ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.EXEC }}
+          path: exec/
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.EXEC_P }}
+          path: exec/
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.EXEC_T }}
+          path: exec/
+      - uses: actions/download-artifact@v4
+        with:
+          name: exec-${{ env.EXEC_TP }}
+          path: exec/
+
+      - name: Make executeable
+        run:  |
+         chmod +x exec/Tantalus.${{ env.EXEC    }}.exe
+         chmod +x exec/Tantalus.${{ env.EXEC_P  }}.exe
+         chmod +x exec/Tantalus.${{ env.EXEC_T  }}.exe
+         chmod +x exec/Tantalus.${{ env.EXEC_TP }}.exe
+
+      - name: Run symmetries test
+        # Useage: bash symmetries param exec exec_P exec_T exec_TP
+        run: |
+          cd testing/integration/
+          bash symmetries.sh ${{ matrix.param }} ${{ env.EXEC }} ${{ env.EXEC_P }} ${{ env.EXEC_T }} ${{ env.EXEC_TP }}
+
+      - name: Upload symmetries test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: symmetries-test-results-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
+          path: |
+            testing/integration/logs/symmetries.${{ env.EXEC    }}.out
+            testing/integration/logs/symmetries.${{ env.EXEC_T  }}.out
+            testing/integration/logs/symmetries.${{ env.EXEC_P  }}.out
+            testing/integration/logs/symmetries.${{ env.EXEC_TP }}.out
+          retention-days: 90
+

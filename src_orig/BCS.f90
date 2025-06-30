@@ -440,32 +440,6 @@ $SYMDELTA   &              sx(:,wave), sy(:,wave), sz(:,wave),          &
         enddo
         deallocate(proton_block, neutron_block) 
         !-----------------------------------------------------------------------
-      ! functionality woth modelspwfs removed since it was not useful
-      !case(6)
-      !  !-----------------------------------------------------------------------
-      !  ! We search for the spwf with the largest overlap with the model
-      !  ! wavefunction
-      !  allocate(blocked_qps(1)) ; blocked_qps = 0!!
-
-      !  B = modelblock
-      !  if(B.gt.1) then
-      !    si = sum(HFBlocks_global(1:B-1))
-      !  else
-      !    si = 0
-      !  endif
-      !  N       = HFBlocks_global(B)
-      !  maxover = -10
-      !  indover =   0
-      !  do i=1, N
-!     !       overlap = abs(sum(HFpsi(:,:,si+i) * modelspwf)) * dv
-      !      if(overlap .gt. maxover) then
-      !        maxover = overlap
-      !        indover = i
-      !      endif
-      !  enddo
-      !  f(si + indover) = occ
-      !  blockoverlap    = maxover
-      !  blocked_qps(1)  = si + indover
       end select
     !---------------------------------------------------------------------------
     ! Finite-temperature

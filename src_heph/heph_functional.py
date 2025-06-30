@@ -884,6 +884,11 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     
     dic['CALCFIELDS']     = fieldcalc
     dic['FIELDPRECON']    = precond
+    if('update' not in precond):
+        dic['PRECON_ACTIVE'] = '!'
+    else:
+        dic['PRECON_ACTIVE'] = ' '
+
     dic['SKYRMEACTION']   = SkyrmeAction
     dic['PAIRINGACTION']  = PairingAction
     dic['EREAR']          = erear
@@ -896,6 +901,10 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # Making sure to (un)comment the parts of the interfaces of the routines of
     #  sphamil, delta_action and the derivative routines. 
+    if('dtemp' in SkyrmeAction):
+      dic['DTEMPSPH'] = ' '
+    else:
+      dic['DTEMPSPH'] = '!'
     if('ddtemp' in SkyrmeAction):
       dic['D2TEMPSPH'] = ' '
     else:
@@ -930,7 +939,6 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       dic['QUADRI'] = ' '
     else:
       dic['QUADRI'] = '!'
-    
     if(derivative_order == 1):
       dic['N2'] = ' '    
       dic['N3'] = '!'
@@ -963,13 +971,19 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       dic['SYMDELTA'] = ' '
 
     if('D_Nm_Nm' not in Densities_needed):
-      dic['TAUSCALAR'] = '!'
-      dic['TAUTENSOR'] = ' '
+      if('D_N_N' not in Densities_needed):
+        dic['TAUSCALAR'] = '!'
+        dic['TAUTENSOR'] = '!'
+        dic['NOTAU']     = '!'
+      else:
+        dic['TAUSCALAR'] = '!'
+        dic['TAUTENSOR'] = ' '
+        dic['NOTAU']     = ' '
     else:
       dic['TAUSCALAR'] = ' '
       dic['TAUTENSOR'] = '!'
+      dic['NOTAU']     = ' '
 
-   
     if(so.timelike):
       dic['NTR'] = '!'
       dic['TR']  = ''

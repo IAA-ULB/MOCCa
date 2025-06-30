@@ -111,6 +111,7 @@ COMPILER      :=  gfortran
 #         - gfortran  by GNU
 #         - ifort     by Intel
 #         - cray      by Cray
+#         - ifx       by Intel
 #
 #       The primary reason that COMPILER and CXX are different is because
 #       vendors have different compiler wrappers for different modes
@@ -184,6 +185,8 @@ else ifeq ($(COMPILER),ifort)
   endif
 else ifeq ($(COMPILER), cray)
   CXX := ftn
+else ifeq ($(COMPILER),ifx)
+  CXX := ifx
 endif
 endif
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -217,6 +220,9 @@ else ifeq ($(COMPILER),ifort)
 else ifeq ($(COMPILER), cray)
   # Cray compilers don't need specific linking to my knowledge
 	LIBS :=
+else ifeq ($(COMPILER),ifx)
+  # ifx compiler should link to the new Intel math library
+        LIBS := -qmkl
 endif
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -238,6 +244,8 @@ else ifeq ($(COMPILER),ifort)
         #                           of single-particle wavefunctions when compiled with ifort/ifx
 else ifeq ($(CXX),ftn)
 	CXXFLAGS := -J$(MODDIR)
+else ifeq ($(COMPILER),ifx)
+        CXXFLAGS := -module $(MODDIR) -heap-arrays -assume realloc-lhs -assume byterecl -no-wrap-margin
 endif
 
 # 2. set compiler-specific optimisation level
@@ -249,6 +257,8 @@ ifeq ($(DEBUG),0)
 	  OPTFLAGS := -Ofast -warn all
   else ifeq ($(COMPILER),cray)
 	  OPTFLAGS := -O2 # -O3 produces NaN results
+  else ifeq ($(COMPILER),ifx)
+          OPTFLAGS := -Ofast -warn all
   endif
 else
   ifeq ($(COMPILER),gfortran)
@@ -302,7 +312,7 @@ SINGLE_SRC = $(SRC) run_single.f90
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Nilsson source files
-NIL_SRC := compilation.f90 timing.f90 geninfo.f90 derivatives.f90 nil8.f90
+NIL_SRC := compilation.f90 geninfo.f90 timing.f90 derivatives.f90 nil8.f90
 NIL_SRC += wavefunctions.f90 gennilsson.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -366,9 +376,9 @@ run_heph:
   # the Makefile
 	python3 Hephaestos.py $(CONFIG) $(DENSUM)
 
-gen_nilsson: $(PRE_NIL) $(NIL_OBJ)
+gen_nilsson: $(PRE) $(PRE_NIL) $(NIL_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LIBS)
-	mv gen_nilsson exec/$(EXENAME)
+	mv gen_nilsson exec/gen_nilsson.exe
 
 clean:
 	rm  -f $(OBJDIR)/*.o
@@ -380,10 +390,11 @@ $(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/
 setversioninfo:
 # Copy the git information into the main code, so it can be printed
 	@cp $(SRCDIR)/tantalus.f90 $(SRCDIR)/tantalus.version.f90
+	@sed -i.bak 's/VTAG/"${GIT_INFO5}"/'     $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/VERSION1/"${GIT_INFO1}"/' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/VERSION2/"${GIT_INFO2}"/' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/VERSION3/"${GIT_INFO3}"/' $(SRCDIR)/tantalus.version.f90
-	@sed -i.bak 's/VERSION4/"${GIT_INFO4}"/' $(SRCDIR)/tantalus.version.f90
+# 	@sed -i.bak 's/VERSION4/"${GIT_INFO4}"/' $(SRCDIR)/tantalus.version.f90
 #Copy the compiler information
 	@sed -i.bak 's/COMPCOMP/"${COMPVERSION}"/' $(SRCDIR)/tantalus.version.f90
 	@sed -i.bak 's/CFLAGS/"${CXXFLAGS}"/'      $(SRCDIR)/tantalus.version.f90
@@ -395,8 +406,9 @@ getgitinfo:
 	$(eval GIT_INFO1=$(shell git show   | grep 'commit ' | head -1))
 	$(eval GIT_INFO2=$(shell git show   | grep 'Author:' | head -1))
 	$(eval GIT_INFO3=$(shell git show   | grep 'Date:'   | head -1))
-	$(eval GIT_INFO4=$(shell git branch | grep '*'       | head -1 | cut -c2- ))
-
+# 	$(eval GIT_INFO4=$(shell git branch | grep '*'       | head -1 | cut -c2- ))
+	$(eval GIT_INFO5=$(shell git describe --tags --always ))
+	echo $(GIT_INFO5)
 getcompilerinfo:
   # Get information from 'CXX --version'
 	$(eval COMPVERSION=$(shell $(CXX) --version | head -1))
