@@ -56,7 +56,8 @@ module fam
   complex(KIND=dp), allocatable :: drho(:,:)   ! perturbed normal density matrix
   complex(KIND=dp), allocatable :: dkappa(:,:) ! perturbed pairing density matrix
   ! complex(KIND=dp), allocatable :: dR(:,:)     ! perturbed generalised density matrix
-  type(DensityVector)   :: dRs, dRa  ! perturbed densities in the mesh
+  type(DensityVector)   :: R         ! static mean-field densities on the mesh
+  type(DensityVector)   :: dRs, dRa  ! perturbed densities on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
   type(PotentialVector) :: dFs, dFa  ! perturbed potentials on the mesh
@@ -101,6 +102,56 @@ module fam
   real(KIND=dp) :: tol_XY_conv = 1.0e-5_dp ! convergence tolerance for X and Y
 
   contains
+  
+  subroutine iterate_dHsp(dHspout, dHsp)
+    !---------------------------------------------------------------------------
+    ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
+    ! (in HF basis), which contain dh and ddelta (in the QFAM).  
+    !---------------------------------------------------------------------------
+    implicit none
+    real(KIND=dp), dimension(:,:), intent(in)  :: dHsp     
+    real(KIND=dp), dimension(:,:), intent(out) :: dHspout
+
+    integer       :: p, h
+    real(KIND=dp) :: occ_h, occ_p
+
+    ! Fill dH with ph and hp blocks of dHsp
+    do h = 1, nwt
+      occ_h = rho_can(h)
+      if(occ_h < 1d-6) cycle
+      do p = 1, nwt
+        occ_p = 1.0 - rho_can(p) 
+        if(occ_p < 1d-6) cycle
+        dH(p,h,1) = occ_p * occ_h * dHsp(p,h) ! ph block dH20(p,h)
+        dH(p,h,2) = occ_p * occ_h * dHsp(h,p) ! hp block dH02(p,h)
+      enddo
+    enddo
+    ! -> QFAM: will be replaced by a transfromation from HF to QP basis
+
+
+    ! calculate X and Y from the perturbed dH
+    call calculate_XY(dH)
+
+    ! Apply simple linear mixing of X and Y. 
+    ! call mix_XY_linear(lin_mix_coeff)
+    ! call store_XY_hist()
+    ! -> this may be skipped when using GMRES
+
+    ! build the perturbed densities on the mesh dRs, dRa from X and Y
+    call build_perturbed_densities(X, Y, dRs, dRa)
+
+    ! explicit linearisation of the fields
+    call calc_perturbed_potentials(R, dRs, dRa, dFs, dFa)
+
+    ! necessary? 
+    call combine_potentials(dFs)
+
+    ! construct the sp hamiltonian
+    dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+
+
+  end subroutine iterate_dHsp
+
 
   subroutine inifam(omega, PotentialsUnpert)
     implicit none
@@ -388,7 +439,7 @@ module fam
     ! stop
 
 
-    print *, '||F20|| = ', sqrt(sum( abs(F(:,:,1))**2) )
+    ! print *, '||F20|| = ', sqrt(sum( abs(F(:,:,1))**2) )
     print *, '||dH20|| = ', sqrt(sum( abs(dH(:,:,1))**2) )
 
 

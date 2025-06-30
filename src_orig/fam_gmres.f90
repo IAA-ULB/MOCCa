@@ -37,17 +37,17 @@ module gmres
   !> \li            iter = -1 = resolution failure     
   !>
   !> INPUT :
-  !> \li            b      = RHS
-  !> \li            A      = \f$ A~:~~~x \mapsto A x \f$
-  !>                         matrix/vector product (procedural)
-  !> \li            norm_2 = \f$ f~:~~~x \mapsto real \f$
-  !>                         norm (procedural)
-  !> \li            norm_2 = \f$ f~:~~~(x1, x2) \mapsto real \f$
-  !>                         Scalar product (procedural)
-  !> \li            tol    = tolerance
-  !> \li            itMax  = maximal iteration-number
-  !> \li            rst    = restart number
-  !> \li            verb   = verbosity
+  !> \li            b        = RHS
+  !> \li            A        = \f$ A~:~~~x \mapsto A x \f$
+  !>                           matrix/vector product (procedural)
+  !> \li            norm_2   = \f$ f~:~~~x \mapsto real \f$
+  !>                           norm (procedural)
+  !> \li            ScalProd = \f$ f~:~~~(x1, x2) \mapsto real \f$
+  !>                           Scalar product (procedural)
+  !> \li            tol      = tolerance
+  !> \li            itMax    = maximal iteration-number
+  !> \li            rst      = restart number
+  !> \li            verb     = verbosity
   !>
   subroutine do_gmres(x, iter, nbPrd, res, &
        & b, A, norm_2, ScalProd, tol, itmax, rst, verb)
@@ -229,7 +229,7 @@ module gmres
 
 
   subroutine dHtodH(MdH, dH)
-    ! abstract preocedure dH -> dH required to pass procedure to gmres
+    ! abstract template procedure dH -> dH required for procedural argument to gmres
     ! to be updated to the objects of the dimensions of the perturbed
     ! sp hamiltonian dh and ddelta (in HF basis)
     real(KIND=dp), dimension(:), intent(out) :: MdH
@@ -238,7 +238,7 @@ module gmres
   end subroutine
 
   function dHtoreal(dH) result(res)
-    ! abstract preocedure dH -> real required to pass procedure to gmres
+    ! abstract template procedure dH -> real required for procedural argument to gmres
     ! to be updated to the objects of the dimensions of the perturbed
     ! sp hamiltonian dh and ddelta (in HF basis)
     real(KIND=dp), dimension(:), intent(in)  :: dH
@@ -247,7 +247,7 @@ module gmres
   end function
 
   function dHdHtoreal(dHl, dHr) result(res)
-    ! abstract preocedure (dH,dH) -> complex required to pass procedure to gmres
+    ! abstract template procedure (dH,dH) -> complex required for procedural argument to gmres
     ! to be updated to the objects of the dimensions of the perturbed
     ! sp hamiltonian dh and ddelta (in HF basis)
     real(KIND=dp), dimension(:), intent(in)  :: dHl, dHr
