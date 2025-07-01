@@ -572,6 +572,7 @@ contains
 #endif
     !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
+#if(PASTA==0)
     if(.not.allocated(HFTransfo)) then
         allocate(HFTransfo(nwt,nwt)) 
         HFtransfo = 0.0d0
@@ -579,6 +580,7 @@ contains
             HFtransfo(i,i) = 1.0d0
         enddo
     endif
+#endif
     !---------------------------------------------------------------------------
     call set_spwf_symmetries(sx, sy, sz, HFblocks)
     !---------------------------------------------------------------------------
@@ -601,7 +603,6 @@ contains
       endif
     endif
     call stop_timer(T_wfini)
-
   end subroutine ReadWaveFunction
 
   subroutine ReadTantalus(chan, ifn)
@@ -775,9 +776,10 @@ contains
     ! Arrays like these are stored on all ranks, hence "filenwt"
     allocate(spenergies (filenwt))
     allocate(dispersions(filenwt))
+    !#if(PASTA==0)    
     allocate(HFtransfo  (filenwt,filenwt)) ; HFtransfo   = 0.0d0
     allocate(sphamil(filenwt,filenwt)) ; sphamil = 0.0d0
-
+    !#endif
     if (allocated(rho_can)) deallocate(rho_can)
     allocate(rho_can(filenwt))
 
@@ -791,8 +793,9 @@ contains
 #if(USE_MPI>0)
     call MPI_BCAST(spenergies ,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(dispersions,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(dispersions,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
+    !#if(PASTA==0)
     call MPI_BCAST(HFTRANSFO  ,filenwt**2, MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
+    !#endif
 #endif
     !---------------------------------------------------------------------------
     ! Reading the spwfs from file
@@ -859,8 +862,9 @@ contains
     &                                                   MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(func_name_check, len(func_name_check), MPI_CHARACTER,0,     &
     &                                                   MPI_COMM_WORLD, mpi_err)
-
+    !#if(PASTA==0)
     call MPI_BCAST(sphamil, filenwt**2, MPI_REAL8,0,MPI_COMM_WORLD, mpi_err)
+    !#endif
 #endif
 
     !---------------------------------------------------------------------------
@@ -1274,9 +1278,9 @@ subroutine ReadTantalus_hdf5(ifn)
     ! Arrays like these are stored on all ranks, hence "filenwt"
     allocate(spenergies (filenwt))
     allocate(dispersions(filenwt))
-    allocate(HFtransfo  (filenwt,filenwt)) ; HFtransfo   = 0.0d0
-    allocate(sphamil(filenwt,filenwt)) ; sphamil = 0.0d0
-
+    ! These two are not needed for pasta
+    !allocate(HFtransfo  (filenwt,filenwt)) ; HFtransfo   = 0.0d0 
+    !allocate(sphamil(filenwt,filenwt)) ; sphamil = 0.0d0
     if (allocated(rho_can)) deallocate(rho_can)
     allocate(rho_can(filenwt))
 
@@ -1294,7 +1298,6 @@ subroutine ReadTantalus_hdf5(ifn)
     endif
 #if(USE_MPI>0)
     call MPI_BCAST(spenergies ,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
-    call MPI_BCAST(dispersions,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(dispersions,filenwt   , MPI_REAL8,0, MPI_COMM_WORLD, mpi_err)
 #endif
     
@@ -1450,7 +1453,6 @@ subroutine ReadTantalus_hdf5(ifn)
     ! Possibly a superfluous barrier call, but good for my peace of mind
     call MPI_BARRIER(MPI_COMM_WORLD, mpi_err)
 #endif   
-    
     !-------------------------------------------------------------------------
     ! Sanity checks if transformation is not allowed
     if(.not.  AllowTransform) then
@@ -2512,6 +2514,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
       print *, 'Blocklowest on input: ', blocklowest
       print *, 'These are not identical.'
       call stp('')
+
     endif
     !---------------------------------------------------------------------------
     ! # 3: Check if the blocking structure on file actually matches the 
