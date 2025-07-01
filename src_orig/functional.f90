@@ -56,6 +56,7 @@ module functional
  ! N3DELTA          : $N3DELTA
  ! SYMDELTA         : $SYMDELTA
  !
+ ! DTEMPSPH         : $DTEMPSPH
  ! D2TEMPSPH        : $D2TEMPSPH
  ! D3TEMPSPH        : $D3TEMPSPH
  ! LAPTEMPSPH       : $LAPTEMPSPH
@@ -67,6 +68,7 @@ module functional
  !
  ! TAUSCALAR        : $TAUSCALAR
  ! TAUTENSOR        : $TAUTENSOR
+ ! NOTAU            : $NOTAU
  !
  ! K2POT            : [WAY TOO LONG TO INCLUDE HERE]
  ! K4POT            : [WAY TOO LONG TO INCLUDE HERE]
@@ -584,62 +586,62 @@ $MULTIPLY_POTENTIALS
     endif
 end function multiply_potentialvector
 
- function calcRouth_onthefly(Rin, Fin) result(routh)
-    !---------------------------------------------------------------------------
-    ! This routine calculates the total Routhian for a given set of densities.
-    ! 
-    ! Note: 
-    !   (*) It only includes contributions that are included in the calculation
-    !       in a variational way, i.e. any rotational correction or two-body
-    !       COM-correction is not included. 
-    ! 
-    !   (*) This routine has NO side-effects, i.e. it calculates the total 
-    !       routhian and ONLY the total Routhian. No module-level variables
-    !       are set.
-    !
-    ! ATTENTION: testing routine, results not guaranteed!
-    !
-    !
-    !---------------------------------------------------------------------------
-    use Coulombmod
-    use Densities
-
-    real(KIND=dp)                     :: routh
-    type(DensityVector), intent(in)   :: Rin
-    type(PotentialVector), intent(in) :: Fin
-    
-    real(KIND=dp) :: K(2), TE, TO, PE(2), S, C, CE, COM(2,2)
-
-    routh = 0.0d0
-
-    ! Kinetic energy
-    K = CompKinetic_density(Rin)
-    ! Note that this estimate of the energy does NOT include the 2-body COM
-    ! To save CPU cycles, we override its calculation
-#if(PASTA == 0)
-    call compComCorrection(K, .true., COM)
-#else
-    ! A waste of CPU time for pasta calculations
-    COM = 0.0d0
-#endif    
-    ! Skyrme energy
-    call compSkyrme(Rin, Fin, S, TE, TO, PE)
-    ! Coulomb energies
-    C  = CoulombEnergy_Direct(Rin,Fin)
-    CE = CoulombEnergy_Exchange(Rin) 
-
-    ! The total energy is comprised of 
-    !      Kinetic part + Skyrme part + corrections + Coulomb energy
-    routh =sum(S + K) + sum(COM) + C + CE
-    ! Note again: no 2-body COM or rotational correction in here
-
-    ! Addition of the various constraints
-    ! TODO: correct this!
-    !routh = routh  + sum(Constraint_I_I * Rin%D_I_I)*dv/2.0_dp
-    ! Missing = cranking contribution and correct multipole contribution
-
-
- end function calcRouth_onthefly
+!  function calcRouth_onthefly(Rin, Fin) result(routh)
+!     !---------------------------------------------------------------------------
+!     ! This routine calculates the total Routhian for a given set of densities.
+!     !
+!     ! Note:
+!     !   (*) It only includes contributions that are included in the calculation
+!     !       in a variational way, i.e. any rotational correction or two-body
+!     !       COM-correction is not included.
+!     !
+!     !   (*) This routine has NO side-effects, i.e. it calculates the total
+!     !       routhian and ONLY the total Routhian. No module-level variables
+!     !       are set.
+!     !
+!     ! ATTENTION: testing routine, results not guaranteed!
+!     !
+!     !
+!     !---------------------------------------------------------------------------
+!     use Coulombmod
+!     use Densities
+!
+!     real(KIND=dp)                     :: routh
+!     type(DensityVector), intent(in)   :: Rin
+!     type(PotentialVector), intent(in) :: Fin
+!
+!     real(KIND=dp) :: K(2), TE, TO, PE(2), S, C, CE, COM(2,2)
+!
+!     routh = 0.0d0
+!
+!     ! Kinetic energy
+!     K = CompKinetic_density(Rin)
+!     ! Note that this estimate of the energy does NOT include the 2-body COM
+!     ! To save CPU cycles, we override its calculation
+! #if(PASTA == 0)
+!     call compComCorrection(K, .true., COM)
+! #else
+!     ! A waste of CPU time for pasta calculations
+!     COM = 0.0d0
+! #endif
+!     ! Skyrme energy
+!     call compSkyrme(Rin, Fin, S, TE, TO, PE)
+!     ! Coulomb energies
+!     C  = CoulombEnergy_Direct(Rin,Fin)
+!     CE = CoulombEnergy_Exchange(Rin)
+!
+!     ! The total energy is comprised of
+!     !      Kinetic part + Skyrme part + corrections + Coulomb energy
+!     routh =sum(S + K) + sum(COM) + C + CE
+!     ! Note again: no 2-body COM or rotational correction in here
+!
+!     ! Addition of the various constraints
+!     ! TODO: correct this!
+!     !routh = routh  + sum(Constraint_I_I * Rin%D_I_I)*dv/2.0_dp
+!     ! Missing = cranking contribution and correct multipole contribution
+!
+!
+!  end function calcRouth_onthefly
  
  subroutine CalcEnergy(Rin, Fin, calc_expensive)
     !---------------------------------------------------------------------------
@@ -681,11 +683,11 @@ end function multiply_potentialvector
     ! First we calculate all the individual terms/parts
 
     ! Kinetic energy
-    if(store_derivatives) then
-      Kinetic = CompKinetic_spwfs()
-    else
-      Kinetic = CompKinetic_density(Rin)
-    endif
+$NOTAU    if(store_derivatives) then
+            Kinetic = CompKinetic_spwfs()
+$NOTAU    else
+$NOTAU      Kinetic = CompKinetic_density(Rin)
+$NOTAU    endif
     ! COM correction
     ! (pass signal if we want to skip the calculation of the two-body part)
 #if(PASTA == 0)
@@ -944,24 +946,24 @@ $PRINT
     return
   end function CompKinetic_spwfs
 
-  function CompKinetic_density(Rin) result(kinetic)
-    !---------------------------------------------------------------------------
-    ! This subroutine computes the total kinetic energy from the kinetic density
-    !    E_k = -\hbar/2m \int d^3x tau
-    !---------------------------------------------------------------------------
-    ! Note that the 1-body c.o.m. correction is not taken into account here!
-    !---------------------------------------------------------------------------
-    real(KIND=dp)                   :: Kinetic(2)
-    type(DensityVector), intent(in) :: Rin
-    integer                         :: it
+$NOTAU  function CompKinetic_density(Rin) result(kinetic)
+$NOTAU    !---------------------------------------------------------------------------
+$NOTAU    ! This subroutine computes the total kinetic energy from the kinetic density
+$NOTAU    !    E_k = -\hbar/2m \int d^3x tau
+$NOTAU    !---------------------------------------------------------------------------
+$NOTAU    ! Note that the 1-body c.o.m. correction is not taken into account here!
+$NOTAU    !---------------------------------------------------------------------------
+$NOTAU    real(KIND=dp)                   :: Kinetic(2)
+$NOTAU    type(DensityVector), intent(in) :: Rin
+$NOTAU    integer                         :: it
 
-    do it=1,2
-$TAUSCALAR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_Nm_Nm(:,it))
-$TAUTENSOR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_N_N(:,1,1,it)  &
-$TAUTENSOR            &                     + Rin%D_N_N(:,2,2,it)  &
-$TAUTENSOR            &                     + Rin%D_N_N(:,3,3,it),1)
-    enddo
-  end function CompKinetic_density
+$NOTAU    do it=1,2
+$NOTAU$TAUSCALAR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_Nm_Nm(:,it))
+$NOTAU$TAUTENSOR    Kinetic(it) = hbm(it) *dv * sum(Rin%D_N_N(:,1,1,it)  &
+$NOTAU$TAUTENSOR            &                     + Rin%D_N_N(:,2,2,it)  &
+$NOTAU$TAUTENSOR            &                     + Rin%D_N_N(:,3,3,it),1)
+$NOTAU    enddo
+$NOTAU  end function CompKinetic_density
 
   function effmass_pot(F_in) result(em_pot)
     !---------------------------------------------------------------------------
@@ -1833,7 +1835,6 @@ $N3 real(KIND=dp), intent(inout)      :: dddpsi(mv,10,4)
     type(PotentialVector), intent(in) :: Fin
     type(PotentialVector)             :: F
 
-    integer                   :: sym(4)
     real(KIND=dp)             :: hpsi(mv,4)
     real(KIND=dp)             :: temp(mv,4)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1843,7 +1844,8 @@ $N3 real(KIND=dp), intent(inout)      :: dddpsi(mv,10,4)
     !                 BEFORE the derivative indices (3). This is to aid the
     !                 memory locality of operations in this particular function
     !                 and is OPPOSITE the conventions of the rest of the code.
-    real(KIND=dp)             ::   dtemp(mv,4,3)
+$DTEMPSPH     integer         :: sym(4)
+$DTEMPSPH     real(KIND=dp)   ::   dtemp(mv,4,3)
 $D2TEMPSPH    real(KIND=dp)   ::  ddtemp(mv,4,3,3)
 $D3TEMPSPH    real(KIND=dp)   :: dddtemp(mv,4,3,3,3)
 $LAPTEMPSPH   real(KIND=dp)   :: laptemp(mv,4)
