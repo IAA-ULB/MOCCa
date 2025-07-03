@@ -81,8 +81,8 @@ jobs:
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          cp make_include/make.inc.${{ env.COMPFAM }}-serial${{ matrix.HDF5SUFFIX }} make.inc
-          make CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+          cp make_include/make.inc.${{ env.COMPFAM }}-serial${{ env.HDF5SUFFIX }} make.inc
+          make CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload compilation artifact
         # Upload the executable such that next steps can download them!
@@ -218,44 +218,55 @@ jobs:
             testing/integration/logs/store_derivatives=false.${{ env.SUFFIX }}.out
           retention-days: 90
 
-#  lattice_energy:
-#    #-----------------------------------------------------------------------------
-#    # Run the 'lattice-energy' test
-#    #-----------------------------------------------------------------------------
-#    runs-on: self-hosted
-#    needs: compile
-#    if: github.ref == 'refs/heads/difficult_merge'
-#    strategy:
-#      matrix:
-#        COMPILER:
-#          - gfortran
-#    env:
-#      
-#    steps:
-#      - uses: actions/download-artifact@v4
-#        # Download the executable
-#        with:
-#          name: exec-${{ env.SUFFIX }}
-#          path: exec/
+  lattice_energy:
+    #---------------------------------------------------------------------------
+    # Run the 'lattice-energy' test
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: compile
+    if: github.ref == 'refs/heads/difficult_merge'
+    strategy:
+      matrix:
+        COMPILER: [ gfortran ] 
+        CONFIG:   [ BXL      ]
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX_VAC: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.NUCLEI
+      SUFFIX_PAS: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA
 
-#      - name: Make executeable
-#        # Unfortunately, github artifacts don't retain permissions.
-#        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+    steps:
+      - uses: actions/download-artifact@v4
+        # Download the executables
+        with:
+          name: exec-${{ env.SUFFIX_VAC }}
+          path: exec/
+      - uses: actions/download-artifact@v4
+        # Download the executables
+        with:
+          name: exec-${{ env.SUFFIX_PAS }}
+          path: exec/
 
-#      - name: Run store_derivatives test
-#        # Actually execute the test
-#        run: |
-#          cd testing/integration/
-#          bash store_derivatives.sh -p ${{ matrix.PARAM }} -e ${{ env.SUFFIX }}
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.SUFFIX_VAC }}.exe
+          chmod +x exec/Tantalus.${{ env.SUFFIX_PAS }}.exe
 
-#      - name: Upload store_derivatives test results
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: store_derivatives-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
-#          path: |
-#            testing/integration/logs/store_derivatives=true.${{ env.SUFFIX }}.out
-#            testing/integration/logs/store_derivatives=false.${{ env.SUFFIX }}.out
-#          retention-days: 90
+      - name: Run lattice energy test
+        # Actually execute the test
+        run: |
+          cd testing/integration/
+          bash lattice_energy.sh -p BSkG4simpl -e ${{ env.SUFFIX_VAC }} -f ${{ env.SUFFIX_PAS }} -n 12
+
+      - name: Upload store_derivatives test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: lattice_energy
+          path: |
+            testing/integration/logs/lattice_energy.${{ env.SUFFIX_VAC }}.out
+            testing/integration/logs/lattice_energy.${{ env.SUFFIX_PAS }}.out
+          retention-days: 90
 
 
   symmetries:
