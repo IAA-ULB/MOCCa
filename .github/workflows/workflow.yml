@@ -10,8 +10,7 @@
 #-------------------------------------------------------------------------------
 name: Tantalus CI/CD Workflow
 #TODO:
-# - fix pasta and ifort compilation
-# - reenable tests with HFB for the
+# [ ] reenable tests with HFB for the master branch
 on:
   push:
     branches:
@@ -32,9 +31,9 @@ jobs:
     runs-on: self-hosted
     strategy:
       matrix:
-        CONFIG  :   [ NLO, BXL,BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP ]
-        COMPILER:   [ gfortran ]
-        CALCTYPE:   [ NUCLEI   ]
+        CONFIG     :   [ NLO, BXL,BXL-T,BXL-P,BXL-TP, N2LO,N2LO-T, N2LO-P,N2LO-TP ]
+        COMPILER   :   [ gfortran   ]
+        CALCTYPE   :   [ NUCLEI     ]
         include :
             # Only check pasta with BXL and ifort compiler
             - CALCTYPE: PASTA
@@ -52,6 +51,10 @@ jobs:
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
       # Compiler family
       COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
+
+      # There is not yet any intel HDF5 on astropc19, but enable it 
+      #   by default for gfortran
+      HDF5SUFFIX: ${{ matrix.COMPILER == 'gfortran' && '-hdf5'|| '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -78,7 +81,7 @@ jobs:
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          cp make_include/make.inc.${{ env.COMPFAM }}-serial make.inc
+          cp make_include/make.inc.${{ env.COMPFAM }}-serial${{ matrix.HDF5SUFFIX }} make.inc
           make CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload compilation artifact
@@ -215,7 +218,50 @@ jobs:
             testing/integration/logs/store_derivatives=false.${{ env.SUFFIX }}.out
           retention-days: 90
 
+#  lattice_energy:
+#    #-----------------------------------------------------------------------------
+#    # Run the 'lattice-energy' test
+#    #-----------------------------------------------------------------------------
+#    runs-on: self-hosted
+#    needs: compile
+#    if: github.ref == 'refs/heads/difficult_merge'
+#    strategy:
+#      matrix:
+#        COMPILER:
+#          - gfortran
+#    env:
+#      
+#    steps:
+#      - uses: actions/download-artifact@v4
+#        # Download the executable
+#        with:
+#          name: exec-${{ env.SUFFIX }}
+#          path: exec/
+
+#      - name: Make executeable
+#        # Unfortunately, github artifacts don't retain permissions.
+#        run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+#      - name: Run store_derivatives test
+#        # Actually execute the test
+#        run: |
+#          cd testing/integration/
+#          bash store_derivatives.sh -p ${{ matrix.PARAM }} -e ${{ env.SUFFIX }}
+
+#      - name: Upload store_derivatives test results
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: store_derivatives-${{ matrix.PARAM }}-${{ matrix.CONFIG }}-${{ matrix.COMPILER }}
+#          path: |
+#            testing/integration/logs/store_derivatives=true.${{ env.SUFFIX }}.out
+#            testing/integration/logs/store_derivatives=false.${{ env.SUFFIX }}.out
+#          retention-days: 90
+
+
   symmetries:
+    #-----------------------------------------------------------------------------
+    # Run the 'symmetries' test
+    #-----------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile
     if: github.ref == 'refs/heads/master'

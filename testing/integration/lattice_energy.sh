@@ -24,11 +24,9 @@
 #  --------                              ------                     ---------
 #  Coulomb energy in vacuum              78.527                        50 keV
 #  charge rms in vacuum                   3.481                        0.1 fm
-#  Lattice energy              <difference of two calcuclations>      100 keV
+#  Lattice energy              <difference of two calculations >      100 keV
 #  Number of protons                         20                        0.0001
 #
-#  TODO:
-#  - add other observables
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
@@ -138,7 +136,6 @@ echo "fast check rms" $rms $refrms
 # ... and tear down this testing environment.
 teardown_test_env
 #----------------------------------------------------------------------------------
-
 # Setting up the reference calculation
 setup_test_env "lattice_energy" "$exec_period" "$param"
 write_data  $param $np
@@ -182,22 +179,22 @@ compare_floats $protons $refZ 0.0001
 check_Z=$?
 
 echo '------------------------------------------------'
-printf ' Coulomb energy in vacuum consistency->  %1d \n' $check_energy_coul_vac
+printf ' Coulomb energy in vacuum consistency ->  %1d \n' $check_energy_coul_vac
 echo '------------------------------------------------'
 echo '------------------------------------------------'
-printf ' Charge rms consistency              ->  %1d \n' $check_rms
+printf ' Charge rms consistency               ->  %1d \n' $check_rms
 echo '------------------------------------------------'
 echo '------------------------------------------------'
-printf ' Lattice energy consistency          ->  %1d \n' $check_energy_coul_lat
+printf ' Lattice energy consistency           ->  %1d \n' $check_energy_coul_lat
 echo '------------------------------------------------'
 echo '------------------------------------------------'
-printf ' Number of protons consistency       ->  %1d \n' $check_Z
+printf ' Number of protons consistency        ->  %1d \n' $check_Z
 echo '------------------------------------------------'
 
 exitcode=$(( $check_energy_coul_vac || $check_energy_coul_lat || $check_rms || $check_Z ))
 echo '------------------------------------------------'
-printf ' Success?                     ->  %1d \n' $exitcode
-echo '------------------------------------------'
+printf ' Success?                             ->  %1d \n' $exitcode
+echo '------------------------------------------------'
 
 # Return exit code 1 if any of the checks failed
 exit $exitcode

@@ -15,7 +15,8 @@
 # ------
 #   bash spag.sh [EXESUFFIX]
 #
-# where EXESUFFIX specifies the  suffix of the executable to be used
+# where EXESUFFIX specifies the  suffix of the executable to be used.
+# Note: this test relies on the executable having been compiled with HDF5 support.
 #            Example: "BXL" for "Tantalus.BXL.exe".
 #
 # Dependencies: inp_cyl.pot
