@@ -1,17 +1,19 @@
 #-------------------------------------------------------------------------------
 # Perform a spherical HF + FAM calculation of O16 with t0t3 in a minimal box and 
-# compare the Q_20 strength @ 25 MeV
+# compare the Q_20 strength @ 25 MeV.
+# This test may not immediately work for you, since it runs an executable called 
+# Tantalus.LO.master.exe which is a LO compilation of the master branch, required 
+# to be able to read in .wf file for the subsequent FAM calculation. 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # This script tests:
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
 #  - total HF energy                -177.062001 MeV                  1 keV
-#  - strength S_20 @ 25.0MeV           1.632650 fm^4 MeV^-1          0.001
+#  - strength S_20 @ 25.0 MeV          1.632650 fm^4 MeV^-1          0.001
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash fam_simple.sh 
-#
+#   bash fam_t0t3.sh 
 #
 # Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -20,8 +22,7 @@
 #-------------------------------------------------------------------------------
 # These are the hardcoded answers
 refE=-177.062001 # Total energy of O16 in MeV
-refS20=1.632650
-omega=25.000
+refS20=1.632650  # Q_20 strength of O16 at 25 MeV in fm^4 MeV^-1  
 
 set -e
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
@@ -29,10 +30,10 @@ set -e
 source ../functions.sh
 
 # Set up
-setup_test_env_fam "fam_simple" "LO.master" "LO-T" "t0t3"
+setup_test_env_fam "fam_t0t3" "LO.master" "LO-T" "t0t3"
 
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
-# (1) Run the MF calculation
+# (1) Run the mean-field calculation
 
 # Create runtime data
 cat << EOF > mf.data
@@ -118,6 +119,7 @@ EOF
 ./$exefam < fam.data > $famoutfile
 # .... and immediately check if Tantalus reported back some error codes
 fam_check=$?
+
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Starting the checking
 # a) Get the total energy from the STDOUT file
@@ -125,14 +127,17 @@ E=$(get_total_energy_stdout $mfoutfile)
 # ... and compare with a tolerance of 1 keV to the expected answer
 compare_floats $E $refE 0.001
 check_energy=$?
+
 # b) Get the strength from the S_20.fam file
-S=$(get_strength S_20.fam $omega)
+S=$(get_strength S_20.fam 25.0)
 # ... and compare with a tolerance of 0.001 to the expected answer
 compare_floats $S $refS20 0.001
 check_strength=$?
 
+#- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # remove working directory and traces of these calculations
 teardown_test_env
+
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
 exit $(($tantalus_check || $fam_check || $check_energy || $check_strength ))
