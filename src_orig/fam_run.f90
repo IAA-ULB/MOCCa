@@ -19,6 +19,7 @@ program run_FAM
   character(len=100) :: famfilename
   integer :: i, B, si,N
 
+  real(KIND=dp), allocatable :: dH_flat(:), dH_flat_next(:)
   ! integer :: ifail ! Future dev: required for HFB
 
   ! Print a nice header with all kinds of relevant info
@@ -128,8 +129,6 @@ program run_FAM
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 
-  print *, omega_max, omega_min,  omega_step
-
   omega_num = int((omega_max - omega_min) / omega_step) + 1
 
   allocate(omega_arr(omega_num))
@@ -148,7 +147,7 @@ program run_FAM
     call inifam(omega_curr, Potentials)
 
     if( calc_strength() .ge. 0.1) then
-      lin_mix_coeff=1.0d-3
+      lin_mix_coeff=1.0d-2
     else
       if( calc_strength() .ge. 0.001) then
         lin_mix_coeff=1.0d-2
@@ -163,27 +162,58 @@ program run_FAM
     is_converged = .false.
     is_divergent = .false.
 
+
+    if(.not. allocated(dH_flat)) then
+      allocate(dH_flat(nwt*nwt))
+    endif
+
+    if(.not. allocated(dH_flat_next)) then
+      allocate(dH_flat_next(nwt*nwt))
+    endif
+
+    dH_flat = 0
+    dH_flat_next = 0
+
     ! Start of the iterations 
     do iteration=1, maxfamiter
 
       print *, "FAM iteration : ", iteration
 
-      ! build the perturbed hamiltonian using explicit linearisation of the field
-      call build_dH_explicit(Density, dRs, dRa)
+      !---------------------------------------------------------------------------------
+      ! via explicit loops and linear mixing
+      !---------------------------------------------------------------------------------
 
-      ! calculate X and Y from the perturbed sp Hamil dH
-      call calculate_XY(dH)
+      ! ! build the perturbed hamiltonian using explicit linearisation of the field
+      ! call build_dH_explicit(Density, dRs, dRa)
+
+      ! ! calculate X and Y from the perturbed sp Hamil dH
+      ! call calculate_XY(dH)
       
-      ! Apply simple linear mixing of X and Y. 
-      call mix_XY_linear(lin_mix_coeff)
-      ! To be replaced with something more fancy in the future
+      ! ! Apply simple linear mixing of X and Y. 
+      ! call mix_XY_linear(lin_mix_coeff)
+      ! ! To be replaced with something more fancy in the future
 
-      ! build the perturbed densities on the mesh dRs, dRa from X and Y
-      call build_perturbed_densities(X, Y, dRs, dRa)
+      ! ! build the perturbed densities on the mesh dRs, dRa from X and Y
+      ! call build_perturbed_densities(X, Y, dRs, dRa)
 
-      call store_XY_hist()
+      ! call store_XY_hist()
 
-      ! call print_all_fam_spmat()
+      !---------------------------------------------------------------------------------
+      ! linear mixing while employing iterate_dHsp()
+      !---------------------------------------------------------------------------------
+
+      ! calculate free response, i.e. one FAM loop based on dH=0
+      call iterate_dHsp(dH_flat, dH_flat_next)
+
+      ! simple linear mixing of sp hamiltonian
+      dH_flat_next = lin_mix_coeff * dH_flat_next + (1.0_dp - lin_mix_coeff) * dH_flat
+
+      ! update for next iteration
+      dH_flat = dH_flat_next
+
+      !---------------------------------------------------------------------------------
+      ! test convergenence
+      !---------------------------------------------------------------------------------
 
       print *, " S(", omega_curr, ") = ",  calc_strength()
 
