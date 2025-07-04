@@ -36,11 +36,7 @@ module fam
   real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 0.5 MeV
   !    Note that the obtained strength is convoluted with a Lorentzian with FWHM 
   !    equal to Gamma = 2 * smear 
-  real(KIND=dp) :: eta = 1.0e-3_dp ! small parameter entering derivatives, 
-  !    Default currently set to 10-3. In the end, the strength should be 
-  !    reasonably indepedent of the choice. 
-  !      -> obsolete in explicit linearisation of the fields
-  integer :: maxfamiter = 1000 ! maximal number of FAM iterations 
+  integer :: maxfamiter = 100 ! maximal number of FAM iterations 
   !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
   complex(KIND=dp), allocatable :: X(:,:) ! forward amplitudes HF basis
@@ -55,20 +51,19 @@ module fam
   !         rho_fam = rho_MF + drho
   complex(KIND=dp), allocatable :: drho(:,:)   ! perturbed normal density matrix
   complex(KIND=dp), allocatable :: dkappa(:,:) ! perturbed pairing density matrix
-  ! complex(KIND=dp), allocatable :: dR(:,:)     ! perturbed generalised density matrix
-  type(DensityVector)   :: R         ! static mean-field densities on the mesh
+  ! complex(KIND=dp), allocatable :: dR(:,:)   ! perturbed generalised density matrix
+  type(DensityVector)   :: Runper    ! static mean-field densities on the mesh
   type(DensityVector)   :: dRs, dRa  ! perturbed densities on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
   type(PotentialVector) :: dFs, dFa  ! perturbed potentials on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
-  ! type(DensityVector)   :: DensityPert  ! TO BE REMOVED
-  ! type(PotentialVector) :: PotentialPert! TO BE REMOVED
   !-----------------------------------------------------------------------------
   ! unperturbed Hamiltonian and perturbed hamiltonian
-  real(KIND=dp), allocatable :: H_unpert(:,:) ! unperturbed Hamiltonian in HF basis
-  real(KIND=dp), allocatable :: dH(:,:,:) ! perturbed Hamiltonian in HF basis
+  real(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
+  real(KIND=dp), allocatable :: dH(:,:,:)   ! ph and hp block of the perturbed
+  !                                | | |      Hamiltonian in HF basis
   !                                | | '-> 1: ph block, 2: hp block 
   !                                | '-> sp index : hole
   !                                '-> sp index : particle
@@ -100,22 +95,28 @@ module fam
   !   index two steps back and then one forward is because mod gives values 
   !   0..hist_max-1 while fortran arrays use a 1-based index. 
   real(KIND=dp) :: XY_prec = 1.0e-10_dp ! convergence tolerance for X and Y
+  !-----------------------------------------------------------------------------
+  ! verbosity
+  integer :: verbose = 0
+  ! 0: very limited printing
+  ! 1: printing some function calls
+  ! 2: printing all sp matrices at each iteration
+
 
   contains
   
 
-  subroutine inifam(omega, PotentialsUnpert)
+  subroutine inifam(omega, DensUnper, PotUnper)
     implicit none
     !---------------------------------------------------------------------------
     ! Allocate the FAM objects, set the external field F and initialise the X
     ! and Y from first order, i.e. dH=0. 
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: omega
-    type(PotentialVector), intent(in) :: PotentialsUnpert
-    real(KIND=dp), allocatable :: SolidHarmHF(:,:)
-    integer :: p, h
-    real(KIND=dp) :: occ_h, occ_p
-    logical :: ImPart
+    real(KIND=dp), intent(in)          :: omega
+    type(DensityVector), intent(in)    :: DensUnper
+    type(PotentialVector), intent(in)  :: PotUnper
+    real(KIND=dp), allocatable         :: SolidHarmHF(:,:)
+    logical                            :: ImPart
 
     1 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
@@ -136,9 +137,6 @@ module fam
       
       allocate(SolidHarmHF(nwt,nwt)) 
 
-      ! Set external field to E2, hardcoded for now
-      ! l = 0
-      ! m = 0
       ImPart = .false. ! real (.false.) , imaginary (.true.) 
       ! note: odd m and Im parts are not implemeted yet
 
@@ -156,12 +154,9 @@ module fam
         ! Rescale, Qlm comes in units barn^(l/2)
         SolidHarmHF = SolidHarmHF * (100**(l/2.0)) 
 
-        ! TODO: investigate sign change in the third row (column) wrt almost identical (row)
-        ! SolidHarmHF(3,:) = -1.0 * SolidHarmHF(3,:)
-        ! SolidHarmHF(:,3) = -1.0 * SolidHarmHF(:,3)
-  
-        ! print *, 'Q20'
-        ! call print_spme_real(SolidHarmHF)
+        ! TODO: investigate signs in Q20 which seems suspicious in O16 nwt24 test case
+        ! 3rd row/col in sym block 1 differs in sign wrt blocks 2, 5 and 6. 
+
 
       endif
      
@@ -188,9 +183,9 @@ module fam
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! set up the unperturbed Hamiltonian from the unperturbed potentials
-    if(.not.allocated(H_unpert)) then 
-      allocate(H_unpert(nwt,nwt))
-      H_unpert = calc_sphamil(PotentialsUnpert, .false.)
+    if(.not.allocated(Hunper)) then 
+      allocate(Hunper(nwt,nwt))
+      Hunper = calc_sphamil(PotUnper, .false.)
     endif
 
 
@@ -224,6 +219,11 @@ module fam
     ! storing the initial x and Y in the history
     call store_XY_hist()
 
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! store the unperturbed densities
+    RUnper = DensUnper
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the perturbed densities
     if(.not.allocated(drho)) then 
@@ -236,8 +236,8 @@ module fam
     
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise perturbed potentials as 0
-    dFs = 0.0_dp * PotentialsUnpert
-    dFa = 0.0_dp * PotentialsUnpert
+    dFs = 0.0_dp * PotUnper
+    dFa = 0.0_dp * PotUnper
 
     ! TODO: replace by a better initialisation routine
     ! This might require Hephaestos
@@ -344,7 +344,7 @@ module fam
     call build_perturbed_densities(X, Y, dRs, dRa)
 
     ! explicit linearisation of the fields
-    call calc_perturbed_potentials(Density, dRs, dRa, dFs, dFa)
+    call calc_perturbed_potentials(RUnper, dRs, dRa, dFs, dFa)
 
     ! necessary? 
     call combine_potentials(dFs)
@@ -352,21 +352,21 @@ module fam
     ! construct the sp hamiltonian
     dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
 
+    if (verbose > 1) call print_all_fam_spmat()
+
   end subroutine iterate_dHsp
 
   subroutine calculate_XY(dH)
     !---------------------------------------------------------------------------
     ! Compute the X and Y amplitudes from the FAM master equation
     !---------------------------------------------------------------------------
-
     implicit none
+    real(KIND=dp), intent(in)  :: dH(:,:,:) ! perturbed H in QP basis
 
-    real(KIND=dp), dimension(:,:,:), intent(in)  :: dH ! perturbed H in QP basis
-    integer :: p, h
+    integer       :: p, h
     real(KIND=dp) :: occ_h, occ_p, e_h, e_p
-    ! complex(KIND=dp), allocatable :: denomX(:,:),  denomY(:,:)
 
-    print *, "update X and Y"
+    if (verbose > 0) print *, "update X and Y"
 
 
     X = - (F(:,:,1) + dH(:,:,1))
@@ -383,83 +383,17 @@ module fam
         if(occ_p < 1d-6) cycle
         X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
         Y(p,h) = Y(p,h) / (e_p - e_h + CMPLX(omega_fam,smear,KIND=dp) )
-        ! print *, p, h, e_p, e_h, occ_h, occ_p, 
-        ! print *, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
       enddo
     enddo
 
   end subroutine calculate_XY
 
-  subroutine print_all_fam_spmat()
-
-    print *, 'X'
-    call print_spme_complex(X)
-
-    print *, 'Y'
-    call print_spme_complex(Y)
-
-    print *, 'drho'
-    call print_spme_complex(X)
-
-    print *, 'dH20'
-    call print_spme_real(dH(:,:,1))
-
-    print *, 'dH02'
-    call print_spme_real(dH(:,:,2))
-    
-    print *, 'F20'
-    call print_spme_real(F(:,:,1))
-
-    print *, 'F02'
-    call print_spme_real(F(:,:,2))
-
-  end subroutine
-
-
-  subroutine print_spme_real(A)
-    implicit none
-    real(kind=dp), intent(in) :: A(:,:)
-    integer :: si, B, N, i
-
-    si = 0
-    do B=1,8
-      N = HFBLocks(B)
-
-      print *, 'BLOCK', B
-      do i=si+1,si+N
-        print '(99f10.5)',  A(i, si+1:si+N)
-      enddo
-      print *
-      si = si + N
-    enddo
-    print *
-    
-  end subroutine print_spme_real
-
-  subroutine print_spme_complex(A)
-    implicit none
-    complex(kind=dp), intent(in) :: A(:,:)
-    integer :: si, B, N, i
-
-    si = 0
-    do B=1,8
-      N = HFBLocks(B)
-
-      print *, 'BLOCK', B
-      do i=si+1,si+N
-        print "(*('('sf8.5','sf8.5')':x))",  A(i, si+1:si+N)
-      enddo
-      print *
-      si = si + N
-    enddo
-    print *
-    
-  end subroutine print_spme_complex
 
   subroutine store_XY_hist()
     !---------------------------------------------------------------------------
     ! Store the current X and Y into their histories. 
     !---------------------------------------------------------------------------
+    if (verbose > 0) print *, "store X and Y"
 
     ! roll the current index one step forward
     hist_current_idx = modulo(hist_current_idx, hist_max) + 1
@@ -476,8 +410,9 @@ module fam
     !   X^[i] = alpha * X^[i] + (1-alpha) X^[i-1]
     ! No return. Changes are made to the current X and Y.
     !---------------------------------------------------------------------------
-
     real(KIND=dp), intent(in) :: alpha
+
+    if (verbose > 0) print *, "mix X and Y with alpha=", alpha
 
     X = alpha * X + (1.0 - alpha) * X_hist(hist_current_idx, :, :) 
     Y = alpha * Y + (1.0 - alpha) * Y_hist(hist_current_idx, :, :) 
@@ -510,23 +445,19 @@ module fam
     !---------------------------------------------------------------------------
     ! Build the perturbed mean-field densities.
     !---------------------------------------------------------------------------
-
     implicit none
-    complex(KIND=dp), intent(in) :: X(:,:), Y(:,:)
+    complex(KIND=dp), intent(in)     :: X(:,:), Y(:,:)
     type(DensityVector), intent(out) :: dRs, dRa
 
-
-    print *, "build perturbed densities"
+    if (verbose > 0) print *, "build perturbed densities"
 
     drho = X + transpose(Y) 
     dkappa = 0
 
-    ! print *, 'drho'
-    ! call print_spme_complex(drho)
-
     call densit_offdiag(drho, dkappa, dRs, dRa)
 
   end subroutine build_perturbed_densities
+
 
   subroutine build_dH_explicit(R, dRs, dRa)
     !---------------------------------------------------------------------------
@@ -556,75 +487,6 @@ module fam
 
 
   end subroutine build_dH_explicit
-
-  subroutine build_dH_findiff(Density, DensityPert)
-    !---------------------------------------------------------------------------
-    ! Build the perturbed single-particle Hamiltonian using finite difference
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! NOT OPERATIONAL
-    !   -> use build_dH_explicit() instead.
-    ! 
-    ! Notes:
-    !    This function is not operational at this point but is kept for potential 
-    !    test in the future. In particular, it would allow to test 
-    !    calc_perturbed_potentials.
-    !---------------------------------------------------------------------------
-
-    implicit none
-    type(DensityVector), intent(in) :: Density, DensityPert
-    type(DensityVector) :: DensityTot
-    type(PotentialVector) :: PotentialTotNew
-    real(KIND=dp), allocatable :: HPert(:,:)
-    integer :: i, h, p
-    real(KIND=dp) :: occ_h, occ_p
-
-    print *, "build perturbed hamiltonian using finite difference"
-
-    ! allocate(HPert(nwt,nwt))
-
-    ! Calculate the total perturbed potentials, i.e. static mean-field + perturbation, 
-    ! from the total perturbed densit, i.e. static mean-field + perturbation
-
-    ! PotentialTotNew = calcPotentials(Density + eta * DensityPert)
-
-    ! /!\ presently incorrect. This should be replaced by a function which treats
-    ! symm and atisymm parts where the Rs = Density + eta * dRs and Ra = eta * dRa
-    ! call calcPotentials(Density + eta * dRs, eta * dRa, Fs, Fa)
-
-    ! call combine_potentials(PotentialPertNew)
-
-
-    ! TODO mixing is still absent, it would require keeping track of the  
-    ! unperturbed plus perturbed fields
-
-    ! construct the sp hamiltonian
-    ! HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,PotentialTotNew, .false.)
-
-    ! /!\ presently incorrect. Again, this should be replaced by a function which 
-    ! treats symm and atisymm parts of the fields. 
-    ! call calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, Fs, Fa, .false.)
-
-
-    ! ! compute dH by finite difference, i.e. subtract the unperturbed Hamiltonian
-    ! HPert = HPert - H_unpert
-    ! ! ... and devide by small parameter eta
-    ! HPert = HPert / eta
-
-    ! ! store ph and hp blocks in dH
-    ! do h = 1, nwt
-    !   occ_h = rho_can(h)
-    !   if(occ_h < 1d-6) cycle
-    !   do p = 1, nwt
-    !     occ_p = 1.0 - rho_can(p) 
-    !     if(occ_p < 1d-6) cycle
-    !     dH(p,h,1) = occ_p * occ_h * HPert(p,h) ! ph block dH20(p,h)
-    !     dH(p,h,2) = occ_p * occ_h * HPert(h,p) ! hp block dH02(p,h)
-    !   enddo
-    ! enddo
-
-    ! print *,  sqrt(sum( abs(dH(:,:,1))**2) )
-
-  end subroutine build_dH_findiff
 
 
   function calc_strength() result (S_out)
@@ -714,7 +576,8 @@ module fam
 
   end subroutine test_convergence
 
-   subroutine get_ph_hp_blocks(M, Mph, Mhp)
+
+ subroutine get_ph_hp_blocks(M, Mph, Mhp)
     !---------------------------------------------------------------------------
     ! Get the particle-hole and hole-particle subblocks of a one-body operator
     ! M. Occupation are obtained from the diagonal elements of rho_can. 
@@ -782,5 +645,93 @@ module fam
     enddo
 
   end function
+
+  function norm_dH(dH) result(res)
+    ! abstract template procedure dH -> real required for procedural argument to gmres
+    ! to be updated to the objects of the dimensions of the perturbed
+    ! sp hamiltonian dh and ddelta (in HF basis)
+    real(KIND=dp), dimension(:), intent(in)  :: dH
+    real(KIND=dp)                            :: res
+
+    res = sqrt(sum(dH(:) * dH(:)))
+
+  end function
+
+  function ScProd_dH(dHl, dHr) result(res)
+    ! abstract template procedure (dH,dH) -> complex required for procedural argument to gmres
+    ! to be updated to the objects of the dimensions of the perturbed
+    ! sp hamiltonian dh and ddelta (in HF basis)
+    real(KIND=dp), dimension(:), intent(in)  :: dHl, dHr
+    real(KIND=dp)                            :: res
+
+    res = sum(dHl(:) *  dHr(:))
+
+  end function
+
+ subroutine print_all_fam_spmat()
+
+    print *, 'X'
+    call print_spme_complex(X)
+
+    print *, 'Y'
+    call print_spme_complex(Y)
+
+    print *, 'drho'
+    call print_spme_complex(X)
+
+    print *, 'dH20'
+    call print_spme_real(dH(:,:,1))
+
+    print *, 'dH02'
+    call print_spme_real(dH(:,:,2))
+    
+    print *, 'F20'
+    call print_spme_real(F(:,:,1))
+
+    print *, 'F02'
+    call print_spme_real(F(:,:,2))
+
+  end subroutine
+
+
+  subroutine print_spme_real(A)
+    implicit none
+    real(kind=dp), intent(in) :: A(:,:)
+    integer :: si, B, N, i
+
+    si = 0
+    do B=1,8
+      N = HFBLocks(B)
+
+      print *, 'BLOCK', B
+      do i=si+1,si+N
+        print '(99f10.5)',  A(i, si+1:si+N)
+      enddo
+      print *
+      si = si + N
+    enddo
+    print *
+    
+  end subroutine print_spme_real
+
+  subroutine print_spme_complex(A)
+    implicit none
+    complex(kind=dp), intent(in) :: A(:,:)
+    integer :: si, B, N, i
+
+    si = 0
+    do B=1,8
+      N = HFBLocks(B)
+
+      print *, 'BLOCK', B
+      do i=si+1,si+N
+        print "(*('('sf8.5','sf8.5')':x))",  A(i, si+1:si+N)
+      enddo
+      print *
+      si = si + N
+    enddo
+    print *
+    
+  end subroutine print_spme_complex
 
 end module fam

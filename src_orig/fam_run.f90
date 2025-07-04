@@ -37,17 +37,6 @@ program run_FAM
 
   !-----------------------------------------------------------------------------
   ! Read input from STDIN
-  ! 
-  ! For FAMQRPA, the code should read in addition:
-  ! 
-  ! -  the type of perturbing operator/external field: E1, E2, M1, M2, ...
-  !    and more complicated stuff when targetting beta-decay
-  !    Important note: we will need to distinguish
-  ! -  the frequency \omega_fam of the perturbing field
-  ! -  the 'size' of the perturbation to perform the finite differencing
-  ! -  a smearing parameter to avoid discontinuities at the poles of the 
-  !    response function
-  ! 
   call ReadInput()
 
   !-----------------------------------------------------------------------------
@@ -78,20 +67,7 @@ program run_FAM
   Potentials  = calcPotentials(Density)
   sphamil     = Calc_Sphamil(potentials, .true.)
 
-  ! ! Testing printout - left for now
-  ! print *, 'BEFORE'
-  ! si = 0
-  ! do B=1,8
-  !   N = HFBLocks(B)
-
-  !   print *, 'BLOCK', B, N
-  !   do i=si+1,si+N
-  !     print ('(99f10.3)'), sphamil(i, si+1:si+N)
-  !   enddo
-  !   print *
-  !   si = si + N
-  ! enddo
-
+  
   call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
   ! diagonalisation done; now recalculate other quantities
   if(store_derivatives) call deriveHF() ! and update derivatives
@@ -99,24 +75,6 @@ program run_FAM
   Potentials  = calcPotentials(Density)
   sphamil     = Calc_Sphamil(potentials, .true.)
 
-  ! ! Testing printout - left for now
-  ! print *, 'AFTER'
-  ! si = 0
-  ! do B=1,8
-  !   N = HFBLocks(B)
-
-  !   print *, 'BLOCK', B, N
-  !   do i=si+1,si+N
-  !     print ('(99f10.3)'), sphamil(i, si+1:si+N)
-  !   enddo
-  !   print *
-  !   si = si + N
-  ! enddo
-  ! stop
-
-  ! print ('(99f10.3)'), rho_can(:)
-
-  !
   ! Note: there is a silent assumption here that the HF-spectrum is sufficiently
   !       well-converged such that an explicit orthonormalisation will not change
   !       our mean-field state in any meaningful way. In the future, we might want
@@ -141,21 +99,19 @@ program run_FAM
 
   omega_curr = omega_min
 
-  ! maxfamiter = 1000
-
   do omega_index=1, omega_num
 
     !-------------------------------------------------------------------------------
     ! initialise FAM matrices end set perturbing external field
-    call inifam(omega_curr, Potentials)
+    call inifam(omega_curr, Density, Potentials)
 
     if( calc_strength() .ge. 0.1) then
-      lin_mix_coeff=1.0d-2
+      lin_mix_coeff=0.01
     else
       if( calc_strength() .ge. 0.001) then
-        lin_mix_coeff=1.0d-2
+        lin_mix_coeff=0.05
       else
-        lin_mix_coeff=1.0d-1
+        lin_mix_coeff=0.1
       endif
     endif
 
@@ -212,7 +168,7 @@ program run_FAM
       ! simple linear mixing of sp hamiltonian
       dH_flat_next = lin_mix_coeff * dH_flat_next + (1.0_dp - lin_mix_coeff) * dH_flat
 
-      ! update for next iteration
+      ! update dH for next iteration
       dH_flat = dH_flat_next
 
       !---------------------------------------------------------------------------------

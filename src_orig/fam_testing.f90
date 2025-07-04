@@ -10,6 +10,7 @@ module fam_testing
   use fission_MOI
   use functional
   use evolution
+  use fam
 
 implicit none
 
@@ -244,6 +245,7 @@ contains
     enddo
   end function kinetic_me
 
+
   subroutine test_densit_offdiag(ifail)
     !-------------------------------------------------------------------------------
     ! This routine verifies that the density calculation of function densit
@@ -304,5 +306,53 @@ contains
     call mixup_rhokappa(rho_test, kappa_test, transfo)
 
   end subroutine test_densit_offdiag
+
+
+  subroutine build_dH_findiff(RUnper, dRs, dRa, eta)
+    !---------------------------------------------------------------------------
+    ! Build the perturbed single-particle Hamiltonian using finite difference
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! NOT OPERATIONAL
+    !   -> use build_dH_explicit() instead.
+    ! 
+    ! Notes:
+    !    This function is not operational at this point but is kept for potential 
+    !    test in the future. In particular, it would allow to test 
+    !    calc_perturbed_potentials.
+    !---------------------------------------------------------------------------
+
+    1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
+
+    implicit none
+    type(DensityVector), intent(in) :: RUnper, dRs, dRa
+    real(KIND=dp), intent(in)       :: eta     ! small finite diff. parameter
+    type(PotentialVector)           :: Fs, Fa
+    real(KIND=dp), allocatable      :: HPert(:,:)
+
+    print *, "build perturbed Hamiltonian using finite difference"
+
+    allocate(HPert(nwt,nwt))
+
+    ! Calculate the total perturbed potentials, i.e. static mean-field + perturbation, 
+    ! from the total perturbed densit, i.e. static mean-field + perturbation
+
+    ! call calcPotentials(RUnper + eta * dRs, eta * dRa, Fs, Fa)
+    ! => presently missing. /!\
+
+    call combine_potentials(Fs)
+
+    ! construct the sp hamiltonian
+    HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, Fs,  Fa, .false.)
+
+    ! compute dH by finite difference, i.e. subtract the unperturbed Hamiltonian
+    HPert = HPert - Hunper
+    ! ... and devide by small parameter eta
+    HPert = HPert / eta
+
+    call get_ph_hp_blocks(HPert, dH(:,:,1), dH(:,:,2))
+
+    print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
+
+  end subroutine build_dH_findiff
 
 end module fam_testing
