@@ -99,7 +99,7 @@ module fam
   !   accessed at idx = modulo(hist_current_idx - 2, hist_max) + 1). Rolling the
   !   index two steps back and then one forward is because mod gives values 
   !   0..hist_max-1 while fortran arrays use a 1-based index. 
-  real(KIND=dp) :: tol_XY_conv = 1.0e-5_dp ! convergence tolerance for X and Y
+  real(KIND=dp) :: XY_prec = 1.0e-10_dp ! convergence tolerance for X and Y
 
   contains
   
@@ -324,7 +324,7 @@ module fam
     real(KIND=dp) :: omega = -1.0_dp
 
     namelist /fam/      omega, omega_min, omega_max, omega_step,    &
-    &                   smear, maxiter, l, m
+    &                   smear, maxiter, l, m, XY_prec
 
     if(MPI_rank .eq. 0) then    
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -364,7 +364,7 @@ module fam
     print 2, omega_min, omega_max, omega_step
     print 21, smear
     print 3, l, m
-    print 4, maxfamiter, tol_XY_conv
+    print 4, maxfamiter, XY_prec
 
   end subroutine
 
@@ -792,7 +792,7 @@ module fam
 
     print * , "convergence: ||DX|| = ", DX_norm, "   ||DY|| = ", DY_norm
 
-    if( (DX_norm<tol_XY_conv) .and. (DY_norm<tol_XY_conv)) then
+    if( (DX_norm < XY_prec) .and. (DY_norm < XY_prec)) then
       conv = .true.
     endif
 

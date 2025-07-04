@@ -9,7 +9,7 @@
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
 #  - total HF energy                -177.062001 MeV                  1 keV
-#  - strength S_20 @ 25.0 MeV          1.632650 fm^4 MeV^-1          0.001
+#  - strength S_20 @ 25.0 MeV          1.653682 fm^4 MeV^-1          0.001
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
@@ -22,7 +22,7 @@
 #-------------------------------------------------------------------------------
 # These are the hardcoded answers
 refE=-177.062001 # Total energy of O16 in MeV
-refS20=1.632650  # Q_20 strength of O16 at 25 MeV in fm^4 MeV^-1  
+refS20=1.653682  # Q_20 strength of O16 at 25 MeV in fm^4 MeV^-1  
 
 set -e
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
@@ -112,6 +112,7 @@ smear=1.0
 l=2
 m=0
 maxiter=10000
+XY_prec=1e-10
 /
 EOF
 
