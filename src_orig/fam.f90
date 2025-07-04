@@ -103,17 +103,23 @@ module fam
 
   contains
   
-  subroutine iterate_dHsp(dHspout, dHsp)
+  subroutine iterate_dHsp(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
     ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
     ! (in HF basis), which contain dh and ddelta (in the QFAM).  
     !---------------------------------------------------------------------------
     implicit none
-    real(KIND=dp), dimension(:,:), intent(in)  :: dHsp     
-    real(KIND=dp), dimension(:,:), intent(out) :: dHspout
+    real(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
+    real(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
+
+    real(KIND=dp), pointer :: dHsp(:,:), dHspout(:,:)
 
     integer       :: p, h
     real(KIND=dp) :: occ_h, occ_p
+
+    ! pointer remapping for reshaping 1D flat arrays into 2D matrices
+    dHsp(1:nwt,1:nwt) => dHsp_flat(:)
+    dHspout(1:nwt,1:nwt) => dHspout_flat(:)
 
     ! Fill dH with ph and hp blocks of dHsp
     do h = 1, nwt
@@ -134,21 +140,21 @@ module fam
 
     ! Apply simple linear mixing of X and Y. 
     ! call mix_XY_linear(lin_mix_coeff)
-    ! call store_XY_hist()
     ! -> this may be skipped when using GMRES
+
+    call store_XY_hist()
 
     ! build the perturbed densities on the mesh dRs, dRa from X and Y
     call build_perturbed_densities(X, Y, dRs, dRa)
 
     ! explicit linearisation of the fields
-    call calc_perturbed_potentials(R, dRs, dRa, dFs, dFa)
+    call calc_perturbed_potentials(Density, dRs, dRa, dFs, dFa)
 
     ! necessary? 
     call combine_potentials(dFs)
 
     ! construct the sp hamiltonian
     dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
-
 
   end subroutine iterate_dHsp
 
@@ -336,6 +342,8 @@ module fam
       else
         read (unit=*, nml=fam)
       endif
+
+      maxfamiter = maxiter
 
       ! if a single fams frequency omega is passed, set min and max to omega
       if(omega .ne. -1.0_dp) then
