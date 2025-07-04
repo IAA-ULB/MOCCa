@@ -35,7 +35,10 @@ jobs:
         COMPILER   :   [ gfortran   ]
         CALCTYPE   :   [ NUCLEI     ]
         include :
-            # Only check pasta with BXL and ifort compiler
+            # Only check pasta with BXL configuration
+            - CALCTYPE: PASTA
+              CONFIG  : BXL
+              COMPILER: gfortran
             - CALCTYPE: PASTA
               CONFIG  : BXL
               COMPILER: ifx
