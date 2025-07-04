@@ -1618,6 +1618,7 @@ $READPOTENTIALS
     cut(1) = Estabn
     cut(2) = Estabp
     stab   = 0.0
+    if (pairingtype.eq.0) return
 
     do it=1,2
       !-------------------------------------------------------------------------
