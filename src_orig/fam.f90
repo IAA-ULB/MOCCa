@@ -103,61 +103,6 @@ module fam
 
   contains
   
-  subroutine iterate_dHsp(dHsp_flat, dHspout_flat)
-    !---------------------------------------------------------------------------
-    ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
-    ! (in HF basis), which contain dh and ddelta (in the QFAM).  
-    !---------------------------------------------------------------------------
-    implicit none
-    real(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
-    real(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
-
-    real(KIND=dp), pointer :: dHsp(:,:), dHspout(:,:)
-
-    integer       :: p, h
-    real(KIND=dp) :: occ_h, occ_p
-
-    ! pointer remapping for reshaping 1D flat arrays into 2D matrices
-    dHsp(1:nwt,1:nwt) => dHsp_flat(:)
-    dHspout(1:nwt,1:nwt) => dHspout_flat(:)
-
-    ! Fill dH with ph and hp blocks of dHsp
-    do h = 1, nwt
-      occ_h = rho_can(h)
-      if(occ_h < 1d-6) cycle
-      do p = 1, nwt
-        occ_p = 1.0 - rho_can(p) 
-        if(occ_p < 1d-6) cycle
-        dH(p,h,1) = occ_p * occ_h * dHsp(p,h) ! ph block dH20(p,h)
-        dH(p,h,2) = occ_p * occ_h * dHsp(h,p) ! hp block dH02(p,h)
-      enddo
-    enddo
-    ! -> QFAM: will be replaced by a transfromation from HF to QP basis
-
-
-    ! calculate X and Y from the perturbed dH
-    call calculate_XY(dH)
-
-    ! Apply simple linear mixing of X and Y. 
-    ! call mix_XY_linear(lin_mix_coeff)
-    ! -> this may be skipped when using GMRES
-
-    call store_XY_hist()
-
-    ! build the perturbed densities on the mesh dRs, dRa from X and Y
-    call build_perturbed_densities(X, Y, dRs, dRa)
-
-    ! explicit linearisation of the fields
-    call calc_perturbed_potentials(Density, dRs, dRa, dFs, dFa)
-
-    ! necessary? 
-    call combine_potentials(dFs)
-
-    ! construct the sp hamiltonian
-    dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
-
-  end subroutine iterate_dHsp
-
 
   subroutine inifam(omega, PotentialsUnpert)
     implicit none
@@ -235,22 +180,7 @@ module fam
       ! hole-particle subblocks of SolidHarmHF by multiplying by their 
       ! occupation, i.e. diagonal elements of rho in the canonical basis
 
-      F = 0
-
-      do h = 1, nwt
-        occ_h = rho_can(h)
-        if(occ_h < 1d-6) cycle
-        do p = 1, nwt
-          occ_p = 1.0 - rho_can(p) 
-          if(occ_p < 1d-6) cycle
-          F(p,h,1) = occ_p * occ_h * SolidHarmHF(p,h) ! ph block F20(p,h)
-          F(p,h,2) = occ_p * occ_h * SolidHarmHF(h,p) ! hp block F02(p,h)
-        enddo
-      enddo
-      ! This can be improved by some element-wise products occ^T @ SolidHarmHF @ occ
-      
-      ! Note to future self: for QFAM this will be replaced by a transformation 
-      ! to the qp basis. 
+      call get_ph_hp_blocks(SolidHarmHF, F(:,:,1), F(:,:,2))
 
       deallocate(SolidHarmHF)
 
@@ -376,6 +306,54 @@ module fam
 
   end subroutine
 
+  subroutine iterate_dHsp(dHsp_flat, dHspout_flat)
+    !---------------------------------------------------------------------------
+    ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
+    ! (in HF basis), which contain dh and ddelta (in the QFAM).  
+    !---------------------------------------------------------------------------
+    implicit none
+    real(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
+    real(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
+
+    real(KIND=dp), pointer :: dHsp(:,:), dHspout(:,:)
+
+    integer       :: p, h
+    real(KIND=dp) :: occ_h, occ_p
+
+    ! pointer remapping for reshaping 1D flat arrays into 2D matrices
+    dHsp(1:nwt,1:nwt) => dHsp_flat(:)
+    dHspout(1:nwt,1:nwt) => dHspout_flat(:)
+
+    ! get the ph and hp subblocks
+    call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
+
+    print *, '||dH_ph|| = ', sqrt(sum( abs(dH(:,:,1))**2) )
+    print *, '||dH_hp|| = ', sqrt(sum( abs(dH(:,:,2))**2) )
+
+
+    ! calculate X and Y from the perturbed dH
+    call calculate_XY(dH)
+
+    ! Apply simple linear mixing of X and Y. 
+    ! call mix_XY_linear(lin_mix_coeff)
+    ! -> this may be skipped when using GMRES
+
+    call store_XY_hist()
+
+    ! build the perturbed densities on the mesh dRs, dRa from X and Y
+    call build_perturbed_densities(X, Y, dRs, dRa)
+
+    ! explicit linearisation of the fields
+    call calc_perturbed_potentials(Density, dRs, dRa, dFs, dFa)
+
+    ! necessary? 
+    call combine_potentials(dFs)
+
+    ! construct the sp hamiltonian
+    dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+
+  end subroutine iterate_dHsp
+
   subroutine calculate_XY(dH)
     !---------------------------------------------------------------------------
     ! Compute the X and Y amplitudes from the FAM master equation
@@ -409,50 +387,6 @@ module fam
         ! print *, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
       enddo
     enddo
-
-    ! print *, 'X'
-    ! call print_spme_complex(X)
-
-    ! print *, 'Y'
-    ! call print_spme_complex(Y)
-
-    ! print *, 'rho'
-    ! call print_spme_real(rho_pairing)
-
-    ! allocate(denomX(nwt,nwt))
-    ! allocate(denomY(nwt,nwt))
-
-    ! ! energy denominator
-    ! do h = 1, nwt
-    !   occ_h = rho_can(h)
-    !   e_h = spenergies(h) 
-    !   if(occ_h < 1d-6) cycle
-    !   do p = 1, nwt
-    !     occ_p = 1.0 - rho_can(p) ! degeneracy is always 1 since T is broken
-    !     e_p = spenergies(p) 
-    !     if(occ_p < 1d-6) cycle
-    !     denomX(p,h) = (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
-    !     denomY(p,h) = (e_p - e_h + CMPLX(omega_fam,smear,KIND=dp) )
-    !     ! print *, p, h, e_p, e_h, occ_h, occ_p, 
-    !     ! print *, X(p,h), Y(p,h), F(p,h,1), F(p,h,2)
-    !   enddo
-    ! enddo
-
-    ! print *, 'denomX'
-    ! call print_spme_complex(denomX)
-
-    ! print *, 'denomY'
-    ! call print_spme_complex(denomY)
-
-    ! stop
-
-
-    ! print *, '||F20|| = ', sqrt(sum( abs(F(:,:,1))**2) )
-    print *, '||dH20|| = ', sqrt(sum( abs(dH(:,:,1))**2) )
-
-
-  ! print *, '||X|| = ', sqrt(sum( abs(X(:,:))**2) )
-  ! print *, '||Y|| = ', sqrt(sum( abs(Y(:,:))**2) )
 
   end subroutine calculate_XY
 
@@ -601,53 +535,25 @@ module fam
     
     implicit none
     type(DensityVector), intent(in) :: R, dRs, dRa
-    type(PotentialVector) :: dFsNew, dFaNew
-    real(KIND=dp), allocatable :: HPert(:,:)
-    integer :: i, h, p
-    real(KIND=dp) :: occ_h, occ_p
-    real(KIND=dp) :: alpha = 1.0d0 ! linear mixing coeff, disable : mixing of XY
+    real(KIND=dp), allocatable :: dHsp(:,:)
 
-    print *, "build perturbed hamiltonian using explicit linearisation"
-
-    allocate(HPert(nwt,nwt))
+    allocate(dHsp(nwt,nwt))
 
     ! explicit linearisation of the fields
-    call calc_perturbed_potentials(R, dRs, dRa, dFsNew, dFaNew)
+    call calc_perturbed_potentials(R, dRs, dRa, dFs, dFa)
 
     ! necessary? 
-    call combine_potentials(dFsNew)
-
-    ! linear mixing of the sym and antisym perturbed fields with previous iteration
-    dFs = alpha * dFsNew  + (1.0 - alpha) * dFs
-    dFa = alpha * dFaNew  + (1.0 - alpha) * dFa
+    call combine_potentials(dFs)
 
     ! construct the sp hamiltonian
-    HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+    dHsp = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
 
-    ! print *, 'HPert'
-    ! call print_spme_real(HPert)
+   ! get the ph and hp subblocks
+    call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
 
+    print *, '||dH_ph|| = ', sqrt(sum( abs(dH(:,:,1))**2) )
+    print *, '||dH_hp|| = ', sqrt(sum( abs(dH(:,:,2))**2) )
 
-    ! store ph and hp blocks in dH
-    do h = 1, nwt
-      occ_h = rho_can(h)
-      if(occ_h < 1d-6) cycle
-      do p = 1, nwt
-        occ_p = 1.0 - rho_can(p) 
-        if(occ_p < 1d-6) cycle
-        dH(p,h,1) = occ_p * occ_h * HPert(p,h) ! ph block dH20(p,h)
-        dH(p,h,2) = occ_p * occ_h * HPert(h,p) ! hp block dH02(p,h)
-      enddo
-    enddo
-
-    ! print *, 'dH20'
-    ! call print_spme_real(dH(:,:,1))
-
-    ! print *, 'dH02'
-    ! call print_spme_real(dH(:,:,2))
-
-
-    ! print *,  sqrt(sum( abs(dH(:,:,1))**2) )
 
   end subroutine build_dH_explicit
 
@@ -805,6 +711,45 @@ module fam
     endif
 
   end subroutine test_convergence
+
+   subroutine get_ph_hp_blocks(M, Mph, Mhp)
+    !---------------------------------------------------------------------------
+    ! Get the particle-hole and hole-particle subblocks of a one-body operator
+    ! M. Occupation are obtained from the diagonal elements of rho_can. 
+    ! 
+    ! NOTE : 
+    ! - the ordering of the sp labels is always the particle label first 
+    ! and the hole label second, i.e. Mhp(p,h) and Mph(p,h). 
+    ! - for simplicity, Mph and Mhp are of size (nwt,nwt). 
+    !---------------------------------------------------------------------------
+
+    implicit none
+    real(KIND=dp), intent(in) :: M(:,:)
+    real(KIND=dp), intent(out) :: Mph(:,:), Mhp(:,:)
+    integer       :: p, h
+    real(KIND=dp) :: occ_h, occ_p
+
+    Mph = 0
+    Mhp = 0
+
+    do h = 1, nwt
+      occ_h = rho_can(h)
+      if(occ_h < 1d-6) cycle
+      do p = 1, nwt
+        occ_p = 1.0 - rho_can(p) 
+        if(occ_p < 1d-6) cycle
+        Mph(p,h) = occ_p * occ_h * M(p,h)
+        Mhp(p,h) = occ_p * occ_h * M(h,p)
+      enddo
+    enddo
+
+    ! This can be more efficient by using some mask and elementwise multiplication
+
+    ! For QFAM this will have to be generalised to M20 and M02 obtained from a 
+    ! Bogoliubov transformation to the qp basis. 
+
+  end subroutine
+
 
 
   function Rsq_spme() result (Rsq)
