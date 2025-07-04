@@ -239,7 +239,8 @@ module fam
     dFs = 0.0_dp * PotentialsUnpert
     dFa = 0.0_dp * PotentialsUnpert
 
-    ! TO DO: replace by a better initialisation routine
+    ! TODO: replace by a better initialisation routine
+    ! This might require Hephaestos
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! print unperturbed strenght
@@ -311,6 +312,7 @@ module fam
     ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
     ! (in HF basis), which contain dh and ddelta (in the QFAM).  
     !---------------------------------------------------------------------------
+    1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
     implicit none
     real(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
     real(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
@@ -327,9 +329,7 @@ module fam
     ! get the ph and hp subblocks
     call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
 
-    print *, '||dH_ph|| = ', sqrt(sum( abs(dH(:,:,1))**2) )
-    print *, '||dH_hp|| = ', sqrt(sum( abs(dH(:,:,2))**2) )
-
+    print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
 
     ! calculate X and Y from the perturbed dH
     call calculate_XY(dH)
@@ -532,7 +532,8 @@ module fam
     !---------------------------------------------------------------------------
     ! Build the perturbed single-particle Hamiltonian
     !---------------------------------------------------------------------------
-    
+    1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
+
     implicit none
     type(DensityVector), intent(in) :: R, dRs, dRa
     real(KIND=dp), allocatable :: dHsp(:,:)
@@ -551,8 +552,7 @@ module fam
    ! get the ph and hp subblocks
     call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
 
-    print *, '||dH_ph|| = ', sqrt(sum( abs(dH(:,:,1))**2) )
-    print *, '||dH_hp|| = ', sqrt(sum( abs(dH(:,:,2))**2) )
+    print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
 
 
   end subroutine build_dH_explicit
@@ -677,6 +677,9 @@ module fam
     ! The Frobenius norm ||A|| is evaluated as sqrt(sum[abs(A(:,:))**2]) where
     ! the abs takes care of obtaining the modulus of the complex values.
     !---------------------------------------------------------------------------
+
+    1 format('||X|| = ', es10.3, '     ||Y|| = ', es10.3)
+    2 format('Convergence: ', '||dX|| = ', es10.3, '     ||dY|| = ', es10.3)
     logical, intent(out) :: conv, div
     integer :: idx_prev
     real(KIND=dp) :: DX_norm, DY_norm, X_norm, Y_norm
@@ -688,8 +691,7 @@ module fam
     Y_norm = sqrt(sum( abs(Y_hist(hist_current_idx,:,:))**2))
 
 
-    print * , "||X|| = ", X_norm
-    print * , "||Y|| = ", Y_norm
+    print 1, X_norm, Y_norm
 
     if( (X_norm .ge. 1.0d3) .or. (Y_norm .ge. 1.0d3)) then
       div = .true.
@@ -704,7 +706,7 @@ module fam
     DY_norm = sqrt( sum( abs(Y_hist(hist_current_idx,:,:) - Y_hist(idx_prev,:,:))**2) )
     DY_norm = DY_norm / Y_norm
 
-    print * , "convergence: ||DX|| = ", DX_norm, "   ||DY|| = ", DY_norm
+    print 2, DX_norm, DY_norm
 
     if( (DX_norm < XY_prec) .and. (DY_norm < XY_prec)) then
       conv = .true.

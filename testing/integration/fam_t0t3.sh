@@ -141,4 +141,12 @@ teardown_test_env
 
 #- - - - - - - - - - - - - -  -- - - - - - - - - - - - - - - - - - - - - - - -
 # Return exit code 1 if any of the checks failed
-exit $(($tantalus_check || $fam_check || $check_energy || $check_strength ))
+fail=$(($tantalus_check || $fam_check || $check_energy || $check_strength ))
+
+if (($fail == 0)) ; then
+	echo "success"
+else
+	echo "failed !  tant : $tantalus_check, fam : $fam_check, E_hf : $check_energy, S20 : $check_strength"
+fi
+
+exit $fail

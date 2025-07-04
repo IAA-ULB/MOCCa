@@ -7,6 +7,9 @@ program run_FAM
   use fam_testing, only : run_FAM_tests
   use gmres, only : do_gmres
 
+  1 format(86('-'))
+  2 format('FAM iteration = ', i5) 
+  3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
   implicit none
   integer :: iteration
@@ -177,7 +180,8 @@ program run_FAM
     ! Start of the iterations 
     do iteration=1, maxfamiter
 
-      print *, "FAM iteration : ", iteration
+      print 1
+      print 2, iteration
 
       !---------------------------------------------------------------------------------
       ! via explicit loops and linear mixing
@@ -215,20 +219,26 @@ program run_FAM
       ! test convergenence
       !---------------------------------------------------------------------------------
 
-      print *, " S(", omega_curr, ") = ",  calc_strength()
+      print 3, l,m, omega_curr,  calc_strength()
 
       ! Exit the loop if convergence is achieved.
       if (iteration > 1) then ! at least two iterations to be able to compare
        call test_convergence(is_converged, is_divergent)
         if(is_converged) then
+          print 1
           print *, "Hooray! FAM is converged! "
+          print 1
+          print 1
           ! omega_arr(omega_index) = omega_curr
           ! S_arr(omega_index) = calc_strength()
           iter_arr(omega_index) = iteration
           exit
         endif
         if(is_divergent) then
+          print 1
           print *, "FAM diverges, exiting"
+          print 1
+          print 1
           ! omega_arr(omega_index) = omega_curr
           ! S_arr(omega_index) = calc_strength()
           iter_arr(omega_index) = -iteration
@@ -236,7 +246,10 @@ program run_FAM
         endif
       endif
       if (iteration == maxfamiter) then
+        print 1
         print *, "Reached maximal number of iterations, ", maxfamiter
+        print 1
+        print 1
         iter_arr(omega_index) = -maxfamiter
       endif
     enddo
@@ -245,8 +258,7 @@ program run_FAM
     S_arr(omega_index) = calc_strength()
 
 
-    print *, " S(", omega_arr(omega_index), ") = ", S_arr(omega_index)
-
+    print 3, l, m, omega_arr(omega_index), S_arr(omega_index)
 
     omega_curr = omega_curr + omega_step
 
@@ -258,9 +270,6 @@ program run_FAM
     write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
   endif
 
-  print *, omega_arr
-  print *, S_arr
-  print *, iter_arr
   call write_fam_strength(omega_arr, S_arr, iter_arr, l, m, famfilename)
 
   print *, "Reached the end successfully" 
