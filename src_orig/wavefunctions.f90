@@ -2255,7 +2255,7 @@ $N3        &                                           CANdddPsi(:,:,k,wave))
           ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ! Parity
           ! Determined by symmetry if P is conserved
-$PCON     if(mod(B,4).le.2) then
+$PCON     if(mod(B,5).le.2) then
 $PCON        P(wave) = +1
 $PCON     else
 $PCON        P(wave) = -1
