@@ -2,6 +2,7 @@ from timeit import default_timer as timer
 import sys
 
 import numpy as np
+import math
 import PyScalapack
 
 scalapack = PyScalapack(
@@ -28,13 +29,17 @@ bf = int(sys.argv[2])
 
 with scalapack(context_order, 1, 1) as context0:
     # This must be executed on all ranks! 
+    # Verify that nranks is a perfect square.
     nranks = context0.size.value
-    if nranks in (1,4,9,16,25,36,49,64):
-        nprow = npcol = int(np.sqrt(nranks))
+    nprow = int(math.sqrt(nranks))
+    if nranks == nprow*nprow:
+        npcol = nprow
+        
     else:
-        raise ValueError("bad number of ranks")
+        raise ValueError(f"bad number of {ranks=}")
+    
     if context0:
-        print(f"Initializing {nprow}x{npcol} processor grid", file=sys.stderr)
+        print(f"\nInitializing {nprow}x{npcol}={nranks} processor grid for {n}x{n} system with {bf=}.", file=sys.stderr)
 
     with( scalapack(context_order, nprow, npcol) as context  # distributed system on all ranks
         , scalapack(context_order,     1,     1) as context0 # full system on rank 0
@@ -46,7 +51,7 @@ with scalapack(context_order, 1, 1) as context0:
         # print(f"{context0.array.__doc__=}")
         if context0:
 
-            print(f"context0: rank {context0.rank.value}/{context0.size.value} initializing full matrix", file=sys.stderr)
+            # print(f"context0: rank {context0.rank.value}/{context0.size.value} initializing full matrix", file=sys.stderr)
             # fill the matrix symmetrically
             for i in range(n):
                 for j in range(n):
@@ -62,11 +67,18 @@ with scalapack(context_order, 1, 1) as context0:
 
             # print(A_ful.data)
 
-            # Compute sequential solution
-            eigenvalues0, _ = np.linalg.eigh(A_ful.data, UPLO='L')
-            # UPLO='L' is default 
-            # print(f"sequential solution: eigenvalues:\n{eigenvalues0}")
-            # print(f"sequential solution: eigenvectors:\n{eigenvectors}")
+            if nranks <= 64:
+                # Compute sequential solution
+                try:
+                    eigenvalues0, _ = np.linalg.eigh(A_ful.data, UPLO='L')
+                    # UPLO='L' is default 
+                    # print(f"sequential solution: eigenvalues:\n{eigenvalues0}")
+                    # print(f"sequential solution: eigenvectors:\n{eigenvectors}")
+                except np.LinAlgError:
+                    print("Sequential solution did not converge", file=sys.stderr)
+            else:
+                eigenvalues0 = np.zeros(n,dtype=float)
+                print("Sequential solution not computed (>1 nodes)", file=sys.stderr)
 
         # Create the distributed matrix 
         A_sub = context.array(n, n, bf, bf, dtype=float)
@@ -89,8 +101,8 @@ with scalapack(context_order, 1, 1) as context0:
         eigenvalues = np.zeros(n,dtype=float)
         work = np.zeros(1,dtype=float,order='F')
         lwork = -1
-        info = -1
-        info = scalapack.pdsyev(
+        info = np.array([n*n]) # an ordinary Python variable cannot be used as an output argument.
+        scalapack.pdsyev(
             b'V', b'L', n,
             *A_sub.scalapack_params(),
             eigenvalues,
@@ -101,15 +113,17 @@ with scalapack(context_order, 1, 1) as context0:
         lwork = int(work[0])
         # print(f"{lwork=}")
         work = np.zeros(lwork,dtype=float,order='F')
-        if False:
-            info = scalapack.pdsyev(
-                b'V', b'L', n,
-                *A_sub.scalapack_params(),
-                eigenvalues,
-                *eigenvectors_sub.scalapack_params(),
-                work, lwork,
-                info
-            )
+        scalapack.pdsyev(
+            b'V', b'L', n,
+            *A_sub.scalapack_params(),
+            eigenvalues,
+            *eigenvectors_sub.scalapack_params(),
+            work, lwork,
+            info
+        )
+        if info[0] != 0:
+            print(f"distributed solution did not converge {info=}.", file=sys.stderr)
+
         stop = timer()
         dt = stop - start
         print(f"{context.rank.value}, {context.size.value}, {n}, {bf}, {dt}")
@@ -120,6 +134,7 @@ with scalapack(context_order, 1, 1) as context0:
             n_doubles  = n*n                                # full matrix on rank 0
             n_doubles += n*n * 2 / context0.size.value      # distributed matrix and eigenvectors
             n_doubles += n + lwork                          # eigenvalues and work
+            # If we ar solving locally, we must add n + n*n for the sequential solution
             
             print(f"{n}x{n} {bf=}: difference norm = {np.linalg.norm(eigenvalues0-eigenvalues)} {dt}s\n"
-                  f"# {n}x{n} : {n_doubles=}", file=sys.stderr)
+                  f"# {n}x{n} : {n_doubles=}\n", file=sys.stderr)

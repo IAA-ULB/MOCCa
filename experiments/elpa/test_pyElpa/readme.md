@@ -1,0 +1,2 @@
+# extending PyScalapack with ELPA
+

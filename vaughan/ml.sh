@@ -58,6 +58,7 @@ esac
 
 if [ "$PYTHON" = true ]; then 
     ml SciPy-bundle
+    ml matplotlib
 fi
 
 if [ "$VERBOSE" = true ]; then 

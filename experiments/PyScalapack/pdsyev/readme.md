@@ -1,0 +1,1 @@
+Adapt the script pdsyev.py to not allocate the full matrix on rank 0. We must do this because the script is otherise limited to n ~ 46000, even on large processor grids.

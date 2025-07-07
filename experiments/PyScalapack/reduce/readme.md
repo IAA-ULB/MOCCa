@@ -1,0 +1,1 @@
+How to sum data from all processes
