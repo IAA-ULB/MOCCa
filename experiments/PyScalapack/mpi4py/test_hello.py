@@ -1,6 +1,6 @@
 from mpi4py import MPI
 
-import helloworld
+import hello
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
