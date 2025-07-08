@@ -35,7 +35,6 @@ while true; do
     -h | --help      ) HELP=true; shift ;;
     -v | --verbose   ) VERBOSE=true; shift ;;
     -p | --python    ) PYTHON=true; shift;;
-    -t | --toolchain ) TOOLCHAIN="$2"; shift 2 ;;
     * ) break ;;
   esac
 done
@@ -45,20 +44,14 @@ if [ "$HELP" = true ]; then help; fi
 module --force purge
 
 # the test works fine with these modules:
-case "$TOOLCHAIN" in
-    intel)  ml calcua/2024a;
-            ml intel;
-            ml iimkl;
-            ml HDF5;;
-    gnu  )  ml calcua/2023a; 
-            ml ScaLAPACK;
-            ml HDF5;;
-    *    )  >&2 echo "Toolchain unknown: ${TOOLCHAIN}."
-esac
+ml LUMI/24.03
+ml partition/C
+ml PrgEnv-cray
+ml buildtools
+ml cray-python
 
 if [ "$PYTHON" = true ]; then 
-    ml SciPy-bundle
-    ml matplotlib
+    ml cray-python/3.11.7
 fi
 
 if [ "$VERBOSE" = true ]; then 

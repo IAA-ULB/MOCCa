@@ -3,7 +3,7 @@ src/*
 obj/*
 mod/*
 *exe
-*i
+*.i
 *.out
 den_*
 pot_*
