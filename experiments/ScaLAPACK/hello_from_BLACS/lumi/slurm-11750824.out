@@ -1,0 +1,51 @@
+/var/spool/slurmd/job11750824/slurm_script: line 10: ../../env/lumi/ml.sh: No such file or directory
+
+Currently Loaded Modules:
+  1) LUMI/24.03                           (S)   9) craype/2.7.31.11
+  2) craype-x86-milan                          10) cray-dsmml/0.3.0
+  3) craype-accel-host                         11) cray-mpich/8.1.29
+  4) libfabric/1.15.2.0                        12) cray-libsci/24.03.0
+  5) craype-network-ofi                        13) PrgEnv-cray/8.5.0
+  6) xpmem/2.8.2-1.0_5.1__g84a27a5.shasta      14) buildtools/24.03
+  7) partition/C                          (S)  15) cray-python/3.11.7
+  8) cce/17.0.1
+
+  Where:
+   S:  Module is Sticky, requires --force to unload or purge
+ftn -o exe ../src.F90 
+ src.F90
+ BLACS_PINFO only
+ Hello, World2 I am process  0  of  6 .
+ rank 0  of  6 BLACS context= 1140850688 MPI_COMM_WORLD= 1140850688
+ hello from process        rank       myrow       mycol       nprow       npcol
+ hello from process 3*0,  3,  2
+ src.F90
+ BLACS_PINFO only
+ Hello, World2 I am process  1  of  6 .
+ rank 1  of  6 BLACS context= 1140850688 MPI_COMM_WORLD= 1140850688
+ hello from process        rank       myrow       mycol       nprow       npcol
+ hello from process 2*1,  0,  3,  2
+ src.F90
+ BLACS_PINFO only
+ Hello, World2 I am process  2  of  6 .
+ rank 2  of  6 BLACS context= 1140850688 MPI_COMM_WORLD= 1140850688
+ hello from process        rank       myrow       mycol       nprow       npcol
+ hello from process 2*2,  0,  3,  2
+ src.F90
+ BLACS_PINFO only
+ Hello, World2 I am process  3  of  6 .
+ rank 3  of  6 BLACS context= 1140850688 MPI_COMM_WORLD= 1140850688
+ hello from process        rank       myrow       mycol       nprow       npcol
+ hello from process 3,  0,  1,  3,  2
+ src.F90
+ BLACS_PINFO only
+ Hello, World2 I am process  4  of  6 .
+ rank 4  of  6 BLACS context= 1140850688 MPI_COMM_WORLD= 1140850688
+ hello from process        rank       myrow       mycol       nprow       npcol
+ hello from process 4,  2*1,  3,  2
+ src.F90
+ BLACS_PINFO only
+ Hello, World2 I am process  5  of  6 .
+ rank 5  of  6 BLACS context= 1140850688 MPI_COMM_WORLD= 1140850688
+ hello from process        rank       myrow       mycol       nprow       npcol
+ hello from process 5,  2,  1,  3,  2
