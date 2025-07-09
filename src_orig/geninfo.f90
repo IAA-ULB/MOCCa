@@ -162,7 +162,8 @@ contains
 
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
-    &                  fermi_prec, balancing_strategy, store_derivatives
+    &                  fermi_prec, angmom_prec, balancing_strategy,            &
+    &                  store_derivatives
     Namelist /mesh/    nx,ny,nz, dx
 
     if(MPI_rank .eq. 0) then    
@@ -233,6 +234,7 @@ contains
     call MPI_BCAST(disp_prec   , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(pairing_prec, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(fermi_prec  , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(angmom_prec , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
 
     ! d) Other calculational details...
     call MPI_BCAST(balancing_strategy,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
