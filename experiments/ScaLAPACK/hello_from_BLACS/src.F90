@@ -1,4 +1,4 @@
-#define __MPI__ 1
+! #define __MPI__ 1
 
 program hello_from_BLACS
   use mpi

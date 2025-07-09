@@ -1,15 +1,17 @@
 #!/bin/bash -l
-#SBATCH --time=4:00:00      
+#SBATCH --time=0:5:00      
 #SBATCH --mem=0        
 #SBATCH --account=ap_calcua_epicure
 #SBATCH --nodes=1 --tasks-per-node=64 --cpus-per-task=1 
+#SBATCH --partition=debug
+#SBATCH --account=project_465000095
 
 # pass command line arguments to ml-vaughan
-. ../../pasta-test/ml-vaughan.sh $@
+. ../../env/lumi/ml.sh
 ml
 
 make
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
-srun exe
+srun -n 6 ./exe
