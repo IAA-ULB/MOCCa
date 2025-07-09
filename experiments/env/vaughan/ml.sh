@@ -58,6 +58,7 @@ esac
 
 if [ "$PYTHON" = true ]; then 
     ml SciPy-bundle
+    ml mpi4py/4.0.1-iimpi-2024a
     ml matplotlib
 fi
 
