@@ -5,7 +5,7 @@
 #SBATCH --nodes=1 --tasks-per-node=64 --cpus-per-task=1 
 
 # pass command line arguments to ml-vaughan
-. ../../../pasta-test/ml-vaughan.sh $@
+. ../../pasta-test/ml-vaughan.sh $@
 ml
 
 make

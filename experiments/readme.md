@@ -36,12 +36,20 @@ Here MPI is initialized by the calling program
     call mpi_init(info)
     call mpi_comm_rank(mpi_comm_world,rank,info)
     call mpi_comm_size(mpi_comm_world,nranks,info)  
-    ictxt = mpi_comm_world
+    ! ictxt = mpi_comm_world 
     call blacs_get(-1, 0, ictxt)
     call blacs_gridinit(ictxt, ’C’, np_rows, np_cols)
     call blacs_gridinfo(ictxt, np_rows, np_cols, my_prow, my_pcol)
 ```
-So, if we want to use PyScalapack with mpi4py, we must extend PyScalapack to use this scheme.
+<!-- So, if we want to use PyScalapack with mpi4py, we must extend PyScalapack to use this scheme. -->
+
+It seems however (from experiments in `experiments/ScaLAPACK/hello_from_BLACS`) that the statement `ictxt = mpi_comm_world` is not necessary. Thus, it looks as if `blacs_get` picks up the initialized MPI. 
+
+I also found out that the BLACS context variables in fact hold the MPI communicator. And that `MPI_WORLD_COMM` is available even when `mpi_init` is not called by the main program (in which case MPI is actually initialized by `BLACS_PINFO`).
+
+So it is not entirely clear how we can make stuff work with mpi4py...
+
+What happens if we call MPI_INIT ánd "BLACS_PINFO"? Apparently, this does not seem to be a problem. So, it looks like BLACS_PINFO picks up MPI_COMM_WORLD if `mpi_init` was already called, and initializes MPI if `mpi_init` was not yet called.
 
 # Local and global indices
 
