@@ -62,5 +62,5 @@ This made me wonder why we had problems to combine `mpi4py` and `PyScalapack`. `
 
 Obviously, `BLACS` cannot pick up the MPI initialization by `mpi4py` as this happen in a `.so` file to which it has no access.
 
-Atfer Franky built `mpi4py/4.0.1-iimpi-2024a` which links mpi4py to the same `libmpi.so` file as `iimkl` the problem was gone.
+Atfer Franky built `mpi4py/4.0.1-iimpi-2024a` which links mpi4py to the same `libmpi.so` file as `iimkl` the problem was gone and `BLACS` correctly picks up the MPI initialization by `mpi4py`.
 
