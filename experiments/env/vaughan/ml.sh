@@ -49,6 +49,7 @@ case "$TOOLCHAIN" in
     intel)  ml calcua/2024a;
             ml intel;
             ml iimkl;
+            ml ELPA/2024.05.001-intel-2024a;
             ml HDF5;;
     gnu  )  ml calcua/2023a; 
             ml ScaLAPACK;
