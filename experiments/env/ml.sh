@@ -8,14 +8,15 @@
 #-------------------------------------------------------------------------------
 
 #-------------------------------------------------------------------------------
-# CheckSource - Check that this script is sourced. Emit an error message if not.
-CheckSource()
-{
-if [[ $_ == $0 ]]
-then
-    echo "ERROR: This script must be sourced!" >&2
-    exit 1
-fi
+# must_be_sourced - Check that this script is sourced. Emit an error message if not.
+
+must_be_sourced () {
+    if [ "$0" = "$BASH_SOURCE" ]; then
+        echo "ERROR: This script must be sourced!" >&2
+        exit 1
+    else
+        return 1
+    fi;
 }
 
 #-------------------------------------------------------------------------------
@@ -47,6 +48,8 @@ on_lumi () {
 #-------------------------------------------------------------------------------
 # MAIN PROGRAM
 #-------------------------------------------------------------------------------
+must_be_sourced
+
 on_vaughan
 if [ $? == 1 ]; then
     echo "on_vaughan : yes"
