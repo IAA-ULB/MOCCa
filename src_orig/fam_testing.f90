@@ -11,6 +11,7 @@ module fam_testing
   use functional
   use evolution
   use fam
+  use gmres
 
 implicit none
 
@@ -354,5 +355,107 @@ contains
     print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
 
   end subroutine build_dH_findiff
+
+
+
+  subroutine test_gmres()
+    !---------------------------------------------------------------------------
+    ! Simply test for gmres: solve small linear problem
+    !---------------------------------------------------------------------------
+
+    implicit none
+    integer, parameter :: n = 5
+    real(KIND=dp), dimension(n, n) :: A
+    real(KIND=dp), dimension(n) :: b, x_explicit, x_gmres
+    integer :: i, info, iter, nbprod
+    integer, dimension(n) :: ipiv
+    real(KIND=dp) :: res
+
+    print *, "test gmres"
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Define the matrix A
+    A = 0.0
+    do i = 1, n
+      A(i, i) = 2.0
+      if (i > 1) A(i, i-1) = -1.0
+      if (i < n) A(i, i+1) = -1.0
+    end do
+
+    ! Define the vector b
+    b = [1.0, 2.0, 3.0, 4.0, 5.0]
+
+    print * , "A : "
+    do i = 1, n
+      print '(99f10.5)',  A(i,:)
+    enddo
+
+    print * , "b : ", b
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Compute the explicit solution x = A^{-1} * b
+
+    x_explicit = b
+
+    ! Use LAPACK routine to solve the linear system
+    call dgesv(n, 1, A, n, ipiv, x_explicit, n, info)
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Call the GMRES routine to solve Ax = b iteratively
+
+    x_gmres = b ! initial guess
+    call do_gmres(x_gmres, iter, nbprod, res, b, multiply_by_A, norm_2, ScalProd, 1e-6_dp, 100, 10, 4)
+
+    ! Print the results
+    print *, "Explicit solution:"
+    print *, x_explicit
+    
+    print *, "GMRES solution:"
+    print *, x_gmres
+
+
+  end subroutine test_gmres
+
+  subroutine multiply_by_A(x_in, x_out)
+
+    implicit none
+    real(KIND=dp), dimension(:), target, intent(in)   :: x_in
+    real(KIND=dp), dimension(:), target, intent(out)  :: x_out
+    integer, parameter :: n = 5
+    real(KIND=dp), dimension(n, n) :: A
+    integer :: i
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Define the matrix A
+    A = 0.0
+    do i = 1, n
+      A(i, i) = 2.0
+      if (i > 1) A(i, i-1) = -1.0
+      if (i < n) A(i, i+1) = -1.0
+    end do
+
+    x_out = matmul(A, x_in)
+
+  end subroutine multiply_by_A
+
+ function norm_2(vec) result(norm)
+    real(KIND=dp), dimension(:), intent(in)  :: vec
+    real(KIND=dp)                            :: norm
+
+    norm = sqrt(sum(vec(:) ** 2))
+
+  end function
+
+  function ScalProd(vec_l, vec_r) result(res)
+    ! abstract template procedure (dH,dH) -> complex required for procedural argument to gmres
+    ! to be updated to the objects of the dimensions of the perturbed
+    ! sp hamiltonian dh and ddelta (in HF basis)
+    real(KIND=dp), dimension(:), intent(in)  :: vec_l, vec_r
+    real(KIND=dp)                            :: res
+
+    res = sum(vec_l(:) * vec_r(:))
+
+  end function
 
 end module fam_testing

@@ -55,9 +55,9 @@ module gmres
     real(KIND=dp), dimension(:), intent(inout) :: x
     integer                    , intent(out)   :: iter, nbPrd
     real(KIND=dp)              , intent(out)   :: res
-    procedure(dHtodH)                          :: A
-    procedure(dHtoreal)                        :: norm_2
-    procedure(dHdHtoreal)                      :: ScalProd
+    procedure(vectovec)                        :: A
+    procedure(vectoreal)                       :: norm_2
+    procedure(vecvectoreal)                    :: ScalProd
     real(KIND=dp), dimension(:), intent(in)    :: b
     real(KIND=dp)              , intent(in)    :: tol
     integer                    , intent(in)    :: itmax, rst, verb
@@ -228,30 +228,31 @@ module gmres
   end subroutine invtrisup
 
 
-  subroutine dHtodH(MdH, dH)
+  subroutine vectovec(vec_in, vec_out)
     ! abstract template procedure dH -> dH required for procedural argument to gmres
     ! to be updated to the objects of the dimensions of the perturbed
     ! sp hamiltonian dh and ddelta (in HF basis)
-    real(KIND=dp), dimension(:), intent(out) :: MdH
-    real(KIND=dp), dimension(:), intent(in)  :: dH
+    real(KIND=dp), dimension(:), target, intent(in)   :: vec_in
+    real(KIND=dp), dimension(:), target, intent(out)  :: vec_out
+
 
   end subroutine
 
-  function dHtoreal(dH) result(res)
+  function vectoreal(vec_in) result(scalar)
     ! abstract template procedure dH -> real required for procedural argument to gmres
     ! to be updated to the objects of the dimensions of the perturbed
     ! sp hamiltonian dh and ddelta (in HF basis)
-    real(KIND=dp), dimension(:), intent(in)  :: dH
-    real(KIND=dp)                            :: res
+    real(KIND=dp), dimension(:), intent(in)  :: vec_in
+    real(KIND=dp)                            :: scalar
 
   end function
 
-  function dHdHtoreal(dHl, dHr) result(res)
+  function vecvectoreal(vec_l, vec_r) result(scalar)
     ! abstract template procedure (dH,dH) -> complex required for procedural argument to gmres
     ! to be updated to the objects of the dimensions of the perturbed
     ! sp hamiltonian dh and ddelta (in HF basis)
-    real(KIND=dp), dimension(:), intent(in)  :: dHl, dHr
-    real(KIND=dp)                            :: res
+    real(KIND=dp), dimension(:), intent(in)  :: vec_l, vec_r
+    real(KIND=dp)                            :: scalar
 
   end function
 
