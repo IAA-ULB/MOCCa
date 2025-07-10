@@ -8,7 +8,7 @@ mod/*
 den_*
 pot_*
 tant_*
-experiments/PyScalapack/PyScaLAPACK/
+experiments/PyScalapack/PyScaLAPACK
 # Do not track the make.inc currently in use
 make.inc
 
