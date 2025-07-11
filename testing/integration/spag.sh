@@ -1,9 +1,13 @@
-#-------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------
 # Perform a calculation starting from cylindrical shape with small number of particles.
 # This checks that periodic bc works well and energy converges to the known value.
-# Test starts from *.pot file and generates wf in hdf5 format. 
+# Test starts from *.pot file and generates wf in hdf5 format.
 # Calculations restart from hdf5 file and varify the converged status.
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+# Note: this calculation is not yet MPI capable, because on astropc19 I have not yet
+#       managed to combine MPI and HDF5 support.
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # This script tests:
 #  Quantity                              Target                     Tolerance
 #  --------                              ------                     ---------
@@ -49,6 +53,9 @@ name_param='BSkG4'
 Type='BCS'
 /
 &evolution
+strategy='HBSANE'              ! This iterative strategy is set to mimic the
+ortho_strategy = 'CHOLESKY'    !  defaults of MPI-enabled calculations.
+subspace_rotation = .true.     !
 freezeiter=$1
 maxiter=$2
 printiter=100
@@ -98,7 +105,7 @@ check_Z1=$?
 # restarting with hdf5 file
 write_data  0 10 "'tant_cyl.hdf5'"
 # Run the calculation
-./$exe < tant.data > $outfile
+./$exe < tant.data > $outfile.b
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check2=$?
 # Starting the checking

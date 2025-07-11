@@ -572,15 +572,13 @@ contains
 #endif
     !---------------------------------------------------------------------------
     ! Failsafe for the HF transformation
-#if(PASTA==0)
     if(.not.allocated(HFTransfo)) then
-        allocate(HFTransfo(nwt,nwt)) 
+        allocate(HFTransfo(nwt_local,nwt_local))
         HFtransfo = 0.0d0
-        do i=1,nwt
+        do i=1,nwt_local
             HFtransfo(i,i) = 1.0d0
         enddo
     endif
-#endif
     !---------------------------------------------------------------------------
     call set_spwf_symmetries(sx, sy, sz, HFblocks)
     !---------------------------------------------------------------------------

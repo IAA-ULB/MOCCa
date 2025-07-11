@@ -224,7 +224,6 @@ jobs:
   lattice_energy:
     #---------------------------------------------------------------------------
     # Run the 'lattice-energy' test
-    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     #---------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile
@@ -269,6 +268,46 @@ jobs:
           path: |
             testing/integration/logs/lattice_energy.${{ env.SUFFIX_VAC }}.out
             testing/integration/logs/lattice_energy.${{ env.SUFFIX_PAS }}.out
+          retention-days: 90
+
+  spaghetti:
+    #---------------------------------------------------------------------------
+    # Run the 'spaghetti' test
+    #---------------------------------------------------------------------------
+    runs-on: self-hosted
+    needs: compile
+    if: github.ref == 'refs/heads/difficult_merge'
+    strategy:
+      matrix:
+        COMPILER: [ gfortran ]
+        CONFIG:   [ BXL      ]
+    env:
+      # Uniquely labelling the executables with this environment variable
+      SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA
+    steps:
+      - uses: actions/download-artifact@v4
+        # Download the executables
+        with:
+          name: exec-${{ env.SUFFIX }}
+          path: exec/
+
+      - name: Make executeable
+        # Unfortunately, github artifacts don't retain permissions.
+        run:  |
+          chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
+
+      - name: Run spaghetti test
+        # Actually execute the test
+        run: |
+          cd testing/integration/
+          bash spagh.sh ${{ env.SUFFIX }}
+
+      - name: Upload store_derivatives test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: spaghetti
+          path: |
+            testing/integration/logs/lattice_energy.${{ env.SUFFIX }}.out
           retention-days: 90
 
 
