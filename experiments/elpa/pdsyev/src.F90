@@ -128,59 +128,63 @@ program PDGEMR2D_PDSYEV
   enddo
 
 ! Now you can start using ELPA
+  print *, "Starting with ELPA ..."
 
-!   if (elpa_init(20250131) /= ELPA_OK) then        ! put here the API version that you are using
-!     print *, "ELPA API version not supported"
-!     stop 1
-!   endif
+  if (elpa_init(20240501) /= ELPA_OK) then        ! put here the API version that you are using
+    print *, "ELPA API version not supported"
+    stop 1
+  endif
 
-!   lpa => elpa_allocate(success)
-!   if (success /= ELPA_OK) then
-!     ! react on the error
-!     ! we urge every user to always check the error codes
-!     ! of all ELPA functions
-!   endif
+  lpa => elpa_allocate(success)
+  if (success /= ELPA_OK) then
+    print *,"FAILED : lpa => elpa_allocate(success)" 
+    stop 1
+  endif
 
-! ! set parameters decribing the matrix and it's MPI distribution
-!   call lpa%set("n", n, success)                          ! size of the n x n matrix
-!   call lpa%set("nev", n, success)                        ! number of eigenvectors that should be computed ( 1<= nev <= n)
-!   call lpa%set("local_nrows", ms, success)            ! number of local rows of the distributed matrix on this MPI task 
-!   call lpa%set("local_ncols", ns, success)            ! number of local columns of the distributed matrix on this MPI task
-!   call lpa%set("nblk", nblk, success)                      ! size of the BLACS block cyclic distribution
-!   call lpa%set("mpi_comm_parent", MPI_COMM_WORLD, success) ! the global MPI communicator
-!   call lpa%set("process_row", myrow, success)            ! row coordinate of MPI process
-!   call lpa%set("process_col", mycol, success)            ! column coordinate of MPI process
+! set parameters decribing the matrix and it's MPI distribution
+  call lpa%set("n", n, success)                          ! size of the n x n matrix
+  call lpa%set("nev", n, success)                        ! number of eigenvectors that should be computed ( 1<= nev <= n)
+  call lpa%set("local_nrows", ms, success)            ! number of local rows of the distributed matrix on this MPI task 
+  call lpa%set("local_ncols", ns, success)            ! number of local columns of the distributed matrix on this MPI task
+  call lpa%set("nblk", nblk, success)                      ! size of the BLACS block cyclic distribution
+  call lpa%set("mpi_comm_parent", MPI_COMM_WORLD, success) ! the global MPI communicator
+  call lpa%set("process_row", myrow, success)            ! row coordinate of MPI process
+  call lpa%set("process_col", mycol, success)            ! column coordinate of MPI process
 
-!   success = lpa%setup()
-!   if (success.ne.0) then
-!     print *,"lpa%setup() error"
-!     stop
-!   endif
+  success = lpa%setup()
+  if (success.ne.0) then
+    print *,"lpa%setup() error"
+    stop
+  endif
 
-! ! if desired, set any number of tunable run-time options
-! ! look at the list of possible options as detailed later in
-! ! USERS_GUIDE.md
-!   call lpa%set("solver", ELPA_SOLVER_2STAGE, success)
-!   if (success.ne.0) then
-!     print *,"lpa%set('solver', ELPA_SOLVER_2STAGE, success) error"
-!     stop
-!   endif
+! if desired, set any number of tunable run-time options
+! look at the list of possible options as detailed later in
+! USERS_GUIDE.md
 
-! ! set the AVX BLOCK2 kernel, otherwise ELPA_2STAGE_REAL_DEFAULT will
-! ! be used
-!   ! call lpa%set("real_kernel", ELPA_2STAGE_REAL_AVX_BLOCK2, success)
+  call lpa%set("solver", ELPA_SOLVER_2STAGE, success)
+  if (success.ne.0) then
+    print *,"lpa%set('solver', ELPA_SOLVER_2STAGE, success) error"
+    stop
+  endif
 
-! ! use method solve to solve the eigenvalue problem to obtain eigenvalues
-! ! and eigenvectors
-! ! other possible methods are desribed in USERS_GUIDE.md
-!   call lpa%eigenvalues(A_sub, eigenvalues, success)
-!   ! call lpa%eigenvectors(A_sub, eigenvalues, eigenvectors, success)
-!   print*,success,elpa_strerr(3)
-! ! cleanup
-!   call elpa_deallocate(lpa)
+! set the AVX BLOCK2 kernel, otherwise ELPA_2STAGE_REAL_DEFAULT will
+! be used
+  call lpa%set("real_kernel", ELPA_2STAGE_REAL_GENERIC, success)
+  if (success.ne.0) then
+    print *,"lpa%set('real_kernel', ELPA_2STAGE_REAL_AVX_BLOCK2, success) error"
+    stop
+  endif
 
-!   call elpa_uninit()
+! use method solve to solve the eigenvalue problem to obtain eigenvalues
+! and eigenvectors
+! other possible methods are desribed in USERS_GUIDE.md
+  call lpa%eigenvalues(A_sub, eigenvalues, success)
+  ! call lpa%eigenvectors(A_sub, eigenvalues, eigenvectors, success)
+  print*,success,elpa_strerr(3)
 
+! cleanup
+  call elpa_deallocate(lpa)
+  call elpa_uninit()
   call BLACS_EXIT(0)
 
 end program PDGEMR2D_PDSYEV
