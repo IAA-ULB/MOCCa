@@ -18,6 +18,29 @@
 
 functions `indxl2g` and `indxg2l` deal with Fortran indices: `1<=iF<=n`. In PyScalapack you are typically dealing with Python indices: `0<=iP<n` and you must convert: `iF = iP +1`.
 
+``` fortran
+      INTEGER FUNCTION indxl2g( INDXLOC, NB, IPROC, ISRCPROC, NPROCS )
+    
+      INDXL2G computes the global index of a distributed matrix entry
+      pointed to by the local index INDXLOC of the process indicated by
+      IPROC.
+    
+      INDXLOC   (global input) INTEGER
+                The local index of the distributed matrix entry.
+      NB        (global input) INTEGER
+                Block size, size of the blocks the distributed matrix is
+                split into.
+      IPROC     (local input) INTEGER
+                The coordinate of the process whose local array row or
+                column is to be determined.
+      ISRCPROC  (global input) INTEGER
+                The coordinate of the process that possesses the first
+                row/column of the distributed matrix.
+      NPROCS    (global input) INTEGER
+                The total number processes over which the distributed
+                matrix is distributed.
+```
+
 ## Setting up a blacs context
 
 Can we combine `MPI` and `BLACS`? In Fortran? In Python? Apparently, yes, but it took me about a week to find out how ...
@@ -51,7 +74,25 @@ Here MPI is explicitly initialized by the calling program, which thereby gains a
 
 `BLACS_GET` picks up the initialized MPI. 
 
-I also found out that the BLACS context variables in fact hold the MPI communicator. And that `MPI_WORLD_COMM` is available via `BLACS_GET`, even when `mpi_init` is not called by the main program.
+I also found out that the BLACS context variables in fact holds the MPI communicator. And that `MPI_WORLD_COMM` is available via `BLACS_GET`, even when `mpi_init` is not called by the main program. Therefore this works as well:
+
+``` fortran
+    call mpi_init(mpierr)
+    call mpi_comm_rank(mpi_comm_world,myrank,mpierr)
+    call mpi_comm_size(mpi_comm_world,nranks,mpierr)
+
+    ! determine np_cols and np_rows yourself:
+    do np_cols = NINT(SQRT(REAL(nranks))),2,-1
+        if(mod(nranks,np_cols) == 0 ) exit
+    enddo
+    ! at the end of the above loop, nranks is always divisible by np_cols
+    np_rows = nranks/np_cols
+
+    ! initialise BLACS grid, passing mpi_comm_world as the blacs context!
+    my_blacs_ctxt = mpi_comm_world
+    call BLACS_Gridinit(my_blacs_ctxt, 'C', np_rows, np_cols)
+    call BLACS_Gridinfo(my_blacs_ctxt, nprow, npcol, my_prow, my_pcol)
+```
 
 What happens if we call `MPI_INIT` ánd `BLACS_PINFO`? Apparently, this does not seem to be a problem. So, it looks like `BLACS_PINFO` picks up MPI_COMM_WORLD if `mpi_init` was already called, and initializes MPI itself. if `mpi_init` was not yet called.
 
