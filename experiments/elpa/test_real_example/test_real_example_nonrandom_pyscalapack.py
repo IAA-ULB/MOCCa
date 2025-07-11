@@ -119,34 +119,14 @@ if __name__ == "__main__":
         #--------------------------------------------------------------------------------------------------------------
         # Compute the parallel solution
 
-        eigenvalues = np.zeros(na,dtype=float)
-        # distributed vector for the eigenvectors
-        eigenvectors = context.array(na, na, nblk, nblk, dtype=float)
-        
-        work = np.zeros(1,dtype=float,order='F')
-        lwork = -1
-        info = np.array([1]) # an ordinary Python variable cannot be used as an output argument.
-        scalapack.pdsyev(
-            b'V', b'L', na,
-            *a.scalapack_params(),
-            eigenvalues,
-            *eigenvectors.scalapack_params(),
-            work, lwork,
-            info
-        )
-        lwork = int(work[0])
-        # print(f"{lwork=}")
-        work = np.zeros(lwork,dtype=float,order='F')
-        scalapack.pdsyev(
-            b'V', b'L', na,
-            *a.scalapack_params(),
-            eigenvalues,
-            *eigenvectors.scalapack_params(),
-            work, lwork,
-            info
-        )
-        if info[0] != 0:
-            print(f"[{context.rank.value}/{context.size.value}]({context.myrow.value},{context.mycol.value}): distributed solution did not converge {info=}.", file=sys.stderr)
+        preallocate_eigenvalues_eigenvectors = False
+        if preallocate_eigenvalues_eigenvectors:
+            eigenvalues = np.zeros(na,dtype=float)
+            # distributed array for the eigenvectors
+            eigenvectors = context.array(na, na, nblk, nblk, dtype=float)
+            a.pdsyev(eigenvalues=eigenvalues, eigenvectors=eigenvectors)        
+        else:
+            eigenvalues,eigenvectors,info = a.pdsyev()        
 
         if context0:
             print("*** pyscalapack.pdsyev solution ***")
