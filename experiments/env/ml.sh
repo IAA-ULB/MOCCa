@@ -9,7 +9,6 @@
 
 #-------------------------------------------------------------------------------
 # must_be_sourced - Check that this script is sourced. Emit an error message if not.
-
 must_be_sourced () {
     if [ "$0" = "$BASH_SOURCE" ]; then
         echo "ERROR: This script must be sourced!" >&2
@@ -17,6 +16,12 @@ must_be_sourced () {
     else
         return 1
     fi;
+}
+
+#-------------------------------------------------------------------------------
+# get_script_dir
+get_script_dir () {
+     SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 }
 
 #-------------------------------------------------------------------------------
@@ -50,17 +55,21 @@ on_lumi () {
 #-------------------------------------------------------------------------------
 must_be_sourced
 
+get_script_dir
+
+# echo "get_script_dir: $script_dir"
+
 on_vaughan
 if [ $? == 1 ]; then
     echo "on_vaughan : yes"
-    . ./vaughan/ml.sh -p -v
+    . ${SCRIPT_DIR}/vaughan/ml.sh -p -v
     return 0
 fi
 
 on_lumi
 if [ $? == 1 ]; then
     echo "on_lumi : yes"
-    . ./lumi/ml.sh
+    . ${SCRIPT_DIR}/lumi/ml.sh
     ml
     return 0
 fi
