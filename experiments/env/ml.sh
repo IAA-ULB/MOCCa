@@ -19,7 +19,8 @@ must_be_sourced () {
 }
 
 #-------------------------------------------------------------------------------
-# get_script_dir
+# get_script_dir - get the location of the script while it is running. 
+# https://stackoverflow.com/questions/59895/how-do-i-get-the-directory-where-a-bash-script-is-located-from-within-the-script
 get_script_dir () {
      SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 }
