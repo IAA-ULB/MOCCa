@@ -96,6 +96,7 @@ program test_real_example
   integer, external        :: numroc
 
   real(kind=c_double), allocatable :: a(:,:), z(:,:), ev(:)
+  real(kind=c_double)      :: aij
 
   integer                  :: iseed(4096) ! Random seed, size should be sufficient for every generator
 
@@ -129,7 +130,6 @@ program test_real_example
     call get_command_argument(2, fmt1)
     read(fmt1,*,iostat=STATUS) nblk
   endif
-
 
 !-------------------------------------------------------------------------------
 ! Fix nev (we might want another command line argument for that)
@@ -210,11 +210,7 @@ program test_real_example
       if (.not.((j.ge.1).and.(j.le.na))) then
         print "('ERROR : indxl2g maps jl=', i0, ' to j=', i0)", il, i
       endif
-      if (il.eq.jl) then
-        a(il,jl) = 1.5
-      else
-        a(il,jl) = 1.0/sqrt(float(abs(i-j)))
-      endif
+      a(il,jl) = aij(i,j)
     enddo
     write (*,'(i1)', advance='no') myrank
     do jl=1,na_cols 
@@ -285,3 +281,29 @@ program test_real_example
   call mpi_finalize(mpierr)
 
 end
+
+function aij(i,j) 
+  use iso_c_binding
+  integer, intent(in) :: i,j ! input
+  real(kind=c_double) :: aij ! output
+  integer, parameter  :: symmetric = 1
+
+  if (i.lt.1) then 
+    write(*,*) "ERROR aij : i.lt.1"
+    stop 1
+  endif
+  if (j.lt.1) then 
+    write(*,*) "ERROR aij : j.lt.1"
+    stop 1
+  endif
+
+  if (symmetric.eq.1) then
+    if (i.eq.j) then
+      aij = 1.5
+    else
+      aij = 1.0 / sqrt(real(abs(i-j)))
+    endif
+  else
+    aij = 10*i + j 
+  endif
+end function
