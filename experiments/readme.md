@@ -1,6 +1,6 @@
 # Things I struggled with
 
-On using ScaLAPACK, PyScalapack, ELPA, 
+On using ScaLAPACK, pyscalapack, ELPA, pyelpa
 
 ## Numroc
 
@@ -18,7 +18,7 @@ On using ScaLAPACK, PyScalapack, ELPA,
     
 # Local and global indices
 
-functions `indxl2g` and `indxg2l` deal with Fortran indices: `1<=iF<=n`. In PyScalapack you are typically dealing with Python indices: `0<=iP<n` and you must convert: `iF = iP +1`.
+functions `indxl2g` and `indxg2l` accept and return  Fortran indices: `1<=iF<=n`.  In PyScalapack you are typically dealing with Python indices: `0<=iP<n` and you must convert: `iF = iP +1`. (that bit me twice!)
 
 ``` fortran
     INTEGER FUNCTION indxl2g( INDXLOC, NB, IPROC, ISRCPROC, NPROCS )
@@ -131,3 +131,9 @@ Obviously, `BLACS` cannot pick up the MPI initialization by `mpi4py` as this hap
 
 Atfer Franky built `mpi4py/4.0.1-iimpi-2024a` which links mpi4py to the same `libmpi.so` file as `iimkl` the problem was gone and `BLACS` correctly picks up the MPI initialization by `mpi4py`.
 
+## Using pyscalapack `Context` and `Array` objects
+
+Apparently, pyscalapack `Array` objects do not remain after the containing pyscalapack `Context` is destroyed. 
+
+> [!NOTE]
+> You must create and keep a pyscalapack context alive while using an `Array` object. Once the context is gone the `Array` object is no longer valid. 
