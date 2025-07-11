@@ -1,8 +1,10 @@
 # Things I struggled with
 
+On using ScaLAPACK, PyScalapack, ELPA, 
+
 ## Numroc
 
-```fortran
+``` fortran
     na_rows = numroc(na, nblk, my_prow, 0, np_rows)
     na_cols = numroc(na, nblk, my_pcol, 0, np_cols)
 
@@ -19,26 +21,50 @@
 functions `indxl2g` and `indxg2l` deal with Fortran indices: `1<=iF<=n`. In PyScalapack you are typically dealing with Python indices: `0<=iP<n` and you must convert: `iF = iP +1`.
 
 ``` fortran
-      INTEGER FUNCTION indxl2g( INDXLOC, NB, IPROC, ISRCPROC, NPROCS )
+    INTEGER FUNCTION indxl2g( INDXLOC, NB, IPROC, ISRCPROC, NPROCS )
+
+    INDXL2G computes the global index of a distributed matrix entry
+    pointed to by the local index INDXLOC of the process indicated by
+    IPROC.
+
+    INDXLOC   (global input) INTEGER
+              The local index of the distributed matrix entry.
+    NB        (global input) INTEGER
+              Block size, size of the blocks the distributed matrix is
+              split into.
+    IPROC     (local input) INTEGER
+              The coordinate of the process whose local array row or
+              column is to be determined.
+    ISRCPROC  (global input) INTEGER
+              The coordinate of the process that possesses the first
+              row/column of the distributed matrix.
+    NPROCS    (global input) INTEGER
+              The total number processes over which the distributed
+              matrix is distributed.
+
+    INTEGER FUNCTION indxg2l( INDXGLOB, NB, IPROC, ISRCPROC, NPROCS )
+
+    INDXG2L computes the local index of a distributed matrix entry
+    pointed to by the global index INDXGLOB.
     
-      INDXL2G computes the global index of a distributed matrix entry
-      pointed to by the local index INDXLOC of the process indicated by
-      IPROC.
-    
-      INDXLOC   (global input) INTEGER
-                The local index of the distributed matrix entry.
-      NB        (global input) INTEGER
-                Block size, size of the blocks the distributed matrix is
-                split into.
-      IPROC     (local input) INTEGER
-                The coordinate of the process whose local array row or
-                column is to be determined.
-      ISRCPROC  (global input) INTEGER
-                The coordinate of the process that possesses the first
-                row/column of the distributed matrix.
-      NPROCS    (global input) INTEGER
-                The total number processes over which the distributed
-                matrix is distributed.
+    INDXGLOB  (global input) INTEGER
+              The global index of the distributed matrix entry.
+
+    NB        (global input) INTEGER
+              Block size, size of the blocks the distributed matrix is
+              split into.
+
+    IPROC     (local dummy) INTEGER
+              Dummy argument in this case in order to unify the calling
+              sequence of the tool-routines.
+
+    ISRCPROC  (local dummy) INTEGER
+              Dummy argument in this case in order to unify the calling
+              sequence of the tool-routines.
+
+    NPROCS    (global input) INTEGER
+              The total number processes over which the distributed
+              matrix is distributed.
 ```
 
 ## Setting up a blacs context
