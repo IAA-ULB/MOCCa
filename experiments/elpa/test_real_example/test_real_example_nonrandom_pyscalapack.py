@@ -1,6 +1,9 @@
-# Simple python script that takes the same command line arguments as test_real_example_nonrandom.f90
-# to check its solution.
-# this script is sequential
+# This scripts computes the eigenvalues 
+# - sequentially using numpy.linalg.eigh
+# - in parallel using pyscalapack
+# This script acceps the same command line arguments as test_real_example_nonrandom.f90 which uses ELPA 
+# to compute the solutions
+
 
 import numpy as np
 import sys
