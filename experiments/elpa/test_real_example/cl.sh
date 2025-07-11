@@ -1,3 +1,3 @@
 #!/bin/bash
 
-make && mpirun -np 4 ./exe 8 2
+make && mpirun -np 4 ./exe $@
