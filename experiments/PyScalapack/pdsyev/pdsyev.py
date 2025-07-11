@@ -136,7 +136,8 @@ with scalapack(context_order, 1, 1) as context0:
         eigenvalues = np.zeros(n,dtype=float)
         work = np.zeros(1,dtype=float,order='F')
         lwork = -1
-        info = np.array([n*n]) # an ordinary Python variable cannot be used as an output argument.
+        info = np.array([n*n]) # an ordinary Python variable cannot be used as an output argument. 
+                               # n*n ? or 1?
         scalapack.pdsyev(
             b'V', b'L', n,
             *A_sub.scalapack_params(),
