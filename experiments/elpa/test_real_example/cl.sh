@@ -13,4 +13,4 @@
 # echo '${FCFLAGS}=' ${FCFLAGS}
 # echo "LDFLAGS="${LDFLAGS}
 
-make && mpirun -np 4 ./exe
+make && mpirun -np 4 ./exe 8 2
