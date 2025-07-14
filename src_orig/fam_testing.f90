@@ -399,7 +399,7 @@ contains
 
     ! Use LAPACK routine to solve the linear system
     call dgesv(n, 1, A, n, ipiv, x_explicit, n, info)
-
+    ! /!\ : this routine changes A 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Call the GMRES routine to solve Ax = b iteratively

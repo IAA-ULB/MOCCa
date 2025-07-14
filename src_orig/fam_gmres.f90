@@ -1,14 +1,11 @@
-!>
-!!
-!! This module is based on the GMRES implementation of Choral of C. Pierre
-!! https://plmlab.math.cnrs.fr/cpierre1/choral
-!!
-!!
-!! <B> GMRES LINEAR SOLVER  </B>
-!!
-!! Source = Youssef SAAD, 'Iterative methods for sparse linear system'
-!! https://www-users.cs.umn.edu/~saad/IterMethBook_2ndEd.pdf
-!>
+! 
+! GMRES LINEAR SOLVER 
+! 
+! This module is based on the GMRES implementation of Choral of C. Pierre
+! https://plmlab.math.cnrs.fr/cpierre1/choral, which itself references the 
+! book of Youssef SAAD, 'Iterative methods for sparse linear system'
+! https://www-users.cs.umn.edu/~saad/IterMethBook_2ndEd.pdf
+!
 
 module gmres
 
@@ -23,32 +20,37 @@ module gmres
   contains
 
 
-  !> GMRES (no preconditioning)
-  !> 
-  !>
-  !> for the linear system \f$ Ax = b\f$
-  !>
-  !> INPUT/OUTPUT :
-  !> \li            x = initial guess / solution
-  !>
-  !> OUTPUT :
-  !> \li            res  = final residual
-  !> \li            iter = number of performed iterations
-  !> \li            iter = -1 = resolution failure     
-  !>
-  !> INPUT :
-  !> \li            b        = RHS
-  !> \li            A        = \f$ A~:~~~x \mapsto A x \f$
-  !>                           matrix/vector product (procedural)
-  !> \li            norm_2   = \f$ f~:~~~x \mapsto real \f$
-  !>                           norm (procedural)
-  !> \li            ScalProd = \f$ f~:~~~(x1, x2) \mapsto real \f$
-  !>                           Scalar product (procedural)
-  !> \li            tol      = tolerance
-  !> \li            itMax    = maximal iteration-number
-  !> \li            rst      = restart number
-  !> \li            verb     = verbosity
-  !>
+  ! GMRES (no preconditioning)
+  ! 
+  !
+  ! for the linear system Ax = b
+  !
+  ! INPUT/OUTPUT :
+  !     x = initial guess / solution
+  !
+  ! OUTPUT :
+  !     res  = final residual
+  !     iter = number of performed iterations
+  !     iter = -1 = resolution failure     
+  !
+  ! INPUT :
+  !     b        = RHS
+  !     A        = A : x -> A x 
+  !                           matrix/vector product (procedural)
+  !     norm_2   = f : x ->  real 
+  !                           norm (procedural)
+  !     ScalProd = f : (x1, x2) ->  real 
+  !                           Scalar product (procedural)
+  !     tol      = tolerance
+  !     itMax    = maximal iteration-number
+  !     rst      = restart number
+  !     verb     = verbosity
+  ! 
+  ! Remark :
+  !   This implementation differs from the one of C. Pierre in the ordering of 
+  !   of the arguments in the procedure A : x -> A x. Here, A is expected to be 
+  !   subroutine A(x_in, x_out). 
+
   subroutine do_gmres(x, iter, nbPrd, res, &
        & b, A, norm_2, ScalProd, tol, itmax, rst, verb)
 
@@ -78,16 +80,20 @@ module gmres
     nbPrd = 0
 
 
+    ! compute nb2 = 1./||b|| 
     nb2 = norm_2(b)
-    nn = size(x,1)
+    nn = size(x,1) 
+    ! if ||b|| is small, use sqrt of the length of the array instead
     if (nb2/real(nn, dp)<1E-8_dp) nb2=sqrt(real(nn, dp))
     nb2 = 1._dp/nb2
 
-    call A(r, x)
+
+    ! compute the initial residual vector r0 = A x0 - b
+    call A(x, r)
     nbPrd = 1
     r   = b-r
-    nr2 = norm_2(r)
-    res = nr2 * nb2
+    nr2 = norm_2(r) ! corresponds to beta in Y.SAAD
+    res = nr2 * nb2 ! residual is ||r|| / ||b||
 
     if (verb>2) write(*,*)'  iter', iter,' residual', res
     if (res<tol) return
@@ -108,7 +114,7 @@ module gmres
       
        do ii = 1, rst  ! orthonormal basis using Gram-Schmidt
 
-          call A(w, V(ii,:))
+          call A(V(ii,:), w)
           nbPrd = nbPrd + 1
 
           do kk = 1, ii
@@ -163,7 +169,7 @@ module gmres
 
        ! compute residual
        !
-       call  A(r, x)                  
+       call A(x, r)                  
        nbPrd = nbPrd + 1
        r     = b-r
        nr2   = norm_2(r)
