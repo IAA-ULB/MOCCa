@@ -313,6 +313,9 @@ module fam
     ! (in HF basis), which contain dh and ddelta (in the QFAM).  
     !---------------------------------------------------------------------------
     1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
+    2 format('||X|| = ', es10.3, '     ||Y|| = ', es10.3)
+    3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
+
     implicit none
     real(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
     real(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
@@ -333,6 +336,10 @@ module fam
 
     ! calculate X and Y from the perturbed dH
     call calculate_XY(dH)
+    print 2, sqrt(sum( abs(X(:,:))**2) ), sqrt(sum( abs(Y(:,:))**2) )
+
+    print 3, l,m, omega_fam,  calc_strength()
+
 
     ! Apply simple linear mixing of X and Y. 
     ! call mix_XY_linear(lin_mix_coeff)
@@ -553,7 +560,7 @@ module fam
     Y_norm = sqrt(sum( abs(Y_hist(hist_current_idx,:,:))**2))
 
 
-    print 1, X_norm, Y_norm
+    ! print 1, X_norm, Y_norm
 
     if( (X_norm .ge. 1.0d3) .or. (Y_norm .ge. 1.0d3)) then
       div = .true.
@@ -577,7 +584,7 @@ module fam
   end subroutine test_convergence
 
 
- subroutine get_ph_hp_blocks(M, Mph, Mhp)
+  subroutine get_ph_hp_blocks(M, Mph, Mhp)
     !---------------------------------------------------------------------------
     ! Get the particle-hole and hole-particle subblocks of a one-body operator
     ! M. Occupation are obtained from the diagonal elements of rho_can. 
@@ -613,7 +620,7 @@ module fam
     ! For QFAM this will have to be generalised to M20 and M02 obtained from a 
     ! Bogoliubov transformation to the qp basis. 
 
-  end subroutine
+  end subroutine get_ph_hp_blocks
 
 
 
@@ -644,7 +651,7 @@ module fam
       s = s + N
     enddo
 
-  end function
+  end function Rsq_spme
 
   function norm_dH(dH) result(res)
     ! abstract template procedure dH -> real required for procedural argument to gmres
@@ -668,7 +675,7 @@ module fam
 
   end function
 
- subroutine print_all_fam_spmat()
+  subroutine print_all_fam_spmat()
 
     print *, 'X'
     call print_spme_complex(X)
