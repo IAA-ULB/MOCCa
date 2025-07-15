@@ -1,5 +1,7 @@
 diff.txt
 _.txt
+*.so
+*.mod
 src/*
 obj/*
 mod/*
