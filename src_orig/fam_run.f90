@@ -86,9 +86,8 @@ program run_FAM
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
 
-  call test_gmres()
-  stop
-
+!   call test_gmres()
+!   stop
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
@@ -108,15 +107,16 @@ program run_FAM
     ! initialise FAM matrices end set perturbing external field
     call inifam(omega_curr, Density, Potentials)
 
-    if( calc_strength() .ge. 0.1) then
-      lin_mix_coeff=0.01
-    else
-      if( calc_strength() .ge. 0.001) then
-        lin_mix_coeff=0.05
-      else
-        lin_mix_coeff=0.1
-      endif
-    endif
+!     if( calc_strength() .ge. 0.1) then
+!       lin_mix_coeff=0.01
+!     else
+!       if( calc_strength() .ge. 0.001) then
+!         lin_mix_coeff=0.05
+!       else
+!         lin_mix_coeff=0.1
+!       endif
+!     endif
+    lin_mix_coeff = 0.9
 
     ! Run all kinds of unit tests; should be made optional as this includes a stop statement
     ! call run_FAM_tests(X,Y)
@@ -174,6 +174,8 @@ program run_FAM
       ! update dH for next iteration
       dH_flat = dH_flat_next
 
+
+      call print_all_fam_spmat()
       !---------------------------------------------------------------------------------
       ! test convergenence
       !---------------------------------------------------------------------------------
