@@ -9,5 +9,5 @@
 . ../../env/ml.sh -p -v
 
 export LD_LIBRARY_PATH=./${LD_LIBRARY_PATH}
-make lib
+# make lib
 python t.py

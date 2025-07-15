@@ -52,5 +52,9 @@ print(f"{p_circle=}") # YIELDS A SEGMENTATION FAULT!
 print(f"{ctypes.c_void_p(p_circle)=}") # fine!
 ```
 
-bij twee tests kort na elkaar geeft de tweede vaak een segmentation fault. ik vermoed dat dat te maken heeft met het laden van de .so file.
-In een nieuwe terminal werkt de test altijd, en in een batch job ook.
+On the command line we observed that de first test after rebuilding the so file is usually ok. Rerunning the test often yields a segmentation fault. In a new terminal the first test always worked, and in a batch job generally too 
+
+- unless the so file was missing because another job was rebuilding it
+- unless - I guess - because two jobs were running simultaneously
+  
+So it seems as if the problems are related to caching of so files and not to the code.
