@@ -2024,7 +2024,7 @@ subroutine ReadTantalus_hdf5(ifn)
     !---------------------------------------------------------------------------
     !for chunking and deflating
     ! create property list
-    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
+    !call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Disabled the compression because it did not naively scale to large numbers
     ! of ranks.
@@ -2038,9 +2038,10 @@ subroutine ReadTantalus_hdf5(ifn)
 !     call h5pset_deflate_f(plist_id, comprlvl, h5ferr)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Create dataset with default properties "dset_id" is returned
-    call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
+    !call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
+    call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr)
     ! close access to plist
-    call h5pclose_f(plist_id, h5ferr)
+    !call h5pclose_f(plist_id, h5ferr)
     !---------------------------------------------------------------------------
     ! Close access to data space 
     call h5sclose_f(space_id, h5ferr)
@@ -2056,6 +2057,10 @@ subroutine ReadTantalus_hdf5(ifn)
     ! write dataset collectively
     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, HFpsi, data_dims, h5ferr,        &
                 file_space_id=space_id, mem_space_id=mems_id, xfer_prp=plist_id)
+    ! write dataset independently (slower) 
+    !call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, HFpsi, data_dims, h5ferr,        &
+    !            file_space_id=space_id, mem_space_id=mems_id)
+
     ! close access to mem space
     call h5sclose_f(mems_id, h5ferr)
     ! Close access to data space 
@@ -2070,7 +2075,7 @@ subroutine ReadTantalus_hdf5(ifn)
     !---------------------------------------------------------------------------
     !for chunking and deflating
     ! create property list
-    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
+    !call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Disabled the compression because it did not naively scale to large numbers
     ! of ranks.
@@ -2084,9 +2089,10 @@ subroutine ReadTantalus_hdf5(ifn)
 !     call h5pset_deflate_f(plist_id, comprlvl, h5ferr)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Create dataset with default properties "dset_id" is returned
-    call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
+    !call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
+    call h5dcreate_f(file_id,'wavefunctions',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr)
     ! close access to plist
-    call h5pclose_f(plist_id, h5ferr)
+    !call h5pclose_f(plist_id, h5ferr)
     !---------------------------------------------------------------------------
     ! Close access to data space 
     call h5sclose_f(space_id, h5ferr)
