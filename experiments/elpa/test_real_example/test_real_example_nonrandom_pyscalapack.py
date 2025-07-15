@@ -93,12 +93,6 @@ if __name__ == "__main__":
 
         # distribute a0s into a0d
         a0d = context.array(na, na, nblk, nblk, dtype=float)
-        # scalapack.pdgemr2d(
-        #     *(na,na),
-        #     *a0s.scalapack_params(),
-        #     *a0d.scalapack_params(),
-        #     context.ictxt,
-        # )
         a0s.pdgemr2d(a0d)
         print(f"[{context.rank.value}/{context.size.value}] a0d\n{a0d.data}")
 

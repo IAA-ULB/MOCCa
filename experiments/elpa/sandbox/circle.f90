@@ -8,7 +8,7 @@ module class_Circle
   real :: pi = 3.1415926535897931d0 ! Class-wide private constant
 
   type Circle
-     real :: radius
+     real :: radius 
   end type Circle
 contains
   function circle_area(this) result(area)
@@ -18,8 +18,10 @@ contains
   end function circle_area
 
   subroutine circle_print(this)
+
     type(Circle), intent(in) :: this
     real :: area
+
     area = circle_area(this)  ! Call the circle_area function
     print *, 'Circle: r = ', this%radius, ' area = ', area
   end subroutine circle_print
@@ -50,7 +52,29 @@ contains
     ! call self%destroy(error)
     deallocate(self)
   end subroutine
+  
+subroutine set_radius(handle,radius) bind(C, name="set_radius_")
 
+    type(c_ptr), value    :: handle
+    type(circle), pointer :: self
+    real, intent(in)      :: radius
+
+    call c_f_pointer(handle, self)
+    ! call self%destroy(error)
+    self%radius = radius
+    write(*,*) self%radius
+  
+  end subroutine set_radius
+
+  subroutine print(handle) bind(C, name="print_")
+  
+    type(c_ptr), value    :: handle
+    type(circle), pointer :: self
+
+    call c_f_pointer(handle, self)
+    call circle_print(self)
+
+  end subroutine print
 
   subroutine test
     implicit none

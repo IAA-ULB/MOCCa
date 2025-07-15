@@ -3,6 +3,8 @@ import os
 import sys
 import numpy as np
 
+
+_DBG = True
 class Wrapper():
 
     @staticmethod
@@ -75,36 +77,35 @@ class Wrapper():
         """
         Resolve argument as the fortran style: pass by reference by default, except indicated by `Val`.
         """
-        dbg = True
-        if dbg:
+        if _DBG:
             print(f"_resolve_arg : {type(arg)=} {arg=}") # for debugging
         if isinstance(arg, cls.Val):
-            if dbg:
+            if _DBG:
                 print(f"_resolve_arg : {type(arg)=} {arg=} cls.Val") # for debugging
             # This argument is specified to pass by value
             return arg.value
         elif isinstance(arg, int):
-            if dbg:
+            if _DBG:
                 print(f"_resolve_arg : {type(arg)=} {arg=} int") # for debugging
             # This is a python int, wrap it in c_int
             arg = ctypes.c_int(arg)
             return ctypes.byref(arg)
         elif isinstance(arg, bytes):
-            if dbg:
+            if _DBG:
                 print(f"_resolve_arg : {type(arg)=} {arg=} bytes") # for debugging
             # This is a python bytes, wrap it in c_char_p
             arg = ctypes.c_char_p(arg)
             return arg
         elif isinstance(arg, np.ndarray):
-            if dbg:
+            if _DBG:
                 print(f"_resolve_arg : {type(arg)=} {arg=} np.ndarray") # for debugging
             return arg.ctypes.data_as(ctypes.c_void_p)
-        # elif isinstance(arg, ctypes.c_void_p):
-        #     if dbg:
-        #         print(f"_resolve_arg : {type(arg)=} {arg=} ctypes.c_void_p") # for debugging
-        #     return arg
+        elif isinstance(arg, ctypes.c_void_p):
+            if _DBG:
+                print(f"_resolve_arg : {type(arg)=} {arg=} ctypes.c_void_p") # for debugging
+            return arg.value
         else:
-            if dbg:
+            if _DBG:
                 print(f"_resolve_arg : {type(arg)=} {arg=} else") # for debugging
             # This must be already a ctypes object, get the reference.
             return ctypes.byref(arg)
@@ -120,6 +121,8 @@ class Wrapper():
         """
 
         def result(*args):
+            if _DBG:
+                print(f"{len(args)} arguments")
             return function(*(cls._resolve_arg(arg) for arg in args))
 
         result.__doc__ = function.__doc__
