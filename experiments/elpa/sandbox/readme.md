@@ -53,4 +53,4 @@ print(f"{ctypes.c_void_p(p_circle)=}") # fine!
 ```
 
 bij twee tests kort na elkaar geeft de tweede vaak een segmentation fault. ik vermoed dat dat te maken heeft met het laden van de .so file.
-in een nieuwe terminal werkt de test altijd.
+In een nieuwe terminal werkt de test altijd, en in een batch job ook.

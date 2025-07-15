@@ -1,15 +1,16 @@
 import pycircle
 import ctypes
 
-from pdb import set_trace as BREAKPOINT
+# from pdb import set_trace as BREAKPOINT
 
+print(f"\nstarting t.py")
 
-circleso = pycircle.Wrapper('./libclass_circle.so')
+circleso = pycircle.Wrapper('/data/antwerpen/201/vsc20170/tantalus_full/experiments/elpa/sandbox/libclass_circle.so')
 circleso.class_circle_mp_test()
 # circleso.class_circle_mp_test2()
-print("fine?")
+print("\nfine?")
 
-# BR∂EAKPOINT()
+# BREAKPOINT()
 p_circle = ctypes.c_void_p(circleso.alloc())
 # print(f"{p_circle}")
 # print(f"do we get here?")
