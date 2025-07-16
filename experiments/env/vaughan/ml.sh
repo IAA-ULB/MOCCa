@@ -61,6 +61,7 @@ if [ "$PYTHON" = true ]; then
     ml SciPy-bundle
     ml mpi4py/4.0.1-iimpi-2024a
     ml matplotlib
+    ml Cython/3.0.10-GCCcore-13.3.0
 fi
 
 if [ "$VERBOSE" = true ]; then 
