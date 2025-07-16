@@ -9,7 +9,10 @@ scalapack = pyscalapack(
     "/apps/antwerpen/skylake/rocky9/ELPA/2024.05.001-intel-2024a/lib/libelpa.so",
     "/data/antwerpen/201/vsc20170/tantalus_full/experiments/elpa/pyelpa/libelpa_object_interface.so"
 )  
-with Elpa(scalapack) as e:
+
+Elpa.set_scalapack(scalapack)
+
+with Elpa() as e:
     na = 8
     nev= 8
     na_rows = 2
