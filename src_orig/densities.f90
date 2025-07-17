@@ -707,7 +707,34 @@ subroutine densit_offdiag(rho, kappa, Rs, Ra)
     Rs = densit_offdiag_symmetric(rho,kappa)
     Ra = densit_offdiag_antisymmetric(rho,kappa)
 
+    ! call print_maxval('D_I_I'  , Rs%D_I_I  , Ra%D_I_I)
+    ! call print_maxval('D_Nm_Nm', Rs%D_Nm_Nm, Ra%D_Nm_Nm)
+    ! call print_maxval('D_I_Sx', Rs%D_I_S(:,1,:), Ra%D_I_S(:,1,:))
+    ! call print_maxval('D_I_Sy', Rs%D_I_S(:,2,:), Ra%D_I_S(:,2,:))
+    ! call print_maxval('D_I_Sz', Rs%D_I_S(:,3,:), Ra%D_I_S(:,3,:))
+    ! call print_maxval('C_I_Nx', Rs%C_I_N(:,1,:), Ra%C_I_N(:,1,:))
+    ! call print_maxval('C_I_Ny', Rs%C_I_N(:,2,:), Ra%C_I_N(:,2,:))
+    ! call print_maxval('C_I_Nz', Rs%C_I_N(:,3,:), Ra%C_I_N(:,3,:))
+    ! call print_maxval('C_I_NSxy', Rs%C_I_NS(:,1,2,:), Ra%C_I_NS(:,1,2,:))
+
 end subroutine densit_offdiag
+
+subroutine print_maxval(name, den_sym, den_asym)
+  !
+  !
+  !
+  !
+  complex(KIND=dp), intent(in) :: den_sym(:,:), den_asym(:,:)
+  character(len=*), intent(in) :: name
+  print *, '--------------------------------------------'
+  print *, name
+  print *, '--------------------------------------------'
+  print *, ' sym  Re', maxval(abs(DBLE(den_sym)))
+  print *, ' sym  Im', maxval(abs(IMAG(den_sym)))
+  print *, ' asym Re', maxval(abs(DBLE(den_asym)))
+  print *, ' asym Im', maxval(abs(IMAG(den_asym)))
+  print *
+end subroutine print_maxval
 
 function densit_offdiag_symmetric(rho, kappa) result(R)
     !------------------------------ ---------------------------------------------
@@ -728,7 +755,7 @@ function densit_offdiag_symmetric(rho, kappa) result(R)
     complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
     type(DensityVector)          :: R
 
-    real(KIND=dp)             :: weight_sym
+    complex(KIND=dp)          :: weight_sym
     integer                   :: wave_i       , wave_j
     integer                   :: wave_global_i, wave_global_j, B, si, N
     integer                   :: it_i, it_j, it, der_index_i,der_index_j
@@ -832,7 +859,7 @@ function densit_offdiag_antisymmetric(rho, kappa) result(R)
     complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
     type(DensityVector)          :: R
 
-    real(KIND=dp)             :: weight_asym
+    complex(KIND=dp)          :: weight_asym
     integer                   :: wave_i       , wave_j
     integer                   :: wave_global_i, wave_global_j
     integer                   :: it_i, it_j, it, der_index_i,der_index_j, si, B, N
@@ -881,10 +908,6 @@ $ZEROING
           ! TODO: enable store_derivatives option
           der_index_j = wave_j
 
-          ! Isospin is neutron in the first half of blocks, proton in the rest
-          it_j = 2
-          if(wave_global_j.le.nwn) it_j = 1
-
           !----------------------------------------------------------------------------
           ! The summation weights for particle-hole densities
           weight_asym = 0.5d0*( &
@@ -892,6 +915,11 @@ $ZEROING
 
           do i=1,mv
 $EXPRESSION_OFFDIAG_ANTISYMMETRIC
+
+
+        if( i.eq.1) then
+              print ('(a6, 3i3, 99es16.8)'), 'weight', B, wave_global_i, wave_global_j, weight_asym, D_I_I,  weight_asym* D_I_I
+        endif
           enddo
         enddo
       enddo
@@ -964,11 +992,28 @@ function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sph
     real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
     logical, intent(in)               :: onthefly
     type(PotentialVector), intent(in) :: Fs, Fa
-    complex(KIND=dp), allocatable     :: sphamil_me(:,:)
+    complex(KIND=dp), allocatable     :: sphamil_me(:,:), sp_sym(:,:), sp_asym(:,:)
+    integer                           :: B, N, i, si
 
-    sphamil_me = calc_sphamil_me_sym    ( denpsi, dendpsi, denddpsi, Fs,  onthefly) &
-    &          + calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, Fa,  onthefly)
 
+    sp_sym = calc_sphamil_me_sym    ( denpsi, dendpsi, denddpsi, Fs,  onthefly)
+    sp_asym= calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, Fa,  onthefly)
+
+    si = 0
+    do B=1,8
+      N = HFBlocks(B)
+      print *, 'B = ' , B
+      do i=1,N
+        print ('(99f10.3)'), sp_sym(si+i,si+1:si+N)
+      enddo
+      print *
+      do i=1,N
+        print ('(99f10.3)'), sp_asym(si+i,si+1:si+N)
+      enddo
+      si = si + N
+    enddo
+
+    sphamil_me = sp_sym + sp_asym
 end function calc_sphamil_me
 
 function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(sphamil_me)
@@ -1090,6 +1135,7 @@ $SPWF_DECLARATION
 
     ! initialize
     allocate(sphamil_me(nwt,nwt)) ; sphamil_me = 0.0d0
+
 
     si = 0
     do B=1,8

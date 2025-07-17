@@ -1104,7 +1104,8 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
             elif(complex_component == +0):
                 Expression = Expression + ta.Den_sum_real.substitute(dic)    + '\n\n'
           else:
-            if(symmetrize == -1 and ('C' in left or 'C' in right)):
+            if(symmetrize == -1 and ('C' in denin)): # dirty hack!
+                print ("SETTING MINUS SIGN", denin)
                 mult = '(-0.5d0) *'
             elif(symmetrize == +1 or symmetrize == -1):
                 mult = '(+0.5d0) *'

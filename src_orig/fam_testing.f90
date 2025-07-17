@@ -27,14 +27,17 @@ contains
 
     1 format ("Test = ", a20, " Success = ", i4)
     9 format (" ------- Start of the FAM testing routines -------")
-    complex(KIND=dp), intent(in) :: X(:,:), Y(:,:)
+    complex(KIND=dp), intent(in), allocatable :: X(:,:), Y(:,:)
     integer :: ifail
 
 
     print 9
 
-    call test_sphamil_me(ifail)
-    print 1, 'SPHAMIL_ME', ifail
+  !     call test_sphamil_me(ifail)
+  !     print 1, 'SPHAMIL_ME', ifail
+
+    call test_potentials(X,Y,ifail)
+    print 1, 'potentials', ifail
 
     !call test_potentials(X,Y,ifail)
     ! Attention: this testing routine has serious side effects on the state of the program.
@@ -43,21 +46,25 @@ contains
 
     stop
   end subroutine run_FAM_tests
-
+!
   subroutine test_potentials(X,Y,ifail)
     !------------------------------------------------------------------------
-    !
+    ! TODO: describe
     !
     !
     !------------------------------------------------------------------------
     integer, intent(out)          :: ifail
-    complex(KIND=dp), intent(in)  :: X(:,:), Y(:,:)
+    complex(KIND=dp), allocatable, intent(in)  :: X(:,:), Y(:,:)
 
     complex(KIND=dp), allocatable :: drho(:,:), dkappa(:,:), sphamil_me(:,:)
+    real(KIND=dp)                 :: eta
 
     type(DensityVector)           :: R, dRa, dRs
-    type(PotentialVector)         :: F, dFs, dFa
-    
+    type(PotentialVector)         :: F, dFs, dFa, Fnew
+
+    integer :: i
+
+
     allocate(drho(nwt,nwt))
     drho = 0.0d0
     drho = X + transpose(Y)
@@ -65,13 +72,61 @@ contains
     R       = densit(rho_can, kappa_pairing)
     dRs     = densit_offdiag_symmetric(drho, dkappa)
     dRa     = densit_offdiag_antisymmetric(drho,dkappa)
-    
+
     F       = calcpotentials(R)
     call calc_perturbed_potentials(R,dRs,dRa, dFs, dFa)
 
-    sphamil_me = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs,dFa, .false.)
+    eta = 0.000001
+    Fnew    = calcpotentials(R + eta*dRs) + (-1.0d0) * F
+    ! call print_deviations('F_I_I  -     symmetric', dFs%F_I_I       , Fnew%F_I_I/eta)
+
+    ! call print_deviations('F_I_SX -     symmetric', dFs%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta)
+    ! call print_deviations('F_I_SY -     symmetric', dFs%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta)
+    ! call print_deviations('F_I_SZ -     symmetric', dFs%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta)
+
+    ! call print_deviations('G_I_NX -     symmetric', dFs%G_I_N(:,1,:), Fnew%G_I_N(:,1,:)/eta)
+    ! call print_deviations('G_I_NY -     symmetric', dFs%G_I_N(:,2,:), Fnew%G_I_N(:,2,:)/eta)
+    ! call print_deviations('G_I_NZ -     symmetric', dFs%G_I_N(:,3,:), Fnew%G_I_N(:,3,:)/eta)
+
+
+    Fnew    = calcpotentials(R + eta*dRa) + (-1.0d0) * F
+    ! call print_deviations('F_I_I  - antisymmetric', dFa%F_I_I       , Fnew%F_I_I/eta)
+
+    ! call print_deviations('F_I_SX - antisymmetric', dFa%F_I_S(:,1,:), Fnew%F_I_S(:,1,:)/eta)
+    ! call print_deviations('F_I_SY - antisymmetric', dFa%F_I_S(:,2,:), Fnew%F_I_S(:,2,:)/eta)
+    ! call print_deviations('F_I_SZ - antisymmetric', dFa%F_I_S(:,3,:), Fnew%F_I_S(:,3,:)/eta)
+
+    ! call print_deviations('G_I_NX - antisymmetric', dFa%G_I_N(:,1,:), Fnew%G_I_N(:,1,:)/eta)
+    ! call print_deviations('G_I_NY - antisymmetric', dFa%G_I_N(:,2,:), Fnew%G_I_N(:,2,:)/eta)
+    ! call print_deviations('G_I_NZ - antisymmetric', dFa%G_I_N(:,3,:), Fnew%G_I_N(:,3,:)/eta)
+
+    print *
 
   end subroutine test_potentials
+
+  subroutine print_deviations(name, ref, findiff)
+    !-----------------------------------------------------------------------
+    ! TODO: describe
+    !
+    !-----------------------------------------------------------------------
+    character(len=*), intent(in) :: name
+    complex(KIND=dp), intent(in) :: ref(:,:), findiff(:,:)
+    integer :: i
+
+    print *, name, ' real part:'
+    print *, '-------------------------'
+    do i=1,nx
+      print ('(i3, 2f10.3, es12.3)'), i, DBLE(ref(i,1)), DBLE(findiff(i,1)), DBLE(ref(i,1))- DBLE(findiff(i,1))
+    enddo
+    print *
+    print *, name, ' imaginary part:'
+    print *, '-------------------------'
+    do i=1,nx
+      print ('(i3, 2f10.3, es12.3)'), i, DBLE(ref(i,1)), DBLE(findiff(i,1)), DBLE(ref(i,1))- DBLE(findiff(i,1))
+    enddo
+    print *
+
+  end subroutine print_deviations
 
   subroutine test_sphamil_me(ifail)
     !--------------------------------------------------------------------------------------
@@ -307,54 +362,54 @@ contains
     call mixup_rhokappa(rho_test, kappa_test, transfo)
 
   end subroutine test_densit_offdiag
-
-
-  subroutine build_dH_findiff(RUnper, dRs, dRa, eta)
-    !---------------------------------------------------------------------------
-    ! Build the perturbed single-particle Hamiltonian using finite difference
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! NOT OPERATIONAL
-    !   -> use build_dH_explicit() instead.
-    ! 
-    ! Notes:
-    !    This function is not operational at this point but is kept for potential 
-    !    test in the future. In particular, it would allow to test 
-    !    calc_perturbed_potentials.
-    !---------------------------------------------------------------------------
-
-    1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
-
-    implicit none
-    type(DensityVector), intent(in) :: RUnper, dRs, dRa
-    real(KIND=dp), intent(in)       :: eta     ! small finite diff. parameter
-    type(PotentialVector)           :: Fs, Fa
-    real(KIND=dp), allocatable      :: HPert(:,:)
-
-    print *, "build perturbed Hamiltonian using finite difference"
-
-    allocate(HPert(nwt,nwt))
-
-    ! Calculate the total perturbed potentials, i.e. static mean-field + perturbation, 
-    ! from the total perturbed densit, i.e. static mean-field + perturbation
-
-    ! call calcPotentials(RUnper + eta * dRs, eta * dRa, Fs, Fa)
-    ! => presently missing. /!\
-
-    call combine_potentials(Fs)
-
-    ! construct the sp hamiltonian
-    HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, Fs,  Fa, .false.)
-
-    ! compute dH by finite difference, i.e. subtract the unperturbed Hamiltonian
-    HPert = HPert - Hunper
-    ! ... and devide by small parameter eta
-    HPert = HPert / eta
-
-    call get_ph_hp_blocks(HPert, dH(:,:,1), dH(:,:,2))
-
-    print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
-
-  end subroutine build_dH_findiff
+!
+!
+!   subroutine build_dH_findiff(RUnper, dRs, dRa, eta)
+!     !---------------------------------------------------------------------------
+!     ! Build the perturbed single-particle Hamiltonian using finite difference
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! NOT OPERATIONAL
+!     !   -> use build_dH_explicit() instead.
+!     !
+!     ! Notes:
+!     !    This function is not operational at this point but is kept for potential
+!     !    test in the future. In particular, it would allow to test
+!     !    calc_perturbed_potentials.
+!     !---------------------------------------------------------------------------
+!
+!     1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
+!
+!     implicit none
+!     type(DensityVector), intent(in) :: RUnper, dRs, dRa
+!     real(KIND=dp), intent(in)       :: eta     ! small finite diff. parameter
+!     type(PotentialVector)           :: Fs, Fa
+!     real(KIND=dp), allocatable      :: HPert(:,:)
+!
+!     print *, "build perturbed Hamiltonian using finite difference"
+!
+!     allocate(HPert(nwt,nwt))
+!
+!     ! Calculate the total perturbed potentials, i.e. static mean-field + perturbation,
+!     ! from the total perturbed densit, i.e. static mean-field + perturbation
+!
+!     ! call calcPotentials(RUnper + eta * dRs, eta * dRa, Fs, Fa)
+!     ! => presently missing. /!\
+!
+!     call combine_potentials(Fs)
+!
+!     ! construct the sp hamiltonian
+!     HPert = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi, Fs,  Fa, .false.)
+!
+!     ! compute dH by finite difference, i.e. subtract the unperturbed Hamiltonian
+!     HPert = HPert - Hunper
+!     ! ... and devide by small parameter eta
+!     HPert = HPert / eta
+!
+!     call get_ph_hp_blocks(HPert, dH(:,:,1), dH(:,:,2))
+!
+!     print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
+!
+!   end subroutine build_dH_findiff
 
 
 

@@ -88,6 +88,9 @@ program run_FAM
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
 
+  call test_gmres()
+  stop
+
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
@@ -132,85 +135,85 @@ program run_FAM
       allocate(dH_flat_next(nwt*nwt))
     endif
 
-    ! dH_flat = 0
-    ! dH_flat_next = 0
+    dH_flat = 0
+    dH_flat_next = 0
 
-    ! ! Start of the iterations 
-    ! do iteration=1, maxfamiter
+    ! Start of the iterations 
+    do iteration=1, maxfamiter
 
-    !   print 1
-    !   print 2, iteration
+      print 1
+      print 2, iteration
 
-    !   !---------------------------------------------------------------------------------
-    !   ! via explicit loops and linear mixing
-    !   !---------------------------------------------------------------------------------
+      !---------------------------------------------------------------------------------
+      ! via explicit loops and linear mixing
+      !---------------------------------------------------------------------------------
 
-    !   ! ! build the perturbed hamiltonian using explicit linearisation of the field
-    !   ! call build_dH_explicit(Density, dRs, dRa)
+      ! ! build the perturbed hamiltonian using explicit linearisation of the field
+      ! call build_dH_explicit(Density, dRs, dRa)
 
-    !   ! ! calculate X and Y from the perturbed sp Hamil dH
-    !   ! call calculate_XY(dH)
+      ! ! calculate X and Y from the perturbed sp Hamil dH
+      ! call calculate_XY(dH)
       
-    !   ! ! Apply simple linear mixing of X and Y. 
-    !   ! call mix_XY_linear(lin_mix_coeff)
-    !   ! ! To be replaced with something more fancy in the future
+      ! ! Apply simple linear mixing of X and Y. 
+      ! call mix_XY_linear(lin_mix_coeff)
+      ! ! To be replaced with something more fancy in the future
 
-    !   ! ! build the perturbed densities on the mesh dRs, dRa from X and Y
-    !   ! call build_perturbed_densities(X, Y, dRs, dRa)
+      ! ! build the perturbed densities on the mesh dRs, dRa from X and Y
+      ! call build_perturbed_densities(X, Y, dRs, dRa)
 
-    !   ! call store_XY_hist()
+      ! call store_XY_hist()
 
-    !   !---------------------------------------------------------------------------------
-    !   ! linear mixing while employing iterate_dHsp()
-    !   !---------------------------------------------------------------------------------
+      !---------------------------------------------------------------------------------
+      ! linear mixing while employing iterate_dHsp()
+      !---------------------------------------------------------------------------------
 
-    !   ! calculate free response, i.e. one FAM loop based on dH=0
-    !   call iterate_dHsp(dH_flat, dH_flat_next)
+      ! calculate free response, i.e. one FAM loop based on dH=0
+      call iterate_dHsp(dH_flat, dH_flat_next)
 
-    !   ! simple linear mixing of sp hamiltonian
-    !   dH_flat_next = lin_mix_coeff * dH_flat_next + (1.0_dp - lin_mix_coeff) * dH_flat
+      ! simple linear mixing of sp hamiltonian
+      dH_flat_next = lin_mix_coeff * dH_flat_next + (1.0_dp - lin_mix_coeff) * dH_flat
 
-    !   ! update dH for next iteration
-    !   dH_flat = dH_flat_next
+      ! update dH for next iteration
+      dH_flat = dH_flat_next
 
-    !   !---------------------------------------------------------------------------------
-    !   ! test convergenence
-    !   !---------------------------------------------------------------------------------
+      !---------------------------------------------------------------------------------
+      ! test convergenence
+      !---------------------------------------------------------------------------------
 
-    !   ! print 3, l,m, omega_curr,  calc_strength()
+      ! print 3, l,m, omega_curr,  calc_strength()
 
-    !   ! Exit the loop if convergence is achieved.
-    !   if (iteration > 1) then ! at least two iterations to be able to compare
-    !    call test_convergence(is_converged, is_divergent)
-    !     if(is_converged) then
-    !       print 1
-    !       print *, "Hooray! FAM is converged! "
-    !       print 1
-    !       print 1
-    !       ! omega_arr(omega_index) = omega_curr
-    !       ! S_arr(omega_index) = calc_strength()
-    !       iter_arr(omega_index) = iteration
-    !       exit
-    !     endif
-    !     if(is_divergent) then
-    !       print 1
-    !       print *, "FAM diverges, exiting"
-    !       print 1
-    !       print 1
-    !       ! omega_arr(omega_index) = omega_curr
-    !       ! S_arr(omega_index) = calc_strength()
-    !       iter_arr(omega_index) = -iteration
-    !       exit
-    !     endif
-    !   endif
-    !   if (iteration == maxfamiter) then
-    !     print 1
-    !     print *, "Reached maximal number of iterations, ", maxfamiter
-    !     print 1
-    !     print 1
-    !     iter_arr(omega_index) = -maxfamiter
-    !   endif
-    ! enddo
+      ! Exit the loop if convergence is achieved.
+      if (iteration > 1) then ! at least two iterations to be able to compare
+       call test_convergence(is_converged, is_divergent)
+        if(is_converged) then
+          print 1
+          print *, "Hooray! FAM is converged! "
+          print 1
+          print 1
+          ! omega_arr(omega_index) = omega_curr
+          ! S_arr(omega_index) = calc_strength()
+          iter_arr(omega_index) = iteration
+          exit
+        endif
+        if(is_divergent) then
+          print 1
+          print *, "FAM diverges, exiting"
+          print 1
+          print 1
+          ! omega_arr(omega_index) = omega_curr
+          ! S_arr(omega_index) = calc_strength()
+          iter_arr(omega_index) = -iteration
+          exit
+        endif
+      endif
+      if (iteration == maxfamiter) then
+        print 1
+        print *, "Reached maximal number of iterations, ", maxfamiter
+        print 1
+        print 1
+        iter_arr(omega_index) = -maxfamiter
+      endif
+    enddo
 
 
     !---------------------------------------------------------------------------------
@@ -219,23 +222,23 @@ program run_FAM
 
     ! call inifam(omega_curr, Density, Potentials)
 
-    dH_flat = 0
-    dH_flat_next = 0
+    ! dH_flat = 0
+    ! dH_flat_next = 0
 
-    ! calculate free response, i.e. one FAM loop based on dH=0
-    call iterate_dHsp(dH_flat, dH_flat_next)
+    ! ! calculate free response, i.e. one FAM loop based on dH=0
+    ! call iterate_dHsp(dH_flat, dH_flat_next)
 
-    dH_flat = dH_flat_next ! set initial guess to b
+    ! dH_flat = dH_flat_next ! set initial guess to b
 
-    call do_gmres(dH_flat, iteration, nbprod, res, dH_flat_next, iterate_dHsp, &
-      & norm_dH, ScProd_dH, 1.0e-8_dp, 1000, 100, 3)
+    ! call do_gmres(dH_flat, iteration, nbprod, res, dH_flat_next, iterate_dHsp, &
+    !   & norm_dH, ScProd_dH, 1.0e-8_dp, 1000, 100, 3)
 
-    call test_convergence(is_converged, is_divergent)
+    ! call test_convergence(is_converged, is_divergent)
 
-    print 1
-    print * , "total number of FAM iterations = ", nbprod
-    print 1
-    print 1
+    ! print 1
+    ! print * , "total number of FAM iterations = ", nbprod
+    ! print 1
+    ! print 1
 
       
     omega_arr(omega_index) = omega_curr

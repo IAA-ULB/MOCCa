@@ -456,6 +456,8 @@ module fam
     complex(KIND=dp), intent(in)     :: X(:,:), Y(:,:)
     type(DensityVector), intent(out) :: dRs, dRa
 
+    integer :: si,i, B, N
+
     if (verbose > 0) print *, "build perturbed densities"
 
     drho = X + transpose(Y) 
@@ -677,26 +679,33 @@ module fam
 
   subroutine print_all_fam_spmat()
 
-    print *, 'X'
-    call print_spme_complex(X)
-
-    print *, 'Y'
-    call print_spme_complex(Y)
+!     print *, 'X'
+!     call print_spme_complex(X)
+!
+!     print *, 'Y'
+!     call print_spme_complex(Y)
 
     print *, 'drho'
-    call print_spme_complex(X)
+    call print_spme_complex(X + transpose(Y))
 
-    print *, 'dH20'
-    call print_spme_real(dH(:,:,1))
+    print *, 'drho_sym'
+    call print_spme_complex(X + transpose(Y) + transpose(X) + Y)
 
-    print *, 'dH02'
-    call print_spme_real(dH(:,:,2))
-    
-    print *, 'F20'
-    call print_spme_real(F(:,:,1))
+    print *, 'drho_antisym'
+    call print_spme_complex(X + transpose(Y) - transpose(X) - Y)
 
-    print *, 'F02'
-    call print_spme_real(F(:,:,2))
+
+!     print *, 'dH20'
+!     call print_spme_real(dH(:,:,1))
+!
+!     print *, 'dH02'
+!     call print_spme_real(dH(:,:,2))
+!
+!     print *, 'F20'
+!     call print_spme_real(F(:,:,1))
+!
+!     print *, 'F02'
+!     call print_spme_real(F(:,:,2))
 
   end subroutine
 
