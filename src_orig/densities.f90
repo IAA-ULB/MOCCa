@@ -917,9 +917,9 @@ $ZEROING
 $EXPRESSION_OFFDIAG_ANTISYMMETRIC
 
 
-        if( i.eq.1) then
-              print ('(a6, 3i3, 99es16.8)'), 'weight', B, wave_global_i, wave_global_j, weight_asym, D_I_I,  weight_asym* D_I_I
-        endif
+!         if( i.eq.1) then
+!               print ('(a6, 3i3, 99es16.8)'), 'weight', B, wave_global_i, wave_global_j, weight_asym, D_I_I,  weight_asym* D_I_I
+!         endif
           enddo
         enddo
       enddo
@@ -998,20 +998,20 @@ function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sph
 
     sp_sym = calc_sphamil_me_sym    ( denpsi, dendpsi, denddpsi, Fs,  onthefly)
     sp_asym= calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, Fa,  onthefly)
-
-    si = 0
-    do B=1,8
-      N = HFBlocks(B)
-      print *, 'B = ' , B
-      do i=1,N
-        print ('(99f10.3)'), sp_sym(si+i,si+1:si+N)
-      enddo
-      print *
-      do i=1,N
-        print ('(99f10.3)'), sp_asym(si+i,si+1:si+N)
-      enddo
-      si = si + N
-    enddo
+!
+!     si = 0
+!     do B=1,8
+!       N = HFBlocks(B)
+!       print *, 'B = ' , B
+!       do i=1,N
+!         print ('(99f10.3)'), sp_sym(si+i,si+1:si+N)
+!       enddo
+!       print *
+!       do i=1,N
+!         print ('(99f10.3)'), sp_asym(si+i,si+1:si+N)
+!       enddo
+!       si = si + N
+!     enddo
 
     sphamil_me = sp_sym + sp_asym
 end function calc_sphamil_me
@@ -1077,12 +1077,12 @@ $SPWF_DECLARATION
       ! Reduced mass in case of self-consistent 1-body COM correction
       ! If doing pasta calculations, just skip.
 
-      do wave_i=si+1,si+N
-        do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
+      do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
+        do wave_i=si+1,si+N
           do i=1,mv
 $EXPRESSION_SPH_SYM
           enddo
-          sphamil_me(wave_i, wave_j) = sphamil_me(wave_i, wave_j) * dv
+          sphamil_me(wave_j, wave_i) = sphamil_me(wave_j, wave_i) * dv
         enddo
       enddo
       si = si + N
@@ -1149,12 +1149,12 @@ $SPWF_DECLARATION
         it = 1
       endif
 
-      do wave_i=si+1,si+N
-        do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
+      do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
+        do wave_i=si+1,si+N
           do i=1,mv
 $EXPRESSION_SPH_ANTISYM
           enddo
-          sphamil_me(wave_i, wave_j) = sphamil_me(wave_i, wave_j) * dv
+          sphamil_me(wave_j, wave_i) = sphamil_me(wave_j, wave_i) * dv
         enddo
       enddo
       si = si + N

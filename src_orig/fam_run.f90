@@ -2,7 +2,8 @@ program run_FAM
 
   use compilation
   use IO
-  use Tantalus, only : print_header, initialize_all_timers
+  use Tantalus, only : print_header, initialize_all_timers, full_printout
+  use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
   use fam_testing, only : run_FAM_tests, test_gmres
   use gmres 
@@ -14,7 +15,6 @@ program run_FAM
   implicit none
   integer :: iteration, nbprod
   logical :: is_converged, is_divergent
-  real(kind=dp)  :: lin_mix_coeff=1.0d-2
   real(kind=dp) :: omega_curr
   integer :: omega_num, omega_index
   real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
@@ -22,7 +22,7 @@ program run_FAM
   character(len=100) :: famfilename
   integer :: i, B, si,N
 
-  real(KIND=dp), allocatable :: dH_flat(:), dH_flat_next(:)
+  complex(KIND=dp), allocatable :: dH_flat(:), dH_flat_next(:)
   real(KIND=dp) :: res
 
   ! integer :: ifail ! Future dev: required for HFB
@@ -63,25 +63,43 @@ program run_FAM
   if(store_derivatives) call deriveHF()
 
   !--------------------------------------------------------------------------------
-  ! Step 0: build explicitly the matrix of the single-particle hamiltonian and
-  !         diagonalize it within the subspace spanned by the spwfs read from file
+  ! Step 0a: build explicitly the matrix of the single-particle hamiltonian and
+  !          diagonalize it within the subspace spanned by the spwfs read from file
   Density     = densit(rho_can, kappa_pairing)
   Potentials  = calcPotentials(Density)
   sphamil     = Calc_Sphamil(potentials, .true.)
-
-  
-  call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
-  ! diagonalisation done; now recalculate other quantities
-  if(store_derivatives) call deriveHF() ! and update derivatives
-  Density     = densit(rho_can, kappa_pairing)
-  Potentials  = calcPotentials(Density)
-  sphamil     = Calc_Sphamil(potentials, .true.)
+!
+!  ATTENTION: this explicit diagonalisation can break the apparent agreement
+!             between proton and neutron matices since the LAPACK diagonalisation
+!             might perform different rotations of the spwfs dependent on small
+!             numerical details.
+!  TODO: reenable once visual inspections are no longer necessary.
+!
+!   call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+!   ! diagonalisation done; now recalculate other quantities
+!   if(store_derivatives) call deriveHF() ! and update derivatives
+!   Density     = densit(rho_can, kappa_pairing)
+!   Potentials  = calcPotentials(Density)
+!   sphamil     = Calc_Sphamil(potentials, .true.)
 
   ! Note: there is a silent assumption here that the HF-spectrum is sufficiently
   !       well-converged such that an explicit orthonormalisation will not change
   !       our mean-field state in any meaningful way. In the future, we might want
   !       to resolve the whole "pairing subproblem" again here and check that the
   !       structure does not vary too much.
+
+
+  !----------------------------------------------------------------------------------
+  ! Step 0b: calculate all relevant quantities on the meanfield level to enable a
+  !          complete printout
+  call update_spwf_properties_HF () !
+  if(PairingType.eq.2) call update_spwf_properties_CAN()
+  print_adv_spwf_properties = .true.
+  call setBelyaevProcedure()
+  call CalcEnergy(Density,Potentials,.true.) ! expensive parts included
+  call calc_avg_gap()
+  call full_printout(0,.false.,print_adv_spwf_properties)
+
 
 
   !---------------------------------------------------------------------------------
@@ -110,18 +128,20 @@ program run_FAM
     ! initialise FAM matrices end set perturbing external field
     call inifam(omega_curr, Density, Potentials)
 
-    if( calc_strength() .ge. 0.1) then
-      lin_mix_coeff=0.01
-    else
-      if( calc_strength() .ge. 0.001) then
-        lin_mix_coeff=0.05
-      else
-        lin_mix_coeff=0.1
-      endif
-    endif
-
-    ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-    ! call run_FAM_tests(X,Y)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Old 'adaptive' lin_mix formulation - seems to be too cautious, perhaps
+    !  because of instability related to bugs in the perturbed densities and
+    !  potentials in earlier versions.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     if( calc_strength() .ge. 0.1) then
+!        fam_lin_mix=0.01
+!      else
+!        if( calc_strength() .ge. 0.001) then
+!          fam_lin_mix=0.05
+!        else
+!          fam_lin_mix=0.1
+!        endif
+!      endif
 
     is_converged = .false.
     is_divergent = .false.
@@ -170,12 +190,17 @@ program run_FAM
       ! calculate free response, i.e. one FAM loop based on dH=0
       call iterate_dHsp(dH_flat, dH_flat_next)
 
+      ! Run all kinds of unit tests; should be made optional as this includes a stop statement
+!       call run_FAM_tests(X,Y)
+
       ! simple linear mixing of sp hamiltonian
-      dH_flat_next = lin_mix_coeff * dH_flat_next + (1.0_dp - lin_mix_coeff) * dH_flat
+      dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat
 
       ! update dH for next iteration
       dH_flat = dH_flat_next
 
+
+!       call print_all_fam_spmat()
       !---------------------------------------------------------------------------------
       ! test convergenence
       !---------------------------------------------------------------------------------

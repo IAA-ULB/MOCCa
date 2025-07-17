@@ -1453,13 +1453,12 @@ $CALCPOTENTIALS
     type (PotentialVector)           :: dFs, dFa
     
     dFs  = calc_perturbed_potentials_oneoff(R,dRs)
-
-    ! print *, 'MAXVAL Fs Re', maxval(DBLE(dFs%F_I_I))
-    ! print *, 'MAXVAL Fs Im', maxval(IMAG(dFs%F_I_I))
-    ! print *, 'MAXVAL Fa Re', maxval(DBLE(dFa%F_I_I))
-    ! print *, 'MAXVAL Fa Im', maxval(IMAG(dFa%F_I_I))
-
     dFa  = calc_perturbed_potentials_oneoff(R,dRa)
+
+!     print *, 'MAXVAL Fs Re', maxval(DBLE(dFs%F_I_I))
+!     print *, 'MAXVAL Fs Im', maxval(IMAG(dFs%F_I_I))
+!     print *, 'MAXVAL Fa Re', maxval(DBLE(dFa%F_I_I))
+!     print *, 'MAXVAL Fa Im', maxval(IMAG(dFa%F_I_I))
 
     call SolveCoulomb(dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)
     call SolveCoulomb(dRa,dFa,sx_rho_antisym,sx_rho_antisym,sz_rho_antisym)

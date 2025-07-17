@@ -37,6 +37,8 @@ module fam
   !    Note that the obtained strength is convoluted with a Lorentzian with FWHM 
   !    equal to Gamma = 2 * smear 
   integer :: maxfamiter = 100 ! maximal number of FAM iterations 
+  ! Coefficient for the linear mixing of FAM iterations
+  real(KIND=dp) :: fam_lin_mix = 0.5d0
   !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
   complex(KIND=dp), allocatable :: X(:,:) ! forward amplitudes HF basis
@@ -61,12 +63,12 @@ module fam
   !                         '-> symmetric part
   !-----------------------------------------------------------------------------
   ! unperturbed Hamiltonian and perturbed hamiltonian
-  real(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
-  real(KIND=dp), allocatable :: dH(:,:,:)   ! ph and hp block of the perturbed
-  !                                | | |      Hamiltonian in HF basis
-  !                                | | '-> 1: ph block, 2: hp block 
-  !                                | '-> sp index : hole
-  !                                '-> sp index : particle
+  complex(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
+  complex(KIND=dp), allocatable :: dH(:,:,:)   ! ph and hp block of the perturbed
+  !                                   | | |      Hamiltonian in HF basis
+  !                                   | | '-> 1: ph block, 2: hp block
+  !                                   | '-> sp index : hole
+  !                                   '-> sp index : particle
   !-----------------------------------------------------------------------------
   ! external field
   real(KIND=dp), allocatable :: F(:,:,:)  ! perturbing external field in HF basis
@@ -75,7 +77,7 @@ module fam
   !                               '-> sp index : particle
   integer :: l, m ! Principal and magnetic quantum number of the multipole moment
   ! Do we need more identifiers for electric vs magnetic and isovector 
-  ! vs isoscalar
+  ! vs isoscalar? YES!
   !-----------------------------------------------------------------------------
   ! convergence
   complex(KIND=dp), allocatable :: X_hist(:,:,:) ! history of X through FAM iters
@@ -101,6 +103,11 @@ module fam
   ! 0: very limited printing
   ! 1: printing some function calls
   ! 2: printing all sp matrices at each iteration
+
+  interface get_ph_hp_blocks
+    module procedure get_ph_hp_blocks_complex
+    module procedure get_ph_hp_blocks_real
+  end interface get_ph_hp_blocks
 
 
   contains
@@ -160,6 +167,8 @@ module fam
 
       endif
      
+      print *, 'SOLIDHARMHF'
+      call print_spme_real(SolidHarmHF)
 
       ! note: 
       !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
@@ -261,7 +270,7 @@ module fam
     real(KIND=dp) :: omega = -1.0_dp
 
     namelist /fam/      omega, omega_min, omega_max, omega_step,    &
-    &                   smear, maxiter, l, m, XY_prec
+    &                   smear, maxiter, l, m, XY_prec, fam_lin_mix
 
     if(MPI_rank .eq. 0) then    
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -298,12 +307,15 @@ module fam
     4 format ( ' Convergence:   ', /, &
     &          '    Maximal number of iterations: ',i8, /,  &
     &          '    ||X||, ||Y|| convergence  < ',es8.1)
+    5 format ( ' Evolution strategy: ', / &
+    &          '    linear mixing with \alpha = ', f10.3)
 
     print 1
     print 2, omega_min, omega_max, omega_step
     print 21, smear
     print 3, l, m
     print 4, maxfamiter, XY_prec
+    print 5, fam_lin_mix
 
   end subroutine
 
@@ -317,10 +329,10 @@ module fam
     3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
     implicit none
-    real(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
-    real(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
+    complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
+    complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
 
-    real(KIND=dp), pointer :: dHsp(:,:), dHspout(:,:)
+    complex(KIND=dp), pointer :: dHsp(:,:), dHspout(:,:)
 
     integer       :: p, h
     real(KIND=dp) :: occ_h, occ_p
@@ -355,11 +367,13 @@ module fam
 
     ! necessary? 
     call combine_potentials(dFs)
+    call combine_potentials(dFa)
 
     ! construct the sp hamiltonian
     dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
 
-    if (verbose > 1) call print_all_fam_spmat()
+    if(verbose > 1) call print_all_fam_spmat()
+    call print_all_fam_spmat()
 
   end subroutine iterate_dHsp
 
@@ -368,7 +382,7 @@ module fam
     ! Compute the X and Y amplitudes from the FAM master equation
     !---------------------------------------------------------------------------
     implicit none
-    real(KIND=dp), intent(in)  :: dH(:,:,:) ! perturbed H in QP basis
+    complex(KIND=dp), intent(in)  :: dH(:,:,:) ! perturbed H in QP basis
 
     integer       :: p, h
     real(KIND=dp) :: occ_h, occ_p, e_h, e_p
@@ -447,7 +461,6 @@ module fam
   
   end subroutine iniHFdensities
 
-
   subroutine build_perturbed_densities(X, Y, dRs, dRa)
     !---------------------------------------------------------------------------
     ! Build the perturbed mean-field densities.
@@ -460,7 +473,7 @@ module fam
 
     if (verbose > 0) print *, "build perturbed densities"
 
-    drho = X + transpose(Y) 
+    drho = X + transpose(Y)
     dkappa = 0
 
     call densit_offdiag(drho, dkappa, dRs, dRa)
@@ -476,19 +489,19 @@ module fam
 
     implicit none
     type(DensityVector), intent(in) :: R, dRs, dRa
-    real(KIND=dp), allocatable :: dHsp(:,:)
+    complex(KIND=dp), allocatable :: dHsp(:,:)
 
     allocate(dHsp(nwt,nwt))
 
     ! explicit linearisation of the fields
     call calc_perturbed_potentials(R, dRs, dRa, dFs, dFa)
 
-    ! necessary? 
     call combine_potentials(dFs)
+    call combine_potentials(dFa)
 
     ! construct the sp hamiltonian
     dHsp = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
-
+!
    ! get the ph and hp subblocks
     call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
 
@@ -586,7 +599,7 @@ module fam
   end subroutine test_convergence
 
 
-  subroutine get_ph_hp_blocks(M, Mph, Mhp)
+ subroutine get_ph_hp_blocks_complex(M, Mph, Mhp)
     !---------------------------------------------------------------------------
     ! Get the particle-hole and hole-particle subblocks of a one-body operator
     ! M. Occupation are obtained from the diagonal elements of rho_can. 
@@ -598,8 +611,8 @@ module fam
     !---------------------------------------------------------------------------
 
     implicit none
-    real(KIND=dp), intent(in) :: M(:,:)
-    real(KIND=dp), intent(out) :: Mph(:,:), Mhp(:,:)
+    complex(KIND=dp), intent(in) :: M(:,:)
+    complex(KIND=dp), intent(out) :: Mph(:,:), Mhp(:,:)
     integer       :: p, h
     real(KIND=dp) :: occ_h, occ_p
 
@@ -622,8 +635,45 @@ module fam
     ! For QFAM this will have to be generalised to M20 and M02 obtained from a 
     ! Bogoliubov transformation to the qp basis. 
 
-  end subroutine get_ph_hp_blocks
+  end subroutine get_ph_hp_blocks_complex
 
+  subroutine get_ph_hp_blocks_real(M, Mph, Mhp)
+    !---------------------------------------------------------------------------
+    ! Get the particle-hole and hole-particle subblocks of a one-body operator
+    ! M. Occupation are obtained from the diagonal elements of rho_can.
+    !
+    ! NOTE :
+    ! - the ordering of the sp labels is always the particle label first
+    ! and the hole label second, i.e. Mhp(p,h) and Mph(p,h).
+    ! - for simplicity, Mph and Mhp are of size (nwt,nwt).
+    !---------------------------------------------------------------------------
+
+    implicit none
+    real(KIND=dp), intent(in) :: M(:,:)
+    real(KIND=dp), intent(out) :: Mph(:,:), Mhp(:,:)
+    integer       :: p, h
+    real(KIND=dp) :: occ_h, occ_p
+
+    Mph = 0
+    Mhp = 0
+
+    do h = 1, nwt
+      occ_h = rho_can(h)
+      if(occ_h < 1d-6) cycle
+      do p = 1, nwt
+        occ_p = 1.0 - rho_can(p)
+        if(occ_p < 1d-6) cycle
+        Mph(p,h) = occ_p * occ_h * M(p,h)
+        Mhp(p,h) = occ_p * occ_h * M(h,p)
+      enddo
+    enddo
+
+    ! This can be more efficient by using some mask and elementwise multiplication
+
+    ! For QFAM this will have to be generalised to M20 and M02 obtained from a
+    ! Bogoliubov transformation to the qp basis.
+
+  end subroutine get_ph_hp_blocks_real
 
 
   function Rsq_spme() result (Rsq)
@@ -679,28 +729,28 @@ module fam
 
   subroutine print_all_fam_spmat()
 
-!     print *, 'X'
-!     call print_spme_complex(X)
-!
-!     print *, 'Y'
-!     call print_spme_complex(Y)
+    print *, 'X'
+    call print_spme_complex(X)
+
+    print *, 'Y'
+    call print_spme_complex(Y)
 
     print *, 'drho'
     call print_spme_complex(X + transpose(Y))
 
-    print *, 'drho_sym'
-    call print_spme_complex(X + transpose(Y) + transpose(X) + Y)
-
-    print *, 'drho_antisym'
-    call print_spme_complex(X + transpose(Y) - transpose(X) - Y)
-
-
-!     print *, 'dH20'
-!     call print_spme_real(dH(:,:,1))
+!     print *, 'drho_sym'
+!     call print_spme_complex(X + transpose(Y) + transpose(X) + Y)
 !
-!     print *, 'dH02'
-!     call print_spme_real(dH(:,:,2))
-!
+!     print *, 'drho_antisym'
+!     call print_spme_complex(X + transpose(Y) - transpose(X) - Y)
+
+
+    print *, 'dH20'
+    call print_spme_complex(dH(:,:,1))
+
+    print *, 'dH02'
+    call print_spme_complex(dH(:,:,2))
+
 !     print *, 'F20'
 !     call print_spme_real(F(:,:,1))
 !
