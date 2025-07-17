@@ -86,6 +86,7 @@ program run_FAM
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
 
+
 !   call test_gmres()
 !   stop
 
@@ -118,8 +119,6 @@ program run_FAM
 !     endif
     lin_mix_coeff = 0.9
 
-    ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-    ! call run_FAM_tests(X,Y)
 
     is_converged = .false.
     is_divergent = .false.
@@ -168,6 +167,9 @@ program run_FAM
       ! calculate free response, i.e. one FAM loop based on dH=0
       call iterate_dHsp(dH_flat, dH_flat_next)
 
+      ! Run all kinds of unit tests; should be made optional as this includes a stop statement
+!       call run_FAM_tests(X,Y)
+
       ! simple linear mixing of sp hamiltonian
       dH_flat_next = lin_mix_coeff * dH_flat_next + (1.0_dp - lin_mix_coeff) * dH_flat
 
@@ -175,7 +177,7 @@ program run_FAM
       dH_flat = dH_flat_next
 
 
-      call print_all_fam_spmat()
+!       call print_all_fam_spmat()
       !---------------------------------------------------------------------------------
       ! test convergenence
       !---------------------------------------------------------------------------------

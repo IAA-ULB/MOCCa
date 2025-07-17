@@ -348,6 +348,7 @@ module fam
 
     ! necessary? 
     call combine_potentials(dFs)
+    call combine_potentials(dFa)
 
     ! construct the sp hamiltonian
     dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
@@ -440,7 +441,6 @@ module fam
   
   end subroutine iniHFdensities
 
-
   subroutine build_perturbed_densities(X, Y, dRs, dRa)
     !---------------------------------------------------------------------------
     ! Build the perturbed mean-field densities.
@@ -453,7 +453,7 @@ module fam
 
     if (verbose > 0) print *, "build perturbed densities"
 
-    drho = X + transpose(Y) 
+    drho = X + transpose(Y)
     dkappa = 0
 
     call densit_offdiag(drho, dkappa, dRs, dRa)
@@ -476,12 +476,12 @@ module fam
     ! explicit linearisation of the fields
     call calc_perturbed_potentials(R, dRs, dRa, dFs, dFa)
 
-    ! necessary? 
     call combine_potentials(dFs)
+    call combine_potentials(dFa)
 
     ! construct the sp hamiltonian
     dHsp = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
-
+!
    ! get the ph and hp subblocks
     call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
 
