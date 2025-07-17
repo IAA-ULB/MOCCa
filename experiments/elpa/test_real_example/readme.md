@@ -95,3 +95,21 @@ norm_diff=4.041654044610298e-15
 ```
 
 All three approaches give (approximately) the same solution, so we're good.
+
+After installing `pyelpa` that too gives the same solution:
+
+```
+*** elpa.eigenvectors solution ***
+Eigenvalues:
+0 0.30660955150417274
+1 0.3582726976185492
+2 0.4503637822206516
+3 0.6016068130970021
+4 0.8327992736061037
+5 1.2436575328823705
+6 2.007699054970261
+7 6.19899129410089
+norm_diff=1.3299526536404359e-15
+```
+
+Perhaps it would be nice to have a common frontend for both pyscalapack and pyelpa, so that we can run the same code with both backends and easily produce timings.
