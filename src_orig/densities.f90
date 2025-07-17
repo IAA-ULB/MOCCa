@@ -1077,12 +1077,12 @@ $SPWF_DECLARATION
       ! Reduced mass in case of self-consistent 1-body COM correction
       ! If doing pasta calculations, just skip.
 
-      do wave_i=si+1,si+N
-        do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
+      do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
+        do wave_i=si+1,si+N
           do i=1,mv
 $EXPRESSION_SPH_SYM
           enddo
-          sphamil_me(wave_i, wave_j) = sphamil_me(wave_i, wave_j) * dv
+          sphamil_me(wave_j, wave_i) = sphamil_me(wave_j, wave_i) * dv
         enddo
       enddo
       si = si + N
@@ -1149,12 +1149,12 @@ $SPWF_DECLARATION
         it = 1
       endif
 
-      do wave_i=si+1,si+N
-        do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
+      do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
+        do wave_i=si+1,si+N
           do i=1,mv
 $EXPRESSION_SPH_ANTISYM
           enddo
-          sphamil_me(wave_i, wave_j) = sphamil_me(wave_i, wave_j) * dv
+          sphamil_me(wave_j, wave_i) = sphamil_me(wave_j, wave_i) * dv
         enddo
       enddo
       si = si + N
