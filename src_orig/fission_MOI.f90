@@ -47,11 +47,21 @@ module fission_MOI
   implicit none
 
   !-----------------------------------------------------------------------------
-  ! Multipole moments for which to construct the inertia tensor. 
-  integer :: N_inertia            = 0
-  integer, allocatable :: inertia_l(:) 
-  integer, allocatable :: inertia_m(:)  
-
+  ! Multipole moments for which to construct the inertia tensor.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Hardcoded to include Q20,Q22,Q30,Q32 at the moment because
+  ! (a) these are the relevant ones for our description of fission
+  ! (b) the Q20/Q22 are needed for the calculation for one option to
+  !     correct for the vibrational correction.
+  !
+  ! If the flexibility to calculate even more/different MOIs is needed in the
+  !  future, it is probably a good idea to further refactor this module to
+  !  be more 'functional': i.e. with routines that depend less on global
+  !  variables.
+  !-----------------------------------------------------------------------------
+  integer, parameter   :: N_inertia            = 4
+  integer              :: inertia_l(N_inertia) = (/ 2, 2, 3, 3 /)
+  integer              :: inertia_m(N_inertia) = (/ 0, 2, 0, 2 /)
   !-----------------------------------------------------------------------------
   ! The full collective inertia tensor, obtained by including information 
   ! on ALL the multipole moments that were asked for  
@@ -60,74 +70,10 @@ module fission_MOI
   ! of the collective_inertia. Stored separately so it can be output for 
   ! people wanting to recalculate the collective inertia.
   real(KIND = dp), allocatable :: M1(:,:,:), M2(:,:,:), M3(:,:,:)
-  ! Vibrational zero-point energy calculated with the same matrices
-  real(KIND = dp), allocatable :: Ezpe
   !-----------------------------------------------------------------------------
   
 contains 
 
-  subroutine read_inertia(file_number)
-    !---------------------------------------------------------------------------
-    ! Subroutine to read the &inertia/ namelist from the specified file (via the
-    ! specified channel) or from STDIN if the variables are not present.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input:
-    !   file_number : optional integer. If present, read from (open) channel
-    !                 with this number. If absent, read from STDIN.
-    !---------------------------------------------------------------------------
-    integer(dp), intent(in), optional   :: file_number   
-    integer :: k
-#if(USE_MPI>0)
-    integer :: mpi_err
-#endif
-
-    NameList /inertia/ inertia_l, inertia_m
-
-    ! Sanity check    
-    if(N_inertia .lt. 0) then
-      call stp('N_inertia cannot be negative.')
-    else if (N_inertia .eq. 0) then
-      ! do nothing
-      return
-    endif
-  
-    allocate(inertia_l(N_inertia)) ; inertia_l = -1
-    allocate(inertia_m(N_inertia)) ; inertia_m = -1
-
-    ! only the very first MPI rank reads input   
-    if(MPI_RANK.eq.0) then 
-      if(present(file_number)) then
-        read (unit=file_number, nml=inertia)
-      else
-        read (unit=*, nml=inertia)
-      endif
-
-      ! Some sanity checks
-      do k=1, N_inertia
-        if(inertia_l(k) .eq. -1) then 
-          call stp('Number of elements in inertia_l does not match N_inertia.')
-        endif
-        
-        if(inertia_l(k) .gt. maxmoment) then
-          call stp('Cannot compute inertia for Qlm with l > Maxmoment.')
-        endif
-        
-        if(inertia_m(k) .eq. -1) then 
-          call stp('Number of elements in inertia_m does not match N_inertia.')
-        endif
-
-        if(inertia_m(k) .gt. inertia_l(k)) then
-          call stp('Cannot compute inertia for Qlm with m > l.')
-        endif
-      enddo
-    endif
-    
-    ! ... and then broadcast to all ranks
-#if(USE_MPI > 0)
-    call MPI_Bcast(inertia_l, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
-    call MPI_Bcast(inertia_m, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
-#endif      
-  end subroutine read_inertia
 
   subroutine print_collective_inertia()
     !---------------------------------------------------------------------------
@@ -546,160 +492,6 @@ contains
     call stop_timer(T_collective_MOI)
 
   end subroutine calc_collective_inertia
-
-
-  subroutine calc_vibrational_zpe()
-    !---------------------------------------------------------------------------
-    ! Calculate the vibrational ZPE using the formula derived in M Girod, B Grammaticos 
-    ! (1979)  as written in Niksic, Li et al. (2018)
-    !
-    !     M_c =  1/4 Trace M_3^{-1} M_2   (from Niksic et al.)
-    !
-    ! where the matrices M_n are determined by
-    !
-    !                          Q^{20}_{i,ab} Q^{20}_{j,ab} 
-    ! M_{n,ij} = Re sum_{ab}  ---------------------------
-    !                               (E_a + E_b)^n
-    !
-    ! where the sum is over all quasiparticle states and E_a and E_b are 
-    ! quasiparticle energies. The collective coordinates Q_{i} are given by
-    ! the multipole moments Q_lm. Here (l,m) only take the values (2,0) and (2,2)
-    !
-    ! Steps:
-    !  (1) Calculate all the single-particle matrix elements of the Qlm
-    !      in the HF-basis with routine Qlm_spme
-    !  (2) Transform these matrix elements to the qp basis
-    !      with routine calc_Q20
-    !  (3) Sum the matrix elements, weighted with the appropriate power of 
-    !      the quasiparticle energies, using Ksum_Mij
-    !  (4) Invert M_1 with Lapack routines
-    !  (5) Obtain M_c for each species. The total inertia is M_t = M_n + M_p
-    !          
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Note: this routine is not yet ready to deal with blocked HFB vacua!
-    !
-    !---------------------------------------------------------------------------
-    ! Explicit declaration of the external linear algebra routines
-    external :: dsytrf, dsytri
-
-    real(KIND=dp), allocatable :: Mat(:,:,:,:), Qsp(:,:,:), Q20(:,:,:)
-    real(KIND=dp), allocatable :: work(:), M3_inv(:,:), PROD(:,:)
-	real(KIND=dp) :: ZPE
-    integer :: i, j, la, lb, l, m, info, lwork, N_inertia_zpe
-    integer, allocatable :: ipiv(:)
-	integer :: inertia_l_zpe(2), inertia_m_zpe(2)
-
-    call start_timer(T_ZPE)
-
-	
-    ! Filling the inertia lists to include only the Q20 and Q22 operators    
-    inertia_l_zpe = 2
-	inertia_m_zpe(1) = 0
-	inertia_m_zpe(2) = 1
-	N_inertia_zpe = 2
-
-	allocate(PROD(N_inertia_zpe,N_inertia_ZPE))
-		    
-    allocate(Mat(N_inertia, N_inertia_zpe, 3,2)) ;  Mat   = 0.0d0
-    allocate(Qsp(nwt,nwt,N_inertia_zpe))         ;  Qsp = 0.0d0
-    
-    if(pairingtype.eq.2) then
-      allocate(Q20(nwt,nwt,N_inertia_zpe))         ;  Q20 = 0.0d0
-    endif  
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Step 1 & 2: construct relevant sp matrices
-    do i=1, N_inertia_zpe
-      l = inertia_l_zpe(i)
-      m = inertia_m_zpe(i)
-
-      ! Calculate all relevant single-particle matrix elements              
-      Qsp(:,:,i) = Qlm_spme(l,m,.false.) ! Hardcoded to consider only real parts
-                                         ! at the moment
-      if(pairingtype.eq.2) then
-        ! Transform to the quasiparticle basis if needed
-        Q20(:,:,i) = calc_Q20(Qsp(:,:,i), bogoliubov, l)
-      endif
-    enddo
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Step 3: we calculate the sums for every combination of collective DOF
-    do i=1,N_inertia_zpe
-      la = inertia_l_zpe(i)
-      do j=1, N_inertia_zpe
-        lb = inertia_l_zpe(j)
-        ! Perform the sums to obtain M_k for k=1,3
-        select case(pairingtype)
-        case(0)
-          ! HF summation
-          Mat(i,j,:,:) = Ksum_Mij_HF(Qsp(:,:,i), Qsp(:,:,j), &
-          &                                                      la, lb,(/1,2,3/))
-        case(1)
-          ! BCS summation
-          Mat(i,j,:,:) = Ksum_Mij_BCS(Qsp(:,:,i), Qsp(:,:,j), &
-          &                                                      la, lb,(/1,2,3/))
-        case(2)
-          ! HFB summation
-          Mat(i,j,:,:) = Ksum_Mij(Q20(:,:,i), Q20(:,:,j), la, lb,  (/1,2,3/))
-        end select
-      enddo
-    enddo
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Constructing explicitly the matrices M_1 and M_3 for ease of reading
-    if(.not. allocated(M1)) allocate(M1(N_inertia_zpe, N_inertia_zpe,3))
-    if(.not. allocated(M2)) allocate(M2(N_inertia_zpe, N_inertia_zpe,3))
-    if(.not. allocated(M3)) allocate(M3(N_inertia_zpe, N_inertia_zpe,3))
-    M1(:,:,1:2) = Mat(:,:,1,1:2) ; M1(:,:,3) = sum(M1(:,:,1:2),3)
-    M2(:,:,1:2) = Mat(:,:,2,1:2) ; M2(:,:,3) = sum(M2(:,:,1:2),3)
-    M3(:,:,1:2) = Mat(:,:,3,1:2) ; M3(:,:,3) = sum(M3(:,:,1:2),3)
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Step 4: use LAPACK routines to invert M1
-    allocate(M3_inv(N_inertia, N_inertia))
-    M3_inv = M3(:,:,3)
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Ask for a workspace size
-    allocate(work(1), ipiv(N_inertia))
-    call dsytrf('U', N_inertia_zpe, M3_inv,N_inertia_zpe, ipiv, work,-1, info)
-    lwork = int(work(1))
-    deallocate(work)
-    allocate(work(lwork))
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! Factorize M3
-    call dsytrf('U', N_inertia_zpe, M3_inv,N_inertia_zpe,ipiv,work,lwork,info)
-    ! Invert M3
-    if(MAXVAL(abs(M3_inv)).gt.1e-15) then
-      call dsytri('U', N_inertia_zpe, M3_inv, N_inertia_zpe,ipiv,work, info)
-      if(info.ne.0) then
-        call stp('Problem for DSYTRI during the calculation of collective inertia.')
-      endif
-    endif
-    deallocate(work, ipiv)
-
-    ! Note that after DSYTRI, only the top half of M1 is guaranteed to be right
-    ! Thus, we populate the other half here to avoid any surprises
-    do i=1,N_inertia_zpe
-      do j=i+1,N_inertia_zpe
-        M3_inv(j,i) = M3_inv(i,j)
-      enddo
-    enddo
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Step 5: calculate the ZPE for every isospin
-    !             ZPE_c =1/4 Trace M_3^{-1} M_2 
-    !         and sum the results
-    !             ZPE_t = ZPE_n + ZPE_p
-    PROD = matmul(M3_inv, M2(:,:,3))
-    ZPE = 0.0
-    do i = 1, N_inertia_zpe
-       ZPE = ZPE + PROD(i,i)
-    end do
-
-
-    deallocate(Mat, M3_inv, Qsp, PROD)
-    if(pairingtype.eq.2) deallocate(Q20)
-    call stop_timer(T_ZPE)
-
-  end subroutine calc_vibrational_zpe
   
   function Ksum_Mij_HF(Qa, Qb, la, lb, Ks) result (Ksum)
     !---------------------------------------------------------------------------
@@ -1230,3 +1022,66 @@ $PBROKEN if( Bi .ne. Bj ) cycle
 end module fission_MOI
 
 ! Code zoo
+
+!   subroutine read_inertia(file_number)
+!     !---------------------------------------------------------------------------
+!     ! Subroutine to read the &inertia/ namelist from the specified file (via the
+!     ! specified channel) or from STDIN if the variables are not present.
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Input:
+!     !   file_number : optional integer. If present, read from (open) channel
+!     !                 with this number. If absent, read from STDIN.
+!     !---------------------------------------------------------------------------
+!     integer(dp), intent(in), optional   :: file_number
+!     integer :: k
+! #if(USE_MPI>0)
+!     integer :: mpi_err
+! #endif
+!
+!     NameList /inertia/ inertia_l, inertia_m
+!
+!     ! Sanity check
+!     if(N_inertia .lt. 0) then
+!       call stp('N_inertia cannot be negative.')
+!     else if (N_inertia .eq. 0) then
+!       ! do nothing
+!       return
+!     endif
+!
+!     allocate(inertia_l(N_inertia)) ; inertia_l = -1
+!     allocate(inertia_m(N_inertia)) ; inertia_m = -1
+!
+!     ! only the very first MPI rank reads input
+!     if(MPI_RANK.eq.0) then
+!       if(present(file_number)) then
+!         read (unit=file_number, nml=inertia)
+!       else
+!         read (unit=*, nml=inertia)
+!       endif
+!
+!       ! Some sanity checks
+!       do k=1, N_inertia
+!         if(inertia_l(k) .eq. -1) then
+!           call stp('Number of elements in inertia_l does not match N_inertia.')
+!         endif
+!
+!         if(inertia_l(k) .gt. maxmoment) then
+!           call stp('Cannot compute inertia for Qlm with l > Maxmoment.')
+!         endif
+!
+!         if(inertia_m(k) .eq. -1) then
+!           call stp('Number of elements in inertia_m does not match N_inertia.')
+!         endif
+!
+!         if(inertia_m(k) .gt. inertia_l(k)) then
+!           call stp('Cannot compute inertia for Qlm with m > l.')
+!         endif
+!       enddo
+!     endif
+!
+!     ! ... and then broadcast to all ranks
+! #if(USE_MPI > 0)
+!     call MPI_Bcast(inertia_l, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
+!     call MPI_Bcast(inertia_m, N_inertia, MPI_INTEGER,0, MPI_COMM_WORLD, mpi_err)
+! #endif
+!   end subroutine read_inertia

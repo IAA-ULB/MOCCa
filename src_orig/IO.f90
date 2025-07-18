@@ -95,11 +95,9 @@ contains
     use moments,       only : readmomentdata
     use functional,    only : readfunctional
     use pairing,       only : initpairing
-    use fission_moi,   only : read_inertia
 #if( $FAM == 1)
     use fam,           only : readfam
 #endif
-
     implicit none
 
     ! These inputs control where the code will look for its input. Leaving them 
@@ -128,7 +126,6 @@ contains
     call ReadSCFIteration(file_number)
     call ReadWFdata(file_number)
     call ReadIOInput(file_number)
-    call read_inertia(file_number)
     call readmomentdata(file_number)
     call readcranking(file_number)
 
@@ -155,7 +152,6 @@ contains
     !   file_number : optional integer. If present, read from (open) channel
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-    use fission_moi,   only : N_inertia
 
     integer(dp), intent(in), optional   :: file_number   
 #if(USE_MPI>0)
@@ -164,7 +160,7 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           tofile, blockfile, inertfile, N_inertia, famfile
+    &           tofile, blockfile, inertfile,  famfile
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -811,8 +807,8 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     if(rotcorr.ne.0) then
         Enocor = totalE - sum(rotcorrection)      &
         &                 - sum(COMcorrection(2,:)) & 
-        &                 - sum(vibcorrection)
-        Erot_vib = sum(rotcorrection)+ sum(vibcorrection)
+        &                 - vibcorrection
+        Erot_vib = sum(rotcorrection)+ vibcorrection
     else
         Enocor = totalE - sum(COMcorrection(2,:)) 
         Erot_vib = 0.
