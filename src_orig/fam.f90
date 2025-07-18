@@ -63,15 +63,17 @@ module fam
   !                         '-> symmetric part
   !-----------------------------------------------------------------------------
   ! unperturbed Hamiltonian and perturbed hamiltonian
-  complex(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
+  real(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
   complex(KIND=dp), allocatable :: dH(:,:,:)   ! ph and hp block of the perturbed
   !                                   | | |      Hamiltonian in HF basis
   !                                   | | '-> 1: ph block, 2: hp block
   !                                   | '-> sp index : hole
   !                                   '-> sp index : particle
+  complex(KIND=dp), allocatable :: dH_free_flat(:) ! free response of sp hamil
+  !                                          '-> nwt x nwt
   !-----------------------------------------------------------------------------
   ! external field
-  real(KIND=dp), allocatable :: F(:,:,:)  ! perturbing external field in HF basis
+  complex(KIND=dp), allocatable :: F(:,:,:)  ! perturbing external field in HF basis
   !                               | | '-> 1: ph block, 2: hp block 
   !                               | '-> sp index : hole
   !                               '-> sp index : particle
@@ -122,7 +124,7 @@ module fam
     real(KIND=dp), intent(in)          :: omega
     type(DensityVector), intent(in)    :: DensUnper
     type(PotentialVector), intent(in)  :: PotUnper
-    real(KIND=dp), allocatable         :: SolidHarmHF(:,:)
+    complex(KIND=dp), allocatable      :: SolidHarmHF(:,:)
     logical                            :: ImPart
 
     1 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
@@ -168,7 +170,7 @@ module fam
       endif
      
       print *, 'SOLIDHARMHF'
-      call print_spme_real(SolidHarmHF)
+      call print_spme_complex(SolidHarmHF)
 
       ! note: 
       !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
@@ -207,6 +209,14 @@ module fam
     dH = 0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! initialise the free response of the sp hamiltonian
+    if(.not.allocated(dH_free_flat)) then 
+      allocate(dH_free_flat(nwt * nwt))
+    endif
+
+    dH_free_flat = 0
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise X and Y amplitudes and their history
     if(.not.allocated(X)) then
       allocate(X(nwt,nwt)) 
@@ -227,7 +237,6 @@ module fam
 
     ! storing the initial x and Y in the history
     call store_XY_hist()
-
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! store the unperturbed densities
@@ -266,7 +275,7 @@ module fam
     !     file_number : channel number of opened file where to read from.
     !                   Optional. If not present, read from STDIN.
     !---------------------------------------------------------------------------
-    integer(dp), intent(in),optional :: file_number
+    integer(dp), intent(in), optional :: file_number
     real(KIND=dp) :: omega = -1.0_dp
 
     namelist /fam/      omega, omega_min, omega_max, omega_step,    &
@@ -469,8 +478,6 @@ module fam
     complex(KIND=dp), intent(in)     :: X(:,:), Y(:,:)
     type(DensityVector), intent(out) :: dRs, dRa
 
-    integer :: si,i, B, N
-
     if (verbose > 0) print *, "build perturbed densities"
 
     drho = X + transpose(Y)
@@ -539,7 +546,7 @@ module fam
       do p = 1, nwt
         occ_p = 1.0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
-        S = S + F(p,h,1) * X(p,h) + F(p,h,2) * Y(p,h)
+        S = S + conjg(F(p,h,1)) * X(p,h) + conjg(F(p,h,2)) * Y(p,h)
       enddo
     enddo
 
@@ -709,10 +716,10 @@ module fam
     ! abstract template procedure dH -> real required for procedural argument to gmres
     ! to be updated to the objects of the dimensions of the perturbed
     ! sp hamiltonian dh and ddelta (in HF basis)
-    real(KIND=dp), dimension(:), intent(in)  :: dH
+    complex(KIND=dp), dimension(:), intent(in)  :: dH
     real(KIND=dp)                            :: res
 
-    res = sqrt(sum(dH(:) * dH(:)))
+    res = sqrt(sum(abs(dH(:))**2))
 
   end function
 
@@ -720,10 +727,10 @@ module fam
     ! abstract template procedure (dH,dH) -> complex required for procedural argument to gmres
     ! to be updated to the objects of the dimensions of the perturbed
     ! sp hamiltonian dh and ddelta (in HF basis)
-    real(KIND=dp), dimension(:), intent(in)  :: dHl, dHr
-    real(KIND=dp)                            :: res
+    complex(KIND=dp), dimension(:), intent(in)  :: dHl, dHr
+    complex(KIND=dp)                            :: res
 
-    res = sum(dHl(:) *  dHr(:))
+    res = sum(conjg(dHl(:)) * dHr(:))
 
   end function
 
