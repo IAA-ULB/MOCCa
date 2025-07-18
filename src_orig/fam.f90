@@ -386,6 +386,25 @@ module fam
 
   end subroutine iterate_dHsp
 
+  subroutine one_minus_T(dHsp_flat, dHspout_flat)
+    !---------------------------------------------------------------------------
+    ! Compute (1-T)(dH), the relevant iterator for GMRES. 
+    ! Starting from dH^[i+1] = FAM(dH^[i]) = T(dH^[i]) + dH_free, one finds that
+    ! (1-T)(dH) = dH_free is of the form Ax = b. The operator (1-T) is given by
+    ! (1-T)(dH^[i]) = dH^[i] - dH^[i+1] + dH_free
+    !---------------------------------------------------------------------------
+
+    implicit none
+    complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
+    complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
+
+    call iterate_dHsp(dHsp_flat, dHspout_flat)
+
+    dHspout_flat = dHsp_flat - dHspout_flat + dH_free_flat
+
+  end subroutine one_minus_T
+
+
   subroutine calculate_XY(dH)
     !---------------------------------------------------------------------------
     ! Compute the X and Y amplitudes from the FAM master equation
