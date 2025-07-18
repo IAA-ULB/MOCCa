@@ -26,6 +26,110 @@ module gmres
 
   end interface
 
+
+  public
+
+    integer           :: gmres_itmax = 100
+    real(kind=dp)     :: gmres_tol = 1.0e-6_dp
+    integer           :: gmres_histmax = 10
+
+    integer           :: xsize
+
+    procedure(vectovec), pointer          :: iterate_x
+    complex(KIND=dp), allocatable         :: b(:), r0(:), beta(:)
+    procedure(vectoreal), pointer         :: norm
+    procedure(vecvectocmplx), pointer     :: dotprod
+
+    complex(KIND=dp), allocatable :: H(:,:)
+    complex(KIND=dp), allocatable :: Q(:,:)
+
+  contains
+
+
+  subroutine alloc_gmres(itmax, histmax, tol, xsize, A_proc, norm_proc, dotprod_proc)
+
+    integer                   , intent(in) :: itmax, histmax, xsize
+    real(kind=dp)             , intent(in) :: tol
+    procedure(vectovec)        :: A_proc
+    procedure(vectoreal)       :: norm_proc
+    procedure(vecvectocmplx)   :: dotprod_proc
+
+
+    ! set GMRES params
+    gmres_itmax = itmax
+    gmres_histmax = histmax
+    gmres_tol = tol
+
+
+    ! set the procedure pointers
+    iterate_x => A_proc
+    norm => norm_proc
+    dotprod => dotprod_proc
+
+
+    ! allocate the GMRES work space
+    allocate(H(histmax+1,histmax))
+    allocate(Q(xsize,histmax+1))
+    allocate(b(xsize))
+    allocate(beta(histmax+1))
+
+    H(:,:)  = 0;
+    beta(:) = 0;
+
+  end subroutine alloc_gmres
+
+  subroutine init_gmres(x0)
+    complex(KIND=dp), intent(in)  :: x0(:)
+
+    ! Initialize the GMRES solver and the first Arnoldi vector Q(:,1).
+
+    ! compute the initial residual vector r0 = b - A x0 
+    call iterate_x(x0, r0)
+
+    r0 = b - r0
+    beta(1) = norm(r0)
+    Q(:,1)  = r0(:) / beta(1) 
+
+
+  end subroutine init_gmres
+
+  subroutine iterate_gmres()
+
+  end subroutine
+
+  subroutine my_gmres()
+
+  ! MY IMPLEMENTATION OF GMRES (no preconditioning)
+  !
+  ! for the linear system Ax = b
+  !
+  ! INPUT/OUTPUT :
+  !     x = initial guess / solution
+  !
+  ! OUTPUT :
+  !     res  = final residual
+  !     iter = number of performed iterations
+  !     iter = -1 = resolution failure     
+  !
+  ! INPUT :
+  !     b        = RHS
+  !     A        = A : x -> A x 
+  !                           matrix/vector product (procedural)
+  !     norm_2   = f : x -> real 
+  !                           norm (procedural)
+  !     ScalProd = f : (x1, x2) ->  real 
+  !                           Scalar product (procedural)
+  !     tol      = tolerance
+  !     itMax    = maximal iteration-number
+  !     verb     = verbosity
+  ! 
+  ! Remark :
+  !   A is expected to be subroutine A(x_in, x_out). 
+
+  end subroutine my_gmres
+
+  
+
   subroutine do_gmres(x, iter, nbPrd, res, &
        & b, A, norm_2, ScalProd, tol, itmax, rst, verb)
   ! 
