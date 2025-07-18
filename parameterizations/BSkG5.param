@@ -62,6 +62,7 @@ HOcomform                  = .false.
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Collective corrections: rotational, vibrational and COM
 rotcorr  = 1
+vibcorr  = 1
 rotcorrb = 0.952217
 rotcorrc = 9.69043
 vibcorrd = 0.274247

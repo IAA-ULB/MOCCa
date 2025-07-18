@@ -58,6 +58,7 @@ HOcomform  = .false.
 nucleonsize_selfconsistent=.true. 
 CoulTreatment = 2 
 rotcorr  = 1  
+vibcorr  = 1
 rotcorrb    = 0.810235  
 rotcorrc    = 7.75613  
 vibcorrd    = 0.288929  
