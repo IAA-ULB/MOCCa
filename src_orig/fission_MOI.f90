@@ -376,11 +376,8 @@ contains
     !  (3) Sum the matrix elements, weighted with the appropriate power of 
     !      the quasiparticle energies, using Ksum_Mij
     !  (4) Invert M_1 with Lapack routines
-    !  (5) Obtain M_c for each species. The total inertia is M_t = M_n + M_p
+    !  (5) Calculate M_c
     !          
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Note: this routine is not yet ready to deal with blocked HFB vacua!
-    !
     !---------------------------------------------------------------------------
     ! Explicit declaration of the external linear algebra routines
     external :: dsytrf, dsytri
@@ -442,7 +439,7 @@ contains
     enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Constructing explicitly the matrices M_1 and M_3 for ease of reading
+    ! Constructing explicitly the matrices M_1, M_2, M_3 for ease of reading
     if(.not. allocated(M1)) allocate(M1(N_inertia, N_inertia,3))
     if(.not. allocated(M2)) allocate(M2(N_inertia, N_inertia,3))
     if(.not. allocated(M3)) allocate(M3(N_inertia, N_inertia,3))
@@ -481,10 +478,7 @@ contains
       enddo
     enddo
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Step 5: calculate cranking tensor for every isospin
-    !             M_c = 1/4 M1^{-1} M3 M1^{-1}
-    !         and sum the results
-    !             M_t = M_n + M_p
+    ! Step 5: calculate M_c
     collective_inertia = matmul(matmul(M1_inv, M3(:,:,3)), M1_inv)
 
     deallocate(Mat, M1_inv, Qsp)

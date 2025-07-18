@@ -804,15 +804,10 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     open(unit=10,file=filedone)
 
     E = TotalE 
-    if(rotcorr.ne.0) then
-        Enocor = totalE - sum(rotcorrection)      &
-        &                 - sum(COMcorrection(2,:)) & 
-        &                 - vibcorrection
-        Erot_vib = sum(rotcorrection)+ vibcorrection
-    else
-        Enocor = totalE - sum(COMcorrection(2,:)) 
-        Erot_vib = 0.
-    endif
+    Enocor = totalE - sum(rotcorrection)      &
+    &                 - sum(COMcorrection(2,:)) &
+    &                 - vibcorrection
+    Erot_vib = sum(rotcorrection)+ vibcorrection
 
     b20 = Q20%beta(4)
     b22 = Q22%beta(4)    

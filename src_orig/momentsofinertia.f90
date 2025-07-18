@@ -1597,7 +1597,6 @@ $NTR  s = +1
     !    J2 : the expectation value of J^2 in all three Cartesian directions
     !    MOI: the appropriate Belyaev moment of inertia along all axes
     !-------------------------------------------------------------------------
-
     real(KIND=dp), intent(out) :: J2(3), MOI(3)
 
     select case(pairingtype)

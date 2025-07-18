@@ -421,7 +421,7 @@ $PRINTCOEF_PAIR
      !print *
     endif
 
-    if(rotcorr .ne.  0) then
+    if(rotcorr .ne.  0 .or. vibcorr .ne. 0) then
       print 65, sum(Rotcorrection) + Vibcorrection
       print *
       print 631, sum(Rotcorrection)
@@ -676,7 +676,8 @@ end function multiply_potentialvector
     !                    parts of the total energy. 
     !                    Right now these are:
     !                      (i) the 2-body centre-of-mass correction
-    !                     (ii) the rotational correction
+    !                     (ii) the Belyaev moments of inertia and <J^2> for
+    !                          the rotational and (optional) vibration corrections
     !
     ! This routine is used to calculate "printable" energies, i.e. it is used
     ! for complete calculations of the energy in preparation of a print-out. 
@@ -688,7 +689,8 @@ end function multiply_potentialvector
     ! function calcRouth_onthefly, which has no side-effects and returns ONLY
     ! the value of the Routhian for a given set of mean-field densities. 
     !---------------------------------------------------------------------------
-    use momentsofinertia
+    use momentsofinertia, only: calcJ2andBelyaev, calcrigid
+    use fission_MOI, only: calc_collective_inertia
     use Coulombmod
     use densities
 
@@ -767,19 +769,27 @@ end function multiply_potentialvector
     CoulombExchange = coulomb_energy_exchange(Rin) 
 
     call calcrigid(Rin)
-    if(calc_expensive) then
 #if(PASTA == 0)
-      ! Collective correction
+    ! Perform the calculation of all relevant inertias
+    if(calc_expensive) then
       call start_timer(T_MOI)
       call calcJ2andBelyaev()
       call stop_timer(T_MOI)
-      Rotcorrection    = calc_rotational_correction(rotcorr)
-      Vibcorrection    = calc_vibrational_correction(vibcorr)
-#else
-      Vibcorrection = 0.0d0
-      Rotcorrection = 0.0d0
-#endif
+      call calc_collective_inertia()
     endif
+    ! ... and only then calculate the contributions to the energy
+    Rotcorrection    = calc_rotational_correction(rotcorr)
+    Vibcorrection    = calc_vibrational_correction(vibcorr)
+    !... and then the COM correction
+    call CompCOMCorrection(calc_expensive)
+#else
+    ! These collective corrections are not relevant to
+    ! infinite systems
+    Vibcorrection = 0.0d0
+    Rotcorrection = 0.0d0
+    COMCorrection = 0.0d0
+#endif
+
     ! Entropy calculation when temperature is finite
     call calcentropy()
 
@@ -791,11 +801,11 @@ end function multiply_potentialvector
     call calcElectronEnergy()
 #endif
     ! The total energy is comprised of 
-    !      Kinetic part + Skyrme part + corrections + Coulomb energy
-    TotalE = Skyrme + sum(Kinetic) + sum(COMCorrection)
+    !      Kinetic part + Skyrme part + Coulomb energy
+    TotalE = Skyrme + sum(Kinetic)
     TotalE = TotalE + CoulombDirect + CoulombExchange
     ! Plus schematic corrections for the collective energy
-    TotalE = TotalE + sum(Rotcorrection) + Vibcorrection
+    TotalE = TotalE + sum(Rotcorrection) + Vibcorrection + sum(COMCorrection)
 
     ! Total energy from single-particle energies
     SpwfEnergy = calcspwfenergy()
@@ -1323,15 +1333,20 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     !
     ! Input:
     !  vib_option: type of vibrational correction to calculate
-    !
+    !          (0) : no correction
+    !          (1) : simple formula based on the rotational one
+    !          (2) : correction inspired by the ZPE of a collective Hamiltonian
     ! Output:
     !   Evib: the total vibrational correction
     !---------------------------------------------------------------------------
     use momentsofinertia, only :  select_J2_and_MOI
+    use fission_MOI, only      :  M2, M3
+
     integer, intent(in)        :: vib_option
     real(KIND=dp)              :: Evib
 
     real(KIND=dp)              :: MOI_c, fvib(3), MOI(3), J2(3), B(3)
+    real(KIND=dp)              :: M3_temp(2,2), M3_inv(2,2), temp(2,2)
 
     select case(vib_option)
     case (0)
@@ -1339,7 +1354,7 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
       Evib = 0
       return
     case (1)
-      !
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Simple vibrational correction based on the rotational moment of inertia
       !
       ! Evib = - \sum_{\mu}  f^vib_mu  <J_mu^2>/(2 * I_{\mu}
@@ -1358,7 +1373,7 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
       ! The free parameters are d, l and b_vib; these are specified by a
       !  parameterization and are called vibcorrd, vibcorrl and vibcorrb in
       !  parameterization.f90.
-      !
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       MOI_c = classical_MOI(neutrons, protons)
       call select_J2_and_MOI(J2, MOI)
       B     = MOI/MOI_c * 3.0d0
@@ -1366,10 +1381,49 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
       fvib  = vibcorrd * B * exp( - vibcorrl * (B - vibcorrb)**2)
       Evib  = - sum(fvib * J2/(2*MOI))
     case (2)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Vibrational correction from the zero-point energy of a collective Hamiltonian
-      stop
+      !
+      !  Evib = - 1/4 * d * Trace M_3^{-1} M_2
+      !
+      ! where
+      !  - M_{n} are the QRPA-like response matrices for the Q20 and Q22
+      !     collective degrees of freedom; see the fission_moi.f90 file.
+      !  - d is a free parameter that is encoded as vibcorrd in the .param files
+      !
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! Original reference: M. Girod and B. Grammaticos, NPA 330 (1979).
+      ! More practical:     T. Niksic et al. PRC 79, 034303 (2009)
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! ATTENTION: hardcoded assumption that the (1:2,1:2) submatrices of
+      !            M_3 and M2 as calculated in fission_MOI represent Q20 and Q22!
+      M3_temp = M3(1:2,1:2,3)
+      M3_inv  = inv_mat(M3_temp)
+
+      temp = matmul(M3_inv, M2(1:2,1:2,3))
+      Evib = - 0.25d0 * vibcorrd *  (temp(1,1) + temp(2,2))
     end select
   end function calc_vibrational_correction
+
+  pure function inv_mat(A) result(Ainv)
+    !
+    ! Analytical inverse of a 2x2 matrix
+    !
+
+    real(KIND=dp), intent(in) :: A(2,2)
+    real(KIND=dp)             :: Ainv(2,2)
+    real(KIND=dp)             :: det
+
+    ! Calculate the inverse (!) of the determinant
+    det = 1/(A(1,1)*A(2,2) - A(1,2)*A(2,1))
+
+    ! Calculate the inverse of the matrix
+    Ainv(1,1) = +det * A(2,2)
+    Ainv(2,1) = -det * A(2,1)
+    Ainv(1,2) = -det * A(1,2)
+    Ainv(2,2) = +det * A(1,1)
+
+  end function inv_mat
 
   function classical_MOI(N,Z) result(MOI)
       !------------------------------------------------------------------------
