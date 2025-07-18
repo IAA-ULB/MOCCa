@@ -32,16 +32,20 @@ module gmres
     integer           :: gmres_itmax = 100
     real(kind=dp)     :: gmres_tol = 1.0e-6_dp
     integer           :: gmres_histmax = 10
+    integer           :: gmres_iter = 0
 
-    integer           :: xsize
-
-    procedure(vectovec), pointer          :: iterate_x
+    procedure(vectovec), pointer          :: apply_A
     complex(KIND=dp), allocatable         :: b(:), r0(:), beta(:)
     procedure(vectoreal), pointer         :: norm
     procedure(vecvectocmplx), pointer     :: dotprod
 
-    complex(KIND=dp), allocatable :: H(:,:)
-    complex(KIND=dp), allocatable :: Q(:,:)
+    complex(KIND=dp), allocatable :: H(:,:) ! Hessenberg matrix
+    !                                  | '-> 1:itermax
+    !                                  '---> 1:itermax+1
+    complex(KIND=dp), allocatable :: Q(:,:) ! history of the GMRES approximants v
+    !                                  | '-> iter index 1:itermax
+    !                                  '---> 1:xsize
+
 
   contains
 
@@ -59,10 +63,10 @@ module gmres
     gmres_itmax = itmax
     gmres_histmax = histmax
     gmres_tol = tol
-
+    gmres_iter = 0
 
     ! set the procedure pointers
-    iterate_x => A_proc
+    apply_A => A_proc
     norm => norm_proc
     dotprod => dotprod_proc
 
@@ -71,31 +75,72 @@ module gmres
     allocate(H(histmax+1,histmax))
     allocate(Q(xsize,histmax+1))
     allocate(b(xsize))
+    allocate(r0(xsize))
     allocate(beta(histmax+1))
 
-    H(:,:)  = 0;
-    beta(:) = 0;
+    H(:,:)  = 0
+    beta(:) = 0
+    Q(:,:)  = 0
+
+    print *, 'Set up GMRES work space : '
+    print *, '    histmax = ', gmres_histmax
+    print *, '    itmax   = ', gmres_itmax
+    print *, '    tol     = ', gmres_tol
+    print *, '    x dim = ', xsize
 
   end subroutine alloc_gmres
 
-  subroutine init_gmres(x0)
-    complex(KIND=dp), intent(in)  :: x0(:)
+  subroutine init_gmres(x0, res)
+    complex(KIND=dp), intent(in)   :: x0(:)
+    real(kind=dp),    intent(out)  :: res
 
     ! Initialize the GMRES solver and the first Arnoldi vector Q(:,1).
+    print *, "GMRES iter", gmres_iter
+
 
     ! compute the initial residual vector r0 = b - A x0 
-    call iterate_x(x0, r0)
+    call apply_A(x0, r0)
 
     r0 = b - r0
     beta(1) = norm(r0)
-    Q(:,1)  = r0(:) / beta(1) 
+    Q(:,1)  = r0(:) / beta(1)
+
+    res =  beta(1) / norm(b)
+    gmres_iter = 1
+
+    print *, H
+    print *, Q
 
 
   end subroutine init_gmres
 
   subroutine iterate_gmres()
+    complex(KIND=dp), allocatable :: wj(:)
+    integer           :: i
 
-  end subroutine
+    print *, "GMRES iter", gmres_iter
+
+    allocate(wj(size(Q,1)))
+
+    ! perform one iteration A vj = wj
+    call apply_A(Q(:,gmres_iter), wj)
+
+    ! fill GMRES workspace
+    do i = 1, gmres_iter
+        H(i,gmres_iter) = dotprod( wj , Q(:,i) );
+        wj      = wj - H(i,gmres_iter) * Q(:,i);
+    end do
+    H(gmres_iter+1,gmres_iter) = norm(wj);
+    Q(:,gmres_iter+1) = wj / norm(wj);
+
+    gmres_iter = gmres_iter + 1
+
+    print *, H
+    print *, Q
+
+
+
+  end subroutine iterate_gmres
 
   subroutine my_gmres()
 
@@ -199,6 +244,7 @@ module gmres
 
     ! compute nb2 = 1./||b|| 
     nb2 = norm_2(b)
+    if (verb>2) print*, '||b||', nb2
     nn = size(x,1) 
     ! if ||b|| is small, use sqrt of the length of the array instead
     if (nb2/real(nn, dp)<1E-8_dp) nb2=sqrt(real(nn, dp))
@@ -347,7 +393,7 @@ module gmres
        end do
        res(ii)=res(ii)/M(ii,ii)
     end do
-  end subroutine invtrisu
+  end subroutine invtrisup
 
 end module gmres
 

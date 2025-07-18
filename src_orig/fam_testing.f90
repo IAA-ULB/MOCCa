@@ -421,7 +421,7 @@ contains
     implicit none
     integer, parameter :: n = 3
     complex(KIND=dp), dimension(n, n) :: A, Atmp
-    complex(KIND=dp), dimension(n) :: b, x_explicit, x_gmres
+    complex(KIND=dp), dimension(n) :: b, x_explicit, x_choral, x_gmres
     integer :: i, info, iter, nbprod
     integer, dimension(n) :: ipiv
     real(KIND=dp) :: res
@@ -463,15 +463,29 @@ contains
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Call the GMRES routine to solve Ax = b iteratively
+    ! Call the choral GMRES routine to solve Ax = b iteratively
 
-    x_gmres = b ! initial guess
-    call do_gmres(x_gmres, iter, nbprod, res, b, multiply_by_A, norm_2, ScalProd, 1e-6_dp, 100, 10, 3)
+    x_choral = b ! initial guess
+    call do_gmres(x_choral, iter, nbprod, res, b, multiply_by_A, norm_2, ScalProd, 1e-6_dp, 100, 10, 3)
     
 
-    print *, "GMRES solution:"
-    print *, x_gmres
+    print *, "GMRES choral solution:"
+    print *, x_choral
     print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_gmres)) ** 2 ))
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Test my GMRES routine to solve Ax = b iteratively
+
+    call alloc_gmres(100, 3, 1e-6_dp, n, multiply_by_A, norm_2, ScalProd)
+
+    call init_gmres(b, res)
+
+    call iterate_gmres()
+    call iterate_gmres()
+    call iterate_gmres()
+    
+    print *, "my GMRES solution:"
+    print *, res
 
 
   end subroutine test_gmres
@@ -498,7 +512,7 @@ contains
 
  function norm_2(vec) result(norm)
     complex(KIND=dp), dimension(:), intent(in)  :: vec
-    real(KIND=dp)                            :: norm
+    real(KIND=dp)                               :: norm
 
     norm = sqrt(sum(abs(vec(:)) ** 2))
 
