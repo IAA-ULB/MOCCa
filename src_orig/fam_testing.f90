@@ -419,9 +419,9 @@ contains
     !---------------------------------------------------------------------------
 
     implicit none
-    integer, parameter :: n = 5
-    real(KIND=dp), dimension(n, n) :: A
-    real(KIND=dp), dimension(n) :: b, x_explicit, x_gmres
+    integer, parameter :: n = 3
+    complex(KIND=dp), dimension(n, n) :: A, Atmp
+    complex(KIND=dp), dimension(n) :: b, x_explicit, x_gmres
     integer :: i, info, iter, nbprod
     integer, dimension(n) :: ipiv
     real(KIND=dp) :: res
@@ -430,21 +430,19 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Define the matrix A
-    A = 0.0
-    do i = 1, n
-      A(i, i) = 2.0
-      if (i > 1) A(i, i-1) = -1.0
-      if (i < n) A(i, i+1) = -1.0
-    end do
+    A = reshape([ (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), (0.0_dp, 0.0_dp), &
+                (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), &
+                (0.0_dp, 0.0_dp), (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp) ], [n, n])
 
-    ! Define the vector b
-    b = [1.0, 2.0, 3.0, 4.0, 5.0]
+    ! A = reshape([ (3.0_dp, 0.0_dp), (-1.0_dp, 0.0_dp), (0.0_dp, 0.0_dp), &
+    !             (-1.0_dp, 0.0_dp), (3.0_dp, 0.0_dp), (-1.0_dp, 0.0_dp), &
+    !             (0.0_dp, 0.0_dp), (-1.0_dp, 0.0_dp), (3.0_dp, 0.0_dp) ], [n, n])
 
-    print * , "A : "
-    do i = 1, n
-      print '(99f10.5)',  A(i,:)
-    enddo
+    Atmp = A
 
+    b = [ (1.0_dp, 0.0_dp), (0.0_dp, 1.0_dp), (0.0_dp, 0.0_dp) ]
+
+    print * , "A : ", A
     print * , "b : ", b
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -452,22 +450,28 @@ contains
 
     x_explicit = b
 
-    ! Use LAPACK routine to solve the linear system
-    call dgesv(n, 1, A, n, ipiv, x_explicit, n, info)
+
+    ! Call LAPACK routine ZGESV to solve the system
+    call zgesv(n, 1, Atmp, n, ipiv, x_explicit, n, info)
     ! /!\ : this routine changes A 
+
+    ! Print the results
+    print *, "Explicit solution:"
+    print *, x_explicit
+    print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_explicit)) ** 2 ))
+
+
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Call the GMRES routine to solve Ax = b iteratively
 
     x_gmres = b ! initial guess
-    call do_gmres(x_gmres, iter, nbprod, res, b, multiply_by_A, norm_2, ScalProd, 1e-6_dp, 100, 10, 4)
-
-    ! Print the results
-    print *, "Explicit solution:"
-    print *, x_explicit
+    call do_gmres(x_gmres, iter, nbprod, res, b, multiply_by_A, norm_2, ScalProd, 1e-6_dp, 100, 10, 3)
     
+
     print *, "GMRES solution:"
     print *, x_gmres
+    print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_gmres)) ** 2 ))
 
 
   end subroutine test_gmres
@@ -475,30 +479,28 @@ contains
   subroutine multiply_by_A(x_in, x_out)
 
     implicit none
-    real(KIND=dp), dimension(:), target, intent(in)   :: x_in
-    real(KIND=dp), dimension(:), target, intent(out)  :: x_out
-    integer, parameter :: n = 5
+    complex(KIND=dp), dimension(:), target, intent(in)   :: x_in
+    complex(KIND=dp), dimension(:), target, intent(out)  :: x_out
+    integer, parameter :: n = 3
     real(KIND=dp), dimension(n, n) :: A
     integer :: i
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Define the matrix A
-    A = 0.0
-    do i = 1, n
-      A(i, i) = 2.0
-      if (i > 1) A(i, i-1) = -1.0
-      if (i < n) A(i, i+1) = -1.0
-    end do
+    A = reshape([ (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), (0.0_dp, 0.0_dp), &
+                (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), &
+                (0.0_dp, 0.0_dp), (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp) ], [n, n])
+
 
     x_out = matmul(A, x_in)
 
   end subroutine multiply_by_A
 
  function norm_2(vec) result(norm)
-    real(KIND=dp), dimension(:), intent(in)  :: vec
+    complex(KIND=dp), dimension(:), intent(in)  :: vec
     real(KIND=dp)                            :: norm
 
-    norm = sqrt(sum(vec(:) ** 2))
+    norm = sqrt(sum(abs(vec(:)) ** 2))
 
   end function
 
@@ -506,10 +508,10 @@ contains
     ! abstract template procedure (dH,dH) -> complex required for procedural argument to gmres
     ! to be updated to the objects of the dimensions of the perturbed
     ! sp hamiltonian dh and ddelta (in HF basis)
-    real(KIND=dp), dimension(:), intent(in)  :: vec_l, vec_r
-    real(KIND=dp)                            :: res
+    complex(KIND=dp), dimension(:), intent(in)  :: vec_l, vec_r
+    complex(KIND=dp)                            :: res
 
-    res = sum(vec_l(:) * vec_r(:))
+    res = sum(conjg(vec_l(:)) * vec_r(:))
 
   end function
 

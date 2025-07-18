@@ -1,25 +1,41 @@
-! 
-! GMRES LINEAR SOLVER 
-! 
-! This module is based on the GMRES implementation of Choral of C. Pierre
-! https://plmlab.math.cnrs.fr/cpierre1/choral, which itself references the 
-! book of Youssef SAAD, 'Iterative methods for sparse linear system'
-! https://www-users.cs.umn.edu/~saad/IterMethBook_2ndEd.pdf
-!
-
 module gmres
 
   use evolution
 
-
   implicit none
-  private
-
-  public :: do_gmres   !! To be tested
-
-  contains
 
 
+  abstract interface
+    subroutine vectovec(vec_in, vec_out)
+      import :: dp
+      complex(KIND=dp), dimension(:), target, intent(in)   :: vec_in
+      complex(KIND=dp), dimension(:), target, intent(out)  :: vec_out
+    end subroutine
+
+    function vectoreal(vec_in) result(scalar)
+      import :: dp
+      complex(KIND=dp), dimension(:), intent(in)  :: vec_in
+      real(KIND=dp)                               :: scalar
+    end function
+
+    function vecvectocmplx(vec_l, vec_r) result(scalar)
+      import :: dp
+      complex(KIND=dp), dimension(:), intent(in)  :: vec_l, vec_r
+      complex(KIND=dp)                            :: scalar
+    end function
+
+  end interface
+
+  subroutine do_gmres(x, iter, nbPrd, res, &
+       & b, A, norm_2, ScalProd, tol, itmax, rst, verb)
+  ! 
+  ! GMRES LINEAR SOLVER 
+  ! 
+  ! This module is based on the GMRES implementation of Choral of C. Pierre
+  ! https://plmlab.math.cnrs.fr/cpierre1/choral, which itself references the 
+  ! book of Youssef SAAD, 'Iterative methods for sparse linear system'
+  ! https://www-users.cs.umn.edu/~saad/IterMethBook_2ndEd.pdf
+  !
   ! GMRES (no preconditioning)
   ! 
   !
@@ -51,25 +67,22 @@ module gmres
   !   of the arguments in the procedure A : x -> A x. Here, A is expected to be 
   !   subroutine A(x_in, x_out). 
 
-  subroutine do_gmres(x, iter, nbPrd, res, &
-       & b, A, norm_2, ScalProd, tol, itmax, rst, verb)
-
-    real(KIND=dp), dimension(:), intent(inout) :: x
+    complex(KIND=dp), dimension(:), intent(inout) :: x
     integer                    , intent(out)   :: iter, nbPrd
     real(KIND=dp)              , intent(out)   :: res
     procedure(vectovec)                        :: A
     procedure(vectoreal)                       :: norm_2
-    procedure(vecvectoreal)                    :: ScalProd
-    real(KIND=dp), dimension(:), intent(in)    :: b
+    procedure(vecvectocmplx)                 :: ScalProd
+    complex(KIND=dp), dimension(:), intent(in)    :: b
     real(KIND=dp)              , intent(in)    :: tol
     integer                    , intent(in)    :: itmax, rst, verb
 
-    real(KIND=dp), dimension(rst+1, size(x,1) ) :: V
-    real(KIND=dp), dimension(rst+1, rst       ) :: H
+    complex(KIND=dp), dimension(rst+1, size(x,1) ) :: V
+    complex(KIND=dp), dimension(rst+1, rst       ) :: H
 
-    real(KIND=dp), dimension(size(x,1)) :: r, w
-    real(KIND=dp), dimension(rst      ) :: sn, cs, y
-    real(KIND=dp), dimension(rst +1   ) :: s
+    complex(KIND=dp), dimension(size(x,1)) :: r, w
+    complex(KIND=dp), dimension(rst      ) :: sn, cs, y
+    complex(KIND=dp), dimension(rst +1   ) :: s
 
     real(KIND=dp) :: nb2, nr2, temp
     integer       :: nn, ii, kk
@@ -88,7 +101,7 @@ module gmres
     nb2 = 1._dp/nb2
 
 
-    ! compute the initial residual vector r0 = A x0 - b
+    ! compute the initial residual vector r0 = b - A x0 
     call A(x, r)
     nbPrd = 1
     r   = b-r
@@ -189,10 +202,10 @@ module gmres
   !> Matrice de rotation de Givens
   subroutine grotmat(cs, sn, a, b)
 
-    real(KIND=dp), intent(in)  :: a,b
-    real(KIND=dp), intent(out) :: cs,sn
+    complex(KIND=dp), intent(in)  :: a,b
+    complex(KIND=dp), intent(out) :: cs,sn
 
-    real(KIND=dp)              :: tmp
+    complex(KIND=dp)              :: tmp
 
     if (abs(b)<1E-12_dp) then ! tolerance might be needed to adjusted 
        cs = 1._dp
@@ -214,9 +227,9 @@ module gmres
 
    subroutine invtrisup(res,M,vec)
 
-    real(KIND=dp), dimension(:,:), intent(in)  :: M
-    real(KIND=dp), dimension(:)  , intent(in)  :: vec
-    real(KIND=dp), dimension(:)  , intent(out) :: res
+    complex(KIND=dp), dimension(:,:), intent(in)  :: M
+    complex(KIND=dp), dimension(:)  , intent(in)  :: vec
+    complex(KIND=dp), dimension(:)  , intent(out) :: res
 
     integer :: ii,ji,ni
 
@@ -230,37 +243,7 @@ module gmres
        end do
        res(ii)=res(ii)/M(ii,ii)
     end do
-
-  end subroutine invtrisup
-
-
-  subroutine vectovec(vec_in, vec_out)
-    ! abstract template procedure dH -> dH required for procedural argument to gmres
-    ! to be updated to the objects of the dimensions of the perturbed
-    ! sp hamiltonian dh and ddelta (in HF basis)
-    real(KIND=dp), dimension(:), target, intent(in)   :: vec_in
-    real(KIND=dp), dimension(:), target, intent(out)  :: vec_out
-
-
-  end subroutine
-
-  function vectoreal(vec_in) result(scalar)
-    ! abstract template procedure dH -> real required for procedural argument to gmres
-    ! to be updated to the objects of the dimensions of the perturbed
-    ! sp hamiltonian dh and ddelta (in HF basis)
-    real(KIND=dp), dimension(:), intent(in)  :: vec_in
-    real(KIND=dp)                            :: scalar
-
-  end function
-
-  function vecvectoreal(vec_l, vec_r) result(scalar)
-    ! abstract template procedure (dH,dH) -> complex required for procedural argument to gmres
-    ! to be updated to the objects of the dimensions of the perturbed
-    ! sp hamiltonian dh and ddelta (in HF basis)
-    real(KIND=dp), dimension(:), intent(in)  :: vec_l, vec_r
-    real(KIND=dp)                            :: scalar
-
-  end function
+  end subroutine invtrisu
 
 end module gmres
 
