@@ -2,14 +2,16 @@ from pyev.helpers import *
 
 def test_pyelpa_import():
     if use_pyelpa:
-        import pyelpa as pyev
-    from pyev import DistributedMatrix, ProcessorLayout, Elpa
+        from pyelpa import ProcessorLayout, DistributedMatrix, Elpa
+    else:
+        from pyev   import ProcessorLayout, DistributedMatrix, Elpa
     
 
 def test_elpa():
     if use_pyelpa:
-        import pyelpa as pyev
-    from pyev import DistributedMatrix, ProcessorLayout, Elpa
+        from pyelpa import ProcessorLayout, DistributedMatrix, Elpa
+    else:
+        from pyev   import ProcessorLayout, DistributedMatrix, Elpa
     e = Elpa()
 
 # ==============================================================================

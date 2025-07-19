@@ -15,9 +15,9 @@ parameter_list_all = [
 def test_all_eigenvectors(na, nev, nblk):
     print("\n")
     if use_pyelpa:
-        import pyelpa as pyev
-
-    from pyev import ProcessorLayout, DistributedMatrix, Elpa
+        from pyelpa import ProcessorLayout, DistributedMatrix, Elpa
+    else:
+        from pyev   import ProcessorLayout, DistributedMatrix, Elpa
     import numpy as np
     from mpi4py import MPI
     comm = MPI.COMM_WORLD

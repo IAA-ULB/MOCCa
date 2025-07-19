@@ -7,8 +7,9 @@ def test_0():
 
     # print(f"{use_elpa()=}")
     if use_pyelpa:
-        import pyelpa as pyev
-    from pyev import ProcessorLayout, DistributedMatrix, Elpa
+        from pyelpa import ProcessorLayout, DistributedMatrix, Elpa
+    else:
+        from pyev   import ProcessorLayout, DistributedMatrix, Elpa
 
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
