@@ -1,5 +1,6 @@
 import sys
 from pyev.helpers import *
+from time import perf_counter
 
 
 def compute_eigenvectors(na:int, nev:int, nblk:int, sequential_solution:bool):
@@ -9,7 +10,6 @@ def compute_eigenvectors(na:int, nev:int, nblk:int, sequential_solution:bool):
     Args:
         sequential_solution: if True computes the sequential solution using numpy.linalg.eigh and verifies the outcome.
     """
-    print("\n")
     if use_pyelpa:
         from pyelpa import ProcessorLayout, DistributedMatrix, Elpa
     else:
@@ -69,9 +69,6 @@ def compute_eigenvectors(na:int, nev:int, nblk:int, sequential_solution:bool):
     # initialize elpa
     e = Elpa.from_distributed_matrix(a)
     
-    # because we have a 2x2 grid of processors the following must hold:
-    assert a.na_rows == a.na//2
-    assert a.na_cols == a.na//2
     # set input matrix (a.data) on this core (a is stored in a block-cyclic
     # distributed layout; local size: a.na_rows x a.na_cols)
     # Caution: using this, the global matrix will not be symmetric; this is just
@@ -94,11 +91,20 @@ def compute_eigenvectors(na:int, nev:int, nblk:int, sequential_solution:bool):
                 assert a.data[il,jl] == a_r[i,j], f"({il},{jl})->({i},{j}) : {a.data[il,jl]=} != {a_r[i,j]=}"
     
     # now compute nev of na eigenvectors and eigenvalues
+    MPI.COMM_WORLD.Barrier()
+    dtsum = np.array([0.0])
+    dt = np.array([0.0])
+    start = perf_counter()
     e.eigenvectors(a.data, eigenvalues, eigenvectors.data)
-
-    # Check the result:
+    dt[0] = perf_counter() - start
+    # print(f"{header} dt={dt[0]}s")
+    # all times to rank 0
+    MPI.COMM_WORLD.Reduce(dt, dtsum, op=MPI.SUM, root=0)
     if MPI.COMM_WORLD.Get_rank() == 0:
-        print(header, "*** solution ***")
+        print(f"cputime={dtsum[0]}s")
+        
+    if MPI.COMM_WORLD.Get_rank() == 0:
+        # Check the result:
         if sequential_solution:
             print(header, f"{'ev[i]':>6} numpy.linalg.eigh {str(use_pyelpa):>16}")
             for i, ev in enumerate(eigenvalues_r):
@@ -109,9 +115,10 @@ def compute_eigenvectors(na:int, nev:int, nblk:int, sequential_solution:bool):
             print(header, f"norm_diff={s:>31}")
             assert norm_diff<1e-12, f"Parallel and sequential solutions differ more than expected: {norm_diff=}."
         else:
-            print(header, f"{'ev[i]':>6} {str(use_pyelpa):>16}")
-            for i, ev in enumerate(eigenvalues):
-                print(header, f"{i:>6}  {eigenvalues[i]:16.9f}")
+            if __verbose__:
+                print(header, f"{'ev[i]':>6} {str(use_pyelpa):>16}")
+                for i, ev in enumerate(eigenvalues):
+                    print(header, f"{i:>6}  {eigenvalues[i]:16.9f}")
 
 if __name__ == "__main__":
     # command line 
