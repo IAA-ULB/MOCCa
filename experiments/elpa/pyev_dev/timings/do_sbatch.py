@@ -1,4 +1,4 @@
-from jobscript import JobScript, get_cores_per_node, available_backends
+from jobscript import JobScript, get_cores_per_node, available_backends, walltime_12h
 import math
 import sys
 
@@ -9,10 +9,12 @@ if __name__ == "__main__":
     print(f"{must_submit=}")
 
     job = JobScript()
+    job.set('walltime',walltime_12h)
     na0 = 4096
     naprev = na0
     
     for i in range(4):
+        # increase na by sqrt2 every time
         if i%2 == 0: # odd times
             na = int(round(naprev*sqrt2))
         else: # even times

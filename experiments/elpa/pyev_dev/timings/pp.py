@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import re
 import random
 import json
+from jobscript import assert_exist
+from multiindex import MultiIndex
 
 folder = Path('slurm.out')
 
@@ -38,18 +40,87 @@ def collect_timings():
 
     return timings
 
-def select(timings, criteria:dict, verbose=True):
+def get_values(timings, varname):
+    """
+    Returns:
+        a set of all values found in timings for variable varname.
+    """
+    assert_exist(varname)
+
+    values = set()
+    if varname == 'x':
+        pattern = re.compile("(\\d+x\\d+)")
+    elif varname == 'cluster':
+        pattern = re.compile("cluster=(\\w+),")
+    elif varname == 'backend':
+        pattern = re.compile("backend=(\\w)\\)")
+    else:
+        pattern = re.compile(f"{varname}=(\\d+)")
+    for filename in timings:
+        m = pattern.findall(filename)
+        values.add(m[0])
+    return values
+    
+def expand(timngs,criteria):
+
+    def next(mi, criteria_list_of_tuples):
+        mi.increment()
+        crit = {}
+        for d in range(mi.ndims):
+            crit[criteria_list_of_tuples[d][0]] = criteria_list_of_tuples[d][1][mi.indx[d]]
+        return crit 
+
+    # step 1: replace the '*' with a set of possible values and replace concrete values with {concrete_value}
+    for k,v in criteria.items():       
+        if v == '*':
+            criteria[k] = list(get_values(timings, k))
+        else:
+            criteria[k] = [v]
+    # expand
+    # now our criteria have all a list of values as value
+    # how do we iterate over something of which we don not now the dimensions? there may be any number of criteria -> MultiIndex.py
+
+    list_tuples = list(criteria.items())
+    dims = []
+    for d in range(len(list_tuples)):
+        dims.append(len(list_tuples[d][1]))
+    mi = MultiIndex(dims)
+    expanded_criteria = []
+    for i in range(len(mi)):
+        expanded_criteria.append(next(mi, list_tuples))
+    # print(f"{expanded_criteria=}")
+    return expanded_criteria
+    
+def select(timings, criteria:dict, verbose=True, _already_expanded=False):
     """
     Args:
         timings: dict {dotoutfilename:cputime}, data from which to select.
-        criteria: {varname:value} selects all timings with f"{varname}={value}" in the dotoutfilename.
+        criteria: {varname:value} selects all timings with f"{varname}={value}" in the dotoutfilename. 
+            If value=='*' a list of selections is returned, with one selection for each possible value
     """
     assert criteria, "Error: select(): criteria must not be empty"
+
+    if not _already_expanded:
+        # check if we must expand:
+        expanded_criteria = []
+        for key,value in criteria.items():
+            if value == "*":
+                expanded_criteria = expand(timings, criteria)
+                break
+        if expanded_criteria:
+            selections = []
+            for c in expanded_criteria:
+                tpl = select(timings, c, verbose=verbose, _already_expanded=True)
+                selections.append(tpl)
+            return selections
+        
+    # already expanded
     criteria_ = []
     for key,value in criteria.items():
         if key=='x':
             s = f"{value[0]}x{value[1]}"
         else:
+            assert_exist(key)
             s = f"{key}={value}"
         criteria_.append(s)
 
@@ -121,7 +192,28 @@ if __name__ == '__main__':
     timings = collect_timings() if '--collect' in sys.argv else read_timings()
     # selection, criteria = select(timings,{'nnodes':1, 'x':(4,4)})
     # plot(timings, x='nnodes')        
-    backend_s = select(timings,{'backend':'s'})
-    backend_e = select(timings,{'backend':'e'})
-    plot([backend_e,backend_s], x='nranks', title='walltime=f(nranks)')    
+
+    nranks_backends = select(timings,{'backend':'*','nranks':'*'})
+    plot(nranks_backends, x='na')
+    na_backends = select(timings,{'backend':'*','na':'*'})
+    plot(na_backends, x='nranks')
+    
+    # for i in range(2):
+    #     for e in backends[i]:
+    #         print(e)
+    # print(backends)
+    # backend_e = select(timings,{'backend':'e'})
+    # plot([backend_e,backend_s], x='nranks', title='walltime=f(nranks)')    
+    # backends = get_values(timings,'backend')
+
+    # print(f"{get_values(timings,'x')=}")
+    # print(f"{get_values(timings,'cluster')=}")
+    # print(f"{get_values(timings,'backend')=}")
+    # print(f"{get_values(timings,'nranks')=}")
+
+    # criteria = expand(timings, {'nranks':'*', 'backend':'*'})
+    # for c in criteria:
+    #     print(c)
+
+    
 
