@@ -195,25 +195,8 @@ if __name__ == '__main__':
 
     nranks_backends = select(timings,{'backend':'*','nranks':'*'})
     plot(nranks_backends, x='na')
+    
     na_backends = select(timings,{'backend':'*','na':'*'})
     plot(na_backends, x='nranks')
     
-    # for i in range(2):
-    #     for e in backends[i]:
-    #         print(e)
-    # print(backends)
-    # backend_e = select(timings,{'backend':'e'})
-    # plot([backend_e,backend_s], x='nranks', title='walltime=f(nranks)')    
-    # backends = get_values(timings,'backend')
-
-    # print(f"{get_values(timings,'x')=}")
-    # print(f"{get_values(timings,'cluster')=}")
-    # print(f"{get_values(timings,'backend')=}")
-    # print(f"{get_values(timings,'nranks')=}")
-
-    # criteria = expand(timings, {'nranks':'*', 'backend':'*'})
-    # for c in criteria:
-    #     print(c)
-
-    
-
+    plot(select(timings,{'backend':'*','nranks':100}), x='na')
