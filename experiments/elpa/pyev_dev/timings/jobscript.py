@@ -1,10 +1,11 @@
 import subprocess
 import os
 
-walltime_halfhour = '00:30:00' 
-walltime_4hours   =  '4:00:00' 
-walltime_long     = '12:00:00'
-walltime_day      = '24:00:00'
+walltime_hh  = '00:30:00' 
+walltime_4h  =  '4:00:00' 
+walltime_12h = '12:00:00'
+walltime_24h = '24:00:00'
+walltime_72h = '72:00:00'
 
 backend_pyelpa = 'e'
 backend_pyelpa_gpu = 'g'
@@ -43,9 +44,23 @@ def get_cores_per_node():
     return cpn[get_cluster()]
 
 
-class JobScript:
+_TEMPLATE_VALUES = {
+    'jobname' : '',
+    'walltime': walltime_hh,
+    'nnodes'  :  0,
+    'nranks'  :  0,
+    'nprows'  :  0,
+    'npcols'  :  0,
+    'na'      :  0,
+    'nev'     :  0,
+    'nblk'    : 32,
+    'backend' : backend_pyelpa,
+    # template variables below depend on the cluster and must only be set on import.
+    'cluster' : get_cluster(),
+    'cores_per_node' : get_cores_per_node(),
+}
 
-    template = \
+_TEMPLATE_JOBSCRIPT = \
 """#!/bin/bash
 #SBATCH --job-name {jobname}
 #SBATCH --output=slurm-%x.%j.out
@@ -59,43 +74,32 @@ class JobScript:
 
 srun -n {nranks} python ev.py {na} {nev} {nblk} -{backend} 
 """
-    jobname_template = "job-(na={na},nev={nev},nblk={nblk})-(nnodes={nnodes},nranks={nranks}={nprows}x{npcols})-(cluster={cluster},backend={backend}).sh"
+
+_TEMPLATE_JOBNAME = "job-(na={na},nev={nev},nblk={nblk})-(nnodes={nnodes},nranks={nranks}={nprows}x{npcols})-(cluster={cluster},backend={backend}).sh"
+
+class JobScript:
+
     def __init__(self):
-        self.template_values = {
-            'jobname' : '',
-            'walltime': walltime_4hours,
-            'nnodes'  :  0,
-            'nranks'  :  0,
-            'nprows'  :  0,
-            'npcols'  :  0,
-            'na'      :  0,
-            'nev'     :  0,
-            'nblk'    : 32,
-            'backend' : backend_pyelpa,
-            # template variables below depend on the cluster and must only be set on import.
-            'cluster' : get_cluster(),
-            'cores_per_node' : get_cores_per_node(),
-        }
+        self.template_values = _TEMPLATE_VALUES
 
     def set(self, key, val=None):
         if not key in self.template_values:
             raise KeyError(f"No {key=} in self.template_values.")
         if key == 'jobname':
-            val = self.jobname_template.format(**self.template_values)
+            val = _TEMPLATE_JOBNAME.format(**self.template_values)
         if val is None:
             raise ValueError(f"Jobscript.set({key=},{val=}) val must not be `None`.")
         self.template_values[key] = val
  
-    
     def jobname(self):
         if not self.template_values['jobname']:
-            self.template_values['jobname'] = self.jobname_template.format(**self.template_values)
+            self.template_values['jobname'] = _TEMPLATE_JOBNAME.format(**self.template_values)
         return self.template_values['jobname']
 
     def write(self, submit=False):
         self.set('jobname')
         # put the values in the script
-        script = self.template.format(**self.template_values)
+        script = _TEMPLATE_JOBSCRIPT.format(**self.template_values)
 
         # write the job script
         with open(self.jobname(), 'w') as f:
