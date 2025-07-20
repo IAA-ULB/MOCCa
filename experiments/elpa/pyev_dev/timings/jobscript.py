@@ -6,16 +6,41 @@ walltime_4hours   =  '4:00:00'
 walltime_long     = '12:00:00'
 walltime_day      = '24:00:00'
 
-backend_pyelpa = '-e'
-backend_pyscalapack = '-s'
+backend_pyelpa = 'e'
+backend_pyelpa_gpu = 'g'
+backend_pyscalapack = 's'
+backends_cpu = [
+    backend_pyelpa, 
+    # backend_pyelpa_gpu, 
+    backend_pyscalapack,
+]
+backends_gpu = [
+    backend_pyelpa, 
+    backend_pyelpa_gpu, 
+    backend_pyscalapack,
+]
 
-def cores_per_node():
+def has_gpu():
+    # needs work on lumi
+    return False
+
+def available_backends():
+    return backends_gpu if has_gpu() else backends_cpu
+
+def get_cluster():
+    try:
+        cluster = os.environ['VSC_INSTITUTE_CLUSTER']
+    except:
+        # need implementation for lumi.
+        raise NotImplemented('get_cluster(): Undefined $VSC_INSTITUTE_CLUSTER')
+    return cluster
+    
+def get_cores_per_node():
     cpn = {
         'breniac' : 28,
         'vaughan' : 64,
     }
-    cluster = os.environ['VSC_INSTITUTE_CLUSTER']
-    return cpn[cluster]
+    return cpn[get_cluster()]
 
 
 class JobScript:
@@ -32,9 +57,9 @@ class JobScript:
 
 . /data/antwerpen/201/vsc20170/tantalus_full/experiments/env/ml.sh -p -v
 
-srun -n {nranks} python ev.py {na} {nev} {nblk} {backend} 
+srun -n {nranks} python ev.py {na} {nev} {nblk} -{backend} 
 """
-    jobname_template = "job-(na={na},nev={nev},nblk={nblk})-(nnodes={nnodes},nranks={nranks}={nprows}x{npcols}).sh"
+    jobname_template = "job-(na={na},nev={nev},nblk={nblk})-(nnodes={nnodes},nranks={nranks}={nprows}x{npcols})-(cluster={cluster},backend={backend}).sh"
     def __init__(self):
         self.template_values = {
             'jobname' : '',
@@ -47,7 +72,9 @@ srun -n {nranks} python ev.py {na} {nev} {nblk} {backend}
             'nev'     :  0,
             'nblk'    : 32,
             'backend' : backend_pyelpa,
-            'cores_per_node' : cores_per_node(),
+            # template variables below depend on the cluster and must only be set on import.
+            'cluster' : get_cluster(),
+            'cores_per_node' : get_cores_per_node(),
         }
 
     def set(self, key, val=None):

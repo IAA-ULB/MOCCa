@@ -1,4 +1,4 @@
-from jobscript import JobScript, cores_per_node
+from jobscript import JobScript, get_cores_per_node, available_backends
 import math
 import sys
 
@@ -22,7 +22,9 @@ if __name__ == "__main__":
         job.set('nprows', nprow0)
         job.set('npcols', nprow0)
 
-        nnodes = int(math.ceil(nranks/cores_per_node()))
+        nnodes = int(math.ceil(nranks/get_cores_per_node()))
         job.set('nnodes', nnodes)
         
-        job.write(submit=must_submit)
+        for backend in available_backends():
+            job.set('backend', backend)
+            job.write(submit=must_submit)
