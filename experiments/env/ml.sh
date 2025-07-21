@@ -41,13 +41,18 @@ on_vaughan () {
 # on_lumi - return 1 if run on a LUMI, 0 otherwise.
 on_lumi () {
     # test if environment variable LUMI_MODULEPATH_ROOT has zero length
-    if [[ -z "${LUMI_MODULEPATH_ROOT}" ]]; then
+    if [[ -z "${MODULEPATH}" ]]; then
         # LUMI_MODULEPATH_ROOT is not defined, so we conclude that we are NOT 
         # on LUMI.
         return 0
     else
-        # LUMI_MODULEPATH_ROOT is defined, so we conclude that we are on LUMI.
-        return 1
+        # LUMI_MODULEPATH_ROOT is defined
+        # does it refer to lumi?
+        if [[ ${MODULEPATH} == *"/appl/lumi"* ]]; then
+            return 1
+        else
+            return 0
+        fi
     fi;
 }
 
