@@ -150,12 +150,14 @@ get_strength (){
     local file="$1"
     local omega=$(printf "%.3f" "$2")
 
-    awk -v omega="$omega" '
+    local strength_value=$(awk -v omega="$omega" '
     $1 == omega {
         print $2
         exit
     }
-    ' "$file"
+    ' "$file")
+
+    printf "%f" "$strength_value"
 }
 
 
