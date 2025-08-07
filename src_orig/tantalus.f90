@@ -904,16 +904,19 @@ subroutine print_convergence_message(iter)
 
 end subroutine print_convergence_message
 
-subroutine initialize_all_timers()
+subroutine initialize_all_timers(fam)
    !----------------------------------------------------------------------------
    ! Initialize all the timers that have been defined.
    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    ! Input:
-   !       NONE
+   !       fam (logical), optional :  add fam timers
    ! Output:
    !       NONE
    !----------------------------------------------------------------------------
    use timing
+
+   logical, intent(in), optional :: fam
+
 
    call add_timer('Tantalus'                    , T_tantalus)
    call add_timer('Wavefunction initialisation' , T_wfini)
@@ -963,6 +966,11 @@ subroutine initialize_all_timers()
    call add_timer('Layout transfer: 2D -> 1D'   , T_transfer_psi_2to1)
    call add_timer('MPI_ALLREDUCE calls     '    , T_allreduce)
 #endif
+   if ( present(fam) ) then
+      call add_timer('FAM'                      , T_fam)
+   endif
+
+
 
 end subroutine initialize_all_timers
 

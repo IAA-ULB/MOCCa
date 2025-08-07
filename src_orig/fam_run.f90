@@ -7,6 +7,7 @@ program run_FAM
   use fam
   use fam_testing, only : run_FAM_tests, test_gmres
   use gmres 
+  use timing
 
   1 format(86('-'))
   2 format('FAM iteration = ', i5) 
@@ -20,7 +21,7 @@ program run_FAM
   real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
   integer, allocatable :: iter_arr(:)
   character(len=100) :: famfilename
-  integer :: i, B, si,N
+  ! integer :: i, B, si,N
 
   complex(KIND=dp), allocatable :: dH_flat(:), dH_flat_next(:)
   real(KIND=dp) :: res
@@ -35,7 +36,9 @@ program run_FAM
   ! 
   ! -> This is necessary since subroutines below make use of the timers
   ! 
-  call initialize_all_timers
+  call initialize_all_timers(.true.) ! optinal argument .true. starts FAM timers
+  call start_timer(T_fam)
+
 
   !-----------------------------------------------------------------------------
   ! Read input from STDIN
@@ -106,8 +109,8 @@ program run_FAM
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
 
-  call test_gmres()
-  stop
+  ! call test_gmres()
+  ! stop
 
 
   !---------------------------------------------------------------------------------
@@ -285,6 +288,9 @@ program run_FAM
   call write_fam_strength(omega_arr, S_arr, iter_arr, l, m, famfilename)
 
   print *, "Reached the end successfully" 
+
+  call stop_timer(T_fam)
+  call print_all_timers()
 
 
   ! end of one FAM calculation;

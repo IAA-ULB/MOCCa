@@ -23,6 +23,7 @@ module timing
   integer :: T_chargedensity, T_collective_moi, T_microscopic_pairing
   integer :: T_HFdiag, T_Hortho, T_moment_cutoff, T_norm_ortho, T_diag_ortho
   integer :: T_NablaMElements, T_basistransfo, T_COM2_summation, T_pot_precon
+  integer :: T_fam
 #if(USE_MPI > 0)
   integer :: T_transfer_psi_1to2,T_transfer_psi_2to1, T_allreduce
 #endif

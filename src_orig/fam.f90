@@ -169,8 +169,10 @@ module fam
 
       endif
      
-      print *, 'SOLIDHARMHF'
-      call print_spme_complex(SolidHarmHF)
+      if(verbose > 1) then
+        print *, 'SOLIDHARMHF'
+       call print_spme_complex(SolidHarmHF)
+     endif
 
       ! note: 
       !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
@@ -382,7 +384,6 @@ module fam
     dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
 
     if(verbose > 1) call print_all_fam_spmat()
-    call print_all_fam_spmat()
 
   end subroutine iterate_dHsp
 
