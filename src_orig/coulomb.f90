@@ -434,7 +434,7 @@ $REDUZ  coul_offset_z = 0
         enddo
       enddo
 
-      call GenSphericalHarmonics(maxm,ox,oy,oz,                                &
+      call generate_spherical_harmonics(maxm,ox,oy,oz,                                &
       &                          coulmeshx,coulmeshy, coulmeshz,SpherHarmCoulomb,&
       &                          QuantisationAxis,SecondaryAxis)
     endif

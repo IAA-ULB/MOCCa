@@ -176,7 +176,7 @@ contains
     call read_inertia(file_number)
     call readmomentdata(file_number)
     call readcranking(file_number)
-    call readfam(file_number)
+    !call readfam(file_number)
 
     if(present(file_number)) then
       close(unit=file_number)
