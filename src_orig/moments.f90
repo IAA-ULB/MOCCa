@@ -843,7 +843,7 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     type(Moment),pointer   :: NewMoment
     integer, intent(in)    :: l,m,ImPart
-    integer, allocatable   :: moment_list(:,:,:)
+    integer                :: moment_list(0:maxmoment,0:maxmoment,0:1)
 
     nullify(NewMoment)
 

@@ -36,7 +36,6 @@ module Coulombmod
 
  use geninfo
  use densities
- use moments
  use parameterization
  use timing
 
@@ -59,7 +58,8 @@ module Coulombmod
  ! 1) the values of the spherical harmonics on the extended mesh and
  ! 2) the value of the radial coordinate r on the extended mesh.
  !------------------------------------------------------------------------------
- real(KIND=dp), allocatable, target :: SpherHarmCoulomb(:,:,:,:,:,:),r(:,:,:)
+ real(KIND=dp), allocatable, target :: spherical_harmonics_coulomb(:,:,:,:,:,:)
+ real(KIND=dp), allocatable, target :: r(:,:,:)
  !------------------------------------------------------------------------------
  ! Coordinates of the mesh in the enlarged coulomb box.
  real(KIND=dp), allocatable :: coulmeshx(:), coulmeshy(:), coulmeshz(:)
@@ -68,7 +68,7 @@ module Coulombmod
  ! Maximum l of the multipole moments to use in the boundary conditions
  ! Currently hardcoded at 8: does not cost anything CPU-time wise and
  ! has been shown to be sufficient in MOCCa.
- integer, parameter :: maxm=8
+ integer, parameter :: max_moment_coulomb=8
  !------------------------------------------------------------------------------
  ! Offsets for the Coulomb box.
  integer :: coul_offset_x, coul_offset_y, coul_offset_z
@@ -271,7 +271,7 @@ $REDUZ  coul_offset_z = 0
     ! Set the boundary condition if dealing with non-periodic boundary conditions
     ! In the peridic case, these are automatically taken care of
 #if(USE_Periodic == 0)
-    call CoulombBound(Source, CoulombPotential)
+    call coulomb_bound(Source, sx, sy, sz, CoulombPotential)
 #endif
     !---------------------------------------------------------------------------
     ! Solve for the direct coulomb potential
@@ -380,7 +380,8 @@ $REDUZ  coul_offset_z = 0
     ! Input:
     !    F : potentialvector to be initialized
     !---------------------------------------------------------------------------
-    use sphericalharmonics
+    use sphericalharmonics, only: generate_spherical_harmonics
+    use moments,            only: QuantisationAxis, SecondaryAxis
     use folding
     use vectors
 
@@ -414,17 +415,17 @@ $REDUZ  coul_offset_z = 0
     Prec = 1.d-12/(dx**3)
 
     !---------------------------------------------------------------------------
-    ! Set-up the values of r and spherharmcoulomb on the Coulomb mesh.
+    ! Set-up the value of r on the Coulomb mesh.
 #if(USE_Periodic == 0)
-    if(.not. allocated(SpherHarmCoulomb)) then
+    if(.not. allocated(r)) then
       call inimesh(coulmeshx,coulmeshy,coulmeshz,nx+BC+coul_offset_x, &
       &                                          ny+BC+coul_offset_y, &
       &                                          nz+BC+coul_offset_z, &
       &                                          coulgrid,0.0d0,0.0d0,0.0d0)
 
       allocate(r(ox,oy,oz))  ;  r = 0.0_dp
-      allocate(SpherHarmCoulomb(ox,oy,oz,0:maxm,0:maxm,2))
-      SpherHarmCoulomb = 0.0_dp
+      allocate(spherical_harmonics_coulomb(ox,oy,oz,0:max_moment_coulomb,0:max_moment_coulomb,2))
+      spherical_harmonics_coulomb = 0.0_dp
 
       do k=1,oz
         do j=1,oy
@@ -434,8 +435,8 @@ $REDUZ  coul_offset_z = 0
         enddo
       enddo
 
-      call generate_spherical_harmonics(maxm,ox,oy,oz,                                &
-      &                          coulmeshx,coulmeshy, coulmeshz,SpherHarmCoulomb,&
+      call generate_spherical_harmonics(max_moment_coulomb,ox,oy,oz,                         &
+      &                          coulmeshx,coulmeshy, coulmeshz,spherical_harmonics_coulomb, &
       &                          QuantisationAxis,SecondaryAxis)
     endif
 #endif
@@ -461,41 +462,35 @@ $REDUZ  coul_offset_z = 0
 
  end subroutine SetupCoulomb
 
- subroutine CoulombBound(source, CoulombPotential)
-    !---------------------------------------------------------------------------
-    ! Calculates the boundary conditions of the Coulomb potential based on the
-    ! multipole moments of the point charge density.
-    !
+ subroutine coulomb_bound(source, sx, sy, sz, coulomb_potential)
+    !-----------------------------------------------------------------------------
+    ! Calculates the boundary conditions of the Coulomb potential of an isolated 
+    ! distribution of charged matter.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   source    : source charge density to compute boundary conditions for
+    !   sx/sy/sz  : symmetry properties of the source charge density
     ! Output:
-    !   potential : CoulombPotential with boundary conditions applied.
+    !   coulomb_potential : the potential with boundary conditions applied.
     !---------------------------------------------------------------------------
 
     use folding
     use vectors
+    use sphericalharmonics, only : generate_spherical_harmonics
+    use moments,            only : QuantisationAxis, SecondaryAxis
+    use moments,            only : figure_out_multipole_moments
 
     real(KIND=dp), intent(in)    :: source(:,:,:)
-    real(KIND=dp), intent(inout) :: CoulombPotential(:,:,:)
-    !type(PotentialVector), intent(inout) :: F
-    real(KIND=dp)             :: fac
+    integer, INTENT(IN)          :: sx, sy, sz
+    real(KIND=dp), intent(inout) :: coulomb_potential(:,:,:)
+
+    integer                   :: moment_list(0:max_moment_coulomb,0:max_moment_coulomb,0:1)
+    real(KIND=dp)             :: fac, Qlm
     integer                   :: i,j,k,l,m, im, ox, oy, oz
-    real(KIND=dp)             :: Qlm
-    type(Moment), pointer     :: Current
-    logical                   :: cont, condition
+    logical                   ::  condition
 
-    !---------------------------------------------------------------------------
-    ! Calculate the multipole moment expansion of the source term.
-    ! We put the boundary condition on every point, and use the potential
-    ! generated this way as an initial guess.
-    !---------------------------------------------------------------------------
-    ! The source density is expanded into multipole moments for the boundary
-    ! conditions. This is linked to the linked list of multipole moments,
-    ! not because they are calculated with them, but simply to not have
-    ! another place in the code where decisions regarding symmetries need
-    ! to be chosen.
-    !---------------------------------------------------------------------------
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    !  First, set the potential to zero on the edges of the Coulomb mesh
     ox = nx+BC+coul_offset_x
     oy = ny+BC+coul_offset_y
     oz = nz+BC+coul_offset_z
@@ -514,92 +509,85 @@ $FULLZ     if(k.le.BC)    condition =.true.
 $FULLZ     if(k.gt.nz+BC) condition =.true.
 
           if(condition) then
-              CoulombPotential(i,j,k) = 0.0d0
+              coulomb_potential(i,j,k) = 0.0d0
           endif
         enddo
       enddo
     enddo
+ 
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Figure out what multipole moments of the source density will not vanish.
+    !  moment_list(l,m,k) = 0 => restricted by symmetry, 
+    !              | | |           should not be calculated
+    !              | | |
+    !  moment_list(l,m,k) = 1 => should be calculated
+    !              | | |
+    !              | | -> k : real (0) or imaginary(1) part
+    !              | ---> m : second characteristic number
+    !              -----> l : first characteristic number
+    !                      
+    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    moment_list = figure_out_multipole_moments(sx,sy,sz,max_moment_coulomb,&
+    &                                        quantisationaxis,secondaryaxis) 
 
-    nullify(Current)
-    Current => Root
-    Cont = .true.
-    do while(Cont)
-      l = Current%l
-      m = Current%m
-      Im = 1
-      if(Current%Impart) Im = 2
+    do im = 0,1 
+      do l=0, max_moment_coulomb
+        do m=0, l
+          Qlm = 0
 
-      !------------------------------------------------------------------------
-      ! Recalculate the multipole distribution, since source is not
-      ! necessarily the point proton distribution.
-      !-------------------------------------------------------------------------
-      ! The source density is expanded into multipole moments for the boundary
-      ! conditions. This is linked to the linked list of multipole moments,
-      ! not because they are calculated with them, but simply to not have
-      ! another place in the code where decisions regarding symmetries need
-      ! to be chosen.
-      !-------------------------------------------------------------------------
-      Qlm = 0
-      do k=1,oz
-        do j=1,oy
-          do i=1,ox
-            Qlm = Qlm - Source(i,j,k) * SpherHarmCoulomb(i,j,k,l,m,Im)
+          ! If the multipole moment is restricted by symmetry, we move on
+          if(moment_list(l,m,im).eq.0) cycle 
+
+          ! calculate the multipole moment Q_lm of the source density
+          do k=1,oz
+            do j=1,oy
+              do i=1,ox
+                Qlm = Qlm - Source(i,j,k) * spherical_harmonics_coulomb(i,j,k,l,m,Im+1)
+              enddo
+            enddo
           enddo
+
+          Qlm = Qlm * dv/(2*l+1) ! volume element and normalisation
+
+          ! The code only calculates Q_lm for positive m, but the complex 
+          ! conjugate multipole moments Q_l(-m) contribute to the sum as well.
+          if(im.eq.0) then
+            fac = 1
+            if(m.ne.0) fac = 2 ! Real parts of Q_lm and Q_l(-m) are identical
+          else 
+            fac = 0 ! Imaginary parts cancel between Q_lm and Q_l(-m)
+                    ! TODO: refactor the loop over im which seems superfluous?
+          endif
+
+          do k=1,oz
+            do j=1,oy
+              do i=1,ox
+
+                condition = .false.
+$REDUX          if(i.gt.nx) condition =.true.
+$REDUY          if(j.gt.ny) condition =.true.
+$REDUZ          if(k.gt.nz) condition =.true.
+
+$FULLX          if(i.le.BC)    condition =.true.
+$FULLX          if(i.gt.nx+BC) condition =.true.
+
+$FULLY          if(j.le.BC)    condition =.true.
+$FULLY          if(j.gt.ny+BC) condition =.true.
+
+$FULLZ          if(k.le.BC)    condition =.true.
+$FULLZ          if(k.gt.nz+BC) condition =.true.
+                if(condition) then
+                  coulomb_potential(i,j,k) = coulomb_potential(i,j,k) +          &
+                  &       fac*Qlm*spherical_harmonics_coulomb(i,j,k,l,m,Im+1)/(r(i,j,k)**(2*l+1))
+                endif
+              enddo
+            enddo
+          enddo
+
         enddo
       enddo
-
-      Qlm = Qlm * dv/(2*l+1)
-
-
-      ! WR 09/02/22
-      ! Bugfix: the code only calculates Q_lm for positive m, but the
-      !         complex conjugate multipole moments Q_l(-m) should contribute
-      !         as well. This means that (1) real multipole moments contribute
-      !         with a factor 2 and (2) imaginary multipole moments do not
-      !         contribute at all.
-      fac = 1
-      if(m.ne.0) fac = 2
-
-      !  Previous implementation based on values of the multipole moments
-      !Qlm = e2*Current%Value(2)*(4*pi/(2*l+1))
-      do k=1,oz
-        do j=1,oy
-          do i=1,ox
-
-            condition = .false.
- $REDUX     if(i.gt.nx) condition =.true.
- $REDUY     if(j.gt.ny) condition =.true.
- $REDUZ     if(k.gt.nz) condition =.true.
-
- $FULLX     if(i.le.BC)    condition =.true.
- $FULLX     if(i.gt.nx+BC) condition =.true.
-
- $FULLY     if(j.le.BC)    condition =.true.
- $FULLY     if(j.gt.ny+BC) condition =.true.
-
- $FULLZ     if(k.le.BC)    condition =.true.
- $FULLZ     if(k.gt.nz+BC) condition =.true.
-
-
-            if(condition) then
-              CoulombPotential(i,j,k) = CoulombPotential(i,j,k) +          &
-              &       fac*Qlm*SpherHarmCoulomb(i,j,k,l,m,Im)/(r(i,j,k)**(2*l+1))
-            endif
-          enddo
-        enddo
-      enddo
-      !-------------------------------------------------------------------------
-      !Transferring to the next moment in the list, until the r**2 is reached or
-      ! the highest admissible L.
-      if(Current%Next%l .ge. 0 .and. Current%Next%l .le. maxm) then
-        Current => Current%Next
-      else
-      !Signalling that there is no further moment
-        Cont=.false.
-      endif
-    end do
-    nullify(current)
- end subroutine CoulombBound
+    enddo
+ end subroutine coulomb_bound
 
  function CoulombEnergy_direct(R, F) result(CEnergy)
     !---------------------------------------------------------------------------
@@ -706,7 +694,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     real(KIND=dp) :: PoissonNorm, Integral, a_k, c_k
     real(KIND=dp) :: NewPoissonNorm
 
-    Residual = - CoulombLaplacian(Solution,sx,sy,sz)
+    Residual = - coulomb_laplacian(Solution,sx,sy,sz)
     Residual = Residual + SourceTerm
     !---------------------------------------------------------------------------
     !The variable p_k is the conjugate direction. It starts out equal to our
@@ -720,7 +708,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
 
     do iteration = 1,MaxIteration
       !Applying lagrangian to p_k
-      Temp = CoulombLaplacian(p_k,sx,sy,sz)
+      Temp = coulomb_laplacian(p_k,sx,sy,sz)
 
       !Integral is p_k^T \Delta p_k^T
       Integral = sum(Residual*Temp)
@@ -753,7 +741,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     return
   end subroutine ConjugGrad
 
-  function Coulomblaplacian(f, sx, sy, sz) result(lf)
+  function coulomb_laplacian(f, sx, sy, sz) result(lf)
     !---------------------------------------------------------------------------
     ! Subroutine applying a finite difference operator (of order two) to the
     ! function f. Note that this function should be defined on the box + BC
@@ -942,12 +930,11 @@ $REDUZ               cycle
     !---------------------------------------------------------------------------
     lf = lf/(dx**2)
 
-  end function Coulomblaplacian
+  end function coulomb_laplacian
 
   subroutine clean_coulomb()
     use folding 
     
-    if(allocated(SpherHarmCoulomb))  deallocate(SpherHarmCoulomb)
     if(allocated(r))                 deallocate(r)
     if(allocated(Gaussx))            deallocate(Gaussx)
     if(allocated(gaussy))            deallocate(gaussy)
