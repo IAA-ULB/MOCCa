@@ -2646,14 +2646,14 @@ $NTR endif
     !                    K. Rutz et al, Nucl. Phys. A590 (1995) 690.
     !
     !---------------------------------------------------------------------------
-    
     type(DensityVector), intent(in), target :: R
 
     real(KIND=dp)  :: Treshold(2), DeltaR(nx,ny,nz), Surface(3,7*nx*ny*nz),X,Y,Z
     real(KIND=dp)  :: InterX,InterY,InterZ, Distance
     integer        :: it,i,j,k,l, T, Sig(nx,ny,nz)
     
-    real(KIND=dp), pointer     :: rho_3D(:,:,:,:), cut_3D(:,:,:,:)
+    real(KIND=dp), allocatable, target :: real_rho(:,:)
+    real(KIND=dp), pointer             :: rho_3D(:,:,:,:), cut_3D(:,:,:,:)
 
     if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
 #if(PASTA >= 1)
@@ -2662,8 +2662,10 @@ $NTR endif
     cutoff = 1.0d0
     return
 #endif
+    ! Explicitly taking the real part of the density; needed when compiling FAM executable
+    real_rho = DBLE(R%D_I_I(1:nx*ny*nz,1:2)) 
     ! 3D representation of D_I_I for ease of coding
-    rho_3D(1:nx,1:ny,1:nz,1:2) => R%D_I_I
+    rho_3D(1:nx,1:ny,1:nz,1:2) => real_rho
     cut_3D(1:nx,1:ny,1:nz,1:2) => Cutoff
   
     do it=1,2
