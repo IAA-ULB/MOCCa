@@ -102,17 +102,11 @@ program run_FAM
   call CalcEnergy(Density,Potentials,.true.) ! expensive parts included
   call calc_avg_gap()
   call full_printout(0,.false.,print_adv_spwf_properties)
-
-
-
   !---------------------------------------------------------------------------------
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
-
   ! call test_gmres()
   ! stop
-
-
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 

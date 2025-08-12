@@ -473,7 +473,6 @@ $REDUZ  coul_offset_z = 0
     ! Output:
     !   coulomb_potential : the potential with boundary conditions applied.
     !---------------------------------------------------------------------------
-
     use folding
     use vectors
     use sphericalharmonics, only : generate_spherical_harmonics
@@ -548,6 +547,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
           enddo
 
           Qlm = Qlm * dv/(2*l+1) ! volume element and normalisation
+          print *, 'Multipole moment in Coulomb', l, m, im, ' = ', Qlm, sx, sy, sz
 
           ! The code only calculates Q_lm for positive m, but the complex 
           ! conjugate multipole moments Q_l(-m) contribute to the sum as well.
@@ -557,6 +557,12 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
           else 
             fac = 0 ! Imaginary parts cancel between Q_lm and Q_l(-m)
                     ! TODO: refactor the loop over im which seems superfluous?
+            ! I (= W.R.) don't understand how these imaginary parts will function and 
+            ! need time to write it down and understand. For the applications on my mind 
+            ! right now it is however not necessary; the stop statement should make sure 
+            ! there is no issue in the future.
+            call stp('Coulomb: imaginary parts of multipole moments not implemented yet.')
+
           endif
 
           do k=1,oz
@@ -735,7 +741,7 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
       p_k = Residual    + c_k*p_k
 
       ! Diagnostic printing
-      !print *, 'Coul, it',  iteration, PoissonNorm
+      print *, 'Coul, it',  iteration, PoissonNorm, sx, sy, sz
     enddo
 
     return

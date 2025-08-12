@@ -1361,8 +1361,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         dic['NAME'] = density
         
     Expression = Expression + ta.Den_line.substitute(dic)
-    
-    
+        
     return (Expression, Declaration, spwf_dec, Initialisation, Derivation, Isospincoupl,\
                                    MPI_reduce, Zeroing, Memory, Cleaning, Add, Multiply)
     
