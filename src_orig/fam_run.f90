@@ -2,7 +2,8 @@ program run_FAM
 
   use compilation
   use IO
-  use Tantalus, only : print_header, initialize_all_timers, full_printout
+  use version,  only : print_header
+  use Tantalus, only : initialize_all_timers, full_printout
   use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
   use fam_testing, only : run_FAM_tests, test_gmres
