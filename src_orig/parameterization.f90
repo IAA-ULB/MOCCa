@@ -566,68 +566,6 @@ $PRINTPARAMS
     print 200
     print 201, eps
   end subroutine printparameterization
-
- subroutine ConstructFoldingMatrices(Gx,Gy,Gz,sx_rho, sy_rho, sz_rho)
-    !---------------------------------------------------------------------------
-    ! Construct the matrices for Gaussian folding.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input :
-    !  sx/y/z_rho : symmetries of the density, explicitly passed in because
-    !               not defined in lower-level modules
-    !
-    ! Output:
-    !   Gx, Gy, Gz : Gaussian factors for folding the density
-    !---------------------------------------------------------------------------
-    use folding
-
-    real(KIND=dp), intent(out) :: Gx(:,:,:,:), Gy(:,:,:,:), Gz(:,:,:,:)
-    integer, intent(in)        :: sx_rho, sy_rho, sz_rho
-    real(KIND=dp)              :: rplus(2), rmin(2)
-    real(KIND=dp)              :: hbom, mhb, B
-    integer                    :: it
-
-    ! The determination from input for neutrons and protons is not the same
-    rplus(1) = sqrt(neutronsize(1))
-    rmin(1)  = sqrt(neutronsize(2))
-
-    rplus(2) = protonsize(1) * sqrt(2.0/3.0)
-    rmin(2)  = protonsize(2) * sqrt(2.0/3.0)
-
-    !---------------------------------------------------------------------------
-    ! Harmonic-oscillator correction
-    if(hocomform) then
-        ! hbar x omega
-        hbom  = 41.0 * (neutrons + protons)**(-1.0/3.0)
-        ! 2m/hbar^2
-        mhb = 2.0/(1.0/hbm(1)+1.0/hbm(2))
-        ! B^{-1} = hbar * omega/m * A = 1/2 * A * hbar omega * 2m/hbar^2
-        B = sqrt( 1.0/( 0.5 * hbom/mhb  * (neutrons + protons)))
-
-        do it=1,2
-            if(rplus(it).ne.0.0) then
-                rplus(it) = sqrt(rplus(it)**2 - B**2)
-            endif
-            if(rmin(it).ne.0.0) then
-                rmin(it) = sqrt(rmin(it)**2 - B**2)
-            endif
-        enddo
-    endif
-
-    do it=1,2
-      if(rplus(it) .ne. 0.0_dp) then
-        call Gauss_1D(Gx(:,:,1,it), meshx, nx, rplus(it), sx_rho)
-        call Gauss_1D(Gy(:,:,1,it), meshy, ny, rplus(it), sy_rho)
-        call Gauss_1D(Gz(:,:,1,it), meshz, nz, rplus(it), sz_rho)
-      endif
-      if(rmin(it) .ne. 0.0_dp) then
-        call Gauss_1D(Gx(:,:,2,it), meshx, nx, rmin(it),  sx_rho)
-        call Gauss_1D(Gy(:,:,2,it), meshy, ny, rmin(it),  sy_rho)
-        call Gauss_1D(Gz(:,:,2,it), meshz, nz, rmin(it),  sz_rho)
-      endif
-    enddo
-
- end subroutine ConstructFoldingMatrices
-
   
   !=============================================================================
   ! Various functions that might be useful to define coupling constants in 

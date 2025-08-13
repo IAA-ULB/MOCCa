@@ -375,8 +375,8 @@ module fam
     call calc_perturbed_potentials(RUnper, dRs, dRa, dFs, dFa)
 
     ! necessary? 
-    call combine_potentials(dFs)
-    call combine_potentials(dFa)
+    !call combine_potentials(dFs)
+    !call combine_potentials(dFa)
 
     ! construct the sp hamiltonian
     dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)

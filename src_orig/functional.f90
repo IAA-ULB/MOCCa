@@ -1356,7 +1356,7 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
 
   end subroutine calcRotationalCorrection
 
-  function calcPotentials(R, Fread, Coulomb_guess) result(F)
+  function calcPotentials(R, Fread) result(F)
     !---------------------------------------------------------------------------
     ! Calculate all of the Skyrme potentials and the Coulomb potential
     ! corresponding to the input densityvector R.
@@ -1367,7 +1367,6 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     !               If present, this potentialvector is used to initialize 
     !               the calculated potentialvector; only the fields that 
     !               are detected to be completely zero are then recalculated
-    !    Coulomb_guess : optional initial guess for the Coulomb potential
     ! Output: 
     !    F        : a fresh potentialvector 
     !
@@ -1389,7 +1388,6 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     type(DensityVector), intent(in)             :: R
     type(PotentialVector), intent(in), optional :: Fread
     type(PotentialVector)                       :: F
-    real(KIND=dp), intent(in), optional         :: Coulomb_guess(:,:,:)    
 
     call start_timer(T_potentials)
 
@@ -1407,12 +1405,7 @@ $CALCPOTENTIALS
     ! Calculate the Coulomb potentials
     !---------------------------------------------------------------------------
     if((.not. present(Fread)) .or. (.not. Coulomb_read_from_file)) then
-      if(present(Coulomb_guess)) then
-        call SolveCoulomb(R,F,sx_rho, sy_rho, sz_rho, Coulomb_guess)
-      else
-        ! Start solving from a zero'd initial Coulomb potentials
         call SolveCoulomb(R,F,sx_rho, sy_rho, sz_rho)
-      endif
     endif
 
     call stop_timer(T_potentials)
@@ -1460,8 +1453,15 @@ $CALCPOTENTIALS
 !     print *, 'MAXVAL Fa Re', maxval(DBLE(dFa%F_I_I))
 !     print *, 'MAXVAL Fa Im', maxval(IMAG(dFa%F_I_I))
 
+    print *, 'SOLVING SYMMETRIC PART'
     call SolveCoulomb(dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)
+    print *, 'SOLVING ANTISYMMETRIC PART'
     call SolveCoulomb(dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)
+
+    print *, 'MAXVAL Fc Re', maxval(ABS(DBLE(dFs%CoulombPotential(:,:,:))))
+    print *, 'MAXVAL Fc Im', maxval(ABS(IMAG(dFs%CoulombPotential(:,:,:))))
+    print *, 'MAXVAL Fa Re', maxval(ABS(DBLE(dFa%CoulombPotential(:,:,:))))
+    print *, 'MAXVAL Fa Im', maxval(ABS(IMAG(dFa%CoulombPotential(:,:,:))))
 
   end subroutine calc_perturbed_potentials
   

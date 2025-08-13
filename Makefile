@@ -56,6 +56,7 @@
 # PHYSICS options
 # CONFIG   : name of configutation file in the config/ folder
 # CALCTYPE : NUCLEI or PASTA
+# FAM      : 0/1, depending on whether you want to compile the FAM executable
 #
 # Compiler options
 # CXX      : compiler invokation to be used.

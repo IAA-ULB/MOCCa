@@ -95,13 +95,13 @@ module Coulombmod
  & -9.0_dp/8064.0_dp /)
 
  interface SolveCoulomb_worker
-  module procedure SolveCoulomb_worker_real
-  module procedure SolveCoulomb_worker_complex
+  module procedure solve_coulomb_worker_real
+  module procedure solve_coulomb_worker_complex
  end interface
 
 contains
 
- subroutine SolveCoulomb(R,F,sx,sy,sz,guess)
+ subroutine SolveCoulomb(R,F,sx,sy,sz)
     !---------------------------------------------------------------------------
     ! Master routine to solve the Coulomb problem for a given source-density.
     !
@@ -111,7 +111,6 @@ contains
     !               these are explicit inputs to accomodate perturbed mean-field
     !               densities whose charge density need not have the same
     !               symmetry properties
-    !     guess   : optional initial guess for the Coulomb potential
     ! Output:
     !     F : potential vector; only the Coulomb fields are modified
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -122,20 +121,19 @@ contains
     type(DensityVector), intent(in)      :: R
     type(PotentialVector), intent(inout) :: F
     integer, intent(in)                  :: sx, sy, sz
-    real(KIND=dp), intent(in), optional  :: guess(:,:,:)
 
     ! Initialize all of the arrays.
     call setupcoulomb(F)
     ! Solve Poissons equation for the charge density
     call SolveCoulomb_worker(R%chargedensity, F%CoulombPotential, F%ExchangePotential, &
-    &                        sx, sy, sz, guess)
+    &                        sx, sy, sz)
     ! Perform a folding of the potentials if needed
     call Obtain_folded_potentials(F)
 
  end subroutine SolveCoulomb
 
- subroutine SolveCoulomb_worker_real(chargedensity, CoulombPotential, ExchangePotential, &
- &                                    sx, sy, sz, guess)
+ subroutine solve_coulomb_worker_real(chargedensity, CoulombPotential, ExchangePotential, &
+ &                                    sx, sy, sz)
     !-------------------------------------------------------------------------------------
     ! TODO: DOcument
     !
@@ -144,14 +142,12 @@ contains
     real(KIND=dp), allocatable, intent(inout) :: CoulombPotential(:,:,:)
     real(KIND=dp), allocatable, intent(inout) :: ExchangePotential(:,:,:)
     integer, intent(in)                       :: sx, sy, sz
-    real(KIND=dp), intent(in), optional       :: guess(:,:,:)
 
-    call SolveCoulomb_solver(chargedensity, CoulombPotential, ExchangePotential, &
- &                               sx, sy, sz, guess)
+    call SolveCoulomb_solver(chargedensity, CoulombPotential, ExchangePotential,sx,sy,sz)
 
- end subroutine SolveCoulomb_worker_real
+ end subroutine solve_coulomb_worker_real
 
-  subroutine SolveCoulomb_worker_complex(chargedensity, CoulombPotential, ExchangePotential, &
+  subroutine solve_coulomb_worker_complex(chargedensity, CoulombPotential, ExchangePotential, &
  &                               sx, sy, sz)
     !-------------------------------------------------------------------------------------
     ! TODO: DOcument
@@ -170,19 +166,21 @@ contains
     Re_CP = DBLE(CoulombPotential) ; Im_CP = IMAG(CoulombPotential)
     Re_EX = DBLE(ExchangePotential); Im_EX = IMAG(ExchangePotential)
 
-    ! Solve the real equation
+    ! Solve the real part ...
+    print *, 'SOLVING REAL PART'
     call SolveCoulomb_solver(Re_CD, Re_CP, Re_Ex, sx, sy, sz)
     ! ... and the imaginary part of the Coulomb equation
+    print *, 'SOLVING IMAGINARY PART'
     call SolveCoulomb_solver(Im_CD, Im_CP, Im_Ex, sx, sy, sz)
 
     ! ... and sum the results
     CoulombPotential  = CMPLX(Re_CD, Im_CD)
     ExchangePotential = CMPLX(Re_EX, Im_EX)
 
- end subroutine SolveCoulomb_worker_complex
+ end subroutine solve_coulomb_worker_complex
 
  subroutine SolveCoulomb_solver(chargedensity, CoulombPotential, ExchangePotential, &
- &                               sx, sy, sz, guess)
+ &                               sx, sy, sz)
     !----------------------------------------------------------------------------------------
     ! TODO: document this worker routine
     !
@@ -194,7 +192,6 @@ contains
     real(KIND=dp), allocatable, intent(inout) :: CoulombPotential(:,:,:)
     real(KIND=dp), allocatable, intent(inout) :: ExchangePotential(:,:,:)
     integer, intent(in)                       :: sx, sy, sz
-    real(KIND=dp), intent(in), optional       :: guess(:,:,:)
 
     real(KIND=dp), allocatable      :: source(:,:,:)
     integer                         :: i,j,k,ii
@@ -250,10 +247,6 @@ $REDUZ  coul_offset_z = 0
        call stop_timer(T_coulomb)
        return
     endif
-    ! Only now set to an initial guess
-    if(present(guess)) then
-      Coulombpotential = guess
-    endif
     !---------------------------------------------------------------------------
     ! Set up the source term: - 4 * pi * charge_density
     ! Note that this is set up in the middle of the box, i.e. no source density
@@ -277,7 +270,7 @@ $REDUZ  coul_offset_z = 0
     ! Solve for the direct coulomb potential
     ! Note that the symmetry properties (+1,+1,+1) are never changed:
     ! Hephaestos modifies directly the Coulomb_Laplacian routine when necessary
-    call ConjugGrad (CoulombPotential,Source, sx,sy,sz,1000,.false.,prec)
+    call ConjugGrad (CoulombPotential,Source, sx,sy,sz,100,.false.,prec)
 
     if(Coultreatment.eq.1) then
       !-------------------------------------------------------------------------
@@ -302,26 +295,26 @@ $REDUZ  coul_offset_z = 0
     !---------------------------------------------------------------------------
     type(PotentialVector), intent(inout) :: F
 
-    if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
-      if(nucleonsize_selfconsistent) then
-         F%FoldedCoul    =FoldCoulombPotential(F%CoulombPotential(             &
-         &                                    coul_offset_x+1:coul_offset_x+nx,&
-         &                                    coul_offset_y+1:coul_offset_y+ny,&
-         &                                    coul_offset_z+1:coul_offset_z+nz))
-
-         if(coultreatment .eq. 1) then
-           F%FoldedExchange=FoldCoulombPotential(F%ExchangePotential(          &
-           &                                  coul_offset_x+1:coul_offset_x+nx,&
-           &                                  coul_offset_y+1:coul_offset_y+ny,&
-           &                                  coul_offset_z+1:coul_offset_z+nz))
-         else
-           if(.not. allocated(F%FoldedExchange)) then
-            allocate (F%FoldedExchange(nx,ny,nz,2))
-           endif
-           F%foldedexchange = 0.0d0
-         endif
-      endif
-    endif
+    !if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
+    !  if(nucleonsize_selfconsistent) then
+    !     F%FoldedCoul    =FoldCoulombPotential(F%CoulombPotential(             &
+    !     &                                    coul_offset_x+1:coul_offset_x+nx,&
+    !     &                                    coul_offset_y+1:coul_offset_y+ny,&
+    !     &                                    coul_offset_z+1:coul_offset_z+nz))
+!
+!         if(coultreatment .eq. 1) then
+!           F%FoldedExchange=FoldCoulombPotential(F%ExchangePotential(          &
+!           &                                  coul_offset_x+1:coul_offset_x+nx,&
+!           &                                  coul_offset_y+1:coul_offset_y+ny,&
+!           &                                  coul_offset_z+1:coul_offset_z+nz))
+!         else
+!           if(.not. allocated(F%FoldedExchange)) then
+!            allocate (F%FoldedExchange(nx,ny,nz,2))
+!           endif
+!           F%foldedexchange = 0.0d0
+!         endif
+!      endif
+!    endif
 
  end subroutine Obtain_folded_potentials
 
@@ -464,11 +457,60 @@ $REDUZ  coul_offset_z = 0
 
  subroutine coulomb_bound(source, sx, sy, sz, coulomb_potential)
     !-----------------------------------------------------------------------------
-    ! Calculates the boundary conditions of the Coulomb potential of an isolated 
-    ! distribution of charged matter.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Sets correct boundary conditions of the Coulomb potential at the most extreme
+    ! points of the Coulomb mesh.
+    !
+    ! Far from the source, the potential due to a charge at r' experienced at r 
+    ! (|r'| > |r|) can be written as an expansion in terms of solid harmonics: 
+    !
+    !   (|r -r'|)^-1 = \sum_{l} \sum_{m=-l}^{l} (-1)^m I^{-m}_l(r) R^{m}_l(r') 
+    ! 
+    ! where the notation is that of Wikipedia; i.e.
+    !
+    ! - the irregular solid harmonics I^{m}_l(r) are defined as
+    !         I^{m}_l(r)  = N Y^m_l(\theta,\phi) / r^{l+1} 
+    ! - the regular solid harmonics R^{m}_l(r') are defined as
+    !         R^{m}_l(r') = N Y^m_l(\theta',\phi') r^{l}
+    ! - the spherical harmonics Y^m_l(\theta,\phi)
+    ! - N is a normalisation constant 
+    !      N = \sqrt{4 \pi /(2l+1)}
+    !
+    ! For the Coulomb potential of a charge distribution \rho_c, this means 
+    ! 
+    !  V(r) = \int d^3r' (|r -r'|)^-1 \rho_c(r')
+    !       = \sum_l \sum_{m=-l}^{l} (-1)^m I^{-m}_l(r) Q_lm
+    !
+    ! with Q_lm = \int d^3r' R^{m}_l(r') \rho_c(r').
+    !
+    ! Because Y^{-m}_l = (-1)^m [Y^m_l(\theta,\phi)]^* and - as a consequence -
+    ! Q_l(-m) = (-1)^m Q_lm^*, we can rewrite the potential as
+    !
+    !  V(r)= \sum_l I^{0}_0(r) Q_00 + 
+    !        \sum_{m=1}^{l} (-1)^m I^{-m}_l(r) Q_lm + (-1)^(-m) I^{m}_l(r) Q_l(-m)
+    !      = \sum_l I^{0}_0(r) Q_00 + 
+    !        \sum_{m=1}^{l} (-1)^m I^{-m}_l(r) Q_lm + (-1)^(-m) I^{-m,*}_l(r) Q^*_lm
+    !      = \sum_l I^{0}_0(r) Q_00 + 
+    !        \sum_{m=1}^{l}  I^{+m,*}_l(r) Q_lm +  I^{+m}_l(r) Q^*_lm
+    !      = \sum_l I^{0}_0(r) Q_00 + 2 \sum_{m=1}^{l} \Re [ I^{+m}_l(r) Q_lm ] 
+    !      = \sum_l I^{0}_0(r) Q_00 
+    !              + 2 \sum_{m=1}^{l} \Re [ I^{+m}_l(r) ] \Re [ Q_lm ] 
+    !              - 2 \sum_{m=1}^{l} \Im [ I^{+m}_l(r) ] \Im [ Q_lm ] 
+    ! 
+    ! which is a useable expression for a code that deals with the real and
+    ! imaginary parts of solid harmonics.
+    !
+    ! Slightly easier to code is the expression
+    !
+    !      =  \sum_{m=0}^{l} (2 - \delta_{m 0}) \Re [ I^{+m}_l(r) ] \Re [ Q_lm ] 
+    !       - \sum_{m=1}^{l} (2 - \delta_{m 0}) \Im [ I^{+m}_l(r) ] \Im [ Q_lm ] 
+    !
+    ! where I used that Im (Y_00) = 0.
+    !
+    ! TODO: document normalisation!
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   source    : source charge density to compute boundary conditions for
+    !               (the factor 4*pi*e2 should be included!)
     !   sx/sy/sz  : symmetry properties of the source charge density
     ! Output:
     !   coulomb_potential : the potential with boundary conditions applied.
@@ -549,21 +591,10 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
           Qlm = Qlm * dv/(2*l+1) ! volume element and normalisation
           print *, 'Multipole moment in Coulomb', l, m, im, ' = ', Qlm, sx, sy, sz
 
-          ! The code only calculates Q_lm for positive m, but the complex 
-          ! conjugate multipole moments Q_l(-m) contribute to the sum as well.
-          if(im.eq.0) then
-            fac = 1
-            if(m.ne.0) fac = 2 ! Real parts of Q_lm and Q_l(-m) are identical
-          else 
-            fac = 0 ! Imaginary parts cancel between Q_lm and Q_l(-m)
-                    ! TODO: refactor the loop over im which seems superfluous?
-            ! I (= W.R.) don't understand how these imaginary parts will function and 
-            ! need time to write it down and understand. For the applications on my mind 
-            ! right now it is however not necessary; the stop statement should make sure 
-            ! there is no issue in the future.
-            call stp('Coulomb: imaginary parts of multipole moments not implemented yet.')
-
-          endif
+          ! The prefactor +/-(2 - \delta_{m 0})
+          fac = 1
+          if(m  .ne. 0) fac =    2 ! Real parts of Q_lm and Q_l(-m) are identical
+          if(im .eq. 1) fac = -fac ! Imaginary parts obtain a minus sign 
 
           do k=1,oz
             do j=1,oy

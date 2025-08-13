@@ -234,7 +234,7 @@ def ProcessVectors(src, target, so, densities, potentials, memory_densities):
     Process the vectors.f90 template Fortran file to filled versions
 
     - vectors.f90     -> for mean-field calculations; real potentials and densities
-    - vectors_FAM.f90 -> for FAM calculations; complex densities and real potentials
+    - vectors_FAM.f90 -> for FAM calculations; complex densities and potentials
 
     Note: densities, potentials and memory_densities are outputs from the ProcessDensities function.
 
@@ -252,6 +252,8 @@ def ProcessVectors(src, target, so, densities, potentials, memory_densities):
   dic['DECLARATION']            = densities
   dic['DECLARATION_POTENTIALS'] = potentials
   dic['MEMORY_DENSITIES']       = memory_densities
+  dic['COULOMB_REAL']           = ' '
+  dic['COULOMB_COMPLEX']        = '!'
 
   with open(src+'vectors.f90', 'r') as template:
     with open(target+'vectors.f90', 'w') as generated:
@@ -261,6 +263,9 @@ def ProcessVectors(src, target, so, densities, potentials, memory_densities):
   # FAM vector_FAM.f90
   dic['DECLARATION']            = densities.replace('real(KIND=dp)', 'complex(KIND=dp)')
   dic['DECLARATION_POTENTIALS'] = potentials.replace('real(KIND=dp)', 'complex(KIND=dp)')
+  dic['COULOMB_REAL']           = '!'
+  dic['COULOMB_COMPLEX']        = ' '
+  
   with open(src+'vectors.f90', 'r') as template:
     with open(target+'vectors_FAM.f90', 'w') as generated:
         for line in template:

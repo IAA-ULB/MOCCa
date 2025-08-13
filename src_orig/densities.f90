@@ -358,7 +358,6 @@ subroutine mixup_rhokappa_complex(rho, kappa, transfo)
 
 end subroutine mixup_rhokappa_complex
 
-
 function densit(rho, kappa) result(R)
     !---------------------------------------------------------------------------
     ! Calculate all of the mean-field densities, both normal and pairing. 
@@ -1165,129 +1164,6 @@ $EXPRESSION_SPH_ANTISYM
     enddo
 
   end function calc_sphamil_me_antisym
-
-subroutine ConstructChargeDensity(R)
-    !---------------------------------------------------------------------------
-    ! Construct the charge density from the proton and neutron densities,
-    ! using various effective forms
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! TODO: document what this routine does precisely
-    !---------------------------------------------------------------------------
-    use Folding
-
-#if(PASTA==1)
-    4 format ('-------------------------------------------------------------------')
-    1 format (' Warning: the charge in your system is not equal to the desired one.')
-    2 format (' Number of protons - \int charge density = ', es10.3 )
-    3 format (' The electron density is compensating.')
-#endif
-
-    type(DensityVector),intent(inout) :: R
-    real(KIND=dp)              :: temp(nx,ny,nz)
-    integer                    :: i,j,k
-#if(PASTA==1)
-    real(KIND=dp)              :: rho_el, volume
-#endif
-
-    call start_timer(T_chargedensity)
-
-    ! Deallocation such that rho_charge does not have the wrong dimensions
-    if(allocated(R%chargedensity))      deallocate(R%chargedensity)
-    if(.not.allocated(R%chargedensity)) allocate(R%chargedensity(nx,ny,nz))
-    !---------------------------------------------------------------------------
-    ! If we account for the finite extent of the charge of the nucleus, then
-    ! we need to fold densities and potentials with gaussians. This sets up the
-    ! required matrices.
-    !
-    ! Note: this little piece of code is duplicated, since in different
-    !       runmodes of the code different Coulomb routines get called in
-    !       different order; this makes sure we get no segfaults.
-    !---------------------------------------------------------------------------
-    if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
-      if(.not.allocated(Gaussx)) then
-          allocate(Gaussx(nx,nx,2,2), Gaussy(ny,ny,2,2), Gaussz(nz,nz,2,2))
-          Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
-      endif
-      call ConstructFoldingMatrices(Gaussx,Gaussy,Gaussz,sx_rho, sy_rho, sz_rho)
-    endif
-
-    !---------------------------------------------------------------------------
-    ! Proton contributions to the charge density.
-    ! We start from the proton point density
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-            temp(i,j,k) = R%D_I_I(meshindex(i,j,k),2)
-        enddo
-      enddo
-    enddo
-
-    if(protonsize(1).gt.0.0) then
-        ! Fold the source with a Gaussian
-        R%chargedensity = &
-        & FoldGaussian(temp, GaussX(:,:,1,2), GaussY(:,:,1,2), GaussZ(:,:,1,2),&
-        &                                                            nx, ny, nz)
-    endif
-    if(protonsize(2).gt.0.0) then
-        ! Fold the source with another Gaussian, this time with minus sign.
-        R%chargedensity = R%chargedensity + &
-        & FoldGaussian(temp, GaussX(:,:,2,2), GaussY(:,:,2,2), GaussZ(:,:,2,2),&
-        &                                                            nx, ny, nz)
-    endif
-
-    if(all(protonsize.eq.0.0)) then
-        R%chargedensity = temp
-    endif
-    !---------------------------------------------------------------------------
-    ! Neutron contributions to the charge density.
-    if(any(neutronsize .gt. 0.0d0)) then 
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-             temp(i,j,k) = R%D_I_I(meshindex(i,j,k),1)
-          enddo
-        enddo
-      enddo
-
-      if(neutronsize(1).gt.0.0) then
-          ! Fold the source with a Gaussian
-          R%chargedensity = R%chargedensity + &
-          & FoldGaussian(temp, GaussX(:,:,1,1), GaussY(:,:,1,1), GaussZ(:,:,1,1),&
-          &                                                            nx, ny, nz)
-      endif
-      if(neutronsize(2).gt.0.0) then
-          ! Fold the source with a Gaussian, minus sign this time
-          R%chargedensity = R%chargedensity - &
-          & FoldGaussian(temp, GaussX(:,:,2,1), GaussY(:,:,2,1), GaussZ(:,:,2,1),&
-          &                                                            nx, ny, nz)
-      endif
-    endif
-    !---------------------------------------------------------------------------
-    ! When performing simulations for nuclear pasta, one assumes the entire 
-    ! volume is charge neutral: a constant background of electrons floods the 
-    ! entire simulation volume. We subtract thi s backrgound here.
-#if(PASTA==1)
-    volume=nx*ny*nz*dv   ! simplification by WR: the physical volume simulated
-                         ! can just be gotten by the volume element...
-    rho_el=sum(R%chargedensity)*dv/volume
-    ! Note: it is CRUCIAL to put here the integral of the charge density as
-    !       opposed to just the number of protons. If, for whatever reason,
-    !       the code fails to build a proton + neutron charge density that
-    !       does not integrate perfectly to tthe number of protons, then
-    !       putting the number of protons here will lead to a small amount
-    !       of charge; this will blow up the Coulomb solver if periodic
-    !       boundary conditions are applied.
-
-    if(abs(sum(R%chargedensity)*dv - protons) > 1e-7) then
-      print 4
-      print 1
-      print 2, protons - sum(R%chargedensity)*dv
-      print 4
-    endif
-    R%chargedensity = R%chargedensity -rho_el
-#endif
-    call stop_timer(T_chargedensity)
- end subroutine ConstructChargeDensity
 
 function divJ_spwf(der_index)
     !---------------------------------------------------------------------------

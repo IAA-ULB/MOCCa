@@ -162,4 +162,69 @@ contains
   !-----------------------------------------------------------------------------
  end function FoldGaussian
 
+ subroutine ConstructFoldingMatrices(proton_size, neutron_size, hocomform, hbm, & 
+ &                                            Gx,Gy,Gz,sx_rho, sy_rho, sz_rho)
+    !---------------------------------------------------------------------------
+    ! Construct the matrices for Gaussian folding.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input :
+    !  protonsize, neutronsize : sizes of the Gaussians for folding
+    !  hoconform  : whether to apply the harmonic-oscillator correction
+    !  hbm        : hbar^2/m for use in the harmonic-oscillator correction
+    !  sx/y/z_rho : symmetries of the density, explicitly passed in because
+    !               not defined in lower-level modules
+    !
+    ! Output:
+    !   Gx, Gy, Gz : Gaussian factors for folding the density
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in)  :: neutron_size(2), proton_size(2), hbm(2)
+    logical, intent(in)        :: hocomform
+    real(KIND=dp), intent(out) :: Gx(:,:,:,:), Gy(:,:,:,:), Gz(:,:,:,:)
+    integer, intent(in)        :: sx_rho, sy_rho, sz_rho
+    real(KIND=dp)              :: rplus(2), rmin(2)
+    real(KIND=dp)              :: hbom, mhb, B
+    integer                    :: it
+
+    ! The determination from input for neutrons and protons is not the same
+    rplus(1) = sqrt(neutron_size(1))
+    rmin(1)  = sqrt(neutron_size(2))
+
+    rplus(2) = proton_size(1) * sqrt(2.0/3.0)
+    rmin(2)  = proton_size(2) * sqrt(2.0/3.0)
+
+    !---------------------------------------------------------------------------
+    ! Harmonic-oscillator correction
+    if(hocomform) then
+        ! hbar x omega
+        hbom  = 41.0 * (neutrons + protons)**(-1.0/3.0)
+        ! 2m/hbar^2
+        mhb = 2.0/(1.0/hbm(1)+1.0/hbm(2))
+        ! B^{-1} = hbar * omega/m * A = 1/2 * A * hbar omega * 2m/hbar^2
+        B = sqrt( 1.0/( 0.5 * hbom/mhb  * (neutrons + protons)))
+
+        do it=1,2
+            if(rplus(it).ne.0.0) then
+                rplus(it) = sqrt(rplus(it)**2 - B**2)
+            endif
+            if(rmin(it).ne.0.0) then
+                rmin(it) = sqrt(rmin(it)**2 - B**2)
+            endif
+        enddo
+    endif
+
+    do it=1,2
+      if(rplus(it) .ne. 0.0_dp) then
+        call Gauss_1D(Gx(:,:,1,it), meshx, nx, rplus(it), sx_rho)
+        call Gauss_1D(Gy(:,:,1,it), meshy, ny, rplus(it), sy_rho)
+        call Gauss_1D(Gz(:,:,1,it), meshz, nz, rplus(it), sz_rho)
+      endif
+      if(rmin(it) .ne. 0.0_dp) then
+        call Gauss_1D(Gx(:,:,2,it), meshx, nx, rmin(it),  sx_rho)
+        call Gauss_1D(Gy(:,:,2,it), meshy, ny, rmin(it),  sy_rho)
+        call Gauss_1D(Gz(:,:,2,it), meshz, nz, rmin(it),  sz_rho)
+      endif
+    enddo
+
+ end subroutine ConstructFoldingMatrices
+
 end module folding

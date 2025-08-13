@@ -502,7 +502,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
 
         if(.not. potentials_frozen) then
           ! calculate new values for the potentials from the densities
-          potentials_out = calcPotentials(Density, coulomb_guess=potentials%CoulombPotential)
+          potentials_out = calcPotentials(Density)
 
           if(scfscheme .eq. 0) then
             potentials_out = precondition_potentials(potentials, potentials_out)
