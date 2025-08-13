@@ -283,11 +283,10 @@ module fam
     namelist /fam/      omega, omega_min, omega_max, omega_step,    &
     &                   smear, maxiter, l, m, XY_prec, fam_lin_mix
 
-    if(MPI_rank .eq. 0) then    
+    if(MPI_rank .eq. 0) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ! Reading the information on fam by the first MPI rank
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      print *, file_number
       if(present(file_number)) then
         read (unit=file_number, nml=fam)
       else
@@ -303,8 +302,7 @@ module fam
       endif
     endif
 
-
-  end subroutine
+  end subroutine readfam
 
   subroutine printfam
     1 format ( 32('-'), ' FAM information ', 31('-'))
