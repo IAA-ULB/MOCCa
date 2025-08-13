@@ -10,14 +10,20 @@
 
 # Directory names  (will be created if they don't exist)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - EXECDIR = directory for storage of the final executables
-# - SRCDIR  = source code as processed by Hephaestos
-# - OBJDIR  = storage for intermediate object files
-# - MODDIR  = storage for final module files
-EXECDIR =  exec
-SRCDIR  =   src
-OBJDIR  =   obj
-MODDIR  =   mod
+# - EXEC_DIR = directory for storage of the final executables
+# - MF_SRC_DIR  = source code for mean-field calculations as processed by Hephaestos
+# - MF_OBJ_DIR  = storage for mean-field object files
+# - MF_MOD_DIR  = storage for mean-field module files
+# - FAM_SRC_DIR  = source code for linear-response calculations as processed by Hephaestos
+# - FAM_OBJ_DIR  = storage for linear-response object files
+# - FAM_MOD_DIR  = storage for linear-response module files
+EXEC_DIR    =  exec
+MF_SRC_DIR  =   src
+MF_OBJ_DIR  =   obj
+MF_MOD_DIR  =   mod
+FAM_SRC_DIR =   src_fam
+FAM_OBJ_DIR =   obj_fam
+FAM_MOD_DIR =   mod_fam
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Python interpreter with which to invoke Hephaestos
@@ -33,7 +39,8 @@ PYTHON_CMD  = python3
 # USE_MPI    : whether (1) or not (0) to compile with MPI support
 CXX       = mpifort
 OPTFLAGS  = -O3
-CXXFLAGS  = -J$(MODDIR)
+CXXFLAGS  =
+MODFLAG   = -J
 PREPFLAG  = -cpp
 DEBUG_LEVEL = 0
 USE_MPI   = 1
