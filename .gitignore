@@ -1,6 +1,13 @@
 src/*
 obj/*
 mod/*
+
+src_fam/*
+obj_fam/*
+mod_fam/*
+
+
+
 *exe
 *i
 # Do not track the make.inc currently in use
