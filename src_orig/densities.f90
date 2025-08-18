@@ -34,6 +34,10 @@ module densities
 ! SX_RHO          : $SX_RHO 
 ! SY_RHO          : $SY_RHO
 ! SZ_RHO          : $SZ_RHO
+! 
+! SX_RHO_ANTISYM  : $SX_RHO_ANTISYM 
+! SY_RHO_ANTISYM  : $SY_RHO_ANTISYM
+! SZ_RHO_ANTISYM  : $SZ_RHO_ANTISYM
 !
 ! SX_SX/SY/SZ     : $SX_SX, $SX_SY, $SX_SZ
 ! SY_SX/SY/SZ     : $SY_SX, $SY_SY, $SY_SZ
