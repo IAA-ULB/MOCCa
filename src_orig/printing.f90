@@ -41,7 +41,7 @@ contains
     20 format (133 ('-'))
     30 format (133 ('_'),/,3x , 'Neutron wavefunctions')
     40 format (133 ('_'),/,3x , 'Proton  wavefunctions')
-    60 format (3x,' n ', 4x 'i', 4x,'P',4x, 'Rz', 3x,'occ',10x,'E',7x,       &
+    60 format (3x,' n ', 4x, 'i', 4x,'P',4x, 'Rz', 3x,'occ',10x,'E',7x,       &
     &             'd2h',4x,'Delta', 1x,                                      &
     &             ' | ', 2x, 'JxT',4x, 'JyT', 4x,'Jz', 6x, 'J', 2x,          &
     &             ' | ', 2x, 'SxT',4x, 'SyT', 4x,'Sz', '   | r_rms ',        &
