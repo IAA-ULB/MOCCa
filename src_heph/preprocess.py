@@ -80,6 +80,8 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='tantalus.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
+    if(fname=='version.f90'):
+        os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='run_single.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='run_mpi.f90'):
@@ -127,12 +129,9 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         # BCS.f90 and HFB.f90 have exactly the same needs in terms of 
         # preprocessing by Hephaestos
         ProcessHFB(fname, src, target, so)
-        return
     if(fname=='hartree-fock.f90'):
         ProcessHartreeFock(fname, src, target, so)
     if(fname=='folding.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='temperature_projection.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='momentsofinertia.f90'):
         ProcessGeneric(fname, src, target, so)
