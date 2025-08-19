@@ -125,13 +125,20 @@ contains
    subroutine readparameterization(name_param, func_name) 
     !---------------------------------------------------------------------------
     ! Read the parameterization information from the .param file.
+    !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   name_param :  character, name of the parameterization
     !   func_name  :  character, name of the functional file used to 
     !                 compile the code. Used for consistency checking.
+    ! Side-effects:
+    !  - folding matrices for dealing with nucleon form factors get allocated 
+    !    if needed for this parameterization
     !---------------------------------------------------------------------------
-    
+    use folding, only: construct_folding_matrices
+    use folding, only: gauss_x_neutron, gauss_y_neutron, gauss_z_neutron
+    use folding, only: gauss_x_proton,  gauss_y_proton, gauss_z_proton
+
     character(len=20) :: name, func_file, toopen
     character(len=*), intent(in) :: name_param, func_name
     integer           :: io
@@ -345,7 +352,11 @@ $BCASTPARAMS
     if(any(rotcutmu .lt. 0.0d0)) then
       rotcutmu = pairingmu
     endif
-    
+    ! b) constructing the relevant folding matrices 
+    call construct_folding_matrices(protonsize, neutronsize, hocomform, hbm,           &
+    &                               gauss_x_neutron, gauss_y_neutron, gauss_z_neutron, &
+    &                               gauss_x_proton,  gauss_y_proton,  gauss_z_proton)
+   
   end subroutine readparameterization
     
   subroutine resetparameterization()

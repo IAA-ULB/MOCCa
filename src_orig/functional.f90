@@ -1405,6 +1405,7 @@ $CALCPOTENTIALS
     ! Calculate the Coulomb potentials
     !---------------------------------------------------------------------------
     if((.not. present(Fread)) .or. (.not. Coulomb_read_from_file)) then
+        print *, 'sxyz', sx_rho, sy_rho, sz_rho
         call SolveCoulomb(R,F,sx_rho, sy_rho, sz_rho)
     endif
 
@@ -1453,15 +1454,15 @@ $CALCPOTENTIALS
 !     print *, 'MAXVAL Fa Re', maxval(DBLE(dFa%F_I_I))
 !     print *, 'MAXVAL Fa Im', maxval(IMAG(dFa%F_I_I))
 
-    print *, 'SOLVING SYMMETRIC PART'
+    print *, 'SOLVING SYMMETRIC PART', sx_rho, sy_rho, sz_rho
     call SolveCoulomb(dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)
     print *, 'SOLVING ANTISYMMETRIC PART'
     call SolveCoulomb(dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)
 
-    print *, 'MAXVAL Fc Re', maxval(ABS(DBLE(dFs%CoulombPotential(:,:,:))))
-    print *, 'MAXVAL Fc Im', maxval(ABS(IMAG(dFs%CoulombPotential(:,:,:))))
-    print *, 'MAXVAL Fa Re', maxval(ABS(DBLE(dFa%CoulombPotential(:,:,:))))
-    print *, 'MAXVAL Fa Im', maxval(ABS(IMAG(dFa%CoulombPotential(:,:,:))))
+    !print *, 'MAXVAL Fc Re', maxval(ABS(DBLE(dFs%CoulombPotential(:,:,:))))
+    !print *, 'MAXVAL Fc Im', maxval(ABS(IMAG(dFs%CoulombPotential(:,:,:))))
+    !print *, 'MAXVAL Fa Re', maxval(ABS(DBLE(dFa%CoulombPotential(:,:,:))))
+    !print *, 'MAXVAL Fa Im', maxval(ABS(IMAG(dFa%CoulombPotential(:,:,:))))
 
   end subroutine calc_perturbed_potentials
   

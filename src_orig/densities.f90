@@ -378,7 +378,6 @@ function densit(rho, kappa) result(R)
     !   meaning that (if necessary) the canonical basis has already been 
     !   constructed.  
     !---------------------------------------------------------------------------
-    external construct_charge_density
     real(KIND=dp), intent(in) :: rho(:), kappa(:,:)
     type(DensityVector)       :: R
 
@@ -686,7 +685,7 @@ $ISOSPINCOUPL
     R%divJ(:,4) = R%divJ(:,1) - R%divJ(:,2)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
-    call constructchargedensity(R)
+    call construct_charge_density(R, sx_rho, sy_rho, sz_rho)
 
     call stop_timer(T_densities)
 end function densit
@@ -753,7 +752,6 @@ function densit_offdiag_symmetric(rho, kappa) result(R)
     ! Output:
     !   R        densityvector   values of the mean-field densities.
     !----------------------------------------------------------------------------
-    external construct_charge_density
 
     complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
     type(DensityVector)          :: R
@@ -837,7 +835,7 @@ $ISOSPINCOUPL
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
-    call constructchargedensity(R)
+    call construct_charge_density(R, sx_rho, sy_rho, sz_rho)
 
     call stop_timer(T_densities)
 
@@ -857,8 +855,6 @@ function densit_offdiag_antisymmetric(rho, kappa) result(R)
     ! Output:
     !   R        densityvector   values of the mean-field densities.
     !----------------------------------------------------------------------------
-    external construct_charge_density
-
     complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
     type(DensityVector)          :: R
 
@@ -946,7 +942,7 @@ $ISOSPINCOUPL
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
-    call constructchargedensity(R)
+    call construct_charge_density(R, sx_rho_antisym, sy_rho_antisym, sz_rho_antisym)
 
     call stop_timer(T_densities)
 

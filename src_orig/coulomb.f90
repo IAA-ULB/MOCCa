@@ -128,7 +128,7 @@ contains
     call SolveCoulomb_worker(R%chargedensity, F%CoulombPotential, F%ExchangePotential, &
     &                        sx, sy, sz)
     ! Perform a folding of the potentials if needed
-    call Obtain_folded_potentials(F)
+    call Obtain_folded_potentials(F, sx, sy, sz)
 
  end subroutine SolveCoulomb
 
@@ -270,7 +270,7 @@ $REDUZ  coul_offset_z = 0
     ! Solve for the direct coulomb potential
     ! Note that the symmetry properties (+1,+1,+1) are never changed:
     ! Hephaestos modifies directly the Coulomb_Laplacian routine when necessary
-    call ConjugGrad (CoulombPotential,Source, sx,sy,sz,100,.false.,prec)
+    call ConjugGrad (CoulombPotential,Source, sx,sy,sz,1000,.false.,prec)
 
     if(Coultreatment.eq.1) then
       !-------------------------------------------------------------------------
@@ -287,84 +287,51 @@ $REDUZ  coul_offset_z = 0
     deallocate(source)
  end subroutine SolveCoulomb_solver
 
- subroutine Obtain_folded_potentials(F)
+ subroutine Obtain_folded_potentials(F, sx, sy, sz)
     !---------------------------------------------------------------------------
     ! Obtain the folded Coulomb potentials (direct and exchange) if needed.
-    ! It is a separate routine from SolveCoulomb because it should also be
-    ! callable from the routine to read potentials.
+    ! 
+    ! Input:
+    !    F : potentialvector with the Coulomb potentials (direct and exchange)
+    !        already calculated
+    !    sy, sx, sz : symmetry properties of the Coulomb potential in F
+    ! Output:
+    !    F : potentialvector with the folded Coulomb potentials (direct and
+    !        exchange) in line with the Coulomb potentials
     !---------------------------------------------------------------------------
-    type(PotentialVector), intent(inout) :: F
+    use folding, only: fold_form_factor_reverse, gauss_x_proton
 
-    !if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
-    !  if(nucleonsize_selfconsistent) then
-    !     F%FoldedCoul    =FoldCoulombPotential(F%CoulombPotential(             &
-    !     &                                    coul_offset_x+1:coul_offset_x+nx,&
-    !     &                                    coul_offset_y+1:coul_offset_y+ny,&
-    !     &                                    coul_offset_z+1:coul_offset_z+nz))
-!
-!         if(coultreatment .eq. 1) then
-!           F%FoldedExchange=FoldCoulombPotential(F%ExchangePotential(          &
-!           &                                  coul_offset_x+1:coul_offset_x+nx,&
-!           &                                  coul_offset_y+1:coul_offset_y+ny,&
-!           &                                  coul_offset_z+1:coul_offset_z+nz))
-!         else
-!           if(.not. allocated(F%FoldedExchange)) then
-!            allocate (F%FoldedExchange(nx,ny,nz,2))
-!           endif
-!           F%foldedexchange = 0.0d0
-!         endif
-!      endif
-!    endif
+    type(PotentialVector), intent(inout) :: F
+    integer, intent(in)       :: sx, sy, sz
+    integer :: ix,ex,iy,ey,iz,ez
+
+    ! Determine the mesh ranges for a shorter call to fold_form_factor_reverse
+    ix = coul_offset_x + 1
+    ex = coul_offset_x + nx
+    iy = coul_offset_y + 1
+    ey = coul_offset_y + ny
+    iz = coul_offset_z + 1
+    ez = coul_offset_z + nz
+
+    print *, 'FOLDING 1', allocated(gauss_x_proton), allocated(F%CoulombPotential)
+    ! Obtain the folding of the direct Coulomb potential
+    call fold_form_factor_reverse(F%CoulombPotential(ix:ex,iy:ey,iz:ez), &
+    &                             F%FoldedCoul, nx, ny, nz, sx, sy, sz)
+
+    print *, 'FOLDING 2', allocated(F%foldedcoul)
+
+    ! If necessary, also obtain the folding of the exchange potential
+    if(coultreatment .eq. 1) then
+      call fold_form_factor_reverse(F%ExchangePotential(ix:ex,iy:ey,iz:ez), &
+      &                             F%FoldedExchange,nx, ny, nz, sx, sy, sz)
+    elseif(allocated(F%FoldedCoul)) then 
+      if(.not. allocated(F%FoldedExchange)) then
+        allocate (F%FoldedExchange(nx,ny,nz,2))
+      endif
+      F%FoldedExchange = 0.0d0
+    endif
 
  end subroutine Obtain_folded_potentials
-
- function FoldCoulombPotential(pot) result(Folded)
-    !---------------------------------------------------------------------------
-    ! Obtain the folded Coulomb potential, for use in the single-particle
-    ! hamiltonian when finite size corrections are included selfconsistently.
-    !---------------------------------------------------------------------------
-    use Folding
-
-    real(KIND=dp), intent(in)  :: pot(:,:,:)
-    real(KIND=dp), allocatable :: Folded(:,:,:,:)
-
-    allocate(folded(nx,ny,nz,2)) ; folded = 0.0
-
-    if(protonsize(1).gt.0.0) then
-        ! Fold the potential with the Gaussian of positive sign for protons
-        folded(:,:,:,2) = folded(:,:,:,2) + FoldGaussian( pot,GaussX(:,:,1,2), &
-        &                                                     GaussY(:,:,1,2), &
-        &                                                     GaussZ(:,:,1,2), &
-        &                                                            nx, ny, nz)
-    endif
-    if(protonsize(2).gt.0.0) then
-        ! Fold the potential with the Gaussian of negative sign for protons
-        folded(:,:,:,2) = folded(:,:,:,2) - FoldGaussian( pot,GaussX(:,:,2,2), &
-        &                                                     GaussY(:,:,2,2), &
-        &                                                     GaussZ(:,:,2,2), &
-        &                                                            nx, ny, nz)
-    endif
-
-    !---------------------------------------------------------------------------
-    ! Note that, if the neutron charge form factor is included, they feel a
-    ! Coulomb potential as well!
-    if(all(neutronsize.eq.0.0) .or. neutroncoulomberror) return
-    if(neutronsize(1).gt.0.0) then
-        ! Fold the potential with the Gaussian of positive sign for neutrons
-        folded(:,:,:,1) = folded(:,:,:,1) + FoldGaussian( pot,GaussX(:,:,1,1), &
-        &                                                     GaussY(:,:,1,1), &
-        &                                                     GaussZ(:,:,1,1), &
-        &                                                            nx, ny, nz)
-    endif
-    if(neutronsize(2).gt.0.0) then
-        ! Fold the potential with the Gaussian of negative sign for neutrons
-        folded(:,:,:,1) = folded(:,:,:,1) - FoldGaussian( pot,GaussX(:,:,2,1), &
-        &                                                     GaussY(:,:,2,1), &
-        &                                                     GaussZ(:,:,2,1), &
-        &                                                            nx, ny, nz)
-    endif
-
- end function FoldCoulombPotential
 
  subroutine SetupCoulomb(F)
     !---------------------------------------------------------------------------
@@ -375,6 +342,7 @@ $REDUZ  coul_offset_z = 0
     !---------------------------------------------------------------------------
     use sphericalharmonics, only: generate_spherical_harmonics
     use moments,            only: QuantisationAxis, SecondaryAxis
+    use densities,          only: sx_rho, sy_rho, sz_rho
     use folding
     use vectors
 
@@ -433,25 +401,6 @@ $REDUZ  coul_offset_z = 0
       &                          QuantisationAxis,SecondaryAxis)
     endif
 #endif
-    !---------------------------------------------------------------------------
-    ! If we account for the finite extent of the charge of the nucleus, then
-    ! we need to fold densities and potentials with gaussians. This sets up the
-    ! required matrices.
-    !
-    ! Note: this little piece of code is duplicated, since in different
-    !       runmodes of the code different Coulomb routines get called in
-    !       different order; this makes sure we get no segfaults.
-    !
-    !---------------------------------------------------------------------------
-    if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
-        if(.not.allocated(Gaussx)) then
-            allocate(Gaussx(nx,nx,2,2), Gaussy(ny,ny,2,2), Gaussz(nz,nz,2,2))
-            Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
-        endif
-        !-----------------------------------------------------------------------
-        ! Construct Gauss matrices
-        call ConstructFoldingMatrices(Gaussx,Gaussy,Gaussz,sx_rho, sy_rho, sz_rho)
-    endif
 
  end subroutine SetupCoulomb
 
@@ -772,7 +721,7 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
       p_k = Residual    + c_k*p_k
 
       ! Diagnostic printing
-      print *, 'Coul, it',  iteration, PoissonNorm, sx, sy, sz
+      ! print *, 'Coul, it',  iteration, PoissonNorm, sx, sy, sz
     enddo
 
     return
@@ -970,14 +919,11 @@ $REDUZ               cycle
   end function coulomb_laplacian
 
   subroutine clean_coulomb()
-    use folding 
-    
+   
     if(allocated(r))                 deallocate(r)
-    if(allocated(Gaussx))            deallocate(Gaussx)
-    if(allocated(gaussy))            deallocate(gaussy)
-    if(allocated(gaussz))            deallocate(gaussz)
     if(allocated(Coulcoefs))         deallocate(coulcoefs)
     if(allocated(coulmeshx))         deallocate(coulmeshx, coulmeshy, coulmeshz)
+
   end subroutine clean_coulomb
 
 end module Coulombmod

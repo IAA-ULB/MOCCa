@@ -77,22 +77,26 @@ $COULOMB_COMPLEX complex(KIND=dp), allocatable :: FoldedCoul(:,:,:,:), FoldedExc
  integer            :: memory = 0
 #endif
 
- contains
+contains
 
-subroutine ConstructChargeDensity(R, sx, sy, sz, proton_size, neutron_size)
+subroutine construct_charge_density(R, sx, sy, sz)
     !---------------------------------------------------------------------------
     ! Construct the charge density from the proton and neutron densities,
-    ! using various effective forms
+    ! using nucleonic
     !
     ! Input:
-    !     TODO:
+    !     R : the DensityVector for which we need to construct the charge density
+    !     sx, sy, sz : symmetries of the density, explicitly passed in because
+    !                  R might not be a density obtained in a static mean-field
+    !                  calculation
     ! Output:
+    !     R%chargedensity : the charge density, defined on a (nx,ny,nz) mesh
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! TODO: document what this routine does precisely
     !       -> this includes a transfer from 1D to 3D
     !---------------------------------------------------------------------------
     use timing, only: start_timer, stop_timer, T_chargedensity
-    use Folding, only: ConstructFoldingMatrices, FoldGaussian, Gaussx, Gaussy, Gaussz
+    use Folding, only: fold_form_factor
 
 #if(PASTA==1)
     4 format ('--------------------------------------------------------------------')
@@ -102,15 +106,16 @@ subroutine ConstructChargeDensity(R, sx, sy, sz, proton_size, neutron_size)
 #endif
 
     type(DensityVector),intent(inout) :: R
-    real(KIND=dp), intent(in)  :: proton_size(2), neutron_size(2)
     integer, intent(in)        :: sx, sy, sz
-    integer                    :: i,j,k
+    integer                    :: i,j,k, it
 #if(PASTA==1)
     real(KIND=dp)              :: rho_el, volume
 #endif
 
-$COULOMB_COMPLEX    complex(KIND=dp)        :: temp(nx,ny,nz)
-$COULOMB_REAL       real(KIND=dp)           :: temp(nx,ny,nz)
+$COULOMB_COMPLEX    complex(KIND=dp)              :: temp(nx,ny,nz,2)
+$COULOMB_COMPLEX    complex(KIND=dp), allocatable :: folded(:,:,:)
+$COULOMB_REAL       real(KIND=dp)                 :: temp(nx,ny,nz,2)
+$COULOMB_REAL       real(KIND=dp), allocatable    :: folded(:,:,:)
 
     call start_timer(T_chargedensity)
 
@@ -118,77 +123,30 @@ $COULOMB_REAL       real(KIND=dp)           :: temp(nx,ny,nz)
     if(allocated(R%chargedensity))      deallocate(R%chargedensity)
     if(.not.allocated(R%chargedensity)) allocate(R%chargedensity(nx,ny,nz))
     !---------------------------------------------------------------------------
-    ! If we account for the finite extent of the charge of the nucleus, then
-    ! we need to fold densities and potentials with gaussians. This sets up the
-    ! required matrices.
-    !
-    ! Note: this little piece of code is duplicated, since in different
-    !       runmodes of the code different Coulomb routines get called in
-    !       different order; this makes sure we get no segfaults.
-    !---------------------------------------------------------------------------
-    if(any(proton_size .ne. 0.0_dp) .or. any(neutron_size.ne.0.0_dp)) then
-      if(.not.allocated(Gaussx)) then
-          allocate(Gaussx(nx,nx,2,2), Gaussy(ny,ny,2,2), Gaussz(nz,nz,2,2))
-          Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
-      endif
-      call ConstructFoldingMatrices(Gaussx,Gaussy,Gaussz,sx, sy, sz)
-    endif
-    !---------------------------------------------------------------------------
-    ! Proton contributions to the charge density.
-    ! We start from the proton point density
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-            temp(i,j,k) = R%D_I_I(meshindex(i,j,k),2)
-            print *, 'temp(i,j,k) = ', temp(i,j,k)
-        enddo
-      enddo
-    enddo
-    stop
-    if(proton_size(1).gt.0.0) then
-        ! Fold the source with a Gaussian
-        R%chargedensity = &
-        & FoldGaussian(temp, GaussX(:,:,1,2), GaussY(:,:,1,2), GaussZ(:,:,1,2),&
-        &                                                            nx, ny, nz)
-    endif
-    if(proton_size(2).gt.0.0) then
-        ! Fold the source with another Gaussian, this time with minus sign.
-        R%chargedensity = R%chargedensity + &
-        & FoldGaussian(temp, GaussX(:,:,2,2), GaussY(:,:,2,2), GaussZ(:,:,2,2),&
-        &                                                            nx, ny, nz)
-    endif
-
-    if(all(proton_size.eq.0.0)) then
-        R%chargedensity = temp
-    endif
-    !---------------------------------------------------------------------------
-    ! Neutron contributions to the charge density.
-    if(any(neutron_size .gt. 0.0d0)) then 
+    ! Transfer the density from a (nx*ny*nz,2) to a (nx,ny,nz,2) array
+    do it=1,2
       do k=1,nz
         do j=1,ny
           do i=1,nx
-             temp(i,j,k) = R%D_I_I(meshindex(i,j,k),1)
+              temp(i,j,k,it) = R%D_I_I(meshindex(i,j,k),it)
           enddo
         enddo
       enddo
-
-      if(neutron_size(1).gt.0.0) then
-          ! Fold the source with a Gaussian
-          R%chargedensity = R%chargedensity + &
-          & FoldGaussian(temp, GaussX(:,:,1,1), GaussY(:,:,1,1), GaussZ(:,:,1,1),&
-          &                                                            nx, ny, nz)
-      endif
-      if(neutron_size(2).gt.0.0) then
-          ! Fold the source with a Gaussian, minus sign this time
-          R%chargedensity = R%chargedensity - &
-          & FoldGaussian(temp, GaussX(:,:,2,1), GaussY(:,:,2,1), GaussZ(:,:,2,1),&
-          &                                                            nx, ny, nz)
-      endif
+    enddo
+    !---------------------------------------------------------------------------
+    ! Perform the actual folding with form factors
+    call fold_form_factor(temp, folded, nx,ny,nz, sx, sy, sz)
+    if( .not. allocated(folded)) then
+      ! if no folding is applied, just use the proton density 
+      R%chargedensity = temp(:,:,:,2)
+    else
+      ! if folding is applied, use the folded density
+      R%chargedensity = folded
     endif
     !---------------------------------------------------------------------------
     ! When performing simulations for nuclear pasta, one assumes the entire 
     ! volume is charge neutral: a constant background of electrons floods the 
-    ! entire simulation volume. We subtract thi s backrgound here.
+    ! entire simulation volume. We subtract this backound here.
 #if(PASTA==1)
     volume=nx*ny*nz*dv   ! simplification by WR: the physical volume simulated
                          ! can just be gotten by the volume element...
@@ -210,7 +168,7 @@ $COULOMB_REAL       real(KIND=dp)           :: temp(nx,ny,nz)
     R%chargedensity = R%chargedensity -rho_el
 #endif
     call stop_timer(T_chargedensity)
-end subroutine ConstructChargeDensity
+end subroutine construct_charge_density
 
 function memory_for_densities() result (stor)
   !-----------------------------------------------------------------------------
