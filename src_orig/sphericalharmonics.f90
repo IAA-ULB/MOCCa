@@ -34,127 +34,32 @@ module sphericalharmonics
  
 contains
 
-   function figure_out_multipole_moments(sx,sy,sz,maxmoment,&
-   &                                        quantisation_axis,secondary_axis) &
-   &   result(moment_list)
-    !----------------------------------------------------------------------------
-    ! This routine determines what multipole moments of a function with specific
-    ! symmetry properties do not vanish. 
-    ! 
-    ! Phrased differently: if a function f has symmetry signature (sx,sy,sz), for
-    ! what values of l and m does the integral
-    ! 
-    !      int d^3r f(r) Q_{lm}(r)
-    ! 
-    ! vanish for symmetry reasons? 
-    !   
-    ! Input:
-    !   sx,sy,sz: the signs under symmetry operation in each direction
-    !   quantisation_axis: the axis with respect to which the angle theta is
-    !                     defined. 1=X, 2=Y, 3=Z
-    !   secondary_axis: the axis with respect to which the angle phi is defined.
-    !                  1=X, 2=Y, 3=Z
-    ! Output:
-    !  moment_list: a 3D array that contains the information about which
-    !               multipole moments are restricted by symmetry (0) and which 
-    !               should be calculated (1).
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! We fill the list that decides which multipole moments are restricted by
-    ! symmetry and which should be calculated. 
-    !
-    !  moment_list(l,m,k) = 0 => restricted by symmetry, 
-    !              | | |           should not be calculated
-    !              | | |
-    !  moment_list(l,m,k) = 1 => should be calculated
-    !              | | |
-    !              | | -> k : real (0) or imaginary(1) part
-    !              | ---> m : second characteristic number
-    !              -----> l : first characteristic number
-    !----------------------------------------------------------------------------
-    integer, intent(in)  :: sx,sy,sz, maxmoment,quantisation_axis, secondary_axis
-    integer              :: moment_list(0:maxmoment,0:maxmoment,0:1)
-
-    real(KIND=dp)       :: test_coord_x(2), test_coord_y(2), test_coord_z(2)
-    real(KIND=dp)       :: test_spher_harm(2,2,2,0:MaxMoment,0:MaxMoment,2)
-    integer             :: l, m, impart, signx, signy, signz
-
-    ! Testing mesh: two points in each direction, covering every octant of
-    ! the simulation volume.
-    test_coord_x = (/-1.0_dp,1.0_dp/) ! Although the precise testing coordinates  
-    test_coord_y = (/-2.0_dp,2.0_dp/) ! do not matter, it is important to not be 
-    test_coord_z = (/-3.0_dp,3.0_dp/) ! too close to zeros of spherical harmonics for numerical precision!
-
-    ! Generate the spherical harmonics for the test coordinates
-    call generate_spherical_harmonics(maxmoment, 2, 2, 2, &
-    &     test_coord_x, test_coord_y, test_coord_z,       &
-    &     test_spher_harm, quantisation_axis, secondary_axis)
-
-    ! Allocate the moment_list array
-    moment_list = 0 ! Initialise to zero
-
-    ! Loop over the spherical harmonics and determine which ones will result in vanishing 
-    ! expectation values for objects with symmetry properties sx/sy/sz.
-    do impart=1,2
-      do l = 0,maxmoment
-        do m = 0, l
-          ! The signs under reflection of the spherical harmonic for each cartesian direction
-          signx = int(SIGN(1.0_dp, test_spher_harm(2,2,2,l,m,impart) / test_spher_harm(1,2,2,l,m,impart)))
-          signy = int(SIGN(1.0_dp, test_spher_harm(2,2,2,l,m,impart) / test_spher_harm(2,1,2,l,m,impart)))
-          signz = int(SIGN(1.0_dp, test_spher_harm(2,2,2,l,m,impart) / test_spher_harm(2,2,1,l,m,impart)))
-
-          if((signx * sx < 0) .or. (signy * sy < 0) .or. (signz * sz < 0)) then
-            ! \int d^3r f Y_{lm}(\theta,\phi) will vanish because of symmetry properties
-            moment_list(l,m,impart-1) = 0
-          else
-            ! \int d^3r f Y_{lm}(\theta,\phi) will not vanish!
-            moment_list(l,m,impart-1) = 1
-          end if
-          !if(moment_list(l,m,impart-1) .eq. 1) print *, l, m, impart-1, signx, signy, signz, sx, sy, sz, moment_list(l,m,impart-1) ! debug output
-        enddo
-      enddo
-    enddo
-   end function figure_out_multipole_moments
-   
-   subroutine generate_spherical_harmonics(maxmoment,mx,my,mz,                 &
-   &                                xcoord,ycoord,zcoord,SpherHarmMesh,        &
+   subroutine GenSphericalHarmonics(maxmoment,mx,my,mz,                        &
+   &                                meshx,meshy,meshz, SpherHarmMesh,          &
    &                                quantisationaxis,secondaryaxis)
     !---------------------------------------------------------------------------
     ! This function computes the values of all the spherical harmonics up to
     ! l=Maxmoment where Mesh supplies the values of the x/y/z coordinates.
-    
+    ! 
+    ! On output, SpherHarmMesh contains the values of the spherical harmonics
+    ! at the mesh points. These are quantized according to the choices made
+    ! for QuantisationAxis and SecondaryAxis.
+    !---------------------------------------------------------------------------
     ! The formula used is the one from Messiah:
     !    Y^{m}_{l} = (-1)^m [(2*l+1)/(4*\pi) (l-m)!/(l+m)!]^{1/2}
     !              *  P^m_{l}[cos(\theta)] e^{im\phi}
     !
-    ! Translating this formula into Cartesian coordinates is highly dependent on
-    ! the choices made for the correspondence between (x,y,z) and (r,\theta,\phi)
-    ! spherical coordinates. This is why this routine has two parameters, 
-    ! QuantisationAxis and SecondaryAxis, which determine the correspondence.
-    ! 
-    ! On output, SpherHarmMesh contains the values of the spherical harmonics
-    ! at the mesh points. 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input: 
-    !   maxmoment: the maximum value of l for which the spherical harmonics
-    !              are computed
-    !   mx,my,mz: the number of points in the x,y,z directions
-    !   xcoord,ycoord,zcoord: the x,y,z coordinates of the mesh points
-    !   quantisationaxis: the axis with respect to which the angle theta is
-    !                     defined. 1=X, 2=Y, 3=Z
-    !   secondaryaxis: the axis with respect to which the angle phi is defined.
-    !                  1=X, 2=Y, 3=Z
-    ! Output:
-    !   SpherHarmMesh: the output array containing the values of the spherical 
-    !                  harmonics on the mesh points
-    !
+    ! Translating this formula into Cartesian coordinates is also highly
+    ! dependent on the values for QuantisationAxis and SecondaryAxis.
+    ! See explanation in the moments module.
     !---------------------------------------------------------------------------
 
     integer, intent(in)        :: mx,my,mz, maxmoment
     integer, intent(in)        :: quantisationaxis,secondaryaxis
-    real(KIND=dp), intent(in)  :: xcoord(mx), ycoord(my), zcoord(mz)
-    real(KIND=dp), intent(out) :: SpherHarmMesh(mx,my,mz,0:MaxMoment,0:MaxMoment,2)
+    real(KIND=dp), intent(in)  :: meshx(mx), meshy(my), meshz(mz)
 
     real(KIND=dp)  :: LegendreMesh (mx,my,mz,0:MaxMoment,0:MaxMoment)
+    real(KIND=dp)  :: SpherHarmMesh(mx,my,mz,0:MaxMoment,0:MaxMoment,2)
     !r, Sin(\theta),Cos(\theta),\phi, sin(m*\Phi) and cos(m*\Phi)
     real(KIND=dp)  :: r,cosTheta,sinTheta, phi,sinmPhi, cosmPhi
     real(KIND=dp)  :: fac, X,Y,Z
@@ -164,9 +69,9 @@ contains
     do k=1,mz
       do j=1,my
         do i=1,mx
-          X = xcoord(i)
-          Y = ycoord(j)
-          Z = zcoord(k)
+          X = MeshX(i)
+          Y = MeshY(j)
+          Z = MeshZ(k)
 
           r        =sqrt(X**2+Y**2+Z**2)
           phi      =0
@@ -236,7 +141,7 @@ contains
       enddo
     enddo
 
- end subroutine generate_spherical_harmonics
+ end subroutine GenSphericalHarmonics
 
  function legendre_pnm ( n, m, x ) result(cx)
       !-------------------------------------------------------------------------

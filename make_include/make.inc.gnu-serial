@@ -8,6 +8,7 @@
 #   - ELBERETH : W.R.s home machine                                #
 #   - ASTROPC19: W.R.s office machine                              #
 ####################################################################
+
 # Directory names  (will be created if they don't exist)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - EXEC_DIR = directory for storage of the final executables

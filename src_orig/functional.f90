@@ -1461,7 +1461,7 @@ $CALCPOTENTIALS
 !     print *, 'MAXVAL Fa Im', maxval(IMAG(dFa%F_I_I))
 
     call SolveCoulomb(dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)
-    call SolveCoulomb(dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)
+    call SolveCoulomb(dRa,dFa,sx_rho_antisym,sx_rho_antisym,sz_rho_antisym)
 
   end subroutine calc_perturbed_potentials
   

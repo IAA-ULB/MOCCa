@@ -528,7 +528,7 @@ $NTR    nullify(Root_mag%Prev) ;  nullify(Root_mag%Next)
     
     !---------------------------------------------------------------------------
     ! Calculating all the spherical harmonics
-    call generate_spherical_harmonics(maxmoment,nx,ny,nz,meshx,meshy,meshz,           & 
+    call GenSphericalHarmonics(maxmoment,nx,ny,nz,meshx,meshy,meshz,           & 
     &                          SpherHarmMesh,quantisationaxis,secondaryaxis)
     
     !---------------------------------------------------------------------------
@@ -706,7 +706,7 @@ $NTR    enddo
     allocate(SpherHarmMesh(nx,ny,nz,0:MaxMoment,0:MaxMoment,2))
 
     ! Regenerate
-    call generate_spherical_harmonics(maxmoment,nx,ny,nz, &
+    call GenSphericalHarmonics(maxmoment,nx,ny,nz, &
     &                          meshx_shifted,meshy_shifted,meshz_shifted,    & 
     &                          SpherHarmMesh,quantisationaxis,secondaryaxis)
 
@@ -761,7 +761,7 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     type(Moment),pointer   :: NewMoment
     integer, intent(in)    :: l,m,ImPart
-    integer                :: moment_list(0:maxmoment,0:maxmoment,0:1)
+    integer, allocatable   :: moment_list(:,:,:)
 
     nullify(NewMoment)
 
@@ -779,15 +779,17 @@ $NTR    enddo
     !              -----> l : first characteristic number
     !                      
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    moment_list = figure_out_multipole_moments(sx_rho,sy_rho,sz_rho,maxmoment,&
-    &                                        quantisationaxis,secondaryaxis) 
+    allocate(moment_list(0:list_size, 0:list_size, 0:1))
+    moment_list = 0
+    
+$FILL_LIST
 
     ! Actually check our multipole moment
-    ! ( Note that negative l are taken separately as special cases and should 
-    !   always be calculated.)
+    ! ( Note that negative l are taken separately as special cases )
     if(l.ge.0) then
       if(moment_list(l,m,impart) .eq. 0) return
     endif
+    deallocate(moment_list)
 
     !---------------------------------------------------------------------------
     ! The multipole moment is a relevant degree of freedom, create all things
@@ -843,7 +845,7 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     type(Moment),pointer   :: NewMoment
     integer, intent(in)    :: l,m,ImPart
-    integer                :: moment_list(0:maxmoment,0:maxmoment,0:1)
+    integer, allocatable   :: moment_list(:,:,:)
 
     nullify(NewMoment)
 
@@ -861,16 +863,17 @@ $NTR    enddo
     !              -----> l : first characteristic number
     !                      
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    moment_list = figure_out_multipole_moments(sx_rho,sy_rho,sz_rho,maxmoment,&
-    &                                        quantisationaxis,secondaryaxis) 
-    ! Note: divJ shares the symmetries of rho!
+    allocate(moment_list(0:list_size, 0:list_size, 0:1))
+    moment_list = 0
+    
+$FILL_LIST
 
     ! Actually check our multipole moment
-    ! ( Note that negative l are taken separately as special cases and should 
-    !   always be calculated.)
+    ! ( Note that negative l are taken separately as special cases )
     if(l.ge.0) then
       if(moment_list(l,m,impart) .eq. 0) return
     endif
+    deallocate(moment_list)
 
     !---------------------------------------------------------------------------
     ! The multipole moment is a relevant degree of freedom, create all things
@@ -938,7 +941,6 @@ $NTR    enddo
 
     nullify(NewMoment)
 
-    ! TODO: these selection rules are wrong!
     
     if((m.eq.0).and.(Impart.eq.1)) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1642,7 +1644,6 @@ $TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     type(Moment), pointer :: Current
 
     Current => Root
-
     
     pot = 0.0_dp
     do while(associated(Current%Next))
@@ -2646,135 +2647,135 @@ $NTR endif
     !                    K. Rutz et al, Nucl. Phys. A590 (1995) 690.
     !
     !---------------------------------------------------------------------------
+    
     type(DensityVector), intent(in), target :: R
 
-    real(KIND=dp)  :: Treshold(2), DeltaR(nx,ny,nz), Surface(3,7*nx*ny*nz),X,Y,Z
-    real(KIND=dp)  :: InterX,InterY,InterZ, Distance
-    integer        :: it,i,j,k,l, T, Sig(nx,ny,nz)
-    
-    real(KIND=dp), allocatable, target :: real_rho(:,:)
-    real(KIND=dp), pointer             :: rho_3D(:,:,:,:), cut_3D(:,:,:,:)
+!    real(KIND=dp)  :: Treshold(2), DeltaR(nx,ny,nz), Surface(3,7*nx*ny*nz),X,Y,Z
+!    real(KIND=dp)  :: InterX,InterY,InterZ, Distance
+!    integer        :: it,i,j,k,l, T, Sig(nx,ny,nz)
+!    
+!    real(KIND=dp), pointer     :: rho_3D(:,:,:,:), cut_3D(:,:,:,:)
 
-    if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
-#if(PASTA >= 1)
-    ! This fails when the density is not a nicely isolated nuclear cluster, i.e. when
-    ! doing pasta calculations!
-    cutoff = 1.0d0
-    return
-#endif
-    ! Explicitly taking the real part of the density; needed when compiling FAM executable
-    real_rho = DBLE(R%D_I_I(1:nx*ny*nz,1:2)) 
-    ! 3D representation of D_I_I for ease of coding
-    rho_3D(1:nx,1:ny,1:nz,1:2) => real_rho
-    cut_3D(1:nx,1:ny,1:nz,1:2) => Cutoff
-  
-    do it=1,2
-      Surface = 0.0_dp
+!    if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
 
-      !Finding the treshold value. At the moment it is fixed to one tenth
-      !of the maximum density.
-      Treshold(it) = maxval(rho_3D(:,:,:,it))/cutfac
+!    ! 3D representation of D_I_I for ease of coding
+!    rho_3D(1:nx,1:ny,1:nz,1:2) => R%D_I_I
+!    cut_3D(1:nx,1:ny,1:nz,1:2) => Cutoff
+!  
+!    do it=1,2
+!      Surface = 0.0_dp
 
-      !Taking a ridiculously large number as starting point
-      DeltaR = 1.d12
+!      !Finding the treshold value. At the moment it is fixed to one tenth
+!      !of the maximum density.
+!      Treshold(it) = maxval(rho_3D(:,:,:,it))/cutfac
 
-      !T keeps count of the number of surface points the routine found
-      T=0
+!      !Taking a ridiculously large number as starting point
+!      DeltaR = 1.d12
 
-      ! Sig is a sign that keeps track whether a point is on the inside or
-      ! the outside of the equidensity surface.
-      where(rho_3D(:,:,:,it) .gt. Treshold(it))
-              Sig = - 1
-      elsewhere
-              Sig =   1
-      endwhere
+!      !T keeps count of the number of surface points the routine found
+!      T=0
 
-      ! First, we construct the mesh coordinates of the equidensity surface.
-      ! To do this we check for all points of the grid if the surface lies
-      ! between them and their immediate neighbours.
-      ! If this is the case, some linear extrapolation is done and the resulting
-      ! X,Y and Z coordinates are saved to Surface.
-      do k=1,nz-1
-        Z = MeshZ(k)
-        do j=1,ny-1
-          Y = MeshY(j)
-          do i=1,nx-1
-           X = MeshX(i)
-           !Initialising the interpolated values of the coordinates.
-           !This needs to be done in light of the last if in this
-           !loop-construction.
-           InterX= 0.0_dp
-           InterY= 0.0_dp
-           InterZ= 0.0_dp
-           if( ((rho_3d(i  ,j,k,it).ge.Treshold(it)) .and.                &
-           &     (rho_3d(i+1,j,k,it).le.Treshold(it)) ) &
-           &  .or. &
-           &   ((rho_3d(i  ,j,k,it).le.Treshold(it)) .and.                &
-           &    (rho_3d(i+1,j,k,it).ge.Treshold(it)))) then
-            !In this case the surface lies somewhere between i and i+1
-            InterX=X +                                                         &
-            &  dx*(Treshold(it)-rho_3d(i,j,k,it))/                        &
-            & (rho_3d(i+1,j,k,it)-rho_3d(i,j,k,it))
-            T = T + 1
-            Surface(1,T) = InterX
-            Surface(2,T) = Y
-            Surface(3,T) = Z
-           endif
+!      ! Sig is a sign that keeps track whether a point is on the inside or
+!      ! the outside of the equidensity surface.
+!      where(rho_3D(:,:,:,it) .gt. Treshold(it))
+!              Sig = - 1
+!      elsewhere
+!              Sig =   1
+!      endwhere
 
-           if( ((rho_3d(i,j  ,k,it).ge.Treshold(it)) .and.                     &
-           &    (rho_3d(i,j+1,k,it).le.Treshold(it)) ) &
-           &  .or. &
-           &   ((rho_3d(i,j  ,k,it).le.Treshold(it)) .and.                     &
-           &    (rho_3d(i,j+1,k,it).ge.Treshold(it)))) then
-            !In this case the surface lies somewhere between j and j+1
-            InterY = Y +                                                       &
-            & dx*(Treshold(it)-rho_3d(i,j,k,it))/                              &
-            & (rho_3d(i,j+1,k,it)-rho_3d(i,j,k,it))
-            T = T + 1
-            Surface(1,T) = X
-            Surface(2,T) = InterY
-            Surface(3,T) = Z
-           endif
+!      ! First, we construct the mesh coordinates of the equidensity surface.
+!      ! To do this we check for all points of the grid if the surface lies
+!      ! between them and their immediate neighbours.
+!      ! If this is the case, some linear extrapolation is done and the resulting
+!      ! X,Y and Z coordinates are saved to Surface.
+!      do k=1,nz-1
+!        Z = MeshZ(k)
+!        do j=1,ny-1
+!          Y = MeshY(j)
+!          do i=1,nx-1
+!           X = MeshX(i)
 
-           if( ((rho_3d(i,j,k  ,it).ge.Treshold(it)) .and.                     &
-           &    (rho_3d(i,j,k+1,it).le.Treshold(it)))                          &
-           &  .or. &
-           &   ((rho_3d(i,j,k  ,it).le.Treshold(it)) .and.                     &
-           &   (rho_3d(i,j,k+1,it).ge.Treshold(it)) ) ) then
-            !In this case the surface lies somewhere between k and k+1
-            InterZ = Z +                                                       &
-            & dx*(Treshold(it)-rho_3d(i,j,k,it))/                              &
-            & (rho_3d(i,j,k+1,it) - rho_3d(i,j,k,it))
-            T = T + 1
-            Surface(1,T) = X
-            Surface(2,T) = Y
-            Surface(3,T) = InterZ
-           endif
-          enddo
-        enddo
-      enddo
+!           !Initialising the interpolated values of the coordinates.
+!           !This needs to be done in light of the last if in this
+!           !loop-construction.
+!           InterX= 0.0_dp
+!           InterY= 0.0_dp
+!           InterZ= 0.0_dp
 
-      ! Now we can find the minimum distance from every point on the
-      ! mesh to the surface.
-      do k=1,nz
-        Z = MeshZ(k)
-        do j=1,ny
-          Y = MeshY(j)
-          do i=1,nx
-            X = MeshX(i)
-            do l=1,T
-              !Distance to the surface point
-              Distance = (X - Surface(1,l))**2 + (Y -Surface(2,l))**2 +        &
-              &          (Z - Surface(3,l))**2
-              DeltaR(i,j,k) = min(DeltaR(i,j,k) , Distance)
-            enddo
-            DeltaR(i,j,k) = Sig(i,j,k)*sqrt(DeltaR(i,j,k) )
-          enddo
-        enddo
-      enddo
-      ! With this distance we can calculate the cutoff function.
-      Cut_3D(:,:,:,it) = 1.0d0/(1.0d0 + exp( (DeltaR - radd)/acut)  )
-    enddo
+!           if( ((rho_3d(i  ,j,k,it).ge.Treshold(it)) .and.                &
+!           &     (rho_3d(i+1,j,k,it).le.Treshold(it)) ) &
+!           &  .or. &
+!           &   ((rho_3d(i  ,j,k,it).le.Treshold(it)) .and.                &
+!           &    (rho_3d(i+1,j,k,it).ge.Treshold(it)))) then
+!            !In this case the surface lies somewhere between i and i+1
+!            InterX=X +                                                         &
+!            &  dx*(Treshold(it)-rho_3d(i,j,k,it))/                        &
+!            & (rho_3d(i+1,j,k,it)-rho_3d(i,j,k,it))
+
+!            T = T + 1
+
+!            Surface(1,T) = InterX
+!            Surface(2,T) = Y
+!            Surface(3,T) = Z
+!           endif
+
+!           if( ((rho_3d(i,j  ,k,it).ge.Treshold(it)) .and.                     &
+!           &    (rho_3d(i,j+1,k,it).le.Treshold(it)) ) &
+!           &  .or. &
+!           &   ((rho_3d(i,j  ,k,it).le.Treshold(it)) .and.                     &
+!           &    (rho_3d(i,j+1,k,it).ge.Treshold(it)))) then
+!            !In this case the surface lies somewhere between j and j+1
+!            InterY = Y +                                                       &
+!            & dx*(Treshold(it)-rho_3d(i,j,k,it))/                              &
+!            & (rho_3d(i,j+1,k,it)-rho_3d(i,j,k,it))
+
+!            T = T + 1
+
+!            Surface(1,T) = X
+!            Surface(2,T) = InterY
+!            Surface(3,T) = Z
+!           endif
+
+!           if( ((rho_3d(i,j,k  ,it).ge.Treshold(it)) .and.                     &
+!           &    (rho_3d(i,j,k+1,it).le.Treshold(it)))                          &
+!           &  .or. &
+!           &   ((rho_3d(i,j,k  ,it).le.Treshold(it)) .and.                     &
+!           &   (rho_3d(i,j,k+1,it).ge.Treshold(it)) ) ) then
+!            !In this case the surface lies somewhere between k and k+1
+!            InterZ = Z +                                                       &
+!            & dx*(Treshold(it)-rho_3d(i,j,k,it))/                              &
+!            & (rho_3d(i,j,k+1,it) - rho_3d(i,j,k,it))
+!            T = T + 1
+!            Surface(1,T) = X
+!            Surface(2,T) = Y
+!            Surface(3,T) = InterZ
+!           endif
+!          enddo
+!        enddo
+!      enddo
+
+!      ! Now we can find the minimum distance from every point on the
+!      ! mesh to the surface.
+!      do k=1,nz
+!        Z = MeshZ(k)
+!        do j=1,ny
+!          Y = MeshY(j)
+!          do i=1,nx
+!            X = MeshX(i)
+!            do l=1,T
+!              !Distance to the surface point
+!              Distance = (X - Surface(1,l))**2 + (Y -Surface(2,l))**2 +        &
+!              &          (Z - Surface(3,l))**2
+!              DeltaR(i,j,k) = min(DeltaR(i,j,k) , Distance)
+!            enddo
+!            DeltaR(i,j,k) = Sig(i,j,k)*sqrt(DeltaR(i,j,k) )
+!          enddo
+!        enddo
+!      enddo
+
+!      ! With this distance we can calculate the cutoff function.
+!      Cut_3D(:,:,:,it) = 1.0d0/(1.0d0 + exp( (DeltaR - radd)/acut)  )
+!    enddo
     return
   end subroutine RutzCutOff
 
