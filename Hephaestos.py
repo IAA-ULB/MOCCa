@@ -50,6 +50,10 @@ EXETYPE                = sys.argv[2]
 DENSITY_SPWF_SUMMATION = int(sys.argv[3])
 
 assert(EXETYPE == 'mf' or EXETYPE == 'fam')
+if(EXETYPE == 'mf'):  
+  fam_active = False
+else:
+  fam_active = True
 
 if( not os.path.isfile('configs/' + config + '.py')):
   print ("Config file '%s' does not exist."%config)
@@ -180,7 +184,7 @@ description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATI
 for fname in FORTRANFILES:
 #     print ("Preprocessing " + fname)
      pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL,
-                   DENSITY_SPWF_SUMMATION)
+                   fam_active, DENSITY_SPWF_SUMMATION)
 
 #-------------------------------------------------------------------------------
 # Output all of the relevant things into .tex files.

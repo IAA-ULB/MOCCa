@@ -63,7 +63,7 @@ Pairing_Fields_needed = []
 
 #  src_heph.heph_functional.PruneDeriv_needed()
       
-def GenerateFields(so, oldso, ph_pp_decoupl):
+def GenerateFields(so, oldso, ph_pp_decoupl, fam_active):
   """
    Generate a list of fields based on list of terms in the functional. 
    
@@ -80,6 +80,8 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
     ph_pp_decoupl: Boolean. If True, drop all contributions to the normal
                    potentials that arise from density-dependent pairing 
                    terms.
+    fam_active: Boolean. If True, declare fields as complex for the FAM code.
+                If False, declare fields as real for the mean-field code.
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
    Output: 
    
@@ -492,7 +494,10 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       else:
         dic['ISOSIZE'] = 4
         
-      declaration  = declaration + ts.field_decl.substitute(dic)
+      if(fam_active):
+        declaration  = declaration + ts.field_decl_complex.substitute(dic)
+      else:
+        declaration  = declaration + ts.field_decl_real.substitute(dic)
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # Explicit declaration of the history is no longer needed
       #declaration  = declaration + ts.fhist_decl.substitute(dic)

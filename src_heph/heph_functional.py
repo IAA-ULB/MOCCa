@@ -697,16 +697,25 @@ def ProcessParameterization(fname, src, target):
                 generated.write(Template(line).substitute(dic))  
 
 def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl, 
-                      density_spwf_summation):
+                      fam_active, density_spwf_summation):
     """
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
      Master routine calling the other ones to generate a functional.
      
-     TODO: document this function
-     
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
      Input:
-     
+      - fname: name of the functional file, without the directory structure
+      - src:  source directory where the templates are stored
+      - target: target directory where the generated code will be placed
+      - so:   set of symmetry options
+      - oldso: set of symmetry options for input wf files
+      - ph_pp_decoupl: boolean determining whether pairing terms are decoupled
+                       from the particle-hole part of the functional.
+      - fam_active:  boolean determining whether we are building a mean-field 
+                     or a finite-amplitude linear response code.
+      - density_spwf_summation: boolean determining whether derivatives of 
+                               densities are calculated through summation over 
+                               spwfs or derivative calls.
      Output:
       - pot_declaration: a (large) string containing the fortran code for the
                          declaration of mean-field potentials in vectors.f90
@@ -832,7 +841,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     (fielddec,fieldini,fieldcalc,fieldcalc_perturbed, fieldprecon,fieldwrite, \
     fieldwrite_hdf5,fieldread, fieldread_hdf5,fieldadd,fieldmultiply,          \
     fieldinproduct,fieldINMk2, fieldINMk4) \
-                                 =  GenerateFields(so, oldso,ph_pp_decoupl)
+                                 =  GenerateFields(so, oldso,ph_pp_decoupl, fam_active)
     pot_declaration = pot_declaration + fielddec + '\n'
     writing     = writing     + fieldwrite 
     writing_hdf5     = writing_hdf5     + fieldwrite_hdf5

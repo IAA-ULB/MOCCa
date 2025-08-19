@@ -26,8 +26,9 @@ Memory   = T(   tab + 'stor = stor + $ISOSIZE*$TRANS_SIZE ! storage for $NAME')
 Zero_template  = T(   tab+'R%$NAME = 0.0d0 \n')
 Clean_template = T(   tab+'if(allocated(R%$NAME)) deallocate(R%$NAME)')
 
-Dec      = T(   tab + 'real(KIND=dp), allocatable :: $NAME(:$TOTALIND,:)')
-Dec_spwf = T(   tab + 'real(KIND=dp) :: $NAME$DIM_spwf')
+Dec_real    = T(   tab + 'real(KIND=dp), allocatable :: $NAME(:$TOTALIND,:)')
+Dec_complex = T(   tab + 'complex(KIND=dp), allocatable :: $NAME(:$TOTALIND,:)')
+Dec_spwf    = T(   tab + 'real(KIND=dp) :: $NAME$DIM_spwf')
 
 Der_indep = T( 2*tab + \
              'call Derive_$DIR(R%$NAME(:$IND,it),$PS,R%der_$NAME(:$DERIND,it)) \n') 

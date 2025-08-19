@@ -173,7 +173,6 @@ endif
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Tantalus source files
-#TARGET :=   Tantalus.exe
 MF_SRC  :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
 MF_SRC  +=   sphericalharmonics.f90 folding.f90 nil8.f90
 MF_SRC  +=   derivatives.f90 vectors.f90 precondition.f90 wavefunctions.f90
@@ -187,11 +186,9 @@ MF_SRC  +=   fam.f90 IO.f90 convergence.f90 printing.f90 version.f90 tantalus.f9
 MF_SRC  +=   run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # FAM source files
-# Large amount of repetition: vectors.f90 should be replaced by vectors_fam.f90
-#  due to the complex declaration of densities and potentials.
 FAM_SRC :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
 FAM_SRC +=   sphericalharmonics.f90 folding.f90 nil8.f90
-FAM_SRC +=   derivatives.f90 vectors_FAM.f90 precondition.f90 wavefunctions.f90
+FAM_SRC +=   derivatives.f90 precondition.f90 wavefunctions.f90
 FAM_SRC +=   pairingcutoffs.f90 parameterization.f90
 FAM_SRC +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90
 FAM_SRC +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90

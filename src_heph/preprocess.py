@@ -43,7 +43,7 @@ vectors_potentials = ''
 memory_densities   = ''
 
 def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
-               density_spwf_summation):
+               fam_active, density_spwf_summation):
     """
       Dispatching routine that selects the right preprocessing routine and
       additional info for every source code file.
@@ -58,6 +58,8 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
       ph_pp_decouple: Boolean. If True, do not include contributions of 
                       density-dependent pairing interactions to the potentials
                       associated with normal densities
+      fam_active: Boolean. If True, the FAM is active and the code needs to be
+                        prepared for complex densities - among other things.
       density_spwf_summation: Boolean. If .True., calculate the derivatives of
                               densities by summing 
     """
@@ -92,9 +94,10 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         ProcessParameterization(fname, src, target)
     if(fname=='functional.f90'):
         vectors_potentials = ProcessFunctional(fname, src, target,so, oldso, \
-                                               ph_pp_decoupl,density_spwf_summation)
+                                               ph_pp_decoupl,fam_active, density_spwf_summation)
     if(fname=='vectors.f90'):
-        ProcessVectors(src,target,so,vectors_densities,vectors_potentials,memory_densities)
+        ProcessVectors(src,target,so,vectors_densities,vectors_potentials, \
+                                     memory_densities,fam_active)
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='scfiteration.f90'):
@@ -142,7 +145,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='transform.f90'):
         ProcessTransform(fname, src, target, so, oldso)
     if(fname=='densities.f90'):
-        vectors_densities, memory_densities = ProcessDensities(fname, src, target, so, density_spwf_summation)
+        vectors_densities, memory_densities = ProcessDensities(fname, src, target, so, fam_active,  density_spwf_summation)
     if(fname=='cranking.f90'):
         ProcessCranking(fname, src, target, so)
     if(fname=='convergence.f90'):
@@ -228,7 +231,7 @@ def ProcessGeneric(fname, src, target, so):
             for line in template:
                 generated.write(Template(line).substitute(dic))   
 
-def ProcessVectors(src, target, so, densities, potentials, memory_densities):
+def ProcessVectors(src, target, so, densities, potentials, memory_densities, fam_active):
   """
     Process the vectors.f90 template Fortran file to filled versions
 
@@ -244,28 +247,28 @@ def ProcessVectors(src, target, so, densities, potentials, memory_densities):
         densities        : string containing the Fortran declaration of all individual local densities
         potentials       : string containing the Fortran declaration of all individual local potentials
         memory_densities : string containing the code for updating densities
+        fam_active       : Boolean, if True, the FAM is active and vectors.f90 should declare the Coulomb 
+                           quantities as complex.
   """
 
-  # mean-field vectors.f90
   dic = {}
   dic['DECLARATION']            = densities
   dic['DECLARATION_POTENTIALS'] = potentials
   dic['MEMORY_DENSITIES']       = memory_densities
-  dic['COULOMB_REAL']           = ' '
-  dic['COULOMB_COMPLEX']        = '!'
+
+  if(fam_active):
+    # If the FAM is active, we need to declare the Coulomb quantities as complex
+    dic['COULOMB_REAL']           = '!'
+    dic['COULOMB_COMPLEX']        = ''
+  else:   
+    # If twe are constructing a mean-field code, the Coulomb quantities are real
+    dic['COULOMB_REAL']           = ''
+    dic['COULOMB_COMPLEX']        = '!'
+
+  print ('Processing vectors.f90 template...')
+  print (dic['DECLARATION'])
 
   with open(src+'vectors.f90', 'r') as template:
     with open(target+'vectors.f90', 'w') as generated:
-        for line in template:
-            generated.write(Template(line).substitute(dic))
-
-  # FAM vector_FAM.f90
-  dic['DECLARATION']            = densities.replace('real(KIND=dp)', 'complex(KIND=dp)')
-  dic['DECLARATION_POTENTIALS'] = potentials.replace('real(KIND=dp)', 'complex(KIND=dp)')
-  dic['COULOMB_REAL']           = '!'
-  dic['COULOMB_COMPLEX']        = ' '
-  
-  with open(src+'vectors.f90', 'r') as template:
-    with open(target+'vectors_FAM.f90', 'w') as generated:
         for line in template:
             generated.write(Template(line).substitute(dic))

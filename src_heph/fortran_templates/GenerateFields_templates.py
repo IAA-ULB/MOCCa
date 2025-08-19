@@ -3,7 +3,8 @@ tab = '    '
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Declaration and allocation statements
-field_decl = T(tab + 'real(KIND=dp), allocatable :: $FIELD(:$DECLIND,:) \n')
+field_decl_real    = T(tab + 'real(KIND=dp), allocatable :: $FIELD(:$DECLIND,:) \n')
+field_decl_complex = T(tab + 'complex(KIND=dp), allocatable :: $FIELD(:$DECLIND,:) \n')
 
 field_allo = T( tab + 'if(.not.allocated(F%$FIELD)) then\n'+\
                2*tab + 'allocate(F%$FIELD(mv$ALLOCIND,$ISOSIZE)) \n'   +\
