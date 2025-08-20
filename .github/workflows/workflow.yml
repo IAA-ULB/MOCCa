@@ -5,22 +5,21 @@
 # - the compile job creates all possible combinations of executables
 # - ... and the following jobs run all defined tests using these executables.
 #
-# It is currently only verified to run on one or more of the astropc computers.
+# It is currently only verified to run the astropc machines.
 #
 #-------------------------------------------------------------------------------
 name: Tantalus CI/CD Workflow
-#TODO:
-# - fix pasta and ifort compilation
-# - reenable tests with HFB for the
 on:
   push:
     branches:
       - master
       - difficult_merge
+      - FAM_wr
   pull_request:
     branches:
       - master
       - difficult_merge
+      - FAM_wr
 jobs:
   compile:
     #------------------------------------------------------------------------------
@@ -130,6 +129,7 @@ jobs:
     #-----------------------------------------------------------------------------
     runs-on: self-hosted
     needs:   compile
+    if: github.ref == 'refs/heads/difficult_merge'
     strategy:
       matrix:
         COMPILER:
