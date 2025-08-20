@@ -119,7 +119,18 @@ $PARAMDECL
     !   fitted, and this is retained here for reproducing those calculations.
     logical :: neutroncoulomberror = .false.
     !===========================================================================
-    
+    ! Overloading the pow() and lr_pow functions to safely take powers of real 
+    ! and complex functions on the mesh.
+    interface pow
+      module procedure pow_real
+      module procedure pow_complex
+    end interface
+    interface lr_pow
+       module procedure lr_pow_real
+      module procedure lr_pow_complex
+    end interface
+    !===========================================================================
+
 contains
     
    subroutine readparameterization(name_param, func_name) 
@@ -577,7 +588,79 @@ $PRINTPARAMS
     print 200
     print 201, eps
   end subroutine printparameterization
-  
+
+  !=============================================================================
+  ! Functions for safely taking powers of densities, avoiding negative numbers 
+  ! raised to powers that are 0 or negative. This is located in this file
+  ! becasue the safeguard parameter eps is part of a parameterization.
+  !============================================================================= 
+  pure function pow_real(f,alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Safely take powers of a REAL density f, avoiding the raising of negative 
+    ! numbers to powers that are 0 or negative. This is achieved by adding a 
+    ! small (positive value) to the density.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: f(mv), alpha
+    real(KIND=dp)             :: pf(mv)
+
+    if(alpha .lt. 0) then
+      pf = (f + eps)**(alpha)
+    else
+      pf = (f)**(alpha)
+    endif
+  end function pow_real
+
+  pure function pow_complex(f,alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Take powers of a COMPLEX density.
+    !
+    ! No safeguard is necessary; complex exponentiation is well-defined; it
+    ! is maintained however to as closely replicate pow_real
+    !---------------------------------------------------------------------------
+    complex(KIND=dp), intent(in) :: f(mv)
+    real(KIND=dp), intent(in)    :: alpha
+    complex(KIND=dp)             :: pf(mv)
+
+    if(alpha .lt. 0) then
+      pf = (f + eps)**(alpha)
+    else
+      pf = (f)**(alpha)
+    endif
+  end function pow_complex
+
+  pure function lr_pow_real(f,df, alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Safely calculate the linearisation of the power of a REAL density f, while
+    ! avoiding the raising of negative numbers to powers that are 0 or negative. T
+    ! This is achieved by adding a small (positive value) to the density.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: f(mv), df(mv), alpha
+    real(KIND=dp)             :: pf(mv)
+
+    if((alpha-1) .lt. 0) then
+      pf = alpha * (f + eps)**(alpha - 1) * df
+    else
+      pf = alpha * (f)**(alpha-1)         * df
+    endif
+  end function lr_pow_real
+
+  pure function lr_pow_complex(f,df,alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Safely calculate the linearisation of the power of a REAL density f, while
+    ! avoiding the raising of negative numbers to powers that are 0 or negative. T
+    ! This is achieved by adding a small (positive value) to the density.
+    !---------------------------------------------------------------------------
+    complex(KIND=dp), intent(in) :: f(mv), df(mv)
+    real(KIND=dp), intent(in) :: alpha
+    complex(KIND=dp)             :: pf(mv)
+
+    if((alpha-1) .lt. 0) then
+      pf = alpha * (f + eps)**(alpha - 1) * df
+    else
+      pf = alpha * (f)**(alpha-1)         * df
+    endif
+  end function lr_pow_complex
+
   !=============================================================================
   ! Various functions that might be useful to define coupling constants in 
   ! the .func files.

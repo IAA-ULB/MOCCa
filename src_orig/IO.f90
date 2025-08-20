@@ -42,7 +42,6 @@ module IO
  ! NTR    : $NTR
  !
  ! FAM    : $FAM
- ! MF     : $MF
  !==============================================================================
 
 use geninfo
@@ -146,8 +145,10 @@ contains
     use functional,    only : readfunctional
     use pairing,       only : initpairing
     use fission_moi,   only : read_inertia
+#if( $FAM == 1)
     use fam,           only : readfam
-  
+#endif
+
     implicit none
 
     ! These inputs control where the code will look for its input. Leaving them 
@@ -180,7 +181,9 @@ contains
     call readmomentdata(file_number)
     call readcranking(file_number)
 
-$FAM  call readfam(file_number)
+#if($FAM == 1)
+    call readfam(file_number)
+#endif
 
     if(present(file_number)) then
       close(unit=file_number)
@@ -274,7 +277,9 @@ $FAM  call readfam(file_number)
     use wavefunctions
     use evolution
     use scfiteration
-$FAM    use fam, only : printfam
+#if( $FAM == 1 )
+    use fam, only : printfam
+#endif
 
     integer*8, intent(in), optional     :: file_number
     character(11), intent(in), optional :: input_file 
@@ -398,7 +403,9 @@ $FAM    use fam, only : printfam
       call printpairing_init
       call printmoment_init
       call printcranking_init
-$FAM      call printfam
+#if( $FAM == 1 )
+      call printfam
+#endif
       call printfunctional 
     endif    
 

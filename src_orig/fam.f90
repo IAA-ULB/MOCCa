@@ -374,9 +374,10 @@ module fam
     ! explicit linearisation of the fields
     call calc_perturbed_potentials(RUnper, dRs, dRa, dFs, dFa)
 
-    ! necessary? 
-    !call combine_potentials(dFs)
-    !call combine_potentials(dFa)
+    ! We add in all additional contributions to F_I_I that do not 
+    !  result from the Skyrme functional.  
+    call combine_potentials(dFs)
+    call combine_potentials(dFa)
 
     ! construct the sp hamiltonian
     dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)

@@ -115,7 +115,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='IO.f90'):
         ProcessIO(fname, src, target, so, oldso, fam_active)
     if(fname=='coulomb.f90'):
-        ProcessCoulomb(fname, src, target, so)
+        ProcessCoulomb(fname, src, target, so, fam_active)
     if(fname=='pairing.f90'):
         ProcessPairing(fname, src, target, so)
     if(fname=='pairing_strengths.f90'):

@@ -69,11 +69,9 @@ def ProcessIO(fname, src, target, so, oldso, fam_active):
       dic['TAUTENSOR'] = '!'
       
     if(fam_active):
-      dic['FAM'] = ''
-      dic['MF']  = '!'
+      dic['FAM'] = '1'
     else:
-      dic['FAM'] = '!'
-      dic['MF']  = ''
+      dic['FAM'] = '0'
 
     with open(src+fname, 'r') as template:
       with open(target+fname, 'w') as generated:

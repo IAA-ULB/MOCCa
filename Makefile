@@ -182,7 +182,7 @@ MF_SRC  +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
 MF_SRC  +=   pairing.f90 densities.f90 moments.f90
 MF_SRC  +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 MF_SRC  +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
-MF_SRC  +=   fam.f90 IO.f90 convergence.f90 printing.f90 version.f90 tantalus.f90
+MF_SRC  +=   IO.f90 convergence.f90 printing.f90 version.f90 tantalus.f90
 MF_SRC  +=   run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # FAM source files

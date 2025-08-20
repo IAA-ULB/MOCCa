@@ -1058,7 +1058,12 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     else:
       dic['NTR'] = ''
       dic['TR']  = '!'
-    
+
+    if(fam_active):
+      dic['FAM'] = '1'
+    else:
+      dic['FAM'] = '0'
+      
     dic['PVECTORINPRODUCT'] = inproduct
     
     with open(src+fname, 'r') as template:

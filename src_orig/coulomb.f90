@@ -101,7 +101,7 @@ module Coulombmod
 
 contains
 
- subroutine SolveCoulomb(R,F,sx,sy,sz)
+ subroutine solve_coulomb(R,F,sx,sy,sz)
     !---------------------------------------------------------------------------
     ! Master routine to solve the Coulomb problem for a given source-density.
     !
@@ -123,14 +123,57 @@ contains
     integer, intent(in)                  :: sx, sy, sz
 
     ! Initialize all of the arrays.
-    call setupcoulomb(F)
+    call setup_coulomb(F)
     ! Solve Poissons equation for the charge density
-    call SolveCoulomb_worker(R%chargedensity, F%CoulombPotential, F%ExchangePotential, &
+    call SolveCoulomb_worker(R%chargedensity,                         &
+    &                        F%CoulombPotential, F%ExchangePotential, &
     &                        sx, sy, sz)
     ! Perform a folding of the potentials if needed
     call Obtain_folded_potentials(F, sx, sy, sz)
 
- end subroutine SolveCoulomb
+ end subroutine solve_coulomb
+
+#if($FAM == 1)
+ subroutine solve_coulomb_linear_response(R, dR, F, sx, sy, sz)
+    !----------------------------------------------------------------------------
+    ! Master routine to obtain the linear response of the direct and exchange 
+    !  Coulomb potentials.
+    !
+    ! While close to solve_coulomb, this routine exists separately because 
+    ! the explicit linearisation of the exchange potential requires both
+    ! the unperturbed charge density and the perturbation to the charge
+    ! density - at least when using the Slater approximation.
+    !
+    ! Input:
+    !    R : density vector with a precalculated charge density
+    !    dR: perturbation to the charge density
+    !    sx/sy/sz: reflection symmetries of the charge density in R
+    ! Output:
+    !    F : potential vector containing the response of all potentials
+    !        only the Coulomb potentials are modified on output.
+    !----------------------------------------------------------------------------
+    type(DensityVector), intent(in)      :: R, dR
+    type(PotentialVector), intent(inout) :: F
+    integer, intent(in)                  :: sx, sy, sz
+
+    ! Initialize all of the arrays.
+    call setup_coulomb(F)
+    ! Solve Poissons equation for the charge density
+    call SolveCoulomb_worker(dR%chargedensity,                        &
+    &                        F%CoulombPotential, F%ExchangePotential, &
+    &                        sx, sy, sz)
+    ! NOTE: at this point F%ExchangePotential contains the formula 
+    !       of the Slater approximation applied to the perturbation
+    !       of the charge density; this of course makes no sense
+    !       and we correct it in the next call.
+    call calculate_linear_response_coulomb_exchange( &
+    &           R%chargedensity, dR%chargedensity, F%ExchangePotential)
+
+    ! Perform a folding of the potentials if needed
+    call Obtain_folded_potentials(F, sx, sy, sz)
+
+ end subroutine solve_coulomb_linear_response
+#endif 
 
  subroutine solve_coulomb_worker_real(chargedensity, CoulombPotential, ExchangePotential, &
  &                                    sx, sy, sz)
@@ -143,7 +186,7 @@ contains
     real(KIND=dp), allocatable, intent(inout) :: ExchangePotential(:,:,:)
     integer, intent(in)                       :: sx, sy, sz
 
-    call SolveCoulomb_solver(chargedensity, CoulombPotential, ExchangePotential,sx,sy,sz)
+    call coulomb_solver(chargedensity, CoulombPotential, ExchangePotential,sx,sy,sz)
 
  end subroutine solve_coulomb_worker_real
 
@@ -167,11 +210,9 @@ contains
     Re_EX = DBLE(ExchangePotential); Im_EX = IMAG(ExchangePotential)
 
     ! Solve the real part ...
-    print *, 'SOLVING REAL PART'
-    call SolveCoulomb_solver(Re_CD, Re_CP, Re_Ex, sx, sy, sz)
+    call coulomb_solver(Re_CD, Re_CP, Re_Ex, sx, sy, sz)
     ! ... and the imaginary part of the Coulomb equation
-    print *, 'SOLVING IMAGINARY PART'
-    call SolveCoulomb_solver(Im_CD, Im_CP, Im_Ex, sx, sy, sz)
+    call coulomb_solver(Im_CD, Im_CP, Im_Ex, sx, sy, sz)
 
     ! ... and sum the results
     CoulombPotential  = CMPLX(Re_CD, Im_CD)
@@ -179,7 +220,7 @@ contains
 
  end subroutine solve_coulomb_worker_complex
 
- subroutine SolveCoulomb_solver(chargedensity, CoulombPotential, ExchangePotential, &
+ subroutine coulomb_solver(chargedensity, CoulombPotential, ExchangePotential, &
  &                               sx, sy, sz)
     !----------------------------------------------------------------------------------------
     ! TODO: document this worker routine
@@ -270,24 +311,61 @@ $REDUZ  coul_offset_z = 0
     ! Solve for the direct coulomb potential
     ! Note that the symmetry properties (+1,+1,+1) are never changed:
     ! Hephaestos modifies directly the Coulomb_Laplacian routine when necessary
-    call ConjugGrad (CoulombPotential,Source, sx,sy,sz,1000,.false.,prec)
+    call conjug_grad (CoulombPotential,Source, sx,sy,sz,1000,.false.,prec)
 
-    if(Coultreatment.eq.1) then
-      !-------------------------------------------------------------------------
-      ! Exchange potential in Slater approximation
-      ExchangePotential =  &
-      &           -(3.0/pi)**(1.0/3.0_dp)*e2*(ChargeDensity**(1.0_dp/3.0_dp))
-    else
-      !-------------------------------------------------------------------------
-      ! No Coulomb Exchange
-      ExchangePotential = 0.0
-    endif
+    ! Calculate the exchange potential 
+    call calculate_coulomb_exchange_potential(Chargedensity, ExchangePotential)
 
     call stop_timer(T_coulomb)
     deallocate(source)
- end subroutine SolveCoulomb_solver
+ end subroutine coulomb_solver
 
- subroutine Obtain_folded_potentials(F, sx, sy, sz)
+ subroutine calculate_coulomb_exchange_potential(rho, Ep) 
+  !-----------------------------------------------------------------------------
+  ! This routine calculates the Coulomb exchange potential.
+  !
+  ! Input:
+  !    rho : the charge density
+  ! Output:
+  !    Ep  : the exchange potential
+  !-----------------------------------------------------------------------------
+  real(KIND=dp), intent(in)  :: rho(:,:,:)
+  real(KIND=dp), intent(out) :: Ep(:,:,:)
+
+  if(Coultreatment.eq.1) then
+    ! Exchange potential in Slater approximation
+    Ep = -(3.0/pi)**(1.0/3.0_dp)*e2*(rho**(1.0_dp/3.0_dp))
+  else
+    ! No Coulomb Exchange
+    Ep = 0.0
+  endif
+ end subroutine calculate_coulomb_exchange_potential
+
+#if($FAM == 1)
+ subroutine calculate_linear_response_coulomb_exchange(rho, drho, dEp) 
+  !-----------------------------------------------------------------------------
+  ! This routine calculates the linear response of the Coulomb exchange potential.
+  !
+  ! Input:
+  !    rho : the - unperturbed - charge density
+  !   drho : the perturbation to the charge density
+  ! Output:
+  !    Ep  : the linear response of the exchange potential
+  !-----------------------------------------------------------------------------
+  complex(KIND=dp), intent(in)  :: rho(:,:,:), drho(:,:,:)
+  complex(KIND=dp), intent(out) :: dEp(:,:,:)
+
+  if(Coultreatment.eq.1) then
+    ! Linear response of the exchange potential in Slater approximation
+    dEp = -(3.0/pi)**(1.0/3.0_dp)*e2* (1.0_dp/3.0_dp)* rho**(-2.0_dp/3.0_dp) * drho
+  else
+    ! No Coulomb Exchange
+    dEp = 0.0
+  endif
+ end subroutine calculate_linear_response_coulomb_exchange
+#endif 
+
+ subroutine obtain_folded_potentials(F, sx, sy, sz)
     !---------------------------------------------------------------------------
     ! Obtain the folded Coulomb potentials (direct and exchange) if needed.
     ! 
@@ -313,12 +391,9 @@ $REDUZ  coul_offset_z = 0
     iz = coul_offset_z + 1
     ez = coul_offset_z + nz
 
-    print *, 'FOLDING 1', allocated(gauss_x_proton), allocated(F%CoulombPotential)
     ! Obtain the folding of the direct Coulomb potential
     call fold_form_factor_reverse(F%CoulombPotential(ix:ex,iy:ey,iz:ez), &
     &                             F%FoldedCoul, nx, ny, nz, sx, sy, sz)
-
-    print *, 'FOLDING 2', allocated(F%foldedcoul)
 
     ! If necessary, also obtain the folding of the exchange potential
     if(coultreatment .eq. 1) then
@@ -331,9 +406,9 @@ $REDUZ  coul_offset_z = 0
       F%FoldedExchange = 0.0d0
     endif
 
- end subroutine Obtain_folded_potentials
+ end subroutine obtain_folded_potentials
 
- subroutine SetupCoulomb(F)
+ subroutine setup_coulomb(F)
     !---------------------------------------------------------------------------
     ! Initialize the entire module and the fields in the potentialvector
     !
@@ -402,7 +477,7 @@ $REDUZ  coul_offset_z = 0
     endif
 #endif
 
- end subroutine SetupCoulomb
+ end subroutine setup_coulomb
 
  subroutine coulomb_bound(source, sx, sy, sz, coulomb_potential)
     !-----------------------------------------------------------------------------
@@ -538,7 +613,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
           enddo
 
           Qlm = Qlm * dv/(2*l+1) ! volume element and normalisation
-          print *, 'Multipole moment in Coulomb', l, m, im, ' = ', Qlm, sx, sy, sz
+          !print *, 'Multipole moment in Coulomb', l, m, im, ' = ', Qlm, sx, sy, sz
 
           ! The prefactor +/-(2 - \delta_{m 0})
           fac = 1
@@ -575,13 +650,16 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     enddo
  end subroutine coulomb_bound
 
- function CoulombEnergy_direct(R, F) result(CEnergy)
+ function coulomb_energy_direct(R, F) result(CEnergy)
     !---------------------------------------------------------------------------
     ! Calculate the (direct) electrostatic energy of the system.
     !
     ! Input:
     !     R: Densityvector (which contains the charge density)
     !     F: Potentialvector (which contains the Coulomp potential)
+    !
+    ! Output:
+    !     CEnergy: the direct Coulomb energy of the nucleus
     !---------------------------------------------------------------------------
     use vectors
 
@@ -602,9 +680,9 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
         enddo
     enddo
     CEnergy = CEnergy * dv * 0.5_dp
- end function CoulombEnergy_Direct
+ end function coulomb_energy_direct
 
- function CoulombEnergy_Exchange(R) result(CEnergy)
+ function coulomb_energy_exchange(R) result(CEnergy)
     !---------------------------------------------------------------------------
     ! Calculate the (exchange) electrostatic energy of the system in the Slater
     ! approximation.
@@ -623,9 +701,9 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     factor  = -0.75_dp*(3/pi)**(1/3._dp)*e2*dv
     Cenergy = factor*sum(R%chargedensity**(4.0/3.0))
 
- end function CoulombEnergy_Exchange
+ end function coulomb_energy_exchange
 
- subroutine ConjugGrad (Solution,SourceTerm,sx,sy,sz,MaxIteration,iprint,Precis)
+ subroutine conjug_grad (Solution,SourceTerm,sx,sy,sz,MaxIteration,iprint,Precis)
     !---------------------------------------------------------------------------
     ! This subroutine solves the Coulomb problem. The technique is identical to
     ! the ones employed in EV8 and CR8 and is a straight-forward conjugate
@@ -725,7 +803,7 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     enddo
 
     return
-  end subroutine ConjugGrad
+  end subroutine conjug_grad
 
   function coulomb_laplacian(f, sx, sy, sz) result(lf)
     !---------------------------------------------------------------------------

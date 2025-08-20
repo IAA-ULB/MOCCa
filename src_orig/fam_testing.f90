@@ -5,7 +5,7 @@ module fam_testing
   !--------------------------------------------------------------------------------
   use densities
   use moments
-  use Coulombmod, only : SolveCoulomb
+  use Coulombmod, only : solve_coulomb
   use pairing,    only :  rho_can, pairingtype, rho_pairing, kappa_pairing
   use fission_MOI
   use functional
@@ -33,8 +33,8 @@ contains
 
     print 9
 
-  !     call test_sphamil_me(ifail)
-  !     print 1, 'SPHAMIL_ME', ifail
+    call test_sphamil_me(ifail)
+    print 1, 'SPHAMIL_ME', ifail
 
     call test_potentials(X,Y,ifail)
     print 1, 'potentials', ifail
@@ -169,6 +169,9 @@ contains
     R  = densit(rho_can, kappa_pairing)
     F = calcpotentials(R)
 
+    ! Important: apply_sphamil requires that the potentials in F are NOT combined!
+    !            don't call combine_potentials(F) here!
+
     allocate(sphamil_orig(nwt,nwt)); sphamil_orig = 0.0d0
     si = 0
     do B=1,8
@@ -199,7 +202,7 @@ contains
     call calc_perturbed_potentials(R, Rs, Ra, Fs, Fa)
     !- - - - - - - - - - - - - - - - -
     ! Convention for calc_sphamil_me !
-    call combine_potentials(F)
+    call combine_potentials(F) ! calc_sphamil_me expects the potentials to be combined !
     call combine_potentials(Fs)
     call combine_potentials(Fa)
     ! .... and feed the result into the spwf sandwhiches

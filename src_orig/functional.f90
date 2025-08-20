@@ -204,16 +204,6 @@ $DECLARATION
       !Overloading "*" to be used to multiply potential vectors with scalars
       module procedure multiply_potentialvector
    end interface
-   
-   interface pow
-      module procedure pow_real
-      module procedure pow_complex
-   end interface
-
-   interface lr_pow
-      module procedure lr_pow_real
-      module procedure lr_pow_complex
-   end interface
   
 contains
 
@@ -750,21 +740,21 @@ $NOTAU    endif
     endif
 
     ! Direct contribution of the Coulomb potential
-    CoulombDirect   = CoulombEnergy_Direct(Rin, Fin)
+    CoulombDirect   = coulomb_energy_direct(Rin, Fin)
     
     ! Exchange contribution
-    CoulombExchange = CoulombEnergy_Exchange(Rin) 
+    CoulombExchange = coulomb_energy_exchange(Rin) 
 
     if( all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0) ) then
       ! Direct contribution of the Coulomb potential
-      CoulombDirect   = CoulombEnergy_Direct(Rin,Fin)
+      CoulombDirect   = coulomb_energy_direct(Rin,Fin)
       ! Exchange contribution
-      CoulombExchange = CoulombEnergy_Exchange(Rin)
+      CoulombExchange = coulomb_energy_exchange(Rin)
     else
       ! Direct contribution of the Coulomb potential
-      CoulombDirect   = CoulombEnergy_Direct(Rin,Fin)
+      CoulombDirect   = coulomb_energy_direct(Rin,Fin)
       ! Exchange contribution
-      CoulombExchange = CoulombEnergy_Exchange(Rin)
+      CoulombExchange = coulomb_energy_exchange(Rin)
     endif
 
     call calcrigid(Rin)
@@ -1380,7 +1370,7 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     ! (2)  The Coulomb potential is part of the field-vector, and hence 
     !      gets calculated here as well. 
     !---------------------------------------------------------------------------
-    use Coulombmod, only : SolveCoulomb
+    use Coulombmod, only : solve_coulomb
     use Coulombmod, only : Coulomb_read_from_file
     use pairing_strengths, only : vmicro, vmicro_stored
     use moments
@@ -1405,14 +1395,14 @@ $CALCPOTENTIALS
     ! Calculate the Coulomb potentials
     !---------------------------------------------------------------------------
     if((.not. present(Fread)) .or. (.not. Coulomb_read_from_file)) then
-        print *, 'sxyz', sx_rho, sy_rho, sz_rho
-        call SolveCoulomb(R,F,sx_rho, sy_rho, sz_rho)
+        call solve_coulomb(R,F,sx_rho, sy_rho, sz_rho)
     endif
 
     call stop_timer(T_potentials)
 
   end function calcPotentials
-  
+
+#if($FAM == 1)
   subroutine calc_perturbed_potentials(R,dRs,dRa, dFs, dFa)
     !---------------------------------------------------------------------------
     ! Calculate the linearised response of the potentials (dFs, dFa) around
@@ -1441,7 +1431,7 @@ $CALCPOTENTIALS
     !   dFa : potential-vector containing the antisymmetric part of the linearised
     !         response of the mean-field potentials
     !---------------------------------------------------------------------------
-    use CoulombMod, only : SolveCoulomb
+    use CoulombMod, only : solve_coulomb_linear_response
 
     type (DensityVector), intent(in) :: R, dRs, dRa
     type (PotentialVector)           :: dFs, dFa
@@ -1449,23 +1439,23 @@ $CALCPOTENTIALS
     dFs  = calc_perturbed_potentials_oneoff(R,dRs)
     dFa  = calc_perturbed_potentials_oneoff(R,dRa)
 
-!     print *, 'MAXVAL Fs Re', maxval(DBLE(dFs%F_I_I))
-!     print *, 'MAXVAL Fs Im', maxval(IMAG(dFs%F_I_I))
-!     print *, 'MAXVAL Fa Re', maxval(DBLE(dFa%F_I_I))
-!     print *, 'MAXVAL Fa Im', maxval(IMAG(dFa%F_I_I))
+    !print *, 'SOLVING SYMMETRIC PART', sx_rho, sy_rho, sz_rho
+    call solve_coulomb_linear_response(R, dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)
+    !print *, 'SOLVING ANTISYMMETRIC PART'
+    call solve_coulomb_linear_response(R, dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)
 
-    print *, 'SOLVING SYMMETRIC PART', sx_rho, sy_rho, sz_rho
-    call SolveCoulomb(dRs,dFs,sx_rho        ,sy_rho        ,sz_rho)
-    print *, 'SOLVING ANTISYMMETRIC PART'
-    call SolveCoulomb(dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)
-
+    !print *, 'MAXVAL dRs Re', maxval(ABS(DBLE(dRs%chargedensity)))
+    !print *, 'MAXVAL dRs Im', maxval(ABS(AIMAG(dRs%chargedensity)))
+    !print *, 'MAXVAL dRa Re', maxval(ABS(DBLE(dRa%chargedensity)))
+    !print *, 'MAXVAL dRa Im', maxval(ABS(AIMAG(dRa%chargedensity)))
+    
     !print *, 'MAXVAL Fc Re', maxval(ABS(DBLE(dFs%CoulombPotential(:,:,:))))
-    !print *, 'MAXVAL Fc Im', maxval(ABS(IMAG(dFs%CoulombPotential(:,:,:))))
+    !print *, 'MAXVAL Fc Im', maxval(ABS(AIMAG(dFs%CoulombPotential(:,:,:))))
     !print *, 'MAXVAL Fa Re', maxval(ABS(DBLE(dFa%CoulombPotential(:,:,:))))
-    !print *, 'MAXVAL Fa Im', maxval(ABS(IMAG(dFa%CoulombPotential(:,:,:))))
+    !print *, 'MAXVAL Fa Im', maxval(ABS(AIMAG(dFa%CoulombPotential(:,:,:))))
 
   end subroutine calc_perturbed_potentials
-  
+
   function calc_perturbed_potentials_oneoff(R,R_pert) result (F)
     !---------------------------------------------------------------------------
     ! Calculate the perturbed potential vector (F) around a set of mean-field
@@ -1478,7 +1468,7 @@ $CALCPOTENTIALS
     !   F: potential-vector containing the linearised response of the mean-field
     !      potentials/
     !---------------------------------------------------------------------------
-    use Coulombmod       , only : SolveCoulomb
+    use Coulombmod       , only : solve_coulomb
     
     type (DensityVector), intent(in) :: R, R_pert
     type (PotentialVector)           :: F
@@ -1486,7 +1476,7 @@ $CALCPOTENTIALS
 $CALCPOTENTIALS_PERTURBED
     
   end function calc_perturbed_potentials_oneoff
-
+#endif 
   subroutine combine_potentials(F)
     !----------------------------------------------------------------------------
     ! This routine makes sure that the potential vector F is ready to be used
@@ -1666,6 +1656,7 @@ $POTENTIALPRECON
     pot = 0.0d0    
     if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
       &                             (.not. nucleonsize_selfconsistent)) then
+
       !------------------------------------------------------------------------
       ! Protons and neutrons are treated as point particles
       !------------------------------------------------------------------------
@@ -1765,73 +1756,6 @@ $POTENTIALPRECON
     endif
   
   end subroutine set_coul
-  
-  pure function pow_real(f,alpha) result(pf)
-    !---------------------------------------------------------------------------
-    ! Safely take powers of a REAL density f, avoiding the raising of negative 
-    ! numbers to powers that are 0 or negative. This is achieved by adding a 
-    ! small (positive value) to the density.
-    !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: f(mv), alpha
-    real(KIND=dp)             :: pf(mv)
-
-    if(alpha .lt. 0) then
-      pf = (f + eps)**(alpha)
-    else
-      pf = (f)**(alpha)
-    endif
-  end function pow_real
-
-  pure function pow_complex(f,alpha) result(pf)
-    !---------------------------------------------------------------------------
-    ! Take powers of a COMPLEX density.
-    !
-    ! No safeguard is necessary; complex exponentiation is well-defined; it
-    ! is maintained however to as closely replicate pow_real
-    !---------------------------------------------------------------------------
-    complex(KIND=dp), intent(in) :: f(mv)
-    real(KIND=dp), intent(in)    :: alpha
-    complex(KIND=dp)             :: pf(mv)
-
-    if(alpha .lt. 0) then
-      pf = (f + eps)**(alpha)
-    else
-      pf = (f)**(alpha)
-    endif
-  end function pow_complex
-
-  pure function lr_pow_real(f,df, alpha) result(pf)
-    !---------------------------------------------------------------------------
-    ! Safely calculate the linearisation of the power of a REAL density f, while
-    ! avoiding the raising of negative numbers to powers that are 0 or negative. T
-    ! This is achieved by adding a small (positive value) to the density.
-    !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in) :: f(mv), df(mv), alpha
-    real(KIND=dp)             :: pf(mv)
-
-    if((alpha-1) .lt. 0) then
-      pf = alpha * (f + eps)**(alpha - 1) * df
-    else
-      pf = alpha * (f)**(alpha-1)         * df
-    endif
-  end function lr_pow_real
-
-  pure function lr_pow_complex(f,df,alpha) result(pf)
-    !---------------------------------------------------------------------------
-    ! Safely calculate the linearisation of the power of a REAL density f, while
-    ! avoiding the raising of negative numbers to powers that are 0 or negative. T
-    ! This is achieved by adding a small (positive value) to the density.
-    !---------------------------------------------------------------------------
-    complex(KIND=dp), intent(in) :: f(mv), df(mv)
-    real(KIND=dp), intent(in) :: alpha
-    complex(KIND=dp)             :: pf(mv)
-
-    if((alpha-1) .lt. 0) then
-      pf = alpha * (f + eps)**(alpha - 1) * df
-    else
-      pf = alpha * (f)**(alpha-1)         * df
-    endif
-  end function lr_pow_complex
 
   function INM_k2_pot(rho) result(pot)
     !-----------------------------------------------------------------

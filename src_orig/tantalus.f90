@@ -391,7 +391,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         elseif(iter.eq.freezeiter) then
           ! Recalculate the Coulomb potential at the last iteration for 
           ! comparison purposes with other codes.
-          call solvecoulomb(Density, Potentials, sx_rho,sy_rho, sz_rho)
+          call solve_coulomb(Density, Potentials, sx_rho,sy_rho, sz_rho)
         endif
         !-----------------------------------------------------------------------
         ! Above: actual evolution of physical quantities
