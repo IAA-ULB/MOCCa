@@ -40,6 +40,9 @@ module IO
  ! 
  !  TR    : $TR
  ! NTR    : $NTR
+ !
+ ! FAM    : $FAM
+ ! MF     : $MF
  !==============================================================================
 
 use geninfo
@@ -176,7 +179,8 @@ contains
     call read_inertia(file_number)
     call readmomentdata(file_number)
     call readcranking(file_number)
-    call readfam(file_number)
+
+$FAM  call readfam(file_number)
 
     if(present(file_number)) then
       close(unit=file_number)
@@ -270,7 +274,7 @@ contains
     use wavefunctions
     use evolution
     use scfiteration
-    use fam, only : printfam
+$FAM    use fam, only : printfam
 
     integer*8, intent(in), optional     :: file_number
     character(11), intent(in), optional :: input_file 
@@ -394,7 +398,7 @@ contains
       call printpairing_init
       call printmoment_init
       call printcranking_init
-      call printfam
+$FAM      call printfam
       call printfunctional 
     endif    
 

@@ -9,9 +9,18 @@ from string          import Template
 from src_heph.heph_symmetries import symmetryencoding
 from src_heph.heph_functional import Densities_needed
 
-def ProcessIO(fname, src, target, so, oldso):
+def ProcessIO(fname, src, target, so, oldso, fam_active):
     """
-      
+    Preprocess the IO.f90 file.
+    
+    Input:
+      fname:       name of the file to be processed
+      src:         source directory of the file
+      target:      target directory of the file
+      so:          symmetry object for the current system
+      oldso:       symmetry object characterising a previous mf run
+      fam_active:  whether we are compiling a mean-field code (False)
+                   or a finite amplitude linear response code (True)
     """
     
     dic = {}
@@ -59,6 +68,13 @@ def ProcessIO(fname, src, target, so, oldso):
       dic['TAUSCALAR'] = ' '
       dic['TAUTENSOR'] = '!'
       
+    if(fam_active):
+      dic['FAM'] = '!'
+      dic['MF']  = ''
+    else:
+      dic['FAM'] = ''
+      dic['MF']  = '!'
+
     with open(src+fname, 'r') as template:
       with open(target+fname, 'w') as generated:
         for line in template:

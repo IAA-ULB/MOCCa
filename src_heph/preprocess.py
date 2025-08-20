@@ -113,7 +113,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='evolution.f90'):
         ProcessGeneric(fname, src, target, so)
     if(fname=='IO.f90'):
-        ProcessIO(fname, src, target, so, oldso)
+        ProcessIO(fname, src, target, so, oldso, fam_active)
     if(fname=='coulomb.f90'):
         ProcessCoulomb(fname, src, target, so)
     if(fname=='pairing.f90'):
