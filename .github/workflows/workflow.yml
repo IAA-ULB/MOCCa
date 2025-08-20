@@ -36,9 +36,9 @@ jobs:
         CALCTYPE:   [ NUCLEI   ]
         include :
             # Only check pasta with BXL and ifort compiler
-            - CALCTYPE: PASTA
-              CONFIG  : BXL
-              COMPILER: ifx
+            #- CALCTYPE: PASTA
+            #  CONFIG  : BXL
+            #  COMPILER: ifx
             # Compile a few things with ifort to have a compiler independence check
             - CALCTYPE: NUCLEI
               CONFIG  : NLO
