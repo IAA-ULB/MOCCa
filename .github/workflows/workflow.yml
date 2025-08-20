@@ -66,19 +66,13 @@ jobs:
         run: |
             mkdir src/
             cp src_orig/*.f90 src
-      # - name: Compile Tantalus
-      #   if: ${{ contains(github.ref, "master") }}
-      #   # The setvars.sh ensures that the intel compilers are available on the astropcs
-      #   run: |
-      #     source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-      #     make CONFIG=${{ matrix.CONFIG }} COMPILER=${{ matrix.COMPILER }} EXENAME=Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
       - name: Compile Tantalus
         # 1. The setvars.sh ensures that the intel compilers are available on the astropcs
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
           cp make_include/make.inc.${{ env.COMPFAM }}-serial make.inc
-          make CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+          make mf CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload compilation artifact
         # Upload the executable such that next steps can download them!
