@@ -23,7 +23,7 @@ on:
 jobs:
   compile:
     #------------------------------------------------------------------------------
-    # Compile many different executables for different
+    # Compile mean-field and FAM executables for different
     #   - CONFIG   = configuration file
     #   - COMPILER = different compiler
     #   - CALCTYPE = nuclei or pasta
@@ -35,6 +35,8 @@ jobs:
         COMPILER:   [ gfortran ]
         CALCTYPE:   [ NUCLEI   ]
         include :
+            # TODO: REACTIVATE PASTA TESTS
+            # ------------------
             # Only check pasta with BXL and ifort compiler
             #- CALCTYPE: PASTA
             #  CONFIG  : BXL
@@ -66,20 +68,26 @@ jobs:
         run: |
             mkdir src/
             cp src_orig/*.f90 src
-      - name: Compile Tantalus
+      - name: Compile mf and fam executables
         # 1. The setvars.sh ensures that the intel compilers are available on the astropcs
         # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
           cp make_include/make.inc.${{ env.COMPFAM }}-serial make.inc
-          make mf CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+          make mf  CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+          make fam CONFIG=${{ matrix.CONFIG }} EXENAME=fam.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
-      - name: Upload compilation artifact
-        # Upload the executable such that next steps can download them!
+      - name: Upload mean-field executable
         uses: actions/upload-artifact@v4
         with:
-          name: exec-${{ env.SUFFIX }}
+          name: Tantalus.${{ env.SUFFIX }}
           path: exec/Tantalus.${{ env.SUFFIX }}.exe
+          retention-days: 2
+      - name: Upload FAM executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: fam.${{ env.SUFFIX }}
+          path: exec/fam.${{ env.SUFFIX }}.exe
           retention-days: 2
   minimal:
     #-----------------------------------------------------------------------------
@@ -96,7 +104,7 @@ jobs:
       - uses: actions/download-artifact@v4
         # Start by downloading the relevant executable
         with:
-          name: exec-${{ env.SUFFIX }}
+          name: Tantalus.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
@@ -134,11 +142,11 @@ jobs:
       # Start by downloading the relevant executable
       - uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.SUFFIX }}.NUCLEI
+          name: Tantalus.${{ env.SUFFIX }}.NUCLEI
           path: exec/
       - uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.SUFFIX }}.PASTA
+          name: Tantalus.${{ env.SUFFIX }}.PASTA
           path: exec/
 
       - name: Make executeable
@@ -187,7 +195,7 @@ jobs:
       - uses: actions/download-artifact@v4
         # Download the executable
         with:
-          name: exec-${{ env.SUFFIX }}
+          name: Tantalus.${{ env.SUFFIX }}
           path: exec/
 
       - name: Make executeable
@@ -233,19 +241,19 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.EXEC }}
+          name: Tantalus.${{ env.EXEC }}
           path: exec/
       - uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.EXEC_P }}
+          name: Tantalus.${{ env.EXEC_P }}
           path: exec/
       - uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.EXEC_T }}
+          name: Tantalus.${{ env.EXEC_T }}
           path: exec/
       - uses: actions/download-artifact@v4
         with:
-          name: exec-${{ env.EXEC_TP }}
+          name: Tantalus.${{ env.EXEC_TP }}
           path: exec/
 
       - name: Make executeable
