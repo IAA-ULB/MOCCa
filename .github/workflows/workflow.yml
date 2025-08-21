@@ -75,7 +75,7 @@ jobs:
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
           cp make_include/make.inc.${{ env.COMPFAM }}-serial make.inc
           make mf  CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
-          make fam CONFIG=${{ matrix.CONFIG }} EXENAME=fam.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+          make fam CONFIG=${{ matrix.CONFIG }} FAMNAME=fam.${{env.SUFFIX}}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload mean-field executable
         uses: actions/upload-artifact@v4

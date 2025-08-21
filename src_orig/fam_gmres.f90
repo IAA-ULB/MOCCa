@@ -1,6 +1,6 @@
 module gmres
 
-  use evolution
+   use geninfo, only : dp
 
   implicit none
 

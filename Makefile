@@ -74,9 +74,9 @@
 # LINEAR_ALGEBRA_LIB : linking statements for (Sca)LAPACK and BLAS
 #
 #
-# There is one specific option that is not set in the example make.inc files,
-# which is EXENAME. That allows you to override the default naming scheme of
-# the executables.
+# There is are two specific options that are not set in the example make.inc 
+# files, EXENAME and FAMNAME. These allow you to override the default naming 
+# scheme of the executables.
 #-------------------------------------------------------------------------------
 # Acknowledgment:
 #   the organisation of this Makefile as well as a bunch of options are
