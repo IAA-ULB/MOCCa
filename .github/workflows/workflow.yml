@@ -16,6 +16,7 @@ on:
     branches:
       - master
       - difficult_merge
+      - compilation_adaptation
   pull_request:
     branches:
       - master
