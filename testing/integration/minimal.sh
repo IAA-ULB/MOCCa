@@ -12,7 +12,10 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
-#   bash minimal.sh [no options]
+#   bash minimal.sh [EXESUFFIX]
+#
+# where EXESUFFIX specifies the  suffix of the executable to be used
+#            Example: "BXL" for "Tantalus.BXL.exe".
 #
 # Dependencies: none
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

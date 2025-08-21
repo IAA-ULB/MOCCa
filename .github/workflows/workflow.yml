@@ -9,11 +9,13 @@
 #
 #-------------------------------------------------------------------------------
 name: Tantalus CI/CD Workflow
-#TODO: fix pasta and ifort compilation
+#TODO:
+# [ ] reenable tests with HFB for the master branch
 on:
   push:
     branches:
       - master
+      - compilation_adaptation
   pull_request:
     branches:
       - master
@@ -43,6 +45,12 @@ jobs:
     env:
       # Uniquely labelling the executables with this environment variable
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
+      # Compiler family
+      COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
+
+      # There is not yet any intel HDF5 on astropc19, but enable it 
+      #   by default for gfortran
+      HDF5SUFFIX: ${{ matrix.COMPILER == 'gfortran' && '-hdf5'|| '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -59,10 +67,12 @@ jobs:
             mkdir src/
             cp src_orig/*.f90 src
       - name: Compile Tantalus
-        # The setvers.sh ensures that the intel compilers are available on the astropcs
+        # 1. The setvars.sh ensures that the intel compilers are available on the astropcs
+        # 2. The copy command ensures the right compilation options
         run: |
           source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-          make CONFIG=${{ matrix.CONFIG }} COMPILER=${{ matrix.COMPILER }} EXENAME=Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+          cp make_include/make.inc.${{ env.COMPFAM }}-serial${{ env.HDF5SUFFIX }} make.inc
+          make CONFIG=${{ matrix.CONFIG }} EXENAME=Tantalus.${{ env.SUFFIX }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
 
       - name: Upload compilation artifact
         # Upload the executable such that next steps can download them!
