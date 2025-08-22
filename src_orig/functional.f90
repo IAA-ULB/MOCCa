@@ -740,22 +740,9 @@ $NOTAU    endif
     endif
 
     ! Direct contribution of the Coulomb potential
-    CoulombDirect   = coulomb_energy_direct(Rin, Fin)
-    
+    CoulombDirect   = coulomb_energy_direct(Rin, Fin)   
     ! Exchange contribution
     CoulombExchange = coulomb_energy_exchange(Rin) 
-
-    if( all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0) ) then
-      ! Direct contribution of the Coulomb potential
-      CoulombDirect   = coulomb_energy_direct(Rin,Fin)
-      ! Exchange contribution
-      CoulombExchange = coulomb_energy_exchange(Rin)
-    else
-      ! Direct contribution of the Coulomb potential
-      CoulombDirect   = coulomb_energy_direct(Rin,Fin)
-      ! Exchange contribution
-      CoulombExchange = coulomb_energy_exchange(Rin)
-    endif
 
     call calcrigid(Rin)
     if(calc_expensive) then

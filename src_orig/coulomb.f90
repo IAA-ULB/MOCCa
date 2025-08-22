@@ -34,10 +34,10 @@ module Coulombmod
  !   (2) => Only direct
  !==============================================================================
 
- use geninfo
- use densities
- use parameterization
- use timing
+ use geninfo, only: nx, ny, nz, dx, dp, stp
+ use densities, only: densityvector, potentialvector
+ use parameterization, only: dp, e2, pi, dv, coulorder, coultreatment
+ use timing, only : start_timer, stop_timer, T_coulomb
 
  implicit none
 
@@ -94,7 +94,7 @@ module Coulombmod
  & -14350.0_dp/8064.0_dp, 1.0_dp, -1008.0_dp/8064.0_dp, 128.0_dp/8064.0_dp, &
  & -9.0_dp/8064.0_dp /)
 
- interface SolveCoulomb_worker
+ interface solve_coulomb_worker
   module procedure solve_coulomb_worker_real
   module procedure solve_coulomb_worker_complex
  end interface
@@ -125,7 +125,7 @@ contains
     ! Initialize all of the arrays.
     call setup_coulomb(F)
     ! Solve Poissons equation for the charge density
-    call SolveCoulomb_worker(R%chargedensity,                         &
+    call solve_coulomb_worker(R%chargedensity,                         &
     &                        F%CoulombPotential, F%ExchangePotential, &
     &                        sx, sy, sz)
     ! Perform a folding of the potentials if needed
@@ -159,7 +159,7 @@ contains
     ! Initialize all of the arrays.
     call setup_coulomb(F)
     ! Solve Poissons equation for the charge density
-    call SolveCoulomb_worker(dR%chargedensity,                        &
+    call solve_coulomb_worker(dR%chargedensity,                        &
     &                        F%CoulombPotential, F%ExchangePotential, &
     &                        sx, sy, sz)
     ! NOTE: at this point F%ExchangePotential contains the formula 
@@ -215,7 +215,7 @@ contains
     call coulomb_solver(Im_CD, Im_CP, Im_Ex, sx, sy, sz)
 
     ! ... and sum the results
-    CoulombPotential  = CMPLX(Re_CD, Im_CD)
+    CoulombPotential  = CMPLX(Re_CP, Im_CP)
     ExchangePotential = CMPLX(Re_EX, Im_EX)
 
  end subroutine solve_coulomb_worker_complex
@@ -415,11 +415,10 @@ $REDUZ  coul_offset_z = 0
     ! Input:
     !    F : potentialvector to be initialized
     !---------------------------------------------------------------------------
+    use geninfo,            only: inimesh
     use sphericalharmonics, only: generate_spherical_harmonics
     use moments,            only: QuantisationAxis, SecondaryAxis
     use densities,          only: sx_rho, sy_rho, sz_rho
-    use folding
-    use vectors
 
     type(PotentialVector), intent(inout) :: F
     integer       :: i,j,k, ox, oy, oz
@@ -441,11 +440,11 @@ $REDUZ  coul_offset_z = 0
     ! Allocate the CoulombPotential array on the full Coulomb mesh
     if(.not.allocated(F%CoulombPotential)) then
       allocate(F%CoulombPotential(ox,oy,oz))
-      F%CoulombPotential = 0.0_dp
       ! The exchange potential is only defined on the original mesh
       allocate(F%ExchangePotential(nx,ny,nz))
-      F%ExchangePotential = 0.0_dp
     endif
+    F%CoulombPotential = 0.0_dp
+    F%ExchangePotential = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
     Prec = 1.d-12/(dx**3)
@@ -539,8 +538,6 @@ $REDUZ  coul_offset_z = 0
     ! Output:
     !   coulomb_potential : the potential with boundary conditions applied.
     !---------------------------------------------------------------------------
-    use folding
-    use vectors
     use sphericalharmonics, only : generate_spherical_harmonics
     use moments,            only : QuantisationAxis, SecondaryAxis
     use moments,            only : figure_out_multipole_moments
@@ -656,12 +653,11 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     !
     ! Input:
     !     R: Densityvector (which contains the charge density)
-    !     F: Potentialvector (which contains the Coulomp potential)
+    !     F: Potentialvector (which contains the Coulomb potential)
     !
     ! Output:
     !     CEnergy: the direct Coulomb energy of the nucleus
     !---------------------------------------------------------------------------
-    use vectors
 
     type(DensityVector), intent(in)   :: R
     type(PotentialVector), intent(in) :: F
@@ -690,7 +686,6 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     ! Input:
     !    R :  a set of mean-field densities
     !---------------------------------------------------------------------------
-    use vectors
 
     type(DensityVector), intent(in) ::R
     real(KIND=dp) :: factor, Cenergy
