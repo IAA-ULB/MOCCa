@@ -383,7 +383,7 @@ contains
 !     type(DensityVector), intent(in) :: RUnper, dRs, dRa
 !     real(KIND=dp), intent(in)       :: eta     ! small finite diff. parameter
 !     type(PotentialVector)           :: Fs, Fa
-!     real(KIND=dp), allocatable      :: HPert(:,:)
+!     complex(KIND=dp), allocatable      :: HPert(:,:)
 !
 !     print *, "build perturbed Hamiltonian using finite difference"
 !
@@ -419,9 +419,9 @@ contains
     !---------------------------------------------------------------------------
 
     implicit none
-    integer, parameter :: n = 3
+    integer, parameter :: n = 6
     complex(KIND=dp), dimension(n, n) :: A, Atmp
-    complex(KIND=dp), dimension(n) :: b, x_explicit, x_choral, x_gmres
+    complex(KIND=dp), dimension(n) :: b, x_explicit, x_choral
     integer :: i, info, iter, nbprod
     integer, dimension(n) :: ipiv
     real(KIND=dp) :: res
@@ -430,9 +430,23 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Define the matrix A
-    A = reshape([ (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), (0.0_dp, 0.0_dp), &
-                (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), &
-                (0.0_dp, 0.0_dp), (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp) ], [n, n])
+    A = reshape([ &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    ], [n, n])
+
+    ! A = reshape([ &
+    ! dcmplx( 3.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 1.0_dp, 0.0_dp), dcmplx( 2.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 4.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 5.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 6.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 7.0_dp, 0.0_dp)  &
+    ! ], [n, n])
 
     ! A = reshape([ (3.0_dp, 0.0_dp), (-1.0_dp, 0.0_dp), (0.0_dp, 0.0_dp), &
     !             (-1.0_dp, 0.0_dp), (3.0_dp, 0.0_dp), (-1.0_dp, 0.0_dp), &
@@ -440,10 +454,16 @@ contains
 
     Atmp = A
 
-    b = [ (1.0_dp, 0.0_dp), (0.0_dp, 1.0_dp), (0.0_dp, 0.0_dp) ]
+    b = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp)]
 
-    print * , "A : ", A
-    print * , "b : ", b
+    print * , "A : "
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  A(:,i)
+    enddo
+    print * , "b : "
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  b(i)
+    enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Compute the explicit solution x = A^{-1} * b
@@ -457,7 +477,9 @@ contains
 
     ! Print the results
     print *, "Explicit solution:"
-    print *, x_explicit
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_explicit(i)
+    enddo
     print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_explicit)) ** 2 ))
 
 
@@ -466,26 +488,36 @@ contains
     ! Call the choral GMRES routine to solve Ax = b iteratively
 
     x_choral = b ! initial guess
-    call do_gmres(x_choral, iter, nbprod, res, b, multiply_by_A, norm_2, ScalProd, 1e-6_dp, 100, 10, 3)
+    call do_gmres_choral(x_choral, iter, nbprod, res, b, multiply_by_A, norm_2, ScalProd, 1e-5_dp, 1, 5, 3)
     
 
     print *, "GMRES choral solution:"
-    print *, x_choral
-    print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_gmres)) ** 2 ))
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_choral(i)
+    enddo
+    print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_choral)) ** 2 ))
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Test my GMRES routine to solve Ax = b iteratively
 
-    call alloc_gmres(100, 3, 1e-6_dp, n, multiply_by_A, norm_2, ScalProd)
+    call alloc_gmres(multiply_by_A, b, 100, 6, 1e-6_dp, n, norm_2, ScalProd)
 
-    call init_gmres(b, res)
+    call init_gmres(b)
 
     call iterate_gmres()
     call iterate_gmres()
     call iterate_gmres()
-    
+    call iterate_gmres()
+    call iterate_gmres()
+    call iterate_gmres()
+
     print *, "my GMRES solution:"
-    print *, res
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_gmres(i)
+    enddo
+    print *, 'res : ', gmres_res
+    print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_gmres)) ** 2 ))
+
 
 
   end subroutine test_gmres
@@ -495,15 +527,29 @@ contains
     implicit none
     complex(KIND=dp), dimension(:), target, intent(in)   :: x_in
     complex(KIND=dp), dimension(:), target, intent(out)  :: x_out
-    integer, parameter :: n = 3
-    real(KIND=dp), dimension(n, n) :: A
+    integer, parameter :: n = 6
+    complex(KIND=dp), dimension(n, n) :: A
     integer :: i
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Define the matrix A
-    A = reshape([ (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), (0.0_dp, 0.0_dp), &
-                (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), &
-                (0.0_dp, 0.0_dp), (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp) ], [n, n])
+    A = reshape([ &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    ], [n,n])
+
+    ! A = reshape([ &
+    ! dcmplx( 3.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 1.0_dp, 0.0_dp), dcmplx( 2.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 4.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 5.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 6.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 7.0_dp, 0.0_dp)  &
+    ! ], [n, n])
 
 
     x_out = matmul(A, x_in)
@@ -519,13 +565,14 @@ contains
   end function
 
   function ScalProd(vec_l, vec_r) result(res)
-    ! abstract template procedure (dH,dH) -> complex required for procedural argument to gmres
-    ! to be updated to the objects of the dimensions of the perturbed
-    ! sp hamiltonian dh and ddelta (in HF basis)
+    ! Innner product on complex vector space.
+    ! NOTE : we follow the maths convention where the inner product is linear 
+    !        in the first component, while the typical physics convention assumes 
+    !        linearity in the second component. 
     complex(KIND=dp), dimension(:), intent(in)  :: vec_l, vec_r
     complex(KIND=dp)                            :: res
 
-    res = sum(conjg(vec_l(:)) * vec_r(:))
+    res = sum(vec_l(:) * conjg(vec_r(:)) )
 
   end function
 

@@ -109,8 +109,8 @@ program run_FAM
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
 
-  ! call test_gmres()
-  ! stop
+  call test_gmres()
+  stop
 
 
   !---------------------------------------------------------------------------------
@@ -245,7 +245,7 @@ program run_FAM
 
 
     !---------------------------------------------------------------------------------
-    ! via GMRES on implicit matrix*vector procedure iterate_dHsp()
+    ! via GMRES on implicit matrix*vector procedure one_minus_T()
     !---------------------------------------------------------------------------------
 
     ! call inifam(omega_curr, Density, Potentials)
@@ -258,7 +258,7 @@ program run_FAM
 
     ! dH_flat = dH_flat_next ! set initial guess to b
 
-    ! call do_gmres(dH_flat, iteration, nbprod, res, dH_flat_next, iterate_dHsp, &
+    ! call do_gmres_choral(dH_flat, iteration, nbprod, res, dH_flat_next, iterate_dHsp, &
     !   & norm_dH, ScProd_dH, 1.0e-8_dp, 1000, 100, 3)
 
     ! call test_convergence(is_converged, is_divergent)
