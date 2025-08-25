@@ -17,16 +17,22 @@ module densities
 !=============================================================================== 
 ! Hephaestos keywords
 !
-! DECLARATION        : [WAY too long to include here]
-! INITIALIZATION     : [WAY too long to include here]
-! ZEROING            : [WAY too long to include here]
-! EXPRESSION         : [WAY too long to include here]
-! EXPRESSION_OFFDIAG : [WAY too long to include here]
-! BCSEXPRESSION      : [WAY too long to include here]
-! HFBEXPRESSION      : [WAY too long to include here]
-! DERIVATION         : [WAY too long to include here]
-! ISOSPINCOUPL       : [WAY too long to include here]
-! MPIDEN             : [WAY too long to include here]
+! DECLARATION                      : [WAY too long to include here]
+! INITIALIZATION                   : [WAY too long to include here]
+! ZEROING                          : [WAY too long to include here]
+! 
+! EXPRESSION                       : [WAY too long to include here]
+! EXPRESSION_OFFDIAG_SYMMETRIC     : [WAY too long to include here]
+! EXPRESSION_OFFDIAG_ANTISYMMETRIC : [WAY too long to include here]
+! 
+! BCSEXPRESSION                    : [WAY too long to include here]
+! HFBEXPRESSION                    : [WAY too long to include here]
+! DERIVATION                       : [WAY too long to include here]
+!
+! ISOSPINCOUPL                     : [WAY too long to include here]
+! ISOSPINCOUPL_SYMMETRIC           : [WAY too long to include here]
+! ISOSPINCOUPL_ANTISYMMETRIC       : [WAY too long to include here]
+! MPIDEN                           : [WAY too long to include here]
 !
 ! TR              : $TR
 ! NTR             : $NTR 
@@ -813,6 +819,7 @@ $ZEROING
           ! The summation weights for particle-hole densities
           weight_sym = 0.5d0*( &
           &      rho(wave_global_i, wave_global_j) + rho(wave_global_j, wave_global_i))
+$TR       weight_sym = 2 * weight_sym ! <------ factor two for time-reversal symmetry
 
           do i=1,mv
 $EXPRESSION_OFFDIAG_SYMMETRIC
@@ -833,7 +840,7 @@ $DERIVATION_OFFDIAG_SYMMETRIC
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculate the densities in isospin representation
-$ISOSPINCOUPL
+$ISOSPINCOUPL_SYMMETRIC
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
@@ -913,14 +920,10 @@ $ZEROING
           ! The summation weights for particle-hole densities
           weight_asym = 0.5d0*( &
           &      rho(wave_global_i, wave_global_j) - rho(wave_global_j, wave_global_i))
+$TR       weight_asym = 2 * weight_asym ! <------ factor two for time-reversal symmetry 
 
           do i=1,mv
 $EXPRESSION_OFFDIAG_ANTISYMMETRIC
-
-
-!         if( i.eq.1) then
-!               print ('(a6, 3i3, 99es16.8)'), 'weight', B, wave_global_i, wave_global_j, weight_asym, D_I_I,  weight_asym* D_I_I
-!         endif
           enddo
         enddo
       enddo
@@ -938,7 +941,7 @@ $DERIVATION_OFFDIAG_ANTISYMMETRIC
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculate the densities in isospin representation
-$ISOSPINCOUPL
+$ISOSPINCOUPL_ANTISYMMETRIC
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
@@ -1059,9 +1062,6 @@ $SPWF_DECLARATION
       else
         it = 1
       endif
-      !---------------------------------------------------------------------------
-      ! Reduced mass in case of self-consistent 1-body COM correction
-      ! If doing pasta calculations, just skip.
 
       do wave_j=si+1,si+N  ! Note: no assumption of hermeticity here!
         do wave_i=si+1,si+N

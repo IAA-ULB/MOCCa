@@ -82,7 +82,7 @@ vmicro_found          = False # Whether or not this functional file will
 #-------------------------------------------------------------------------------
 #assume_locality = 0
 
-def initfunctional(fname, so, density_spwf_summation):
+def initfunctional(fname, so, density_spwf_summation, fam_active):
     """
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       Initialize everything relevant about this module
@@ -111,7 +111,7 @@ def initfunctional(fname, so, density_spwf_summation):
     #---------------------------------------------------------------------------
     # Check if time-reversal (or time-parity) is conserved
     if(so.timelike):
-      RemoveTimeOddTerms()
+      RemoveTimeOddTerms(fam_active)
       
     #---------------------------------------------------------------------------
     # Reorder terms, such that everything which is "grouped" by structure 
@@ -515,17 +515,25 @@ def ReadFunctional(fname):
 
   return description  
 
-def RemoveTimeOddTerms():
+def RemoveTimeOddTerms(fam_active):
     """
-    We remove all terms that contain time-odd densities. 
+      We remove all terms from the EDF specification that contain
+      time-odd densities IF we are targetting a mean-field code.
+
+      IF targetting a FAM executable, we keep ALL terms.
+
+      Input:
+      ------
+        fam_active : if True, keep all terms.
     """
     global Functional_terms, coupling_constants, density_dependence
     global density_dependence, isospin_indices, extra_calls
     
 
     toremove = []
-    for i,term in enumerate(Functional_terms):
-      (densities,coup) = ParseDensities(term)      
+    if(not fam_active):
+     for i,term in enumerate(Functional_terms):
+      (densities,coup) = ParseDensities(term)
 
       timeodd= False
       totalt = +1

@@ -253,12 +253,15 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
     Derivation_offdiag_symmetric     = ''
     Derivation_offdiag_antisymmetric = ''
 
+    Isospincoupl                     = ''
+    Isospincoupl_symmetric           = ''
+    Isospincoupl_antisymmetric       = ''
+
     Expression_sph_sym     = ''
     Expression_sph_antisym = ''
     BCSExpression          = ''
     HFBExpression          = ''
 
-    Isospincoupl     = ''
     Zeroing          = ''
     Cleaning         = ''
     MPI_REDUCE       = ''
@@ -295,26 +298,42 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
                           'wave'     ,'wave',                                          \
                           'der_index', 'der_index',so, fam_active,                     \
                            density_spwf_summation)
-      print ('LOL', fam_active, dec)
+
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # "Off-diagonal" summation of densities in the HF-basis
       # (a) symmetric part
-      off_diag_tuple  = \
-      GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j'     , 'wave_i',                                   \
-                            'der_index_j', 'der_index_i',so,fam_active,density_spwf_summation,
-                             complex_component=+1,weight='weight_sym', silent=True)
-      e_off_sym = off_diag_tuple[0]
-      der_sym   = off_diag_tuple[4]
+      if(so.timelike and TimeDen(Densities_needed[i]) == 1):
+        # Symmetric parts of the perturbation of time-even mean-field densities are time-even
+        # Symmetric parts of the perturbation of time-odd  mean-field densities are time-odd
+        off_diag_tuple  = \
+        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+                                'wave_j'     , 'wave_i',                                   \
+                                'der_index_j', 'der_index_i',so,fam_active,density_spwf_summation,
+                                complex_component=+1,weight='weight_sym', silent=True)
+        e_off_sym   = off_diag_tuple[0]
+        der_sym     = off_diag_tuple[4]
+        iso_off_sym = off_diag_tuple[5]
+      else:
+        e_off_sym   = ''
+        der_sym     = ''
+        iso_off_sym = ''
 
       # (b) antisymmetric part
-      off_diag_tuple  = \
-      GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+      if(so.timelike and TimeDen(Densities_needed[i])==-1):
+        # Antisymmetric parts of the perturbation of time-even mean-field densities are time-odd
+        # Antisymmetric parts of the perturbation of time-odd  mean-field densities are time-even
+        off_diag_tuple  = \
+        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j'     , 'wave_i',                                   \
                             'der_index_j', 'der_index_i',so,fam_active,density_spwf_summation,
                              complex_component=-1,weight='weight_asym', silent=True)
-      e_off_asym = off_diag_tuple[0]
-      der_asym   = off_diag_tuple[4]
+        e_off_asym   = off_diag_tuple[0]
+        der_asym     = off_diag_tuple[4]
+        iso_off_asym = off_diag_tuple[5]
+      else:
+        e_off_asym   = ''
+        der_asym     = ''
+        iso_off_asym = ''
 
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # Expressions required to evaluate the matrix elements of the single-particle
@@ -322,50 +341,47 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
       e_sph_sym     = ''
       e_sph_antisym = ''
       (t,t,left,right,t,t) = ParseOperators(Densities_needed[i], so.timelike)
-      # TODO: write documentation!
+      # TODO:  - [ ] write documentation!
+      #        - [X] refactor this thing with loops
+      #        - [ ] add if statements for time-reversal necessities?
       if(left != right):
         # Explicit symmetrisation is required
-        sph_tuple = \
-        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
-                             complex_component=+1, weight='potential', symmetrize=+1, silent=True)
-        e_sph_sym += sph_tuple[0]
-
-        sph_tuple = \
-        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
-                             complex_component=-1, weight='potential', symmetrize=+1, silent=True)
-        e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
-
-
-        sph_tuple = \
-        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
-                             complex_component=+1, weight='potential', symmetrize=-1, silent=True)
-        e_sph_sym += sph_tuple[0] # we only need the calculation of this density
-        sph_tuple = \
-        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
-                             complex_component=-1, weight='potential', symmetrize=-1, silent=True)
-        e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
+        for symsign in [-1,+1]:
+            if(so.timelike and TimeDen(Densities_needed[i]) == 1):
+                # Symmetric parts of the perturbation of time-even mean-field densities are time-even
+                # Symmetric parts of the perturbation of time-odd  mean-field densities are time-odd
+                sph_tuple = \
+                GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+                                    'wave_j', 'wave_i',                                     \
+                                    'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
+                                    complex_component=+1, weight='potential', symmetrize=symsign, silent=True)
+                e_sph_sym += sph_tuple[0]
+            
+            elif(so.timelike and TimeDen(Densities_needed[i])==-1):
+                # Antisymmetric parts of the perturbation of time-even mean-field densities are time-odd
+                # Antisymmetric parts of the perturbation of time-odd  mean-field densities are time-even
+                sph_tuple = \
+                GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+                                    'wave_j', 'wave_i',                                     \
+                                    'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
+                                    complex_component=-1, weight='potential', symmetrize=symsign, silent=True)
+                e_sph_antisym += sph_tuple[0]       
       else:
         # No explicit symmetrisation needed
-        sph_tuple = \
-        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
-                             complex_component=+1, weight='potential', symmetrize=0, silent=True)
-        e_sph_sym += sph_tuple[0] # we only need the calculation of this density
-        sph_tuple = \
-        GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
-                             complex_component=-1, weight='potential', symmetrize=0, silent=True)
-        e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
+        if(so.timelike and TimeDen(Densities_needed[i]) == 1):
+            sph_tuple = \
+            GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+                                'wave_j', 'wave_i',                                     \
+                                'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
+                                complex_component=+1, weight='potential', symmetrize=0, silent=True)
+            e_sph_sym += sph_tuple[0]
+        elif(so.timelike and TimeDen(Densities_needed[i])==-1):
+            sph_tuple = \
+            GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
+                                'wave_j', 'wave_i',                                     \
+                                'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
+                                complex_component=-1, weight='potential', symmetrize=0, silent=True)
+            e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 
       if( not intermediate_status[i]):
@@ -398,7 +414,11 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
 
       if( not intermediate_status[i]):
         Initialisation = Initialisation + '\n' + ini
-        Isospincoupl   = Isospincoupl          + isoi
+
+        Isospincoupl                 = Isospincoupl          + isoi
+        Isospincoupl_symmetric       = Isospincoupl_symmetric          + iso_off_sym
+        Isospincoupl_antisymmetric   = Isospincoupl_antisymmetric      + iso_off_asym
+
         MPI_REDUCE     = MPI_REDUCE     + '\n' + mpii
         Zeroing        = Zeroing        +        zeroi
         Cleaning       = Cleaning       + '\n' + cleani
@@ -419,6 +439,10 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
     dic['EXPRESSION'        ] = Expression                                      # single summation for mean-field calculations
     dic['EXPRESSION_OFFDIAG_SYMMETRIC']  = Expression_offdiag_symmetric         # double summation for symmetric part of more general densities
     dic['EXPRESSION_OFFDIAG_ANTISYMMETRIC'] = Expression_offdiag_antisymmetric  # double summation for symmetric part of more general densities
+
+    dic['ISOSPINCOUPL'              ] = Isospincoupl
+    dic['ISOSPINCOUPL_SYMMETRIC'    ] = Isospincoupl_symmetric
+    dic['ISOSPINCOUPL_ANTISYMMETRIC'] = Isospincoupl_antisymmetric
 
     dic['EXPRESSION_SPH_SYM']     = Expression_sph_sym         # expression for the density-like calculation of the matrix elements of sph
     dic['EXPRESSION_SPH_ANTISYM'] = Expression_sph_antisym     # expression for the density-like calculation of the matrix elements of sph
@@ -443,7 +467,6 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
 
     dic['ZEROING'         ] = Zeroing
     dic['CLEANING'        ] = Cleaning
-    dic['ISOSPINCOUPL'    ] = Isospincoupl
     dic['MPIDEN']           = MPI_REDUCE
     dic['ADD'             ] = Add
     dic['MULTIPLY'        ] = Multiply
@@ -1132,7 +1155,6 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
                 Expression = Expression + ta.Den_sum_real.substitute(dic)    + '\n\n'
           else:
             if(symmetrize == -1 and ('C' in denin)): # dirty hack!
-                print ("SETTING MINUS SIGN", denin)
                 mult = '(-0.5d0) *'
             elif(symmetrize == +1 or symmetrize == -1):
                 mult = '(+0.5d0) *'
@@ -1801,8 +1823,14 @@ def AxisReflection(LO, RO, larg, rarg, so, pairing, nabla_arg = []):
 #===============================================================================
 def TimeDen(density):
     """
-      Obtain the behavior under time-reversal of the density
-    """    
+      Obtain the behavior under time-reversal of the density.
+
+      Input:
+        density: a string representing a local density
+      Output:
+        T      : +1 if the density is time-even
+                 -1 is the density is time-odd
+    """
     # I don't pass in the symmetry option, as an extra T cannot affect the 
     # end result
     (x, y, left, right, coupling, cross) = ParseOperators(density, False)

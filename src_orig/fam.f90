@@ -122,10 +122,14 @@ module fam
   
 
   subroutine inifam(omega, DensUnper, PotUnper)
-    implicit none
     !---------------------------------------------------------------------------
     ! Allocate the FAM objects, set the external field F and initialise the X
     ! and Y from first order, i.e. dH=0. 
+    !
+    ! Input:
+    !    omega      : frequency of the perturbing field
+    !    DensUnper  : unperturbed densities on the mesh
+    !    PotUnper   : unperturbed potentials on the mesh
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in)          :: omega
     type(DensityVector), intent(in)    :: DensUnper
@@ -178,7 +182,7 @@ module fam
       if(fam_verbose > 2) then
         print *, 'SOLIDHARMHF'
        call print_spme_complex(SolidHarmHF)
-     endif
+      endif
 
       ! note: 
       !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
@@ -329,6 +333,12 @@ module fam
     !---------------------------------------------------------------------------
     ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
     ! (in HF basis), which contain dh and ddelta (in the QFAM).  
+    !
+    ! Input:
+    !    dHsp_flat    : perturbed sp hamiltonian in HF basis as a flat array
+    ! Output:
+    !    dHspout_flat : updated perturbed sp hamiltonian in HF basis as a
+    !                   flat array
     !---------------------------------------------------------------------------
     1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
     2 format('||X|| = ', es10.3, '     ||Y|| = ', es10.3)
