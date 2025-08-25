@@ -109,8 +109,8 @@ program run_FAM
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
 
-  call test_gmres()
-  stop
+  ! call test_gmres()
+  ! stop
 
 
   !---------------------------------------------------------------------------------
@@ -199,7 +199,7 @@ program run_FAM
       ! simple linear mixing of sp hamiltonian
       dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat
 
-      ! update dH for next iteration
+      ! shift dH for next iteration
       dH_flat = dH_flat_next
 
 
@@ -248,25 +248,40 @@ program run_FAM
     ! via GMRES on implicit matrix*vector procedure one_minus_T()
     !---------------------------------------------------------------------------------
 
-    ! call inifam(omega_curr, Density, Potentials)
+    call inifam(omega_curr, Density, Potentials)
 
-    ! dH_flat = 0
-    ! dH_flat_next = 0
+    dH_flat = 0
 
-    ! ! calculate free response, i.e. one FAM loop based on dH=0
-    ! call iterate_dHsp(dH_flat, dH_flat_next)
+    ! calculate free response, i.e. one FAM loop based on dH=0
+    call iterate_dHsp(dH_flat, dH_free_flat)
 
-    ! dH_flat = dH_flat_next ! set initial guess to b
+       ! test the choral GMRES method
+    ! call do_gmres_choral(dH_flat, iteration, nbprod, res, dH_flat_next, one_minus_T, &
+      ! & norm_dH, ScProd_dH, 1.0e-5_dp, 1000, 100, 3)
 
-    ! call do_gmres_choral(dH_flat, iteration, nbprod, res, dH_flat_next, iterate_dHsp, &
-    !   & norm_dH, ScProd_dH, 1.0e-8_dp, 1000, 100, 3)
+    ! test my GMRES method
 
-    ! call test_convergence(is_converged, is_divergent)
 
-    ! print 1
-    ! print * , "total number of FAM iterations = ", nbprod
-    ! print 1
-    ! print 1
+    call alloc_gmres(one_minus_T, dH_free_flat, 100, 100, 1e-15_dp, size(dH_flat, 1), norm_dH, ScProd_dH)
+    call init_gmres(dH_free_flat)
+
+    do iteration=1, 100
+      print 1
+      call iterate_gmres()
+      if (gmres_res < gmres_tol) then 
+        print 1
+        print *, "Hooray! GMRES is converged! "
+        print 1
+        exit
+      endif 
+    enddo
+
+    call test_convergence(is_converged, is_divergent)
+
+    print 1
+    print * , "total number of FAM iterations = ", nbprod
+    print 1
+    print 1
 
       
     omega_arr(omega_index) = omega_curr

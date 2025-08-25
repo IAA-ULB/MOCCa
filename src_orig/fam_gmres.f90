@@ -8,8 +8,8 @@ module gmres
   abstract interface
     subroutine vectovec(vec_in, vec_out)
       import :: dp
-      complex(KIND=dp), dimension(:), target, intent(in)   :: vec_in
-      complex(KIND=dp), dimension(:), target, intent(out)  :: vec_out
+      complex(KIND=dp), dimension(:), intent(in)   :: vec_in
+      complex(KIND=dp), dimension(:), intent(out)  :: vec_out
     end subroutine
 
     function vectoreal(vec_in) result(scalar)
@@ -155,7 +155,7 @@ module gmres
     complex(KIND=dp) :: wj(size(Q,1))
     integer          :: i
 
-    print *, "GMRES iter", gmres_iter ! idx j in Y. Saad
+    print *, "GMRES iteration ", gmres_iter ! idx j in Y. Saad
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! perform one iteration wj =  A(vj)
@@ -221,7 +221,9 @@ module gmres
     call zgels('N', gmres_iter+1 , gmres_iter, 1, H_tmp, size(H_tmp,1),   & 
         &       beta_tmp, size(beta_tmp), workquery , -1, info_zgels)
 
-    print *, 'zgels exit : ', info_zgels
+    if (info_zgels .ne. 0) then
+      print *, 'LAPACK zgels workquery failed'
+    endif
 
     allocate( work( 1:int(real(workquery(1) + 0.5d0)) ) );
 
@@ -229,7 +231,9 @@ module gmres
     call zgels('N', gmres_iter+1 , gmres_iter, 1, H_tmp, size(H_tmp,1),   &
         &       beta_tmp, size(beta_tmp), work, size(work), info_zgels)
 
-    print *, 'zgels exit : ', info_zgels
+    if (info_zgels .ne. 0) then
+      print *, 'LAPACK zgels failed'
+    endif
 
 
     y_minres = 0
@@ -237,8 +241,11 @@ module gmres
 
     gmres_res = abs(beta_tmp(gmres_iter+1)) / norm(b)
 
-    print *, '   res : min( || beta - H y|| ) / ||b|| = ', abs(beta_tmp(gmres_iter+1)) / norm(b)
-    print *, '   res :    || beta - H y_min|| / ||b|| = ', norm( beta - matmul(H,y_minres) ) / norm(b)
+    if (abs(gmres_res - norm( beta - matmul(H,y_minres) ) / norm(b)) > 1e-10_dp) then
+      print *, 'GMRES residuals differ, i.e. min( || beta - H y|| ) /= || beta - H y_min|| '
+    endif
+
+    print *, '   res : ', abs(beta_tmp(gmres_iter+1)) / norm(b)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! calculate GMRES approximant Xm = X0 + Vm * Ym 

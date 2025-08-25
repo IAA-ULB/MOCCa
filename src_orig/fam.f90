@@ -394,12 +394,16 @@ module fam
     !---------------------------------------------------------------------------
 
     implicit none
-    complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
-    complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
+    complex(KIND=dp), dimension(:), intent(in)   :: dHsp_flat
+    complex(KIND=dp), dimension(:), intent(out)  :: dHspout_flat
 
     call iterate_dHsp(dHsp_flat, dHspout_flat)
 
     dHspout_flat = dHsp_flat - dHspout_flat + dH_free_flat
+
+    print * , "||H_in||",   norm_dH(dHsp_flat)
+    print * , "||H_out||",   norm_dH(dHspout_flat)
+    print * , "||dH_free||",   norm_dH(dH_free_flat)
 
   end subroutine one_minus_T
 
@@ -748,7 +752,8 @@ module fam
     complex(KIND=dp), dimension(:), intent(in)  :: dHl, dHr
     complex(KIND=dp)                            :: res
 
-    res = sum(conjg(dHl(:)) * dHr(:))
+    ! res = sum(conjg(dHl(:)) * dHr(:))
+    res = sum(dHl(:) * conjg(dHr(:)))
 
   end function
 

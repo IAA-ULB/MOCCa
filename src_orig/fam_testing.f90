@@ -525,8 +525,8 @@ contains
   subroutine multiply_by_A(x_in, x_out)
 
     implicit none
-    complex(KIND=dp), dimension(:), target, intent(in)   :: x_in
-    complex(KIND=dp), dimension(:), target, intent(out)  :: x_out
+    complex(KIND=dp), dimension(:), intent(in)   :: x_in
+    complex(KIND=dp), dimension(:), intent(out)  :: x_out
     integer, parameter :: n = 6
     complex(KIND=dp), dimension(n, n) :: A
     integer :: i
