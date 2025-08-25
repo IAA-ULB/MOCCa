@@ -706,8 +706,12 @@ subroutine densit_offdiag(rho, kappa, Rs, Ra)
     complex(KIND=dp), intent(in)     :: rho(:,:), kappa(:,:)
     type(DensityVector), intent(out) :: Rs, Ra
 
+    call start_timer(T_den_perturbed)
+
     Rs = densit_offdiag_symmetric(rho,kappa)
     Ra = densit_offdiag_antisymmetric(rho,kappa)
+
+    call stop_timer(T_den_perturbed)
 
     ! call print_maxval('D_I_I'  , Rs%D_I_I  , Ra%D_I_I)
     ! call print_maxval('D_Nm_Nm', Rs%D_Nm_Nm, Ra%D_Nm_Nm)
@@ -764,7 +768,7 @@ function densit_offdiag_symmetric(rho, kappa) result(R)
     integer :: i
 
 $SPWF_DECLARATION
-    call start_timer(T_densities)
+    call start_timer(T_den_perturbed_sym)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Allocation and initialization
@@ -823,11 +827,9 @@ $EXPRESSION_OFFDIAG_SYMMETRIC
     ! Calculation of the 'derived' densities, densities obtainable by
     ! deriving other ones.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    call start_timer(T_den_der)
     do it=1,2
 $DERIVATION_OFFDIAG_SYMMETRIC
     enddo
-    call stop_timer(T_den_der)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculate the densities in isospin representation
@@ -837,7 +839,7 @@ $ISOSPINCOUPL
     ! Construct the charge density
     call construct_charge_density(R, sx_rho, sy_rho, sz_rho)
 
-    call stop_timer(T_densities)
+    call stop_timer(T_den_perturbed_sym)
 
 end function densit_offdiag_symmetric
 
@@ -866,7 +868,7 @@ function densit_offdiag_antisymmetric(rho, kappa) result(R)
     integer :: i
 
 $SPWF_DECLARATION
-    call start_timer(T_densities)
+    call start_timer(T_den_perturbed_asym)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Allocation and initialization
@@ -930,11 +932,9 @@ $EXPRESSION_OFFDIAG_ANTISYMMETRIC
     ! Calculation of the 'derived' densities, densities obtainable by
     ! deriving other ones.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    call start_timer(T_den_der)
     do it=1,2
 $DERIVATION_OFFDIAG_ANTISYMMETRIC
     enddo
-    call stop_timer(T_den_der)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculate the densities in isospin representation
@@ -944,7 +944,7 @@ $ISOSPINCOUPL
     ! Construct the charge density
     call construct_charge_density(R, sx_rho_antisym, sy_rho_antisym, sz_rho_antisym)
 
-    call stop_timer(T_densities)
+    call stop_timer(T_den_perturbed_asym)
 
 end function densit_offdiag_antisymmetric
 
@@ -994,10 +994,9 @@ function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sph
     complex(KIND=dp), allocatable     :: sphamil_me(:,:), sp_sym(:,:), sp_asym(:,:)
     integer                           :: B, N, i, si
 
-
+    call start_timer(T_spme_perturbed)
     sp_sym = calc_sphamil_me_sym    ( denpsi, dendpsi, denddpsi, Fs,  onthefly)
     sp_asym= calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, Fa,  onthefly)
-!
 !     si = 0
 !     do B=1,8
 !       N = HFBlocks(B)
@@ -1013,6 +1012,7 @@ function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sph
 !     enddo
 
     sphamil_me = sp_sym + sp_asym
+    call stop_timer(T_spme_perturbed)
 end function calc_sphamil_me
 
 function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(sphamil_me)
@@ -1056,6 +1056,8 @@ function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(s
 
 $SPWF_DECLARATION
 
+    call start_timer(T_spme_perturbed_sym)
+
     F = dF ! TODO: add a call to combine_potentials
 
     ! initialize
@@ -1086,6 +1088,8 @@ $EXPRESSION_SPH_SYM
       enddo
       si = si + N
     enddo
+
+    call stop_timer(T_spme_perturbed_sym)
 
   end function calc_sphamil_me_sym
 
@@ -1130,6 +1134,8 @@ function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, dF,  onthefly) resu
 
 $SPWF_DECLARATION
 
+    call start_timer(T_spme_perturbed_asym)
+
     F = dF ! TODO: add a call to combine_potentials
 
     ! initialize
@@ -1158,6 +1164,8 @@ $EXPRESSION_SPH_ANTISYM
       enddo
       si = si + N
     enddo
+
+    call stop_timer(T_spme_perturbed_asym)
 
   end function calc_sphamil_me_antisym
 

@@ -832,6 +832,12 @@ subroutine initialize_all_timers(fam)
 #endif
    if ( present(fam) ) then
       call add_timer('FAM'                      , T_fam)
+      call add_timer('Perturbation densities'   , T_den_perturbed)
+      call add_timer('Sym. pert. densities'     , T_den_perturbed_sym)
+      call add_timer('Anti pert. densities'     , T_den_perturbed_asym)
+      call add_timer('Matrix elements \delta h' , T_spme_perturbed)
+      call add_timer('Sym. \delta h'            , T_spme_perturbed_sym)
+      call add_timer('Anti \delta h'            , T_spme_perturbed_asym)
    endif
 
 
