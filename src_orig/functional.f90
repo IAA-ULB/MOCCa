@@ -46,6 +46,10 @@ module functional
  ! POTENTIALNUMBER  : [WAY TOO LONG TO INCLUDE HERE]
  ! WRITEPOTENTIALS  : [WAY TOO LONG TO INCLUDE HERE]
  ! READPOTENTIALS   : [WAY TOO LONG TO INCLUDE HERE]
+ ! 
+ ! WRITEPOTENTIALS_HDF5 : [WAY TOO LONG TO INCLUDE HERE]
+ ! READPOTENTIALS_HDF5 : [WAY TOO LONG TO INCLUDE HERE]
+ ! 
  !
  ! TR               : $TR
  ! NTR              : $NTR
@@ -88,10 +92,6 @@ module functional
  !                                                     (n,p)
  !
  !==============================================================================
-#if(USE_HDF5>0)
- use HDF5
-#endif
-
  use compilation
  use geninfo
  use densities
@@ -154,11 +154,6 @@ module functional
     !===========================================================================
     ! NUMERICAL OPTIONS
     !===========================================================================
-#if(USE_HDF5>0)
-    ! level of compression in hdf5, 6 seems to be the best
-    ! TODO: relocate and rename this thing
-    integer, parameter  :: comprlvl = 6
-#endif
     !---------------------------------------------------------------------------
     ! Numerical parameter of the preconditioning of the Skyrme potentials
 #if(PASTA > 0)
@@ -2154,64 +2149,34 @@ $WRITEPOTENTIALS
   end subroutine WritePotentials
  
 #if(USE_HDF5>0)
- subroutine WritePotentials_hdf5(file_id, F)
-   !---------------------------------------------------------------------------
-   !  Subroutine writing the different potentials to hdf5 file.
-   !---------------------------------------------------------------------------
-   type(PotentialVector), intent(in) :: F
-   integer(hid_t), intent(in) :: file_id
-
-   ! Then, for every potential write the 
-   ! * Name 
-   ! * Value
-   ! Note that the name is written as a length-30 string, padded with spaces.
-   ! If not, the unformatted in/out cannot correctly determine the end of a
-   ! string and comparisons can not be made.
-$WRITEPOTENTIALS_HDF5
- end subroutine WritePotentials_hdf5
-
-  subroutine hdf5_writepot(id, name, dset,n)
-    ! writes double precision dataset array with some name in the hdf5 file
+  subroutine write_hdf5_potentials(file_id, F)
+    !---------------------------------------------------------------------------
+    !  Subroutine writing the different potentials to the hdf5 file.
+    !
+    !  Note that all potentials will get stored as a completely flat array 
+    !  because they can all have different ranks.
+    !
+    ! Input:
+    !   file_id : integer(hid_t), identifier of the hdf5 file
+    !   F       : potentialvector to write
+    !---------------------------------------------------------------------------
     use HDF5
-    character(len=30), intent(in) :: name
-    integer(hid_t), intent(in) :: id
-    integer       , intent(in) :: n
-    real(kind=dp),  intent(in) :: dset(n) 
-    integer(hid_t)             :: space_id, dset_id, plist_id  
-    integer                    :: error
-    integer(hsize_t), dimension(1) :: dims,data_dims!, chdims
+    use HDF5_auxiliary, only : hdf5_write_dataset_1d
 
-    dims=(/n/)
-    data_dims(1)=n
-    ! Create dataspace for data_set 
-    call h5screate_simple_f(1, dims, space_id, error)
-    ! create property list
-    call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, error)
-    ! create chunks with property list for compression, as of now size of chunk  
-    ! is just equal to the size of array (for some reason work better). 
-    ! Modify for MPI reading?
-    call h5pset_chunk_f(plist_id, 1, dims, error)
-    ! shuffling for better compression?
-    call h5pset_shuffle_f(plist_id, error)
-    ! zlib compression with deflate
-    call h5pset_deflate_f(plist_id, comprlvl, error)
-    ! Create dataset with default properties "dset_id" is returned
-    call h5dcreate_f(id,'potentials/'//trim(name),H5T_NATIVE_DOUBLE, space_id, &
-                      dset_id, error, plist_id)
-    ! Write dataset 
-    call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, dset, data_dims, error)
-    ! Close access to dataset 
-    call h5dclose_f(dset_id, error)
-    ! Close access to data space 
-    call h5sclose_f(space_id, error)
-    ! close access to plist
-    call h5pclose_f(plist_id, error)
+    type(PotentialVector), intent(in) :: F
+    integer(hid_t), intent(in)        :: file_id
+    real(KIND=dp)                        :: pot(mv,4)
 
-    if (error.ne.0) then
-      call stp('ERROR: writting potentials in hdf5 format')
-    endif
+    ! Hephaestos fills in a call to hdf5_write_dataset_1d for every Skyrme potential
+$WRITEPOTENTIALS_HDF5
 
-  end subroutine hdf5_writepot
+    ! a little bit of extra work since the Coulomb potential is potentially
+    ! defined on a bigger mesh
+    pot = transfer_coulomb_mesh(F, .false.) 
+    call hdf5_write_dataset_1d(file_id, 'coulomb_potential', pot, &
+    &                     size(pot), groupname='fields/potentials')
+
+  end subroutine write_hdf5_potentials
 #endif
 
   function ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed) &
@@ -2277,7 +2242,7 @@ $READPOTENTIALS
   end function ReadPotentials
 
 #if(USE_HDF5 > 0)
-  function ReadPotentials_hdf5(file_id, filenx, fileny, filenz, symtransfo_needed) &
+  function read_potentials_hdf5(file_id, filenx, fileny, filenz, symtransfo_needed) &
    & result(F)
     !---------------------------------------------------------------------------
     ! Subroutine that reads the different mean-field potentials from a 
@@ -2303,6 +2268,9 @@ $READPOTENTIALS
     ! Output:
     !   F                      : a potential-vector, read from file
     !---------------------------------------------------------------------------
+    use HDF5
+    use HDF5_auxiliary
+
     integer(hid_t), intent(in) :: file_id
     integer(hid_t)             :: group_id
     character(len=11)          :: groupname
@@ -2329,11 +2297,14 @@ $READPOTENTIALS_HDF5
       call h5gclose_f(group_id, h5ferr)
     endif
 
-  end function ReadPotentials_hdf5
+  end function read_potentials_hdf5
 
   subroutine hdf5_readpot(id, name, dset, n)
     ! reads double precision potential of length n with some name in the hdf5 file
+
     use HDF5
+    use HDF5_auxiliary
+
     character(len=*), intent(in) :: name
     integer(hid_t), intent(in)   :: id
     integer, intent(in)          :: n
@@ -2484,7 +2455,7 @@ $PVECTORINPRODUCT
     allocate(F%FP_I_I  (nx*ny*nz,2))     ; F%FP_I_I   = 0.0d0
 $TAUSCALAR    allocate(F%F_Nm_Nm(nx*ny*nz,4))   ; F%F_Nm_Nm = 0.0d0
 $TAUTENSOR    allocate(F%F_N_N(nx*ny*nz,3,3,4)) ; F%F_N_N   = 0.0d0
-    allocate(F%G_I_NS (nx*ny*nz,3,3,4)) ; F%G_I_NS  = 0.0d0
+    !allocate(F%G_I_NS (nx*ny*nz,3,3,4)) ; F%G_I_NS  = 0.0d0
     allocate(Vc(nx*ny*nz))              ; VC        = 0.0d0
     allocate(Ec(nx*ny*nz))              ; EC        = 0.0d0
 
@@ -2516,8 +2487,8 @@ $TAUTENSOR      F%F_N_N(i,1,1,:) = F%F_N_N(i,1,1,:)/3
       ! All components of the spin-orbit field
       do mu=1,3
         do nu=1,3
-          read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
-          &               F%G_I_NS(i,mu,nu,1), F%G_I_NS(i,mu,nu,2)
+          !read(chan, fmt='(2es25.12)', advance='no', iostat=io) &
+          !&               F%G_I_NS(i,mu,nu,1), F%G_I_NS(i,mu,nu,2)
         enddo
       enddo
       
@@ -2590,8 +2561,8 @@ $TAUTENSOR    F%F_N_N(:,:,:,4) = F%F_N_N(:,:,:,1) - F%F_N_N(:,:,:,2)
 
     do mu=1,3
       do nu=1,3
-        F%G_I_NS(:,mu,nu,3) = F%G_I_NS(:,mu,nu,1) + F%G_I_NS(:,mu,nu,2)
-        F%G_I_NS(:,mu,nu,4) = F%G_I_NS(:,mu,nu,1) - F%G_I_NS(:,mu,nu,2)
+        !F%G_I_NS(:,mu,nu,3) = F%G_I_NS(:,mu,nu,1) + F%G_I_NS(:,mu,nu,2)
+        !F%G_I_NS(:,mu,nu,4) = F%G_I_NS(:,mu,nu,1) - F%G_I_NS(:,mu,nu,2)
       enddo
     enddo
 

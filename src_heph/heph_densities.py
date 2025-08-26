@@ -235,6 +235,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     Add              = ''
     Multiply         = ''
     Memory           = ''
+    Write            = ''
 
     print (line)
     print (' Densities necessary for the functional                                    ')
@@ -259,7 +260,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       den = Densities_needed[i]
 
       # Summation with leftwf = rightwf
-      (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi)  = \
+      (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi,writei)  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                           'wave'     ,'wave',                                          \
                           'der_index', 'der_index',so,                                 \
@@ -276,7 +277,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         # But we also need the HFB expression 
         # So we recall the routine with different 'wave' indices
         # This summation is blockwise, hence the 'si+'
-        (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi)  = \
+        (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi, writei)  = \
                      GenDensityExpression(Densities_needed[i], deriv_needed[i], \
                                           intermediate_status[i],               \
                                          'si+wave2' , 'si+wave'  ,              \
@@ -297,6 +298,7 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         Add            = Add            + '\n' + addi
         Multiply       = Multiply       + '\n' + multi
         Memory         = Memory         + '\n' + memi
+        Write          = Write          + '\n' + writei
     print (line)
 
     # Substitute into the densities.f90 file.        
@@ -324,7 +326,8 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
     dic['MPIDEN']           = MPI_REDUCE
     dic['ADD'             ] = Add
     dic['MULTIPLY'        ] = Multiply
-  
+    dic['WRITEDENSITIES_HDF5'] = Write
+
     # Symmetry options
     if(so.timelike):
       dic['TR']  = ''
@@ -548,6 +551,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         Memory         :  string that gets the contribution to memory requirements
                           for this density
         Cleaning       :  string deallocating the density
+        Write          :  string writing the density to the HDF5 file
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       
     """
@@ -566,6 +570,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
     Multiply      = ''
     MPI_reduce    = ''
     Memory        = ''
+    Write         = ''
     #---------------------------------------------------------------------------
     # Parse the structure from the name
     density = denin    
@@ -658,6 +663,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         Cleaning       = ta.Clean_template.substitute(dic)
         Add            = ta.Add_template.substitute(dic)
         Multiply       = ta.Multiply_template.substitute(dic)
+        Write          = ta.write_template.substitute(dic)
         # memory requirement for this density
         Memory         = ta.Memory.substitute(dic)
     spwf_dec    = ta.Dec_spwf.substitute(dic)
@@ -1179,7 +1185,8 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
     
     
     return (Expression, Declaration, spwf_dec, Initialisation, Derivation, Isospincoupl,\
-                                   MPI_reduce, Zeroing, Memory, Cleaning, Add, Multiply)
+                                   MPI_reduce, Zeroing, Memory, Cleaning, Add, Multiply,\
+                                   Write)
     
 def GenVecProd(density, coupling):
     #---------------------------------------------------------------------------

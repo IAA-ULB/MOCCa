@@ -294,6 +294,10 @@ subroutine ReachForWaterAndFood(iter, iomsg)
     use functional
     use evolution
     use IO
+    use IO_wf, only: readHFBinfofile, write_tantalus_wf
+#if(USE_HDF5>0)
+    use IO_wf, only: write_tantalus_hdf5
+#endif
     use moments
     use coulombmod
     use pairing
@@ -590,6 +594,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         if(mod(iter,checkpointiter).eq.0) then
 #if(DEBUG_LEVEL==1)
             ! Output densities and potentials to specific files at every checkpoint
+            ! TODO: refactor this into a subroutine in the IO.f90 module!
             write(denfile_iter, '("iter=",i5.5,".den")') iter
             write(potfile_iter, '("iter=",i5.5,".pot")') iter
             if(MPI_RANK.eq.0) then
@@ -601,12 +606,12 @@ subroutine ReachForWaterAndFood(iter, iomsg)
             iomsg='CHECKPOINT'
             if(trim(to_upper(OutputFileName(len_trim(OutputFileName)-3:))).eq.'HDF5') then
 #if(USE_HDF5>0)
-              call WriteTantalus_hdf5(outputfilename) !new hdf5 format
+              call write_tantalus_hdf5(outputfilename) !new hdf5 format
 #else
               call stp('HDF5 support was not enabled at compilation.')
 #endif
             else
-              call WriteTantalus(12, outputfilename) ! old style in .wf file
+              call write_tantalus_wf(12, outputfilename) ! old style in .wf file
             endif
           endif
         endif

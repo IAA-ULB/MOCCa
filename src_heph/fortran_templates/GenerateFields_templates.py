@@ -51,7 +51,7 @@ field_calc_den_pair  = T('* $DENSITY(:$DENIND,it)')
 # Statements for writing the field to file
 field_write_a = T(tab + ('write(chan, iostat=io) "$FIELDFILLED" \n'))
 field_write_b = T(tab + ('write(chan, iostat=io)  F%$FIELD  \n'))
-field_write_hdf5 = T(tab + ('call hdf5_writepot(file_id,"$FIELDFILLED",F%$FIELD,size(F%$FIELD)) \n')) 
+field_write_hdf5 = T(tab + ('call hdf5_write_dataset_1d(file_id,"$FIELDFILLED",F%$FIELD,size(F%$FIELD), groupname="fields/potentials") \n')) 
 # ... and to read it from file
 field_read_a  = T(2*tab + ('case("$FIELD") \n'))
 field_read_b  = T(3*tab +  'allocate(F%${FIELD}(mv$ALLOCIND,$ISOSIZE),F_temp%${FIELD}(mv$ALLOCIND,$ISOSIZE))\n' +

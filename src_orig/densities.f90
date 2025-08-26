@@ -40,6 +40,8 @@ module densities
 !
 ! PBROKEN         : $PBROKEN
 !
+! WRITEDENSITIES_HDF5 : [WAY too long to include here]
+!
 ! DISABLED KEYWORD, still present in Hephaestos
 ! CLEANING        : [WAY too long to include here]
 !===============================================================================
@@ -1333,4 +1335,23 @@ $PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
   
 end subroutine print_boxsize_check
 
+#if(USE_HDF5>0)
+subroutine write_hdf5_densities(file_id, R)
+  !---------------------------------------------------------------------------
+  ! Write the densities to an HDF5 file
+  !
+  ! Input:
+  !   file_id : HDF5 file identifier
+  !   R       : DensityVector type containing the densities to be written
+  !---------------------------------------------------------------------------
+  use HDF5
+  use HDF5_auxiliary 
+  integer(HID_T), INTENT(IN) :: file_id 
+  type(DensityVector), intent(in) :: R
+
+    ! Hephaestos fills in a call to hdf5_write_dataset_1d for every density
+$WRITEDENSITIES_HDF5
+
+end subroutine write_hdf5_densities
+#endif
 end module densities

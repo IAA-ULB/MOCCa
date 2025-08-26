@@ -125,14 +125,14 @@ FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90
               'nil8.f90'          , 'coulomb.f90'      , 'derivatives.f90'   ,
               'precondition.f90'  , 'wavefunctions.f90', 'basis_transform.f90',
               'hartree-fock.f90'  , 'BCS.f90'          , 'pairingcutoffs.f90',
-              'momentsofinertia.f90',
+              'momentsofinertia.f90', 'hdf5_auxiliary.f90',
               'fission_MOI.f90'   , 'particleinabox.f90', 'densities.f90'      ,
               'moments.f90'       , 'pairing.f90'       , 'pairing_strengths.f90',
               'functional.f90'    , 'parameterization.f90' , 'evolution.f90'   ,
               'scfiteration.f90'  , 'IO.f90'               , 'tantalus.f90'    ,
               'transform.f90'     ,  'cranking.f90'        , 'convergence.f90' ,
               'run_single.f90'    , 'multirun_example.f90' , 'timing.f90', 
-              'vectors.f90']
+              'vectors.f90', 'IO_aux.f90', 'IO_wf.f90']
 
 #-------------------------------------------------------------------------------
 # Check for the existence of all the source code files in SRCPATH

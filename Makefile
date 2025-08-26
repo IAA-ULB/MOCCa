@@ -175,6 +175,9 @@ endif
 # Tantalus source files
 TARGET :=   Tantalus.exe
 SRC    :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
+ifeq ($(USE_HDF5),1)
+SRC    +=   hdf5_auxiliary.f90
+endif
 SRC    +=   sphericalharmonics.f90 folding.f90 nil8.f90 
 SRC    +=   derivatives.f90 vectors.f90 precondition.f90 wavefunctions.f90
 SRC    +=   pairingcutoffs.f90 parameterization.f90
@@ -183,6 +186,7 @@ SRC    +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
 SRC    +=   pairing.f90 densities.f90 moments.f90
 SRC    +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 SRC    +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
+SRC    +=   IO_aux.f90 IO_wf.f90
 SRC    +=   IO.f90 convergence.f90 printing.f90
 SRC    +=   tantalus.version.f90
 SINGLE_SRC = $(SRC) run_single.f90
@@ -257,10 +261,6 @@ run_heph:
 gen_nilsson: $(PRE) $(PRE_NIL) $(NIL_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(NIL_OBJ) $(LIBS)
 	mv gen_nilsson exec/gen_nilsson.exe
-
-clean:
-	rm  -f $(OBJDIR)/*.o
-	rm  -f $(MODDIR)/*.mod
 
 $(OBJDIR)/%.o : $(SRCDIR)/%.f90 | $(OBJDIR)/ $(MODDIR)/ exec/
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -c  $< -o $@ $(HDF5_LIB)
