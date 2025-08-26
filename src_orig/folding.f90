@@ -18,7 +18,14 @@ module folding
  use geninfo
 
  implicit none
- 
+
+ !------------------------------------------------------------------------------
+ ! Gaussian matrices, to be used when folding of the nucleon densities to 
+ ! obtain the charge densities are required. The fourth index is the isospin 
+ ! index, the third whether it is the Gaussian with positive or negative sign.
+ !------------------------------------------------------------------------------
+ real(KIND=dp), allocatable :: Gaussx(:,:,:,:), Gaussy(:,:,:,:), Gaussz(:,:,:,:)
+
 contains
 
  pure function Gaussian(r1,r2, r0) result(G)
@@ -142,5 +149,5 @@ contains
   enddo
   !-----------------------------------------------------------------------------
  end function FoldGaussian
- 
+
 end module folding

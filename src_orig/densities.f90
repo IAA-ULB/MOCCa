@@ -41,6 +41,8 @@ module densities
 !
 ! PBROKEN         : $PBROKEN
 !
+! DISABLED KEYWORD, still present in Hephaestos
+! CLEANING        : [WAY too long to include here]
 !===============================================================================
 !
 ! A density D_L_R is stored as
@@ -95,37 +97,24 @@ use preconditioning
 use basis_transform
 use timing
 
+use vectors, only: DensityVector, memory
+
 implicit none
 
+    interface operator (+)
+      !Overloading "+" to be used to add density vectors.
+      module procedure Add_densityvector
+    end interface
+    
+    interface operator (*)
+      !Overloading "*" to be used to multiply density vectors with scalars
+      module procedure multiply_densityvector
+    end interface
     !---------------------------------------------------------------------------
-    ! Type declaration of the various densities
-$DECLARATION   
-    !---------------------------------------------------------------------------
-    ! Separate, manual, declaration of Div.J(r) as calculated from the spwfs
-    ! for the more accurate calculation of its multipole moments
-    real(KIND=dp), allocatable :: divJ(:,:)
-    !---------------------------------------------------------------------------
-    ! Density-mixing parameter default value.
-    ! This can be set in the scfiteration namelist in the scfiteration model.
-    real(KIND=dp) :: denmix = 0.75_dp
-    !---------------------------------------------------------------------------
-    ! Type of density mixing to perform. (Default = None)
-    ! This can be set in the scfiteration namelist in the scfiteration model.
-    integer       :: densitymixing = 0
-    !---------------------------------------------------------------------------
-    ! Previous value(s) of the density rho and s
-    real(KIND=dp), allocatable :: D_I_I_hist(:,:,:)
-$NTR    real(KIND=dp), allocatable :: D_I_S_hist(:,:,:,:)
-    !---------------------------------------------------------------------------
-    ! Charge density of the protons, possibly including the correction for the 
-    ! finite size of the proton. It is stored here, as both the moments module 
-    ! and the coulomb module need it, even though Coulomb depends on the moments
-    ! module.
-    real(KIND=dp), allocatable :: chargedensity(:,:,:)
-    !---------------------------------------------------------------------------
-    ! The amount of iterations to keep in memory for the density mixing and 
-    ! estimation of the convergence rate
-    integer           :: memory = 3
+    ! Different density-vectors that can be used throughout the code
+    type(DensityVector), target :: Density
+    type(DensityVector), target :: Density_out
+    type(DensityVector), target, allocatable :: DensityHistory(:)
     !---------------------------------------------------------------------------
     ! As several other modules deal with the density D_I_I and its derivatives
     ! in various forms,  Hephaestos fills in here the appropriate symmetries.
@@ -140,30 +129,92 @@ $NTR    real(KIND=dp), allocatable :: D_I_S_hist(:,:,:,:)
     
 contains
  
- subroutine ConstructCanonicalBasis()
-    !---------------------------------------------------------------------------
-    ! Construction of the canonical basis, including all possible transformation
-    ! matrices if we are doing HFB calculations in a single basis. 
-    ! 
-    ! a. Diagonalize the density matrix rho to obtain the canonical 
-    !    transformation.
-    ! b. Apply the canonical transformation, either in-place or allocating 
-    !    a second set of spwfs.
-    ! c. If the canonical basis was constructed in-place, we transform all
-    !    relevant matrices as well. (Including the canonical transformation, 
-    !    which becomes trivial.)
-    !---------------------------------------------------------------------------
-    integer :: ifail, wave
+ subroutine save_density_history(R)
+  !-----------------------------------------------------------------------------
+  ! Update the history of the mean-field densities with R.
+  !-----------------------------------------------------------------------------
+  integer :: i
+  type(DensityVector), intent(in) :: R
+  
+  if(.not.allocated(DensityHistory)) allocate(DensityHistory(memory))
+    
+  do i=1,memory-1
+      DensityHistory(memory-i+1) = DensityHistory(memory-i)
+  enddo
+  DensityHistory(1) = R
 
-    call start_timer(T_den_can)
+end subroutine save_density_history
+
+function Add_densityvector(R1, R2) result(R)
+  !-----------------------------------------------------------------------------
+  ! Add two density vectors together
+  !-----------------------------------------------------------------------------
+  type(DensityVector), intent(in) :: R1, R2
+  type(DensityVector)             :: R
+
+$INITIALIZATION
+$ADD
+
+  allocate(R%chargedensity(nx,ny,nz))
+  R%chargedensity = R1%chargedensity + R2%chargedensity
+
+end function Add_densityvector
+
+function multiply_densityvector(a, R1) result(R)
+  !-----------------------------------------------------------------------------
+  ! Add multiply a density vector with a real scalar.
+  !-----------------------------------------------------------------------------
+  type(DensityVector), intent(in) :: R1
+  real(KIND=dp), intent(in)       :: a
+  type(DensityVector)             :: R
+!   real(KIND=dp) :: stor ! Commented for now: required for memory estimation
+!                         ! through Hephaestos
+
+$INITIALIZATION
+$MULTIPLY
+
+  allocate(R%chargedensity(nx,ny,nz))
+  R%chargedensity = a * R1%chargedensity 
+
+end function multiply_densityvector
+ 
+subroutine construct_canonical_basis(rho, kappa, rho_c, kappa_c)
+  !-----------------------------------------------------------------------------
+  ! High-level routine that constructs the canonical basis of spwfs.
+  ! Does nothing for a HF or BCS calculation.
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Input :
+  !  rho   : matrix elements of the density in the basis spanned by the spwfs 
+  !          currently in memory
+  !  kappa : matrix elements of the anomalous density in spanned by the spwfs 
+  !          currently in memory
+  ! Output:
+  !  rho_can   : diagonal matrix elements of the density in the canonical basis
+  !  kappa_can : "diagonal" matrix elements of kappa in the canonical basis
+  !
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Side effects:
+  !  *) The spwfs of canonical basis get constructed. Depending on whether 
+  !     efficientHFB is active, these get stored in CanPsi or overwrite the 
+  !     existing HFPsi array.
+  !  *) Cantransfo is saved; this is the transformation matrix between 
+  !     the HF-basis and the canonical basis. It is a trivial transformation if
+  !     efficientHFB is active.
+  !-----------------------------------------------------------------------------
+  real(KIND=dp), intent(inout) :: rho(:,:), kappa(:,:)
+  real(KIND=dp), intent(out)   :: rho_c(:), kappa_c(:)
+  integer :: ifail, wave
+
+  if(pairingtype.ne.2) return
+
+  call start_timer(T_den_can)
 
     if(.not.allocated(Canenergies)) allocate(Canenergies(nwt)) 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! a. construct the transformation CanTransfo that brings us into the 
     !    canonical basis by diagonalizing rho
-    call Canonical(rho_pairing, kappa_pairing, rho_can, kappa_can,             &
-    &              cantransfo,cancuttransfo,ifail)
+    call Canonical(rho, kappa, rho_c, kappa_c, cantransfo,cancuttransfo,ifail)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! b. use this transformation to construct the physical wavefunctions
     if(efficientHFB) then
@@ -179,10 +230,10 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! c. Transform all relevant matrices into the new basis
     if(efficientHFB) then
-      rho_pairing   = transform_mat(rho_pairing, cantransfo)
+      rho_pairing   = transform_mat(rho, cantransfo)
       ! Kappa transforms differently from rho, but in case of real 
       ! matrices this is largely irrelevant
-      kappa_pairing = transform_mat(kappa_pairing, cantransfo)
+      kappa = transform_mat(kappa, cantransfo)
 
       current_sph   = transform_mat(current_sph, cantransfo)
       do wave=1,nwt
@@ -207,59 +258,56 @@ contains
     ! If we are not doing HFB efficiently, we should rederive the spwfs
     if((.not. efficientHFB) .and. store_derivatives) call derivecan()
 
- end subroutine ConstructCanonicalBasis
-
- subroutine densit(SaveRho)
+ end subroutine construct_canonical_basis
+ 
+function densit(rho, kappa) result(R)
     !---------------------------------------------------------------------------
-    ! Calculate all of the densities. 
+    ! Calculate all of the mean-field densities, both normal and pairing. 
+    ! This includes the calculation of the charge density.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Input:
-    !    SaveRho : logical. If .true., save the values of the densities on input
-    !                       to their respective histories. If .false., do not
-    !                       keep this information.
+    ! Input :
+    !   rho      real vector     diagonal matrix elements of the density in
+    !                            either the HF or canonical basis
+    !   kappa    real matrix     matrix elements of the anomalous density
+    !                            in the HF-basis.
+    ! Output:
+    !   R        densityvector   values of the mean-field densities.
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Remarks: 
+    ! * the full-matrix storage of kappa in the BCS case is wasteful, but is 
+    !   necessary to not have to change the interface of this function.
+    ! * this routine assumes the right set of SPWFs are in the right location,
+    !   meaning that (if necessary) the canonical basis has already been 
+    !   constructed.  
     !---------------------------------------------------------------------------
-    integer      :: i, it, wave, wave2, B, N, si, N2, T, k
-    integer      ::  wave_global, wave2_global, der_index
-    real(KIND=dp):: weight
-    logical      :: SaveRho
+    external construct_charge_density
+    real(KIND=dp), intent(in) :: rho(:), kappa(:,:)
+    type(DensityVector)       :: R
+
+    integer                    :: i, k, it, wave, wave2, B, N, si, N2, T
+    integer                    :: wave_global, wave2_global, der_index
+    real(KIND=dp)              :: weight
     real(KIND=dp), allocatable :: kappa_cut(:,:)
+
+$SPWF_DECLARATION
+
 #if(USE_MPI>0)
     integer      :: mpi_err
 #endif
-
-
     call start_timer(T_densities)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Allocation and initialization
 $INITIALIZATION
 
-    if(.not.allocated(divJ)) then
-      allocate(divJ(nx*ny*nz,4))
+
+    if(.not.allocated(R%divJ)) then
+      allocate(R%divJ(nx*ny*nz,4))
     endif
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Save old density for next iteration and mixing.
-    ! Note that this is only necessary at the moment for the ordinary rho
-    ! density, it is the one that can make calculations unstable.
-    if(.not. allocated(D_I_I_hist)) then
-        allocate(D_I_I_hist(nx*ny*nz,4,memory))   ; D_I_I_hist = 0.0_dp
-$NTR    allocate(D_I_S_hist(nx*ny*nz,3,4,memory)) ; D_I_S_hist = 0.0_dp
-    endif   
-    if(SaveRho) then
-      do i=1,memory-1
-          D_I_I_hist(:,:,memory-i+1) = D_I_I_hist(:,:,memory-i)
-$NTR      D_I_S_hist(:,:,:,memory-i+1) = D_I_S_hist(:,:,:,memory-i)
-      enddo
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-      ! Saving the input density for mixing    
-      D_I_I_hist(:,:,1) = D_I_I
-$NTR      D_I_S_hist(:,:,:,1) = D_I_S
-    endif
-    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Zero the current density
 $ZEROING
-    divJ = 0.0d0
+    R%divJ = 0.0d0
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Correctly set the pointers to the spwfs
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -291,7 +339,7 @@ $ZEROING
         if(wave_global.le.nwn) it = 1
         
         ! For ordinary densities
-        weight  = rho_can(wave_global) 
+        weight  = rho(wave_global) 
 
         !---------------------------------------------------------------------------
         ! Perform some gymnastics to see where we are getting the information
@@ -301,13 +349,23 @@ $ZEROING
           ! We have centrally stored derivative information
           der_index = wave
         else
-          ! We recalculate derivatives on the fly for this spwf
-          do k=1,4
-           call Derive_tot(denPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave),&
-           &                                           dendPsi(:,:,k,1),        &
-           &                                           denddPsi(:,:,k,1))
-          enddo
           der_index = 1
+#if(USE_Periodic==0)
+          do k=1,4
+           call Derive_tot(denPsi(:,k,wave), sx(k,wave), sy(k,wave), sz(k,wave), &
+           &                                           dendPsi(:,:,k,der_index), &
+           &                                           denddPsi(:,:,k,der_index))
+          enddo
+#else
+          do k=1,2
+           call Derive_tot_periodic(denPsi   (:,   (2*k-1):2*k,wave),     &
+           &                        sx       ((2*k-1):2*k,wave),          &
+           &                        sy       ((2*k-1):2*k,wave),          &
+           &                        sz       ((2*k-1):2*k,wave),          &
+           &                        dendpsi  (:,:,(2*k-1):2*k,der_index), &
+           &                        denddpsi (:,:,(2*k-1):2*k,der_index))
+          enddo
+#endif
         endif
         !---------------------------------------------------------------------------
 
@@ -316,7 +374,7 @@ $EXPRESSION
         enddo
 
         ! Separate expression for the sum of divJ - see comments in that function
-        divJ(:,it) = divJ(:,it) + weight * divJ_spwf(der_index)
+        R%divJ(:,it) = R%divJ(:,it) + weight * divJ_spwf(der_index)
     enddo
     call stop_timer(T_den_ph)
 
@@ -380,7 +438,8 @@ $BCSEXPRESSION
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
       ! a) start out by "just" copying kappa
-      kappa_cut = kappa_pairing
+      allocate(kappa_cut(nwt,nwt))
+      kappa_cut = kappa
       if((.not. diagsphamil)) then
         kappa_cut = transform_mat(kappa_cut, HFTransfo)
       endif
@@ -399,7 +458,7 @@ $BCSEXPRESSION
         ! W.R. Nasty bug 07/04/'22
         ! The multiplication by the cutoffs needs to happen for ALL matrix
         ! elements of kappa, not just the ones that are used to sum the 
-        ! pairing densities. The reason is that the HFTransfo multiplication 
+        ! pairing densities. The reason is that the HFTransfo transformation 
         ! does see all of them, at least as it is coded at the moment.
         ! We could use the symmetries of kappa to reduce the workload, but 
         ! this is only O(nwt**2) effort and the implementation would depend on 
@@ -494,42 +553,158 @@ $HFBEXPRESSION
           DenddPsi  => HFddPsi  ; DendddPsi => HFdddpsi      
         endif
       end select
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! clean up explicitly
+      deallocate(kappa_cut)
     end select
     call stop_timer(T_den_pp)
     
 #if(USE_MPI > 0)
+   call start_timer(T_allreduce)
    ! Sum the density over all processes
 $MPIDEN
+   call stop_timer(T_allreduce)
 #endif
-    
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! The asked for mixing+preconditioning scheme.
-    call MassageDensity()
-    
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculation of the 'derived' densities, densities obtainable by 
     ! deriving other ones. 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     call start_timer(T_den_der)
     do it=1,2
-$DERIVATION  
+$DERIVATION
     enddo  
     call stop_timer(T_den_der)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Calculate the densities in isospin representation 
-$ISOSPINCOUPL    
+$ISOSPINCOUPL
 
-    divJ(:,3) = divJ(:,1) + divJ(:,2)
-    divJ(:,4) = divJ(:,1) - divJ(:,2)
+    R%divJ(:,3) = R%divJ(:,1) + R%divJ(:,2)
+    R%divJ(:,4) = R%divJ(:,1) - R%divJ(:,2)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Construct the charge density
+    call constructchargedensity(R)
 
     call stop_timer(T_densities)
+end function densit
 
-!#if(USE_MPI > 0)      
-!      call stp('End of densit')
-!#endif      
+ subroutine ConstructChargeDensity(R)
+    !---------------------------------------------------------------------------
+    ! Construct the charge density from the proton and neutron densities,
+    ! using various effective forms
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! TODO: document what this routine does precisely
+    !---------------------------------------------------------------------------
+    use Folding
 
-end subroutine densit
+    type(DensityVector),intent(inout) :: R
+    real(KIND=dp)              :: temp(nx,ny,nz)
+    integer                    :: i,j,k
+#if(PASTA==1)
+    real(KIND=dp)              :: rho_el, volume
+#endif
+
+    call start_timer(T_chargedensity)
+
+    ! Deallocation such that rho_charge does not have the wrong dimensions
+    if(allocated(R%chargedensity))      deallocate(R%chargedensity)
+    if(.not.allocated(R%chargedensity)) allocate(R%chargedensity(nx,ny,nz))
+    !---------------------------------------------------------------------------
+    ! If we account for the finite extent of the charge of the nucleus, then
+    ! we need to fold densities and potentials with gaussians. This sets up the
+    ! required matrices.
+    !
+    ! Note: this little piece of code is duplicated, since in different
+    !       runmodes of the code different Coulomb routines get called in
+    !       different order; this makes sure we get no segfaults.
+    !---------------------------------------------------------------------------
+    if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
+      if(.not.allocated(Gaussx)) then
+          allocate(Gaussx(nx,nx,2,2), Gaussy(ny,ny,2,2), Gaussz(nz,nz,2,2))
+          Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
+      endif
+      call ConstructFoldingMatrices(Gaussx,Gaussy,Gaussz,sx_rho, sy_rho, sz_rho)
+    endif
+
+    !---------------------------------------------------------------------------
+    ! Proton contributions to the charge density.
+    ! We start from the proton point density
+    do k=1,nz
+      do j=1,ny
+        do i=1,nx
+            temp(i,j,k) = R%D_I_I(meshindex(i,j,k),2)
+        enddo
+      enddo
+    enddo
+
+    if(protonsize(1).gt.0.0) then
+        ! Fold the source with a Gaussian
+        R%chargedensity = &
+        & FoldGaussian(temp, GaussX(:,:,1,2), GaussY(:,:,1,2), GaussZ(:,:,1,2),&
+        &                                                            nx, ny, nz)
+    endif
+    if(protonsize(2).gt.0.0) then
+        ! Fold the source with another Gaussian, this time with minus sign.
+        R%chargedensity = R%chargedensity + &
+        & FoldGaussian(temp, GaussX(:,:,2,2), GaussY(:,:,2,2), GaussZ(:,:,2,2),&
+        &                                                            nx, ny, nz)
+    endif
+
+    if(all(protonsize.eq.0.0)) then
+        R%chargedensity = temp
+    endif
+    !---------------------------------------------------------------------------
+    ! Neutron contributions to the charge density.
+    if(any(neutronsize .gt. 0.0d0)) then 
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+             temp(i,j,k) = R%D_I_I(meshindex(i,j,k),1)
+          enddo
+        enddo
+      enddo
+
+      if(neutronsize(1).gt.0.0) then
+          ! Fold the source with a Gaussian
+          R%chargedensity = R%chargedensity + &
+          & FoldGaussian(temp, GaussX(:,:,1,1), GaussY(:,:,1,1), GaussZ(:,:,1,1),&
+          &                                                            nx, ny, nz)
+      endif
+      if(neutronsize(2).gt.0.0) then
+          ! Fold the source with a Gaussian, minus sign this time
+          R%chargedensity = R%chargedensity - &
+          & FoldGaussian(temp, GaussX(:,:,2,1), GaussY(:,:,2,1), GaussZ(:,:,2,1),&
+          &                                                            nx, ny, nz)
+      endif
+    endif
+    !---------------------------------------------------------------------------
+    ! When performing simulations for nuclear pasta, one assumes the entire 
+    ! volume is charge neutral: a constant background of electrons floods the 
+    ! entire simulation volume. We subtract thi s backrgound here.
+#if(PASTA==1)
+    volume=nx*ny*nz*dv   ! simplification by WR: the physical volume simulated
+                         ! can just be gotten by the volume element...
+    rho_el=sum(R%chargedensity)*dv/volume
+    ! Note: it is CRUCIAL to put here the integral of the charge density as
+    !       opposed to just the number of protons. If, for whatever reason,
+    !       the code fails to build a proton + neutron charge density that
+    !       does not integrate perfectly to tthe number of protons, then
+    !       putting the number of protons here will lead to a small amount
+    !       of charge; this will blow up the Coulomb solver if periodic
+    !       boundary conditions are applied.
+
+    if(MPI_RANK .eq. 0) then
+      if(abs(sum(R%chargedensity)*dv - protons) > 1e-7) then
+        print 4
+        print 1
+        print 2, protons - sum(R%chargedensity)*dv
+        print 4
+      endif
+    endif
+    R%chargedensity = R%chargedensity -rho_el
+#endif
+    call stop_timer(T_chargedensity)
+ end subroutine ConstructChargeDensity
 
 function divJ_spwf(der_index)
     !---------------------------------------------------------------------------
@@ -561,8 +736,7 @@ function divJ_spwf(der_index)
     ! flag requires that this function call be within a loop.
     !
     !---------------------------------------------------------------------------
-
-    integer, intent(in)       :: der_index
+    integer, intent(in) :: der_index
     real(KIND=dp) :: divJ_spwf(nx*ny*nz)
     ! MB 24/12/14 comment use of Pauli back in now that the memory leak is fixed
     real(KIND=dp) :: temp(nx*ny*nz,4)
@@ -592,34 +766,34 @@ function divJ_spwf(der_index)
 
 end function divJ_spwf
 
-subroutine MassageDensity()
-    !---------------------------------------------------------------------------
-    ! Operate on the density before feeding it into the rest of the program.
-    !---------------------------------------------------------------------------
-    real(KIND=dp), target  :: resid(nx*ny*nz,4)
-$NTR real(KIND=dp), target :: sresid(nx*ny*nz,3,4)
-    if(all(D_I_I_hist.eq.0.0)) return
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Compute the residual
-    resid = D_I_I - D_I_I_hist(:,:,1)
-$NTR    sresid = D_I_S - D_I_S_hist(:,:,:,1)
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Perform mixing
-    select case(densitymixing) 
-    case(0)
-        !-----------------------------------------------------------------------
-        ! Precondition the potentials instead of the densities. 
-        ! So do nothing to the densities.
-    case(1)
-        !-----------------------------------------------------------------------
-        ! Simple linear mixing at the moment.
-        D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * resid
-$NTR    D_I_S = D_I_S_hist(:,:,:,1) + (1-denmix) * sresid
-    end select
-    !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Safeguard
-    where(D_I_I.lt.1d-10) D_I_I = 0 
-end subroutine MassageDensity
+! subroutine MassageDensity()
+!     !---------------------------------------------------------------------------
+!     ! Operate on the density before feeding it into the rest of the program.
+!     !---------------------------------------------------------------------------
+!     real(KIND=dp), target  :: resid(nx*ny*nz,4)
+! $NTR real(KIND=dp), target :: sresid(nx*ny*nz,3,4)
+!     if(all(D_I_I_hist.eq.0.0)) return
+!     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Compute the residual
+!     resid = D_I_I - D_I_I_hist(:,:,1)
+! $NTR    sresid = D_I_S - D_I_S_hist(:,:,:,1)
+!     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Perform mixing
+!     select case(densitymixing)
+!     case(0)
+!         !-----------------------------------------------------------------------
+!         ! Precondition the potentials instead of the densities.
+!         ! So do nothing to the densities.
+!     case(1)
+!         !-----------------------------------------------------------------------
+!         ! Simple linear mixing at the moment.
+!         D_I_I = D_I_I_hist(:,:,1) + (1-denmix) * resid
+! $NTR    D_I_S = D_I_S_hist(:,:,:,1) + (1-denmix) * sresid
+!     end select
+!     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Safeguard
+!     where(D_I_I.lt.1d-10) D_I_I = 0
+! end subroutine MassageDensity
 
 function couple_iso(density, iso) result(coupled)
     !---------------------------------------------------------------------------
@@ -1107,14 +1281,14 @@ $PBROKEN $TR  enddo
 
 end function CompNablaMelements
 
-subroutine print_boxsize_check()
+subroutine print_boxsize_check(R)
   !-----------------------------------------------------------------------------
   ! Print the maximum values of the densities D_I_I and DP_I_I at the edges of 
   ! the box, to check that we are not dealing with a too small box.
   !-----------------------------------------------------------------------------
-
-  real(KIND=dp), pointer :: rho3D(:,:,:,:)
-  real(KIND=dp), pointer :: rhoP_3D(:,:,:,:)
+  type(DensityVector), intent(in), target :: R
+  real(KIND=dp), pointer                  :: rho3D(:,:,:,:)
+  real(KIND=dp), pointer                  :: rhoP_3D(:,:,:,:)
 
   1 format ('------------------------- Box Size Check ---------------------------')
  11 format (' Normal  density        rho  =  D_I_I')
@@ -1128,7 +1302,7 @@ subroutine print_boxsize_check()
   4 format (' Zmax = (nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmax)) = ', es12.3 )
 $PBROKEN 41 format (' Zmin =-(nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmin)) = ', es12.3 )
   
-  rho3D(1:nx,1:ny,1:nz,1:2)   => D_I_I
+  rho3D(1:nx,1:ny,1:nz,1:2)   => R%D_I_I
   
   print 1
   print 11
@@ -1138,7 +1312,7 @@ $PBROKEN 41 format (' Zmin =-(nz+0.5)dx = ', f10.3, ' fm,  max(rho(Z=Zmin)) = ',
 $PBROKEN  print 41, meshZ(1) , maxval(sum(rho3D(:,:,1,:),3))
 
   if(pairingtype .ne. 0) then
-    rhoP_3D(1:nx,1:ny,1:nz,1:2) => DP_I_I
+    rhoP_3D(1:nx,1:ny,1:nz,1:2) => R%DP_I_I
 
     print 12
     print 2, meshX(nx) , maxval(abs(sum(rhoP_3D(nx,:,:,:),3)))
@@ -1148,16 +1322,5 @@ $PBROKEN  print 41, meshZ(1) , maxval(abs(sum(rhoP_3D(:,:,1,:),3)))
   endif
   
 end subroutine print_boxsize_check
-
-subroutine clean_densities
-$CLEANING
-    if(allocated(D_I_I_hist))    deallocate(D_I_I_hist)
-    if(allocated(chargedensity)) deallocate(chargedensity)
-    nullify(DenPsi)
-    nullify(DendPsi)
-    nullify(DenddPsi)
-    nullify(DendddPsi)
-
-end subroutine clean_densities
 
 end module densities

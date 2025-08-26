@@ -106,13 +106,21 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   fieldprecon = ''
   declaration = ''
 
-  fieldread    = ''
-  fieldwrite   = ''
+  fieldread       = ''
+  fieldread_hdf5  = ''
+  fieldwrite      = ''
+  fieldwrite_hdf5 = ''
+
   fieldtransfo = ''
 
   fieldINMk2 = ''
   fieldINMk4 = ''
       
+  fieldini     = ''
+  fieldadd     = ''
+  fieldmultiply= ''
+ 
+  fieldinproduct = ''
   fieldclean = ''
   #---------------------------------------------------------------------------
   for den in src_heph.heph_functional.Densities_needed:
@@ -213,9 +221,6 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       fieldlist['p'] = []
       fieldlist['n'] = []        
       cpcte     = ''
-
-      fieldclean = fieldclean + '\n' + ts.clean.substitute(dic)
-      fieldclean = fieldclean + '\n' + ts.clean_b.substitute(dic)
 
       #-----------------------------------------------------------------------
       for nterm, term in enumerate(src_heph.heph_functional.Functional_terms): 
@@ -475,23 +480,27 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       # Now we BUILD the code that calculates all these terms
       #-----------------------------------------------------------------------
       # Create the expression for the field
-      dic['ALLOCIND']= ''
-      dic['DECLIND'] = ''
+      dic['ALLOCIND']     = ''
+      dic['ALLOCINDHDF5'] = ''
+      dic['DECLIND']      = ''
       for k in range(OrderOfDen(den)):
-          dic['ALLOCIND'] = dic['ALLOCIND'] + ',3' 
-          dic['DECLIND']  = dic['DECLIND']  + ',:'
+          dic['ALLOCIND']     = dic['ALLOCIND']     + ',3'
+          dic['ALLOCINDHDF5'] = dic['ALLOCINDHDF5'] + '*3' 
+          dic['DECLIND']      = dic['DECLIND']      + ',:'
       if('P' in den):
         dic['ISOSIZE'] = 2
       else:
         dic['ISOSIZE'] = 4
         
       declaration  = declaration + ts.field_decl.substitute(dic)
-      declaration  = declaration + ts.fhist_decl.substitute(dic)
+      # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      # Explicit declaration of the history is no longer needed
+      #declaration  = declaration + ts.fhist_decl.substitute(dic)
       
       # ... and the expression for reading/writing the fields from file
       #     NOTE THAT ONLY NEUTRON/PROTON FIELDS ARE WRITTEN/READ FROM FILE
       fieldread    = fieldread   + ts.field_read_a.substitute(dic)
-      fieldread    = fieldread   + ts.field_allo_b.substitute(dic)
+      #fieldread    = fieldread   + ts.field_allo_b.substitute(dic)
       fieldread    = fieldread   + ts.field_read_b.substitute(dic)
       fieldread    = fieldread   + ts.field_read_c.substitute(dic)
       fieldread    = fieldread   + ts.field_read_d.substitute(dic)
@@ -509,21 +518,45 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         # Only recombine normal fields
         fieldread = fieldread + ts.field_transfo_recomb.substitute(dic)
       fieldread = fieldread + ts.field_read_f.substitute(dic)
+      
+      # HDF5 option
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_a.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_b.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_c.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_d.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_e.substitute(dic)
+ 
+      args = list(itertools.product(range(3), repeat=OrderOfDen(den)))
+      for arg in args:   
+           # get the indices of the field correct
+           dic['IND']     = ''
+           for k in arg:
+              dic['IND'] = dic['IND'] + ',%d'%(k+1)
+              
+           fieldread_hdf5 = fieldread_hdf5 + ts.field_transfo_hdf5.substitute(dic)
+      if('P' not in den):
+        # Only recombine normal fields
+        fieldread_hdf5 = fieldread_hdf5 + ts.field_transfo_recomb_hdf5.substitute(dic)
+      fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_f.substitute(dic)
         
       fieldwrite   = fieldwrite  + ts.field_write_a.substitute(dic)
       fieldwrite   = fieldwrite  + ts.field_write_b.substitute(dic)
 
+      fieldwrite_hdf5   = fieldwrite_hdf5  + ts.field_write_hdf5.substitute(dic)
+
+      fieldini     = fieldini  + ts.field_allo.substitute(dic)
+
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_calc_a_start.substitute(dic)
-      FIELDCALC    = FIELDCALC + ts.field_allo.substitute(dic)
-      FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
+      #FIELDCALC    = FIELDCALC + ts.field_allo.substitute(dic)
+      #FIELDCALC    = FIELDCALC + ts.field_hist.substitute(dic)
       
       FIELDCALC    = FIELDCALC + ts.field_condition_start.substitute(dic)
+      fieldinproduct = fieldinproduct + ts.field_inproduct.substitute(dic)
 
       #------------------------------------------------------------------------
       #
       fieldINM = ""
-
       #-------------------------------------------------------------------------
       # Code generation for the calculation of the fields. 
       #
@@ -773,6 +806,9 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
       FIELDCALC    = FIELDCALC + ts.field_condition_end.substitute(dic)
       FIELDCALC    = FIELDCALC + ts.field_line.substitute(dic) + '\n'
 
+      # Add some lines for the multiplication and addition of potentialvectors!
+      fieldadd      = fieldadd      + '\n' +  ts.Add.substitute(dic)
+      fieldmultiply = fieldmultiply + '\n' +  ts.Multiply.substitute(dic)
 
       if(LeftOperator.derorder + RightOperator.derorder == 2):
         fieldINMk2 = fieldINMk2 + fieldINM
@@ -943,10 +979,10 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
             dic['DIVISOR'] = (extder//2)**2 # ansatz for the appropriate preconfactor
             fieldprecon  = fieldprecon + + (extder//2) * ts.field_precon_call.substitute(dic)
             fieldprecon  = fieldprecon + ts.field_precon_add.substitute(dic)
-        fieldprecon  = fieldprecon + ts.field_precon_end.substitute(dic)
   #-----------------------------------------------------------------------------
 
-  return(declaration, FIELDCALC, fieldprecon, fieldwrite, fieldread, fieldclean, fieldINMk2, fieldINMk4 )
+  return(declaration, fieldini, FIELDCALC, fieldprecon, fieldwrite,fieldwrite_hdf5, \
+   fieldread,fieldread_hdf5,fieldadd,fieldmultiply,fieldinproduct,fieldINMk2,fieldINMk4)
 
 def Adaptdensities( dens, cpl, dcmb, lcmb):
   """

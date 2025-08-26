@@ -1076,6 +1076,7 @@ $NTR  N20(si+1:si+T,si+1:si+T) = matmul(transpose(U),V)-matmul(transpose(V),U)
       N2= blocks(B+1)
       T = N + N2
 
+      allocate(U(T,T), V(T,T))
       U = Bogo(sb  +1:sb+  T, sb+T+1:sb+2*T)
       V = Bogo(sb+T+1:sb+2*T, sb+T+1:sb+2*T)
 
@@ -1084,6 +1085,8 @@ $NTR  N20(si+1:si+T,si+1:si+T) = matmul(transpose(U),V)-matmul(transpose(V),U)
         part = part + sum(        occ(si+j)  * U(:,j)**2) &
         &           + sum( (1.0d0-occ(si+j)) * V(:,j)**2)
       enddo
+
+      deallocate(U,V)
       si = si +     T
       sb = sb + 2 * T
    enddo

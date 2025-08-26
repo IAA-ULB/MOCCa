@@ -244,14 +244,19 @@ contains
   
     ! Some bookkeeping operations, to be executed by all MPIranks 
     mv = nx * ny * nz
-    dv = (dx**3)*(2**$NUMSYM)    
+    dv = (dx**3)*(2**$NUMSYM)
     ! NS: Shift of the wavefunctions applied
     k_shx=pi/($LINESIZEX*dx)
     k_shy=pi/($LINESIZEY*dx)
-    k_shz=pi/($LINESIZEZ*dx)        
+    k_shz=pi/($LINESIZEZ*dx)
     
     call inimesh(meshx, meshy, meshz, nx, ny,nz, meshgrid,0.0d0,0.0d0,0.0d0)
-        
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! redo the initialisation for the shifted coordinates for a COM at the origin
+    ! This is just to make sure these arrays are allocated at the start ....
+    call inimesh(meshx_shifted, meshy_shifted, meshz_shifted, nx, ny,nz, &
+    &            meshgrid_shifted,0.0d0,0.0d0,0.0d0)
+
   end subroutine ReadGenInfo
 
   function vector_product( mu ) result(indices)
@@ -435,17 +440,16 @@ contains
 
 #if(USE_MPI>0)    
     integer :: mpi_err
-    print *, 'RANK ', MPI_RANK, ' reports the following error.'
-#endif
+    print *, 'RANK ', MPI_RANK, ' reports the following error: ', msg
+#else
     print *, msg
+#endif
     if(present(routine)) print *, "Error occurred in routine ", routine
 #if(USE_MPI > 0)
     call MPI_ABORT(MPI_COMM_WORLD,1,mpi_err) ! force all MPI ranks to stop
                                              ! with error code 1
-#else
-    stop ! simple stop
 #endif
-
+    stop 
   end subroutine stp
 
   pure integer function LeviCivita(i,j,k)

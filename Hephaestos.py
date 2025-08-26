@@ -1,11 +1,11 @@
 #-------------------------------------------------------------------------------
-# | | | |  ___  _ __  | |__    __ _   ___  ___ | |_  ___   ___ 
+# | | | |  ___  _ __  | |__    __ _   ___  ___ | |_  ___   ___
 # | |_| | / _ \| '_ \ | '_ \  / _` | / _ \/ __|| __|/ _ \ / __|
 # |  _  ||  __/| |_) || | | || (_| ||  __/\__ \| |_| (_) |\__ \
 # |_| |_| \___|| .__/ |_| |_| \__,_| \___||___/ \__|\___/ |___/
-#              |_|                                             
+#              |_|
 #-------------------------------------------------------------------------------
-# Master script 'forging the chains' of Tantalus. 
+# Master script 'forging the chains' of Tantalus.
 #-------------------------------------------------------------------------------
 from os.path  import isfile as isfile
 import os
@@ -41,7 +41,7 @@ if(len(sys.argv) != 3):
   print (' b) specifying the chosen option regarding density summation')
   print (' Example:')
   print ('    python Hephaestos.py NLO 1')
-  
+
   sys.exit(1)
 
 config = sys.argv[1]
@@ -87,7 +87,7 @@ try:
   QUANT_AXIS = configmod.QUANT_AXIS
 except AttributeError:
   QUANT_AXIS = 'Z'
-  
+
 try:
   SECOND_AXIS = configmod.SECOND_AXIS
 except AttributeError:
@@ -120,27 +120,28 @@ SRCPATH = 'src_orig/'
 GENPATH = 'src/'
 #List of FORTRAN files needed for a functional code.
 FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90',
-              'constants.f90'     , 'printing.f90'     , 'HFB.f90',               
+              'constants.f90'     , 'printing.f90'     , 'HFB.f90',
               'HFB_gradient.f90'  , 'HFB_direct.f90'   , 'folding.f90' ,
-              'nil8.f90'          , 'coulomb.f90'      , 'derivatives.f90'   , 
+              'nil8.f90'          , 'coulomb.f90'      , 'derivatives.f90'   ,
               'precondition.f90'  , 'wavefunctions.f90', 'basis_transform.f90',
               'hartree-fock.f90'  , 'BCS.f90'          , 'pairingcutoffs.f90',
-              'temperature_projection.f90',              'momentsofinertia.f90', 
-              'fission_MOI.f90'   , 'particleinabox.f90', 'densities.f90'      , 
+              'momentsofinertia.f90',
+              'fission_MOI.f90'   , 'particleinabox.f90', 'densities.f90'      ,
               'moments.f90'       , 'pairing.f90'       , 'pairing_strengths.f90',
-              'functional.f90'    , 'parameterization.f90' , 'evolution.f90'   , 
-              'scfiteration.f90'  , 'IO.f90'               , 'tantalus.f90'    ,   
-              'transform.f90'     ,  'cranking.f90'        , 'convergence.f90' , 
-              'run_single.f90'    , 'multirun_example.f90' , 'timing.f90']
+              'functional.f90'    , 'parameterization.f90' , 'evolution.f90'   ,
+              'scfiteration.f90'  , 'IO.f90'               , 'tantalus.f90'    ,
+              'transform.f90'     ,  'cranking.f90'        , 'convergence.f90' ,
+              'run_single.f90'    , 'multirun_example.f90' , 'timing.f90', 
+              'vectors.f90']
 
 #-------------------------------------------------------------------------------
 # Check for the existence of all the source code files in SRCPATH
-FOUND=True    
+FOUND=True
 for fname in FORTRANFILES:
     if(not isfile(SRCPATH + fname)):
         print ('You are missing %s%s'%(SRCPATH, fname))
         FOUND=False
-        
+
 if(not FOUND):
     print ('Go find the source files, then come back.')
     quit()
@@ -157,7 +158,7 @@ print ("  Symmetry information" )
 heph_symmetries.printsymmetryoption(oldso)
 print(line)
 
-# Initialize the densities module, setting up the properties of all the 
+# Initialize the densities module, setting up the properties of all the
 # operators
 heph_densities.initdensities()
 #-------------------------------------------------------------------------------
@@ -169,7 +170,7 @@ description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATI
 # On to the real business: generating Fortran code.
 for fname in FORTRANFILES:
 #     print ("Preprocessing " + fname)
-     pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL, 
+     pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL,
                    DENSITY_SPWF_SUMMATION)
 
 #-------------------------------------------------------------------------------
@@ -177,9 +178,9 @@ for fname in FORTRANFILES:
 #latex.Build(FUNC_FILE, description)
 
 #-------------------------------------------------------------------------------
-# Check if all files got generated correctly. 
+# Check if all files got generated correctly.
 print (line)
-FOUND=True    
+FOUND=True
 for fname in FORTRANFILES:
     if(not isfile(GENPATH + fname)):
         print ('You are missing %s%s'%(GENPATH, fname))

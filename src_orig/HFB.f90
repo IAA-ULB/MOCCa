@@ -59,8 +59,8 @@ module HFB
  ! 
  !==============================================================================
 
-
   use geninfo
+  use vectors, only: PotentialVector
   use wavefunctions
   use pairingcutoffs
 
@@ -104,16 +104,16 @@ $N1DELTA                    &      dpsi, &
 $N2DELTA                    &            ddpsi, &
 $N3DELTA                    &                   dddpsi, &
 $SYMDELTA                   &                          sx,sy,sz, &
-&                                                               iso, onthefly) &
+&                                                             iso, onthefly,F) &
                                                                 result(deltapsi)
       !-------------------------------------------------------------------------
-      ! Dummy function to allow this module to acces the functional.f90 module 
-      ! to acces the information on the acces of deltas.
-      ! Note that the actual delta_action routine's interface is decided by 
-      ! Hephaestos at compiletime, and as such this dummy interface has to also
-      ! be decided at that time.
+      ! Dummy function to allow this module to access the functional.f90 module 
+      ! routine to calculate the "action of" Delta.
       !-------------------------------------------------------------------------
-      real*8, intent(in)    :: psi(:,:)  
+      import PotentialVector ! explicit import statement, otherwise the 
+                             ! interface would be invalid
+      real*8, intent(in)                :: psi(:,:)
+      type(PotentialVector), intent(in) :: F
 $N1DELTA      real*8, intent(inout) ::   dpsi(:,:,:)
 $N2DELTA      real*8, intent(inout) ::  ddpsi(:,:,:)
 $N3DELTA      real*8, intent(inout) :: dddpsi(:,:,:)
@@ -469,7 +469,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     character(len=2), intent(in), allocatable :: BlockLowest(:)
 
     real(KIND=dp)                :: minqp, maxqp, condi, trash
-    real(KIND=dp), allocatable   :: tempEqp(:), full_eqp(:), occ(:)
+    real(KIND=dp)                :: tempEqp(nwt), full_eqp(2*nwt), occ(nwt)
     integer, allocatable         :: blocked_qps(:), partner_qps(:)
     real(KIND=dp), allocatable   :: p_overlaps(:) 
 
@@ -489,7 +489,7 @@ $NTR        if(blocktype.eq.4) proton_block(4)  = proton_block(4)  + 1
     if(.not.allocated(Z_updates)) then
       allocate(Z_updates(nwt,nwt,2)) ; Z_updates = 0.0d0
     endif
-    allocate(tempEqp(nwt))  ; tempEqp = 0 
+    tempEqp = 0 
 
     ifail = 0
     !---------------------------------------------------------------------------
@@ -550,14 +550,12 @@ $TR    endif
         gradient_mu       = ((sqrt(condi)-1)/(sqrt(condi)+1))**2 
         gradient_stepsize =  2.0/maxqp * (  1 + gradient_mu)     * 0.9
       endif      
-      deallocate(full_eqp)
     endif    
 
     if(move) then
       !-------------------------------------------------------------------------
       ! For clarity, build the occupation factors for the gradient routines
-      allocate(occ(nwt)) ; occ = 0.0
-
+      occ = 0.0
       si = 0 ; sb = 0
       do B=1,8,2
         N = HFBlocks_global(B)   ; if(N.eq.0) cycle
@@ -590,8 +588,6 @@ $TR    endif
       &                  Z_updates(nwn+1:nwt,nwn+1:nwt,:),                     &
       &                  gradient_precon, HFBgradnorm(2), grad_blocks(5:8),    &
       &                  maxhfbiter, ifail)
-
-      deallocate(occ)
     endif
     !---------------------------------------------------------------------------
     ! Copying the Bogoliubov matrix into its 'left side'
@@ -635,7 +631,6 @@ $TR    endif
     ! Calculate the number dispersion
     HFBdispersion = calc_dispersion_HFB(rho_pairing, kappa_pairing)
 
-    deallocate(tempEqp)
   end subroutine solvepairing_HFB_gradient
   
   subroutine figure_out_blocking_structure(sphamil , gaps, lambda,             &
@@ -1616,7 +1611,7 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
 
   end function ConstructHFBHamil 
 
-  subroutine calcHFBgaps(Fermi, stabfactor)
+  subroutine calcHFBgaps(Fermi, stabfactor, F)
     !---------------------------------------------------------------------------
     ! Calculates the HFB gaps for use in the HFB solver.
     !
@@ -1651,7 +1646,8 @@ $NTR            &     config(sb+  k)*bogo(sb+  i,column) * bogo(sb+N+N2+j,column
     ! When time-reversal is not conserved, it is indeed the full matrix that 
     ! is stored. This full matrix is antisymmetric, not symmetric!
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(in)  :: Fermi(2), stabfactor(2)
+    real(KIND=dp), intent(in)         :: Fermi(2), stabfactor(2)
+    type(PotentialVector), intent(in) :: F
     integer                    :: wave1, wave2, iso, si,  B, N, N2,T
     integer                    :: inda, indb, inda_global, indb_global
     real(KIND=dp)              :: val(2), stabfac
@@ -1708,7 +1704,7 @@ $N1DELTA  &                            hfdpsi(:,:,:,inda),                     &
 $N2DELTA  &                           hfddpsi(:,:,:,inda),                     &
 $N3DELTA  &                          hfdddpsi(:,:,:,inda),                     &
 $SYMDELTA &                        sx(:,inda), sy(:,inda), sz(:,inda),         &
-                                                                    iso,.false.)
+                                                                  iso,.false.,F)
         
 $NTR        do wave2=1,N
 $TR         do wave2=wave1,N
@@ -1808,6 +1804,7 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
     real(KIND=dp), allocatable                :: temp(:,:)
     integer :: si, N, B, T
     
+    allocate(temp(size(gaps,1), size(gaps,2)))
     temp = gaps
     gaps = 0.0d0
     
@@ -1824,7 +1821,8 @@ $NTR      HFBgaps(indb,inda) = HFBgaps(indb,inda)*Pcutoffs(inda)*Pcutoffs(indb)
 
       si = si + T
     enddo
-  
+    deallocate(temp)  
+
   end subroutine calc_gaps_HF 
 
   subroutine PrintHFBconvergence(rho_pairing, kappa_pairing, Bogo)

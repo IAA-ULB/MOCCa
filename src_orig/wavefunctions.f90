@@ -76,16 +76,17 @@ module wavefunctions
  implicit none
  
  !------------------------------------------------------------------------------
- ! Array containing the spwfs and their derivatives
+ ! Array containing the spwfs and their derivatives: for ease of use in density
+ ! and derivative calculations, these are stored with spatial (nx*ny*nz points)
+ ! and spin indices (real/imaginary parts of spin up/down) separately.
  !
- ! Note: these are called the Hartree-Fock basis throughout the code (hence
- !       the name HFBasis), but they are not guaranteed to be the actual 
- !       Hartree-Fock basis, i.e. the basis that diagonalises the sphamiltonian.
- !       An extra unitary transformation might be required among them to obtain
- !       the physical HF basis. 
+ ! These spwfs are called the Hartree-Fock basis throughout the code (hence
+ ! the name HFBasis), but they are not guaranteed to be the basis that
+ ! diagonalises the sphamiltonian. An extra unitary transformation might be
+ ! required among them to obtain the physical HF basis.
  !
- ! Note that higher-order derivative tensors are stored in lexicographical order
- ! in order to cut down on the number of indices and wasted computation.
+ ! Higher-order derivative tensors are stored in lexicographical order to cut down
+ !  on the number of indices and wasted computation.
  !            1    2    3    4    5    6    7    8    9    10
  ! 1st order: Dx   Dy   Dz
  ! 2nd order: Dxx  Dxy  Dxz  Dyy  Dyz  Dzz
@@ -182,6 +183,9 @@ module wavefunctions
  real(KIND=dp), allocatable :: dispersions(:)
  ! expectation values of the single-particle hamiltonian in the canonical basis
  real(KIND=dp), allocatable :: canenergies(:)
+ ! Estimated maximum eigenvalue of h that is representable on the mesh for
+ ! each isospin
+ real(KIND=dp)              :: estimated_max_spe(2) = 0.0d0
  !------------------------------------------------------------------------------
  ! Expectation values of Parity in the HF basis and in the canonical basis
  real(KIND=dp), allocatable :: P_hf(:), P_can(:)

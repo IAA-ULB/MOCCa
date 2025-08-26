@@ -63,8 +63,10 @@ module evolution
     !---------------------------------------------------------------------------
     !Procedure that determines the evolution of a Spwf under imaginary time.
     abstract interface
-      subroutine Evolve_interface(Iteration)
-        integer, intent(in)       :: iteration
+      subroutine Evolve_interface(F,Iteration)
+        import PotentialVector
+        type(PotentialVector), intent(in) :: F
+        integer, intent(in)               :: iteration
       end subroutine
     end interface
     procedure(Evolve_Interface),pointer :: Evolve    
@@ -182,7 +184,7 @@ contains
         else
             call stp('Orthonormalisation strategy not recognized.')
         endif
-        ! - - - 
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     end subroutine ReadEvolution
 
     subroutine PrintEvolution
@@ -237,7 +239,11 @@ contains
 
     end subroutine PrintEvolution
 
-    subroutine Evolve_graddesc(iteration)
+!===============================================================================
+! Evolution routines 
+!===============================================================================
+
+    subroutine Evolve_graddesc(F,iteration)
         !-----------------------------------------------------------------------
         ! 
         ! a) For every wave-function do a gradient step
@@ -251,11 +257,16 @@ contains
         !
         ! c) Orthonormalize within symmetry blocks
         !
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Input:
+        !  F        : potentials determining the single-particle hamiltonian
+        !  iteration: iteration count
         !-----------------------------------------------------------------------
 
         use wavefunctions
-
-        integer, intent(in) :: iteration
+        
+        type(PotentialVector), intent(in) :: F
+        integer, intent(in)               :: iteration
         integer             :: wave, iso, iter
         real(KIND = dp)     :: hpsi(nx*ny*nz,4)
 
@@ -276,11 +287,11 @@ contains
                 iso = +1
             endif
 
-            hpsi = sphamil( hfpsi(:,:,wave)     ,                              &
-            &              hfdpsi(:,:,:,wave)   ,                              &
-            &              hfddpsi(:,:,:,wave),                                &
-$N3         &              hfpsi(:,:,:,wave),                               &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.)
+            hpsi = apply_sphamil( hfpsi(:,:,wave),                           &
+            &              hfdpsi(:,:,:,wave)    ,                           &
+            &              hfddpsi(:,:,:,wave)   ,                           &
+$N3         &              hfdddpsi(:,:,:,wave)  ,                           &
+            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,.false.,F)
 
             spenergies(wave)  = sum(hfpsi(:,:,wave) * hpsi(:,:)) * dv
             dispersions(wave) = sum( hpsi(:,:)**2)  * dv   -spenergies(wave)**2          
@@ -308,7 +319,7 @@ $N3         &              hfpsi(:,:,:,wave),                               &
 
     end subroutine Evolve_graddesc
 
-    subroutine Evolve_momentum(iteration)
+    subroutine Evolve_momentum(F, iteration)
         !-----------------------------------------------------------------------
         ! 
         ! Evolution of the single-particle wavefunctions in memory through
@@ -371,14 +382,20 @@ $N3         &              hfpsi(:,:,:,wave),                               &
         !   (d) d2h:
         !       Weighted dispersion of the spwfs, only calculated when
         !       diagsphamil = .true.
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ! Input:
+        !  F        : potentials determining the single-particle hamiltonian
+        !  iteration: iteration count
         !-----------------------------------------------------------------------
 
         use wavefunctions
 
         ! Explicit declaration of linear algebra routines
         external :: DSYEV
-
-        integer, intent(in)   :: iteration
+        
+        type(PotentialVector), intent(in) :: F
+        integer, intent(in)               :: iteration
+        
         integer               :: wave, iso, B, si, N, wave2, lwork, ifail
         integer               :: wg, wg2, der_index
         logical               :: on_the_fly
@@ -400,7 +417,7 @@ $N3         &              hfpsi(:,:,:,wave),                               &
             allocate(current_sph(nwt,nwt)) ; current_sph = 0.0d0
         endif
 
-        if(EstimateParams) call IterativeEstimation(iteration)
+        if(EstimateParams) call IterativeEstimation(F,iteration)
 
         si           = 0
         gradientnorm = 0.0_dp
@@ -427,11 +444,11 @@ $N3         &              hfpsi(:,:,:,wave),                               &
             endif
             !-------------------------------------------------------------------
             ! Calculate the action of the single-particle hamiltonian.
-            hpsi = sphamil( hfpsi(:,:,wave)         ,                          &
-            &              hfdpsi(:,:,:,der_index)  ,                          &
-            &              hfddpsi(:,:,:,der_index) ,                          &
-$N3         &              hfdddpsi(:,:,:,der_index),                          &
-            &              sx(:,wave), sy(:,wave), sz(:,wave),iso,on_the_fly)
+            hpsi = apply_sphamil(  hfpsi(:,:,wave)       ,                          &
+            &                     hfdpsi(:,:,:,der_index),                          &
+            &                    hfddpsi(:,:,:,der_index),                          &
+$N3         &                   hfdddpsi(:,:,:,der_index),                          &
+            &                      sx(:,wave), sy(:,wave), sz(:,wave),iso,on_the_fly,F)
 
             if(diagsphamil) then
               ! If we are diagonalising the s.p. hamiltonian, we use hpsi to
@@ -526,11 +543,11 @@ $N3         &              hfdddpsi(:,:,:,der_index),                          &
         ! Bookkeeping for convergence criteria
         gradientnorm = sqrt(gradientnorm) 
         d2h          = d2h/(neutrons+protons)
+        ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ! Orthonormalize the new spwf basis.
         call orthonormalize
-
 #if(USE_MPI > 0)
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! Collecting all arrays on all MPI ranks. The ALLREDUCE calls are valid, 
@@ -605,7 +622,7 @@ $N3         &              hfdddpsi(:,:,:,der_index),                          &
 
     end subroutine Evolve_momentum
 
-    subroutine IterativeEstimation(Iteration)
+    subroutine IterativeEstimation(F, Iteration)
       !-------------------------------------------------------------------------
       ! Estimate optimum parameters (dt,mu) of the heavy-ball iterative process
       ! to try and achieve optimal convergence rate.
@@ -617,21 +634,26 @@ $N3         &              hfdddpsi(:,:,:,der_index),                          &
 
       use wavefunctions
 
-      1 format (a20, 99f10.3)
-      2 format ('-------------------------------------------------------------')
-      3 format (' Warning: maximum eigenvalue of h could not be estimated.  ')
-      4 format (' Isospin = ', i2, 'maxE = ', f10.3,  ' convergence =', es10.3)
+      1 format ('-------------------------------------------------------------------')
+      2 format (' Warning: maximum eigenvalues of h could not be estimated.         ')
+      3 format (' Isospin = ', i3, ' maxE = ', f20.3,  ' convergence =', es10.3)
 
+      4 format (' Warning: at least on of the maximum eigenvalues of h is negative. ')
+      5 format ('          This probably means these potentials are not physical.   ')
+        
+
+      type(PotentialVector), intent(in):: F
       integer, intent(in)              :: iteration
 
       real(KIND=dp), allocatable, save :: maxspwf(:,:,:)
       real(KIND=dp), allocatable, save :: update(:,:), actionofh(:,:)
       real(KIND=dp), allocatable, save ::   dmax(:,:,:)
       real(KIND=dp), allocatable, save ::  ddmax(:,:,:)
-$N3      real(KIND=dp), allocatable, save :: dddmax(:,:,:)
+$N3   real(KIND=dp), allocatable, save :: dddmax(:,:,:)
 
-      integer       :: estiter, iter, ii, i, it, iso
-      real(KIND=dp) :: con(2), maxE, compare, relE, kappa, Es(2)
+      integer       :: estiter, iter, ii, i, it, iso, s
+      integer, allocatable :: seed(:)
+      real(KIND=dp) :: con(2), maxE, compare, relE, kappa
       !-------------------------------------------------------------------------
       ! Step 1: Solve the auxiliary problem for the largest single-particle 
       !         energy on the mesh
@@ -642,16 +664,22 @@ $N3      real(KIND=dp), allocatable, save :: dddmax(:,:,:)
           if(allocated(actionofh)) deallocate(actionofh)
           if(allocated(dmax))      deallocate(dmax)
           if(allocated(ddmax))     deallocate(ddmax)
-$N3          if(allocated(dddmax))    deallocate(dddmax)
+$N3       if(allocated(dddmax))    deallocate(dddmax)
 
           ! Initialize with a random spwf at the start.
           allocate(maxspwf(nx*ny*nz,4,2)) 
           allocate(update(nx*ny*nz,4)) ; allocate(actionofh(nx*ny*nz,4))
           allocate(dmax(nx*ny*nz,3,4))
           allocate(ddmax(nx*ny*nz,6,4))
-$N3          allocate(dddmax(nx*ny*nz,10,4))
+$N3       allocate(dddmax(nx*ny*nz,10,4))
 
-          call random_number(maxspwf)                        ! randomize
+          ! Randomize - but in a reproducible way - this spwf
+          call random_seed(size=s)
+          allocate(seed(s))
+          seed = 961
+          call random_seed(put=seed)
+          call random_number(maxspwf)
+          deallocate(seed)
           do it=1,2
             maxspwf(:,:,it) = &                                      ! normalize
                         & 1.0/sqrt(sum(maxspwf(:,:,it)**2)*dv) * maxspwf(:,:,it)
@@ -660,13 +688,13 @@ $N3          allocate(dddmax(nx*ny*nz,10,4))
 
       estiter = 500
       update  = 0.0
-      maxE    = 100.0 ! Initialize some value to avoid compiler complaints
-      Es      = 100.0
+      maxE              = 100.0 ! Initialize some value to avoid compiler complaints
+      estimated_max_spe = 100.0
       !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Iterative estimation of the maximal energy: evolve two single-particle
       ! wavefunctions (one for each isospin) to guess at the maximal eigenvalue
       ! of the single-particle hamiltonian.
-      Es(2) = 0.0d0
+      estimated_max_spe = 0.0d0
       do it = 1,2
         con(it) = 1
         iso     = 2*it-3
@@ -677,12 +705,12 @@ $N3          allocate(dddmax(nx*ny*nz,10,4))
           ! - sx/y/z_max are set in the set_spwf_symmetries routine and are
           !   assumed to be the reflection quantum numbers of the very first
           !   symmetry block.
-          actionofh = sphamil(maxspwf(:,:,it), dmax, ddmax,                    &
-$N3       &                                        dddmax,                     &
-          &                                     sx_max,sy_max,sz_max,iso,.true.)
-          con(it)   = Es(it)
-          Es(it)    = sum(actionofh * maxspwf(:,:,it)) * dv
-          con(it)   = con(it) - Es(it)
+          actionofh = apply_sphamil(maxspwf(:,:,it), dmax, ddmax,              &
+$N3       &                                         dddmax,                    &
+          &                                  sx_max,sy_max,sz_max,iso,.true., F)
+          con(it)                  = estimated_max_spe(it)
+          estimated_max_spe(it)    = sum(actionofh * maxspwf(:,:,it)) * dv
+          con(it)                  = con(it) - estimated_max_spe(it)
           !---------------------------------------------------------------------
           ! Simple power iteration seems to better than gradient descent          
           maxspwf(:,:,it)  = actionofh 
@@ -695,16 +723,24 @@ $N3       &                                        dddmax,                     &
           if(abs(con(it)).lt. 1d-2) exit
         enddo
       enddo
-      
-      if(any(abs(con) .gt. 1d-2)) then
+      !-------------------------------------------------------------------------
+      ! Convergence and sense check
+      if(MPI_RANK.eq.0 .and. any(abs(con) .gt. 1d-2)) then
           print 1
           print 2
-          print 3
-          print 4, -1, Es(1), con(1)
-          print 4, +1, Es(2), con(2)
+          print 3, -1, estimated_max_spe(1), con(1)
+          print 3, +1, estimated_max_spe(2), con(2)
       endif
+      if(MPI_RANK.eq.0 .and. any(estimated_max_spe .lt. 0.0)) then
+          print 4
+          print 5
+          print 3, -1, estimated_max_spe(1), con(1)
+          print 3, +1, estimated_max_spe(2), con(2)
+          call stp('')
+      endif
+      !-------------------------------------------------------------------------
       ! Take the maximum value of both isospins
-      maxE = maxval(Es)
+      maxE = maxval(estimated_max_spe)
       !-------------------------------------------------------------------------
       ! Step 2: estimate the minimal relevant energy
       relE = 100000000
@@ -744,7 +780,7 @@ $N3       &                                        dddmax,                     &
 !===============================================================================
 ! Projection on the feasible subspace routine
 !===============================================================================  
-  subroutine FeasibleProject()
+  subroutine FeasibleProject(Rin)
   !-----------------------------------------------------------------------------
   ! Subroutine performing one (or more) alternate step for the alternating
   ! constraints. The idea is a a simple gradient step in the direction of a
@@ -766,6 +802,7 @@ $N3       &                                        dddmax,                     &
    use wavefunctions
    use moments
 
+   type(DensityVector), intent(in) :: Rin
    type(Moment),pointer  :: Current
    real(KIND=dp)         :: multipole(nx*ny*nz,2), update(nx*ny*nz,2)
    real(KIND=dp)         :: mpsi(nx*ny*nz,4), jpsi(nx*ny*nz,4)
@@ -778,7 +815,7 @@ $N3       &                                        dddmax,                     &
    ! (i) The contribution of the multipole moments to the update
    Current    => Root
    multipole = 0.0_dp
-   call compcutoff()
+   call compcutoff(Rin)
    
    do while(associated(Current%Next))
     Current => Current%next
@@ -872,124 +909,6 @@ $N3       &                                        dddmax,                     &
    call stop_timer(T_feasible)
 
   end subroutine feasibleproject
-  
-!===============================================================================
-! Preconditioning routines
-!===============================================================================
-
-!    function Precondition_PG(psi, px, py, pz, iso) result(Ppsi)
-!        !-----------------------------------------------------------------------
-!        ! Apply a suitable preconditioner to the spwf.
-!        !-----------------------------------------------------------------------
-
-!        use functional
-
-!        real(KIND=dp), intent(in), target  :: psi(nx*ny*nz,4)
-!        real(KIND=dp), target              :: Ppsi(nx*ny*nz,4)
-!    
-!        integer, intent(in)   :: px(4),py(4),pz(4), iso
-!        integer               :: i,j,k, l, sx, sy, sz,  it
-!        real(KIND=dp),pointer :: p3(:,:,:,:), Pp3(:,:,:,:)
-!        
-!        it = (iso+3)/2
-!        
-!        p3(1:nx,1:ny,1:nz,1:4) => psi
-!        Pp3(1:nx,1:ny,1:nz,1:4) => Ppsi
-
-!        do l=1,4
-!            sx = (px(l) + 3)/2 ! These are equal to 
-!            sy = (py(l) + 3)/2 !    1    if pi =   -1  or 0
-!            sz = (pz(l) + 3)/2 !    2    if pi =   +1 
-!            
-!            do i=1,ny*nz
-!                Pp3(:,i,1,l) =                                                 &
-!                &                       matmul(preconX(:,:,sx,it),p3(:,i,1,l))
-!            enddo   
-!            do k=1,nz
-!                do i=1,nx
-!                    Pp3(i,:,k,l) = Pp3(i,:,k,l) +                              &
-!                    &                   matmul(preconY(:,:,sy,it),p3(i,:,k,l))
-!                enddo
-!            enddo
-!            do i=1,nx*ny
-!                Pp3(i,1,:,l) = Pp3(i,1,:,l) +                                  &
-!                &                       matmul(preconZ(:,:,sz,it),p3(i,1,:,l))
-!            enddo
-!        enddo
-!    end function Precondition_PG
-
-!    function Precondition_None(psi, px, py, pz, iso) result(Ppsi)
-!        !-----------------------------------------------
-!        ! Apply a suitable preconditioner to the spwf.
-!        !----------------------------------------------
-
-!        real(KIND=dp), intent(in), target :: psi(nx*ny*nz,4)
-!        real(KIND=dp)                     :: Ppsi(nx*ny*nz,4)
-!        integer, intent(in)               :: px(4),py(4),pz(4), iso
-!        
-!        Ppsi = psi
-!    end function Precondition_None
-    
-!    subroutine CalculatePreconditioners
-!        !-----------------------------------------------------------------------
-!        ! Find suitable constants for use in the preconditioners and employ
-!        ! to calculate the preconditioning matrices.
-!        !-----------------------------------------------------------------------
-!    
-!        integer       :: i, loca,k, it, startind, endind
-!        real(KIND=dp) :: epsilon0, inproduct
-!        
-!        if(.not.allocated(preconx)) then
-!            allocate(preconx(nx,nx,2,2))
-!            allocate(precony(ny,ny,2,2))
-!            allocate(preconz(nz,nz,2,2))
-!        endif
-!    
-!        do it=1,2
-!            !-------------------------------------------------------------------
-!            ! Find a proper value for epsilon0
-!            epsilon0 = 0.0_dp
-!            
-!            if (it .eq. 1) then
-!                startind = 1
-!                endind   = nwn
-!            else
-!                startind = nwn+1
-!                endind   = nwt
-!            endif
-!            !-------------------------------------------------------------------
-!            ! Find the minimum sp. energy for this nucleon species.
-!            do i=startind, endind
-!                if(spenergies(i) .lt.  epsilon0) then
-!                    epsilon0 = spenergies(i)
-!                    loca = i
-!                endif
-!            enddo
-!            !-------------------------------------------------------------------
-!            ! Calculate the kinetic energy of this particular level.
-!            Inproduct = 0.0_dp
-!            do k=1,4          
-!                    do i=1,mv
-!                           Inproduct = Inproduct + HFPsi(i,k,loca) *  & 
-!                           &  ( HFddPsi(i,1,k,loca) + &
-!                           &    HFddPsi(i,4,k,loca) + &
-!                           &    HFddPsi(i,6,k,loca))
-!                    enddo
-!            enddo
-!            ! Epsilon is the potential energy, i.e. E_spwf - E_kin
-!            epsilon0 =   epsilon0 + hbm(it) * Inproduct * dv
-!            !-------------------------------------------------------------------
-!            ! Precalculate the inverse of the matrices
-!            !
-!            !  ( epsilon - hbar/2m * Delta)^{-1}
-!            ! 
-!            call InvertDerivatives(epsilon0, -hbm(it),preconX(:,:,:,it),       &
-!            &                                         preconY(:,:,:,it),       &
-!            &                                         preconZ(:,:,:,it))
-!                                           
-!        enddo
-!        
-!    end subroutine CalculatePreconditioners
 
     subroutine clean_evolution()
       if(allocated(preconx)) deallocate(preconx)

@@ -130,6 +130,7 @@ module moments
 !===============================================================================
   use geninfo
   use sphericalharmonics
+  use Densities
 
   implicit none
   
@@ -283,7 +284,9 @@ module moments
   ! Pointer to the cutoff procedure chosen.
   !-----------------------------------------------------------------------------
   abstract interface
-        subroutine comp_cutoff()
+        subroutine comp_cutoff(R)
+          use Densities
+          type(DensityVector), intent(in), target :: R
         end Subroutine
   end interface
   procedure(comp_cutoff), pointer :: CompCutoff
@@ -997,67 +1000,66 @@ $FILL_LIST
 ! Calculation routines
 !
 !===============================================================================
-  subroutine CalculateMoments()
+  subroutine CalculateMoments(R)
     !---------------------------------------------------------------------------
     ! Subroutine that
     !   1) Calculates the values of all multipole (mass and magnetic) moments
     !   2) Calculate the quadrupole moments in different representations
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     R : a densityvector containing values for all mean-field densities
     !---------------------------------------------------------------------------
-    use Densities
+    type(Moment), pointer           :: Current
+    type(DensityVector), intent(in) :: R
     
-    type(Moment), pointer :: Current
-
     call start_timer(T_moments)
     !---------------------------------------------------------------------------
     ! First, we need to calculate the cutoff function
     call start_timer(T_moment_cutoff)
-    call CompCutoff
+    call CompCutoff(R)
     call stop_timer(T_moment_cutoff)
 
     !---------------------------------------------------------------------------
     ! Calculate the electric multipole moments
     nullify(Current) ;  Current => Root
-    call Current%Calculate(Current) !  electric monopole
+    call Current%Calculate(Current,R) !  electric monopole
     !---------------------------------------------------------------------------
     do while(associated(Current%Next))
         Current => Current%Next
-        call Current%Calculate(Current)
+        call Current%Calculate(Current, R)
     enddo
     !---------------------------------------------------------------------------
     ! Calculate the magnetic multipole moments 
 $NTR    nullify(Current) ;  Current => Root_mag
 $NTR    do while(associated(Current%Next))
 $NTR        Current => Current%Next
-$NTR        call Current%Calculate(Current)
+$NTR        call Current%Calculate(Current,R)
 $NTR    enddo
-
     !---------------------------------------------------------------------------
     ! Calculate the multipole moments of divJ
     nullify(Current) ;  Current => Root_divJ
-    call Current%Calculate(Current)           !norm of div J
+    call Current%Calculate(Current,R)           !norm of div J
     do while(associated(Current%Next))
        Current => Current%Next
-       call Current%Calculate(Current)
+       call Current%Calculate(Current, R)
     enddo
 
     call CalcQuadrupoleAlt()
 
     call stop_timer(T_moments)
-
     return
   end subroutine CalculateMoments
   
-  subroutine Calculate_electric(ToCalculate)
+  subroutine Calculate_electric(ToCalculate, R)
     !---------------------------------------------------------------------------
     ! This subroutine calculates the value of a mass/electric multipole moment.
     !
     ! Input:
     !        Tocalculate :  mass/electric multipole moment to be calculated
     !---------------------------------------------------------------------------
-    use Densities, only : D_I_I, chargedensity
-   
-    class(Moment),        intent(inout) :: ToCalculate
-    integer                             :: it,i,j,k
+    type(DensityVector), intent(in), target :: R
+    type(Moment),        intent(inout)      :: ToCalculate
+    integer                                 :: it,i,j,k
 
     ! Save the history
     Tocalculate%history = tocalculate%value
@@ -1069,8 +1071,8 @@ $NTR    enddo
     !---------------------------------------------------------------------------
     ! Calculate the new value for ordinary constraints
     do it=1,2
-      ToCalculate%Value(it)      = sum(ToCalculate%SpherHarm*D_I_I(:,it))   * dv
-      ToCalculate%Squared(it)    = sum(ToCalculate%SpherHarm**2*D_I_I(:,it))* dv
+      ToCalculate%Value(it)  = sum(ToCalculate%SpherHarm*   R%D_I_I(:,it))* dv
+      ToCalculate%Squared(it)= sum(ToCalculate%SpherHarm**2*R%D_I_I(:,it))* dv
     enddo
     
     ToCalculate%ChargeValue      =  0
@@ -1078,7 +1080,7 @@ $NTR    enddo
       do j=1,ny
         do i=1,nx
           ToCalculate%ChargeValue  = ToCalculate%ChargeValue + &
-          &  ToCalculate%SpherHarm(i+(j-1)*nx+(k-1)*ny*nx)*chargedensity(i,j,k)
+          &  ToCalculate%SpherHarm(i+(j-1)*nx+(k-1)*ny*nx)*R%chargedensity(i,j,k)
         enddo
       enddo
     enddo
@@ -1107,7 +1109,7 @@ $NTR    enddo
     return
   end subroutine Calculate_electric
   
-  subroutine Calculate_magnetic(ToCalculate)
+  subroutine Calculate_magnetic(ToCalculate, R)
     !---------------------------------------------------------------------------
     ! This subroutine calculates the magnetic multipole moment by integrating 
     ! the spin and current density over the mesh with the appropriate 
@@ -1125,15 +1127,17 @@ $NTR    enddo
     ! Input:
     !        Tocalculate :  mass/electric multipole moment to be calculated
     !---------------------------------------------------------------------------
-$NTR    use densities, only : der_C_I_N, der_D_I_S
-
-    class(Moment),        intent(inout) :: ToCalculate
-$NTR    integer                             :: it,mu
-$NTR    real(KIND=dp)                       :: rj(nx*ny*nz,3)
+    type(DensityVector), intent(in)   ,target :: R
+    type(Moment),        intent(inout)        :: ToCalculate
+$TR     real(KIND=dp)                         :: trash
+$NTR    integer                               :: it,mu
+$NTR    real(KIND=dp)                         :: rj(nx*ny*nz,3)
 
     !Initialise
     ToCalculate%VectorValue     = 0.0_dp
     ToCalculate%PhysVectorValue = 0.0_dp
+
+$TR  trash = R%D_I_I(1,1) ! statement to stop compiler complaining
     
     !---------------------------------------------------------------------------
     ! Orbital function to integrate over
@@ -1146,18 +1150,18 @@ $NTR    real(KIND=dp)                       :: rj(nx*ny*nz,3)
 $NTR    do it=1,2
 $NTR      !                                [nabla x j]_x = nabla_y j_z - nabla_z j_y
 $NTR      rj(:,1) = meshgrid_shifted(:,1) * &
-$NTR      &                              (der_C_I_N(:,2,3,it) - der_C_I_N(:,3,2,it))
+$NTR      &                         (R%der_C_I_N(:,2,3,it) - R%der_C_I_N(:,3,2,it))
 $NTR      !                                [nabla x j]_y = nabla_z j_x - nabla_x j_z
 $NTR      rj(:,2) = meshgrid_shifted(:,2) * &
-$NTR      &                              (der_C_I_N(:,3,1,it) - der_C_I_N(:,1,3,it)) 
+$NTR      &                         (R%der_C_I_N(:,3,1,it) - R%der_C_I_N(:,1,3,it)) 
 $NTR      !                                [nabla x j]_z = nabla_x j_y - nabla_y j_x
 $NTR      rj(:,3) = meshgrid_shifted(:,3) * &
-$NTR      &                              (der_C_I_N(:,1,2,it) - der_C_I_N(:,2,1,it)) 
+$NTR      &                         (R%der_C_I_N(:,1,2,it) - R%der_C_I_N(:,2,1,it)) 
 $NTR  
 $NTR      ! spin part = -1/2 Y_lm div.s(r)
 $NTR      do mu=1,3
 $NTR        ToCalculate%VectorValue(mu,1,it)    = - 0.5_dp*                        &
-$NTR        &                    sum(ToCalculate%SpherHarm(:)*Der_D_I_S(:,mu,mu,it))
+$NTR        &                  sum(ToCalculate%SpherHarm(:)*R%Der_D_I_S(:,mu,mu,it))
 $NTR      enddo
 $NTR      ! Orbital part -2/(l+1) Y_lm div(r x j) = 2/(l+1) Y_lm r.(rot j)
 $NTR      do mu=1,3
@@ -1180,19 +1184,19 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     return
   end subroutine Calculate_magnetic
 
-  subroutine Calculate_multipole_divJ(ToCalculate)
+  subroutine Calculate_multipole_divJ(ToCalculate, R)
     !---------------------------------------------------------------------------
     ! This subroutine calculates the value of a multipole moment of the 
     !  vector component of the spin-current density J_mn = C^{1,nabla sigma}_mn
     !
     ! Input:
-    !        Tocalculate :  multipole moment to be calculated
+    !        Tocalculate : multipole moment to be calculated
+    !        R           : densityvector to calculate the moment for
     !---------------------------------------------------------------------------
-    use Densities, only : divJ
     use derivatives
-  
-    class(Moment),        intent(inout) :: ToCalculate
-    integer                             :: it
+    type(DensityVector), intent(in), target :: R
+    type(Moment),        intent(inout)      :: ToCalculate
+    integer                                 :: it
 
     ! Save the history
     Tocalculate%history = tocalculate%value
@@ -1204,7 +1208,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     !---------------------------------------------------------------------------
     ! Calculate these values    
     do it=1,2
-      ToCalculate%Value(it)      = sum(ToCalculate%SpherHarm*divJ(:,it))    *dv
+      ToCalculate%Value(it)      = sum(ToCalculate%SpherHarm*R%divJ(:,it))  *dv
     enddo
     ! Not sure what a "charge density" J_mn would be, set to zero for now
     ToCalculate%ChargeValue      =  0.0d0
@@ -1212,7 +1216,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     return
   end subroutine Calculate_multipole_divJ
 
-  subroutine Calculate_neckoperator(ToCalculate)
+  subroutine Calculate_neckoperator(ToCalculate, R)
     !---------------------------------------------------------------------------
     ! This subroutine calculates the expectation of the neck operator
     ! 
@@ -1228,10 +1232,10 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     ! Input:
     !        Tocalculate :  multipole moment to be calculated
     !---------------------------------------------------------------------------
-    use Densities, only : D_I_I, chargedensity
     use derivatives
-  
-    class(Moment),        intent(inout) :: ToCalculate
+
+    type(DensityVector), intent(in), target :: R
+    type(Moment),        intent(inout)      :: ToCalculate
     integer                             :: it, k, maxind(1)
     real(KIND=dp)                       :: z0, maxz0, minz0, neck, min_neck,ztry
     real(KIND=dp), pointer              :: den(:,:,:)
@@ -1250,7 +1254,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     ! Do the integration of the matter density over x and y
     allocate(linear_den(nz))
     ! isoscalar density pointer remapping
-    den(1:nx,1:ny,1:nz) => D_I_I(1:nx*ny*nz,3) 
+    den(1:nx,1:ny,1:nz) => R%D_I_I(1:nx*ny*nz,3) 
     ! Integrate for each point along z
     do k=1,nz
       linear_den(k) = sum(den(:,:,k))
@@ -1292,7 +1296,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     ! 3. Use this value of z0 to calculate all values 
     !    Neutron and proton densities
     do it=1,2
-      den(1:nx,1:ny,1:nz) => D_I_I(1:nx*ny*nz,it) 
+      den(1:nx,1:ny,1:nz) => R%D_I_I(1:nx*ny*nz,it) 
       do k=1,nz
         linear_den(k) = sum(den(:,:,k))
       enddo
@@ -1302,7 +1306,7 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     enddo
     ! Charge density
     do k=1,nz
-      linear_den(k) = sum(chargedensity(:,:,k))
+      linear_den(k) = sum(R%chargedensity(:,:,k))
     enddo
     ! Volume element is dx^2  * factors 2 for symmetry
     linear_den = linear_den *dx**2 * 2**(reduX) * 2**(reduY)
@@ -1346,8 +1350,8 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
     !   neck       : <Q_N>
     !---------------------------------------------------------------------------
     real(KIND=dp)              :: neck
-    real(KIND=dp), allocatable :: gauss1(:), gauss2(:)
     real(KIND=dp), intent(in)  :: z0, linear_den(:)
+    real(KIND=dp)              :: gauss1(size(linear_den)), gauss2(size(linear_den))
   
     gauss1   = exp(-(meshz - z0)**2/(neck_length**2))
     neck =        sum(linear_den * gauss1) 
@@ -1601,43 +1605,68 @@ $NTR    ToCalculate%physvectorValue   = ToCalculate%physvectorValue*dv
 ! Treatment of constraints, readjustment and contribution to sphamil. 
 !===============================================================================
   
-  subroutine Sphamilcontribution()
+  function constraints_sph_elmult(diff) result(pot)
     !---------------------------------------------------------------------------
-    ! This function calculates the energy contribution associated with the
-    ! constraints on the multipole moments.
+    ! Calculate the contribution to the single-particle potentials associated 
+    ! with the constraints on the multipole moments.
     !
-    ! For ordinary multipole constraints
-    !  h => h - \lambda * O 
-    ! where lambda is the current multiplier
+    !  F_I_I(r) = F_I_I(r) - sum_i \lambda_i  * O_i(r)
+    !
+    !  - lambda is the Lagrange multiplier
+    !  - O_i(r) is the spherical harmonic (with cutoff)
+    !  - i ranges over all constraints
+    ! 
+    ! This routine also offers the possibility to calculate the difference 
+    ! w.r.t. to the previous values of the multipole moments. If diff is set
+    ! to True, the routine instead returns
+    !
+    !   sum_i (\lambda^j_i - \lambda^(j-1)_i)  * O_i(r)
+    !
+    ! where lambda^j is the CURRENT Lagrange multiplier
+    ! and   lambda^j is the PREVIOUS one.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !     - diff: logical
+    !             if .true., calculate the change of this quantity w.r.t. to the
+    !             previous iteration instead of the CURRENT value.
+    ! Ouput:
+    !     - pot : the contribution to the single-particle potentials
     !---------------------------------------------------------------------------
+    logical, intent(in)   :: diff
     integer               :: it
+    real(KIND=dp)         :: pot(mv,2), fac
     type(Moment), pointer :: Current
 
     Current => Root
     
-    Constraint_I_I = 0.0_dp
+    pot = 0.0_dp
     do while(associated(Current%Next))
       Current => Current%Next
 
       ! Go to the next moment if this moment is not constrained
       if(Current%constrainttype.eq.0) cycle
      
+      if(diff) then 
+        fac = Current%Multiplier - Current%mult_hist
+      else
+        fac = Current%Multiplier 
+      endif
+     
       if(Current%isoswitch .eq. 0) then
         ! Apply the constraint to all species
         do it=1,2
-          Constraint_I_I(:,it) = Constraint_I_I(:,it)                          &
-          &                - Current%Multiplier * Current%SpherHarm*Cutoff(:,it)
+          pot(:,it) = pot(:,it) - fac * Current%SpherHarm*Cutoff(:,it)
         enddo
       elseif(Current%isoswitch .le. 2) then
         ! Apply the constraint to only one species
         it = Current%isoswitch
-        Constraint_I_I(:,it) = Constraint_I_I(:,it)                            &
-        &                  - Current%Multiplier * Current%SpherHarm*Cutoff(:,it)
+        pot(:,it) = pot(:,it)   - fac * Current%SpherHarm*Cutoff(:,it)
       endif
     enddo
     nullify(Current)
     
-  end subroutine SpHamilcontribution
+  end function constraints_sph_elmult
   
   subroutine ReadjustAllMoments(ctype)
     !---------------------------------------------------------------------------
@@ -2103,11 +2132,12 @@ $NTR     &          '   phys:             mu_N fm^(l-1)'  )
     nullify(Current)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Print alternative conventions for the quadrupole moment
-    call PrintQuadrupoleAlt
+    call PrintQuadrupoleAlt(Density)
     print 102
     
     !---------------------------------------------------------------------------
     ! b) Magnetic multipole moments
+$NTR if(maxmoment_mag .ne.0) then
 $NTR    print 101
 $NTR    print 10, Ax
 $NTR    print 11, SecAx1, SecAx2
@@ -2127,25 +2157,26 @@ $NTR    enddo
 $NTR    
 $NTR    nullify(Current)
 $NTR    print 102
-
+$NTR endif
     !---------------------------------------------------------------------------
     ! c) divJ multipole moments
-    print 104
-    print 10, Ax
-    print 11, SecAx1, SecAx2
-    print 1
-    print 105
-    print 1
+    if(maxmoment_divJ .ne.0) then
+      print 104
+      print 10, Ax
+      print 11, SecAx1, SecAx2
+      print 1
+      print 105
+      print 1
 
-    Current => Root_divJ
-    call Current%printMoment(Current)
-    do while(associated(Current%Next))
-      Current => Current%Next
-      call Current%PrintMoment(Current)
-    enddo
-    nullify(Current)
-    print 102
-    
+      Current => Root_divJ
+      call Current%printMoment(Current)
+      do while(associated(Current%Next))
+        Current => Current%Next
+        call Current%PrintMoment(Current)
+      enddo
+      nullify(Current)
+      print 102
+    endif
     return
   end subroutine PrintAllMoments
 
@@ -2159,7 +2190,7 @@ $NTR    print 102
     ! - l = 4 moment => r^4 radii
     !---------------------------------------------------------------------------
      
-    class(Moment),       intent(in) :: ToPrint
+    type(Moment),       intent(in) :: ToPrint
     character(len=2)                :: ReIm
     real(KIND=dp)                   :: printedValue(4)
 
@@ -2269,7 +2300,7 @@ $NTR    print 102
     ! - l =-4 moment
     !---------------------------------------------------------------------------
      
-    class(Moment),       intent(in) :: ToPrint
+    type(Moment),       intent(in) :: ToPrint
     character(len=2)                :: ReIm
 
     1 format (1x,  A2,'  divJ_{', 2i2, '}', 3(f15.4,1x) )
@@ -2321,7 +2352,7 @@ $NTR    print 102
     !   ToPrint: multipole moment to be printed. Should be a magnetic one.
     !---------------------------------------------------------------------------
 
-    class(Moment),       intent(in) :: ToPrint
+    type(Moment),       intent(in) :: ToPrint
     character(len=2)                :: ReIm
     real(KIND=dp)                   :: fac
 
@@ -2409,13 +2440,12 @@ $NTR    print 102
    
   end subroutine PrintMoment_magnetic
 
-  subroutine PrintQuadrupoleAlt()
+  subroutine PrintQuadrupoleAlt(R)
     !---------------------------------------------------------------------------
     ! Prints out the Quadrupole moments in their various representations.
     ! This should be the numbers to compare with EV8/CR8 and EV4.
     !---------------------------------------------------------------------------
-
-    use Densities
+    type(DensityVector), intent(in) :: R
 
     1 format(' Cart. Moments', ' X' , 14x, 'Y', 14x, 'Z')
    11 format(' Cart. N', 2x ,3f15.7)
@@ -2509,9 +2539,9 @@ $NTR    print 102
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            Qi(1,it) = Qi(1,it) + meshx(i)**2*D_I_I(meshindex(i,j,k),it)
-            Qi(2,it) = Qi(2,it) + meshy(j)**2*D_I_I(meshindex(i,j,k),it)
-            Qi(3,it) = Qi(3,it) + meshz(k)**2*D_I_I(meshindex(i,j,k),it)
+            Qi(1,it) = Qi(1,it) + meshx(i)**2*R%D_I_I(meshindex(i,j,k),it)
+            Qi(2,it) = Qi(2,it) + meshy(j)**2*R%D_I_I(meshindex(i,j,k),it)
+            Qi(3,it) = Qi(3,it) + meshz(k)**2*R%D_I_I(meshindex(i,j,k),it)
           enddo
         enddo
       enddo
@@ -2580,7 +2610,7 @@ $NTR    print 102
 ! Cutoff business
 !===============================================================================
 
-  subroutine RutzCutOff
+  subroutine RutzCutOff(R)
     !---------------------------------------------------------------------------
     ! This function computes the density cut-off function for the computation of
     ! the multipole moments. Multipole constraints should be computed using a
@@ -2615,8 +2645,8 @@ $NTR    print 102
     !                    K. Rutz et al, Nucl. Phys. A590 (1995) 690.
     !
     !---------------------------------------------------------------------------
-
-    use densities
+    
+    type(DensityVector), intent(in), target :: R
 
     real(KIND=dp)  :: Treshold(2), DeltaR(nx,ny,nz), Surface(3,7*nx*ny*nz),X,Y,Z
     real(KIND=dp)  :: InterX,InterY,InterZ, Distance
@@ -2627,7 +2657,7 @@ $NTR    print 102
     if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
 
     ! 3D representation of D_I_I for ease of coding
-    rho_3D(1:nx,1:ny,1:nz,1:2) => D_I_I
+    rho_3D(1:nx,1:ny,1:nz,1:2) => R%D_I_I
     cut_3D(1:nx,1:ny,1:nz,1:2) => Cutoff
   
     do it=1,2
@@ -2747,7 +2777,7 @@ $NTR    print 102
     return
   end subroutine RutzCutOff
 
-  subroutine StandardCutoff
+  subroutine StandardCutoff(R)
     !---------------------------------------------------------------------------
     ! This subroutine calculates a cutoff function in a density independent way.
     !        exp(-d)/(1+exp(-d))  if d > 0
@@ -2756,10 +2786,13 @@ $NTR    print 102
     ! with d = (|r| - radd)/acut
     !
     !---------------------------------------------------------------------------
+    type(DensityVector), intent(in), target :: R
+    real(kind=dp)                           :: X,Y,Z,d, trash
+    integer                                 :: i,j,k
+    real(KIND=dp), pointer                  :: cut_3D(:,:,:,:)
 
-    real(kind=dp) :: X,Y,Z,d
-    integer :: i,j,k
-    real(KIND=dp), pointer     :: cut_3D(:,:,:,:)
+    ! Trash statement to make the compiler not complain about unused variables
+    trash = R%D_I_I(1,1)
 
     if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
     cut_3D(1:nx,1:ny,1:nz,1:2) => Cutoff
@@ -2782,12 +2815,17 @@ $NTR    print 102
 
   end subroutine StandardCutoff
 
-  subroutine NoCutoff
+  subroutine NoCutoff(R)
     !---------------------------------------------------------------------------
     ! This subroutine sets the cutoff function to 1 everywhere.
     !---------------------------------------------------------------------------
+    type(DensityVector), intent(in), target  :: R
+    real(KIND=dp)                            :: trash
     if(.not.allocated(Cutoff)) allocate(Cutoff(nx*ny*nz,2))
     Cutoff = 1.0d0
+
+    trash = R%D_I_I(1,1) ! statement to stop the compiler complaining about 
+                         ! unused variables.
   end subroutine NoCutoff
 !===============================================================================
 ! Read/write moments from file
@@ -2865,7 +2903,7 @@ $NTR    print 102
     !---------------------------------------------------------------------------
     ! Subroutine that writes all relevant values of multipole moment to file.
     !---------------------------------------------------------------------------
-    class(Moment), intent(in) :: Mom
+    type(Moment), intent(in) :: Mom
     integer, intent(in)       :: Ochan
     integer                   :: io
 
@@ -2942,7 +2980,7 @@ $NTR    print 102
 ! Other business.
 !===============================================================================  
     
-  subroutine center_of_mass_shift(shiftx, shifty, shiftz) 
+  subroutine center_of_mass_shift(R, shiftx, shifty, shiftz) 
     !---------------------------------------------------------------------------
     ! We calculate the center-of-mass coordinates of the nucleus.
     !
@@ -2952,9 +2990,10 @@ $NTR    print 102
     !      (symmetries, quantisation axis)
     !   we simply check which of the possible Q_1m exists and use that.
     !---------------------------------------------------------------------------
-    real(KIND=dp), intent(out) :: shiftx, shifty, shiftz
-    real(KIND=dp)              :: C, fac
-    type(Moment), pointer      :: Q1m
+    type(DensityVector), intent(in) :: R
+    real(KIND=dp), intent(out)      :: shiftx, shifty, shiftz
+    real(KIND=dp)                   :: C, fac
+    type(Moment), pointer           :: Q1m
     
     shiftx = 0
     shifty = 0
@@ -2964,7 +3003,7 @@ $NTR    print 102
     Q1m=>Findmoment(1,0,.false.)
     if(associated(Q1m)) then
       if(follow_com ) then
-        call Q1m%calculate(Q1m)
+        call Q1m%calculate(Q1m,R)
         C = sum(Q1m%value)
       else
         C = Q1m%constraint
@@ -2975,7 +3014,7 @@ $NTR    print 102
     Q1m=>Findmoment(1,1,.false.)
     if(associated(Q1m)) then
       if(follow_com ) then
-        call Q1m%calculate(Q1m)
+        call Q1m%calculate(Q1m,R)
         C = sum(Q1m%value)
       else
         C = Q1m%constraint
@@ -2986,7 +3025,7 @@ $NTR    print 102
     Q1m=>Findmoment(1,1,.true.)
     if(associated(Q1m)) then
       if(follow_com ) then
-        call Q1m%calculate(Q1m)
+        call Q1m%calculate(Q1m,R)
         C = sum(Q1m%value)
       else
         C = Q1m%constraint
@@ -2996,7 +3035,7 @@ $NTR    print 102
     
   end subroutine center_of_mass_shift
   
-  subroutine adapt_com()
+  subroutine adapt_com(R)
     !---------------------------------------------------------------------------
     ! Adapt things to the shifted nuclear center-of-mass
     !  (1) Calculate the current center-of-mass coordinates
@@ -3007,11 +3046,16 @@ $NTR    print 102
     ! module: in particular with respect to the angular momentum and moments
     ! of inertia, which are all calculated with respect to the COM of the 
     ! nucleus.
+    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !    R: densityvector for which we are calculating multipole moments
     !---------------------------------------------------------------------------
-    real(KIND=dp) :: shiftx, shifty, shiftz
+    type(DensityVector), intent(in) :: R
+    real(KIND=dp)                   :: shiftx, shifty, shiftz
     
     ! Calculate the location of the C.O.M. 
-    call center_of_mass_shift(shiftx, shifty, shiftz)
+    call center_of_mass_shift(R,shiftx, shifty, shiftz)
     ! Generate shifted mesh variables
     call inimesh(meshx_shifted, meshy_shifted, meshz_shifted, nx, ny,nz,       &
     &                                     meshgrid_shifted,shiftx,shifty,shiftz)
