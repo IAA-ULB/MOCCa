@@ -775,10 +775,7 @@ contains
     call iterate_dHsp(dH_free, dH_free)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! define dHa as random dcmplx anti-symmetric matrix
-
-    a = dcmplx(6.0_dp, -1.0_dp) ! some random C scalar
-    b = dcmplx(-2.0_dp, 0.5_dp) ! some random C scalar
+    ! define dHa as random dcmplx matrix
 
     ! Seed the random number generator
     call random_seed()
@@ -790,11 +787,13 @@ contains
     ! Combine into complex matrix
     dHa = 0
     do i = 1, nwt
-        do j = i+1, nwt
+        do j = 1, nwt
             dHa( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
-            dHa( (i-1) * nwt + j ) = - dHa( (j-1) * nwt + i )
         end do
     end do
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! define dHb as random dcmplx matrix
 
     ! Generate random real and imaginary parts
     call random_number(rand_real)
@@ -803,20 +802,27 @@ contains
     ! Combine into complex matrix
     dHb = 0
     do i = 1, nwt
-        do j = i+1, nwt
+        do j = 1, nwt
             dHb( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
-            dHb( (i-1) * nwt + j ) = - dHb( (j-1) * nwt + i )
         end do
     end do
 
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! dHlincomb as some linear combination of dHa and dHb
+    
+    a = dcmplx(6.0_dp, -1.0_dp) ! some random C scalar
+    b = dcmplx(-2.0_dp, 0.5_dp) ! some random C scalar
+    
     dHlincomb = a * dHa + b * dHb
 
     print * , "||dHa|| = ", norm_2(dHa)
     print * , "||dHb|| = ", norm_2(dHb)
     print * , "||dHlincomb|| = ", norm_2(dHlincomb)
 
-
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! calculate  FAM(dHa), FAM(dHb) and FAM(a * dHa + b *dHb)
+
     call iterate_dHsp(dHa, dHa_iter)
     call iterate_dHsp(dHb, dHb_iter)
     call iterate_dHsp(dHlincomb, dHlincomb_iter)
@@ -825,13 +831,19 @@ contains
     print * , "||FAM(dHb)|| = ", norm_2(dHb_iter)
     print * , "||FAM(dHlincomb)|| = ", norm_2(dHlincomb_iter)
 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! subtract the free response 
+
     dHa_iter = dHa_iter - dH_free
     dHb_iter = dHb_iter - dH_free
     dHlincomb_iter = dHlincomb_iter - dH_free
 
     print * , "||FAM(dHlincomb) - free|| = ", norm_2(dHlincomb_iter)
     print * , "||a(FAM(dHa) - free) + b(FAM(dHb) - free)|| = ", norm_2(a * dHa_iter + b * dHb_iter)
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! verify linarity of T and hence affinity of FAM
 
     diff_from_lin = norm_2(dHlincomb_iter - (a * dHa_iter + b * dHb_iter))
     print * , "|| [FAM(dHlincomb) - free] - [a(FAM(dHa) - free) + b(FAM(dHb) - free)]|| = ", diff_from_lin
