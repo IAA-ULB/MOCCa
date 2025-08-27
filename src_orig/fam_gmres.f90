@@ -109,6 +109,20 @@ module gmres
 
   end subroutine alloc_gmres
 
+  subroutine dealloc_gmres()
+
+    deallocate(H)
+    deallocate(Q)
+    deallocate(b)
+    deallocate(r0)
+    deallocate(x_guess)
+    deallocate(x_gmres)
+    deallocate(y_minres)
+    deallocate(beta)
+
+
+  end subroutine dealloc_gmres
+
   subroutine init_gmres(x0)
     complex(KIND=dp), intent(in)   :: x0(:)
     integer                        :: i

@@ -661,6 +661,9 @@ contains
     print *, '||x - Tx + x_free|| : ', sqrt(sum(abs(x_gmres - x_out) ** 2 ))
 
 
+    call dealloc_gmres()
+
+
   end subroutine test_gmres_affine
 
   subroutine affine_trafo(x_in, x_out)

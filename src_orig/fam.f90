@@ -371,10 +371,15 @@ module fam
 
   subroutine one_minus_T(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
-    ! Compute (1-T)(dH), the relevant iterator for GMRES. 
-    ! Starting from dH^[i+1] = FAM(dH^[i]) = T(dH^[i]) + dH_free, one finds that
-    ! (1-T)(dH) = dH_free is of the form Ax = b. The operator (1-T) is given by
-    ! (1-T)(dH^[i]) = dH^[i] - dH^[i+1] + dH_free
+    ! The precedure iterate_dH constitutes an affine transformation 
+    !    dH -> T(dH) + dH_free
+    ! where T is a linear map. Fixed-point solutions of this affine problem are
+    ! therefor also a solution of the standard linear problem
+    !    (I - T) dH = dH_free. 
+    ! Thus, (I-T) is the relevant linear operator to use in GMRES. One must 
+    ! therefore compute
+    !    (I - T) dH = dH - (T(dH) + dH_free) + dH_free 
+    !               = dH - iterate_dH(dH) +  dH_free 
     !---------------------------------------------------------------------------
 
     implicit none
