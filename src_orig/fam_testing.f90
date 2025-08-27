@@ -522,6 +522,8 @@ contains
 
   end subroutine test_gmres
 
+
+
   subroutine multiply_by_A(x_in, x_out)
 
     implicit none
@@ -555,6 +557,168 @@ contains
     x_out = matmul(A, x_in)
 
   end subroutine multiply_by_A
+
+
+    subroutine test_gmres_affine()
+    !---------------------------------------------------------------------------
+    ! Simply test for gmres: look for a fixed-point of an affine transformation
+    ! x -> Tx + x_free by writting it as a linear problem (1-T) x = x_free, 
+    ! of the form Ax=b where A = 1-T and b = x_free. 
+    !---------------------------------------------------------------------------
+
+    implicit none
+    integer, parameter :: n = 6
+    complex(KIND=dp), dimension(n, n) :: T, Id, oneminusT, Atmp
+    complex(KIND=dp), dimension(n) :: x_free, b, x_explicit, x_out
+    integer :: i, info, iter, nbprod
+    integer, dimension(n) :: ipiv
+    real(KIND=dp) :: res
+
+    print *, "test gmres"
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Define the matrix A
+    T = reshape([ &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    ], [n, n])
+
+    print * , "T : "
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  T(:,i)
+    enddo
+
+    Id = 0
+    do i=1,n
+      Id(i,i) = dcmplx( 1.0_dp, 0.0_dp)
+    enddo
+
+    oneminusT = Id - T
+
+    print * , "A = 1-T : "
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  oneminusT(:,i)
+    enddo
+  
+    ! get the free part by calling the update on zero
+    x_free = 0
+    call affine_trafo(x_free, x_free) 
+
+    print * , "x_free : "
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_free(i)
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Compute the explicit solution x = A^{-1} * b
+
+    b = x_free
+
+    Atmp = oneminusT
+
+    ! Call LAPACK routine ZGESV to solve the system
+    call zgesv(n, 1, Atmp, n, ipiv, b, n, info)
+    ! /!\ : this routine changes A (-> triag matrix) and b (-> solution)
+    x_explicit = b
+
+    ! Print the results
+    print *, "Explicit solution:"
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_explicit(i)
+    enddo
+
+    ! test that the solution is a solution of Ax=b
+    print *, '||b-Ax|| = || x_free - (1-T) x|| : ', sqrt(sum(abs(x_free - matmul(oneminusT, x_explicit)) ** 2 ))
+    
+    ! test that the solution is a fixed point of the affine transformation 
+    call affine_trafo(x_explicit, x_out)
+
+    print *, '||x - Tx + x_free|| : ', sqrt(sum(abs(x_explicit - x_out) ** 2 ))
+
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Test my GMRES routine to solve Ax = b iteratively
+
+    call alloc_gmres(affine_as_linear, x_free, 100, 6, 1e-6_dp, n, norm_2, ScalProd)
+
+    call init_gmres(x_free)
+
+    do i=1,6
+      call iterate_gmres()
+    enddo
+
+    print *, "my GMRES solution:"
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_gmres(i)
+    enddo
+    print *, 'GMRES res : ', gmres_res
+    print *, '|| x_free - (1-T) x|| : ', sqrt(sum(abs(x_free - matmul(oneminusT, x_gmres)) ** 2 ))
+
+    ! test that the solution is a fixed point of the affine transformation 
+    call affine_trafo(x_gmres, x_out)
+
+    print *, '||x - Tx + x_free|| : ', sqrt(sum(abs(x_gmres - x_out) ** 2 ))
+
+
+  end subroutine test_gmres_affine
+
+  subroutine affine_trafo(x_in, x_out)
+
+    implicit none
+    complex(KIND=dp), dimension(:), intent(in)   :: x_in
+    complex(KIND=dp), dimension(:), intent(out)  :: x_out
+    integer, parameter :: n = 6
+    complex(KIND=dp), dimension(n, n) :: T
+    complex(KIND=dp), dimension(n) :: x_free
+    integer :: i
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Define the matrix A
+    T = reshape([ &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    ], [n,n])
+
+    ! A = reshape([ &
+    ! dcmplx( 3.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 1.0_dp, 0.0_dp), dcmplx( 2.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 4.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 5.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 6.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), &
+    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 7.0_dp, 0.0_dp)  &
+    ! ], [n, n])
+    
+    x_free = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 1.0_dp), dcmplx(2.0_dp, 0.0_dp), dcmplx(6.0_dp, -1.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(3.0_dp, -2.0_dp)]
+
+    x_out = matmul(T, x_in) + x_free
+
+  end subroutine affine_trafo
+
+  subroutine affine_as_linear(x_in, x_out)
+
+    implicit none
+    complex(KIND=dp), dimension(:), intent(in)   :: x_in
+    complex(KIND=dp), dimension(:), intent(out)  :: x_out
+    complex(KIND=dp), dimension(6) :: x_free
+
+    ! Ax = (1-T)x = x - (Tx + x_free) + x_free = x - affine(x) + x_free
+
+    x_free = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 1.0_dp), dcmplx(2.0_dp, 0.0_dp), dcmplx(6.0_dp, -1.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(3.0_dp, -2.0_dp)]
+
+    call affine_trafo(x_in, x_out)
+
+    x_out = x_in - x_out + x_free
+
+  end subroutine affine_as_linear
 
  function norm_2(vec) result(norm)
     complex(KIND=dp), dimension(:), intent(in)  :: vec

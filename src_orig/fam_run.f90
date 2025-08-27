@@ -5,7 +5,7 @@ program run_FAM
   use Tantalus, only : print_header, initialize_all_timers, full_printout
   use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests, test_gmres
+  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine
   use gmres 
   use timing
 
@@ -109,8 +109,8 @@ program run_FAM
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
 
-  ! call test_gmres()
-  ! stop
+  call test_gmres_affine()
+  stop
 
 
   !---------------------------------------------------------------------------------
