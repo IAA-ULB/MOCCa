@@ -204,7 +204,7 @@ module gmres
     complex(KIND=dp) :: beta_tmp(gmres_iter+1)
     complex(KIND=dp), allocatable :: work(:)
     complex(KIND=dp)              :: workquery(1)
-    integer           :: info_zgels
+    integer          :: info_zgels
     complex(KIND=dp) :: Ax(size(Q,1))
     integer          :: i, j
 

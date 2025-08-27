@@ -208,15 +208,11 @@ module fam
       allocate(dH(nwt,nwt,2))
     endif
 
-    dH = 0
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the free response of the sp hamiltonian
     if(.not.allocated(dH_free_flat)) then 
       allocate(dH_free_flat(nwt * nwt))
     endif
-
-    dH_free_flat = 0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise X and Y amplitudes and their history
@@ -225,10 +221,6 @@ module fam
       allocate(Y(nwt,nwt))
     endif
 
-    ! X and Y initialised from non-interacting response, i.e. setting dH = 0 
-    ! in the FAM master
-    call calculate_XY(dH)
-
     if(.not.allocated(X_hist)) then
       allocate(X_hist(hist_max,nwt,nwt)) 
       allocate(Y_hist(hist_max,nwt,nwt))
@@ -236,9 +228,6 @@ module fam
 
     X_hist = 0
     Y_hist = 0
-
-    ! storing the initial x and Y in the history
-    call store_XY_hist()
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! store the unperturbed densities
@@ -251,20 +240,15 @@ module fam
       allocate(dkappa(nwt,nwt))
       ! allocate(dR(2*nwt,2*nwt))
     endif
-
-    call build_perturbed_densities(X, Y, dRs, dRa)
-    
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! initialise perturbed potentials as 0
-    dFs = 0.0_dp * PotUnper
-    dFa = 0.0_dp * PotUnper
-
-    ! TODO: replace by a better initialisation routine
-    ! This might require Hephaestos
+  
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! print unperturbed strenght
-    print 1, l, m, omega_fam, calc_strength()
+    ! calculate free response by iterating FAM once starting from 0
+    ! this also sets X, Y, drho, dkappa etc. to their respective free values
+
+    dH_free_flat = 0
+    call iterate_dHsp(dH_free_flat, dH_free_flat)
+
 
   end subroutine inifam
 
