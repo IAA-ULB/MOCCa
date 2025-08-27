@@ -431,30 +431,24 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Define the matrix A
     A = reshape([ &
-    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), &
+    dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), &
+    dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
     ], [n, n])
-
-    ! A = reshape([ &
-    ! dcmplx( 3.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 1.0_dp, 0.0_dp), dcmplx( 2.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 4.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 5.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 6.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 7.0_dp, 0.0_dp)  &
-    ! ], [n, n])
-
-    ! A = reshape([ (3.0_dp, 0.0_dp), (-1.0_dp, 0.0_dp), (0.0_dp, 0.0_dp), &
-    !             (-1.0_dp, 0.0_dp), (3.0_dp, 0.0_dp), (-1.0_dp, 0.0_dp), &
-    !             (0.0_dp, 0.0_dp), (-1.0_dp, 0.0_dp), (3.0_dp, 0.0_dp) ], [n, n])
 
     Atmp = A
 
-    b = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp)]
+    b = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), &
+         dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp)]
 
     print * , "A : "
     do i=1,n
@@ -536,30 +530,26 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Define the matrix A
     A = reshape([ &
-    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), &
+    dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), &
+    dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
     ], [n,n])
-
-    ! A = reshape([ &
-    ! dcmplx( 3.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 1.0_dp, 0.0_dp), dcmplx( 2.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 4.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 5.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 6.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 7.0_dp, 0.0_dp)  &
-    ! ], [n, n])
-
 
     x_out = matmul(A, x_in)
 
   end subroutine multiply_by_A
 
 
-    subroutine test_gmres_affine()
+  subroutine test_gmres_affine()
     !---------------------------------------------------------------------------
     ! Simply test for gmres: look for a fixed-point of an affine transformation
     ! x -> Tx + x_free by writting it as a linear problem (1-T) x = x_free, 
@@ -579,12 +569,18 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Define the matrix A
     T = reshape([ &
-    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), &
+    dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), &
+    dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
     ], [n, n])
 
     print * , "T : "
@@ -680,24 +676,23 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Define the matrix A
     T = reshape([ &
-    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
-    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), & 
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), & 
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), & 
+    dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), & 
+    dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), & 
+    dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), & 
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
     ], [n,n])
 
-    ! A = reshape([ &
-    ! dcmplx( 3.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 1.0_dp, 0.0_dp), dcmplx( 2.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 4.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 5.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 6.0_dp, 0.0_dp), dcmplx(-1.0_dp, 0.0_dp), &
-    ! dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 0.0_dp, 0.0_dp), dcmplx( 1.0_dp, 0.0_dp), dcmplx( 7.0_dp, 0.0_dp)  &
-    ! ], [n, n])
     
-    x_free = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 1.0_dp), dcmplx(2.0_dp, 0.0_dp), dcmplx(6.0_dp, -1.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(3.0_dp, -2.0_dp)]
+    x_free = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 1.0_dp), dcmplx(2.0_dp, 0.0_dp), &
+              dcmplx(6.0_dp, -1.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(3.0_dp, -2.0_dp)]
 
     x_out = matmul(T, x_in) + x_free
 
@@ -712,7 +707,8 @@ contains
 
     ! Ax = (1-T)x = x - (Tx + x_free) + x_free = x - affine(x) + x_free
 
-    x_free = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 1.0_dp), dcmplx(2.0_dp, 0.0_dp), dcmplx(6.0_dp, -1.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(3.0_dp, -2.0_dp)]
+    x_free = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 1.0_dp), dcmplx(2.0_dp, 0.0_dp), &
+              dcmplx(6.0_dp, -1.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(3.0_dp, -2.0_dp)]
 
     call affine_trafo(x_in, x_out)
 
@@ -739,5 +735,110 @@ contains
     res = sum(vec_l(:) * conjg(vec_r(:)) )
 
   end function
+
+
+
+  subroutine test_linearity_T()
+    ! Test a complete FAM iteration is an affine transformation by calling iterate_dH on 
+    ! a chosen linear combination a * dHa + b*dHb. One expects that
+    ! FAM(a * dHa + b *dHb) = T(a * dHa + b * dHb) + dH_free
+    !                       = a * T(dHa) + b * T(dHb) + dH_free
+    ! such that
+    ! FAM(a * dHa + b *dHb) - dH_free = a * (FAM(dHa) - dH_free) + b * (FAM(dHb) - dH_free)
+
+    implicit none
+    complex(KIND=dp), allocatable :: dHa(:), dHa_iter(:)
+    complex(KIND=dp), allocatable :: dHb(:), dHb_iter(:)
+    complex(KIND=dp), allocatable :: dHlincomb(:), dHlincomb_iter(:)
+    real(KIND=dp),    allocatable :: rand_real(:), rand_imag(:)
+    complex(KIND=dp), allocatable :: dH_free(:)
+    complex(KIND=dp)              :: a, b
+    integer                       :: i,j
+    real                          :: diff_from_lin
+
+
+    allocate(dHa(nwt*nwt))
+    allocate(dHa_iter(nwt*nwt))
+    allocate(dHb(nwt*nwt))
+    allocate(dHb_iter(nwt*nwt))
+    allocate(dHlincomb(nwt*nwt))
+    allocate(dHlincomb_iter(nwt*nwt))
+    allocate(rand_real(nwt*nwt))
+    allocate(rand_imag(nwt*nwt))
+    allocate(dH_free(nwt*nwt))
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! get dH_free
+
+    dH_free = 0
+    call iterate_dHsp(dH_free, dH_free)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! define dHa as random dcmplx anti-symmetric matrix
+
+    a = dcmplx(6.0_dp, -1.0_dp) ! some random C scalar
+    b = dcmplx(-2.0_dp, 0.5_dp) ! some random C scalar
+
+    ! Seed the random number generator
+    call random_seed()
+
+    ! Generate random real and imaginary parts
+    call random_number(rand_real)
+    call random_number(rand_imag)
+
+    ! Combine into complex matrix
+    dHa = 0
+    do i = 1, nwt
+        do j = i+1, nwt
+            dHa( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
+            dHa( (i-1) * nwt + j ) = - dHa( (j-1) * nwt + i )
+        end do
+    end do
+
+    ! Generate random real and imaginary parts
+    call random_number(rand_real)
+    call random_number(rand_imag)
+
+    ! Combine into complex matrix
+    dHb = 0
+    do i = 1, nwt
+        do j = i+1, nwt
+            dHb( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
+            dHb( (i-1) * nwt + j ) = - dHb( (j-1) * nwt + i )
+        end do
+    end do
+
+    dHlincomb = a * dHa + b * dHb
+
+    print * , "||dHa|| = ", norm_2(dHa)
+    print * , "||dHb|| = ", norm_2(dHb)
+    print * , "||dHlincomb|| = ", norm_2(dHlincomb)
+
+
+    ! calculate  FAM(dHa), FAM(dHb) and FAM(a * dHa + b *dHb)
+    call iterate_dHsp(dHa, dHa_iter)
+    call iterate_dHsp(dHb, dHb_iter)
+    call iterate_dHsp(dHlincomb, dHlincomb_iter)
+
+    print * , "||FAM(dHa)|| = ", norm_2(dHa_iter)
+    print * , "||FAM(dHb)|| = ", norm_2(dHb_iter)
+    print * , "||FAM(dHlincomb)|| = ", norm_2(dHlincomb_iter)
+
+    ! subtract the free response 
+    dHa_iter = dHa_iter - dH_free
+    dHb_iter = dHb_iter - dH_free
+    dHlincomb_iter = dHlincomb_iter - dH_free
+
+    print * , "||FAM(dHlincomb) - free|| = ", norm_2(dHlincomb_iter)
+    print * , "||a(FAM(dHa) - free) + b(FAM(dHb) - free)|| = ", norm_2(a * dHa_iter + b * dHb_iter)
+
+    diff_from_lin = norm_2(dHlincomb_iter - (a * dHa_iter + b * dHb_iter))
+    print * , "|| [FAM(dHlincomb) - free] - [a(FAM(dHa) - free) + b(FAM(dHb) - free)]|| = ", diff_from_lin
+
+    print *, "the FAM iteration iterate_dHsp is an affine transformation upto a precision of ", diff_from_lin
+
+
+  end subroutine
 
 end module fam_testing

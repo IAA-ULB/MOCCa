@@ -5,7 +5,7 @@ program run_FAM
   use Tantalus, only : print_header, initialize_all_timers, full_printout
   use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine
+  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine, test_linearity_T
   use gmres 
   use timing
 
@@ -154,6 +154,9 @@ program run_FAM
     ! initialise the sp hamiltonians to the ones of the free response 
     dH_flat = dH_free_flat
     dH_flat_next = 0
+
+    call test_linearity_T()
+    stop
 
     ! Start of the iterations 
     do iteration=1, maxfamiter
