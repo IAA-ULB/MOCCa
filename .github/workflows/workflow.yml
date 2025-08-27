@@ -300,7 +300,7 @@ jobs:
         # Actually execute the test
         run: |
           cd testing/integration/
-          bash spagh.sh ${{ env.SUFFIX }}
+          bash spag.sh ${{ env.SUFFIX }}
 
       - name: Upload store_derivatives test results
         uses: actions/upload-artifact@v4
