@@ -222,11 +222,13 @@ program run_FAM
 
     ! call test_gmres_affine()
 
-    call alloc_gmres(one_minus_T, dH_free_flat, 100, 100, 1e-6_dp, size(dH_free_flat, 1), norm_dH, ScProd_dH)
+    call alloc_gmres(one_minus_T, dH_free_flat, maxfamiter, maxfamiter, 1e-6_dp, size(dH_free_flat, 1), norm_dH, ScProd_dH)
     
 
     ! initiliase the GMRES solver, using the free response as the initial guess x0
     call init_gmres(dH_free_flat)
+
+    fam_verbose = 0
 
     do iteration=1, gmres_itmax
       print 1
@@ -235,12 +237,22 @@ program run_FAM
       if (gmres_res < gmres_tol) then 
         print 1
         print *, "Hooray! GMRES is converged! "
+        iter_arr(omega_index) = iteration
         print 1
         exit
-      endif 
+      endif
+
+      if (iteration == gmres_itmax) then
+        print 1
+        print 1
+        print *, "   Reached maximal number of iterations, ", maxfamiter
+        iter_arr(omega_index) = -gmres_itmax
+      endif
+
     enddo
 
     print *, "One final FAM iteration based on GMRES solution "
+    fam_verbose = 1
     call iterate_dHsp(x_gmres, dH_flat_next)
     print *, "|| FAM(dH) - dH || = ", norm_dH(dH_flat_next - x_gmres)
 
@@ -262,6 +274,7 @@ program run_FAM
     print 1
 
     omega_curr = omega_curr + omega_step
+    call dealloc_gmres()
 
   enddo
 

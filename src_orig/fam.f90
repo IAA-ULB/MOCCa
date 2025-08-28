@@ -101,7 +101,7 @@ module fam
   real(KIND=dp) :: XY_prec = 1.0e-10_dp ! convergence tolerance for X and Y
   !-----------------------------------------------------------------------------
   ! verbosity
-  integer :: verbose = 0
+  integer :: fam_verbose = 0
   ! 0: very limited printing
   ! 1: printing some function calls
   ! 2: printing all sp matrices at each iteration
@@ -169,7 +169,7 @@ module fam
 
       endif
      
-      if(verbose > 1) then
+      if(fam_verbose > 1) then
         print *, 'SOLIDHARMHF'
        call print_spme_complex(SolidHarmHF)
      endif
@@ -337,14 +337,14 @@ module fam
     ! get the ph and hp subblocks
     call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
 
-    print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
-
     ! calculate X and Y from the perturbed dH
     call calculate_XY(dH)
-    print 2, sqrt(sum( abs(X(:,:))**2) ), sqrt(sum( abs(Y(:,:))**2) )
 
-    print 3, l,m, omega_fam,  calc_strength()
-
+    if (fam_verbose>0) then
+      print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
+      print 2, sqrt(sum( abs(X(:,:))**2) ), sqrt(sum( abs(Y(:,:))**2) )
+      print 3, l,m, omega_fam,  calc_strength()
+    endif
 
     ! Apply simple linear mixing of X and Y. 
     ! call mix_XY_linear(lin_mix_coeff)
@@ -365,7 +365,7 @@ module fam
     ! construct the sp hamiltonian
     dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
 
-    if(verbose > 1) call print_all_fam_spmat()
+    if(fam_verbose > 1) call print_all_fam_spmat()
 
   end subroutine iterate_dHsp
 
@@ -390,9 +390,11 @@ module fam
 
     dHspout_flat = dHsp_flat - dHspout_flat + dH_free_flat
 
-    print * , "||H_in||",   norm_dH(dHsp_flat)
-    print * , "||H_out||",   norm_dH(dHspout_flat)
-    print * , "||dH_free||",   norm_dH(dH_free_flat)
+    if(fam_verbose > 1) then
+      print * , "||H_in||",   norm_dH(dHsp_flat)
+      print * , "||H_out||",   norm_dH(dHspout_flat)
+      print * , "||dH_free||",   norm_dH(dH_free_flat)
+    endif
 
   end subroutine one_minus_T
 
@@ -407,7 +409,7 @@ module fam
     integer       :: p, h
     real(KIND=dp) :: occ_h, occ_p, e_h, e_p
 
-    if (verbose > 0) print *, "update X and Y"
+    if (fam_verbose > 0) print *, "update X and Y"
 
 
     X = - (F(:,:,1) + dH(:,:,1))
@@ -434,7 +436,7 @@ module fam
     !---------------------------------------------------------------------------
     ! Store the current X and Y into their histories. 
     !---------------------------------------------------------------------------
-    if (verbose > 0) print *, "store X and Y"
+    if (fam_verbose > 0) print *, "store X and Y"
 
     ! roll the current index one step forward
     hist_current_idx = modulo(hist_current_idx, hist_max) + 1
@@ -453,7 +455,7 @@ module fam
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: alpha
 
-    if (verbose > 0) print *, "mix X and Y with alpha=", alpha
+    if (fam_verbose > 0) print *, "mix X and Y with alpha=", alpha
 
     X = alpha * X + (1.0 - alpha) * X_hist(hist_current_idx, :, :) 
     Y = alpha * Y + (1.0 - alpha) * Y_hist(hist_current_idx, :, :) 
@@ -489,7 +491,7 @@ module fam
     complex(KIND=dp), intent(in)     :: X(:,:), Y(:,:)
     type(DensityVector), intent(out) :: dRs, dRa
 
-    if (verbose > 0) print *, "build perturbed densities"
+    if (fam_verbose > 0) print *, "build perturbed densities"
 
     drho = X + transpose(Y)
     dkappa = 0
