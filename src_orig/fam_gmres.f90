@@ -34,7 +34,7 @@ module gmres
     integer           :: gmres_histmax = 10
     integer           :: gmres_iter = 0
     real(kind=dp)     :: gmres_res = 100.0
-    logical           :: verbose = .false.
+    logical           :: gmres_verbose = .false.
 
     procedure(vectovec), pointer          :: apply_A
     complex(KIND=dp), allocatable         :: b(:), r0(:), beta(:), x_guess(:), x_gmres(:), y_minres(:)
@@ -124,11 +124,17 @@ module gmres
   end subroutine dealloc_gmres
 
   subroutine init_gmres(x0)
+    ! Initialize the GMRES solver and the first Arnoldi vector Q(:,1).
     complex(KIND=dp), intent(in)   :: x0(:)
     integer                        :: i
 
-    ! Initialize the GMRES solver and the first Arnoldi vector Q(:,1).
-    print *, "GMRES iter", gmres_iter
+
+    1 format(50('-'))
+    2 format('GMRES iteration : ', i5)
+    3 format('  residual = ', es10.3)
+
+    print 1
+    print 2, gmres_iter
 
     x_guess = x0
 
@@ -142,9 +148,9 @@ module gmres
     gmres_res =  beta(1) / norm(b)
     gmres_iter = 1
 
-    print * , '    res = ', gmres_res
+    print 3, gmres_res
 
-    if (verbose) then 
+    if (gmres_verbose) then 
 
       print *, 'r0 = b - A*x0 = '
       do i=1,size(r0,1)
@@ -169,7 +175,11 @@ module gmres
     complex(KIND=dp) :: wj(size(Q,1))
     integer          :: i
 
-    print *, "GMRES iteration ", gmres_iter ! idx j in Y. Saad
+    1 format(50('-'))
+    2 format('GMRES iteration : ', i5)
+
+    print 1
+    print 2, gmres_iter
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! perform one iteration wj =  A(vj)
@@ -195,7 +205,7 @@ module gmres
       Q(:,gmres_iter+1) = wj / norm(wj);
     endif
     
-    if (verbose) then 
+    if (gmres_verbose) then 
       print *, 'H = '
       do i=1,size(H,1)
           print "(*('(', F8.5, ',', F8.5, ') ', :))",  H(i, :)
@@ -214,6 +224,8 @@ module gmres
   end subroutine iterate_gmres
 
   subroutine extract_x_gmres()
+    3 format('  residual = ', es10.3)
+
     complex(KIND=dp) :: H_tmp(gmres_iter+1,gmres_iter)
     complex(KIND=dp) :: beta_tmp(gmres_iter+1)
     complex(KIND=dp), allocatable :: work(:)
@@ -259,7 +271,9 @@ module gmres
       print *, 'GMRES residuals differ, i.e. min( || beta - H y|| ) /= || beta - H y_min|| '
     endif
 
-    print *, '   res : ', abs(beta_tmp(gmres_iter+1)) / norm(b)
+
+    print 3, gmres_res
+
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! calculate GMRES approximant Xm = X0 + Vm * Ym 
@@ -272,7 +286,7 @@ module gmres
       x_gmres = x_gmres + Q(:, j) * y_minres(j)
     enddo 
 
-    if (verbose) then 
+    if (gmres_verbose) then 
       print *, 'Ym = '
       do i=1,size(y_minres)
         print "(*('(', F8.5, ',', F8.5, ') ', :))", y_minres(i)

@@ -10,6 +10,7 @@ program run_FAM
   use timing
 
   1 format(86('-'))
+  11 format(10(' '), 20('='), ' omega =', f5.2, 'MeV ', 20('='), 10(' '))
   2 format('FAM iteration = ', i5) 
   3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
@@ -137,6 +138,8 @@ program run_FAM
 
   do omega_index=1, omega_num
 
+    print 11, omega_curr
+
     !-------------------------------------------------------------------------------
     ! initialise FAM matrices end set perturbing external field
     !-------------------------------------------------------------------------------
@@ -224,14 +227,12 @@ program run_FAM
 
     call alloc_gmres(one_minus_T, dH_free_flat, maxfamiter, maxfamiter, 1e-6_dp, size(dH_free_flat, 1), norm_dH, ScProd_dH)
     
+    fam_verbose = 0
 
     ! initiliase the GMRES solver, using the free response as the initial guess x0
     call init_gmres(dH_free_flat)
 
-    fam_verbose = 0
-
     do iteration=1, gmres_itmax
-      print 1
       call iterate_gmres()
 
       if (gmres_res < gmres_tol) then 
@@ -251,10 +252,10 @@ program run_FAM
 
     enddo
 
-    print *, "One final FAM iteration based on GMRES solution "
+    print *, "One final FAM iteration based on GMRES solution:  "
     fam_verbose = 1
     call iterate_dHsp(x_gmres, dH_flat_next)
-    print *, "|| FAM(dH) - dH || = ", norm_dH(dH_flat_next - x_gmres)
+    print *, "convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - x_gmres) / norm_dH(x_gmres)
 
 
     !---------------------------------------------------------------------------------
@@ -270,7 +271,6 @@ program run_FAM
     print *, "          l, m  = ", l, m
     print *, "          omega = ", omega_arr(omega_index)
     print *, "          S     = ", S_arr(omega_index) 
-    print 1
     print 1
 
     omega_curr = omega_curr + omega_step
