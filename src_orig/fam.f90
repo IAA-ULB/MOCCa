@@ -36,9 +36,13 @@ module fam
   real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 0.5 MeV
   !    Note that the obtained strength is convoluted with a Lorentzian with FWHM 
   !    equal to Gamma = 2 * smear 
-  integer :: maxfamiter = 100 ! maximal number of FAM iterations 
+  !-----------------------------------------------------------------------------
+  ! mixing strategy
+  integer :: fam_mixingscheme = 0 ! 0 : GMRES (default)
+  !                                 1 : linear mixing of dH
+  integer :: fam_maxiter = 100 ! maximal number of FAM iterations 
   ! Coefficient for the linear mixing of FAM iterations
-  real(KIND=dp) :: fam_lin_mix = 0.5d0
+  real(KIND=dp) :: fam_lin_mix = 0.3_dp
   !-----------------------------------------------------------------------------
   ! FAM amplitudes X, Y
   complex(KIND=dp), allocatable :: X(:,:) ! forward amplitudes HF basis
@@ -50,33 +54,33 @@ module fam
   !-----------------------------------------------------------------------------
   ! Perturbed densities
   ! /!\: contains the perturbation relative to the mean-field, e.g.
-  !         rho_fam = rho_MF + drho
-  complex(KIND=dp), allocatable :: drho(:,:)   ! perturbed normal density matrix
-  complex(KIND=dp), allocatable :: dkappa(:,:) ! perturbed pairing density matrix
-  ! complex(KIND=dp), allocatable :: dR(:,:)   ! perturbed generalised density matrix
+  !         rho(omega) = rho_MF + drho(omega)
+  complex(KIND=dp), allocatable :: drho(:,:)   ! perturbation to the normal density matrix
+  complex(KIND=dp), allocatable :: dkappa(:,:) ! perturbation to the pairing density matrix
+  ! complex(KIND=dp), allocatable :: dR(:,:)   ! perturbation to the generalised density matrix
   type(DensityVector)   :: Runper    ! static mean-field densities on the mesh
-  type(DensityVector)   :: dRs, dRa  ! perturbed densities on the mesh
+  type(DensityVector)   :: dRs, dRa  ! perturbation to the densities on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
-  type(PotentialVector) :: dFs, dFa  ! perturbed potentials on the mesh
+  type(PotentialVector) :: dFs, dFa  ! perturbation to the potentials on the mesh
   !                         |    '-> anti-symmetric part
   !                         '-> symmetric part
   !-----------------------------------------------------------------------------
   ! unperturbed Hamiltonian and perturbed hamiltonian
   real(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
-  complex(KIND=dp), allocatable :: dH(:,:,:)   ! ph and hp block of the perturbed
+  complex(KIND=dp), allocatable :: dH(:,:,:)   ! ph and hp block of the perturbing
   !                                   | | |      Hamiltonian in HF basis
   !                                   | | '-> 1: ph block, 2: hp block
   !                                   | '-> sp index : hole
   !                                   '-> sp index : particle
   complex(KIND=dp), allocatable :: dH_free_flat(:) ! free response of sp hamil
-  !                                          '-> nwt x nwt
+  !                                             '-> nwt x nwt
   !-----------------------------------------------------------------------------
   ! external field
   complex(KIND=dp), allocatable :: F(:,:,:)  ! perturbing external field in HF basis
-  !                               | | '-> 1: ph block, 2: hp block 
-  !                               | '-> sp index : hole
-  !                               '-> sp index : particle
+  !                                  | | '-> 1: ph block, 2: hp block 
+  !                                  | '-> sp index : hole
+  !                                  '-> sp index : particle
   integer :: l, m ! Principal and magnetic quantum number of the multipole moment
   ! Do we need more identifiers for electric vs magnetic and isovector 
   ! vs isoscalar? YES!
@@ -102,8 +106,9 @@ module fam
   !-----------------------------------------------------------------------------
   ! verbosity
   integer :: fam_verbose = 1
-  ! 0: no printing. Useful during GMRES since output would be confusing
-  ! 1: limited printing. Uesful in the final FAM iteration once GMRES is converged
+  ! 0: no printing. Used during GMRES as output would be confusing
+  ! 1: limited printing. Used in the final FAM iteration once GMRES is converged
+  !    (default)
   ! 2: printing all function calls. Useful for debugging. 
   ! 3: printing all sp matrices at each iteration. Useful for debugging. 
 
@@ -264,9 +269,12 @@ module fam
     !---------------------------------------------------------------------------
     integer(dp), intent(in), optional :: file_number
     real(KIND=dp) :: omega = -1.0_dp
+    integer       :: mixingscheme = 0
+    integer       :: maxiter = 100
 
-    namelist /fam/      omega, omega_min, omega_max, omega_step,    &
-    &                   smear, maxiter, l, m, XY_prec, fam_lin_mix
+    namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
+    &               l, m, XY_prec, mixingscheme, fam_lin_mix
+
 
     if(MPI_rank .eq. 0) then
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -278,7 +286,8 @@ module fam
         read (unit=*, nml=fam)
       endif
 
-      maxfamiter = maxiter
+      fam_maxiter = maxiter
+      fam_mixingscheme = mixingscheme
 
       ! if a single fams frequency omega is passed, set min and max to omega
       if(omega .ne. -1.0_dp) then
@@ -301,15 +310,18 @@ module fam
     4 format ( ' Convergence:   ', /, &
     &          '    Maximal number of iterations: ',i8, /,  &
     &          '    ||X||, ||Y|| convergence  < ',es8.1)
-    5 format ( ' Evolution strategy: ', / &
-    &          '    linear mixing with \alpha = ', f10.3)
+    5 format ( ' Evolution strategy: ', i3)
+    51 format ('    GMRES with max history size = ', i8)
+    52 format ('    linear mixing with alpha = ', f10.3)
 
     print 1
     print 2, omega_min, omega_max, omega_step
     print 21, smear
     print 3, l, m
-    print 4, maxfamiter, XY_prec
-    print 5, fam_lin_mix
+    print 4, fam_maxiter, XY_prec
+    print 5, fam_mixingscheme
+    if (fam_mixingscheme==0) print 51, fam_maxiter
+    if (fam_mixingscheme==1) print 52, fam_lin_mix
 
   end subroutine
 

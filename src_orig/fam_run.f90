@@ -10,7 +10,7 @@ program run_FAM
   use timing
 
   1 format(86('-'))
-  11 format(10(' '), 20('='), ' omega =', f5.2, 'MeV ', 20('='), 10(' '))
+  11 format(10(' '), 20('='), ' omega =', f5.2, ' MeV ', 20('='), 10(' '))
   2 format('FAM iteration = ', i5) 
   3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
@@ -149,113 +149,106 @@ program run_FAM
     is_converged = .false.
     is_divergent = .false.
 
+    if (fam_mixingscheme == 0) then
 
-    ! !---------------------------------------------------------------------------------
-    ! ! linear mixing while employing iterate_dHsp()
-    ! !---------------------------------------------------------------------------------
+      !---------------------------------------------------------------------------------
+      ! via GMRES on implicit matrix*vector procedure one_minus_T()
+      !---------------------------------------------------------------------------------
 
-    ! ! initialise the sp hamiltonians to the ones of the free response 
-    ! dH_flat = dH_free_flat
-    ! dH_flat_next = 0
+      call alloc_gmres(one_minus_T, dH_free_flat, fam_maxiter, fam_maxiter, 1e-6_dp, size(dH_free_flat, 1), norm_dH, ScProd_dH)
+      
+      fam_verbose = 0
 
+      ! initiliase the GMRES solver, using the free response as the initial guess x0
+      call init_gmres(dH_free_flat)
 
-    ! ! Start of the iterations 
-    ! do iteration=1, maxfamiter
+      do iteration=1, gmres_itmax
+        call iterate_gmres()
 
-    !   print 1
-    !   print 2, iteration
+        if (gmres_res < gmres_tol) then 
+          print 1
+          print *, "Hooray! GMRES is converged! "
+          iter_arr(omega_index) = iteration
+          print 1
+          exit
+        endif
 
-    !   ! iterate the single-particle Hamiltonian by one complete FAM loop dH -> T(dH) + dH_free
-    !   call iterate_dHsp(dH_flat, dH_flat_next)
+        if (iteration == gmres_itmax) then
+          print 1
+          print 1
+          print *, "   Reached maximal number of iterations, ", fam_maxiter
+          iter_arr(omega_index) = -gmres_itmax
+        endif
 
-    !   ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-    !   ! call run_FAM_tests(X,Y)
+      enddo
 
-    !   ! simple linear mixing of sp hamiltonians dH[i+1] = a * dH[i+1] + (1-a) * dH[i]
-    !   dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat
+      print *, "One final FAM iteration based on GMRES solution:  "
+      fam_verbose = 1
+      call iterate_dHsp(x_gmres, dH_flat_next)
+      print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - x_gmres) / norm_dH(x_gmres)
 
-    !   ! shift dH to prepare for the next iteration
-    !   dH_flat = dH_flat_next
+    else if (fam_mixingscheme == 1) then
 
-    !   ! call print_all_fam_spmat()
+      !---------------------------------------------------------------------------------
+      ! linear mixing while employing iterate_dHsp()
+      !---------------------------------------------------------------------------------
 
-    !   !---------------------------------------------------------------------------------
-    !   ! test convergenence
+      ! initialise the sp hamiltonians to the ones of the free response 
+      dH_flat = dH_free_flat
+      dH_flat_next = 0
 
-    !   ! Exit the loop if convergence is achieved.
-    !   if (iteration > 1) then ! at least two iterations to be able to compare
-    !    call test_convergence(is_converged, is_divergent)
-    !     if(is_converged) then
-    !       print 1
-    !       print 1
-    !       print *, "   Hooray! FAM is converged! "
-    !       iter_arr(omega_index) = iteration
-    !       exit
-    !     endif
-    !     if(is_divergent) then
-    !       print 1
-    !       print 1
-    !       print *, "   FAM diverges, exiting"
-    !       iter_arr(omega_index) = -iteration
-    !       exit
-    !     endif
-    !   endif
-    !   if (iteration == maxfamiter) then
-    !     print 1
-    !     print 1
-    !     print *, "   Reached maximal number of iterations, ", maxfamiter
-    !     iter_arr(omega_index) = -maxfamiter
-    !   endif
-    ! enddo
+      ! Start of the iterations 
+      do iteration=1, fam_maxiter
 
-    ! ! fixed-point check
-    ! call iterate_dHsp(dH_flat, dH_flat_next)
-    ! print *, "|| FAM(dH) - dH || = ", norm_dH(dH_flat_next - dH_flat)
-
-
-
-    ! test the choral GMRES method
-    ! call do_gmres_choral(dH_flat, iteration, nbprod, res, dH_flat_next, one_minus_T, &
-     ! & norm_dH, ScProd_dH, 1.0e-5_dp, 1000, 100, 3)
-    
-
-    !---------------------------------------------------------------------------------
-    ! via GMRES on implicit matrix*vector procedure one_minus_T()
-    !---------------------------------------------------------------------------------
-
-    ! call test_gmres_affine()
-
-    call alloc_gmres(one_minus_T, dH_free_flat, maxfamiter, maxfamiter, 1e-6_dp, size(dH_free_flat, 1), norm_dH, ScProd_dH)
-    
-    fam_verbose = 0
-
-    ! initiliase the GMRES solver, using the free response as the initial guess x0
-    call init_gmres(dH_free_flat)
-
-    do iteration=1, gmres_itmax
-      call iterate_gmres()
-
-      if (gmres_res < gmres_tol) then 
         print 1
-        print *, "Hooray! GMRES is converged! "
-        iter_arr(omega_index) = iteration
-        print 1
-        exit
-      endif
+        print 2, iteration
 
-      if (iteration == gmres_itmax) then
-        print 1
-        print 1
-        print *, "   Reached maximal number of iterations, ", maxfamiter
-        iter_arr(omega_index) = -gmres_itmax
-      endif
+        ! iterate the single-particle Hamiltonian by one complete FAM loop dH -> T(dH) + dH_free
+        call iterate_dHsp(dH_flat, dH_flat_next)
 
-    enddo
+        ! Run all kinds of unit tests; should be made optional as this includes a stop statement
+        ! call run_FAM_tests(X,Y)
 
-    print *, "One final FAM iteration based on GMRES solution:  "
-    fam_verbose = 1
-    call iterate_dHsp(x_gmres, dH_flat_next)
-    print *, "convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - x_gmres) / norm_dH(x_gmres)
+        ! simple linear mixing of sp hamiltonians dH[i+1] = a * dH[i+1] + (1-a) * dH[i]
+        dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat
+
+        ! shift dH to prepare for the next iteration
+        dH_flat = dH_flat_next
+
+        !---------------------------------------------------------------------------------
+        ! test convergenence
+
+        ! Exit the loop if convergence is achieved.
+        if (iteration > 1) then ! at least two iterations to be able to compare
+         call test_convergence(is_converged, is_divergent)
+          if(is_converged) then
+            print 1
+            print 1
+            print *, "   Hooray! FAM is converged! "
+            iter_arr(omega_index) = iteration
+            exit
+          endif
+          if(is_divergent) then
+            print 1
+            print 1
+            print *, "   FAM diverges, exiting"
+            iter_arr(omega_index) = -iteration
+            exit
+          endif
+        endif
+        if (iteration == fam_maxiter) then
+          print 1
+          print 1
+          print *, "   Reached maximal number of iterations, ", fam_maxiter
+          iter_arr(omega_index) = -fam_maxiter
+        endif
+      enddo
+
+      ! fixed-point check
+      call iterate_dHsp(dH_flat, dH_flat_next)
+      print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - dH_flat) / norm_dH(dH_flat)
+
+    endif
 
 
     !---------------------------------------------------------------------------------
@@ -278,7 +271,7 @@ program run_FAM
 
   enddo
 
-  if(maxfamiter.eq.0) then
+  if(fam_maxiter.eq.0) then
     write (famfilename, fmt='(a2,2i1,a10)') "S_", l, m, "_unper.fam"
   else 
     write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
