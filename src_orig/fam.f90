@@ -101,10 +101,11 @@ module fam
   real(KIND=dp) :: XY_prec = 1.0e-10_dp ! convergence tolerance for X and Y
   !-----------------------------------------------------------------------------
   ! verbosity
-  integer :: verbose = 0
-  ! 0: very limited printing
-  ! 1: printing some function calls
-  ! 2: printing all sp matrices at each iteration
+  integer :: fam_verbose = 1
+  ! 0: no printing. Useful during GMRES since output would be confusing
+  ! 1: limited printing. Uesful in the final FAM iteration once GMRES is converged
+  ! 2: printing all function calls. Useful for debugging. 
+  ! 3: printing all sp matrices at each iteration. Useful for debugging. 
 
   interface get_ph_hp_blocks
     module procedure get_ph_hp_blocks_complex
@@ -169,7 +170,7 @@ module fam
 
       endif
      
-      if(verbose > 1) then
+      if(fam_verbose > 2) then
         print *, 'SOLIDHARMHF'
        call print_spme_complex(SolidHarmHF)
      endif
@@ -208,15 +209,11 @@ module fam
       allocate(dH(nwt,nwt,2))
     endif
 
-    dH = 0
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise the free response of the sp hamiltonian
     if(.not.allocated(dH_free_flat)) then 
       allocate(dH_free_flat(nwt * nwt))
     endif
-
-    dH_free_flat = 0
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! initialise X and Y amplitudes and their history
@@ -225,10 +222,6 @@ module fam
       allocate(Y(nwt,nwt))
     endif
 
-    ! X and Y initialised from non-interacting response, i.e. setting dH = 0 
-    ! in the FAM master
-    call calculate_XY(dH)
-
     if(.not.allocated(X_hist)) then
       allocate(X_hist(hist_max,nwt,nwt)) 
       allocate(Y_hist(hist_max,nwt,nwt))
@@ -236,9 +229,6 @@ module fam
 
     X_hist = 0
     Y_hist = 0
-
-    ! storing the initial x and Y in the history
-    call store_XY_hist()
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! store the unperturbed densities
@@ -251,20 +241,15 @@ module fam
       allocate(dkappa(nwt,nwt))
       ! allocate(dR(2*nwt,2*nwt))
     endif
-
-    call build_perturbed_densities(X, Y, dRs, dRa)
-    
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! initialise perturbed potentials as 0
-    dFs = 0.0_dp * PotUnper
-    dFa = 0.0_dp * PotUnper
-
-    ! TODO: replace by a better initialisation routine
-    ! This might require Hephaestos
+  
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! print unperturbed strenght
-    print 1, l, m, omega_fam, calc_strength()
+    ! calculate free response by iterating FAM once starting from 0
+    ! this also sets X, Y, drho, dkappa etc. to their respective free values
+
+    dH_free_flat = 0
+    call iterate_dHsp(dH_free_flat, dH_free_flat)
+
 
   end subroutine inifam
 
@@ -346,6 +331,9 @@ module fam
     integer       :: p, h
     real(KIND=dp) :: occ_h, occ_p
 
+    if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
+
+
     ! pointer remapping for reshaping 1D flat arrays into 2D matrices
     dHsp(1:nwt,1:nwt) => dHsp_flat(:)
     dHspout(1:nwt,1:nwt) => dHspout_flat(:)
@@ -353,14 +341,14 @@ module fam
     ! get the ph and hp subblocks
     call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
 
-    print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
-
     ! calculate X and Y from the perturbed dH
     call calculate_XY(dH)
-    print 2, sqrt(sum( abs(X(:,:))**2) ), sqrt(sum( abs(Y(:,:))**2) )
 
-    print 3, l,m, omega_fam,  calc_strength()
-
+    if (fam_verbose>0) then
+      print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
+      print 2, sqrt(sum( abs(X(:,:))**2) ), sqrt(sum( abs(Y(:,:))**2) )
+      print 3, l,m, omega_fam,  calc_strength()
+    endif
 
     ! Apply simple linear mixing of X and Y. 
     ! call mix_XY_linear(lin_mix_coeff)
@@ -382,25 +370,38 @@ module fam
     ! construct the sp hamiltonian
     dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
 
-    if(verbose > 1) call print_all_fam_spmat()
+    if(fam_verbose > 2) call print_all_fam_spmat()
 
   end subroutine iterate_dHsp
 
   subroutine one_minus_T(dHsp_flat, dHspout_flat)
     !---------------------------------------------------------------------------
-    ! Compute (1-T)(dH), the relevant iterator for GMRES. 
-    ! Starting from dH^[i+1] = FAM(dH^[i]) = T(dH^[i]) + dH_free, one finds that
-    ! (1-T)(dH) = dH_free is of the form Ax = b. The operator (1-T) is given by
-    ! (1-T)(dH^[i]) = dH^[i] - dH^[i+1] + dH_free
+    ! The precedure iterate_dH constitutes an affine transformation 
+    !    dH -> T(dH) + dH_free
+    ! where T is a linear map. Fixed-point solutions of this affine problem are
+    ! therefor also a solution of the standard linear problem
+    !    (I - T) dH = dH_free. 
+    ! Thus, (I-T) is the relevant linear operator to use in GMRES. One must 
+    ! therefore compute
+    !    (I - T) dH = dH - (T(dH) + dH_free) + dH_free 
+    !               = dH - iterate_dH(dH) +  dH_free 
     !---------------------------------------------------------------------------
 
     implicit none
-    complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
-    complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
+    complex(KIND=dp), dimension(:), intent(in)   :: dHsp_flat
+    complex(KIND=dp), dimension(:), intent(out)  :: dHspout_flat
+
+    if (fam_verbose > 1) print *, "compute (I-T) (dH)"
 
     call iterate_dHsp(dHsp_flat, dHspout_flat)
 
     dHspout_flat = dHsp_flat - dHspout_flat + dH_free_flat
+
+    if(fam_verbose > 0) then
+      print * , "||H_in||",   norm_dH(dHsp_flat)
+      print * , "||H_out||",   norm_dH(dHspout_flat)
+      print * , "||dH_free||",   norm_dH(dH_free_flat)
+    endif
 
   end subroutine one_minus_T
 
@@ -415,7 +416,7 @@ module fam
     integer       :: p, h
     real(KIND=dp) :: occ_h, occ_p, e_h, e_p
 
-    if (verbose > 0) print *, "update X and Y"
+    if (fam_verbose > 1) print *, "calculate_XY :: update X and Y"
 
 
     X = - (F(:,:,1) + dH(:,:,1))
@@ -442,7 +443,7 @@ module fam
     !---------------------------------------------------------------------------
     ! Store the current X and Y into their histories. 
     !---------------------------------------------------------------------------
-    if (verbose > 0) print *, "store X and Y"
+    if (fam_verbose > 1) print *, "store_XY_hist :: store X and Y in hostory"
 
     ! roll the current index one step forward
     hist_current_idx = modulo(hist_current_idx, hist_max) + 1
@@ -461,7 +462,7 @@ module fam
     !---------------------------------------------------------------------------
     real(KIND=dp), intent(in) :: alpha
 
-    if (verbose > 0) print *, "mix X and Y with alpha=", alpha
+    if (fam_verbose > 1) print *, "mix_XY_linear :: linear mixing of X and Y with alpha=", alpha
 
     X = alpha * X + (1.0 - alpha) * X_hist(hist_current_idx, :, :) 
     Y = alpha * Y + (1.0 - alpha) * Y_hist(hist_current_idx, :, :) 
@@ -497,7 +498,7 @@ module fam
     complex(KIND=dp), intent(in)     :: X(:,:), Y(:,:)
     type(DensityVector), intent(out) :: dRs, dRa
 
-    if (verbose > 0) print *, "build perturbed densities"
+    if (fam_verbose > 1) print *, "build_perturbed_densities :: "
 
     drho = X + transpose(Y)
     dkappa = 0
@@ -516,6 +517,9 @@ module fam
     implicit none
     type(DensityVector), intent(in) :: R, dRs, dRa
     complex(KIND=dp), allocatable :: dHsp(:,:)
+
+    if (fam_verbose > 1) print *, "build_dH_explicit :: "
+
 
     allocate(dHsp(nwt,nwt))
 
@@ -558,6 +562,9 @@ module fam
     integer :: h, p
     real(KIND=dp) :: occ_h, occ_p
 
+    if (fam_verbose > 1) print *, "calc_strength :: S_lm where l= ", l, "m=", m
+
+
     S = 0
     do h = 1, nwt
       occ_h = rho_can(h)
@@ -589,10 +596,13 @@ module fam
     !---------------------------------------------------------------------------
 
     1 format('||X|| = ', es10.3, '     ||Y|| = ', es10.3)
-    2 format('Convergence: ', '||dX|| = ', es10.3, '     ||dY|| = ', es10.3)
+    2 format('Convergence: ', '||FAM(X) - X||/||X|| = ', es10.3, '     ||FAM(Y) - Y||/||Y|| = ', es10.3)
     logical, intent(out) :: conv, div
     integer :: idx_prev
     real(KIND=dp) :: DX_norm, DY_norm, X_norm, Y_norm
+
+    if (fam_verbose > 1) print *, "test_convergence :: "
+
 
     conv = .false.
     div = .false.
@@ -600,8 +610,6 @@ module fam
     X_norm = sqrt(sum( abs(X_hist(hist_current_idx,:,:))**2))
     Y_norm = sqrt(sum( abs(Y_hist(hist_current_idx,:,:))**2))
 
-
-    ! print 1, X_norm, Y_norm
 
     if( (X_norm .ge. 1.0d3) .or. (Y_norm .ge. 1.0d3)) then
       div = .true.
@@ -616,7 +624,7 @@ module fam
     DY_norm = sqrt( sum( abs(Y_hist(hist_current_idx,:,:) - Y_hist(idx_prev,:,:))**2) )
     DY_norm = DY_norm / Y_norm
 
-    print 2, DX_norm, DY_norm
+    if (fam_verbose > 1) print 2, DX_norm, DY_norm
 
     if( (DX_norm < XY_prec) .and. (DY_norm < XY_prec)) then
       conv = .true.
@@ -749,7 +757,8 @@ module fam
     complex(KIND=dp), dimension(:), intent(in)  :: dHl, dHr
     complex(KIND=dp)                            :: res
 
-    res = sum(conjg(dHl(:)) * dHr(:))
+    ! res = sum(conjg(dHl(:)) * dHr(:))
+    res = sum(dHl(:) * conjg(dHr(:)))
 
   end function
 

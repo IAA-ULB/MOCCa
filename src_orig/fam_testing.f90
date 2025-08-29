@@ -386,7 +386,7 @@ contains
 !     type(DensityVector), intent(in) :: RUnper, dRs, dRa
 !     real(KIND=dp), intent(in)       :: eta     ! small finite diff. parameter
 !     type(PotentialVector)           :: Fs, Fa
-!     real(KIND=dp), allocatable      :: HPert(:,:)
+!     complex(KIND=dp), allocatable      :: HPert(:,:)
 !
 !     print *, "build perturbed Hamiltonian using finite difference"
 !
@@ -422,9 +422,9 @@ contains
     !---------------------------------------------------------------------------
 
     implicit none
-    integer, parameter :: n = 3
+    integer, parameter :: n = 6
     complex(KIND=dp), dimension(n, n) :: A, Atmp
-    complex(KIND=dp), dimension(n) :: b, x_explicit, x_choral, x_gmres
+    complex(KIND=dp), dimension(n) :: b, x_explicit, x_choral
     integer :: i, info, iter, nbprod
     integer, dimension(n) :: ipiv
     real(KIND=dp) :: res
@@ -433,20 +433,34 @@ contains
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Define the matrix A
-    A = reshape([ (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), (0.0_dp, 0.0_dp), &
-                (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), &
-                (0.0_dp, 0.0_dp), (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp) ], [n, n])
-
-    ! A = reshape([ (3.0_dp, 0.0_dp), (-1.0_dp, 0.0_dp), (0.0_dp, 0.0_dp), &
-    !             (-1.0_dp, 0.0_dp), (3.0_dp, 0.0_dp), (-1.0_dp, 0.0_dp), &
-    !             (0.0_dp, 0.0_dp), (-1.0_dp, 0.0_dp), (3.0_dp, 0.0_dp) ], [n, n])
+    A = reshape([ &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), &
+    dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), &
+    dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    ], [n, n])
 
     Atmp = A
 
-    b = [ (1.0_dp, 0.0_dp), (0.0_dp, 1.0_dp), (0.0_dp, 0.0_dp) ]
+    b = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), &
+         dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 0.0_dp)]
 
-    print * , "A : ", A
-    print * , "b : ", b
+    print * , "A : "
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  A(:,i)
+    enddo
+    print * , "b : "
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  b(i)
+    enddo
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Compute the explicit solution x = A^{-1} * b
@@ -460,7 +474,9 @@ contains
 
     ! Print the results
     print *, "Explicit solution:"
-    print *, x_explicit
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_explicit(i)
+    enddo
     print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_explicit)) ** 2 ))
 
 
@@ -469,49 +485,242 @@ contains
     ! Call the choral GMRES routine to solve Ax = b iteratively
 
     x_choral = b ! initial guess
-    call do_gmres(x_choral, iter, nbprod, res, b, multiply_by_A, norm_2, ScalProd, 1e-6_dp, 100, 10, 3)
+    call do_gmres_choral(x_choral, iter, nbprod, res, b, multiply_by_A, norm_2, ScalProd, 1e-5_dp, 1, 5, 3)
     
 
     print *, "GMRES choral solution:"
-    print *, x_choral
-    print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_gmres)) ** 2 ))
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_choral(i)
+    enddo
+    print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_choral)) ** 2 ))
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Test my GMRES routine to solve Ax = b iteratively
 
-    call alloc_gmres(100, 3, 1e-6_dp, n, multiply_by_A, norm_2, ScalProd)
+    call alloc_gmres(multiply_by_A, b, 100, 6, 1e-6_dp, n, norm_2, ScalProd)
 
-    call init_gmres(b, res)
+    call init_gmres(b)
 
     call iterate_gmres()
     call iterate_gmres()
     call iterate_gmres()
-    
+    call iterate_gmres()
+    call iterate_gmres()
+    call iterate_gmres()
+
     print *, "my GMRES solution:"
-    print *, res
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_gmres(i)
+    enddo
+    print *, 'res : ', gmres_res
+    print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_gmres)) ** 2 ))
+
 
 
   end subroutine test_gmres
 
+
+
   subroutine multiply_by_A(x_in, x_out)
 
     implicit none
-    complex(KIND=dp), dimension(:), target, intent(in)   :: x_in
-    complex(KIND=dp), dimension(:), target, intent(out)  :: x_out
-    integer, parameter :: n = 3
-    real(KIND=dp), dimension(n, n) :: A
+    complex(KIND=dp), dimension(:), intent(in)   :: x_in
+    complex(KIND=dp), dimension(:), intent(out)  :: x_out
+    integer, parameter :: n = 6
+    complex(KIND=dp), dimension(n, n) :: A
     integer :: i
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Define the matrix A
-    A = reshape([ (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), (0.0_dp, 0.0_dp), &
-                (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp), (-1.0_dp, 1.0_dp), &
-                (0.0_dp, 0.0_dp), (-1.0_dp, -1.0_dp), (3.0_dp, 0.0_dp) ], [n, n])
-
+    A = reshape([ &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), &
+    dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), &
+    dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    ], [n,n])
 
     x_out = matmul(A, x_in)
 
   end subroutine multiply_by_A
+
+
+  subroutine test_gmres_affine()
+    !---------------------------------------------------------------------------
+    ! Simply test for gmres: look for a fixed-point of an affine transformation
+    ! x -> Tx + x_free by writting it as a linear problem (1-T) x = x_free, 
+    ! of the form Ax=b where A = 1-T and b = x_free. 
+    !---------------------------------------------------------------------------
+
+    implicit none
+    integer, parameter :: n = 6
+    complex(KIND=dp), dimension(n, n) :: T, Id, oneminusT, Atmp
+    complex(KIND=dp), dimension(n) :: x_free, b, x_explicit, x_out
+    integer :: i, info, iter, nbprod
+    integer, dimension(n) :: ipiv
+    real(KIND=dp) :: res
+
+    print *, "test gmres"
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Define the matrix A
+    T = reshape([ &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), &
+    dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), &
+    dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    ], [n, n])
+
+    print * , "T : "
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  T(:,i)
+    enddo
+
+    Id = 0
+    do i=1,n
+      Id(i,i) = dcmplx( 1.0_dp, 0.0_dp)
+    enddo
+
+    oneminusT = Id - T
+
+    print * , "A = 1-T : "
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  oneminusT(:,i)
+    enddo
+  
+    ! get the free part by calling the update on zero
+    x_free = 0
+    call affine_trafo(x_free, x_free) 
+
+    print * , "x_free : "
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_free(i)
+    enddo
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Compute the explicit solution x = A^{-1} * b
+
+    b = x_free
+
+    Atmp = oneminusT
+
+    ! Call LAPACK routine ZGESV to solve the system
+    call zgesv(n, 1, Atmp, n, ipiv, b, n, info)
+    ! /!\ : this routine changes A (-> triag matrix) and b (-> solution)
+    x_explicit = b
+
+    ! Print the results
+    print *, "Explicit solution:"
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_explicit(i)
+    enddo
+
+    ! test that the solution is a solution of Ax=b
+    print *, '||b-Ax|| = || x_free - (1-T) x|| : ', sqrt(sum(abs(x_free - matmul(oneminusT, x_explicit)) ** 2 ))
+    
+    ! test that the solution is a fixed point of the affine transformation 
+    call affine_trafo(x_explicit, x_out)
+
+    print *, '||x - Tx + x_free|| : ', sqrt(sum(abs(x_explicit - x_out) ** 2 ))
+
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Test my GMRES routine to solve Ax = b iteratively
+
+    call alloc_gmres(affine_as_linear, x_free, 100, 6, 1e-6_dp, n, norm_2, ScalProd)
+
+    call init_gmres(x_free)
+
+    do i=1,6
+      call iterate_gmres()
+    enddo
+
+    print *, "my GMRES solution:"
+    do i=1,n
+      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_gmres(i)
+    enddo
+    print *, 'GMRES res : ', gmres_res
+    print *, '|| x_free - (1-T) x|| : ', sqrt(sum(abs(x_free - matmul(oneminusT, x_gmres)) ** 2 ))
+
+    ! test that the solution is a fixed point of the affine transformation 
+    call affine_trafo(x_gmres, x_out)
+
+    print *, '||x - Tx + x_free|| : ', sqrt(sum(abs(x_gmres - x_out) ** 2 ))
+
+
+    call dealloc_gmres()
+
+
+  end subroutine test_gmres_affine
+
+  subroutine affine_trafo(x_in, x_out)
+
+    implicit none
+    complex(KIND=dp), dimension(:), intent(in)   :: x_in
+    complex(KIND=dp), dimension(:), intent(out)  :: x_out
+    integer, parameter :: n = 6
+    complex(KIND=dp), dimension(n, n) :: T
+    complex(KIND=dp), dimension(n) :: x_free
+    integer :: i
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Define the matrix A
+    T = reshape([ &
+    dcmplx( 3.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), & 
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 1.0_dp, -1.0_dp), dcmplx( 2.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), & 
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp,  1.0_dp), dcmplx( 4.0_dp,  0.0_dp), & 
+    dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), & 
+    dcmplx( 5.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), dcmplx( 0.0_dp,  0.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), & 
+    dcmplx( 1.0_dp,  1.0_dp), dcmplx( 6.0_dp,  0.0_dp), dcmplx(-1.0_dp,  1.0_dp), &
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), dcmplx( 0.0_dp,  0.0_dp), & 
+    dcmplx( 0.0_dp,  0.0_dp), dcmplx( 1.0_dp, -1.0_dp), dcmplx( 7.0_dp,  0.0_dp)  &
+    ], [n,n])
+
+    
+    x_free = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 1.0_dp), dcmplx(2.0_dp, 0.0_dp), &
+              dcmplx(6.0_dp, -1.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(3.0_dp, -2.0_dp)]
+
+    x_out = matmul(T, x_in) + x_free
+
+  end subroutine affine_trafo
+
+  subroutine affine_as_linear(x_in, x_out)
+
+    implicit none
+    complex(KIND=dp), dimension(:), intent(in)   :: x_in
+    complex(KIND=dp), dimension(:), intent(out)  :: x_out
+    complex(KIND=dp), dimension(6) :: x_free
+
+    ! Ax = (1-T)x = x - (Tx + x_free) + x_free = x - affine(x) + x_free
+
+    x_free = [dcmplx(1.0_dp, 0.0_dp), dcmplx(1.0_dp, 1.0_dp), dcmplx(2.0_dp, 0.0_dp), &
+              dcmplx(6.0_dp, -1.0_dp), dcmplx(1.0_dp, 0.0_dp), dcmplx(3.0_dp, -2.0_dp)]
+
+    call affine_trafo(x_in, x_out)
+
+    x_out = x_in - x_out + x_free
+
+  end subroutine affine_as_linear
 
  function norm_2(vec) result(norm)
     complex(KIND=dp), dimension(:), intent(in)  :: vec
@@ -522,14 +731,132 @@ contains
   end function
 
   function ScalProd(vec_l, vec_r) result(res)
-    ! abstract template procedure (dH,dH) -> complex required for procedural argument to gmres
-    ! to be updated to the objects of the dimensions of the perturbed
-    ! sp hamiltonian dh and ddelta (in HF basis)
+    ! Innner product on complex vector space.
+    ! NOTE : we follow the maths convention where the inner product is linear 
+    !        in the first component, while the typical physics convention assumes 
+    !        linearity in the second component. 
     complex(KIND=dp), dimension(:), intent(in)  :: vec_l, vec_r
     complex(KIND=dp)                            :: res
 
-    res = sum(conjg(vec_l(:)) * vec_r(:))
+    res = sum(vec_l(:) * conjg(vec_r(:)) )
 
   end function
+
+
+
+  subroutine test_linearity_T()
+    ! Test a complete FAM iteration is an affine transformation by calling iterate_dH on 
+    ! a chosen linear combination a * dHa + b*dHb. One expects that
+    ! FAM(a * dHa + b *dHb) = T(a * dHa + b * dHb) + dH_free
+    !                       = a * T(dHa) + b * T(dHb) + dH_free
+    ! such that
+    ! FAM(a * dHa + b *dHb) - dH_free = a * (FAM(dHa) - dH_free) + b * (FAM(dHb) - dH_free)
+
+    implicit none
+    complex(KIND=dp), allocatable :: dHa(:), dHa_iter(:)
+    complex(KIND=dp), allocatable :: dHb(:), dHb_iter(:)
+    complex(KIND=dp), allocatable :: dHlincomb(:), dHlincomb_iter(:)
+    real(KIND=dp),    allocatable :: rand_real(:), rand_imag(:)
+    complex(KIND=dp), allocatable :: dH_free(:)
+    complex(KIND=dp)              :: a, b
+    integer                       :: i,j
+    real                          :: diff_from_lin
+
+
+    allocate(dHa(nwt*nwt))
+    allocate(dHa_iter(nwt*nwt))
+    allocate(dHb(nwt*nwt))
+    allocate(dHb_iter(nwt*nwt))
+    allocate(dHlincomb(nwt*nwt))
+    allocate(dHlincomb_iter(nwt*nwt))
+    allocate(rand_real(nwt*nwt))
+    allocate(rand_imag(nwt*nwt))
+    allocate(dH_free(nwt*nwt))
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! get dH_free
+
+    dH_free = 0
+    call iterate_dHsp(dH_free, dH_free)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! define dHa as random dcmplx matrix
+
+    ! Seed the random number generator
+    call random_seed()
+
+    ! Generate random real and imaginary parts
+    call random_number(rand_real)
+    call random_number(rand_imag)
+
+    ! Combine into complex matrix
+    dHa = 0
+    do i = 1, nwt
+        do j = 1, nwt
+            dHa( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
+        end do
+    end do
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! define dHb as random dcmplx matrix
+
+    ! Generate random real and imaginary parts
+    call random_number(rand_real)
+    call random_number(rand_imag)
+
+    ! Combine into complex matrix
+    dHb = 0
+    do i = 1, nwt
+        do j = 1, nwt
+            dHb( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
+        end do
+    end do
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! dHlincomb as some linear combination of dHa and dHb
+    
+    a = dcmplx(6.0_dp, -1.0_dp) ! some random C scalar
+    b = dcmplx(-2.0_dp, 0.5_dp) ! some random C scalar
+    
+    dHlincomb = a * dHa + b * dHb
+
+    print * , "||dHa|| = ", norm_2(dHa)
+    print * , "||dHb|| = ", norm_2(dHb)
+    print * , "||dHlincomb|| = ", norm_2(dHlincomb)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! calculate  FAM(dHa), FAM(dHb) and FAM(a * dHa + b *dHb)
+
+    call iterate_dHsp(dHa, dHa_iter)
+    call iterate_dHsp(dHb, dHb_iter)
+    call iterate_dHsp(dHlincomb, dHlincomb_iter)
+
+    print * , "||FAM(dHa)|| = ", norm_2(dHa_iter)
+    print * , "||FAM(dHb)|| = ", norm_2(dHb_iter)
+    print * , "||FAM(dHlincomb)|| = ", norm_2(dHlincomb_iter)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! subtract the free response 
+
+    dHa_iter = dHa_iter - dH_free
+    dHb_iter = dHb_iter - dH_free
+    dHlincomb_iter = dHlincomb_iter - dH_free
+
+    print * , "||FAM(dHlincomb) - free|| = ", norm_2(dHlincomb_iter)
+    print * , "||a(FAM(dHa) - free) + b(FAM(dHb) - free)|| = ", norm_2(a * dHa_iter + b * dHb_iter)
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! verify linarity of T and hence affinity of FAM
+
+    diff_from_lin = norm_2(dHlincomb_iter - (a * dHa_iter + b * dHb_iter))
+    print * , "|| [FAM(dHlincomb) - free] - [a(FAM(dHa) - free) + b(FAM(dHb) - free)]|| = ", diff_from_lin
+
+    print *, "the FAM iteration iterate_dHsp is an affine transformation upto a precision of ", diff_from_lin
+
+
+  end subroutine
 
 end module fam_testing

@@ -6,11 +6,12 @@ program run_FAM
   use Tantalus, only : initialize_all_timers, full_printout
   use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests, test_gmres
+  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine, test_linearity_T
   use gmres 
   use timing
 
   1 format(86('-'))
+  11 format(10(' '), 20('='), ' omega =', f5.2, 'MeV ', 20('='), 10(' '))
   2 format('FAM iteration = ', i5) 
   3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
@@ -73,19 +74,19 @@ program run_FAM
   call CalculateMoments(Density)               ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
   sphamil     = Calc_Sphamil(potentials, .true.)
-!
-!  ATTENTION: this explicit diagonalisation can break the apparent agreement
-!             between proton and neutron matices since the LAPACK diagonalisation
-!             might perform different rotations of the spwfs dependent on small
-!             numerical details.
-!  TODO: reenable once visual inspections are no longer necessary.
-!
-!   call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
-!   ! diagonalisation done; now recalculate other quantities
-!   if(store_derivatives) call deriveHF() ! and update derivatives
-!   Density     = densit(rho_can, kappa_pairing)
-!   Potentials  = calcPotentials(Density)
-!   sphamil     = Calc_Sphamil(potentials, .true.)
+
+  ! ATTENTION: this explicit diagonalisation can break the apparent agreement
+  !            between proton and neutron matices since the LAPACK diagonalisation
+  !            might perform different rotations of the spwfs dependent on small
+  !            numerical details.
+  ! TODO: reenable once visual inspections are no longer necessary.
+
+  !  call apply_subspace_rotation(sphamil, HFTransfo, spenergies)
+  !  ! diagonalisation done; now recalculate other quantities
+  !  if(store_derivatives) call deriveHF() ! and update derivatives
+  !  Density     = densit(rho_can, kappa_pairing)
+  !  Potentials  = calcPotentials(Density)
+  !  sphamil     = Calc_Sphamil(potentials, .true.)
 
   ! Note: there is a silent assumption here that the HF-spectrum is sufficiently
   !       well-converged such that an explicit orthonormalisation will not change
@@ -104,11 +105,27 @@ program run_FAM
   call CalcEnergy(Density,Potentials,.true.) ! expensive parts included
   call calc_avg_gap()
   call full_printout(0,.false.,print_adv_spwf_properties)
+
+
+
   !---------------------------------------------------------------------------------
   ! construct the full HF densities rather than the merely the vector rho_can
   if (pairingtype .eq. 0) call iniHFdensities()
-  ! call test_gmres()
+
+  ! call test_gmres_affine()
   ! stop
+
+  !---------------------------------------------------------------------------------
+  ! allocate the single-particle hamiltonians 
+
+  if(.not. allocated(dH_flat)) then
+    allocate(dH_flat(nwt*nwt))
+  endif
+
+  if(.not. allocated(dH_flat_next)) then
+    allocate(dH_flat_next(nwt*nwt))
+  endif
+
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 
@@ -123,155 +140,143 @@ program run_FAM
 
   do omega_index=1, omega_num
 
+    print 11, omega_curr
+
     !-------------------------------------------------------------------------------
     ! initialise FAM matrices end set perturbing external field
-    call inifam(omega_curr, Density, Potentials)
+    !-------------------------------------------------------------------------------
 
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Old 'adaptive' lin_mix formulation - seems to be too cautious, perhaps
-    !  because of instability related to bugs in the perturbed densities and
-    !  potentials in earlier versions.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     if( calc_strength() .ge. 0.1) then
-!        fam_lin_mix=0.01
-!      else
-!        if( calc_strength() .ge. 0.001) then
-!          fam_lin_mix=0.05
-!        else
-!          fam_lin_mix=0.1
-!        endif
-!      endif
+    call inifam(omega_curr, Density, Potentials)
 
     is_converged = .false.
     is_divergent = .false.
 
 
-    if(.not. allocated(dH_flat)) then
-      allocate(dH_flat(nwt*nwt))
-    endif
+    ! !---------------------------------------------------------------------------------
+    ! ! linear mixing while employing iterate_dHsp()
+    ! !---------------------------------------------------------------------------------
 
-    if(.not. allocated(dH_flat_next)) then
-      allocate(dH_flat_next(nwt*nwt))
-    endif
-
-    dH_flat = 0
-    dH_flat_next = 0
-
-    ! Start of the iterations 
-    do iteration=1, maxfamiter
-
-      print 1
-      print 2, iteration
-
-      !---------------------------------------------------------------------------------
-      ! via explicit loops and linear mixing
-      !---------------------------------------------------------------------------------
-
-      ! ! build the perturbed hamiltonian using explicit linearisation of the field
-      ! call build_dH_explicit(Density, dRs, dRa)
-
-      ! ! calculate X and Y from the perturbed sp Hamil dH
-      ! call calculate_XY(dH)
-      
-      ! ! Apply simple linear mixing of X and Y. 
-      ! call mix_XY_linear(lin_mix_coeff)
-      ! ! To be replaced with something more fancy in the future
-
-      ! ! build the perturbed densities on the mesh dRs, dRa from X and Y
-      ! call build_perturbed_densities(X, Y, dRs, dRa)
-
-      ! call store_XY_hist()
-
-      !---------------------------------------------------------------------------------
-      ! linear mixing while employing iterate_dHsp()
-      !---------------------------------------------------------------------------------
-
-      ! calculate free response, i.e. one FAM loop based on dH=0
-      call iterate_dHsp(dH_flat, dH_flat_next)
-
-      ! Run all kinds of unit tests; should be made optional as this includes a stop statement
-!       call run_FAM_tests(X,Y)
-
-      ! simple linear mixing of sp hamiltonian
-      dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat
-
-      ! update dH for next iteration
-      dH_flat = dH_flat_next
-
-
-!       call print_all_fam_spmat()
-      !---------------------------------------------------------------------------------
-      ! test convergenence
-      !---------------------------------------------------------------------------------
-
-      ! print 3, l,m, omega_curr,  calc_strength()
-
-      ! Exit the loop if convergence is achieved.
-      if (iteration > 1) then ! at least two iterations to be able to compare
-       call test_convergence(is_converged, is_divergent)
-        if(is_converged) then
-          print 1
-          print *, "Hooray! FAM is converged! "
-          print 1
-          print 1
-          ! omega_arr(omega_index) = omega_curr
-          ! S_arr(omega_index) = calc_strength()
-          iter_arr(omega_index) = iteration
-          exit
-        endif
-        if(is_divergent) then
-          print 1
-          print *, "FAM diverges, exiting"
-          print 1
-          print 1
-          ! omega_arr(omega_index) = omega_curr
-          ! S_arr(omega_index) = calc_strength()
-          iter_arr(omega_index) = -iteration
-          exit
-        endif
-      endif
-      if (iteration == maxfamiter) then
-        print 1
-        print *, "Reached maximal number of iterations, ", maxfamiter
-        print 1
-        print 1
-        iter_arr(omega_index) = -maxfamiter
-      endif
-    enddo
-
-
-    !---------------------------------------------------------------------------------
-    ! via GMRES on implicit matrix*vector procedure iterate_dHsp()
-    !---------------------------------------------------------------------------------
-
-    ! call inifam(omega_curr, Density, Potentials)
-
-    ! dH_flat = 0
+    ! ! initialise the sp hamiltonians to the ones of the free response 
+    ! dH_flat = dH_free_flat
     ! dH_flat_next = 0
 
-    ! ! calculate free response, i.e. one FAM loop based on dH=0
+
+    ! ! Start of the iterations 
+    ! do iteration=1, maxfamiter
+
+    !   print 1
+    !   print 2, iteration
+
+    !   ! iterate the single-particle Hamiltonian by one complete FAM loop dH -> T(dH) + dH_free
+    !   call iterate_dHsp(dH_flat, dH_flat_next)
+
+    !   ! Run all kinds of unit tests; should be made optional as this includes a stop statement
+    !   ! call run_FAM_tests(X,Y)
+
+    !   ! simple linear mixing of sp hamiltonians dH[i+1] = a * dH[i+1] + (1-a) * dH[i]
+    !   dH_flat_next = fam_lin_mix * dH_flat_next + (1.0_dp - fam_lin_mix) * dH_flat
+
+    !   ! shift dH to prepare for the next iteration
+    !   dH_flat = dH_flat_next
+
+    !   ! call print_all_fam_spmat()
+
+    !   !---------------------------------------------------------------------------------
+    !   ! test convergenence
+
+    !   ! Exit the loop if convergence is achieved.
+    !   if (iteration > 1) then ! at least two iterations to be able to compare
+    !    call test_convergence(is_converged, is_divergent)
+    !     if(is_converged) then
+    !       print 1
+    !       print 1
+    !       print *, "   Hooray! FAM is converged! "
+    !       iter_arr(omega_index) = iteration
+    !       exit
+    !     endif
+    !     if(is_divergent) then
+    !       print 1
+    !       print 1
+    !       print *, "   FAM diverges, exiting"
+    !       iter_arr(omega_index) = -iteration
+    !       exit
+    !     endif
+    !   endif
+    !   if (iteration == maxfamiter) then
+    !     print 1
+    !     print 1
+    !     print *, "   Reached maximal number of iterations, ", maxfamiter
+    !     iter_arr(omega_index) = -maxfamiter
+    !   endif
+    ! enddo
+
+    ! ! fixed-point check
     ! call iterate_dHsp(dH_flat, dH_flat_next)
+    ! print *, "|| FAM(dH) - dH || = ", norm_dH(dH_flat_next - dH_flat)
 
-    ! dH_flat = dH_flat_next ! set initial guess to b
 
-    ! call do_gmres(dH_flat, iteration, nbprod, res, dH_flat_next, iterate_dHsp, &
-    !   & norm_dH, ScProd_dH, 1.0e-8_dp, 1000, 100, 3)
 
-    ! call test_convergence(is_converged, is_divergent)
+    ! test the choral GMRES method
+    ! call do_gmres_choral(dH_flat, iteration, nbprod, res, dH_flat_next, one_minus_T, &
+     ! & norm_dH, ScProd_dH, 1.0e-5_dp, 1000, 100, 3)
+    
 
-    ! print 1
-    ! print * , "total number of FAM iterations = ", nbprod
-    ! print 1
-    ! print 1
+    !---------------------------------------------------------------------------------
+    ! via GMRES on implicit matrix*vector procedure one_minus_T()
+    !---------------------------------------------------------------------------------
 
+    ! call test_gmres_affine()
+
+    call alloc_gmres(one_minus_T, dH_free_flat, maxfamiter, maxfamiter, 1e-6_dp, size(dH_free_flat, 1), norm_dH, ScProd_dH)
+    
+    fam_verbose = 0
+
+    ! initiliase the GMRES solver, using the free response as the initial guess x0
+    call init_gmres(dH_free_flat)
+
+    do iteration=1, gmres_itmax
+      call iterate_gmres()
+
+      if (gmres_res < gmres_tol) then 
+        print 1
+        print *, "Hooray! GMRES is converged! "
+        iter_arr(omega_index) = iteration
+        print 1
+        exit
+      endif
+
+      if (iteration == gmres_itmax) then
+        print 1
+        print 1
+        print *, "   Reached maximal number of iterations, ", maxfamiter
+        iter_arr(omega_index) = -gmres_itmax
+      endif
+
+    enddo
+
+    print *, "One final FAM iteration based on GMRES solution:  "
+    fam_verbose = 1
+    call iterate_dHsp(x_gmres, dH_flat_next)
+    print *, "convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - x_gmres) / norm_dH(x_gmres)
+
+
+    !---------------------------------------------------------------------------------
+    ! store the converged strength
+    !---------------------------------------------------------------------------------
       
     omega_arr(omega_index) = omega_curr
     S_arr(omega_index) = calc_strength()
 
-
-    print 3, l, m, omega_arr(omega_index), S_arr(omega_index)
+    print 1
+    print *, "   number of iterations: ", iteration
+    print *, "   converged strength:  "
+    print *, "          l, m  = ", l, m
+    print *, "          omega = ", omega_arr(omega_index)
+    print *, "          S     = ", S_arr(omega_index) 
+    print 1
 
     omega_curr = omega_curr + omega_step
+    call dealloc_gmres()
 
   enddo
 

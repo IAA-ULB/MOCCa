@@ -68,7 +68,7 @@ module Coulombmod
  ! Maximum l of the multipole moments to use in the boundary conditions
  ! Currently hardcoded at 8: does not cost anything CPU-time wise and
  ! has been shown to be sufficient in MOCCa.
- integer, parameter :: max_moment_coulomb=8
+ integer, parameter :: max_moment_coulomb=2
  !------------------------------------------------------------------------------
  ! Offsets for the Coulomb box.
  integer :: coul_offset_x, coul_offset_y, coul_offset_z
@@ -538,6 +538,8 @@ $REDUZ  coul_offset_z = 0
     ! Output:
     !   coulomb_potential : the potential with boundary conditions applied.
     !---------------------------------------------------------------------------
+    use folding
+    use vectors
     use sphericalharmonics, only : generate_spherical_harmonics
     use moments,            only : QuantisationAxis, SecondaryAxis
     use moments,            only : figure_out_multipole_moments
@@ -641,7 +643,6 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
               enddo
             enddo
           enddo
-
         enddo
       enddo
     enddo
