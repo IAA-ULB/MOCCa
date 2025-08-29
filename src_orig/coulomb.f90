@@ -538,18 +538,21 @@ $REDUZ  coul_offset_z = 0
     !        \sum_{m=1}^{l} (-1)^m I^{-m}_l(r) Q_lm + (-1)^(-m) I^{-m,*}_l(r) Q^*_lm
     !      = \sum_l I^{0}_0(r) Q_00 + 
     !        \sum_{m=1}^{l}  I^{+m,*}_l(r) Q_lm +  I^{+m}_l(r) Q^*_lm
-    !      = \sum_l I^{0}_0(r) Q_00 + 2 \sum_{m=1}^{l} \Re [ I^{+m}_l(r) Q_lm ] 
+    !      = \sum_l I^{0}_0(r) Q_00 + 2 \sum_{m=1}^{l} \Re [ I^{+m,*}_l(r) Q_lm ]
     !      = \sum_l I^{0}_0(r) Q_00 
-    !              + 2 \sum_{m=1}^{l} \Re [ I^{+m}_l(r) ] \Re [ Q_lm ] 
-    !              - 2 \sum_{m=1}^{l} \Im [ I^{+m}_l(r) ] \Im [ Q_lm ] 
-    ! 
+    !              + 2 \sum_{m=1}^{l} \Re [ I^{+m,*}_l(r) ] \Re [ Q_lm ]
+    !              - 2 \sum_{m=1}^{l} \Im [ I^{+m,*}_l(r) ] \Im [ Q_lm ]
+    !      = \sum_l I^{0}_0(r) Q_00
+    !              + 2 \sum_{m=1}^{l} \Re [ I^{+m}_l(r) ] \Re [ Q_lm ]
+    !              + 2 \sum_{m=1}^{l} \Im [ I^{+m}_l(r) ] \Im [ Q_lm ]
+    !
     ! which is a useable expression for a code that deals with the real and
     ! imaginary parts of solid harmonics.
     !
     ! Slightly easier to code is the expression
     !
     !      =  \sum_{m=0}^{l} (2 - \delta_{m 0}) \Re [ I^{+m}_l(r) ] \Re [ Q_lm ] 
-    !       - \sum_{m=1}^{l} (2 - \delta_{m 0}) \Im [ I^{+m}_l(r) ] \Im [ Q_lm ] 
+    !       + \sum_{m=1}^{l} (2 - \delta_{m 0}) \Im [ I^{+m}_l(r) ] \Im [ Q_lm ]
     !
     ! where I used that Im (Y_00) = 0.
     !
@@ -641,7 +644,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
           ! The prefactor +/-(2 - \delta_{m 0})
           fac = 1
           if(m  .ne. 0) fac =    2 ! Real parts of Q_lm and Q_l(-m) are identical
-          if(im .eq. 1) fac = -fac ! Imaginary parts obtain a minus sign
+          !if(im .eq. 1) fac = -fac ! Imaginary parts obtain a minus sign
 
           do k=1,oz
             do j=1,oy

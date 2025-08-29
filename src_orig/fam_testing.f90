@@ -973,12 +973,16 @@ contains
     diff_from_lin = sum( abs (a * dRanti_a%chargedensity + b* dRanti_b%chargedensity - dRanti_lc%chargedensity)**2 )
     print *, 'ANTISYMMETRIC', diff_from_lin
     print *, 'POTENTIALS'
-    diff_from_lin_direct = sum( abs (a * dFsym_a%Coulombpotential  + b* dFsym_b%Coulombpotential  - dFsym_lc%Coulombpotential)**2 )
-    diff_from_lin_exch   = sum( abs (a * dFsym_a%Exchangepotential + b* dFsym_b%Exchangepotential - dFsym_lc%Exchangepotential)**2 )
+    diff_from_lin_direct = &
+    & sum( abs (a * dFsym_a%Coulombpotential  + b* dFsym_b%Coulombpotential  - dFsym_lc%Coulombpotential)**2 )
+    diff_from_lin_exch   = &
+    & sum( abs (a * dFsym_a%Exchangepotential + b* dFsym_b%Exchangepotential - dFsym_lc%Exchangepotential)**2 )
      print *, 'SYMMETRIC, DIRECT ', diff_from_lin_direct
      print *, 'SYMMETRIC, EXCHANGE', diff_from_lin_exch
-    diff_from_lin_direct = sum( abs (a * dFanti_a%Coulombpotential  + b* dFanti_b%Coulombpotential  - dFanti_lc%Coulombpotential)**2 )
-    diff_from_lin_exch   = sum( abs (a * dFanti_a%Exchangepotential + b* dFanti_b%Exchangepotential - dFanti_lc%Exchangepotential)**2 )
+    diff_from_lin_direct = &
+    & sum( abs (a * dFanti_a%Coulombpotential  + b* dFanti_b%Coulombpotential  - dFanti_lc%Coulombpotential)**2 )
+    diff_from_lin_exch   = &
+    & sum( abs (a * dFanti_a%Exchangepotential + b* dFanti_b%Exchangepotential - dFanti_lc%Exchangepotential)**2 )
      print *, 'ANTISYMMETRIC, DIRECT ', diff_from_lin_direct
      print *, 'ANTISYMMETRIC, EXCHANGE', diff_from_lin_exch
 
