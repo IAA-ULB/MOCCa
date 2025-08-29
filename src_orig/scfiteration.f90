@@ -105,7 +105,8 @@ contains
       print 6, memory, mixstepsize
     endif
   end subroutine printscfiteration
-  
+
+#if( $FAM == 0)
   function AndersonMixPotentials( iterates, updates, stepsize, Nsaved) result(F)
     !---------------------------------------------------------------------------
     ! Perform an Anderson Mixing step on the potential vectors to accelerate
@@ -267,5 +268,5 @@ contains
 
     return 
   end function AndersonMixPotentials
-
+#endif
 end module

@@ -769,7 +769,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
         (d,c,p,cc, pc_ph, pc_pair, st,pt,er, T) = \
           GenTermExpression(Functional_terms[i], i, term_grouping[i],    
                         term_number[Functional_terms[i]], coupling_constants[i], 
-                 isospin_indices[i], density_dependence[i], extra_calls[i], so)
+                 isospin_indices[i], density_dependence[i], extra_calls[i], so, fam_active)
                  
         if( d != ''):
           declaration = declaration + d + '\n'
@@ -1073,7 +1073,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     return pot_declaration
 
-def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so):
+def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so, fam_active):
     """
      Generate the FORTRAN expressions to calculate the terms in the functional.
      
@@ -1091,6 +1091,8 @@ def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so):
       ddep : density dependence of the FIRST density in the term
       extra: extra function call to perform
       so   : symmetry options
+      fam_active :  generate code for mean-field (False) or FAM (True)
+                    calculations
 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       
@@ -1235,7 +1237,7 @@ def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so):
     
     for arg in true_args: 
         dic['EDENT'] = ''
-        
+
         sign      = +1
         prevorder =  0 
         for i in range(len(densities)):
@@ -1279,11 +1281,17 @@ def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so):
             if(i == 0 and ddep != '1'):
               # The first density for the first density in the term
               isodic['EXP']= ddep
-              dic['EDENT'] = dic['EDENT'] + ts.edent_DD.substitute(isodic)+ '*'
+              if(fam_active):
+                dic['EDENT'] = dic['EDENT'] + ts.edent_DD_fam.substitute(isodic)+ '*'
+              else:
+                dic['EDENT'] = dic['EDENT'] + ts.edent_DD.substitute(isodic)+ '*'
             else:
               # No density dependence
-              dic['EDENT'] = dic['EDENT'] + ts.edent.substitute(isodic)+ '*'
-            
+              if(fam_active):
+                dic['EDENT'] = dic['EDENT'] + ts.edent_fam.substitute(isodic)+ '*'
+              else:
+                dic['EDENT'] = dic['EDENT'] + ts.edent.substitute(isodic)+ '*'
+
             # Take out the final '*' which should not be necessary
             prevorder = prevorder + orders[i]
       

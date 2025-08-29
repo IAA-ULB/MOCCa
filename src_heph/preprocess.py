@@ -81,7 +81,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='precondition.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='tantalus.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessGeneric(fname,src,target,so,fam_active)
     if(fname=='version.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='run_single.f90'):
@@ -101,7 +101,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='nil8.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='scfiteration.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
+        ProcessGeneric(fname,src,target,so,fam_active)
     if(fname=='basis_transform.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='moments.f90'):
@@ -111,7 +111,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='diag.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='evolution.f90'):
-        ProcessGeneric(fname, src, target, so)
+        ProcessGeneric(fname, src, target, so, fam_active)
     if(fname=='IO.f90'):
         ProcessIO(fname, src, target, so, oldso, fam_active)
     if(fname=='coulomb.f90'):
@@ -123,11 +123,11 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='pairingcutoffs.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='printing.f90'):
-        ProcessGeneric(fname, src, target, so)
+        ProcessGeneric(fname, src, target, so, fam_active)
     if(fname=='HFB_gradient.f90'):
-        ProcessGeneric(fname, src, target, so)
+        ProcessGeneric(fname, src, target, so, fam_active)
     if(fname=='HFB_direct.f90'):
-        ProcessGeneric(fname, src, target, so)
+        ProcessGeneric(fname, src, target, so, fam_active)
     if(fname=='HFB.f90' or fname == 'BCS.f90'): 
         # BCS.f90 and HFB.f90 have exactly the same needs in terms of 
         # preprocessing by Hephaestos
@@ -137,7 +137,7 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
     if(fname=='folding.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='momentsofinertia.f90'):
-        ProcessGeneric(fname, src, target, so)
+        ProcessGeneric(fname, src, target, so, fam_active)
     if(fname=='fission_MOI.f90'):
         ProcessFission_MOI(fname, src, target, so)
     if(fname=='timing.f90'):
@@ -199,7 +199,7 @@ def ProcessGeninfo(fname, src, target, so):
                 generated.write(Template(line).substitute(dic))   
 
 
-def ProcessGeneric(fname, src, target, so):  
+def ProcessGeneric(fname, src, target, so, fam_active):
     """
 
     """
@@ -226,10 +226,16 @@ def ProcessGeneric(fname, src, target, so):
       dic['N2'] = '!'
       dic['N3'] = ' '
 
+    if(fam_active):
+      dic['FAM'] = 1
+    else:
+      dic['FAM'] = 0
+
     with open(src+fname, 'r') as template:
         with open(target+fname, 'w') as generated:
             for line in template:
-                generated.write(Template(line).substitute(dic))   
+                generated.write(Template(line).substitute(dic))
+
 
 def ProcessVectors(src, target, so, densities, potentials, memory_densities, fam_active):
   """

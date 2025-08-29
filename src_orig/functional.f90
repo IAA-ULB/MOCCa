@@ -246,10 +246,12 @@ contains
     ! Bookkeeping operations, including the calculation of the coupling
     ! coefficients, that are to be executed by all MPI ranks
     call calcedfcoefs()
+
+#if( $FAM == 0)
     ! Put the pairing routines pointers to the action of Delta
     delta_action_BCS => delta_action
     delta_action_HFB => delta_action
-
+#endif
  end subroutine readfunctional
 
  subroutine calcedfcoefs()
@@ -953,6 +955,7 @@ $NOTAU$TAUTENSOR            &                     + Rin%D_N_N(:,3,3,it),1)
 $NOTAU    enddo
 $NOTAU  end function CompKinetic_density
 
+#if ($FAM == 0)
   function effmass_pot(F_in) result(em_pot)
     !---------------------------------------------------------------------------
     ! From a given set of mean-field potentials F_in, determine the F^{(N,N)}
@@ -982,6 +985,7 @@ $TAUSCALAR em_pot = F_in%F_Nm_Nm
 $TAUTENSOR em_pot = (F_in%F_N_N(:,1,1,:)+F_in%F_N_N(:,2,2,:)+F_in%F_N_N(:,3,3,:))/3
     
   end function effmass_pot
+#endif
 
   subroutine CompCOMCorrection(kin, override_2body, Comcorr)
     !---------------------------------------------------------------------------
@@ -1531,10 +1535,9 @@ $CALCPOTENTIALS_PERTURBED
     !   F : where the new F_I_I = old F_I_I + coulomb potentials
     !-----------------------------------------------------------------------------
     type(PotentialVector), intent(inout) :: F
-    real(KIND=dp)                        :: pot(mv,4)
 
-    pot = transfer_coulomb_mesh(F, .true.) + transfer_coulomb_mesh(F, .false.)
-    F%F_I_I = F%F_I_I + pot
+    F%F_I_I = F%F_I_I + transfer_coulomb_mesh(F, .true.) &
+    &                 + transfer_coulomb_mesh(F, .false.)
   
   end subroutine add_coulomb_potential
 
@@ -1557,7 +1560,8 @@ $TR trash = F%F_I_I(1,1) ! to stop compiler complaints when time-reversal is con
 ! $NTR F%G_I_N = F%G_I_N + crank_current_potential()
 
   end subroutine add_cranking_potentials
-  
+
+#if( $FAM == 0 )
   function precondition_potentials(F_in, F_out) result(F)
     !---------------------------------------------------------------------------
     ! Precondition the change in potentials from one iteration to the next. 
@@ -1619,6 +1623,7 @@ $POTENTIALPRECON
     call stop_timer(T_potentials)
  
   end function precondition_potentials
+#endif
 
   function transfer_coulomb_mesh(F, exchange) result(pot)
     !---------------------------------------------------------------------------
@@ -1638,8 +1643,13 @@ $POTENTIALPRECON
     Type(PotentialVector), intent(in) :: F
     logical, intent(in)               :: exchange
     integer                           :: i,j,k, ox, oy, oz, it
-    real(KIND=dp)                     :: pot(mv,4)
-
+#if($FAM == 0)
+    ! Coulomb potentials are real for mean-field calculations
+    real(KIND=dp)                     :: pot(mv,4) 
+#else
+    ! Coulomb potentials are complex for FAM calculations
+    complex(KIND=dp)                  :: pot(mv,4)
+#endif
     pot = 0.0d0    
     if((all(protonsize.eq.0.0) .and. all(neutronsize.eq.0.0)) .or.         &
       &                             (.not. nucleonsize_selfconsistent)) then
@@ -1828,6 +1838,7 @@ $K4POT
     pot(:,2) = pot(:,3) - pot(:,4)
 end function INM_k4_pot
 
+#if( $FAM == 0)
   function apply_sphamil(psi, dpsi, ddpsi, &
 $N3                                 dddpsi, &
 &                                        sx,sy,sz,iso, onthefly, Fin) result(hpsi)
@@ -2026,6 +2037,7 @@ $LAPTEMPDELTA   real(KIND=dp)    :: laptemp(mv,4)
 $PAIRINGACTION
 
   end function delta_action
+#endif
 
   function calcspwfenergy() result(spwfenergy)
     !---------------------------------------------------------------------------
@@ -2431,6 +2443,7 @@ $READPOTENTIALS_HDF5
 
   end function CompStabilisingFactor
 
+#if( $FAM == 0)
   function PVectorInproduct(F1, F2) result(x)
     !---------------------------------------------------------------------------
     ! Define a basic inproduct on the space of the potential vectors.
@@ -2449,6 +2462,7 @@ $READPOTENTIALS_HDF5
 $PVECTORINPRODUCT
     
  end function PVectorInproduct
+#endif
 
   function readpotentials_separate(chan, ifn) result(F)
     !---------------------------------------------------------------------------

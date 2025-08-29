@@ -68,7 +68,7 @@ module Coulombmod
  ! Maximum l of the multipole moments to use in the boundary conditions
  ! Currently hardcoded at 8: does not cost anything CPU-time wise and
  ! has been shown to be sufficient in MOCCa.
- integer, parameter :: max_moment_coulomb=2
+ integer, parameter :: max_moment_coulomb=8
  !------------------------------------------------------------------------------
  ! Offsets for the Coulomb box.
  integer :: coul_offset_x, coul_offset_y, coul_offset_z
@@ -205,9 +205,9 @@ contains
     real(KIND=dp), allocatable :: Re_CP(:,:,:), Im_CP(:,:,:)
     real(KIND=dp), allocatable :: Re_EX(:,:,:), Im_EX(:,:,:)
 
-    Re_CD = DBLE(ChargeDensity)    ; Im_CD = IMAG(ChargeDensity)
-    Re_CP = DBLE(CoulombPotential) ; Im_CP = IMAG(CoulombPotential)
-    Re_EX = DBLE(ExchangePotential); Im_EX = IMAG(ExchangePotential)
+    Re_CD = DBLE(ChargeDensity)    ; Im_CD = AIMAG(ChargeDensity)
+    Re_CP = DBLE(CoulombPotential) ; Im_CP = AIMAG(CoulombPotential)
+    Re_EX = DBLE(ExchangePotential); Im_EX = AIMAG(ExchangePotential)
 
     ! Solve the real part ...
     call coulomb_solver(Re_CD, Re_CP, Re_Ex, sx, sy, sz)
@@ -215,8 +215,8 @@ contains
     call coulomb_solver(Im_CD, Im_CP, Im_Ex, sx, sy, sz)
 
     ! ... and sum the results
-    CoulombPotential  = CMPLX(Re_CP, Im_CP)
-    ExchangePotential = CMPLX(Re_EX, Im_EX)
+    CoulombPotential  = DCMPLX(Re_CP, Im_CP)
+    ExchangePotential = DCMPLX(Re_EX, Im_EX)
 
  end subroutine solve_coulomb_worker_complex
 
@@ -235,7 +235,7 @@ contains
     integer, intent(in)                       :: sx, sy, sz
 
     real(KIND=dp), allocatable      :: source(:,:,:)
-    integer                         :: i,j,k,ii
+    integer                         :: i,j,k
 
     call start_timer(T_coulomb)
 
@@ -377,7 +377,7 @@ $REDUZ  coul_offset_z = 0
     !    F : potentialvector with the folded Coulomb potentials (direct and
     !        exchange) in line with the Coulomb potentials
     !---------------------------------------------------------------------------
-    use folding, only: fold_form_factor_reverse, gauss_x_proton
+    use folding, only: fold_form_factor_reverse
 
     type(PotentialVector), intent(inout) :: F
     integer, intent(in)       :: sx, sy, sz
@@ -447,7 +447,7 @@ $REDUZ  coul_offset_z = 0
     F%ExchangePotential = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
-    Prec = 1.d-12/(dx**3)
+    prec = 1.d-30/(dx**3)
 
     !---------------------------------------------------------------------------
     ! Set-up the value of r on the Coulomb mesh.
@@ -594,13 +594,13 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     moment_list = figure_out_multipole_moments(sx,sy,sz,max_moment_coulomb,&
     &                                        quantisationaxis,secondaryaxis) 
 
-    do im = 0,1 
+    do im = 0,1
       do l=0, max_moment_coulomb
         do m=0, l
           Qlm = 0
 
           ! If the multipole moment is restricted by symmetry, we move on
-          if(moment_list(l,m,im).eq.0) cycle 
+          if(moment_list(l,m,im).eq.0) cycle
 
           ! calculate the multipole moment Q_lm of the source density
           do k=1,oz
@@ -617,7 +617,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
           ! The prefactor +/-(2 - \delta_{m 0})
           fac = 1
           if(m  .ne. 0) fac =    2 ! Real parts of Q_lm and Q_l(-m) are identical
-          if(im .eq. 1) fac = -fac ! Imaginary parts obtain a minus sign 
+          if(im .eq. 1) fac = -fac ! Imaginary parts obtain a minus sign
 
           do k=1,oz
             do j=1,oy
@@ -668,11 +668,13 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     ox = coul_offset_x ; oy = coul_offset_y ; oz = coul_offset_z
 
     CEnergy = 0.0_dp
+    ! The call to DBLE is superfluous for mean-field calculations but
+    ! makes the conversion to real numbers explicit for FAM calculations.
     do k=1,nz
         do j=1,ny
             do i=1,nx
-                CEnergy = CEnergy + R%chargedensity(i,j,k) *   &
-                &                   F%CoulombPotential(i+ox,j+oy,k+oz)
+                CEnergy = CEnergy + DBLE(R%chargedensity(i,j,k)) *   &
+                &                   DBLE(F%CoulombPotential(i+ox,j+oy,k+oz))
             enddo
         enddo
     enddo
@@ -695,8 +697,9 @@ $FULLZ          if(k.gt.nz+BC) condition =.true.
     if(coultreatment.ne.1) return
 
     factor  = -0.75_dp*(3/pi)**(1/3._dp)*e2*dv
-    Cenergy = factor*sum(R%chargedensity**(4.0/3.0))
-
+    ! The call to DBLE is superfluous for mean-field calculations but 
+    ! takes care of FAM calculations.
+    Cenergy = factor*sum(DBLE(R%chargedensity**(4.0/3.0))) 
  end function coulomb_energy_exchange
 
  subroutine conjug_grad (Solution,SourceTerm,sx,sy,sz,MaxIteration,iprint,Precis)

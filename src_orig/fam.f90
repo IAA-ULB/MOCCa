@@ -63,7 +63,7 @@ module fam
   !                         '-> symmetric part
   !-----------------------------------------------------------------------------
   ! unperturbed Hamiltonian and perturbed hamiltonian
-  real(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
+  !real(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
   complex(KIND=dp), allocatable :: dH(:,:,:)   ! ph and hp block of the perturbed
   !                                   | | |      Hamiltonian in HF basis
   !                                   | | '-> 1: ph block, 2: hp block
@@ -197,10 +197,10 @@ module fam
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! set up the unperturbed Hamiltonian from the unperturbed potentials
-    if(.not.allocated(Hunper)) then 
-      allocate(Hunper(nwt,nwt))
-      Hunper = calc_sphamil(PotUnper, .false.)
-    endif
+    !if(.not.allocated(Hunper)) then
+    !  allocate(Hunper(nwt,nwt))
+    !  Hunper = calc_sphamil(PotUnper, .false.)
+    ! endif
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -579,7 +579,6 @@ module fam
     S_out = - S%im / pi
 
   end function calc_strength
-
 
   subroutine test_convergence(conv, div)
     !---------------------------------------------------------------------------

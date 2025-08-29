@@ -6,6 +6,7 @@ module Tantalus
 
 contains
 
+#if( $FAM == 0)
 subroutine Run_Tantalus(file_number,input_file)
  !==============================================================================
  !_________ _______  _       _________ _______  _                 _______
@@ -485,6 +486,7 @@ subroutine ReachForWaterAndFood(iter, iomsg)
         endif
     enddo
 end subroutine ReachForWaterAndFood
+#endif
 
 subroutine printsummary(iter, potentials_frozen)
     !---------------------------------------------------------------------------

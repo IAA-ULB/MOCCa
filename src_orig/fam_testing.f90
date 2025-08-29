@@ -33,8 +33,8 @@ contains
 
     print 9
 
-    call test_sphamil_me(ifail)
-    print 1, 'SPHAMIL_ME', ifail
+    !call test_sphamil_me(ifail)
+    !print 1, 'SPHAMIL_ME', ifail
 
     call test_potentials(X,Y,ifail)
     print 1, 'potentials', ifail
@@ -128,118 +128,118 @@ contains
 
   end subroutine print_deviations
 
-  subroutine test_sphamil_me(ifail)
-    !--------------------------------------------------------------------------------------
-    ! Test whether the matrix elements of the single-particle Hamiltonian in the HF
-    ! basis when calculated in two different ways.
-    !
-    ! (i)  densit + calc_potentials + apply_sphamil
-    !      - - - - - - - - - - - - - - - - -
-    !      the densities and potentials calculated as usual; with the latter
-    !      applied to the spwfs as usual in the mean-field part of the code
-    !
-    ! (ii) densit_offdiag + calc_perturbed_potentials + calc_sphamil_me
-    !      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    !      a. the (offdiagonal) summation of densities with the mean-field density matrix
-    !      b. the calculation of the potentials with calc_perturbed_potentials
-    !         without perturbation
-    !      c. the calculation of the matrix elements by explicit sandwiching
-    !         of the potentials in calc_sphamil_me
-    !      d. ... with the matrix elements of the kinetic energy added in manually!
-    !
-    ! Although slightly wasteful in terms of CPU resources, this routine never assumes that
-    ! any part of the matrix of the single-particle hamiltonian is hermitian/symmetric.
-    !
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Output:
-    !  ifail : 0 if succesful, 1 if a deviation above 1e-10 has been detected
-    !---------------------------------------------------------------------------------------
-    integer, intent(out)       :: ifail
-
-    complex(KIND=dp), allocatable :: sphamil_me(:,:), sphamil_orig(:,:)
-    complex(KIND=dp), allocatable :: hpsi(:,:), drho(:,:), dkappa(:,:)
-    real(KIND=dp), allocatable    :: dev(:,:)
-    integer                       :: si, B, N, i, it, j
-    type(PotentialVector)         :: Fs, Fa, F
-    type(DensityVector)           :: R, Rs, Ra
-
-    ifail = 0
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! (i) Ordinary mean-field-like calculation
-    R  = densit(rho_can, kappa_pairing)
-    F = calcpotentials(R)
-
-    ! Important: apply_sphamil requires that the potentials in F are NOT combined!
-    !            don't call combine_potentials(F) here!
-
-    allocate(sphamil_orig(nwt,nwt)); sphamil_orig = 0.0d0
-    si = 0
-    do B=1,8
-      N = HFBlocks(B)
-      it = -1
-      if(B .ge. 5) it = +1
-      do j=si+1,si+N
-        hpsi = apply_sphamil(HFPsi(:,:,j), HFdPsi(:,:,:,j), HFddPsi(:,:,:,j), &
-        &                     sx(:,j), sy(:,j), sz(:,j), it ,.false. ,F)
-        do i=si+1,si+N
-          sphamil_orig(i,j) = sum(HFpsi(:,:,i) * hpsi)*dv
-        enddo
-      enddo
-      si = si + N
-    enddo
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! (ii) FAM-like calculation
-    allocate(drho(nwt,nwt)) ; drho = 0.0d0
-    ! Calculate the original densities through a non-diagonal summation
-    do i=1,nwt
-      drho(i,i) = rho_can(i)
-    enddo
-    call densit_offdiag(drho, dkappa, R , Ra)
-    drho = 0.0d0
-    call densit_offdiag(drho, dkappa, Rs, Ra)     ! No perturbation, drho = 0 in this call
-    ! Calculate the potentials without perturbation
-    call calc_perturbed_potentials(R, Rs, Ra, Fs, Fa)
-    !- - - - - - - - - - - - - - - - -
-    ! Convention for calc_sphamil_me !
-    call combine_potentials(F) ! calc_sphamil_me expects the potentials to be combined !
-    call combine_potentials(Fs)
-    call combine_potentials(Fa)
-    ! .... and feed the result into the spwf sandwhiches
-    sphamil_me = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,F, Fa, .false.)
-    ! .... and add the matrix elements of the kinetic energy
-    sphamil_me = sphamil_me + kinetic_me(HFpsi, HFdpsi, hfddpsi)
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! (iii)Check result and print output if needed
-    si = 0
-    do B = 1,8
-      N = HFBlocks(B)
-      ! The element-wise deviation
-      dev = abs(sphamil_orig(si+1:si+N, si+1:si+N) - sphamil_me(si+1:si+N, si+1:si+N))
-      if(maxval(dev)>1e-10) then
-        ifail = 1
-        print *
-        print *, 'BLOCK B=', B
-        print *, "Maximal deviation = ", maxval(dev)
-        print *, '------ Original calculation -------'
-        do i=1,N
-          print ('(99f10.3)'), sphamil_orig(si+i, si+1:si+N)
-        enddo
-        print *, '------ FAM-like calculation -------'
-        do i=1,N
-          print ('(99f10.3)'), sphamil_me(si+i, si+1:si+N)
-        enddo
-        print *
-        print *, '------ difference           -------'
-        do i=1,N
-          print ('(99es10.2)'), dev(i, 1:N)
-        enddo
-        print *
-      endif
-      si = si + N
-    enddo
-  end subroutine test_sphamil_me
+!   subroutine test_sphamil_me(ifail)
+!     !--------------------------------------------------------------------------------------
+!     ! Test whether the matrix elements of the single-particle Hamiltonian in the HF
+!     ! basis when calculated in two different ways.
+!     !
+!     ! (i)  densit + calc_potentials + apply_sphamil
+!     !      - - - - - - - - - - - - - - - - -
+!     !      the densities and potentials calculated as usual; with the latter
+!     !      applied to the spwfs as usual in the mean-field part of the code
+!     !
+!     ! (ii) densit_offdiag + calc_perturbed_potentials + calc_sphamil_me
+!     !      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     !      a. the (offdiagonal) summation of densities with the mean-field density matrix
+!     !      b. the calculation of the potentials with calc_perturbed_potentials
+!     !         without perturbation
+!     !      c. the calculation of the matrix elements by explicit sandwiching
+!     !         of the potentials in calc_sphamil_me
+!     !      d. ... with the matrix elements of the kinetic energy added in manually!
+!     !
+!     ! Although slightly wasteful in terms of CPU resources, this routine never assumes that
+!     ! any part of the matrix of the single-particle hamiltonian is hermitian/symmetric.
+!     !
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! Output:
+!     !  ifail : 0 if succesful, 1 if a deviation above 1e-10 has been detected
+!     !---------------------------------------------------------------------------------------
+!     integer, intent(out)       :: ifail
+!
+!     complex(KIND=dp), allocatable :: sphamil_me(:,:), sphamil_orig(:,:)
+!     complex(KIND=dp), allocatable :: hpsi(:,:), drho(:,:), dkappa(:,:)
+!     real(KIND=dp), allocatable    :: dev(:,:)
+!     integer                       :: si, B, N, i, it, j
+!     type(PotentialVector)         :: Fs, Fa, F
+!     type(DensityVector)           :: R, Rs, Ra
+!
+!     ifail = 0
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! (i) Ordinary mean-field-like calculation
+!     R  = densit(rho_can, kappa_pairing)
+!     F = calcpotentials(R)
+!
+!     ! Important: apply_sphamil requires that the potentials in F are NOT combined!
+!     !            don't call combine_potentials(F) here!
+!
+!     allocate(sphamil_orig(nwt,nwt)); sphamil_orig = 0.0d0
+!     si = 0
+!     do B=1,8
+!       N = HFBlocks(B)
+!       it = -1
+!       if(B .ge. 5) it = +1
+!       do j=si+1,si+N
+!         hpsi = apply_sphamil(HFPsi(:,:,j), HFdPsi(:,:,:,j), HFddPsi(:,:,:,j), &
+!         &                     sx(:,j), sy(:,j), sz(:,j), it ,.false. ,F)
+!         do i=si+1,si+N
+!           sphamil_orig(i,j) = sum(HFpsi(:,:,i) * hpsi)*dv
+!         enddo
+!       enddo
+!       si = si + N
+!     enddo
+!
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! (ii) FAM-like calculation
+!     allocate(drho(nwt,nwt)) ; drho = 0.0d0
+!     ! Calculate the original densities through a non-diagonal summation
+!     do i=1,nwt
+!       drho(i,i) = rho_can(i)
+!     enddo
+!     call densit_offdiag(drho, dkappa, R , Ra)
+!     drho = 0.0d0
+!     call densit_offdiag(drho, dkappa, Rs, Ra)     ! No perturbation, drho = 0 in this call
+!     ! Calculate the potentials without perturbation
+!     call calc_perturbed_potentials(R, Rs, Ra, Fs, Fa)
+!     !- - - - - - - - - - - - - - - - -
+!     ! Convention for calc_sphamil_me !
+!     call combine_potentials(F) ! calc_sphamil_me expects the potentials to be combined !
+!     call combine_potentials(Fs)
+!     call combine_potentials(Fa)
+!     ! .... and feed the result into the spwf sandwhiches
+!     sphamil_me = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,F, Fa, .false.)
+!     ! .... and add the matrix elements of the kinetic energy
+!     sphamil_me = sphamil_me + kinetic_me(HFpsi, HFdpsi, hfddpsi)
+!
+!     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ! (iii)Check result and print output if needed
+!     si = 0
+!     do B = 1,8
+!       N = HFBlocks(B)
+!       ! The element-wise deviation
+!       dev = abs(sphamil_orig(si+1:si+N, si+1:si+N) - sphamil_me(si+1:si+N, si+1:si+N))
+!       if(maxval(dev)>1e-10) then
+!         ifail = 1
+!         print *
+!         print *, 'BLOCK B=', B
+!         print *, "Maximal deviation = ", maxval(dev)
+!         print *, '------ Original calculation -------'
+!         do i=1,N
+!           print ('(99f10.3)'), sphamil_orig(si+i, si+1:si+N)
+!         enddo
+!         print *, '------ FAM-like calculation -------'
+!         do i=1,N
+!           print ('(99f10.3)'), sphamil_me(si+i, si+1:si+N)
+!         enddo
+!         print *
+!         print *, '------ difference           -------'
+!         do i=1,N
+!           print ('(99es10.2)'), dev(i, 1:N)
+!         enddo
+!         print *
+!       endif
+!       si = si + N
+!     enddo
+!   end subroutine test_sphamil_me
 
   function kinetic_me(denpsi, dendpsi, denddpsi)
     !---------------------------------------------------------------------------------------
@@ -742,8 +742,6 @@ contains
 
   end function
 
-
-
   subroutine test_linearity_T()
     ! Test a complete FAM iteration is an affine transformation by calling iterate_dH on 
     ! a chosen linear combination a * dHa + b*dHb. One expects that
@@ -858,5 +856,216 @@ contains
 
 
   end subroutine
+
+  subroutine test_linearity_FAM_coulomb()
+
+    implicit none
+
+    complex(KIND=dp), allocatable :: dHa(:), dHa_iter(:), dH_free(:)
+    complex(KIND=dp), allocatable :: dHb(:), dHb_iter(:)
+    complex(KIND=dp), allocatable :: dHlincomb(:), dHlincomb_iter(:)
+    real(KIND=dp),    allocatable :: rand_real(:), rand_imag(:)
+    type(potentialvector)         :: dFsym_a, dFsym_b, dFanti_a, dFanti_b, dFsym_lc, dFanti_lc, dFsym_free, dFanti_free
+    type(densityvector)           :: dRsym_a, dRsym_b, dRanti_a, dRanti_b, dRsym_lc, dRanti_lc, dRsym_free, dRanti_free
+    complex(KIND=dp)              :: a, b
+    integer                       :: i,j
+    real(KIND=dp)                 :: diff_from_lin_direct, diff_from_lin_exch, diff_from_lin
+
+
+    allocate(dHa(nwt*nwt))
+    allocate(dHa_iter(nwt*nwt))
+    allocate(dHb(nwt*nwt))
+    allocate(dHb_iter(nwt*nwt))
+    allocate(dHlincomb(nwt*nwt))
+    allocate(dHlincomb_iter(nwt*nwt))
+    allocate(rand_real(nwt*nwt))
+    allocate(rand_imag(nwt*nwt))
+    allocate(dH_free(nwt*nwt))
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! get dH_free
+    dH_free = 0
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! define dHa as random dcmplx matrix
+
+    ! Seed the random number generator
+    call random_seed()
+
+    ! Generate random real and imaginary parts
+    call random_number(rand_real)
+    call random_number(rand_imag)
+
+    ! Combine into complex matrix
+    dHa = 0
+    do i = 1, nwt
+        do j = 1, nwt
+            dHa( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
+        end do
+    end do
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! define dHb as random dcmplx matrix
+
+    ! Generate random real and imaginary parts
+    call random_number(rand_real)
+    call random_number(rand_imag)
+
+    ! Combine into complex matrix
+    dHb = 0
+    do i = 1, nwt
+        do j = 1, nwt
+            dHb( (j-1) * nwt + i ) = dcmplx(rand_real((j-1) * nwt + i), rand_imag((j-1) * nwt + i))
+        end do
+    end do
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! dHlincomb as some linear combination of dHa and dHb
+    a = dcmplx(0.0_dp, 1.0_dp) ! some random C scalar
+    b = dcmplx(1.0_dp, 0.0_dp) ! some random C scalar
+
+    dHlincomb = a * dHa + b * dHb
+
+    print * , "||dHa|| = ", norm_2(dHa)
+    print * , "||dHb|| = ", norm_2(dHb)
+    print * , "||dHlincomb|| = ", norm_2(dHlincomb)
+    print * , "||CHECK|| = ", norm_2(dHlincomb - a * dHa - b * dHb)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! calculate  FAM(dHa), FAM(dHb) and FAM(a * dHa + b *dHb)
+    call iterate_partial_dHsp(dH_free, dH_free         , dRsym_free, dRanti_free, dFsym_free, dFanti_free)
+    call iterate_partial_dHsp(dHa, dHa_iter            , dRsym_a , dRanti_a , dFsym_a , dFanti_a)
+    call iterate_partial_dHsp(dHb, dHb_iter            , dRsym_b , dRanti_b , dFsym_b , dFanti_b)
+    call iterate_partial_dHsp(dHlincomb, dHlincomb_iter, dRsym_lc, dRanti_lc, dFsym_lc, dFanti_lc)
+!
+!     print * , "||FAM(dHa)|| = ", norm_2(dHa_iter)
+!     print * , "||FAM(dHb)|| = ", norm_2(dHb_iter)
+!     print * , "||FAM(dHlincomb)|| = ", norm_2(dHlincomb_iter)
+
+    dRsym_a  = dRsym_a    + (-1.0d0)* dRsym_free
+    dRsym_b  = dRsym_b    + (-1.0d0)* dRsym_free
+    dRsym_lc = dRsym_lc   + (-1.0d0)* dRsym_free
+    
+    dRanti_a  = dRanti_a  + (-1.0d0)* dRanti_free
+    dRanti_b  = dRanti_b  + (-1.0d0)* dRanti_free
+    dRanti_lc = dRanti_lc + (-1.0d0)* dRanti_free
+
+    dFsym_a  = dFsym_a    + (-1.0d0)* dFsym_free
+    dFsym_b  = dFsym_b    + (-1.0d0)* dFsym_free
+    dFsym_lc = dFsym_lc   + (-1.0d0)* dFsym_free
+
+    dFanti_a  = dFanti_a  + (-1.0d0)* dFanti_free
+    dFanti_b  = dFanti_b  + (-1.0d0)* dFanti_free
+    dFanti_lc = dFanti_lc + (-1.0d0)* dFanti_free
+
+    
+    ! symmetric parts
+    print *, ' PROTON  DENSITIES'
+    diff_from_lin = sum( ABS (a * dRsym_a%D_I_I(:,2) + b* dRsym_b%D_I_I(:,2) - dRsym_lc%D_I_I(:,2))**2 )
+    print *, 'SYMMETRIC, REAL', diff_from_lin
+    diff_from_lin = sum( ABS (a * dRanti_a%D_I_I(:,2) + b* dRanti_b%D_I_I(:,2) - dRanti_lc%D_I_I(:,2))**2 )
+    print *, 'ANTISYMMETRIC, REAL', diff_from_lin
+
+    print *, ' CHARGE DENSITIES'
+    diff_from_lin = sum( DBLE (a * dRsym_a%chargedensity + b* dRsym_b%chargedensity - dRsym_lc%chargedensity)**2 )
+    print *, 'SYMMETRIC, REAL', diff_from_lin
+    diff_from_lin = sum( AIMAG (a * dRsym_a%chargedensity + b* dRsym_b%chargedensity - dRsym_lc%chargedensity)**2 )
+    print *, 'SYMMETRIC, IMAG', diff_from_lin
+    diff_from_lin = sum( abs (a * dRanti_a%chargedensity + b* dRanti_b%chargedensity - dRanti_lc%chargedensity)**2 )
+    print *, 'ANTISYMMETRIC', diff_from_lin
+    print *, 'POTENTIALS'
+    diff_from_lin_direct = sum( abs (a * dFsym_a%Coulombpotential  + b* dFsym_b%Coulombpotential  - dFsym_lc%Coulombpotential)**2 )
+    diff_from_lin_exch   = sum( abs (a * dFsym_a%Exchangepotential + b* dFsym_b%Exchangepotential - dFsym_lc%Exchangepotential)**2 )
+     print *, 'SYMMETRIC, DIRECT ', diff_from_lin_direct
+     print *, 'SYMMETRIC, EXCHANGE', diff_from_lin_exch
+    diff_from_lin_direct = sum( abs (a * dFanti_a%Coulombpotential  + b* dFanti_b%Coulombpotential  - dFanti_lc%Coulombpotential)**2 )
+    diff_from_lin_exch   = sum( abs (a * dFanti_a%Exchangepotential + b* dFanti_b%Exchangepotential - dFanti_lc%Exchangepotential)**2 )
+     print *, 'ANTISYMMETRIC, DIRECT ', diff_from_lin_direct
+     print *, 'ANTISYMMETRIC, EXCHANGE', diff_from_lin_exch
+
+     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     ! subtract the free response
+
+     dHa_iter = dHa_iter - dH_free
+     dHb_iter = dHb_iter - dH_free
+     dHlincomb_iter = dHlincomb_iter - dH_free
+
+     print * , "||FAM(dHlincomb) - free|| = ", norm_2(dHlincomb_iter)
+     print * , "||a(FAM(dHa) - free) + b(FAM(dHb) - free)|| = ", norm_2(a * dHa_iter + b * dHb_iter)
+
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! verify linarity of T and hence affinity of FAM
+
+     diff_from_lin = norm_2(dHlincomb_iter - (a * dHa_iter + b * dHb_iter))
+     print * , "|| [FAM(dHlincomb) - free] - [a(FAM(dHa) - free) + b(FAM(dHb) - free)]|| = ", diff_from_lin
+
+     print *, "the FAM iteration iterate_dHsp is an affine transformation upto a precision of ", diff_from_lin
+     stop
+
+  end subroutine
+
+  subroutine iterate_partial_dHsp(dHsp_flat, dHspout_flat, dRs, dRa, dFs, dFa)
+    !---------------------------------------------------------------------------
+    ! Perform one FAM loop of the perturbed single-particle hamiltonian dH
+    ! (in HF basis), which contain dh and ddelta (in the QFAM).
+    !---------------------------------------------------------------------------
+    1 format('||dH_ph|| = ', es10.3, '     ||dH_hp|| = ', es10.3)
+    2 format('||X|| = ', es10.3, '     ||Y|| = ', es10.3)
+    3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
+
+    implicit none
+    complex(KIND=dp), dimension(:), target, intent(in)   :: dHsp_flat
+    complex(KIND=dp), dimension(:), target, intent(out)  :: dHspout_flat
+
+    complex(KIND=dp), pointer :: dHsp(:,:), dHspout(:,:)
+
+
+    type(DensityVector), intent(out):: dRs, dRa
+    type(PotentialVector), intent(out):: dFs, dFa
+    integer       :: p, h
+    real(KIND=dp) :: occ_h, occ_p
+
+    if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
+
+
+    ! pointer remapping for reshaping 1D flat arrays into 2D matrices
+    dHsp(1:nwt,1:nwt) => dHsp_flat(:)
+    dHspout(1:nwt,1:nwt) => dHspout_flat(:)
+
+    ! get the ph and hp subblocks
+    call get_ph_hp_blocks(dHsp, dH(:,:,1), dH(:,:,2))
+
+    ! calculate X and Y from the perturbed dH
+    call calculate_XY(dH)
+
+    if (fam_verbose>0) then
+      print 1, sqrt(sum( abs(dH(:,:,1))**2) ), sqrt(sum( abs(dH(:,:,2))**2) )
+      print 2, sqrt(sum( abs(X(:,:))**2) ), sqrt(sum( abs(Y(:,:))**2) )
+      print 3, l,m, omega_fam,  calc_strength()
+    endif
+
+    ! Apply simple linear mixing of X and Y.
+    ! call mix_XY_linear(lin_mix_coeff)
+    ! -> this may be skipped when using GMRES
+
+    !call store_XY_hist()
+
+    ! build the perturbed densities on the mesh dRs, dRa from X and Y
+    call build_perturbed_densities(X, Y, dRs, dRa)
+
+    ! explicit linearisation of the fields
+    call calc_perturbed_potentials(RUnper, dRs, dRa, dFs, dFa)
+
+    ! We add in all additional contributions to F_I_I that do not
+    !  result from the Skyrme functional.
+    call combine_potentials(dFs)
+    call combine_potentials(dFa)
+
+    ! construct the sp hamiltonian
+    dHspout = calc_sphamil_me( HFpsi, HFdpsi, HFddpsi,dFs, dFa, .false.)
+
+  end subroutine iterate_partial_dHsp
+
 
 end module fam_testing

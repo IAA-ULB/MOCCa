@@ -997,25 +997,12 @@ function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sph
     call start_timer(T_spme_perturbed)
     sp_sym = calc_sphamil_me_sym    ( denpsi, dendpsi, denddpsi, Fs,  onthefly)
     sp_asym= calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, Fa,  onthefly)
-!     si = 0
-!     do B=1,8
-!       N = HFBlocks(B)
-!       print *, 'B = ' , B
-!       do i=1,N
-!         print ('(99f10.3)'), sp_sym(si+i,si+1:si+N)
-!       enddo
-!       print *
-!       do i=1,N
-!         print ('(99f10.3)'), sp_asym(si+i,si+1:si+N)
-!       enddo
-!       si = si + N
-!     enddo
 
     sphamil_me = sp_sym + sp_asym
     call stop_timer(T_spme_perturbed)
 end function calc_sphamil_me
 
-function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(sphamil_me)
+function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, F,  onthefly) result(sphamil_me)
     !---------------------------------------------------------------------------------------
     ! This function calculates the single-particle matrix elements of the symmetric part
     ! of the single-particle hamiltonian as defined by a potentialvector dF, which should
@@ -1026,11 +1013,12 @@ function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(s
     ! - this routine does not assume hermeticity of the matrix elements
     ! - the spwfs on input are named  "den[d/dd]psi" in order to have less changes
     !   in Hephaestos; these are not the pointers defined on top in this module.
+    ! - this routine ASSUMES that F_I_I is the FULL potential, i.e. that
+    !   combine_potentials has been called on F before using this!
     !
     ! TODO:
     !  - rename wavefunctions for clarity -> requires Hephaestos change
     !  - develop MPI parallelism
-    !  - add in a call to combine_potentials
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !
     ! Input:
@@ -1038,7 +1026,7 @@ function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(s
     !   denpsi  : set of single-particle wavefunctions
     !   dendpsi : their first order derivatives
     !   denddpsi: their second order derivatives
-    !   dF      : potential vector containing the SYMMETRIC linearised response
+    !    F      : potential vector containing the SYMMETRIC linearised response
     !             of the mean-field potentials
     !   onthefly: [NOT IMPLEMENTED YET ]
     !
@@ -1048,8 +1036,7 @@ function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(s
     !------------------------------------------------------------------------------------------
     real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
     logical, intent(in)               :: onthefly
-    type(PotentialVector), intent(in) :: dF
-    type(PotentialVector)             :: F
+    type(PotentialVector), intent(in) :: F
 
     complex(KIND=dp), allocatable     :: sphamil_me(:,:)
     integer                           :: it, B, si, N, wave_i, wave_j, i
@@ -1057,8 +1044,6 @@ function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(s
 $SPWF_DECLARATION
 
     call start_timer(T_spme_perturbed_sym)
-
-    F = dF ! TODO: add a call to combine_potentials
 
     ! initialize
     allocate(sphamil_me(nwt,nwt)) ; sphamil_me = 0.0d0
@@ -1093,7 +1078,7 @@ $EXPRESSION_SPH_SYM
 
   end function calc_sphamil_me_sym
 
-function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(sphamil_me)
+function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, F,  onthefly) result(sphamil_me)
     !---------------------------------------------------------------------------------------
     ! This function calculates the single-particle matrix elements of the ANTIsymmetric part
     ! of the single-particle hamiltonian as defined by a potentialvector dF, which should
@@ -1104,11 +1089,12 @@ function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, dF,  onthefly) resu
     ! - this routine does not assume hermeticity of the matrix elements
     ! - the spwfs on input are named  "den[d/dd]psi" in order to have less changes
     !   in Hephaestos; these are not the pointers defined on top in this module.
+    ! - this routine ASSUMES that F_I_I is the FULL potential, i.e. that
+    !   combine_potentials has been called on F before using this!
     !
     ! TODO:
     !  - rename wavefunctions for clarity -> requires Hephaestos change
     !  - develop MPI parallelism
-    !  - add in a call to combine_potentials
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !
     ! Input:
@@ -1116,7 +1102,7 @@ function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, dF,  onthefly) resu
     !   denpsi  : set of single-particle wavefunctions
     !   dendpsi : their first order derivatives
     !   denddpsi: their second order derivatives
-    !   dF      : potential vector containing the ANTISYMMETRIC linearised response
+    !    F      : potential vector containing the ANTISYMMETRIC linearised response
     !             of the mean-field potentials
     !   onthefly: [NOT IMPLEMENTED YET ]
     !
@@ -1126,8 +1112,7 @@ function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, dF,  onthefly) resu
     !------------------------------------------------------------------------------------------
     real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
     logical, intent(in)               :: onthefly
-    type(PotentialVector), intent(in) :: dF
-    type(PotentialVector)             :: F
+    type(PotentialVector), intent(in) :: F
 
     complex(KIND=dp), allocatable     :: sphamil_me(:,:)
     integer                           :: it, B, si, N, wave_i, wave_j, i
@@ -1135,8 +1120,6 @@ function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, dF,  onthefly) resu
 $SPWF_DECLARATION
 
     call start_timer(T_spme_perturbed_asym)
-
-    F = dF ! TODO: add a call to combine_potentials
 
     ! initialize
     allocate(sphamil_me(nwt,nwt)) ; sphamil_me = 0.0d0

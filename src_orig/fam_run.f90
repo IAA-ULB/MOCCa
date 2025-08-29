@@ -6,7 +6,7 @@ program run_FAM
   use Tantalus, only : initialize_all_timers, full_printout
   use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine, test_linearity_T
+  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine, test_linearity_T, test_linearity_FAM_coulomb
   use gmres 
   use timing
 
@@ -73,7 +73,7 @@ program run_FAM
   Density     = densit(rho_can, kappa_pairing)
   call CalculateMoments(Density)               ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
-  sphamil     = Calc_Sphamil(potentials, .true.)
+  !sphamil     = Calc_Sphamil(potentials, .true.)
 
   ! ATTENTION: this explicit diagonalisation can break the apparent agreement
   !            between proton and neutron matices since the LAPACK diagonalisation
@@ -150,6 +150,8 @@ program run_FAM
 
     is_converged = .false.
     is_divergent = .false.
+
+    !call test_linearity_FAM_coulomb()
 
 
     ! !---------------------------------------------------------------------------------
