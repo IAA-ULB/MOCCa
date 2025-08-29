@@ -19,7 +19,7 @@ program run_FAM
   logical :: is_converged, is_divergent
   real(kind=dp) :: omega_curr
   integer :: omega_num, omega_index
-  real(kind=dp), allocatable :: omega_arr(:), S_arr(:)
+  real(kind=dp), allocatable :: omega_arr(:), S_arr(:), S_free_arr(:)
   integer, allocatable :: iter_arr(:)
   character(len=100) :: famfilename
   ! integer :: i, B, si,N
@@ -131,6 +131,7 @@ program run_FAM
 
   allocate(omega_arr(omega_num))
   allocate(S_arr(omega_num))
+  allocate(S_free_arr(omega_num))
   allocate(iter_arr(omega_num))
   iter_arr = 0
 
@@ -145,6 +146,8 @@ program run_FAM
     !-------------------------------------------------------------------------------
 
     call inifam(omega_curr, Density, Potentials)
+
+    S_free_arr(omega_index) = calc_strength()
 
     is_converged = .false.
     is_divergent = .false.
@@ -277,7 +280,7 @@ program run_FAM
     write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
   endif
 
-  call write_fam_strength(omega_arr, S_arr, iter_arr, l, m, famfilename)
+  call write_fam_strength(omega_arr, S_arr, iter_arr, S_free_arr, l, m, famfilename)
 
   print *, "Reached the end successfully" 
 
