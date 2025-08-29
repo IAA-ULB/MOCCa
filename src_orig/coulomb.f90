@@ -223,11 +223,10 @@ contains
     real(KIND=dp), allocatable :: Re_EX(:,:,:), Im_EX(:,:,:)
 
     Re_CD = DBLE(charge_density)    ; Im_CD = AIMAG(charge_density)
-    allocate(Re_CP(size(Re_CD,1),size(Re_CD,2),size(Re_CD,3))) ; Re_CP = 0.0_dp
-    allocate(Im_CP(size(Re_CD,1),size(Re_CD,2),size(Re_CD,3))) ; Im_CP = 0.0_dp
-    allocate(Re_EX(size(Re_CD,1),size(Re_CD,2),size(Re_CD,3))) ; Re_EX = 0.0_dp
-    allocate(Im_EX(size(Re_CD,1),size(Re_CD,2),size(Re_CD,3))) ; Im_EX = 0.0_dp
-    
+    ! These potentials should not have values yet, but this is the same as an allocation with correct sizes...
+    Re_CP = DBLE(coulomb_potential) ; Im_CP = AIMAG(coulomb_potential)
+    Re_EX = DBLE(exchange_potential); Im_EX = AIMAG(exchange_potential)
+
     ! Solve the real part ...
     call coulomb_solver(Re_CD, Re_CP, Re_Ex, sx, sy, sz)
     ! ... and the imaginary part of the Coulomb equation
