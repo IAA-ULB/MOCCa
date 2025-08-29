@@ -918,7 +918,6 @@ contains
         end do
     end do
 
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! dHlincomb as some linear combination of dHa and dHb
     a = dcmplx(0.0_dp, 1.0_dp) ! some random C scalar

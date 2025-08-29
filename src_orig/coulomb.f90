@@ -175,39 +175,54 @@ contains
  end subroutine solve_coulomb_linear_response
 #endif 
 
- subroutine solve_coulomb_worker_real(chargedensity, CoulombPotential, ExchangePotential, &
+ subroutine solve_coulomb_worker_real(charge_density, coulomb_potential, exchange_potential, &
  &                                    sx, sy, sz)
     !-------------------------------------------------------------------------------------
-    ! TODO: DOcument
+    ! Call the coulomb_solver for real charge densities.
+    ! 
+    ! Input:
+    !   chargedensity   : the source charge density
+    !   sx/sy/sz        : symmetry properties of the charge density
+    !
+    ! Output:
+    !   coulomb_potential : the direct Coulomb potential
+    !   exchange_potential: the exchange Coulomb potential
     !
     !-------------------------------------------------------------------------------------
-    real(KIND=dp), allocatable, intent(in)    :: Chargedensity(:,:,:)
-    real(KIND=dp), allocatable, intent(inout) :: CoulombPotential(:,:,:)
-    real(KIND=dp), allocatable, intent(inout) :: ExchangePotential(:,:,:)
+    real(KIND=dp), allocatable, intent(in)    :: charge_density(:,:,:)
+    real(KIND=dp), allocatable, intent(inout) :: coulomb_potential(:,:,:)
+    real(KIND=dp), allocatable, intent(inout) :: exchange_potential(:,:,:)
     integer, intent(in)                       :: sx, sy, sz
 
-    call coulomb_solver(chargedensity, CoulombPotential, ExchangePotential,sx,sy,sz)
+    call coulomb_solver(charge_density, coulomb_potential, exchange_potential,sx,sy,sz)
 
  end subroutine solve_coulomb_worker_real
 
-  subroutine solve_coulomb_worker_complex(chargedensity, CoulombPotential, ExchangePotential, &
+  subroutine solve_coulomb_worker_complex(charge_density, coulomb_potential, exchange_potential, &
  &                               sx, sy, sz)
     !-------------------------------------------------------------------------------------
-    ! TODO: DOcument
+    ! Separate the solution of the Coulomb problem for complex charge densities into two
+    ! problems for real charge densities; solve both.
+    ! 
+    ! Input:
+    !   chargedensity   : the source charge density
+    !   sx/sy/sz        : symmetry properties of the charge density
+    !
+    ! Output:
+    !   coulomb_potential : the direct Coulomb potential
+    !   exchange_potential: the exchange Coulomb potential
     !
     !-------------------------------------------------------------------------------------
-    complex(KIND=dp), allocatable, intent(in)    :: Chargedensity(:,:,:)
-    complex(KIND=dp), allocatable, intent(inout) :: CoulombPotential(:,:,:)
-    complex(KIND=dp), allocatable, intent(inout) :: ExchangePotential(:,:,:)
+    complex(KIND=dp), allocatable, intent(in)    :: charge_density(:,:,:)
+    complex(KIND=dp), allocatable, intent(inout) :: coulomb_potential(:,:,:)
+    complex(KIND=dp), allocatable, intent(inout) :: exchange_potential(:,:,:)
     integer, intent(in)                          :: sx, sy, sz
 
     real(KIND=dp), allocatable :: Re_CD(:,:,:), Im_CD(:,:,:)
     real(KIND=dp), allocatable :: Re_CP(:,:,:), Im_CP(:,:,:)
     real(KIND=dp), allocatable :: Re_EX(:,:,:), Im_EX(:,:,:)
 
-    Re_CD = DBLE(ChargeDensity)    ; Im_CD = AIMAG(ChargeDensity)
-    Re_CP = DBLE(CoulombPotential) ; Im_CP = AIMAG(CoulombPotential)
-    Re_EX = DBLE(ExchangePotential); Im_EX = AIMAG(ExchangePotential)
+    Re_CD = DBLE(charge_density)    ; Im_CD = AIMAG(charge_density)
 
     ! Solve the real part ...
     call coulomb_solver(Re_CD, Re_CP, Re_Ex, sx, sy, sz)
@@ -215,23 +230,28 @@ contains
     call coulomb_solver(Im_CD, Im_CP, Im_Ex, sx, sy, sz)
 
     ! ... and sum the results
-    CoulombPotential  = DCMPLX(Re_CP, Im_CP)
-    ExchangePotential = DCMPLX(Re_EX, Im_EX)
+    coulomb_potential  = DCMPLX(Re_CP, Im_CP)
+    exchange_potential = DCMPLX(Re_EX, Im_EX)
 
  end subroutine solve_coulomb_worker_complex
 
- subroutine coulomb_solver(chargedensity, CoulombPotential, ExchangePotential, &
+ subroutine coulomb_solver(charge_density, coulomb_potential, exchange_potential, &
  &                               sx, sy, sz)
     !----------------------------------------------------------------------------------------
-    ! TODO: document this worker routine
+    ! Solve the Coulomb problem for a given (real) charge density.
     !
+    ! Input:
+    !   chargedensity   : the source charge density
+    !   sx/sy/sz        : symmetry properties of the charge density
     !
-    !
+    ! Output:
+    !   coulomb_potential : the direct Coulomb potential
+    !   exchange_potential: the exchange Coulomb potential
     !
     !----------------------------------------------------------------------------------------
-    real(KIND=dp), allocatable, intent(in)    :: Chargedensity(:,:,:)
-    real(KIND=dp), allocatable, intent(inout) :: CoulombPotential(:,:,:)
-    real(KIND=dp), allocatable, intent(inout) :: ExchangePotential(:,:,:)
+    real(KIND=dp), allocatable, intent(in)    :: charge_density(:,:,:)
+    real(KIND=dp), allocatable, intent(inout) :: coulomb_potential(:,:,:)
+    real(KIND=dp), allocatable, intent(inout) :: exchange_potential(:,:,:)
     integer, intent(in)                       :: sx, sy, sz
 
     real(KIND=dp), allocatable      :: source(:,:,:)
@@ -297,7 +317,7 @@ $REDUZ  coul_offset_z = 0
       do j=1,ny
         do i=1,nx
           Source(i+coul_offset_x,j+coul_offset_y,k+coul_offset_z) = &
-          &                                  -4*pi*e2*Chargedensity(i,j,k)
+          &                                  -4*pi*e2*charge_density(i,j,k)
         enddo
       enddo
     enddo
@@ -305,16 +325,16 @@ $REDUZ  coul_offset_z = 0
     ! Set the boundary condition if dealing with non-periodic boundary conditions
     ! In the peridic case, these are automatically taken care of
 #if(USE_Periodic == 0)
-    call coulomb_bound(Source, sx, sy, sz, CoulombPotential)
+    call coulomb_bound(Source, sx, sy, sz, coulomb_potential)
 #endif
     !---------------------------------------------------------------------------
     ! Solve for the direct coulomb potential
     ! Note that the symmetry properties (+1,+1,+1) are never changed:
     ! Hephaestos modifies directly the Coulomb_Laplacian routine when necessary
-    call conjug_grad (CoulombPotential,Source, sx,sy,sz,1000,.false.,prec)
+    call conjug_grad (coulomb_potential,Source, sx,sy,sz,1000,.false.,prec)
 
     ! Calculate the exchange potential 
-    call calculate_coulomb_exchange_potential(Chargedensity, ExchangePotential)
+    call calculate_coulomb_exchange_potential(charge_density, exchange_potential)
 
     call stop_timer(T_coulomb)
     deallocate(source)
@@ -447,8 +467,12 @@ $REDUZ  coul_offset_z = 0
     F%ExchangePotential = 0.0_dp
     !---------------------------------------------------------------------------
     ! Precision desired of the Coulomb solver
-    prec = 1.d-30/(dx**3)
-
+#if( $FAM == 1 )    
+    prec = 1.d-30/(dx**3)  ! The precision of the coulomb solver is the determining 
+                           ! factor in the 'linearity' of the FAM iteration
+#else  
+    prec = 1.d-12/(dx**3)  ! precision for the solver is not important when doing mean-field calculations
+#endif 
     !---------------------------------------------------------------------------
     ! Set-up the value of r on the Coulomb mesh.
 #if(USE_Periodic == 0)
