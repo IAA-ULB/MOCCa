@@ -476,21 +476,6 @@ contains
     enddo
     print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_explicit)) ** 2 ))
 
-
-
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Call the choral GMRES routine to solve Ax = b iteratively
-
-    x_choral = b ! initial guess
-    call do_gmres_choral(x_choral, iter, nbprod, res, b, multiply_by_A, norm_2, ScalProd, 1e-5_dp, 1, 5, 3)
-    
-
-    print *, "GMRES choral solution:"
-    do i=1,n
-      print "(*('(', F8.5, ',', F8.5, ') ', :))",  x_choral(i)
-    enddo
-    print *, 'res : ', sqrt(sum(abs(b - matmul(A, x_choral)) ** 2 ))
-
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Test my GMRES routine to solve Ax = b iteratively
 
@@ -716,6 +701,10 @@ contains
     call affine_trafo(x_in, x_out)
 
     x_out = x_in - x_out + x_free
+
+    print * , "||x_in||",   norm_dH(x_in)
+    print * , "||x_out||",   norm_dH(x_out)
+    print * , "||x_free||",   norm_dH(x_free)
 
   end subroutine affine_as_linear
 

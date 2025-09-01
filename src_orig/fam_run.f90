@@ -10,7 +10,7 @@ program run_FAM
   use timing
 
   1 format(86('-'))
-  11 format(10(' '), 20('='), ' omega =', f5.2, ' MeV ', 20('='), 10(' '))
+  11 format(24('='), ' omega = ', f5.2, ' MeV ', 24('='))
   2 format('FAM iteration = ', i5) 
   3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
@@ -179,10 +179,12 @@ program run_FAM
           print 1
           print 1
           print *, "   Reached maximal number of iterations, ", fam_maxiter
-          num_iter = -gmres_itmax
+          num_iter = - gmres_itmax
         endif
 
       enddo
+
+      call extract_x_gmres()
 
       print *, "One final FAM iteration based on GMRES solution:  "
       fam_verbose = 1
@@ -237,7 +239,7 @@ program run_FAM
             print 1
             print 1
             print *, "   FAM diverges, exiting"
-            num_iter = -iter
+            num_iter = - iter
             exit
           endif
         endif
@@ -245,7 +247,7 @@ program run_FAM
           print 1
           print 1
           print *, "   Reached maximal number of iterations, ", fam_maxiter
-          num_iter = -fam_maxiter
+          num_iter = - fam_maxiter
         endif
       enddo
 
