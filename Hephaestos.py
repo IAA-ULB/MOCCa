@@ -50,6 +50,10 @@ EXETYPE                = sys.argv[2]
 DENSITY_SPWF_SUMMATION = int(sys.argv[3])
 
 assert(EXETYPE == 'mf' or EXETYPE == 'fam')
+if(EXETYPE == 'mf'):  
+  fam_active = False
+else:
+  fam_active = True
 
 if( not os.path.isfile('configs/' + config + '.py')):
   print ("Config file '%s' does not exist."%config)
@@ -141,7 +145,7 @@ FORTRANFILES=['compilation.f90'   , 'geninfo.f90'      , 'sphericalharmonics.f90
               'transform.f90'     ,  'cranking.f90'        , 'convergence.f90' ,
               'run_single.f90'    , 'multirun_example.f90' , 'timing.f90', 
               'vectors.f90'       , 'fam_testing.f90',      'fam.f90' , 
-              'fam_run.f90'       , 'fam_gmres.f90']
+              'fam_run.f90'       , 'fam_gmres.f90', 'version.f90']
 
 #-------------------------------------------------------------------------------
 # Check for the existence of all the source code files in SRCPATH
@@ -180,7 +184,7 @@ description = heph_functional.initfunctional(FUNC_FILE, so, DENSITY_SPWF_SUMMATI
 for fname in FORTRANFILES:
 #     print ("Preprocessing " + fname)
      pp.preprocess(fname,SRCPATH,GENPATH, so, oldso, PH_PP_DECOUPL,
-                   DENSITY_SPWF_SUMMATION)
+                   fam_active, DENSITY_SPWF_SUMMATION)
 
 #-------------------------------------------------------------------------------
 # Output all of the relevant things into .tex files.

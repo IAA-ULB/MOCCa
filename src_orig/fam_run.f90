@@ -2,10 +2,11 @@ program run_FAM
 
   use compilation
   use IO
-  use Tantalus, only : print_header, initialize_all_timers, full_printout
+  use version,  only : print_header
+  use Tantalus, only : initialize_all_timers, full_printout
   use Tantalus, only : update_spwf_properties_HF, update_spwf_properties_CAN
   use fam
-  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine, test_linearity_T
+  use fam_testing, only : run_FAM_tests, test_gmres, test_gmres_affine, test_linearity_T, test_linearity_FAM_coulomb
   use gmres 
   use timing
 
@@ -69,8 +70,9 @@ program run_FAM
   ! Step 0a: build explicitly the matrix of the single-particle hamiltonian and
   !          diagonalize it within the subspace spanned by the spwfs read from file
   Density     = densit(rho_can, kappa_pairing)
+  call CalculateMoments(Density)               ! necessary here if constraints are included
   Potentials  = calcPotentials(Density)
-  sphamil     = Calc_Sphamil(potentials, .true.)
+  !sphamil     = Calc_Sphamil(potentials, .true.)
 
   ! ATTENTION: this explicit diagonalisation can break the apparent agreement
   !            between proton and neutron matices since the LAPACK diagonalisation
@@ -113,7 +115,7 @@ program run_FAM
   ! stop
 
   !---------------------------------------------------------------------------------
-  ! allocate the single-particle hamitonians 
+  ! allocate the single-particle hamiltonians 
 
   if(.not. allocated(dH_flat)) then
     allocate(dH_flat(nwt*nwt))

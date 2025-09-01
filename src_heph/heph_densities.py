@@ -213,10 +213,28 @@ def initdensities():
     TR.signature_z  = np.array([-1])
     TR.name         = 'T'
     
-def ProcessDensities(fname, src, target, so, density_spwf_summation):
+def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation):
     """
      Master routine calling the other routines based on a list of densities.
      Also prints output.
+
+     Input:
+        fname                 : name of the file to write the output to
+        src                   : source directory where the template file is
+        target                : target directory where the output file should be
+        so                    : a set of symmetry options
+        fam_active            : a boolean indicating if we are generating a 
+                                finite-amplitude linear response code (True)
+                                or a static mean-field code (False).
+        density_spwf_summation: if True, calculate derivatives of densities 
+                                through summation over spwfs
+                                If False, calculate them directly from the 
+                                wavefunctions.
+
+     Output:
+        Declaration           : string that declares the density in FORTRAN
+        Memory                : string that gets the contribution to memory 
+                                requirements for this density
     """
 
     global line
@@ -275,15 +293,16 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi)  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                           'wave'     ,'wave',                                          \
-                          'der_index', 'der_index',so,                                 \
+                          'der_index', 'der_index',so, fam_active,                     \
                            density_spwf_summation)
+      print ('LOL', fam_active, dec)
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # "Off-diagonal" summation of densities in the HF-basis
       # (a) symmetric part
       off_diag_tuple  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j'     , 'wave_i',                                     \
-                            'der_index_j', 'der_index_i',so,density_spwf_summation,
+                            'wave_j'     , 'wave_i',                                   \
+                            'der_index_j', 'der_index_i',so,fam_active,density_spwf_summation,
                              complex_component=+1,weight='weight_sym', silent=True)
       e_off_sym = off_diag_tuple[0]
       der_sym   = off_diag_tuple[4]
@@ -291,8 +310,8 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
       # (b) antisymmetric part
       off_diag_tuple  = \
       GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
-                            'wave_j'     , 'wave_i',                                     \
-                            'der_index_j', 'der_index_i',so,density_spwf_summation,
+                            'wave_j'     , 'wave_i',                                   \
+                            'der_index_j', 'der_index_i',so,fam_active,density_spwf_summation,
                              complex_component=-1,weight='weight_asym', silent=True)
       e_off_asym = off_diag_tuple[0]
       der_asym   = off_diag_tuple[4]
@@ -309,14 +328,14 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,density_spwf_summation,
+                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
                              complex_component=+1, weight='potential', symmetrize=+1, silent=True)
         e_sph_sym += sph_tuple[0]
 
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,density_spwf_summation,
+                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
                              complex_component=-1, weight='potential', symmetrize=+1, silent=True)
         e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
 
@@ -324,13 +343,13 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,density_spwf_summation,
+                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
                              complex_component=+1, weight='potential', symmetrize=-1, silent=True)
         e_sph_sym += sph_tuple[0] # we only need the calculation of this density
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,density_spwf_summation,
+                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
                              complex_component=-1, weight='potential', symmetrize=-1, silent=True)
         e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
       else:
@@ -338,13 +357,13 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,density_spwf_summation,
+                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
                              complex_component=+1, weight='potential', symmetrize=0, silent=True)
         e_sph_sym += sph_tuple[0] # we only need the calculation of this density
         sph_tuple = \
         GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                             'wave_j', 'wave_i',                                     \
-                            'wave_j', 'wave_i',so,density_spwf_summation,
+                            'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
                              complex_component=-1, weight='potential', symmetrize=0, silent=True)
         e_sph_antisym += sph_tuple[0] # we only need the calculation of this density
       print (' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
@@ -360,10 +379,10 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
         # So we recall the routine with different 'wave' indices
         # This summation is blockwise, hence the 'si+'
         (e,dec,spwf_dec,ini,der,isoi,mpii,zeroi,memi,cleani,addi,multi)  = \
-                     GenDensityExpression(Densities_needed[i], deriv_needed[i], \
-                                          intermediate_status[i],               \
-                                         'si+wave2' , 'si+wave'  ,              \
-                                         'der_index', 'der_index', so,          \
+                     GenDensityExpression(Densities_needed[i], deriv_needed[i],    \
+                                          intermediate_status[i],                  \
+                                         'si+wave2' , 'si+wave'  ,                 \
+                                         'der_index', 'der_index', so, fam_active, \
                                           density_spwf_summation, silent=False)
         HFBExpression = HFBExpression + '\n' + e
       else:
@@ -390,7 +409,6 @@ def ProcessDensities(fname, src, target, so, density_spwf_summation):
 
     # Substitute into the densities.f90 file.
     dic={}
-    dic['DECLARATION'     ] = Declaration
     dic['SPWF_DECLARATION'] = Spwf_Declaration
     dic['INITIALIZATION'  ] = Initialisation
 
@@ -623,8 +641,8 @@ def ReconstructDensity(der, lap, left, right):
 def GenDensityExpression(denin,derivative_combinations,intermediate, 
                          leftwave     , rightwave     ,
                          left_der_wave, right_der_wave, so,
-                         density_spwf_summation, complex_component=0,
-                         weight = 'weight',
+                         fam_active, density_spwf_summation,  
+                         complex_component=0, weight = 'weight',
                          silent=False, symmetrize=0):
     """
       Generate all the necessary strings to plug into FORTRAN source code 
@@ -646,6 +664,9 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
       * so                     : a set of symmetry options
       * density_spwf_summation : if True, calculate derivatives of densities 
                                  through summation over spwfs
+      * fam_active            : a boolean indicating if we are generating a
+                                    finite-amplitude linear response code (True)
+                                    or a static mean-field code (False).
       * complex_component      : determines how the contribution of a given 
                                  pair of (leftwf, rightwf) gets added to the
                                  total density 
@@ -807,11 +828,14 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
     else:
       dic['ISOSIZE'] = 2 # Only neutron, proton components for pairing densities
 
-
     #---------------------------------------------------------------------------
     # Get the declaration of the density and its derivatives right
     if( not intermediate ):
-        Declaration    = ta.Dec.substitute(dic)
+        if(fam_active):
+            Declaration    = ta.Dec_complex.substitute(dic) # Densities are complex in the FAM code
+        else:
+            Declaration    = ta.Dec_real.substitute(dic)         # ... but real in the mean-field code
+
         MPI_reduce     = ta.mpi.substitute(dic)
         Initialisation = ta.Ini.substitute(dic)
         Zeroing        = ta.Zero_template.substitute(dic)
@@ -842,7 +866,10 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         else:
             dic['DIM']     = dim
 
-        Declaration    = Declaration    + '\n' + ta.Dec.substitute(dic)
+        if(fam_active): 
+            Declaration    = Declaration    + '\n' + ta.Dec_complex.substitute(dic)
+        else:   
+            Declaration    = Declaration    + '\n' + ta.Dec_real.substitute(dic)    
         if(density_spwf_summation):
           # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           # Dealing with the MPI ALLREDUCE call for the derivatives
@@ -1361,8 +1388,7 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         dic['NAME'] = density
         
     Expression = Expression + ta.Den_line.substitute(dic)
-    
-    
+        
     return (Expression, Declaration, spwf_dec, Initialisation, Derivation, Isospincoupl,\
                                    MPI_reduce, Zeroing, Memory, Cleaning, Add, Multiply)
     

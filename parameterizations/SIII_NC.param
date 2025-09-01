@@ -3,7 +3,7 @@
 !
 !-------------------------------------------------------------------------------
 &skf 
-name     = "SIII"
+name     = "SIII_NC"
 func_file= 'NLO.func'
 t0       =  -1128.750000,
 t1       =    395.000000,
@@ -29,6 +29,7 @@ CSDS0    = 0.0                             ! No s \Delta s term
 CSDS1    = 0.0                             ! 
 CT0      = 0.0                             ! No Jmunu terms
 CT1      = 0.0                             ! 
+coultreatment=0
 /
 
 

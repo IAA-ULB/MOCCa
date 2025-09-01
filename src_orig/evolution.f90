@@ -199,6 +199,7 @@ contains
 !        endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! b) assign the correct evolution routine
+#if( $FAM == 0)
         Strategy = to_upper(Strategy)
         if(adjustl(Strategy) .eq. 'IMTIME' ) then
             Evolve_subspace => Evolve_graddesc
@@ -209,6 +210,7 @@ contains
         else
             call stp('STRATEGY NOT RECOGNIZED.')
         endif
+#endif
         ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         ! c) set diagsphamil 
         ! - If we use the heavy-ball algorithm for the pairing subproblem, we 
@@ -302,7 +304,7 @@ contains
 !===============================================================================
 ! Evolution routines 
 !===============================================================================
-
+#if( $FAM == 0)
     subroutine Evolve_graddesc(F,iteration)
         !-----------------------------------------------------------------------
         ! 
@@ -871,7 +873,6 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
         call stop_timer(T_update_sph)
 
     end subroutine update_sphamil_constraints
-    
 !===============================================================================
 ! Utility routines 
 !===============================================================================
@@ -1344,7 +1345,7 @@ $N3         &                   hfdddpsi(:,:,:,der_index),                      
 #endif
       call stop_timer(T_subspace_rotation)
     end subroutine apply_subspace_rotation
-    
+
     !subroutine diag_sph_block(m,sph,x,upd,eigenvalues)
     !  !------------------------------------------------------------------------
     !  ! TODO: document
@@ -1563,6 +1564,7 @@ $N3       &                                         dddmax,                    &
         dt    = 4.0/(maxE+relE+2*sqrt(maxE*relE))*hbar *  stepsize_safety
       endif  
   end subroutine IterativeEstimation
+#endif
 !===============================================================================
 ! Projection on the feasible subspace routine
 !===============================================================================  

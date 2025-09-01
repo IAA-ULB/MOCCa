@@ -56,6 +56,7 @@
 # PHYSICS options
 # CONFIG   : name of configutation file in the config/ folder
 # CALCTYPE : NUCLEI or PASTA
+# FAM      : 0/1, depending on whether you want to compile the FAM executable
 #
 # Compiler options
 # CXX      : compiler invokation to be used.
@@ -73,9 +74,9 @@
 # LINEAR_ALGEBRA_LIB : linking statements for (Sca)LAPACK and BLAS
 #
 #
-# There is one specific option that is not set in the example make.inc files,
-# which is EXENAME. That allows you to override the default naming scheme of
-# the executables.
+# There is are two specific options that are not set in the example make.inc 
+# files, EXENAME and FAMNAME. These allow you to override the default naming 
+# scheme of the executables.
 #-------------------------------------------------------------------------------
 # Acknowledgment:
 #   the organisation of this Makefile as well as a bunch of options are
@@ -172,7 +173,6 @@ endif
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Tantalus source files
-#TARGET :=   Tantalus.exe
 MF_SRC  :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
 MF_SRC  +=   sphericalharmonics.f90 folding.f90 nil8.f90
 MF_SRC  +=   derivatives.f90 vectors.f90 precondition.f90 wavefunctions.f90
@@ -182,15 +182,13 @@ MF_SRC  +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
 MF_SRC  +=   pairing.f90 densities.f90 moments.f90
 MF_SRC  +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 MF_SRC  +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
-MF_SRC  +=   fam.f90 IO.f90 convergence.f90 printing.f90 tantalus.version.f90
+MF_SRC  +=   IO.f90 convergence.f90 printing.f90 version.f90 tantalus.f90
 MF_SRC  +=   run_single.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # FAM source files
-# Large amount of repetition: vectors.f90 should be replaced by vectors_fam.f90
-#  due to the complex declaration of densities and potentials.
 FAM_SRC :=   compilation.f90 geninfo.f90 timing.f90 constants.f90
 FAM_SRC +=   sphericalharmonics.f90 folding.f90 nil8.f90
-FAM_SRC +=   derivatives.f90 vectors_FAM.f90 precondition.f90 wavefunctions.f90
+FAM_SRC +=   derivatives.f90 vectors.f90 precondition.f90 wavefunctions.f90
 FAM_SRC +=   pairingcutoffs.f90 parameterization.f90
 FAM_SRC +=   pairing_strengths.f90 basis_transform.f90 hartree-fock.f90 BCS.f90
 FAM_SRC +=   HFB_gradient.f90 HFB_direct.f90 HFB.f90
@@ -198,7 +196,7 @@ FAM_SRC +=   pairing.f90 densities.f90 moments.f90
 FAM_SRC +=   coulomb.f90 cranking.f90 momentsofinertia.f90 transform.f90
 FAM_SRC +=   functional.f90 fission_MOI.f90 evolution.f90 scfiteration.f90
 FAM_SRC +=   fam_gmres.f90 fam.f90 fam_testing.f90
-FAM_SRC +=   IO.f90 convergence.f90 printing.f90 tantalus.version.f90
+FAM_SRC +=   IO.f90 convergence.f90 printing.f90 version.f90 tantalus.f90
 FAM_SRC +=   fam_run.f90
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Nilsson source files
@@ -224,9 +222,9 @@ NIL_OBJ :=  $(patsubst %.f90,$(MF_OBJ_DIR)/%.o ,$(NIL_SRC))
 # is being built.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRE_MF  :=  $(MF_SRC_DIR)/  $(MF_OBJ_DIR)/  $(MF_MOD_DIR)/ $(EXEC_DIR)/
-PRE_MF  +=  run_heph_mf  getgitinfo getcompilerinfo setversioninfo
+PRE_MF  +=  run_heph_mf  getgitinfo getcompilerinfo setversioninfo_mf
 PRE_FAM :=  $(FAM_SRC_DIR)/ $(FAM_OBJ_DIR)/ $(FAM_MOD_DIR)/ $(EXEC_DIR)/
-PRE_FAM +=  run_heph_fam getgitinfo getcompilerinfo setversioninfo
+PRE_FAM +=  run_heph_fam getgitinfo getcompilerinfo setversioninfo_fam
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Internal (to the compiler) preprocessing directives
 #    -cpp      => explicitly enable preprocessing
@@ -243,7 +241,6 @@ PREPROCESSOR :=  $(PREPFLAG) $(DIRECTIVES)
 ################################################################################
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 all: mf fam
-
 
 mf: $(PRE_MF) $(MF_OBJ)
 	$(CXX) $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) -o $@ $(MF_OBJ) $(LINEAR_ALGEBRA_LIB) $(HDF5_LIB)
@@ -280,8 +277,8 @@ $(FAM_SRC_DIR)/:
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Hephaestos runs
 run_heph_mf:
-	# Run Hephaestos with the correct configuration file and information from
-	# the Makefile for the mean-field source code
+# Run Hephaestos with the correct configuration file and information from
+# the Makefile for the mean-field source code
 	python3 Hephaestos.py $(CONFIG) mf $(DENSUM)
 
 run_heph_fam:
@@ -300,22 +297,32 @@ $(MF_OBJ_DIR)/%.o : $(MF_SRC_DIR)/%.f90 | $(MF_MOD_DIR)/ $(MF_MOD_DIR)/ exec/
 $(FAM_OBJ_DIR)/%.o : $(FAM_SRC_DIR)/%.f90 | $(FAM_OBJ_DIR)/ $(FAM_MOD_DIR)/ exec/
 	$(CXX)  $(OPTFLAGS) $(CXXFLAGS) $(PREPROCESSOR) $(MODFLAG) $(FAM_MOD_DIR) -c  $< -o $@ $(HDF5_LIB)
 
-setversioninfo:
+setversioninfo_mf:
 # Copy the git information into the main code, so it can be printed
-	@cp $(MF_SRC_DIR)/tantalus.f90 $(MF_SRC_DIR)/tantalus.version.f90
-# The version in the mf
-	@sed -i.bak 's~VTAG~"${GIT_INFO5}"~'     $(MF_SRC_DIR)/tantalus.version.f90
-	@sed -i.bak 's~VERSION1~"${GIT_INFO1}"~' $(MF_SRC_DIR)/tantalus.version.f90
-	@sed -i.bak 's~VERSION2~"${GIT_INFO2}"~' $(MF_SRC_DIR)/tantalus.version.f90
-	@sed -i.bak 's~VERSION3~"${GIT_INFO3}"~' $(MF_SRC_DIR)/tantalus.version.f90
+	@sed -i.bak 's~VTAG~"${GIT_INFO5}"~'     $(MF_SRC_DIR)/version.f90
+	@sed -i.bak 's~VERSION1~"${GIT_INFO1}"~' $(MF_SRC_DIR)/version.f90
+	@sed -i.bak 's~VERSION2~"${GIT_INFO2}"~' $(MF_SRC_DIR)/version.f90
+	@sed -i.bak 's~VERSION3~"${GIT_INFO3}"~' $(MF_SRC_DIR)/version.f90
 # Copy the compiler information
-	@sed -i.bak 's!COMPCOMP!"${COMPVERSION}"!' $(MF_SRC_DIR)/tantalus.version.f90
+	@sed -i.bak 's!COMPCOMP!"${COMPVERSION}"!' $(MF_SRC_DIR)/version.f90
 # The above command uses '!' as sed delimiter, because Ubuntu sometimes uses ~ for kernel versions
-	@sed -i.bak 's/CFLAGS/"${CXXFLAGS}"/'      $(MF_SRC_DIR)/tantalus.version.f90
-	@sed -i.bak 's/OPTFLAGS/"${OPTFLAGS}"/'    $(MF_SRC_DIR)/tantalus.version.f90
-	@rm $(MF_SRC_DIR)/tantalus.version.f90.bak
-# We give the FAM source an equivalent file
-	@cp $(MF_SRC_DIR)/tantalus.version.f90 $(FAM_SRC_DIR)/tantalus.version.f90
+	@sed -i.bak 's/CFLAGS/"${CXXFLAGS}"/'      $(MF_SRC_DIR)/version.f90
+	@sed -i.bak 's/OPTFLAGS/"${OPTFLAGS}"/'    $(MF_SRC_DIR)/version.f90
+	@rm $(MF_SRC_DIR)/version.f90.bak
+
+setversioninfo_fam:
+# Copy the git information into the main code, so it can be printed
+	@sed -i.bak 's~VTAG~"${GIT_INFO5}"~'     $(FAM_SRC_DIR)/version.f90
+	@sed -i.bak 's~VERSION1~"${GIT_INFO1}"~' $(FAM_SRC_DIR)/version.f90
+	@sed -i.bak 's~VERSION2~"${GIT_INFO2}"~' $(FAM_SRC_DIR)/version.f90
+	@sed -i.bak 's~VERSION3~"${GIT_INFO3}"~' $(FAM_SRC_DIR)/version.f90
+# Copy the compiler information
+	@sed -i.bak 's!COMPCOMP!"${COMPVERSION}"!' $(FAM_SRC_DIR)/version.f90
+# The above command uses '!' as sed delimiter, because Ubuntu sometimes uses ~ for kernel versions
+	@sed -i.bak 's/CFLAGS/"${CXXFLAGS}"/'      $(FAM_SRC_DIR)/version.f90
+	@sed -i.bak 's/OPTFLAGS/"${OPTFLAGS}"/'    $(FAM_SRC_DIR)/version.f90
+	@rm $(FAM_SRC_DIR)/version.f90.bak
+
 
 getgitinfo:
 # Get information from 'git show', to see what kind of build this is.
@@ -336,7 +343,9 @@ cp_fam:
 	cp src_orig/fam.f90 $(SRCDIR)/fam.f90
 
 clean:
-	rm  -f $(OBJDIR)/*.o
-	rm  -f $(MODDIR)/*.mod
+	rm  -f $(MF_OBJ_DIR)/*.o
+	rm  -f $(MF_MOD_DIR)/*.mod
+	rm  -f $(FAM_OBJ_DIR)/*.o
+	rm  -f $(FAM_MOD_DIR)/*.mod
 ################################################################################
 

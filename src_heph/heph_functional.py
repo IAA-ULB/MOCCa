@@ -697,16 +697,25 @@ def ProcessParameterization(fname, src, target):
                 generated.write(Template(line).substitute(dic))  
 
 def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl, 
-                      density_spwf_summation):
+                      fam_active, density_spwf_summation):
     """
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
      Master routine calling the other ones to generate a functional.
      
-     TODO: document this function
-     
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
      Input:
-     
+      - fname: name of the functional file, without the directory structure
+      - src:  source directory where the templates are stored
+      - target: target directory where the generated code will be placed
+      - so:   set of symmetry options
+      - oldso: set of symmetry options for input wf files
+      - ph_pp_decoupl: boolean determining whether pairing terms are decoupled
+                       from the particle-hole part of the functional.
+      - fam_active:  boolean determining whether we are building a mean-field 
+                     or a finite-amplitude linear response code.
+      - density_spwf_summation: boolean determining whether derivatives of 
+                               densities are calculated through summation over 
+                               spwfs or derivative calls.
      Output:
       - pot_declaration: a (large) string containing the fortran code for the
                          declaration of mean-field potentials in vectors.f90
@@ -760,7 +769,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
         (d,c,p,cc, pc_ph, pc_pair, st,pt,er, T) = \
           GenTermExpression(Functional_terms[i], i, term_grouping[i],    
                         term_number[Functional_terms[i]], coupling_constants[i], 
-                 isospin_indices[i], density_dependence[i], extra_calls[i], so)
+                 isospin_indices[i], density_dependence[i], extra_calls[i], so, fam_active)
                  
         if( d != ''):
           declaration = declaration + d + '\n'
@@ -832,7 +841,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     (fielddec,fieldini,fieldcalc,fieldcalc_perturbed, fieldprecon,fieldwrite, \
     fieldwrite_hdf5,fieldread, fieldread_hdf5,fieldadd,fieldmultiply,          \
     fieldinproduct,fieldINMk2, fieldINMk4) \
-                                 =  GenerateFields(so, oldso,ph_pp_decoupl)
+                                 =  GenerateFields(so, oldso,ph_pp_decoupl, fam_active)
     pot_declaration = pot_declaration + fielddec + '\n'
     writing     = writing     + fieldwrite 
     writing_hdf5     = writing_hdf5     + fieldwrite_hdf5
@@ -1049,7 +1058,12 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
     else:
       dic['NTR'] = ''
       dic['TR']  = '!'
-    
+
+    if(fam_active):
+      dic['FAM'] = '1'
+    else:
+      dic['FAM'] = '0'
+      
     dic['PVECTORINPRODUCT'] = inproduct
     
     with open(src+fname, 'r') as template:
@@ -1059,7 +1073,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
 
     return pot_declaration
 
-def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so):
+def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so, fam_active):
     """
      Generate the FORTRAN expressions to calculate the terms in the functional.
      
@@ -1077,6 +1091,8 @@ def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so):
       ddep : density dependence of the FIRST density in the term
       extra: extra function call to perform
       so   : symmetry options
+      fam_active :  generate code for mean-field (False) or FAM (True)
+                    calculations
 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       
@@ -1221,7 +1237,7 @@ def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so):
     
     for arg in true_args: 
         dic['EDENT'] = ''
-        
+
         sign      = +1
         prevorder =  0 
         for i in range(len(densities)):
@@ -1265,11 +1281,17 @@ def GenTermExpression(term,index,un_index,tnumber, ccoef, isoc, ddep, extra,so):
             if(i == 0 and ddep != '1'):
               # The first density for the first density in the term
               isodic['EXP']= ddep
-              dic['EDENT'] = dic['EDENT'] + ts.edent_DD.substitute(isodic)+ '*'
+              if(fam_active):
+                dic['EDENT'] = dic['EDENT'] + ts.edent_DD_fam.substitute(isodic)+ '*'
+              else:
+                dic['EDENT'] = dic['EDENT'] + ts.edent_DD.substitute(isodic)+ '*'
             else:
               # No density dependence
-              dic['EDENT'] = dic['EDENT'] + ts.edent.substitute(isodic)+ '*'
-            
+              if(fam_active):
+                dic['EDENT'] = dic['EDENT'] + ts.edent_fam.substitute(isodic)+ '*'
+              else:
+                dic['EDENT'] = dic['EDENT'] + ts.edent.substitute(isodic)+ '*'
+
             # Take out the final '*' which should not be necessary
             prevorder = prevorder + orders[i]
       

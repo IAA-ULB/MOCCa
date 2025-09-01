@@ -7,17 +7,22 @@
 # Tested on:                                                       #
 #   - ASTROPC19: W.R.s office machine                              #
 ####################################################################
-
 # Directory names  (will be created if they don't exist)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - EXECDIR = directory for storage of the final executables
-# - SRCDIR  = source code as processed by Hephaestos
-# - OBJDIR  = storage for intermediate object files
-# - MODDIR  = storage for final module files
-EXECDIR =  exec
-SRCDIR  =   src
-OBJDIR  =   obj
-MODDIR  =   mod
+# - EXEC_DIR = directory for storage of the final executables
+# - MF_SRC_DIR  = source code for mean-field calculations as processed by Hephaestos
+# - MF_OBJ_DIR  = storage for mean-field object files
+# - MF_MOD_DIR  = storage for mean-field module files
+# - FAM_SRC_DIR  = source code for linear-response calculations as processed by Hephaestos
+# - FAM_OBJ_DIR  = storage for linear-response object files
+# - FAM_MOD_DIR  = storage for linear-response module files
+EXEC_DIR    =  exec
+MF_SRC_DIR  =   src
+MF_OBJ_DIR  =   obj
+MF_MOD_DIR  =   mod
+FAM_SRC_DIR =   src_fam
+FAM_OBJ_DIR =   obj_fam
+FAM_MOD_DIR =   mod_fam
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Python interpreter with which to invoke Hephaestos
@@ -28,10 +33,12 @@ PYTHON_CMD  = python3
 # CXX        : actual fortran compiler invokation
 # OPTFLAGS   : optimisation flags to pass to the compiler
 # CXXFLAGS   : other "general use" flags
+# MODFLAG    : flag to indicate the location of module files, i.e. '-J' for gfortran
 # PREPFLAG   : preprocessor flag, i.e. the "-cpp" in "gfortran -cpp"
 CXX       = mpiifx
 OPTFLAGS  = -g -traceback -check bounds
-CXXFLAGS  = -module $(MODDIR) -assume realloc-lhs -assume byterecl -no-wrap-margin -heap-arrays -diag-disable=10448
+CXXFLAGS  = -assume realloc-lhs -assume byterecl -no-wrap-margin -heap-arrays -diag-disable=10448
+MODFLAG   = -module
 PREPFLAG  = -cpp
 
 # DEBUGFLAGS : debugging flags to pass to the compiler

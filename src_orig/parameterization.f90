@@ -119,19 +119,37 @@ $PARAMDECL
     !   fitted, and this is retained here for reproducing those calculations.
     logical :: neutroncoulomberror = .false.
     !===========================================================================
-    
+    ! Overloading the pow() and lr_pow functions to safely take powers of real 
+    ! and complex functions on the mesh.
+    interface pow
+      module procedure pow_real
+      module procedure pow_complex
+    end interface
+    interface lr_pow
+       module procedure lr_pow_real
+      module procedure lr_pow_complex
+    end interface
+    !===========================================================================
+
 contains
     
    subroutine readparameterization(name_param, func_name) 
     !---------------------------------------------------------------------------
     ! Read the parameterization information from the .param file.
+    !
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Input:
     !   name_param :  character, name of the parameterization
     !   func_name  :  character, name of the functional file used to 
     !                 compile the code. Used for consistency checking.
+    ! Side-effects:
+    !  - folding matrices for dealing with nucleon form factors get allocated 
+    !    if needed for this parameterization
     !---------------------------------------------------------------------------
-    
+    use folding, only: construct_folding_matrices
+    use folding, only: gauss_x_neutron, gauss_y_neutron, gauss_z_neutron
+    use folding, only: gauss_x_proton,  gauss_y_proton, gauss_z_proton
+
     character(len=20) :: name, func_file, toopen
     character(len=*), intent(in) :: name_param, func_name
     integer           :: io
@@ -345,7 +363,11 @@ $BCASTPARAMS
     if(any(rotcutmu .lt. 0.0d0)) then
       rotcutmu = pairingmu
     endif
-    
+    ! b) constructing the relevant folding matrices 
+    call construct_folding_matrices(protonsize, neutronsize, hocomform, hbm,           &
+    &                               gauss_x_neutron, gauss_y_neutron, gauss_z_neutron, &
+    &                               gauss_x_proton,  gauss_y_proton,  gauss_z_proton)
+   
   end subroutine readparameterization
     
   subroutine resetparameterization()
@@ -567,68 +589,78 @@ $PRINTPARAMS
     print 201, eps
   end subroutine printparameterization
 
- subroutine ConstructFoldingMatrices(Gx,Gy,Gz,sx_rho, sy_rho, sz_rho)
+  !=============================================================================
+  ! Functions for safely taking powers of densities, avoiding negative numbers 
+  ! raised to powers that are 0 or negative. This is located in this file
+  ! becasue the safeguard parameter eps is part of a parameterization.
+  !============================================================================= 
+  pure function pow_real(f,alpha) result(pf)
     !---------------------------------------------------------------------------
-    ! Construct the matrices for Gaussian folding.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Input :
-    !  sx/y/z_rho : symmetries of the density, explicitly passed in because
-    !               not defined in lower-level modules
-    !
-    ! Output:
-    !   Gx, Gy, Gz : Gaussian factors for folding the density
+    ! Safely take powers of a REAL density f, avoiding the raising of negative 
+    ! numbers to powers that are 0 or negative. This is achieved by adding a 
+    ! small (positive value) to the density.
     !---------------------------------------------------------------------------
-    use folding
+    real(KIND=dp), intent(in) :: f(mv), alpha
+    real(KIND=dp)             :: pf(mv)
 
-    real(KIND=dp), intent(out) :: Gx(:,:,:,:), Gy(:,:,:,:), Gz(:,:,:,:)
-    integer, intent(in)        :: sx_rho, sy_rho, sz_rho
-    real(KIND=dp)              :: rplus(2), rmin(2)
-    real(KIND=dp)              :: hbom, mhb, B
-    integer                    :: it
-
-    ! The determination from input for neutrons and protons is not the same
-    rplus(1) = sqrt(neutronsize(1))
-    rmin(1)  = sqrt(neutronsize(2))
-
-    rplus(2) = protonsize(1) * sqrt(2.0/3.0)
-    rmin(2)  = protonsize(2) * sqrt(2.0/3.0)
-
-    !---------------------------------------------------------------------------
-    ! Harmonic-oscillator correction
-    if(hocomform) then
-        ! hbar x omega
-        hbom  = 41.0 * (neutrons + protons)**(-1.0/3.0)
-        ! 2m/hbar^2
-        mhb = 2.0/(1.0/hbm(1)+1.0/hbm(2))
-        ! B^{-1} = hbar * omega/m * A = 1/2 * A * hbar omega * 2m/hbar^2
-        B = sqrt( 1.0/( 0.5 * hbom/mhb  * (neutrons + protons)))
-
-        do it=1,2
-            if(rplus(it).ne.0.0) then
-                rplus(it) = sqrt(rplus(it)**2 - B**2)
-            endif
-            if(rmin(it).ne.0.0) then
-                rmin(it) = sqrt(rmin(it)**2 - B**2)
-            endif
-        enddo
+    if(alpha .lt. 0) then
+      pf = (f + eps)**(alpha)
+    else
+      pf = (f)**(alpha)
     endif
+  end function pow_real
 
-    do it=1,2
-      if(rplus(it) .ne. 0.0_dp) then
-        call Gauss_1D(Gx(:,:,1,it), meshx, nx, rplus(it), sx_rho)
-        call Gauss_1D(Gy(:,:,1,it), meshy, ny, rplus(it), sy_rho)
-        call Gauss_1D(Gz(:,:,1,it), meshz, nz, rplus(it), sz_rho)
-      endif
-      if(rmin(it) .ne. 0.0_dp) then
-        call Gauss_1D(Gx(:,:,2,it), meshx, nx, rmin(it),  sx_rho)
-        call Gauss_1D(Gy(:,:,2,it), meshy, ny, rmin(it),  sy_rho)
-        call Gauss_1D(Gz(:,:,2,it), meshz, nz, rmin(it),  sz_rho)
-      endif
-    enddo
+  pure function pow_complex(f,alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Take powers of a COMPLEX density.
+    !
+    ! No safeguard is necessary; complex exponentiation is well-defined; it
+    ! is maintained however to as closely replicate pow_real
+    !---------------------------------------------------------------------------
+    complex(KIND=dp), intent(in) :: f(mv)
+    real(KIND=dp), intent(in)    :: alpha
+    complex(KIND=dp)             :: pf(mv)
 
- end subroutine ConstructFoldingMatrices
+    if(alpha .lt. 0) then
+      pf = (f + eps)**(alpha)
+    else
+      pf = (f)**(alpha)
+    endif
+  end function pow_complex
 
-  
+  pure function lr_pow_real(f,df, alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Safely calculate the linearisation of the power of a REAL density f, while
+    ! avoiding the raising of negative numbers to powers that are 0 or negative. T
+    ! This is achieved by adding a small (positive value) to the density.
+    !---------------------------------------------------------------------------
+    real(KIND=dp), intent(in) :: f(mv), df(mv), alpha
+    real(KIND=dp)             :: pf(mv)
+
+    if((alpha-1) .lt. 0) then
+      pf = alpha * (f + eps)**(alpha - 1) * df
+    else
+      pf = alpha * (f)**(alpha-1)         * df
+    endif
+  end function lr_pow_real
+
+  pure function lr_pow_complex(f,df,alpha) result(pf)
+    !---------------------------------------------------------------------------
+    ! Safely calculate the linearisation of the power of a REAL density f, while
+    ! avoiding the raising of negative numbers to powers that are 0 or negative. T
+    ! This is achieved by adding a small (positive value) to the density.
+    !---------------------------------------------------------------------------
+    complex(KIND=dp), intent(in) :: f(mv), df(mv)
+    real(KIND=dp), intent(in) :: alpha
+    complex(KIND=dp)             :: pf(mv)
+
+    if((alpha-1) .lt. 0) then
+      pf = alpha * (f + eps)**(alpha - 1) * df
+    else
+      pf = alpha * (f)**(alpha-1)         * df
+    endif
+  end function lr_pow_complex
+
   !=============================================================================
   ! Various functions that might be useful to define coupling constants in 
   ! the .func files.

@@ -202,10 +202,10 @@ module fam
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! set up the unperturbed Hamiltonian from the unperturbed potentials
-    if(.not.allocated(Hunper)) then 
-      allocate(Hunper(nwt,nwt))
-      Hunper = calc_sphamil(PotUnper, .false.)
-    endif
+    !if(.not.allocated(Hunper)) then
+    !  allocate(Hunper(nwt,nwt))
+    !  Hunper = calc_sphamil(PotUnper, .false.)
+    ! endif
 
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -374,7 +374,8 @@ module fam
     ! explicit linearisation of the fields
     call calc_perturbed_potentials(RUnper, dRs, dRa, dFs, dFa)
 
-    ! necessary? 
+    ! We add in all additional contributions to F_I_I that do not 
+    !  result from the Skyrme functional.  
     call combine_potentials(dFs)
     call combine_potentials(dFa)
 
@@ -590,7 +591,6 @@ module fam
     S_out = - S%im / pi
 
   end function calc_strength
-
 
   subroutine test_convergence(conv, div)
     !---------------------------------------------------------------------------

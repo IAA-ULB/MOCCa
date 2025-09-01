@@ -940,7 +940,7 @@ $TR     &                                  - tmp(si+1:si+Tp,si+Tp+1:si+Tp+Tm)
 
     ! Generate the necessary spherical harmonic
     allocate(SpherHarmMesh(nx,ny,nz,0:l,0:l,2), Qlm(nx*ny*nz))
-    call GenSphericalHarmonics(l,nx,ny,nz, &
+    call generate_spherical_harmonics(l,nx,ny,nz, &
     &                          meshx_shifted,meshy_shifted,meshz_shifted,    & 
     &                          SpherHarmMesh,quantisationaxis,secondaryaxis) 
 

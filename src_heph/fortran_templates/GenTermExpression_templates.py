@@ -20,6 +20,9 @@ end_comment     =             tab + '!' + 38 * '- ' + '\n'
 edent     = T('(R%$DEN(:$IND,$ISO))')
 edent_DD  = T('(pow(R%$DEN(:$IND,$ISO), $EXP))')
 
+edent_fam    = T('DBLE(R%$DEN(:$IND,$ISO))')
+edent_DD_fam = T('DBLE(pow(R%$DEN(:$IND,$ISO), $EXP))')
+
 calc_z    = T(   tab + 'Edensity = 0.0_dp \n')
 calc_a    = T(   tab + 'EDensity = Edensity $SIGN $EDENT\n')
 calc_extra= T(   tab + 'EDensity = Edensity * $EXTRA\n')

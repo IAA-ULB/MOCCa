@@ -34,6 +34,10 @@ module densities
 ! SX_RHO          : $SX_RHO 
 ! SY_RHO          : $SY_RHO
 ! SZ_RHO          : $SZ_RHO
+! 
+! SX_RHO_ANTISYM  : $SX_RHO_ANTISYM 
+! SY_RHO_ANTISYM  : $SY_RHO_ANTISYM
+! SZ_RHO_ANTISYM  : $SZ_RHO_ANTISYM
 !
 ! SX_SX/SY/SZ     : $SX_SX, $SX_SY, $SX_SZ
 ! SY_SX/SY/SZ     : $SY_SX, $SY_SY, $SY_SZ
@@ -354,7 +358,6 @@ subroutine mixup_rhokappa_complex(rho, kappa, transfo)
 
 end subroutine mixup_rhokappa_complex
 
-
 function densit(rho, kappa) result(R)
     !---------------------------------------------------------------------------
     ! Calculate all of the mean-field densities, both normal and pairing. 
@@ -375,7 +378,6 @@ function densit(rho, kappa) result(R)
     !   meaning that (if necessary) the canonical basis has already been 
     !   constructed.  
     !---------------------------------------------------------------------------
-    external construct_charge_density
     real(KIND=dp), intent(in) :: rho(:), kappa(:,:)
     type(DensityVector)       :: R
 
@@ -683,7 +685,7 @@ $ISOSPINCOUPL
     R%divJ(:,4) = R%divJ(:,1) - R%divJ(:,2)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
-    call constructchargedensity(R)
+    call construct_charge_density(R, sx_rho, sy_rho, sz_rho)
 
     call stop_timer(T_densities)
 end function densit
@@ -704,8 +706,12 @@ subroutine densit_offdiag(rho, kappa, Rs, Ra)
     complex(KIND=dp), intent(in)     :: rho(:,:), kappa(:,:)
     type(DensityVector), intent(out) :: Rs, Ra
 
+    call start_timer(T_den_perturbed)
+
     Rs = densit_offdiag_symmetric(rho,kappa)
     Ra = densit_offdiag_antisymmetric(rho,kappa)
+
+    call stop_timer(T_den_perturbed)
 
     ! call print_maxval('D_I_I'  , Rs%D_I_I  , Ra%D_I_I)
     ! call print_maxval('D_Nm_Nm', Rs%D_Nm_Nm, Ra%D_Nm_Nm)
@@ -750,7 +756,6 @@ function densit_offdiag_symmetric(rho, kappa) result(R)
     ! Output:
     !   R        densityvector   values of the mean-field densities.
     !----------------------------------------------------------------------------
-    external construct_charge_density
 
     complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
     type(DensityVector)          :: R
@@ -763,7 +768,7 @@ function densit_offdiag_symmetric(rho, kappa) result(R)
     integer :: i
 
 $SPWF_DECLARATION
-    call start_timer(T_densities)
+    call start_timer(T_den_perturbed_sym)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Allocation and initialization
@@ -822,11 +827,9 @@ $EXPRESSION_OFFDIAG_SYMMETRIC
     ! Calculation of the 'derived' densities, densities obtainable by
     ! deriving other ones.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    call start_timer(T_den_der)
     do it=1,2
 $DERIVATION_OFFDIAG_SYMMETRIC
     enddo
-    call stop_timer(T_den_der)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculate the densities in isospin representation
@@ -834,9 +837,9 @@ $ISOSPINCOUPL
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
-    call constructchargedensity(R)
+    call construct_charge_density(R, sx_rho, sy_rho, sz_rho)
 
-    call stop_timer(T_densities)
+    call stop_timer(T_den_perturbed_sym)
 
 end function densit_offdiag_symmetric
 
@@ -854,8 +857,6 @@ function densit_offdiag_antisymmetric(rho, kappa) result(R)
     ! Output:
     !   R        densityvector   values of the mean-field densities.
     !----------------------------------------------------------------------------
-    external construct_charge_density
-
     complex(KIND=dp), intent(in) :: rho(:,:), kappa(:,:)
     type(DensityVector)          :: R
 
@@ -867,7 +868,7 @@ function densit_offdiag_antisymmetric(rho, kappa) result(R)
     integer :: i
 
 $SPWF_DECLARATION
-    call start_timer(T_densities)
+    call start_timer(T_den_perturbed_asym)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Allocation and initialization
@@ -931,11 +932,9 @@ $EXPRESSION_OFFDIAG_ANTISYMMETRIC
     ! Calculation of the 'derived' densities, densities obtainable by
     ! deriving other ones.
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    call start_timer(T_den_der)
     do it=1,2
 $DERIVATION_OFFDIAG_ANTISYMMETRIC
     enddo
-    call stop_timer(T_den_der)
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Calculate the densities in isospin representation
@@ -943,9 +942,9 @@ $ISOSPINCOUPL
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Construct the charge density
-    call constructchargedensity(R)
+    call construct_charge_density(R, sx_rho_antisym, sy_rho_antisym, sz_rho_antisym)
 
-    call stop_timer(T_densities)
+    call stop_timer(T_den_perturbed_asym)
 
 end function densit_offdiag_antisymmetric
 
@@ -995,28 +994,15 @@ function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sph
     complex(KIND=dp), allocatable     :: sphamil_me(:,:), sp_sym(:,:), sp_asym(:,:)
     integer                           :: B, N, i, si
 
-
+    call start_timer(T_spme_perturbed)
     sp_sym = calc_sphamil_me_sym    ( denpsi, dendpsi, denddpsi, Fs,  onthefly)
     sp_asym= calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, Fa,  onthefly)
-!
-!     si = 0
-!     do B=1,8
-!       N = HFBlocks(B)
-!       print *, 'B = ' , B
-!       do i=1,N
-!         print ('(99f10.3)'), sp_sym(si+i,si+1:si+N)
-!       enddo
-!       print *
-!       do i=1,N
-!         print ('(99f10.3)'), sp_asym(si+i,si+1:si+N)
-!       enddo
-!       si = si + N
-!     enddo
 
     sphamil_me = sp_sym + sp_asym
+    call stop_timer(T_spme_perturbed)
 end function calc_sphamil_me
 
-function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(sphamil_me)
+function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, F,  onthefly) result(sphamil_me)
     !---------------------------------------------------------------------------------------
     ! This function calculates the single-particle matrix elements of the symmetric part
     ! of the single-particle hamiltonian as defined by a potentialvector dF, which should
@@ -1027,11 +1013,12 @@ function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(s
     ! - this routine does not assume hermeticity of the matrix elements
     ! - the spwfs on input are named  "den[d/dd]psi" in order to have less changes
     !   in Hephaestos; these are not the pointers defined on top in this module.
+    ! - this routine ASSUMES that F_I_I is the FULL potential, i.e. that
+    !   combine_potentials has been called on F before using this!
     !
     ! TODO:
     !  - rename wavefunctions for clarity -> requires Hephaestos change
     !  - develop MPI parallelism
-    !  - add in a call to combine_potentials
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !
     ! Input:
@@ -1039,7 +1026,7 @@ function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(s
     !   denpsi  : set of single-particle wavefunctions
     !   dendpsi : their first order derivatives
     !   denddpsi: their second order derivatives
-    !   dF      : potential vector containing the SYMMETRIC linearised response
+    !    F      : potential vector containing the SYMMETRIC linearised response
     !             of the mean-field potentials
     !   onthefly: [NOT IMPLEMENTED YET ]
     !
@@ -1049,15 +1036,14 @@ function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(s
     !------------------------------------------------------------------------------------------
     real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
     logical, intent(in)               :: onthefly
-    type(PotentialVector), intent(in) :: dF
-    type(PotentialVector)             :: F
+    type(PotentialVector), intent(in) :: F
 
     complex(KIND=dp), allocatable     :: sphamil_me(:,:)
     integer                           :: it, B, si, N, wave_i, wave_j, i
 
 $SPWF_DECLARATION
 
-    F = dF ! TODO: add a call to combine_potentials
+    call start_timer(T_spme_perturbed_sym)
 
     ! initialize
     allocate(sphamil_me(nwt,nwt)) ; sphamil_me = 0.0d0
@@ -1088,9 +1074,11 @@ $EXPRESSION_SPH_SYM
       si = si + N
     enddo
 
+    call stop_timer(T_spme_perturbed_sym)
+
   end function calc_sphamil_me_sym
 
-function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, dF,  onthefly) result(sphamil_me)
+function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, F,  onthefly) result(sphamil_me)
     !---------------------------------------------------------------------------------------
     ! This function calculates the single-particle matrix elements of the ANTIsymmetric part
     ! of the single-particle hamiltonian as defined by a potentialvector dF, which should
@@ -1101,11 +1089,12 @@ function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, dF,  onthefly) resu
     ! - this routine does not assume hermeticity of the matrix elements
     ! - the spwfs on input are named  "den[d/dd]psi" in order to have less changes
     !   in Hephaestos; these are not the pointers defined on top in this module.
+    ! - this routine ASSUMES that F_I_I is the FULL potential, i.e. that
+    !   combine_potentials has been called on F before using this!
     !
     ! TODO:
     !  - rename wavefunctions for clarity -> requires Hephaestos change
     !  - develop MPI parallelism
-    !  - add in a call to combine_potentials
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     !
     ! Input:
@@ -1113,7 +1102,7 @@ function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, dF,  onthefly) resu
     !   denpsi  : set of single-particle wavefunctions
     !   dendpsi : their first order derivatives
     !   denddpsi: their second order derivatives
-    !   dF      : potential vector containing the ANTISYMMETRIC linearised response
+    !    F      : potential vector containing the ANTISYMMETRIC linearised response
     !             of the mean-field potentials
     !   onthefly: [NOT IMPLEMENTED YET ]
     !
@@ -1123,15 +1112,14 @@ function calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, dF,  onthefly) resu
     !------------------------------------------------------------------------------------------
     real(KIND=dp), intent(in)         :: denpsi(:,:,:), dendpsi(:,:,:,:), denddpsi(:,:,:,:)
     logical, intent(in)               :: onthefly
-    type(PotentialVector), intent(in) :: dF
-    type(PotentialVector)             :: F
+    type(PotentialVector), intent(in) :: F
 
     complex(KIND=dp), allocatable     :: sphamil_me(:,:)
     integer                           :: it, B, si, N, wave_i, wave_j, i
 
 $SPWF_DECLARATION
 
-    F = dF ! TODO: add a call to combine_potentials
+    call start_timer(T_spme_perturbed_asym)
 
     ! initialize
     allocate(sphamil_me(nwt,nwt)) ; sphamil_me = 0.0d0
@@ -1160,130 +1148,9 @@ $EXPRESSION_SPH_ANTISYM
       si = si + N
     enddo
 
+    call stop_timer(T_spme_perturbed_asym)
+
   end function calc_sphamil_me_antisym
-
-subroutine ConstructChargeDensity(R)
-    !---------------------------------------------------------------------------
-    ! Construct the charge density from the proton and neutron densities,
-    ! using various effective forms
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! TODO: document what this routine does precisely
-    !---------------------------------------------------------------------------
-    use Folding
-
-#if(PASTA==1)
-    4 format ('-------------------------------------------------------------------')
-    1 format (' Warning: the charge in your system is not equal to the desired one.')
-    2 format (' Number of protons - \int charge density = ', es10.3 )
-    3 format (' The electron density is compensating.')
-#endif
-
-    type(DensityVector),intent(inout) :: R
-    real(KIND=dp)              :: temp(nx,ny,nz)
-    integer                    :: i,j,k
-#if(PASTA==1)
-    real(KIND=dp)              :: rho_el, volume
-#endif
-
-    call start_timer(T_chargedensity)
-
-    ! Deallocation such that rho_charge does not have the wrong dimensions
-    if(allocated(R%chargedensity))      deallocate(R%chargedensity)
-    if(.not.allocated(R%chargedensity)) allocate(R%chargedensity(nx,ny,nz))
-    !---------------------------------------------------------------------------
-    ! If we account for the finite extent of the charge of the nucleus, then
-    ! we need to fold densities and potentials with gaussians. This sets up the
-    ! required matrices.
-    !
-    ! Note: this little piece of code is duplicated, since in different
-    !       runmodes of the code different Coulomb routines get called in
-    !       different order; this makes sure we get no segfaults.
-    !---------------------------------------------------------------------------
-    if(any(protonsize .ne. 0.0_dp) .or. any(neutronsize.ne.0.0_dp)) then
-      if(.not.allocated(Gaussx)) then
-          allocate(Gaussx(nx,nx,2,2), Gaussy(ny,ny,2,2), Gaussz(nz,nz,2,2))
-          Gaussx = 0.0 ;  Gaussy = 0.0 ; Gaussz = 0.0
-      endif
-      call ConstructFoldingMatrices(Gaussx,Gaussy,Gaussz,sx_rho, sy_rho, sz_rho)
-    endif
-
-    !---------------------------------------------------------------------------
-    ! Proton contributions to the charge density.
-    ! We start from the proton point density
-    do k=1,nz
-      do j=1,ny
-        do i=1,nx
-            temp(i,j,k) = R%D_I_I(meshindex(i,j,k),2)
-        enddo
-      enddo
-    enddo
-
-    if(protonsize(1).gt.0.0) then
-        ! Fold the source with a Gaussian
-        R%chargedensity = &
-        & FoldGaussian(temp, GaussX(:,:,1,2), GaussY(:,:,1,2), GaussZ(:,:,1,2),&
-        &                                                            nx, ny, nz)
-    endif
-    if(protonsize(2).gt.0.0) then
-        ! Fold the source with another Gaussian, this time with minus sign.
-        R%chargedensity = R%chargedensity + &
-        & FoldGaussian(temp, GaussX(:,:,2,2), GaussY(:,:,2,2), GaussZ(:,:,2,2),&
-        &                                                            nx, ny, nz)
-    endif
-
-    if(all(protonsize.eq.0.0)) then
-        R%chargedensity = temp
-    endif
-    !---------------------------------------------------------------------------
-    ! Neutron contributions to the charge density.
-    if(any(neutronsize .gt. 0.0d0)) then 
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-             temp(i,j,k) = R%D_I_I(meshindex(i,j,k),1)
-          enddo
-        enddo
-      enddo
-
-      if(neutronsize(1).gt.0.0) then
-          ! Fold the source with a Gaussian
-          R%chargedensity = R%chargedensity + &
-          & FoldGaussian(temp, GaussX(:,:,1,1), GaussY(:,:,1,1), GaussZ(:,:,1,1),&
-          &                                                            nx, ny, nz)
-      endif
-      if(neutronsize(2).gt.0.0) then
-          ! Fold the source with a Gaussian, minus sign this time
-          R%chargedensity = R%chargedensity - &
-          & FoldGaussian(temp, GaussX(:,:,2,1), GaussY(:,:,2,1), GaussZ(:,:,2,1),&
-          &                                                            nx, ny, nz)
-      endif
-    endif
-    !---------------------------------------------------------------------------
-    ! When performing simulations for nuclear pasta, one assumes the entire 
-    ! volume is charge neutral: a constant background of electrons floods the 
-    ! entire simulation volume. We subtract thi s backrgound here.
-#if(PASTA==1)
-    volume=nx*ny*nz*dv   ! simplification by WR: the physical volume simulated
-                         ! can just be gotten by the volume element...
-    rho_el=sum(R%chargedensity)*dv/volume
-    ! Note: it is CRUCIAL to put here the integral of the charge density as
-    !       opposed to just the number of protons. If, for whatever reason,
-    !       the code fails to build a proton + neutron charge density that
-    !       does not integrate perfectly to tthe number of protons, then
-    !       putting the number of protons here will lead to a small amount
-    !       of charge; this will blow up the Coulomb solver if periodic
-    !       boundary conditions are applied.
-
-    if(abs(sum(R%chargedensity)*dv - protons) > 1e-7) then
-      print 4
-      print 1
-      print 2, protons - sum(R%chargedensity)*dv
-      print 4
-    endif
-    R%chargedensity = R%chargedensity -rho_el
-#endif
-    call stop_timer(T_chargedensity)
- end subroutine ConstructChargeDensity
 
 function divJ_spwf(der_index)
     !---------------------------------------------------------------------------
