@@ -3621,20 +3621,19 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
   
   end subroutine write_inertias
 
-  subroutine write_fam_strength(omega_arr, S_arr, iter_arr, S_free_arr, l, m, fname)
+   subroutine init_fam_file(l, m, fname)
     !---------------------------------------------------------------------------
-    ! Write the strength function S(omega, F) obtained from FAMtalus
+    ! Create file to write strength function S(omega, F) obtained from FAMtalus
     !---------------------------------------------------------------------------
     ! The file contains a header written by the subroutine write_header,
     ! supplemented by a dedicated line explaining the content of each column.
     ! The format of the body of said file is
-    !   omega[MeV]  S[...]
-    !                  '-> unit depends on the external field                  
+    !   omega[MeV]    S_free[...]     S[...]   iter
+    !                         '-> unit depends on the external field                  
     ! 
-    ! TODO: add information specific to FAM : external field l, m, etc. 
+    ! The actual strength is written to this file by subroutine append_fam_file()
+    ! called when a frequency is converged. 
     !---------------------------------------------------------------------------
-    real(kind=dp), intent(in)         :: omega_arr(:), S_arr(:), S_free_arr(:)
-    integer, intent(in)               :: iter_arr(:)
     integer, intent(in)               :: l, m
     character(len=*), intent(in)      :: fname
     integer                           :: io, idx
@@ -3646,7 +3645,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     2 format('#', 2x, 'omega',12x,'S_free', 21x, 'S', 17x, 'iter')
 
 
-    open(1,file=fname, iostat=io)
+    open(1,file=fname, status='new', iostat=io)
     if(io.ne.0) then    
       print *, 'filename = ', fname
       call stp('')
@@ -3657,15 +3656,29 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     write(1, fmt=1) l, m ! write info of extrenal field 
     write(1, fmt=2)      ! write column names
 
-
-    do idx=1,size(omega_arr)
-      write(1, fmt='(f8.3, es25.12E3, es25.12E3, i10)') omega_arr(idx), S_free_arr(idx), S_arr(idx), iter_arr(idx)
-      
-    enddo
-
     close(1)
 
-  end subroutine write_fam_strength
+  end subroutine init_fam_file
+
+  subroutine append_fam_file(omega, S, iter, S_free, fname)
+    real(kind=dp), intent(in)         :: omega, S, S_free
+    integer, intent(in)               :: iter
+    character(len=*), intent(in)      :: fname
+    integer                           :: io
+
+    print *, ' append fam file :  ', fname
+
+    open(1, file=fname, status='old', position='append', iostat=io)
+    if(io.ne.0) then    
+      print *, 'filename = ', fname
+      call stp('')
+    endif
+    
+    write(1, fmt='(f8.3, es25.12E3, es25.12E3, i10)') omega, S_free, S, iter
+      
+    close(1)
+
+  end subroutine append_fam_file
 
   function force_halfinteger(j) result(jforced)
       !-------------------------------------------------------------------------

@@ -15,12 +15,11 @@ program run_FAM
   3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
   implicit none
-  integer :: iteration, nbprod
+  integer :: iter, num_iter
   logical :: is_converged, is_divergent
   real(kind=dp) :: omega_curr
   integer :: omega_num, omega_index
-  real(kind=dp), allocatable :: omega_arr(:), S_arr(:), S_free_arr(:)
-  integer, allocatable :: iter_arr(:)
+  real(kind=dp) :: strength, strength_free
   character(len=100) :: famfilename
   ! integer :: i, B, si,N
 
@@ -125,15 +124,15 @@ program run_FAM
   endif
 
   !---------------------------------------------------------------------------------
+  ! create the FAM output file
+  write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
+  ! todo : this needs to be abel to read from the IO namelist
+  call init_fam_file(l, m, famfilename)
+
+  !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
 
   omega_num = int((omega_max - omega_min) / omega_step) + 1
-
-  allocate(omega_arr(omega_num))
-  allocate(S_arr(omega_num))
-  allocate(S_free_arr(omega_num))
-  allocate(iter_arr(omega_num))
-  iter_arr = 0
 
   omega_curr = omega_min
 
@@ -147,7 +146,7 @@ program run_FAM
 
     call inifam(omega_curr, Density, Potentials)
 
-    S_free_arr(omega_index) = calc_strength()
+    strength_free = calc_strength()
 
     is_converged = .false.
     is_divergent = .false.
@@ -165,22 +164,22 @@ program run_FAM
       ! initiliase the GMRES solver, using the free response as the initial guess x0
       call init_gmres(dH_free_flat)
 
-      do iteration=1, gmres_itmax
+      do iter=1, gmres_itmax
         call iterate_gmres()
 
         if (gmres_res < gmres_tol) then 
           print 1
           print *, "Hooray! GMRES is converged! "
-          iter_arr(omega_index) = iteration
+          num_iter = iter
           print 1
           exit
         endif
 
-        if (iteration == gmres_itmax) then
+        if (iter == gmres_itmax) then
           print 1
           print 1
           print *, "   Reached maximal number of iterations, ", fam_maxiter
-          iter_arr(omega_index) = -gmres_itmax
+          num_iter = -gmres_itmax
         endif
 
       enddo
@@ -189,6 +188,9 @@ program run_FAM
       fam_verbose = 1
       call iterate_dHsp(x_gmres, dH_flat_next)
       print *, "Convergence check : || FAM(dH) - dH || / ||dH|| = ", norm_dH(dH_flat_next - x_gmres) / norm_dH(x_gmres)
+
+      call dealloc_gmres()
+
 
     else if (fam_mixingscheme == 1) then
 
@@ -201,10 +203,10 @@ program run_FAM
       dH_flat_next = 0
 
       ! Start of the iterations 
-      do iteration=1, fam_maxiter
+      do iter=1, fam_maxiter
 
         print 1
-        print 2, iteration
+        print 2, iter
 
         ! iterate the single-particle Hamiltonian by one complete FAM loop dH -> T(dH) + dH_free
         call iterate_dHsp(dH_flat, dH_flat_next)
@@ -222,28 +224,28 @@ program run_FAM
         ! test convergenence
 
         ! Exit the loop if convergence is achieved.
-        if (iteration > 1) then ! at least two iterations to be able to compare
+        if (iter > 1) then ! at least two iterations to be able to compare
          call test_convergence(is_converged, is_divergent)
           if(is_converged) then
             print 1
             print 1
             print *, "   Hooray! FAM is converged! "
-            iter_arr(omega_index) = iteration
+            num_iter = iter
             exit
           endif
           if(is_divergent) then
             print 1
             print 1
             print *, "   FAM diverges, exiting"
-            iter_arr(omega_index) = -iteration
+            num_iter = -iter
             exit
           endif
         endif
-        if (iteration == fam_maxiter) then
+        if (iter == fam_maxiter) then
           print 1
           print 1
           print *, "   Reached maximal number of iterations, ", fam_maxiter
-          iter_arr(omega_index) = -fam_maxiter
+          num_iter = -fam_maxiter
         endif
       enddo
 
@@ -258,29 +260,21 @@ program run_FAM
     ! store the converged strength
     !---------------------------------------------------------------------------------
       
-    omega_arr(omega_index) = omega_curr
-    S_arr(omega_index) = calc_strength()
+    strength = calc_strength()
 
     print 1
-    print *, "   number of iterations: ", iteration
+    print *, "   number of iterations: ", num_iter
     print *, "   converged strength:  "
     print *, "          l, m  = ", l, m
-    print *, "          omega = ", omega_arr(omega_index)
-    print *, "          S     = ", S_arr(omega_index) 
+    print *, "          omega = ", omega_curr
+    print *, "          S     = ", strength 
     print 1
 
+    call append_fam_file(omega_curr, strength, num_iter, strength_free, famfilename)
+
     omega_curr = omega_curr + omega_step
-    call dealloc_gmres()
 
   enddo
-
-  if(fam_maxiter.eq.0) then
-    write (famfilename, fmt='(a2,2i1,a10)') "S_", l, m, "_unper.fam"
-  else 
-    write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
-  endif
-
-  call write_fam_strength(omega_arr, S_arr, iter_arr, S_free_arr, l, m, famfilename)
 
   print *, "Reached the end successfully" 
 
