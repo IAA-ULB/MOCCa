@@ -89,6 +89,9 @@ jobs:
           name: exec-${{ env.SUFFIX }}
           path: exec/
 
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
+
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
         run:  chmod +x exec/Tantalus.${{ env.SUFFIX }}.exe
@@ -132,6 +135,9 @@ jobs:
         with:
           name: exec-${{ env.SUFFIX }}
           path: exec/
+
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
 
       - name: Make executeable
         # Unfortunately, github artifacts don't retain permissions.
@@ -189,6 +195,9 @@ jobs:
         with:
           name: exec-${{ env.EXEC_TP }}
           path: exec/
+
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
 
       - name: Make executeable
         run:  |
