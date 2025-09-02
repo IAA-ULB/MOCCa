@@ -144,6 +144,10 @@ module GenInfo
   ! or not. Putting this to .false. allows one to save a lot of memory at the
   ! expense of CPU time.
   logical :: store_derivatives = .true.
+  !-----------------------------------------------------------------------------
+  ! If True, add a high potential wall on the edges of the box. 
+  ! This is only meaningful when dealing with cubic meshes.
+  logical :: simulate_spherical_bc = .false.
 contains
 
   subroutine ReadGenInfo(file_number)
@@ -163,7 +167,7 @@ contains
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
     &                  fermi_prec, angmom_prec, balancing_strategy,            &
-    &                  store_derivatives
+    &                  store_derivatives, simulate_spherical_bc
     Namelist /mesh/    nx,ny,nz, dx
 
     if(MPI_rank .eq. 0) then    
