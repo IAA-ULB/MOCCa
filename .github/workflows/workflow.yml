@@ -101,8 +101,11 @@ jobs:
     env:
       SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI
     steps:
-      - uses: actions/download-artifact@v4
-        # Start by downloading the relevant executable
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
+
+      - name: Download executable
+        uses: actions/download-artifact@v4
         with:
           name: Tantalus.${{ env.SUFFIX }}
           path: exec/
@@ -139,17 +142,21 @@ jobs:
     env:
       SUFFIX: BXL.${{ matrix.COMPILER }}
     steps:
-      # Start by downloading the relevant executable
-      - uses: actions/download-artifact@v4
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
+
+      - name: Download executable for nuclei
+        uses: actions/download-artifact@v4
         with:
           name: Tantalus.${{ env.SUFFIX }}.NUCLEI
           path: exec/
-      - uses: actions/download-artifact@v4
+      - name: Download executable for pasta
+        uses: actions/download-artifact@v4
         with:
           name: Tantalus.${{ env.SUFFIX }}.PASTA
           path: exec/
 
-      - name: Make executeable
+      - name: Make the executables executable
         # Unfortunately, github artifacts don't retain permissions.
         run: |
           chmod +x exec/Tantalus.${{ env.SUFFIX }}.NUCLEI.exe
@@ -192,8 +199,12 @@ jobs:
       # Uniquely labelling the executables with this environment variable
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
     steps:
-      - uses: actions/download-artifact@v4
-        # Download the executable
+
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
+
+      - name: Download executable
+        uses: actions/download-artifact@v4
         with:
           name: Tantalus.${{ env.SUFFIX }}
           path: exec/
@@ -239,22 +250,32 @@ jobs:
        EXEC_TP : ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
+
+      - name: Download symmetric executable
+        uses: actions/download-artifact@v4
         with:
           name: Tantalus.${{ env.EXEC }}
           path: exec/
-      - uses: actions/download-artifact@v4
+      - name: Download parity broken executable
+        uses: actions/download-artifact@v4
         with:
           name: Tantalus.${{ env.EXEC_P }}
           path: exec/
-      - uses: actions/download-artifact@v4
+      - name: Download time-reversal broken executable
+        uses: actions/download-artifact@v4
         with:
           name: Tantalus.${{ env.EXEC_T }}
           path: exec/
-      - uses: actions/download-artifact@v4
+      - name: Download TP-broken executeable
+        uses: actions/download-artifact@v4
         with:
           name: Tantalus.${{ env.EXEC_TP }}
           path: exec/
+
+      - name: Checkout code # needed to get the testing scripts
+        uses: actions/checkout@v4
 
       - name: Make executeable
         run:  |

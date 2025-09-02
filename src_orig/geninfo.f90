@@ -187,6 +187,9 @@ module GenInfo
   integer :: desc_mat_2d(10) ! 2D block-cyclic layout of matrices in spwf-space
   !=============================================================================
 
+  ! If True, add a high potential wall on the edges of the box. 
+  ! This is only meaningful when dealing with cubic meshes.
+  logical :: simulate_spherical_bc = .false.
 contains
 
   subroutine ReadGenInfo(file_number)
@@ -206,7 +209,7 @@ contains
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
     &                  store_derivatives, fermi_prec, block_factor_row,        &
-    &                  block_factor_col
+    &                  block_factor_col, simulate_spherical_bc
     Namelist /mesh/    nx,ny,nz, dx
 
     if(MPI_rank .eq. 0) then    
