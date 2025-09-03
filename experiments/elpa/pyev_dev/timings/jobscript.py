@@ -1,3 +1,5 @@
+import envtools
+import re
 import subprocess
 import os
 
@@ -28,52 +30,6 @@ def has_gpu():
 def available_backends():
     return backends_gpu if has_gpu() else backends_cpu
 
-def get_cluster():
-    try:
-        cluster = os.environ['VSC_INSTITUTE_CLUSTER']
-    except:
-        # need implementation for lumi.
-        raise NotImplemented('get_cluster(): Undefined $VSC_INSTITUTE_CLUSTER')
-    return cluster
-    
-def get_cores_per_node():
-    cpn = {
-        'breniac' : 28,
-        'vaughan' : 64,
-    }
-    return cpn[get_cluster()]
-
-
-_TEMPLATE_VALUES = {
-    'jobname' : '',
-    'walltime': walltime_hh,
-    'nnodes'  :  0,
-    'nranks'  :  0,
-    'nprows'  :  0,
-    'npcols'  :  0,
-    'na'      :  0,
-    'nev'     :  0,
-    'nblk'    : 32,
-    'backend' : backend_pyelpa,
-    # template variables below depend on the cluster and must only be set on import.
-    'cluster' : get_cluster(),
-    'cores_per_node' : get_cores_per_node(),
-}
-
-_TEMPLATE_JOBSCRIPT = \
-"""#!/bin/bash
-#SBATCH --job-name {jobname}
-#SBATCH --output=slurm-%x.%j.out
-#SBATCH --time={walltime}
-#SBATCH --mem=0
-#SBATCH --account=ap_calcua_epicure
-#SBATCH --nodes={nnodes} --tasks-per-node={cores_per_node} --cpus-per-task=1
-#SBATCH --reservation=rocky9
-
-. /data/antwerpen/201/vsc20170/tantalus_full/experiments/env/ml.sh -p -v
-
-srun -n {nranks} python ev.py {na} {nev} {nblk} -{backend} 
-"""
 
 _TEMPLATE_JOBNAME = "job-(na={na},nev={nev},nblk={nblk})-(nnodes={nnodes},nranks={nranks}={nprows}x{npcols})-(cluster={cluster},backend={backend}).sh"
 
@@ -83,33 +39,89 @@ def assert_exist(varname):
 class JobScript:
 
     def __init__(self):
-        self.template_values = _TEMPLATE_VALUES
+        self.script_template = [
+            '#!/bin/bash',
+            '#SBATCH --job-name {jobname}',
+            '#SBATCH --output=slurm-%x.%j.out',
+            '#SBATCH --time={walltime}',
+            '#SBATCH --mem=0',
+            '#SBATCH --account=ap_calcua_epicure',
+            '#SBATCH --nodes={nnodes} --tasks-per-node={cores_per_node} --cpus-per-task=1',
+            '',
+            '. {workspace}/tantalus_full/experiments/env/ml.sh -p -v',
+            '',
+            'srun -n {nranks} python ev.py {na} {nev} {nblk} -{backend}',
+        ]
+        # find the index of the first line after the #SBATCH directives.
+        self._l = 1
+        for line in self.script_template[1:]:
+            if line.startswith('#SBATCH'):
+                self._l += 1
+            else:
+                break
 
-    def set(self, key, val=None):
-        if not key in self.template_values:
-            raise KeyError(f"No {key=} in self.template_values.")
-        if key == 'jobname':
-            val = _TEMPLATE_JOBNAME.format(**self.template_values)
-        if val is None:
-            raise ValueError(f"Jobscript.set({key=},{val=}) val must not be `None`.")
-        self.template_values[key] = val
+        self.jobname_template = "job-(na={na},nev={nev},nblk={nblk})-(nnodes={nnodes},nranks={nranks}={nprows}x{npcols})-(cluster={cluster},backend={backend}).sh"
+        
+        self.template_parameters = {
+            'jobname' : '',
+            'walltime': walltime_hh,
+            'nnodes'  :  0,
+            'nranks'  :  0,
+            'nprows'  :  0,
+            'npcols'  :  0,
+            'na'      :  0,
+            'nev'     :  0,
+            'nblk'    : 32,
+            'backend' : backend_pyelpa,
+        }
+        # template variables below depend on the cluster and must only be set on import.
+        cluster = envtools.get_cluster()
+        self.template_parameters['cluster'] = cluster
+        self.template_parameters['cores_per_node'] = envtools.get_cpus_per_compute_node(cluster)
+
+    def add_SBATCH_line(self, option, values=[]):
+        """
+        Add a SBATCH line f'#SBATCH {option}', where the str option may contain 
+        template_parameter keys. The values argument may provide a value for each key.
+        """
+        pattern = re.compile(r"\{\w+\}")
+        s = option
+        parameter_counter = 0
+        m = True
+        while m:
+            m = re.search(pattern, s)
+            if m:
+                span = m.span()
+                key = s[span[1:-1]]
+                if values:
+                    self.template_parameters[key] = values[parameter_counter]
+                else:
+                    self.template_parameters[key] = ''
+                s = s[span[1]:]
+                parameter_counter += 1
+            else:
+                break
+        
+        self.script_template.insert(self._l, f"#SBATCH {option}")
+
  
-    def jobname(self):
-        if not self.template_values['jobname']:
-            self.template_values['jobname'] = _TEMPLATE_JOBNAME.format(**self.template_values)
-        return self.template_values['jobname']
+    def get_jobname(self):
+        self.template_parameters['jobname'] = self.jobname_template.format(**self.template_parameters)
+        return self.template_parameters['jobname']
+
+
+    def get_script(self):
+        return "\n".join(self.script_template).format(**self.template_parameters) 
+
 
     def write(self, submit=False):
-        self.set('jobname')
-        # put the values in the script
-        script = _TEMPLATE_JOBSCRIPT.format(**self.template_values)
-
-        # write the job script
-        with open(self.jobname(), 'w') as f:
-            f.write(script)
-            print(f"Wrote job script: {self.jobname()}")
+        jobname = self.get_jobname() 
         
-        self.template_values['jobname'] = ''
+        script  = self.get_script()
+
+        with open(jobname, 'w') as f:
+            f.write(script)
+            print(f"Wrote job script: {jobname}")
         
         if submit:
-            subprocess.run(["sbatch", self.jobname()])
+            subprocess.run(["sbatch", jobname])

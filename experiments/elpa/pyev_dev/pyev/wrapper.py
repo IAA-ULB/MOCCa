@@ -1,16 +1,13 @@
+from envtools import get_cluster
 import numpy as np
 import pyscalapack
 import os
 from pathlib import Path
 
-def on_vaughan():
-    return os.environ['VSC_INSTITUTE_CLUSTER'] in ['breniac', 'vaughan']
-
-def on_lumi():
-    return Path('/appl/lumi').exists()
 
 # the selection can be improved because it dependends on modules loaded
-if on_vaughan():
+cluster = get_cluster()
+if cluster in ['breniac', 'vaughan']:
     # using the intel toolchain 
     # caveat: the mpi4py built with intel is not yet available on vaughan, only on breniac.
     scalapack = pyscalapack(
@@ -21,7 +18,7 @@ if on_vaughan():
         "/apps/antwerpen/zen2/rocky8/imkl/2024.2.0/mkl/2024.2/lib/intel64/libmkl_blacs_intelmpi_lp64.so",
         "/apps/antwerpen/zen2/rocky8/imkl/2024.2.0/mkl/2024.2/lib/intel64/libmkl_scalapack_lp64.so",
     )  
-elif on_lumi:
+elif cluster == 'lumi':
     # with printenv we discovered environment variable `CRAY_LIBSCI_PREFIX_DIR=/opt/cray/pe/libsci/24.03.0/CRAYCLANG/17.0/x86_64`
     # > ll ${CRAY_LIBSCI_PREFIX_DIR}/lib
     # total 323889
@@ -48,7 +45,7 @@ elif on_lumi:
         str(CRAY_LIBSCI_PREFIX_DIR/'lib/libsci_cray_mpi.so'),
     )
 else:
-    raise NotImplemented('Don-t know how to initaliziz PyScaLAPACK on current cluster.')
+    raise NotImplemented('Don-t know how to initalize PyScaLAPACK on current cluster.')
 
 class Elpa:
     def __init__(self):
