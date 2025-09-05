@@ -302,7 +302,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
       # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       # "Off-diagonal" summation of densities in the HF-basis
       # (a) symmetric part
-      if(so.timelike and TimeDen(Densities_needed[i]) == 1):
+      if((not so.timelike) or TimeDen(Densities_needed[i]) == 1):
         # Symmetric parts of the perturbation of time-even mean-field densities are time-even
         # Symmetric parts of the perturbation of time-odd  mean-field densities are time-odd
         off_diag_tuple  = \
@@ -319,7 +319,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
         iso_off_sym = ''
 
       # (b) antisymmetric part
-      if(so.timelike and TimeDen(Densities_needed[i])==-1):
+      if((not so.timelike) or TimeDen(Densities_needed[i])==-1):
         # Antisymmetric parts of the perturbation of time-even mean-field densities are time-odd
         # Antisymmetric parts of the perturbation of time-odd  mean-field densities are time-even
         off_diag_tuple  = \
@@ -347,7 +347,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
       if(left != right):
         # Explicit symmetrisation is required
         for symsign in [-1,+1]:
-            if(so.timelike and TimeDen(Densities_needed[i]) == 1):
+            if((not so.timelike) or TimeDen(Densities_needed[i]) == 1):
                 # Symmetric parts of the perturbation of time-even mean-field densities are time-even
                 # Symmetric parts of the perturbation of time-odd  mean-field densities are time-odd
                 sph_tuple = \
@@ -356,8 +356,7 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
                                     'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
                                     complex_component=+1, weight='potential', symmetrize=symsign, silent=True)
                 e_sph_sym += sph_tuple[0]
-            
-            elif(so.timelike and TimeDen(Densities_needed[i])==-1):
+            if(not(so.timelike) or TimeDen(Densities_needed[i])==-1):
                 # Antisymmetric parts of the perturbation of time-even mean-field densities are time-odd
                 # Antisymmetric parts of the perturbation of time-odd  mean-field densities are time-even
                 sph_tuple = \
@@ -368,14 +367,14 @@ def ProcessDensities(fname, src, target, so, fam_active, density_spwf_summation)
                 e_sph_antisym += sph_tuple[0]       
       else:
         # No explicit symmetrisation needed
-        if(so.timelike and TimeDen(Densities_needed[i]) == 1):
+        if((not so.timelike) or TimeDen(Densities_needed[i]) == 1):
             sph_tuple = \
             GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                                 'wave_j', 'wave_i',                                     \
                                 'wave_j', 'wave_i',so,fam_active,density_spwf_summation,
                                 complex_component=+1, weight='potential', symmetrize=0, silent=True)
             e_sph_sym += sph_tuple[0]
-        elif(so.timelike and TimeDen(Densities_needed[i])==-1):
+        if((not so.timelike) or TimeDen(Densities_needed[i])==-1):
             sph_tuple = \
             GenDensityExpression(Densities_needed[i],deriv_needed[i],intermediate_status[i], \
                                 'wave_j', 'wave_i',                                     \
@@ -913,503 +912,500 @@ def GenDensityExpression(denin,derivative_combinations,intermediate,
         Add            = Add      + '\n' + ta.Add_template.substitute(dic)
         Multiply       = Multiply + '\n' + ta.Multiply_template.substitute(dic)
         dic['NAME']    = density
-        
-    #---------------------------------------------------------------------------
-    # Generate the expression to calculate the density
-    # Start from standard wave-functions, [ Psi_1, Psi_2, Psi_3, Psi_4 ]^T
-    start  = np.zeros((4,1))
-    start[0,0] = 1
-    start[1,0] = 2
-    start[2,0] = 3
-    start[3,0] = 4
 
-    #---------------------------------------------------------------------------
-    # TODO: define a dedicated function for this next particular piece of 
-    #       code. It is highly complex, yet identical to the one in the 
-    #       src_heph/heph_fields module. It should be put in one spot
-    #       and abstracted.
-    #---------------------------------------------------------------------------
-    
-    # Construct an iterator with all possible combinations of uncontracted 
-    # indices. Note that the ordering is [scalar indices, vector_indices]
-    # Note that it is not important in which order they are, 
-    # since we loop over all of them, only that they are consistently applied. 
-    args = itertools.product(range(3), repeat=ndim)
-    
-    Expression = Expression +  ta.Den_line.substitute(dic)
-    if( not intermediate ):
-        Expression = Expression +  ta.Den_comment.substitute(dic)
-    else:
-        Expression = Expression +  ta.Den_intermediate_comment.substitute(dic)
+    if((not so.timelike) or leftwave != rightwave or TimeDen(density) == +1):
+        #---------------------------------------------------------------------------
+        # Generate the expression to calculate the density
+        # Start from standard wave-functions, [ Psi_1, Psi_2, Psi_3, Psi_4 ]^T
+        start = np.zeros((4, 1))
+        start[0, 0] = 1
+        start[1, 0] = 2
+        start[2, 0] = 3
+        start[3, 0] = 4
 
-    for arg in args:
-        # We have the uncontracted indices. Now construct the combinations of
-        # indices, including contracted ones, that correspond to this. 
-        uncontracted = []
-        if(len(coupling) + len(cross) == 0):
-            # Nothing to do if no couplings needed
-            uncontracted = [arg]
+        #---------------------------------------------------------------------------
+        # TODO: define a dedicated function for this next particular piece of 
+        #       code. It is highly complex, yet identical to the one in the 
+        #       src_heph/heph_fields module. It should be put in one spot
+        #       and abstracted.
+        #---------------------------------------------------------------------------
+
+        # Construct an iterator with all possible combinations of uncontracted 
+        # indices. Note that the ordering is [scalar indices, vector_indices]
+        # Note that it is not important in which order they are, 
+        # since we loop over all of them, only that they are consistently applied. 
+        args = itertools.product(range(3), repeat=ndim)
+
+        Expression = Expression + ta.Den_line.substitute(dic)
+        if not intermediate:
+            Expression = Expression + ta.Den_comment.substitute(dic)
         else:
-            #-------------------------------------------------------------------
-            # These are all of the combinations needed for the summation indices
-            cont  = itertools.product(range(3), repeat=len(coupling))
-            
-            # All of the possibilities for the vector products
-            crossind = []
-            for i in range(len(cross)):
-                crossind = crossind  + (Rot_ind(arg[len(coupling) + i]))    
-            
+            Expression = Expression + ta.Den_intermediate_comment.substitute(dic)
 
-            # Combine all possibilities
-            if(len(crossind) != 0):
-                # all the combinations , including scalar and vector products
-                fullcont = []
-                for s in cont: 
-                    for r in crossind:            
-                        fullcont.append(s + r)
-            elif (threedim != 0 and len(crossind) == 0):
-                fullcont = []
-                for s in cont: 
-                    # Modify the number of possibilities for couplings between vector
-                    # products and scalar products. 
-                    threeopt = itertools.product(range(2), repeat=threedim)
-                    for r in threeopt:            
-                        fullcont.append(s + r)
-            elif (threedim != 0 and len(crossind) != 0):
-                fullcont = []
-                for s in cont: 
-                   for r in crossind: 
-                    threeopt = itertools.product(range(2), repeat=threedim)
-                    for t in threeopt:            
-                        fullcont.append(s + r + t)
+        for arg in args:
+            # We have the uncontracted indices. Now construct the combinations of
+            # indices, including contracted ones, that correspond to this. 
+            uncontracted = []
+            if len(coupling) + len(cross) == 0:
+                # Nothing to do if no couplings needed
+                uncontracted = [arg]
             else:
-                # No vector indices, and no scalar-vector
-                fullcont = cont
-              
-            #-------------------------------------------------------------------
-            # Note that now fullcont contains all of the terms needed for the
-            # particular argument of the left-hand side. 
-            #
-            #  The ordering of the indices is:
-            #    
-            #  ( mu, nu, ...., xsi , mx, nx, ....,zx  ,  ex, ey, ....., ez )  
-            #   < scalar indices >  < vector indices >  < contracted vectors)
-            #
-            #  corresponding to things of the form
-            #
-            #  coupling, (0,1)        cross (0,1)         coupling (0,1,2)
-            #
-            #  meaning 
-            #
-            #  the value of the   | the values of the  |  whether it is the 
-            #  indices in the     | vector indices     |  first term or the 
-            #  summation          |                    |  second in the vector
-            #                     |                    |  product
-            #-------------------------------------------------------------------
-            for c in fullcont:
-                p  = ()   
-                ii = 0
-                for i in range(LeftOperator.dimension + RightOperator.dimension):
-                    found = False                   
-                    for combination in coupling:
-                        if(i in combination): 
-                            if(len(combination) == 2):
-                                p = p + (c[coupling.index(combination)],)
-                                found = True
-                            elif(len(combination) == 3):    
-                                found = True
-                                if( i == combination[0] ):
+                #-------------------------------------------------------------------
+                # These are all of the combinations needed for the summation indices
+                cont = itertools.product(range(3), repeat=len(coupling))
+
+                # All of the possibilities for the vector products
+                crossind = []
+                for i in range(len(cross)):
+                    crossind = crossind + (Rot_ind(arg[len(coupling) + i]))
+
+                # Combine all possibilities
+                if len(crossind) != 0:
+                    # all the combinations , including scalar and vector products
+                    fullcont = []
+                    for s in cont:
+                        for r in crossind:
+                            fullcont.append(s + r)
+                elif (threedim != 0 and len(crossind) == 0):
+                    fullcont = []
+                    for s in cont:
+                        # Modify the number of possibilities for couplings between vector
+                        # products and scalar products. 
+                        threeopt = itertools.product(range(2), repeat=threedim)
+                        for r in threeopt:
+                            fullcont.append(s + r)
+                elif (threedim != 0 and len(crossind) != 0):
+                    fullcont = []
+                    for s in cont:
+                        for r in crossind:
+                            threeopt = itertools.product(range(2), repeat=threedim)
+                            for t in threeopt:
+                                fullcont.append(s + r + t)
+                else:
+                    # No vector indices, and no scalar-vector
+                    fullcont = cont
+
+                #-------------------------------------------------------------------
+                # Note that now fullcont contains all of the terms needed for the
+                # particular argument of the left-hand side. 
+                #
+                #  The ordering of the indices is:
+                #    
+                #  ( mu, nu, ...., xsi , mx, nx, ....,zx  ,  ex, ey, ....., ez )  
+                #   < scalar indices >  < vector indices >  < contracted vectors)
+                #
+                #  corresponding to things of the form
+                #
+                #  coupling, (0,1)        cross (0,1)         coupling (0,1,2)
+                #
+                #  meaning 
+                #
+                #  the value of the   | the values of the  |  whether it is the 
+                #  indices in the     | vector indices     |  first term or the 
+                #  summation          |                    |  second in the vector
+                #                     |                    |  product
+                #-------------------------------------------------------------------
+                for c in fullcont:
+                    p = ()
+                    ii = 0
+                    for i in range(LeftOperator.dimension + RightOperator.dimension):
+                        found = False
+                        for combination in coupling:
+                            if i in combination:
+                                if len(combination) == 2:
                                     p = p + (c[coupling.index(combination)],)
-                                elif( i == combination[1]):
-                                    rot = Rot_ind(c[coupling.index(combination)])
-                                    o = threecoupl.index(combination)
-                                    p = p + (rot[c[-1 -o]][0],)
-                                elif( i == combination[2]):
-                                    rot = Rot_ind(c[coupling.index(combination)])
-                                    o   = threecoupl.index(combination)
-                                    p = p + (rot[c[-1 -o]][1],)
-                    for combination in cross:
-                        if(i==combination[0]): 
+                                    found = True
+                                elif len(combination) == 3:
+                                    found = True
+                                    if i == combination[0]:
+                                        p = p + (c[coupling.index(combination)],)
+                                    elif i == combination[1]:
+                                        rot = Rot_ind(c[coupling.index(combination)])
+                                        o = threecoupl.index(combination)
+                                        p = p + (rot[c[-1 - o]][0],)
+                                    elif i == combination[2]:
+                                        rot = Rot_ind(c[coupling.index(combination)])
+                                        o = threecoupl.index(combination)
+                                        p = p + (rot[c[-1 - o]][1],)
+                        for combination in cross:
+                            if i == combination[0]:
                                 p = p + (c[cross.index(combination) + len(coupling)],)
                                 found = True
-                        if(i==combination[1]): 
-                                p = p + (c[cross.index(combination) + len(coupling) +1 ],)
-                                found = True    
-                    if(not found): 
+                            if i == combination[1]:
+                                p = p + (c[cross.index(combination) + len(coupling) + 1],)
+                                found = True
+                        if not found:
                             p = p + (arg[ii],)
-                            ii = ii +1
-                uncontracted.append(p)       
-        IND = ''
-        for mu in arg: 
-            IND = IND + ',' + str(int(abs(mu)+1)) # Python indexes 0:N-1
-        
-        dic['IND']       = IND
-        if(len(dic['IND']) > 1):
-            dic['IND_nocomma'] = '(' + IND[1:] + ')' # identical, but without leading comma and in brackets
-        else:
-            dic['IND_nocomma'] = ""
+                            ii = ii + 1
+                    uncontracted.append(p)
+            IND = ''
+            for mu in arg:
+                IND = IND + ',' + str(int(abs(mu) + 1))  # Python indexes 0:N-1
 
-        Expression = Expression +  ta.Den_1_spwf.substitute(dic)
+            dic['IND'] = IND
+            if len(dic['IND']) > 1:
+                dic['IND_nocomma'] = '(' + IND[1:] + ')'  # identical, but without leading comma and in brackets
+            else:
+                dic['IND_nocomma'] = ""
 
-        #-----------------------------------------------------------------------
-        # Now loop over the uncontracted indices
-        for true_arg in uncontracted: 
-            # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-            # Check if the indices for contraction are not superfluous
-            # 
-            # The ugly tuple(np.abs( construction is simply because abs doesn't 
-            # accept tuples as arguments, for whatever reasons.
-            larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
-            rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
+            Expression = Expression + ta.Den_1_spwf.substitute(dic)
 
-            #-------------------------------------------------------------------
-            # print some output on the densities
-            (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin)   
+            #-----------------------------------------------------------------------
+            # Now loop over the uncontracted indices
+            for true_arg in uncontracted:
+                # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+                # Check if the indices for contraction are not superfluous
+                # 
+                # The ugly tuple(np.abs( construction is simply because abs doesn't 
+                # accept tuples as arguments, for whatever reasons.
+                larg = tuple(np.abs(true_arg[:LeftOperator.dimension]))
+                rarg = tuple(np.abs(true_arg[LeftOperator.dimension:]))
 
-            direction = ['x', 'y', 'z']
-            pl = ''
-            for i in larg:
-              pl+=direction[i]
-            pr = ''
-            for i in rarg:
-              pr+=direction[i]
+                #-------------------------------------------------------------------
+                # print some output on the densities
+                (px, py, pz) = AxisReflection(LeftOperator, RightOperator, larg, rarg, so, 'P' in denin)
 
-            mu = larg
-            if(len(larg) == 0):     
-              mu = (0)
-            nu = rarg
-            if(len(rarg) == 0):     
-              nu = (0)
-            T   = LeftOperator.time[mu]   * RightOperator.time[nu]
-            par = LeftOperator.parity[mu] * RightOperator.parity[nu]
+                direction = ['x', 'y', 'z']
+                pl = ''
+                for i in larg:
+                    pl += direction[i]
+                pr = ''
+                for i in rarg:
+                    pr += direction[i]
 
-            try:    
-                if(len(T)>0):
-                  T   = T[0]
-                  par = par[0]
-            except:        
-                pass
- 
-            if(not silent):
-                print (r'%15s %4s %4s  $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ \\' \
-                  %(denin, pl, pr, T, par, par*int(px),par*int(py),par*int(pz),int(px),int(py),int(pz)))
-            #-------------------------------------------------------------------
+                mu = larg
+                if len(larg) == 0:
+                    mu = (0)
+                nu = rarg
+                if len(rarg) == 0:
+                    nu = (0)
+                T = LeftOperator.time[mu] * RightOperator.time[nu]
+                par = LeftOperator.parity[mu] * RightOperator.parity[nu]
 
-            # Get the index of the reduced storage scheme for all of the 
-            # derivative indices
-            larg_stor= Storage_Mapping(larg[:LeftOperator.derorder])
-            rarg_stor= Storage_Mapping(rarg[:RightOperator.derorder])
-                       
-            leftind  = LeftOperator(larg, start)
-            rightind = RightOperator(rarg, start)
-            
-            lcolumns =  leftind.shape[1] 
-            rcolumns = rightind.shape[1]
+                try:
+                    if len(T) > 0:
+                        T = T[0]
+                        par = par[0]
+                except:
+                    pass
 
-            LIND = ''
-            RIND = ''
+                if not silent:
+                    print(r'%15s %4s %4s  $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ & $%+d$ \\'
+                        % (denin, pl, pr, T, par, par * int(px), par * int(py), par * int(pz), int(px), int(py), int(pz)))
+                #-------------------------------------------------------------------
 
-            # only nablas are symmetric
-            if(len(larg[:LeftOperator.derorder])>0):       
-                LIND = LIND + ',' + str(int(larg_stor+1))
-            if(len(rarg[:RightOperator.derorder])>0):
-                RIND = RIND + ',' + str(int(rarg_stor+1))
-            
-            dic['LIND'] = LIND
-            dic['RIND'] = RIND
-            
-            for i in range(4):
-                SIGN          = np.sign(leftind[i])*np.sign(rightind[i])
-                # We add a minus sign for the pairing densities
-                if('P' in denin):
-                  SIGN = - SIGN
+                # Get the index of the reduced storage scheme for all of the 
+                # derivative indices
+                larg_stor = Storage_Mapping(larg[:LeftOperator.derorder])
+                rarg_stor = Storage_Mapping(rarg[:RightOperator.derorder])
 
-                for l in true_arg:
-                    if( l  == 0):
-                       SIGN = SIGN
+                leftind = LeftOperator(larg, start)
+                rightind = RightOperator(rarg, start)
+
+                lcolumns = leftind.shape[1]
+                rcolumns = rightind.shape[1]
+
+                LIND = ''
+                RIND = ''
+
+                # only nablas are symmetric
+                if len(larg[:LeftOperator.derorder]) > 0:
+                    LIND = LIND + ',' + str(int(larg_stor + 1))
+                if len(rarg[:RightOperator.derorder]) > 0:
+                    RIND = RIND + ',' + str(int(rarg_stor + 1))
+
+                dic['LIND'] = LIND
+                dic['RIND'] = RIND
+
+                for i in range(4):
+                    SIGN = np.sign(leftind[i]) * np.sign(rightind[i])
+                    # We add a minus sign for the pairing densities
+                    if 'P' in denin:
+                        SIGN = -SIGN
+
+                    for l in true_arg:
+                        if l == 0:
+                            SIGN = SIGN
+                        else:
+                            SIGN = SIGN * np.sign(l)
+                    if SIGN > 0:
+                        dic['SIGN'] = '+'
                     else:
-                       SIGN = SIGN * np.sign(l)
-                if(SIGN > 0) :
-                    dic['SIGN']   = '+'
-                else :
-                    dic['SIGN']   = '-'
-                dic['RCOMP'] = str(int(abs(rightind[i,0])))
-                dic['LCOMP'] = str(int(abs( leftind[i,0])))
-                Expression = Expression +  \
-                            '& \n               &' +  \
-                            ta.Den_diag.substitute(dic)
-        Expression = Expression +  '\n'
+                        dic['SIGN'] = '-'
+                    dic['RCOMP'] = str(int(abs(rightind[i, 0])))
+                    dic['LCOMP'] = str(int(abs(leftind[i, 0])))
+                    Expression = Expression + \
+                        '& \n               &' + \
+                        ta.Den_diag.substitute(dic)
+            Expression = Expression + '\n'
 
-
-        # Final summation
-        if( not intermediate):
-          # Only sum for storage if the object is not intermediate
-
-          if(weight != 'potential'):
-            dic['WEIGHT']    = weight
-            if(complex_component == +1):
-                Expression = Expression + ta.Den_sum_realpart.substitute(dic) + '\n\n'
-            elif(complex_component == -1):
-                Expression = Expression + ta.Den_sum_imagpart.substitute(dic) + '\n\n'
-            elif(complex_component == +0):
-                Expression = Expression + ta.Den_sum_real.substitute(dic)    + '\n\n'
-          else:
-            if(symmetrize == -1 and ('C' in denin)): # dirty hack!
-                mult = '(-0.5d0) *'
-            elif(symmetrize == +1 or symmetrize == -1):
-                mult = '(+0.5d0) *'
-            else:
-                mult = ''
-            dic['WEIGHT']    = mult + 'F%'+density.replace('D', 'F').replace('C','G') + '(i' + IND+  ',it)'
-
-            if(complex_component == +1):
-                Expression = Expression + ta.Sph_sum_realpart.substitute(dic) + '\n\n'
-            elif(complex_component == -1):
-                Expression = Expression + ta.Sph_sum_imagpart.substitute(dic) + '\n\n'
-            elif(complex_component == +0):
-                Expression = Expression + ta.Sph_sum_real.substitute(dic)    + '\n\n'
-
-        # And add a line for the isospin coupling
-        if('P' not in density):
-          Isospincoupl = Isospincoupl + ta.Den_iso_comment.substitute(dic) 
-          Isospincoupl = Isospincoupl + ta.iso_normal.substitute(dic) 
-          
-          
-        #-----------------------------------------------------------------------
-        # Generate expressions for the calculation of derivatives of densities
-        if(len(derivative_combinations)> 1):
-            Derivation = Derivation + ta.Den_line.substitute(dic)
-            Derivation = Derivation + ta.Den_comment_deriv.substitute(dic)
-
-        for c in derivative_combinations:
-            if(c == (0,0)):
-                continue
-            Derivation = Derivation + ta.Den_comment_deriv_b%(c[0], c[1])
-            
-            deriv_args = list(itertools.product(range(3),repeat=c[1]))
-
-            # Arguments of the derivative operators
-            # name of the derivative
-            if(c[0] == 0):
-                dic['NAME'] = (c[1]-1)*'Der_' + density
-            else:
-                dic['NAME'] = (c[0]-1)*'Lap_' + (c[1])*'Der_' + density
-
-            if(density_spwf_summation):
-              # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-              # Add the calculation of derivatives through summation of
-              # the extra densities.
-              # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-              if(c[1] != 0): # There is a gradient here
-                # Get only the independent derivative operations
-                deriv_args= sorted(list(set([tuple(sorted(da)) for da in deriv_args])))
-                for darg in deriv_args: 
-                  directions = ['X', 'Y', 'Z']
-                  dic['DIR'] = directions[darg[0]]
-
-                  if(c[0] > 0):
-                    print ("HEPHAESTOS cannot yet combine laplacians and gradients with DENSUM=1.")
-                  else:
-                    if(c[1] == 1):
-                      # - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-                      # There is no laplacian and but a single gradient.
-                      lleft  = 'N' + left.replace('I','')
-                      rright = 'N' + right.replace('I','')
-
-                      # nabla D^L,R = D^nabla L, R + D^L, nabla R 
-                      #   Den       = LEFTDEN      + RIGHTDEN
-                      dic['LEFTDEN']   = ReconstructDensity(c[1]-1, c[0], lleft, right)
-                      dic['RIGHTDEN']  = ReconstructDensity(c[1]-1, c[0], left, rright)
-
-                      # DERIND       , DERLIND, DERRIND
-                      # Note that the first uses reduced storage mapping due to 
-                      # symmetries of multiple derivative operators.
-                      # LEFTIND and RIGHTIND do not use this yet!
-                      dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
-
-                      dargstring=''
-                      for dargind in darg:
-                        dargstring = dargstring + str(dargind+1) + ','
-                      dargstring = dargstring[:-1]
-                      
-                      # The nabla operator is added to the start of left, i.e.
-                      # it can be added to the left of the indices string.
-                      dic['DERLIND'] =  dargstring + IND
-                      # The nabla operator is added to the start of right; we 
-                      # have to find out which indices are "left" and "right"
-                      # and insert the dargstring in between
-                      ldim = LeftOperator.dimension
-                      dic['DERRIND'] = IND[:ldim] + dargstring + IND[ldim:]
-                      
-                      Derivation     = Derivation + ta.Der_sum.substitute(dic)
-                      # Add a line for the isospin coupling while we are here
-                      if('P' not in density):
-                          Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic)
-                    elif(c[1] == 2):
-                      # - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-                      # There is no laplacian but a double gradient.
-                      lleft  = 'NN' + left.replace('I','')
-                      rright = 'NN' + right.replace('I','')
-
-                      # NN D^L,R = D^NN L, R + D^L, NN R + 2 D^N L, N R 
-                      #   Den       = LEFTDEN      + RIGHTDEN
-                      dic['LEFTDEN']    = ReconstructDensity(0, 0, lleft, right)
-                      dic['RIGHTDEN']   = ReconstructDensity(0, 0, left, rright)
-       
-                      lleft  = 'N' + left.replace('I','')
-                      rright = 'N' + right.replace('I','')
-                      dic['CENTRALDEN'] = ReconstructDensity(0, 0, lleft, rright)
-
-                      # DERIND       , DERLIND, DERRIND
-                      # Note that the first uses reduced storage mapping due to 
-                      # symmetries of multiple derivative operators.
-                      # LEFTIND and RIGHTIND do not use this yet!
-                      dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
-
-                      # On the left, the new Nabla's precede all other arguments
-                      dic['DERLIND']  =  str(darg[0]+1)+',' + str(darg[1]+1) + IND
-                      # On the right, the new Nabla's precede only the indices of the right operator
-                      ldim = LeftOperator.dimension
-                      if(ldim > 0):
-                        dic['DERRIND']  =     IND[0:ldim]+',' \
-                                        + str(darg[0]+1)+',' \
-                                        + str(darg[1]+1)+    \
-                                             IND[ldim:]
-                      else:
-                        dic['DERRIND']  = str(darg[0]+1)+',' \
-                                        + str(darg[1]+1)+    \
-                                             IND[ldim:]
-
-                      # In the center, one nabla is on the left
-                      dic['DERCIND']  =      str(darg[0]+1)    \
-                                             + IND[0:ldim]   +','\
-                                             + str(darg[1]+1) + IND[ldim:]
-                      Derivation  = Derivation + ta.Der_der_sum.substitute(dic)
-                      
-                      # Add a line for the isospin coupling while we are here
-                      if('P' not in density):
-                          Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic) 
+            # Final summation
+            if not intermediate:
+                # Only sum for storage if the object is not intermediate
+                if weight != 'potential':
+                    dic['WEIGHT'] = weight
+                    if complex_component == +1:
+                        Expression = Expression + ta.Den_sum_realpart.substitute(dic) + '\n\n'
+                    elif complex_component == -1:
+                        Expression = Expression + ta.Den_sum_imagpart.substitute(dic) + '\n\n'
+                    elif complex_component == +0:
+                        Expression = Expression + ta.Den_sum_real.substitute(dic) + '\n\n'
+                else:
+                    if symmetrize == -1 and ('C' in denin):  # dirty hack!
+                        mult = '(-0.5d0) *'
+                    elif symmetrize == +1 or symmetrize == -1:
+                        mult = '(+0.5d0) *'
                     else:
-                      print ('Hephaestos cannot yet handle more than 2 gradients with DENSYM!')
-                      sys.exit(1)
-                        
-              else: # there is only a Laplacian here
-                lleft  = 'NN' + left.replace('I','')
-                rright = 'NN' + right.replace('I','')
+                        mult = ''
+                    dic['WEIGHT'] = mult + 'F%' + density.replace('D', 'F').replace('C', 'G') + '(i' + IND + ',it)'
 
-                # Delta D^L,R = D^Delta L, R + D^L, Delta R + 2 D^Nabla L, Nabla R 
-                #   Den       = LEFTDEN      + RIGHTDEN
-                dic['LEFTDEN']    = ReconstructDensity(c[1]-1, 0, lleft, right)
-                dic['RIGHTDEN']   = ReconstructDensity(c[1]-1, 0, left, rright)
- 
-                lleft  = 'N' + left.replace('I','')
-                rright = 'N' + right.replace('I','')
-                dic['CENTRALDEN'] = ReconstructDensity(c[1]-1, 0, lleft, rright)
+                    if complex_component == +1:
+                        Expression = Expression + ta.Sph_sum_realpart.substitute(dic) + '\n\n'
+                    elif complex_component == -1:
+                        Expression = Expression + ta.Sph_sum_imagpart.substitute(dic) + '\n\n'
+                    elif complex_component == +0:
+                        Expression = Expression + ta.Sph_sum_real.substitute(dic) + '\n\n'
 
-                dic['IND']      =  IND
-                Derivation  = Derivation + ta.Lap_sum_a.substitute(dic)
-                for k in range(3):
-                  dic['DERLIND']  =  str(k+1)+',' + str(k+1) + IND
-                  dic['DERRIND']  =  str(k+1)+',' + str(k+1) + IND
-                  dic['DERCIND']  =  str(k+1)+',' + str(k+1) + IND
-                  Derivation  = Derivation + ta.Lap_sum_b.substitute(dic)
-                Derivation = Derivation[:-2]
-                
-                # Add a line for the isospin coupling while we are here
-                if('P' not in density):
-                    Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic) 
-            else:
-              # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-              # Add the calculation of the derivatives of the original  
-              # density through calls to derivative routines.
-              #
-              # Note that larg and rarg need not be redefined here. They 
-              # take the value of the last combination of uncontracted 
-              # indices. This is sufficient, because necessarily all of the 
-              # combinations of larg and rarg need to exhibit the same 
-              # symmetries. 
-              # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-              if(c[1] != 0):
-               # Get only the independent derivative operations
-               deriv_args= sorted(list(set([tuple(sorted(da)) for da in deriv_args])))
-               for darg in deriv_args: 
-                  directions = ['X', 'Y', 'Z']
-                  dic['DIR'] = directions[darg[0]]
-                  
-                  # Note that the symmetries put into a certain call to the 
-                  # derivatives are determined by 
-                  # a) left- and right-operator
-                  # b) indices (arguments) of these
-                  # c) but also all the arguments of previously applied
-                  #    derivatives.
-                  # 
-                  # This makes this particular bit of code rather complicated.
-                  
-                  # Decide if we need to use a gradient or a laplacian routine
-                  if(c[0] > 0):
-                      # There is a Laplacian involved, and we first calculate
-                      # all derivatives, and then only afterwards laplacians.
+            # And add a line for the isospin coupling
+            if 'P' not in density:
+                Isospincoupl = Isospincoupl + ta.Den_iso_comment.substitute(dic)
+                Isospincoupl = Isospincoupl + ta.iso_normal.substitute(dic)
 
-                      (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin,darg)
-                      dic['PX']    = str(px)
-                      dic['PY']    = str(py)
-                      dic['PZ']    = str(pz) 
+            #-----------------------------------------------------------------------
+            # Generate expressions for the calculation of derivatives of densities
+            if len(derivative_combinations) > 1:
+                Derivation = Derivation + ta.Den_line.substitute(dic)
+                Derivation = Derivation + ta.Den_comment_deriv.substitute(dic)
 
-                      if(len(darg) > 0):
-                          dic['IND'] = ',' + str(int(Storage_Mapping(darg)+1)) + IND
-                      else:
-                          dic['IND'] = IND     
-                      Derivation     = Derivation + ta.Lap.substitute(dic)
+            for c in derivative_combinations:
+                if c == (0, 0):
+                    continue
+                Derivation = Derivation + ta.Den_comment_deriv_b % (c[0], c[1])
 
-                      # Add a line for the isospin coupling while we are here
-                      if('P' not in density):
-                        Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic) 
+                deriv_args = list(itertools.product(range(3), repeat=c[1]))
 
-                  else:
-                      # There is no laplacian, so we only calculate partial
-                      # derivatives
+                # Arguments of the derivative operators
+                # name of the derivative
+                if c[0] == 0:
+                    dic['NAME'] = (c[1] - 1) * 'Der_' + density
+                else:
+                    dic['NAME'] = (c[0] - 1) * 'Lap_' + (c[1]) * 'Der_' + density
 
-                      (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin,darg[1:])
-                      dic['PX']    = str(px)
-                      dic['PY']    = str(py)
-                      dic['PZ']    = str(pz) 
-                              
-                      syms = (px,py,pz)
-                      dic['PS'] = syms[darg[0]]
-                      
-                      dic['DERIND']  = ',' + str(int(Storage_Mapping(darg)+1)) + IND
-                      if(len(darg) > 1):
-                          dic['IND'] =  ',' + str(int(Storage_Mapping(darg[1:])+1)) + IND
-                      else:
-                          dic['IND'] = IND     
-                      Derivation     = Derivation  + ta.Der_indep.substitute(dic)
-                      
-                      # Add a line for the isospin coupling while we are here
-                      if('P' not in density):
-                        dic['DARG'] = str(darg)
-                        dic['DC'] = str(c)
-                        Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic) 
-              else:
-                  # Pure Laplacian operators
-                  (px,py,pz)   = AxisReflection(LeftOperator, RightOperator,larg,rarg,so,'P' in denin)
-                  dic['PX']    = str(px) #+ 'd0'
-                  dic['PY']    = str(py) #+ 'd0'
-                  dic['PZ']    = str(pz) #+ 'd0'
-                  
-                  dic['IND']  =  IND  
-                  Derivation  = Derivation + ta.Lap.substitute(dic)
-                  
-                  # Add a line for the isospin coupling while we are here
-                  if('P' not in density):
-                    Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic) 
+                if density_spwf_summation:
+                    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+                    # Add the calculation of derivatives through summation of
+                    # the extra densities.
+                    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                    if c[1] != 0:  # There is a gradient here
+                        # Get only the independent derivative operations
+                        deriv_args = sorted(list(set([tuple(sorted(da)) for da in deriv_args])))
+                        for darg in deriv_args:
+                            directions = ['X', 'Y', 'Z']
+                            dic['DIR'] = directions[darg[0]]
 
-        if(len(derivative_combinations)> 1):
-          Derivation  = Derivation   + '\n'
-          Isospincoupl= Isospincoupl + '\n'
-        
-        dic['NAME'] = density
-        
-    Expression = Expression + ta.Den_line.substitute(dic)
+                            if c[0] > 0:
+                                print("HEPHAESTOS cannot yet combine laplacians and gradients with DENSUM=1.")
+                            else:
+                                if c[1] == 1:
+                                    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                                    # There is no laplacian and but a single gradient.
+                                    lleft = 'N' + left.replace('I', '')
+                                    rright = 'N' + right.replace('I', '')
+
+                                    # nabla D^L,R = D^nabla L, R + D^L, nabla R 
+                                    #   Den       = LEFTDEN      + RIGHTDEN
+                                    dic['LEFTDEN'] = ReconstructDensity(c[1] - 1, c[0], lleft, right)
+                                    dic['RIGHTDEN'] = ReconstructDensity(c[1] - 1, c[0], left, rright)
+
+                                    # DERIND       , DERLIND, DERRIND
+                                    # Note that the first uses reduced storage mapping due to 
+                                    # symmetries of multiple derivative operators.
+                                    # LEFTIND and RIGHTIND do not use this yet!
+                                    dic['DERIND'] = ',' + str(int(Storage_Mapping(darg) + 1)) + IND
+
+                                    dargstring = ''
+                                    for dargind in darg:
+                                        dargstring = dargstring + str(dargind + 1) + ','
+                                    dargstring = dargstring[:-1]
+
+                                    # The nabla operator is added to the start of left, i.e.
+                                    # it can be added to the left of the indices string.
+                                    dic['DERLIND'] = dargstring + IND
+                                    # The nabla operator is added to the start of right; we 
+                                    # have to find out which indices are "left" and "right"
+                                    # and insert the dargstring in between
+                                    ldim = LeftOperator.dimension
+                                    dic['DERRIND'] = IND[:ldim] + dargstring + IND[ldim:]
+
+                                    Derivation = Derivation + ta.Der_sum.substitute(dic)
+                                    # Add a line for the isospin coupling while we are here
+                                    if 'P' not in density:
+                                        Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic)
+                                elif c[1] == 2:
+                                    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                                    # There is no laplacian but a double gradient.
+                                    lleft = 'NN' + left.replace('I', '')
+                                    rright = 'NN' + right.replace('I', '')
+
+                                    # NN D^L,R = D^NN L, R + D^L, NN R + 2 D^N L, N R 
+                                    #   Den       = LEFTDEN      + RIGHTDEN
+                                    dic['LEFTDEN'] = ReconstructDensity(0, 0, lleft, right)
+                                    dic['RIGHTDEN'] = ReconstructDensity(0, 0, left, rright)
+
+                                    lleft = 'N' + left.replace('I', '')
+                                    rright = 'N' + right.replace('I', '')
+                                    dic['CENTRALDEN'] = ReconstructDensity(0, 0, lleft, rright)
+
+                                    # DERIND       , DERLIND, DERRIND
+                                    # Note that the first uses reduced storage mapping due to 
+                                    # symmetries of multiple derivative operators.
+                                    # LEFTIND and RIGHTIND do not use this yet!
+                                    dic['DERIND'] = ',' + str(int(Storage_Mapping(darg) + 1)) + IND
+
+                                    # On the left, the new Nabla's precede all other arguments
+                                    dic['DERLIND'] = str(darg[0] + 1) + ',' + str(darg[1] + 1) + IND
+                                    # On the right, the new Nabla's precede only the indices of the right operator
+                                    ldim = LeftOperator.dimension
+                                    if ldim > 0:
+                                        dic['DERRIND'] = IND[0:ldim] + ',' \
+                                            + str(darg[0] + 1) + ',' \
+                                            + str(darg[1] + 1) + \
+                                            IND[ldim:]
+                                    else:
+                                        dic['DERRIND'] = str(darg[0] + 1) + ',' \
+                                            + str(darg[1] + 1) + \
+                                            IND[ldim:]
+
+                                    # In the center, one nabla is on the left
+                                    dic['DERCIND'] = str(darg[0] + 1) \
+                                        + IND[0:ldim] + ',' \
+                                        + str(darg[1] + 1) + IND[ldim:]
+                                    Derivation = Derivation + ta.Der_der_sum.substitute(dic)
+
+                                    # Add a line for the isospin coupling while we are here
+                                    if 'P' not in density:
+                                        Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic)
+                                else:
+                                    print('Hephaestos cannot yet handle more than 2 gradients with DENSYM!')
+                                    sys.exit(1)
+
+                    else:  # there is only a Laplacian here
+                        lleft = 'NN' + left.replace('I', '')
+                        rright = 'NN' + right.replace('I', '')
+
+                        # Delta D^L,R = D^Delta L, R + D^L, Delta R + 2 D^Nabla L, Nabla R 
+                        #   Den       = LEFTDEN      + RIGHTDEN
+                        dic['LEFTDEN'] = ReconstructDensity(c[1] - 1, 0, lleft, right)
+                        dic['RIGHTDEN'] = ReconstructDensity(c[1] - 1, 0, left, rright)
+
+                        lleft = 'N' + left.replace('I', '')
+                        rright = 'N' + right.replace('I', '')
+                        dic['CENTRALDEN'] = ReconstructDensity(c[1] - 1, 0, lleft, rright)
+
+                        dic['IND'] = IND
+                        Derivation = Derivation + ta.Lap_sum_a.substitute(dic)
+                        for k in range(3):
+                            dic['DERLIND'] = str(k + 1) + ',' + str(k + 1) + IND
+                            dic['DERRIND'] = str(k + 1) + ',' + str(k + 1) + IND
+                            dic['DERCIND'] = str(k + 1) + ',' + str(k + 1) + IND
+                            Derivation = Derivation + ta.Lap_sum_b.substitute(dic)
+                        Derivation = Derivation[:-2]
+
+                        # Add a line for the isospin coupling while we are here
+                        if 'P' not in density:
+                            Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic)
+                else:
+                    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                    # Add the calculation of the derivatives of the original  
+                    # density through calls to derivative routines.
+                    #
+                    # Note that larg and rarg need not be redefined here. They 
+                    # take the value of the last combination of uncontracted 
+                    # indices. This is sufficient, because necessarily all of the 
+                    # combinations of larg and rarg need to exhibit the same 
+                    # symmetries. 
+                    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                    if c[1] != 0:
+                        # Get only the independent derivative operations
+                        deriv_args = sorted(list(set([tuple(sorted(da)) for da in deriv_args])))
+                        for darg in deriv_args:
+                            directions = ['X', 'Y', 'Z']
+                            dic['DIR'] = directions[darg[0]]
+
+                            # Note that the symmetries put into a certain call to the 
+                            # derivatives are determined by 
+                            # a) left- and right-operator
+                            # b) indices (arguments) of these
+                            # c) but also all the arguments of previously applied
+                            #    derivatives.
+                            # 
+                            # This makes this particular bit of code rather complicated.
+
+                            # Decide if we need to use a gradient or a laplacian routine
+                            if c[0] > 0:
+                                # There is a Laplacian involved, and we first calculate
+                                # all derivatives, and then only afterwards laplacians.
+
+                                (px, py, pz) = AxisReflection(LeftOperator, RightOperator, larg, rarg, so, 'P' in denin, darg)
+                                dic['PX'] = str(px)
+                                dic['PY'] = str(py)
+                                dic['PZ'] = str(pz)
+
+                                if len(darg) > 0:
+                                    dic['IND'] = ',' + str(int(Storage_Mapping(darg) + 1)) + IND
+                                else:
+                                    dic['IND'] = IND
+                                Derivation = Derivation + ta.Lap.substitute(dic)
+
+                                # Add a line for the isospin coupling while we are here
+                                if 'P' not in density:
+                                    Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic)
+
+                            else:
+                                # There is no laplacian, so we only calculate partial
+                                # derivatives
+
+                                (px, py, pz) = AxisReflection(LeftOperator, RightOperator, larg, rarg, so, 'P' in denin, darg[1:])
+                                dic['PX'] = str(px)
+                                dic['PY'] = str(py)
+                                dic['PZ'] = str(pz)
+
+                                syms = (px, py, pz)
+                                dic['PS'] = syms[darg[0]]
+
+                                dic['DERIND'] = ',' + str(int(Storage_Mapping(darg) + 1)) + IND
+                                if len(darg) > 1:
+                                    dic['IND'] = ',' + str(int(Storage_Mapping(darg[1:]) + 1)) + IND
+                                else:
+                                    dic['IND'] = IND
+                                Derivation = Derivation + ta.Der_indep.substitute(dic)
+
+                                # Add a line for the isospin coupling while we are here
+                                if 'P' not in density:
+                                    dic['DARG'] = str(darg)
+                                    dic['DC'] = str(c)
+                                    Isospincoupl = Isospincoupl + ta.iso_der.substitute(dic)
+                    else:
+                        # Pure Laplacian operators
+                        (px, py, pz) = AxisReflection(LeftOperator, RightOperator, larg, rarg, so, 'P' in denin)
+                        dic['PX'] = str(px)  # + 'd0'
+                        dic['PY'] = str(py)  # + 'd0'
+                        dic['PZ'] = str(pz)  # + 'd0'
+
+                        dic['IND'] = IND
+                        Derivation = Derivation + ta.Lap.substitute(dic)
+
+                        # Add a line for the isospin coupling while we are here
+                        if 'P' not in density:
+                            Isospincoupl = Isospincoupl + ta.iso_lap.substitute(dic)
+
+            if len(derivative_combinations) > 1:
+                Derivation = Derivation + '\n'
+                Isospincoupl = Isospincoupl + '\n'
+
+            dic['NAME'] = density
+
+        Expression = Expression + ta.Den_line.substitute(dic)
         
     return (Expression, Declaration, spwf_dec, Initialisation, Derivation, Isospincoupl,\
                                    MPI_reduce, Zeroing, Memory, Cleaning, Add, Multiply)

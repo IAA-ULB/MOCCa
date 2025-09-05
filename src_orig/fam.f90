@@ -14,6 +14,11 @@ module fam
   !
   !------------------------------------------------------------------------------
   ! A FAM-QRPA implementation to complement MOCCa.
+  !------------------------------------------------------------------------------
+  ! Hephaestos keywords
+  ! 
+  ! TR  : $TR
+  ! NTR : $NTR
   !==============================================================================
 
   use densities
@@ -355,7 +360,6 @@ module fam
 
     if (fam_verbose > 1) print *, "iterate_dH :: starting full FAM loop "
 
-
     ! pointer remapping for reshaping 1D flat arrays into 2D matrices
     dHsp(1:nwt,1:nwt) => dHsp_flat(:)
     dHspout(1:nwt,1:nwt) => dHspout_flat(:)
@@ -450,7 +454,8 @@ module fam
       e_h = spenergies(h) 
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-        occ_p = 1.0 - rho_can(p) ! degeneracy is always 1 since T is broken
+$TR         occ_p = 2.0d0 - rho_can(p) ! degeneracy is 2 when T is conserved
+$NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
         e_p = spenergies(p) 
         if(occ_p < 1d-6) cycle
         X(p,h) = X(p,h) / (e_p - e_h - CMPLX(omega_fam,smear,KIND=dp) )
@@ -592,11 +597,14 @@ module fam
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-        occ_p = 1.0 - rho_can(p) 
+$TR         occ_p = 2.0d0 - rho_can(p) 
+$NTR        occ_p = 1.0d0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
         S = S + conjg(F(p,h,1)) * X(p,h) + conjg(F(p,h,2)) * Y(p,h)
       enddo
     enddo
+
+$TR S = 2 * S ! Time-reversal factor 2
 
     S_out = - S%im / pi
 
@@ -678,13 +686,13 @@ module fam
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-        occ_p = 1.0 - rho_can(p) 
+$TR         occ_p = 2.0d0 - rho_can(p)
+$NTR        occ_p = 1.0d0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
-        Mph(p,h) = occ_p * occ_h * M(p,h)
-        Mhp(p,h) = occ_p * occ_h * M(h,p)
+        Mph(p,h) = M(p,h)
+        Mhp(p,h) = M(h,p)
       enddo
     enddo
-
     ! This can be more efficient by using some mask and elementwise multiplication
 
     ! For QFAM this will have to be generalised to M20 and M02 obtained from a 
@@ -716,10 +724,11 @@ module fam
       occ_h = rho_can(h)
       if(occ_h < 1d-6) cycle
       do p = 1, nwt
-        occ_p = 1.0 - rho_can(p)
+$TR         occ_p = 2.0d0 - rho_can(p)
+$NTR        occ_p = 1.0d0 - rho_can(p) 
         if(occ_p < 1d-6) cycle
-        Mph(p,h) = occ_p * occ_h * M(p,h)
-        Mhp(p,h) = occ_p * occ_h * M(h,p)
+        Mph(p,h) = M(p,h)
+        Mhp(p,h) = M(h,p)
       enddo
     enddo
 

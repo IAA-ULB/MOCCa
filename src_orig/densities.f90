@@ -719,15 +719,15 @@ subroutine densit_offdiag(rho, kappa, Rs, Ra)
 
     call stop_timer(T_den_perturbed)
 
-    ! call print_maxval('D_I_I'  , Rs%D_I_I  , Ra%D_I_I)
-    ! call print_maxval('D_Nm_Nm', Rs%D_Nm_Nm, Ra%D_Nm_Nm)
-    ! call print_maxval('D_I_Sx', Rs%D_I_S(:,1,:), Ra%D_I_S(:,1,:))
-    ! call print_maxval('D_I_Sy', Rs%D_I_S(:,2,:), Ra%D_I_S(:,2,:))
-    ! call print_maxval('D_I_Sz', Rs%D_I_S(:,3,:), Ra%D_I_S(:,3,:))
-    ! call print_maxval('C_I_Nx', Rs%C_I_N(:,1,:), Ra%C_I_N(:,1,:))
-    ! call print_maxval('C_I_Ny', Rs%C_I_N(:,2,:), Ra%C_I_N(:,2,:))
-    ! call print_maxval('C_I_Nz', Rs%C_I_N(:,3,:), Ra%C_I_N(:,3,:))
-    ! call print_maxval('C_I_NSxy', Rs%C_I_NS(:,1,2,:), Ra%C_I_NS(:,1,2,:))
+    !call print_maxval('D_I_I'  , Rs%D_I_I  , Ra%D_I_I)
+    !call print_maxval('D_Nm_Nm', Rs%D_Nm_Nm, Ra%D_Nm_Nm)
+    !call print_maxval('D_I_Sx', Rs%D_I_S(:,1,:), Ra%D_I_S(:,1,:))
+    !call print_maxval('D_I_Sy', Rs%D_I_S(:,2,:), Ra%D_I_S(:,2,:))
+    !call print_maxval('D_I_Sz', Rs%D_I_S(:,3,:), Ra%D_I_S(:,3,:))
+    !call print_maxval('C_I_Nx', Rs%C_I_N(:,1,:), Ra%C_I_N(:,1,:))
+    !call print_maxval('C_I_Ny', Rs%C_I_N(:,2,:), Ra%C_I_N(:,2,:))
+    !call print_maxval('C_I_Nz', Rs%C_I_N(:,3,:), Ra%C_I_N(:,3,:))
+    !call print_maxval('C_I_NSxy', Rs%C_I_NS(:,1,2,:), Ra%C_I_NS(:,1,2,:))
 
 end subroutine densit_offdiag
 
@@ -1000,9 +1000,28 @@ function calc_sphamil_me(denpsi, dendpsi, denddpsi, Fs, Fa, onthefly) result(sph
     call start_timer(T_spme_perturbed)
     sp_sym = calc_sphamil_me_sym    ( denpsi, dendpsi, denddpsi, Fs,  onthefly)
     sp_asym= calc_sphamil_me_antisym( denpsi, dendpsi, denddpsi, Fa,  onthefly)
-
     sphamil_me = sp_sym + sp_asym
     call stop_timer(T_spme_perturbed)
+
+    !si = 0
+    !do B=1,8
+    !  N = HFBlocks(B)!
+
+    !  print *, 'B = ', B, ' symmetric '
+    !  do i=1, N
+    !    print ('(99f10.3)'), sp_sym(si+i, si+1:si+N)
+    !  enddo
+    !  print *
+    !  print *, 'B = ', B, ' antisymmetric '
+    !  do i=1, N
+    !    print ('(99f10.3)'), sp_asym(si+i, si+1:si+N)
+    !  enddo
+    !  print *
+    !  print *
+!
+     ! si = si + N
+    !enddo
+
 end function calc_sphamil_me
 
 function calc_sphamil_me_sym( denpsi, dendpsi, denddpsi, F,  onthefly) result(sphamil_me)

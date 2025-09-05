@@ -1455,6 +1455,19 @@ $CALCPOTENTIALS
     !print *, 'SOLVING ANTISYMMETRIC PART'
     call solve_coulomb_linear_response(R, dRa,dFa,sx_rho_antisym,sy_rho_antisym,sz_rho_antisym)
 
+    !call print_maxval('F_I_I', dFs%F_I_I, dFa%F_I_I)
+    !call print_maxval('F_Nm_Nm', dFs%F_Nm_Nm, dFa%F_Nm_Nm)
+
+    !call print_maxval('F_I_Sx', dFs%F_I_S(:,1,:), dFa%F_I_S(:,1,:))
+    !call print_maxval('F_I_Sy', dFs%F_I_S(:,2,:), dFa%F_I_S(:,2,:))
+    !call print_maxval('F_I_Sz', dFs%F_I_S(:,3,:), dFa%F_I_S(:,3,:))
+
+    !call print_maxval('G_I_Nx', dFs%G_I_N(:,1,:), dFa%G_I_N(:,1,:))
+    !call print_maxval('G_I_Ny', dFs%G_I_N(:,2,:), dFa%G_I_N(:,2,:))
+    !call print_maxval('G_I_Nz', dFs%G_I_N(:,3,:), dFa%G_I_N(:,3,:))
+
+    !call print_maxval('G_I_NS', dFs%G_I_NS, dFa%G_I_NS)
+    
     !print *, 'MAXVAL dRs Re', maxval(ABS(DBLE(dRs%chargedensity)))
     !print *, 'MAXVAL dRs Im', maxval(ABS(AIMAG(dRs%chargedensity)))
     !print *, 'MAXVAL dRa Re', maxval(ABS(DBLE(dRa%chargedensity)))
