@@ -88,7 +88,7 @@ contains
     4 format('   Preconfactor= '      , f7.4)
     5 format('   Kerker k0   = '      , f7.4)
     6 format(' Potential mixing active!', /,     &  
-    &        '                  memory:' 2x, i4, &
+    &        '                  memory:',2x, i4, &
     &        '                stepsize:',2x, f7.4)    
         
     print 1

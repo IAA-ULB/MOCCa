@@ -856,7 +856,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
 
       print *, 'BLOCK', B
       do i=si+1,si+N
-        print "(*('('sf8.5','sf8.5')':x))",  A(i, si+1:si+N)
+        print "(*( '(',g12.5,',',g12.5,')',:))",  A(i, si+1:si+N)
       enddo
       print *
       si = si + N
