@@ -46,6 +46,7 @@ module fam
   integer :: fam_mixingscheme = 0 ! 0 : GMRES (default)
   !                                 1 : linear mixing of dH
   integer :: fam_maxiter = 100 ! maximal number of FAM iterations 
+  integer :: fam_maxhist = 100 ! maximal history size of GMRES iterations 
   ! Coefficient for the linear mixing of FAM iterations
   real(KIND=dp) :: fam_lin_mix = 0.3_dp
   !-----------------------------------------------------------------------------
@@ -127,6 +128,7 @@ module fam
   
 
   subroutine inifam(omega, DensUnper, PotUnper)
+    implicit none
     !---------------------------------------------------------------------------
     ! Allocate the FAM objects, set the external field F and initialise the X
     ! and Y from first order, i.e. dH=0. 
@@ -279,10 +281,10 @@ module fam
     integer(dp), intent(in), optional :: file_number
     real(KIND=dp) :: omega = -1.0_dp
     integer       :: mixingscheme = 0
-    integer       :: maxiter = 100
+    integer       :: maxiter = 100, maxhist = 100
 
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
-    &               l, m, XY_prec, mixingscheme, fam_lin_mix
+    &               maxhist, l, m, XY_prec, mixingscheme, fam_lin_mix
 
 
     if(MPI_rank .eq. 0) then
@@ -296,6 +298,7 @@ module fam
       endif
 
       fam_maxiter = maxiter
+      fam_maxhist = maxhist
       fam_mixingscheme = mixingscheme
 
       ! if a single fams frequency omega is passed, set min and max to omega
@@ -693,6 +696,7 @@ $NTR        occ_p = 1.0d0 - rho_can(p)
         Mhp(p,h) = M(h,p)
       enddo
     enddo
+
     ! This can be more efficient by using some mask and elementwise multiplication
 
     ! For QFAM this will have to be generalised to M20 and M02 obtained from a 

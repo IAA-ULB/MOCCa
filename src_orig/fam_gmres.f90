@@ -29,11 +29,12 @@ module gmres
 
   public
 
-    integer           :: gmres_itmax = 100
-    real(kind=dp)     :: gmres_tol = 1.0e-6_dp
-    integer           :: gmres_histmax = 10
-    integer           :: gmres_iter = 0
+    integer           :: gmres_itermax = 100 ! Max number of iterations, i.e. # apply_A(v) calls. 
+    integer           :: gmres_iter = 0      ! Current number of iterations, i.e. # apply_A(v) calls. 
+    integer           :: gmres_histmax = 10  ! Max history size, i.e. # of vectors in the GMRES workspace
+    integer           :: gmres_hist = 0      ! current number of vectors in GMRES workspace
     real(kind=dp)     :: gmres_res = 100.0
+    real(kind=dp)     :: gmres_precision = 1.0e-6_dp
     logical           :: gmres_verbose = .false.
 
     procedure(vectovec), pointer          :: apply_A
@@ -57,21 +58,47 @@ module gmres
   contains
 
 
-  subroutine alloc_gmres(A_proc, b_rhs, itmax, histmax, tol, xsize, norm_proc, dotprod_proc)
+  subroutine alloc_gmres(A_proc, b_rhs, itmax, histmax, prec, norm_proc, dotprod_proc)
+    !---------------------------------------------------------------------------------------
+    ! Allocate the GMRES workspace and set up all routines
+    !
+    ! INPUT : 
+    !    A_proc (procedural) = the update routine A : x -> A(x), must be of the form vectovec()
+    !    b_rhs (complex(:))  = right-hand-side of Ax=b one tries to solve
+    !    itmax (integer)     = maximal number of GMRES iterations, i.e. of A_proc calls
+    !    histmax (integer)   = maximal size of GMRES work space, i.e. number of vectors stored
+    !    prec (real)         = precision of the GMRES solver, stopped when residual < prec
+    !    norm_proc (procedural) 
+    !                        = routine to compute the norm of a vector x, 
+    !                          must be of the form vectoreal()
+    !    dotprod_proc (procedural) 
+    !                        = routine to compute the dotproduct of two vectors, 
+    !                          must be of the form vecvectocmplx()
+    ! 
+    !---------------------------------------------------------------------------------------
 
     procedure(vectovec)          :: A_proc
     complex(KIND=dp), intent(in) :: b_rhs(:)
-    integer         , intent(in) :: itmax, histmax, xsize
-    real(kind=dp)   , intent(in) :: tol
+    integer         , intent(in) :: itmax, histmax
+    integer                      :: xsize
+    real(kind=dp)   , intent(in) :: prec
     procedure(vectoreal)         :: norm_proc
     procedure(vecvectocmplx)     :: dotprod_proc
 
+    1 format(50('='), /, "Set up GMRES work space : ")
+    2 format(6x, "histmax = ", i8)
+    3 format(6x, "itmax   = ", i8)
+    4 format(6x, "prec     = ", es8.1)
+    5 format(6x, "x dim   = ", i8)
+    6 format(6x, "||b||   = ", f8.2)
+
+    xsize = size(b_rhs, 1)
 
     ! set GMRES params
-    gmres_itmax = itmax
+    gmres_itermax = itmax
     gmres_histmax = histmax
-    gmres_tol = tol
-    gmres_iter = 0
+    gmres_precision = prec
+    gmres_hist = 0
 
     ! set the procedure pointers
     apply_A => A_proc
@@ -96,15 +123,14 @@ module gmres
     x_gmres(:)  = 0
     y_minres(:) = 0
 
-
     b = b_rhs
 
-    print *, 'Set up GMRES work space : '
-    print *, '    histmax = ', gmres_histmax
-    print *, '    itmax   = ', gmres_itmax
-    print *, '    tol     = ', gmres_tol
-    print *, '    x dim   = ', xsize
-    print *, '   ||b||    = ', norm(b)
+    print 1
+    print 2, gmres_histmax
+    print 3, gmres_itermax
+    print 4, gmres_precision
+    print 5, xsize
+    print 6, norm(b)
 
 
   end subroutine alloc_gmres
@@ -125,7 +151,10 @@ module gmres
 
   subroutine init_gmres(x0)
     !-------------------------------------------------------------------------------
-    ! Initialize the GMRES solver and the first Arnoldi vector Q(:,1).
+    ! Initialize the GMRES solver and the first Arnoldi vector Q(:,1)
+    !
+    ! INPUT : 
+    !    x0 (complex(:)) = initial guess of a solution of Ax = b
     !-------------------------------------------------------------------------------
     complex(KIND=dp), intent(in)   :: x0(:)
     integer                        :: i
@@ -142,21 +171,31 @@ module gmres
 
     ! compute the initial residual vector r0 = b - A x0 
     call apply_A(x0, r0)
+    gmres_iter = gmres_iter + 1
 
     r0 = b - r0
     beta(1) = norm(r0)
     Q(:,1)  = r0(:) / beta(1)
 
     gmres_res =  beta(1) / norm(b)
-    gmres_iter = 1
+    gmres_hist = 1
 
     print 3, gmres_res
 
     if (gmres_verbose) then 
 
+      print *, "||r0||", norm(r0)
+      print *, "||x0||", norm(x0)
+
+      print *, 'x0 = '
+      do i=1,10
+          print "(*('(', E10.2, ',', E10.2, ') ', :))", x0(i)
+      enddo
+
+
       print *, 'r0 = b - A*x0 = '
-      do i=1,size(r0,1)
-          print "(*('(', F8.5, ',', F8.5, ') ', :))", r0(i)
+      do i=1,10
+          print "(*('(', E10.2, ',', E10.2, ') ', :))", r0(i)
       enddo
 
       print *, 'H = '
@@ -164,7 +203,7 @@ module gmres
           print "(*('(', F8.5, ',', F8.5, ') ', :))",  H(i, :)
       enddo
       print *, 'Q = '
-      do i=1,size(Q,1)
+      do i=1,10
           print "(*('(', F8.5, ',', F8.5, ') ', :))",  Q(i, :)
       enddo
 
@@ -192,25 +231,27 @@ module gmres
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! perform one Arnoldi iteration wj =  A(vj)
 
-    call apply_A(Q(:,gmres_iter), wj)
+    call apply_A(Q(:,gmres_hist), wj)
+    gmres_iter = gmres_iter + 1
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! preform modified Gram-Schmidt orthogonalisation
 
-    do i = 1, gmres_iter
-        H(i,gmres_iter) = dotprod( wj , Q(:,i) );
+    do i = 1, gmres_hist
+        H(i,gmres_hist) = dotprod( wj , Q(:,i) );
         ! note that DIRQFAM uses dot_product(Q, w) since they follow the physics 
         ! convention dot_product(x, y) = conjg(x) * y, while here the math convention 
         ! of Y SAAD is used. 
-        wj = wj - H(i,gmres_iter) * Q(:,i);
+        wj = wj - H(i,gmres_hist) * Q(:,i);
     end do
 
-    H(gmres_iter+1,gmres_iter) = norm(wj);
+    H(gmres_hist+1,gmres_hist) = norm(wj);
 
-    if(abs(H(gmres_iter+1,gmres_iter)) < 1E-8_dp) then
+    if(abs(H(gmres_hist+1,gmres_hist)) < 1E-8_dp) then
       print *, '||wj|| < 1e-8. Stopping GMRES'
+      gmres_itermax = gmres_iter
     else
-      Q(:,gmres_iter+1) = wj / norm(wj);
+      Q(:,gmres_hist+1) = wj / norm(wj);
     endif
     
     if (gmres_verbose) then 
@@ -219,7 +260,7 @@ module gmres
           print "(*('(', F8.5, ',', F8.5, ') ', :))",  H(i, :)
       enddo
       print *, 'Q = '
-      do i=1,size(Q,1)
+      do i=1,10
           print "(*('(', F8.5, ',', F8.5, ') ', :))",  Q(i, :)
       enddo
 
@@ -227,7 +268,20 @@ module gmres
 
     call minimize_residual()
 
-    gmres_iter = gmres_iter + 1
+    gmres_hist = gmres_hist + 1
+
+    if (gmres_hist > gmres_histmax) then
+      print *, 'restart gmres solver'
+
+      ! compute the current best GMRES approximation to X
+      call extract_x_gmres()
+
+      ! reinitialise GMRES solver with this approximant as the initial guess
+      H(:,:)      = 0
+      Q(:,:)      = 0
+      call init_gmres(x_gmres)
+
+    endif
 
   end subroutine iterate_gmres
 
@@ -237,8 +291,8 @@ module gmres
     ! the lapack routine zgels
     !-------------------------------------------------------------------------------
 
-    complex(KIND=dp) :: H_tmp(gmres_iter+1,gmres_iter)
-    complex(KIND=dp) :: beta_tmp(gmres_iter+1)
+    complex(KIND=dp) :: H_tmp(gmres_hist+1,gmres_hist)
+    complex(KIND=dp) :: beta_tmp(gmres_hist+1)
     complex(KIND=dp), allocatable :: work(:)
     complex(KIND=dp)              :: workquery(1)
     integer          :: info_zgels
@@ -246,11 +300,11 @@ module gmres
     1 format('  residual = ', es10.3)
     
     ! take temporary copies since lapack modifies the input matrices
-    H_tmp   ( 1:gmres_iter+1 , 1:gmres_iter ) = H   ( 1:gmres_iter+1 , 1:gmres_iter )
-    beta_tmp( 1:gmres_iter+1                ) = beta( 1:gmres_iter+1                )
+    H_tmp   ( 1:gmres_hist+1 , 1:gmres_hist ) = H   ( 1:gmres_hist+1 , 1:gmres_hist )
+    beta_tmp( 1:gmres_hist+1                ) = beta( 1:gmres_hist+1                )
 
     ! perform a so-called workquery to obtain the optimal work dimension
-    call zgels('N', gmres_iter+1 , gmres_iter, 1, H_tmp, size(H_tmp,1),   & 
+    call zgels('N', gmres_hist+1 , gmres_hist, 1, H_tmp, size(H_tmp,1),   & 
         &       beta_tmp, size(beta_tmp), workquery , -1, info_zgels)
 
     if (info_zgels .ne. 0) then
@@ -260,7 +314,7 @@ module gmres
     allocate( work( 1:int(real(workquery(1) + 0.5d0)) ) );
 
     ! solve the overdetermined minimisation problem with zgels
-    call zgels('N', gmres_iter+1 , gmres_iter, 1, H_tmp, size(H_tmp,1),   &
+    call zgels('N', gmres_hist+1 , gmres_hist, 1, H_tmp, size(H_tmp,1),   &
         &       beta_tmp, size(beta_tmp), work, size(work), info_zgels)
 
     if (info_zgels .ne. 0) then
@@ -268,9 +322,9 @@ module gmres
     endif
 
     y_minres = 0
-    y_minres(1:gmres_iter) = beta_tmp( 1:gmres_iter)
+    y_minres(1:gmres_hist) = beta_tmp( 1:gmres_hist)
 
-    gmres_res = abs(beta_tmp(gmres_iter+1)) / norm(b)
+    gmres_res = abs(beta_tmp(gmres_hist+1)) / norm(b)
 
     if (abs(gmres_res - norm( beta - matmul(H,y_minres) ) / norm(b)) > 1e-10_dp) then
       print *, 'GMRES residuals differ, i.e. min( || beta - H y|| ) /= || beta - H y_min|| '
@@ -293,50 +347,60 @@ module gmres
     ! by hand
     x_gmres = x_guess
 
-    do i=1,gmres_iter
+    do i=1,gmres_hist
       x_gmres = x_gmres + Q(:, i) * y_minres(i)
     enddo 
 
     if (gmres_verbose) then 
+
+      print *, "||xm||", norm(x_gmres)
+      print *, "||x0||", norm(x_guess)
+      print *, "||Ym||", norm(y_minres)
+
+      do i=1,gmres_hist
+        print *, "||vi||", norm(Q(:, i))
+      enddo
+
       print *, 'Ym = '
       do i=1,size(y_minres)
-        print "(*('(', F8.5, ',', F8.5, ') ', :))", y_minres(i)
+        print "(*('(',E10.2, ',',E10.2, ') ', :))", y_minres(i)
       enddo
 
       print *, 'Xm = '
-      do i=1,size(x_gmres)
-        print "(*('(', F8.5, ',', F8.5, ') ', :))", x_gmres(i)
+      do i=1,10
+        print "(*('(',E10.2, ',',E10.2, ') ', :))", x_gmres(i)
       enddo
 
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! by LAPACK zgemv
+      ! ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! ! by LAPACK zgemv
 
-      x_gmres = x_guess
+      ! x_gmres = x_guess
 
-      call zgemv( 'N' , size(x_gmres) , gmres_iter , dcmplx(1.0_dp, 0.0_dp), Q , size(Q,1) , &
-                & y_minres , 1 , dcmplx(1.0_dp, 0.0_dp), x_gmres , 1 )
+      ! call zgemv( 'N' , size(x_gmres) , gmres_iter , dcmplx(1.0_dp, 0.0_dp), Q , size(Q,1) , &
+      !           & y_minres , 1 , dcmplx(1.0_dp, 0.0_dp), x_gmres , 1 )
 
-      print *, 'Xm lapack = '
-      do i=1,size(x_gmres)
-          print "(*('(', F8.5, ',', F8.5, ') ', :))", x_gmres(i)
-      enddo
+      ! print *, 'Xm lapack = '
+      ! do i=1,10
+      !     print "(*('(', F8.5, ',', F8.5, ') ', :))", x_gmres(i)
+      ! enddo
 
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ! eval res in different ways 
+      ! ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ! ! eval res in different ways 
 
-      call apply_A(x_gmres, Ax)
+      ! call apply_A(x_gmres, Ax)
 
-      print *, 'A*Xm = '
-      do i=1,size(x_gmres)
-        print "(*('(', F8.5, ',', F8.5, ') ', :))", Ax(i)
-      enddo
+      ! print *, 'A*Xm = '
+      ! do i=1,10
+      !   print "(*('(', F8.5, ',', F8.5, ') ', :))", Ax(i)
+      ! enddo
 
-      print *, ' rm = b - A*xm = '
-      do i=1,size(x_gmres)
-        print "(*('(', F8.5, ',', F8.5, ') ', :))", b(i) - Ax(i)
-      enddo
+      ! print *, ' rm = b - A*xm = '
+      ! do i=1,10
+      !   print "(*('(', F8.5, ',', F8.5, ') ', :))", b(i) - Ax(i)
+      ! enddo
 
-      print *, 'res : ', norm(b - Ax) / norm(b)
+      ! print *, 'res : ', norm(b - Ax) / norm(b)
+    
     endif
 
   end subroutine extract_x_gmres

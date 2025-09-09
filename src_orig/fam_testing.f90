@@ -36,8 +36,8 @@ contains
     !call test_sphamil_me(ifail)
     !print 1, 'SPHAMIL_ME', ifail
 
-    call test_potentials(X,Y,ifail)
-    print 1, 'potentials', ifail
+    ! call test_potentials(X,Y,ifail)
+    ! print 1, 'potentials', ifail
 
     !call test_potentials(X,Y,ifail)
     ! Attention: this testing routine has serious side effects on the state of the program.
@@ -482,7 +482,7 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Test my GMRES routine to solve Ax = b iteratively
 
-    call alloc_gmres(multiply_by_A, b, 100, 6, 1e-6_dp, n, norm_2, ScalProd)
+    call alloc_gmres(multiply_by_A, b, 100, 6, 1e-6_dp, norm_2, ScalProd)
 
     call init_gmres(b)
 
@@ -628,7 +628,7 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Test my GMRES routine to solve Ax = b iteratively
 
-    call alloc_gmres(affine_as_linear, x_free, 100, 6, 1e-6_dp, n, norm_2, ScalProd)
+    call alloc_gmres(affine_as_linear, x_free, 100, 6, 1e-6_dp, norm_2, ScalProd)
 
     call init_gmres(x_free)
 

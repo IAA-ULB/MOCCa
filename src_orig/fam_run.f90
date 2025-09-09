@@ -11,7 +11,7 @@ program run_FAM
   use timing
 
   1 format(86('-'))
-  11 format(24('='), ' omega = ', f5.2, ' MeV ', 24('='))
+  11 format(/,24('='), ' omega = ', f5.2, ' MeV ', 24('='),/)
   2 format('FAM iteration = ', i5) 
   3 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
@@ -159,17 +159,17 @@ program run_FAM
       ! via GMRES on implicit matrix*vector procedure one_minus_T()
       !---------------------------------------------------------------------------------
 
-      call alloc_gmres(one_minus_T, dH_free_flat, fam_maxiter, fam_maxiter, 1e-6_dp, size(dH_free_flat, 1), norm_dH, ScProd_dH)
+      call alloc_gmres(one_minus_T, dH_free_flat, fam_maxiter, fam_maxhist, 1e-6_dp, norm_dH, ScProd_dH)
       
       fam_verbose = 0
 
       ! initiliase the GMRES solver, using the free response as the initial guess x0
       call init_gmres(dH_free_flat)
 
-      do iter=1, gmres_itmax
+      do iter=1, gmres_itermax
         call iterate_gmres()
 
-        if (gmres_res < gmres_tol) then 
+        if (gmres_res < gmres_precision) then 
           print 1
           print *, "Hooray! GMRES is converged! "
           num_iter = iter
@@ -177,11 +177,11 @@ program run_FAM
           exit
         endif
 
-        if (iter == gmres_itmax) then
+        if (iter == gmres_itermax) then
           print 1
           print 1
           print *, "   Reached maximal number of iterations, ", fam_maxiter
-          num_iter = - gmres_itmax
+          num_iter = - gmres_itermax
         endif
 
       enddo
