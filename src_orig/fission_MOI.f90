@@ -59,7 +59,7 @@ module fission_MOI
   ! Intermediate matrices M^1 and M^3 that are needed for the calculation
   ! of the collective_inertia. Stored separately so it can be output for 
   ! people wanting to recalculate the collective inertia.
-  real(KIND = dp), allocatable :: M1(:,:,:), M3(:,:,:)
+  real(KIND = dp), allocatable :: M1(:,:,:), M2(:,:,:), M3(:,:,:)
   !-----------------------------------------------------------------------------
   
 contains 
@@ -141,6 +141,8 @@ contains
    41 format ('    M1_Q',2i1, 1x,'|', 1x, 99es15.5)
    32 format ('         M3_Q',2i1, 2x)
    42 format ('    M3_Q',2i1, 1x,'|', 1x, 99es15.5)
+   33 format ('         M2_Q',2i1, 2x)
+   43 format ('    M2_Q',2i1, 1x,'|', 1x, 99es15.5)
 
     
    99 format ('  Conventions:' /, & 
@@ -213,6 +215,29 @@ contains
     print *,sep
     print *
     
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Collective inertia tensor, just the M2 matrix
+    header = ''
+    do i=1,N_inertia
+      write(tmp, 33) inertia_l(i),inertia_m(i) 
+      header = adjustl(trim(header)//tmp)
+    enddo
+
+    print *, ' neutrons        ', header   
+    print *, sep 
+    do i=1, N_inertia
+      print 43, inertia_l(i),inertia_m(i), M2(i,1:N_inertia,1)
+    enddo
+    print *,sep
+    print *
+    print *, ' protons         ', header   
+    print *,sep
+    do i=1, N_inertia
+      print 43, inertia_l(i),inertia_m(i), M2(i,1:N_inertia,2)
+    enddo
+    print *,sep
+    print *
+
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Collective inertia tensor, just the M3 matrix
     header = ''
@@ -424,7 +449,7 @@ contains
     endif
     collective_inertia = 0
     
-    allocate(Mat(N_inertia, N_inertia, 2,2)) ;  Mat   = 0.0d0
+    allocate(Mat(N_inertia, N_inertia, 3,2)) ;  Mat   = 0.0d0
     allocate(Qsp(nwt,nwt,N_inertia))         ;  Qsp = 0.0d0
     
     if(pairingtype.eq.2) then
@@ -456,14 +481,14 @@ contains
         case(0)
           ! HF summation
           Mat(i,j,:,:) = Ksum_Mij_HF(Qsp(:,:,i), Qsp(:,:,j), &
-          &                                                      la, lb,(/1,3/))
+          &                                                      la, lb,(/1,2,3/))
         case(1)
           ! BCS summation
           Mat(i,j,:,:) = Ksum_Mij_BCS(Qsp(:,:,i), Qsp(:,:,j), &
-          &                                                      la, lb,(/1,3/))
+          &                                                      la, lb,(/1,2,3/))
         case(2)
           ! HFB summation
-          Mat(i,j,:,:) = Ksum_Mij(Q20(:,:,i), Q20(:,:,j), la, lb,  (/1,3/))
+          Mat(i,j,:,:) = Ksum_Mij(Q20(:,:,i), Q20(:,:,j), la, lb,  (/1,2,3/))
         end select
       enddo
     enddo
@@ -471,9 +496,11 @@ contains
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Constructing explicitly the matrices M_1 and M_3 for ease of reading
     if(.not. allocated(M1)) allocate(M1(N_inertia, N_inertia,3))
+    if(.not. allocated(M2)) allocate(M2(N_inertia, N_inertia,3))
     if(.not. allocated(M3)) allocate(M3(N_inertia, N_inertia,3))
     M1(:,:,1:2) = Mat(:,:,1,1:2) ; M1(:,:,3) = sum(M1(:,:,1:2),3)
-    M3(:,:,1:2) = Mat(:,:,2,1:2) ; M3(:,:,3) = sum(M3(:,:,1:2),3)
+    M2(:,:,1:2) = Mat(:,:,2,1:2) ; M2(:,:,3) = sum(M2(:,:,1:2),3)
+    M3(:,:,1:2) = Mat(:,:,3,1:2) ; M3(:,:,3) = sum(M3(:,:,1:2),3)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Step 4: use LAPACK routines to invert M1
     allocate(M1_inv(N_inertia, N_inertia))

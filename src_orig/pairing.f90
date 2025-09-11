@@ -191,6 +191,16 @@ contains
 
     NameList /Indices/ BlockIndices, blocklowest, blockJ
 
+    ! Before we read any information on hfbmix, we check if pairing stabilisation
+    ! is active. The latter might destabilise calculations when pairing gets weak;
+    ! we slow down the HFB evolution in that case. This is done before the reading
+    ! of the namelist such that user input will override these default values.
+    if(abs(Estabn) .gt. 1e-10 .or. abs(Estabp) .gt. 1e-10 ) then
+      HFBmix = 0.5
+    else
+      HFBmix = 1.0
+    endif
+
     ! Only the very first MPI rank reads input
     if(MPI_RANK .eq. 0) then
       if(present(file_number)) then

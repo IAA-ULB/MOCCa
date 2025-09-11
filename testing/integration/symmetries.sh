@@ -20,12 +20,12 @@
 #
 #  Quantity                              Answer                     Tolerance
 #  --------                              ------                     ---------
-#  Total energy                       < the first result obtained >   1 keV
+#  Total energy                       < the first result obtained >  1   keV
+#  Belyaev moment of inertia          < the first result obtained >  1e-3 h^2/MeV
+#  Disperson of J^2                   < the first result obtained >  1e-3 h^2/MeV
 #
 #  TODO:
 #  - add other observables
-#  - improve input to accept longer options?
-#     -> this will mean moving away from getopts
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Useage
 # ------
@@ -144,8 +144,19 @@ echo "Running $exe"
 ./$exe < tant.data > $outfile
 # .... and immediately check if Tantalus reported back some error codes
 tantalus_check=$?
+
 # Saving reference values
+# Energy
 refE=$(get_total_energy_stdout $outfile)
+# Belyaev moment of inertia
+refBx=$(get_Belyaev_stdout $outfile X)
+refBy=$(get_Belyaev_stdout $outfile Y)
+refBz=$(get_Belyaev_stdout $outfile Z)
+# Dispersion of J^2
+refJ2x=$(get_DJ2_stdout $outfile X)
+refJ2y=$(get_DJ2_stdout $outfile Y)
+refJ2z=$(get_DJ2_stdout $outfile Z)
+
 # ... and tear down this testing environment.
 teardown_test_env
 
@@ -204,8 +215,18 @@ echo "Running $exe"
 ./$exe < tant.data > $outfile
 # ... immediately check if Tantalus reported back some error codes
 tantalus_check_P=$?
+
 # Saving reference values
 E_parity=$(get_total_energy_stdout $outfile)
+# Belyaev moment of inertia
+Bx_parity=$(get_Belyaev_stdout $outfile X)
+By_parity=$(get_Belyaev_stdout $outfile Y)
+Bz_parity=$(get_Belyaev_stdout $outfile Z)
+# Dispersion of J^2
+J2x_parity=$(get_DJ2_stdout $outfile X)
+J2y_parity=$(get_DJ2_stdout $outfile Y)
+J2z_parity=$(get_DJ2_stdout $outfile Z)
+
 # ... remove all trace of these calculations
 teardown_test_env
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -262,8 +283,19 @@ echo "Running $exe"
 ./$exe < tant.data > $outfile
 # ... immediately check if Tantalus reported back some error codes
 tantalus_check_T=$?
+
 # Saving reference values
 E_timereversal=$(get_total_energy_stdout $outfile)
+
+# Belyaev moment of inertia
+Bx_timereversal=$(get_Belyaev_stdout $outfile X)
+By_timereversal=$(get_Belyaev_stdout $outfile Y)
+Bz_timereversal=$(get_Belyaev_stdout $outfile Z)
+# Dispersion of J^2
+J2x_timereversal=$(get_DJ2_stdout $outfile X)
+J2y_timereversal=$(get_DJ2_stdout $outfile Y)
+J2z_timereversal=$(get_DJ2_stdout $outfile Z)
+
 # ... remove all trace of these calculations
 teardown_test_env
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -377,8 +409,19 @@ echo "Running $exe"
 ./$exe < tant.data > $outfile
 # ... immediately check if Tantalus reported back some error codes
 tantalus_check_TP=$?
+
 # Saving reference values
 E_timereversal_parity=$(get_total_energy_stdout $outfile)
+
+# Belyaev moment of inertia
+Bx_timereversal_parity=$(get_Belyaev_stdout $outfile X)
+By_timereversal_parity=$(get_Belyaev_stdout $outfile Y)
+Bz_timereversal_parity=$(get_Belyaev_stdout $outfile Z)
+# Dispersion of J^2
+J2x_timereversal_parity=$(get_DJ2_stdout $outfile X)
+J2y_timereversal_parity=$(get_DJ2_stdout $outfile Y)
+J2z_timereversal_parity=$(get_DJ2_stdout $outfile Z)
+
 # ... remove all trace of these calculations
 teardown_test_env
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -392,6 +435,7 @@ printf ' Did %-10s run?       %1d \n' $exec    $tantalus_check
 printf ' Did %-10s run?       %1d \n' $exec_P  $tantalus_check_P
 printf ' Did %-10s run?       %1d \n' $exec_T  $tantalus_check_T
 printf ' Did %-10s run?       %1d \n' $exec_TP $tantalus_check_TP
+
 # a) Compare total energies with a tolerance of 1 keV
 # a.1) parity-broken calculation
 compare_floats $E_parity              $refE 0.001
@@ -403,20 +447,101 @@ check_energy_T=$?
 compare_floats $E_timereversal_parity $refE 0.001
 check_energy_TP=$?
 
+# b) Compare Belyaev
+# b.1) parity-broken calculation
+compare_floats $Bx_parity              $refBx 0.001
+check_Bx_P=$?
+compare_floats $By_parity              $refBy 0.001
+check_By_P=$?
+compare_floats $Bz_parity              $refBz 0.001
+check_Bz_P=$?
+#  aggregating across Cartesian directions
+check_B_P=$(( check_Bx_P || check_By_P || check_Bz_P ))
+
+# b.2) time-reversal broken calculation
+compare_floats $Bx_timereversal        $refBx 0.001
+check_Bx_T=$?
+compare_floats $By_timereversal        $refBy 0.001
+check_By_T=$?
+compare_floats $Bz_timereversal        $refBz 0.001
+check_Bz_T=$?
+#  aggregating across Cartesian directions
+check_B_T=$(( check_Bx_T || check_By_T || check_Bz_T ))
+
+# a.3) time-reversal + parity broken calculation
+compare_floats $Bx_timereversal_parity $refBx 0.001
+check_Bx_TP=$?
+compare_floats $By_timereversal_parity $refBy 0.001
+check_By_TP=$?
+compare_floats $Bz_timereversal_parity $refBz 0.001
+check_Bz_TP=$?
+#  aggregating across Cartesian directions
+check_B_TP=$(( check_Bx_TP || check_By_TP || check_Bz_TP ))
+
+# c) Compare J2
+# c.1) parity-broken calculation
+compare_floats $J2x_parity              $refJ2x 0.001
+check_J2x_P=$?
+compare_floats $J2y_parity              $refJ2y 0.001
+check_J2y_P=$?
+compare_floats $J2z_parity              $refJ2z 0.001
+check_J2z_P=$?
+#  aggregating across Cartesian directions
+check_J2_P=$(( check_J2x_P || check_J2y_P || check_J2z_P ))
+
+# c.2) time-reversal broken calculation
+compare_floats $J2x_timereversal        $refJ2x 0.001
+check_J2x_T=$?
+compare_floats $J2y_timereversal        $refJ2y 0.001
+check_J2y_T=$?
+compare_floats $J2z_timereversal        $refJ2z 0.001
+check_J2z_T=$?
+#  aggregating across Cartesian directions
+check_J2_T=$(( check_J2x_T || check_J2y_T || check_J2z_T ))
+
+# c.3) time-reversal + parity broken calculation
+compare_floats $J2x_timereversal_parity $refJ2x 0.001
+check_J2x_TP=$?
+compare_floats $J2y_timereversal_parity $refJ2y 0.001
+check_J2y_TP=$?
+compare_floats $J2z_timereversal_parity $refJ2z 0.001
+check_J2z_TP=$?
+#  aggregating across Cartesian directions
+check_J2_TP=$(( check_J2x_TP || check_J2y_TP || check_J2z_TP ))
+
 echo '---------------------------------'
 echo ' Energy consistency              '
 echo '---------------------------------'
 printf " %-10s = %-10s?  %1d \n"  $exec $exec_P  $check_energy_P
-printf " %-10s = %-10s?  %1d \n"  $exec $exec_T  $check_energy_P
+printf " %-10s = %-10s?  %1d \n"  $exec $exec_T  $check_energy_T
 printf " %-10s = %-10s?  %1d \n"  $exec $exec_TP $check_energy_TP
 echo '---------------------------------'
+
+echo '---------------------------------'
+echo ' Belyaev MOI consistency              '
+echo '---------------------------------'
+printf " %-10s = %-10s?  %1d \n"  $exec $exec_P  $check_B_P
+printf " %-10s = %-10s?  %1d \n"  $exec $exec_T  $check_B_T
+printf " %-10s = %-10s?  %1d \n"  $exec $exec_TP $check_B_TP
+echo '---------------------------------'
+
+echo '---------------------------------'
+echo ' DJ2 consistency              '
+echo '---------------------------------'
+printf " %-10s = %-10s?  %1d \n"  $exec $exec_P  $check_J2_P
+printf " %-10s = %-10s?  %1d \n"  $exec $exec_T  $check_J2_T
+printf " %-10s = %-10s?  %1d \n"  $exec $exec_TP $check_J2_TP
+echo '---------------------------------'
+
 
 # t_check = Global exit code for correct endings of executables
 t_check=$(( $tantalus_check || $tantalus_check_P || $tantalus_check_T || $tantalus_check_TP ))
 # e_check = Global exit code for energy comparisons
 e_check=$(( $check_energy_P || $check_energy_T || $check_energy_TP ))
+# b_check = Global exit code for Belyaev comparisons
+b_check=$(( $check_B_P || $check_B_T || $check_B_TP ))
 # Global exit code: everything needs to pass!
-exitcode=$(( $t_check || $e_check ))
+exitcode=$(( $t_check || $e_check || b_check ))
 
 echo ' SUCCESS?      ' $exitcode
 echo '---------------------------------'

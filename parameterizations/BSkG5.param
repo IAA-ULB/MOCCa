@@ -1,0 +1,72 @@
+&skf
+!-------------------------------------------------------------------------------
+! BSkG5 parameterization as sent to W.R. by G. Grams on 06/05/2025.
+!
+! Aspects of note
+!  * full NLO + central N2LO EDF
+!  * microscopic pairing prescription with improved INM interpolation
+!  * pairing cutoff only ABOVE the Fermi energy
+!-------------------------------------------------------------------------------
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Identification
+name      = 'BSkG5'
+func_file = 'BXL-N2LO.func'
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Skyrme parameters and related
+! - - - - - - - - - - - - -
+! a) full NLO Skyrme
+! - - - - - - - - - - - - -
+t0          = -1873.1323962293561,
+t1          = 336.21127922581854,
+t2          = 0.01,
+t3          = 12393.856240516528,
+x0          = 0.217333,
+x1          = -0.0076547,
+x2          = -20902.888739526177,
+x3          = 0.06578977871241275,
+sigma       = 0.3,
+wso         = 125.831,
+wsoq        = 111.514,
+! - - - - - - - - - - - - -
+! b) central N2LO Skyrme
+! - - - - - - - - - - - - -
+t1n2        = -12.498230484450774,
+t2n2        = -34.7836,
+x1n2        = -0.0900197,
+x2n2        = -1.8594137893131435,
+hbm(1)      = 20.73553000,  20.73553000,
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Pairing options
+Vn          = 0.0,  ! Parameters of conventional pairing terms
+Vp          = 0.0,  ! set to zero
+Vnm         = 1.00, ! Microscopic pairing terms are active
+Vpm         = 1.00, !
+kappa_n     = 148.266, ! Gradient pairing terms
+kappa_p     = 147.906, !
+alpha       = 1.00,
+sigmap      = 1.00,
+Cutneutron  = 7.79914
+Cutproton   = 7.79914
+Cuttype     = 2        ! Cutoff only above the Fermi energy
+interpolationtype = 2
+integrationtype   = 1
+ptype             = 0
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Coulomb options
+nucleonsize_selfconsistent =.true.
+CoulTreatment              = 2
+e2                         = 1.43996446,
+Protonsize                 = 0.895, 0.0
+Neutronsize                = 0.387, 0.467
+HOcomform                  = .false.
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Collective corrections: rotational, vibrational and COM
+rotcorr  = 1
+rotcorrb = 0.952217
+rotcorrc = 9.69043
+vibcorrd = 0.274247
+vibcorrl = 5.399
+vibcorrb = 0.829072
+COM1Body = 2
+COM2Body = 1
+/

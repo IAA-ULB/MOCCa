@@ -273,6 +273,7 @@ contains
     call MPI_BCAST(disp_prec   , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(pairing_prec, 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(fermi_prec  , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(angmom_prec , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
 
     ! d) Other calculational details...
     call MPI_BCAST(store_derivatives ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
