@@ -74,6 +74,7 @@ module fam
   !-----------------------------------------------------------------------------
   ! unperturbed Hamiltonian and perturbed hamiltonian
   real(KIND=dp), allocatable :: HUnper(:,:) ! unperturbed Hamiltonian in HF basis
+  ! -> currently not used, except for one routine in fam_testing.f90
   complex(KIND=dp), allocatable :: dH(:,:,:)   ! ph and hp block of the perturbing
   !                                   | | |      Hamiltonian in HF basis
   !                                   | | '-> 1: ph block, 2: hp block
@@ -87,9 +88,9 @@ module fam
   !                                  | | '-> 1: ph block, 2: hp block 
   !                                  | '-> sp index : hole
   !                                  '-> sp index : particle
-  integer :: l, m ! Principal and magnetic quantum number of the multipole moment
-  ! Do we need more identifiers for electric vs magnetic and isovector 
-  ! vs isoscalar? YES!
+  integer :: l, m ! anuglar momentum and projection quantum number of the multipole moment
+  real(KIND=dp) :: eff_charge_n = 1.0_dp ! effective charges for neutrons in units of e
+  real(KIND=dp) :: eff_charge_p = 1.0_dp ! effective charges for protons in units of e
   !-----------------------------------------------------------------------------
   ! convergence
   complex(KIND=dp), allocatable :: X_hist(:,:,:) ! history of X through FAM iters
@@ -153,10 +154,7 @@ module fam
     ! initialise the external field F
 
     if(.not.allocated(F)) then 
-      allocate(F(nwt,nwt,2))
-
-      F = get_f_LK(l, m, .true.)
-
+      F = get_f_LK(l, m, eff_charge_n, eff_charge_p)
     endif
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -232,7 +230,8 @@ module fam
     integer       :: maxiter = 100, maxhist = 100
 
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
-    &               maxhist, l, m, XY_prec, mixingscheme, fam_lin_mix
+    &               maxhist, l, m, XY_prec, mixingscheme, fam_lin_mix, &
+    &               eff_charge_n, eff_charge_p
 
 
     if(MPI_rank .eq. 0) then
@@ -263,25 +262,28 @@ module fam
     2 format ( ' FAM frequency range:   ', /, &
     &          '    omega_min        = ', f10.3, /,  &
     &          '    omega_max        = ', f10.3, /,  &
-    &          '    omega_step       = ', f10.3)
-    21 format ('    complex smearing = ' ,f10.3)
+    &          '    omega_step       = ', f10.3, /,  &
+    &          '    complex smearing = ' ,f10.3)
     3 format ( ' Perturbing field:   ', /, &
-    &          '    F = Q_', i1, i1)
-    4 format ( ' Convergence:   ', /, &
-    &          '    Maximal number of iterations: ',i8, /,  &
-    &          '    ||X||, ||Y|| convergence  < ',es8.1)
-    5 format ( ' Evolution strategy: ', i3)
-    51 format ('    GMRES with max history size = ', i8)
-    52 format ('    linear mixing with alpha = ', f10.3)
+    &          '    F = Q_', i1, i1,/, &
+    &          '    neutron eff charge = ', f10.3, ' e', /, &
+    &          '    proton eff charge  = ', f10.3, ' e')
+    41 format (' Evolution strategy: GMRES', /,  &
+    &          '    max history size = ', i8, /,  &
+    &          '    max # iterations = ', i8, /,  &
+    &          '    res convergence  < ', es8.1)
+    42 format (' Evolution strategy: linear mixing', /,  &
+    &          '    mixing coef alpha = ', f10.3, /,  &
+    &          '    max # iterations = ', i8, /,  &
+    &          '    dh convergence   < ', es8.1)
+
+
 
     print 1
-    print 2, omega_min, omega_max, omega_step
-    print 21, smear
-    print 3, l, m
-    print 4, fam_maxiter, XY_prec
-    print 5, fam_mixingscheme
-    if (fam_mixingscheme==0) print 51, fam_maxiter
-    if (fam_mixingscheme==1) print 52, fam_lin_mix
+    print 2, omega_min, omega_max, omega_step, smear
+    print 3, l, m, eff_charge_n, eff_charge_p
+    if (fam_mixingscheme==0) print 41, fam_maxhist, fam_maxiter, XY_prec
+    if (fam_mixingscheme==1) print 42, fam_lin_mix, fam_maxiter, XY_prec
 
   end subroutine
 
@@ -613,31 +615,45 @@ $TR S = 2 * S ! Time-reversal factor 2
   end subroutine test_convergence
 
 
-  function get_f_LK(L, K, is_isoscalar) result (f_LK_ph_hp)
+  function get_f_LK(L, K, eff_e_n, eff_e_p) result (f_LK_ph_hp)
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     ! Get the particle-hole and hole-particle matrix elements of the multipole
     ! transition operators f_LK where f_LK(i,j) = < i | r^L Y_LK | j > 
     ! while the monopole operator is Q_00(i,j) = < i | r^2 Y_00 | j > 
+    ! Only operational for even L at this point. s
+    !
+    ! INPUT:
+    !     L, K          : multipolarity of the perturbing operator
+    !     eff_e_n  : effective charge of neutrons (in units of e)
+    !     eff_e_p  : effective charge of protons (in units of e)
     ! 
-    ! Remark:  
+    ! REMARKS:  
     !   - Note that the code works with Re(Y_LK) and Im(Y_LK) which are NOT normalised; 
     !     they integrate to 1/2 when K != 0. 
-    ! 
+    !
     !   - We define f^+_LK = 1/sqrt(2) r^L ( Y_LK + Y_L-K) = sqrt(2) * r^L Re(Y_LK), 
-    !     when K = 2n > 0, which are normalised such that |f^+_LK)|^2 integrates to 1 over the
-    !     unit sphere. 
-    !     The code gives back f^+_LK for now. f^-_LK would give identical strengths for axial 
-    !     even-even nuclei when L is even. f^- depends on Im(Y_LK) and is still missing at
-    !     this point. 
-    !     
-    !   - Effective charges are +1 or -1. For an isoscalar operator, both protons have
-    !     charge +1 while for an isovector operator, the protons have charge +1 and neutrons
-    !     have charge -1. 
+    !     when K = 2n > 0, which are normalised such that |f^+_LK|^2 integrates to 1
+    !     over the unit sphere. 
+    !     The code gives back f^+_LK for now. Since f_LK and f_L-K would give identical strengths 
+    !     for axial even-even nuclei when L is even, f^-=0.
+    !
+    !   - Note that if eff_e_n = eff_e_p, the operator is of isoscalar type, 
+    !     if eff_e_n=-eff_e_p, the operator purely isovector. In certain 
+    !     applications, e.g. isovector dipole excitation, one choses eff_e_p = N/A
+    !     and eff_e_n = -Z/A such that one only has eff_e_n ~ - eff_e_p, 
+    !     but still calls the operator isovector. 
+    ! 
+    !   - One might add a normalisation to the external field F -> F / alpha in order to have 
+    !     dh_free of order 1. Due to linearity of all FAM steps, this then needs to be 
+    !     compensated as X -> alpha X , Y -> alpha Y, dh -> alpha * dh, ..., and 
+    !     S -> alpha^2 S
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
 
     implicit none
     complex(KIND=dp), allocatable :: f_LK_ph_hp(:,:,:)
     integer, intent(in) :: L, K
-    logical, intent(in) :: is_isoscalar
+    real(KIND=dp), intent(in) :: eff_e_n, eff_e_p
     logical :: ImPart
     complex(KIND=dp), allocatable :: f_LK_spme(:,:)
       
@@ -661,9 +677,9 @@ $TR S = 2 * S ! Time-reversal factor 2
       if(K.ne.0) f_LK_spme = f_LK_spme * sqrt(2.0)
 
 
-      ! Take oposite sign for neutrons if isovector
-      if(.not. is_isoscalar) f_LK_spme(1:nwn,1:nwn) = - f_LK_spme(1:nwn,1:nwn)
-
+      ! Multiply the operator by the effective charges 
+      f_LK_spme(1:nwn,1:nwn) = eff_e_n * f_LK_spme(1:nwn,1:nwn)
+      f_LK_spme(nwn+1:,nwn+1:) = eff_e_p * f_LK_spme(nwn+1:,nwn+1:)
 
       ! TODO: investigate signs in Q20 which seems suspicious in O16 nwt24 test case
       ! 3rd row/col in sym block 1 differs in sign wrt blocks 2, 5 and 6. 

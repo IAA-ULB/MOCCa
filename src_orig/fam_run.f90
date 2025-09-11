@@ -129,7 +129,7 @@ program run_FAM
   ! create the FAM output file
   write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
   ! todo : this needs to be abel to read from the IO namelist
-  call init_fam_file(l, m, famfilename)
+  call init_fam_file(l, m, eff_charge_n, eff_charge_p, famfilename)
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies

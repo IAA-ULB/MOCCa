@@ -3632,7 +3632,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
   
   end subroutine write_inertias
 
-   subroutine init_fam_file(l, m, fname)
+   subroutine init_fam_file(l, m, eff_charge_n, eff_charge_p, fname)
     !---------------------------------------------------------------------------
     ! Create file to write strength function S(omega, F) obtained from FAMtalus
     !---------------------------------------------------------------------------
@@ -3643,16 +3643,19 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     !                         '-> unit depends on the external field                  
     ! 
     ! The actual strength is written to this file by subroutine append_fam_file()
-    ! called when a frequency is converged. 
+    ! called each time a frequency is converged. 
     !---------------------------------------------------------------------------
     integer, intent(in)               :: l, m
+    real(kind=DP), intent(in)         :: eff_charge_n, eff_charge_p
     character(len=*), intent(in)      :: fname
     integer                           :: io, idx
 
     print *, ' writing strength function to file :  ', fname
 
-
-    1 format('# external field: l =', i2, ' m =', i2)
+    1 format ( '# external field:   ', /, &
+    &          '#    F = Q_', i1, i1,/, &
+    &          '#    neutron eff charge = ', f10.3, ' e', /, &
+    &          '#    proton eff charge  = ', f10.3, ' e')
     2 format('#', 2x, 'omega',12x,'S_free', 21x, 'S', 17x, 'iter')
 
 
@@ -3664,7 +3667,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     
     call write_header(1) ! write general header info
 
-    write(1, fmt=1) l, m ! write info of extrenal field 
+    write(1, fmt=1) l, m, eff_charge_n, eff_charge_p ! write info of extrenal field 
     write(1, fmt=2)      ! write column names
 
     close(1)
