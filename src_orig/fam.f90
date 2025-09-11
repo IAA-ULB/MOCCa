@@ -141,8 +141,6 @@ module fam
     real(KIND=dp), intent(in)          :: omega
     type(DensityVector), intent(in)    :: DensUnper
     type(PotentialVector), intent(in)  :: PotUnper
-    complex(KIND=dp), allocatable      :: SolidHarmHF(:,:)
-    logical                            :: ImPart
 
     1 format(' S_',i1,i1,' (', f5.2, ') = ', es10.3)
 
@@ -157,57 +155,7 @@ module fam
     if(.not.allocated(F)) then 
       allocate(F(nwt,nwt,2))
 
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Get the solid harmonics Q_lm(i,j) = < i | r^l Y_lm | j > expressed 
-      ! in HF basis. 
-      
-      allocate(SolidHarmHF(nwt,nwt)) 
-
-      ImPart = .false. ! real (.false.) , imaginary (.true.) 
-      ! note: odd m and Im parts are not implemeted yet
-
-
-      if(l==0) then
-        SolidHarmHF = Rsq_spme()
-
-        ! print *, 'Rsq'
-        ! call print_spme_real(SolidHarmHF)
-
-      else
-        ! Calling a function in fission_MOI.f90
-        SolidHarmHF = Qlm_spme(l, m, ImPart)
-
-        ! Rescale, Qlm comes in units barn^(l/2)
-        SolidHarmHF = SolidHarmHF * (100**(l/2.0)) 
-
-        ! TODO: investigate signs in Q20 which seems suspicious in O16 nwt24 test case
-        ! 3rd row/col in sym block 1 differs in sign wrt blocks 2, 5 and 6. 
-
-
-      endif
-     
-      if(fam_verbose > 2) then
-        print *, 'SOLIDHARMHF'
-       call print_spme_complex(SolidHarmHF)
-      endif
-
-      ! note: 
-      !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
-      !   alpha converting the units of the perturbation to MeV, and eventually 
-      !   devides the obtained strength by alpha. 
-
-
-      ! TODO: write a general transformation routine from the mesh to any 
-      !       single-particle basis
-
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      ! Define the external field F by selecting the particle-hole and 
-      ! hole-particle subblocks of SolidHarmHF by multiplying by their 
-      ! occupation, i.e. diagonal elements of rho in the canonical basis
-
-      call get_ph_hp_blocks(SolidHarmHF, F(:,:,1), F(:,:,2))
-
-      deallocate(SolidHarmHF)
+      F = get_f_LK(l, m, .true.)
 
     endif
 
@@ -665,7 +613,91 @@ $TR S = 2 * S ! Time-reversal factor 2
   end subroutine test_convergence
 
 
- subroutine get_ph_hp_blocks_complex(M, Mph, Mhp)
+  function get_f_LK(L, K, is_isoscalar) result (f_LK_ph_hp)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! Get the particle-hole and hole-particle matrix elements of the multipole
+    ! transition operators f_LK where f_LK(i,j) = < i | r^L Y_LK | j > 
+    ! while the monopole operator is Q_00(i,j) = < i | r^2 Y_00 | j > 
+    ! 
+    ! Remark:  
+    !   - Note that the code works with Re(Y_LK) and Im(Y_LK) which are NOT normalised; 
+    !     they integrate to 1/2 when K != 0. 
+    ! 
+    !   - We define f^+_LK = 1/sqrt(2) r^L ( Y_LK + Y_L-K) = sqrt(2) * r^L Re(Y_LK), 
+    !     when K = 2n > 0, which are normalised such that |f^+_LK)|^2 integrates to 1 over the
+    !     unit sphere. 
+    !     The code gives back f^+_LK for now. f^-_LK would give identical strengths for axial 
+    !     even-even nuclei when L is even. f^- depends on Im(Y_LK) and is still missing at
+    !     this point. 
+    !     
+    !   - Effective charges are +1 or -1. For an isoscalar operator, both protons have
+    !     charge +1 while for an isovector operator, the protons have charge +1 and neutrons
+    !     have charge -1. 
+
+    implicit none
+    complex(KIND=dp), allocatable :: f_LK_ph_hp(:,:,:)
+    integer, intent(in) :: L, K
+    logical, intent(in) :: is_isoscalar
+    logical :: ImPart
+    complex(KIND=dp), allocatable :: f_LK_spme(:,:)
+      
+    allocate(f_LK_spme(nwt,nwt)) 
+    allocate(f_LK_ph_hp(nwt,nwt,2)) 
+
+   
+
+    if(l==0) then
+      f_LK_spme = Rsq_spme()
+    else 
+      ! Calling a function in fission_MOI.f90, which returns <i|r^L Re(Y_LK)|j> 
+      ! in strange fission units barn^(l/2) = (100 fm^2)^(l/2)
+      ImPart = .false. ! real (.false.) , imaginary (.true.) 
+      f_LK_spme = Qlm_spme(L, K, ImPart)
+      
+      ! Rescale f_LK_spme to express in units of fm^l
+      f_LK_spme = f_LK_spme * (100**(l/2.0)) 
+
+      ! Renormalise with sqrt(2) if K is not 0
+      if(K.ne.0) f_LK_spme = f_LK_spme * sqrt(2.0)
+
+
+      ! Take oposite sign for neutrons if isovector
+      if(.not. is_isoscalar) f_LK_spme(1:nwn,1:nwn) = - f_LK_spme(1:nwn,1:nwn)
+
+
+      ! TODO: investigate signs in Q20 which seems suspicious in O16 nwt24 test case
+      ! 3rd row/col in sym block 1 differs in sign wrt blocks 2, 5 and 6. 
+
+
+      endif
+     
+      if(fam_verbose > 2) then
+        print *, 'f^+_LK'
+       call print_spme_complex(f_LK_spme)
+     endif
+
+      ! note: 
+      !   Stoitsov PRC 84 (2011) normalises the external field by a parameter
+      !   alpha converting the units of the perturbation to MeV, and eventually 
+      !   devides the obtained strength by alpha. 
+
+
+      ! TODO: write a general transformation routine from the mesh to any 
+      !       single-particle basis
+
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! Define the external field F by selecting the particle-hole and 
+      ! hole-particle subblocks of f_LK by multiplying by their 
+      ! occupation, i.e. diagonal elements of rho in the canonical basis
+
+    call get_ph_hp_blocks(f_LK_spme, f_LK_ph_hp(:,:,1), f_LK_ph_hp(:,:,2))
+
+    deallocate(f_LK_spme)
+
+  end function
+
+
+  subroutine get_ph_hp_blocks_complex(M, Mph, Mhp)
     !---------------------------------------------------------------------------
     ! Get the particle-hole and hole-particle subblocks of a one-body operator
     ! M. Occupation are obtained from the diagonal elements of rho_can. 
