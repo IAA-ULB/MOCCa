@@ -37,7 +37,7 @@ refS20=1.665536  # Q_20 strength of O16 at 25 MeV in fm^4 MeV^-1
 source ../functions.sh
 
 # Set up
-setup_test_env_fam "fam_t0t3" "LO.master" "LO-T" "t0t3"
+setup_test_env_fam "fam_t0t3" "LO.master" "LO" "t0t3"
 
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # (1) Run the mean-field calculation
@@ -105,12 +105,13 @@ maxiter=1000
 &scfiteration
 /
 &wfs
-nwn = 28, nwp = 28
+nwn = 14, nwp = 14
 /
 &IO
 InputFilename='mf.wf'
 OutputFilename='trash'
 allowtransform=.true.
+famfile='S_20.fam'
 /
 &MomentParam
 /
@@ -122,7 +123,7 @@ smear=1.0
 l=2
 m=0
 maxiter=10000
-XY_prec=1e-10
+fam_precision=1e-6
 /
 EOF
 

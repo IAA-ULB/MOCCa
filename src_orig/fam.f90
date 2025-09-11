@@ -36,7 +36,7 @@ module fam
                               ! omega already defined as cranking frequency 
   ! A range of omega values can be passed by defining the min, max and stepsize
   ! i.e. omega = omega_min + k * omega_step < omega max for k=0,...
-  real(KIND=dp) :: omega_min = 0.0_dp, omega_max = 0.0_dp
+  real(KIND=dp) :: omega_min = 0.0_dp, omega_max = 30.0_dp
   real(KIND=dp) :: omega_step = 1.0_dp  ! Default stepsize of 1 MeV
   real(KIND=dp) :: smear = 1.0_dp  ! complex smearing parameter, default 0.5 MeV
   !    Note that the obtained strength is convoluted with a Lorentzian with FWHM 
@@ -46,7 +46,7 @@ module fam
   integer :: fam_mixingscheme = 0 ! 0 : GMRES (default)
   !                                 1 : linear mixing of dH
   integer :: fam_maxiter = 100 ! maximal number of FAM iterations 
-  integer :: fam_maxhist = 100 ! maximal history size of GMRES iterations 
+  integer :: fam_maxhist = 30 ! maximal history size of GMRES 
   ! Coefficient for the linear mixing of FAM iterations
   real(KIND=dp) :: fam_lin_mix = 0.3_dp
   !-----------------------------------------------------------------------------
@@ -109,7 +109,7 @@ module fam
   !   accessed at idx = modulo(hist_current_idx - 2, hist_max) + 1). Rolling the
   !   index two steps back and then one forward is because mod gives values 
   !   0..hist_max-1 while fortran arrays use a 1-based index. 
-  real(KIND=dp) :: XY_prec = 1.0e-10_dp ! convergence tolerance for X and Y
+  real(KIND=dp) :: fam_precision = 1.0e-5_dp ! convergence tolerance for X and Y
   !-----------------------------------------------------------------------------
   ! verbosity
   integer :: fam_verbose = 1
@@ -227,10 +227,10 @@ module fam
     integer(dp), intent(in), optional :: file_number
     real(KIND=dp) :: omega = -1.0_dp
     integer       :: mixingscheme = 0
-    integer       :: maxiter = 100, maxhist = 100
+    integer       :: maxiter = 100, maxhist = 30
 
     namelist /fam/  omega, omega_min, omega_max, omega_step, smear, maxiter, &
-    &               maxhist, l, m, XY_prec, mixingscheme, fam_lin_mix, &
+    &               maxhist, l, m, fam_precision, mixingscheme, fam_lin_mix, &
     &               eff_charge_n, eff_charge_p
 
 
@@ -268,11 +268,11 @@ module fam
     &          '    F = Q_', i1, i1,/, &
     &          '    neutron eff charge = ', f10.3, ' e', /, &
     &          '    proton eff charge  = ', f10.3, ' e')
-    41 format (' Evolution strategy: GMRES', /,  &
+    41 format (' Convergence strategy: GMRES', /,  &
     &          '    max history size = ', i8, /,  &
     &          '    max # iterations = ', i8, /,  &
     &          '    res convergence  < ', es8.1)
-    42 format (' Evolution strategy: linear mixing', /,  &
+    42 format (' Convergence strategy: linear mixing', /,  &
     &          '    mixing coef alpha = ', f10.3, /,  &
     &          '    max # iterations = ', i8, /,  &
     &          '    dh convergence   < ', es8.1)
@@ -282,8 +282,8 @@ module fam
     print 1
     print 2, omega_min, omega_max, omega_step, smear
     print 3, l, m, eff_charge_n, eff_charge_p
-    if (fam_mixingscheme==0) print 41, fam_maxhist, fam_maxiter, XY_prec
-    if (fam_mixingscheme==1) print 42, fam_lin_mix, fam_maxiter, XY_prec
+    if (fam_mixingscheme==0) print 41, fam_maxhist, fam_maxiter, fam_precision
+    if (fam_mixingscheme==1) print 42, fam_lin_mix, fam_maxiter, fam_precision
 
   end subroutine
 
@@ -606,7 +606,7 @@ $TR S = 2 * S ! Time-reversal factor 2
 
     if (fam_verbose > 1) print 2, DX_norm, DY_norm
 
-    if( (DX_norm < XY_prec) .and. (DY_norm < XY_prec)) then
+    if( (DX_norm < fam_precision) .and. (DY_norm < fam_precision)) then
       conv = .true.
     endif
 

@@ -155,7 +155,7 @@ program run_FAM
       ! via GMRES on implicit matrix*vector procedure one_minus_T()
       !---------------------------------------------------------------------------------
 
-      call alloc_gmres(one_minus_T, dH_free_flat, fam_maxiter, fam_maxhist, XY_prec, norm_dH, ScProd_dH)
+      call alloc_gmres(one_minus_T, dH_free_flat, fam_maxiter, fam_maxhist, fam_precision, norm_dH, ScProd_dH)
       
       fam_verbose = 0
 
