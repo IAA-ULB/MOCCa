@@ -90,7 +90,7 @@ implicit none
   ! Signal the code to write extra output.
   character(len=100)   :: BXLFIT='', COMBI='', denfile='', potfile=''
   character(len=80)   :: sphffile='', spcanfile='', tofile='', blockfile=''
-  character(len=80)   :: inertfile=''
+  character(len=80)   :: inertfile='', famfile=''
   ! Signal the code to write the wavefunctions periodically to disk
   integer             :: checkpointiter = 0  
   !-----------------------------------------------------------------------------
@@ -213,7 +213,7 @@ contains
 
     NameList /IO/ InputFileName,OutputFileName, BXLFIT, COMBI, denfile,potfile,& 
     &           sphffile, spcanfile,checkpointiter, AllowTransform, extraspwfs,&
-    &           tofile, blockfile, inertfile, N_inertia
+    &           tofile, blockfile, inertfile, N_inertia, famfile
 
     ! Only the first MPI RANK reads input
     if(MPI_RANK .eq. 0) then
@@ -326,7 +326,8 @@ contains
              & '    SPCAN file     = ', a80, / &
              & '    TO file        = ', a80, / & 
              & '    BLOCK file     = ', a80, / &
-             & '    INERT file     = ', a80) 
+             & '    INERT file     = ', a80, / &
+             & '    FAM file       = ', a80) 
  1111 format ( '    Input data     = ', a26, / &
                '     on unit ', i10)
   112 format ( ' Checkpointiter =', i10)
@@ -391,7 +392,7 @@ contains
       print 112, checkpointiter
       print 113, print_adv_spwf_properties
 
-      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE
+      print 11, BXLFIT, DENFILE, POTFILE, SPHFFILE, SPCANFILE, TOFILE, BLOCKFILE, INERTFILE, FAMFILE
       if(present(file_number)) then
         print 1111,  adjustl(trim(input_file)), file_number
       endif

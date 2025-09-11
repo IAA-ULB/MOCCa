@@ -533,8 +533,6 @@ $NTR        occ_p = 1.0d0 - rho_can(p) ! degeneracy is 1 when T is broken
     ! note: 
     !  - normalisation of external field may have to be taken into account
     !    S -> S/alpha
-    !  - F is supposed to be real. If F is replaced by a complex field, the
-    !    complex conjugation must be added
     !---------------------------------------------------------------------------
 
     complex(KIND=dp) :: S

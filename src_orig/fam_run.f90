@@ -21,8 +21,6 @@ program run_FAM
   real(kind=dp) :: omega_curr
   integer :: omega_num, omega_index
   real(kind=dp) :: strength, strength_free
-  character(len=100) :: famfilename
-  ! integer :: i, B, si,N
 
   complex(KIND=dp), allocatable :: dH_flat(:), dH_flat_next(:)
   real(KIND=dp) :: res
@@ -127,9 +125,7 @@ program run_FAM
 
   !---------------------------------------------------------------------------------
   ! create the FAM output file
-  write (famfilename, fmt='(a2,2i1,a4)') "S_", l, m, ".fam"
-  ! todo : this needs to be abel to read from the IO namelist
-  call init_fam_file(l, m, eff_charge_n, eff_charge_p, famfilename)
+  call init_fam_file(l, m, eff_charge_n, eff_charge_p, famfile)
 
   !---------------------------------------------------------------------------------
   ! solving FAM for a range of omega frequencies
@@ -274,7 +270,7 @@ program run_FAM
     print *, "          S     = ", strength 
     print 1
 
-    call append_fam_file(omega_curr, strength, num_iter, strength_free, famfilename)
+    call append_fam_file(omega_curr, strength, num_iter, strength_free, famfile)
 
     omega_curr = omega_curr + omega_step
 
