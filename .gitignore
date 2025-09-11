@@ -9,7 +9,7 @@ obj/*
 mod/*
 *exe
 *.i
-*.out
+
 den_*
 pot_*
 tant_*

@@ -10,19 +10,40 @@ import json
 from jobscript import assert_exist
 from multiindex import MultiIndex
 
-folder = Path('slurm.out')
+# where the output files are:
+folder = Path('done')
 
-def read_timings():
-    timings_json = folder/'timings.json'
+def read_timings(filename:str = 'timings.json') -> dict:
+    """
+    Read the timings from file filename in folder
+
+    Args:
+        filename from which the result is read
+
+    Returns:
+        dict of (filename, walltime) pairs
+    """
+    timings_json = folder/filename
     print(f"Reading timings from {timings_json}.")
     with open(timings_json,mode='r') as f:
         timings = json.load(f)
+        assert isinstance(timings,dict)
     print(f" -> {len(timings)} entries read.")
     return timings
 
-def collect_timings():
+def collect_timings(filename:str = 'timings.json'):
+    """
+    Parse all .out files in folder, find the wall time of the job, store (filename, wall time) in a dict and save 
+    the dict in a json file 
+
+    Args:
+        filename: json file where the collected timings are stored 
+
+    Returns:
+        dict with collected (filename, walltime) pairs
+    """
     print("collecting:")
-    timings = {}
+    timings: dict[str,float] = {}
     pathlist = folder.glob('**/*.out')
     for file in pathlist:
         with open(file, 'r') as f:
@@ -35,34 +56,42 @@ def collect_timings():
         print(f"{file} {cputime=}s")
         timings[str(file)] = cputime
     
-    with open(folder/'timings.json',mode='w') as f:
+    with open(folder/filename,mode='w') as f:
         json.dump(timings, f, indent=4)
 
     return timings
 
-def get_values(timings, varname):
+
+pattern_nprows  = re.compile("(\\d+x\\d+)")         # obtain nprows from substring '={nprows}x{nprows}'
+pattern_varname = re.compile(f"{varname}=(\\w+)")   # obtain varname from substring 'varname={value}'
+
+def get_values(timings: dict[str,float], varname: str):
     """
+    Parse all filenames and retrieve the occurring values for variable varname
+
+    Args:
+        timings: dict of (filename, wall time) pairs
+        varname: name of a variable occurring in the filename. varnames appear
+            as 'varname=value' in the filename, with the exception of 'x' which indicates 
+            nprows and appears as '{nprows}x{nprows}'
+
     Returns:
         a set of all values found in timings for variable varname.
     """
     assert_exist(varname)
 
     values = set()
-    if varname == 'x':
-        pattern = re.compile("(\\d+x\\d+)")
-    elif varname == 'cluster':
-        pattern = re.compile("cluster=(\\w+),")
-    elif varname == 'backend':
-        pattern = re.compile("backend=(\\w)\\)")
-    else:
-        pattern = re.compile(f"{varname}=(\\d+)")
+    pattern = pattern_nprows if varname == 'x' else pattern_varname
+
     for filename in timings:
         m = pattern.findall(filename)
         values.add(m[0])
+
     return values
     
 def expand(timngs,criteria):
-
+    """
+    """
     def next(mi, criteria_list_of_tuples):
         mi.increment()
         crit = {}
@@ -143,6 +172,7 @@ def select(timings, criteria:dict, verbose=True, _already_expanded=False):
 
 def plot(selections, x=None, title='', legend=None):
     """
+    Produce a plot 
     Args:
         selections: list of selection tuples `(selection,criteria)` to plot in a single figure
         x: name of the feature that must appear in the x-axis 

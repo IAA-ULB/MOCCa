@@ -1,0 +1,29 @@
+on_lumi : yes
+
+EasyBuild configured to install software in the user tree at
+/users/entijske/EasyBuild for the LUMI/24.03 software stack for the LUMI/C
+partition.
+  * Software installation directory: /users/entijske/EasyBuild/SW/LUMI-24.03/C
+  * Modules installation directory:
+/users/entijske/EasyBuild/modules/LUMI/24.03/partition/C
+  * Repository: /users/entijske/EasyBuild/ebfiles_repo/LUMI-24.03/LUMI-C
+  * Work directory for builds and logs: /tmp/12823789/easybuild
+    Clear work directory with clear-eb
+
+
+Currently Loaded Modules:
+  1) LUMI/24.03                           (S)  10) cray-dsmml/0.3.0
+  2) craype-x86-milan                          11) cray-mpich/8.1.29
+  3) craype-accel-host                         12) cray-libsci/24.03.0
+  4) libfabric/1.15.2.0                        13) PrgEnv-cray/8.5.0
+  5) craype-network-ofi                        14) buildtools/24.03
+  6) xpmem/2.8.2-1.0_5.1__g84a27a5.shasta      15) EasyBuild/4.9.2     (H)
+  7) partition/C                          (S)  16) EasyBuild-user/LUMI
+  8) cce/17.0.1                                17) cray-python/3.11.7
+  9) craype/2.7.31.11
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+compute_eigenvectors(na=4096,nev=4096,nblk=32)-rank[0/121] backend = pyev/pyscalapack
+cputime=321.8211003271863s
