@@ -20,7 +20,7 @@ def get_max_nprows(nnodes:int, cpus_per_node:int|None = None, verbose:bool = Fal
         print(f"{nprows*nprows} <= {ncores} < {npr*npr}")
     return nprows
 
-
+# for nnodes in [2,8,18,32,50,72, 2*n^2] all cores are in use on lumi (as it has 128 cores per node )
 if __name__ == "__main__":
     must_submit = '-s' in sys.argv or '--submit' in sys.argv
     print(f"{must_submit=}")
@@ -43,19 +43,20 @@ if __name__ == "__main__":
             job.template_parameters['partition'] = 'zen3' 
     
     job.template_parameters['walltime'] = jobscript.walltime_12h
-
-    na = 4096
-    naprev = na
-
+    
     nnodes = int(sys.argv[1])
+
+    na = 4096 if nnodes <= 8 else 4096*4
+
     if nnodes==1:
         try:
             npr = int(sys.argv[2])
         except:
             npr = 4
             
+    naprev = na
     for i in range(16):
-
+        
         job.template_parameters['na'] = na
         nev = na
         job.template_parameters['nev'] = nev
@@ -82,7 +83,7 @@ if __name__ == "__main__":
                     job.template_parameters['backend'] = backend
                     job.write(submit=must_submit)
         else:
-            nprows = get_max_nprows(nnodes, cpus_per_node=envtools.get_cpus_per_compute_node())
+            nprows = get_max_nprows(nnodes, cpus_per_node=envtools.get_cpus_per_compute_node(), verbose=True)
             nranks = nprows*nprows
             job.template_parameters['nranks'] = nranks
             job.template_parameters['nprows'] = nprows
