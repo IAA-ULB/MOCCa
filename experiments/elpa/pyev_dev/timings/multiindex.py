@@ -1,12 +1,20 @@
 import numpy as np
 
 class MultiIndex:
-    def __init__(self, dims):
-        self.dims = np.array(dims)
-        self.ndims = len(dims)
-        self.indx = np.zeros_like(dims)
-        self.indx[0] = -1
-    
+    def __init__(self, values:list[list[str]]):
+        self.values = values
+        self.ndims = len(values)
+        self.dims = np.zeros(self.ndims, dtype=int)
+        for idim in range(self.ndims):
+            self.dims[idim] = len(values[idim])
+        self.indx = np.zeros_like(self.dims)
+
+    def value(self):
+        result = []
+        for idim in range(self.ndims):
+            result.append(self.values[idim][self.indx[idim]])
+        return result
+
     def __len__(self):
         return np.prod(self.dims)
 
@@ -21,17 +29,18 @@ class MultiIndex:
         return self.indx
 
     def __str__(self):
-        return str(self.indx)
+        return f"{str(self.indx)} -> {str(self.value())}"
 
 if __name__ == '__main__':
-    criteria =[
-        ('nranks',[16,25,36]),
-        ('ba',['s','e']),
+    criteria = [
+        [16,25,36],
+        ['s','e'],
+        ['A']
     ]
     indx = MultiIndex(criteria)
     print(indx)
     print(len(indx))
     for i in range(len(indx)):
-        # print(indx.increment())
-        print(indx.next())
+        print(indx.value())
+        indx.increment()
     

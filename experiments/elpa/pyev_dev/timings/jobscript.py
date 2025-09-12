@@ -33,9 +33,6 @@ def available_backends():
 
 _TEMPLATE_JOBNAME = "job-(na={na},nev={nev},nblk={nblk})-(nnodes={nnodes},nranks={nranks}={nprows}x{npcols})-(cluster={cluster},backend={backend}).sh"
 
-def assert_exist(varname):
-    assert varname in _TEMPLATE_VALUES, f"ERROR: Inexisting template variable {varname}."
-
 class JobScript:
 
     def __init__(self):
