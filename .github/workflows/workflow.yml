@@ -55,8 +55,7 @@ jobs:
       # Compiler family
       COMPFAM:  ${{ matrix.COMPILER == 'gfortran' && 'gnu' || 'intel' }}
 
-      # There is not yet any intel HDF5 on astropc19, but enable it 
-      #   by default for gfortran
+      # Enable HDF5 only for gfortran builds for the moment
       HDF5SUFFIX: ${{ matrix.COMPILER == 'gfortran' && '-hdf5'|| '' }}
     steps:
       - name: Checkout code
@@ -73,12 +72,7 @@ jobs:
         run: |
             mkdir src/
             cp src_orig/*.f90 src
-      # - name: Compile Tantalus
-      #   if: ${{ contains(github.ref, "master") }}
-      #   # The setvars.sh ensures that the intel compilers are available on the astropcs
-      #   run: |
-      #     source /opt/intel/oneapi/setvars.sh --force &> /dev/null
-      #     make CONFIG=${{ matrix.CONFIG }} COMPILER=${{ matrix.COMPILER }} EXENAME=Tantalus.${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}.exe CALCTYPE=${{ matrix.CALCTYPE }}
+
       - name: Compile Tantalus
         # 1. The setvars.sh ensures that the intel compilers are available on the astropcs
         # 2. The copy command ensures the right compilation options
@@ -130,6 +124,7 @@ jobs:
           name: minimal-${{ env.SUFFIX }}
           path: testing/integration/logs/minimal.${{ env.SUFFIX }}.out
           retention-days: 90
+
   boundary_conditions:
     #-----------------------------------------------------------------------------
     # Run the boundary conditions test
@@ -172,9 +167,10 @@ jobs:
         with:
           name: boundary_conditions-${{ env.SUFFIX }}
           path: |
-            testing/integration/logs/minimal.${{ env.SUFFIX }}.NUCLEI.out
-            testing/integration/logs/minimal.${{ env.SUFFIX }}.PASTA.out
+            testing/integration/logs/boundary_conditions.${{ env.SUFFIX }}.NUCLEI.out
+            testing/integration/logs/boundary_conditions.${{ env.SUFFIX }}.PASTA.out
           retention-days: 90
+
   store_derivatives:
     #-----------------------------------------------------------------------------
     # Run the 'store_derivatives' test
@@ -307,7 +303,7 @@ jobs:
         with:
           name: spaghetti
           path: |
-            testing/integration/logs/lattice_energy.${{ env.SUFFIX }}.out
+            testing/integration/logs/spag.${{ env.SUFFIX }}.out
           retention-days: 90
 
 
