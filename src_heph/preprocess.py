@@ -132,8 +132,6 @@ def preprocess(fname, src, target, so , oldso, ph_pp_decoupl,
         ProcessHartreeFock(fname, src, target, so)
     if(fname=='folding.f90'):
         os.system('cp ' + src + fname + ' ' + target + fname)
-    if(fname=='temperature_projection.f90'):
-        os.system('cp ' + src + fname + ' ' + target + fname)
     if(fname=='momentsofinertia.f90'):
         ProcessGeneric(fname, src, target, so)
     if(fname=='fission_MOI.f90'):

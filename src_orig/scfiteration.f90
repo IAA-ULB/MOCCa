@@ -105,8 +105,8 @@ contains
       print 6, memory, mixstepsize
     endif
   end subroutine printscfiteration
-  
-  function AndersonMixPotentials( iterates, updates, stepsize, Nsaved) result(F)
+
+ function AndersonMixPotentials( iterates, updates, stepsize, Nsaved) result(F)
     !---------------------------------------------------------------------------
     ! Perform an Anderson Mixing step on the potential vectors to accelerate
     ! convergence. This particular implementation is based on the description

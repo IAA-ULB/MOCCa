@@ -97,6 +97,8 @@ use preconditioning
 use basis_transform
 use timing
 
+use vectors, only: DensityVector, memory
+
 implicit none
 
     interface operator (+)

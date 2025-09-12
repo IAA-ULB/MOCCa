@@ -111,8 +111,6 @@ contains
     !       done before.
     !---------------------------------------------------------------------------
 
-    !use Folding
-
     type(DensityVector), intent(in)      :: R
     type(PotentialVector), intent(inout) :: F
     real(KIND=dp), intent(in), optional  :: guess(:,:,:)
@@ -414,7 +412,7 @@ $REDUZ  coul_offset_z = 0
     !---------------------------------------------------------------------------
 
     use folding
-    use vectors
+    use vectors, only: DensityVector, PotentialVector
 
     real(KIND=dp), intent(in) :: source(:,:,:)
     type(PotentialVector), intent(inout) :: F
@@ -549,7 +547,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     !     R: Densityvector (which contains the charge density)
     !     F: Potentialvector (which contains the Coulomp potential)
     !---------------------------------------------------------------------------
-    use vectors
+    use vectors, only: DensityVector, PotentialVector
 
     type(DensityVector), intent(in)   :: R
     type(PotentialVector), intent(in) :: F
@@ -578,7 +576,7 @@ $FULLZ     if(k.gt.nz+BC) condition =.true.
     ! Input:
     !    R :  a set of mean-field densities
     !---------------------------------------------------------------------------
-    use vectors
+    use vectors, only: DensityVector
 
     type(DensityVector), intent(in) ::R
     real(KIND=dp) :: factor, Cenergy

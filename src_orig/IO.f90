@@ -1703,7 +1703,7 @@ subroutine ReadTantalus_hdf5(ifn)
     integer                      :: mpi_err
     real(KIND=dp), allocatable   :: tempwf(:,:)
 #endif
-!     type(moment), pointer        :: mom
+     type(moment), pointer        :: mom
 
     call start_timer(T_wfoutput)
 
@@ -1816,7 +1816,7 @@ subroutine ReadTantalus_hdf5(ifn)
       !write(chan, iostat=io) Omega(1:3)
       !-------------------------------------------------------------------------
       ! Potentials on file
-      !call writepotentials(chan,potentials)
+      call writepotentials(chan,potentials)
       !-------------------------------------------------------------------------
       ! Multipole moment information                             
       !
@@ -3180,7 +3180,6 @@ $NTR    Tzp(1:nx,1:ny,1:nz)  => TotalAngMom(:,3,2)
     do k=1,nz
       do j=1,ny
         do i=1,nx
-
 $NTR          write(1, fmt='(3f8.3, 18es25.12E3)') meshx(i), meshx(j), meshz(k),   &
 $NTR          &                                Sxn(i,j,k), Syn(i,j,k), Szn(i,j,k), & 
 $NTR          &                                Sxp(i,j,k), Syp(i,j,k), Szp(i,j,k), & 
@@ -3196,7 +3195,6 @@ $TR          &                                0.0d0,0.0d0,0.0d0, &
 $TR          &                                0.0d0,0.0d0,0.0d0, &
 $TR          &                                0.0d0,0.0d0,0.0d0, &
 $TR          &                                0.0d0,0.0d0,0.0d0
-
         enddo
       enddo
     enddo

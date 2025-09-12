@@ -106,10 +106,11 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
   fieldprecon = ''
   declaration = ''
 
-  fieldread = ''
-  fieldread_hdf5 = ''
-  fieldwrite= ''
-  fieldwrite_hdf5= ''
+  fieldread       = ''
+  fieldread_hdf5  = ''
+  fieldwrite      = ''
+  fieldwrite_hdf5 = ''
+
   fieldtransfo = ''
 
   fieldINMk2 = ''
@@ -518,7 +519,7 @@ def GenerateFields(so, oldso, ph_pp_decoupl):
         fieldread = fieldread + ts.field_transfo_recomb.substitute(dic)
       fieldread = fieldread + ts.field_read_f.substitute(dic)
       
-      # HDF4 option
+      # HDF5 option
       fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_a.substitute(dic)
       fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_b.substitute(dic)
       fieldread_hdf5 = fieldread_hdf5 + ts.field_read_hdf5_c.substitute(dic)

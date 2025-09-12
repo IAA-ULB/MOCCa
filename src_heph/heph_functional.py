@@ -992,6 +992,7 @@ def ProcessFunctional(fname, src, target, so, oldso, ph_pp_decoupl,
       dic['QUADRI'] = ' '
     else:
       dic['QUADRI'] = '!'
+
     if(derivative_order == 1):
       dic['N2'] = ' '    
       dic['N3'] = '!'

@@ -678,8 +678,8 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
        allocate(configmatrix(2*nwt))      ; configmatrix = 0.0
     endif
  
-   select case (Pairingtype)
-   case(0)
+    select case (Pairingtype)
+    case(0)
         if(inversetemp .eq. -1) then
             call NaiveFill(rho_can)
         else
@@ -796,6 +796,7 @@ $NTR        HFBgaps(wave2, wave) = -HFBgaps(wave, wave2)
     !---------------------------------------------------------------------------
     ! TODO: document
     !---------------------------------------------------------------------------
+    use wavefunctions, only : estimated_max_spe
 
     real*8, intent(in)   :: stabfactor(2)
     integer, allocatable :: indices(:)
@@ -1044,7 +1045,6 @@ $NTR         E(it) = E(it) + 0.5 * Kappa_pairing(wave,wave2)*HFBgaps(wave,wave2)
 $NTR integer                   :: wavebar
 
     gap = 0 ; norm = 0
-
     allocate(gaps_can(nwt,nwt))
    
     if(.not.allocated(HFBgaps)) then

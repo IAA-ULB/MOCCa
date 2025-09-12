@@ -17,7 +17,8 @@ module momentsofinertia
  !        switching the looping structure. The inner (j) loop currently has
  !        more communication/calculation to do and should be exchanged with 
  !        the outer (i) loop.
- !    (2) improve on the "transfer everything" MPI_ALLREDUCE calls, these can
+ !    (2) improve on the documentation of these routines; develop notes.
+ !    (3) improve on the "transfer everything" MPI_ALLREDUCE calls, these can
  !        likely be exchanged with MPI_BCASTs per symmetry block. 
  !------------------------------------------------------------------------------
 

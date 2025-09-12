@@ -652,7 +652,7 @@ subroutine printsummary(iter, potentials_frozen)
     6 format (' dmun  = ', es8.1, 4x, '  dmup= ', es8.1)
     7 format (' dN    = ', es8.1, 4x, '  dZ  = ', es8.1)
     8 format (' Jz    = ', f12.4,  2x, ' dJZ= ', es8.1,  &
-    &         ' Om = ' , f12.4,  2x, ' dO = ', e8.1, 2x, 'dev = ', es8.1)
+    &         ' Om = ' , f12.4,  2x, ', dO = ', e8.1, 2x, 'dev = ', es8.1)
 
     part=>FindMoment(0,0,.false.)
 
@@ -989,7 +989,6 @@ subroutine cleanupthemess()
   call clean_moments
   call clean_coulomb
   call clean_evolution
-  call clean_potentials
 
 end subroutine cleanupthemess
 end module Tantalus

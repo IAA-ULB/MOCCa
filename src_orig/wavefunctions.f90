@@ -85,7 +85,7 @@ module wavefunctions
  ! diagonalises the sphamiltonian. An extra unitary transformation might be
  ! required among them to obtain the physical HF basis.
  !
- ! Her-order derivative tensors are stored in lexicographical order to cut down
+ ! Higher-order derivative tensors are stored in lexicographical order to cut down
  !  on the number of indices and wasted computation.
  !            1    2    3    4    5    6    7    8    9    10
  ! 1st order: Dx   Dy   Dz

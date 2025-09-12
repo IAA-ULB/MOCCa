@@ -17,7 +17,7 @@ module BCS
  !
  !==============================================================================
 
- use vectors
+ use vectors, only: PotentialVector
  use wavefunctions
  use pairingcutoffs
 

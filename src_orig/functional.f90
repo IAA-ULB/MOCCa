@@ -88,6 +88,9 @@ module functional
  !                                                     (n,p)
  !
  !==============================================================================
+#if(USE_HDF5>0)
+ use HDF5
+#endif
 
  use compilation
  use geninfo
@@ -99,6 +102,7 @@ module functional
  use vectors
  use Cranking
  use pairing_strengths
+ use vectors, only : DensityVector, PotentialVector
 #if(USE_HDF5>0)
  use HDF5
 #endif
@@ -152,11 +156,19 @@ module functional
     !===========================================================================
 #if(USE_HDF5>0)
     ! level of compression in hdf5, 6 seems to be the best
+    ! TODO: relocate and rename this thing
     integer, parameter  :: comprlvl = 6
 #endif
     !---------------------------------------------------------------------------
     ! Numerical parameter of the preconditioning of the Skyrme potentials
+#if(PASTA > 0)
+    ! The 'optimal' default value for potential preconditioning in pasta 
+    ! calculations is higher than for finite nuclei; this is not currently
+    ! understood. 
     real(KIND=dp) :: preconfactor = 4.0_dp
+#else
+    real(KIND=dp) :: preconfactor = 1.0_dp
+#endif
     ! Kerker parameter for the preconditioning of the Coulomb potential
     ! Nuclei => don't do kerker by default
     ! Pasta  => do Kerker by default
@@ -682,7 +694,6 @@ end function multiply_potentialvector
 
     !---------------------------------------------------------------------------
     ! First we calculate all the individual terms/parts
-
     ! Kinetic energy
 $NOTAU    if(store_derivatives) then
             Kinetic = CompKinetic_spwfs()
@@ -1307,7 +1318,7 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     case(0,1)
       ! HF or BCS
       Bely    = Belyaev(:,3)
-      J2_temp = J2_pairing_cut(:,3)
+      J2_temp = J2(:,3)
       ! Sanity check: no collective sense of rotational correction implemented
       !               yet for HF/BCStype calculations
       if(blocktype.ne.0) then
@@ -1320,7 +1331,7 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
         J2_temp = J2_coll(:,3)
       else
         Bely    = Belyaev(:,3)
-        J2_temp = J2_pairing_cut(:,3)
+        J2_temp = J2(:,3)
       endif
     end select
 
