@@ -102,5 +102,5 @@ if __name__ == "__main__":
         else: # even times
             na = naprev*2
             naprev = na
-        if na > 50000*nnodes:
+        if na > 40000*nnodes:
             break
