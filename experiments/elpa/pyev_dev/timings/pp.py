@@ -9,10 +9,22 @@ import random
 import re
 import sys
 
+from do_sbatch import get_max_nprows
 from multiindex import MultiIndex
 
 # where the output files are:
 folder = Path('done')
+
+next_char = {'nblk':')'
+            ,'nranks':'='
+            ,'x':')'
+            ,'backend':')'
+            }
+def get_next_char(varname):
+    """We must include the next character when searching for files that match a criterion. E.g.
+    a file with 'nnodes=18' would otherwise match criterion 'nnodes=1'.
+    """
+    return next_char.get(varname, ',')
 
 def get_walltime(files: Path|list[Path]) -> list[float]:
     """Read the walltime directly from the file."""
@@ -131,17 +143,18 @@ def select(criteria: dict[str,str|int], files: list[Path], verbose=True) -> list
         for key,value in criteria.items():
             criteria[key] = f"{value}" if key=='x' else f"{key}={value}"
 
-        # perform the selection
         if verbose:
             print("Selecting entries satisfying:")
             for c in criteria.values():
                 print(f"    {c}")
 
+        # perform the selection
         selection = []
         for file in files:
             str_filename = str(file.name)
-            for c in criteria.values():
-                if not c in str_filename:
+            for varname,c in criteria.items():
+                c_ = c + get_next_char(varname)
+                if not c_ in str_filename:
                     break
             else:
                 selection.append(file)
@@ -153,7 +166,7 @@ def select(criteria: dict[str,str|int], files: list[Path], verbose=True) -> list
 
     return list_of_selections
 
-def plot(list_of_selection_tuples: list[tuple[list[Path],dict]], xAxis, title='', legend=None):
+def plot(list_of_selection_tuples: list[tuple[list[Path],dict]], xAxis, title='', legend=None, plotfun=plt.plot):
     """
     Produce a plot
 
@@ -194,9 +207,9 @@ def plot(list_of_selection_tuples: list[tuple[list[Path],dict]], xAxis, title=''
         plt.ylabel(f"walltime [s]")
 
         if len(selection) > 1:
-            plt.plot(xd,yd,'o--', label=legend_[i])
+            plotfun(xd,yd,'o--', label=legend_[i])
         else:
-            plt.plot(xd,yd,'o--')
+            plotfun(xd,yd,'o--')
 
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles, labels)
@@ -241,7 +254,12 @@ def sort_selection(selection: list[tuple[list[Path],dict]],varname:str):
         sorted_selection = sorted(selection, key=sort_func)
     elif varname == 'nnodes':
         def sort_func(tpl):
-            value = int(tpl[1][varname])
+            value = int(tpl[1][varname][7:])
+            return value
+        sorted_selection = sorted(selection, key=sort_func)
+    elif varname == 'napn':
+        def sort_func(tpl):
+            value = int(tpl[1][varname][5:])
             return value
         sorted_selection = sorted(selection, key=sort_func)
     elif varname == 'backend':
@@ -260,46 +278,76 @@ if __name__ == '__main__':
 
     files = list(folder.glob("**/*.out")) # convert to list so it can be used more than once.
 
-    title = 'single node scaling (elpa)'
-    criteria = {'nnodes':1, 'x':'*', 'backend':'e'}
+    do_all = False
+    if do_all:
+        title = 'single node scaling (elpa)'
+        criteria = {'nnodes':1, 'x':'*', 'backend':'e'}
+        selection = select(criteria, files)
+        selection = sort_selection(selection, 'x')
+        legend = ['4x4 cores'
+                 ,'5x5 cores'
+                 ,'6x6 cores'
+                 ,'7x7 cores'
+                 ,'8x8 cores'
+                 ,'9x9 cores'
+                 ,'10x10 cores'
+                 ,'11x11 cores'
+                 ]
+        plot(selection, xAxis='na', title=title, legend=legend)
+
+        title = 'single node scaling (scalapack)'
+        criteria = {'nnodes':1, 'x':'*', 'backend':'s'}
+        selection = select(criteria, files)
+        selection = sort_selection(selection, 'x')
+        plot(selection, xAxis='na', title=title, legend=legend)
+
+        title = 'single node scaling (scalapack vs elpa)'
+        criteria = {'nnodes': 1, 'x': ['4x4','8x8','11x11'], 'backend': '*'}
+        selection = select(criteria, files)
+        selection = sort_selection(selection, 'x')
+        selection = sort_selection(selection, 'backend')
+        legend = ['scalapack, 4x4 cores', 'scalapack, 8x8 cores', 'scalapack, 11x11 cores'
+                 ,'elpa, 4x4 cores'     , 'elpa, 8x8 cores',      'elpa, 11x11 cores'
+                 ]
+        plot(selection, xAxis='na', title=title, legend=legend)
+
+        title ='scaling elpa'
+        criteria = {'nnodes': [2,3,4,8,18,32], 'backend': 'e'}
+        selection = select(criteria, files)
+        selection = sort_selection(selection, 'nnodes')
+        legend = [ get_max_nprows(int(s[1]['nnodes'].split('=')[1]), cpus_per_node=128) for s in selection ]
+        legend = [ f'{l}x{l} cores' for l in legend]
+        plot(selection, xAxis='na', title=title, plotfun=plt.semilogy, legend=legend)
+
+        title ='scaling scalapack'
+        criteria = {'nnodes': [2,3,4,8,18,32], 'backend': 's'}
+        selection = select(criteria, files)
+        selection = sort_selection(selection, 'nnodes')
+        plot(selection, xAxis='na', title=title, plotfun=plt.semilogy, legend=legend)
+
+        title ='scaling elpa vs scalapack'
+        criteria = {'nnodes': [2,3,4,8,18,32], 'backend': '*'}
+        selection = select(criteria, files)
+        selection = sort_selection(selection, 'nnodes')
+        selection = sort_selection(selection, 'backend')
+        legend = []
+        for s in selection:
+            backend = 'elpa' if s[1]['backend']=='e' else 'scalapack'
+            nprows = get_max_nprows(int(s[1]['nnodes'].split('=')[1]), cpus_per_node=128)
+            legend.append(f'{backend}, {nprows}x{nprows} cores')
+        # legend = [ , cpus_per_node=128) for s in selection ]
+        # legend = [ f'{l}x{l} cores' for l in legend]
+        plot(selection, xAxis='na', title=title, plotfun=plt.semilogy, legend=legend)
+
+    title = 'strong scaling elpa all'
+    criteria = {'napn': '*', 'backend': 'e'}
     selection = select(criteria, files)
-    selection = sort_selection(selection, 'x')
-    legend = ['4x4 cores'
-             ,'5x5 cores'
-             ,'6x6 cores'
-             ,'7x7 cores'
-             ,'8x8 cores'
-             ,'9x9 cores'
-             ,'10x10 cores'
-             ,'11x11 cores'
-             ]
-    plot(selection, xAxis='na', title=title, legend=legend)
+    selection = sort_selection(selection, 'napn')
+    plot(selection, xAxis='nranks', title=title, plotfun=plt.semilogy)
 
-    title = 'single node scaling (scalapack)'
-    criteria = {'nnodes':1, 'x':'*', 'backend':'s'}
+    title = 'strong scaling elpa'
+    criteria = {'napn': ['4096','8192','16384','23170','32768','65536'], 'backend': 'e'}
     selection = select(criteria, files)
-    selection = sort_selection(selection, 'x')
-    plot(selection, xAxis='na', title=title, legend=legend)
+    selection = sort_selection(selection, 'napn')
+    plot(selection, xAxis='nranks', title=title, plotfun=plt.semilogy)
 
-    title = 'single node scaling (scalapack vs elpa)'
-    criteria = {'nnodes': 1, 'x': ['4x4','8x8','11x11'], 'backend': '*'}
-    selection = select(criteria, files)
-    selection = sort_selection(selection, 'x')
-    selection = sort_selection(selection, 'backend')
-    legend = ['scalapack, 4x4 cores', 'scalapack, 8x8 cores', 'scalapack, 11x11 cores'
-             ,'elpa, 4x4 cores'     , 'elpa, 8x8 cores',      'elpa, 11x11 cores'
-             ]
-    plot(selection, xAxis='na', title=title, legend=legend)
-
-    title ='scaling (scalapack vs elpa)'
-    criteria = {'nnodes': 1, 'x': ['4x4', '8x8', '11x11'], 'backend': '*'}
-
-    # plot(timings, x='nnodes')
-    #
-    # nranks_backends = select(timings,{'backend':'*','nranks':'*'})
-    # plot(nranks_backends, x='na')
-    #
-    # na_backends = select(timings,{'backend':'*','na':'*'})
-    # plot(na_backends, x='nranks')
-    #
-    # plot(select(timings,{'backend':'*','nranks':100}), x='na')
