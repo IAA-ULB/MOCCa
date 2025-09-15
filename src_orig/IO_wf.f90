@@ -32,7 +32,7 @@ module IO_wf
   !==============================================================================
 
   use compilation
-  use GenInfo,       only: nx, ny, nz, dp, NCores, MPI_RANK, stp
+  use GenInfo,       only: nx, ny, nz, dp, NPROCS, MPI_RANK, stp
   use wavefunctions, only: HFBLOCKS
   use functional,    only: symtransfo_needed, ini_name_param, &
                        &   pairingtype, BCSGaps, HFBGaps, FermiEnergy
@@ -259,14 +259,14 @@ module IO_wf
     call MPI_BCAST(symtransfo_needed,1,MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
 #endif    
     ! .. now we have each rank decide what spwfs to take from file
-    call loadbalance(fileblocks_global,balancing_strategy, &           ! inputs
+    call loadbalance(fileblocks_global,                              & ! inputs
     &       fileblocks, file_spwf_map, file_rank_map,file_spwf_inverse)! outputs
 
     ! Arrays like these are stored on all ranks, hence "filenwt"
     allocate(spenergies (filenwt))
     allocate(dispersions(filenwt))
     allocate(HFtransfo  (filenwt,filenwt)) ; HFtransfo   = 0.0d0
-    allocate(current_sph(filenwt,filenwt)) ; current_sph = 0.0d0
+    allocate(sphamil(filenwt,filenwt)) ; sphamil = 0.0d0
 
     if (allocated(rho_can)) deallocate(rho_can)
     allocate(rho_can(filenwt))
@@ -322,7 +322,7 @@ module IO_wf
     else
       ! Originally, the .wf files contained the HFPsi array as one unformatted
       ! record. This is kind of unpractical for MPI applications.
-      if(NCores .gt. 1) call stp('Old .wf files cannot be read with MPI runs.')
+      if(NPROCS .gt. 1) call stp('Old .wf files cannot be read with MPI runs.')
 
       ! We can safely read this in one go; a single rank is present
       read(chan,iostat=io) HFPsi
@@ -341,7 +341,7 @@ module IO_wf
       read(chan, iostat=io) ini_name_param, func_name_check
       ! Single-particle hamiltonian
       if(file_version.ge.4) then
-        read(chan, iostat=io) current_sph
+        read(chan, iostat=io) sphamil
       endif
     endif
 #if(USE_MPI > 0)
@@ -350,7 +350,7 @@ module IO_wf
     call MPI_BCAST(func_name_check, len(func_name_check), MPI_CHARACTER,0,     &
     &                                                   MPI_COMM_WORLD, mpi_err)
 
-    call MPI_BCAST(current_sph, filenwt**2, MPI_REAL8,0,MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(sphamil, filenwt**2, MPI_REAL8,0,MPI_COMM_WORLD, mpi_err)
 #endif
 
     !---------------------------------------------------------------------------
@@ -704,7 +704,7 @@ module IO_wf
       ! Name of the force.
       write(chan, iostat=io) name_param, func_name
       ! Single-particle hamiltonian
-      write(chan, iostat=io) current_sph
+      write(chan, iostat=io) sphamil
       !-------------------------------------------------------------------------
       ! Pairing information 
       write(chan, iostat=io) PairingType
@@ -1143,7 +1143,7 @@ module IO_wf
     !---------------------------------------------------------------------------
     ! This method has turned out to NOT be a reliable indicator.
 !    blocked_blocks =  figure_out_blocking_structure_agnostic(                  &
-!    &                             current_sph, HFBgaps, FermiEnergy, Bogoliubov)
+!    &                             sphamil, HFBgaps, FermiEnergy, Bogoliubov)
 !  
 !    check_blocks = 0
 !    do i=1,NB

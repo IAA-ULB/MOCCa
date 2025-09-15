@@ -721,7 +721,7 @@ $NTR  call write_timeodd_densities(Density, TOFILE)
     Q32 => FindMoment(3,2,.false., Q20) ! We start searching from Q20, as that is guaranteed to exist
     Q40 => FindMoment(4,0,.false., Q20)
 
-    write(filedone,'(a,"z",i3.3,"n",i3.3".out")')        &  
+    write(filedone,'(a,"z",i3.3,"n",i3.3,".out")')        &  
      &     trim(adjustl(BXLFIT)),int(protons),int(neutrons) 
   
     open(unit=10,file=filedone)
