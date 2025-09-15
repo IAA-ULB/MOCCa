@@ -60,7 +60,7 @@ field_read_b  = T(3*tab +  'allocate(F%${FIELD}(mv$ALLOCIND,$ISOSIZE),F_temp%${F
                   3*tab +  'call MPI_BCAST(F_temp%${FIELD},size(F_temp%${FIELD}),MPI_REAL8,0,MPI_COMM_WORLD,mpi_err) \n' + 
                   '#endif \n')
 
-field_read_c  = T(3*tab +  'if(symtransfo_needed) then    \n')
+field_read_c  = T(3*tab +  'if(sym_transfo_needed) then    \n')
 field_read_d  = T(4*tab + '$POTREAD F%$FIELD = F_temp%${FIELD} \n'            \
                 + 4*tab + '$UNDOREAD deallocate(F%$FIELD, F_temp%${FIELD}) \n')
 field_read_e  = T(3*tab +  'else \n')
@@ -76,7 +76,7 @@ field_read_hdf5_b = T(tab +  'if(MPI_RANK .eq. 0) then \n' +
                     '#if (USE_MPI > 0) \n' +
                     tab +  'call MPI_BCAST(F_temp%${FIELD},size(F_temp%${FIELD}),MPI_REAL8,0,MPI_COMM_WORLD,mpi_err) \n' + 
                   '#endif \n')
-field_read_hdf5_c = T(tab +  'if(symtransfo_needed) then    \n')
+field_read_hdf5_c = T(tab +  'if(sym_transfo_needed) then    \n')
 field_read_hdf5_d = T(2*tab + '$POTREAD F%$FIELD = F_temp%${FIELD} \n'            \
                 + 2*tab + '$UNDOREAD deallocate(F%$FIELD, F_temp%${FIELD}) \n')
 field_read_hdf5_e = T(tab +  'else \n')

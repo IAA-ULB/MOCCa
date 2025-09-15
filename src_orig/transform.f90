@@ -39,7 +39,8 @@ module transform
   implicit none
 
   ! Indicates whether we need to transform the spwfs read on input.
-  logical :: symtransfo_needed = .false.
+  ! TODO: refactor things such that symtransfo_needed is no longer a global setting!
+  logical :: sym_transfo_needed = .false.
 
 contains
 

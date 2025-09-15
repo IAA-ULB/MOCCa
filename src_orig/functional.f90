@@ -2179,7 +2179,7 @@ $WRITEPOTENTIALS_HDF5
   end subroutine write_hdf5_potentials
 #endif
 
-  function ReadPotentials(chan, filenx, fileny, filenz, symtransfo_needed) &
+  function ReadPotentials(chan, filenx, fileny, filenz, sym_transfo_needed) &
   & result(F)
     !---------------------------------------------------------------------------
     ! Subroutine that reads the different mean-field potentials from a 
@@ -2194,7 +2194,7 @@ $WRITEPOTENTIALS_HDF5
     !   chan                  : integer, channel number for input
     !   filenx, fileny,filenz : integers, number of mesh points in every
     !                           direction for the quantities on file
-    !   symtransfo_needed     : logical, if a symmetry transformation is
+    !   sym_transfo_needed    : logical, if a symmetry transformation is
     !                           needed (.true.) or not (.false.)
     !                  .false.: use the potentials as read from
     !                           file, transforming only the number of mesh
@@ -2207,7 +2207,7 @@ $WRITEPOTENTIALS_HDF5
     !   F                      : a potential-vector, read from file
     !---------------------------------------------------------------------------
     integer, intent(in)   :: chan, filenx, fileny, filenz
-    logical, intent(in)   :: symtransfo_needed
+    logical, intent(in)   :: sym_transfo_needed
     type(PotentialVector) :: F, F_temp
     integer               :: io, potnumber, potcount, it, filemv
     character(len=30)     :: potname
@@ -2242,7 +2242,7 @@ $READPOTENTIALS
   end function ReadPotentials
 
 #if(USE_HDF5 > 0)
-  function read_potentials_hdf5(file_id, filenx, fileny, filenz, symtransfo_needed) &
+  function read_potentials_hdf5(file_id, filenx, fileny, filenz, sym_transfo_needed) &
    & result(F)
     !---------------------------------------------------------------------------
     ! Subroutine that reads the different mean-field potentials from a 
@@ -2256,7 +2256,7 @@ $READPOTENTIALS
     !   chan                  : id of the group potentials
     !   filenx, fileny,filenz : integers, number of mesh points in every 
     !                           direction for the quantities on file
-    !   symtransfo_needed     : logical, if a symmetry transformation is 
+    !   sym_transfo_needed    : logical, if a symmetry transformation is 
     !                           needed (.true.) or not (.false.)
     !                  .false.: use the potentials as read from 
     !                           file, transforming only the number of mesh 
@@ -2271,11 +2271,12 @@ $READPOTENTIALS
     use HDF5
     use HDF5_auxiliary
 
-    integer(hid_t), intent(in) :: file_id
+    integer(hid_t), intent(in)   :: file_id
+    integer, intent(in)          :: filenx, fileny, filenz
+    logical, intent(in)          :: sym_transfo_needed
+    character(len=21), parameter :: groupname='/fields/potentials'
+
     integer(hid_t)             :: group_id
-    character(len=11)          :: groupname
-    integer, intent(in)        :: filenx, fileny, filenz
-    logical, intent(in)        :: symtransfo_needed
     type(PotentialVector)      :: F, F_temp
     real(kind=dp), allocatable :: Ftmp(:) 
     integer                    :: filemv, it, h5ferr
@@ -2286,8 +2287,11 @@ $READPOTENTIALS
     filemv = filenx * fileny * filenz
     
     if(MPI_RANK .eq. 0) then
-      groupname='/potentials'
       call h5gopen_f(file_id,groupname,group_id,h5ferr)
+      if(h5ferr.ne.0) then
+        write(*,*) 'Error opening group ',trim(groupname)
+        call stp('ERROR: reading potentials in hdf5 format')
+      endif
     endif
 
 $READPOTENTIALS_HDF5
@@ -2300,10 +2304,20 @@ $READPOTENTIALS_HDF5
   end function read_potentials_hdf5
 
   subroutine hdf5_readpot(id, name, dset, n)
-    ! reads double precision potential of length n with some name in the hdf5 file
-
+    !-----------------------------------------------------------------
+    ! Subroutine that reads a double precision potential of length n
+    ! with some name in the hdf5 file.
+    ! 
+    ! Input:
+    !   id    : integer(hid_t), identifier of the hdf5 file or group
+    !   name  : character(len=*), name of the dataset to read
+    !   n     : integer, length of the dataset to read
+    !
+    ! Output:
+    !   dset  : real(kind=dp), intent(inout), array of length n to
+    !           store the read dataset
+    !-----------------------------------------------------------------
     use HDF5
-    use HDF5_auxiliary
 
     character(len=*), intent(in) :: name
     integer(hid_t), intent(in)   :: id

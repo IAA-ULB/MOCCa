@@ -34,8 +34,8 @@ module IO_wf
   use compilation
   use GenInfo,       only: nx, ny, nz, dp, NPROCS, MPI_RANK, stp
   use wavefunctions, only: HFBLOCKS
-  use functional,    only: symtransfo_needed, ini_name_param, &
-                       &   pairingtype, BCSGaps, HFBGaps, FermiEnergy
+  use functional,    only: ini_name_param, pairingtype, BCSGaps, HFBGaps, FermiEnergy
+  use transform,     only: sym_transfo_needed
 
   implicit none
 
@@ -75,10 +75,10 @@ module IO_wf
   ! Characteristics of the calculation stored on the .wf file
   integer              :: filenx, fileny, filenz, filemv
   integer              :: filenwn, filenwp, filepairing
-  integer              :: filenwt, fileneutrons, fileprotons
+  integer              :: filenwt
   integer              :: fileblocks_global(8), fileblocks(8)
   integer, allocatable :: file_spwf_map(:),file_rank_map(:),file_spwf_inverse(:)
-  real(KIND=dp) :: filedx
+  real(KIND=dp)        :: filedx, fileneutrons, fileprotons
   !-----------------------------------------------------------------------------
   ! Did we succeed in reading a HFB configuration from file? 
   logical       :: readHFBinfofile= .false.
@@ -214,9 +214,9 @@ module IO_wf
         read(Chan,iostat=io) SYM_CODE_CHECK
 
         if(SYM_CODE_CHECK .eq. SYM_CODE) then
-          symtransfo_needed = .false.
+          sym_transfo_needed = .false.
         elseif(SYM_CODE_CHECK .eq. TRANS_CODE) then
-          symtransfo_needed = .true.
+          sym_transfo_needed = .true.
         else
           print 3
           print 4, SYM_CODE 
@@ -256,7 +256,7 @@ module IO_wf
     ! logic further down in this routine
     call MPI_BCAST(file_version , 1, MPI_integer, 0, MPI_COMM_WORLD, mpi_err)
 
-    call MPI_BCAST(symtransfo_needed,1,MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
+    call MPI_BCAST(sym_transfo_needed,1,MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
 #endif    
     ! .. now we have each rank decide what spwfs to take from file
     call loadbalance(fileblocks_global,                              & ! inputs
@@ -525,7 +525,7 @@ module IO_wf
 
     !---------------------------------------------------------------------------
     ! Potentials: note that readpotentials handles all MPI affairs itself
-    potentials_read = readpotentials(chan, filenx,fileny,filenz, symtransfo_needed)
+    potentials_read = readpotentials(chan, filenx,fileny,filenz, sym_transfo_needed)
     !-------------------------------------------------------------------------
     ! Multipole moment information
     ! Note: ReadMoment handles all MPI affairs itself
@@ -558,7 +558,7 @@ module IO_wf
       check_nwn = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
       check_nwp = (nwn .ne. filenwn) .and. (nwn .ne. 2*filenwn)
 
-      if(symtransfo_needed) then
+      if(sym_transfo_needed) then
        if(check_x .or. check_y .or. check_z) then 
         call stp("Please don't combine symmetry transformations and mesh modifications.")
        endif  
@@ -950,9 +950,11 @@ module IO_wf
     !   None
     !------------------------------------------------------------------------------------
     use HDF5
-    use HDF5_auxiliary, only : hdf5_write_attr_double_1d
-    use wavefunctions,  only : HFPsi, nwt
+    use HDF5_auxiliary, only : hdf5_write_attr_double_1d,  hdf5_write_dataset_1d
+    use wavefunctions,  only : HFPsi, nwt, dispersions, spenergies
     use pairing,        only : rho_can
+    use BCS,            only : BCSgaps
+    use HFB,            only : HFBgaps
 
     integer(HID_T), INTENT(IN) :: file_id
     integer(HID_T)             :: space_id, plist_id, dset_id, wf_id, hf_id, comp_id, can_id
@@ -994,16 +996,27 @@ module IO_wf
     ! Other information
     if(MPI_Rank.eq.0) then
       dims_1d = (/nwt/)
+      ! Information on the computational basis
+      select case(PairingType)
+      case(0) ! HF
+        ! Nothing to write for now
+      case(1) ! BCS
+        call hdf5_write_dataset_1d(file_id,'BCSgaps' , BCSgaps,nwt,'wavefunctions/compbasis/')
+      case(2) ! HFB 
+        ! Nothing to write for now
+      end select
       ! Information on the HF basis
-      ! TODO
+      call hdf5_write_dataset_1d(file_id,'spenergies' , spenergies,nwt,'wavefunctions/hfbasis/')
+      call hdf5_write_dataset_1d(file_id,'dispersions',dispersions,nwt,'wavefunctions/hfbasis/')
       ! Information on the canonical basis
-      call h5screate_simple_f(1, dims_1d, space_id, h5ferr) 
-      call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
-      call h5dcreate_f(file_id,'/wavefunctions/canbasis/rho_can',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
-      call h5pclose_f(plist_id, h5ferr)
-      call h5sclose_f(space_id, h5ferr)
-      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, rho_can, dims_1d, h5ferr)
-      call h5dclose_f(dset_id, h5ferr)
+      call hdf5_write_dataset_1d(file_id,'rho_can', rho_can,nwt,'wavefunctions/canbasis/')
+      !call h5screate_simple_f(1, dims_1d, space_id, h5ferr) 
+      !call h5pcreate_f(H5P_DATASET_CREATE_F, plist_id, h5ferr)
+      !call h5dcreate_f(file_id,'/wavefunctions/canbasis/rho_can',H5T_NATIVE_DOUBLE,space_id,dset_id,h5ferr,plist_id)
+      !call h5pclose_f(plist_id, h5ferr)
+      !call h5sclose_f(space_id, h5ferr)
+      !call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, rho_can, dims_1d, h5ferr)
+      !call h5dclose_f(dset_id, h5ferr)
     ! Information on the canonical basis
       ! TODO
     endif
@@ -1058,17 +1071,260 @@ module IO_wf
 
   end subroutine write_hdf5_multipoles
 
-  subroutine read_tantalus_hdf5(ifn)
+  subroutine read_tantalus_hdf5(ifn, sym_transfo_needed)
     !------------------------------------------------------------------------------------------
-    ! Subroutine that reads a .hdf5 file to warmstart future runs or to do more
-    ! analysis.
+    ! Subroutine that reads a .hdf5 file to warmstart future runs or to do more analysis.
     !
-    ! 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
-    !   ifn  : character, filename to read from.
+    !   ifn  : character, filename to read from. (short for InputFileName)
+    !
+    ! Output:
+    !   sym_transfo_needed : logical, whether symmetry transformations are needed
+    !                        to adapt the wavefunctions on file to the current
+    !                        symmetry settings.
     !------------------------------------------------------------------------------------------
+    use HDF5
+    use timing    , only : start_timer, stop_timer, T_wfinput
+    use functional, only : potentials_read
+    
     character(len=*), intent(in)  :: ifn
+    logical, intent(out)          :: sym_transfo_needed
+    integer                       :: h5ferr, i
+    integer(HID_T)                :: file_id, root_id, dset_id, plist_id, space_id
+    logical                       :: exists
+
+    1 format ('Number of mesh points does not correspond to file.',    / &
+    &         'On file: nx= ', i3, ' ny= ', i3, ' nz= ',i3,            / &
+    &         'In data: nx= ', i3, ' ny= ', i3, ' nz= ',i3)
+    2 format ('Number of wavefunctions does not correspond to file.',  / &
+    &         'On file: nwn= ', i3, ' nwp=', i3,                       / &
+    &         'In data: nwn= ', i3, ' nwp=', i3)
+
+    3 format (' The symmetry choices on file cannot be handled by this executable.')
+    4 format (' SYM_CODE   = ', a26)
+    5 format (' TRANS_CODE = ', a26)
+    6 format (' ON FILE    = ', a26)
+
+    call start_timer(T_wfinput)
+
+    !Initialize hdf5 interface 
+    call h5open_f(h5ferr)
+
+    ! First check if the file exists.
+    inquire(file=ifn, exist=exists)
+    if(.not.exists) then
+      call stp('The input file you asked for does not exist! \n' // 'Input: ' // trim(ifn))
+    endif
+    !open the file
+    call h5fopen_f(ifn,H5F_ACC_RDONLY_F,file_id,h5ferr)
+    if(h5ferr.ne.0) call stp('Error opening HDF5 file.')
+
+    ! Start actual reading
+    call read_hdf5_attributes(file_id, sym_transfo_needed)
+    call read_hdf5_fields(file_id, potentials_read)
+    call read_hdf5_wavefunctions(file_id)
+    ! TODO: add multipoles
+    !call write_hdf5_multipoles(file_id)
+
+    ! Close file and FORTRAN interface
+    call h5fclose_f(file_id, h5ferr)
+    call h5close_f(h5ferr)
+
+    call stop_timer(T_wfinput)
   end subroutine read_tantalus_hdf5
+
+  subroutine read_hdf5_attributes(file_id, sym_transfo_needed)
+    !-----------------------------------------------------------------------------
+    !
+    ! Attention: surely not all information on file is consistently acted upon.
+    !
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_id : integer(HID_T), identifier of the root group of the HDF5 file
+    !
+    ! Output:
+    !   sym_transfo_needed : logical, whether symmetry transformations are needed
+    !                        to adapt the wavefunctions on file to the current
+    !                        symmetry settings.
+    !-----------------------------------------------------------------------------
+    use HDF5
+    use HDF5_auxiliary, only : hdf5_read_attr_integer, hdf5_read_attr_integer_1d
+    use HDF5_auxiliary, only : hdf5_read_attr_double , hdf5_read_attr_double_1d
+    use HDF5_auxiliary, only : hdf5_read_attr_char 
+    
+    integer(HID_T), INTENT(IN)   :: file_id 
+    character(len=26)            :: SYM_CODE_CHECK
+    character(len=20)            :: func_name_check
+    logical, INTENT(OUT)         :: sym_transfo_needed
+
+    1 format ('Number of mesh points does not correspond to file.', / &
+    &         'On file: nx= ', i3, ' ny= ', i3, ' nz= ',i3,            / &
+    &         'In data: nx= ', i3, ' ny= ', i3, ' nz= ',i3)
+    2 format ('Number of wavefunctions does not correspond to file.', / &
+    &         'On file: nwn= ', i3, ' nwp=', i3,                      / &
+    &         'In data: nwn= ', i3, ' nwp=', i3)
+
+    3 format (' The symmetry choices  on file cannot be handled.')
+    4 format (' SYM_CODE   = ', a26)
+    5 format (' TRANS_CODE = ', a26)
+    6 format (' ON FILE    = ', a26)
+
+    ! Versioning information
+    call hdf5_read_attr_integer(file_id, 'version_number', file_version)
+
+    ! Number of protons and neutrons
+    call hdf5_read_attr_double(file_id, 'neutrons', fileneutrons)
+    call hdf5_read_attr_double(file_id, 'protons',  fileprotons)
+
+    ! Type of Skyrme EDF 
+    call hdf5_read_attr_char(file_id, 'func_name', func_name_check,len(func_name_check,kind=8))
+    ! Parameterization name
+    call hdf5_read_attr_char(file_id, 'name_param', ini_name_param,len(ini_name_param,kind=8))  
+    ! Pairing ansatz
+    call hdf5_read_attr_integer(file_id, 'PairingType', filepairing)  
+
+    ! Parameters of the mesh: nx,ny,nz,dx,dy,dz
+    call hdf5_read_attr_integer(file_id, 'nx', filenx)
+    call hdf5_read_attr_integer(file_id, 'ny', fileny)
+    call hdf5_read_attr_integer(file_id, 'nz', filenz)
+
+    ! Read dx from file; note that information on dy and dz is discarded  
+    call hdf5_read_attr_double( file_id, 'dx', filedx)
+
+    ! Number of wavefunctions for neutrons and protons
+    call hdf5_read_attr_integer(file_id, 'nwn', filenwn)
+    call hdf5_read_attr_integer(file_id, 'nwp', filenwp)
+    call hdf5_read_attr_integer(file_id, 'nwt', filenwt)
+    call hdf5_read_attr_integer_1d(file_id, 'HFBlocks', fileblocks_global,8)
+
+    ! Symmetry information                                   
+    call hdf5_read_attr_char(file_id, 'SYM_CODE', SYM_CODE_CHECK, len(SYM_CODE_CHECK,kind=8))
+
+    if(SYM_CODE_CHECK .eq. SYM_CODE) then
+        sym_transfo_needed = .false.
+    elseif(SYM_CODE_CHECK .eq. TRANS_CODE) then
+        sym_transfo_needed = .true.
+    else
+      print 3
+      print 4, SYM_CODE 
+      print 5, TRANS_CODE
+      print 6, SYM_CODE_CHECK
+      call stp('')
+    endif
+
+    ! Pairing information
+    call hdf5_read_attr_double_1d(file_id, "FermiEnergy", FermiEnergy, 2)
+    ! TODO: include blocking information here!
+
+    ! Cranking information
+    !call hdf5_write_attr_double_1d(file_id, "Omega", omega, 3)
+  end subroutine read_hdf5_attributes
+
+  subroutine read_hdf5_fields(file_id, F)
+    !------------------------------------------------------------------------------------
+    ! Subroutine that reads information on densities and potentials from the
+    ! /fields/ group and its subgroups on a HDF5 file.
+    !
+    ! Note: not all information is used, case in point being the mean-field densities.
+    !
+    ! Input:
+    !   file_id : integer(HID_T), identifier of the root group of the HDF5 file
+    !
+    ! Output:
+    !   F       : PotentialVector that will contain the potentials read from file
+    !------------------------------------------------------------------------------------
+    use HDF5
+    use functional, only: PotentialVector, read_potentials_hdf5
+
+    integer(HID_T), INTENT(IN)         :: file_id
+    type(PotentialVector), INTENT(out) :: F
+
+    F = read_potentials_hdf5(file_id, filenx, fileny, filenz, sym_transfo_needed)
+
+    ! TODO: add MPI BCASTS here
+  end subroutine read_hdf5_fields
+
+  subroutine read_hdf5_wavefunctions(file_id) 
+    !------------------------------------------------------------------------------------
+    ! Subroutine that reads all information on the single-particle wavefunctions from
+    ! the /wavefunctions/ group and its subgroups on a HDF5 file.
+    !
+    ! TODO: 
+    ! - [ ] add MPI BCAST calls
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
+    !   file_id     : integer(HID_T), identifier of the root group of the HDF5 file
+    !   
+    ! Output:
+    ! 
+    !------------------------------------------------------------------------------------
+    use HDF5
+    use HDF5_auxiliary, only : hdf5_read_dataset_1d
+    use wavefunctions,  only : HFPsi, dispersions, spenergies, loadbalance
+    use pairing,        only : rho_can
+
+    integer(HID_T), INTENT(IN) :: file_id
+    integer(HID_T)             :: dset_id, group_id
+    integer(hsize_t)           :: dims(3), dims_1d(1) 
+    integer                    :: h5ferr
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! First, make a call to loadbalance in order to set all relevant arrays
+    call loadbalance(fileblocks_global,                               &! inputs
+    &       fileblocks, file_spwf_map, file_rank_map,file_spwf_inverse)! outputs
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! wavefunctions/compbasis/
+    call h5gopen_f(file_id, '/wavefunctions/compbasis', group_id, h5ferr)
+    select case(filepairing)
+    case(0) ! HF
+      ! No pairing gaps to read
+    case(1) ! BCS
+      allocate(BCSgaps(filenwt))
+      call hdf5_read_dataset_1d(group_id, 'BCSgaps'     , BCSgaps, filenwt)
+    case(2) ! HFB
+    ! TODO
+    end select
+    call h5gclose_f(group_id, h5ferr)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! wavefunctions/canbasis/
+    if(allocated(rho_can)) deallocate(rho_can)
+    allocate(rho_can(filenwt))
+    call h5gopen_f(file_id, '/wavefunctions/canbasis', group_id, h5ferr)
+    call hdf5_read_dataset_1d(group_id, 'rho_can'    ,     rho_can, filenwt)
+    call h5gclose_f(group_id, h5ferr)
+
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! wavefunctions/hfbasis/
+    allocate(spenergies (filenwt), dispersions(filenwt))
+    call h5gopen_f(file_id, '/wavefunctions/hfbasis', group_id, h5ferr)
+    call hdf5_read_dataset_1d(group_id, 'spenergies' ,  spenergies, filenwt)
+    call hdf5_read_dataset_1d(group_id, 'dispersions', dispersions, filenwt)
+    call h5gclose_f(group_id, h5ferr)
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Reading of the actual single-particle wavefunctions is kept for last
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    call h5dopen_f(file_id, '/wavefunctions/states', dset_id, h5ferr)
+    if (h5ferr.ne.0) then
+      call stp('ERROR: opening /wavefunctions/states dataset in hdf5 format')
+    endif
+
+#if(USE_MPI > 0)
+    call stp('Parallel IO for wavefunctions not implemented yet.')
+#else
+    allocate(HFPsi(filenx*fileny*filenz,4, sum(fileblocks)))
+    dims(1)=filenx*fileny*filenz
+    dims(2)=4
+    dims(3)=filenwt
+
+    call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, HFpsi, dims, h5ferr)
+#endif
+    call h5dclose_f(dset_id, h5ferr)
+    if (h5ferr.ne.0) then
+      call stp('ERROR: reading wafefunctions in hdf5 format')
+    endif
+  end subroutine read_hdf5_wavefunctions
 #endif
 
   function check_blocking_structure() result(passed)
@@ -1170,7 +1426,7 @@ module IO_wf
 !      endif
 !    enddo
 
-    if(.not. symtransfo_needed) then
+    if(.not. sym_transfo_needed) then
       !---------------------------------------------------------------------------
       ! Instead, we check the "effective" block sizes. 
       ! A reference unblocked calculation will have HFBlocks = grad_blocks

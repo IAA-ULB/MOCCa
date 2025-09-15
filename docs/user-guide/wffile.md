@@ -118,7 +118,8 @@
 
     -/wavefunctions/compbasis/ 
         - sphamil       : double precision rank 2 array of dimensions (nwn+nwp,nwn+nwp) containing the single-particle hamiltonian in the computational basis 
-        - gaps          : double precision rank 2 array of dimensions (nwn+nwp,nwn+nwp) containing the full matrix of pairing gaps in the computational basis
+        - HFBgaps       : double precision rank 2 array of dimensions (nwn+nwp,nwn+nwp) containing the full matrix of Bogoliubov pairing gaps in the computational basis
+        - BCSgaps       : double precision rank 1 array of dimensions (nwn+nwp) containing the BCS pairing gaps in the computational basis
         - rho_pairing   : double precision rank 2 array of dimensions (nwn+nwp,nwn+nwp) containing the density matrix \rho in the computational basis
         - kappa_pairing : double precision rank 2 array of dimensions (nwn+nwp,nwn+nwp) containing the anomalous density matrix \kappa in the computational basis
         - Bogo          : double precision rank 2 array of dimensions (nwn+nwp,nwn+nwp) containing the full Bogoliubov transformation in the computational basis
@@ -127,6 +128,7 @@
         - spenergies    : double precision 1D array of dimension (nwn+nwp) that contains the diagonal matrix elements of the single-particle Hamiltonian in the Hartree-Fock basis 
         - HFtransfo     : double precision rank 2 array of dimensions (nwn+nwp,nwn+nwp) that contains the unitary transformation from the spwfs stored in states 
                           and those in the Hartree-Fock basis; this transformation might be trivial.
+        - dispersions   : double precision 1D array of dimension (nwn+nwp) that contains dispersion of the single-particle hamiltonian 
     -/wavefunctions/canbasis/
         - rho_can       : double precision 1D array of dimension (nwn+nwp) that contains the diagonal matrix elements of \rho in the canonical basis
         - cantransfo    : double precision rank 2 array of dimensions (nwn+nwp,nwn+nwp) that contains the unitary transformation from the spwfs stored in states 

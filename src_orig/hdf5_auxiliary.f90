@@ -396,7 +396,38 @@ contains
 
     if (error.ne.0) call report_hdf5_error(id, name, 'reading')
   end subroutine hdf5_read_attr_double
-  
+
+  subroutine hdf5_read_attr_double_1d(id, name, attribute, n)
+    !----------------------------------------------------------------------------
+    ! reads double precision scalar attribute with some name from the hdf5 file
+    !
+    ! Input:
+    ! id        : hid_t,  identifier of the hdf5 object (file, group, dataset)
+    ! name      : string, name of the attribute
+    !
+    ! Output:
+    ! none
+    !----------------------------------------------------------------------------
+    integer(hid_t), intent(in)   :: id
+    character(len=*), intent(in) :: name
+    real(kind=dp), intent(out)   :: attribute(n)
+    integer, intent(in)          :: n
+
+    integer(HID_T)             :: attribute_id !identifiers
+    integer                    :: error
+    integer(size_t), dimension (1) :: dims
+
+    dims(1)=n
+    !open attribute
+    call h5aopen_name_f(id, name, attribute_id, error)
+    !read attribute
+    call h5aread_f(attribute_id, H5T_Native_Double, attribute, dims, error)
+    !close the attribute
+    call h5aclose_f(attribute_id,error)
+
+    if (error.ne.0) call report_hdf5_error(id, name, 'reading')
+  end subroutine hdf5_read_attr_double_1d
+    
   subroutine hdf5_read_dataset_1d(id, name, dset, n)
     !----------------------------------------------------------------------------
     ! reads double precision dataset array of length n with some name in the hdf5 file
@@ -449,7 +480,7 @@ contains
     integer(hid_t), intent(in)    :: id
     integer                       :: error
     character(len=*), intent(in)  :: name
-    character(len=7), intent(in)  ::  operation
+    character(len=7), intent(in)  :: operation
     CHARACTER(len=70)             :: msg
 
     write(msg,fmt=1) trim(operation), trim(name), id 

@@ -449,7 +449,7 @@ contains
       if( SYM_CODE .ne. "0 1 001 000 10 000 010 111" ) then
         ! Initialisation with nil8 wavefunctions is always EV8-style
         ! Thus we signal that a symmetry transformation is needed
-        symtransfo_needed = .true.
+        sym_transfo_needed = .true.
         if( TRANS_CODE .ne. "0 1 001 000 10 000 010 111") then
           print *, "---------------------------------------------------"
           print *, "| Calculations cannot be initialized from scratch |"
@@ -473,7 +473,7 @@ contains
     else if(inputoption.eq.2) then
 #if (USE_HDF5 > 0)
       ! Option 2a) start from a previous calculation with hdf5 input file
-      call read_tantalus_hdf5(inputfilename)
+      call read_tantalus_hdf5(inputfilename, sym_transfo_needed)
 #else
       call stp('HDF5 support was not enabled at compilation.')
 #endif
@@ -485,7 +485,7 @@ contains
     !---------------------------------------------------------------------------
     ! Transformation options
     if(allowtransform ) then
-      if(  symtransfo_needed ) then 
+      if(  sym_transfo_needed ) then 
           ! Option a): break a symmetry and transform the spwfs appropriately
           call Transformspwfs( HFPsi, filenx, fileny, filenz,fileblocks_global,&
           &                    fileblocks, file_rank_map, file_spwf_inverse)
@@ -501,7 +501,7 @@ contains
       endif
     else  
       ! Sanity check the input
-      if(symtransfo_needed) then
+      if(sym_transfo_needed) then
         call stp('Symmetry transformation needed, but not allowed by user.')
       endif
       ! We still need to set the information regarding spwf mapping
