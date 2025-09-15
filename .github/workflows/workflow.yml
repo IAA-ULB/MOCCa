@@ -16,6 +16,7 @@ on:
     branches:
       - master
       - difficult_merge
+      - diff_merge_HDF5
       - compilation_adaptation
   pull_request:
     branches:
