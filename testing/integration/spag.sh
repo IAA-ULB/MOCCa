@@ -110,10 +110,10 @@ write_data  0 10 "'tant_cyl.hdf5'"
 tantalus_check2=$?
 # Starting the checking
 # a) Get the total energy from the STDOUT file
-E=$(get_total_energy_stdout $outfile)
+E=$(get_total_energy_stdout $outfile.b)
 echo "fast check2 energy" $E $refE
 # b) Check that the number of protons is correct
-protons=$(get_Z_stdout $outfile)
+protons=$(get_Z_stdout $outfile.b)
 echo "fast check2 Z" $protons $refZ
 # ... and compare with a tolerance of 100 keV to the expected answer
 compare_floats $E $refE 0.100

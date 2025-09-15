@@ -102,6 +102,10 @@ jobs:
     env:
       SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI
     steps:
+        # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         # Start by downloading the relevant executable
         with:
@@ -140,6 +144,10 @@ jobs:
     env:
       SUFFIX: BXL.${{ matrix.COMPILER }}
     steps:
+        # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       # Start by downloading the relevant executable
       - uses: actions/download-artifact@v4
         with:
@@ -194,6 +202,10 @@ jobs:
       # Uniquely labelling the executables with this environment variable
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
     steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         # Download the executable
         with:
@@ -225,7 +237,7 @@ jobs:
     #---------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile
-    if: github.ref == 'refs/heads/difficult_merge'
+    if: github.ref == 'refs/heads/difficult_merge' || github.ref == 'refs/heads/diff_merge_HDF5'
     strategy:
       matrix:
         COMPILER: [ gfortran ] 
@@ -236,6 +248,10 @@ jobs:
       SUFFIX_PAS: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA
 
     steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         # Download the executables
         with:
@@ -274,7 +290,7 @@ jobs:
     #---------------------------------------------------------------------------
     runs-on: self-hosted
     needs: compile
-    if: github.ref == 'refs/heads/difficult_merge'
+    if: github.ref == 'refs/heads/difficult_merge' || github.ref == 'refs/heads/diff_merge_HDF5'
     strategy:
       matrix:
         COMPILER: [ gfortran ]
@@ -283,6 +299,10 @@ jobs:
       # Uniquely labelling the executables with this environment variable
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.PASTA
     steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         # Download the executables
         with:
@@ -306,8 +326,8 @@ jobs:
           name: spaghetti
           path: |
             testing/integration/logs/spag.${{ env.SUFFIX }}.out
+            testing/integration/logs/spag.${{ env.SUFFIX }}.b.out
           retention-days: 90
-
 
   symmetries:
     #-----------------------------------------------------------------------------
@@ -334,6 +354,10 @@ jobs:
        EXEC_TP : ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
 
     steps:
+      # Ensure the testing scripts are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: exec-${{ env.EXEC }}
