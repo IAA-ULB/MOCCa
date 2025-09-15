@@ -1261,7 +1261,6 @@ module IO_wf
     ! Output:
     ! 
     !------------------------------------------------------------------------------------
-    use geninfo, only        : dv
     use HDF5
     use HDF5_auxiliary, only : hdf5_read_dataset_1d
     use wavefunctions,  only : HFPsi, dispersions, spenergies, loadbalance
@@ -1270,7 +1269,7 @@ module IO_wf
     integer(HID_T), INTENT(IN) :: file_id
     integer(HID_T)             :: dset_id, group_id
     integer(hsize_t)           :: dims(3), dims_1d(1) 
-    integer                    :: h5ferr, i
+    integer                    :: h5ferr
 
     ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! First, make a call to loadbalance in order to set all relevant arrays
@@ -1322,12 +1321,6 @@ module IO_wf
     dims(3)=filenwt
 
     call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, HFpsi, dims, h5ferr)
-
-    print *, 'READING', fileblocks
-    do i =1, sum(fileblocks)
-      print *, 'NORM', i, sqrt(sum(HFPsi(:,:,i)**2)*dv)
-    enddo
-
 #endif
     call h5dclose_f(dset_id, h5ferr)
     if (h5ferr.ne.0) then
