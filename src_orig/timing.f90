@@ -1,15 +1,19 @@
 !-------------------------------------------------------------------------------
 ! Timing module for Tantalus, allowing for the definition of times in multiple
-! (possibly nested) contexts. 
+! (possibly nested) contexts.
 !
-! W.R. 2019, but heavily based on earlier work by Christopher Gilbreth on the 
+! W.R. 2019, but heavily based on earlier work by Christopher Gilbreth on the
 ! Yale SMMC code in 2010/2014.
 !-------------------------------------------------------------------------------
 module timing
 
-  use geninfo
+  use compilation,     only : dp
+  use geninfo,         only : MPI_RANK, NPROCS
+  use iso_fortran_env, only : int64, real64
 
-  implicit none
+  implicit none (external)
+
+  public
 
   !-----------------------------------------------------------------------------
   ! Timer IDs. These are set to values by add_timer().
@@ -32,7 +36,7 @@ module timing
   !  2. system_clock measures walltime
   integer, parameter :: CPU_TIME_ = 1, SYSTEM_CLOCK_ = 2
   integer, parameter :: TIME_TYPE = SYSTEM_CLOCK_
-  integer(8)         :: count_rate  ! Conversion for system_clock()
+  integer(int64)     :: count_rate  ! Conversion for system_clock()
 
   !-----------------------------------------------------------------------------
   ! Timing info for a timer in a particular context.
@@ -42,15 +46,15 @@ module timing
   ! We record times in each context separately.
   type context
      ! Binary description of the context
-     integer(8) :: key
+     integer(int64) :: key
      ! # of times this timer has been started in this context
-     integer(8) :: ncalls
+     integer(int64) :: ncalls
      ! for cpu_time
-     real(8)    :: tstart, tstop
+     real(real64)    :: tstart, tstop
      ! for system_clock
-     integer(8) :: itstart, itstop
+     integer(int64) :: itstart, itstop
      ! Total time so far in this context
-     real(8) :: tsum
+     real(real64) :: tsum
   end type context
 
   !-----------------------------------------------------------------------------
@@ -68,13 +72,12 @@ module timing
 
   integer                          :: ntimers = 0
   type(timer), allocatable, target :: timers(:)
-  integer(8)                       :: current_context = 0
+  integer(int64)                       :: current_context = 0
 
 
 contains
 
   elemental subroutine init_context(c)
-    implicit none
     type(context), intent(inout) :: c
     c%key = -1
     c%ncalls  = 0
@@ -94,10 +97,10 @@ contains
     integer, intent(out) :: id
     type(timer), pointer :: t
 
-    integer(8) :: count
+    integer(int64) :: count
 
     call allocate_timers(1)
-    if (count_rate .eq. 0) then
+    if (count_rate == 0) then
        call system_clock(count,count_rate)
     end if
 
@@ -213,7 +216,7 @@ contains
 
     current_context = ibclr(current_context, id-1)
     c => contexts(t%context_index)
-    if (c%key .ne. current_context) then
+    if (c%key /= current_context) then
        write (0,*) "Error: tried to stop timer ", trim(t%name), " in wrong context!"
        write (0,*) "Timer's context: ", c%key
        write (0,*) "Expected context: ", current_context
@@ -241,7 +244,7 @@ contains
     type(timer),   pointer :: t
     type(context), pointer :: c
     real(KIND=dp)          :: tstop
-    integer(8)             :: itstop
+    integer(int64)             :: itstop
     integer                :: i
     logical                :: running
 
@@ -298,13 +301,13 @@ contains
     type(timer), pointer   :: t
     type(context), pointer :: c
     real(KIND=DP)          :: time, total
-    integer(8)             :: ncalls
+    integer(int64)             :: ncalls
 #if(USE_MPI>0)
     integer :: mpi_err
 #endif
     do r=1, NPROCS
-      if(MPI_RANK .eq. r) then
-        if (current_context .ne. 0) then
+      if(MPI_RANK == r) then
+        if (current_context /= 0) then
            write (*,*) "WARNING: There are timers still running. They should be &
                 &stopped"
            write (*,*) "before printing out the timers. Some numbers may be&
@@ -312,7 +315,7 @@ contains
         end if
 
         call calc_total_time(total)
-  
+
         print *, 'Timers of MPI-rank ', r
         write (*,'(a2,tr1,a46,tr2,a10,tr2,a12,tr2,a7)') &
              "id", "Timer name                                    ", &
@@ -348,13 +351,13 @@ contains
     ! Recursively print all timers in a given context, and their subtimers.
     !---------------------------------------------------------------------------
     integer,    intent(in)        :: depth
-    integer(8), intent(in)        :: icontext
+    integer(int64), intent(in)        :: icontext
     integer,    intent(out)       :: nsub
     real(KIND=DP),    intent(out) :: tsub
     real(KIND=DP),    intent(in)  :: total
     logical,    intent(in)        :: prnt
 
-    integer(8)                    :: isubcontext
+    integer(int64)                    :: isubcontext
     integer                       :: id, ic, nsub1
     real(KIND=DP)                 :: tsub1, tinternal, tpercent
     type(timer),   pointer        :: t
@@ -384,7 +387,7 @@ contains
                 ! Print amount of time spent in this timer, and not in subtimers
                 tinternal = c%tsum - tsub1
                 tpercent = tinternal/total*100.d0
-                if (tpercent .ge. .01d0) then
+                if (tpercent >= .01d0) then
                    write (str,'(a,a)') spaces(1:(depth+1)*2), '(internal)'
                    write (*,'(a2,tr1,a40,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
                         '', str, '-', tinternal, tpercent
@@ -409,7 +412,7 @@ contains
     ! symmetry block.
     !--------------------------------------------------------------------------
     integer :: nsub, r
-    real(8) :: tsub, total
+    real(real64) :: tsub, total
 
 #if(USE_MPI>0)
     integer :: mpi_err, B
@@ -433,7 +436,7 @@ contains
                write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
                write (*,'(2x,tr1,a,tr35,tr2,a10,tr2,f12.4,tr2,f6.2,"%")') &
                         "TOTAL", "-", total, 100.d0
-               call print_all_timers_aux(0_8,0,nsub,tsub,total,.true.)
+               call print_all_timers_aux(0_int64,0,nsub,tsub,total,.true.)
                write (*,'(2("_"),tr1,40("_"),tr2,10("_"),tr2,12("_"),tr2,7("_"))')
             endif
             exit

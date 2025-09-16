@@ -1385,7 +1385,9 @@ $TR   COM2_pp_debug = 2*COM2_pp_debug
     type(DensityVector), intent(in)             :: R
     type(PotentialVector), intent(in), optional :: Fread
     type(PotentialVector)                       :: F
-    real(KIND=dp), intent(in), optional         :: Coulomb_guess(:,:,:)    
+    real(KIND=dp), intent(in), optional         :: Coulomb_guess(:,:,:)
+    real(KIND=dp)                               :: radius
+    integer                                     :: i
 
     call start_timer(T_potentials)
 
@@ -1409,6 +1411,23 @@ $CALCPOTENTIALS
         ! Start solving from a zero'd initial Coulomb potentials
         call SolveCoulomb(R,F)
       endif
+    endif
+
+    !---------------------------------------------------------------------------
+    ! Simulation of spherical boundary conditions
+    if(simulate_spherical_bc) then 
+      if(nx.ne.ny .or. nx.ne.nz) then   
+        call stp('Spherical boundary conditions are only meaningful for cubic meshes.')
+      endif
+      do i=1,mv 
+        radius = sqrt(sum(meshgrid(i,:)**2))
+        if(radius .gt. (nx + 0.5d0) * dx) then 
+          F%F_I_I(i,1) = F%F_I_I(i,1) + 1000.0d0
+          F%F_I_I(i,2) = F%F_I_I(i,2) + 1000.0d0
+          F%F_I_I(i,3) = F%F_I_I(i,1) + F%F_I_I(i,2)
+          F%F_I_I(i,4) = F%F_I_I(i,1) - F%F_I_I(i,2)
+        endif
+      enddo
     endif
 
     call stop_timer(T_potentials)

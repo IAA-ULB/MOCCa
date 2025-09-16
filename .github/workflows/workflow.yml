@@ -102,12 +102,11 @@ jobs:
     env:
       SUFFIX: NLO.${{ matrix.COMPILER }}.NUCLEI
     steps:
-        # Ensure the testing scripts are available
-      - name: Checkout code
+      - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
-        # Start by downloading the relevant executable
+      - name: Download executable
+        uses: actions/download-artifact@v4
         with:
           name: exec-${{ env.SUFFIX }}
           path: exec/
@@ -202,12 +201,11 @@ jobs:
       # Uniquely labelling the executables with this environment variable
       SUFFIX: ${{ matrix.CONFIG }}.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
     steps:
-      # Ensure the testing scripts are available
-      - name: Checkout code
+      - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
-        # Download the executable
+      - name: Download executable
+        uses: actions/download-artifact@v4
         with:
           name: exec-${{ env.SUFFIX }}
           path: exec/
@@ -354,23 +352,26 @@ jobs:
        EXEC_TP : ${{ matrix.CONFIG }}-TP.${{ matrix.COMPILER }}.${{ matrix.CALCTYPE }}
 
     steps:
-      # Ensure the testing scripts are available
-      - name: Checkout code
+      - name: Checkout code # needed to get the testing scripts
         uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - name: Download symmetric executable
+        uses: actions/download-artifact@v4
         with:
           name: exec-${{ env.EXEC }}
           path: exec/
-      - uses: actions/download-artifact@v4
+      - name: Download parity broken executable
+        uses: actions/download-artifact@v4
         with:
           name: exec-${{ env.EXEC_P }}
           path: exec/
-      - uses: actions/download-artifact@v4
+      - name: Download time-reversal broken executable
+        uses: actions/download-artifact@v4
         with:
           name: exec-${{ env.EXEC_T }}
           path: exec/
-      - uses: actions/download-artifact@v4
+      - name: Download TP-broken executeable
+        uses: actions/download-artifact@v4
         with:
           name: exec-${{ env.EXEC_TP }}
           path: exec/

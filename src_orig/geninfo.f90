@@ -1,19 +1,19 @@
 module GenInfo
   !=============================================================================
-  !_________ _______  _       _________ _______  _                 _______ 
+  !_________ _______  _       _________ _______  _                 _______
   !\__   __/(  ___  )( (    /|\__   __/(  ___  )( \      |\     /|(  ____ \
   !   ) (   | (   ) ||  \  ( |   ) (   | (   ) || (      | )   ( || (    \/
-  !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____ 
+  !   | |   | (___) ||   \ | |   | |   | (___) || |      | |   | || (_____
   !   | |   |  ___  || (\ \) |   | |   |  ___  || |      | |   | |(_____  )
   !   | |   | (   ) || | \   |   | |   | (   ) || |      | |   | |      ) |
   !   | |   | )   ( || )  \  |   | |   | )   ( || (____/\| (___) |/\____) |
   !   )_(   |/     \||/    )_)   )_(   |/     \|(_______/(_______)\_______)
-  !                                                                       
+  !
   !  Copyright W. Ryssens & M. Bender
   !
   !=============================================================================
   ! Hephaestos keywords:
-  ! 
+  !
   !   NUMSYM   : $NUMSYM
   !     Number of spatial symmetries, needed to calculate the volume element dv.
   !
@@ -30,15 +30,15 @@ module GenInfo
   !   LINESIZEX : $LINESIZEX
   !   LINESIZEY : $LINESIZEY
   !   LINESIZEZ : $LINESIZEZ
-  !     Relations between nx/ny/nz and the actual number of mesh points in the 
-  !     simulated system. This information is relevant here when using 
+  !     Relations between nx/ny/nz and the actual number of mesh points in the
+  !     simulated system. This information is relevant here when using
   !     periodic boundary conditions.
   !=============================================================================
 
-  use compilation
-  implicit none
+  use compilation, only : dp
+  implicit none (external)
 
-  save
+  public
 
   character(len=$SYMLEN), parameter      :: SYMSTRING  = "$SYMSTRING"
   integer, parameter                     :: reduX      = $REDUX
@@ -63,13 +63,13 @@ module GenInfo
   real(KIND=dp), parameter  :: pi=4.0_dp*atan2(1.0_dp,1.0_dp)
   !-----------------------------------------------------------------------------
   ! k_sh -- shift of the wavefunctions to be periodic
-  real(KIND=dp) :: k_shx, k_shy, k_shz 
+  real(KIND=dp) :: k_shx, k_shy, k_shz
   !-----------------------------------------------------------------------------
   ! Maximum number of iterations and number of iterations to skip printing of
   ! the code in the evolve subroutine
   integer :: MaxIter=100, PrintIter=100
   !---------------------------------------------------------------------------
-  ! This is the number of iterations during which the selfconsistent 
+  ! This is the number of iterations during which the selfconsistent
   ! potentials are not changed. The TOTAL number of iterations remains
   ! MaxIter; (MaxIter - FreezeIter) iterations DO change the potentials.
   integer :: FreezeIter = 0
@@ -78,15 +78,15 @@ module GenInfo
   ! by keeping the potentials frozen until d2H passes this limit.
   real(KIND=dp) :: d2H_freeze =1e20
   !---------------------------------------------------------------------------
-  ! Coordinates of the mesh points for the calculation as well as the 
+  ! Coordinates of the mesh points for the calculation as well as the
   ! coulomb calculation
   real(KIND=dp), allocatable         :: meshx(:), meshy(:), meshz(:)
   real(KIND=dp), allocatable, target :: meshgrid(:,:)
   ! Coordinates of the mesh points in the inertial frame of the nucleus, i.e.
   ! with the origin at the center-of-mass.
-  real(KIND=dp), allocatable         :: meshx_shifted(:), meshy_shifted(:)     
+  real(KIND=dp), allocatable         :: meshx_shifted(:), meshy_shifted(:)
   real(KIND=dp), allocatable         :: meshz_shifted(:)
-  real(KIND=dp), allocatable, target :: meshgrid_shifted(:,:)  
+  real(KIND=dp), allocatable, target :: meshgrid_shifted(:,:)
   !-----------------------------------------------------------------------------
   ! Inverse temperature Beta = (k_b T)^{-1}.
   ! Negative values are used to indicate an infinite value, i.e. T = 0.
@@ -96,16 +96,16 @@ module GenInfo
   !
   !   Keyword         Default    Quantity
   !  ------------    ---------  -------------
-  !   energy_prec     1d-9     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec 
-  !                            
+  !   energy_prec     1d-9     abs((E^(i) - E^(i-1))/E^(i))     < energy_prec
+  !
   !   moment_prec     1d-3     abs((Q2m^(i) - Q2m^(i))/Q2m^(i)) < moment_prec
-  !                                         if abs(beta_2m^(i)) > 0.01 
-  !                            
+  !                                         if abs(beta_2m^(i)) > 0.01
+  !
   !
   !   disp_prec       1d-5     abs(sum_i v^2_i <psi|h^2|psi> - epsilon^2)
   !                                     < disp_prec
   !
-  !   gradient_prec   1d+0     |s.p. gradient|  <    gradient_prec  
+  !   gradient_prec   1d+0     |s.p. gradient|  <    gradient_prec
   !
   !   fermi_prec      1d-3     abs(lambda^(i) - lambda^(i-1)) < fermi_prec
   !                                    for both nucleon species
@@ -117,8 +117,8 @@ module GenInfo
   real(KIND=dp) :: fermi_prec = 1d-3, angmom_prec   = 1d-3, gradient_prec=1d+0
   !-----------------------------------------------------------------------------
   ! Pairing tolerance
-  ! Tolerance passed into the pairing solver. What exactly this determines 
-  ! depends on the solver used, but for the default (Brent) solver, this 
+  ! Tolerance passed into the pairing solver. What exactly this determines
+  ! depends on the solver used, but for the default (Brent) solver, this
   ! determines the relative precision on the Fermi energy itself.
   !
   ! Be very careful if you change this, as reducing this precision can lead to
@@ -133,7 +133,7 @@ module GenInfo
   ! MPI parallelization variables
   !  NPROCS   = the number of MPI processes we are working with
   !  MPI_RANK = the rank of the current core
-  ! Note that MPI_ranks are indexed starting at zero. 
+  ! Note that MPI_ranks are indexed starting at zero.
   !
   ! NPROCS=1, MPI_RANK= 0 corresponds to a sequential calculation.
   !-----------------------------------------------------------------------------
@@ -148,6 +148,10 @@ module GenInfo
   ! or not. Putting this to .false. allows one to save a lot of memory at the
   ! expense of CPU time.
   logical :: store_derivatives = .true.
+  !-----------------------------------------------------------------------------
+  ! If True, add a high potential wall on the edges of the box.
+  ! This is only meaningful when dealing with cubic meshes.
+  logical :: simulate_spherical_bc = .false.
   !-----------------------------------------------------------------------------
   ! Additional MPI communicator for the assigned symmetry block
   integer              :: MPI_COMM_BLOCK   ! communicator of the local team
@@ -197,7 +201,7 @@ contains
     !   file_number : optional integer. If present, read from (open) channel
     !                 with this number. If absent, read from STDIN.
     !---------------------------------------------------------------------------
-    integer(dp), intent(in), optional   :: file_number   
+    integer(dp), intent(in), optional   :: file_number
     integer                             :: io
 #if(USE_MPI>0)
      integer                            :: mpi_err
@@ -206,13 +210,13 @@ contains
     Namelist /nucleus/ neutrons,protons, inversetemp, mun, mup, fixfermi,      &
     &                  energy_prec, moment_prec, disp_prec, pairing_prec,      &
     &                  store_derivatives, fermi_prec, block_factor_row,        &
-    &                  block_factor_col
+    &                  block_factor_col, simulate_spherical_bc
     Namelist /mesh/    nx,ny,nz, dx
 
-    if(MPI_rank .eq. 0) then    
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    if(MPI_rank == 0) then
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ! Reading the information on the nucleus by the first MPI rank
-      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+      ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
       if(present(file_number)) then
         read (unit=file_number, nml=nucleus, iostat=io)
@@ -227,7 +231,7 @@ contains
         read (unit=*, nml=mesh)
       endif   
 
-      if(fixfermi .and. (mun.eq.-10d8 .or.mup.eq.-10d8) )then
+      if(fixfermi .and. (mun==-10d8 .or.mup==-10d8) )then
         call stp( 'You should fix an appropriate Lambda_N and Lambda_P.')
         stop
       endif
@@ -266,7 +270,7 @@ contains
     call MPI_BCAST(fixfermi, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, mpi_err)
     ! c) convergence parameters
     ! Note: convergence checking is likely to be done by a single MPI_RANK
-    !       but this duplication just makes future programming errors 
+    !       but this duplication just makes future programming errors
     !       less likely.
     call MPI_BCAST(energy_prec , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(moment_prec , 1, MPI_REAL8, 0, MPI_COMM_WORLD, mpi_err)
@@ -280,8 +284,8 @@ contains
     call MPI_BCAST(block_factor_row  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
     call MPI_BCAST(block_factor_col  ,1,MPI_INTEGER, 0, MPI_COMM_WORLD, mpi_err)
 #endif
-  
-    ! Some bookkeeping operations, to be executed by all MPIranks 
+
+    ! Some bookkeeping operations, to be executed by all MPIranks
     mv = nx * ny * nz
     dv = (dx**3)*(2**$NUMSYM)
     ! NS: Shift of the wavefunctions applied
@@ -301,12 +305,12 @@ contains
   function vector_product( mu ) result(indices)
     !---------------------------------------------------------------------------
     ! Function that returns the indices of the vector product with index mu
-    ! meaning that in the expression 
-    ! 
+    ! meaning that in the expression
+    !
     !          (v1 x v2)_mu  = sum_(nu kappa) eps_{mu nu kappa} v1_nu v2_kappa
-    !   
-    ! It returns the indices of v1 and v2 on the rhs of this equation with the 
-    ! positive Levi-Civita symbol. 
+    !
+    ! It returns the indices of v1 and v2 on the rhs of this equation with the
+    ! positive Levi-Civita symbol.
     !
     ! Hence, we can write
     !       i = indices(1)
@@ -315,26 +319,26 @@ contains
     !---------------------------------------------------------------------------
     integer :: indices(2)
     integer, intent(in) :: mu
-        
+
     select case(mu)
     case(1)
       ! (v1 x v2)_x = v1_y v2_z - v1_z v2_y
-      indices = (/ 2, 3 /)
+      indices = [ 2, 3 ]
     case(2)
       ! (v1 x v2)_y = v1_z v2_x - v1_x v2_z
-      indices = (/ 3, 1 /)
+      indices = [ 3, 1 ]
     case(3)
       ! (v1 x v2)_z = v1_x v2_y - v1_y v2_z
-      indices = (/ 1, 2 /)
+      indices = [ 1, 2 ]
     end select
 
   end function vector_product
-  
+
   subroutine inimesh(x,y,z, mx, my, mz, mesh, shiftx, shifty, shiftz)
     !---------------------------------------------------------------------------
     ! Generate the coordinates of the mesh points for the Lagrange mesh.
     !
-    ! Input: 
+    ! Input:
     !  mx,my,mz   : number of points on the mesh in every direction that need
     !               to be represented
     !  shiftx/y/z : Coordinates of the nuclear c.o.m. with respect to the box
@@ -352,35 +356,35 @@ contains
     real(KIND=dp), intent(out), allocatable, target :: mesh(:,:)
 
     real(KIND=dp)          :: startx, starty, startz
-    real(KIND=dp), pointer :: gridx(:,:,:), gridY(:,:,:)  , gridZ(:,:,:)    
+    real(KIND=dp), pointer :: gridx(:,:,:), gridY(:,:,:)  , gridZ(:,:,:)
 
     allocate( x(mx), y(my),z(mz))
     allocate(mesh(mx*my*mz,3))
-    
-    if(reduX .eq.1) then
+
+    if(reduX ==1) then
       startX = 1/2.0_dp
     else
-      startX = -(mx/2-1/2.0_dp) - shiftx/dx     
+      startX = -(mx/2-1/2.0_dp) - shiftx/dx
                                 ! divided by dx, because we will multiply after
     endif
-    
-    if(reduY .eq.1) then
+
+    if(reduY ==1) then
       startY = 1/2.0_dp
     else
       startY = -(my/2-1/2.0_dp) - shifty/dx
                                 ! divided by dx, because we will multiply after
     endif
-    
-    if(reduZ .eq.1) then
+
+    if(reduZ ==1) then
       startZ = 1/2.0_dp
     else
       startZ = -(mz/2-1/2.0_dp) - shiftz/dx
                                 ! divided by dx, because we will multiply after
     endif
-    
+
     do i=1,mx
       x(i) = (startx +(i-1))*dx
-    enddo    
+    enddo
 
     do i=1,my
       y(i) = (starty +(i-1))*dx
@@ -400,37 +404,37 @@ contains
           gridx(i,j,k) = x(i)
           gridy(i,j,k) = y(j)
           gridz(i,j,k) = z(k)
-        enddo 
+        enddo
       enddo
     enddo
-    
+
   end subroutine inimesh
-  
+
   integer function meshindex(i,j,k)
       !-------------------------------------------------------------------------
       ! The code relies on two types of mesh storage
-      !   1) (i,j,k): indices used for arrays stored on a three-dimensional 
-      !               mesh such as for example the Coulomb potential. 
+      !   1) (i,j,k): indices used for arrays stored on a three-dimensional
+      !               mesh such as for example the Coulomb potential.
       !               we have 1 <= i <= nx
       !                       1 <= j <= ny
       !                       1 <= k <= nz
       !   2) (i)    : one-dimensional indices that are used for efficiency
       !               to index the whole mesh.
       !                       1 <= i <= nx*ny*nz
-      ! 
+      !
       ! This routine translates a set of indices (i,j,k) into the corresponding
-      ! index in a one-dimensional mapping. 
-      ! 
+      ! index in a one-dimensional mapping.
+      !
       ! Input:
       !   i,j,k : x/y/z mesh-indices in a three-dimensional mapping
       ! Output:
       !   meshindex : the equivalent index in a 1D mapping in FORTRAN order
-      !               i+(j-1)*nx+(k-1)*ny*nx 
+      !               i+(j-1)*nx+(k-1)*ny*nx
       !-------------------------------------------------------------------------
       integer, intent(in) :: i,j,k
-      
+
       meshindex = i+(j-1)*nx+(k-1)*ny*nx
-  
+
   end function meshindex
 
   subroutine find_nml_error(nmlname, iunit)
@@ -438,46 +442,46 @@ contains
     ! Complain about an error in a namelist input, using the backspace command
     ! to find the offending line in an opened file. Note: this means this cannot
     ! be used to find errors in STDINPUT.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    ! Input: 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Input:
     !     nmlname : namelist name, to tell the user.
     !     iunit   : unit of the opened file to backspace.
     !
     !---------------------------------------------------------------------------
-    character(len=*)    :: nmlname
-    integer, intent(in) :: iunit
-    
+    character(len=*), intent(in) :: nmlname
+    integer, intent(in)          :: iunit
+
     character(len=1000) :: line
 
     backspace(iunit)
     read(iunit,fmt='(A)') line
-    
+
     print *, '--------------------------------------------------------------'
     print *, 'Input problem encountered for namelist ', nmlname
-    print *, 'This is the offending line:' 
+    print *, 'This is the offending line:'
     print *, ' > ', trim(line)
     print *, 'It likely contains a variable the code does not know about.'
     print *, '--------------------------------------------------------------'
-    
+
     ! Stop the program
     call stp('')
-  end subroutine find_nml_error 
+  end subroutine find_nml_error
 
   subroutine stp(msg, routine)
     !---------------------------------------------------------------------------
     ! A routine for stopping the entire code elegantly. For a single-core run
-    ! it is somewhat trivial to type "print *, 'some error' ; stop" but this 
+    ! it is somewhat trivial to type "print *, 'some error' ; stop" but this
     ! does not translate well to MPI runs.
-    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! Input:
     !     msg    : character, message to display.
-    !     routine: character, optional. Name of the routine from which stp 
+    !     routine: character, optional. Name of the routine from which stp
     !              was called.
     !---------------------------------------------------------------------------
     character(len=*), intent(in)           :: msg
     character(len=*), intent(in), optional :: routine
 
-#if(USE_MPI>0)    
+#if(USE_MPI>0)
     integer :: mpi_err
     print *, 'RANK ', MPI_RANK, ' reports the following error: ', msg
 #else
@@ -496,7 +500,9 @@ contains
     ! Calculate the total memory requirement to store N real numbers in
     ! double precision in units of Gigabytes.
     !
-    integer(kind=LargeInt), intent(in) :: N
+    use iso_fortran_env, only: int64
+
+    integer(kind=int64), intent(in) :: N
     real(KIND=dp)                      :: mem
 
     mem = (N * 8.0d0)/1024/1024/1024
@@ -509,12 +515,12 @@ contains
     !---------------------------------------------------------------------------
     integer, intent(in) :: i,j,k
 
-    if((i.eq.j).or.(j.eq.k).or.(k.eq.i)) then
+    if((i==j).or.(j==k).or.(k==i)) then
         LeviCivita=0
 
-    elseif(((i.eq.1).and.(j.eq.2).and.(k.eq.3)) &
-     & .or.((i.eq.3).and.(j.eq.1).and.(k.eq.2)) &
-     & .or.((i.eq.2).and.(j.eq.3).and.(k.eq.1))) then
+    elseif(((i==1).and.(j==2).and.(k==3)) &
+     & .or.((i==3).and.(j==1).and.(k==2)) &
+     & .or.((i==2).and.(j==3).and.(k==1))) then
         LeviCivita=1
     else
         LeviCivita=-1
@@ -522,13 +528,13 @@ contains
 
     return
   end function LeviCivita
-  
+
   function to_upper (str) result (string)
     !---------------------------------------------------------------------------
     ! Subroutine that changes a string to uppercase.
     !---------------------------------------------------------------------------
-    character(*)        :: str
-    character(len(str)) :: string
+    character(*), intent(in) :: str
+    character(len(str))      :: string
 
     Integer :: ic, i
     !Ugly but effective and independent of platform and implementation.
@@ -551,8 +557,8 @@ contains
     !---------------------------------------------------------------------------
     ! Subroutine that changes a string to lowercase.
     !---------------------------------------------------------------------------
-    character(*)        :: str
-    character(len(str)) :: string
+    character(*), intent(in) :: str
+    character(len(str))      :: string
 
     Integer :: ic, i
     !Ugly but effective and independent of platform and implementation.
@@ -573,13 +579,13 @@ contains
 
   function rps(string,length) result(r)
     !--------------------------------------------------------------------------
-    ! function rps (right-padded-string) to add blancs to a string such that 
-    ! it is printed left adjusted. Inspired by 
+    ! function rps (right-padded-string) to add blancs to a string such that
+    ! it is printed left adjusted. Inspired by
     ! http://computer-programming-forum.com/49-fortran/45c9683fdbd85176.htm
     !--------------------------------------------------------------------------
-    character(len=*) :: string
-    integer          :: length
-    character(len=length) :: r
+    character(len=*), intent(in) :: string
+    integer, intent(in)          :: length
+    character(len=length)        :: r
 
     r = adjustl(string)
   end function rps 
@@ -589,7 +595,7 @@ contains
     ! Deallocate all allocated arrays, to exit in a clean fashion.
     !
     !---------------------------------------------------------------------------
-  
+
     if(allocated(meshx)) then
       deallocate(meshx, meshy, meshz)
       deallocate(meshgrid)
