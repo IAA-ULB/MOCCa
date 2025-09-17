@@ -15,10 +15,13 @@ ELPA comes with a python wrapper `pyelpa`. For ScaLAPACK a python wrapper was fo
     # Application code below is independent of the chosen backend.
     ...
 ```
+> **Note:** Although the pyev backend will probably require some extensions in case it will be used in a full fledge Python version of MOCCA, that is hardly a problem.  
 
 ## Scaling tests
 
 Run on LUMI-C where compute nodes have 128 cores and approximately 2 GB of RAM per core.
+
+> **Note:** With approximately 2 GB RAM per core we estimate the upper bound for the local matrix size as `math.sqrt(2*1024**3) ~= 46 000`.
 
 ### Single node tests
 
@@ -49,4 +52,3 @@ The advantage of elpa ranges from 2.5 times faster than ScaLAPACK for small syst
 
 Strong scaling is obviously missing, because the work of the algorithm increases as the third power of the number of rows.
 
-> :memo: **Note:** With approximately 2 GB RAM per core we estimate the upper bound for the local matrix size as `math.sqrt(2*1024**3) ~= 46 000`.
